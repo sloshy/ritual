@@ -12,15 +12,14 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { artSidecarPath } from './card-art'
 import { hashPath, isRitualClean, writeFileWithHash } from '../changes/content-hash'
 import { newDeckMarkdown } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
 import { sanitizeListFileName, unusableFileNameMessage, listSlug } from './list-file-name'
 import {
-  changelogSidecarPath,
+  LIST_SIDECAR_KINDS,
+  listSidecarPath,
   moveListSidecars,
-  primerSidecarPath,
   renameListThroughTemp,
 } from './list-sidecars'
 import { listTypeLabel, type ListType } from './list-type'
@@ -377,7 +376,8 @@ export async function renameList(
 /**
  * Delete a list file and every sidecar it may have: the `.sha256` content hash,
  * the `.changes.md` changelog, the `.primer.md` primer, and the `.art.json`
- * custom art. Sidecar paths come from `list-sidecars`/`content-hash`/`card-art`
+ * custom art, and its categories sidecar with its own hash. Sidecar paths come
+ * from `list-sidecars`/`content-hash`/`card-art`/`card-categories-sidecar`
  * uniformly, so none can be orphaned by a
  * hand-rolled path at one call site.
  */
@@ -389,12 +389,10 @@ export async function deleteList(type: ListType, filePath: string): Promise<Dele
     }
   }
 
+  // Every kind in the sidecar table, so a new one cannot be orphaned here.
   const candidates = [
     filePath,
-    hashPath(filePath),
-    changelogSidecarPath(filePath),
-    primerSidecarPath(filePath),
-    artSidecarPath(filePath),
+    ...LIST_SIDECAR_KINDS.map((kind) => listSidecarPath[kind](filePath)),
   ]
   const deletedFiles: string[] = []
   for (const candidate of candidates) {

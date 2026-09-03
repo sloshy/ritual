@@ -1557,6 +1557,10 @@ export const adminMeta = {
     description:
       "Warning in an editor save's response when the list's (or a move destination's) <list>.art.json custom-art sidecar could not be read, so the &N ids the save freed or renumbered could not be re-filed. {reason} is untranslated engine prose naming the file and the parse failure. A warning, never a failure: the card lines were written correctly.",
   },
+  'admin.api.save.categoriesUnreconciled': {
+    description:
+      "Warning in an editor save's response when the list's <list>.categories.json sidecar could not be read or written, so the save's category assignments were not recorded. {reason} is untranslated engine prose naming the file and the failure. A warning, never a failure: the card lines were written correctly.",
+  },
   'admin.api.art.set': {
     description:
       "Success alert after a card's custom art is set from the editor. {name} is the list's slug. The card is not named: card ids are internal, and the alert appears beside the card that was just edited.",

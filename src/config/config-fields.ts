@@ -3,6 +3,7 @@ import {
   getDefaultRitualConfig,
   getSiteSelectionConfig,
   isConfigParseError,
+  type ConfigParseError,
   parseBannedPrinting,
   parseCacheFeedUrl,
   parseCacheLockTimeoutSeconds,
@@ -19,6 +20,7 @@ import {
 } from './ritual-config'
 import { invalidLanguageMessage, normalizeLanguageValue } from '../card/card-language'
 import { parsePriceSources } from '../pricing/price-source'
+import { parseDefaultCategories } from '../card/card-categories'
 import { getAtPath } from '../util/object'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
@@ -72,11 +74,23 @@ export function mergeArrayValues(
   current: readonly string[],
   values: readonly string[],
   mode: ArrayMode,
+  foldKey: (value: string) => string = (value) => value,
 ): string[] {
-  if (mode === 'replace') return [...new Set(values)]
-  if (mode === 'add') return [...new Set([...current, ...values])]
-  const toRemove = new Set(values)
-  return current.filter((item) => !toRemove.has(item))
+  const dedupe = (all: readonly string[]): string[] => {
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const value of all) {
+      const key = foldKey(value)
+      if (seen.has(key)) continue
+      seen.add(key)
+      result.push(value)
+    }
+    return result
+  }
+  if (mode === 'replace') return dedupe(values)
+  if (mode === 'add') return dedupe([...current, ...values])
+  const toRemove = new Set(values.map(foldKey))
+  return current.filter((item) => !toRemove.has(foldKey(item)))
 }
 
 /**
@@ -117,6 +131,21 @@ export type ConfigSetOutcome = ConfigSetSuccess | ConfigSetError
 // Typed as Record<string, ConfigFieldType> to allow runtime string-key lookups (noUncheckedIndexedAccess
 // returns ConfigFieldType | undefined). The `satisfies SettableFieldsMap` check enforces that all keys
 // are valid RitualConfig property names and each value matches that field's actual type.
+/**
+ * The `string[]` keys whose values the loader parses, keyed by property name.
+ * `config set` runs the same parser over what it is about to write — and over
+ * the merged result — so the write path can never persist a value the read path
+ * would refuse or silently canonicalize away. Stated once so a third such key
+ * does not add a third copy of the wiring.
+ */
+const ARRAY_VALUE_PARSERS: Record<
+  string,
+  (values: readonly string[]) => string[] | ConfigParseError
+> = {
+  priceSources: parsePriceSources,
+  defaultCategories: parseDefaultCategories,
+}
+
 export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   decksDir: 'string',
   collectionsDir: 'string',
@@ -124,6 +153,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   artDir: 'string',
   defaultCurrency: 'string',
   priceSources: 'string[]',
+  defaultCategories: 'string[]',
   defaultLanguage: 'string',
   uiLocale: 'string',
   cacheLockTimeoutSeconds: 'number',
@@ -314,11 +344,11 @@ export function applyConfigSet(
     // normalize the inputs (lowercasing set codes) before any set operation —
     // this also lets `--remove SLD:123` match a stored `sld:123` entry.
     let inputValues = values
-    // Price sources go through the loader's own parser (lowercase, dedupe,
-    // reject unknown stores), so the write path can never persist a value the
-    // load path would silently reset to the default.
-    if (property === 'priceSources') {
-      const parsed = parsePriceSources(values)
+    // A key with its own loader parser goes through it here, so the write path
+    // can never persist a value the load path would silently reset (or reject).
+    const parser = ARRAY_VALUE_PARSERS[property]
+    if (parser !== undefined) {
+      const parsed = parser(values)
       if (isConfigParseError(parsed)) return parsed
       inputValues = parsed
     }
@@ -333,7 +363,24 @@ export function applyConfigSet(
     }
 
     const current = (getAtPath(config, path) as string[] | undefined) ?? []
-    const newArr = mergeArrayValues(current, inputValues, mode)
+    // These vocabularies fold case-insensitively (a price source lowercases; a
+    // category's identity is its lowercased name), so the merge must too —
+    // otherwise `--add ramp` sits beside a stored `Ramp` and `--remove Ramp`
+    // misses a stored `ramp`, and the next load silently collapses the pair.
+    const foldedMerge = parser !== undefined
+    let newArr = mergeArrayValues(
+      current,
+      inputValues,
+      mode,
+      foldedMerge ? (value) => value.toLowerCase() : undefined,
+    )
+    if (parser !== undefined) {
+      // Canonicalize the MERGED array, not just the input: what is written must
+      // be exactly what the loader would read back.
+      const merged = parser(newArr)
+      if (isConfigParseError(merged)) return merged
+      newArr = merged
+    }
 
     // Safe: path is a validated keyof RitualConfig, value is a string[].
     const updatedConfig = setAtPath(configObj, path, newArr) as unknown as RitualConfig

@@ -713,6 +713,10 @@ export const cliEditMeta = {
   'cli.history.emptyList': {
     description: 'The rewrite found no cards to describe, so there is nothing to write.',
   },
+  'cli.history.categoriesUnreadable': {
+    description:
+      "Warning printed before a history rewrite: the list's <list>.categories.json sidecar could not be read, so the rebuilt history will describe no categories. {reason} is the parser's English sentence, already naming the file.",
+  },
   'cli.history.rewrote': {
     description:
       'Confirms the generated change set, in memory only. The English "entr(y/ies)" is a legacy contraction rather than a real plural.',

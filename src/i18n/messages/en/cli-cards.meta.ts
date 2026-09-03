@@ -888,12 +888,24 @@ export const cliCardsMeta = {
     description:
       'Per-file warning: the parse skipped lines, so re-emitting the file would drop them.',
   },
+  'cli.cleanup.categoriesNotPruned': {
+    description:
+      "Per-file warning: the parse skipped lines, so cleanup canonicalized the list's categories sidecar without dropping assignments for cards it could not see.",
+  },
   'cli.cleanup.actionFormatSet': {
     description: 'One reported action: a deck got a format. {format} is a format slug.',
   },
   'cli.cleanup.actionRenamed': { description: 'One reported action: the file was renamed.' },
   'cli.cleanup.actionRewritten': {
     description: 'One reported action: the file was re-emitted in canonical form.',
+  },
+  'cli.cleanup.actionCategoriesRewritten': {
+    description:
+      "One reported action: the list's <list>.categories.json sidecar was re-serialized in canonical form (resolved display order, sorted card keys).",
+  },
+  'cli.cleanup.categoriesPruned': {
+    description:
+      'One reported action: category assignments were dropped because the list no longer holds a card of that name. {count} is how many, {names} the comma-joined card names (never translated).',
   },
   'cli.cleanup.actionNeedsFormat': {
     description: 'One reported action under --dry-run: this deck would be asked for a format.',

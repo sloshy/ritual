@@ -27,4 +27,15 @@ export type ListSaveResponse = ApiMessage & {
    * Omitted when every reconcile was clean.
    */
   artWarnings?: string[]
+  /**
+   * The categories sidecar this save could not read or write. The card lines
+   * were written either way — a warning channel like {@link artWarnings}.
+   * Omitted when the sidecar was written (or left alone) cleanly.
+   */
+  categoryWarnings?: string[]
+  /**
+   * Card names whose category assignments this save dropped, because the list no
+   * longer holds a line of that name. Omitted when nothing was pruned.
+   */
+  prunedCategories?: string[]
 }

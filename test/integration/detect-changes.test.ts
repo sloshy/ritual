@@ -445,6 +445,22 @@ describe('detect-changes --hash-only', () => {
     expect(await fileExists(`${primerPath}.sha256`)).toBe(false)
   })
 
+  test('stamps a categories sidecar in its own right', async () => {
+    repo = await setupRepo()
+    const sidecar = repo.deckPath.replace(/\.md$/, '.categories.json')
+    const content =
+      '{\n  "order": [\n    "Ramp"\n  ],\n  "cards": {\n    "Sol Ring": [\n      "Ramp"\n    ]\n  }\n}\n'
+    await fs.writeFile(sidecar, content)
+
+    const result = await runCli(['detect-changes', '--hash-only'], repo.dir)
+    expect(result.exitCode).toBe(0)
+    // The sidecar carries its own `.sha256`, so it is stamped beside the list.
+    expect(await loadHash(sidecar)).toBe(computeHash(content))
+    expect(result.stdout).toContain(path.join('decks', 'test-deck.categories.json'))
+    // It had no sidecar of its own, so stamping it forfeits its edits too.
+    expect(result.stderr).toContain(path.join('decks', 'test-deck.categories.json'))
+  })
+
   test('text mode prints each stamped file with the hash it wrote, then a count', async () => {
     repo = await setupRepo()
 
@@ -576,6 +592,183 @@ describe('detect-changes --verify', () => {
     expect(result.stdout).toContain('1 file: 0 clean, 1 diverged, 0 without a sidecar.')
     expect(result.stdout).toContain('to record these edits in changelogs')
     expect(result.stdout).toContain('--hash-only')
+  })
+})
+
+describe('detect-changes — categories sidecar', () => {
+  const SIDECAR =
+    '{\n  "order": [\n    "Ramp"\n  ],\n  "cards": {\n    "Sol Ring": [\n      "Ramp"\n    ]\n  }\n}\n'
+  const SIDECAR_EDITED =
+    '{\n  "order": [\n    "Ramp",\n    "Artifacts"\n  ],\n  "cards": {\n    "Sol Ring": [\n      "Ramp",\n      "Artifacts"\n    ]\n  }\n}\n'
+
+  const sidecarPath = (deckPath: string): string => deckPath.replace(/\.md$/, '.categories.json')
+
+  test('a hand-edited sidecar lands on the LIST\u2019s changelog and stamps its own hash', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await writeFileWithHash(sidecar, SIDECAR)
+    commitAll(repo.dir, 'ritual writes the sidecar')
+    const base = git(repo.dir, 'rev-parse', 'HEAD').trim()
+
+    // A raw edit: the sidecar's `.sha256` is left stale.
+    await fs.writeFile(sidecar, SIDECAR_EDITED)
+    commitAll(repo.dir, 'hand edit the categories')
+
+    const output = await detectChanges(base, repo.dir)
+    const result = output.results.find((r) => r.file.endsWith('test-deck.md'))
+    expect(result?.categoriesFile).toBe(path.join('decks', 'test-deck.categories.json'))
+    expect(result?.changes.map((change) => change.action)).toEqual([
+      'set-category-order',
+      'set-categories',
+    ])
+
+    expect(await applyDetectedChanges(output, repo.dir, { dryRun: false })).toBe(1)
+    const changelog = await fs.readFile(repo.deckPath.replace(/\.md$/, '.changes.md'), 'utf-8')
+    expect(changelog).toContain('Set categories of "Sol Ring" to Ramp, Artifacts')
+    expect(changelog).toContain('Set category order to Ramp, Artifacts')
+
+    // Stamped, so a second run reports nothing.
+    expect(await loadHash(sidecar)).toBe(computeHash(SIDECAR_EDITED))
+    const rerun = await detectChanges(base, repo.dir)
+    expect(rerun.results.flatMap((r) => r.changes)).toEqual([])
+  })
+
+  test('a ritual-clean sidecar is skipped', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await writeFileWithHash(sidecar, SIDECAR)
+    commitAll(repo.dir, 'ritual writes the sidecar')
+    const base = git(repo.dir, 'rev-parse', 'HEAD').trim()
+
+    // Ritual's own edit: content and hash written together.
+    await writeFileWithHash(sidecar, SIDECAR_EDITED)
+    commitAll(repo.dir, 'ritual edits the categories')
+
+    const output = await detectChanges(base, repo.dir)
+    expect(output.results.flatMap((r) => r.changes)).toEqual([])
+  })
+
+  test('a sidecar ADDED in the range records its assignments', async () => {
+    repo = await setupRepo()
+    await fs.writeFile(sidecarPath(repo.deckPath), SIDECAR)
+    commitAll(repo.dir, 'add the categories by hand')
+
+    const output = await detectChanges(repo.before, repo.dir)
+    const result = output.results.find((r) => r.file.endsWith('test-deck.md'))
+    expect(result?.changes.map((change) => change.action)).toEqual([
+      'set-category-order',
+      'set-categories',
+    ])
+  })
+
+  test('a sidecar DELETED by hand records the clearing events, once', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await writeFileWithHash(sidecar, SIDECAR)
+    commitAll(repo.dir, 'ritual writes the sidecar')
+    const base = git(repo.dir, 'rev-parse', 'HEAD').trim()
+
+    await fs.rm(sidecar)
+    commitAll(repo.dir, 'delete the categories by hand')
+
+    const output = await detectChanges(base, repo.dir)
+    const result = output.results.find((r) => r.file.endsWith('test-deck.md'))
+    expect(result?.changes.map((change) => change.action)).toEqual([
+      'set-category-order',
+      'set-categories',
+    ])
+
+    expect(await applyDetectedChanges(output, repo.dir, { dryRun: false })).toBe(1)
+    const changelog = await fs.readFile(repo.deckPath.replace(/\.md$/, '.changes.md'), 'utf-8')
+    expect(changelog).toContain('Cleared categories of "Sol Ring"')
+
+    // The `.sha256` went with the file, and its absence is what tells a second
+    // run the clearing is already recorded.
+    expect(await fileExists(`${sidecar}.sha256`)).toBe(false)
+    const rerun = await detectChanges(base, repo.dir)
+    expect(rerun.results.flatMap((r) => r.changes)).toEqual([])
+  })
+
+  test('deleting the list AND its sidecar records only the list\u2019s own deletion', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await writeFileWithHash(sidecar, SIDECAR)
+    commitAll(repo.dir, 'ritual writes the sidecar')
+    const base = git(repo.dir, 'rev-parse', 'HEAD').trim()
+
+    await fs.rm(sidecar)
+    await fs.rm(repo.deckPath)
+    await fs.rm(`${repo.deckPath}.sha256`)
+    commitAll(repo.dir, 'delete the deck outright')
+
+    const output = await detectChanges(base, repo.dir)
+    expect(output.results.map((r) => r.status)).toEqual(['D'])
+    expect(output.results.flatMap((r) => r.changes)).toEqual([])
+  })
+
+  test('a malformed sidecar produces a parse warning and no changelog entry', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await fs.writeFile(sidecar, '{ nope')
+    commitAll(repo.dir, 'a broken sidecar')
+
+    const output = await detectChanges(repo.before, repo.dir)
+    expect(output.warnings.map((warning: DetectWarning) => warning.kind)).toContain('parse')
+    expect(output.results.flatMap((r) => r.changes)).toEqual([])
+  })
+
+  test('deleting the sidecar AND its .sha256 in one commit records nothing', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await writeFileWithHash(sidecar, SIDECAR)
+    commitAll(repo.dir, 'ritual writes the sidecar')
+    const base = git(repo.dir, 'rev-parse', 'HEAD').trim()
+
+    await fs.rm(sidecar)
+    await fs.rm(`${sidecar}.sha256`)
+    commitAll(repo.dir, 'delete the sidecar and its hash by hand')
+
+    // The documented trade-off: a deleted file has no content to hash, so the
+    // hash's presence is the only signal that Ritual still holds an
+    // unreconciled record of it. Removing both leaves nothing to detect.
+    const output = await detectChanges(base, repo.dir)
+    expect(output.results.flatMap((r) => r.changes)).toEqual([])
+  })
+
+  test('a sidecar-only change never stamps the list file it did not diff', async () => {
+    repo = await setupRepo()
+    const sidecar = sidecarPath(repo.deckPath)
+    await writeFileWithHash(sidecar, SIDECAR)
+    commitAll(repo.dir, 'ritual writes the sidecar')
+    const base = git(repo.dir, 'rev-parse', 'HEAD').trim()
+
+    await fs.writeFile(sidecar, SIDECAR_EDITED)
+    commitAll(repo.dir, 'hand edit the categories')
+
+    // An unrecorded hand edit sitting in the working tree, uncommitted: the
+    // deck's `.sha256` still names the committed content.
+    const staleDeckHash = await loadHash(repo.deckPath)
+    await fs.writeFile(repo.deckPath, DECK_AFTER)
+
+    const output = await detectChanges(base, repo.dir)
+    expect(await applyDetectedChanges(output, repo.dir, { dryRun: false })).toBe(1)
+
+    // Stamping it here would declare the working-tree edit already recorded, and
+    // the commit that lands it would then be skipped forever.
+    expect(await loadHash(repo.deckPath)).toBe(staleDeckHash)
+    expect(await loadHash(sidecar)).toBe(computeHash(SIDECAR_EDITED))
+  })
+
+  test('--verify lists the sidecar alongside its list file', async () => {
+    repo = await setupRepo()
+    await fs.writeFile(sidecarPath(repo.deckPath), SIDECAR)
+
+    const result = await runCli(['detect-changes', '--verify'], repo.dir)
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toContain(
+      `${path.join('decks', 'test-deck.categories.json')}: no sidecar`,
+    )
+    expect(result.stdout).toContain(`${path.join('decks', 'test-deck.md')}: clean`)
   })
 })
 

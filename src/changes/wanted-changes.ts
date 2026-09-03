@@ -113,6 +113,17 @@ export function applyChangeToWantedList(
       return entries
     }
 
+    case 'set-categories':
+    case 'rename-category':
+    case 'set-category-order': {
+      // Categories are keyed by card NAME and live in the list's
+      // `.categories.json` sidecar, never on a card line — so the entries are
+      // untouched and this is not a miss. The record travelling beside them is
+      // replayed by `applyCategoryChangesToRecord` and written to disk by
+      // `commitCategoryChanges` at save time.
+      return entries
+    }
+
     case 'add-tag':
       return updateTarget(entries, change, options, (e) => ({
         ...e,

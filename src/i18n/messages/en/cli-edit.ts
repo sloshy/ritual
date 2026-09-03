@@ -353,6 +353,8 @@ export const cliEditMessages = {
   'cli.history.rewriteYes': 'Yes, rewrite with defaults',
   'cli.history.rewriteNo': 'No, cancel',
   'cli.history.emptyList': 'The list is empty — nothing to rewrite.',
+  'cli.history.categoriesUnreadable':
+    "⚠️  The rewrite describes no categories — the list's categories sidecar could not be read: {reason}",
   'cli.history.rewrote':
     'Rewrote history as a single change set with {count} entr(y/ies) (in memory).',
   'cli.history.nothingToUndo': 'Nothing to undo.',

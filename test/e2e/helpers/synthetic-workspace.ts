@@ -486,6 +486,7 @@ const RITUAL_CONFIG = {
   // Cardmarket rides along so the EUR currency stays offered — the currency
   // selector only lists currencies an enabled store can answer for.
   priceSources: ['tcgplayer', 'cardmarket'],
+  defaultCategories: ['Ramp', 'Draw', 'Removal'],
 } satisfies RitualConfig
 
 /** Create the complete synthetic workspace inside `dir` (which must exist). */

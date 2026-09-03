@@ -3,6 +3,7 @@ import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
 import { hasErrorCode } from '../util/errors'
+import { CATEGORIES_SIDECAR_SUFFIX } from '../list/card-categories-sidecar'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -47,6 +48,21 @@ export function classifyFile(filePath: string): ListKind | null {
   if (collectionsPrefix && normalized.startsWith(collectionsPrefix)) return 'collection'
   if (wantedPrefix && normalized.startsWith(wantedPrefix)) return 'wanted'
   return null
+}
+
+/**
+ * The list a `.categories.json` path belongs to, or null when it is not one.
+ * The suffix and the `.md` derivation come from the sidecar module, so the
+ * filename convention has exactly one definition.
+ */
+export function classifyCategoriesFile(filePath: string): ListKind | null {
+  if (!filePath.endsWith(CATEGORIES_SIDECAR_SUFFIX)) return null
+  return classifyFile(listFileForCategoriesPath(filePath))
+}
+
+/** The list `.md` a `.categories.json` path belongs to. */
+export function listFileForCategoriesPath(sidecarPath: string): string {
+  return sidecarPath.slice(0, -CATEGORIES_SIDECAR_SUFFIX.length) + '.md'
 }
 
 export function changesPath(listFilePath: string): string {
@@ -167,8 +183,10 @@ export function probeGitRef(commit: string, cwd: string): GitProbeResult {
 }
 
 /**
- * Return the list of file changes between `commit` and HEAD, filtered to
- * list files (decks/, collections/, wanted/) only.
+ * Return the list of file changes between `commit` and HEAD, filtered to list
+ * files (decks/, collections/, wanted/) and their `.categories.json` sidecars.
+ * Callers classify each row — `classifyFile` for the list files,
+ * {@link classifyCategoriesFile} for the sidecars.
  *
  * Uses `-M` to enable rename detection.
  */
@@ -182,10 +200,19 @@ export function getChangedFiles(commit: string, cwd: string): FileChange[] {
   return parseNameStatus(raw)
 }
 
+/** A path {@link parseNameStatus} keeps: a list file, or its categories sidecar. */
+function isTrackedPath(filePath: string): boolean {
+  return classifyFile(filePath) !== null || classifyCategoriesFile(filePath) !== null
+}
+
 /**
  * Parse the raw output of `git diff --name-status`.
  *
  * Each line is tab-separated: `<status>\t<path>` or `<Rnn>\t<old>\t<new>`.
+ *
+ * The result carries list `.md` files **and** their `.categories.json`
+ * sidecars, which carry their own `.sha256` and their own changelog events, so
+ * every caller must classify each row rather than assuming it is a list file.
  */
 export function parseNameStatus(raw: string): FileChange[] {
   const results: FileChange[] = []
@@ -202,12 +229,12 @@ export function parseNameStatus(raw: string): FileChange[] {
       const oldPath = parts[1]
       const newPath = parts[2]
       if (!oldPath || !newPath) continue
-      if (!classifyFile(newPath) && !classifyFile(oldPath)) continue
+      if (!isTrackedPath(newPath) && !isTrackedPath(oldPath)) continue
       results.push({ status: 'R', oldPath, path: newPath })
     } else if (statusField === 'A' || statusField === 'M' || statusField === 'D') {
       const filePath = parts[1]
       if (!filePath) continue
-      if (!classifyFile(filePath)) continue
+      if (!isTrackedPath(filePath)) continue
       results.push({ status: statusField, oldPath: filePath, path: filePath })
     }
   }

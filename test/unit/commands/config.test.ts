@@ -512,6 +512,40 @@ describe('applyConfigSet — priceSources', () => {
   })
 })
 
+describe('applyConfigSet — defaultCategories', () => {
+  test('canonicalizes what it writes: trimmed, whitespace-folded, first spelling wins', () => {
+    const result = applyConfigSet(
+      base,
+      'defaultCategories',
+      [' Ramp ', 'ramp', 'Card  Draw'],
+      'replace',
+    )
+    if ('error' in result) throw new Error(result.error)
+    expect(result.newValue).toEqual(['Ramp', 'Card Draw'])
+    expect(result.updatedConfig.defaultCategories).toEqual(['Ramp', 'Card Draw'])
+  })
+
+  test('refuses a malformed name where it is typed, rather than on the next read', () => {
+    const result = applyConfigSet(base, 'defaultCategories', ['a,b'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) expect(result.error).toContain('a,b')
+  })
+
+  test('--add and --remove fold case, the way every reader of the vocabulary does', () => {
+    const withRamp = applyConfigSet(base, 'defaultCategories', ['Ramp'], 'replace')
+    if ('error' in withRamp) throw new Error(withRamp.error)
+
+    // A second spelling of a category already stored is not a second category.
+    const added = applyConfigSet(withRamp.updatedConfig, 'defaultCategories', ['ramp'], 'add')
+    if ('error' in added) throw new Error(added.error)
+    expect(added.newValue).toEqual(['Ramp'])
+
+    const removed = applyConfigSet(withRamp.updatedConfig, 'defaultCategories', ['RAMP'], 'remove')
+    if ('error' in removed) throw new Error(removed.error)
+    expect(removed.newValue).toEqual([])
+  })
+})
+
 describe('applyConfigSet — defaultLanguage', () => {
   test('sets a valid language code', () => {
     const result = applyConfigSet(base, 'defaultLanguage', ['ja'], 'replace')

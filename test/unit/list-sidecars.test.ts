@@ -4,6 +4,9 @@ import path from 'node:path'
 import { isSameFile } from '../../src/util/same-file'
 import {
   moveListFileAndSidecars,
+  LIST_SIDECAR_KINDS,
+  listSidecarPath,
+  moveListSidecars,
   renameListThroughTemp,
   type KindedSidecarMove,
 } from '../../src/list/list-sidecars'
@@ -29,6 +32,8 @@ async function seedList(base: string): Promise<string> {
   await fs.writeFile(path.join(testDir, `${base}.changes.md`), '# Changelog\n')
   await fs.writeFile(path.join(testDir, `${base}.primer.md`), '# Primer\n')
   await fs.writeFile(path.join(testDir, `${base}.art.json`), '{\n  "1": { "file": "a.jpg" }\n}\n')
+  await fs.writeFile(path.join(testDir, `${base}.categories.json`), '{"order":[],"cards":{}}\n')
+  await fs.writeFile(path.join(testDir, `${base}.categories.json.sha256`), 'cafebabe\n')
   return mdPath
 }
 
@@ -57,12 +62,45 @@ describe('moveListFileAndSidecars', () => {
     await fs.rm(path.join(testDir, 'burn.primer.md'))
     const to = path.join(testDir, 'Legacy Burn.md')
 
-    expect(await moveListFileAndSidecars(from, to)).toEqual(['hash', 'changelog', 'art'])
+    expect(await moveListFileAndSidecars(from, to)).toEqual([
+      'hash',
+      'changelog',
+      'art',
+      'categories',
+      'categoriesHash',
+    ])
     expect(await exists(to)).toBe(true)
     expect(await exists(`${to}.sha256`)).toBe(true)
     expect(await exists(path.join(testDir, 'Legacy Burn.changes.md'))).toBe(true)
     expect(await exists(path.join(testDir, 'Legacy Burn.art.json'))).toBe(true)
+    expect(await exists(path.join(testDir, 'Legacy Burn.categories.json'))).toBe(true)
+    expect(await exists(path.join(testDir, 'Legacy Burn.categories.json.sha256'))).toBe(true)
     expect(await exists(from)).toBe(false)
+  })
+})
+
+describe('moveListSidecars', () => {
+  test('moves the categories sidecar WITH its hash — unlike the list file’s own', async () => {
+    const from = await seedList('burn')
+    const to = path.join(testDir, 'Legacy Burn.md')
+
+    const moves = await moveListSidecars(from, to)
+    const moved = moves.map((move) => path.basename(move.to)).sort()
+    expect(moved).toContain('Legacy Burn.categories.json')
+    // A rename never rewrites the sidecar, so its hash stays valid and travels.
+    expect(moved).toContain('Legacy Burn.categories.json.sha256')
+    // The list file's own hash is the rewriting caller's business, not this one's.
+    expect(moved).not.toContain('burn.md.sha256')
+    expect(await exists(path.join(testDir, 'burn.categories.json'))).toBe(false)
+    // Exactly the table's kinds minus the list file's own hash, so a new kind is
+    // moved without anyone remembering to add it here.
+    expect(new Set(moves.map((move) => move.from))).toEqual(
+      new Set(
+        LIST_SIDECAR_KINDS.filter((kind) => kind !== 'hash').map((kind) =>
+          listSidecarPath[kind](from),
+        ),
+      ),
+    )
   })
 })
 
@@ -75,6 +113,8 @@ describe('renameListThroughTemp', () => {
 
     expect(moves.map((m: KindedSidecarMove) => m.kind).sort()).toEqual([
       'art',
+      'categories',
+      'categoriesHash',
       'changelog',
       'hash',
       'primer',
@@ -113,6 +153,8 @@ describe('renameListThroughTemp', () => {
     expect(await exists(path.join(testDir, 'burn.changes.md'))).toBe(true)
     expect(await exists(path.join(testDir, 'burn.primer.md'))).toBe(true)
     expect(await exists(path.join(testDir, 'burn.art.json'))).toBe(true)
+    expect(await exists(path.join(testDir, 'burn.categories.json'))).toBe(true)
+    expect(await exists(path.join(testDir, 'burn.categories.json.sha256'))).toBe(true)
     expect((await fs.readdir(testDir)).filter((f) => f.startsWith('.ritual-rename'))).toEqual([])
   })
 })

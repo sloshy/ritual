@@ -14,6 +14,7 @@ import {
   PARTIAL_LOAD_HINT,
   validateContentHash,
   finishListSave,
+  normalizeRequestCategories,
   listSaveOutcome,
   listSaveResponse,
   normalizeRequestLabels,
@@ -77,6 +78,9 @@ export async function handleDeckSave(req: Request): Promise<Response> {
 
     const replacementError = normalizeRequestReplacements(changes)
     if (replacementError) return replacementError
+
+    const categoryError = normalizeRequestCategories(changes)
+    if (categoryError) return categoryError
 
     const decksDir = getDecksDir()
     const resolved = await resolveListFileOrRefuse(resolveDeckFile, {
@@ -149,6 +153,9 @@ export async function handleDeckSave(req: Request): Promise<Response> {
       continueSession,
       extraFiles: moves.writtenFiles,
       adoptedArt: moves.adoptedArt,
+      // The names the written content holds — what the categories sidecar (keyed
+      // by card name) is pruned against.
+      cardNames: idedDeck.sections.flatMap((section) => section.cards).map((entry) => entry.name),
     }
     const saved = await finishListSave(tail)
 

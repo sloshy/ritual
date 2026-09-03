@@ -101,6 +101,7 @@ describe('i18n persistence fence', () => {
       'src/changes/csv.ts',
       'src/changes/change-bundle.ts',
       'src/changes/list-snapshot.ts',
+      'src/changes/diff-categories.ts',
       'src/list/entry-load.ts',
       'src/buylist/cart-csv.ts',
       ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),

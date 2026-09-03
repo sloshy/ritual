@@ -1,4 +1,4 @@
-import type { ChangeAction, ChangeEvent } from '../changes/change-event'
+import { CATEGORY_ACTIONS, type ChangeAction, type ChangeEvent } from '../changes/change-event'
 import type { MessageKey } from '../i18n/messages/en'
 import type { MissReason } from '../changes/apply-batch'
 
@@ -76,7 +76,21 @@ type RetargetParams = {
   state?: RetargetState
 }
 
-const SECTION_ACTIONS = new Set<ChangeAction>(['add-section', 'remove-section', 'rename-section'])
+/**
+ * Changes that name no card *line*, so an exported `&N` is nothing to retarget:
+ * the section-structural three, plus the category actions. `set-categories` is
+ * keyed by card NAME in one list, and an assignment for a name this list does
+ * not hold is a harmless no-op the sidecar prunes, never an import conflict.
+ * (`rename-category` / `set-category-order` carry no `cardName` at all and would
+ * fall through the `cardName === undefined` arm below; they are listed so the
+ * three read as one rule.)
+ */
+const UNTARGETED_ACTIONS = new Set<ChangeAction>([
+  'add-section',
+  'remove-section',
+  'rename-section',
+  ...CATEGORY_ACTIONS,
+])
 
 const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
   ({ ...change, cardId }) as ChangeEvent
@@ -98,7 +112,10 @@ const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
  *   against the list as loaded;
  *   when neither resolves, the change is reported as a conflict rather than
  *   silently retargeted or dropped.
- * - section-structural changes (add/remove/rename-section) pass through unchanged.
+ * - section-structural changes (add/remove/rename-section) and the category
+ *   actions (set-categories, rename-category, set-category-order) pass through
+ *   unchanged — they name no card line, and a categories assignment for a name
+ *   this list does not hold is a no-op rather than a conflict.
  *
  * Pure and deterministic given the same inputs, so it is unit-tested directly.
  */
@@ -154,7 +171,7 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
       continue
     }
 
-    if (SECTION_ACTIONS.has(change.action)) {
+    if (UNTARGETED_ACTIONS.has(change.action)) {
       retargeted.push(change)
       continue
     }

@@ -100,12 +100,12 @@ The main menu lists each change set (newest first) as a collapsed row — its ti
 These appear below the change sets, in the order listed — undo first, since it takes back whatever
 you just did, and the destructive rewrite below the harmless preview rather than above it.
 
-| Action                          | Effect                                                                                                                                                                                                 |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **Undo last change**            | Reverts the most recent edit. All edits are kept on an in-memory stack, so you can undo repeatedly back to the loaded state. Offered only once you have made an edit.                                  |
-| **Preview changes to be saved** | Summarizes how the saved file will differ: change-set and change-line counts before/after, and the resulting list of sets.                                                                             |
-| **Rewrite with defaults**       | Replaces **all** change sets with a single new set (timestamped now) describing the list exactly as it stands now — every card, plus sections, commander, notes, label overrides, tags, and printings. |
-| **Exit**                        | If there are unsaved changes, prompts: **Save and exit**, **Exit without saving**, or **Cancel** (keep editing). Nothing is written to disk until you choose _Save and exit_.                          |
+| Action                          | Effect                                                                                                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Undo last change**            | Reverts the most recent edit. All edits are kept on an in-memory stack, so you can undo repeatedly back to the loaded state. Offered only once you have made an edit.                                              |
+| **Preview changes to be saved** | Summarizes how the saved file will differ: change-set and change-line counts before/after, and the resulting list of sets.                                                                                         |
+| **Rewrite with defaults**       | Replaces **all** change sets with a single new set (timestamped now) describing the list exactly as it stands now — every card, plus sections, commander, notes, label overrides, tags, categories, and printings. |
+| **Exit**                        | If there are unsaved changes, prompts: **Save and exit**, **Exit without saving**, or **Cancel** (keep editing). Nothing is written to disk until you choose _Save and exit_.                                      |
 
 ## Behavior
 
@@ -119,13 +119,13 @@ When two change sets are combined, their lines are interleaved by age — the ol
 
 ### Lossless editing
 
-Apart from combine's compaction, change lines — including their `&N` card IDs — are moved around verbatim, each with its typed event; the editor never re-parses or reformats them. The "rewrite with defaults" action regenerates both the lines and the events from the current list contents.
+Apart from combine's compaction, change lines — including their `&N` card IDs — are moved around verbatim, each with its typed event; the editor never re-parses or reformats them. The "rewrite with defaults" action regenerates both the lines and the events from the current list contents — and from the list's [`.categories.json` sidecar](/list-format/#categories-namecategoriesjson), the only other file it reads. A sidecar that cannot be read is reported and simply contributes no category events rather than failing the rebuild.
 
 Hand-written text between change sets is preserved too: non-change lines are attached to the set they follow (shown beneath its change lines, and carried in `--show`'s JSON as the set's `trailing` array), travel with that set through timestamp edits and combines, and are re-emitted on save — each line kept as written (indentation included), though blank lines between them are not kept and the block always lands after the set's change lines. Deleting a set deletes its attached text with it, and **Rewrite with defaults** discards every set's attached text along with the sets themselves (the confirmation says how many lines that is); text before the first set belongs to the header and always survives.
 
 ### Only the change log is modified
 
-Every action edits the `.changes.md` file alongside the list. The list's own `.md` file is never read for mutation (only "rewrite with defaults" reads it, to describe its current state) and never edited — the only write outside the changelog is the startup [card-ID backfill](/#the-card-id-backfill) noted above.
+Every action edits the `.changes.md` file alongside the list. The list's own `.md` file is never read for mutation (only "rewrite with defaults" reads it — and the categories sidecar beside it — to describe its current state) and never edited — the only write outside the changelog is the startup [card-ID backfill](/#the-card-id-backfill) noted above.
 
 ## Exit Codes
 

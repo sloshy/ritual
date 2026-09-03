@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { DEFAULT_CARD_CATEGORIES } from '../../src/card/card-categories'
 import {
   getBannedPrintings,
   getArtDir,
@@ -27,6 +28,7 @@ import {
   parseDefaultLanguage,
   cardKingdomPricesEnabled,
   getPriceSources,
+  getDefaultCategories,
   getSessionOverrides,
   getSiteApiBaseUrl,
   wantsCardKingdomFeed,
@@ -133,6 +135,7 @@ describe('ritual config', () => {
       artDir: './my-art',
       defaultCurrency: 'eur',
       priceSources: ['tcgplayer', 'cardkingdom'],
+      defaultCategories: ['Ramp', 'Card Draw'],
       defaultLanguage: 'ja',
       uiLocale: localeTag('de-AT'),
       cacheLockTimeoutSeconds: 120,
@@ -810,6 +813,44 @@ describe('priceSources', () => {
     ).toBe(true)
     setSiteSellModeOverride(true)
     expect(wantsCardKingdomFeed(config)).toBe(true)
+  })
+})
+
+describe('defaultCategories', () => {
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: [], config: false })
+    configPath = path.join(ws.dir, 'ritual.config.json')
+  })
+
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  test('defaults to the shipped vocabulary when the key is absent', async () => {
+    expect(getDefaultCategories(getDefaultRitualConfig())).toEqual([...DEFAULT_CARD_CATEGORIES])
+    await fs.writeFile(configPath, '{}')
+    expect(getDefaultCategories(await loadRitualConfig())).toEqual([...DEFAULT_CARD_CATEGORIES])
+  })
+
+  test('a valid array is kept canonical, and an explicit empty array survives', async () => {
+    await fs.writeFile(
+      configPath,
+      JSON.stringify({ defaultCategories: [' Ramp ', 'ramp', 'Card  Draw'] }),
+    )
+    expect(getDefaultCategories(await loadRitualConfig())).toEqual(['Ramp', 'Card Draw'])
+
+    await fs.writeFile(configPath, JSON.stringify({ defaultCategories: [] }))
+    expect(getDefaultCategories(await loadRitualConfig())).toEqual([])
+  })
+
+  test('a malformed entry warns and falls back to the default', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultCategories: ['Ramp', 'a,b'] }))
+    expect(getDefaultCategories(await loadRitualConfig())).toEqual([...DEFAULT_CARD_CATEGORIES])
+  })
+
+  test('a non-array falls back to the default too', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultCategories: 'Ramp' }))
+    expect(getDefaultCategories(await loadRitualConfig())).toEqual([...DEFAULT_CARD_CATEGORIES])
   })
 })
 

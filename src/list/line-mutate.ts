@@ -40,6 +40,7 @@ import { parseHeading } from './section-format'
 import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from './deck-format'
 import { DEFAULT_SECTION } from './deck'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
+import { commitCategoryChanges } from './card-categories-sidecar'
 import { reconcileListRefs } from './list-refs'
 import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { appendChangelog } from '../changes/changelog-writer'
@@ -58,6 +59,7 @@ import { ExitCode, CardCommandError, localizedCommandError } from '../util/error
 import type { ListType } from './list-type'
 import type { CardMutationChange } from './list-mutate'
 import type { EntryRef } from './entry-ref'
+import { getDefaultCategories, loadRitualConfig } from '../config/ritual-config'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -68,8 +70,10 @@ export type TargetedMutateOptions = {
 export type TargetedMutateResult = {
   /**
    * Absolute paths the mutation wrote: the list file, its hash sidecar, the
-   * changelog, and — when the edit deleted a card line that had custom art —
-   * the list's `.art.json` sidecar.
+   * changelog, — when the edit deleted a card line that had custom art — the
+   * list's `.art.json` sidecar, and — when the batch carried a category event —
+   * the list's `.categories.json` sidecar and its `.sha256`. This path passes no
+   * `knownCardNames`, so it never prunes.
    */
   writtenFiles: string[]
 }
@@ -117,9 +121,24 @@ export async function applyTargetedChanges(
   // cover image — left filed under it would surface on whichever card takes the
   // id next.
   const gone = removedLineCardId(newContent, type, resolved, stamped)
-  if (gone === undefined) return { writtenFiles }
-  const refs = await reconcileListRefs(filePath, { removed: [gone] })
-  return { writtenFiles: [...new Set([...writtenFiles, ...refs.writtenFiles])] }
+  if (gone !== undefined) {
+    const refs = await reconcileListRefs(filePath, { removed: [gone] })
+    writtenFiles.push(...refs.writtenFiles)
+  }
+
+  // The categories half of the batch. No `knownCardNames`: this path knows one
+  // target line, not the list's surviving names, so a category entry left
+  // behind by a removal stays until the next editor save or `ritual cleanup`
+  // prunes it — which is exactly what a stale sidecar name is for.
+  // The configured vocabulary is passed for the same reason `finishListSave`
+  // passes it: it decides the persisted `order`, so two writers that disagreed
+  // would churn the sidecar's bytes back and forth on alternating edits.
+  const categories = await commitCategoryChanges(filePath, stamped, {
+    defaultCategories: getDefaultCategories(await loadRitualConfig()),
+  })
+  writtenFiles.push(...categories.writtenFiles)
+
+  return { writtenFiles: [...new Set(writtenFiles)] }
 }
 
 /**
@@ -269,6 +288,14 @@ export function applyTargetedChangesToContent(
         // Aggregated and applied after the loop (remove-card emits one event
         // per copy and never mixes removes with update events).
         removeCopies += 1
+        break
+      case 'set-categories':
+      case 'rename-category':
+      case 'set-category-order':
+        // Nothing on the card line changes: categories live in the list's
+        // `.categories.json` sidecar. Writing it is the outer
+        // `applyTargetedChanges`'s job — this function is pure content in,
+        // content out.
         break
       default:
         throw new Error(

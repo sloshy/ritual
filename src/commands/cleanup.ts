@@ -23,6 +23,16 @@ import { parseTitleFromContent } from '../list/section-format'
 import { parseDeckText } from '../importers/text-file'
 import { listNameCollision } from '../list/list-lifecycle'
 import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
+import {
+  categoriesSaveTouchesDisk,
+  commitCategoryChanges,
+  loadCardCategories,
+  previewCategoriesSaveAction,
+  pruneCardCategories,
+} from '../list/card-categories-sidecar'
+import { foldCategoryCardName } from '../card/card-categories'
+import { getDefaultCategories } from '../config/ritual-config'
+import { loadListEntries } from '../list/entry-load'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
 import { getErrorMessage, localizedCommandError, ExitCode } from '../util/errors'
@@ -104,6 +114,16 @@ export type CleanupResult = {
    * is still cleaned up, which is the whole point of a per-file failure.
    */
   unreadable?: boolean
+  /**
+   * Card names whose category assignments were dropped, because the list no
+   * longer holds a line of that name. Absent when nothing was pruned.
+   */
+  categoriesPruned?: string[]
+  /**
+   * True when the categories sidecar was (or would be) rewritten — pruned,
+   * canonically ordered, or canonically serialized.
+   */
+  categoriesRewritten?: boolean
   warnings: string[]
 }
 
@@ -115,6 +135,8 @@ export function hasCleanupActions(result: CleanupResult): boolean {
     result.renamedTo !== undefined ||
     result.formatSet !== undefined ||
     result.missingFormat === true ||
+    (result.categoriesPruned?.length ?? 0) > 0 ||
+    result.categoriesRewritten === true ||
     result.warnings.length > 0
   )
 }
@@ -361,6 +383,50 @@ export async function cleanupList(
     result.rewritten = document.canonical !== document.original
   }
 
+  // The categories sidecar's preview. Computed above the dry-run return —
+  // exactly where `result.rewritten` is — so `--dry-run` reports the same prune
+  // and rewrite the real run performs. Reads `location.filePath`: nothing has
+  // moved yet.
+  //
+  // Pruning is gated on a clean parse for the same reason the rewrite above is:
+  // a line the parser could not read holds a card that is still in the file, and
+  // dropping its categories would destroy assignments the list still backs. A
+  // blocked file's sidecar is canonicalized and left otherwise intact.
+  const defaultCategories = getDefaultCategories()
+  let knownCardNames: Set<string> | undefined
+  let categoriesReadable = true
+  // Per-file contract: a categories problem is a warning on this file, never a
+  // throw that aborts the whole pass.
+  try {
+    if (result.rewriteBlocked === true) {
+      result.warnings.push(t('cli.cleanup.categoriesNotPruned'))
+    } else {
+      knownCardNames = new Set(
+        (await loadListEntries(location.type, location.filePath)).entries.map((entry) =>
+          foldCategoryCardName(entry.name),
+        ),
+      )
+    }
+    const loadedCategories = await loadCardCategories(location.filePath, { knownCardNames })
+    if (!loadedCategories.ok) {
+      categoriesReadable = false
+      result.warnings.push(loadedCategories.message)
+    } else {
+      let record = loadedCategories.categories
+      if (knownCardNames !== undefined) {
+        const prune = pruneCardCategories(record, knownCardNames)
+        if (prune.pruned.length > 0) result.categoriesPruned = prune.pruned
+        record = prune.categories
+      }
+      result.categoriesRewritten = categoriesSaveTouchesDisk(
+        await previewCategoriesSaveAction(location.filePath, record, defaultCategories),
+      )
+    }
+  } catch (error) {
+    categoriesReadable = false
+    result.warnings.push(getErrorMessage(error))
+  }
+
   if (options.dryRun) return result
 
   if (targetPath !== location.filePath) {
@@ -383,6 +449,23 @@ export async function cleanupList(
     } else {
       await fs.writeFile(targetPath, document.canonical)
     }
+  }
+
+  // The categories write, against `targetPath` — a rename may have happened
+  // since the preview above. The stamp gate lives inside `saveCardCategories`,
+  // so a hand-edited sidecar keeps its stale `.sha256` and `detect-changes`
+  // still records the edit, the same rule the list file's rewrite follows.
+  if (categoriesReadable) {
+    const committed = await commitCategoryChanges(targetPath, [], {
+      knownCardNames,
+      defaultCategories,
+      canonicalize: true,
+    })
+    if (committed.pruned.length > 0) result.categoriesPruned = committed.pruned
+    else delete result.categoriesPruned
+    result.categoriesRewritten =
+      committed.action !== undefined && categoriesSaveTouchesDisk(committed.action)
+    if (committed.error !== undefined) result.warnings.push(committed.error)
   }
   return result
 }
@@ -416,6 +499,17 @@ function describeActions(result: CleanupResult, dryRun: boolean, skipFormats: bo
   }
   if (result.renamedTo) actions.push(t('cli.cleanup.actionRenamed', { file: result.renamedTo }))
   if (result.rewritten) actions.push(t('cli.cleanup.actionRewritten'))
+  if (result.categoriesRewritten === true) {
+    actions.push(t('cli.cleanup.actionCategoriesRewritten'))
+  }
+  if (result.categoriesPruned !== undefined && result.categoriesPruned.length > 0) {
+    actions.push(
+      t('cli.cleanup.categoriesPruned', {
+        count: result.categoriesPruned.length,
+        names: result.categoriesPruned.join(', '),
+      }),
+    )
+  }
   if (result.missingFormat) {
     actions.push(
       dryRun
@@ -444,7 +538,13 @@ function formatSignalNote(deckName: string, signal: DeckFormatSignal): string {
 
 /** Whether a result carries a change a real (or `--check`) run would write. */
 function wouldChangeFile(result: CleanupResult): boolean {
-  return result.rewritten || result.renamedTo !== undefined || result.formatSet !== undefined
+  return (
+    result.rewritten ||
+    result.renamedTo !== undefined ||
+    result.formatSet !== undefined ||
+    result.categoriesRewritten === true ||
+    (result.categoriesPruned?.length ?? 0) > 0
+  )
 }
 
 async function runCleanup(

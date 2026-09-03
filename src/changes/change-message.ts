@@ -30,6 +30,7 @@ import {
   type ChangeEvent,
 } from './change-event'
 import { formatCardLabels } from '../card/card-labels'
+import { formatCardCategories } from '../card/card-categories'
 import { languageLabel } from '../card/card-language'
 import { currentLocale } from '../i18n/runtime'
 import { tSegmentsDynamic, type MessageParams, type MessageRef, type RenderParams } from '../i18n/t'
@@ -83,6 +84,14 @@ export type DisplayChange = {
   newSection?: string
   /** The other list's rendered name for `move-from` / `move-to`. */
   list?: string
+  /** Comma-joined categories for `set-categories`, primary first; `''` means cleared. */
+  categories?: string
+  /** The existing category name for `rename-category`. */
+  category?: string
+  /** The new category name for `rename-category`. */
+  newCategory?: string
+  /** Comma-joined vocabulary for `set-category-order`; `''` means cleared. */
+  order?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +220,22 @@ export function changeMessage(change: DisplayChange): ChangeMessage {
       })
     case 'set-section':
       return buildMessage('domain.change.setSection', { tense, name, section, id })
+    case 'set-categories':
+      // An empty list is a clear, not a set — the same fold `formatChangeCore`
+      // applies, so the two descriptions of one event stay in step.
+      return change.categories
+        ? buildMessage('domain.change.setCategories', { name, categories: change.categories })
+        : buildMessage('domain.change.clearCategories', { tense, name })
+    case 'rename-category':
+      return buildMessage('domain.change.renameCategory', {
+        tense,
+        category: change.category ?? '',
+        newCategory: change.newCategory ?? '',
+      })
+    case 'set-category-order':
+      return change.order
+        ? buildMessage('domain.change.setCategoryOrder', { order: change.order })
+        : buildMessage('domain.change.clearCategoryOrder', { tense })
     default:
       change.action satisfies never
       throw new Error(`Unhandled change action (this is a bug)`)
@@ -325,6 +350,12 @@ export function displayChangeFromEvent(
       return { ...base, section: change.section, newSection: change.newSection }
     case 'set-section':
       return { ...base, section: change.section }
+    case 'set-categories':
+      return { ...base, categories: formatCardCategories(change.categories) }
+    case 'rename-category':
+      return { ...base, category: change.category, newCategory: change.newCategory }
+    case 'set-category-order':
+      return { ...base, order: formatCardCategories(change.order) }
     case 'set-commander':
     case 'unset-commander':
       return base

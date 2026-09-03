@@ -32,6 +32,7 @@ type LoadResponse = {
   header: string
   sets: ChangeSet[]
   defaultEvents: ChangeEvent[]
+  categoryWarnings?: string[]
 }
 type SaveResponse = { success: boolean; message?: string; setCount?: number }
 type InvalidSetsCase = { description: string; sets: unknown }
@@ -111,6 +112,32 @@ describe('history API', () => {
       'Mana Crypt',
     ])
     expect(body.defaultEvents[0]).toMatchObject({ action: 'add', set: 'c21', cardId: 1 })
+  })
+
+  test('the rewrite defaults describe the categories sidecar too', async () => {
+    await writeBinder()
+    await fs.writeFile(
+      path.join(tmpDir, 'collections', 'binder.categories.json'),
+      JSON.stringify({ order: ['Ramp'], cards: { 'Sol Ring': ['Ramp'] } }),
+    )
+
+    const { body } = await load('collection', 'binder')
+    // The caller loads the sidecar and passes it; forgetting to would silently
+    // drop every category from a rebuilt history.
+    expect(body.defaultEvents.map((e) => e.action)).toContain('set-category-order')
+    const categories = body.defaultEvents.find((e) => e.action === 'set-categories')
+    expect(categories).toMatchObject({ cardName: 'Sol Ring', categories: ['Ramp'] })
+    expect(Object.keys(body)).not.toContain('categoryWarnings')
+  })
+
+  test('an unreadable categories sidecar warns instead of failing the rebuild', async () => {
+    await writeBinder()
+    await fs.writeFile(path.join(tmpDir, 'collections', 'binder.categories.json'), '{ nope')
+
+    const { status, body } = await load('collection', 'binder')
+    expect(status).toBe(200)
+    expect(body.defaultEvents.map((e) => e.action)).not.toContain('set-categories')
+    expect(body.categoryWarnings?.join(' ')).toContain('binder.categories.json')
   })
 
   test('returns 404 for a list that does not exist', async () => {

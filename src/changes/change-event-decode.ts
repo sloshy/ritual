@@ -19,11 +19,12 @@ import {
   unsupportedLabelsMessage,
 } from '../card/card-labels'
 import { parseCardTag, parseCardTagsValue } from '../card/card-tags'
+import { parseCardCategoriesValue, parseCardCategory } from '../card/card-categories'
 import { BOARDS } from '../list/deck'
 import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
 import type { ChangeAction, ChangeEvent, ListRef, MoveReplacement } from './change-event'
-import { CHANGE_ACTIONS } from './change-event'
+import { CATEGORY_ACTIONS, CHANGE_ACTIONS } from './change-event'
 
 // ── Validation ────────────────────────────────────────────────────────
 
@@ -50,16 +51,34 @@ const REQUIRED_CHANGE_FIELDS = {
   'remove-section': ['section'],
   'rename-section': ['section', 'newSection'],
   'set-section': ['section'],
+  'set-categories': ['categories'],
+  'rename-category': ['category', 'newCategory'],
+  'set-category-order': ['order'],
 } as const satisfies Record<ChangeAction, readonly string[]>
 
 /** Required fields that must be strings (the rest are validated by their own parsers). */
-const STRING_CHANGE_FIELDS: ReadonlySet<string> = new Set(['note', 'section', 'newSection'])
+const STRING_CHANGE_FIELDS: ReadonlySet<string> = new Set([
+  'note',
+  'section',
+  'newSection',
+  'category',
+  'newCategory',
+])
 
-/** The actions that target a section rather than a card, so carry no `cardName`. */
+/**
+ * The actions that target a section, or the list's category vocabulary, rather
+ * than a card — so they carry no `cardName`. `set-categories` is deliberately
+ * absent: it names a card (by name, never by `&N`).
+ */
+/** The three category actions, as a membership test. */
+const CATEGORY_ACTION_SET: ReadonlySet<ChangeAction> = new Set<ChangeAction>(CATEGORY_ACTIONS)
+
 const SECTION_META_ACTIONS: ReadonlySet<ChangeAction> = new Set<ChangeAction>([
   'add-section',
   'remove-section',
   'rename-section',
+  'rename-category',
+  'set-category-order',
 ])
 
 /** Which optional numeric ids a `move-to` may carry beyond `cardId`. */
@@ -237,6 +256,18 @@ export function decodeChangeEvent(
   if (obj.cardId !== undefined && typeof obj.cardId !== 'number') {
     return `${where}has an invalid "cardId".`
   }
+  // Categories are keyed by card NAME in one list, so none of the three actions
+  // has a card line to point at. Refuse the id here rather than keeping it (this
+  // decoder preserves the keys it does not rewrite): a foreign list's `&N` would
+  // otherwise ride an imported event straight into the destination's changelog
+  // prose, since `retargetImportedChanges` passes these actions through
+  // untouched. Symmetrically, the two list-level actions name no card at all.
+  if (CATEGORY_ACTION_SET.has(action) && obj.cardId !== undefined) {
+    return `${where}(${action}) is keyed by card name and must not carry a "cardId".`
+  }
+  if (SECTION_META_ACTIONS.has(action) && obj.cardName !== undefined) {
+    return `${where}(${action}) targets the list, not a card, and must not carry a "cardName".`
+  }
   for (const field of REQUIRED_CHANGE_FIELDS[action]) {
     if (obj[field] === undefined) return `${where}(${action}) is missing its "${field}".`
     if (STRING_CHANGE_FIELDS.has(field) && typeof obj[field] !== 'string') {
@@ -318,6 +349,28 @@ export function decodeChangeEvent(
     const { tags: _dropped, ...withoutTags } = normalized
     normalized = tags.tags.length === 0 ? withoutTags : { ...normalized, tags: tags.tags }
   }
+  // Categories are an open vocabulary validated by shape, like tags — but an
+  // EMPTY set is meaningful here (it is a *clear*), so it is kept rather than
+  // folded to absent, and the order is preserved because the first entry is the
+  // card's primary category.
+  if (obj.categories !== undefined) {
+    const categories = parseCardCategoriesValue(obj.categories, '"categories"')
+    if (!categories.ok) return `${where}${categories.message}`
+    normalized = { ...normalized, categories: categories.categories }
+  }
+  if (obj.order !== undefined) {
+    const order = parseCardCategoriesValue(obj.order, '"order"')
+    if (!order.ok) return `${where}${order.message}`
+    normalized = { ...normalized, order: order.categories }
+  }
+  for (const field of ['category', 'newCategory'] as const) {
+    const value = obj[field]
+    if (value === undefined) continue
+    if (typeof value !== 'string') return `${where}has an invalid "${field}".`
+    const parsed = parseCardCategory(value)
+    if (!parsed.ok) return `${where}${parsed.message}`
+    normalized = { ...normalized, [field]: parsed.category }
+  }
   // Every field a variant requires has been checked above (envelope, the
   // action's own field, the printing tuple, the board, the list refs, labels,
   // tags);
@@ -352,9 +405,13 @@ const SERIALIZED_KEY_ORDER = [
   'labels',
   'tags',
   'tag',
+  'categories',
   'board',
   'section',
   'newSection',
+  'category',
+  'newCategory',
+  'order',
   'note',
   'to',
   'from',

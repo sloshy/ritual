@@ -168,6 +168,37 @@ A `#tags` token on a card line holds **card** tags — the owner's own free-form
 
 A deck's front-matter `tags:` key is a different thing: it describes the **list itself** and never applies to any card on it. Only the `#tags` token on a card line holds card tags.
 
+## Categories (`<name>.categories.json`)
+
+A **category** is a card's role in **one list** — `Ramp`, `Removal`, `Board Wipes` — what Archidekt calls a category and Moxfield a tag. It is the third of Ritual's three ways to say something about a card, and the three are deliberately different kinds:
+
+| Kind         | Belongs to                  | Vocabulary                       | Ordered?                     | Follows a move?                       | Where it lives                   |
+| ------------ | --------------------------- | -------------------------------- | ---------------------------- | ------------------------------------- | -------------------------------- |
+| **Label**    | a card line (`&N`)          | closed (`sale trade keep proxy`) | no                           | as far as the destination type allows | `[…]` token on the line          |
+| **Tag**      | a card line — the _copy_    | open                             | no                           | **always**                            | `#a, b` token on the line        |
+| **Category** | a card **name** in one list | open, per list + config defaults | yes — the first is _primary_ | **never**                             | `<name>.categories.json` sidecar |
+
+Categories are never written on a card line. They live in a JSON sidecar beside the list:
+
+```json
+{
+  "order": ["Ramp", "Draw", "Removal", "Artifacts"],
+  "cards": {
+    "Rhystic Study": ["Draw"],
+    "Sol Ring": ["Ramp", "Artifacts"]
+  }
+}
+```
+
+- **Keyed by card name.** One assignment covers every line of that name in the list, whatever its printing, section or quantity. Lookups fold case and whitespace; the stored key is the name as the card line spells it, including the `A // B` spelling of a double-faced card.
+- **`cards` is ordered per card, and the first entry is the card's primary category.** Reordering is a real edit.
+- **`order` is the display order** of the list's vocabulary. Categories a card uses but `order` does not name are appended when Ritual next writes the file — the [`defaultCategories`](/configuration/) config vocabulary first, in its configured order, then the rest alphabetically — so the file describes itself.
+- **A category name follows the tag shape rule**: non-empty plain text that cannot contain `#`, `,`, `&`, `*`, double quotes, brackets, braces or parentheses. Case is kept exactly as written; `Ramp` and `ramp` are one category with two spellings.
+- **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning rather than being dropped on read. The next Ritual save of that list prunes it, and so does [`ritual cleanup`](/commands/cleanup/).
+- **A malformed sidecar is refused as a whole.** It is never partially loaded and never silently overwritten, so a list with an unreadable sidecar still saves.
+- **Empty means gone.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
+- **It carries its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history: hand edits to it are detected by [`detect-changes`](/commands/detect-changes/) and recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` / `Set category order to …` / `Renamed category "Draw" to "Card Draw"` entries in the **list's** `.changes.md`. A sidecar Ritual did not itself last write keeps its stale hash, so the edit is not silently declared recorded.
+
 ## The `.changes.md` changelog
 
 Every list has an append-only `<name>.changes.md` sidecar recording its card changes. Each entry is a `## <ISO timestamp>` heading followed by one prose `- ` line per change, then a fenced `ritual-changes` block holding the same changes as JSON Lines — one event per line, in the same order:
@@ -193,4 +224,4 @@ Every list has an append-only `<name>.changes.md` sidecar recording its card cha
 
 ## What `cleanup` normalizes
 
-[`ritual cleanup`](/commands/cleanup/) is the migration for everything above. One pass rewrites every list in canonical form — bullets on deck lines, canonical token order and spacing, uppercase set codes, defaults omitted, flat-list quantities expanded to one line per copy, a legacy `name:` turned into the `# Title` H1 with `name:` and `created:` dropped (`tags:` and every other key kept), `&N` on every line — and renames each file after its title. It never touches a `.changes.md`. It is idempotent: a second run writes nothing.
+[`ritual cleanup`](/commands/cleanup/) is the migration for everything above. One pass rewrites every list in canonical form — bullets on deck lines, canonical token order and spacing, uppercase set codes, defaults omitted, flat-list quantities expanded to one line per copy, a legacy `name:` turned into the `# Title` H1 with `name:` and `created:` dropped (`tags:` and every other key kept), `&N` on every line — and renames each file after its title. It also prunes stale names from the list's `.categories.json` and re-serializes it canonically (`--dry-run` previews both without writing). It never touches a `.changes.md`. It is idempotent: a second run writes nothing.

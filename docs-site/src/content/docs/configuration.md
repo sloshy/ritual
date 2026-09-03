@@ -51,6 +51,22 @@ These are the values Ritual uses when there is no config file, and what a first 
   "artDir": "./art",
   "defaultCurrency": "usd",
   "priceSources": ["tcgplayer"],
+  "defaultCategories": [
+    "Ramp",
+    "Draw",
+    "Removal",
+    "Board Wipes",
+    "Counterspells",
+    "Tutors",
+    "Recursion",
+    "Protection",
+    "Combo",
+    "Tokens",
+    "Burn",
+    "Lifegain",
+    "Finishers",
+    "Utility"
+  ],
   "defaultLanguage": "en",
   "uiLocale": "en",
   "cacheLockTimeoutSeconds": 300,
@@ -125,6 +141,22 @@ unaffected by an empty list.
 ```bash
 ritual config set priceSources tcgplayer cardkingdom
 ritual config set priceSources --add cardmarket
+```
+
+## Default categories
+
+| Field               | Default            | Description                                                                                                                                                                                                                    |
+| ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `defaultCategories` | the fourteen below | The global [category](/list-format/#categories-namecategoriesjson) vocabulary: the suggestions offered wherever a category is typed, and the fallback display order for a list whose `.categories.json` sidecar declares none. |
+
+The shipped vocabulary is `Ramp, Draw, Removal, Board Wipes, Counterspells, Tutors, Recursion, Protection, Combo, Tokens, Burn, Lifegain, Finishers, Utility`. A list may use any category name at all — nothing has to be declared here first; this key only decides what is suggested and how an undeclared category sorts into a list's display order.
+
+Each name follows the [category shape rule](/list-format/#categories-namecategoriesjson); a malformed one is refused where it is typed, and on load a malformed entry warns and resets the whole key to the shipped default. An explicit empty array is meaningful: no suggestions.
+
+```bash
+ritual config set defaultCategories Ramp Draw Removal
+ritual config set defaultCategories --add "Board Wipes"
+ritual config set defaultCategories --remove Burn
 ```
 
 ## Default language

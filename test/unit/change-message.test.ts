@@ -24,6 +24,9 @@ import {
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
+  createSetCategoriesChange,
+  createRenameCategoryChange,
+  createSetCategoryOrderChange,
   createUnsetCommanderChange,
   formatChangeCore,
   type ChangeEvent,
@@ -185,6 +188,28 @@ describe('changeMessage — history (persisted) events', () => {
       }),
     ).toBe("Moved Lightning Bolt (LEA:161) from Collection 'Binder'")
   })
+
+  test('set-categories — set and cleared', () => {
+    expect(line({ action: 'set-categories', categories: ['Ramp', 'Artifacts'] })).toBe(
+      'Set categories of Lightning Bolt to Ramp, Artifacts',
+    )
+    expect(line({ action: 'set-categories', categories: [] })).toBe(
+      'Cleared categories of Lightning Bolt',
+    )
+  })
+
+  test('rename-category', () => {
+    expect(line({ action: 'rename-category', category: 'Draw', newCategory: 'Card Draw' })).toBe(
+      'Renamed category "Draw" to "Card Draw"',
+    )
+  })
+
+  test('set-category-order — set and cleared', () => {
+    expect(line({ action: 'set-category-order', order: ['Ramp', 'Draw'] })).toBe(
+      'Set category order to Ramp, Draw',
+    )
+    expect(line({ action: 'set-category-order', order: [] })).toBe('Cleared category order')
+  })
 })
 
 describe('changeSegments', () => {
@@ -271,6 +296,11 @@ describe('formatChange — pending change events', () => {
       createRemoveSectionChange('Foils'),
       createRenameSectionChange('Foils', 'Shinies'),
       createSetSectionChange('Sol Ring', 'Foils', 6),
+      createSetCategoriesChange('Sol Ring', ['Ramp', 'Artifacts']),
+      createSetCategoriesChange('Sol Ring', []),
+      createRenameCategoryChange('Draw', 'Card Draw'),
+      createSetCategoryOrderChange(['Ramp', 'Draw']),
+      createSetCategoryOrderChange([]),
     ]
     // Every action variant is exercised, so a new one cannot slip in untested.
     expect(new Set(events.map((e) => e.action)).size).toBe(CHANGE_ACTIONS.length)

@@ -11,6 +11,7 @@ type ConfigView = {
   site?: { bannedPrintings?: string[]; sellMode?: boolean }
   defaultCurrency?: string
   priceSources?: string[]
+  defaultCategories?: string[]
   defaultLanguage?: string
   cacheLockTimeoutSeconds?: number
   cacheSource?: string
@@ -140,6 +141,12 @@ describe('PUT /api/config', () => {
     expect((await readConfig()).priceSources).toEqual(['cardkingdom', 'tcgplayer'])
   })
 
+  test('defaultCategories is validated and canonicalized like config set', async () => {
+    const response = await putConfig({ defaultCategories: [' Ramp ', 'ramp', 'Board  Wipes'] })
+    expect(response.ok).toBe(true)
+    expect((await readConfig()).defaultCategories).toEqual(['Ramp', 'Board Wipes'])
+  })
+
   test('rejects invalid values with a 400 and persists none of them', async () => {
     const cases: RejectedConfigUpdate[] = [
       { label: 'negative searchDebounceMs', update: { searchDebounceMs: -1 } },
@@ -151,6 +158,8 @@ describe('PUT /api/config', () => {
       { label: 'invalid defaultCurrency', update: { defaultCurrency: 'gbp' } },
       { label: 'unknown price store', update: { priceSources: ['ebay'] } },
       { label: 'non-array priceSources', update: { priceSources: 'tcgplayer' } },
+      { label: 'malformed defaultCategories entry', update: { defaultCategories: ['a,b'] } },
+      { label: 'non-array defaultCategories', update: { defaultCategories: 'Ramp' } },
       // Aliases like "jp" are a `config set` convenience; the API takes only
       // canonical Scryfall codes.
       { label: 'invalid defaultLanguage', update: { defaultLanguage: 'jp' } },

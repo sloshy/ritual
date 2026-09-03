@@ -3,6 +3,13 @@ import type { Board } from '../list/deck'
 import type { ListType } from '../list/list-type'
 import { formatCardLabels, sameCardLabels, type CardLabel } from '../card/card-labels'
 import {
+  type CardCategory,
+  formatCardCategories,
+  normalizeCardCategories,
+  normalizeCardCategory,
+  sameCardCategories,
+} from '../card/card-categories'
+import {
   cardTagsDelta,
   normalizeCardTag,
   normalizedTags,
@@ -271,6 +278,39 @@ export type SetSectionChange = BaseChange & {
   section: string
 }
 
+/**
+ * A card's categories in one list, set wholesale. Keyed by card NAME — a
+ * category applies to every line of that name, whatever its printing, section
+ * or quantity — so it deliberately carries no `cardId`, and it never follows a
+ * move. An empty `categories` clears the card's categories.
+ *
+ * Unlike tags, this is a whole-list replacement rather than a per-value delta:
+ * order is meaning (the first entry is the primary category), so a categories
+ * gesture is one latest-wins event.
+ */
+export type SetCategoriesChange = SectionMetaBase & {
+  action: 'set-categories'
+  cardName: string
+  /** The card's categories, primary first. Empty clears them. */
+  categories: CardCategory[]
+}
+
+/** Renames one category throughout a list's vocabulary and every card that uses it. */
+export type RenameCategoryChange = SectionMetaBase & {
+  action: 'rename-category'
+  /** The existing category name being renamed. */
+  category: string
+  /** The new name for the category. */
+  newCategory: string
+}
+
+/** Sets the list's category display order; the first of a card's list is its primary. */
+export type SetCategoryOrderChange = SectionMetaBase & {
+  action: 'set-category-order'
+  /** The vocabulary in its new display order. Empty falls back to the configured default. */
+  order: CardCategory[]
+}
+
 export type ChangeEvent =
   | AddChange
   | RemoveChange
@@ -289,6 +329,9 @@ export type ChangeEvent =
   | RemoveSectionChange
   | RenameSectionChange
   | SetSectionChange
+  | SetCategoriesChange
+  | RenameCategoryChange
+  | SetCategoryOrderChange
 
 /** Derived from the union — kept as a convenience alias for switch statements. */
 export type ChangeAction = ChangeEvent['action']
@@ -310,20 +353,41 @@ export const CHANGE_ACTIONS = [
   'set-label',
   'add-tag',
   'remove-tag',
+  'set-categories',
   'move-from',
   'move-to',
   'add-section',
   'remove-section',
   'rename-section',
   'set-section',
+  'rename-category',
+  'set-category-order',
 ] as const satisfies readonly ChangeAction[]
 
 /**
- * The card-bearing subset of {@link ChangeEvent} — every variant except the section-structural
- * ones (add/remove/rename-section), which target a section rather than a card. Producers that
- * never emit section-meta changes (e.g. the file diff) use this so `.cardName` is always present.
+ * The actions the categories sidecar answers to — the one enumeration of "this
+ * is a category change". Stated once because the two places that need it are
+ * runtime membership tests the compiler cannot keep exhaustive: the sidecar's
+ * commit filter and the import retargeter's untargeted set.
  */
-export type CardChange = Extract<ChangeEvent, { cardName: string }>
+export const CATEGORY_ACTIONS = [
+  'set-categories',
+  'rename-category',
+  'set-category-order',
+] as const satisfies readonly ChangeAction[]
+
+/**
+ * The card-LINE subset of {@link ChangeEvent} — every variant that targets one
+ * card line, so both `.cardName` and the optional `.cardId` are always readable.
+ * Producers that never emit list-level changes (the file diff, the deck-sync
+ * differ) return this.
+ *
+ * Excludes the section-structural three (they target a section) and
+ * `set-categories`: that one names a card but is keyed by *name*, carries no
+ * `cardId` at all, and is written to the categories sidecar rather than to a
+ * line — so a producer of card-line changes can never emit one.
+ */
+export type CardChange = Exclude<Extract<ChangeEvent, { cardName: string }>, SetCategoriesChange>
 
 /** Distributes Omit over each member of a union, preserving discriminated-union structure. */
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never
@@ -702,6 +766,44 @@ export function createSetSectionChange(
   return { ...makeBase(cardName, cardId), action: 'set-section', section }
 }
 
+/**
+ * Set a card's categories wholesale. Name-keyed by construction: the event
+ * carries no `cardId`, because the assignment covers every line of that name.
+ */
+export function createSetCategoriesChange(
+  cardName: string,
+  categories: readonly CardCategory[],
+): SetCategoriesChange {
+  return {
+    ...makeSectionMetaBase(),
+    action: 'set-categories',
+    cardName,
+    categories: normalizeCardCategories(categories),
+  }
+}
+
+export function createRenameCategoryChange(
+  category: string,
+  newCategory: string,
+): RenameCategoryChange {
+  return {
+    ...makeSectionMetaBase(),
+    action: 'rename-category',
+    category: normalizeCardCategory(category),
+    newCategory: normalizeCardCategory(newCategory),
+  }
+}
+
+export function createSetCategoryOrderChange(
+  order: readonly CardCategory[],
+): SetCategoryOrderChange {
+  return {
+    ...makeSectionMetaBase(),
+    action: 'set-category-order',
+    order: normalizeCardCategories(order),
+  }
+}
+
 /** Check if two change events are exact opposites that should cancel out */
 export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   // add-section and remove-section cancel each other for the same section name
@@ -816,7 +918,9 @@ function consolidateLatestWins(
       c.action === spec.action &&
       'cardName' in c &&
       c.cardName === cardName &&
-      (cardId === undefined || c.cardId === undefined || c.cardId === cardId),
+      // `set-categories` is name-keyed and carries no `cardId`, so read it
+      // defensively rather than assuming every card-bearing event has one.
+      (cardId === undefined || !('cardId' in c) || c.cardId === undefined || c.cardId === cardId),
   )
   const cancelledChange: ChangeEvent | null =
     existingIdx !== -1 ? (changes[existingIdx] ?? null) : null
@@ -949,6 +1053,29 @@ export function consolidateSetLabel(
     action: 'set-label',
     changed: !sameCardLabels(labels, originalLabels),
     create: () => createSetLabelChange(cardName, { labels, cardId }),
+  })
+}
+
+/**
+ * Apply a set-categories action with "latest wins" semantics, mirroring
+ * {@link consolidateSetLabel}. Categories are a whole-list replacement in which
+ * order is meaning (the first is the primary), so an edit session records one
+ * event per card rather than a per-category delta, and restoring the original
+ * order cancels the pending event.
+ *
+ * Name-keyed, so `cardId` is deliberately `undefined`: the assignment covers
+ * every line of that name.
+ */
+export function consolidateSetCategories(
+  changes: ChangeEvent[],
+  cardName: string,
+  categories: readonly CardCategory[],
+  originalCategories: readonly CardCategory[] | undefined,
+): ConsolidateResult {
+  return consolidateLatestWins(changes, cardName, undefined, {
+    action: 'set-categories',
+    changed: !sameCardCategories(categories, originalCategories),
+    create: () => createSetCategoriesChange(cardName, categories),
   })
 }
 
@@ -1095,6 +1222,9 @@ const ADDITIVE_ACTIONS = {
   'remove-section': false,
   'rename-section': true,
   'set-section': true,
+  'set-categories': true,
+  'rename-category': true,
+  'set-category-order': true,
 } as const satisfies Record<ChangeAction, boolean>
 
 /** Check if a change is additive (green) or destructive (red) */
@@ -1281,6 +1411,21 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
       return `${tense === 'past' ? 'Renamed' : 'Rename'} section "${change.section}" to "${change.newSection}"`
     case 'set-section':
       return `${tense === 'past' ? 'Moved' : 'Move'} ${name} to section "${change.section}"${idInfo}`
+    case 'set-categories': {
+      if (change.categories.length === 0) {
+        const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
+        return `${clearVerb} categories of ${name}`
+      }
+      return `Set categories of ${name} to ${formatCardCategories(change.categories)}`
+    }
+    case 'rename-category':
+      return `${tense === 'past' ? 'Renamed' : 'Rename'} category "${change.category}" to "${change.newCategory}"`
+    case 'set-category-order': {
+      if (change.order.length === 0) {
+        return `${tense === 'past' ? 'Cleared' : 'Clear'} category order`
+      }
+      return `Set category order to ${formatCardCategories(change.order)}`
+    }
     default: {
       change satisfies never
       throw new Error(`Unhandled change action (this is a bug)`)

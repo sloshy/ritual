@@ -115,6 +115,7 @@ export const MOCK_CONFIG = {
   },
   collectionSync: { pullTarget: 'Inbox' },
   priceSources: ['tcgplayer'],
+  defaultCategories: ['Ramp', 'Draw', 'Removal'],
 } satisfies RitualConfig
 
 /**

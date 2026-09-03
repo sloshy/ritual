@@ -115,6 +115,32 @@ describe('POST /api/deck/:slug/save — tags', () => {
   })
 })
 
+describe('POST /api/deck/:slug/save — categories', () => {
+  // The route's one categories 400 case: the full matrix (canonicalization, the
+  // empty-list clear, the smuggled `cardId`) is pinned on
+  // `normalizeRequestCategories` in test/unit/admin/save-helpers.test.ts; this
+  // proves the route wires that validator in front of its write.
+  test('a malformed category name is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save(
+      [
+        {
+          id: 'x',
+          timestamp: 0,
+          action: 'set-categories',
+          cardName: 'Lightning Bolt',
+          // The cast is the point: the wire is unvalidated.
+          categories: ['a,b'],
+        } as unknown as ChangeEvent,
+      ],
+      deckWithLanguage(),
+    )
+    expect(resp.status).toBe(400)
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(await fs.exists(filePath.replace(/\.md$/, '.categories.json'))).toBe(false)
+  })
+})
+
 describe('POST /api/deck/:slug/save — languages', () => {
   test('set-language writes the [ja] token, the changelog line, and an updated effect', async () => {
     const resp = await save(

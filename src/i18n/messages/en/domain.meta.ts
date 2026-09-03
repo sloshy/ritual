@@ -550,4 +550,19 @@ export const domainMeta = {
   'domain.change.setSection': {
     description: `${CHANGE_CONTEXT} A card moved into a different section of the same list. ${ID_CONTEXT}`,
   },
+  'domain.change.setCategories': {
+    description: `${CHANGE_CONTEXT} A card's categories — its roles in this one list, e.g. Ramp or Removal — were set. {categories} is the user's own comma-joined list in their chosen order (the first is the primary category) and is never translated.`,
+  },
+  'domain.change.clearCategories': {
+    description: `${CHANGE_CONTEXT} Every category was taken off a card, so it is uncategorized in this list again.`,
+  },
+  'domain.change.renameCategory': {
+    description: `${CHANGE_CONTEXT} A category was renamed throughout one list. Both names are the user's own text; keep the quotation marks.`,
+  },
+  'domain.change.setCategoryOrder': {
+    description: `${CHANGE_CONTEXT} A list's category display order was set. {order} is the user's own comma-joined vocabulary in its new order and is never translated.`,
+  },
+  'domain.change.clearCategoryOrder': {
+    description: `${CHANGE_CONTEXT} A list's category display order was emptied, so categories fall back to the configured default order.`,
+  },
 } as const satisfies MetaFor<typeof domainMessages>

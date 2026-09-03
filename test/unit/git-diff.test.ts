@@ -45,6 +45,37 @@ describe('parseNameStatus', () => {
     expect(result[0]!.path).toBe('decks/my-deck.md')
   })
 
+  test('keeps a categories sidecar under every status — it has its own hash and events', () => {
+    const raw = [
+      'M\tdecks/my-deck.categories.json',
+      'A\tcollections/Binder.categories.json',
+      'D\twanted/Wish.categories.json',
+    ].join('\n')
+    expect(parseNameStatus(raw).map((change) => change.path)).toEqual([
+      'decks/my-deck.categories.json',
+      'collections/Binder.categories.json',
+      'wanted/Wish.categories.json',
+    ])
+  })
+
+  test('keeps a rename whose new path is a categories sidecar', () => {
+    const raw = 'R090\tdecks/old.categories.json\tdecks/new.categories.json\n'
+    expect(parseNameStatus(raw)[0]).toEqual({
+      status: 'R',
+      oldPath: 'decks/old.categories.json',
+      path: 'decks/new.categories.json',
+    })
+  })
+
+  test('still drops JSON outside the list directories and unrelated JSON inside them', () => {
+    const raw = [
+      'M\tnotes.categories.json',
+      'M\tdecks/notes.json',
+      'M\tdecks/my-deck.art.json',
+    ].join('\n')
+    expect(parseNameStatus(raw)).toEqual([])
+  })
+
   test('parses multiple files', () => {
     const raw = [
       'M\tdecks/deck-a.md',

@@ -9,6 +9,11 @@ import {
   type PriceCurrency,
 } from '../pricing/price-currency'
 import { DEFAULT_PRICE_SOURCES, parsePriceSources, type PriceSource } from '../pricing/price-source'
+import {
+  type CardCategory,
+  DEFAULT_CARD_CATEGORIES,
+  parseDefaultCategories,
+} from '../card/card-categories'
 import { isValidSemver } from './semver'
 import { isRecord } from '../util/json'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../cache/constants'
@@ -148,6 +153,13 @@ export interface RitualConfig {
    */
   priceSources: PriceSource[]
   /**
+   * The global category vocabulary: the suggestions offered everywhere a
+   * category is typed, and the default display order for a list whose
+   * `.categories.json` sidecar declares none. Always present, defaulting to the
+   * shipped fourteen; an explicit empty array means no suggestions.
+   */
+  defaultCategories: CardCategory[]
+  /**
    * The language stamped on newly added cards, and the selector for which
    * Scryfall bulk backs the card cache (`en` → `default_cards`, anything else →
    * `all_cards`). A bare card line always means `en` regardless of this setting —
@@ -237,6 +249,7 @@ const DEFAULT_CONFIG = {
   artDir: './art',
   defaultCurrency: DEFAULT_CURRENCY,
   priceSources: [...DEFAULT_PRICE_SOURCES],
+  defaultCategories: [...DEFAULT_CARD_CATEGORIES],
   defaultLanguage: DEFAULT_CARD_LANGUAGE,
   uiLocale: DEFAULT_LOCALE,
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
@@ -529,7 +542,7 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
  */
 type ParsedConfig = Omit<
   Partial<RitualConfig>,
-  'admin' | 'collectionSync' | 'site' | 'exportPresets' | 'priceSources'
+  'admin' | 'collectionSync' | 'site' | 'exportPresets' | 'priceSources' | 'defaultCategories'
 > & {
   admin?: unknown
   collectionSync?: unknown
@@ -537,6 +550,8 @@ type ParsedConfig = Omit<
   exportPresets?: unknown
   /** Untrusted until {@link parsePriceSources} has run. */
   priceSources?: unknown
+  /** Untrusted until {@link parseDefaultCategories} has run. */
+  defaultCategories?: unknown
 }
 
 /** Validate a boolean admin field, defaulting when absent or erroring when malformed. */
@@ -878,6 +893,11 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
     priceSources: parseOrWarn(parsePriceSources(parsed.priceSources), 'priceSources', [
       ...DEFAULT_PRICE_SOURCES,
     ]),
+    defaultCategories: parseOrWarn(
+      parseDefaultCategories(parsed.defaultCategories),
+      'defaultCategories',
+      [...DEFAULT_CARD_CATEGORIES],
+    ),
     defaultLanguage: parseOrWarn(
       parseDefaultLanguage(parsed.defaultLanguage),
       'defaultLanguage',
@@ -1070,6 +1090,17 @@ export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): Pr
  */
 export function getPriceSources(config: RitualConfig = getRitualConfig()): readonly PriceSource[] {
   return config.priceSources
+}
+
+/**
+ * The global category vocabulary (the shipped fourteen unless overridden): the
+ * suggestions a category prompt offers, and the fallback display order for a
+ * list whose sidecar names none. An empty array is meaningful — no suggestions.
+ */
+export function getDefaultCategories(
+  config: RitualConfig = getRitualConfig(),
+): readonly CardCategory[] {
+  return config.defaultCategories
 }
 
 /**

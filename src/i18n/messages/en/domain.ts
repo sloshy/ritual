@@ -393,4 +393,21 @@ export const domainMessages = {
     present: 'Move {name} to section "{section}"{id}',
     past: 'Moved {name} to section "{section}"{id}',
   },
+  'domain.change.setCategories': 'Set categories of {name} to {categories}',
+  'domain.change.clearCategories': {
+    $select: 'tense',
+    present: 'Clear categories of {name}',
+    past: 'Cleared categories of {name}',
+  },
+  'domain.change.renameCategory': {
+    $select: 'tense',
+    present: 'Rename category "{category}" to "{newCategory}"',
+    past: 'Renamed category "{category}" to "{newCategory}"',
+  },
+  'domain.change.setCategoryOrder': 'Set category order to {order}',
+  'domain.change.clearCategoryOrder': {
+    $select: 'tense',
+    present: 'Clear category order',
+    past: 'Cleared category order',
+  },
 } as const satisfies MessageCatalogShape

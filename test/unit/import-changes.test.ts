@@ -280,4 +280,66 @@ describe('retargetImportedChanges — pinning move-to', () => {
     expect(retargeted).toHaveLength(0)
     expect(conflicts).toMatchObject([{ reason: 'target-not-found' }])
   })
+
+  it('a set-categories passes through byte-identically and never gains a cardId', () => {
+    const change: ChangeEvent = {
+      id: 'c',
+      timestamp: 1,
+      action: 'set-categories',
+      cardName: 'Sol Ring',
+      categories: ['Ramp'],
+    }
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes: [change],
+      currentIds: new Set([1]),
+      allocateId: allocator(2),
+      findIdByName: () => 1,
+    })
+    expect(retargeted[0]).toBe(change)
+    // `toEqual` ignores undefined-valued keys, so assert the key is truly absent.
+    expect(Object.keys(retargeted[0]!)).not.toContain('cardId')
+    expect(conflicts).toEqual([])
+  })
+
+  it('a set-categories for a name this list does not hold is a no-op, not a conflict', () => {
+    const change: ChangeEvent = {
+      id: 'c',
+      timestamp: 1,
+      action: 'set-categories',
+      cardName: 'Rhystic Study',
+      categories: ['Draw'],
+    }
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes: [change],
+      currentIds: new Set([1]),
+      allocateId: allocator(2),
+      findIdByName: () => undefined,
+    })
+    expect(retargeted).toEqual([change])
+    expect(conflicts).toEqual([])
+  })
+
+  // What this actually guards: the two list-level actions carry no `cardName`
+  // and so take the untargeted arm regardless of UNTARGETED_ACTIONS. The set's
+  // membership is only observable through the `set-categories` cases above.
+  it('the two list-level category actions carry no cardName and pass through unchanged', () => {
+    const changes: ChangeEvent[] = [
+      {
+        id: 'a',
+        timestamp: 1,
+        action: 'rename-category',
+        category: 'Draw',
+        newCategory: 'Card Draw',
+      },
+      { id: 'b', timestamp: 2, action: 'set-category-order', order: ['Ramp', 'Card Draw'] },
+    ]
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes,
+      currentIds: new Set([1]),
+      allocateId: allocator(2),
+      findIdByName: () => undefined,
+    })
+    expect(retargeted).toEqual(changes)
+    expect(conflicts).toEqual([])
+  })
 })

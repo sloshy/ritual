@@ -566,6 +566,32 @@ describe('cleanup CLI (Integration)', () => {
     })
   })
 
+  test('a stale categories sidecar fails --check and is named on a real run', async () => {
+    await withWorkspace(async (dir) => {
+      // The list itself is already canonical: the only pending work is the
+      // sidecar's stale entry, which a real run would write.
+      await writeCollectionFile(dir, 'Binder', {
+        entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+      })
+      const sidecarPath = path.join(dir, 'collections', 'Binder.categories.json')
+      await fs.writeFile(
+        sidecarPath,
+        JSON.stringify({ cards: { 'Sol Ring': ['Ramp'], 'Rhystic Study': ['Draw'] } }),
+      )
+
+      const check = await runCli(['cleanup', '--check', '--skip-formats'], dir)
+      expect(check.exitCode).toBe(1)
+      expect(check.stdout).toContain('Rhystic Study')
+
+      const real = await runCli(['cleanup', '--skip-formats'], dir)
+      expect(real.exitCode).toBe(0)
+      expect(real.stdout).toContain('Rhystic Study')
+      expect(real.stdout).toContain('categories sidecar rewritten in canonical form')
+      // A second run has nothing left to do.
+      expect((await runCli(['cleanup', '--check', '--skip-formats'], dir)).exitCode).toBe(0)
+    })
+  })
+
   test('a collection with hand-written prose is rewrite-blocked, not silently stripped', async () => {
     await withWorkspace(async (dir) => {
       // Non-bullet lines now warn in the flat parsers, arming the same
@@ -622,6 +648,99 @@ describe('cleanup CLI (Integration)', () => {
       expect(report.files).toHaveLength(1)
       expect(report.files[0]).toMatchObject({ type: 'wanted', renamedTo: 'Binder.md' })
     })
+  })
+})
+
+describe('cleanup — categories', () => {
+  let workspace: BoundWorkspace
+
+  beforeEach(async () => {
+    workspace = await bindWorkspace({ init: true })
+  })
+
+  afterEach(async () => {
+    await workspace.dispose()
+  })
+
+  /** A collection holding only Sol Ring, plus a sidecar that also names a card it lost. */
+  async function seed(sidecar: string): Promise<{ filePath: string; sidecarPath: string }> {
+    const filePath = await writeCollectionFile(workspace.dir, 'Binder', {
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    })
+    const sidecarPath = filePath.replace(/\.md$/, '.categories.json')
+    await fs.writeFile(sidecarPath, sidecar)
+    return { filePath, sidecarPath }
+  }
+
+  const STALE = JSON.stringify({
+    cards: { 'Sol Ring': ['Ramp'], 'Rhystic Study': ['Draw'] },
+  })
+
+  test('prunes a stale name, re-serializes canonically, and leaves a stale hash alone', async () => {
+    const { filePath, sidecarPath } = await seed(STALE)
+    await fs.writeFile(hashPath(sidecarPath), 'stalehash\n')
+
+    const result = await cleanupList({ type: 'collection', filePath, name: 'Binder' })
+    expect(result.categoriesPruned).toEqual(['Rhystic Study'])
+    expect(result.categoriesRewritten).toBe(true)
+    expect(hasCleanupActions(result)).toBe(true)
+
+    const written = JSON.parse(await fs.readFile(sidecarPath, 'utf-8')) as {
+      order: string[]
+      cards: Record<string, string[]>
+    }
+    expect(written.cards).toEqual({ 'Sol Ring': ['Ramp'] })
+    // The resolved order is persisted, so the file describes itself.
+    expect(written.order).toEqual(['Ramp'])
+    // A hand-edited sidecar keeps its stale hash so detect-changes still sees it.
+    expect(await fs.readFile(hashPath(sidecarPath), 'utf-8')).toBe('stalehash\n')
+  })
+
+  test('--dry-run previews the same prune and rewrite without touching a byte', async () => {
+    const { filePath, sidecarPath } = await seed(STALE)
+    await fs.writeFile(hashPath(sidecarPath), 'stalehash\n')
+    const before = await fs.readFile(sidecarPath, 'utf-8')
+
+    const result = await cleanupList(
+      { type: 'collection', filePath, name: 'Binder' },
+      { dryRun: true },
+    )
+    expect(result.categoriesPruned).toEqual(['Rhystic Study'])
+    expect(result.categoriesRewritten).toBe(true)
+    expect(await fs.readFile(sidecarPath, 'utf-8')).toBe(before)
+    expect(await fs.readFile(hashPath(sidecarPath), 'utf-8')).toBe('stalehash\n')
+  })
+
+  test('a lossy parse blocks the prune: the sidecar is canonicalized, never emptied', async () => {
+    // The list holds a line the parser cannot read, so the surviving-name set is
+    // incomplete — pruning against it would drop a card that is still there.
+    const filePath = path.join(workspace.dir, 'collections', 'Bad.md')
+    await fs.writeFile(filePath, '# Bad\n\n- Sol Ring (C21:263) &1\nthis is not a card line\n')
+    const sidecarPath = filePath.replace(/\.md$/, '.categories.json')
+    await fs.writeFile(sidecarPath, STALE)
+
+    const result = await cleanupList({ type: 'collection', filePath, name: 'Bad' })
+    expect(result.rewriteBlocked).toBe(true)
+    expect(result.categoriesPruned).toBeUndefined()
+    expect(result.warnings.join(' ')).toContain('categories not pruned')
+
+    const written = JSON.parse(await fs.readFile(sidecarPath, 'utf-8')) as {
+      cards: Record<string, string[]>
+    }
+    // Every assignment survives; only the serialization is canonicalized.
+    expect(written.cards).toEqual({ 'Rhystic Study': ['Draw'], 'Sol Ring': ['Ramp'] })
+  })
+
+  test('a repeat run on an already-canonical sidecar reports nothing', async () => {
+    const { filePath, sidecarPath } = await seed(STALE)
+    await cleanupList({ type: 'collection', filePath, name: 'Binder' })
+
+    const again = await cleanupList({ type: 'collection', filePath, name: 'Binder' })
+    expect(again.categoriesPruned).toBeUndefined()
+    expect(again.categoriesRewritten).toBe(false)
+    // The seeded sidecar carried no `.sha256`, so Ritual never claimed it as
+    // recorded — cleanup canonicalizes the bytes but stamps nothing.
+    expect(await Bun.file(hashPath(sidecarPath)).exists()).toBe(false)
   })
 })
 

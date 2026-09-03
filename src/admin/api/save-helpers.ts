@@ -12,7 +12,13 @@ import { appendChangelog } from '../../changes/changelog-writer'
 import { removedArtCardIds, type LineQuantities } from '../../changes/line-copies'
 import { listTypeLabel, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
-import { loadRitualConfig } from '../../config/ritual-config'
+import { getDefaultCategories, loadRitualConfig } from '../../config/ritual-config'
+import {
+  foldCategoryCardName,
+  parseCardCategoriesValue,
+  parseCardCategory,
+} from '../../card/card-categories'
+import { commitCategoryChanges, isCategoryChange } from '../../list/card-categories-sidecar'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiError, badRequest, type ApiConflictResponse } from '../../api/http'
 import { normalizeNote } from '../../card/note-helpers'
@@ -297,6 +303,59 @@ export function normalizeRequestTags(
 }
 
 /**
+ * Validate and canonicalize the categories in a save request — the `categories`
+ * of every `set-categories`, the `order` of every `set-category-order`, and the
+ * two names of every `rename-category`. The request body is cast unvalidated, so
+ * this is the boundary that keeps a malformed category name out of the sidecar
+ * and the changelog. Returns a 400 Response carrying the parser's refusal for
+ * the first offender, or null when every value is legal.
+ *
+ * An empty `categories` array is legal and meaningful: it is a *clear*.
+ */
+export function normalizeRequestCategories(changes: ChangeEvent[]): Response | null {
+  for (const change of changes) {
+    if (isCategoryChange(change)) {
+      // The body is cast unvalidated, so a client could smuggle a `cardId` onto
+      // a name-keyed event; the file boundary refuses it too. A foreign list's
+      // `&N` would otherwise be persisted into this list's changelog prose.
+      const raw = change as unknown as Record<string, unknown>
+      if (raw.cardId !== undefined) {
+        return badRequest(
+          `A ${change.action} change is keyed by card name and must not carry a "cardId".`,
+        )
+      }
+      if (change.action !== 'set-categories' && raw.cardName !== undefined) {
+        return badRequest(
+          `A ${change.action} change targets the list, not a card, and must not carry a "cardName".`,
+        )
+      }
+    }
+    if (change.action === 'set-categories') {
+      // Refused, never coerced — the same rule the tag normalizer states: a
+      // missing field must not become a category-shaped "undefined".
+      const result = parseCardCategoriesValue(change.categories, '"categories"')
+      if (!result.ok) return badRequest(result.message)
+      change.categories = result.categories
+    } else if (change.action === 'set-category-order') {
+      const result = parseCardCategoriesValue(change.order, '"order"')
+      if (!result.ok) return badRequest(result.message)
+      change.order = result.categories
+    } else if (change.action === 'rename-category') {
+      for (const field of ['category', 'newCategory'] as const) {
+        const raw: unknown = change[field]
+        if (typeof raw !== 'string') {
+          return badRequest(`A rename-category change requires a string "${field}".`)
+        }
+        const parsed = parseCardCategory(raw)
+        if (!parsed.ok) return badRequest(parsed.message)
+        change[field] = parsed.category
+      }
+    }
+  }
+  return null
+}
+
+/**
  * An entry (deck card or wanted row) whose request-supplied language needs
  * validating. `unknown` on purpose: the request body is cast unvalidated, and
  * this is the boundary that exists to *prove* the value, not assume it.
@@ -480,6 +539,12 @@ export interface ListSaveTail {
    * copy landing on an id the same save drained keeps its arriving art.
    */
   adoptedArt?: CardArtMap
+  /**
+   * The card names the written content still holds. The categories sidecar is
+   * keyed by name, so this is what tells the tail which of its entries no card
+   * backs any more. Omit to skip the prune.
+   */
+  cardNames?: readonly string[]
 }
 
 /** The list file's new content hash, which the save response returns. */
@@ -497,6 +562,17 @@ export interface ListSaveTailResult {
    * Omitted when the reconcile was clean.
    */
   artWarnings?: string[]
+  /**
+   * What the categories sidecar write could not do. The card lines were
+   * written, so — like {@link artWarnings} — this is a warning channel and never
+   * a failed save. Omitted when the sidecar was written (or left alone) cleanly.
+   */
+  categoryWarnings?: string[]
+  /**
+   * Card names whose category entries this save pruned, because the list no
+   * longer holds a line of that name. Omitted when nothing was pruned.
+   */
+  prunedCategories?: string[]
 }
 
 /** What a save learned that {@link ListSaveTail} does not already say. */
@@ -523,6 +599,8 @@ export function listSaveOutcome(result: ListSaveTailResult, moves: MovesOutcome)
     contentHash: result.contentHash,
     droppedNotes: moves.droppedNotes,
     ...(artWarnings.length > 0 ? { artWarnings } : {}),
+    ...(result.categoryWarnings === undefined ? {} : { categoryWarnings: result.categoryWarnings }),
+    ...(result.prunedCategories === undefined ? {} : { prunedCategories: result.prunedCategories }),
   }
 }
 
@@ -576,8 +654,34 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
   // handed has to be the one *after* it — otherwise the session's next save
   // 409s against a write this save itself performed.
   const contentHash = refs.contentHash ?? written
-  if (tail.changes.length > 0) {
-    const changelogPath = await appendChangelog(tail.filePath, tail.changelogName, tail.changes, {
+
+  // The categories half. Keyed by card NAME rather than `&N`, so it is a
+  // separate commit from the art reconcile above: what it needs is the set of
+  // names the written content still holds, not the ids the write freed.
+  //
+  // Every save reaches this call with a `knownCardNames` set, so the commit's
+  // own short-circuit never fires here — which is exactly why
+  // `saveCardCategories` is byte-identity-guarded: a save that touches no
+  // category loads, replays nothing, serializes, finds the bytes identical and
+  // writes nothing, leaving a hand-edited sidecar (and its stale hash) alone.
+  const categories = await commitCategoryChanges(tail.filePath, tail.changes, {
+    knownCardNames:
+      tail.cardNames === undefined ? undefined : new Set(tail.cardNames.map(foldCategoryCardName)),
+    defaultCategories: getDefaultCategories(await loadRitualConfig()),
+  })
+  filesToCommit.push(...categories.writtenFiles)
+
+  // File first, changelog second — and never a changelog entry for a write that
+  // did not happen: when the sidecar could not be read, its events are dropped
+  // from the batch rather than recorded as a phantom edit `history --rebuild`,
+  // the bundle export and `import-changes` would all replay. The failure itself
+  // rides the response as `categoryWarnings`.
+  const loggable =
+    categories.error === undefined
+      ? tail.changes
+      : tail.changes.filter((change) => !isCategoryChange(change))
+  if (loggable.length > 0) {
+    const changelogPath = await appendChangelog(tail.filePath, tail.changelogName, loggable, {
       continueSession: tail.continueSession,
     })
     filesToCommit.push(changelogPath)
@@ -589,12 +693,17 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
     // copy's art), so the path can be in `extraFiles` and here — as can the
     // list file itself, which a cover rewrite touches a second time.
     [...new Set(filesToCommit)],
-    `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${tail.changes.length} changes)`,
+    `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${loggable.length} changes)`,
   )
 
-  return art.ok
-    ? { contentHash }
-    : { contentHash, artWarnings: [unreconciledArtWarning(art.message)] }
+  return {
+    contentHash,
+    ...(art.ok ? {} : { artWarnings: [unreconciledArtWarning(art.message)] }),
+    ...(categories.error === undefined
+      ? {}
+      : { categoryWarnings: [categoriesUnreconciledWarning(categories.error)] }),
+    ...(categories.pruned.length > 0 ? { prunedCategories: categories.pruned } : {}),
+  }
 }
 
 /**
@@ -605,6 +714,15 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
  */
 export function unreconciledArtWarning(reason: string): string {
   return t('admin.api.save.artUnreconciled', { reason })
+}
+
+/**
+ * A categories sidecar a save could not read or write, as the response's
+ * warning. Like {@link unreconciledArtWarning}, the card lines were written
+ * first, so this is news to report rather than a save to undo.
+ */
+export function categoriesUnreconciledWarning(reason: string): string {
+  return t('admin.api.save.categoriesUnreconciled', { reason })
 }
 
 /**
@@ -623,6 +741,12 @@ export function listSaveResponse(tail: ListSaveTail, outcome: ListSaveOutcome): 
     droppedNotes: outcome.droppedNotes,
     effects: [...tail.effects],
     ...(outcome.artWarnings === undefined ? {} : { artWarnings: outcome.artWarnings }),
+    ...(outcome.categoryWarnings === undefined
+      ? {}
+      : { categoryWarnings: outcome.categoryWarnings }),
+    ...(outcome.prunedCategories === undefined
+      ? {}
+      : { prunedCategories: outcome.prunedCategories }),
   }
 }
 

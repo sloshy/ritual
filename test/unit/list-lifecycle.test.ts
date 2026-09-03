@@ -14,6 +14,7 @@ import {
 } from '../../src/list/list-lifecycle'
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { computeHash } from '../../src/changes/content-hash'
+import { LIST_SIDECAR_KINDS, listSidecarPath } from '../../src/list/list-sidecars'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 let ws: BoundWorkspace
@@ -132,6 +133,13 @@ describe('list-lifecycle engine', () => {
         path.join(decksDir, 'Old Deck.art.json'),
         '{\n  "1": { "url": "https://example.test/a.png" }\n}\n',
       )
+      // The categories sidecar carries its own, still-valid hash: a rename never
+      // rewrites the file, so both travel to the new name.
+      await fs.writeFile(
+        path.join(decksDir, 'Old Deck.categories.json'),
+        '{"order":["Ramp"],"cards":{}}\n',
+      )
+      await fs.writeFile(path.join(decksDir, 'Old Deck.categories.json.sha256'), 'categoryhash\n')
 
       const result = unwrap<RenameListSuccess>(await renameList('deck', oldPath, 'New Deck'))
 
@@ -146,6 +154,8 @@ describe('list-lifecycle engine', () => {
       expect(await exists(path.join(decksDir, 'Old Deck.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'Old Deck.primer.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'Old Deck.art.json'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Old Deck.categories.json'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Old Deck.categories.json.sha256'))).toBe(false)
 
       // New file, fresh hash, moved sidecars.
       expect(await exists(newPath)).toBe(true)
@@ -153,6 +163,10 @@ describe('list-lifecycle engine', () => {
       expect(await exists(path.join(decksDir, 'New Deck.changes.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'New Deck.primer.md'))).toBe(true)
       expect(await exists(path.join(decksDir, 'New Deck.art.json'))).toBe(true)
+      expect(await exists(path.join(decksDir, 'New Deck.categories.json'))).toBe(true)
+      expect(
+        await fs.readFile(path.join(decksDir, 'New Deck.categories.json.sha256'), 'utf-8'),
+      ).toBe('categoryhash\n')
 
       // Display name rewritten in the H1; the front matter is untouched.
       const content = await fs.readFile(newPath, 'utf-8')
@@ -360,6 +374,11 @@ describe('list-lifecycle engine', () => {
         path.join(decksDir, 'Doomed.art.json'),
         '{\n  "1": { "file": "d.jpg" }\n}\n',
       )
+      await fs.writeFile(
+        path.join(decksDir, 'Doomed.categories.json'),
+        '{"order":["Ramp"],"cards":{}}\n',
+      )
+      await fs.writeFile(path.join(decksDir, 'Doomed.categories.json.sha256'), 'hash\n')
 
       const result = unwrap<DeleteListSuccess>(await deleteList('deck', filePath))
 
@@ -369,12 +388,21 @@ describe('list-lifecycle engine', () => {
         path.join(decksDir, 'Doomed.changes.md'),
         path.join(decksDir, 'Doomed.primer.md'),
         path.join(decksDir, 'Doomed.art.json'),
+        path.join(decksDir, 'Doomed.categories.json'),
+        path.join(decksDir, 'Doomed.categories.json.sha256'),
       ])
       expect(await exists(filePath)).toBe(false)
       expect(await exists(`${filePath}.sha256`)).toBe(false)
       expect(await exists(path.join(decksDir, 'Doomed.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'Doomed.primer.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'Doomed.art.json'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Doomed.categories.json'))).toBe(false)
+      expect(await exists(path.join(decksDir, 'Doomed.categories.json.sha256'))).toBe(false)
+      // Every kind the sidecar table names, so a new one cannot be orphaned by a
+      // deletion that forgot it.
+      expect(new Set(result.deletedFiles)).toEqual(
+        new Set([filePath, ...LIST_SIDECAR_KINDS.map((kind) => listSidecarPath[kind](filePath))]),
+      )
     })
 
     test('only touches the files that exist', async () => {

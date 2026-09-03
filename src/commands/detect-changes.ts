@@ -11,12 +11,21 @@ import {
   probeGitRef,
   probeGitRepository,
   classifyFile,
+  classifyCategoriesFile,
+  listFileForCategoriesPath,
   changesPath,
   GitCommandError,
   type FileChange,
   type ListKind,
 } from '../changes/git-diff'
 import { diffDeckCards, diffCollectionEntries, diffWantedEntries } from '../changes/diff-cards'
+import { diffCardCategories } from '../changes/diff-categories'
+import {
+  type CardCategoriesRecord,
+  categoriesSidecarPath,
+  emptyCardCategoriesRecord,
+  parseCardCategoriesSidecar,
+} from '../list/card-categories-sidecar'
 import { loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from '../list/collection-file'
 import { parseWantedListFile } from '../list/wanted-file'
@@ -27,6 +36,7 @@ import { getBaseDir } from '../config/base-dir'
 import {
   classifySidecarWithHash,
   computeHash,
+  hashPath,
   isRitualClean,
   loadHash,
   saveHash,
@@ -70,6 +80,20 @@ type DetectResult = {
    * detection is skipped to avoid double-recording changes made locally.
    */
   ritualClean: boolean
+  /**
+   * True when this run actually read and diffed the list `.md` itself. False for
+   * a result the categories pass invented because only the sidecar changed in
+   * the range: the `.md` was never examined, so stamping its `.sha256` would
+   * declare whatever unrecorded hand edits it holds already recorded, and a
+   * later run over the commit that lands them would skip it forever.
+   */
+  listFileDiffed: boolean
+  /**
+   * Repo-relative path of the `.categories.json` sidecar whose hand edit
+   * contributed changes to this result. The apply pass stamps (or, for a
+   * deleted sidecar, unstamps) it so the run stays idempotent.
+   */
+  categoriesFile?: string
 }
 
 /**
@@ -307,6 +331,28 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
     const aligned = alignSectionIds(oldDeck.deck.sections, newDeck.deck.sections)
     return diffDeckCards(aligned.old, aligned.current)
   }
+  /** A file that changed in the range but is gone from the working tree. */
+  const pushMissingFileWarning = (filePath: string): void => {
+    warnings.push({
+      kind: 'missing-file',
+      file: filePath,
+      message: t('cli.detectChanges.missingFile', { path: filePath }),
+    })
+  }
+
+  /**
+   * A parse failure, labelled by the revision it came from — the committed side
+   * names the *old* path (a rename's committed bytes live there) and the commit.
+   */
+  const pushParseWarning = (
+    fc: FileChange,
+    revision: 'committed' | 'working-tree',
+    detail: string,
+  ): void => {
+    const where = revision === 'committed' ? `${fc.oldPath} at ${commit}` : fc.path
+    warnings.push({ kind: 'parse', file: fc.path, revision, message: `${where}: ${detail}` })
+  }
+
   await fs.mkdir(tempDir, { recursive: true })
 
   try {
@@ -320,7 +366,14 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
       }
 
       if (fc.status === 'D') {
-        results.push({ file: fc.oldPath, kind, status: 'D', changes: [], ritualClean: false })
+        results.push({
+          file: fc.oldPath,
+          kind,
+          status: 'D',
+          changes: [],
+          ritualClean: false,
+          listFileDiffed: true,
+        })
         continue
       }
 
@@ -333,11 +386,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
         newContent = await fs.readFile(newPath, 'utf-8')
       } catch (error) {
         if (!hasErrorCode(error, 'ENOENT')) throw error
-        warnings.push({
-          kind: 'missing-file',
-          file: fc.path,
-          message: t('cli.detectChanges.missingFile', { path: fc.path }),
-        })
+        pushMissingFileWarning(fc.path)
         continue
       }
 
@@ -346,14 +395,20 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
       // the corresponding changelog entries locally. Re-diffing would
       // double-record those changes, so skip detection for this file.
       if (await isRitualClean(newPath, newContent)) {
-        results.push({ file: fc.path, kind, status: fc.status, changes: [], ritualClean: true })
+        results.push({
+          file: fc.path,
+          kind,
+          status: fc.status,
+          changes: [],
+          ritualClean: true,
+          listFileDiffed: true,
+        })
         continue
       }
 
       const oldContent = fc.status === 'A' ? null : getFileAtCommit(commit, fc.oldPath, cwd)
       const report: ReportParseWarning = (revision, warning) => {
-        const where = revision === 'committed' ? `${fc.oldPath} at ${commit}` : fc.path
-        warnings.push({ kind: 'parse', file: fc.path, revision, message: `${where}: ${warning}` })
+        pushParseWarning(fc, revision, warning)
       }
 
       let changes: ChangeEvent[]
@@ -373,7 +428,99 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
         }
       }
 
-      results.push({ file: fc.path, kind, status: fc.status, changes, ritualClean: false })
+      results.push({
+        file: fc.path,
+        kind,
+        status: fc.status,
+        changes,
+        ritualClean: false,
+        listFileDiffed: true,
+      })
+    }
+
+    // Second pass, over the same `fileChanges`: the `.categories.json` sidecars.
+    // They carry their own `.sha256` and their own changelog events, but no
+    // changelog of their own — the events land on the list's `.changes.md`,
+    // which the first pass has already created a result for when the list file
+    // changed too. The `.md` loop above skipped these rows (`classifyFile`
+    // returns null for a `.json`).
+    for (const fc of fileChanges) {
+      const kind = classifyCategoriesFile(fc.path) ?? classifyCategoriesFile(fc.oldPath)
+      if (!kind) continue
+      const listFile = listFileForCategoriesPath(fc.path)
+
+      // The list itself is going away in this range: there is no changelog left
+      // to append to, so the sidecar's disappearance is not a gesture to record.
+      const listDeleted =
+        fileChanges.some((other) => other.status === 'D' && other.path === listFile) ||
+        results.some((result) => result.status === 'D' && result.file === listFile)
+      if (listDeleted) continue
+
+      const sidecarAbsPath = path.join(cwd, fc.path)
+      let afterContent: string | null = null
+      if (fc.status === 'D') {
+        // A deleted sidecar has no content to hash, so the ordinary
+        // ritual-clean skip cannot fire. Its `.sha256` is the stand-in: while
+        // one is still there, Ritual has an unreconciled record of the file, so
+        // the clearing events are news. `applyDetectedChanges` removes it once
+        // they are written, which is what makes a repeat run a no-op.
+        if ((await loadHash(sidecarAbsPath)) === null) continue
+      } else {
+        try {
+          afterContent = await fs.readFile(sidecarAbsPath, 'utf-8')
+        } catch (error) {
+          if (!hasErrorCode(error, 'ENOENT')) throw error
+          pushMissingFileWarning(fc.path)
+          continue
+        }
+        // Hash-aware skip, exactly as for the list file: Ritual itself last
+        // wrote this exact sidecar and already recorded its events.
+        if (await isRitualClean(sidecarAbsPath, afterContent)) continue
+      }
+
+      // A deleted sidecar means "clear every category", so the committed side is
+      // diffed against the empty record. `A` has no committed revision at all.
+      const beforeContent = fc.status === 'A' ? null : getFileAtCommit(commit, fc.oldPath, cwd)
+
+      const parseSide = (
+        content: string | null,
+        revision: 'committed' | 'working-tree',
+      ): CardCategoriesRecord | null => {
+        if (content === null) return emptyCardCategoriesRecord()
+        // No `knownCardNames`: detect-changes must not consult the list's
+        // contents to decide what the user wrote.
+        const parsed = parseCardCategoriesSidecar(content)
+        if (parsed.ok) return parsed.categories
+        pushParseWarning(fc, revision, parsed.message)
+        return null
+      }
+      const before = parseSide(beforeContent, 'committed')
+      const after = parseSide(afterContent, 'working-tree')
+      // A file that could not be parsed is skipped entirely — never diffed
+      // partially, which would record a fiction.
+      if (before === null || after === null) continue
+
+      const changes = diffCardCategories(before, after)
+      if (changes.length === 0) continue
+
+      const existing = results.find((result) => result.file === listFile)
+      if (existing === undefined) {
+        results.push({
+          file: listFile,
+          kind,
+          status: 'M',
+          changes,
+          ritualClean: false,
+          // The list `.md` was not in this range at all: only its sidecar
+          // changed, so the `.md` must not be stamped from this result.
+          listFileDiffed: false,
+          categoriesFile: fc.path,
+        })
+      } else {
+        existing.changes = [...existing.changes, ...changes]
+        existing.ritualClean = false
+        existing.categoriesFile = fc.path
+      }
     }
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true })
@@ -483,7 +630,27 @@ export async function applyDetectedChanges(
       // The list file's changes are now recorded, so refresh its sidecar to
       // match the current content. Subsequent runs will treat it as
       // Ritual-clean and skip it, keeping detection idempotent.
-      await saveHash(filePath, computeHash(content))
+      //
+      // Only when this run actually diffed the `.md`. A result the categories
+      // pass invented (the sidecar changed, the list file did not) never looked
+      // at the `.md`, and stamping it would declare any unrecorded hand edit
+      // sitting in the working tree already recorded — the very loss the
+      // ritual-clean skip and `--hash-only`'s stamp warning exist to prevent.
+      if (result.listFileDiffed) await saveHash(filePath, computeHash(content))
+      // The categories sidecar's own stamp, so a second run sees it as
+      // ritual-clean. A sidecar the user deleted has no content to hash: drop
+      // its stale `.sha256` instead, which is what keeps the clearing events
+      // from being recorded twice.
+      if (result.categoriesFile !== undefined) {
+        const sidecarPath = path.join(cwd, result.categoriesFile)
+        try {
+          const sidecarContent = await fs.readFile(sidecarPath, 'utf-8')
+          await saveHash(sidecarPath, computeHash(sidecarContent))
+        } catch (error) {
+          if (!hasErrorCode(error, 'ENOENT')) throw error
+          await fs.rm(hashPath(sidecarPath), { force: true })
+        }
+      }
     }
   }
 
@@ -507,20 +674,31 @@ export async function applyDetectedChanges(
 export async function inspectListSidecars(baseDir: string): Promise<SidecarInspection[]> {
   const locations = await listLocations()
   const inspections: SidecarInspection[] = []
-  for (const location of locations) {
+  /** One inspectable file, or `null` when it is not there. */
+  const inspect = async (filePath: string): Promise<SidecarInspection | null> => {
     let content: string
     try {
-      content = await fs.readFile(location.filePath, 'utf-8')
+      content = await fs.readFile(filePath, 'utf-8')
     } catch (error) {
       if (!hasErrorCode(error, 'ENOENT')) throw error
-      continue
+      return null
     }
-    const classification = classifySidecarWithHash(content, await loadHash(location.filePath))
-    inspections.push({
-      file: path.relative(baseDir, location.filePath),
+    const classification = classifySidecarWithHash(content, await loadHash(filePath))
+    return {
+      file: path.relative(baseDir, filePath),
       state: classification.state,
       hash: classification.hash,
-    })
+    }
+  }
+  for (const location of locations) {
+    const listInspection = await inspect(location.filePath)
+    if (listInspection === null) continue
+    inspections.push(listInspection)
+
+    // The categories sidecar carries its own `.sha256`, so it is inspected (and
+    // stamped) in its own right beside the list file it belongs to.
+    const sidecarInspection = await inspect(categoriesSidecarPath(location.filePath))
+    if (sidecarInspection !== null) inspections.push(sidecarInspection)
   }
   return inspections.sort((a, b) => compareData(a.file, b.file))
 }

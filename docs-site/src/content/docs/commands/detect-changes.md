@@ -75,7 +75,18 @@ For each changed file, the old version (at the specified commit) and current ver
 - **Commander promotions** (decks only) → `Set as commander` entries
 - **Commander demotions** (decks only) → `Unset as commander` entries
 
-Notes (`{note}`) and label overrides (`[labels]`) are deliberately invisible to the diff: hand-editing only a card's note or labels produces no changelog entries (the file still counts as `no card changes detected`). A list's `.art.json` [custom art](/custom-art/) sidecar is likewise untracked — like a deck's `.primer.md`, it is metadata rather than card content, and the `.sha256` hash covers the markdown file alone.
+Notes (`{note}`) and label overrides (`[labels]`) are deliberately invisible to the diff: hand-editing only a card's note or labels produces no changelog entries (the file still counts as `no card changes detected`). A list's `.art.json` [custom art](/custom-art/) sidecar is likewise untracked — like a deck's `.primer.md`, it is metadata rather than card content, and the list file's `.sha256` covers the markdown file alone.
+
+### The categories sidecar
+
+A list's [`<name>.categories.json`](/list-format/#categories-namecategoriesjson) is the one sidecar that **is** tracked. It carries a `.sha256` of its own and is walked alongside its list file, so a hand edit to it is recorded as `Set categories of "Sol Ring" to Ramp, Artifacts`, `Set category order to …` and `Renamed category "Draw" to "Card Draw"` entries in that **list's** `.changes.md` (the sidecar has no changelog of its own), and its own `.sha256` is stamped so a second run records nothing.
+
+Both edges are real gestures:
+
+- **Adding** a sidecar records every assignment in it.
+- **Deleting** one by hand, while the list survives, means _clear every category_: the clearing entries are recorded and the stale `.sha256` is removed. Deleting the list **and** its sidecar together records only the list's own deletion.
+
+A malformed sidecar produces a parse warning and is skipped entirely — never diffed partially. `--hash-only` and `--verify` cover the categories sidecar too, listing it beside the list file it belongs to.
 
 ### Card Matching
 
@@ -124,7 +135,7 @@ With `-n`/`--dry-run` the command prints what it would do without modifying any 
 
 Rewrites every list file's `.sha256` sidecar from the file's current on-disk content. It needs no git repository, writes no changelog entries, and never modifies list file content (`detect-changes` is exempt from the [card-ID backfill](/#the-card-id-backfill) in every mode, so a `--dry-run` preview always shows exactly the hashes a real run would write).
 
-Only deck, collection, and wanted **list files** are stamped — never `.changes.md` changelogs, `.primer.md` primers, or any other sidecar.
+Deck, collection, and wanted **list files** are stamped, together with their [`.categories.json`](/list-format/#categories-namecategoriesjson) sidecars — never `.changes.md` changelogs, `.primer.md` primers, `.art.json` custom art, or anything else.
 
 In text mode each stamped file is printed with the hash written for it, followed by a count:
 

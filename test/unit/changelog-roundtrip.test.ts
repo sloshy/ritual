@@ -31,6 +31,9 @@ import {
   createSetNoteChange,
   createSetPrintingChange,
   createSetSectionChange,
+  createSetCategoriesChange,
+  createRenameCategoryChange,
+  createSetCategoryOrderChange,
   createUnsetCommanderChange,
   formatChangeCore,
   type ChangeAction,
@@ -217,6 +220,22 @@ const CASES = {
     ...NAMES.map((name) => createSetSectionChange(name, 'Foils', 5)),
     createSetSectionChange('Sol Ring', 'A to "B"', 5),
     createSetSectionChange('Sol Ring', 'Foils'),
+  ],
+  'set-categories': [
+    ...NAMES.map((name) => createSetCategoriesChange(name, ['Ramp', 'Artifacts'])),
+    createSetCategoriesChange('Sol Ring', ['Ramp']),
+    // A clear: the empty list is meaningful and must survive the round trip.
+    createSetCategoriesChange('Sol Ring', []),
+  ],
+  'rename-category': [
+    createRenameCategoryChange('Draw', 'Card Draw'),
+    createRenameCategoryChange('A to B', 'B to C'),
+    createRenameCategoryChange("Ryan's Picks", 'Utility: fast'),
+  ],
+  'set-category-order': [
+    createSetCategoryOrderChange(['Ramp', 'Draw', 'Removal']),
+    createSetCategoryOrderChange(['A to B', 'Utility: fast']),
+    createSetCategoryOrderChange([]),
   ],
 } as const satisfies CaseTable
 

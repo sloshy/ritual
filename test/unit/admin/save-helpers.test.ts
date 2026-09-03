@@ -1,15 +1,22 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  normalizeRequestCategories,
   normalizeRequestLanguages,
   normalizeRequestTags,
 } from '../../../src/admin/api/save-helpers'
 import { createSetLanguageChange, type ChangeEvent } from '../../../src/changes/change-event'
 import { invalidCardTagMessage } from '../../../src/card/card-tags'
+import { invalidCardCategoryMessage } from '../../../src/card/card-categories'
 import type { ApiErrorResponse } from '../../../src/api/http'
 
 /** A raw wire change: the request body is cast unvalidated, which is the point. */
 function wireChange(fields: Record<string, unknown>): ChangeEvent {
   return { id: 'x', timestamp: 0, cardName: 'Sol Ring', ...fields } as unknown as ChangeEvent
+}
+
+/** A list-level change as the wire carries it — no card, by construction. */
+function wireListChange(fields: Record<string, unknown>): ChangeEvent {
+  return { id: 'x', timestamp: 0, ...fields } as unknown as ChangeEvent
 }
 
 /** The 400 body of a refusal, failing the test on a pass-through. */
@@ -149,5 +156,100 @@ describe('normalizeRequestTags', () => {
 
     const message = await refusalMessage(normalizeRequestTags([], [{ tags: ['a,b'] }]))
     expect(message).toBe(invalidCardTagMessage('a,b'))
+  })
+})
+
+/**
+ * The category-validation boundary the three save routes share. The vocabulary
+ * rules are pinned on `src/card/card-categories.ts`; what belongs here is what
+ * the boundary does with the wire — canonicalize, refuse a malformed value, and
+ * keep an empty list, which is a meaningful clear rather than "no categories".
+ */
+describe('normalizeRequestCategories', () => {
+  test('a set-categories list is canonicalized in place, keeping its order', () => {
+    const change = wireChange({ action: 'set-categories', categories: [' Ramp ', 'ramp', 'Draw'] })
+    expect(normalizeRequestCategories([change])).toBeNull()
+    expect((change as { categories?: string[] }).categories).toEqual(['Ramp', 'Draw'])
+  })
+
+  test('an empty categories array is accepted as a clear', () => {
+    const change = wireChange({ action: 'set-categories', categories: [] })
+    expect(normalizeRequestCategories([change])).toBeNull()
+    expect((change as { categories?: string[] }).categories).toEqual([])
+  })
+
+  test('a set-category-order list is canonicalized too', () => {
+    const change = wireListChange({ action: 'set-category-order', order: ['Ramp', ' ramp '] })
+    expect(normalizeRequestCategories([change])).toBeNull()
+    expect((change as { order?: string[] }).order).toEqual(['Ramp'])
+  })
+
+  test('a rename-category’s two names are canonicalized', () => {
+    const change = wireListChange({
+      action: 'rename-category',
+      category: ' Draw ',
+      newCategory: 'Card  Draw',
+    })
+    expect(normalizeRequestCategories([change])).toBeNull()
+    expect((change as { category?: string }).category).toBe('Draw')
+    expect((change as { newCategory?: string }).newCategory).toBe('Card Draw')
+  })
+
+  test('a non-array categories or order is refused', async () => {
+    for (const change of [
+      wireChange({ action: 'set-categories', categories: 'Ramp' }),
+      wireListChange({ action: 'set-category-order', order: 'Ramp' }),
+    ]) {
+      expect(await refusalMessage(normalizeRequestCategories([change]))).toContain(
+        'must be an array of categories',
+      )
+    }
+  })
+
+  test('a non-string rename name is refused, never coerced', async () => {
+    for (const fields of [
+      { action: 'rename-category', newCategory: 'B' },
+      { action: 'rename-category', category: 'A', newCategory: 7 },
+    ]) {
+      const message = await refusalMessage(normalizeRequestCategories([wireListChange(fields)]))
+      expect(message).toContain('requires a string')
+    }
+  })
+
+  test('a malformed category name is refused with the parser’s message', async () => {
+    const change = wireChange({ action: 'set-categories', categories: ['a,b'] })
+    expect(await refusalMessage(normalizeRequestCategories([change]))).toBe(
+      invalidCardCategoryMessage('a,b'),
+    )
+  })
+
+  test('a smuggled cardId is refused on every category action', async () => {
+    // The body is cast unvalidated and `cardId` is a persisted key, so a foreign
+    // list's `&N` would otherwise land in this list's changelog prose.
+    for (const change of [
+      wireChange({ action: 'set-categories', cardId: 12, categories: ['Ramp'] }),
+      wireListChange({ action: 'set-category-order', cardId: 12, order: ['Ramp'] }),
+      wireListChange({
+        action: 'rename-category',
+        cardId: 12,
+        category: 'Draw',
+        newCategory: 'Card Draw',
+      }),
+    ]) {
+      expect(await refusalMessage(normalizeRequestCategories([change]))).toContain(
+        'must not carry a "cardId"',
+      )
+    }
+  })
+
+  test('a cardName is refused on the two list-level actions', async () => {
+    for (const change of [
+      wireChange({ action: 'set-category-order', order: ['Ramp'] }),
+      wireChange({ action: 'rename-category', category: 'Draw', newCategory: 'Card Draw' }),
+    ]) {
+      expect(await refusalMessage(normalizeRequestCategories([change]))).toContain(
+        'must not carry a "cardName"',
+      )
+    }
   })
 })

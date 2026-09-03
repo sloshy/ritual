@@ -534,9 +534,14 @@ export const cliCardsMessages = {
   'cli.cleanup.notRenamedOccupied': "not renamed to '{file}': another list already has that file",
   'cli.cleanup.notRenamedCollision': "not renamed to '{file}': {reason}",
   'cli.cleanup.notRewritten': 'not rewritten: fix the lines above and rerun cleanup',
+  'cli.cleanup.categoriesNotPruned':
+    'categories not pruned: the parse skipped lines, so a card still in the file could look gone',
   'cli.cleanup.actionFormatSet': 'format set to {format}',
   'cli.cleanup.actionRenamed': "renamed to '{file}'",
   'cli.cleanup.actionRewritten': 'rewritten in canonical form',
+  'cli.cleanup.actionCategoriesRewritten': 'categories sidecar rewritten in canonical form',
+  'cli.cleanup.categoriesPruned':
+    'pruned {count} category assignment(s) for cards no longer in the list: {names}',
   'cli.cleanup.actionNeedsFormat': 'needs a format',
   'cli.cleanup.actionFormatSkipped': 'format skipped',
   'cli.cleanup.actionNoFormat': 'left without a format',

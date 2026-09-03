@@ -23,7 +23,7 @@ import {
   sortNewestFirst,
   type ChangeSet,
 } from '../changes/changelog-blocks'
-import { buildDefaultChangeEvents, loadListSnapshot } from '../changes/list-snapshot'
+import { buildDefaultChangeEventsForList } from '../changes/list-snapshot'
 import { changelogSidecarPath } from '../list/list-sidecars'
 import { addListTypeFlags, addOutputOption, resolveListTypeFlag } from '../cli/options'
 import {
@@ -480,8 +480,14 @@ async function handleRewrite(state: EditorState, location: ListLocation): Promis
   ])
   if (confirm !== 'yes') return
 
-  const snapshot = await loadListSnapshot(location.type, location.filePath)
-  const events = buildDefaultChangeEvents(snapshot)
+  const defaults = await buildDefaultChangeEventsForList(location.type, location.filePath)
+  // An unreadable sidecar contributes no category events; a rewrite discards
+  // every existing set, so say what is being left out rather than dropping it
+  // silently.
+  if (defaults.categoriesWarning !== undefined) {
+    console.log(t('cli.history.categoriesUnreadable', { reason: defaults.categoriesWarning }))
+  }
+  const events = defaults.events
   if (events.length === 0) {
     console.log(t('cli.history.emptyList'))
     return

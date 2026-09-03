@@ -10,7 +10,7 @@ import {
   type ChangeSet,
 } from '../../changes/changelog-blocks'
 import { isStringArray } from '../../util/json'
-import { buildDefaultChangeEvents, loadListSnapshot } from '../../changes/list-snapshot'
+import { buildDefaultChangeEventsForList } from '../../changes/list-snapshot'
 import { decodeChangeEvent } from '../../changes/change-event-decode'
 import type { ChangeEvent } from '../../changes/change-event'
 import type { ListType } from '../../list/list-type'
@@ -18,7 +18,7 @@ import { changelogSidecarPath } from '../../list/list-sidecars'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list/list-file-name'
 import { apiMessage, type ApiMessage } from '../../api/result'
-import { autoCommitAndPush } from './save-helpers'
+import { autoCommitAndPush, categoriesUnreconciledWarning } from './save-helpers'
 import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
 import { MAX_LIST_BODY_SIZE } from '../validation'
@@ -32,6 +32,11 @@ export type HistoryLoadResponse = {
   sets: ChangeSet[]
   /** The events describing the list's current state, for the rewrite action. */
   defaultEvents: ChangeEvent[]
+  /**
+   * Why `defaultEvents` names no categories: the list's `.categories.json`
+   * sidecar exists but could not be read. Absent when there was nothing to say.
+   */
+  categoryWarnings?: string[]
 }
 export type HistorySaveResponse = ApiMessage & { success: true; setCount: number }
 
@@ -67,8 +72,16 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
     const parsed = parseChangeSets(content, listSlug(filePath))
 
     let defaultEvents: ChangeEvent[] = []
+    let categoryWarnings: string[] | undefined
     try {
-      defaultEvents = buildDefaultChangeEvents(await loadListSnapshot(target.type, filePath))
+      const defaults = await buildDefaultChangeEventsForList(target.type, filePath)
+      defaultEvents = defaults.events
+      // An unreadable categories sidecar contributes no category events; the
+      // client is told, because a rewrite built from these events discards the
+      // existing history.
+      if (defaults.categoriesWarning !== undefined) {
+        categoryWarnings = [categoriesUnreconciledWarning(defaults.categoriesWarning)]
+      }
     } catch {
       // A list file that can't be parsed simply offers no default rewrite.
     }
@@ -78,6 +91,7 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
       header: parsed.header,
       sets: sortNewestFirst(parsed.sets),
       defaultEvents,
+      ...(categoryWarnings === undefined ? {} : { categoryWarnings }),
     }
     return Response.json(body)
   } catch (err) {

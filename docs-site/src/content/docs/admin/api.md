@@ -997,6 +997,21 @@ only casualty is that art may now sit under an `&N` the save freed or renumbered
 fix the sidecar by hand — the message names the file and the parse failure — and the art then
 applies again, or comes off the list with the next art write.
 
+### `categoryWarnings` and `prunedCategories`
+
+A save also commits the list's [categories sidecar](/list-format/#categories-namecategoriesjson) —
+the sidecar is keyed by card **name**, so the save is what tells it which of its entries no card
+backs any more:
+
+| Field              | Type       | Meaning                                                                                                        |
+| ------------------ | ---------- | -------------------------------------------------------------------------------------------------------------- |
+| `categoryWarnings` | `string[]` | The categories sidecar could not be read or written. A warning, never a failure — the card lines were written. |
+| `prunedCategories` | `string[]` | Card names whose category assignments this save dropped, because the list no longer holds a line of that name. |
+
+Both are omitted when there is nothing to report. A save that carries no category change and prunes
+nothing leaves the sidecar byte-identical — including a hand-edited one, whose stale `.sha256`
+survives so [`detect-changes`](/commands/detect-changes/) still records the edit.
+
 ## List Collections
 
 ```
@@ -1589,7 +1604,7 @@ as interesting. `warnings` carries list parse warnings from either side.
 GET /api/history/:type/:slug
 ```
 
-Returns the parsed change sets of a list's change log (newest first) plus the typed change events a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. Each set carries its prose `lines` and its `events` — the typed events from the entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line in the same order (empty for a legacy entry that has no block). The list file is read only to derive `defaultEvents`; a list with no change log yet returns an empty `sets` array. A set that is followed by hand-written non-change text carries it in a `trailing` array (absent otherwise) — the text is preserved through an edit-and-save round trip (each line kept as written, re-emitted after the set's change lines; blank lines between them are not kept).
+Returns the parsed change sets of a list's change log (newest first) plus the typed change events a "rewrite with defaults" would produce. `:type` is `deck`, `collection`, or `wanted`. Each set carries its prose `lines` and its `events` — the typed events from the entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog), one per line in the same order (empty for a legacy entry that has no block). The list file — and the [`.categories.json` sidecar](/list-format/#categories-namecategoriesjson) beside it — is read only to derive `defaultEvents`; a list with no change log yet returns an empty `sets` array. A sidecar that exists but cannot be read contributes no category events and is reported in a `categoryWarnings` array (absent otherwise). A set that is followed by hand-written non-change text carries it in a `trailing` array (absent otherwise) — the text is preserved through an edit-and-save round trip (each line kept as written, re-emitted after the set's change lines; blank lines between them are not kept).
 
 **Response:**
 

@@ -22,6 +22,7 @@ import {
 } from '../../config/ritual-config'
 import { parseExportPresets } from '../../export/presets'
 import { parsePriceSources } from '../../pricing/price-source'
+import { parseDefaultCategories } from '../../card/card-categories'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import { badRequest, readJsonObjectBody } from '../../api/http'
@@ -59,6 +60,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     artDir: true,
     defaultCurrency: true,
     priceSources: true,
+    defaultCategories: true,
     defaultLanguage: true,
     uiLocale: true,
     cacheLockTimeoutSeconds: true,
@@ -82,24 +84,27 @@ const KNOWN_ADMIN_CONFIG_KEYS: ReadonlySet<string> = new Set(Object.keys(DEFAULT
 const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir', 'artDir'] as const
 
 /**
- * The constrained scalar keys sharing one presence-check → parse → stage shape.
- * `cacheFeedUrl` is deliberately not one of them: its empty-string-clears rule
- * needs its own branch.
+ * The keys sharing one presence-check → parse → stage shape — the constrained
+ * scalars plus the constrained arrays, since the helper is generic over
+ * `RitualConfig[K]` and never assumed a scalar. `cacheFeedUrl` is deliberately
+ * not one of them: its empty-string-clears rule needs its own branch.
  */
-type ScalarConfigKey =
+type ParsedConfigKey =
   | 'defaultCurrency'
   | 'defaultLanguage'
   | 'uiLocale'
   | 'cacheLockTimeoutSeconds'
   | 'cacheSource'
   | 'searchDebounceMs'
+  | 'priceSources'
+  | 'defaultCategories'
 
 /**
- * Validate one constrained scalar key of a PUT /api/config body and stage it
- * into `updates`. Returns the parse error message when the value is malformed,
- * or null when the key is absent or was staged successfully.
+ * Validate one constrained key of a PUT /api/config body and stage it into
+ * `updates`. Returns the parse error message when the value is malformed, or
+ * null when the key is absent or was staged successfully.
  */
-function applyScalarUpdate<K extends ScalarConfigKey>(
+function applyParsedUpdate<K extends ParsedConfigKey>(
   raw: Record<string, unknown>,
   updates: Partial<RitualConfig>,
   key: K,
@@ -153,27 +158,22 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       }
     }
 
-    // Validate each present constrained scalar, rejecting on the first
-    // malformed value. `??` chains to the next key only while no error has
-    // been produced, so a bad update never half-applies.
-    // `priceSources` is a constrained array (store names, lowercased, deduped);
-    // reject unknown stores here rather than persisting a value the loader
-    // would silently reset to the default.
-    if (raw.priceSources !== undefined) {
-      const parsed = parsePriceSources(raw.priceSources)
-      if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
-      }
-      updates.priceSources = parsed
-    }
-
+    // Validate each present constrained key, rejecting on the first malformed
+    // value. `??` chains to the next key only while no error has been produced,
+    // so a bad update never half-applies. `priceSources` (store names,
+    // lowercased, deduped) and `defaultCategories` (the shape rule in
+    // `card-categories.ts`) are constrained arrays and ride the same chain:
+    // refuse a bad value here rather than persisting one the loader would
+    // silently reset to the default.
     const scalarError =
-      applyScalarUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
-      applyScalarUpdate(raw, updates, 'defaultLanguage', parseDefaultLanguage) ??
-      applyScalarUpdate(raw, updates, 'uiLocale', parseUiLocale) ??
-      applyScalarUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
-      applyScalarUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
-      applyScalarUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs)
+      applyParsedUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
+      applyParsedUpdate(raw, updates, 'defaultLanguage', parseDefaultLanguage) ??
+      applyParsedUpdate(raw, updates, 'uiLocale', parseUiLocale) ??
+      applyParsedUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
+      applyParsedUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
+      applyParsedUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs) ??
+      applyParsedUpdate(raw, updates, 'priceSources', parsePriceSources) ??
+      applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategories)
     if (scalarError !== null) {
       return badRequest(scalarError)
     }

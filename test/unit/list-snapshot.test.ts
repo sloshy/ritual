@@ -6,6 +6,7 @@ import {
   loadListSnapshot,
   type ListSnapshot,
 } from '../../src/changes/list-snapshot'
+import { emptyCardCategoriesRecord } from '../../src/list/card-categories-sidecar'
 import { withWorkspace } from '../helpers/workspace'
 
 /**
@@ -46,6 +47,32 @@ describe('buildDefaultChangeLines', () => {
     expect(buildDefaultChangeLines(snapshot)).toEqual([
       '- Added "Mana Crypt" (2XM:1) [foil] [LP] &5',
     ])
+  })
+
+  it('renders the category order and per-card categories after the cards', () => {
+    const snapshot: ListSnapshot = {
+      sectionOrder: ['Main'],
+      entries: [
+        {
+          name: 'Sol Ring',
+          cardId: 1,
+          section: 'Main',
+          quantity: 1,
+          isCommander: false,
+        },
+      ],
+    }
+    const categories = emptyCardCategoriesRecord()
+    categories.order = ['Ramp', 'Draw']
+    categories.cards.set('sol ring', { name: 'Sol Ring', categories: ['Ramp'] })
+
+    expect(buildDefaultChangeLines(snapshot, categories)).toEqual([
+      '- Added "Sol Ring" &1',
+      '- Set category order to Ramp, Draw',
+      '- Set categories of "Sol Ring" to Ramp',
+    ])
+    // The same snapshot with no sidecar renders none of it.
+    expect(buildDefaultChangeLines(snapshot)).toEqual(['- Added "Sol Ring" &1'])
   })
 
   it('returns no lines for an empty list', () => {

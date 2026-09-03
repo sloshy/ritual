@@ -14,6 +14,7 @@ import {
   PARTIAL_LOAD_HINT,
   validateContentHash,
   finishListSave,
+  normalizeRequestCategories,
   listSaveOutcome,
   listSaveResponse,
   normalizeRequestLanguages,
@@ -68,6 +69,9 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     const replacementError = normalizeRequestReplacements(changes)
     if (replacementError) return replacementError
+
+    const categoryError = normalizeRequestCategories(changes)
+    if (categoryError) return categoryError
 
     const wantedListsDir = getWantedDir()
     const resolved = await resolveListFileOrRefuse(resolveFlatListFile, {
@@ -139,6 +143,9 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
       continueSession,
       extraFiles: moves.writtenFiles,
       adoptedArt: moves.adoptedArt,
+      // The names the written content holds — what the categories sidecar (keyed
+      // by card name) is pruned against.
+      cardNames: idedEntries.map((entry) => entry.name),
     }
     const saved = await finishListSave(tail)
 
