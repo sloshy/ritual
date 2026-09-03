@@ -268,9 +268,9 @@ written — removed from the source, added to the destination, with a changelog 
 each. In a public-site export the move is recorded once, in the bundle's top-level
 \`moves\` array (never as a per-list change), and \`ritual import-changes\` applies it
 to both lists the same way. Moving a printing-less card into a collection prompts for
-a specific printing first. Notes, label overrides and tags never follow an editor/TUI move
-(the scripted \`ritual move\` carries tags and labels); the card's
-**custom art** does, re-filed under the destination line's new \`&N\`.
+a specific printing first. Notes and label overrides never follow an editor/TUI move
+(the scripted \`ritual move\` carries labels); the card's tags and its
+**custom art** do, the art re-filed under the destination line's new \`&N\`.
 
 The web editors (admin and public) also offer a batch **Swap Printings…** wizard on decks and
 collections, built on the same moves: re-pick the printings of many lines at once using copies

@@ -704,6 +704,68 @@ describe('applyChangeBundle with moves', () => {
     },
   ]
 
+  test('a move carries its tags onto the destination line', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c19',
+          collectorNumber: '221',
+          cardId: 1,
+          tags: ['Ramp'],
+        },
+      ],
+    })
+    await writeCollectionFile(ws.dir, 'binder', { title: 'Binder', entries: [] })
+
+    const result = await applyChangeBundle(
+      bundleOf([], [{ ...SWAP_MOVES[0]!, tags: ['Ramp', 'Card Draw'] }]),
+    )
+    expect(result.failedCount).toBe(0)
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).not.toContain('C19:221')
+    const binder = await fs.readFile(path.join(ws.dir, 'collections', 'binder.md'), 'utf-8')
+    expect(binder).toMatch(/Sol Ring \(C19:221\) #Card Draw, Ramp &\d+/)
+  }, 60_000)
+
+  test('a tagged copy moved into a deck folds onto the same-tagged line, and the changelog names it', async () => {
+    // The `add` twin of this test is pinned above; a `move-to` carries tags
+    // too, so the id re-target's merge probe must see them or it rewrites the
+    // changelog to the plain sibling the reducer never merged onto.
+    await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          tags: ['ramp'],
+          cardId: 7,
+        },
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 9 },
+      ],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', tags: ['ramp'], cardId: 1 },
+      ],
+    })
+    const result = await applyChangeBundle(
+      bundleOf([], [{ ...SWAP_MOVES[1]!, tags: ['ramp'], toCardId: 50 }]),
+    )
+    expect(result.failedCount).toBe(0)
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/2 Sol Ring \(C21:263\) #ramp &7/)
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) &9/)
+    const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
+    expect(deckLog).toMatch(/Moved "Sol Ring" \(C21:263\) &7/)
+    expect(deckLog).not.toMatch(/&9/)
+  }, 60_000)
+
   test('a two-move swap round-trips both files and both changelogs', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
       name: 'Test Deck',

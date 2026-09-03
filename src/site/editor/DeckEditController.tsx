@@ -243,9 +243,10 @@ export function useDeckEditController(
     const d = editor.data()
     const language =
       (d ? findDeckCardLanguage(d, cardName, cardId) : undefined) ?? printing.language
+    const tags = d ? findDeckCardTags(d, cardName, cardId) : undefined
     batch(() => {
       for (let i = 0; i < copies; i++) {
-        editor.changes.moveCardToList(cardName, dest, { ...printing, language, cardId })
+        editor.changes.moveCardToList(cardName, dest, { ...printing, language, tags, cardId })
         editor.setData((prev) =>
           prev
             ? applyChangeToDeck(prev, {
@@ -253,6 +254,7 @@ export function useDeckEditController(
                 cardName,
                 ...printing,
                 language,
+                tags,
                 cardId,
                 to: dest,
               })

@@ -248,7 +248,8 @@ function normalizeTagsField(raw: unknown): TagsFieldResult {
 
 /**
  * Validate and canonicalize the tags in a save request — the `tag` of every
- * `add-tag` / `remove-tag` change, the `tags` an `add` / `remove` may carry, and
+ * `add-tag` / `remove-tag` change, the `tags` an `add` / `remove` / `move-from` /
+ * `move-to` may carry (a move's land on the other list's line), and
  * the `tags` of every request entry that will be re-serialized (the deck and
  * wanted routes write the entries they are handed) — mutating each in place to
  * the canonical form (trimmed, single-spaced, deduplicated, sorted, no `#` — a
@@ -275,7 +276,10 @@ export function normalizeRequestTags(
       if (!result.ok) return badRequest(result.message)
       change.tag = result.tag
     } else if (
-      (change.action === 'add' || change.action === 'remove') &&
+      (change.action === 'add' ||
+        change.action === 'remove' ||
+        change.action === 'move-from' ||
+        change.action === 'move-to') &&
       change.tags !== undefined
     ) {
       const result = normalizeTagsField(change.tags)

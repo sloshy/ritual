@@ -238,10 +238,11 @@ function rewriteMergedDeckIds(
     if (change.cardId === undefined || present.has(change.cardId)) return change
     // Labels and tags are part of the merge identity (`mergesOntoCard`): a
     // `[proxy]` arrival folds onto the `[proxy]` line, never its plain sibling,
-    // and a `#ramp` copy onto the `#ramp` line. A `move-to` carries neither
-    // (the copy lands under the list default, untagged) — decided by the
-    // action, not by key presence, because a decoded bundle payload is open and
-    // a stray key on a `move-to` must not make this disagree with the reducer.
+    // and a tagged copy onto the same-tagged line. A `move-to` carries its
+    // tags but never labels (the copy lands under the list default) — decided
+    // by the action, not by key presence, because a decoded bundle payload is
+    // open and a stray key on a `move-to` must not make this disagree with the
+    // reducer.
     const isAdd = change.action === 'add'
     const merged = findDeckAddMergeTargetId(deck, {
       action: 'add',
@@ -252,7 +253,7 @@ function rewriteMergedDeckIds(
       condition: change.condition,
       language: change.language,
       labels: isAdd ? change.labels : undefined,
-      tags: isAdd ? change.tags : undefined,
+      tags: change.tags,
     })
     if (merged === undefined) return change
     for (const [exported, allocated] of state.idMap) {

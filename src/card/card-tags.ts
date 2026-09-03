@@ -1,9 +1,11 @@
 /**
  * Card tags: the owner's *own* vocabulary for a card — free-form, non-exclusive,
- * as many per card as they like (`Ramp`, `Card Draw`, `Binder: Trade`). They map
- * onto what the wider deck-building ecosystem calls a card's *categories*
- * (Archidekt) or *tags* (Moxfield), so they read as plain words — with spaces
- * and in the owner's own casing — everywhere a person sees them. On a card line
+ * as many per card as they like (`Signed`, `Trade Binder`, `Gift from Dad`). A
+ * tag is a property of the *copy*: it belongs to the card wherever the card
+ * goes, which is why a move carries tags along. (A card's *role in one list* —
+ * what Archidekt calls a category and Moxfield a tag — is a different, per-list
+ * thing, and not this module.) Tags read as plain words — with spaces and in
+ * the owner's own casing — everywhere a person sees them. On a card line
  * they are written as one trailing `#`-sigilled, comma-separated token, after
  * the `[labels]` and before the `{note}` and the `&N` id, on every list type.
  *
@@ -20,7 +22,7 @@
  * other tokens' fences) — a double quote (the changelog prose quotes a tag) or
  * a control character. Surrounding whitespace is trimmed and inner runs of
  * whitespace fold to one space; case is kept exactly as written, so `Ramp` and
- * `ramp` are two tags, as they would be as two Archidekt categories.
+ * `ramp` are two tags.
  *
  * **Canonical form**: trimmed, single-spaced, deduplicated, sorted by the
  * pinned data collation — the order a file is written in and the order every

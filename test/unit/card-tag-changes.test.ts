@@ -331,6 +331,30 @@ describe('apply engines', () => {
     expect(untagged.sections[0]!.cards[0]!.tags).toBeUndefined()
   })
 
+  it('deck and collection: a move-to lands the copy with its tags', () => {
+    const arrived = applyChangeToDeck(deck(), {
+      action: 'move-to',
+      cardName: 'Sol Ring',
+      set: 'c21',
+      collectorNumber: '263',
+      tags: ['ramp'],
+      from: { type: 'collection', name: 'Binder' },
+    })
+    expect(arrived.sections[0]!.cards.map((c) => [c.quantity, c.tags])).toEqual([
+      [2, undefined],
+      [1, ['ramp']],
+    ])
+    const entries = applyChangeToCollection([], {
+      action: 'move-to',
+      cardName: 'Sol Ring',
+      set: 'c21',
+      collectorNumber: '263',
+      tags: ['Card Draw', 'ramp'],
+      from: { type: 'deck', name: 'Test Deck' },
+    })
+    expect(entries[0]!.tags).toEqual(['Card Draw', 'ramp'])
+  })
+
   it('deck: a differently-tagged add starts its own line instead of merging', () => {
     const merged = applyChangeToDeck(deck(), {
       action: 'add',

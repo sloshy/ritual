@@ -124,6 +124,14 @@ describe('normalizeRequestTags', () => {
     expect((bare as { tags?: string[] }).tags).toBeUndefined()
   })
 
+  test('a move’s tags are canonicalized and a malformed one refused, like an add’s', async () => {
+    const moved = wireChange({ action: 'move-to', cardId: 1, tags: ['#Ramp ', 'Ramp'] })
+    expect(normalizeRequestTags([moved], [])).toBeNull()
+    expect((moved as { tags?: string[] }).tags).toEqual(['Ramp'])
+    const bad = wireChange({ action: 'move-from', cardId: 1, tags: ['a,b'] })
+    expect(await refusalMessage(normalizeRequestTags([bad], []))).toBe(invalidCardTagMessage('a,b'))
+  })
+
   test('a malformed tags array on an add is refused', async () => {
     const change = wireChange({ action: 'add', tags: ['ramp', 'a&b'] })
     const message = await refusalMessage(normalizeRequestTags([change], []))

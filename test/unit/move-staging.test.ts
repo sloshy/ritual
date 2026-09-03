@@ -377,6 +377,16 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
   })
   const foilCopy = { name: 'Sol Ring', set: 'c19', collectorNumber: '221', finish: 'foil' } as const
 
+  test('without an id hint, a copy’s tags pick the line that carries them', () => {
+    const file = text()
+    file.content = file.content.replace('[foil] &4', '[foil] #Ramp &4')
+    expect(applyRemoveIncomingFromStaged(file, { ...foilCopy, tags: ['Ramp'] })).toMatchObject({
+      cardId: 4,
+    })
+    expect(file.content).toContain('[foil] &3')
+    expect(file.content).not.toContain('#Ramp')
+  })
+
   test('the source id hint picks among identical sibling lines; without it the first tuple match goes', () => {
     const hinted = text()
     expect(applyRemoveIncomingFromStaged(hinted, { ...foilCopy, cardId: 4 })).toMatchObject({

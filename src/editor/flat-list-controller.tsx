@@ -145,10 +145,12 @@ export function useFlatListEditController<E extends FlatEntry>(
   const handleIncrement = (entry: E) => {
     const cardId = editor.pool.allocate()
     const p = params.printingOf(entry)
-    // The new copy inherits the line's override — a copy of a `[proxy]` card is
-    // a proxy — which is also what keeps increment and decrement opposites.
+    // The new copy inherits the line's override and tags — a copy of a
+    // `[proxy]` card is a proxy — which is also what keeps increment and
+    // decrement opposites.
     const labels = entry.labels
-    editor.changes.addCard(entry.name, { ...p, cardId, labels })
+    const tags = entry.tags
+    editor.changes.addCard(entry.name, { ...p, cardId, labels, tags })
     editor.setData((prev) =>
       prev
         ? params.applyChange(prev, {
@@ -200,9 +202,9 @@ export function useFlatListEditController<E extends FlatEntry>(
 
   // Emit one move-from per copy (flat lists hold one entry per copy, each with its
   // own cardId), updating the live data and freeing each id back to the pool. Each
-  // copy keeps its own language, resolved per entry before that entry's move-from
-  // removes it; a name-only card whose printing came from the picker has no entry
-  // language, so the tuple's own stamp (a ja-only pick) wins as the fallback.
+  // copy keeps its own language and tags, resolved per entry before that entry's
+  // move-from removes it; a name-only card whose printing came from the picker has
+  // no entry language, so the tuple's own stamp (a ja-only pick) wins as the fallback.
   const emitMove = (
     cardName: string,
     dest: ListRef,
@@ -211,8 +213,10 @@ export function useFlatListEditController<E extends FlatEntry>(
   ) => {
     batch(() => {
       for (const id of cardIds) {
-        const language = entryByCardId(id)?.language ?? printing.language
-        editor.changes.moveCardToList(cardName, dest, { ...printing, language, cardId: id })
+        const entry = entryByCardId(id)
+        const language = entry?.language ?? printing.language
+        const tags = entry?.tags
+        editor.changes.moveCardToList(cardName, dest, { ...printing, language, tags, cardId: id })
         editor.setData((prev) =>
           prev
             ? params.applyChange(prev, {
@@ -220,6 +224,7 @@ export function useFlatListEditController<E extends FlatEntry>(
                 cardName,
                 ...printing,
                 language,
+                tags,
                 cardId: id,
                 to: dest,
               })

@@ -166,6 +166,26 @@ describe('applyOutgoingMoves', () => {
     expect(changelog).toMatch(/Moved "Lightning Bolt" \(LEA:161\) \[ja\].*from Collection 'Binder'/)
   })
 
+  test('lands the moved card’s tags on the destination line', async () => {
+    // The closed-destination path: the source's save writes the destination
+    // file itself, and the arriving line must carry what the move-from event
+    // carries — tags included — not just the printing tuple.
+    const change = createMoveFromChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      tags: ['Ramp', 'Card Draw'],
+      cardId: 1,
+      to: MY_DECK,
+    })
+    await applyOutgoingMoves(BINDER, binderPath(), [change])
+
+    expect(await fs.readFile(deckPath(), 'utf-8')).toContain(
+      '1 Lightning Bolt (LEA:161) #Card Draw, Ramp &2',
+    )
+    // The mirrored move-to records them too, in the event block the history reads.
+    expect(await changelogOf(deckPath())).toContain('"tags":["Card Draw","Ramp"]')
+  })
+
   test('carries the moved card’s custom art onto the destination line’s new id', async () => {
     await saveCardArt(
       binderPath(),
@@ -623,6 +643,29 @@ describe('POST /api/move/selected', () => {
     expect(coll).toContain('Sol Ring')
     const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
     expect(deckContent).not.toContain('Sol Ring')
+  })
+
+  test('a selected card’s tags travel from the source line to the destination line', async () => {
+    // The route reads the copy off disk, so the client sends no tags — and the
+    // MCP move_selected_cards tool, which calls this handler, inherits the same.
+    await writeDeckFile(tmpDir, 'my-deck', {
+      name: 'My Deck',
+      cards: [{ ...SOL_RING, tags: ['Ramp', 'Card Draw'] }],
+    })
+    const res = await move([
+      {
+        listType: 'deck',
+        listSlug: 'my-deck',
+        name: 'Sol Ring',
+        cardId: 1,
+        copyIndex: 0,
+        toType: 'collection',
+        toSlug: 'binder',
+      },
+    ])
+    expect(res.moved).toBe(1)
+    const coll = await fs.readFile(binderPath(), 'utf-8')
+    expect(coll).toMatch(/Sol Ring \(C19:221\) #Card Draw, Ramp &\d+/)
   })
 
   test('skips a card whose destination is its own list', async () => {

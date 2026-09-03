@@ -543,10 +543,12 @@ unreadable lines, or a printing-less card cannot enter a collection — the save
 source list is left unsaved with its session intact; saving from the exit menu then keeps the
 editor open rather than discarding the unsaved changes.
 
-Three things do not follow a moved card: its **note** (notes never move across lists — the CLI
-warns when one is left behind), its **[label override](#card-labels)** and its **[tags](#card-tags)**.
-(The one-shot [`ritual move`](/commands/move/) does carry the tags, and the override as far as
-the destination type can express it.) Its **[custom art](/custom-art/#art-follows-the-card)** _does_ follow: the entry
+Two things do not follow a moved card: its **note** (notes never move across lists — the CLI
+warns when one is left behind) and its **[label override](#card-labels)**. (The one-shot
+[`ritual move`](/commands/move/) carries the override as far as the destination type can express
+it.) Its **[tags](#card-tags)** _do_ follow, on every path — every list type carries them, so the
+arriving line has exactly the tags the departed one had — and so does its
+**[custom art](/custom-art/#art-follows-the-card)**: the entry
 leaves the source list's `.art.json` and is re-filed under the destination line's new `&N` —
 unless the copy merged onto a line the destination already had, which keeps its own art.
 
@@ -612,8 +614,10 @@ reason `custom-art` and shows **CUSTOM**: custom art wins.
 
 ## Card Tags
 
-A card entry on **any** list type can carry **tags** — your own words for the card, the way
-Archidekt has categories and Moxfield has tags. On the line they are one `#` token after the
+A card entry on **any** list type can carry **tags** — your own words for the card as a copy
+(`Signed`, `Trade Binder`, `Gift from Dad`), which follow the card wherever it moves. A card's
+role within one list (what Archidekt calls a category) is a separate, per-list thing, not a
+tag. On the line they are one `#` token after the
 labels and before the note, the tags **comma-separated**, as many as you like:
 
 ```

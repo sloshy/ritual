@@ -461,13 +461,21 @@ function pinDeckLine(
   const cards = sections.flatMap((s) => s.cards)
   const landing =
     cards.find((c) => c.cardId === change.cardId) ??
-    cards.find((c) => mergesOntoCard(c, change.cardName, change, undefined, undefined))
+    // The copy is one of the fill's own, so it keeps the fill's override and
+    // tags: it lands on a line that shares them, or starts one that does.
+    cards.find((c) => mergesOntoCard(c, change.cardName, change, line.labels, line.tags))
   if (landing) {
     landing.quantity += 1
     return true
   }
   const insertAt = line.quantity <= 0 ? found.idx : found.idx + 1
-  const fresh: Card = { quantity: 1, name: change.cardName, cardId: change.cardId }
+  const fresh: Card = {
+    quantity: 1,
+    name: change.cardName,
+    cardId: change.cardId,
+    labels: line.labels,
+    tags: line.tags,
+  }
   writePrinting(fresh, change)
   found.section.cards.splice(insertAt, 0, fresh)
   return true

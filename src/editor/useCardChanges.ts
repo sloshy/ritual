@@ -114,11 +114,11 @@ export type UseCardChangesResult<T = unknown> = {
    */
   addCard: (cardName: string, options?: AddCardOptions) => AddCardResult
   removeCard: (cardName: string, options?: AddCardOptions, removedCardData?: T) => void
-  /** Record a move of a card out of this list into another list (`to`). */
+  /** Record a move of a card out of this list into another list (`to`); its tags ride along. */
   moveCardToList: (
     cardName: string,
     to: ListRef,
-    options?: CardPrintingOptions,
+    options?: AddCardOptions,
     removedCardData?: T,
   ) => void
   setFinish: (cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) => void
@@ -293,7 +293,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   function moveCardToList(
     cardName: string,
     to: ListRef,
-    options?: CardPrintingOptions,
+    options?: AddCardOptions,
     removedCardData?: T,
   ) {
     addChange({ action: 'move-from', cardName, ...options, to }, removedCardData)

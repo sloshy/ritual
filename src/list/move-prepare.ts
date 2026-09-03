@@ -24,6 +24,7 @@ import { createCardArtCache, type CardArtMap, type CardArtReconcileFailure } fro
 import { artReconcileFor, commitArtReconciles, type ArtReconcile } from './move-commit'
 import { loadAllLists, type ListEntry } from './list-info'
 import type { PhysicalCard } from './move-staging'
+import { normalizedTags, type CardTag } from '../card/card-tags'
 import { t } from '../i18n/t'
 import {
   adoptedCardId,
@@ -86,15 +87,25 @@ type IncomingStage = {
 }
 
 /**
- * The movable-card shape `applyAddToStaged` consumes, from a printing tuple
- * the save carries: a move-from event (the copy leaving a saved list) or an
- * incoming move's `replacement` (the printing its source gets back). No
- * cardId: the destination allocates a fresh id when the line is added. The
- * set code is normalized here because this is where the event stops being an
- * event and becomes in-memory card state — admin clients may send uppercase
- * codes in the request body.
+ * What a copy brings to the line a move adds: its printing tuple and its tags.
+ * `tags` is required-but-nullable on purpose, so every caller says whether the
+ * copy had any — a caller that forgot them would otherwise compile as "none".
  */
-function movedPhysicalCard(name: string, tuple: PrintingTuple, listEntry: ListEntry): PhysicalCard {
+type MovedCopy = PrintingTuple & { tags: CardTag[] | undefined }
+
+/**
+ * The movable-card shape `applyAddToStaged` consumes, from a printing tuple
+ * the save carries: a move-from event (the copy leaving a saved list, whose
+ * tags ride along — every list type carries them, so the arriving line keeps
+ * them exactly as the mirrored `move-to` changelog line says it does) or an
+ * incoming move's `replacement` (the printing its source gets back, standing
+ * in for the departed line and so wearing that line's tags). No cardId: the
+ * destination allocates a fresh id when
+ * the line is added. The set code is normalized here because this is where
+ * the event stops being an event and becomes in-memory card state — admin
+ * clients may send uppercase codes in the request body.
+ */
+function movedPhysicalCard(name: string, tuple: MovedCopy, listEntry: ListEntry): PhysicalCard {
   return {
     key: '',
     name,
@@ -103,6 +114,7 @@ function movedPhysicalCard(name: string, tuple: PrintingTuple, listEntry: ListEn
     finish: tuple.finish,
     condition: tuple.condition,
     language: tuple.language,
+    tags: normalizedTags(tuple.tags),
     listEntry,
   }
 }
@@ -358,6 +370,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       // the id is the SOURCE line's hint, never the event's own destination id.
       const line = applyRemoveIncomingFromStaged(file, {
         ...printingOptionsFrom(move),
+        tags: move.tags,
         name: move.cardName,
         cardId: move.sourceCardId,
       })
@@ -386,7 +399,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       if (!move.replacement) continue
       const added = applyAddToStaged(
         file,
-        movedPhysicalCard(move.cardName, move.replacement, listEntry),
+        movedPhysicalCard(move.cardName, { ...move.replacement, tags: line.tags }, listEntry),
         listEntry.ref.type,
         line.section,
       )
@@ -394,6 +407,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       adds.push(
         createAddChange(move.cardName, {
           ...move.replacement,
+          tags: line.tags,
           cardId: added.cardId,
           section: line.section,
         }),
@@ -417,7 +431,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     for (const { move, source } of departures) {
       const added = applyAddToStaged(
         file,
-        movedPhysicalCard(move.cardName, move, listEntry),
+        movedPhysicalCard(move.cardName, { ...move, tags: move.tags }, listEntry),
         listEntry.ref.type,
       )
       if (added.droppedNote) droppedNotes.push(added.droppedNote)

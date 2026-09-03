@@ -95,7 +95,8 @@ ritual metadata unset "Main Binder" labels            # no default
 ## Tags: the owner's own vocabulary
 
 Separate from labels, any card on any list type can carry **tags** — the owner's own
-words for a card, like Archidekt categories or Moxfield tags, written as one
+words for a card as a copy (\`Signed\`, \`Trade Binder\`), which follow the card
+wherever it moves, written as one
 comma-separated \`#\` token after the labels and before the note (\`- Sol Ring (C21:240)
 [keep] #Binder Trade, Ramp &1\`), as many per card as wanted. A tag means whatever
 its author meant (it drives filtering and grouping, never pricing or any other

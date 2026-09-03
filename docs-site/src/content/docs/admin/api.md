@@ -2317,7 +2317,7 @@ POST /api/import-changes
 
 Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_change_bundle` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
 
-**Request Body:** the exported JSON, verbatim — a version-2 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`; cross-list moves are normalized into the top-level `moves` array (one entry per copy, naming its source and destination list by kind + name, with the slug as a best-effort hint; a move may also carry `toCardId`, the destination line's `&N` as the exporting editor allocated it, which the import re-targets like an `add`'s id) and never appear as `move-from`/`move-to` inside a list's `changes`:
+**Request Body:** the exported JSON, verbatim — a version-2 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`; cross-list moves are normalized into the top-level `moves` array (one entry per copy, naming its source and destination list by kind + name, with the slug as a best-effort hint; a move also carries the copy's printing fields (`set`, `collectorNumber`, `finish`, `condition`, `language`), its optional `tags` (the card's [tags](/commands/edit/#card-tags), canonical and without the `#`, landing on the destination line), an optional `toCardId`, the destination line's `&N` as the exporting editor allocated it, which the import re-targets like an `add`'s id, and — for a copy pinning a name-only destination line — `pinsCardId` and `replacement`) and never appear as `move-from`/`move-to` inside a list's `changes`:
 
 ```json
 {

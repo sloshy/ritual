@@ -80,6 +80,7 @@ const SAMPLE_MOVE = move('m1', 1002, DECK, BINDER, {
   finish: 'foil',
   condition: 'NM',
   language: 'ja',
+  tags: ['Card Draw', 'Ramp'],
   cardId: 5,
   section: 'Artifacts',
 })
@@ -103,6 +104,23 @@ describe('change-bundle round trip', () => {
   it('serializes and parses back to an equivalent bundle, moves included', () => {
     const parsed = parseChangeBundle(serializeChangeBundle(sampleBundle()))
     expect(parsed).toEqual(sampleBundle())
+  })
+
+  it('canonicalizes a move’s tags on parse, folding an empty set to absent', () => {
+    const parsed = parseOk(
+      bundle(
+        [],
+        [
+          move('m1', 1, DECK, BINDER, { tags: [' Ramp ', 'Ramp', 'Card  Draw'] }),
+          move('m2', 2, DECK, BINDER, { tags: [] }),
+        ],
+      ),
+    )
+    expect(parsed.moves[0]?.tags).toEqual(['Card Draw', 'Ramp'])
+    expect(parsed.moves[1]?.tags).toBeUndefined()
+    // Both halves of the move carry them back into the editor stacks.
+    expect(moveFromEventOf(SAMPLE_MOVE).tags).toEqual(['Card Draw', 'Ramp'])
+    expect(moveToEventOf(SAMPLE_MOVE).tags).toEqual(['Card Draw', 'Ramp'])
   })
 
   it('omits baseContentHash and a move ref slug when not provided', () => {
@@ -249,6 +267,19 @@ describe('parseChangeBundle validation', () => {
       'a move naming half a printing',
       { ...bundle([]), moves: [move('m', 1, DECK, BINDER, { collectorNumber: '161' })] },
       'Move #1 names half a printing',
+    ],
+    [
+      'a move carrying a malformed tag',
+      { ...bundle([]), moves: [move('m', 1, DECK, BINDER, { tags: ['a,b'] })] },
+      'Move #1 Invalid tag "a,b"',
+    ],
+    [
+      'a move whose tags are not an array',
+      {
+        ...bundle([]),
+        moves: [move('m', 1, DECK, BINDER, { tags: 'ramp' as unknown as string[] })],
+      },
+      'Move #1 "tags" must be an array of tags',
     ],
     ['version 1 (pre-normalized moves)', { ...sampleBundle(), version: 1 }, 'version'],
     ['a non-array lists field', { ...sampleBundle(), lists: 'nope' }, '"lists"'],
@@ -464,6 +495,7 @@ const OUTGOING: MoveFromChange = {
   set: 'c19',
   collectorNumber: '221',
   finish: 'foil',
+  tags: ['Ramp'],
   to: { type: 'collection', name: 'Binder' },
 }
 
@@ -476,6 +508,7 @@ const INCOMING: MoveToChange = {
   sourceCardId: 7,
   section: 'Artifacts',
   language: 'ja',
+  tags: ['Ramp'],
   from: { type: 'wanted', name: 'Wishlist' },
 }
 
@@ -500,6 +533,7 @@ describe('normalizeChangeGroups', () => {
         from: { kind: 'wanted', name: 'Wishlist' },
         to: BINDER,
         language: 'ja',
+        tags: ['Ramp'],
         cardId: 7,
         toCardId: 42,
         section: 'Artifacts',
@@ -513,6 +547,7 @@ describe('normalizeChangeGroups', () => {
         set: 'c19',
         collectorNumber: '221',
         finish: 'foil',
+        tags: ['Ramp'],
         cardId: 5,
       },
     ])

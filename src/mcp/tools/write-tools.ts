@@ -916,9 +916,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'destination list; set/collectorNumber/finish/condition/language override the printing ' +
         'on arrival, and toSection picks a destination deck section. Unresolvable moves are ' +
         'skipped and counted; notes that a destination cannot keep are reported in droppedNotes. ' +
-        "A moved card's custom art follows it: the entry is re-filed under the destination line's " +
-        'new cardId, except for a copy that merges onto a line the destination already had, which ' +
-        'keeps its own art.',
+        "A moved card's tags follow it onto the destination line, and so does its custom art: the " +
+        "entry is re-filed under the destination line's new cardId, except for a copy that merges " +
+        'onto a line the destination already had, which keeps its own art.',
       inputSchema: z.object({
         moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
       }),

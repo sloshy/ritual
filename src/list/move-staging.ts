@@ -383,9 +383,10 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
  * The copy an incoming move takes out of its source list, as the `move-to`
  * event describes it. `cardId` is the event's `sourceCardId` hint; the printing
  * tuple is the one the copy arrives with — which a printing-less source line (a
- * wanted entry, a name-only deck line) never carried.
+ * wanted entry, a name-only deck line) never carried. `tags` are the copy's, so
+ * two source lines differing only in tags are told apart.
  */
-export type IncomingCopy = PrintingTuple & { name: string; cardId?: number }
+export type IncomingCopy = PrintingTuple & { name: string; cardId?: number; tags?: CardTag[] }
 
 /**
  * What a removal took out, as the line was written: its own name spelling,
@@ -425,7 +426,8 @@ function sameCopy(line: LineView, copy: IncomingCopy, printing: CardPrinting): b
     sameSetAndNumber(line, printing) &&
     (line.finish === undefined || line.finish === (copy.finish ?? 'nonfoil')) &&
     (line.condition ?? 'NM') === (copy.condition ?? 'NM') &&
-    displayLanguage(line.language) === displayLanguage(copy.language)
+    displayLanguage(line.language) === displayLanguage(copy.language) &&
+    sameCardTags(line.tags, copy.tags)
   )
 }
 

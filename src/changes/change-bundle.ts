@@ -8,6 +8,7 @@ import type {
   MoveToChange,
 } from './change-event'
 import type { CardLanguage } from '../card/card-language'
+import { normalizedTags, parseCardTagsValue, type CardTag } from '../card/card-tags'
 import {
   decodeChangeEvent,
   validatePrintingFields,
@@ -73,6 +74,13 @@ export type ChangeBundleMove = {
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
+  /**
+   * The moved copy's tags, canonical. Every list type carries tags, so a move
+   * takes them along unfiltered — they land on the destination line exactly as
+   * `ritual move` and the editors' own saves land them. Omitted from the JSON
+   * when none (the parsed object still has the key, set to `undefined`).
+   */
+  tags?: CardTag[]
   /**
    * The SOURCE list's line id the copy was taken from, when known — a removal
    * hint; the importer falls back to a name + printing match.
@@ -172,6 +180,7 @@ function moveFromOutgoing(
     finish: change.finish,
     condition: change.condition,
     language: change.language,
+    tags: change.tags,
     cardId: change.cardId,
   }
 }
@@ -192,6 +201,7 @@ function moveFromIncoming(
     finish: change.finish,
     condition: change.condition,
     language: change.language,
+    tags: change.tags,
     cardId: change.sourceCardId,
     toCardId: change.cardId,
     section: change.section,
@@ -368,6 +378,7 @@ export function moveFromEventOf(move: ChangeBundleMove): MoveFromChange {
     finish: move.finish,
     condition: move.condition,
     language: move.language,
+    tags: move.tags,
     to: listRefOf(move.to),
   }
 }
@@ -390,6 +401,7 @@ export function moveToEventOf(move: ChangeBundleMove): MoveToChange {
     finish: move.finish,
     condition: move.condition,
     language: move.language,
+    tags: move.tags,
     from: listRefOf(move.from),
     section: move.section,
     sourceCardId: move.cardId,
@@ -617,6 +629,12 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
     if (!printing.ok) return printing.error
     const replacement = validateReplacement(obj.replacement, where)
     if (typeof replacement === 'string') return replacement
+    let tags: CardTag[] | undefined
+    if (obj.tags !== undefined) {
+      const parsed = parseCardTagsValue(obj.tags, '"tags"')
+      if (!parsed.ok) return `${where}${parsed.message}`
+      tags = normalizedTags(parsed.tags)
+    }
     moves.push({
       id: obj.id,
       timestamp: obj.timestamp,
@@ -624,6 +642,7 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
       from,
       to,
       ...printing.fields,
+      tags,
       cardId: obj.cardId,
       toCardId: obj.toCardId,
       section: obj.section,

@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import type { CardTag } from '../../src/card/card-tags'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import {
@@ -71,7 +72,13 @@ const openWishlist = (): Promise<OpenList> =>
 const openDeck = (): Promise<OpenList> => openFixtureList('deck', 'My Deck', 'decks/my-deck.md')
 
 /** A fixture card as {@link recordMove} consumes it. The id defaults to the list's first entry. */
-type MoveFixtureCard = { name: string; set?: string; collectorNumber?: string; cardId?: number }
+type MoveFixtureCard = {
+  name: string
+  set?: string
+  collectorNumber?: string
+  cardId?: number
+  tags?: CardTag[]
+}
 
 /** Record a pending move of a fixture card, as edit mode does. */
 function recordMove(source: OpenList, card: MoveFixtureCard, to: ListRef): void {
@@ -130,6 +137,18 @@ describe('saveOpenList', () => {
     // The source session is committed: nothing left pending.
     expect(binder.ctx.sessionChanges).toHaveLength(0)
     expect(binder.strategy.hasUnsavedChanges()).toBe(false)
+  })
+
+  test('a moved card’s tags land on the closed destination’s line', async () => {
+    const binder = await openBinder()
+    recordMove(
+      binder,
+      { ...BOLT, tags: ['Ramp', 'Card Draw'] },
+      { type: 'wanted', name: 'Wishlist' },
+    )
+    expect(await saveOpenList(binder, () => [binder])).toBe(true)
+    const dest = await fs.readFile(path.join(tmpDir, 'wanted', 'wishlist.md'), 'utf-8')
+    expect(dest).toMatch(/Lightning Bolt \(LEA:161\) #Card Draw, Ramp &\d+/)
   })
 
   test('a move to an open list lands on its session and saves it in the same step', async () => {

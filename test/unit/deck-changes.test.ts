@@ -1462,6 +1462,19 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
     ])
   })
 
+  test('split: the fresh line keeps the fill’s tags and labels, and a later copy merges onto it', () => {
+    const base = nameOnlyDeck(3)
+    base.sections[0]!.cards[0]!.tags = ['Ramp']
+    base.sections[0]!.cards[0]!.labels = ['proxy']
+    let deck = applyChangeToDeck(base, pin(9))
+    deck = applyChangeToDeck(deck, pin(9))
+    expect(deck.sections[0]!.cards.map((c) => [c.quantity, c.cardId, c.tags, c.labels])).toEqual([
+      [1, 4, ['Ramp'], ['proxy']],
+      [2, 9, ['Ramp'], ['proxy']],
+      [1, 5, undefined, undefined],
+    ])
+  })
+
   test('split: the last copy off the line removes it, and a copy merges onto the line its id names', () => {
     let deck = applyChangeToDeck(nameOnlyDeck(2), pin(9))
     deck = applyChangeToDeck(deck, pin(9))

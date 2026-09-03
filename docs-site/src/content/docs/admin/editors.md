@@ -83,7 +83,7 @@ While a list is open in edit mode, the **Selected (N)** menu also gains an **edi
 - **Set as Commander** — decks only; marks each selected card as a commander
 - **Set Label…** — decks and collections; opens the [label picker](#card-labels) for the selection's list type (a deck is offered **Proxy** and **Use list default**) and applies the chosen override to every selected card. The item is hidden when the selection spans several list types, or is on a list type that carries no labels (wanted lists)
 - **Move to section…** — opens a picker to move every selected card into an existing section, or **New section…** to name a new one
-- **Move to list…** — opens a picker to move every selected card into another list (each card's [custom art](#custom-art) goes with it)
+- **Move to list…** — opens a picker to move every selected card into another list (each card's [tags](#card-tags) and [custom art](#custom-art) go with it)
 
 These edits go through the same pending-changes/undo flow as per-card edits, so nothing is written until you **Save** (admin) or export (public). The selection is cleared once an action is applied.
 
@@ -234,7 +234,7 @@ Every card entry has a [language](/commands/edit/#card-language) — a Scryfall 
 
 ### Card Tags
 
-Every card entry on every list type can carry [tags](/commands/edit/#card-tags) — your own words for the card (`Ramp`, `Card Draw`), as many as you like, the way Archidekt has categories and Moxfield has tags. Unlike a [label](#card-labels), a tag is not an instruction to Ritual; it is your word for the card, and it drives the **Tags** grouping and sort on the [public site](/public-site/filtering/#grouping-and-sorting-by-tags).
+Every card entry on every list type can carry [tags](/commands/edit/#card-tags) — your own words for the card as a copy (`Signed`, `Trade Binder`), as many as you like; they follow the card when it moves to another list. Unlike a [label](#card-labels), a tag is not an instruction to Ritual; it is your word for the card, and it drives the **Tags** grouping and sort on the [public site](/public-site/filtering/#grouping-and-sorting-by-tags).
 
 - **Edit Tags…** in a card's `⋯` context menu opens a dialog with one field holding the card's whole tag set, seeded with its current tags. Type tags **separated by commas** — `My Tag, My Other Tag` is two tags; spaces are part of a tag — and the field validates as you type (a tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses; an invalid one is explained under the field and blocks **Save**). Tags already used on other cards in the list appear as one-click suggestions. Saving an empty field removes every tag. On a collection tile that groups identical copies, the edit applies to every copy.
 - Saving records **one change per tag that differs** — an `add-tag` for each tag added, a `remove-tag` for each removed — rather than one whole-set change, and each is its own **Undo** step (undo reverts one tag at a time, most recent first). A `remove-tag` cancels a pending `add-tag` of the same tag (and vice versa), so adding a tag and removing it again in one session leaves nothing pending. Changes are listed in **Changes** and written on save (changelog: `Added tag "Ramp" to "Sol Ring" &5`).

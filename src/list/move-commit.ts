@@ -592,7 +592,15 @@ export async function commitAllRemovals(
   for (const { listEntry, removes } of bySource.values()) {
     const changes = removes
       .filter((vc) => removedKeys.has(vc.physicalKey))
-      .map((vc) => createRemoveChange(vc.card.name, printingOptionsFrom(vc.card)))
+      // Tags and labels are copy identity (see `areOppositeChanges`), so the
+      // record of what left carries them like the move events above do.
+      .map((vc) =>
+        createRemoveChange(vc.card.name, {
+          ...printingOptionsFrom(vc.card),
+          tags: vc.card.tags,
+          labels: vc.card.labels,
+        }),
+      )
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
     }
