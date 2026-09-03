@@ -4,11 +4,13 @@
  * `wanted:` prefix and type-flag support) and the target entry.
  */
 
+import path from 'node:path'
 import { ask, suggestByTitleTerms } from '../cli/prompts'
-import { cancelledError, listArgumentConflictError } from '../cli/action'
-import { listTypeLabel, type ResolvedList } from '../cli/options'
+import { cancelledError, listArgumentConflictError, runCommandAction } from '../cli/action'
+import { listTypeLabel, resolveListTypeFlag, type ResolvedList } from '../cli/options'
 import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
 import type { ListType } from '../list/list-type'
+import { normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import {
   formatResolveListError,
   isListArgumentConflict,
@@ -16,6 +18,7 @@ import {
   listLocations,
   resolveList,
   resolveListArgument,
+  type ListTypeFlags,
   type ResolveListError,
 } from '../list/resolve-list'
 import {
@@ -108,6 +111,55 @@ export async function resolveListSelection(
     )
   }
   return { type: chosen.type, filePath: chosen.filePath }
+}
+
+/** A resolved list target: the list, its type, and its display slug. */
+export type ListTarget = {
+  type: ListType
+  filePath: string
+  list: string
+}
+
+/**
+ * Resolve the target list for a list-level subcommand. Every list type is
+ * offered: a wanted list carries `description` and categories like the others,
+ * so the picker lists all three and a `--wanted` flag resolves normally.
+ */
+export async function resolveListTarget(
+  listName: string | undefined,
+  flags: ListTypeFlags,
+  scripting: ScriptingOptions,
+): Promise<ListTarget | 'conflict'> {
+  const type = resolveListTypeFlag(flags, scripting)
+  if (type === 'conflict') return 'conflict'
+  const resolved: ResolvedList = await resolveListSelection(listName, type)
+  return {
+    type: resolved.type,
+    filePath: resolved.filePath,
+    list: path.basename(resolved.filePath, '.md'),
+  }
+}
+
+/**
+ * The list-level command prologue, written once: normalize the scripting
+ * options, run the action through {@link runCommandAction}, resolve the list
+ * target, and return early when the type flags conflict.
+ *
+ * The `'conflict'` sentinel is a rule every list-level command has to honour —
+ * `resolveListTypeFlag` has already reported it, so the action must simply not
+ * run — and honouring it exactly once is what this exists for.
+ */
+export async function runListTargetAction(
+  listName: string | undefined,
+  options: ListTypeFlags & Partial<ScriptingOptions>,
+  run: (target: ListTarget, scripting: ScriptingOptions) => Promise<void>,
+): Promise<void> {
+  const scripting = normalizeScriptingOptions(options)
+  await runCommandAction(scripting, async () => {
+    const target = await resolveListTarget(listName, options, scripting)
+    if (target === 'conflict') return
+    await run(target, scripting)
+  })
 }
 
 /** {@link findTargetEntry}, with the interactive picker for a selector-less run. */

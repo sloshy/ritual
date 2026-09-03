@@ -1,3 +1,4 @@
+import { categoryMenuItems, handleCategoryMenuSentinel } from './categories'
 import { t } from '../../i18n/t'
 import {
   promptCardLabelChoice,
@@ -15,6 +16,7 @@ import { promptSessionConfigUpdate, type SessionConfig } from './config'
 import type { CardSessionContext, CardSessionStrategy } from './strategy'
 import {
   applyFlatListCardEntry,
+  flatListCategoryDeps,
   type CollectionSession,
   type FlatListStrategyContext,
   type LastAddState,
@@ -264,10 +266,14 @@ export function createCollectionStrategy(
       const params = {
         labels: formatCardLabels(currentDefaultLabels()) || t('cli.labels.none'),
       }
-      return [menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', params)]
+      return [
+        menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', params),
+        ...categoryMenuItems(),
+      ]
     },
-    handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
+    handleSentinel: async (ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__LIST_LABELS__') await editListLabels()
+      await handleCategoryMenuSentinel(ctx, value, flatListCategoryDeps(session))
     },
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, true, excludeDigital),

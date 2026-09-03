@@ -23,6 +23,10 @@ export const cliCardsMessages = {
   'cli.cardOps.pinNeedsBoth': '--set and --collector-number must be given together.',
   'cli.cardOps.tagFlagInvalid': '{reason} {flag} takes one or more tags separated by commas.',
   'cli.cardOps.tagFlagEmpty': '{flag} needs at least one tag.',
+  'cli.cardOps.categoriesFlagInvalid':
+    '{reason} {flag} takes one or more categories separated by commas.',
+  'cli.cardOps.categoriesFlagEmpty':
+    '{flag} needs at least one category — use --no-categories to clear them.',
   'cli.cardOps.wantedNoCondition':
     'Wanted list entries do not track condition — --condition applies to decks and collections only.',
   'cli.cardOps.labelsUnsupported': {
@@ -167,7 +171,7 @@ export const cliCardsMessages = {
   'cli.setCard.finishCheckCacheMiss':
     "Note: could not verify finish '{finish}' for {entry} — the card cache holds no complete printing list for it. Run 'ritual cache preload-all' to enable the check.",
   'cli.setCard.noChangeGiven':
-    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --tag, --untag, --art, --section, --commander, or --no-commander.',
+    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --tag, --untag, --categories, --no-categories, --art, --section, --commander, or --no-commander.',
   'cli.setCard.tagBothWays':
     'A tag cannot be both added and removed in one run — given to both --tag and --untag: {tags}',
   'cli.setCard.artInvalid': "{reason}. Or pass 'none' to clear the custom art.",
@@ -194,6 +198,8 @@ export const cliCardsMessages = {
   'cli.setCard.appliedTagsRemoved': 'tags removed → {tags}',
   'cli.setCard.tagsAlreadyPresent': 'tags unchanged ({tags} already on the line)',
   'cli.setCard.tagsAlreadyAbsent': 'tags unchanged ({tags} not on the line)',
+  'cli.setCard.appliedCategories': 'categories → {categories}',
+  'cli.setCard.categoriesCleared': 'categories cleared',
   'cli.setCard.appliedSection': 'section → {section}',
   'cli.setCard.appliedCommander': 'commander',
   'cli.setCard.appliedNotCommander': 'not commander',
@@ -527,6 +533,46 @@ export const cliCardsMessages = {
   },
   'cli.metadata.row': '{key} = {value}',
   'cli.metadata.rowUnset': '{key} = (unset)',
+
+  // ── categories ────────────────────────────────────────────────────────
+  'cli.categories.none': 'No categories in {list}.',
+  'cli.categories.vocabularyLine': {
+    $plural: 'count',
+    one: '{index}. {category} ({count} card)',
+    other: '{index}. {category} ({count} cards)',
+  },
+  'cli.categories.cardLine': '{name}: {categories}',
+  'cli.categories.staleNotChecked':
+    'The list has lines this could not read, so entries for cards it did not see are not reported as stale.',
+  'cli.categories.staleNames':
+    'Categories are recorded for cards this list no longer holds: {names}. They are kept until the list is saved or cleaned up.',
+  'cli.categories.renamed': {
+    $select: 'mode',
+    done: 'Renamed category "{from}" to "{to}" in {list}.',
+    preview: '[dry-run] Would rename category "{from}" to "{to}" in {list}.',
+  },
+  'cli.categories.reordered': {
+    $select: 'mode',
+    done: 'Category order in {list}: {order}',
+    preview: '[dry-run] Would set the category order in {list} to: {order}',
+  },
+  'cli.categories.removedDone': {
+    $plural: 'count',
+    one: 'Removed category "{category}" from {list} ({count} card updated).',
+    other: 'Removed category "{category}" from {list} ({count} cards updated).',
+  },
+  'cli.categories.removedPreview': {
+    $plural: 'count',
+    one: '[dry-run] Would remove category "{category}" from {list} ({count} card updated).',
+    other: '[dry-run] Would remove category "{category}" from {list} ({count} cards updated).',
+  },
+  'cli.categories.unknown': 'No category named "{category}" in {list}.',
+  'cli.categories.orderEmpty': 'categories order takes one or more categories separated by commas.',
+  'cli.categories.nameInvalid':
+    '{reason} A category is plain text without "#", ",", "&", "*", quotes, brackets, braces or parentheses.',
+  'cli.categories.sidecarUnreadable': "The list's categories sidecar could not be read: {reason}",
+  'cli.categories.menuRename': 'Rename Category…',
+  'cli.categories.menuReorder': 'Reorder Categories…',
 
   // ── cleanup ───────────────────────────────────────────────────────────
   'cli.cleanup.couldNotRead': 'could not be read: {reason}',

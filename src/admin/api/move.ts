@@ -122,6 +122,13 @@ export type MoveCommitResponse = ApiMessage & {
   skipped: number
   droppedNotes: DroppedNote[]
   warnings: string[]
+  /**
+   * Stored card names whose `<list>.categories.json` entry this commit pruned:
+   * a list lost its last copy of that name, and categories are keyed by name in
+   * one list, so the assignment goes with it. Same field, same meaning, as on
+   * the save routes. Absent when nothing was pruned.
+   */
+  prunedCategories?: string[]
 }
 
 /** Untrusted request body shape, validated before narrowing to {@link MoveCommitRequest}. */
@@ -192,7 +199,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       applyVirtualMove(state, internalKey, dest, { section: m.toSection })
     }
 
-    const { moved, writtenFiles, droppedNotes } = await commitAllMoves(state)
+    const { moved, writtenFiles, droppedNotes, prunedCategories } = await commitAllMoves(state)
 
     // Auto-commit the written files (markdown, hashes, changelogs) when git is enabled,
     // matching the editor save endpoints. The whole repo lives under the base dir, so a
@@ -217,6 +224,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       skipped,
       droppedNotes,
       warnings,
+      ...(prunedCategories.length > 0 ? { prunedCategories } : {}),
       ...apiMessage('admin.api.move.moved', { count: moved }),
     }
     return Response.json(responseBody)
@@ -255,6 +263,13 @@ export type RemoveCommitResponse = ApiMessage & {
   requested: number
   skipped: number
   warnings: string[]
+  /**
+   * Stored card names whose `<list>.categories.json` entry this commit pruned:
+   * a list lost its last copy of that name, and categories are keyed by name in
+   * one list, so the assignment goes with it. Same field, same meaning, as on
+   * the save routes. Absent when nothing was pruned.
+   */
+  prunedCategories?: string[]
 }
 
 /** Untrusted request body shape, validated before narrowing to {@link RemoveCommitRequest}. */
@@ -315,7 +330,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
       }
     }
 
-    const { removed, writtenFiles } = await commitAllRemovals(state)
+    const { removed, writtenFiles, prunedCategories } = await commitAllRemovals(state)
 
     if (removed > 0) {
       await autoCommitAndPush(
@@ -331,6 +346,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
       requested: body.removes.length,
       skipped,
       warnings,
+      ...(prunedCategories.length > 0 ? { prunedCategories } : {}),
       ...apiMessage('admin.api.move.removed', { count: removed }),
     }
     return Response.json(responseBody)
@@ -452,7 +468,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       applyVirtualMove(state, internalKey, dest, { section: m.toSection })
     }
 
-    const { moved, writtenFiles, droppedNotes } = await commitAllMoves(state)
+    const { moved, writtenFiles, droppedNotes, prunedCategories } = await commitAllMoves(state)
 
     if (moved > 0) {
       await autoCommitAndPush(
@@ -469,6 +485,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       skipped,
       droppedNotes,
       warnings,
+      ...(prunedCategories.length > 0 ? { prunedCategories } : {}),
       ...apiMessage('admin.api.move.moved', { count: moved }),
     }
     return Response.json(responseBody)

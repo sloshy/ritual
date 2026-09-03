@@ -41,6 +41,7 @@ describe('buildProgram', () => {
       'delete',
       'edit',
       'metadata',
+      'categories',
       'set-list-image',
       'history',
       'diff',

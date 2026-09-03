@@ -377,6 +377,19 @@ export const CATEGORY_ACTIONS = [
 ] as const satisfies readonly ChangeAction[]
 
 /**
+ * The three category events as one union — "a change the categories sidecar
+ * answers to", stated in the type system rather than only as the runtime
+ * {@link CATEGORY_ACTIONS} membership test.
+ *
+ * Every seam that carries category events and nothing else (a CLI session's
+ * staged edits, the `ritual categories` write tail, an undo entry's restore)
+ * takes this rather than the whole {@link ChangeEvent} union, so staging a
+ * non-category event there is a compile error instead of an event the sidecar
+ * commit silently filters out.
+ */
+export type CategoryChange = Extract<ChangeEvent, { action: (typeof CATEGORY_ACTIONS)[number] }>
+
+/**
  * The card-LINE subset of {@link ChangeEvent} — every variant that targets one
  * card line, so both `.cardName` and the optional `.cardId` are always readable.
  * Producers that never emit list-level changes (the file diff, the deck-sync

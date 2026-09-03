@@ -40,6 +40,8 @@ const MENU_SENTINEL_VALUES = [
   '__FORMAT__',
   '__TAGS__',
   '__LIST_LABELS__',
+  '__RENAME_CATEGORY__',
+  '__REORDER_CATEGORIES__',
   '__CONFIG__',
   '__COLLECTOR_MODE__',
   '__NAME_MODE__',
@@ -240,7 +242,7 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
  * lists every entry under the menu, so this limit less the (short) edit-mode
  * menu is how many card lines are visible before the list scrolls.
  */
-export const SESSION_MENU_LIMIT = 20
+export const SESSION_MENU_LIMIT = 22
 
 /**
  * Build the full autocomplete choice list (menu shortcuts first, then cards).

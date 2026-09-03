@@ -14,6 +14,13 @@ import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import { createAddChange } from '../../src/changes/change-event'
 import type { DeckData } from '../../src/list/deck'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import prompts from 'prompts'
+import { createDeckStrategy } from '../../src/commands/session/deck-strategy'
+import { buildInitialSessionConfig } from '../../src/commands/session/config'
+import { createCardSessionContext } from '../../src/commands/session/strategy'
+import { loadCardCategories, saveCardCategories } from '../../src/list/card-categories-sidecar'
+import { categoriesOf, categoriesRecord } from '../helpers/card-categories'
+import { stubTty } from '../test-utils'
 
 let ws: BoundWorkspace
 let dir: string
@@ -156,5 +163,54 @@ describe('deck editor helpers (Integration)', () => {
     // Distinct printings are independent entries with distinct IDs.
     expect(counters).toHaveLength(2)
     expect(new Set(counters.map((c) => c.cardId)).size).toBe(2)
+  })
+})
+
+/**
+ * The deck session's own categories wiring: `persist` must commit the staged
+ * edits and build its surviving-name set from EVERY section. The flat-list twin
+ * lives in `flat-list-session.test.ts`; without this one, a deck `persist` that
+ * forgot the commit — or that read one section — would drop every category edit
+ * silently.
+ */
+describe('deck session categories', () => {
+  stubTty({ stdin: true })
+
+  test('persist writes the staged edit and prunes only names the deck no longer holds', async () => {
+    const filePath = await ensureDeckFile('Categorized', 'commander')
+    const deck: DeckData = {
+      name: 'Categorized',
+      sections: [
+        { name: 'Commanders', cards: [{ quantity: 1, name: 'Atraxa', cardId: 1 }] },
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 2 }] },
+      ],
+    }
+    const { frontMatter } = await loadDeck(filePath)
+    await writeDeck(filePath, deck, frontMatter)
+    // 'Ponder' is not in the deck, so the save prunes it; 'Atraxa' is in the
+    // OTHER section and must survive.
+    await saveCardCategories(
+      filePath,
+      categoriesRecord(['Ramp', 'Draw'], { Atraxa: ['Ramp'], Ponder: ['Draw'] }),
+    )
+
+    const strategy = createDeckStrategy({
+      deckFile: filePath,
+      deckName: 'Categorized',
+      initialDeck: deck,
+      frontMatter,
+      sessionConfig: buildInitialSessionConfig({}, undefined),
+      excludeDigitalOnly: true,
+    })
+
+    prompts.inject(['categories', 'Ramp, Artifacts'])
+    await strategy.editEntry(createCardSessionContext(), 2)
+    await strategy.persist()
+
+    const saved = await loadCardCategories(filePath)
+    expect(saved.ok && categoriesOf(saved.categories)).toEqual({
+      Atraxa: ['Ramp'],
+      'Sol Ring': ['Ramp', 'Artifacts'],
+    })
   })
 })

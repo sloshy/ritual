@@ -1,4 +1,3 @@
-import path from 'node:path'
 import fs from 'node:fs/promises'
 import { Command, Option } from 'commander'
 import {
@@ -34,17 +33,12 @@ import {
   splitCommaTokens,
   type ArrayMode,
 } from '../config/config-fields'
-import {
-  addListTypeFlags,
-  resolveListTypeFlag,
-  type ResolvedList,
-  addScriptingOptions,
-} from '../cli/options'
-import { resolveListSelection } from './card-target'
-import { fail, runCommandAction } from '../cli/action'
+import { addListTypeFlags, addScriptingOptions } from '../cli/options'
+import { runListTargetAction, type ListTarget } from './card-target'
+import { fail } from '../cli/action'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
-import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { emitOutput, type ScriptingOptions } from '../cli/output'
 
 /**
  * `ritual metadata` — inspect and modify a list's front-matter metadata from
@@ -86,13 +80,6 @@ type MetadataListResult = {
   type: ListType
   list: string
   frontMatter: Record<string, unknown>
-}
-
-/** A resolved target: the list, its type, and its display slug. */
-type MetadataTarget = {
-  type: ListType
-  filePath: string
-  list: string
 }
 
 /**
@@ -192,33 +179,13 @@ function requireKnownProperty(
 }
 
 /**
- * Resolve the target list for a metadata subcommand. Every list type is offered:
- * a wanted list carries `description` like the others, so the picker lists all
- * three and a `--wanted` flag resolves normally.
- */
-async function resolveMetadataTarget(
-  listName: string | undefined,
-  flags: ListTypeFlags,
-  scripting: ScriptingOptions,
-): Promise<MetadataTarget | 'conflict'> {
-  const type = resolveListTypeFlag(flags, scripting)
-  if (type === 'conflict') return 'conflict'
-  const resolved: ResolvedList = await resolveListSelection(listName, type)
-  return {
-    type: resolved.type,
-    filePath: resolved.filePath,
-    list: path.basename(resolved.filePath, '.md'),
-  }
-}
-
-/**
  * Read the target's front-matter mapping, refusing when it cannot be read as
  * YAML — for a write, a merge over keys that cannot be seen would clobber
  * them; for a read, there is nothing trustworthy to report. One guard for both
  * list types, so decks and collections fail the same way (exit 1) instead of
  * a deck's parse error escaping as a raw exception.
  */
-async function readFrontMatterData(target: MetadataTarget): Promise<Record<string, unknown>> {
+async function readFrontMatterData(target: ListTarget): Promise<Record<string, unknown>> {
   const content = await fs.readFile(target.filePath, 'utf-8')
   const mapping = readFrontMatterMapping(content)
   if (!mapping.ok) {
@@ -326,7 +293,7 @@ function patchValue(patch: Record<string, unknown>, property: string): unknown {
 }
 
 function emitSetResult(
-  target: MetadataTarget,
+  target: ListTarget,
   property: string,
   value: unknown,
   scripting: ScriptingOptions,
@@ -394,10 +361,7 @@ function registerSetSubcommand(metadata: Command): void {
       values: string[],
       options: MetadataSetOptions,
     ) => {
-      const scripting = normalizeScriptingOptions(options)
-      await runCommandAction(scripting, async () => {
-        const target = await resolveMetadataTarget(listName, options, scripting)
-        if (target === 'conflict') return
+      await runListTargetAction(listName, options, async (target, scripting) => {
         requireKnownProperty(target.type, property)
         const mode: ArrayMode = options.add ? 'add' : options.remove ? 'remove' : 'replace'
         const data = await readFrontMatterData(target)
@@ -454,10 +418,7 @@ function registerGetSubcommand(metadata: Command): void {
         .argument('<property>', metadataPropertyHelp()),
     ),
   ).action(async (listName: string | undefined, property: string, options: MetadataTypeFlags) => {
-    const scripting = normalizeScriptingOptions(options)
-    await runCommandAction(scripting, async () => {
-      const target = await resolveMetadataTarget(listName, options, scripting)
-      if (target === 'conflict') return
+    await runListTargetAction(listName, options, async (target, scripting) => {
       requireKnownProperty(target.type, property)
       const value = await readMetadataValue(target, property)
       if (value === undefined) {
@@ -483,7 +444,7 @@ function registerGetSubcommand(metadata: Command): void {
  * array reads as unset for every key — `labels: []` means "no default" and
  * `tags: []` says nothing — so exit codes answer "is anything set?" uniformly.
  */
-async function readMetadataValue(target: MetadataTarget, property: string): Promise<unknown> {
+async function readMetadataValue(target: ListTarget, property: string): Promise<unknown> {
   const data = await readFrontMatterData(target)
   let value: unknown
   if (target.type === 'deck') {
@@ -520,11 +481,7 @@ function registerListSubcommand(metadata: Command): void {
         .argument('[listName]', t('help.metadata.listName')),
     ),
   ).action(async (listName: string | undefined, options: MetadataTypeFlags) => {
-    const scripting = normalizeScriptingOptions(options)
-    await runCommandAction(scripting, async () => {
-      const target = await resolveMetadataTarget(listName, options, scripting)
-      if (target === 'conflict') return
-
+    await runListTargetAction(listName, options, async (target, scripting) => {
       // The guard runs first for both types: parseDeckFrontMatter would throw
       // a raw parse error past the scripting error envelope on unreadable YAML.
       const data = await readFrontMatterData(target)
@@ -584,10 +541,7 @@ function registerUnsetSubcommand(metadata: Command): void {
         .argument('<property>', metadataPropertyHelp()),
     ),
   ).action(async (listName: string | undefined, property: string, options: MetadataTypeFlags) => {
-    const scripting = normalizeScriptingOptions(options)
-    await runCommandAction(scripting, async () => {
-      const target = await resolveMetadataTarget(listName, options, scripting)
-      if (target === 'conflict') return
+    await runListTargetAction(listName, options, async (target, scripting) => {
       requireKnownProperty(target.type, property)
       // The same unreadable-YAML refusal as `set`, so both writes exit 1 on a
       // block they cannot safely merge over.

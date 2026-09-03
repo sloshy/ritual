@@ -49,6 +49,14 @@ import {
   warnUnreconciledArt,
 } from './art'
 import {
+  categoryMenuItems,
+  commitSessionCategories,
+  createSessionCategories,
+  handleCategoryMenuSentinel,
+  warnUnreconciledCategories,
+} from './categories'
+import { deckCardNameSet } from '../../list/card-names'
+import {
   createAddChange,
   createSetPrintingChange,
   type ChangeEvent,
@@ -92,6 +100,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     originals: new Map(),
     dirty: args.initiallyDirty ?? false,
     art: createSessionArtChanges(),
+    categories: createSessionCategories(),
   }
   let lastSection: string | null = null
   let lastPrinting: PrintingTuple | null = null
@@ -251,12 +260,20 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       menuRow('🏷️ ', '__FORMAT__', 'cli.deck.menuChangeFormat', { format: formatDisplay() }),
       menuRow('🔖', '__TAGS__', 'cli.deck.menuEditTags', { tags: tagsDisplay() }),
       menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', { labels: labelsDisplay() }),
+      ...categoryMenuItems(),
     ],
-    handleSentinel: async (_ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
+    handleSentinel: async (ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
       if (value === '__SECTION__') await promptSetTargetSection(state.deck, sessionConfig)
       if (value === '__FORMAT__') await changeFormat()
       if (value === '__TAGS__') await changeTags()
       if (value === '__LIST_LABELS__') await changeLabels()
+      await handleCategoryMenuSentinel(ctx, value, {
+        filePath: deckFile,
+        categories: state.categories,
+        markDirty: () => {
+          state.dirty = true
+        },
+      })
     },
     updateConfig: (excludeDigital: boolean) =>
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
@@ -285,6 +302,11 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       await writeDeck(deckFile, state.deck, frontMatter)
       state.dirty = false
       warnUnreconciledArt(await commitSessionArt(deckFile, state.art))
+      // Categories are keyed by card name, so the deck's own card names are the
+      // surviving-name set: a name the session removed loses its entry here.
+      warnUnreconciledCategories(
+        await commitSessionCategories(deckFile, state.categories, deckCardNameSet(state.deck)),
+      )
     },
     hasUnsavedChanges: () => state.dirty,
     sessionSaved: (): void => {

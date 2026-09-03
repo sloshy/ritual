@@ -20,6 +20,7 @@ type SetCardJson = {
   cardName: string
   cardId?: number
   applied: string[]
+  writtenFiles: string[]
 }
 
 type ErrorJson = {
@@ -1308,6 +1309,9 @@ describe('set-card --art (Integration)', () => {
     expect(json.applied).toEqual(['custom art → proxies/bolt.png'])
 
     expect(await readSidecar('decks/test.art.json')).toEqual({ '3': { file: 'proxies/bolt.png' } })
+    // The sidecar rides the `writtenFiles` machine contract, so an auto-commit
+    // stages it — and nothing else is claimed.
+    expect(json.writtenFiles).toEqual([path.join(dir, 'decks', 'test.art.json')])
     // Art is list metadata: the sidecar is the only file the run may touch.
     const after = await snapshotTree(dir)
     delete after['decks/test.art.json']
@@ -1452,6 +1456,112 @@ describe('set-card --art (Integration)', () => {
     const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
     expect(json.dryRun).toBe(true)
     expect(json.applied).toEqual(['custom art → proxies/bolt.png'])
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+})
+
+describe('set-card --categories / --no-categories (Integration)', () => {
+  const listFile = (): string => path.join(dir, 'collections', 'main.md')
+  const sidecar = (): string => path.join(dir, 'collections', 'main.categories.json')
+
+  test('writes the sidecar and its hash, reports both, and leaves the card line alone', async () => {
+    const lineBefore = await fs.readFile(listFile(), 'utf-8')
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--categories',
+        'Ramp, Artifacts',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['categories → Ramp, Artifacts'])
+
+    // The item-(b) assertion: the `line-mutate` categories seam reports the
+    // sidecar AND its hash among the run's written files, alongside the
+    // changelog. The list `.md` is NOT there — a categories-only batch leaves
+    // every card line as it was, so rewriting it (and re-stamping its hash)
+    // would both misreport the run and launder a hand edit past
+    // `detect-changes`.
+    expect(json.writtenFiles).toEqual([
+      path.join(dir, 'collections', 'main.changes.md'),
+      sidecar(),
+      `${sidecar()}.sha256`,
+    ])
+
+    expect(JSON.parse(await fs.readFile(sidecar(), 'utf-8'))).toEqual({
+      order: ['Ramp', 'Artifacts'],
+      cards: { 'Sol Ring': ['Ramp', 'Artifacts'] },
+    })
+    // Categories are never on the line: the list file's card lines are unchanged.
+    expect(await fs.readFile(listFile(), 'utf-8')).toBe(lineBefore)
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Set categories of "Sol Ring" to Ramp, Artifacts')
+  })
+
+  test("--no-categories clears the card's categories, keeping the list's vocabulary", async () => {
+    const seed = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--categories', 'Ramp'],
+      dir,
+    )
+    expect(seed.exitCode).toBe(0)
+
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--no-categories', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['categories cleared'])
+    expect(json.writtenFiles).toContain(sidecar())
+    expect(json.writtenFiles).toContain(`${sidecar()}.sha256`)
+    // The card's entry goes; the list's declared vocabulary is not the card's
+    // to delete, so the sidecar stays.
+    expect(JSON.parse(await fs.readFile(sidecar(), 'utf-8'))).toEqual({
+      order: ['Ramp'],
+      cards: {},
+    })
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Cleared categories of "Sol Ring"')
+  })
+
+  test('an empty --categories value is a usage error, not a clear', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--categories', ''],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('--no-categories')
+  })
+
+  test('--dry-run writes nothing and reports no written files', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--categories',
+        'Ramp',
+        '-n',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
+    expect(json.dryRun).toBe(true)
+    expect(json.writtenFiles).toEqual([])
     expect(await snapshotTree(dir)).toEqual(before)
   })
 })

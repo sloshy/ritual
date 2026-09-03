@@ -28,9 +28,12 @@ import {
   noteArtLineRemoved,
   noteArtLineRestored,
   noteArtRepack,
-  noteArtSet,
   type SessionArtChanges,
 } from './art'
+import type { SessionCategoryChanges } from './categories'
+import { editCategories } from './edit-categories'
+import { foldCategoryCardName } from '../../card/card-categories'
+import { deckCardNameSet } from '../../list/card-names'
 import { displayLanguage } from '../../card/card-language'
 import { t } from '../../i18n/t'
 import {
@@ -61,6 +64,7 @@ import type {
 } from './strategy'
 import {
   foldOutCardChanges,
+  type GoneCardName,
   retargetUndoCardId,
   swapUndoChangelog,
   targetedUndoBlocker,
@@ -82,6 +86,7 @@ import {
   logUpdatedLine,
   printingTupleOf,
   resetStaleLastAdded,
+  restoreUndoSidecars,
   type EditModel,
   type EditSnapshot,
   type FieldEdit,
@@ -132,6 +137,11 @@ export type DeckSessionState = {
    * the next line the session creates.
    */
   art: SessionArtChanges
+  /**
+   * Pending `<deck>.categories.json` edits, replayed by the same save that
+   * writes the deck — the sidecar is keyed by card name, not by `&N`.
+   */
+  categories: SessionCategoryChanges
 }
 
 /**
@@ -155,12 +165,24 @@ type DeckEditModel = EditModel<DeckCardLocation, DeckCardSnapshot>
  * The shared edit-mode view of a deck session. Built per operation so the
  * fields the session reassigns (`deck`, `editUndo`) are always read live.
  */
+/**
+ * The `goneCardName` half of a {@link FoldOptions}, set only when the deck holds
+ * no other line of `name` once the removal or move has been applied to the
+ * model. See {@link FoldOptions.goneCardName}: a `set-categories` event is
+ * name-keyed, so it must not be folded out while another line still carries it.
+ */
+function deckSurvivingName(state: DeckSessionState, name: string): GoneCardName {
+  const key = foldCategoryCardName(name)
+  return deckCardNameSet(state.deck).has(key) ? {} : { goneCardName: name }
+}
+
 function deckModel(state: DeckSessionState): DeckEditModel {
   return {
     filePath: state.filePath,
     editUndo: () => state.editUndo,
     originals: state.originals,
     art: state.art,
+    categories: state.categories,
     apply: (change) => applyDeckChange(state, change),
     markDirty: () => {
       state.dirty = true
@@ -328,6 +350,7 @@ export async function editDeckCard(
     { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
     { title: `🔖 ${t('cli.editAction.editTags')}`, value: 'tags' },
     { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
+    { title: `🗂️  ${t('cli.editAction.editCategories')}`, value: 'categories' },
     { title: `🗂️  ${t('cli.editAction.moveToSection')}`, value: 'move' },
     ...(deps.move ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }] : []),
     { title: `📝 ${t('cli.editAction.editNote')}`, value: 'note' },
@@ -433,6 +456,11 @@ export async function editDeckCard(
     return
   }
 
+  if (action === 'categories') {
+    await editCategories(model, ctx, located, cardId)
+    return
+  }
+
   if (action === 'move') {
     const target = await promptMoveSection(state.deck, sectionName)
     if (!target || target === sectionName) return
@@ -533,7 +561,10 @@ export function performDeckLineMove(
     )
   }
 
-  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: true })
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, {
+    keepAdds: true,
+    ...deckSurvivingName(state, snapshot.name),
+  })
   ctx.sessionChanges = [...kept, ...moveEvents]
 
   state.editUndo.push({
@@ -657,7 +688,10 @@ export function performDeckLineRemoval(
 
   // The removed line's earlier edit events are moot, so they fold out of the
   // changelog (and come back if the removal is undone).
-  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: false })
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, {
+    keepAdds: false,
+    ...deckSurvivingName(state, snapshot.name),
+  })
   ctx.sessionChanges = [...kept, ...removeEvents]
 
   state.editUndo.push({
@@ -732,8 +766,8 @@ export function undoDeckEditAt(
     }
   }
 
-  // An art edit's only effect is on the sidecar, so its undo is a re-stage.
-  if (undo.restoreArt) noteArtSet(state.art, undo.cardId, undo.restoreArt.ref)
+  // An art or category edit's only effect is on a sidecar, so its undo is a re-stage.
+  restoreUndoSidecars(deckModel(state), undo)
 
   for (const change of undo.inverse) {
     applyDeckChange(state, change)

@@ -30,6 +30,8 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
   no events until \`ritual cleanup\` converts it)
 - \`<name>.art.json\` — optional custom-art sidecar next to a list, mapping card
   \`&N\` ids to a replacement image (see **Custom art** below)
+- \`<name>.categories.json\` — optional per-list category sidecar (plus its
+  \`.sha256\`), mapping card **names** to their categories — see **Categories** below
 - \`ritual.config.json\` — configuration (optional: reading config never creates
   it, so a workspace only has one once \`config set\`/\`unset\`, \`init-site\`, the
   admin Settings page, or the MCP \`update_config\` tool writes it)
@@ -159,8 +161,9 @@ format: commander
   them to the files. \`set-list-image\` backfills **conditionally**: only when the run names a
   card (\`--card\`, or the wizard's card picker), since \`--file\`/\`--url\`/\`--default\` never
   read an \`&N\` at all. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
-  \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
-  never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
+  \`list-all-cards\`, \`history --show\`, ...), the front-matter-only \`metadata\` command, the
+  sidecar-only \`categories\` command (it writes a sidecar and a changelog, never card lines)
+  and the \`new\`/\`rename\`/\`delete\` lifecycle never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
 - A card line may carry tags — one \`#\` token holding a comma-separated list (\`#Ramp, Card
   Draw\`), after the labels and before the note, on every list type — the owner's free-form
   vocabulary, spaces and case kept, the \`#\` being file punctuation no UI shows; see the
@@ -199,6 +202,56 @@ blurb the published site prints above the cards (\`ritual metadata set <list>
 description "…"\`), and \`image:\`, the list's cover on the published site (see
 **List cover images** below) — between them, the only front-matter keys a wanted
 list defines. A flat list's block round-trips byte-for-byte through every save.
+
+**Three kinds of thing you can say about a card**, deliberately different:
+
+| Kind         | Belongs to                  | Vocabulary                       | Ordered?                     | Follows a move?                       | Where it lives                   |
+| ------------ | --------------------------- | -------------------------------- | ---------------------------- | ------------------------------------- | -------------------------------- |
+| **Label**    | a card line (\`&N\`)          | closed (\`sale trade keep proxy\`) | no                           | as far as the destination type allows | \`[…]\` token on the line          |
+| **Tag**      | a card line — the *copy*    | open                             | no                           | **always**                            | \`#a, b\` token on the line        |
+| **Category** | a card **name** in one list | open, per list + config defaults | yes — the first is *primary* | **never**                             | \`<name>.categories.json\` sidecar |
+
+A label instructs Ritual (\`[proxy]\` changes pricing). A tag is a property of the physical
+copy. A **category** is the card's role in this one list — what Archidekt calls a category
+and Moxfield a tag.
+
+## Categories
+
+A per-list \`<name>.categories.json\` sidecar records each card **name**'s categories in that
+list, plus the vocabulary's display order:
+
+\`\`\`json
+{
+  "order": ["Ramp", "Draw", "Removal", "Artifacts"],
+  "cards": {
+    "Rhystic Study": ["Draw"],
+    "Sol Ring": ["Ramp", "Artifacts"]
+  }
+}
+\`\`\`
+
+- **Keyed by card name, not \`&N\`.** One assignment covers every line of that name in the
+  list, whatever its printing, section or quantity; lookups fold case and whitespace. A
+  category never follows a card to another list.
+- **Ordered per card, first is primary** — the one the site groups by. \`order\` is the
+  vocabulary's display order; names a card uses but \`order\` does not list are appended on
+  the next Ritual write (the configured \`defaultCategories\` first, then the rest).
+- **A name follows the tag shape rule** (plain text; no \`#\`, \`,\`, \`&\`, \`*\`, quotes,
+  brackets, braces or parentheses; case kept).
+- **It carries its own \`.sha256\` and is part of the list's recorded history** — unlike
+  \`<name>.art.json\`, which records nothing. Edits appear in the list's \`.changes.md\` as
+  \`Set categories of "Sol Ring" to Ramp, Artifacts\`, \`Renamed category "Draw" to "Card Draw"\`
+  and \`Set category order to …\`, and a hand edit to the sidecar is picked up by
+  \`detect-changes\`.
+- **A malformed sidecar is refused whole** and never silently overwritten; an empty one is
+  deleted rather than written as \`{}\`.
+- Entries naming cards the list no longer holds are kept with a warning and pruned by the
+  list's own save, by a \`move\` that rewrites it, or by \`cleanup\`.
+
+Edit them with \`ritual categories\` (\`list\`/\`rename\`/\`order\`/\`remove\`),
+\`set-card --categories\`/\`--no-categories\`, or the editors' \`🗂 Edit Categories\` action and
+the list menu's \`🗂 Rename Category…\` / \`🗂 Reorder Categories…\` rows — see the
+**ritual-edit** skill.
 
 ## Custom art
 

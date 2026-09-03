@@ -9,6 +9,12 @@ import {
   commitAllRemovals,
 } from '../../src/list/move-commit'
 import { artSidecarPath, loadCardArt, saveCardArt } from '../../src/list/card-art'
+import {
+  categoriesSidecarPath,
+  loadCardCategories,
+  saveCardCategories,
+} from '../../src/list/card-categories-sidecar'
+import { categoriesOf, categoriesRecord } from '../helpers/card-categories'
 import type { PhysicalCard } from '../../src/list/move-staging'
 import type { ListEntry } from '../../src/list/list-info'
 import { collectionMarkdown, deckMarkdown, wantedMarkdown } from '../helpers/workspace'
@@ -79,8 +85,23 @@ describe('commitAllMoves', () => {
     const state = buildVirtualState([card])
     applyVirtualMove(state, card.key, dstList)
 
-    const { moved, writtenFiles } = await commitAllMoves(state)
+    // Categories are keyed by card name and never follow a move, so the source
+    // that lost its only Lightning Bolt drops that entry on this write.
+    await saveCardCategories(
+      srcList.filePath,
+      categoriesRecord(['Burn'], { 'Lightning Bolt': ['Burn'] }),
+    )
+
+    const { moved, writtenFiles, prunedCategories } = await commitAllMoves(state)
     expect(moved).toBe(1)
+
+    expect(prunedCategories).toEqual(['Lightning Bolt'])
+    expect(writtenFiles).toContain(categoriesSidecarPath(srcList.filePath))
+    const srcCategories = await loadCardCategories(srcList.filePath)
+    expect(srcCategories.ok && categoriesOf(srcCategories.categories)).toEqual({})
+    // The destination inherits nothing.
+    const dstCategories = await loadCardCategories(dstList.filePath)
+    expect(dstCategories.ok && categoriesOf(dstCategories.categories)).toEqual({})
 
     // The written-files set covers both list files and both changelogs (for git staging).
     expect(writtenFiles).toContain(srcList.filePath)
@@ -462,9 +483,19 @@ describe('custom art follows a committed move', () => {
     const state = buildVirtualState([card])
     applyVirtualRemove(state, card.key)
 
-    const { removed, writtenFiles } = await commitAllRemovals(state)
+    await saveCardCategories(
+      srcList.filePath,
+      categoriesRecord(['Burn', 'Ramp'], { 'Lightning Bolt': ['Burn'], 'Sol Ring': ['Ramp'] }),
+    )
+
+    const { removed, writtenFiles, prunedCategories } = await commitAllRemovals(state)
     expect(removed).toBe(1)
     expect(await artOf(srcList.filePath)).toEqual(new Map([[2, { file: 'proxies/ring.png' }]]))
     expect(writtenFiles).toContain(artSidecarPath(srcList.filePath))
+    // The same prune on the removal path, reported the same way.
+    expect(prunedCategories).toEqual(['Lightning Bolt'])
+    expect(writtenFiles).toContain(categoriesSidecarPath(srcList.filePath))
+    const remaining = await loadCardCategories(srcList.filePath)
+    expect(remaining.ok && categoriesOf(remaining.categories)).toEqual({ 'Sol Ring': ['Ramp'] })
   })
 })

@@ -9,6 +9,17 @@ import {
 import type { PhysicalCard } from '../../src/list/move-staging'
 import type { DeckData } from '../../src/list/deck'
 import { scratchListPath } from '../test-utils'
+import path from 'node:path'
+import { commitStagedCategoryPrunes, stagedCardNames } from '../../src/list/move-staging'
+import {
+  categoriesHashPath,
+  categoriesSidecarPath,
+  loadCardCategories,
+  saveCardCategories,
+  type CardCategoriesRecord,
+} from '../../src/list/card-categories-sidecar'
+import { categoriesOf, categoriesRecord } from '../helpers/card-categories'
+import { bindWorkspace } from '../helpers/workspace'
 
 function deckStaged(deck: DeckData): StagedFile {
   return { kind: 'deck', data: { deck, frontMatter: {} } }
@@ -578,5 +589,151 @@ describe('loadStagedOrThrow', () => {
         { missingKey: 'cli.move.abortRemoveSourceUnreadable', abortKey: 'cli.move.abortRemove' },
       ),
     ).rejects.toThrow(`Source file not readable, aborting remove: ${filePath}`)
+  })
+})
+
+describe('stagedCardNames', () => {
+  test('a staged deck reports every section, folded, and is always complete', () => {
+    const staged = deckStaged({
+      name: 'Test',
+      sections: [
+        { name: 'Commander', cards: [{ name: 'Winota, Joiner of Forces', quantity: 1 }] },
+        {
+          name: 'Main',
+          cards: [
+            { name: 'Sol Ring', quantity: 2 },
+            { name: 'Rhystic Study', quantity: 1 },
+          ],
+        },
+      ],
+    })
+    expect(stagedCardNames(staged)).toEqual({
+      names: new Set(['winota, joiner of forces', 'sol ring', 'rhystic study']),
+      complete: true,
+    })
+  })
+
+  test('a flat list reads its bullets and ignores front matter and fenced blocks', () => {
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: [
+        '---',
+        'labels:',
+        '  - keep',
+        '---',
+        '',
+        '# Binder',
+        '',
+        '## Main',
+        '- Sol Ring (C19:221) &1',
+        '',
+        '```',
+        '- Black Lotus (LEA:233) &99',
+        '```',
+        '',
+        '- Rhystic Study (C18:59) &2',
+        '',
+      ].join('\n'),
+    }
+    expect(stagedCardNames(staged)).toEqual({
+      names: new Set(['sol ring', 'rhystic study']),
+      complete: true,
+    })
+  })
+
+  test('an unreadable bullet reports complete: false, with the names it could read', () => {
+    // The asymmetry that makes the gate necessary: the move only has to FIND one
+    // line, but pruning needs EVERY name — a bullet the grammar cannot read
+    // holds a card the list still has.
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '# Binder\n\n## Main\n- Sol Ring (C19:221) &1\n- ((not a card line))\n',
+    }
+    expect(stagedCardNames(staged)).toEqual({ names: new Set(['sol ring']), complete: false })
+  })
+
+  test('a tab-bulleted line is a card line, not an unreadable one', async () => {
+    // The candidate rule is the grammar's own (`CARD_LINE_BULLET_RE`, `-\s+`).
+    // A scanner that demanded `"- "` would call this line prose, leave its name
+    // out of `names`, and — worse — still report `complete: true`, so the prune
+    // would drop a card the list still holds.
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '# Binder\n\n## Main\n-\tSol Ring (C19:221) &1\n',
+    }
+    expect(stagedCardNames(staged)).toEqual({ names: new Set(['sol ring']), complete: true })
+
+    const ws = await bindWorkspace()
+    try {
+      const listFilePath = path.join(ws.dir, 'collections', 'Binder.md')
+      await saveCardCategories(listFilePath, categoriesRecord(['Ramp'], { 'Sol Ring': ['Ramp'] }))
+      const result = await commitStagedCategoryPrunes([[listFilePath, staged] as const])
+      expect(result.pruned).toEqual([])
+      const loaded = await loadCardCategories(listFilePath)
+      expect(loaded.ok && categoriesOf(loaded.categories)).toEqual({ 'Sol Ring': ['Ramp'] })
+    } finally {
+      await ws.dispose()
+    }
+  })
+})
+
+describe('commitStagedCategoryPrunes', () => {
+  const listFile = (dir: string): string => path.join(dir, 'collections', 'Binder.md')
+
+  async function seedSidecar(dir: string, record: CardCategoriesRecord): Promise<void> {
+    await saveCardCategories(listFile(dir), record)
+  }
+
+  test('a name the staged file no longer holds loses its entry', async () => {
+    const ws = await bindWorkspace()
+    try {
+      await seedSidecar(
+        ws.dir,
+        categoriesRecord(['Ramp', 'Draw'], { 'Sol Ring': ['Ramp'], 'Rhystic Study': ['Draw'] }),
+      )
+      const staged: StagedFile = {
+        kind: 'text',
+        type: 'collection',
+        content: '# Binder\n\n## Main\n- Sol Ring (C19:221) &1\n',
+      }
+      const result = await commitStagedCategoryPrunes([[listFile(ws.dir), staged] as const])
+      expect(result.writtenFiles).toEqual([
+        categoriesSidecarPath(listFile(ws.dir)),
+        categoriesHashPath(listFile(ws.dir)),
+      ])
+      // The dropped assignment is reported, not swallowed: `ritual move` warns
+      // it and the move/remove routes carry it as `prunedCategories`.
+      expect(result.pruned).toEqual(['Rhystic Study'])
+      const loaded = await loadCardCategories(listFile(ws.dir))
+      expect(loaded.ok && categoriesOf(loaded.categories)).toEqual({ 'Sol Ring': ['Ramp'] })
+    } finally {
+      await ws.dispose()
+    }
+  })
+
+  test('a file with an unreadable bullet is skipped entirely — nothing pruned, nothing written', async () => {
+    const ws = await bindWorkspace()
+    try {
+      const record = categoriesRecord(['Ramp', 'Draw'], {
+        'Sol Ring': ['Ramp'],
+        'Rhystic Study': ['Draw'],
+      })
+      await seedSidecar(ws.dir, record)
+      const staged: StagedFile = {
+        kind: 'text',
+        type: 'collection',
+        content: '# Binder\n\n## Main\n- Sol Ring (C19:221) &1\n- ((not a card line))\n',
+      }
+      const result = await commitStagedCategoryPrunes([[listFile(ws.dir), staged] as const])
+      expect(result).toEqual({ writtenFiles: [], pruned: [] })
+      const loaded = await loadCardCategories(listFile(ws.dir))
+      // Rhystic Study's assignment survives: the unreadable bullet may well be it.
+      expect(loaded.ok && categoriesOf(loaded.categories)).toEqual(categoriesOf(record))
+    } finally {
+      await ws.dispose()
+    }
   })
 })

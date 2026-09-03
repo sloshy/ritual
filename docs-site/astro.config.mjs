@@ -51,6 +51,7 @@ export default defineConfig({
                 'commands/delete',
                 'commands/edit',
                 'commands/metadata',
+                'commands/categories',
                 'commands/set-list-image',
                 'commands/history',
                 'commands/diff',

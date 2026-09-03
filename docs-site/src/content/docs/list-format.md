@@ -178,6 +178,8 @@ A **category** is a card's role in **one list** — `Ramp`, `Removal`, `Board Wi
 | **Tag**      | a card line — the _copy_    | open                             | no                           | **always**                            | `#a, b` token on the line        |
 | **Category** | a card **name** in one list | open, per list + config defaults | yes — the first is _primary_ | **never**                             | `<name>.categories.json` sidecar |
 
+Categories are edited with [`set-card --categories`/`--no-categories`](/commands/set-card/#category-updates), the [`ritual categories`](/commands/categories/) subcommands (`list`/`rename`/`order`/`remove`), and the editors' `🗂 Edit Categories` action plus the list menu's `Rename Category…` / `Reorder Categories…` rows ([`ritual edit`](/commands/edit/#card-categories)).
+
 Categories are never written on a card line. They live in a JSON sidecar beside the list:
 
 ```json
@@ -194,7 +196,7 @@ Categories are never written on a card line. They live in a JSON sidecar beside 
 - **`cards` is ordered per card, and the first entry is the card's primary category.** Reordering is a real edit.
 - **`order` is the display order** of the list's vocabulary. Categories a card uses but `order` does not name are appended when Ritual next writes the file — the [`defaultCategories`](/configuration/) config vocabulary first, in its configured order, then the rest alphabetically — so the file describes itself.
 - **A category name follows the tag shape rule**: non-empty plain text that cannot contain `#`, `,`, `&`, `*`, double quotes, brackets, braces or parentheses. Case is kept exactly as written; `Ramp` and `ramp` are one category with two spellings.
-- **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning rather than being dropped on read. The next Ritual save of that list prunes it, and so does [`ritual cleanup`](/commands/cleanup/).
+- **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning rather than being dropped on read. It is pruned by the list's own save (an editor session, an admin save), by a cross-list [`move`](/commands/move/) that rewrites the list — but only when the move could read every card line in it — and by [`ritual cleanup`](/commands/cleanup/). [`ritual categories`](/commands/categories/) reports stale entries and never prunes them, because a read does not write.
 - **A malformed sidecar is refused as a whole.** It is never partially loaded and never silently overwritten, so a list with an unreadable sidecar still saves.
 - **Empty means gone.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
 - **It carries its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history: hand edits to it are detected by [`detect-changes`](/commands/detect-changes/) and recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` / `Set category order to …` / `Renamed category "Draw" to "Card Draw"` entries in the **list's** `.changes.md`. A sidecar Ritual did not itself last write keeps its stale hash, so the edit is not silently declared recorded.

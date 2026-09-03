@@ -125,6 +125,14 @@ export const helpCardsMeta = {
   'help.setCard.untag': {
     description: "Help for set-card --untag, which removes the named tags from a card's line.",
   },
+  'help.setCard.categories': {
+    description:
+      "Help for set-card --categories. Categories belong to the card's name in one list, not to the line. The quoted example's words may be localized; the comma stays.",
+  },
+  'help.setCard.noCategories': {
+    description:
+      'Help for set-card --no-categories, the clear that pairs with --categories (an empty --categories value is a usage error).',
+  },
   'help.setCard.art': {
     description:
       'Help for set-card --art, which records a replacement image for one card. "none" is a machine value; the art directory is the configured artDir.',
@@ -263,6 +271,38 @@ export const helpCardsMeta = {
   },
   'help.metadata.remove': { description: 'Help for metadata set --remove.' },
 
+  'help.categories.description': {
+    description: 'Description of the `ritual categories` command group, shown in --help.',
+  },
+  'help.categories.list': {
+    description: 'Help for `categories list`.',
+  },
+  'help.categories.rename': {
+    description:
+      'Help for `categories rename`: the name changes in the vocabulary and on every card using it.',
+  },
+  'help.categories.renameFrom': {
+    description: 'Help for the <from> argument of `categories rename`.',
+  },
+  'help.categories.renameTo': {
+    description: 'Help for the <to> argument of `categories rename`.',
+  },
+  'help.categories.order': {
+    description: 'Help for `categories order`. The order decides how the site groups the list.',
+  },
+  'help.categories.orderValue': {
+    description:
+      'Help for the <value> argument of `categories order`. The comma is the separator and never translates.',
+  },
+  'help.categories.remove': {
+    description: 'Help for `categories remove`.',
+  },
+  'help.categories.removeName': {
+    description: 'Help for the <name> argument of `categories remove`.',
+  },
+  'help.categories.dryRun': {
+    description: "Help for the `categories` subcommands' --dry-run flag.",
+  },
   'help.cleanup.description': { description: 'One-line summary of the `cleanup` command.' },
   'help.cleanup.dryRun': { description: 'Help for cleanup --dry-run.' },
   'help.cleanup.skipFormats': { description: 'Help for cleanup --skip-formats.' },

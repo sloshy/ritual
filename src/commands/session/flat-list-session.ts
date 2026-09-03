@@ -42,6 +42,14 @@ import {
   warnUnreconciledArt,
   type SessionArtChanges,
 } from './art'
+import {
+  commitSessionCategories,
+  createSessionCategories,
+  warnUnreconciledCategories,
+  type CategoryMenuDeps,
+  type SessionCategoryChanges,
+} from './categories'
+import { foldCategoryCardName } from '../../card/card-categories'
 import type { CardSessionContext, SessionAddItem } from './strategy'
 import type { EditUndoEntry } from './edit-undo'
 import type { ApplyChange } from '../../changes/apply-batch'
@@ -74,6 +82,11 @@ export type FlatListSession<E extends FlatListEntry> = {
    * removals free.
    */
   art: SessionArtChanges
+  /**
+   * Pending `<list>.categories.json` edits, replayed by the same save that
+   * writes the list — the sidecar is keyed by card name, not by `&N`.
+   */
+  categories: SessionCategoryChanges
   apply: ApplyChange<E[], ChangeEvent>
   serialize: FlatListSerialize<E>
 }
@@ -117,6 +130,7 @@ function newFlatListSession<E extends FlatListEntry>(
     pool: createIdPool([]),
     dirty: true,
     art: createSessionArtChanges(),
+    categories: createSessionCategories(),
     apply,
     serialize,
   }
@@ -135,6 +149,7 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
     pool: file.pool,
     dirty: false,
     art: createSessionArtChanges(),
+    categories: createSessionCategories(),
     apply: applyChangeToCollection,
     serialize: collectionToMarkdown,
   }
@@ -153,6 +168,7 @@ export async function loadWantedSession(filePath: string): Promise<WantedSession
     pool: file.pool,
     dirty: false,
     art: createSessionArtChanges(),
+    categories: createSessionCategories(),
     apply: applyChangeToWantedList,
     serialize: wantedToMarkdown,
   }
@@ -223,7 +239,7 @@ export function receiveFlatListMove<E extends FlatListEntry>(
  * never existed. The list's custom-art sidecar is re-filed in the same step, so
  * the ids the session freed never carry their art onto the cards that take them.
  */
-export async function persistFlatListSession<E extends FlatListEntry>(
+export async function persistFlatListSession<E extends NamedFlatListEntry>(
   session: FlatListSession<E>,
 ): Promise<void> {
   await fs.mkdir(path.dirname(session.filePath), { recursive: true })
@@ -233,6 +249,31 @@ export async function persistFlatListSession<E extends FlatListEntry>(
   )
   session.dirty = false
   warnUnreconciledArt(await commitSessionArt(session.filePath, session.art))
+  // Categories are keyed by card name, so the save's own entries are the
+  // surviving-name set: a name the session removed loses its entry here.
+  warnUnreconciledCategories(
+    await commitSessionCategories(
+      session.filePath,
+      session.categories,
+      new Set(session.entries.map((entry) => foldCategoryCardName(entry.name))),
+    ),
+  )
+}
+
+/**
+ * The two list-level category rows' dependencies for a flat-list session. Both
+ * flat strategies hand over the identical trio, so the literal is written once.
+ */
+export function flatListCategoryDeps<E extends FlatListEntry>(
+  session: FlatListSession<E>,
+): CategoryMenuDeps {
+  return {
+    filePath: session.filePath,
+    categories: session.categories,
+    markDirty: () => {
+      session.dirty = true
+    },
+  }
 }
 
 // ── Shared strategy operations ──────────────────────────────────────
@@ -390,10 +431,13 @@ export async function addAnotherFlatListCopy<E extends FlatListEntry>(
   )
 }
 
-// ── Discarding session adds ─────────────────────────────────────────
-
-/** A flat-list entry carries a card name (both collection and wanted entries do). */
+/**
+ * A flat-list entry carries a card name (both collection and wanted entries do).
+ * The discard picker renders it, and the categories sidecar is keyed by it.
+ */
 type NamedFlatListEntry = FlatListEntry & { name: string }
+
+// ── Discarding session adds ─────────────────────────────────────────
 
 /**
  * The cards added this session, in add order, rendered for the discard picker.
@@ -435,7 +479,21 @@ export function discardFlatListAdd<E extends NamedFlatListEntry>(
     createRemoveChange(entry.name, { cardId: targetId }),
   )
   session.dirty = true
-  ctx.sessionChanges = ctx.sessionChanges.filter((c) => !('cardId' in c) || c.cardId !== targetId)
+  // A `set-categories` event carries no `cardId` — it is keyed by card name and
+  // covers every line of it — so the id filter alone would leave the discarded
+  // add's category edit in the changelog. Its own events go only when no other
+  // line of the name is left.
+  const goneName = session.entries.some(
+    (e) => foldCategoryCardName(e.name) === foldCategoryCardName(entry.name),
+  )
+    ? undefined
+    : foldCategoryCardName(entry.name)
+  ctx.sessionChanges = ctx.sessionChanges.filter((c) => {
+    if (c.action === 'set-categories') {
+      return goneName === undefined || foldCategoryCardName(c.cardName) !== goneName
+    }
+    return !('cardId' in c) || c.cardId !== targetId
+  })
 
   // Re-pack: survivors take the smallest of the session ids in add order; the top frees up.
   const survivorIds = list.sessionAdds.filter((_, i) => i !== index)

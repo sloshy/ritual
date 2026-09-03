@@ -10,6 +10,7 @@ import {
   loadCardCategories,
   parseCardCategoriesSidecar,
   pruneCardCategories,
+  removeCategoryFromRecord,
   resolveCategoryOrder,
   saveCardCategories,
   serializeCardCategoriesSidecar,
@@ -366,5 +367,37 @@ describe('the sidecar on disk', () => {
     ])
     expect(committed).toEqual({ writtenFiles: [], pruned: [], warnings: [] })
     expect(await Bun.file(sidecarPath).exists()).toBe(false)
+  })
+})
+
+describe('removeCategoryFromRecord', () => {
+  const base = record(['Ramp', 'Draw', 'Removal'], {
+    'Sol Ring': ['Ramp', 'Artifacts'],
+    'Rhystic Study': ['Draw'],
+    'Swords to Plowshares': ['Removal'],
+  })
+
+  test('drops the name from the vocabulary and from every card, folding case', () => {
+    const next = removeCategoryFromRecord(base, 'ramp')
+    expect(next.order).toEqual(['Draw', 'Removal'])
+    expect(cardsOf(next)['Sol Ring']).toEqual(['Artifacts'])
+  })
+
+  test('a card left with no categories loses its entry', () => {
+    const next = removeCategoryFromRecord(base, 'Draw')
+    expect(next.cards.has('rhystic study')).toBe(false)
+    expect(Object.keys(cardsOf(next)).sort()).toEqual(['Sol Ring', 'Swords to Plowshares'])
+  })
+
+  test('leaves the other categories in their stored order', () => {
+    const next = removeCategoryFromRecord(base, 'Removal')
+    expect(next.order).toEqual(['Ramp', 'Draw'])
+    expect(cardsOf(next)['Sol Ring']).toEqual(['Ramp', 'Artifacts'])
+  })
+
+  test('an unused name changes nothing', () => {
+    const next = removeCategoryFromRecord(base, 'Combo')
+    expect(next.order).toEqual(base.order)
+    expect(cardsOf(next)).toEqual(cardsOf(base))
   })
 })

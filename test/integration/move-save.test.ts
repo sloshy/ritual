@@ -18,6 +18,13 @@ import { handleLists } from '../../src/admin/api/lists'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import { computeHash } from '../../src/changes/content-hash'
+import {
+  categoriesHashPath,
+  categoriesSidecarPath,
+  loadCardCategories,
+  saveCardCategories,
+} from '../../src/list/card-categories-sidecar'
+import { categoriesOf, categoriesRecord } from '../helpers/card-categories'
 import type { DeckData } from '../../src/list/deck'
 import {
   bindWorkspace,
@@ -100,7 +107,12 @@ describe('applyOutgoingMoves', () => {
       binderPath(),
       [],
     )
-    expect(result).toEqual({ writtenFiles: [], droppedNotes: [], artFailures: [] })
+    expect(result).toEqual({
+      writtenFiles: [],
+      droppedNotes: [],
+      artFailures: [],
+      prunedCategories: [],
+    })
   })
 
   test('writes the destination list and a move-to changelog', async () => {
@@ -501,6 +513,68 @@ describe('incoming moves (move-to saved on the destination)', () => {
     expect(binder).toContain('Lightning Bolt (LEA:161) &1')
     expect(binder).not.toContain('Brainstorm')
     expect(await fs.readFile(wishlistPath(), 'utf-8')).toContain('Brainstorm &1')
+  })
+
+  test("a source list that loses its last copy of a name loses that card's categories", async () => {
+    // Design §2 on the move write path: categories are keyed by card NAME, so a
+    // source list that no longer holds the name prunes its entry on this write —
+    // and the destination inherits nothing, because categories never follow a move.
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [
+        { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 2 },
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 3 },
+      ],
+    })
+    await saveCardCategories(
+      binderPath(),
+      categoriesRecord(['Ramp', 'Burn'], {
+        'Lightning Bolt': ['Burn'],
+        'Sol Ring': ['Ramp'],
+      }),
+    )
+    // The destination has categories of its own, so "inherits nothing" is
+    // falsifiable in both directions: neither an inherited entry nor a prune of
+    // what it already had may appear.
+    await saveCardCategories(wishlistPath(), categoriesRecord(['Draw'], { Brainstorm: ['Draw'] }))
+    const destBefore = await fs.readFile(categoriesSidecarPath(wishlistPath()), 'utf-8')
+
+    const result = await applyCrossListMoves(
+      WISHLIST,
+      wishlistPath(),
+      [
+        createMoveToChange('Lightning Bolt', {
+          set: 'lea',
+          collectorNumber: '161',
+          cardId: 2,
+          sourceCardId: 1,
+          from: BINDER,
+        }),
+        createMoveToChange('Sol Ring', {
+          set: 'c19',
+          collectorNumber: '221',
+          cardId: 3,
+          sourceCardId: 2,
+          from: BINDER,
+        }),
+      ],
+      new Map(),
+    )
+
+    expect(result.writtenFiles).toContain(categoriesSidecarPath(binderPath()))
+    expect(result.writtenFiles).toContain(categoriesHashPath(binderPath()))
+    // The dropped assignment is reported, not silent.
+    expect(result.prunedCategories).toEqual(['Lightning Bolt'])
+
+    const source = await loadCardCategories(binderPath())
+    // Lightning Bolt's only copy left, so its entry is pruned; Sol Ring still
+    // has its C21 copy in the list and keeps its assignment.
+    expect(source.ok && categoriesOf(source.categories)).toEqual({ 'Sol Ring': ['Ramp'] })
+
+    // The destination is the caller's own save here: it inherits nothing from
+    // the arriving cards, and its own sidecar is left byte-identical.
+    expect(await fs.readFile(categoriesSidecarPath(wishlistPath()), 'utf-8')).toBe(destBefore)
   })
 
   test('a bare source line matches the copy’s resolved finish, and its changelog describes the line', async () => {

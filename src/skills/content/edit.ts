@@ -4,7 +4,7 @@ import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS, sessionSavingSemantics 
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, label or tag a card, give a card custom art, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV, JSON, plain text, or Markdown, or read or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, label or tag a card, set card categories in a list or manage a list category vocabulary (`ritual categories`), give a card custom art, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV, JSON, plain text, or Markdown, or read or compact a change history.',
   body: `# Editing cards in any Ritual list
 
 The **one-shot commands** — \`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, and the
@@ -170,6 +170,22 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
   changes pricing), a tag means whatever its author meant and drives nothing but
   filtering and grouping — so \`Keep\` is a legal tag unrelated to the \`[keep]\`
   label. A deck's front-matter \`tags:\` key describes the **deck**, never its cards.
+- \`--categories <list>\` / \`--no-categories\` — every list type. Sets (or clears)
+  the card's **categories** in this list: its role here (\`Ramp\`, \`Removal\`), what
+  Archidekt calls a category and Moxfield a tag. A category is keyed by the card's
+  **name in this one list**, so it covers every line of that name whatever its
+  printing or section, it is never written on the card line, and it **never follows
+  a move**. The value is comma-separated and **the first entry is the card's primary
+  category** (\`--categories "Ramp, Artifacts"\`); repeating the flag appends, because
+  order is meaning. It is a whole-list replacement, not a per-category delta: an
+  empty value is a usage error and \`--no-categories\` is the clear. Names follow the
+  tag shape rule (plain text, no \`#\`, \`,\`, \`&\`, \`*\`, quotes, brackets, braces or
+  parentheses; case and spaces kept). The assignment is written to
+  \`<list>.categories.json\` plus its \`.sha256\` — both reported in the run's
+  \`writtenFiles\` — and recorded as \`Set categories of "Sol Ring" to Ramp, Artifacts\`
+  (or \`Cleared categories of "Sol Ring"\`). Categories are the third kind, distinct
+  from labels (closed vocabulary, instructions to Ritual) and tags (properties of the
+  physical copy, which do follow a move).
 - \`--art <path|url|none>\` — any list type. Records the card's **custom art**: an
   image path relative to the configured \`artDir\` (which must already exist —
   Ritual references images, it never uploads them), an \`http(s)://\` URL kept
@@ -194,6 +210,32 @@ ritual set-card "Winota Stax" "Sol Ring" --deck --art none    # back to the prin
 - Decks only: \`--section <name>\` moves the line to that section (created if
   missing); \`--commander\` / \`--no-commander\` move it into / out of the
   \`## Commander\` section.
+
+## Edit a list's categories
+
+\`\`\`bash
+ritual categories list "Winota Stax" --deck --output json
+ritual categories rename "Winota Stax" --deck Draw "Card Draw"
+ritual categories order "Winota Stax" --deck "Ramp, Card Draw, Removal"
+ritual categories remove "Winota Stax" --deck Ramp --dry-run
+\`\`\`
+
+- \`list\` is read-only: it prints the vocabulary in display order with per-category
+  card counts, then one line per categorized card. Its JSON payload is
+  \`{type, list, order, cards: [{name, categories}], warnings}\`.
+- \`rename\` renames a category in the vocabulary **and** on every card carrying it;
+  \`order\` sets the display order (names the list does not use yet are accepted, an
+  empty value exits 2); \`remove\` drops the name from the vocabulary and from every
+  card, and a card left with none loses its entry. A category the list does not use
+  given to \`rename\`/\`remove\` exits 3.
+- Each mutating run writes \`<list>.categories.json\`, its \`.sha256\` and the list's
+  \`.changes.md\`, all reported in \`writtenFiles\`; the list \`.md\` is never rewritten.
+  \`--dry-run\` writes nothing and reports \`wouldWrite\` — whether a real run would
+  touch the sidecar.
+- **Nothing here prunes.** \`list\` *reports* entries naming cards the list no longer
+  holds (on stderr, and \`--quiet\` does not hide them) but never removes them: a read
+  does not write. Pruning happens on the list's own save (an editor session, an admin
+  save), on a cross-list \`move\` that rewrites the list, and in \`ritual cleanup\`.
 
 ## Set or clear a note
 
@@ -327,12 +369,19 @@ edit rows shown only while the change's card is still in the list. Creating a de
 sessions have \`🏷️ Change Format\` and \`🔖 Edit Deck Tags\` menu actions that rewrite the front
 matter on the next save; deck and collection sessions both offer \`🏷️ Edit List Labels\`
 for the default card labels (a deck's choices are \`proxy\` or none — scripted
-equivalent: \`ritual metadata\`) plus a per-card \`🏷️ Change Label\` action in edit mode. Every
+equivalent: \`ritual metadata\`) plus a per-card \`🏷️ Change Label\` action in edit mode. Every list type's list menu also carries
+\`🗂 Rename Category…\` and \`🗂 Reorder Categories…\` rows, which edit the list's category
+vocabulary (recorded in the changelog, but **not** on the undo stack — an undo entry names a
+card and these name none). Every
 type's edit mode also has a per-card \`🔖 Edit Tags\` action — a free-text field prefilled with
 the line's tags, comma-separated (empty clears them), recorded one event per
 tag that changed, so re-adding a tag removed earlier in the session leaves nothing in the
 changelog. (Do not confuse it with the deck session's \`🔖 Edit Deck Tags\` menu row, which edits
-the deck's front-matter \`tags:\`.) A deck with no
+the deck's front-matter \`tags:\`.) There is also a per-card \`🗂 Edit Categories\` action —
+a comma-separated field prefilled with the card's categories in this list (first is primary,
+empty clears them), hinted with the list's own vocabulary, recorded as one latest-wins
+\`set-categories\` event per card and written to \`<list>.categories.json\` by the save, which
+also prunes the entries of names the list no longer holds. A deck with no
 \`format:\` is read as Commander when it has a \`## Commander\`
 section, and saving writes that inferred format into the file (see the **ritual-decks**
 skill). Not suitable for non-interactive agents — use the one-shot commands above

@@ -247,6 +247,8 @@ land on it by overshooting.
 | `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                                                                     |
 | `🔖 Edit Deck Tags`                      | Edit the deck's front-matter `tags:` (the deck's own, not any card's), comma-separated; empty clears them (decks)                    |
 | `🏷️ Edit List Labels`                    | Change the list's default card labels (decks — `proxy` only — and collections); shows the current default                            |
+| `🗂️ Rename Category…`                    | Rename a [category](#card-categories) across the open list (all list types)                                                          |
+| `🗂️ Reorder Categories…`                 | Set the open list's [category](#card-categories) display order (all list types)                                                      |
 | `🌐 Card Language (…)`                   | Change the [language](#card-language) stamped on cards added from here on; shows the current one                                     |
 | `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (both entry modes)                                                |
 | `🔢 Switch to Collector Number Mode`     | Switch to collector number entry mode (name mode)                                                                                    |
@@ -257,6 +259,9 @@ land on it by overshooting.
 | `💾 Save current list changes (N)`       | Write the list you are editing (plus any list receiving its pending [moves](#moving-cards-to-another-list)), keep the rest in memory |
 | `🔀 Switch List`                         | Back to the list selection menu, keeping unsaved changes in memory                                                                   |
 | `🚪 Exit`                                | Leave the editor (asks to save all, discard all, or cancel when unsaved)                                                             |
+
+Unlike the other type-specific extra rows, the two `🗂️` category rows appear on decks, collections
+and wanted lists alike — every list type carries categories.
 
 The `↩️ Undo Last Add` option appears only after you have added at least one card this session, and
 `📋 View Session Changes` once the session has any change to show (see
@@ -473,6 +478,7 @@ For a **deck** line:
 | `🏷️ Change Label`          | Set the line's [label override](#card-labels) to **Proxy**, or revert to the deck's default                   |
 | `🔖 Edit Tags`             | Edit the line's [tags](#card-tags) in one field (empty clears them)                                           |
 | `🎨 Set Custom Art`        | Set or clear the line's [custom art](#custom-art) (an image URL, or a file from the art directory)            |
+| `🗂️ Edit Categories`       | Set the line's [categories](#card-categories) in this list (comma-separated; empty clears them)               |
 | `🗂️ Move to Section`       | Move the line to another section (or a new one)                                                               |
 | `📤 Move to Another List`  | Move every copy of the line to a different list (see [Moving Cards](#moving-cards-to-another-list))           |
 | `📝 Edit Note`             | Edit or clear the line's note                                                                                 |
@@ -490,6 +496,7 @@ For a **collection** entry:
 | `🏷️ Change Label`         | Set the [label override](#card-labels) (For sale / For trade / both / To keep / Proxy) or revert to the default |
 | `🔖 Edit Tags`            | Edit the entry's [tags](#card-tags) in one field (empty clears them)                                            |
 | `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art) (an image URL, or a file from the art directory)             |
+| `🗂️ Edit Categories`      | Set the entry's [categories](#card-categories) in this list (comma-separated; empty clears them)                |
 | `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))                          |
 | `📝 Edit Note`            | Edit or clear the entry's note                                                                                  |
 | `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                                                  |
@@ -503,6 +510,7 @@ For a **wanted list** entry:
 | `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                                                            |
 | `🔖 Edit Tags`            | Edit the entry's [tags](#card-tags) in one field (empty clears them)                                                            |
 | `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art)                                                                              |
+| `🗂️ Edit Categories`      | Set the entry's [categories](#card-categories) in this list (comma-separated; empty clears them)                                |
 | `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))                                          |
 | `📝 Edit Note`            | Edit or clear the entry's note                                                                                                  |
 | `🗑️ Remove`               | Delete the entry (asks for confirmation); releases its `&N` id                                                                  |
@@ -551,6 +559,12 @@ arriving line has exactly the tags the departed one had — and so does its
 **[custom art](/custom-art/#art-follows-the-card)**: the entry
 leaves the source list's `.art.json` and is re-filed under the destination line's new `&N` —
 unless the copy merged onto a line the destination already had, which keeps its own art.
+
+**[Categories](#card-categories)** are the fourth, and they do **not** follow a move: a category
+belongs to a card _name in one list_, so the destination inherits nothing. The save that writes the
+move also prunes the source list's `<list>.categories.json` for a name the source no longer holds —
+except when a list holds a bullet the card-line grammar could not read, in which case nothing is
+pruned for that file and every entry is kept.
 
 ## Card Labels
 
@@ -617,7 +631,7 @@ reason `custom-art` and shows **CUSTOM**: custom art wins.
 A card entry on **any** list type can carry **tags** — your own words for the card as a copy
 (`Signed`, `Trade Binder`, `Gift from Dad`), which follow the card wherever it moves. A card's
 role within one list (what Archidekt calls a category) is a separate, per-list thing, not a
-tag. On the line they are one `#` token after the
+tag — see [Card Categories](#card-categories) and [`ritual categories`](/commands/categories/). On the line they are one `#` token after the
 labels and before the note, the tags **comma-separated**, as many as you like:
 
 ```
@@ -653,6 +667,49 @@ edit at once.
 
 Like labels, tags are part of a deck line's **identity** for merging: copies added with
 different tags land on their own line rather than folding into an existing one.
+
+## Card Categories
+
+A card entry on **any** list type can also carry **categories** — its role in _this_ list
+(`Ramp`, `Removal`, `Board Wipes`), the thing Archidekt calls a category and Moxfield a tag.
+Unlike a tag, a category belongs to the card's **name** rather than to the copy: one assignment
+covers every line of that name in the list, it is never written on the card line, and it does
+**not** follow the card when it moves to another list. Categories are ordered and the first one
+is the card's **primary** category, which is what the site groups by. They live in the list's
+`<list>.categories.json` sidecar — see [the list format](/list-format/#categories-namecategoriesjson).
+
+`🗂 Edit Categories` is the per-card [edit-mode action](#edit-mode): one free-text field
+prefilled with the card's current categories, **comma-separated** (`Ramp, Artifacts` is two
+categories, and `Ramp` is the primary one; an input the grammar refuses is reported and asked
+again; empty clears them). The list's own vocabulary — its declared order followed by the
+configured [`defaultCategories`](/configuration/) — is printed above the prompt as a hint.
+
+The edit is recorded as **one** `set-categories` event per card, a whole-list replacement rather
+than a per-category delta (`Set categories of "Sol Ring" to Ramp, Artifacts`, or
+`Cleared categories of "Sol Ring"`). It is latest-wins: repeated edits of one card consolidate
+into the last one, and setting a card's categories back to what they were when the session opened
+leaves nothing in the changelog at all. `↩️ Undo Last Edit` reverts it like any other edit.
+
+The list menu carries two list-level rows, on all three list types:
+
+| Row                      | What it does                                                                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `🗂 Rename Category…`    | Pick a category from the list's vocabulary and type its new name — renamed on every card carrying it, each card's own order preserved |
+| `🗂 Reorder Categories…` | Retype the vocabulary in the order you want it displayed                                                                              |
+
+Both are recorded in the changelog (`Renamed category "Draw" to "Card Draw"`,
+`Set category order to Ramp, Draw, Removal`), and neither is on the undo stack: an undo entry
+names a card, and these name none — the same rule the `🔖 Edit Deck Tags` and
+`🏷️ Edit List Labels` rows already follow.
+
+Nothing is written until the session is saved. The save writes the sidecar and its `.sha256`
+alongside the list file, and it **prunes**: a card name the list no longer holds loses its
+category entry, and the save says which names it dropped. A sidecar the save cannot read is
+reported and left exactly as it is, so a hand-broken file is never silently overwritten.
+
+One-shot equivalents outside a session:
+[`set-card --categories` / `--no-categories`](/commands/set-card/#category-updates) for one card,
+and [`ritual categories`](/commands/categories/) for the list's vocabulary.
 
 ## Custom Art
 

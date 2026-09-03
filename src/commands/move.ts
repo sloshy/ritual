@@ -462,7 +462,16 @@ async function runHeadlessMove(args: HeadlessMoveArgs, scripting: ScriptingOptio
   for (const vc of selected) {
     applyVirtualMove(state, vc.physicalKey, toEntry, { section: toSection })
   }
-  const { moved, droppedNotes } = await commitAllMoves(state)
+  const { moved, droppedNotes, prunedCategories } = await commitAllMoves(state)
+
+  // Categories are keyed by card name, so a source that lost its last copy of a
+  // name loses that entry on this write. Dropping an assignment the user made
+  // is data loss: it goes on stderr like the note warning below.
+  if (prunedCategories.length > 0) {
+    process.stderr.write(
+      `${t('cli.session.categoriesPruned', { names: prunedCategories.join(', ') })}\n`,
+    )
+  }
 
   // Surface any note discarded by a destination quantity-merge on stderr, so it
   // never pollutes stdout in json/ndjson mode. Data loss is essential output —
@@ -781,7 +790,10 @@ async function savePendingMoves(virtualState: Map<string, VirtualCard>): Promise
   }
 
   console.log(t('cli.move.saving', { count: pending.length }))
-  const { moved, droppedNotes } = await commitAllMoves(virtualState)
+  const { moved, droppedNotes, prunedCategories } = await commitAllMoves(virtualState)
+  if (prunedCategories.length > 0) {
+    console.warn(t('cli.session.categoriesPruned', { names: prunedCategories.join(', ') }))
+  }
   for (const dn of droppedNotes) {
     console.log(
       t('cli.move.noteDroppedLine', {

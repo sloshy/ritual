@@ -30,6 +30,7 @@ import {
   adoptedCardId,
   applyAddToStaged,
   applyRemoveIncomingFromStaged,
+  commitStagedCategoryPrunes,
   loadStagedOrThrow,
   stagedCardIds,
   writeStagedFiles,
@@ -168,6 +169,15 @@ export type MovesOutcome = {
    * surface is speaking.
    */
   artFailures: CardArtReconcileFailure[]
+  /**
+   * Stored card names whose categories entry this write pruned — a list lost
+   * its last copy of that name, so design §2's "the entry is pruned on that
+   * save" applied here. Reported for the same reason `artFailures` is: it is an
+   * assignment the user made that the move dropped, and every other save
+   * surface lists it (`prunedCategories` on the save routes,
+   * `cli.session.categoriesPruned` in the CLI editor).
+   */
+  prunedCategories: string[]
 }
 
 /**
@@ -300,6 +310,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
         writtenFiles: [],
         droppedNotes: [],
         artFailures: [],
+        prunedCategories: [],
         adoptedArt: new Map(),
       }),
     }
@@ -504,6 +515,13 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     const artCommit = await commitArtReconciles(artByFile)
     written.push(...artCommit.writtenFiles)
     const artFailures: CardArtReconcileFailure[] = [...unfiled, ...artCommit.failures]
+    // Categories are keyed by card name, so a list that lost its last copy of a
+    // name prunes that entry on this write (design §2) and a destination that
+    // gained one keeps whatever it already had — categories never follow a move.
+    const categoryPrunes = await commitStagedCategoryPrunes(
+      prepared.map(({ listEntry, file }) => [listEntry.filePath, file] as const),
+    )
+    written.push(...categoryPrunes.writtenFiles)
     for (const { listEntry, outgoing: departures } of prepared) {
       const arrivals = incomingByFile.get(listEntry.filePath)?.removed ?? []
       // One entry per list, the lines in the order the user made the moves.
@@ -516,7 +534,13 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       ].sort((a, b) => a.timestamp - b.timestamp)
       written.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, events))
     }
-    return { writtenFiles: [...new Set(written)], droppedNotes, artFailures, adoptedArt }
+    return {
+      writtenFiles: [...new Set(written)],
+      droppedNotes,
+      artFailures,
+      prunedCategories: categoryPrunes.pruned,
+      adoptedArt,
+    }
   }
 
   return { droppedNotes, commit }
@@ -560,8 +584,8 @@ export async function prepareOutgoingMoves(
   return {
     droppedNotes: prepared.droppedNotes,
     commit: async (): Promise<OutgoingMovesResult> => {
-      const { writtenFiles, droppedNotes, artFailures } = await prepared.commit()
-      return { writtenFiles, droppedNotes, artFailures }
+      const { writtenFiles, droppedNotes, artFailures, prunedCategories } = await prepared.commit()
+      return { writtenFiles, droppedNotes, artFailures, prunedCategories }
     },
   }
 }

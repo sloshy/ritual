@@ -33,7 +33,11 @@ import type { ListRef, PrintingTuple } from '../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
 import { t } from '../i18n/t'
-import { readCardLine } from '../card/card-line-read'
+import { isCardCandidate, readCardLine } from '../card/card-line-read'
+import { foldCategoryCardName } from '../card/card-categories'
+import { deckCardNameSet } from './card-names'
+import { commitCategoryChanges } from './card-categories-sidecar'
+import { loadDefaultCategories } from '../config/ritual-config'
 import type { Condition, Finish } from '../card/finish-condition'
 import {
   normalizedOverride,
@@ -227,6 +231,114 @@ export function stagedCardIds(staged: StagedFile): Set<number> {
   return new Set(parseCardIdsFromContent(staged.content))
 }
 
+/**
+ * The card names a staged file still holds, and whether that answer is complete.
+ *
+ * `names` are folded through {@link foldCategoryCardName} — the categories
+ * sidecar's key space — and are read after this move's removals and adds, so
+ * they answer "which names does this list have once this move is written".
+ *
+ * `complete` is false when the file holds a body bullet the card-line grammar
+ * could not read. It matters because the two questions are not symmetric: the
+ * move itself only has to FIND one line, while pruning needs EVERY name — a
+ * bullet this could not parse holds a card that is still in the file, and
+ * dropping its categories would destroy assignments the list still backs. A
+ * staged deck is always complete: {@link loadStagedFile} refuses to stage a deck
+ * with lines a re-serialize would lose.
+ */
+export type StagedCardNames = {
+  names: Set<string>
+  complete: boolean
+}
+
+export function stagedCardNames(staged: StagedFile): StagedCardNames {
+  if (staged.kind === 'deck') return { names: deckCardNameSet(staged.data.deck), complete: true }
+  const names = new Set<string>()
+  let complete = true
+  for (const { trimmed } of cardBullets(staged)) {
+    const fields = textLineFields(staged, trimmed)
+    // Keep walking rather than returning early: the flag is the answer, and
+    // the names read so far stay useful to a caller that only reports them.
+    if (fields === undefined) complete = false
+    else names.add(foldCategoryCardName(fields.name))
+  }
+  return { names, complete }
+}
+
+/** One card-line candidate in a staged flat list: its index and its trimmed text. */
+type CardBullet = { index: number; trimmed: string }
+
+/**
+ * Every body line of a staged flat list the card-line grammar would offer to
+ * its tokenizer, in file order.
+ *
+ * The candidate rule is {@link isCardCandidate}, the grammar's own — a scanner
+ * that demanded `"- "` where the parser accepts `-\t` would call a line the
+ * parser reads perfectly well prose. Fenced lines and front-matter list items
+ * are skipped: a bullet inside a fenced example is the user's prose, and a
+ * `- keep` under `---` is YAML.
+ *
+ * Written once because both readers of a staged file ask the same question:
+ * {@link stagedCardNames}, which needs every name, and `removeTextLine`, which
+ * needs the first match.
+ */
+function* cardBullets(staged: StagedTextFile): Generator<CardBullet> {
+  const lines = staged.content.split('\n')
+  const fenced = markFencedLines(lines)
+  const bodyStart = frontMatterBodyStart(lines)
+  for (const [index, line] of lines.entries()) {
+    if (index < bodyStart || fenced[index]) continue
+    const trimmed = line.trim()
+    if (!isCardCandidate(staged.type, trimmed)) continue
+    yield { index, trimmed }
+  }
+}
+
+/**
+ * Prune every staged list's categories sidecar to the names it still holds, and
+ * return the files that changed. Design §2's "the entry is pruned on that save"
+ * applied to the move write path, where a source list can lose its last copy of
+ * a name and a destination can gain one.
+ *
+ * A file whose staged read is not complete ({@link StagedCardNames}) is skipped
+ * entirely — no prune, no canonicalize, nothing written — the same gate
+ * `ritual cleanup` applies through its `rewriteBlocked` check. Its sidecar keeps
+ * every entry, including ones that may now be stale; a later clean parse prunes
+ * them.
+ */
+/** What a move's categories prune did: the files it wrote, and the assignments it dropped. */
+export type StagedCategoryPrunes = {
+  writtenFiles: string[]
+  /**
+   * Stored names whose categories entry the prune removed. Reported rather than
+   * swallowed: dropping an assignment the user made is an effect of the save,
+   * and design §2 asks every save surface to list it.
+   */
+  pruned: string[]
+}
+
+export async function commitStagedCategoryPrunes(
+  staged: Iterable<readonly [string, StagedFile]>,
+): Promise<StagedCategoryPrunes> {
+  const defaultCategories = await loadDefaultCategories()
+  const writtenFiles: string[] = []
+  const pruned: string[] = []
+  for (const [filePath, file] of staged) {
+    const { names, complete } = stagedCardNames(file)
+    if (!complete) continue
+    // A sidecar this cannot read keeps its own contents untouched: the move
+    // itself is complete either way, and every read path already reports an
+    // unreadable sidecar — the same choice `commitArtReconciles` makes here.
+    const result = await commitCategoryChanges(filePath, [], {
+      knownCardNames: names,
+      defaultCategories,
+    })
+    writtenFiles.push(...result.writtenFiles)
+    pruned.push(...result.pruned)
+  }
+  return { writtenFiles, pruned }
+}
+
 /** Write a staged file back to disk. */
 export async function writeStagedFile(filePath: string, staged: StagedFile): Promise<void> {
   if (staged.kind === 'deck') {
@@ -329,16 +441,13 @@ function removeTextLine(
   match: (trimmed: string) => boolean,
 ): RemovedCopy | null {
   const lines = staged.content.split('\n')
-  // A bullet inside a fenced code block is the user's prose example, never a
-  // card a move may take out of the file — and neither is a `- keep`-style
-  // YAML list item inside the front matter.
-  const fenced = markFencedLines(lines)
-  const bodyStart = frontMatterBodyStart(lines)
-  const targetIdx = lines.findIndex((line, idx) => {
-    if (idx < bodyStart || fenced[idx]) return false
-    const trimmed = line.trim()
-    return trimmed.startsWith('- ') && match(trimmed)
-  })
+  let targetIdx = -1
+  for (const bullet of cardBullets(staged)) {
+    if (match(bullet.trimmed)) {
+      targetIdx = bullet.index
+      break
+    }
+  }
   if (targetIdx === -1) return null
   const trimmed = lines[targetIdx]!.trim()
   // Precondition: every caller that persists the returned copy (the incoming

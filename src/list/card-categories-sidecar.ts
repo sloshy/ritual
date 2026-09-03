@@ -487,6 +487,33 @@ export function pruneCardCategories(
   return { categories: { order: [...record.order], cards }, pruned, changed: true }
 }
 
+/**
+ * The record with `category` gone from the vocabulary and from every card that
+ * used it, orders otherwise preserved. A card left with no categories loses its
+ * entry — the same thing an empty `set-categories` means. Matching is by
+ * {@link foldCardCategory}, like every other comparison in the feature. Pure.
+ *
+ * It lives here beside {@link pruneCardCategories} rather than in the command
+ * that first needed it, because "remove this category everywhere" is the record
+ * transform every surface asks for.
+ */
+export function removeCategoryFromRecord(
+  record: CardCategoriesRecord,
+  category: CardCategory,
+): CardCategoriesRecord {
+  const key = foldCardCategory(category)
+  const cards = new Map<string, CardCategoryEntry>()
+  for (const [cardKey, entry] of record.cards) {
+    const categories = entry.categories.filter((name) => foldCardCategory(name) !== key)
+    if (categories.length === 0) continue
+    cards.set(cardKey, { name: entry.name, categories })
+  }
+  return {
+    order: record.order.filter((name) => foldCardCategory(name) !== key),
+    cards,
+  }
+}
+
 const CATEGORY_ACTION_SET: ReadonlySet<string> = new Set(CATEGORY_ACTIONS)
 
 /** Whether a change event is one of the three the categories sidecar answers to. */

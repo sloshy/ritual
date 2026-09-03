@@ -16,6 +16,7 @@ import {
 import { printingTupleOf, type FieldEdit } from '../../src/commands/session/edit-model'
 import type { MoveDestination } from '../../src/commands/session/edit-move'
 import { createSessionArtChanges } from '../../src/commands/session/art'
+import { createSessionCategories } from '../../src/commands/session/categories'
 import {
   discardFlatListAdd,
   listFlatListSessionAdds,
@@ -70,6 +71,7 @@ function harness(entries: CollectionCardEntry[]): Harness {
     pool: createIdPool(collectExistingIds(entries)),
     dirty: false,
     art: createSessionArtChanges(),
+    categories: createSessionCategories(),
     apply: applyChangeToCollection,
     serialize: collectionToMarkdown,
   }
@@ -153,6 +155,7 @@ describe('sharedFlatListEditActions', () => {
       'language',
       'tags',
       'art',
+      'categories',
       'move-list',
       'note',
       'remove',
@@ -161,6 +164,7 @@ describe('sharedFlatListEditActions', () => {
       'language',
       'tags',
       'art',
+      'categories',
       'note',
       'remove',
     ])
@@ -173,6 +177,7 @@ describe('sharedFlatListEditActions', () => {
       'label',
       'tags',
       'art',
+      'categories',
       'note',
       'remove',
     ])
@@ -761,5 +766,81 @@ describe('performFlatListMove', () => {
     // must never catch the pending move-from of the card that left.
     discardFlatListAdd(h.list, h.ctx, 0)
     expect(h.ctx.sessionChanges).toMatchObject([{ action: 'move-from', cardName: 'Sol Ring' }])
+  })
+})
+
+describe('edit-mode category edits', () => {
+  // The categories prompt goes through `ask`, which refuses to open without a terminal.
+  stubTty({ stdin: true })
+
+  const env = { sessionConfig: { sets: [] }, excludeDigitalOnly: true }
+
+  async function editCategoriesTo(h: Harness, typed: string): Promise<void> {
+    prompts.inject([typed])
+    const target = findFlatListEntry(h.list, 1)!
+    expect(await editSharedFlatListAction('categories', h.list, h.ctx, target, 1, env)).toBe(true)
+  }
+
+  test('stages the event on the session and the changelog, leaving the line untouched', async () => {
+    const h = harness([entry('Sol Ring', 1)])
+    const before = { ...findFlatListEntry(h.list, 1)! }
+
+    await editCategoriesTo(h, 'Ramp, Artifacts')
+
+    expect(findFlatListEntry(h.list, 1)).toEqual(before)
+    expect(h.session.dirty).toBe(true)
+    expect(h.session.categories.pending).toMatchObject([
+      { action: 'set-categories', cardName: 'Sol Ring', categories: ['Ramp', 'Artifacts'] },
+    ])
+    expect(h.ctx.sessionChanges).toMatchObject([
+      { action: 'set-categories', cardName: 'Sol Ring', categories: ['Ramp', 'Artifacts'] },
+    ])
+    expect(lastFlatListEditLabel(h.list)).toBe('categories on Sol Ring')
+  })
+
+  test('a second category edit of the same NAME blocks the first, though the ids differ', async () => {
+    // Two collection copies of one card: different `&N`, one categories entry.
+    // A category edit restores a whole-list `set-categories` for the name, so an
+    // out-of-order undo of the older one would overwrite the newer assignment.
+    const h = harness([
+      entry('Sol Ring', 1, { collectorNumber: '221', set: 'c19' }),
+      entry('Sol Ring', 2, { collectorNumber: '263', set: 'c21' }),
+    ])
+    await editCategoriesTo(h, 'Ramp')
+    prompts.inject(['Ramp, Artifacts'])
+    expect(
+      await editSharedFlatListAction(
+        'categories',
+        h.list,
+        h.ctx,
+        findFlatListEntry(h.list, 2)!,
+        2,
+        env,
+      ),
+    ).toBe(true)
+
+    const items = listFlatListSessionChanges(h.list)
+    expect(items[0]!.blocked).toBe('discard the newer "categories on Sol Ring" first')
+    expect(items[1]!.blocked).toBeUndefined()
+  })
+
+  test('undo re-stages the previous categories and drops the changelog event', async () => {
+    const h = harness([entry('Sol Ring', 1)])
+    await editCategoriesTo(h, 'Ramp')
+    undoFlatListEdit(h.list, h.ctx)
+
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+    expect(h.session.categories.pending).toMatchObject([
+      { action: 'set-categories', categories: ['Ramp'] },
+      { action: 'set-categories', categories: [] },
+    ])
+  })
+
+  test('setting the session-start value back records nothing (latest wins)', async () => {
+    const h = harness([entry('Sol Ring', 1)])
+    await editCategoriesTo(h, 'Ramp')
+    expect(h.ctx.sessionChanges).toHaveLength(1)
+    await editCategoriesTo(h, '')
+    expect(h.ctx.sessionChanges).toHaveLength(0)
   })
 })

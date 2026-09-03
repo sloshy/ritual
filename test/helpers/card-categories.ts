@@ -1,5 +1,7 @@
+import fs from 'node:fs/promises'
 import { foldCategoryCardName } from '../../src/card/card-categories'
 import {
+  categoriesSidecarPath,
   type CardCategoriesRecord,
   emptyCardCategoriesRecord,
 } from '../../src/list/card-categories-sidecar'
@@ -27,4 +29,14 @@ export function categoriesOf(value: CardCategoriesRecord): Record<string, string
   const out: Record<string, string[]> = {}
   for (const entry of value.cards.values()) out[entry.name] = entry.categories
   return out
+}
+
+/**
+ * Put a `<list>.categories.json` next to `listFilePath` that no parser can read
+ * — the fixture behind every "refuses rather than overwriting it" case. The path
+ * comes from the production rule so a rename of the sidecar suffix cannot leave
+ * the tests writing somewhere nothing reads.
+ */
+export async function writeUnreadableCategoriesSidecar(listFilePath: string): Promise<void> {
+  await fs.writeFile(categoriesSidecarPath(listFilePath), '{ not json')
 }

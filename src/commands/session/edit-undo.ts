@@ -4,6 +4,8 @@ import type {
   ConsolidateResult,
 } from '../../changes/change-event'
 import type { CardArtEdit } from './art'
+import type { CategoryEdit } from './categories'
+import { foldCategoryCardName } from '../../card/card-categories'
 import { t } from '../../i18n/t'
 import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './strategy'
 
@@ -47,6 +49,15 @@ export type EditUndoEntry = {
    * things.
    */
   restoreArt?: CardArtEdit
+  /**
+   * For an Edit Categories action: the categories the card had before it,
+   * re-staged on undo as its own `set-categories` event. Wrapped like
+   * {@link restoreArt}, so "restore an empty list" and "this is not a category
+   * edit" stay different things. The model's `apply` cannot carry it — the
+   * three apply engines treat category actions as no-ops — which is why it
+   * travels outside {@link inverse}.
+   */
+  restoreCategories?: CategoryEdit
 }
 
 /** The changelog footprint of one operation, as undo-entry fields. */
@@ -83,13 +94,26 @@ export function swapUndoChangelog(ctx: CardSessionContext, undo: EditUndoEntry):
  * touches the same card: its inverse would clobber the newer state, so the
  * same-card operations must be discarded newest-first. The newest operation for
  * any card is never blocked.
+ *
+ * "The same card" is the `&N` for every line edit — but a **category** edit is
+ * the one operation keyed by card NAME: it restores a whole-list
+ * `set-categories` for that name, which covers every line carrying it. Two
+ * lines of one name (two printings in a collection, two sections in a deck) have
+ * different ids and would otherwise both look unblocked, so undoing the older
+ * one would silently overwrite the newer assignment in the sidecar.
  */
 export function targetedUndoBlocker(entries: EditUndoEntry[], index: number): string | null {
   const target = entries[index]
   if (!target) return t('cli.edit.undoBlockedGone')
+  const targetName = foldCategoryCardName(target.cardName)
   for (let later = entries.length - 1; later > index; later--) {
-    if (entries[later]!.cardId === target.cardId) {
-      return t('cli.edit.undoBlockedNewer', { label: entries[later]!.label })
+    const newer = entries[later]!
+    const sameCategorySubject =
+      target.restoreCategories !== undefined &&
+      newer.restoreCategories !== undefined &&
+      foldCategoryCardName(newer.cardName) === targetName
+    if (newer.cardId === target.cardId || sameCategorySubject) {
+      return t('cli.edit.undoBlockedNewer', { label: newer.label })
     }
   }
   return null
@@ -155,6 +179,13 @@ export function sessionChangeCardId(
 /** {@link foldOutCardChanges}' split of a session changelog. */
 export type ChangelogFold = { kept: ChangeEvent[]; displaced: ChangeEvent[] }
 
+/**
+ * The `goneCardName` half of a {@link FoldOptions}, as a spreadable partial: an
+ * absent key means another line of the name survives, so its name-keyed
+ * category events must stay in the changelog.
+ */
+export type GoneCardName = Pick<FoldOptions, 'goneCardName'>
+
 /** Options for {@link foldOutCardChanges}. */
 export type FoldOptions = {
   /**
@@ -162,6 +193,18 @@ export type FoldOptions = {
    * (add + move out); a removal folds them along with everything else.
    */
   keepAdds: boolean
+  /**
+   * The card's name, given ONLY when the list holds no other line of that name
+   * after the operation. A `set-categories` event carries no `cardId` — it is
+   * keyed by name and covers every line of it — so an id-only fold would leave
+   * `Set categories of "X" to …` in the changelog for a card the list no longer
+   * holds. Passing the name folds those events out too; they come back with the
+   * rest of `displaced` if the operation is undone.
+   *
+   * Left out while another line of the name survives: the assignment still
+   * applies to it.
+   */
+  goneCardName?: string
 }
 
 /**
@@ -179,9 +222,16 @@ export function foldOutCardChanges(
 ): ChangelogFold {
   const kept: ChangeEvent[] = []
   const displaced: ChangeEvent[] = []
+  const goneName =
+    options.goneCardName === undefined ? undefined : foldCategoryCardName(options.goneCardName)
   for (const change of changes) {
     const targetsCard = 'cardId' in change && change.cardId === cardId
-    if (targetsCard && !(options.keepAdds && change.action === 'add')) displaced.push(change)
+    const targetsGoneName =
+      goneName !== undefined &&
+      change.action === 'set-categories' &&
+      foldCategoryCardName(change.cardName) === goneName
+    if (targetsGoneName) displaced.push(change)
+    else if (targetsCard && !(options.keepAdds && change.action === 'add')) displaced.push(change)
     else kept.push(change)
   }
   return { kept, displaced }

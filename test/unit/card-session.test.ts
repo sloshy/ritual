@@ -355,6 +355,8 @@ describe('buildMenuChoices', () => {
         { title: '🏷️  Change Format', value: '__FORMAT__' },
         { title: '🔖 Edit Tags', value: '__TAGS__' },
         { title: '🏷️  Edit List Labels (default: none)', value: '__LIST_LABELS__' },
+        { title: '🗂️  Rename Category…', value: '__RENAME_CATEGORY__' },
+        { title: '🗂️  Reorder Categories…', value: '__REORDER_CATEGORIES__' },
       ],
       multiList: { totalChangeCount: 5, listsWithChanges: 2 },
       cardChoices: [],
@@ -418,7 +420,14 @@ describe('buildMenuChoices', () => {
       // exists to make visible. `extraItems` are spliced in verbatim by the
       // caller, so they are the strategy's labels, not the engine's.
       const callerRows = new Set(input.extraItems.map((item) => String(item.value)))
-      expect([...callerRows]).toEqual(['__SECTION__', '__FORMAT__', '__TAGS__', '__LIST_LABELS__'])
+      expect([...callerRows]).toEqual([
+        '__SECTION__',
+        '__FORMAT__',
+        '__TAGS__',
+        '__LIST_LABELS__',
+        '__RENAME_CATEGORY__',
+        '__REORDER_CATEGORIES__',
+      ])
       const untranslated = tallest
         .filter((choice) => !callerRows.has(String(choice.value)))
         .map((choice) => choice.title)

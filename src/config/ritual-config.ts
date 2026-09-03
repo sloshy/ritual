@@ -1096,11 +1096,27 @@ export function getPriceSources(config: RitualConfig = getRitualConfig()): reado
  * The global category vocabulary (the shipped fourteen unless overridden): the
  * suggestions a category prompt offers, and the fallback display order for a
  * list whose sidecar names none. An empty array is meaningful — no suggestions.
+ *
+ * The zero-argument form answers out of the **cached** config, so it is only
+ * right in a process that has already loaded one (a CLI command inside its
+ * action, a server request). Anything that might run before that — an engine
+ * module, a helper reached from a test — must use {@link loadDefaultCategories}:
+ * the value decides a categories sidecar's persisted `order`, so two writers
+ * that disagreed would churn the file's bytes on alternating edits.
  */
 export function getDefaultCategories(
   config: RitualConfig = getRitualConfig(),
 ): readonly CardCategory[] {
   return config.defaultCategories
+}
+
+/**
+ * {@link getDefaultCategories} for a caller that cannot assume a loaded config:
+ * the on-disk configuration is loaded (or reused, `loadRitualConfig` caches)
+ * first. This is the spelling every categories writer uses.
+ */
+export async function loadDefaultCategories(): Promise<readonly CardCategory[]> {
+  return getDefaultCategories(await loadRitualConfig())
 }
 
 /**

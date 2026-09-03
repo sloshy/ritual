@@ -180,6 +180,12 @@ const CANCEL_ROW: MenuRow = { title: '← Cancel', value: '__CANCEL__' }
 const LANGUAGE_ROW: MenuRow = { title: '🌐 Change Language', value: 'language' }
 const TAGS_ROW: MenuRow = { title: '🔖 Edit Tags', value: 'tags' }
 const ART_ROW: MenuRow = { title: '🎨 Set Custom Art', value: 'art' }
+const CATEGORIES_ROW: MenuRow = { title: '🗂️  Edit Categories', value: 'categories' }
+/** The two list-level category rows every strategy carries (design §1.5). */
+const CATEGORY_MENU_ROWS: MenuRow[] = [
+  { title: '🗂️  Rename Category…', value: '__RENAME_CATEGORY__' },
+  { title: '🗂️  Reorder Categories…', value: '__REORDER_CATEGORIES__' },
+]
 const MOVE_ROW: MenuRow = { title: '📤 Move to Another List', value: 'move-list' }
 const NOTE_ROW: MenuRow = { title: '📝 Edit Note', value: 'note' }
 const REMOVE_ROW: MenuRow = { title: '🗑️  Remove', value: 'remove' }
@@ -189,9 +195,10 @@ describe('collection strategy menus', () => {
     expect(collectionStrategy(true).managerLabel).toBe('collection manager')
   })
 
-  test('the extra session-menu item is Edit List Labels with a two-space icon', () => {
+  test('the extra session-menu items are Edit List Labels then the two category rows', () => {
     expect(extraRows(collectionStrategy(true))).toEqual([
       { title: '🏷️  Edit List Labels (default: none)', value: '__LIST_LABELS__' },
+      ...CATEGORY_MENU_ROWS,
     ])
   })
 
@@ -206,6 +213,7 @@ describe('collection strategy menus', () => {
       { title: '🏷️  Change Label', value: 'label' },
       TAGS_ROW,
       ART_ROW,
+      CATEGORIES_ROW,
       MOVE_ROW,
       NOTE_ROW,
       REMOVE_ROW,
@@ -223,6 +231,7 @@ describe('collection strategy menus', () => {
       'label',
       'tags',
       'art',
+      'categories',
       'note',
       'remove',
       '__CANCEL__',
@@ -235,8 +244,9 @@ describe('wanted strategy menus', () => {
     expect(wantedStrategy(true, true).managerLabel).toBe('wanted list manager')
   })
 
-  test('the wanted strategy offers no extra session-menu items', () => {
-    expect(wantedStrategy(true, true).extraMenuItems).toBeUndefined()
+  test('the wanted strategy offers exactly the two list-level category rows', () => {
+    // Its first extra menu items: design §1.5 puts categories on all three types.
+    expect(extraRows(wantedStrategy(true, true))).toEqual(CATEGORY_MENU_ROWS)
   })
 
   test('edit-action menu for a pinned wanted entry', async () => {
@@ -248,6 +258,7 @@ describe('wanted strategy menus', () => {
       LANGUAGE_ROW,
       TAGS_ROW,
       ART_ROW,
+      CATEGORIES_ROW,
       MOVE_ROW,
       NOTE_ROW,
       REMOVE_ROW,
@@ -263,6 +274,7 @@ describe('wanted strategy menus', () => {
       LANGUAGE_ROW,
       TAGS_ROW,
       ART_ROW,
+      CATEGORIES_ROW,
       MOVE_ROW,
       NOTE_ROW,
       REMOVE_ROW,
@@ -277,6 +289,7 @@ describe('wanted strategy menus', () => {
       'language',
       'tags',
       'art',
+      'categories',
       'note',
       'remove',
       '__CANCEL__',
@@ -295,6 +308,7 @@ describe('deck strategy menus', () => {
       { title: '🏷️  Change Format (not set)', value: '__FORMAT__' },
       { title: '🔖 Edit Deck Tags (none)', value: '__TAGS__' },
       { title: '🏷️  Edit List Labels (default: none)', value: '__LIST_LABELS__' },
+      ...CATEGORY_MENU_ROWS,
     ])
   })
 
@@ -308,6 +322,7 @@ describe('deck strategy menus', () => {
       { title: '🏷️  Change Label', value: 'label' },
       TAGS_ROW,
       ART_ROW,
+      CATEGORIES_ROW,
       { title: '🗂️  Move to Section', value: 'move' },
       NOTE_ROW,
       { title: '🗑️  Remove Card', value: 'remove-line' },
@@ -326,6 +341,7 @@ describe('deck strategy menus', () => {
       { title: '🏷️  Change Label', value: 'label' },
       TAGS_ROW,
       ART_ROW,
+      CATEGORIES_ROW,
       { title: '🗂️  Move to Section', value: 'move' },
       MOVE_ROW,
       NOTE_ROW,

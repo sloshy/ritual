@@ -6,6 +6,7 @@ import {
   createAddTagChange,
   createRemoveTagChange,
   createSetCommanderChange,
+  createSetCategoriesChange,
   createSetFinishChange,
   createSetLabelChange,
   createSetLanguageChange,
@@ -18,6 +19,7 @@ import { languageDisplayName, type CardLanguage } from '../card/card-language'
 import type { PrintingFields } from '../card/card-printing'
 import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
 import { formatCardTags, normalizeCardTags, type CardTag } from '../card/card-tags'
+import { formatCardCategories, type CardCategory } from '../card/card-categories'
 import {
   cardArtFilePath,
   isCardArtRefError,
@@ -29,7 +31,7 @@ import {
 } from '../list/card-art'
 import { getArtDir } from '../config/ritual-config'
 import type { CardMutationChange } from '../list/list-mutate'
-import { applyTargetedChanges } from '../list/line-mutate'
+import { applyTargetedChanges, type TargetedMutateResult } from '../list/line-mutate'
 import {
   addDryRunOption,
   addScriptingOptions,
@@ -42,6 +44,7 @@ import {
   parseLanguageFlag,
   parseSetFlag,
   tagsFlagParser,
+  categoriesFlagParser,
   resolveListTypeFlag,
   type CardCommandResultBase,
 } from '../cli/options'
@@ -83,6 +86,15 @@ function isCardArtClear(update: CardArtUpdate): update is CardArtClear {
   return 'clear' in update
 }
 
+/**
+ * The `--categories` option key as Commander leaves it: the parsed list, or the
+ * literal `false` its `--no-categories` negation writes into the same key.
+ * Commander only defaults a `--no-x` flag to `true` when the positive flag is
+ * *not* also declared, so an absent flag stays `undefined` and the negation is
+ * the only source of `false`.
+ */
+type CategoriesFlagValue = CardCategory[] | false
+
 type SetCardOptions = {
   cardId?: string
   set?: string
@@ -97,6 +109,11 @@ type SetCardOptions = {
   tag?: CardTag[]
   /** Tags to take off the line (`--untag`), canonical. */
   untag?: CardTag[]
+  /**
+   * The card's new categories in this list, canonical and primary first;
+   * `false` when `--no-categories` cleared them.
+   */
+  categories?: CategoriesFlagValue
   /** The new custom art; a clear for `--art none`. */
   art?: CardArtUpdate
   section?: string
@@ -163,6 +180,12 @@ export function registerSetCardCommand(program: Command): void {
       .option('--label <labels>', t('help.setCard.label'), parseLabelFlag)
       .option('--tag <tags>', t('help.setCard.tag'), tagsFlagParser('--tag'))
       .option('--untag <tags>', t('help.setCard.untag'), tagsFlagParser('--untag'))
+      .option(
+        '--categories <categories>',
+        t('help.setCard.categories'),
+        categoriesFlagParser('--categories'),
+      )
+      .option('--no-categories', t('help.setCard.noCategories'))
       .option('--art <value>', t('help.setCard.art'), parseArtFlag)
       .option('--section <name>', t('help.setCard.section'))
       .option('--commander', t('help.setCard.commander'))
@@ -190,6 +213,7 @@ export function registerSetCardCommand(program: Command): void {
             label: options.label,
             tag: options.tag,
             untag: options.untag,
+            categories: options.categories === false ? [] : options.categories,
             art: options.art,
             section: options.section,
             commander: options.commander,
@@ -221,6 +245,11 @@ type RunInput = {
   tag: CardTag[] | undefined
   /** Tags to take off the line, canonical; never empty when given. */
   untag: CardTag[] | undefined
+  /**
+   * The card's new categories in this list, primary first; an empty array
+   * clears them (what `--no-categories` normalizes to).
+   */
+  categories: CardCategory[] | undefined
   /** The new custom art; a clear removes it. */
   art: CardArtUpdate | undefined
   section: string | undefined
@@ -230,6 +259,12 @@ type RunInput = {
 
 type SetCardResult = CardCommandResultBase & {
   applied: string[]
+  /**
+   * Absolute paths this run wrote: the list file and its `.sha256`, the
+   * changelog, and any sidecar (`.categories.json` + its hash, `.art.json`).
+   * Deduplicated, and empty on a dry run.
+   */
+  writtenFiles: string[]
 }
 
 /**
@@ -335,7 +370,7 @@ function resolveArtWrite(target: EntryRef, art: CardArtUpdate): ArtWrite {
  * Art is list metadata like the primer: written straight to the sidecar, with
  * no change event and no changelog entry.
  */
-async function writeCardArt(filePath: string, write: ArtWrite): Promise<void> {
+async function writeCardArt(filePath: string, write: ArtWrite): Promise<string[]> {
   const loaded = await loadCardArt(filePath)
   if (!loaded.ok) {
     throw localizedCommandError(
@@ -347,7 +382,10 @@ async function writeCardArt(filePath: string, write: ArtWrite): Promise<void> {
   }
   if (isCardArtClear(write.art)) loaded.art.delete(write.cardId)
   else loaded.art.set(write.cardId, write.art)
-  await saveCardArt(filePath, loaded.art)
+  const saved = await saveCardArt(filePath, loaded.art)
+  // `absent` means there was nothing to remove: no path was touched, and
+  // reporting one would hand an auto-commit a `git add` of a missing file.
+  return saved.action === 'written' || saved.action === 'removed' ? [saved.path] : []
 }
 
 /** How an applied `--art` reads in the success output. */
@@ -370,6 +408,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.label !== undefined ||
     input.tag !== undefined ||
     input.untag !== undefined ||
+    input.categories !== undefined ||
     input.art !== undefined ||
     input.section !== undefined ||
     input.commander !== undefined
@@ -565,6 +604,23 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
         : t('cli.setCard.tagsAlreadyAbsent', { tags: formatCardTags(input.untag) }),
     )
   }
+  if (input.categories !== undefined) {
+    // Two invariants this event does not share with the ones above. It carries
+    // no `cardId`: categories belong to the card NAME in this list, so
+    // `line-mutate`'s stamping loop (guarded on `'cardId' in change`) leaves it
+    // alone and the write lands in the `.categories.json` sidecar, not the line.
+    // And it is a whole-list replacement — `set-categories` is latest-wins, so
+    // it is recorded even when the new list equals the old, the sidecar write
+    // being idempotent either way.
+    changes.push(createSetCategoriesChange(target.name, input.categories))
+    applied.push(
+      input.categories.length === 0
+        ? t('cli.setCard.categoriesCleared')
+        : t('cli.setCard.appliedCategories', {
+            categories: formatCardCategories(input.categories),
+          }),
+    )
+  }
   if (input.art !== undefined) applied.push(describeArtUpdate(input.art))
   if (input.section !== undefined) {
     changes.push(createSetSectionChange(target.name, input.section, target.cardId))
@@ -585,10 +641,12 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
   // a preview that skipped it would report an edit the real run rejects.
   // `--art` alone leaves no line change to apply, and an empty batch would
   // still rewrite the list file and open a changelog entry for nothing.
-  if (changes.length > 0) {
-    await applyTargetedChanges(type, filePath, target, changes, { dryRun: input.dryRun })
-  }
-  if (!input.dryRun && artWrite !== undefined) await writeCardArt(filePath, artWrite)
+  const mutation: TargetedMutateResult =
+    changes.length > 0
+      ? await applyTargetedChanges(type, filePath, target, changes, { dryRun: input.dryRun })
+      : { writtenFiles: [] }
+  const artFiles =
+    !input.dryRun && artWrite !== undefined ? await writeCardArt(filePath, artWrite) : []
 
   const result: SetCardResult = {
     type,
@@ -596,6 +654,7 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     cardName: target.name,
     cardId: target.cardId,
     applied,
+    writtenFiles: [...new Set([...mutation.writtenFiles, ...artFiles])],
   }
   const line = t('cli.setCard.updated', {
     mode: input.dryRun ? 'preview' : 'done',

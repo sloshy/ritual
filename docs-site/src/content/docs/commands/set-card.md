@@ -2,7 +2,7 @@
 title: 'set-card'
 ---
 
-Update a card in place — its printing, finish, condition, language, label, tags, custom art, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
+Update a card in place — its printing, finish, condition, language, label, tags, categories, custom art, deck section, or commander status — in a deck, collection, or wanted list, without opening an editor.
 
 The edit is line-preserving: only the targeted card's line is rewritten (or moved, for section and commander changes). Everything else in the file — prose, comments, unusual headings, even lines the parser cannot read — stays intact. (A `--section`/`--commander` move may additionally create the destination's `## Section` heading when it does not exist yet.)
 
@@ -23,27 +23,29 @@ The edit is line-preserving: only the targeted card's line is rewritten (or move
 
 ## Options
 
-| Option                    | Description                                                                                                                    | Default |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------- |
-| `--deck`                  | Resolve the name as a deck                                                                                                     |         |
-| `--collection`            | Resolve the name as a collection                                                                                               |         |
-| `--wanted`                | Resolve the name as a wanted list                                                                                              |         |
-| `--card-id <id>`          | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings.                    |         |
-| `--set <code>`            | New set code — must be given together with `--collector-number`                                                                |         |
-| `--collector-number <cn>` | New collector number — must be given together with `--set`                                                                     |         |
-| `--finish <finish>`       | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                                                  |         |
-| `--condition <condition>` | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only)             |         |
-| `--language <code>`       | New language as a Scryfall code (`ja`, `de`, `zhs`, ...; aliases like `jp`/`Japanese` normalize); `en` clears the line's token |         |
-| `--label <labels>`        | New label override: `sale,trade` (combinable), `keep` or `proxy`, or `none` to clear it (decks take `proxy` only)              |         |
-| `--tag <tags>`            | Add these [tags](/commands/edit/#card-tags) to the card: one or more, comma-separated (`"Ramp, Card Draw"`); any list type     |         |
-| `--untag <tags>`          | Remove these tags from the card: one or more, comma-separated; any list type                                                   |         |
-| `--art <value>`           | Custom art for this card: an image path relative to the art directory, an `http(s)` URL, or `none` to clear it                 |         |
-| `--section <name>`        | Move the card to this deck section, creating the section if it does not exist (decks only)                                     |         |
-| `--commander`             | Move the card to the deck's Commander section (decks only)                                                                     |         |
-| `--no-commander`          | Move the card out of the Commander section back to the main section (decks only)                                               |         |
-| `-n, --dry-run`           | Report what would change without writing anything                                                                              | `false` |
-| `--output <format>`       | Output format: `text`, `json`, or `ndjson`                                                                                     | `text`  |
-| `--quiet`                 | Suppress non-essential output                                                                                                  | `false` |
+| Option                      | Description                                                                                                                                              | Default |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `--deck`                    | Resolve the name as a deck                                                                                                                               |         |
+| `--collection`              | Resolve the name as a collection                                                                                                                         |         |
+| `--wanted`                  | Resolve the name as a wanted list                                                                                                                        |         |
+| `--card-id <id>`            | Disambiguate by card ID (the `&N` suffix in list files). Required when name search hits multiple printings.                                              |         |
+| `--set <code>`              | New set code — must be given together with `--collector-number`                                                                                          |         |
+| `--collector-number <cn>`   | New collector number — must be given together with `--set`                                                                                               |         |
+| `--finish <finish>`         | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                                                                            |         |
+| `--condition <condition>`   | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only)                                       |         |
+| `--language <code>`         | New language as a Scryfall code (`ja`, `de`, `zhs`, ...; aliases like `jp`/`Japanese` normalize); `en` clears the line's token                           |         |
+| `--label <labels>`          | New label override: `sale,trade` (combinable), `keep` or `proxy`, or `none` to clear it (decks take `proxy` only)                                        |         |
+| `--tag <tags>`              | Add these [tags](/commands/edit/#card-tags) to the card: one or more, comma-separated (`"Ramp, Card Draw"`); any list type                               |         |
+| `--untag <tags>`            | Remove these tags from the card: one or more, comma-separated; any list type                                                                             |         |
+| `--categories <categories>` | Set the card's [categories](/commands/categories/) in this list: one or more, comma-separated (`"Ramp, Artifacts"`); the first is primary; any list type |         |
+| `--no-categories`           | Clear the card's categories in this list                                                                                                                 |         |
+| `--art <value>`             | Custom art for this card: an image path relative to the art directory, an `http(s)` URL, or `none` to clear it                                           |         |
+| `--section <name>`          | Move the card to this deck section, creating the section if it does not exist (decks only)                                                               |         |
+| `--commander`               | Move the card to the deck's Commander section (decks only)                                                                                               |         |
+| `--no-commander`            | Move the card out of the Commander section back to the main section (decks only)                                                                         |         |
+| `-n, --dry-run`             | Report what would change without writing anything                                                                                                        | `false` |
+| `--output <format>`         | Output format: `text`, `json`, or `ndjson`                                                                                                               | `text`  |
+| `--quiet`                   | Suppress non-essential output                                                                                                                            | `false` |
 
 Multiple mutation flags can be combined in one invocation; each is applied and reported.
 
@@ -86,7 +88,9 @@ Move a deck card to the sideboard section and capture JSON output:
 ./ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --section Sideboard --output json
 ```
 
-The JSON payload is `{ type, list, cardName, cardId, applied }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"language → ja (Japanese)"`, `"label → sale, trade"`, `"tags added → Card Draw, Ramp"`, `"tags removed → Ramp"`, `"custom art → proxies/sol-ring.jpg"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
+The JSON payload is `{ type, list, cardName, cardId, applied, writtenFiles }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"language → ja (Japanese)"`, `"label → sale, trade"`, `"tags added → Card Draw, Ramp"`, `"tags removed → Ramp"`, `"categories → Ramp, Artifacts"`, `"categories cleared"`, `"custom art → proxies/sol-ring.jpg"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
+
+`writtenFiles` lists the absolute paths the run wrote — the list file and its `.sha256` (only when a card line actually changed), the `.changes.md` changelog, and any sidecar the run touched (`<list>.categories.json` and its `.sha256`, `<list>.art.json`). It is empty on a dry run.
 
 Make a card the deck's commander:
 
@@ -158,6 +162,26 @@ A `proxy` card is priced at zero everywhere and is excluded from buylist and sel
 
 The line is rewritten with its tags in canonical order — `- Sol Ring (C21:240) #Card Draw, Ramp &1` — and each tag that actually changed is its own changelog line (`Added tag "Ramp" to "Sol Ring" &1`, `Removed tag "Staple" from "Sol Ring" &1`), so an add and a later remove of the same tag read as exactly that in the history.
 
+### Category Updates
+
+`--categories` sets the card's [categories](/commands/categories/) in this list, on **every** list type; `--no-categories` clears them. A category is not a tag and not a label: it belongs to the card's **name** in **this one list**, so the assignment covers every line of that name whatever its printing, section or quantity, it is never written on the card line, and it does **not** follow the card when it moves to another list.
+
+The value is one or more categories **separated by commas** — spaces and case are part of a name, so `--categories "Board Wipes, Ramp"` is two categories — and the **first one is the card's primary category**, which is what the site groups by. A name cannot contain `#`, `,`, `&`, `*`, quotes, brackets, braces or parentheses; one that does is rejected at parse time (exit `2`). Repeating the flag appends (`--categories Ramp --categories Draw` is `--categories "Ramp, Draw"`), because order is meaning here.
+
+Unlike `--tag`, the flag is a **whole-list replacement**: whatever the card had is replaced by what you pass. An empty value (`--categories ""`) is a usage error rather than a clear — `--no-categories` is the clear. Giving both flags in one command line is last-wins, Commander's own rule for a flag and its negation.
+
+```bash
+./ritual set-card --deck "Winota Stax" "Sol Ring" --categories "Ramp, Artifacts"
+./ritual set-card --collection main "Rhystic Study" --categories Draw
+./ritual set-card --wanted needs "Mana Crypt" --no-categories
+```
+
+The card line is byte-identical afterwards — and when `--categories`/`--no-categories` is the run's **only** change, the list `.md` is not rewritten at all, so neither it nor its `.sha256` appears in `writtenFiles`. The assignment is written to the list's `<list>.categories.json` sidecar and its `.sha256` — both reported in `writtenFiles`, though the hash is refreshed only when it matched the sidecar before the write, so a hand-edited sidecar keeps its stale hash — and recorded in the changelog as `Set categories of "Sol Ring" to Ramp, Artifacts` or `Cleared categories of "Sol Ring"`. Because `set-categories` is a latest-wins whole-list event, it is recorded even when the new list equals the old.
+
+If the list's `<list>.categories.json` cannot be parsed, `set-card` does **not** fail: it writes the card line and the changelog entry as usual and leaves the sidecar exactly as it found it, so nothing on disk is destroyed — but the assignment is not stored. Run [`ritual categories list`](/commands/categories/), which refuses with exit `1` and reports the parse error, to see why.
+
+This command never **prunes** the sidecar: an entry naming a card the list no longer holds survives until the list's own save, a cross-list `move` that rewrites the list, or [`ritual cleanup`](/commands/cleanup/).
+
 ### Custom Art
 
 `--art` records [custom art](/custom-art/) for the card on every list type. The value is one of:
@@ -196,19 +220,21 @@ In the changelog the change appears as `Set language of "Sol Ring" to Japanese &
 
 ### Dry Runs
 
-`-n` / `--dry-run` resolves the list and the card and runs every validation — including the ones raised by the apply itself, which it performs in memory and throws away, so a preview never reports an edit the real run would refuse — then reports the change it _would_ apply and stops. Nothing is written: no list file, no changelog, no `.sha256` sidecar, no `.art.json` sidecar, and the card-ID backfill is skipped too. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields. (Because the backfill is skipped, a dry-run `--art` against a list whose lines have no `&N` ids yet reports the missing id rather than inventing one.)
+`-n` / `--dry-run` resolves the list and the card and runs every validation — including the ones raised by the apply itself, which it performs in memory and throws away, so a preview never reports an edit the real run would refuse — then reports the change it _would_ apply and stops. Nothing is written: no list file, no changelog, no `.sha256` sidecar, no `.art.json` sidecar, no `.categories.json` sidecar, and the card-ID backfill is skipped too. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` alongside the usual fields. (Because the backfill is skipped, a dry-run `--art` against a list whose lines have no `&N` ids yet reports the missing id rather than inventing one.)
 
 ### Change Tracking
 
 Every applied change is recorded in the list's `.changes.md` changelog in a single block per invocation (`Set ... finish to foil`, `Set ... printing to 2XM:157`, `Set labels on ... to [proxy]`, `Added tag "Ramp" to ...`, `Moved ... to section "Sideboard"`, `Set ... as commander`, etc.). A `--tag`/`--untag` whose every tag was already in its requested state records nothing.
 
+`--categories` is recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` (or `Cleared categories of "Sol Ring"`) even when the value is unchanged — it is a latest-wins whole-list event, not a per-category delta.
+
 `--art` is the exception: [custom art](/custom-art/) is list metadata, so it is written to the `.art.json` sidecar with no changelog entry at all.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `2`  | Usage error (no mutation flags, a `--card-id` that disagrees with the card name, `--set` without `--collector-number`, unknown printing, unavailable finish, a foil/etched finish on a line that names no printing, a language the printing has no Scryfall object in, a label the list type does not carry, a malformed tag or the same tag given to both `--tag` and `--untag`, a malformed `--art` value or one naming a directory, flag not valid for the list type, ambiguous list or card, prompts unavailable for interactive list/card selection) |
-| `3`  | Not found (missing list file, missing card, missing card ID, an `--art` file that is not in the art directory)                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `1`  | Runtime error (Scryfall printing lookup failed, an unreadable `--art` file or `.art.json` sidecar, a card line with no `&N` id to file art under, etc.)                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Code | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `2`  | Usage error (no mutation flags, a `--card-id` that disagrees with the card name, `--set` without `--collector-number`, unknown printing, unavailable finish, a foil/etched finish on a line that names no printing, a language the printing has no Scryfall object in, a label the list type does not carry, a malformed tag or the same tag given to both `--tag` and `--untag`, a malformed category name or an empty `--categories` value, a malformed `--art` value or one naming a directory, flag not valid for the list type, ambiguous list or card, prompts unavailable for interactive list/card selection) |
+| `3`  | Not found (missing list file, missing card, missing card ID, an `--art` file that is not in the art directory)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `1`  | Runtime error (Scryfall printing lookup failed, an unreadable `--art` file or `.art.json` sidecar, a card line with no `&N` id to file art under, etc.)                                                                                                                                                                                                                                                                                                                                                                                                                                                               |

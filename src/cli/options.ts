@@ -26,6 +26,11 @@ import { ExitCode, localizedCommandError } from '../util/errors'
 import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card/card-labels'
 import { normalizeCardTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import {
+  normalizeCardCategories,
+  parseCardCategoriesInput,
+  type CardCategory,
+} from '../card/card-categories'
+import {
   invalidLanguageMessage,
   normalizeLanguageValue,
   type CardLanguage,
@@ -354,6 +359,13 @@ export type TagsFlagParser = (value: string, previous?: readonly CardTag[]) => C
  * by contrast, reads empty as "clear"). Repeating the flag accumulates —
  * Commander hands the previous parse in as the second argument, which is why
  * the flag name is bound here rather than taken as a parameter.
+ *
+ * Structurally a twin of {@link categoriesFlagParser} — parse, refuse malformed,
+ * refuse empty, normalize over `previous`. The two are deliberately left as two
+ * functions: the shape rule they each state belongs to their own vocabulary
+ * module, and unifying them is tracked with the wider "extract an
+ * `open-vocabulary` leaf module" item rather than being papered over at the flag
+ * layer (see `research/card-categories-phase2-plan.md` §17).
  */
 export function tagsFlagParser(flag: string): TagsFlagParser {
   return (value, previous) => {
@@ -367,6 +379,45 @@ export function tagsFlagParser(flag: string): TagsFlagParser {
       throw new InvalidArgumentError(t('cli.cardOps.tagFlagEmpty', { flag }))
     }
     return normalizeCardTags([...(previous ?? []), ...parsed.tags])
+  }
+}
+
+/** A Commander argParser for a category-list flag; `previous` is the earlier parse when the flag repeats. */
+export type CategoriesFlagParser = (
+  value: string,
+  previous?: readonly CardCategory[],
+) => CardCategory[]
+
+/**
+ * The argParser for a `--categories` flag: one or more categories separated by
+ * commas (`"Ramp, Artifacts"`) — the same input grammar as the editors'
+ * categories prompt ({@link parseCardCategoriesInput}), so a flag and a prompt
+ * never disagree about what a typed list means. Three things differ from
+ * {@link tagsFlagParser}:
+ *
+ * - **Order is meaning.** The first category is the card's primary one, so a
+ *   repeat of the flag *appends* rather than merging into a set.
+ * - **Empty is refused here, not by the vocabulary.**
+ *   `parseCardCategoriesInput('')` deliberately succeeds with `[]` because an
+ *   empty answer is a meaningful *clear* at the prompt; on the command line the
+ *   clear is spelled `--no-categories`, so an empty value is a mistake.
+ * - Spaces and case inside a name are kept — a category is display text.
+ *
+ * The shape it shares with {@link tagsFlagParser} is left duplicated on purpose;
+ * see that function's note.
+ */
+export function categoriesFlagParser(flag: string): CategoriesFlagParser {
+  return (value, previous) => {
+    const parsed = parseCardCategoriesInput(value)
+    if (!parsed.ok) {
+      throw new InvalidArgumentError(
+        t('cli.cardOps.categoriesFlagInvalid', { flag, reason: parsed.message }),
+      )
+    }
+    if (parsed.categories.length === 0) {
+      throw new InvalidArgumentError(t('cli.cardOps.categoriesFlagEmpty', { flag }))
+    }
+    return normalizeCardCategories([...(previous ?? []), ...parsed.categories])
   }
 }
 

@@ -12,7 +12,7 @@ import { appendChangelog } from '../../changes/changelog-writer'
 import { removedArtCardIds, type LineQuantities } from '../../changes/line-copies'
 import { listTypeLabel, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
-import { getDefaultCategories, loadRitualConfig } from '../../config/ritual-config'
+import { loadDefaultCategories, loadRitualConfig } from '../../config/ritual-config'
 import {
   foldCategoryCardName,
   parseCardCategoriesValue,
@@ -595,12 +595,16 @@ export function listSaveOutcome(result: ListSaveTailResult, moves: MovesOutcome)
     ...(result.artWarnings ?? []),
     ...moves.artFailures.map((failure) => unreconciledArtWarning(failure.message)),
   ]
+  // Both halves can prune: this list's own save tail, and the other lists the
+  // moves rewrote (a source that lost its last copy of a name). One field, so
+  // the merge is here for the same reason `artWarnings`' is.
+  const prunedCategories = [...(result.prunedCategories ?? []), ...moves.prunedCategories]
   return {
     contentHash: result.contentHash,
     droppedNotes: moves.droppedNotes,
     ...(artWarnings.length > 0 ? { artWarnings } : {}),
     ...(result.categoryWarnings === undefined ? {} : { categoryWarnings: result.categoryWarnings }),
-    ...(result.prunedCategories === undefined ? {} : { prunedCategories: result.prunedCategories }),
+    ...(prunedCategories.length > 0 ? { prunedCategories } : {}),
   }
 }
 
@@ -667,7 +671,7 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
   const categories = await commitCategoryChanges(tail.filePath, tail.changes, {
     knownCardNames:
       tail.cardNames === undefined ? undefined : new Set(tail.cardNames.map(foldCategoryCardName)),
-    defaultCategories: getDefaultCategories(await loadRitualConfig()),
+    defaultCategories: await loadDefaultCategories(),
   })
   filesToCommit.push(...categories.writtenFiles)
 

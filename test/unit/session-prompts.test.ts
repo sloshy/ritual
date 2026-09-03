@@ -1,9 +1,13 @@
 import { describe, test, expect } from 'bun:test'
 import prompts from 'prompts'
+import { captureConsole } from '../helpers/capture'
 import {
   finishChoices,
   finishRows,
   printingChoices,
+  promptCategoriesEdit,
+  promptCategoryOrder,
+  promptCategoryRename,
   promptTagsEdit,
   suggestPrintings,
 } from '../../src/commands/session/prompts'
@@ -221,5 +225,70 @@ describe('language-aware printing resolution helpers', () => {
       expect(titles[0]).not.toContain('only')
       expect(titles[1]).toContain('(en only)')
     })
+  })
+})
+
+describe('promptCategoriesEdit', () => {
+  stubTty({ stdin: true })
+
+  test('returns the typed list in the order it was typed', async () => {
+    prompts.inject(['Ramp, Artifacts'])
+    expect(await promptCategoriesEdit([], ['Ramp'])).toEqual(['Ramp', 'Artifacts'])
+  })
+
+  test('empty input clears, and is a real edit when the card had categories', async () => {
+    prompts.inject([''])
+    expect(await promptCategoriesEdit(['Ramp'], [])).toEqual([])
+  })
+
+  test('an unchanged list is null, and so is a cancel', async () => {
+    prompts.inject(['Ramp, Draw'])
+    expect(await promptCategoriesEdit(['Ramp', 'Draw'], [])).toBeNull()
+    prompts.inject([new Error('cancelled')])
+    expect(await promptCategoriesEdit(['Ramp'], [])).toBeNull()
+  })
+
+  test('prints the vocabulary hint above the prompt, and nothing when there is none', async () => {
+    prompts.inject(['Ramp'])
+    const withHint = await captureConsole(['log'], () => promptCategoriesEdit([], ['Ramp', 'Draw']))
+    expect(withHint.all.join('\n')).toContain('Categories in this list: Ramp, Draw')
+
+    prompts.inject(['Ramp'])
+    const without = await captureConsole(['log'], () => promptCategoriesEdit([], []))
+    expect(without.all.join('\n')).not.toContain('Categories in this list')
+  })
+
+  test('a refused name re-offers the typed text and the second answer wins', async () => {
+    prompts.inject(['Ra#mp', 'Ramp'])
+    expect(await promptCategoriesEdit([], [])).toEqual(['Ramp'])
+  })
+})
+
+describe('promptCategoryRename / promptCategoryOrder', () => {
+  stubTty({ stdin: true })
+
+  test('rename returns the picked category and its new name', async () => {
+    prompts.inject([1, 'Card Draw'])
+    expect(await promptCategoryRename(['Ramp', 'Draw'])).toEqual({
+      from: 'Draw',
+      to: 'Card Draw',
+    })
+  })
+
+  test('rename is null when either step is cancelled', async () => {
+    prompts.inject([new Error('cancelled')])
+    expect(await promptCategoryRename(['Ramp'])).toBeNull()
+    prompts.inject([0, new Error('cancelled')])
+    expect(await promptCategoryRename(['Ramp'])).toBeNull()
+  })
+
+  test('order refuses an empty answer and re-prompts', async () => {
+    prompts.inject(['', 'Draw, Ramp'])
+    expect(await promptCategoryOrder(['Ramp', 'Draw'])).toEqual(['Draw', 'Ramp'])
+  })
+
+  test('an unchanged order is null', async () => {
+    prompts.inject(['Ramp, Draw'])
+    expect(await promptCategoryOrder(['Ramp', 'Draw'])).toBeNull()
   })
 })

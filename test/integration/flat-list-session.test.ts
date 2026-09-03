@@ -22,6 +22,7 @@ import {
 } from '../../src/commands/session/strategy'
 import {
   flatListDelegates,
+  editSharedFlatListAction,
   performFlatListMove,
   performFlatListRemoval,
   undoFlatListEdit,
@@ -32,6 +33,16 @@ import type {
   FlatListStrategyContext,
 } from '../../src/commands/session/flat-list-session'
 import type { CollectionCardEntry } from '../../src/list/site-data'
+import {
+  categoriesHashPath,
+  categoriesSidecarPath,
+  loadCardCategories,
+  saveCardCategories,
+} from '../../src/list/card-categories-sidecar'
+import { computeHash } from '../../src/changes/content-hash'
+import { captureConsole } from '../helpers/capture'
+import { appendChangelog } from '../../src/changes/changelog-writer'
+import { categoriesOf, categoriesRecord } from '../helpers/card-categories'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 import { stubTty } from '../test-utils'
 
@@ -492,5 +503,84 @@ describe('session language edits', () => {
     await delegates.editSessionChange(ctx, 1, 'language')
     await delegates.editSessionChange(ctx, 1, 'details')
     expect(detailsFor).toEqual([])
+  })
+})
+
+describe('session categories', () => {
+  let tmpDir: string
+
+  beforeEach(async () => {
+    tmpDir = await createWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await removeWorkspace(tmpDir)
+  })
+
+  /** The strategy context the edit-mode operations work through. */
+  function contextFor(session: CollectionSession): FlatListStrategyContext<CollectionCardEntry> {
+    return {
+      session,
+      state: { snapshot: null },
+      renderLine: () => '',
+      renderEntry: (entry) => entry.name,
+      sessionAdds: [],
+      editUndo: [],
+      originals: new Map(),
+    }
+  }
+
+  test('a categories edit is written by the save, which also prunes a removed card', async () => {
+    const filePath = path.join(tmpDir, 'binder.md')
+    await fs.writeFile(
+      filePath,
+      '# Binder\n\n## Main\n- Sol Ring (C21:263) &1\n- Lightning Bolt (LEA:161) &2\n',
+    )
+    await saveCardCategories(filePath, categoriesRecord(['Burn'], { 'Lightning Bolt': ['Burn'] }))
+
+    const session = await loadCollectionSession(filePath)
+    const list = contextFor(session)
+    const ctx = createCardSessionContext()
+
+    prompts.inject(['Ramp, Artifacts'])
+    expect(
+      await editSharedFlatListAction('categories', list, ctx, session.entries[0]!, 1, {
+        sessionConfig: { sets: [] },
+        excludeDigitalOnly: true,
+      }),
+    ).toBe(true)
+    // The same session takes Lightning Bolt out, so the save must drop its
+    // category entry as well as writing the new one.
+    performFlatListRemoval(list, ctx, session.entries[1]!, 2)
+
+    // Deferred like every other session edit: nothing is on disk until the save.
+    const before = await loadCardCategories(filePath)
+    expect(before.ok && categoriesOf(before.categories)).toEqual({ 'Lightning Bolt': ['Burn'] })
+    const hashBefore = await fs.readFile(categoriesHashPath(filePath), 'utf-8')
+
+    // The save's prune drops an assignment the user made, so it must say so —
+    // design §2: "pruned names are listed in the save's effects".
+    const saved = await captureConsole(['warn'], () => persistFlatListSession(session))
+    expect(saved.all.join('\n')).toContain('Lightning Bolt')
+
+    const after = await loadCardCategories(filePath)
+    expect(after.ok && categoriesOf(after.categories)).toEqual({
+      'Sol Ring': ['Ramp', 'Artifacts'],
+    })
+    // The sidecar's hash was re-stamped over the new bytes, not left as it was.
+    const hashAfter = await fs.readFile(categoriesHashPath(filePath), 'utf-8')
+    expect(hashAfter).not.toBe(hashBefore)
+    expect(hashAfter.trim()).toBe(
+      computeHash(await fs.readFile(categoriesSidecarPath(filePath), 'utf-8')),
+    )
+
+    // The changelog append below is the session loop's own step, performed here
+    // by hand: this suite drives the model, not the loop. It pins that the
+    // staged event reached `ctx.sessionChanges` in a writable shape — the prose
+    // itself belongs to `formatChangeCore`'s own unit tests.
+    await appendChangelog(filePath, 'Binder', ctx.sessionChanges)
+    expect(await fs.readFile(filePath.replace(/\.md$/, '.changes.md'), 'utf-8')).toContain(
+      '- Set categories of "Sol Ring" to Ramp, Artifacts',
+    )
   })
 })

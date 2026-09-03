@@ -186,6 +186,21 @@ export const cliMeta = {
     description:
       'Noun phrase naming what a card note prompt wanted, spliced into the --no-input refusal frame.',
   },
+  'cli.prompt.subject.categoriesText': {
+    description:
+      'Prompt subject named in the --no-input refusal for the Edit Categories text prompt.',
+  },
+  'cli.prompt.subject.categoryChoice': {
+    description: 'Prompt subject named in the --no-input refusal for the Rename Category picker.',
+  },
+  'cli.prompt.subject.categoryName': {
+    description:
+      'Prompt subject named in the --no-input refusal for the Rename Category text prompt.',
+  },
+  'cli.prompt.subject.categoryOrderText': {
+    description:
+      'Prompt subject named in the --no-input refusal for the Reorder Categories prompt.',
+  },
   'cli.prompt.subject.tagsText': {
     description:
       'Noun phrase naming what the card #tags prompt wanted, spliced into the --no-input refusal frame.',
@@ -526,6 +541,27 @@ export const cliMeta = {
   'cli.session.promptNote': { description: 'Prompt for a note on the card just added.' },
   'cli.session.promptNoteEdit': {
     description: "Prompt for an existing entry's note, where submitting nothing clears it.",
+  },
+  'cli.session.promptCategoriesEdit': {
+    description:
+      "Prompt for a card's categories in edit mode. The comma is the separator and never translates.",
+  },
+  'cli.session.promptCategoryRenameFrom': {
+    description: 'Prompt selecting the category the edit-mode rename row will rename.',
+  },
+  'cli.session.promptCategoryRenameTo': {
+    description: 'Prompt for the new name in the edit-mode rename row.',
+  },
+  'cli.session.promptCategoryOrder': {
+    description: "Prompt for the list's category display order in edit mode.",
+  },
+  'cli.session.categoriesSidecarUnreadable': {
+    description:
+      'Warning when a session save (or a category action) cannot read <list>.categories.json; the card lines were written correctly.',
+  },
+  'cli.session.categoriesPruned': {
+    description:
+      'Save-time notice listing card names whose category entries were pruned because the list no longer holds them.',
   },
   'cli.session.promptTagsEdit': {
     description:

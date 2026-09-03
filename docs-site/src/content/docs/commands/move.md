@@ -271,6 +271,19 @@ Destination list changelog:
 
 A moved card takes its [custom art](/custom-art/#art-follows-the-card) with it: the entry leaves the source list's `.art.json` and is re-filed under the `&N` the destination's new line was given. Two exceptions leave the destination's own art alone — a copy that merges onto a line the destination already had, and a deck line in the source that still has copies left (which keeps its id, and its art). Art sidecars carry no changelog entry, but they are included in the files an auto-commit stages.
 
+## Categories
+
+A card's [categories](/commands/categories/) do **not** travel with it. A category belongs to a card
+**name in one list**, so the destination inherits nothing — whatever categories it already recorded
+for that name (if any) are what the arriving copy has there.
+
+The move does rewrite the categories sidecars of the lists it writes: each is pruned down to the
+names that list still holds, so a source that lost its **last** copy of a name loses that name's
+entry. The pruned names are reported on stderr, and `<list>.categories.json` and its `.sha256` are
+among the files an auto-commit stages. A list holding a bullet the card-line parser could not read is
+skipped entirely — its sidecar keeps every entry, including ones that may now be stale, until a later
+clean parse (a save, or [`ritual cleanup`](/commands/cleanup/)) prunes them.
+
 ## Fenced Code Blocks
 
 Collection and wanted-list sides of a move are line-preserving: a card-looking bullet inside a

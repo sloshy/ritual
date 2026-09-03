@@ -42,6 +42,7 @@ import { registerExportCommand } from './export'
 import { registerCleanupCommand } from './cleanup'
 import { registerConfigCommand } from './config'
 import { registerMetadataCommand } from './metadata'
+import { registerCategoriesCommand } from './categories'
 import { registerSetListImageCommand } from './set-list-image'
 import { registerListAllCardsCommand } from './list-all-cards'
 import { registerMcpCommand } from './mcp'
@@ -58,6 +59,7 @@ export const COMMAND_GROUPS = [
       registerDeleteCommand,
       registerEditCommand,
       registerMetadataCommand,
+      registerCategoriesCommand,
       registerSetListImageCommand,
       registerHistoryCommand,
       registerDiffCommand,

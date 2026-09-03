@@ -9,7 +9,7 @@
  */
 
 import * as fs from 'node:fs/promises'
-import { importFromTextFile } from '../importers/text-file'
+import { loadDeckFile } from '../importers/text-file'
 import { parseCollectionFile } from './collection-file'
 import { parseWantedListFile } from './wanted-file'
 import { isCommanderSection } from './deck-format'
@@ -28,6 +28,17 @@ export type LoadedListEntries = {
   /** Section names in display order. */
   sectionOrder: string[]
   entries: ListEntryRef[]
+  /**
+   * The parser's own warnings — the authoritative "this read lost something"
+   * gate every file parser already exposes. Empty means every body line was
+   * read, which is what a caller asking "does this list still hold that name?"
+   * needs before it acts on the answer.
+   *
+   * Optional because the same shape is `ListSnapshot`, which callers also build
+   * by hand from a model that was never parsed; only a value that came out of
+   * {@link loadListEntries} carries it.
+   */
+  warnings?: string[]
 }
 
 /** Load a list of any type into a uniform {@link LoadedListEntries}. */
@@ -36,7 +47,8 @@ export async function loadListEntries(
   filePath: string,
 ): Promise<LoadedListEntries> {
   if (type === 'deck') {
-    const deck = await importFromTextFile(filePath)
+    const parsed = await loadDeckFile(filePath)
+    const deck = parsed.deck
     const entries: ListEntryRef[] = []
     for (const section of deck.sections) {
       const commander = isCommanderSection(section.name)
@@ -58,15 +70,16 @@ export async function loadListEntries(
         })
       }
     }
-    return { sectionOrder: deck.sections.map((s) => s.name), entries }
+    return { sectionOrder: deck.sections.map((s) => s.name), entries, warnings: parsed.warnings }
   }
 
   const content = await fs.readFile(filePath, 'utf-8')
   switch (type) {
     case 'collection': {
-      const { entries, sectionOrder } = parseCollectionFile(content)
+      const { entries, sectionOrder, warnings } = parseCollectionFile(content)
       return {
         sectionOrder,
+        warnings,
         entries: entries.map((e) => ({
           name: e.name,
           set: e.set,
@@ -85,9 +98,10 @@ export async function loadListEntries(
       }
     }
     case 'wanted': {
-      const { entries, sectionOrder } = parseWantedListFile(content)
+      const { entries, sectionOrder, warnings } = parseWantedListFile(content)
       return {
         sectionOrder,
+        warnings,
         entries: entries.map((e) => ({
           name: e.name,
           set: e.set,

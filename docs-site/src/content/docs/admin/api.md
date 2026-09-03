@@ -1437,6 +1437,8 @@ Apply a batch of queued moves atomically. The move state is rebuilt from disk an
 
 `warnings` is **always present** (possibly empty): it names each list file that could not be fully read while the card index this route resolves against was rebuilt, so a skipped move is never silently unexplained.
 
+Categories never follow a moved card — a category belongs to a card **name in one list** — so the move engine also prunes each list it writes down to the names that list still holds. When it dropped any, the response carries `prunedCategories` (omitted otherwise), the same field and meaning as on the save routes; `<list>.categories.json` and its `.sha256` are part of the auto-commit. A list holding a card line the parser could not read is skipped entirely, keeping every entry.
+
 ## Move Selected Cards
 
 ```
@@ -1481,6 +1483,8 @@ Move a batch of selected cards across lists atomically — backs the cross-list 
 
 `warnings` is **always present** (possibly empty): it names each list file that could not be fully read while the card index this route resolves against was rebuilt, so a skipped move is never silently unexplained.
 
+As on [Commit Moves](#commit-moves), the written lists' categories sidecars are pruned to the names they still hold and a `prunedCategories` array is returned when anything was dropped.
+
 ## Remove Cards
 
 ```
@@ -1519,6 +1523,8 @@ Remove a batch of cards across lists atomically — backs the cross-list **Remov
 ```
 
 `warnings` is **always present** (possibly empty): it names each list file that could not be fully read while the card index this route resolves against was rebuilt, so a skipped removal is never silently unexplained.
+
+A removal that takes a list's last copy of a card name also drops that name's categories entry; the dropped names come back as `prunedCategories` when there were any, exactly as on [Commit Moves](#commit-moves).
 
 ## List All Lists
 

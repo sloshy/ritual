@@ -16,7 +16,8 @@ import {
 } from '../../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
 import { formatCardTags, type CardTag } from '../../card/card-tags'
-import type { SessionArtChanges } from './art'
+import { noteArtSet, type SessionArtChanges } from './art'
+import { noteCategoryChange, type SessionCategoryChanges } from './categories'
 import { editCardArt } from './edit-art'
 import {
   changelogDelta,
@@ -73,6 +74,11 @@ export type EditModel<Located, Snapshot extends EditSnapshot> = {
   originals: Map<number, Snapshot>
   /** Pending custom-art edits, applied by the same save that writes the list. Never reassigned. */
   art: SessionArtChanges
+  /**
+   * Pending category edits, replayed onto the `<list>.categories.json` sidecar
+   * by the same save that writes the list. Never reassigned.
+   */
+  categories: SessionCategoryChanges
   /** Apply a change to the in-memory model and mark the session unsaved. */
   apply: (change: ChangeEvent) => void
   /** Mark the session unsaved without a change (an art edit touches only the sidecar). */
@@ -144,6 +150,25 @@ function originalSnapshot<L, S extends EditSnapshot>(
  * (Add Exact Copy would resurrect the pre-edit line), so they reset until the
  * next add.
  */
+/**
+ * Re-stage the sidecar edits an undone operation had made. Both are sidecar-only
+ * effects the model's `apply`/`inverse` cannot carry — the apply engines ignore
+ * category actions, and custom art is not on the line at all — so an undo puts
+ * them back by staging the prior state exactly the way the action staged the
+ * new one.
+ *
+ * One home for both branches, so the next sidecar-backed undo field is added
+ * once rather than in each session's undo runner (where a miss is silent: the
+ * undo looks like it worked while the sidecar keeps the new value).
+ */
+export function restoreUndoSidecars<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+  undo: EditUndoEntry,
+): void {
+  if (undo.restoreArt) noteArtSet(model.art, undo.cardId, undo.restoreArt.ref)
+  if (undo.restoreCategories) noteCategoryChange(model.categories, undo.restoreCategories.change)
+}
+
 export function resetStaleLastAdded<L, S extends EditSnapshot>(
   model: EditModel<L, S>,
   ctx: CardSessionContext,

@@ -1,13 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { Command } from 'commander'
+import { Command, InvalidArgumentError } from 'commander'
 import {
   addDryRunOption,
   addOutputOption,
   addRefreshOption,
+  categoriesFlagParser,
   parseEnumFlag,
   parseRefreshFlag,
 } from '../../../src/cli/options'
 import { CSV_OUTPUT_FORMATS, OUTPUT_FORMATS } from '../../../src/cli/output'
+import { parseCardCategoriesInput } from '../../../src/card/card-categories'
 import { registerCliMessages } from '../../../src/i18n/register/cli'
 import { t } from '../../../src/i18n/t'
 
@@ -129,5 +131,33 @@ describe('addOutputOption', () => {
     csv.parse(['--output', 'csv'], { from: 'user' })
     expect(csv.opts().output).toBe('csv')
     expect(OUTPUT_FORMATS).not.toContain('csv')
+  })
+})
+
+describe('categoriesFlagParser', () => {
+  const parse = categoriesFlagParser('--categories')
+
+  test('splits on commas, keeping order, spaces and case', () => {
+    expect(parse('Ramp, Board Wipes,card draw')).toEqual(['Ramp', 'Board Wipes', 'card draw'])
+  })
+
+  test('a repeat appends to the previous parse and dedupes by fold', () => {
+    // Order is meaning here — the first entry is the card's primary category —
+    // so a repeat appends rather than merging into a set.
+    expect(parse('Draw', parse('Ramp'))).toEqual(['Ramp', 'Draw'])
+    expect(parse('ramp', parse('Ramp'))).toEqual(['Ramp'])
+  })
+
+  test('a malformed name is refused, naming the flag', () => {
+    expect(() => parse('Ra#mp')).toThrow(InvalidArgumentError)
+    expect(() => parse('Ra#mp')).toThrow(/--categories/)
+  })
+
+  test('an empty value is refused here, not read as a clear', () => {
+    // The vocabulary parser deliberately reads empty as `[]` (the prompt's
+    // clear); on the command line the clear is spelled --no-categories.
+    expect(parseCardCategoriesInput('')).toEqual({ ok: true, categories: [] })
+    expect(() => parse('')).toThrow(/--no-categories/)
+    expect(() => parse('  , ,')).toThrow(/--no-categories/)
   })
 })

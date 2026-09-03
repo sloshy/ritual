@@ -162,6 +162,9 @@ export const cliEditMeta = {
   'cli.editLabel.labels': {
     description: 'Names a card-label change (for sale / for trade / to keep) for the undo menu.',
   },
+  'cli.editLabel.categories': {
+    description: 'Undo-menu label for an Edit Categories action.',
+  },
   'cli.editLabel.tags': {
     description:
       "Names a card-tag edit (the owner's free-form tags on one card) for the undo menu. One entry covers every tag the edit changed.",
@@ -210,6 +213,9 @@ export const cliEditMeta = {
   'cli.editAction.changeLabel': {
     description: "Edit-mode menu row: set or clear this card's label override.",
     maxLen: MENU_MAX_LEN,
+  },
+  'cli.editAction.editCategories': {
+    description: "Edit-mode per-card action that sets the card's categories in this list.",
   },
   'cli.editAction.editTags': {
     description:
@@ -287,6 +293,35 @@ export const cliEditMeta = {
       "Confirms a card's tags after an edit. {tags} is the comma-joined new set (`Card Draw, Ramp`) — a data token, never translated.",
   },
   'cli.edit.tagsCleared': { description: 'Confirms every tag was taken off a card.' },
+  'cli.edit.categoriesSet': {
+    description:
+      'Confirmation after an Edit Categories action, listing the new categories primary first.',
+  },
+  'cli.edit.categoriesCleared': {
+    description: 'Confirmation after an Edit Categories action that emptied the field.',
+  },
+  'cli.edit.categoriesInvalid': {
+    description:
+      'Reported when a typed category list is refused; the prompt re-offers what was typed.',
+  },
+  'cli.edit.categoriesVocabulary': {
+    description:
+      "Hint printed above the Edit Categories prompt: the list's own vocabulary followed by the configured defaults.",
+  },
+  'cli.edit.categoriesNone': {
+    description:
+      'Reported when a list-level category menu row is chosen for a list with an empty vocabulary.',
+  },
+  'cli.edit.categoryOrderEmpty': {
+    description:
+      'Refusal when the edit-mode Reorder Categories prompt is answered with nothing. Clearing the order is not what reordering means, so the prompt asks again.',
+  },
+  'cli.edit.categoriesRenamed': {
+    description: 'Confirmation after the edit-mode Rename Category row.',
+  },
+  'cli.edit.categoriesReordered': {
+    description: 'Confirmation after the edit-mode Reorder Categories row.',
+  },
   'cli.edit.tagsInvalid': {
     description:
       'Shown when the typed tags are refused, before the prompt is offered again. {reason} is the English data-format rule the tag parser states (which punctuation a tag cannot contain).',

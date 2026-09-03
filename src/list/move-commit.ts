@@ -24,6 +24,7 @@ import {
   adoptedCardId,
   applyAddToStaged,
   stagedCardIds,
+  commitStagedCategoryPrunes,
   writeStagedFiles,
   type DroppedNote,
   type PhysicalCard,
@@ -379,6 +380,13 @@ export type CommitMovesResult = {
    * existing line's). Only reported for moves whose removal succeeded.
    */
   droppedNotes: DroppedNote[]
+  /**
+   * Stored card names whose categories entry this commit pruned, because a list
+   * lost its last copy of that name. Categories are keyed by name and never
+   * follow a move, so this is the assignment the move dropped — reported, not
+   * swallowed, exactly as the save routes report `prunedCategories`.
+   */
+  prunedCategories: string[]
 }
 
 /**
@@ -393,7 +401,8 @@ export type CommitMovesResult = {
  */
 export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<CommitMovesResult> {
   const pending = getPendingMoves(state)
-  if (pending.length === 0) return { moved: 0, writtenFiles: [], droppedNotes: [] }
+  if (pending.length === 0)
+    return { moved: 0, writtenFiles: [], droppedNotes: [], prunedCategories: [] }
 
   // Group by source file (for removals) and destination file (for additions)
   const bySource = new Map<string, PerFileChanges>()
@@ -518,7 +527,16 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   // themselves are complete either way.
   writtenFiles.push(...(await commitArtReconciles(artByFile)).writtenFiles)
 
-  return { moved: removedKeys.size, writtenFiles: [...new Set(writtenFiles)], droppedNotes }
+  // --- CATEGORIES: prune the entries of names a list no longer holds ---
+  const categoryPrunes = await commitStagedCategoryPrunes(staged)
+  writtenFiles.push(...categoryPrunes.writtenFiles)
+
+  return {
+    moved: removedKeys.size,
+    writtenFiles: [...new Set(writtenFiles)],
+    droppedNotes,
+    prunedCategories: categoryPrunes.pruned,
+  }
 }
 
 export type CommitRemovalsResult = {
@@ -526,6 +544,11 @@ export type CommitRemovalsResult = {
   removed: number
   /** Every file written this commit (list markdown + hash sidecars + changelogs), deduplicated. */
   writtenFiles: string[]
+  /**
+   * Stored card names whose categories entry this commit pruned — the list lost
+   * its last copy of that name. See {@link CommitMovesResult.prunedCategories}.
+   */
+  prunedCategories: string[]
 }
 
 /**
@@ -540,7 +563,7 @@ export async function commitAllRemovals(
   state: Map<string, VirtualCard>,
 ): Promise<CommitRemovalsResult> {
   const pending = getPendingRemoves(state)
-  if (pending.length === 0) return { removed: 0, writtenFiles: [] }
+  if (pending.length === 0) return { removed: 0, writtenFiles: [], prunedCategories: [] }
 
   // Group by source file.
   const bySource = new Map<string, PerFileChanges>()
@@ -609,5 +632,13 @@ export async function commitAllRemovals(
   // --- ART: drop the departed cards' sidecar entries (failures as above) ---
   writtenFiles.push(...(await commitArtReconciles(artByFile)).writtenFiles)
 
-  return { removed: removedKeys.size, writtenFiles: [...new Set(writtenFiles)] }
+  // --- CATEGORIES: prune the entries of names the list no longer holds ---
+  const categoryPrunes = await commitStagedCategoryPrunes(staged)
+  writtenFiles.push(...categoryPrunes.writtenFiles)
+
+  return {
+    removed: removedKeys.size,
+    writtenFiles: [...new Set(writtenFiles)],
+    prunedCategories: categoryPrunes.pruned,
+  }
 }

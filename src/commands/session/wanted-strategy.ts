@@ -11,6 +11,7 @@ import { promptSessionConfigUpdate, type SessionConfig } from './config'
 import type { CardSessionContext, CardSessionStrategy } from './strategy'
 import {
   applyFlatListCardEntry,
+  flatListCategoryDeps,
   type FlatListPrintingOptions,
   type FlatListStrategyContext,
   type LastAddState,
@@ -34,6 +35,8 @@ import {
   type PrintingTuple,
 } from '../../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import { categoryMenuItems, handleCategoryMenuSentinel } from './categories'
+import type { MenuChoice, MenuSentinel } from './menu'
 import { t } from '../../i18n/t'
 import { hasSpecificPrinting } from '../../card/card-printing'
 
@@ -170,6 +173,12 @@ export function createWantedStrategy(
     // The wanted list has no condition, but the shared engine config carries the
     // full shape; the condition field is simply never read by this strategy.
     sessionConfig,
+    // Design §1.5: every list type carries categories, so a wanted list gets
+    // the two list-level rows too — its first extra menu items.
+    extraMenuItems: (): MenuChoice[] => categoryMenuItems(),
+    handleSentinel: async (ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {
+      await handleCategoryMenuSentinel(ctx, value, flatListCategoryDeps(session))
+    },
     updateConfig: (excludeDigital: boolean) =>
       promptSessionConfigUpdate(sessionConfig, false, excludeDigital),
 

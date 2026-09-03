@@ -16,6 +16,13 @@ import {
   isCondition,
 } from '../../card/finish-condition'
 import type { ConditionUpdate } from '../../changes/change-event'
+import {
+  formatCardCategories,
+  parseCardCategoriesInput,
+  parseCardCategory,
+  sameCardCategories,
+  type CardCategory,
+} from '../../card/card-categories'
 import { dedupePrintingsByKey, printingLanguages } from '../../card/card-printing'
 import {
   CARD_LANGUAGES,
@@ -105,6 +112,51 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
   return note === before ? null : { note, before }
 }
 
+/** What a text prompt's parser answers: a value, or the sentence that refuses it. */
+type TextParse<T> = { ok: true; value: T } | { ok: false; message: string }
+
+/** How to ask one free-text question whose answer is parsed. */
+type ParsedTextPrompt = {
+  /** The rendered question. */
+  message: string
+  /** What the question wanted, for the `--no-input` refusal. */
+  subjectKey: PromptSubjectKey
+  /** Prefill — the current value as a person reads it. */
+  initial: string
+  /** Renders a parser refusal for the console. */
+  invalid: (reason: string) => string
+}
+
+/**
+ * Ask a free-text question until its answer parses, or the user cancels.
+ *
+ * The rule this owns is "re-offer what was typed rather than dropping it": a
+ * refusal reports the parser's own sentence and puts the typed text back in the
+ * field, so the fix is an edit and not a retype. Every parsed text prompt in
+ * this module goes through it, so the rule is uniform instead of copied.
+ *
+ * Returns null on cancel; the caller decides what "unchanged" means.
+ */
+async function promptParsedText<T>(
+  how: ParsedTextPrompt,
+  parse: (raw: string) => TextParse<T>,
+): Promise<T | null> {
+  let initial = how.initial
+  for (;;) {
+    const answer = await ask<string>({
+      type: 'text',
+      message: how.message,
+      subjectKey: how.subjectKey,
+      initial,
+    })
+    if (answer === undefined) return null
+    const parsed = parse(answer)
+    if (parsed.ok) return parsed.value
+    console.error(how.invalid(parsed.message))
+    initial = answer
+  }
+}
+
 /**
  * Prompt for an existing entry's tag set, prefilled with its current tags as
  * a person reads them (`Card Draw, Ramp`). The input grammar is
@@ -116,24 +168,128 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
 export async function promptTagsEdit(
   currentTags: readonly CardTag[] | undefined,
 ): Promise<CardTag[] | null> {
-  let initial = formatCardTags(currentTags)
-  for (;;) {
-    const answer = await ask<string>({
-      type: 'text',
+  const tags = await promptParsedText<CardTag[]>(
+    {
       message: t('cli.session.promptTagsEdit'),
       subjectKey: 'cli.prompt.subject.tagsText',
-      initial,
-    })
-    if (answer === undefined) return null
-    const parsed = parseCardTagsInput(answer)
-    if (!parsed.ok) {
-      console.error(t('cli.edit.tagsInvalid', { reason: parsed.message }))
-      // Re-offer what was typed so the fix is an edit, not a retype.
-      initial = answer
-      continue
-    }
-    return sameCardTags(parsed.tags, currentTags) ? null : parsed.tags
+      initial: formatCardTags(currentTags),
+      invalid: (reason) => t('cli.edit.tagsInvalid', { reason }),
+    },
+    (raw) => {
+      const parsed = parseCardTagsInput(raw)
+      return parsed.ok ? { ok: true, value: parsed.tags } : { ok: false, message: parsed.message }
+    },
+  )
+  if (tags === null) return null
+  return sameCardTags(tags, currentTags) ? null : tags
+}
+
+/**
+ * Prompt for a card's categories in this list, prefilled with the ones it has
+ * as a person reads them (`Ramp, Artifacts`). The input grammar is
+ * {@link parseCardCategoriesInput} — comma-separated, spaces and case kept —
+ * and an input the grammar refuses is reported and asked again rather than
+ * dropped. Empty input clears every category. Returns the canonical list,
+ * primary first, or null when the prompt is cancelled or nothing changed.
+ *
+ * `vocabulary` is printed once above the prompt rather than offered as
+ * completions: a category set is a comma-separated multi-value and `ask`'s
+ * autocomplete is single-select, so the honest affordance is a visible hint.
+ */
+export async function promptCategoriesEdit(
+  current: readonly CardCategory[],
+  vocabulary: readonly CardCategory[],
+): Promise<CardCategory[] | null> {
+  if (vocabulary.length > 0) {
+    console.log(
+      t('cli.edit.categoriesVocabulary', { categories: formatCardCategories(vocabulary) }),
+    )
   }
+  const next = await promptParsedText<CardCategory[]>(
+    {
+      message: t('cli.session.promptCategoriesEdit'),
+      subjectKey: 'cli.prompt.subject.categoriesText',
+      initial: formatCardCategories(current),
+      invalid: (reason) => t('cli.edit.categoriesInvalid', { reason }),
+    },
+    (raw) => {
+      const parsed = parseCardCategoriesInput(raw)
+      return parsed.ok
+        ? { ok: true, value: parsed.categories }
+        : { ok: false, message: parsed.message }
+    },
+  )
+  if (next === null) return null
+  return sameCardCategories(next, current) ? null : next
+}
+
+/** The category to rename and its new name. */
+export type CategoryRename = { from: CardCategory; to: CardCategory }
+
+/**
+ * Pick a category from the list's vocabulary and type its new name. Returns
+ * null when either step is cancelled.
+ */
+export async function promptCategoryRename(
+  vocabulary: readonly CardCategory[],
+): Promise<CategoryRename | null> {
+  const index = await ask<number>({
+    type: 'select',
+    message: t('cli.session.promptCategoryRenameFrom'),
+    subjectKey: 'cli.prompt.subject.categoryChoice',
+    choices: vocabulary.map((category, i) => ({ title: category, value: i })),
+  })
+  if (typeof index !== 'number') return null
+  const from = vocabulary[index]
+  if (from === undefined) return null
+
+  const to = await promptParsedText<CardCategory>(
+    {
+      message: t('cli.session.promptCategoryRenameTo', { category: from }),
+      subjectKey: 'cli.prompt.subject.categoryName',
+      initial: from,
+      invalid: (reason) => t('cli.edit.categoriesInvalid', { reason }),
+    },
+    (raw) => {
+      const parsed = parseCardCategory(raw)
+      return parsed.ok
+        ? { ok: true, value: parsed.category }
+        : { ok: false, message: parsed.message }
+    },
+  )
+  return to === null ? null : { from, to }
+}
+
+/**
+ * Prompt for the list's category display order, prefilled with the vocabulary
+ * as it stands. An empty answer is refused and asked again — clearing the order
+ * is not what "reorder" means, and `ritual categories remove` is how a name
+ * leaves. Returns null when cancelled or when the order is unchanged.
+ */
+export async function promptCategoryOrder(
+  vocabulary: readonly CardCategory[],
+): Promise<CardCategory[] | null> {
+  const order = await promptParsedText<CardCategory[]>(
+    {
+      message: t('cli.session.promptCategoryOrder'),
+      subjectKey: 'cli.prompt.subject.categoryOrderText',
+      initial: formatCardCategories(vocabulary),
+      invalid: (reason) => t('cli.edit.categoriesInvalid', { reason }),
+    },
+    (raw) => {
+      const parsed = parseCardCategoriesInput(raw)
+      if (!parsed.ok) return { ok: false, message: parsed.message }
+      // The one refusal this prompt adds over the vocabulary's own grammar:
+      // an empty answer parses fine (it is a clear elsewhere), but clearing the
+      // order is not what "reorder" means.
+      if (parsed.categories.length === 0) {
+        return { ok: false, message: t('cli.edit.categoryOrderEmpty') }
+      }
+      return { ok: true, value: parsed.categories }
+    },
+  )
+  if (order === null) return null
+  return sameCardCategories(order, vocabulary) ? null : order
 }
 
 // ── Printing, finish, condition, language and label pickers ─────────

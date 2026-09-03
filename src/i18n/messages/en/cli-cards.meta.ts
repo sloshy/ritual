@@ -20,6 +20,14 @@ export const cliCardsMeta = {
     description:
       'Refusal when a --tag/--untag flag value contained no tags at all (empty or only separators). {flag} is the literal flag name.',
   },
+  'cli.cardOps.categoriesFlagInvalid': {
+    description:
+      "Refusal for a malformed --categories value. {reason} is the category vocabulary parser's own English sentence; {flag} is the literal flag name and never translates.",
+  },
+  'cli.cardOps.categoriesFlagEmpty': {
+    description:
+      'Refusal for an empty --categories value. The flag names are machine vocabulary and never translate.',
+  },
   'cli.cardOps.wantedNoCondition': {
     description:
       'Refusal when --condition is used on a wanted list, which records no card condition.',
@@ -334,6 +342,13 @@ export const cliCardsMeta = {
   'cli.setCard.tagsAlreadyAbsent': {
     description:
       'One entry of the applied-changes list when no tag --untag asked for was on the line, so nothing was recorded. {tags} is the card-line rendering.',
+  },
+  'cli.setCard.appliedCategories': {
+    description:
+      "One clause of set-card's success line: the card's new categories in this list, primary first, comma-separated.",
+  },
+  'cli.setCard.categoriesCleared': {
+    description: "One clause of set-card's success line, for --no-categories.",
   },
   'cli.setCard.appliedSection': { description: 'One entry of the applied-changes list.' },
   'cli.setCard.appliedCommander': {
@@ -871,6 +886,60 @@ export const cliCardsMeta = {
   },
 
   // ── cleanup ───────────────────────────────────────────────────────────
+  'cli.categories.none': {
+    description: '`categories list` output when the list has no categories at all.',
+  },
+  'cli.categories.vocabularyLine': {
+    description:
+      "One line of `categories list`: the category's position in the display order, its name, and how many cards carry it. {count} is the card count.",
+  },
+  'cli.categories.cardLine': {
+    description:
+      "One card's line in `categories list`: the card name and its categories, primary first.",
+  },
+  'cli.categories.staleNotChecked': {
+    description:
+      'Warning from `categories list` when the list file has lines the parser could not read, so the stale-entry check was skipped rather than reported from a partial answer.',
+  },
+  'cli.categories.staleNames': {
+    description:
+      'Warning from `categories list` naming sidecar entries whose card is gone. The command reports them and never removes them — a read does not write.',
+  },
+  'cli.categories.renamed': {
+    description: 'Success line of `categories rename`, with its dry-run preview.',
+  },
+  'cli.categories.reordered': {
+    description: 'Success line of `categories order`, with its dry-run preview.',
+  },
+  'cli.categories.removedDone': {
+    description:
+      'Success line of `categories remove`. {count} is how many cards lost the category.',
+  },
+  'cli.categories.removedPreview': {
+    description:
+      'Dry-run preview line of `categories remove`. {count} is how many cards would lose the category.',
+  },
+  'cli.categories.unknown': {
+    description: 'not_found refusal when rename/remove names a category the list does not use.',
+  },
+  'cli.categories.orderEmpty': {
+    description:
+      'Usage refusal for an empty `categories order` value. The command name and the comma are machine vocabulary.',
+  },
+  'cli.categories.nameInvalid': {
+    description:
+      "Usage refusal for a malformed category name given to the categories command. {reason} is the vocabulary parser's own sentence; the punctuation list is file grammar and never translates.",
+  },
+  'cli.categories.sidecarUnreadable': {
+    description:
+      'Runtime refusal when <list>.categories.json cannot be parsed, so the command refuses rather than overwriting it.',
+  },
+  'cli.categories.menuRename': {
+    description: 'Edit-mode list-menu row that renames a category across the open list.',
+  },
+  'cli.categories.menuReorder': {
+    description: "Edit-mode list-menu row that sets the open list's category display order.",
+  },
   'cli.cleanup.couldNotRead': {
     description: 'Per-file warning: the file could not be read or parsed at all.',
   },

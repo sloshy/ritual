@@ -30,9 +30,8 @@ import {
   previewCategoriesSaveAction,
   pruneCardCategories,
 } from '../list/card-categories-sidecar'
-import { foldCategoryCardName } from '../card/card-categories'
-import { getDefaultCategories } from '../config/ritual-config'
-import { loadListEntries } from '../list/entry-load'
+import { loadDefaultCategories } from '../config/ritual-config'
+import { listCardNameSet } from '../list/card-names'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
 import { getErrorMessage, localizedCommandError, ExitCode } from '../util/errors'
@@ -392,7 +391,7 @@ export async function cleanupList(
   // a line the parser could not read holds a card that is still in the file, and
   // dropping its categories would destroy assignments the list still backs. A
   // blocked file's sidecar is canonicalized and left otherwise intact.
-  const defaultCategories = getDefaultCategories()
+  const defaultCategories = await loadDefaultCategories()
   let knownCardNames: Set<string> | undefined
   let categoriesReadable = true
   // Per-file contract: a categories problem is a warning on this file, never a
@@ -401,11 +400,7 @@ export async function cleanupList(
     if (result.rewriteBlocked === true) {
       result.warnings.push(t('cli.cleanup.categoriesNotPruned'))
     } else {
-      knownCardNames = new Set(
-        (await loadListEntries(location.type, location.filePath)).entries.map((entry) =>
-          foldCategoryCardName(entry.name),
-        ),
-      )
+      knownCardNames = (await listCardNameSet(location.type, location.filePath)).names
     }
     const loadedCategories = await loadCardCategories(location.filePath, { knownCardNames })
     if (!loadedCategories.ok) {

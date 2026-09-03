@@ -59,7 +59,7 @@ import { ExitCode, CardCommandError, localizedCommandError } from '../util/error
 import type { ListType } from './list-type'
 import type { CardMutationChange } from './list-mutate'
 import type { EntryRef } from './entry-ref'
-import { getDefaultCategories, loadRitualConfig } from '../config/ritual-config'
+import { loadDefaultCategories } from '../config/ritual-config'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -112,10 +112,17 @@ export async function applyTargetedChanges(
   )
   const newContent = applyTargetedChangesToContent(content, type, resolved, stamped)
   if (options.dryRun === true) return { writtenFiles: [] }
-  await writeFileWithHash(filePath, newContent)
+  const writtenFiles: string[] = []
+  // A batch whose only events are the name-keyed category ones leaves every card
+  // line alone, so the `.md` must not be rewritten: reporting it among the
+  // written files would be a lie, and — worse — refreshing a hand-edited file's
+  // `.sha256` would launder the user's edit past `detect-changes`.
+  if (newContent !== content) {
+    await writeFileWithHash(filePath, newContent)
+    writtenFiles.push(filePath, hashPath(filePath))
+  }
   const slug = path.basename(filePath, '.md')
-  const changelogPath = await appendChangelog(filePath, slug, stamped)
-  const writtenFiles = [filePath, hashPath(filePath), changelogPath]
+  writtenFiles.push(await appendChangelog(filePath, slug, stamped))
 
   // A deleted line releases its `&N` to the reuse pool, so custom art — or a
   // cover image — left filed under it would surface on whichever card takes the
@@ -134,7 +141,7 @@ export async function applyTargetedChanges(
   // passes it: it decides the persisted `order`, so two writers that disagreed
   // would churn the sidecar's bytes back and forth on alternating edits.
   const categories = await commitCategoryChanges(filePath, stamped, {
-    defaultCategories: getDefaultCategories(await loadRitualConfig()),
+    defaultCategories: await loadDefaultCategories(),
   })
   writtenFiles.push(...categories.writtenFiles)
 

@@ -22,6 +22,7 @@ import type {
 } from './strategy'
 import {
   foldOutCardChanges,
+  type GoneCardName,
   retargetUndoCardId,
   swapUndoChangelog,
   targetedUndoBlocker,
@@ -41,6 +42,7 @@ import {
   listSessionChanges,
   logUpdatedLine,
   resetStaleLastAdded,
+  restoreUndoSidecars,
   type EditModel,
   type FieldEdit,
 } from './edit-model'
@@ -63,7 +65,9 @@ import {
   type MoveDestination,
   type MoveTargetsProvider,
 } from './edit-move'
-import { noteArtLineRemoved, noteArtLineRestored, noteArtSet } from './art'
+import { noteArtLineRemoved, noteArtLineRestored } from './art'
+import { foldCategoryCardName } from '../../card/card-categories'
+import { editCategories } from './edit-categories'
 import { hasSpecificPrinting } from '../../card/card-printing'
 
 /**
@@ -113,6 +117,7 @@ export function flatListModel<E extends EditableFlatListEntry>(
     editUndo: () => list.editUndo,
     originals: list.originals,
     art: session.art,
+    categories: session.categories,
     apply: (change) => applyFlatListChange(session, change),
     markDirty: () => {
       session.dirty = true
@@ -175,7 +180,10 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
 
   // The removed entry's earlier edit events are moot, so they fold out of the
   // changelog (and come back if the removal is undone).
-  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: false })
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, {
+    keepAdds: false,
+    ...survivingName(list, removed.name),
+  })
   ctx.sessionChanges = [...kept, removeEvent]
 
   list.editUndo.push({
@@ -190,6 +198,21 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
   })
   resetStaleLastAdded(flatListModel(list), ctx, cardId)
   console.log(t('cli.edit.removedLine', { line: list.renderEntry(removed) }))
+}
+
+/**
+ * The `goneCardName` half of a {@link FoldOptions}, set only when the list holds
+ * no other line of `name` once the removal or move has been applied to the
+ * model. Spread into the fold options so "another copy survives" is simply an
+ * absent key.
+ */
+function survivingName<E extends EditableFlatListEntry>(
+  list: FlatListStrategyContext<E>,
+  name: string,
+): GoneCardName {
+  const key = foldCategoryCardName(name)
+  const stillHeld = list.session.entries.some((entry) => foldCategoryCardName(entry.name) === key)
+  return stillHeld ? {} : { goneCardName: name }
 }
 
 /**
@@ -281,7 +304,10 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
   // adopts it at save time, where the id it lands on is known.
   noteArtLineRemoved(list.session.art, cardId)
 
-  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, { keepAdds: true })
+  const { kept, displaced } = foldOutCardChanges(ctx.sessionChanges, cardId, {
+    keepAdds: true,
+    ...survivingName(list, removed.name),
+  })
   ctx.sessionChanges = [...kept, moveEvent]
 
   list.editUndo.push({
@@ -366,8 +392,9 @@ export function undoFlatListEditAt<E extends EditableFlatListEntry>(
     }
   }
 
-  // An art edit's only effect is on the sidecar, so its undo is a re-stage.
-  if (undo.restoreArt) noteArtSet(list.session.art, undo.cardId, undo.restoreArt.ref)
+  // An art or category edit's only effect is on a sidecar, so its undo is a
+  // re-stage; a category edit's inverse is a whole-list `set-categories`.
+  restoreUndoSidecars(flatListModel(list), undo)
 
   for (const change of undo.inverse) {
     applyFlatListChange(list.session, change)
@@ -498,6 +525,7 @@ export function sharedFlatListEditActions(
     ...afterLanguage,
     { title: `🔖 ${t('cli.editAction.editTags')}`, value: 'tags' },
     { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
+    { title: `🗂️  ${t('cli.editAction.editCategories')}`, value: 'categories' },
     ...(env.moveTargets
       ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
       : []),
@@ -534,6 +562,11 @@ export async function editSharedFlatListAction<E extends EditableFlatListEntry>(
 
   if (action === 'art') {
     await editArt(model, entry, cardId)
+    return true
+  }
+
+  if (action === 'categories') {
+    await editCategories(model, ctx, entry, cardId)
     return true
   }
 

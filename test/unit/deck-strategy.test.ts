@@ -66,7 +66,7 @@ describe('deck strategy — Edit Tags', () => {
   test('the deck session offers exactly the extras the tallest-menu guard assumes', () => {
     // card-session.test.ts's SESSION_MENU_LIMIT test hand-writes a deck's
     // extras; this pin keeps that list honest when an item is added here.
-    expect(menuTitles({})).toHaveLength(4)
+    expect(menuTitles({})).toHaveLength(6)
   })
 
   test('the menu item shows the current tags (or none)', () => {

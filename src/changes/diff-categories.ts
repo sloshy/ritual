@@ -1,7 +1,7 @@
 import {
   createSetCategoriesChange,
   createSetCategoryOrderChange,
-  type ChangeEvent,
+  type CategoryChange,
 } from './change-event'
 import { foldCategoryCardName, sameCardCategories } from '../card/card-categories'
 import { type CardCategoriesRecord, orderedCategoryEntries } from '../list/card-categories-sidecar'
@@ -29,8 +29,8 @@ import { type CardCategoriesRecord, orderedCategoryEntries } from '../list/card-
 export function diffCardCategories(
   before: CardCategoriesRecord,
   after: CardCategoriesRecord,
-): ChangeEvent[] {
-  const events: ChangeEvent[] = []
+): CategoryChange[] {
+  const events: CategoryChange[] = []
   if (!sameCardCategories(before.order, after.order)) {
     events.push(createSetCategoryOrderChange(after.order))
   }

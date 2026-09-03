@@ -79,6 +79,9 @@ export const helpCardsMessages = {
   'help.setCard.tag':
     'Add these tags to the card: one or more, separated by commas ("Ramp, Card Draw")',
   'help.setCard.untag': 'Remove these tags from the card: one or more, separated by commas',
+  'help.setCard.categories':
+    'Set the card\'s categories in this list: one or more, comma-separated ("Ramp, Artifacts"); the first is primary',
+  'help.setCard.noCategories': "Clear the card's categories in this list",
   'help.setCard.art':
     'Custom art for this card: an image path relative to the art directory, an http(s) URL, or none to clear it',
   'help.setCard.section': 'Move the card to this section, created if missing (decks only)',
@@ -177,6 +180,18 @@ export const helpCardsMessages = {
   'help.metadata.value': 'Value(s) to set',
   'help.metadata.add': 'Add value(s) to an array property (tags, labels) instead of replacing it',
   'help.metadata.remove': 'Remove value(s) from an array property',
+
+  // ── categories ────────────────────────────────────────────────────────
+  'help.categories.description': "Inspect and edit a list's card categories",
+  'help.categories.list': "Show the list's category vocabulary and each card's categories",
+  'help.categories.rename': 'Rename a category throughout the list',
+  'help.categories.renameFrom': 'The category to rename',
+  'help.categories.renameTo': 'The new name for the category',
+  'help.categories.order': "Set the display order of the list's categories",
+  'help.categories.orderValue': 'The categories in their new order, comma-separated',
+  'help.categories.remove': 'Remove a category from the list and from every card that uses it',
+  'help.categories.removeName': 'The category to remove',
+  'help.categories.dryRun': 'Report what would change without writing anything',
 
   // ── cleanup ───────────────────────────────────────────────────────────
   'help.cleanup.description':

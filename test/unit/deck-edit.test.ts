@@ -31,6 +31,7 @@ import {
   type PrintingTuple,
 } from '../../src/changes/change-event'
 import { createSessionArtChanges, pendingSessionArt } from '../../src/commands/session/art'
+import { createSessionCategories } from '../../src/commands/session/categories'
 import { scratchListPath, stubTty } from '../test-utils'
 
 // The Set Custom Art prompts go through `ask`, which refuses to open without a
@@ -52,6 +53,7 @@ function stateOf(deck: DeckData): DeckSessionState {
     originals: new Map(),
     dirty: false,
     art: createSessionArtChanges(),
+    categories: createSessionCategories(),
   }
 }
 
@@ -754,5 +756,62 @@ describe('deck edit-mode — Set Custom Art', () => {
     performDeckLineRemoval(state, ctx, 1)
 
     expect(pendingSessionArt(state.art)).toEqual({ removed: new Set([1]), added: new Map() })
+  })
+})
+
+describe('deck edit-mode — Edit Categories', () => {
+  const deps: DeckEditDeps = { sessionConfig: {}, excludeDigitalOnly: true }
+
+  test('stages the event on the session and the changelog, leaving the deck untouched', async () => {
+    const state = stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+    // A deep clone, not the reference: `applyDeckChange` mutates `state.deck` in
+    // place, so object identity survives whatever the apply engines do to it.
+    const deckBefore = structuredClone(state.deck)
+
+    prompts.inject(['categories', 'Ramp, Artifacts'])
+    await editDeckCard(state, ctx, 1, deps)
+
+    // Categories are not on the line: the apply engines ignore the action, so
+    // the in-memory deck is unchanged, card for card.
+    expect(state.deck).toEqual(deckBefore)
+    expect(state.dirty).toBe(true)
+    expect(state.categories.pending).toMatchObject([
+      { action: 'set-categories', cardName: 'Sol Ring', categories: ['Ramp', 'Artifacts'] },
+    ])
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'set-categories', cardName: 'Sol Ring', categories: ['Ramp', 'Artifacts'] },
+    ])
+    expect(lastDeckEditLabel(state)).toBe('categories on Sol Ring')
+  })
+
+  test('undo re-stages the previous categories and drops the changelog event', async () => {
+    const state = stateOf(deckOf([{ quantity: 1, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+
+    prompts.inject(['categories', 'Ramp'])
+    await editDeckCard(state, ctx, 1, deps)
+    undoDeckEdit(state, ctx)
+
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(state.categories.pending).toMatchObject([
+      { action: 'set-categories', categories: ['Ramp'] },
+      { action: 'set-categories', categories: [] },
+    ])
+  })
+
+  test('setting the session-start value back records nothing (latest wins)', async () => {
+    const state = stateOf(deckOf([{ quantity: 1, name: 'Sol Ring', cardId: 1 }]))
+    const ctx = contextOf()
+
+    prompts.inject(['categories', 'Ramp'])
+    await editDeckCard(state, ctx, 1, deps)
+    expect(ctx.sessionChanges).toHaveLength(1)
+
+    prompts.inject(['categories', ''])
+    await editDeckCard(state, ctx, 1, deps)
+    expect(ctx.sessionChanges).toHaveLength(0)
   })
 })

@@ -66,6 +66,13 @@ describe('shouldBackfillCardIds', () => {
     // A bare `pull`/`push` is not a command at all; only the qualified pair is.
     'pull',
     'push',
+    // `categories` writes no card lines and consumes no `&N` — it edits the
+    // per-list categories sidecar, which is keyed by card name.
+    'categories',
+    'categories list',
+    'categories rename',
+    'categories order',
+    'categories remove',
   ]
   test.each(exempt)('`%s` never backfills', (name) => {
     expect(shouldBackfillCardIds(command(name))).toBe(false)
