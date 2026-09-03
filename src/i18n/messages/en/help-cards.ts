@@ -43,6 +43,8 @@ export const helpCardsMessages = {
     "Card language (e.g. ja); overrides the configured defaultLanguage. Never prompted — en is a bare line's default",
   'help.addCard.label':
     'Label the new card: sale,trade (combinable), keep or proxy on a collection; proxy alone on a deck',
+  'help.addCard.tag':
+    'Tag the new card: one or more tags separated by commas ("Ramp, Card Draw"); any list type',
   'help.addCard.section': 'Deck section to add to, created if missing (decks only)',
   'help.addCard.commander': "Add the card to the deck's Commander section (decks only)",
   'help.addCard.exact': 'Use exact matching (skip interactive selection if name matches)',
@@ -62,7 +64,7 @@ export const helpCardsMessages = {
 
   // ── set-card ──────────────────────────────────────────────────────────
   'help.setCard.description':
-    "Update a card's printing, finish, condition, label, section, or commander status in place",
+    "Update a card's printing, finish, condition, language, label, tags, art, section, or commander status in place",
   'help.setCard.cardName': 'Name of the card to update (fuzzy match)',
   'help.setCard.set': 'New set code — requires --collector-number',
   'help.setCard.collectorNumber': 'New collector number — requires --set',
@@ -74,6 +76,9 @@ export const helpCardsMessages = {
   'help.setCard.label':
     'New label override: sale,trade (combinable), keep or proxy, or none to clear it ' +
     '(decks take proxy only)',
+  'help.setCard.tag':
+    'Add these tags to the card: one or more, separated by commas ("Ramp, Card Draw")',
+  'help.setCard.untag': 'Remove these tags from the card: one or more, separated by commas',
   'help.setCard.art':
     'Custom art for this card: an image path relative to the art directory, an http(s) URL, or none to clear it',
   'help.setCard.section': 'Move the card to this section, created if missing (decks only)',

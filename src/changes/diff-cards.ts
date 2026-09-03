@@ -25,10 +25,11 @@ type CardIdentity = {
   cardId?: number
 }
 
-// Notes and label overrides are deliberately NOT part of the key, and neither
-// has a diff rule: a hand-edited `{note}` or `[keep]` produces no changelog
-// entry from detect-changes — it is absorbed on the next hash stamp. In-app
-// edits record those changes through their own set-note / set-label events.
+// Notes, label overrides and tags are deliberately NOT part of the key, and
+// none has a diff rule: a hand-edited `{note}`, `[keep]` or `#tag` produces no
+// changelog entry from detect-changes — it is absorbed on the next hash stamp.
+// In-app edits record those changes through their own set-note / set-label /
+// add-tag / remove-tag events.
 // The language folds a missing token to `en`, so adding/removing a redundant
 // `[en]` is not a change. A hand-edited `[ja]` likewise produces no
 // detect-changes entries when the line carries an `&N` id (the id

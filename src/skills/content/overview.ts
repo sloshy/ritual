@@ -86,7 +86,7 @@ key), then \`## Section\` headings and \`- \` bulleted card lines. The canonical
 every write emits, in this order, with defaults omitted:
 
 \`\`\`
-- [qty] Name (SET:CN) [finish] [cond] [lang] [labels] {note} &N
+- [qty] Name (SET:CN) [finish] [cond] [lang] [labels] #tag, tag {note} &N
 \`\`\`
 
 \`\`\`
@@ -161,8 +161,11 @@ format: commander
   read an \`&N\` at all. Read-only commands (\`lists\`, \`diff\`, \`price\`, \`sell\`, \`export\`,
   \`list-all-cards\`, \`history --show\`, ...) and the \`new\`/\`rename\`/\`delete\` lifecycle
   never touch card lines, and \`-n\`/\`--dry-run\` writes nothing, including that backfill.
-- A per-card \`#tag\` token is **planned, not implemented** — a \`#word\` on a line today is
-  part of the name. Front-matter \`tags:\` on a deck describes the list, not its cards.
+- A card line may carry tags — one \`#\` token holding a comma-separated list (\`#Ramp, Card
+  Draw\`), after the labels and before the note, on every list type — the owner's free-form
+  vocabulary, spaces and case kept, the \`#\` being file punctuation no UI shows; see the
+  **ritual-edit** skill (\`set-card --tag\`/\`--untag\`, \`add-card --tag\`, the editor's
+  \`🔖 Edit Tags\` action). Front-matter \`tags:\` on a deck describes the list, not its cards.
 
 **Fenced code blocks are prose.** Anything inside a \`\`\`\` \`\`\` \`\`\`\`/\`~~~\` fence in a list file is
 ignored by card parsing: a card-looking line there is not a card, a \`## Heading\` there is

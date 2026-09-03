@@ -255,7 +255,7 @@ A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `l
 }
 ```
 
-Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead, plus a top-level `description` — the list's front-matter blurb, absent when it declares none (a deck's rides inside `deck.description`). A deck and a collection additionally carry a top-level `labels` — the list's [front-matter default](/commands/edit/#card-labels), a deck's being `proxy` alone — and each of their cards may carry its own `labels` override. A narrowed request replaces `contentHash` with `"partial": true`.
+Front matter travels with the deck's `cards` view because the save route re-sends it; a collection or wanted list returns `entries` + `sectionOrder` instead, plus a top-level `description` — the list's front-matter blurb, absent when it declares none (a deck's rides inside `deck.description`). A deck and a collection additionally carry a top-level `labels` — the list's [front-matter default](/commands/edit/#card-labels), a deck's being `proxy` alone — and each of their cards may carry its own `labels` override. Every card on every list type carries `tags` when its line has any — its [tags](/commands/edit/#card-tags) in canonical order (trimmed, sorted, without the `#` the line writes); there is no list-level tag default. A narrowed request replaces `contentHash` with `"partial": true`.
 
 Every non-summary load also carries `customArt` when the list has any: a `{ "<cardId>": { "file": … } | { "url": … } }` record of the **raw** [custom art](/custom-art/) references for the cards in the body (clients derive display URLs themselves, since an editor needs the path the user typed). It is omitted when none of the returned cards has art.
 
@@ -901,7 +901,7 @@ POST /api/deck/:slug/save
 
 Save deck changes. Writes the updated deck file and appends to the changelog. Cross-list moves in `changes` write the other list too — a `move-from {to}` adds the copy to its destination, a `move-to {from}` (an incoming move) takes the copy out of its source (by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line); a `move-to` carrying `replacesCardId` pins one of this list's own name-only lines rather than adding a copy (equal to its `cardId`: the line is converted in place; otherwise one copy leaves that line and lands on `cardId`), and one carrying `replacement` (`{ set, collectorNumber, finish?, language? }`) adds that printing to the source list in place of the copy taken, logged there as an `Added` line — each with its own changelog entry, every one validated in memory before anything is written (a missing list, a source with no copy to take, or a printing-less card headed into a collection fails the save with nothing written). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session.
 
-`set-label` changes (and label-carrying `add`s and deck cards) are accepted here, validated against what a deck line can carry: `proxy` alone. Any other label — or an illegal combination — is a `400` and nothing is written.
+`set-label` changes (and label-carrying `add`s and deck cards) are accepted here, validated against what a deck line can carry: `proxy` alone. Any other label — or an illegal combination — is a `400` and nothing is written. `add-tag` / `remove-tag` changes (and the `tags` an `add`, a `remove`, or a request deck card carries) are validated the same way: a tag must be [tag-shaped](/commands/edit/#card-tags) (plain text without `#`, `,`, `&`, brackets, braces or parentheses; a leading `#` is accepted on input and never stored) and is canonicalized (trimmed, single-spaced, deduplicated, sorted) before the write — a malformed one is a `400` carrying the parser's message, and nothing is written.
 
 **Request Body:**
 
@@ -1020,7 +1020,7 @@ Returns the list of available collections.
 GET /api/collection/:slug
 ```
 
-Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `description` is the collection's front-matter blurb (absent when it declares none), and the top-level `labels` is its [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default.
+Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `description` is the collection's front-matter blurb (absent when it declares none), and the top-level `labels` is its [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default. An entry's `tags` is its line's [tags](/commands/edit/#card-tags), canonical and without the `#`, absent when it has none.
 
 **Response:**
 
@@ -1029,7 +1029,14 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
   "success": true,
   "view": "full",
   "entries": [
-    { "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "labels": ["keep"], "cardId": 1 }
+    {
+      "name": "Sol Ring",
+      "set": "2xm",
+      "collectorNumber": "270",
+      "labels": ["keep"],
+      "tags": ["Binder: Trade", "Ramp"],
+      "cardId": 1
+    }
   ],
   "sectionOrder": ["Main"],
   "description": "Everything I will trade away.",
@@ -1050,7 +1057,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
 POST /api/collection/:slug/save
 ```
 
-Save collection changes. Writes the updated collection file and creates a changelog entry. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, pre-validated before anything is written — see [Save Deck](#save-deck). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary, the labels a collection carries, and the `keep`/`proxy` exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write; the file's front-matter block always rides through a save untouched.
+Save collection changes. Writes the updated collection file and creates a changelog entry. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, pre-validated before anything is written — see [Save Deck](#save-deck). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber` returns `400` and leaves the file untouched. A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority) also returns `400` naming the unapplied changes, and nothing is written — a save must never report success while dropping changes. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `set-label` changes (and label-carrying `add`s) are accepted here — their `labels` are validated against the label vocabulary, the labels a collection carries, and the `keep`/`proxy` exclusivity rule (`400` on an illegal combination) and normalized to canonical order before the write. `add-tag` / `remove-tag` changes (and the `tags` an `add` or `remove` carries) are accepted too — each tag must be [tag-shaped](/commands/edit/#card-tags) and is canonicalized before the write, and a malformed one is a `400` carrying the parser's message. The file's front-matter block always rides through a save untouched.
 
 **Request Body:**
 
@@ -1184,7 +1191,7 @@ Returns the list of available wanted lists.
 GET /api/wanted/:slug
 ```
 
-Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck, plus the top-level `description` when the list declares one.
+Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck, plus the top-level `description` when the list declares one. An entry's `tags` is its line's [tags](/commands/edit/#card-tags), canonical and without the `#`, absent when it has none — wanted entries carry tags exactly as deck and collection cards do (they are the one list type without `labels`).
 
 **Response:**
 
@@ -1192,7 +1199,9 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
 {
   "success": true,
   "view": "full",
-  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "cardId": 1 }],
+  "entries": [
+    { "name": "Sol Ring", "set": "2xm", "collectorNumber": "270", "tags": ["Ramp"], "cardId": 1 }
+  ],
   "sectionOrder": ["Main"],
   "description": "Cards I still need.",
   "totalCount": 42,
@@ -1211,7 +1220,7 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
 POST /api/wanted/:slug/save
 ```
 
-Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, pre-validated before anything is written — see [Save Deck](#save-deck). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. The optional [`validateCardNames`](#validatecardnames) flag applies here too.
+Save wanted list changes. Writes the updated wanted list file and appends to the changelog. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, pre-validated before anything is written — see [Save Deck](#save-deck). Pass the optional boolean `continueSession` to merge this save into the previous save's changelog entry (bumping its timestamp) instead of opening a new one — the editor sets it on every save after the first within an editing session. The optional [`validateCardNames`](#validatecardnames) flag applies here too. `add-tag` / `remove-tag` changes, and the `tags` on the `entries` the body re-serializes, are validated like the [deck save](#save-deck)'s: tag-shaped or a `400`, canonicalized before the write.
 
 **Request Body:**
 

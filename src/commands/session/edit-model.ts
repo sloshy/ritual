@@ -3,24 +3,29 @@ import { t } from '../../i18n/t'
 import {
   consolidateSetLanguage,
   consolidateSetNote,
+  consolidateTagEdits,
+  tagEditChanges,
   createSetLanguageChange,
   createSetNoteChange,
   resolvedPrintingOptionsFrom,
   type ChangeEvent,
+  type ConsolidateManyResult,
   type ConsolidateResult,
   type PrintingTuple,
   type PrintingTupleWithId,
 } from '../../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
+import { formatCardTags, type CardTag } from '../../card/card-tags'
 import type { SessionArtChanges } from './art'
 import { editCardArt } from './edit-art'
 import {
   changelogDelta,
+  changelogDeltaMany,
   listSessionChangeItems,
   sessionChangeCardId,
   type EditUndoEntry,
 } from './edit-undo'
-import { promptLanguageChoice, promptNoteEdit } from './prompts'
+import { promptLanguageChoice, promptNoteEdit, promptTagsEdit } from './prompts'
 import type {
   CardSessionContext,
   EditableEntryItem,
@@ -48,6 +53,8 @@ export type EditSnapshot = {
   note?: string
   /** The line's `[ja]`-style language token at session start. Absent means `en`. */
   language?: CardLanguage
+  /** The line's `#tag` tokens, canonical; absent when it carries none. Every list type has them. */
+  tags?: readonly CardTag[]
 }
 
 /** A list type's in-memory model as the shared edit-mode operations see it. */
@@ -189,6 +196,57 @@ export function applyFieldEdit<L, S extends EditSnapshot>(
   resetStaleLastAdded(model, ctx, cardId)
 }
 
+/**
+ * One edit-mode operation recorded as *several* events — a tag-set edit is one
+ * `add-tag` / `remove-tag` per changed tag. The many-event counterpart of
+ * {@link FieldEdit}: `changes` mutate the model in order, `inverse` restores
+ * the pre-edit state in order, and `consolidate` folds the events into the
+ * session changelog. Unlike a {@link FieldEdit}, the consolidation is not
+ * handed the session-start snapshot: a per-tag edit is diffed against the
+ * line's *current* state and cancels against pending opposites
+ * ({@link consolidateTagEdits}), which is what makes "back to the original"
+ * leave no trace — comparing to the session-start tags would re-log tags
+ * already added this session.
+ */
+export type MultiEventEdit = {
+  /** Short description for messages and the Undo menu item, e.g. `tags on Sol Ring`. */
+  label: string
+  /** The changes applied to the in-memory model now, in order. */
+  changes: ChangeEvent[]
+  /** The changes that restore the line's pre-edit state, in order. */
+  inverse: ChangeEvent[]
+  /** Consolidate the session changelog against its pending events. */
+  consolidate: (changes: ChangeEvent[]) => ConsolidateManyResult
+}
+
+/**
+ * Apply a many-event edit to an existing line and record it as ONE undo entry,
+ * so Undo Last Edit reverts the whole gesture ("set the tags to …") rather than
+ * one tag at a time. The changelog footprint is whatever the consolidation
+ * added and cancelled, exactly as {@link applyFieldEdit} records it.
+ */
+export function applyMultiEventEdit<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+  ctx: CardSessionContext,
+  located: L,
+  cardId: number,
+  edit: MultiEventEdit,
+): void {
+  const original = originalSnapshot(model, located, cardId)
+  for (const change of edit.changes) model.apply(change)
+  const result = edit.consolidate(ctx.sessionChanges)
+  ctx.sessionChanges = result.changes
+  model.editUndo().push({
+    cardId,
+    cardName: original.name,
+    kind: 'edit',
+    label: edit.label,
+    inverse: edit.inverse,
+    ...changelogDeltaMany(result),
+  })
+  resetStaleLastAdded(model, ctx, cardId)
+}
+
 /** Re-render a line after an edit (apply replaces the line objects). */
 export function logUpdatedLine<L, S extends EditSnapshot>(
   model: EditModel<L, S>,
@@ -217,6 +275,39 @@ export async function editNote<L, S extends EditSnapshot>(
       consolidateSetNote(changes, name, edit.note, original.note ?? '', cardId),
   })
   console.log(edit.note ? t('cli.edit.noteSet', { name }) : t('cli.edit.noteCleared', { name }))
+}
+
+/**
+ * Prompt for and apply a tag-set edit on an existing line (empty input clears
+ * every tag). The gesture is "set the tags to …", but it is recorded as one
+ * event per tag that actually changed — diffed against the line's *current*
+ * tags, which already reflect this session's earlier tag events — so that
+ * re-adding a tag removed earlier in the session cancels the pending removal
+ * instead of logging a second event ({@link consolidateTagEdits}).
+ */
+export async function editTags<L, S extends EditSnapshot>(
+  model: EditModel<L, S>,
+  ctx: CardSessionContext,
+  located: L,
+  cardId: number,
+): Promise<void> {
+  const { name, tags: current } = model.snapshot(located)
+  const next = await promptTagsEdit(current)
+  if (next === null) return
+  // The same per-tag delta the changelog consolidation records, so the model
+  // and the session changelog cannot disagree; swapping the arguments is the
+  // exact inverse.
+  applyMultiEventEdit(model, ctx, located, cardId, {
+    label: t('cli.editLabel.tags', { name }),
+    changes: tagEditChanges(name, next, current, cardId),
+    inverse: tagEditChanges(name, current, next, cardId),
+    consolidate: (changes) => consolidateTagEdits(changes, name, next, current, cardId),
+  })
+  console.log(
+    next.length > 0
+      ? t('cli.edit.tagsSet', { name, tags: formatCardTags(next) })
+      : t('cli.edit.tagsCleared', { name }),
+  )
 }
 
 /** Prompt for and apply a language change on an existing line. */

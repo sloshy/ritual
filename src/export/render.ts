@@ -8,6 +8,7 @@ import {
   type SectionedDialectCard,
 } from './dialects'
 import { storedLanguage } from '../card/card-language'
+import { formatCardTags } from '../card/card-tags'
 import {
   archidektCsvCondition,
   archidektCsvLanguage,
@@ -32,6 +33,7 @@ export const EXPORT_PROPERTIES = [
   'condition',
   'language',
   'labels',
+  'tags',
   'note',
   'section',
   'listName',
@@ -57,6 +59,7 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
   condition: 'Condition',
   language: 'Language',
   labels: 'Labels',
+  tags: 'Tags',
   note: 'Note',
   section: 'Section',
   listName: 'List',
@@ -231,6 +234,12 @@ function propertyValue(
       // Same spelling in every dialect — labels are Ritual-specific, so no
       // foreign importer defines a vocabulary to translate into.
       return entry.labels?.length ? entry.labels.join(', ') : undefined
+    case 'tags':
+      // Canonical order, comma-joined, and never the `#` sigil: the sigil is
+      // card-line punctuation, not part of the value — the same rule the
+      // change-bundle payload and the admin API follow. Ritual-specific like
+      // labels, so every dialect spells it the same way.
+      return entry.tags?.length ? formatCardTags(entry.tags) : undefined
     case 'note':
       return entry.note
     case 'section':

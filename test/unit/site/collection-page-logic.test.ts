@@ -11,9 +11,9 @@ import { makeCollectionEntry } from '../../test-utils'
 const entry = (over: Partial<CollectionCardEntry> = {}): CollectionCardEntry =>
   makeCollectionEntry({ name: 'Sol Ring', set: 'lea', collectorNumber: '270', price: 1, ...over })
 
-// Each field that joins the key must split the group: merging a keep-marked or
-// custom-art copy into a stack of tradable ones would mislabel it, or price a
-// priceless copy at retail.
+// Each field that joins the key must split the group: merging a keep-marked,
+// tagged or custom-art copy into a stack of tradable ones would mislabel it,
+// show one copy's tags for all, or price a priceless copy at retail.
 describe('duplicateGroupKey', () => {
   const splitting: [string, Partial<CollectionCardEntry>][] = [
     ['name', { name: 'Mox Pearl' }],
@@ -23,9 +23,17 @@ describe('duplicateGroupKey', () => {
     ['condition', { condition: 'LP' }],
     ['language', { language: 'ja' }],
     ['labels', { labels: ['keep'] }],
+    ['tags', { tags: ['ramp'] }],
     ['customArt', { customArt: 'art/sol.png' }],
     ['hasCustomArt', { hasCustomArt: true }],
   ]
+
+  // Tags are a set: the key canonicalizes, so two orders of one set share a tile.
+  test('the same tags in another order do not split it', () => {
+    expect(duplicateGroupKey(entry({ tags: ['staple', 'ramp'] }))).toBe(
+      duplicateGroupKey(entry({ tags: ['ramp', 'staple'] })),
+    )
+  })
 
   for (const [field, over] of splitting) {
     test(`a differing ${field} splits the group`, () => {

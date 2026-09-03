@@ -67,6 +67,7 @@ const WANTED_SORT_BYS: readonly SortBy[] = [
   'color-identity',
   'set-code',
   'edhrec',
+  'tags',
 ]
 type WantedTradePicker = {
   cardName: string
@@ -102,6 +103,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     finish: entry.finish,
     // The row shows the real printing — it is the card being asked for — but a
     // copy wearing art of its own carries no price, so the rule travels with it.
+    tags: entry.tags,
     customArt: entry.customArt,
     hasCustomArt: entry.hasCustomArt,
     note: entry.note,
@@ -208,6 +210,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         oracleTags: card?.oracleTags ?? [],
         artTags: card?.artTags ?? [],
         labels: [],
+        tags: entry.tags,
         customArt: entry.customArt,
         hasCustomArt: entry.hasCustomArt,
         finish: entry.finish,
@@ -293,6 +296,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         finish: entry?.finish,
         language: storedLanguage(entry?.language),
         note: entry?.note,
+        tags: entry?.tags,
         quantity: 1,
         groupSize: 1,
         price: c.price,
@@ -473,6 +477,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             onClose={props.onCloseModal}
             meta={modalMeta()}
             note={modalEntry()?.note}
+            tags={modalEntry()?.tags}
             onAddToTrade={modalAddToTrade()}
             addToTradeDisabled={modalAddToTradeDisabled()}
           />

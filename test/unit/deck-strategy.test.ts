@@ -71,9 +71,9 @@ describe('deck strategy — Edit Tags', () => {
 
   test('the menu item shows the current tags (or none)', () => {
     const editTagsTitle = (frontMatter: DeckFrontMatter): string | undefined =>
-      menuTitles(frontMatter).find((title) => title.includes('Edit Tags'))
-    expect(editTagsTitle({})).toContain('Edit Tags (none)')
-    expect(editTagsTitle({ tags: ['aggro', 'budget'] })).toContain('Edit Tags (aggro, budget)')
+      menuTitles(frontMatter).find((title) => title.includes('Edit Deck Tags'))
+    expect(editTagsTitle({})).toContain('Edit Deck Tags (none)')
+    expect(editTagsTitle({ tags: ['aggro', 'budget'] })).toContain('Edit Deck Tags (aggro, budget)')
   })
 
   test('a comma-separated answer rewrites the tags and dirties the session', async () => {

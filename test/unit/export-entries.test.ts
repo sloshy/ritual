@@ -299,3 +299,22 @@ describe('parseLabelFilterValues', () => {
     expect(parseLabelFilterValues([])).toContain('No labels given')
   })
 })
+
+describe('tags reach the export entries', () => {
+  // Every loader carries each line's tags canonical (the deck line is written
+  // out of order to prove it), and an untagged line carries none.
+  test.each<[ListLocation['type'], string, (string[] | undefined)[]]>([
+    ['deck', '## Main\n1 Sol Ring (C21:263) #Ramp, Card Draw &1\n', [['Card Draw', 'Ramp']]],
+    [
+      'collection',
+      '# Test List\n\n- Sol Ring (C21:263) #binder/trade &1\n- Lightning Bolt (LEA:161) &2\n',
+      [['binder/trade'], undefined],
+    ],
+    ['wanted', '# Test List\n\n- Sol Ring #ramp &1\n', [['ramp']]],
+  ])('the %s loader carries each line’s tags', async (type, content, expected) => {
+    await withListFile(type, content, async (location) => {
+      const { entries: loaded } = await loadExportEntries([location])
+      expect(loaded.map((e) => e.tags)).toEqual(expected)
+    })
+  })
+})

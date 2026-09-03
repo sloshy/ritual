@@ -52,7 +52,18 @@ export const sitePagesMeta = {
     description:
       'Toolbar "Group by" choice in the combined view: group cards by which list they came from.',
   },
+  'site.groupBy.tags': {
+    description:
+      'Toolbar "Group by" choice: group cards by the owner\'s own tag set (one group per distinct set of tags).',
+  },
+  'site.groupBy.untagged': {
+    description:
+      'Heading of the group holding cards that carry no tag at all when grouping by tags. Shown last.',
+  },
   'site.groupBy.none': { description: 'Toolbar "Group by" choice: do not group at all.' },
+  'site.sortBy.tags': {
+    description: 'Toolbar "Sort by" choice: order cards by their tag set, untagged cards last.',
+  },
 
   // ── Export menu ───────────────────────────────────────────────────────
   'site.export.copy': {

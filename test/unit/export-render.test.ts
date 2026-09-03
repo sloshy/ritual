@@ -80,6 +80,18 @@ describe('renderJsonExport', () => {
     expect(JSON.parse(json)).toEqual([{ name: 'Lightning Bolt' }])
   })
 
+  // Order is the loader's (`normalizedTags`, pinned in export-entries.test.ts);
+  // the renderer only joins. What it owns is the separator, the missing sigil,
+  // and omitting the key for an entry with none.
+  test('tags render as a comma-joined, sigil-less value, omitted when the entry has none', () => {
+    expect(
+      JSON.parse(renderJsonExport([entry({ tags: ['binder/trade', 'ramp'] })], ['name', 'tags'])),
+    ).toEqual([{ name: 'Lightning Bolt', tags: 'binder/trade, ramp' }])
+    expect(JSON.parse(renderJsonExport([entry({ tags: [] })], ['name', 'tags']))).toEqual([
+      { name: 'Lightning Bolt' },
+    ])
+  })
+
   test('exports list identity properties', () => {
     const json = renderJsonExport([entry()], ['listName', 'listType', 'section'])
     expect(JSON.parse(json)).toEqual([
@@ -262,6 +274,30 @@ describe('renderTextExport', () => {
 })
 
 describe('renderMarkdownExport', () => {
+  test('writes tags back as one #tags token on every list type, in canonical line position', () => {
+    // The one export format that must re-parse as a list file: tags land after
+    // the finish/labels tokens and before the note, on decks as on flat lists,
+    // and never with an &N.
+    const md = renderMarkdownExport([
+      entry({ tags: ['ramp', 'binder/trade'], note: 'keeper' }),
+      entry({
+        listType: 'deck',
+        listName: 'Burn',
+        name: 'Fireblast',
+        quantity: 2,
+        set: 'vis',
+        collectorNumber: '78',
+        finish: undefined,
+        condition: undefined,
+        tags: ['burn'],
+      }),
+    ])
+    expect(md).toBe(
+      '# Binder\n\n## Main\n- Lightning Bolt (LEA:161) [foil] #binder/trade, ramp {keeper}\n\n' +
+        '# Burn\n\n## Main\n- 2 Fireblast (VIS:78) #burn',
+    )
+  })
+
   test('groups lists under H1s and sections under H2s with per-type canonical lines', () => {
     const md = renderMarkdownExport([
       entry({
@@ -407,6 +443,13 @@ describe('renderCsvExport', () => {
     expect(csv).toBe(
       'Name,Set,Collector Number,Finish,Condition,Language,Quantity\nLightning Bolt,LEA,161,foil,NM,,1',
     )
+  })
+
+  test('the Tags header and its sigil-less cell read the same in every dialect', () => {
+    const tagged = [entry({ tags: ['ramp'] })]
+    const csv = renderCsvExport(tagged, ['name', 'tags'], { header: true, quoteAll: false })
+    expect(csv).toBe('Name,Tags\nLightning Bolt,ramp')
+    expect(renderCsvExport(tagged, ['name', 'tags'], { ...csvOptions, header: true })).toBe(csv)
   })
 
   test('renders missing values as empty cells and keeps explicit nonfoil', () => {

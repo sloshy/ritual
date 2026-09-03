@@ -1,5 +1,6 @@
 import type { Finish, Condition } from './finish-condition'
 import type { CardLabel } from './card-labels'
+import type { CardTag } from './card-tags'
 import { displayLanguage, type CardLanguage } from './card-language'
 import { formatCanonicalCardLine, printingLabel } from './card-line-tail'
 
@@ -91,6 +92,8 @@ export type CollectionLineFields = {
   language?: CardLanguage
   /** Written only when non-empty; absent means "inherit the list default". */
   labels?: readonly CardLabel[]
+  /** The card's `#tag` tokens; written only when non-empty. */
+  tags?: readonly CardTag[]
   note?: string
   cardId?: number
 }
@@ -124,6 +127,8 @@ export type WantedLineFields = {
   finish?: Finish
   /** Omitted (or `en`) writes a bare line — the token is never written for English. */
   language?: CardLanguage
+  /** The card's `#tag` tokens; written only when non-empty. */
+  tags?: readonly CardTag[]
   note?: string
   cardId?: number
 }

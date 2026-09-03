@@ -40,6 +40,14 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   counts, sell reports, and buylist quotes entirely — its absence there is the rule, not a lookup
   failure. In a price report such an entry carries unpricedReason "proxy" or "custom-art"
   ("custom-art" wins when both apply).
+- Card tags are the owner's own free-form vocabulary, on any list type: get_list reports a card's
+  "tags" (canonical — trimmed, sorted, in the owner's own casing, without the "#" the card line
+  writes), add_card and an apply_changes "add" take "tags" for a new card, and apply_changes
+  "add-tag" / "remove-tag" put one tag on or take one off an existing card (one event per tag). A
+  tag is plain text such as "Ramp" or "Card Draw" — spaces and case are kept, but it can never
+  contain "#", ",", "&", brackets, braces or parentheses; anything else is a schema refusal. Tags
+  are not labels: a "Keep" tag is a plain tag with none of the "keep" label's
+  meaning, and a deck's front-matter "tags" (set_list_metadata) describe the deck, not a card.
 - A list's cover image is list front matter, not a card property: get_list reports it as "image"
   and set_list_metadata's image field overrides it for any list type; null there restores the
   built-in rule (a commander deck shows its commander, every other list its priciest printing).

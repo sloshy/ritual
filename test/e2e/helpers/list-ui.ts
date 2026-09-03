@@ -84,3 +84,21 @@ export async function openSelectionMenu(page: Page): Promise<Locator> {
   await page.locator('.selection-menu-btn').click()
   return page.locator('.selection-menu-panel')
 }
+
+/** Open a tile's `⋯` context menu (hovering first, for the views that reveal it on hover). */
+export async function openCardMenu(page: Page, tile: Locator): Promise<Locator> {
+  await tile.hover()
+  await tile.locator('.edit-btn-context').click()
+  const menu = page.locator('.card-context-menu')
+  await expect(menu).toBeVisible()
+  return menu
+}
+
+/** Open a tile's `⋯` → **Edit Tags…** dialog and return it. */
+export async function openEditTags(page: Page, tile: Locator): Promise<Locator> {
+  const menu = await openCardMenu(page, tile)
+  await menu.locator('button', { hasText: 'Edit Tags…' }).click()
+  const dialog = page.locator('.tags-prompt')
+  await expect(dialog).toBeVisible()
+  return dialog
+}

@@ -74,6 +74,7 @@ import {
   editLanguage,
   editLanguageById,
   editNote,
+  editTags,
   lastEditLabel,
   editSessionChangeAt,
   listEditableEntries,
@@ -175,6 +176,7 @@ function deckModel(state: DeckSessionState): DeckEditModel {
       printing: printingTupleOf(card),
       language: card.language,
       labels: card.labels,
+      tags: card.tags,
       note: card.note,
       section: section.name,
     }),
@@ -206,7 +208,9 @@ function deckRemoveOptions(
 
 /**
  * The inverse changes that bring `quantity` removed (or moved) copies of a line
- * back: an add per copy, plus the line's note when it carried one.
+ * back: an add per copy — carrying the line's label override and tags, which
+ * ride the add itself so the restored line is the line that left — plus its
+ * note when it carried one.
  */
 function restoreLineInverse(
   snapshot: Card,
@@ -217,7 +221,13 @@ function restoreLineInverse(
 ): ChangeEvent[] {
   const inverse: ChangeEvent[] = []
   for (let i = 0; i < quantity; i++) {
-    inverse.push(createAddChange(snapshot.name, deckAddOptions(printing, cardId, sectionName)))
+    inverse.push(
+      createAddChange(snapshot.name, {
+        ...deckAddOptions(printing, cardId, sectionName),
+        labels: snapshot.labels,
+        tags: snapshot.tags,
+      }),
+    )
   }
   if (snapshot.note) {
     inverse.push(createSetNoteChange(snapshot.name, { note: snapshot.note, cardId }))
@@ -316,6 +326,7 @@ export async function editDeckCard(
       : []),
     { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
     { title: `🏷️  ${t('cli.editAction.changeLabel')}`, value: 'label' },
+    { title: `🔖 ${t('cli.editAction.editTags')}`, value: 'tags' },
     { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
     { title: `🗂️  ${t('cli.editAction.moveToSection')}`, value: 'move' },
     ...(deps.move ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }] : []),
@@ -366,7 +377,13 @@ export async function editDeckCard(
 
   if (action === 'add-copy') {
     const printing = printingTupleOf(card)
-    const addEvent = createAddChange(card.name, deckAddOptions(printing, cardId, sectionName))
+    // The copy carries the line's labels and tags: they are part of the merge
+    // identity, so a replay of this event lands on this line and not beside it.
+    const addEvent = createAddChange(card.name, {
+      ...deckAddOptions(printing, cardId, sectionName),
+      labels: card.labels,
+      tags: card.tags,
+    })
     applyDeckChange(state, addEvent)
     ctx.sessionChanges.push(addEvent)
     // The new copy joins the session adds, so the regular Undo Last Add /
@@ -403,6 +420,11 @@ export async function editDeckCard(
         consolidateSetLabel(changes, card.name, labels, original.labels, cardId),
     })
     logUpdatedLine(model, cardId, card.name)
+    return
+  }
+
+  if (action === 'tags') {
+    await editTags(model, ctx, located, cardId)
     return
   }
 
@@ -504,7 +526,10 @@ export function performDeckLineMove(
       createRemoveChange(snapshot.name, deckRemoveOptions(printing, cardId, sectionName)),
     )
     moveEvents.push(
-      createMoveFromChange(snapshot.name, moveFromOptionsFor({ ...printing, cardId }, dest)),
+      createMoveFromChange(
+        snapshot.name,
+        moveFromOptionsFor({ ...printing, tags: snapshot.tags, cardId }, dest),
+      ),
     )
   }
 
@@ -575,7 +600,9 @@ export function performDeckCopyRemoval(
     cardName: card.name,
     kind: 'removal',
     label: t('cli.editLabel.removeCopy', { name: card.name }),
-    inverse: [createAddChange(card.name, deckAddOptions(printing, cardId, sectionName))],
+    // The same restore a full removal uses: when this took the last copy, the
+    // line comes back with its labels, tags and note, not as a bare printing.
+    inverse: restoreLineInverse(card, printing, sectionName, cardId, 1),
     addedToChangelog: [removeEvent],
     removedFromChangelog: [],
     ...(survived ? {} : { reclaimId: cardId }),

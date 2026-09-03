@@ -693,6 +693,72 @@ export async function mockPublicSiteCollectionsForLabels(page: Page): Promise<vo
   await fulfillJson(page, '**/collections/sale-binder.json', MOCK_SALE_BINDER_DETAIL)
 }
 
+// ===== Collection with card tags =====
+
+/** One synthetic printing per tagged entry, keyed by a unique set:cn. */
+function makeTagCard(name: string, collectorNumber: string): ScryfallCard {
+  return makeMockScryfallCard({
+    id: `tag-${collectorNumber}`,
+    name,
+    cmc: 1,
+    type_line: 'Artifact',
+    prices: { usd: '1.00' },
+    set: 'tst',
+    collector_number: collectorNumber,
+  })
+}
+
+function makeTagEntry(
+  name: string,
+  collectorNumber: string,
+  fileOrder: number,
+  tags?: CollectionCardEntry['tags'],
+): CollectionCardEntry {
+  return makeCollectionEntry({
+    name,
+    collectorNumber,
+    tags,
+    price: 1.0,
+    fileOrder,
+    cardId: fileOrder + 1,
+  })
+}
+
+// Every tag-set shape on one page: single tags, a two-tag set, and an untagged card.
+const MOCK_TAG_BINDER_DETAIL = makeCollectionDetail({
+  name: 'Tag Binder',
+  entries: [
+    makeTagEntry('Ramp Rock', '1', 0, ['ramp']),
+    makeTagEntry('Staple Rock', '2', 1, ['ramp', 'staple']),
+    makeTagEntry('Draw Spell', '3', 2, ['Card Draw']),
+    makeTagEntry('Plain Card', '4', 3),
+  ],
+  cards: {
+    'tst:1': makeTagCard('Ramp Rock', '1'),
+    'tst:2': makeTagCard('Staple Rock', '2'),
+    'tst:3': makeTagCard('Draw Spell', '3'),
+    'tst:4': makeTagCard('Plain Card', '4'),
+  },
+  totalPrice: 4.0,
+})
+
+const MOCK_SITE_INDEX_FOR_TAGS = makeSiteIndex({
+  collections: [
+    makeCollectionSummary({
+      slug: 'tag-binder',
+      name: 'Tag Binder',
+      cardCount: 4,
+      totalPrice: 4.0,
+    }),
+  ],
+})
+
+/** Mock one tagged collection for the tags grouping / sort / modal / editor tests. */
+export async function mockPublicSiteCollectionWithTags(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_TAGS)
+  await fulfillJson(page, '**/collections/tag-binder.json', MOCK_TAG_BINDER_DETAIL)
+}
+
 // ===== Deck with a proxy and custom art =====
 
 /** The baked `customArt` of the deck's proxy card — a site-relative art path. */

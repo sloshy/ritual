@@ -20,6 +20,7 @@ import {
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
+  normalizeRequestTags,
   refuseUnreadableBaseline,
   type ListSaveTail,
 } from './save-helpers'
@@ -62,11 +63,14 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const noteError = normalizeRequestNotes(changes, allDeckCards)
     if (noteError) return noteError
 
-    // The request's deck cards are serialized directly, so their labels and
-    // languages are validated alongside the changes' — a deck line carries
+    // The request's deck cards are serialized directly, so their labels, tags
+    // and languages are validated alongside the changes' — a deck line carries
     // `proxy` alone, and an unvalidated set would reach the serializer.
     const labelError = normalizeRequestLabels(changes, 'deck', allDeckCards)
     if (labelError) return labelError
+
+    const tagError = normalizeRequestTags(changes, allDeckCards)
+    if (tagError) return tagError
 
     const languageError = normalizeRequestLanguages(changes, allDeckCards)
     if (languageError) return languageError

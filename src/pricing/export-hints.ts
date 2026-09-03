@@ -33,6 +33,7 @@ export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, ExportHintMes
   isFoil: 'domain.exportHint.isFoil',
   language: 'domain.exportHint.language',
   labels: 'domain.exportHint.labels',
+  tags: 'domain.exportHint.tags',
 }
 
 /** A property's hint in the active UI locale, or `undefined` when it has none. */

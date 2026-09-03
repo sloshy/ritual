@@ -162,6 +162,10 @@ export const cliEditMeta = {
   'cli.editLabel.labels': {
     description: 'Names a card-label change (for sale / for trade / to keep) for the undo menu.',
   },
+  'cli.editLabel.tags': {
+    description:
+      "Names a card-tag edit (the owner's free-form tags on one card) for the undo menu. One entry covers every tag the edit changed.",
+  },
   'cli.editLabel.note': { description: 'Names a note edit for the undo menu.' },
   'cli.editLabel.section': {
     description: 'Names a deck-section move for the undo menu ("of", not "on", in English).',
@@ -205,6 +209,11 @@ export const cliEditMeta = {
   },
   'cli.editAction.changeLabel': {
     description: "Edit-mode menu row: set or clear this card's label override.",
+    maxLen: MENU_MAX_LEN,
+  },
+  'cli.editAction.editTags': {
+    description:
+      "Edit-mode menu row: edit this card's free-form tags (the owner's own vocabulary, as many per card as they like). Distinct from labels, which are a fixed vocabulary.",
     maxLen: MENU_MAX_LEN,
   },
   'cli.editAction.setArt': {
@@ -273,6 +282,15 @@ export const cliEditMeta = {
   },
   'cli.edit.noteSet': { description: 'Confirms a note was written onto a card.' },
   'cli.edit.noteCleared': { description: "Confirms a card's note was emptied." },
+  'cli.edit.tagsSet': {
+    description:
+      "Confirms a card's tags after an edit. {tags} is the comma-joined new set (`Card Draw, Ramp`) — a data token, never translated.",
+  },
+  'cli.edit.tagsCleared': { description: 'Confirms every tag was taken off a card.' },
+  'cli.edit.tagsInvalid': {
+    description:
+      'Shown when the typed tags are refused, before the prompt is offered again. {reason} is the English data-format rule the tag parser states (which punctuation a tag cannot contain).',
+  },
   'cli.edit.noConfiguredLanguage': {
     description:
       'Startup warning when ritual.config.json declares no defaultLanguage, so new cards are stamped English. {language} is the `en` code; `defaultLanguage`, `ritual config set` and the code itself are literals that never translate.',
@@ -356,7 +374,8 @@ export const cliEditMeta = {
     maxLen: MENU_MAX_LEN,
   },
   'cli.deck.menuEditTags': {
-    description: "Session menu row showing (and editing) the deck's tags.",
+    description:
+      "Session menu row showing (and editing) the deck's front-matter tags — the deck's own, not any card's; the per-card row is cli.editAction.editTags.",
     maxLen: MENU_MAX_LEN,
   },
   'cli.deck.promptEveryTime': {

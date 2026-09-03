@@ -4,7 +4,7 @@ import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS, sessionSavingSemantics 
 export const editSkill: RitualSkill = {
   name: 'ritual-edit',
   description:
-    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, label a card, give a card custom art, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV, JSON, plain text, or Markdown, or read or compact a change history.',
+    'Edit cards in any Ritual deck, collection, or wanted list — one-shot non-interactive commands for agents and scripts (add-card, remove-card, set-card, note, scripted move), plus the interactive editor TUI. Use when the user wants to add, remove, or update a card, label or tag a card, give a card custom art, set or clear a card note, move cards between lists, edit lists interactively, apply a change bundle exported from the site editor, export cards as CSV, JSON, plain text, or Markdown, or read or compact a change history.',
   body: `# Editing cards in any Ritual list
 
 The **one-shot commands** — \`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, and the
@@ -93,7 +93,8 @@ ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writ
   printing pin succeeds only when the card has a single paper printing — pass
   \`--set\`/\`--collector-number\` to be safe.
 - \`--label <label>\` records the new copy's label override (a deck takes \`proxy\`
-  alone). There is **no art flag on \`add-card\`**: a line's \`&N\` is allocated by the
+  alone), and \`--tag <tags>\` the tags the new line starts with (any list type;
+  comma-separated, \`"Ramp, Card Draw"\`). There is **no art flag on \`add-card\`**: a line's \`&N\` is allocated by the
   write, so custom art at add time is a two-step — add the card, then aim
   \`set-card --art\` at it (\`--output json\` reports the \`cardId\` the add produced, or
   read the \`&N\` off the written line). This is deliberate: art is list metadata in
@@ -152,6 +153,23 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
   **deck takes \`proxy\` only** and a wanted list takes no labels at all — anything
   else is a usage error naming what the type supports. \`add-card\` takes the
   same \`--label\` (minus \`none\`) to label a fresh add.
+- \`--tag <tags>\` / \`--untag <tags>\` — every list type. Adds or removes the card's
+  **tags**: the owner's own free-form words for the card (\`Ramp\`, \`Card Draw\`), as
+  many per card as they like, written on the line as one comma-separated \`#\` token
+  after the labels and before the note (\`#Card Draw, Ramp\`). A tag is plain text that
+  keeps its spaces and case and cannot contain \`#\`, \`,\`, \`&\`, brackets, braces or
+  parentheses; the \`#\` is file punctuation, never part of a value. Give several
+  **comma-separated** (\`--tag "Ramp, Card Draw"\`); repeating a flag accumulates,
+  and an empty value is a usage error (only the editor prompt reads empty as "clear").
+  \`--tag\` never touches
+  the tags already there and \`--untag\` removes only the named ones; each tag that
+  actually changes is its own changelog line (\`Added tag "Ramp" to "Sol Ring" &1\`),
+  and a tag already present (or already absent) is reported as unchanged rather than
+  re-logged. The same tag to both flags at once is a usage error. Tags are **not
+  labels**: a label is an instruction to Ritual from a closed vocabulary (\`[proxy]\`
+  changes pricing), a tag means whatever its author meant and drives nothing but
+  filtering and grouping — so \`Keep\` is a legal tag unrelated to the \`[keep]\`
+  label. A deck's front-matter \`tags:\` key describes the **deck**, never its cards.
 - \`--art <path|url|none>\` — any list type. Records the card's **custom art**: an
   image path relative to the configured \`artDir\` (which must already exist —
   Ritual references images, it never uploads them), an \`http(s)://\` URL kept
@@ -219,8 +237,8 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
   created if missing) instead of the default; it errors on non-deck destinations.
 - Deck sources decrement quantity, notes travel with the card, both lists get
   changelog entries, and \`-q <n>\` moves n copies of the same printing. The card's
-  **custom art** and — as far as the destination type can express them — its label
-  overrides travel too; the art is re-filed under the destination line's new \`&N\`,
+  **custom art**, its tags and — as far as the destination type can express them —
+  its label overrides travel too; the art is re-filed under the destination line's new \`&N\`,
   unless the copy merged onto a line the destination already had. JSON output:
   \`{moved, card, from, to, droppedNotes}\` — \`droppedNotes\` lists any note discarded
   by a quantity-merge onto an existing deck line whose note differs (also warned on
@@ -250,7 +268,8 @@ written — removed from the source, added to the destination, with a changelog 
 each. In a public-site export the move is recorded once, in the bundle's top-level
 \`moves\` array (never as a per-list change), and \`ritual import-changes\` applies it
 to both lists the same way. Moving a printing-less card into a collection prompts for
-a specific printing first. Notes and label overrides never follow an editor/TUI move; the card's
+a specific printing first. Notes, label overrides and tags never follow an editor/TUI move
+(the scripted \`ritual move\` carries tags and labels); the card's
 **custom art** does, re-filed under the destination line's new \`&N\`.
 
 The web editors (admin and public) also offer a batch **Swap Printings…** wizard on decks and
@@ -305,10 +324,15 @@ language of the card just added without re-asking its printing options. Selectin
 in \`📋 View Session Changes\` opens an action menu — **Edit This Card** (that card's own
 edit-mode menu), **Change This Card's Language**, **Discard This Change** — with the two
 edit rows shown only while the change's card is still in the list. Creating a deck prompts for its format, and deck
-sessions have \`🏷️ Change Format\` and \`🔖 Edit Tags\` menu actions that rewrite the front
+sessions have \`🏷️ Change Format\` and \`🔖 Edit Deck Tags\` menu actions that rewrite the front
 matter on the next save; deck and collection sessions both offer \`🏷️ Edit List Labels\`
 for the default card labels (a deck's choices are \`proxy\` or none — scripted
-equivalent: \`ritual metadata\`) plus a per-card \`🏷️ Change Label\` action in edit mode. A deck with no
+equivalent: \`ritual metadata\`) plus a per-card \`🏷️ Change Label\` action in edit mode. Every
+type's edit mode also has a per-card \`🔖 Edit Tags\` action — a free-text field prefilled with
+the line's tags, comma-separated (empty clears them), recorded one event per
+tag that changed, so re-adding a tag removed earlier in the session leaves nothing in the
+changelog. (Do not confuse it with the deck session's \`🔖 Edit Deck Tags\` menu row, which edits
+the deck's front-matter \`tags:\`.) A deck with no
 \`format:\` is read as Commander when it has a \`## Commander\`
 section, and saving writes that inferred format into the file (see the **ritual-decks**
 skill). Not suitable for non-interactive agents — use the one-shot commands above
@@ -429,7 +453,7 @@ number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolve
 from the local Scryfall cache — an uncached printing exports an empty cell plus a
 warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
 \`language\` (Scryfall language code; blank for English), \`labels\`
-(effective labels, comma-joined), \`note\`,
+(effective labels, comma-joined), \`tags\` (the card's tags, comma-joined, no \`#\`), \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
 csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\`
 alongside an explicit \`--format text|md\` is a usage error (a preset's stored

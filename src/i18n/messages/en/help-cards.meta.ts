@@ -68,6 +68,10 @@ export const helpCardsMeta = {
     description:
       'Help for add-card --label. "sale", "trade", "keep" and "proxy" are persisted label slugs and never translate.',
   },
+  'help.addCard.tag': {
+    description:
+      "Help for add-card --tag: the owner's free-form tags the new card line starts with. The quoted example shows two comma-separated tags; its words may be localized, the comma stays.",
+  },
   'help.addCard.section': { description: 'Help for add-card --section (deck sections only).' },
   'help.addCard.commander': {
     description:
@@ -113,6 +117,13 @@ export const helpCardsMeta = {
   'help.setCard.label': {
     description:
       'Help for set-card --label. The label slugs and "none" are machine values; decks carry "proxy" alone.',
+  },
+  'help.setCard.tag': {
+    description:
+      "Help for set-card --tag, which adds tags to a card's line without touching the ones it has. The quoted example shows two comma-separated tags; its words may be localized, the comma stays.",
+  },
+  'help.setCard.untag': {
+    description: "Help for set-card --untag, which removes the named tags from a card's line.",
   },
   'help.setCard.art': {
     description:

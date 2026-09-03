@@ -25,6 +25,8 @@ import {
   createSetCommanderChange,
   createSetFinishChange,
   createSetLabelChange,
+  createAddTagChange,
+  createRemoveTagChange,
   createSetLanguageChange,
   createSetNoteChange,
   createSetPrintingChange,
@@ -87,6 +89,14 @@ const CASES = {
     createAddChange('Sol Ring', { board: 'Commander', section: 'Commander' }),
     createAddChange('Sol Ring', { board: 'Main', section: 'Ramp', labels: ['sale', 'trade'] }),
     createAddChange('Sol Ring', { set: 'ltc', language: 'zhs', cardId: 7 }),
+    // Unsorted, mixed-case input: the creator canonicalizes, so the block
+    // reads back exactly what was written.
+    createAddChange('Sol Ring', {
+      set: 'ltc',
+      collectorNumber: '284',
+      tags: ['Zebra', 'binder/trade', 'apple'],
+      cardId: 13,
+    }),
   ],
   remove: [
     ...NAMES.map((name) => createRemoveChange(name, { cardId: 5 })),
@@ -101,6 +111,7 @@ const CASES = {
       cardId: 12,
     }),
     createRemoveChange('Sol Ring', { finish: 'nonfoil', condition: 'NM', board: 'Main' }),
+    createRemoveChange('Sol Ring', { tags: ['ramp'], cardId: 12 }),
   ],
   'set-commander': NAMES.map((name) => createSetCommanderChange(name, { cardId: 2 })),
   'unset-commander': [
@@ -157,6 +168,7 @@ const CASES = {
       cardId: 5,
     }),
     createMoveFromChange('Sol Ring', { to: WANTED }),
+    createMoveFromChange('Sol Ring', { to: DECK, tags: ['Ramp', 'binder/trade'], cardId: 6 }),
     createMoveFromChange('Sol Ring', {
       to: DECK,
       finish: 'nonfoil',
@@ -180,6 +192,16 @@ const CASES = {
       replacement: { set: 'c21', collectorNumber: '263', finish: 'foil', language: 'ja' },
     }),
     createMoveToChange('Sol Ring', { from: WANTED }),
+    createMoveToChange('Sol Ring', { from: DECK, tags: ['ramp'], cardId: 6, sourceCardId: 2 }),
+  ],
+  'add-tag': [
+    ...NAMES.map((name) => createAddTagChange(name, { tag: 'ramp', cardId: 5 })),
+    createAddTagChange('Sol Ring', { tag: 'binder/trade' }),
+    createAddTagChange('Sol Ring', { tag: 'EDH-Staple', cardId: 5 }),
+  ],
+  'remove-tag': [
+    ...NAMES.map((name) => createRemoveTagChange(name, { tag: 'ramp', cardId: 5 })),
+    createRemoveTagChange('Sol Ring', { tag: 'binder/trade' }),
   ],
   'add-section': [
     createAddSectionChange('Foils'),

@@ -44,6 +44,7 @@ function collectionEntriesFromParse(entries: CollectionEntry[]): CollectionCardE
     // round-trips bare lines as bare lines.
     language: e.language,
     labels: e.labels,
+    tags: e.tags,
     price: 0,
     fileOrder: i,
     section: e.section,
@@ -60,6 +61,7 @@ function wantedEntriesFromParse(entries: WantedListEntry[]): WantedListCardEntry
     collectorNumber: e.collectorNumber,
     finish: e.finish,
     language: e.language,
+    tags: e.tags,
     price: 0,
     fileOrder: i,
     section: e.section,

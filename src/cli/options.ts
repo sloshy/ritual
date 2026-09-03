@@ -24,6 +24,7 @@ import { t } from '../i18n/t'
 import { parseEnumField } from '../util/parse-enum'
 import { ExitCode, localizedCommandError } from '../util/errors'
 import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card/card-labels'
+import { normalizeCardTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import {
   invalidLanguageMessage,
   normalizeLanguageValue,
@@ -339,6 +340,34 @@ export function ensureLabelsSupported(type: ListType, labels: readonly CardLabel
     labels: check.unsupported.join(', '),
     supported: LIST_TYPE_LABELS[type].join(', '),
   })
+}
+
+/** A Commander argParser for a tag-set flag; `previous` is the earlier parse when the flag repeats. */
+export type TagsFlagParser = (value: string, previous?: readonly CardTag[]) => CardTag[]
+
+/**
+ * The argParser for a `--tag` / `--untag` flag: one or more tags separated by
+ * commas (`"Ramp, Card Draw"`) — the same input grammar as the
+ * editors' tag prompt ({@link parseCardTagsInput}), so a flag and a prompt
+ * never disagree about what a typed list means. An empty list is refused: a
+ * tag flag with nothing to add or remove is a mistake, not a no-op (the prompt,
+ * by contrast, reads empty as "clear"). Repeating the flag accumulates —
+ * Commander hands the previous parse in as the second argument, which is why
+ * the flag name is bound here rather than taken as a parameter.
+ */
+export function tagsFlagParser(flag: string): TagsFlagParser {
+  return (value, previous) => {
+    const parsed = parseCardTagsInput(value)
+    if (!parsed.ok) {
+      throw new InvalidArgumentError(
+        t('cli.cardOps.tagFlagInvalid', { flag, reason: parsed.message }),
+      )
+    }
+    if (parsed.tags.length === 0) {
+      throw new InvalidArgumentError(t('cli.cardOps.tagFlagEmpty', { flag }))
+    }
+    return normalizeCardTags([...(previous ?? []), ...parsed.tags])
+  }
 }
 
 /**

@@ -75,6 +75,8 @@ export type DisplayChange = {
   note?: string
   /** Comma-joined label tokens for `set-label`; `''` means the override was cleared. */
   labels?: string
+  /** The tag for `add-tag` / `remove-tag`, as the owner wrote it (`Card Draw`); the template quotes it. */
+  tag?: string
   /** The section name for the section-structural actions and `set-section`. */
   section?: string
   /** The new section name for `rename-section`. */
@@ -177,6 +179,10 @@ export function changeMessage(change: DisplayChange): ChangeMessage {
       return change.labels
         ? buildMessage('domain.change.setLabels', { name, id, labels: change.labels })
         : buildMessage('domain.change.clearLabels', { tense, name, id })
+    case 'add-tag':
+      return buildMessage('domain.change.addTag', { tense, name, id, tag: change.tag ?? '' })
+    case 'remove-tag':
+      return buildMessage('domain.change.removeTag', { tense, name, id, tag: change.tag ?? '' })
     case 'move-from':
       return buildMessage('domain.change.moveToList', {
         tense,
@@ -297,6 +303,9 @@ export function displayChangeFromEvent(
       return { ...base, note: change.note }
     case 'set-label':
       return { ...base, labels: formatCardLabels(change.labels) }
+    case 'add-tag':
+    case 'remove-tag':
+      return { ...base, tag: change.tag }
     case 'move-from':
       return {
         ...base,

@@ -258,6 +258,19 @@ describe('parseListViewParams', () => {
       copies: 2,
     })
   })
+
+  test('group=tags and sort=tags are legal tokens and round-trip', () => {
+    const params = encode(
+      defaultState({ groupBy: 'tags', sortLayers: [{ sortBy: 'tags', reverse: true }] }),
+    )
+    expect(params.get('group')).toBe('tags')
+    expect(params.get('sort')).toBe('-tags')
+
+    const parsed = parseListViewParams(params)
+    expect(parsed.groupBy).toBe('tags')
+    expect(parsed.sortLayers).toEqual([{ sortBy: 'tags', reverse: true }])
+  })
+
   test('round-trips a fully populated state', () => {
     const filters = createDefaultCardFilters()
     filters.hideLands = true

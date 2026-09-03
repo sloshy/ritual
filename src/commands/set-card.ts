@@ -3,6 +3,8 @@ import type { Stats } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  createAddTagChange,
+  createRemoveTagChange,
   createSetCommanderChange,
   createSetFinishChange,
   createSetLabelChange,
@@ -15,6 +17,7 @@ import {
 import { languageDisplayName, type CardLanguage } from '../card/card-language'
 import type { PrintingFields } from '../card/card-printing'
 import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
+import { formatCardTags, normalizeCardTags, type CardTag } from '../card/card-tags'
 import {
   cardArtFilePath,
   isCardArtRefError,
@@ -38,6 +41,7 @@ import {
   parseFinishFlag,
   parseLanguageFlag,
   parseSetFlag,
+  tagsFlagParser,
   resolveListTypeFlag,
   type CardCommandResultBase,
 } from '../cli/options'
@@ -89,6 +93,10 @@ type SetCardOptions = {
   language?: CardLanguage
   /** The new label override; an empty array (`--label none`) clears it. */
   label?: CardLabel[]
+  /** Tags to put on the line (`--tag`), canonical. */
+  tag?: CardTag[]
+  /** Tags to take off the line (`--untag`), canonical. */
+  untag?: CardTag[]
   /** The new custom art; a clear for `--art none`. */
   art?: CardArtUpdate
   section?: string
@@ -153,6 +161,8 @@ export function registerSetCardCommand(program: Command): void {
         parseConditionFlag,
       )
       .option('--label <labels>', t('help.setCard.label'), parseLabelFlag)
+      .option('--tag <tags>', t('help.setCard.tag'), tagsFlagParser('--tag'))
+      .option('--untag <tags>', t('help.setCard.untag'), tagsFlagParser('--untag'))
       .option('--art <value>', t('help.setCard.art'), parseArtFlag)
       .option('--section <name>', t('help.setCard.section'))
       .option('--commander', t('help.setCard.commander'))
@@ -178,6 +188,8 @@ export function registerSetCardCommand(program: Command): void {
             condition: options.condition,
             language: options.language,
             label: options.label,
+            tag: options.tag,
+            untag: options.untag,
             art: options.art,
             section: options.section,
             commander: options.commander,
@@ -205,6 +217,10 @@ type RunInput = {
   language: CardLanguage | undefined
   /** The new label override; an empty array clears it. */
   label: CardLabel[] | undefined
+  /** Tags to put on the line, canonical; never empty when given. */
+  tag: CardTag[] | undefined
+  /** Tags to take off the line, canonical; never empty when given. */
+  untag: CardTag[] | undefined
   /** The new custom art; a clear removes it. */
   art: CardArtUpdate | undefined
   section: string | undefined
@@ -352,11 +368,22 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
     input.condition !== undefined ||
     input.language !== undefined ||
     input.label !== undefined ||
+    input.tag !== undefined ||
+    input.untag !== undefined ||
     input.art !== undefined ||
     input.section !== undefined ||
     input.commander !== undefined
   if (!hasMutation) {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.noChangeGiven')
+  }
+  if (input.tag !== undefined && input.untag !== undefined) {
+    const untag = new Set(input.untag)
+    const bothWays = input.tag.filter((tag) => untag.has(tag))
+    if (bothWays.length > 0) {
+      throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setCard.tagBothWays', {
+        tags: formatCardTags(bothWays),
+      })
+    }
   }
 
   const { type, filePath } = await resolveListSelection(input.listName, input.type)
@@ -507,6 +534,35 @@ async function runSetCard(input: RunInput, scripting: ScriptingOptions): Promise
       input.label.length === 0
         ? t('cli.setCard.labelCleared')
         : t('cli.setCard.appliedLabel', { labels: input.label.join(', ') }),
+    )
+  }
+
+  // Tags are recorded one event per tag that actually changes — a tag the line
+  // already carries (or already lacks) is not a change, and logging it would
+  // put an `Added tag` in the changelog that the history then cannot balance.
+  // Normalized at the compare: `CardTag` is a plain string alias, so the rule
+  // that both sides are canonical is enforced here, where the domain owns it.
+  const currentTags = new Set(normalizeCardTags(target.tags ?? []))
+  if (input.tag !== undefined) {
+    const added = input.tag.filter((tag) => !currentTags.has(tag))
+    for (const tag of added) {
+      changes.push(createAddTagChange(target.name, { tag, cardId: target.cardId }))
+    }
+    applied.push(
+      added.length > 0
+        ? t('cli.setCard.appliedTagsAdded', { tags: formatCardTags(added) })
+        : t('cli.setCard.tagsAlreadyPresent', { tags: formatCardTags(input.tag) }),
+    )
+  }
+  if (input.untag !== undefined) {
+    const removed = input.untag.filter((tag) => currentTags.has(tag))
+    for (const tag of removed) {
+      changes.push(createRemoveTagChange(target.name, { tag, cardId: target.cardId }))
+    }
+    applied.push(
+      removed.length > 0
+        ? t('cli.setCard.appliedTagsRemoved', { tags: formatCardTags(removed) })
+        : t('cli.setCard.tagsAlreadyAbsent', { tags: formatCardTags(input.untag) }),
     )
   }
   if (input.art !== undefined) applied.push(describeArtUpdate(input.art))

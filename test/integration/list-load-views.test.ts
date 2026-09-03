@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleCollectionLoad } from '../../src/admin/api/collection-load'
@@ -468,6 +469,49 @@ describe('a fenced code block reaches the save gate', () => {
     expect(status).toBe(400)
     expect(body.message).toContain('Fenced code block content (3 line(s))')
     expect(await Bun.file(deckPath).text()).toBe(original)
+  })
+})
+
+describe('tags reach the load bodies', () => {
+  test('every list type reports each line’s tags, canonical and without the sigil', async () => {
+    // Written by hand rather than through the fixtures: the point is what the
+    // *parsers* hand the routes: canonical, case kept, sorted, absent when none.
+    await fs.writeFile(
+      path.join(ws.dir, 'collections', 'tagged.md'),
+      '# Tagged\n\n- Sol Ring (C21:240) #Ramp, binder/trade, ramp &1\n- Lightning Bolt (LEA:161) &2\n',
+    )
+    await fs.writeFile(
+      path.join(ws.dir, 'decks', 'tagged.md'),
+      '# Tagged\n\n## Main\n\n1 Sol Ring #ramp &1\n',
+    )
+    await fs.writeFile(
+      path.join(ws.dir, 'wanted', 'tagged.md'),
+      '# Tagged\n\n- Sol Ring #ramp &1\n',
+    )
+
+    const collection = await callJson<{ entries: { tags?: string[] }[] }>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/tagged?view=cards',
+    )
+    expect(collection.body.entries.map((entry) => entry.tags)).toEqual([
+      ['binder/trade', 'ramp', 'Ramp'],
+      undefined,
+    ])
+
+    const deck = await callJson<DeckLoadResult>(
+      handleDeckLoad,
+      'GET',
+      '/api/deck/tagged?view=cards',
+    )
+    expect(deck.body.deck.sections[0]!.cards[0]!.tags).toEqual(['ramp'])
+
+    const wanted = await callJson<WantedLoadResult>(
+      handleWantedListLoad,
+      'GET',
+      '/api/wanted/tagged?view=cards',
+    )
+    expect(wanted.body.entries[0]!.tags).toEqual(['ramp'])
   })
 })
 

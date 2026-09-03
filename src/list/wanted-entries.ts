@@ -2,6 +2,7 @@
 import type { Finish } from '../card/finish-condition'
 import { hasSpecificPrinting, type FinishedPrintingFields } from '../card/card-printing'
 import type { CardLanguage } from '../card/card-language'
+import type { CardTag } from '../card/card-tags'
 import type { WantedListCardEntry, WantedListEntryState } from './site-data'
 import { DEFAULT_SECTION } from './deck'
 
@@ -13,6 +14,8 @@ export type ParsedWantedEntry = {
   finish?: Finish
   /** The line's `[ja]`-style language token. Absent means `en`. */
   language?: CardLanguage
+  /** The line's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   section?: string
@@ -43,6 +46,7 @@ export function toWantedCardEntries(parsed: ParsedWantedEntry[]): WantedListCard
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     language: entry.language,
+    tags: entry.tags,
     price: 0,
     fileOrder: index,
     section: entry.section ?? DEFAULT_SECTION,

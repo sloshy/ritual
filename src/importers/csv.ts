@@ -1,6 +1,7 @@
 import { DEFAULT_SECTION } from '../list/deck'
 import type { Condition, Finish } from '../card/finish-condition'
 import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../card/card-language'
+import { normalizedTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import type { ListType } from '../list/list-type'
 
 /**
@@ -108,6 +109,7 @@ export const CSV_FIELDS = [
   'condition',
   'finish',
   'language',
+  'tags',
   'section',
   'quantity',
 ] as const
@@ -121,6 +123,7 @@ export const CSV_FIELD_LABELS: Record<CsvField, string> = {
   condition: 'Condition',
   finish: 'Finish',
   language: 'Language',
+  tags: 'Tags',
   section: 'Section',
   quantity: 'Quantity',
 }
@@ -146,6 +149,7 @@ export type ColumnMapping = {
   condition?: number
   finish?: number
   language?: number
+  tags?: number
   section?: number
   quantity?: number
 }
@@ -158,6 +162,7 @@ export const FIELD_TO_KEY: Record<CsvField, keyof ColumnMapping> = {
   condition: 'condition',
   finish: 'finish',
   language: 'language',
+  tags: 'tags',
   section: 'section',
   quantity: 'quantity',
 }
@@ -334,6 +339,18 @@ const FINISH_ALIASES: Record<string, Finish> = {
 }
 
 /**
+ * Normalize a tags cell. Read with the typed-input grammar (`Ramp, Card Draw`)
+ * — a CSV cell is one field a person filled in, so it reads
+ * exactly as the CLI prompt does — and stored canonical; an empty cell means no
+ * tags (`undefined`, never an empty set).
+ */
+export function normalizeTags(rawValue: string): NormalizedField<CardTag[]> {
+  const parsed = parseCardTagsInput(rawValue)
+  if (!parsed.ok) return { ok: false, error: parsed.message }
+  return { ok: true, value: normalizedTags(parsed.tags) }
+}
+
+/**
  * Normalize a finish cell: "F"/"foil" (and truthy flags like "yes") mean foil,
  * "E"/"etched" mean etched, and an empty cell, "non-foil"/"nonfoil", or
  * "normal" all mean non-foil. Case-insensitive. An empty cell normalizes to
@@ -425,6 +442,8 @@ export type CsvCardEntry = {
   condition?: Condition
   /** Normalized language; absent means English (written as a bare line). */
   language?: CardLanguage
+  /** The row's tags, canonical; absent when the cell was blank or unmapped. */
+  tags?: CardTag[]
   section: string
 }
 
@@ -480,12 +499,22 @@ export function convertCsvRows(
     const language = normalizeLanguage(cellAt(mapping.language))
     if (!language.ok) problems.push(language.error)
 
+    const tags = normalizeTags(cellAt(mapping.tags))
+    if (!tags.ok) problems.push(tags.error)
+
     const quantity = normalizeQuantity(cellAt(mapping.quantity))
     if (!quantity.ok) problems.push(quantity.error)
 
     // The `ok` checks are implied by `problems.length` but narrow the
     // normalized result types for the success path below.
-    if (problems.length > 0 || !condition.ok || !finish.ok || !language.ok || !quantity.ok) {
+    if (
+      problems.length > 0 ||
+      !condition.ok ||
+      !finish.ok ||
+      !language.ok ||
+      !tags.ok ||
+      !quantity.ok
+    ) {
       failures.push({ lineNumber: row.lineNumber, raw: row.raw, reason: problems.join('; ') })
       continue
     }
@@ -498,6 +527,7 @@ export function convertCsvRows(
       finish: finish.value,
       condition: listType === 'wanted' ? undefined : condition.value,
       language: language.value,
+      tags: tags.value,
       section: normalizeSection(cellAt(mapping.section), listType),
     })
   }
@@ -524,6 +554,8 @@ const HEADER_ALIASES: Record<string, CsvField> = {
   printing: 'finish',
   language: 'language',
   lang: 'language',
+  tags: 'tags',
+  tag: 'tags',
   section: 'section',
   board: 'section',
   category: 'section',

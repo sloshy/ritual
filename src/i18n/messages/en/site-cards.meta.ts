@@ -152,7 +152,11 @@ export const siteCardsMeta = {
   },
   'site.cardModal.tags': {
     description:
-      "Toggle revealing the card's Scryfall tags. A caret is appended by the page, not by this string.",
+      "Toggle revealing the card's Scryfall tags (the community-maintained oracle/art tagger vocabulary), named so it never reads as the owner's own tags shown above it. A caret is appended by the page, not by this string.",
+  },
+  'site.cardModal.cardTags': {
+    description:
+      "Accessible name of the row listing the owner's own tags on this card (each chip is one tag, e.g. `Ramp`). Distinct from the Scryfall tags disclosure below it.",
   },
   'site.cardModal.oracleTags': {
     description: "Heading for tags describing what the card's rules text does.",

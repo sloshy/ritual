@@ -44,6 +44,7 @@ export function serializeCollectionEntry(entry: CollectionCardEntry): string {
     condition: entry.condition,
     language: entry.language,
     labels: entry.labels,
+    tags: entry.tags,
     note: entry.note,
     cardId: entry.cardId,
   })
@@ -124,6 +125,7 @@ export function serializeWantedListEntry(entry: WantedListCardEntry): string {
     printing,
     finish: entry.finish,
     language: entry.language,
+    tags: entry.tags,
     note: entry.note,
     cardId: entry.cardId,
   })

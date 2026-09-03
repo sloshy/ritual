@@ -3,6 +3,13 @@ import type { Board } from '../list/deck'
 import type { ListType } from '../list/list-type'
 import { formatCardLabels, sameCardLabels, type CardLabel } from '../card/card-labels'
 import {
+  cardTagsDelta,
+  normalizeCardTag,
+  normalizedTags,
+  sameCardTags,
+  type CardTag,
+} from '../card/card-tags'
+import {
   displayLanguage,
   isCardLanguage,
   languageDisplayName,
@@ -52,6 +59,12 @@ export type AddChange = BaseChange & {
    * changelog text line.
    */
   labels?: CardLabel[]
+  /**
+   * The tags the new card starts with. Rides the add for the same
+   * reason `labels` does: the tags belong to the added copy, never to a
+   * same-named existing line. Not annotated in the changelog text line.
+   */
+  tags?: CardTag[]
   /** Deck board the card was added to. Omitted/`Main` renders without annotation. */
   board?: Board
   /** Section the card was added to. Defaults to `DEFAULT_SECTION` ("Main") when omitted. */
@@ -75,6 +88,11 @@ export type RemoveChange = BaseChange & {
    * surface that does not know a line's labels may leave it absent.
    */
   labels?: CardLabel[]
+  /**
+   * The `#tag` tokens the removed line carried, recorded like `labels` so
+   * {@link areOppositeChanges} treats them as part of the copy's identity.
+   */
+  tags?: CardTag[]
   /** Deck board the card was removed from. Omitted/`Main` renders without annotation. */
   board?: Board
 }
@@ -131,6 +149,24 @@ export type SetLabelChange = BaseChange & {
   labels: CardLabel[]
 }
 
+/**
+ * One tag put on a card. Tags are recorded one event per tag rather than as a
+ * whole-set replacement: an open, additive vocabulary diffs badly as a set, and
+ * a per-tag event is what lets adding and then removing the same tag cancel
+ * out in an edit session ({@link areOppositeChanges}). Applies on every list
+ * type. The tag is canonical (trimmed, single-spaced) and carries no `#` sigil.
+ */
+export type AddTagChange = BaseChange & {
+  action: 'add-tag'
+  tag: CardTag
+}
+
+/** One tag taken off a card — the opposite of {@link AddTagChange}. */
+export type RemoveTagChange = BaseChange & {
+  action: 'remove-tag'
+  tag: CardTag
+}
+
 export type MoveFromChange = BaseChange & {
   action: 'move-from'
   set?: string
@@ -139,6 +175,12 @@ export type MoveFromChange = BaseChange & {
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
+  /**
+   * The moved copy's `#tag` tokens. Every list type carries tags, so — unlike a
+   * label override, which the destination type may not accept — they ride the
+   * move and land on the destination line unfiltered.
+   */
+  tags?: CardTag[]
   /** The list this card was moved to. */
   to: ListRef
 }
@@ -151,6 +193,8 @@ export type MoveToChange = BaseChange & {
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
+  /** The moved copy's `#tag` tokens, landing on the destination line — see {@link MoveFromChange.tags}. */
+  tags?: CardTag[]
   /** The list this card was moved from. */
   from: ListRef
   /**
@@ -237,6 +281,8 @@ export type ChangeEvent =
   | SetLanguageChange
   | SetNoteChange
   | SetLabelChange
+  | AddTagChange
+  | RemoveTagChange
   | MoveFromChange
   | MoveToChange
   | AddSectionChange
@@ -262,6 +308,8 @@ export const CHANGE_ACTIONS = [
   'set-language',
   'set-note',
   'set-label',
+  'add-tag',
+  'remove-tag',
   'move-from',
   'move-to',
   'add-section',
@@ -338,6 +386,8 @@ export type AddRemoveOptions = {
    * carrying (see {@link RemoveChange.labels}).
    */
   labels?: CardLabel[]
+  /** The copy's `#tag` tokens — what an `add` starts with, what a `remove` took away. */
+  tags?: CardTag[]
   cardId?: number
   /** Deck board the card was added to / removed from (e.g. `Sideboard`, `Maybeboard`). */
   board?: Board
@@ -422,6 +472,8 @@ export type MoveFromOptions = {
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
+  /** The moved copy's `#tag` tokens; see {@link MoveFromChange.tags}. */
+  tags?: CardTag[]
   cardId?: number
   to: ListRef
 }
@@ -434,6 +486,8 @@ export type MoveToOptions = {
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
+  /** The moved copy's `#tag` tokens; see {@link MoveFromChange.tags}. */
+  tags?: CardTag[]
   cardId?: number
   from: ListRef
   /** Destination section (decks; flat lists place the copy in that section); see {@link MoveToChange.section}. */
@@ -460,6 +514,7 @@ export function createAddChange(cardName: string, options?: AddRemoveOptions): A
     condition: options?.condition,
     language: options?.language,
     labels: options?.labels,
+    tags: normalizedTags(options?.tags),
     board: options?.board,
     section: options?.section,
   }
@@ -475,6 +530,7 @@ export function createRemoveChange(cardName: string, options?: AddRemoveOptions)
     condition: options?.condition,
     language: options?.language,
     labels: options?.labels,
+    tags: normalizedTags(options?.tags),
     board: options?.board,
   }
 }
@@ -534,6 +590,29 @@ export function createSetLabelChange(cardName: string, options: SetLabelOptions)
   return { ...makeBase(cardName, options.cardId), action: 'set-label', labels: options.labels }
 }
 
+/** Options for the add-tag / remove-tag actions. */
+export type TagOptions = {
+  cardId?: number
+  /** The tag as typed; stored canonical (trimmed, single-spaced) and without its `#`. */
+  tag: CardTag
+}
+
+export function createAddTagChange(cardName: string, options: TagOptions): AddTagChange {
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'add-tag',
+    tag: normalizeCardTag(options.tag),
+  }
+}
+
+export function createRemoveTagChange(cardName: string, options: TagOptions): RemoveTagChange {
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'remove-tag',
+    tag: normalizeCardTag(options.tag),
+  }
+}
+
 export function createMoveFromChange(cardName: string, options: MoveFromOptions): MoveFromChange {
   return {
     ...makeBase(cardName, options.cardId),
@@ -543,6 +622,7 @@ export function createMoveFromChange(cardName: string, options: MoveFromOptions)
     finish: options.finish,
     condition: options.condition,
     language: options.language,
+    tags: normalizedTags(options.tags),
     to: options.to,
   }
 }
@@ -556,6 +636,7 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
     finish: options.finish,
     condition: options.condition,
     language: options.language,
+    tags: normalizedTags(options.tags),
     from: options.from,
     section: options.section,
     sourceCardId: options.sourceCardId,
@@ -580,7 +661,13 @@ export function mirrorMoveTo(
   destCardId?: number,
 ): MoveToChange {
   const { cardId: sourceCardId, ...printing } = printingOptionsFrom(move)
-  return createMoveToChange(move.cardName, { ...printing, cardId: destCardId, from, sourceCardId })
+  return createMoveToChange(move.cardName, {
+    ...printing,
+    tags: move.tags,
+    cardId: destCardId,
+    from,
+    sourceCardId,
+  })
 }
 
 /** Whether two list refs name the same list (same type and name). */
@@ -634,6 +721,16 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
     return a.cardName === b.cardName
   }
 
+  // add-tag and remove-tag cancel each other for the same tag on the same card:
+  // tagging a card and then untagging it in one session leaves nothing to log.
+  if (
+    (a.action === 'add-tag' && b.action === 'remove-tag') ||
+    (a.action === 'remove-tag' && b.action === 'add-tag')
+  ) {
+    if (a.cardId !== undefined && b.cardId !== undefined && a.cardId !== b.cardId) return false
+    return a.cardName === b.cardName && a.tag === b.tag
+  }
+
   // Add/remove of the same card cancels out
   if (
     !(
@@ -679,6 +776,10 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   // and an empty one are the same thing, so a surface that carries no labels at
   // all still cancels exactly as it did before.
   if (!sameCardLabels(ac.labels, bc.labels)) return false
+
+  // Tags are identity for the same reason: cancelling a removal against a
+  // re-add carrying different tags would keep the old line, old tags and all.
+  if (!sameCardTags(ac.tags, bc.tags)) return false
 
   return true
 }
@@ -852,6 +953,83 @@ export function consolidateSetLabel(
 }
 
 /**
+ * The result of consolidating a *set* of events at once — the many-event
+ * counterpart of {@link ConsolidateResult}, for edits that record one event per
+ * tag.
+ */
+export type ConsolidateManyResult<T extends ChangeEvent = ChangeEvent> = {
+  changes: ChangeEvent[]
+  /** The events this edit appended, in order. */
+  addedChanges: T[]
+  /** The pending events this edit annihilated (each the opposite of one it would have added). */
+  cancelledChanges: T[]
+}
+
+/** The two per-tag events, as one union. */
+export type CardTagChange = Extract<ChangeEvent, { action: 'add-tag' | 'remove-tag' }>
+
+/**
+ * The per-tag events that turn a card's tags from `current` into `next`: one
+ * `add-tag` per tag gained (in canonical order), then one `remove-tag` per tag
+ * lost. **The** statement of the feature's central rule — a tag-set gesture is
+ * a per-tag delta — shared by {@link consolidateTagEdits} and by every editor
+ * that applies the same delta to its model, so the model and the changelog
+ * cannot disagree about which tags changed. Swapping the arguments yields the
+ * exact inverse, which is how the editors build their undo.
+ */
+export function tagEditChanges(
+  cardName: string,
+  next: readonly CardTag[] | undefined,
+  current: readonly CardTag[] | undefined,
+  cardId?: number,
+): CardTagChange[] {
+  const delta = cardTagsDelta(current, next)
+  return [
+    ...delta.added.map((tag) => createAddTagChange(cardName, { tag, cardId })),
+    ...delta.removed.map((tag) => createRemoveTagChange(cardName, { tag, cardId })),
+  ]
+}
+
+/**
+ * Record a tag-set edit as per-tag events, cancelling against pending opposites.
+ *
+ * `current` is what the card's tags are *now* — its session-start tags with
+ * every pending tag event already applied — and `next` is what the user asked
+ * for; only the difference ({@link tagEditChanges}) is recorded. Each tag added
+ * becomes an `add-tag` unless a pending `remove-tag` of that tag is waiting, in
+ * which case the two cancel and nothing is logged (and vice versa for a removal
+ * against a pending `add-tag`). Restoring a card's tags to their session-start
+ * state therefore leaves no trace in the changelog, exactly as the "latest wins"
+ * consolidations do for single-valued fields — the same opposite-pair rule
+ * {@link areOppositeChanges} states, applied here so every editor shares one
+ * implementation.
+ */
+export function consolidateTagEdits(
+  changes: ChangeEvent[],
+  cardName: string,
+  next: readonly CardTag[],
+  current: readonly CardTag[] | undefined,
+  cardId?: number,
+): ConsolidateManyResult<CardTagChange> {
+  let updated = changes
+  const addedChanges: CardTagChange[] = []
+  const cancelledChanges: CardTagChange[] = []
+  for (const event of tagEditChanges(cardName, next, current, cardId)) {
+    const oppositeIndex = updated.findIndex((existing) => areOppositeChanges(existing, event))
+    if (oppositeIndex === -1) {
+      updated = [...updated, event]
+      addedChanges.push(event)
+    } else {
+      // Only a tag event is ever the opposite of a tag event (see
+      // `areOppositeChanges`), so the pending change is one of the pair.
+      cancelledChanges.push(updated[oppositeIndex] as CardTagChange)
+      updated = updated.filter((_, index) => index !== oppositeIndex)
+    }
+  }
+  return { changes: updated, addedChanges, cancelledChanges }
+}
+
+/**
  * Apply a set-section action (move a card to a section) with "latest wins" semantics,
  * mirroring {@link consolidateSetFinish}:
  * - Removes any existing set-section for the same card from the changelog
@@ -909,6 +1087,8 @@ const ADDITIVE_ACTIONS = {
   'set-language': true,
   'set-note': true,
   'set-label': true,
+  'add-tag': true,
+  'remove-tag': false,
   'move-from': false,
   'move-to': true,
   'add-section': true,
@@ -1074,6 +1254,14 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
         return `${clearVerb} labels on ${name}${idInfo}`
       }
       return `Set labels on ${name}${idInfo} to [${formatCardLabels(change.labels)}]`
+    }
+    case 'add-tag': {
+      const verb = tense === 'past' ? 'Added' : 'Add'
+      return `${verb} tag "${change.tag}" to ${name}${idInfo}`
+    }
+    case 'remove-tag': {
+      const verb = tense === 'past' ? 'Removed' : 'Remove'
+      return `${verb} tag "${change.tag}" from ${name}${idInfo}`
     }
     case 'move-from': {
       const ann = formatPrintingAnnotation(change)

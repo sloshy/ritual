@@ -19,6 +19,7 @@
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
+import { isUnknownArray } from '../util/guards'
 import { parseEnumField } from '../util/parse-enum'
 
 /** Every label, in canonical serialization order (`sale` before `trade`). */
@@ -360,11 +361,6 @@ export function parseCardLabelsToken(raw: string): CardLabelsResult {
   const conflict = exclusivityError(labels)
   if (conflict) return { ok: false, message: conflict }
   return { ok: true, labels: normalizeCardLabels(labels) }
-}
-
-/** `Array.isArray` narrowed to `unknown[]` rather than `any[]` — a parse boundary stays opaque. */
-function isUnknownArray(value: unknown): value is readonly unknown[] {
-  return Array.isArray(value)
 }
 
 /**

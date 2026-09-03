@@ -198,6 +198,7 @@ function deckCard(tokens: LineTokens, line: string, listType: ListType, warnings
     // Set only when the token is present — a bare line means `en` and stays bare.
     language: tokens.language,
     labels: labels.labels,
+    tags: tokens.tags === undefined ? undefined : [...tokens.tags],
     note: tokens.note,
     cardId: tokens.cardId,
   }

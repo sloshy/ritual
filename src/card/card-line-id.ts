@@ -19,8 +19,14 @@
  * English by construction and browser-safe: no `src/i18n`, no `node:`.
  */
 
-/** The digits of a trailing `&N`, with no boundary requirement. */
-const ANY_CARD_ID_RE = /&(\d+)\s*$/
+/**
+ * The digits of a trailing `&N`, with no boundary requirement, tolerating a
+ * tag token written after it (`&2 #ramp`, even glued as `&2#ramp`) so a
+ * misplaced tag can never free a live id. The tail is `[^&]*` because a tag
+ * can never hold `&`: a greedy `.*` would let an `&12` inside an earlier
+ * `{note}` pose as the id and leave the line's real one unreserved.
+ */
+const ANY_CARD_ID_RE = /&(\d+)(?:\s*#[^&]*)?\s*$/
 
 /**
  * A trailing `&N` at a whitespace boundary (or at the very start of the line),

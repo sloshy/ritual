@@ -26,7 +26,12 @@ export const sitePagesMessages = {
   'site.groupBy.price': 'Price',
   'site.groupBy.printing': 'Printing',
   'site.groupBy.source': 'Source List',
+  'site.groupBy.tags': 'Tags',
+  'site.groupBy.untagged': 'Untagged',
   'site.groupBy.none': 'None',
+
+  // ── Sort-by options (the rest live in the shared `domain.sortBy.*` set) ──
+  'site.sortBy.tags': 'Tags',
 
   // ── Export menu ───────────────────────────────────────────────────────
   'site.export.copy': 'Copy',

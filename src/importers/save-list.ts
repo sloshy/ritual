@@ -352,6 +352,7 @@ function flattenToEntries(deckData: DeckData): ImportCardEntry[] {
         condition: card.condition,
         language: card.language,
         labels: card.labels,
+        tags: card.tags,
         note: card.note,
         section: section.name,
       })

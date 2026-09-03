@@ -13,6 +13,8 @@ import { replaySectionOrder } from '../changes/change-event'
 import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
+import type { CardTag } from '../card/card-tags'
+import { applyCardTagsEdit } from './card-tags-edit'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { DEFAULT_CURRENCY } from '../pricing/price-currency'
 import type { ChangeEvent, CardPrintingOptions } from '../changes/change-event'
@@ -265,6 +267,21 @@ export function useEditor<TData, TCardEntry = unknown>(
       prev !== null
         ? config.applyChange(prev, { action: 'set-language', cardName, language, cardId: id })
         : prev,
+    )
+  }
+
+  const handleSetTagsFor = (
+    cardName: string,
+    tags: readonly CardTag[],
+    currentTags: readonly CardTag[] | undefined,
+    cardId?: number,
+  ) => {
+    const d = data()
+    if (!d) return
+    const id = cardId ?? config.findCardId(d, cardName)
+    applyCardTagsEdit(
+      { changes, setData, applyChange: config.applyChange },
+      { cardName, cardId: id, tags, currentTags },
     )
   }
 
@@ -740,6 +757,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     handleSetFoil,
     handleSetFinishFor,
     handleSetLanguageFor,
+    handleSetTagsFor,
     handleAddCardFromSearch,
     handleUndo,
     handleSave,

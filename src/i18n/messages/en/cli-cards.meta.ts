@@ -12,6 +12,14 @@ export const cliCardsMeta = {
     description:
       'Refusal when only one half of the --set/--collector-number printing pin was given. The flag names never translate.',
   },
+  'cli.cardOps.tagFlagInvalid': {
+    description:
+      "Wraps the tag parser's English data-format refusal ({reason}) for a --tag/--untag flag value. {flag} is the literal flag name (never translated).",
+  },
+  'cli.cardOps.tagFlagEmpty': {
+    description:
+      'Refusal when a --tag/--untag flag value contained no tags at all (empty or only separators). {flag} is the literal flag name.',
+  },
   'cli.cardOps.wantedNoCondition': {
     description:
       'Refusal when --condition is used on a wanted list, which records no card condition.',
@@ -251,6 +259,10 @@ export const cliCardsMeta = {
   'cli.setCard.noChangeGiven': {
     description: 'set-card was run with no mutating flag. The flag names never translate.',
   },
+  'cli.setCard.tagBothWays': {
+    description:
+      'Refusal when the same tag was passed to both --tag (add) and --untag (remove). {tags} is the comma-joined tag list; the flag names never translate.',
+  },
   'cli.setCard.artInvalid': {
     description:
       "Wraps the art-reference parser's refusal of a --art value with the escape hatch. 'none' is a machine value; {reason} is untranslated engine prose.",
@@ -306,6 +318,22 @@ export const cliCardsMeta = {
   },
   'cli.setCard.appliedLabel': {
     description: 'One entry of the applied-changes list. {labels} is a comma-joined slug list.',
+  },
+  'cli.setCard.appliedTagsAdded': {
+    description:
+      'One entry of the applied-changes list: the tags --tag put on the line. {tags} is the comma-joined tag list (`Ramp, Card Draw`), a data token.',
+  },
+  'cli.setCard.appliedTagsRemoved': {
+    description:
+      'One entry of the applied-changes list: the tags --untag took off the line. {tags} is the comma-joined tag list (`Ramp`), a data token.',
+  },
+  'cli.setCard.tagsAlreadyPresent': {
+    description:
+      'One entry of the applied-changes list when every tag --tag asked for was already on the line, so nothing was recorded. {tags} is the card-line rendering.',
+  },
+  'cli.setCard.tagsAlreadyAbsent': {
+    description:
+      'One entry of the applied-changes list when no tag --untag asked for was on the line, so nothing was recorded. {tags} is the card-line rendering.',
   },
   'cli.setCard.appliedSection': { description: 'One entry of the applied-changes list.' },
   'cli.setCard.appliedCommander': {

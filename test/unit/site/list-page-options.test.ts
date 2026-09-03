@@ -26,6 +26,7 @@ describe('deckGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'printing',
       'none',
     ])
@@ -38,6 +39,7 @@ describe('deckGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'printing',
       'buylist-price',
       'on-buylist',
@@ -52,6 +54,7 @@ describe('deckGroupByOptions', () => {
       'site.groupBy.cmc',
       'site.groupBy.colorIdentity',
       'site.groupBy.price',
+      'site.groupBy.tags',
       'site.groupBy.printing',
       'domain.groupBy.buylistPrice',
       'domain.groupBy.onBuylist',
@@ -67,6 +70,7 @@ describe('collectionGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'none',
     ])
   })
@@ -78,6 +82,7 @@ describe('collectionGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'none',
     ])
   })
@@ -88,6 +93,7 @@ describe('collectionGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'buylist-price',
       'on-buylist',
       'none',
@@ -102,6 +108,7 @@ describe('wantedGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'printing',
       'none',
     ])
@@ -114,6 +121,7 @@ describe('wantedGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'printing',
       'buylist-price',
       'on-buylist',
@@ -130,6 +138,7 @@ describe('combinedGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'printing',
       'none',
     ])
@@ -142,6 +151,7 @@ describe('combinedGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'none',
     ])
   })
@@ -154,6 +164,7 @@ describe('combinedGroupByOptions', () => {
       'cmc',
       'color-identity',
       'price',
+      'tags',
       'buylist-price',
       'on-buylist',
       'none',
@@ -177,6 +188,7 @@ const ALL_GROUP_BYS = [
   'printing',
   'section',
   'source',
+  'tags',
   'type',
 ]
 

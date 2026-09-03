@@ -10,6 +10,7 @@ import type { Finish } from '../card/finish-condition'
 import type { CardLineDiagnostic } from '../card/card-line-grammar'
 import type { ListFileParseOptions } from './line-diagnostics'
 import type { CardLanguage } from '../card/card-language'
+import type { CardTag } from '../card/card-tags'
 import type { FlatListFrontMatter } from './flat-list-front-matter'
 import { scanFlatListFile } from './flat-list-scan'
 
@@ -21,6 +22,8 @@ export type WantedListEntry = {
   finish?: Finish
   /** The wanted printing's language, from a `[ja]`-style token. Absent means `en`. */
   language?: CardLanguage
+  /** The line's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -76,7 +79,7 @@ export function parseWantedListFile(
     // Named field by field rather than spread: a wanted list carries neither a
     // condition nor labels (the grammar refuses both), so listing what it does
     // carry keeps a widened `LineTokens` from quietly landing on an entry.
-    const { name, printing, finish, language, note } = copy.tokens
+    const { name, printing, finish, language, tags, note } = copy.tokens
     return {
       name,
       quantity: 1,
@@ -84,6 +87,7 @@ export function parseWantedListFile(
       collectorNumber: printing?.collectorNumber,
       finish,
       language,
+      tags: tags === undefined ? undefined : [...tags],
       note,
       cardId: copy.cardId,
       section: copy.section,

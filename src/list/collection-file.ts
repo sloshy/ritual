@@ -10,6 +10,7 @@ import type { CardLanguage } from '../card/card-language'
 import type { CardLineDiagnostic } from '../card/card-line-grammar'
 import type { ListFileParseOptions } from './line-diagnostics'
 import type { CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import type { FlatListFrontMatter } from './flat-list-front-matter'
 import { scanFlatListFile } from './flat-list-scan'
 
@@ -27,6 +28,8 @@ export type CollectionEntry = {
    * front-matter default entirely; `undefined` means "inherit the default".
    */
   labels?: CardLabel[]
+  /** This card's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   /** Section this entry belongs to. Defaults to `DEFAULT_SECTION` ("Main") when unsectioned. */
@@ -77,7 +80,7 @@ export function parseCollectionFile(
   const scan = scanFlatListFile<CollectionEntry>('collection', content, options, (copy) => {
     // Named field by field rather than spread, so a widened `LineTokens` cannot
     // quietly land an unmodelled field on a collection entry.
-    const { name, printing, finish, condition, language, labels, note } = copy.tokens
+    const { name, printing, finish, condition, language, labels, tags, note } = copy.tokens
     // A collection line always names a printing — `GRAMMAR.collection` requires
     // it, so the scan's parse already refused a line without one.
     if (printing === undefined) return undefined
@@ -90,6 +93,7 @@ export function parseCollectionFile(
       condition,
       language,
       labels: labels === undefined ? undefined : [...labels],
+      tags: tags === undefined ? undefined : [...tags],
       note,
       cardId: copy.cardId,
       section: copy.section,

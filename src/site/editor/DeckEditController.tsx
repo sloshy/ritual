@@ -15,6 +15,8 @@ import { bulkMoveToList, printingForMove, printingOf } from '../../list-view/pri
 import { promptListMove, promptSectionMove } from '../../list-view/move-prompt'
 import { promptCardLabels } from '../../list-view/label-prompt'
 import { promptCardLanguage } from '../../list-view/language-prompt'
+import { promptCardTags } from '../../editor/tags-prompt'
+import { tagSuggestions } from '../../editor/card-tags-edit'
 import { useEditor } from '../../editor/useEditor'
 import { sharedBulkEdit } from '../../editor/shared-bulk-edit'
 import type { ListEditorConfig, UseEditorResult } from '../../editor/editor-config'
@@ -31,6 +33,7 @@ import {
   findDeckCardId,
   findDeckCardIdInSection,
   findDeckCardLabels,
+  findDeckCardTags,
   findDeckCardLanguage,
   findDeckCardSection,
 } from '../../editor/deck-config'
@@ -116,13 +119,14 @@ export function useDeckEditController(
   const handleIncrement = (cardName: string) => {
     const d = editor.data()
     const cardId = d ? findDeckCardId(d, cardName) : undefined
-    // The copy joins a line that already has an override, so the event carries
-    // it: labels are part of a card's identity, and an add that claimed none
-    // would no longer be the opposite of the matching decrement.
+    // The copy joins a line that already has an override and tags, so the
+    // event carries them: both are part of a card's identity, and an add that
+    // claimed none would no longer be the opposite of the matching decrement.
     const labels = findDeckCardLabels(d, cardName, cardId)
-    editor.changes.addCard(cardName, { cardId, labels })
+    const tags = findDeckCardTags(d, cardName, cardId)
+    editor.changes.addCard(cardName, { cardId, labels, tags })
     editor.setData((prev) =>
-      prev ? applyChangeToDeck(prev, { action: 'add', cardName, labels, cardId }) : prev,
+      prev ? applyChangeToDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
     )
   }
 
@@ -147,6 +151,7 @@ export function useDeckEditController(
       cardId,
       removedCardData,
       findDeckCardLabels(d, cardName, cardId),
+      findDeckCardTags(d, cardName, cardId),
     )
     editor.setData((prev) =>
       prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
@@ -484,6 +489,31 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                   promptCardLabels('deck', (labels) =>
                     ctrl.handleSetLabelFor(target.cardName, labels, target.cardIds[0]),
                   )
+                }}
+                onEditTags={() => {
+                  const target = menu()
+                  const d = editor.data()
+                  // The line's live tags seed the field and are what the edit
+                  // consolidates against (see `card-tags-edit.ts`). A deck entry
+                  // holds every copy under one `cardId`, so one edit covers the tile.
+                  const current = d
+                    ? findDeckCard(d, target.cardName, target.cardIds[0])?.tags
+                    : undefined
+                  const suggestions = tagSuggestions(d?.sections.flatMap((s) => s.cards) ?? [])
+                  ctrl.closeContextMenu()
+                  promptCardTags({
+                    current,
+                    suggestions,
+                    // The baseline is re-read at save time, not the snapshot the
+                    // dialog was seeded from: the delta decides which events exist.
+                    onSave: (tags) => {
+                      const deck = editor.data()
+                      const live = deck
+                        ? findDeckCard(deck, target.cardName, target.cardIds[0])?.tags
+                        : undefined
+                      editor.handleSetTagsFor(target.cardName, tags, live, target.cardIds[0])
+                    },
+                  })
                 }}
                 onSetLanguage={() => {
                   const target = menu()

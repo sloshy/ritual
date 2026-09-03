@@ -12,6 +12,7 @@ import {
   type SortLayer,
 } from '../../../src/list-view/card-sorting'
 import { makeCardData as makeCard } from '../../test-utils'
+import { t } from '../../../src/i18n/t'
 
 /** Build a single-layer sort, the common case in these tests. */
 function sl(sortBy: SortBy, reverse = false): SortLayer[] {
@@ -606,5 +607,61 @@ describe('buylist spread sorting', () => {
     const other = makeCard({ name: 'Other', buylistSpread: 0 })
     const sorted = [other, atRetail].sort((a, b) => compareBySortLayers(a, b, sl('buylist-spread')))
     expect(sorted.map((c) => c.name)).toEqual(['Even', 'Other'])
+  })
+})
+
+// Tags group by the whole *set*, one group per distinct set: a card lands in
+// exactly one group like every other grouping, so a two-tag card is never
+// counted in two groups' totals. The key is the canonical `a, b` string, so
+// two spellings of one set share a group, and untagged cards gather last.
+describe('groupAndSortCards — tags', () => {
+  const untagged = t('site.groupBy.untagged')
+  const cards = [
+    makeCard({ name: 'Plain' }),
+    makeCard({ name: 'Ramp Rock', tags: ['ramp'] }),
+    makeCard({ name: 'Staple Rock', tags: ['staple', 'ramp'] }),
+    makeCard({ name: 'Other Rock', tags: ['ramp', 'staple'] }),
+    makeCard({ name: 'Draw Spell', tags: ['draw'] }),
+    makeCard({ name: 'Empty Set', tags: [] }),
+  ]
+
+  test('one group per distinct tag set, in display order, untagged last', () => {
+    const groups = groupAndSortCards(cards, 'tags', sl('name'), [])
+    expect(groups.map((g) => g.key)).toEqual(['draw', 'ramp', 'ramp, staple', untagged])
+    expect(groups.find((g) => g.key === 'ramp, staple')!.cards.map((c) => c.name)).toEqual([
+      'Other Rock',
+      'Staple Rock',
+    ])
+    // An empty set is "no tags", exactly as a missing one is.
+    expect(groups.at(-1)!.cards.map((c) => c.name)).toEqual(['Empty Set', 'Plain'])
+  })
+
+  test('reverse groups puts untagged first', () => {
+    const groups = groupAndSortCards(cards, 'tags', sl('name'), [], undefined, 'usd', true)
+    expect(groups[0]!.key).toBe(untagged)
+  })
+
+  test('sorting by tags orders sets by their canonical string, untagged last', () => {
+    const [group] = groupAndSortCards(cards, 'none', sl('tags'), [])
+    expect(group!.cards.map((c) => c.name)).toEqual([
+      'Draw Spell',
+      'Ramp Rock',
+      'Other Rock',
+      'Staple Rock',
+      'Empty Set',
+      'Plain',
+    ])
+  })
+
+  test('reversed tag sort puts untagged first and keeps name as the final tiebreaker', () => {
+    const [group] = groupAndSortCards(cards, 'none', sl('tags', true), [])
+    expect(group!.cards.map((c) => c.name)).toEqual([
+      'Empty Set',
+      'Plain',
+      'Other Rock',
+      'Staple Rock',
+      'Ramp Rock',
+      'Draw Spell',
+    ])
   })
 })

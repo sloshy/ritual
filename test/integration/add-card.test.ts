@@ -1354,6 +1354,90 @@ describe('add-card language (Integration)', () => {
   })
 })
 
+describe('add-card --tag (Integration)', () => {
+  test('a tagged collection add writes the tokens and rides the changelog add', async () => {
+    const result = await runCli(
+      [
+        'add-card',
+        '--collection',
+        'main',
+        'Lightning',
+        'Bolt',
+        '--exact',
+        '--set',
+        'sta',
+        '--collector-number',
+        '42',
+        '--finish',
+        'etched',
+        '--condition',
+        'NONE',
+        '--tag',
+        'Staple, Card Draw',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { tags?: string[] }
+    expect(json.tags).toEqual(['Card Draw', 'Staple'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Lightning Bolt (STA:42) [etched] #Card Draw, Staple &2')
+
+    // Tags ride the add event (its JSON line), not its rendered prose line,
+    // which still parses as a plain add.
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Added "Lightning Bolt" (STA:42) [etched] &2')
+    expect(changelog).toContain('"tags":["Card Draw","Staple"]')
+  })
+
+  test('a deck add carries the tags onto the new line', async () => {
+    const result = await runCli(
+      ['add-card', '--deck', 'test', 'Sol', 'Ring', '--tag', 'edh', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { tags?: string[] }
+    expect(json.tags).toEqual(['edh'])
+
+    const content = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(content).toContain('1 Sol Ring #edh &2')
+  })
+
+  test('a name-only wanted add takes tags too', async () => {
+    const result = await runCli(
+      [
+        'add-card',
+        '--wanted',
+        'needs',
+        'Demonic',
+        'Tutor',
+        '--exact',
+        '--name-only',
+        '--tag',
+        'budget',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { tags?: string[] }
+    expect(json.tags).toEqual(['budget'])
+
+    const content = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(content).toContain('- Demonic Tutor #budget &2')
+  })
+
+  test('an empty --tag value is rejected at parse time', async () => {
+    const result = await runCli(['add-card', '--deck', 'test', 'Sol', 'Ring', '--tag', ', ,'], dir)
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('--tag needs at least one tag')
+  })
+})
+
 describe('add-card --label (Integration)', () => {
   test('a labeled collection add writes the token and rides the changelog add', async () => {
     const result = await runCli(

@@ -2,6 +2,7 @@ import type { Condition, Finish } from '../../card/finish-condition'
 import type { DeckData } from '../../list/deck'
 import type { CardArtRecord } from '../../list/card-art'
 import type { CardLabel } from '../../card/card-labels'
+import type { CardTag } from '../../card/card-tags'
 import type { ListImageRef } from '../../list/list-image'
 import type { CardLanguage } from '../../card/card-language'
 import type { ParsedWantedEntry } from '../../list/wanted-entries'
@@ -34,6 +35,8 @@ export interface CollectionEntry {
    * the list-level `labels` on the load body.
    */
   labels?: CardLabel[]
+  /** The line's tags, canonical (trimmed, sorted, no `#`); absent when it has none. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   section?: string

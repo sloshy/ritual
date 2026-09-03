@@ -7,6 +7,7 @@ import {
   unsupportedLabelsMessage,
 } from '../card/card-labels'
 import { CARD_LANGUAGES } from '../card/card-language'
+import { CARD_TAG_SHAPE_CLAUSE, isCardTagShaped, normalizeCardTag } from '../card/card-tags'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { isListType } from '../list/list-type'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
@@ -33,6 +34,25 @@ export const conditionUpdateSchema = z.enum([...VALID_CONDITIONS, 'NONE'])
 export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
 /** Derived from the canonical label vocabulary, so the tool schema cannot drift from it. */
 export const cardLabelSchema = z.enum(CARD_LABELS)
+/**
+ * One card tag in canonical form — the same shape rule the card-line grammar
+ * reads (`isCardTagShaped`), already trimmed and single-spaced, in the owner's
+ * own casing. Each tag is canonical on input rather than normalized here, so
+ * the tag an agent sends is exactly the tag the changelog records (a *set* of
+ * them is still deduplicated and sorted by the engine on write).
+ */
+export const cardTagSchema = z
+  .string()
+  .refine((raw) => isCardTagShaped(raw) && raw === normalizeCardTag(raw), {
+    message: `Not a canonical tag: ${CARD_TAG_SHAPE_CLAUSE}; no surrounding or doubled spaces.`,
+  })
+  .describe('A card tag as its owner writes it, e.g. "Ramp" or "Card Draw" — plain text, no "#".')
+/** The tags a newly added card starts with; omit for none. */
+export const tagsField = z
+  .array(cardTagSchema)
+  .min(1)
+  .optional()
+  .describe('Tags for the new card (plain text, e.g. "Card Draw"); omit for none.')
 /**
  * A label-override *update*: the new override, where `sale` and `trade` combine
  * and `keep`/`proxy` each stand alone, or an empty array to clear the override

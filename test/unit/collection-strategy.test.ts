@@ -249,6 +249,36 @@ describe('collection strategy — Change Language', () => {
   })
 })
 
+describe('collection strategy — Edit Tags', () => {
+  test('the edit menu tags the entry and the rendered line shows the tokens', async () => {
+    const session = makeSession()
+    session.entries = [
+      {
+        name: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '240',
+        finish: 'nonfoil',
+        condition: 'NM',
+        price: 0,
+        fileOrder: 0,
+        section: 'Main',
+        cardId: 1,
+      },
+    ]
+    const strategy = makeStrategy(session)
+    const ctx = makeCtx()
+
+    prompts.inject(['tags', 'ramp'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.entries[0]!.tags).toEqual(['ramp'])
+    expect(ctx.sessionChanges).toHaveLength(1)
+    expect(ctx.sessionChanges[0]).toMatchObject({ action: 'add-tag', tag: 'ramp', cardId: 1 })
+    expect(strategy.lastEditUndoLabel()).toBe('tags on Sol Ring')
+    expect(strategy.listEntries()[0]!.label).toBe('- Sol Ring (C21:240) #ramp &1')
+  })
+})
+
 describe('collection strategy — Set Custom Art', () => {
   function makeCtx(): CardSessionContext {
     return {

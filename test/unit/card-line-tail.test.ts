@@ -32,10 +32,16 @@ describe('formatTokenTail', () => {
         condition: 'LP',
         language: 'ja',
         labels: ['sale', 'trade'],
+        tags: ['zebra', 'Apple'],
         note: 'shelf 2',
         cardId: 12,
       }),
-    ).toBe(' (LTC:284) [foil] [LP] [ja] [sale,trade] {shelf 2} &12')
+    ).toBe(' (LTC:284) [foil] [LP] [ja] [sale,trade] #Apple, zebra {shelf 2} &12')
+  })
+
+  test('writes tags before the note, canonicalized, and none for an empty set', () => {
+    expect(formatTokenTail({ tags: ['b', 'a', ' a '], note: 'n' })).toBe(' #a, b {n}')
+    expect(formatTokenTail({ tags: [] })).toBe('')
   })
 
   test('omits every token at its default', () => {
@@ -132,6 +138,19 @@ describe('round trip', () => {
       },
     ],
     ['wanted', { quantity: 1, name: 'Bebop & Rocksteady', cardId: 11 }],
+    [
+      'collection',
+      {
+        quantity: 1,
+        name: 'Sol Ring',
+        printing: { set: 'ltc', collectorNumber: '284' },
+        labels: ['keep'],
+        tags: ['binder/trade', 'Card Draw'],
+        note: 'needs #upgrade',
+        cardId: 3,
+      },
+    ],
+    ['wanted', { quantity: 1, name: 'Arcane Signet', tags: ['ramp'], cardId: 4 }],
     [
       'wanted',
       {

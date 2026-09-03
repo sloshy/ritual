@@ -9,6 +9,7 @@ import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../src/list/de
 import { serializeSectionedList } from '../../src/list/section-format'
 import { formatCollectionLine, formatWantedListLine } from '../../src/card/card-line'
 import type { CardLabel } from '../../src/card/card-labels'
+import type { CardTag } from '../../src/card/card-tags'
 import type { CardLanguage } from '../../src/card/card-language'
 import { frontMatterFor, withFrontMatter } from '../../src/list/list-export'
 import { DEFAULT_SECTION, type DeckSection } from '../../src/list/deck'
@@ -242,6 +243,8 @@ export type CollectionFixtureEntry = {
   language?: CardLanguage
   /** Per-card label override (`[keep]`, `[sale,trade]`). */
   labels?: CardLabel[]
+  /** Per-card `#tag` tokens. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   section?: string
@@ -271,6 +274,7 @@ export function collectionMarkdown(fixture: CollectionFixture & { title: string 
         condition: entry.condition,
         language: entry.language,
         labels: entry.labels,
+        tags: entry.tags,
         note: entry.note,
         cardId: entry.cardId,
       }),
@@ -300,6 +304,8 @@ export type WantedFixtureEntry = {
   finish?: Finish
   /** The line's `[ja]`-style language token; omit for English. */
   language?: CardLanguage
+  /** Per-card `#tag` tokens. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   section?: string
@@ -327,6 +333,7 @@ export function wantedMarkdown(fixture: WantedFixture & { title: string }): stri
             : undefined,
         finish: entry.finish,
         language: entry.language,
+        tags: entry.tags,
         note: entry.note,
         cardId: entry.cardId,
       }),

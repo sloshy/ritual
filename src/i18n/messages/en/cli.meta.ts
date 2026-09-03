@@ -186,6 +186,10 @@ export const cliMeta = {
     description:
       'Noun phrase naming what a card note prompt wanted, spliced into the --no-input refusal frame.',
   },
+  'cli.prompt.subject.tagsText': {
+    description:
+      'Noun phrase naming what the card #tags prompt wanted, spliced into the --no-input refusal frame.',
+  },
   'cli.prompt.subject.sessionChange': {
     description:
       'Noun phrase naming what the View Session Changes picker wanted, spliced into the --no-input refusal frame.',
@@ -522,6 +526,10 @@ export const cliMeta = {
   'cli.session.promptNote': { description: 'Prompt for a note on the card just added.' },
   'cli.session.promptNoteEdit': {
     description: "Prompt for an existing entry's note, where submitting nothing clears it.",
+  },
+  'cli.session.promptTagsEdit': {
+    description:
+      "Prompt for an existing entry's #tags, prefilled with the current ones; the input is split on spaces and commas, and submitting nothing clears every tag.",
   },
   'cli.session.promptEditEntry': {
     description:

@@ -2,6 +2,7 @@ import type { ChangeInput, SetPrintingChange } from './change-event'
 import type { CollectionCardEntry } from '../list/site-data'
 import { DEFAULT_SECTION } from '../list/deck'
 import { normalizedOverride } from '../card/card-labels'
+import { normalizedTags, withCardTag, withoutCardTag } from '../card/card-tags'
 import { noteOrUndefined } from '../card/note-helpers'
 import { applyConditionUpdate } from '../card/finish-condition'
 import { canSetFinish, finishMatchesPrinting } from '../card/card-printing'
@@ -49,6 +50,7 @@ export type CollectionEntrySource = {
   condition?: CollectionCardEntry['condition']
   language?: CollectionCardEntry['language']
   labels?: CollectionCardEntry['labels']
+  tags?: CollectionCardEntry['tags']
   section?: string
   note?: string
   cardId?: number
@@ -75,6 +77,7 @@ export function toCollectionCardEntries(
     // so bare lines still round-trip as bare lines.
     language: e.language ?? 'en',
     labels: e.labels,
+    tags: e.tags,
     price: 0,
     fileOrder: i,
     section: e.section ?? DEFAULT_SECTION,
@@ -134,6 +137,7 @@ export function applyChangeToCollection(
         condition: change.condition ?? 'NM',
         language: change.language ?? 'en',
         labels: normalizedOverride(change.labels),
+        tags: normalizedTags(change.tags),
         price: 0,
         fileOrder: entries.length,
         section: change.section ?? DEFAULT_SECTION,
@@ -183,6 +187,18 @@ export function applyChangeToCollection(
       const labels = normalizedOverride(change.labels)
       return updateTarget(entries, change, options, (e) => ({ ...e, labels }))
     }
+
+    case 'add-tag':
+      return updateTarget(entries, change, options, (e) => ({
+        ...e,
+        tags: withCardTag(e.tags, change.tag),
+      }))
+
+    case 'remove-tag':
+      return updateTarget(entries, change, options, (e) => ({
+        ...e,
+        tags: withoutCardTag(e.tags, change.tag),
+      }))
 
     case 'set-section':
       return updateTarget(entries, change, options, (e) => ({ ...e, section: change.section }))
@@ -252,6 +268,7 @@ export function applyChangeToCollection(
           finish: change.finish,
           condition: change.condition,
           language: change.language,
+          tags: change.tags,
           section: change.section,
         },
         options,

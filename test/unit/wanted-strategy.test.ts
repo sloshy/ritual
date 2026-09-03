@@ -88,6 +88,26 @@ describe('wanted strategy — Change Language', () => {
   })
 })
 
+describe('wanted strategy — Edit Tags', () => {
+  test('a name-only entry takes tags, rendered before its id', async () => {
+    const session = sessionWithEntry()
+    const strategy = createWantedStrategy(session, makeSessionConfig(), 'Needs', true)
+    const ctx = makeCtx()
+
+    prompts.inject(['tags', 'budget, staple'])
+    await strategy.editEntry(ctx, 1)
+
+    expect(session.entries[0]!.tags).toEqual(['budget', 'staple'])
+    expect(ctx.sessionChanges.map((c) => c.action)).toEqual(['add-tag', 'add-tag'])
+    expect(strategy.lastEditUndoLabel()).toBe('tags on Demonic Tutor')
+    expect(strategy.listEntries()[0]!.label).toBe('- Demonic Tutor #budget, staple &1')
+
+    await strategy.undoLastEdit(ctx)
+    expect(session.entries[0]!.tags).toBeUndefined()
+    expect(ctx.sessionChanges).toHaveLength(0)
+  })
+})
+
 describe('wanted strategy — Set Custom Art', () => {
   test('a wanted entry takes custom art too, staged for the save', async () => {
     const session = sessionWithEntry()

@@ -97,6 +97,7 @@ function tradeCardFromEntry(entry: TradeSearchEntry, currency: PriceCurrency): T
     condition: entry.condition,
     language: entry.language,
     labels: entry.labels,
+    tags: entry.tags,
     customArt: entry.customArt,
     hasCustomArt: entry.hasCustomArt,
     note: entry.note,

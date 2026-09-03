@@ -377,6 +377,9 @@ export const domainMeta = {
   'domain.exportHint.labels': {
     description: `${EXPORT_HINT_CONTEXT} The "labels" column, which exports the labels actually in force — a card's own override if it has one, otherwise the list's default.`,
   },
+  'domain.exportHint.tags': {
+    description: `${EXPORT_HINT_CONTEXT} The "tags" column: the owner's free-form card tags (e.g. "Ramp", "Card Draw"), joined with commas.`,
+  },
   'domain.exportFormat.csv': {
     description: `${EXPORT_FORMAT_CONTEXT} Comma-separated values. A file-format name — normally left untranslated.`,
     maxLen: 48,
@@ -522,6 +525,12 @@ export const domainMeta = {
   },
   'domain.change.clearLabels': {
     description: `${CHANGE_CONTEXT} A card's label override was cleared, so the list default applies again. ${ID_CONTEXT}`,
+  },
+  'domain.change.addTag': {
+    description: `${CHANGE_CONTEXT} One tag was put on a card. {tag} is the user's own tag exactly as they wrote it (e.g. Card Draw) and is never translated; keep the surrounding quotes. ${ID_CONTEXT}`,
+  },
+  'domain.change.removeTag': {
+    description: `${CHANGE_CONTEXT} One tag was taken off a card. {tag} is the user's own tag exactly as they wrote it (e.g. Card Draw) and is never translated; keep the surrounding quotes. ${ID_CONTEXT}`,
   },
   'domain.change.moveToList': {
     description: `${CHANGE_CONTEXT} A card moved out of this list into another one. {list} is the destination's rendered name, e.g. Deck 'Standard Burn'. ${ANNOTATION_CONTEXT}`,

@@ -115,7 +115,7 @@ function movedPhysicalCard(name: string, tuple: PrintingTuple, listEntry: ListEn
  * destination's to record.
  */
 function mirrorMoveFrom(line: RemovedCopy, to: ListRef): MoveFromChange {
-  return createMoveFromChange(line.name, { ...printingOptionsFrom(line), to })
+  return createMoveFromChange(line.name, { ...printingOptionsFrom(line), tags: line.tags, to })
 }
 
 /**

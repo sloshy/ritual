@@ -11,6 +11,7 @@ import type { ListType } from './list-type'
 import { formatPrintingAnnotation } from '../changes/change-event'
 import { t, type MessageParams } from '../i18n/t'
 import type { CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import type { Condition, Finish } from '../card/finish-condition'
 
@@ -25,6 +26,8 @@ export type EntryRef = {
   language?: CardLanguage
   /** Label override — where the list type carries labels (never on a wanted entry). */
   labels?: CardLabel[]
+  /** The line's `#tag` tokens in canonical form; carried by every list type. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   /** Line quantity. Only a deck line can exceed 1 — flat-list entries are one card each. */

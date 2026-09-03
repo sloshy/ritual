@@ -8,6 +8,7 @@ import {
   createSetLanguageChange,
   type ChangeEvent,
 } from '../../src/changes/change-event'
+import { invalidCardTagMessage } from '../../src/card/card-tags'
 import { handleCollectionSave } from '../../src/admin/api/collection-save'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
@@ -214,6 +215,52 @@ describe('POST /api/collection/:slug/save — labels', () => {
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content.startsWith('---\nlabels: [sale]\n---\n\n# Binder')).toBeTrue()
     expect(content).toContain('- Sol Ring (C21:263) &3')
+  })
+})
+
+describe('POST /api/collection/:slug/save — tags', () => {
+  test('add-tag canonicalizes the tag, writes the tag token, and logs the line', async () => {
+    // Sent as a person might type it — stray sigil and doubled space — and
+    // stored canonical: the route is the boundary that normalizes, so the line,
+    // the changelog and the in-memory event all agree on `Card Draw`.
+    const resp = await save([
+      {
+        id: 'x',
+        timestamp: 0,
+        action: 'add-tag',
+        cardName: 'Lightning Bolt',
+        cardId: 1,
+        tag: '#Card  Draw',
+      },
+    ])
+    expect(resp.status).toBe(200)
+
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Lightning Bolt (LEA:161) #Card Draw &1')
+
+    const changelog = await fs.readFile(
+      path.join(tmpDir, 'collections', 'binder.changes.md'),
+      'utf-8',
+    )
+    expect(changelog).toContain('- Added tag "Card Draw" to "Lightning Bolt" &1')
+  })
+
+  test('a malformed tag is a 400 carrying the parser’s message, and writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save([
+      {
+        id: 'x',
+        timestamp: 0,
+        action: 'add-tag',
+        cardName: 'Lightning Bolt',
+        cardId: 1,
+        tag: 'a,b',
+      },
+    ])
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { message: string }
+    expect(body.message).toBe(invalidCardTagMessage('a,b'))
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 })
 

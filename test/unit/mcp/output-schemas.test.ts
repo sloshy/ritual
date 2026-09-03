@@ -420,6 +420,30 @@ describe('MCP output schemas, as authored', () => {
     ])
   })
 
+  test('every list-entry fragment carries the card tags, as canonical strings', () => {
+    // Tags ride on every entry shape on every list type — unlike labels, which
+    // a wanted entry never carries — as an optional array of plain strings: the
+    // canonical value (lowercase, no "#"), never the card-line token.
+    for (const def of ['DeckCard', 'CollectionEntry', 'WantedEntry'] as const) {
+      const schema = defsFor(def)[def] as unknown as SchemaNode
+      expect({
+        def,
+        type: schema.properties?.tags?.type,
+        items: schema.properties?.tags?.items?.type,
+      }) //
+        .toEqual({ def, type: 'array', items: 'string' })
+      // Absent means untagged, so `tags` must never be required.
+      expect(schema.required ?? []).not.toContain('tags')
+    }
+    // The contrast the comment draws: a wanted entry has tags but no labels.
+    const wanted = defsFor('WantedEntry').WantedEntry as unknown as SchemaNode
+    expect(wanted.properties?.labels).toBeUndefined()
+    // A physical card out of the move index carries no tags, so find_cards must
+    // not promise a field its handler never sends.
+    const physical = defsFor('PhysicalCard').PhysicalCard as unknown as SchemaNode
+    expect(physical.properties?.tags).toBeUndefined()
+  })
+
   test('defsFor closes transitively over $refs', () => {
     // DeckData refs DeckSection, which refs DeckCard — a schema that named only
     // the first would leave two dangling `$ref`s Ajv rejects at call time.

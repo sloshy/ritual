@@ -1,12 +1,44 @@
 import { describe, test, expect } from 'bun:test'
+import prompts from 'prompts'
 import {
   finishChoices,
   finishRows,
   printingChoices,
+  promptTagsEdit,
   suggestPrintings,
 } from '../../src/commands/session/prompts'
 import type { ScryfallCard } from '../../src/scryfall/types'
-import { makeScryfallCard } from '../test-utils'
+import { makeScryfallCard, stubTty } from '../test-utils'
+
+describe('promptTagsEdit', () => {
+  // The prompt goes through `ask`, which refuses to open without a terminal.
+  stubTty({ stdin: true })
+
+  test('re-asks after a refused input instead of dropping it', async () => {
+    prompts.inject(['R&D', 'Card Draw'])
+    expect(await promptTagsEdit(undefined)).toEqual(['Card Draw'])
+  })
+
+  test('empty input on a tagged line clears it', async () => {
+    prompts.inject([''])
+    expect(await promptTagsEdit(['ramp'])).toEqual([])
+  })
+
+  test('an unchanged set is null, whatever its order', async () => {
+    prompts.inject(['staple, ramp'])
+    expect(await promptTagsEdit(['ramp', 'staple'])).toBeNull()
+  })
+
+  test('empty input on an untagged line is null, not an edit', async () => {
+    prompts.inject([''])
+    expect(await promptTagsEdit(undefined)).toBeNull()
+  })
+
+  test('a cancelled prompt is null', async () => {
+    prompts.inject([new Error('cancelled')])
+    expect(await promptTagsEdit(['ramp'])).toBeNull()
+  })
+})
 
 describe('printingChoices', () => {
   test('gives each finish its own aligned column, right of the nonfoil price', () => {

@@ -32,6 +32,7 @@ import {
   type CardLabel,
 } from '../card/card-labels'
 import { readCardLine, type ReadCardLine } from '../card/card-line-read'
+import { sameCardTags, withCardTag, withoutCardTag, type CardTag } from '../card/card-tags'
 import type { LineTokens } from '../card/card-line-grammar'
 import { storedLanguage, type CardLanguage } from '../card/card-language'
 import { canonicalCardLine } from './deck-text'
@@ -174,6 +175,10 @@ export function applyTargetedChangesToContent(
     if (idx === -1) throw targetLineGone()
     entry.cardId ??= lineCardIdAt(lines, idx, type)
     entry.language ??= lineLanguageAt(lines, idx, type)
+    // Tags likewise: a rewrite about some other field must not strip the
+    // line's `#tag` tokens. The tag events mutate the adopted set, so unlike
+    // labels there is no "owns the token" exemption to make.
+    entry.tags ??= lineTagsAt(lines, idx, type)
     if (supportsAnyLabels(type) && !ownsLabels) {
       const lineLabels = lineLabelsAt(lines, idx, type)
       if ('invalid' in lineLabels) throw conflictingLabelsToken(lineLabels.invalid)
@@ -234,6 +239,16 @@ export function applyTargetedChangesToContent(
         rewriteWith(() => {
           entry.labels = normalizedOverride(change.labels)
         }, true)
+        break
+      case 'add-tag':
+        rewriteWith(() => {
+          entry.tags = withCardTag(entry.tags, change.tag)
+        })
+        break
+      case 'remove-tag':
+        rewriteWith(() => {
+          entry.tags = withoutCardTag(entry.tags, change.tag)
+        })
         break
       case 'set-section':
         requireDeck(type, change.action)
@@ -392,6 +407,12 @@ function lineLabelsAt(lines: string[], idx: number, type: ListType): LineLabels 
   return tokenLabels(readCardLine(type, lines[idx]!.trim()), type)
 }
 
+/** The `#tag` tokens carried by the card line at `idx`, or `undefined` for none. */
+function lineTagsAt(lines: string[], idx: number, type: ListType): CardTag[] | undefined {
+  const tags = readCardLine(type, lines[idx]!.trim())?.tokens.tags
+  return tags === undefined ? undefined : [...tags]
+}
+
 /**
  * Thrown when a finish would be written onto a line that pins no printing.
  * A usage error, not a runtime one: the fix is to pass `--set`/`--collector-number`
@@ -455,8 +476,9 @@ function removeTargetCopies(
         quantity: remaining,
         cardId: target.cardId ?? lineCardIdAt(lines, idx, type),
         language: target.language ?? lineLanguageAt(lines, idx, type),
-        // A decrement must not strip the line's `[proxy]` override.
+        // A decrement must not strip the line's `[proxy]` override, nor its tags.
         labels: target.labels ?? lineLabels.labels,
+        tags: target.tags ?? lineTagsAt(lines, idx, type),
       }
       return replaceLineAt(lines, idx, canonicalCardLine(type, entry))
     }
@@ -734,6 +756,7 @@ export async function applyDeckAdd(
       createAddChange(card.name, {
         ...printingOptionsFrom(card),
         labels: card.labels,
+        tags: card.tags,
         // The section the copies actually landed in, which is not always the
         // requested one: copies merge onto an existing line wherever it lives.
         section: outcome.section,
@@ -782,6 +805,9 @@ function findDeckMergeLineIndex(
     const lineLabels = tokenLabels(read, 'deck')
     if ('invalid' in lineLabels) continue
     if (!sameCardLabels(lineLabels.labels, card.labels)) continue
+    // Tags are identity for the same reason labels are: a line's tags describe
+    // every copy on it.
+    if (!sameCardTags(tokens.tags, card.tags)) continue
     // Language distinguishes variants like finish does — `isSamePrinting`
     // folds a missing token to `en` on both sides, so a `[ja]` line never
     // absorbs an English add.
@@ -810,7 +836,7 @@ function findDeckMergeLineIndex(
 function parseDeckLineEntry(line: string): EntryRef | undefined {
   const read = readCardLine('deck', line.trim())
   if (read === undefined) return undefined
-  const { name, quantity, printing, finish, condition, language, note, cardId } = read.tokens
+  const { name, quantity, printing, finish, condition, language, tags, note, cardId } = read.tokens
   return {
     name,
     quantity,
@@ -820,6 +846,7 @@ function parseDeckLineEntry(line: string): EntryRef | undefined {
     condition,
     language,
     labels: deckLineLabels(read),
+    tags: tags === undefined ? undefined : [...tags],
     note: noteOrUndefined(note),
     cardId,
   }

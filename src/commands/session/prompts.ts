@@ -32,6 +32,12 @@ import {
   type CardLabel,
   type CardLabelChoice,
 } from '../../card/card-labels'
+import {
+  formatCardTags,
+  parseCardTagsInput,
+  sameCardTags,
+  type CardTag,
+} from '../../card/card-tags'
 import type { ListType } from '../../list/list-type'
 import { resolvePrintingLanguage } from '../../card/printing-language'
 import {
@@ -97,6 +103,37 @@ export async function promptNoteEdit(currentNote: string | undefined): Promise<N
   const note = answer.trim()
   const before = currentNote ?? ''
   return note === before ? null : { note, before }
+}
+
+/**
+ * Prompt for an existing entry's tag set, prefilled with its current tags as
+ * a person reads them (`Card Draw, Ramp`). The input grammar is
+ * {@link parseCardTagsInput} — comma-separated, spaces kept — and
+ * an input the grammar refuses is reported and asked again rather than
+ * dropped. Empty input clears every tag. Returns the canonical set, or null
+ * when the prompt is cancelled or the set is unchanged.
+ */
+export async function promptTagsEdit(
+  currentTags: readonly CardTag[] | undefined,
+): Promise<CardTag[] | null> {
+  let initial = formatCardTags(currentTags)
+  for (;;) {
+    const answer = await ask<string>({
+      type: 'text',
+      message: t('cli.session.promptTagsEdit'),
+      subjectKey: 'cli.prompt.subject.tagsText',
+      initial,
+    })
+    if (answer === undefined) return null
+    const parsed = parseCardTagsInput(answer)
+    if (!parsed.ok) {
+      console.error(t('cli.edit.tagsInvalid', { reason: parsed.message }))
+      // Re-offer what was typed so the fix is an edit, not a retype.
+      initial = answer
+      continue
+    }
+    return sameCardTags(parsed.tags, currentTags) ? null : parsed.tags
+  }
 }
 
 // ── Printing, finish, condition, language and label pickers ─────────

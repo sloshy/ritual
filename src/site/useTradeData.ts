@@ -21,6 +21,7 @@ import {
 } from '../card/term-match'
 import type { SelectionSourceKind } from '../list-view/useCardSelection'
 import { effectiveLabels, type CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import { cardPricelessReason, pricelessFacts } from '../list-view/priceless'
 import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 import { lookupPrintingCard } from '../card/printing-key'
@@ -46,6 +47,8 @@ export interface TradeSearchEntry {
    * holding one keep-marked copy is guarded as a whole.
    */
   labels?: CardLabel[]
+  /** The source entry's `#tag` tokens, when it carries any. */
+  tags?: CardTag[]
   /**
    * The entry's baked custom art, when it has any. The trade board shows the
    * real printing either way — it is the card you would hand over — but a copy
@@ -201,6 +204,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
               condition: entry.condition,
               language: entryTradeLanguage(entry.language),
               labels: labels.length > 0 ? labels : undefined,
+              tags: entry.tags,
               customArt: entry.customArt,
               hasCustomArt: entry.hasCustomArt,
               note: entry.note,
@@ -334,6 +338,7 @@ export function useTradeData(params: UseTradeDataParams): UseTradeDataResult {
                 finish: card.finish,
                 language: entryTradeLanguage(card.language),
                 labels: labels.length > 0 ? labels : undefined,
+                tags: card.tags,
                 customArt: card.customArt,
                 hasCustomArt: card.hasCustomArt,
                 scryfallCard,

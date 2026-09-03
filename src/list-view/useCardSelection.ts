@@ -2,6 +2,7 @@ import { createSignal, type Accessor } from 'solid-js'
 import type { Finish, Condition } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import { isPricelessCard } from './priceless'
 import type { CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
@@ -32,6 +33,8 @@ export interface SelectedCard {
    * where a `proxy` copy counts as worth nothing.
    */
   labels?: CardLabel[]
+  /** The tile's `#tag` tokens, carried so a move out of the selection keeps them. */
+  tags?: CardTag[]
   /**
    * The tile's baked custom art, when it has any. Carried for the valuation and
    * the sell quote, both of which refuse a copy that is not its printing.

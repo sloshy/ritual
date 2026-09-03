@@ -18,6 +18,7 @@ import {
   parseCardLabelsValue,
   unsupportedLabelsMessage,
 } from '../card/card-labels'
+import { parseCardTag, parseCardTagsValue } from '../card/card-tags'
 import { BOARDS } from '../list/deck'
 import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
@@ -41,6 +42,8 @@ const REQUIRED_CHANGE_FIELDS = {
   'set-language': ['language'],
   'set-note': ['note'],
   'set-label': ['labels'],
+  'add-tag': ['tag'],
+  'remove-tag': ['tag'],
   'move-from': ['to'],
   'move-to': ['from'],
   'add-section': ['section'],
@@ -295,8 +298,29 @@ export function decodeChangeEvent(
     }
     normalized = { ...normalized, labels: labels.labels }
   }
+  // Tags are an open vocabulary validated by shape: a tag event names one
+  // tag-shaped string (`tag`), and an add, a remove, or either half of a move
+  // may carry a tag set (`tags`). Judged per *field* rather than per action:
+  // unknown keys are kept as they came and re-serialized, so a `tag` or `tags`
+  // on any action must be valid or refused. Both land canonical — lowercase,
+  // deduplicated, sorted, no sigil.
+  if (obj.tag !== undefined) {
+    if (typeof obj.tag !== 'string') return `${where}has an invalid "tag".`
+    const tag = parseCardTag(obj.tag)
+    if (!tag.ok) return `${where}${tag.message}`
+    normalized = { ...normalized, tag: tag.tag }
+  }
+  if (obj.tags !== undefined) {
+    const tags = parseCardTagsValue(obj.tags, 'tags')
+    if (!tags.ok) return `${where}${tags.message}`
+    // An empty set is no set: the stored form is absent (`normalizedTags`), so
+    // a decoded add never carries a `[]` the serializers would have to fold.
+    const { tags: _dropped, ...withoutTags } = normalized
+    normalized = tags.tags.length === 0 ? withoutTags : { ...normalized, tags: tags.tags }
+  }
   // Every field a variant requires has been checked above (envelope, the
-  // action's own field, the printing tuple, the board, the list refs, labels);
+  // action's own field, the printing tuple, the board, the list refs, labels,
+  // tags);
   // the cast only restates that for the compiler, since the object was built
   // field by field.
   return normalized as unknown as ChangeEvent
@@ -326,6 +350,8 @@ const SERIALIZED_KEY_ORDER = [
   'condition',
   'language',
   'labels',
+  'tags',
+  'tag',
   'board',
   'section',
   'newSection',

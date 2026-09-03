@@ -117,6 +117,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
               condition: card.condition,
               language: card.language,
               labels: card.labels,
+              tags: card.tags,
               note: card.note,
               cardId: card.cardId,
               copyIndex: i,
@@ -146,6 +147,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
           condition: entry.condition,
           language: entry.language,
           labels: entry.labels,
+          tags: entry.tags,
           note: entry.note,
           cardId: entry.cardId,
           listEntry,
@@ -170,6 +172,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
           collectorNumber: entry.collectorNumber,
           finish: entry.finish,
           language: entry.language,
+          tags: entry.tags,
           note: entry.note,
           cardId: entry.cardId,
           listEntry,
@@ -480,6 +483,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
       .map((vc) =>
         createMoveFromChange(vc.card.name, {
           ...printingOptionsFrom(vc.card),
+          tags: vc.card.tags,
           to: vc.currentList.ref,
         }),
       )
@@ -497,6 +501,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
       .map((vc) =>
         createMoveToChange(vc.card.name, {
           ...printingOptionsFrom(vc.card),
+          tags: vc.card.tags,
           cardId: landed.get(vc.physicalKey)?.cardId,
           from: vc.card.listEntry.ref,
           sourceCardId: vc.card.cardId,

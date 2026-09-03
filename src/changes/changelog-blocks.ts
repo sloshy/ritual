@@ -384,6 +384,8 @@ const CANCELABLE_ACTIONS: ReadonlySet<ChangeEvent['action']> = new Set<ChangeEve
   'remove',
   'set-commander',
   'unset-commander',
+  'add-tag',
+  'remove-tag',
   'add-section',
   'remove-section',
 ])

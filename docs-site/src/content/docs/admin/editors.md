@@ -168,7 +168,7 @@ Both fields reset for the next card, including after **Add Another Card**.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices, and [**Swap printing…**](#swap-printings), which opens the swap wizard on that one card (on a card that pins none, the wizard sets its printing from a copy owned in another list).
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Edit Tags…**](#card-tags), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices, and [**Swap printing…**](#swap-printings), which opens the swap wizard on that one card (on a card that pins none, the wizard sets its printing from a copy owned in another list).
 
 #### Move to Section
 
@@ -231,6 +231,14 @@ Every card entry has a [language](/commands/edit/#card-language) — a Scryfall 
 - **Set Language…** in a card's `⋯` context menu (and in the multi-select **Selected** menu) opens a picker over the 17 Scryfall languages, with the current one marked. Picking **English** clears the token. The change is a pending `set-language` edit like any other — undoable, listed in **Changes**, and written on save (changelog: `Set language of "Sol Ring" to Japanese &7`).
 - **Adding never asks for a language**: new cards are stamped with the configured [`defaultLanguage`](/configuration/#default-language) (editable on the admin **Settings** page). Change an individual copy afterwards with **Set Language…**.
 - The **printing picker** shows one tile per physical printing (set + collector number), never one per language object. Under a non-English default, a printing that does not exist in that language is marked with a notice — picking it records the copy in the language that does exist (English when available) rather than inventing a language Scryfall has no card object for.
+
+### Card Tags
+
+Every card entry on every list type can carry [tags](/commands/edit/#card-tags) — your own words for the card (`Ramp`, `Card Draw`), as many as you like, the way Archidekt has categories and Moxfield has tags. Unlike a [label](#card-labels), a tag is not an instruction to Ritual; it is your word for the card, and it drives the **Tags** grouping and sort on the [public site](/public-site/filtering/#grouping-and-sorting-by-tags).
+
+- **Edit Tags…** in a card's `⋯` context menu opens a dialog with one field holding the card's whole tag set, seeded with its current tags. Type tags **separated by commas** — `My Tag, My Other Tag` is two tags; spaces are part of a tag — and the field validates as you type (a tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses; an invalid one is explained under the field and blocks **Save**). Tags already used on other cards in the list appear as one-click suggestions. Saving an empty field removes every tag. On a collection tile that groups identical copies, the edit applies to every copy.
+- Saving records **one change per tag that differs** — an `add-tag` for each tag added, a `remove-tag` for each removed — rather than one whole-set change, and each is its own **Undo** step (undo reverts one tag at a time, most recent first). A `remove-tag` cancels a pending `add-tag` of the same tag (and vice versa), so adding a tag and removing it again in one session leaves nothing pending. Changes are listed in **Changes** and written on save (changelog: `Added tag "Ramp" to "Sol Ring" &5`).
+- Tags are not offered in the multi-select **Selected** menu; edit them per card.
 
 ### Custom Art
 
@@ -342,8 +350,8 @@ Open **Edit Lists** (admin sidebar or Dashboard card) and select the **Decks** t
 
 The **⋯** button opens a context menu with the [items every editor shares](#context-menu) —
 **Set as Foil**, **Change Printing…**, [**Swap printing…**](#swap-printings), [**Set
-Language…**](#card-language), [**Set Custom Art…**](#custom-art), and **Move to section…** — plus
-two the Deck Editor adds:
+Language…**](#card-language), [**Edit Tags…**](#card-tags), [**Set Custom Art…**](#custom-art), and
+**Move to section…** — plus two the Deck Editor adds:
 
 - **Set as Commander** — Move the card to the Commander section (supports multiple commanders)
 - [**Set Label…**](#deck-labels) — Set the line's `proxy` override
@@ -397,6 +405,8 @@ Fields in order (see [List File Format](/list-format/) for the full grammar):
 - `[condition]` — `NM`, `LP`, `MP`, `HP`, or `DMG` (`NM` is the default and is not written)
 - `[lang]` — a [Scryfall language code](#card-language); omitted for English
 - `[labels]` — the card's [label override](/commands/edit/#card-labels); a deck carries `proxy` only
+- `#tags` — the card's [tags](#card-tags), one comma-separated token; every list type carries them
+- `{note}` — the card's [note](/commands/note/)
 - `&N` — Persistent card ID (auto-assigned, used internally for change tracking)
 
 All fields are optional and backwards-compatible with the basic format.
@@ -455,6 +465,7 @@ A list's front-matter [`description:`](/commands/metadata/) — the blurb the bu
 | Condition field           | ✅ Optional             | ✅ Required       | ❌ Not applicable  |
 | Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
 | Card labels               | ✅ Proxy + list default | ✅ + list default | ❌                 |
+| Card tags                 | ✅                      | ✅                | ✅                 |
 | Custom art                | ✅                      | ✅                | ✅                 |
 | Cover image               | ✅                      | ✅                | ✅                 |
 | Description               | 👁️ Read-only            | 👁️ Read-only      | 👁️ Read-only       |

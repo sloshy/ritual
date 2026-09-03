@@ -904,6 +904,54 @@ describe('applyChangeBundle with moves', () => {
     expect(deckLog).not.toMatch(/&9/)
   }, 60_000)
 
+  test('a #tagged copy added to a deck folds onto the same-tagged line, never its plain sibling', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          tags: ['ramp'],
+          cardId: 7,
+        },
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 9 },
+      ],
+    })
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            ...DECK_REF,
+            changes: [
+              {
+                id: 'a1',
+                timestamp: 1,
+                action: 'add',
+                cardName: 'Sol Ring',
+                set: 'c21',
+                collectorNumber: '263',
+                tags: ['ramp'],
+                cardId: 50,
+              },
+            ],
+          },
+        ],
+        [],
+      ),
+    )
+    expect(result.failedCount).toBe(0)
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/2 Sol Ring \(C21:263\) #ramp &7/)
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) &9/)
+    const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
+    // The merge probe includes tags, so the phantom id was rewritten to &7.
+    expect(deckLog).toMatch(/Added "Sol Ring" \(C21:263\) &7/)
+    expect(deckLog).not.toMatch(/&1\b/)
+    expect(deckLog).not.toMatch(/&9/)
+  }, 60_000)
+
   test('a move applies before a later edit on the copy it brought in, in timestamp order', async () => {
     await writeDeckFile(ws.dir, 'test-deck', {
       name: 'Test Deck',

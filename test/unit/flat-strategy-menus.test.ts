@@ -178,6 +178,7 @@ function extraRows(strategy: CardSessionStrategy): MenuRow[] {
 // the extra space keeps the labels aligned. Keep them when the menus move.
 const CANCEL_ROW: MenuRow = { title: '← Cancel', value: '__CANCEL__' }
 const LANGUAGE_ROW: MenuRow = { title: '🌐 Change Language', value: 'language' }
+const TAGS_ROW: MenuRow = { title: '🔖 Edit Tags', value: 'tags' }
 const ART_ROW: MenuRow = { title: '🎨 Set Custom Art', value: 'art' }
 const MOVE_ROW: MenuRow = { title: '📤 Move to Another List', value: 'move-list' }
 const NOTE_ROW: MenuRow = { title: '📝 Edit Note', value: 'note' }
@@ -203,6 +204,7 @@ describe('collection strategy menus', () => {
       { title: '📋 Change Condition', value: 'condition' },
       LANGUAGE_ROW,
       { title: '🏷️  Change Label', value: 'label' },
+      TAGS_ROW,
       ART_ROW,
       MOVE_ROW,
       NOTE_ROW,
@@ -219,6 +221,7 @@ describe('collection strategy menus', () => {
       'condition',
       'language',
       'label',
+      'tags',
       'art',
       'note',
       'remove',
@@ -243,6 +246,7 @@ describe('wanted strategy menus', () => {
       { title: '🖼️  Change Printing', value: 'printing' },
       { title: '✨ Change Finish', value: 'finish' },
       LANGUAGE_ROW,
+      TAGS_ROW,
       ART_ROW,
       MOVE_ROW,
       NOTE_ROW,
@@ -257,6 +261,7 @@ describe('wanted strategy menus', () => {
     expect(menu.rows).toEqual([
       { title: '🖼️  Set Printing', value: 'printing' },
       LANGUAGE_ROW,
+      TAGS_ROW,
       ART_ROW,
       MOVE_ROW,
       NOTE_ROW,
@@ -270,6 +275,7 @@ describe('wanted strategy menus', () => {
     expect(menu.rows.map((r) => r.value)).toEqual([
       'printing',
       'language',
+      'tags',
       'art',
       'note',
       'remove',
@@ -287,7 +293,7 @@ describe('deck strategy menus', () => {
     expect(extraRows(deckStrategy())).toEqual([
       { title: '🗂️  Set Target Section (prompt every time)', value: '__SECTION__' },
       { title: '🏷️  Change Format (not set)', value: '__FORMAT__' },
-      { title: '🔖 Edit Tags (none)', value: '__TAGS__' },
+      { title: '🔖 Edit Deck Tags (none)', value: '__TAGS__' },
       { title: '🏷️  Edit List Labels (default: none)', value: '__LIST_LABELS__' },
     ])
   })
@@ -300,6 +306,7 @@ describe('deck strategy menus', () => {
       { title: '➕ Add a Copy', value: 'add-copy' },
       LANGUAGE_ROW,
       { title: '🏷️  Change Label', value: 'label' },
+      TAGS_ROW,
       ART_ROW,
       { title: '🗂️  Move to Section', value: 'move' },
       NOTE_ROW,
@@ -317,6 +324,7 @@ describe('deck strategy menus', () => {
       { title: '➖ Remove a Copy', value: 'remove-copy' },
       LANGUAGE_ROW,
       { title: '🏷️  Change Label', value: 'label' },
+      TAGS_ROW,
       ART_ROW,
       { title: '🗂️  Move to Section', value: 'move' },
       MOVE_ROW,

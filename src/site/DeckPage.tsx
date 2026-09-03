@@ -77,7 +77,14 @@ const DECK_LABEL_FILTERS: readonly CardLabelSelection[] = labelFiltersFor('deck'
 
 // The sort fields this page offers, in order — shared by the toolbar's dropdown
 // options and the URL sync's validation of incoming sort layers.
-const DECK_SORT_BYS: readonly SortBy[] = ['name', 'cmc', 'price', 'color-identity', 'edhrec']
+const DECK_SORT_BYS: readonly SortBy[] = [
+  'name',
+  'cmc',
+  'price',
+  'color-identity',
+  'edhrec',
+  'tags',
+]
 
 export interface DeckPageProps extends SellModeProps, ListPageCommonProps {
   deck: BakedDeckData
@@ -164,6 +171,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     collectorNumber: entry.collectorNumber,
     finish: entry.finish,
     labels: entryLabels(entry),
+    tags: entry.tags,
     // The board shows the real printing — it is the card being handed over —
     // but a proxy and a custom-art copy carry no price, so the rule has to
     // travel with the row or it is valued at the printing's retail.
@@ -325,6 +333,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           oracleTags: card?.oracleTags ?? [],
           artTags: card?.artTags ?? [],
           labels,
+          tags: entry.tags,
           customArt: entry.customArt,
           hasCustomArt: entry.hasCustomArt,
           finish: entry.finish,
@@ -473,6 +482,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         finish: deckEntry?.finish,
         condition: deckEntry?.condition,
         labels: c.labels.length > 0 ? c.labels : undefined,
+        tags: c.tags,
         customArt: c.customArt,
         hasCustomArt: c.hasCustomArt,
         quantity: c.quantity,
@@ -747,6 +757,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             printings={modalPrintings()}
             onClose={props.onCloseModal}
             meta={modalMeta()}
+            tags={modalDeckEntry()?.tags}
             onAddToTrade={!props.editMode && !props.onCardMove ? handleModalAddToTrade : undefined}
             addToTradeDisabled={
               !props.editMode && !props.onCardMove ? modalAddToTradeDisabled() : undefined

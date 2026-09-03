@@ -9,11 +9,13 @@ import {
   CARD_LABEL_SELECTIONS,
   effectiveLabels,
   isCardLabelSelection,
+  normalizedOverride,
   matchesCardLabelSelection,
   supportsAnyLabels,
   type CardLabel,
   type CardLabelSelection,
 } from '../card/card-labels'
+import { normalizedTags, type CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
 import type { ListLocation } from '../list/resolve-list'
@@ -52,6 +54,12 @@ export type ExportEntry = {
    * meaningless here.
    */
   labels?: CardLabel[]
+  /**
+   * The line's tags, canonical (trimmed, sorted); absent when the
+   * line has none. Every list type carries them, and unlike labels there is no
+   * list-level default to resolve against — a card's tags are exactly its own.
+   */
+  tags?: CardTag[]
   note?: string
   /** Position within its list file; with listType+listName forms a stable identity. */
   fileOrder: number
@@ -106,7 +114,8 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
             finish: card.finish,
             condition: card.condition,
             language: card.language,
-            labels: labels.length > 0 ? labels : undefined,
+            labels: normalizedOverride(labels),
+            tags: normalizedTags(card.tags),
             note: card.note,
             fileOrder: fileOrder++,
           })
@@ -122,13 +131,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
       parsed.entries.forEach((entry, fileOrder) => {
         const labels = effectiveLabels(entry.labels, parsed.labels)
         entries.push(
-          flatEntry(
-            location,
-            entry,
-            entry.condition,
-            labels.length > 0 ? labels : undefined,
-            fileOrder,
-          ),
+          flatEntry(location, entry, entry.condition, normalizedOverride(labels), fileOrder),
         )
       })
       continue
@@ -163,6 +166,7 @@ function flatEntry(
     condition,
     language: entry.language,
     labels,
+    tags: normalizedTags(entry.tags),
     note: entry.note,
     fileOrder,
   }

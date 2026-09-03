@@ -9,6 +9,7 @@ import {
 import type { Condition, Finish } from '../../card/finish-condition'
 import type { CardLabel } from '../../card/card-labels'
 import type { CardLanguage } from '../../card/card-language'
+import type { CardTag } from '../../card/card-tags'
 import { allocateId, claimId, releaseId } from '../../card/card-id'
 import { t } from '../../i18n/t'
 import type { EditActionChoice, PrintingFilterConfig } from './prompts'
@@ -33,6 +34,7 @@ import {
   editLanguage,
   editLanguageById,
   editNote,
+  editTags,
   lastEditLabel,
   editSessionChangeAt,
   listEditableEntries,
@@ -84,6 +86,8 @@ export type EditableFlatListEntry = FlatListEntry & {
   language?: CardLanguage
   /** Label override — collection entries only; wanted entries never carry one. */
   labels?: CardLabel[]
+  /** The line's `#tag` tokens, canonical; absent when it carries none. */
+  tags?: CardTag[]
   note?: string
 }
 
@@ -190,8 +194,8 @@ export function performFlatListRemoval<E extends EditableFlatListEntry>(
 
 /**
  * The inverse changes that bring a removed or moved entry back: an add of the
- * full line — the language and label override ride the add itself, so undoing
- * restores them — plus its note, when it carried one.
+ * full line — the language, label override and tags ride the add itself, so
+ * undoing restores them — plus its note, when it carried one.
  */
 function restoreEntryInverse<E extends EditableFlatListEntry>(
   removed: E,
@@ -201,6 +205,7 @@ function restoreEntryInverse<E extends EditableFlatListEntry>(
     createAddChange(removed.name, {
       ...printingOptionsFrom(removed),
       labels: removed.labels,
+      tags: removed.tags,
       cardId,
       section: removed.section,
     }),
@@ -256,7 +261,7 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
   const removed = { ...entry }
   const moveEvent = createMoveFromChange(
     removed.name,
-    moveFromOptionsFor({ ...printingOptionsFrom(removed), cardId }, dest),
+    moveFromOptionsFor({ ...printingOptionsFrom(removed), tags: removed.tags, cardId }, dest),
   )
 
   // The model removal targets the entry's own fields, not the move-from's —
@@ -479,10 +484,10 @@ export type FlatListEditEnv = {
 /**
  * The edit-action menu rows every flat list offers, in menu order — the rows
  * whose values {@link editSharedFlatListAction} handles. `afterLanguage` slots a
- * strategy's own rows between the language and art rows (the collection's label
- * row lives there). The double-space icon on Remove is deliberate: that emoji
- * carries a variation selector and renders narrower, so the extra space keeps
- * the labels aligned.
+ * strategy's own rows between the language and tags rows (the collection's
+ * label row lives there, so labels and tags sit side by side). The double-space
+ * icon on Remove is deliberate: that emoji carries a variation selector and
+ * renders narrower, so the extra space keeps the labels aligned.
  */
 export function sharedFlatListEditActions(
   env: Pick<FlatListEditEnv, 'moveTargets'>,
@@ -491,6 +496,7 @@ export function sharedFlatListEditActions(
   return [
     { title: `🌐 ${t('cli.editAction.changeLanguage')}`, value: 'language' },
     ...afterLanguage,
+    { title: `🔖 ${t('cli.editAction.editTags')}`, value: 'tags' },
     { title: `🎨 ${t('cli.editAction.setArt')}`, value: 'art' },
     ...(env.moveTargets
       ? [{ title: `📤 ${t('cli.editAction.moveToList')}`, value: 'move-list' }]
@@ -502,9 +508,10 @@ export function sharedFlatListEditActions(
 
 /**
  * Run one of the edit actions whose flow is identical for collection and
- * wanted entries (language, custom art, move to another list, note, remove).
- * Returns false when `action` is not one of them, so the strategy's own
- * branches (printing/finish/condition/label) run first and hand the rest here.
+ * wanted entries (language, tags, custom art, move to another list, note,
+ * remove). Returns false when `action` is not one of them, so the strategy's
+ * own branches (printing/finish/condition/label) run first and hand the rest
+ * here.
  */
 export async function editSharedFlatListAction<E extends EditableFlatListEntry>(
   action: string,
@@ -517,6 +524,11 @@ export async function editSharedFlatListAction<E extends EditableFlatListEntry>(
   const model = flatListModel(list)
   if (action === 'language') {
     await editLanguage(model, ctx, entry, cardId)
+    return true
+  }
+
+  if (action === 'tags') {
+    await editTags(model, ctx, entry, cardId)
     return true
   }
 

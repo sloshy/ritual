@@ -1,4 +1,5 @@
 import type { MoveFromOptions, PrintingTupleWithId } from '../../changes/change-event'
+import type { CardTag } from '../../card/card-tags'
 import { LIST_TYPE_DISPLAY } from '../../list/list-type'
 import { t } from '../../i18n/t'
 import { resolveCardPrinting, type PrintingFilterConfig } from './prompts'
@@ -67,16 +68,18 @@ export type MoveDestination = {
  * override rule — set, collector number, and language may come from the
  * picker; finish and condition always come from the source entry.
  */
-export function moveFromOptionsFor(
-  source: PrintingTupleWithId,
-  dest: MoveDestination,
-): MoveFromOptions {
+/** The source entry a move reads: its printing tuple, its `&N`, and its tags. */
+export type MoveSource = PrintingTupleWithId & { tags?: readonly CardTag[] }
+
+export function moveFromOptionsFor(source: MoveSource, dest: MoveDestination): MoveFromOptions {
   return {
     set: dest.printing?.set ?? source.set,
     collectorNumber: dest.printing?.collectorNumber ?? source.collectorNumber,
     finish: source.finish,
     condition: source.condition,
     language: dest.printing?.language ?? source.language,
+    // Tags ride every move unfiltered — every list type carries them.
+    tags: source.tags === undefined ? undefined : [...source.tags],
     cardId: source.cardId,
     to: { type: dest.target.type, name: dest.target.name },
   }

@@ -3,7 +3,11 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import { handleWantedListSave } from '../../src/admin/api/wanted-save'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
-import { createAddChange, createSetLanguageChange } from '../../src/changes/change-event'
+import {
+  createAddChange,
+  createAddTagChange,
+  createSetLanguageChange,
+} from '../../src/changes/change-event'
 import { computeHash } from '../../src/changes/content-hash'
 import {
   bindWorkspace,
@@ -147,5 +151,30 @@ describe('POST /api/wanted/:slug/save', () => {
     // Refused by the shared slug rule before the file is ever resolved;
     // `resolveFlatListFile`'s own containment check is the second line.
     expect(((await resp.json()) as { message: string }).message).toBe('Invalid list slug')
+  })
+})
+
+describe('POST /api/wanted/:slug/save — tags', () => {
+  // Like the deck route, a wanted save serializes the `entries` it is handed,
+  // so their tags are validated on the way in: canonicalized, or refused.
+  test('entry tags are canonicalized onto the line, and the add-tag is logged', async () => {
+    const resp = await save({
+      changes: [createAddTagChange('Lightning Bolt', { tag: 'Ramp', cardId: 1 })],
+      entries: [{ ...SEEDED[0]!, tags: ['#Ramp '] }, SEEDED[1]!],
+    })
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('- Lightning Bolt (LEA:161) #Ramp &1')
+    const changelog = await fs.readFile(path.join(ws.dir, 'wanted', 'wishlist.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Added tag "Ramp" to "Lightning Bolt" &1')
+  })
+
+  test('a malformed entry tag is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save({
+      changes: [],
+      entries: [{ ...SEEDED[0]!, tags: ['a,b'] }, SEEDED[1]!],
+    })
+    expect(resp.status).toBe(400)
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 })

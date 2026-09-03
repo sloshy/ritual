@@ -475,6 +475,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
         onClose={() => setModalTile(null)}
         meta={modalMeta()}
         note={modalTile()?.selectedTile.note}
+        tags={modalTile()?.tags}
       />
     </div>
   )

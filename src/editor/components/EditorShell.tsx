@@ -14,6 +14,7 @@ import { ChangePrintingQuantityDialog } from './ChangePrintingQuantityDialog'
 import { EditorActionBar, focusActionBar } from './EditorActionBar'
 import { SwapPrintingsWizard, type SwapPrintingsWizardProps } from './SwapPrintingsWizard'
 import { TextPromptDialog } from './TextPromptDialog'
+import { TagsEditDialog } from './TagsEditDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { StatusToast } from '../../ui/StatusToast'
 import { useEditorShortcuts } from '../useEditorShortcuts'
@@ -238,6 +239,11 @@ export function EditorShell<TData, TCardEntry>(
         onConfirm={(v) => editor.textPrompt()?.onConfirm(v)}
         onCancel={editor.closeTextPrompt}
       />
+
+      {/* "Edit Tags…" dialog, driven by the `tags-prompt` singleton the card
+          context menus open (they unmount as they act, so the request lives
+          outside them) */}
+      <TagsEditDialog />
 
       {/* Action bar */}
       <Show when={editor.isDataReady()}>

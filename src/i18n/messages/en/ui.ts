@@ -179,6 +179,14 @@ export const uiMessages = {
   'ui.editor.setLanguageTitle': 'Set language',
   'ui.editor.languageCurrent': '{name} ✓',
 
+  // ── Tags dialog ───────────────────────────────────────────────────────
+  'ui.editor.editTagsTitle': 'Edit tags',
+  'ui.editor.tagsLabel': 'Tags',
+  'ui.editor.tagsPlaceholder': 'Ramp, Card Draw',
+  'ui.editor.tagsHint': 'Separate tags with commas. Leave the field empty to clear every tag.',
+  'ui.editor.tagsSuggestions': 'Used in this list:',
+  'ui.editor.tagsSave': 'Save',
+
   // ── Pending-changes dialogs ───────────────────────────────────────────
   'ui.editor.pendingChanges': 'Pending changes',
   'ui.editor.pendingChangesTitle': 'Pending Changes ({count})',
@@ -219,6 +227,7 @@ export const uiMessages = {
   'ui.cardMenu.changePrinting': 'Change Printing…',
   'ui.cardMenu.setPrinting': 'Set Printing…',
   'ui.cardMenu.setLabel': 'Set Label…',
+  'ui.cardMenu.editTags': 'Edit Tags…',
   'ui.cardMenu.setLanguage': 'Set Language…',
   'ui.cardMenu.setCustomArt': 'Set Custom Art…',
   'ui.cardMenu.setCommander': 'Set as Commander',

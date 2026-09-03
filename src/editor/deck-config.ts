@@ -3,6 +3,7 @@ import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
 import type { CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import type { PrintingTuple } from '../changes/change-event'
 import { printingRetarget } from './printing-retarget'
@@ -68,6 +69,15 @@ export function findDeckCardLabels(
   cardId?: number,
 ): CardLabel[] | undefined {
   return deck ? findDeckCard(deck, cardName, cardId)?.labels : undefined
+}
+
+/** The tags of a deck card, for the events that must carry the line's identity. */
+export function findDeckCardTags(
+  deck: DeckData | null,
+  cardName: string,
+  cardId?: number,
+): CardTag[] | undefined {
+  return deck ? findDeckCard(deck, cardName, cardId)?.tags : undefined
 }
 
 /** Find a card's on-disk printing by card ID, for change-printing revert detection. */

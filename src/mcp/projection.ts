@@ -29,6 +29,11 @@ import type {
  * `en`, mirroring the card lines themselves, where the `[ja]`-style token is
  * omitted for English.
  *
+ * Tags: every entry shape carries the line's `#tags` as `tags` — canonical
+ * (lowercase, sorted) and without the sigil — on every list type, absent when
+ * the line has none. The list-level `labels` default has no tag counterpart: a
+ * deck's front-matter `tags` describe the deck, not its cards.
+ *
  * Custom art rides beside the entries rather than on them, as `customArt` keyed
  * by `&N` — the shape the load routes and the `<list>.art.json` sidecar both
  * use, and the raw references `set_card_art` takes back rather than display

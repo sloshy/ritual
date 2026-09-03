@@ -18,6 +18,7 @@ import {
 } from '../../src/importers/csv'
 import { formatScriptingCommand } from '../../src/commands/import'
 import type { CardLanguage } from '../../src/card/card-language'
+import { invalidCardTagMessage } from '../../src/card/card-tags'
 import type { Condition, Finish } from '../../src/card/finish-condition'
 
 function rowsOf(result: ReturnType<typeof parseCsv>): CsvRow[] {
@@ -94,8 +95,11 @@ describe('parseColumnsSpec', () => {
 
 describe('formatColumnsSpec', () => {
   test('round-trips a mapping back to the 1-based flag value', () => {
-    const mapping = parseColumnsSpec('name=2,set=1,finish=4,quantity=3', 'deck') as ColumnMapping
-    expect(formatColumnsSpec(mapping)).toBe('name=2,set=1,finish=4,quantity=3')
+    const mapping = parseColumnsSpec(
+      'name=2,set=1,finish=4,tags=5,quantity=3',
+      'deck',
+    ) as ColumnMapping
+    expect(formatColumnsSpec(mapping)).toBe('name=2,set=1,finish=4,tags=5,quantity=3')
   })
 })
 
@@ -497,6 +501,30 @@ describe('convertCsvRows', () => {
     ])
   })
 
+  test('a mapped tags column reads the typed-input grammar and stores the canonical set', () => {
+    const mapping = parseColumnsSpec('name=1,tags=2', 'deck') as ColumnMapping
+    const { entries, failures } = convertCsvRows(
+      [row(['Sol Ring', 'staple, Card Draw'], 1), row(['Arcane Signet', ''], 2)],
+      mapping,
+      'deck',
+    )
+    expect(failures).toEqual([])
+    expect(entries.map((entry) => entry.tags)).toEqual([['Card Draw', 'staple'], undefined])
+  })
+
+  test('a malformed tag cell fails its row with the parser’s message', () => {
+    const mapping = parseColumnsSpec('name=1,tags=2', 'deck') as ColumnMapping
+    const { entries, failures } = convertCsvRows(
+      [row(['Sol Ring', 'R&D'], 4), row(['Arcane Signet', 'edh'], 5)],
+      mapping,
+      'deck',
+    )
+    expect(entries.map((entry) => entry.tags)).toEqual([['edh']])
+    expect(failures).toEqual([
+      { lineNumber: 4, raw: 'Sol Ring,R&D', reason: invalidCardTagMessage('R&D') },
+    ])
+  })
+
   test('keeps explicit sections verbatim on flat lists', () => {
     const mapping = parseColumnsSpec('name=1,set=2,collector-number=3,section=4', 'collection')
     const { entries } = convertCsvRows(
@@ -529,5 +557,10 @@ describe('header guessing', () => {
     expect(guessHasHeader(['Language', 'Something'])).toBe(true)
     expect(guessColumns(['Name', 'Language'])).toEqual({ name: 0, language: 1 })
     expect(guessColumns(['Name', 'Lang'])).toEqual({ name: 0, language: 1 })
+  })
+
+  test('recognizes a tags header, plural and singular', () => {
+    expect(guessColumns(['Name', 'Tags'])).toEqual({ name: 0, tags: 1 })
+    expect(guessColumns(['Name', 'Tag'])).toEqual({ name: 0, tags: 1 })
   })
 })

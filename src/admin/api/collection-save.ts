@@ -26,6 +26,7 @@ import {
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
+  normalizeRequestTags,
   refuseUnreadableBaseline,
   type ListSaveTail,
 } from './save-helpers'
@@ -65,6 +66,9 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const labelError = normalizeRequestLabels(changes, 'collection')
     if (labelError) return labelError
+
+    const tagError = normalizeRequestTags(changes, [])
+    if (tagError) return tagError
 
     // Collection entries are rebuilt server-side from the baseline file, so only
     // the changes carry request-supplied languages here.

@@ -97,7 +97,7 @@ Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "c
 
 ## See Also
 
-- [`edit`](/commands/edit/) — the session editor's `🏷️ Edit List Labels` / `🔖 Edit Tags` / `🏷️ Change Format` actions edit the same fields interactively, deferred to the session's save
+- [`edit`](/commands/edit/) — the session editor's `🏷️ Edit List Labels` / `🔖 Edit Deck Tags` / `🏷️ Change Format` actions edit the same fields interactively, deferred to the session's save
 - [`config`](/commands/config/) — the same subcommand shape for the ritual configuration file
 - [`set-list-image`](/commands/set-list-image/) — the cover `image:` key, on all three list types
 - [List cover images](/list-images/) — what the key means and how the site resolves it

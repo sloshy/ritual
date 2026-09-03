@@ -134,6 +134,25 @@ session (\`🏷️ Change Label\` per card, \`🏷️ Edit List Labels\` for the
 the admin deck editor, and the MCP \`apply_changes\` (\`set-label\`) and
 \`set_list_metadata\` tools.
 
+## Card tags vs. deck tags
+
+Two different things are called tags. The front-matter \`tags:\` key (\`ritual
+metadata set <deck> tags edh,budget\`, or the session's \`🔖 Edit Deck Tags\` menu row)
+describes the **deck** and never applies to its cards. A **card** tag lives in the
+\`#\` token on the line itself — \`1 Sol Ring (LEA:270) [proxy] #Ramp, Staple &5\`,
+comma-separated, after the labels and before the note — the owner's own free-form
+vocabulary (plain text, spaces and case kept; no \`#\`, \`,\`, \`&\`, brackets, braces
+or parentheses), as many per line as wanted, and part of a deck line's merge identity
+like labels are: a \`Ramp\` copy does not fold into an untagged line. Set them with
+\`set-card --tag\`/\`--untag\`, \`add-card --tag\`, or the per-card \`🔖 Edit Tags\`
+action in edit mode.
+
+\`\`\`bash
+ritual set-card "Winota Stax" "Sol Ring" --deck --tag "Ramp, Staple"   # card tags
+ritual set-card "Winota Stax" "Sol Ring" --deck --untag Staple
+ritual metadata set "Winota Stax" tags edh,budget                       # deck tags (front matter)
+\`\`\`
+
 ## Build interactively
 
 ${interactiveEditIntro({
@@ -163,7 +182,7 @@ ${sessionSemantics({
   fileNoun: 'deck file',
   editScope: "the deck's existing lines",
   editFields:
-    "change a line's printing or language, add/remove copies, move it to another section or another list, edit its note, or remove it entirely",
+    "change a line's printing, language, label or tags, add/remove copies, move it to another section or another list, edit its note, or remove it entirely",
   undoAddVerb: 'takes back',
   changeKinds: 'copy adds, field edits, and removals',
   discardTarget: 'same-line changes',

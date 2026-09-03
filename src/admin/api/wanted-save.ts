@@ -19,6 +19,7 @@ import {
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
+  normalizeRequestTags,
   refuseUnreadableBaseline,
   type ListSaveTail,
 } from './save-helpers'
@@ -57,10 +58,13 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
     const noteError = normalizeRequestNotes(changes, entries)
     if (noteError) return noteError
 
-    // The request's entries are serialized directly, so their languages are
-    // validated alongside the changes'.
+    // The request's entries are serialized directly, so their languages and
+    // tags are validated alongside the changes'.
     const languageError = normalizeRequestLanguages(changes, entries)
     if (languageError) return languageError
+
+    const tagError = normalizeRequestTags(changes, entries)
+    if (tagError) return tagError
 
     const replacementError = normalizeRequestReplacements(changes)
     if (replacementError) return replacementError

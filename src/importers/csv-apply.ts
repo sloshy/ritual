@@ -20,6 +20,7 @@ import { getCachedCardPrintings } from '../scryfall'
 import { withFrontMatter } from '../list/list-export'
 import { parseFlatListFrontMatter } from '../list/flat-list-front-matter'
 import type { CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import { parseTitleFromContent, serializeSectionedList } from '../list/section-format'
 import {
   allocateId,
@@ -79,7 +80,11 @@ export type CsvImportOptions = {
  * A normalized card entry ready to apply to a list. CSV rows never produce a
  * `note` or `labels`; text-file imports carry both through to the written list line.
  */
-export type ImportCardEntry = CsvCardEntry & { note?: string; labels?: CardLabel[] }
+export type ImportCardEntry = CsvCardEntry & {
+  note?: string
+  labels?: CardLabel[]
+  tags?: CardTag[]
+}
 
 export type CsvImportTarget = {
   listType: ListType
@@ -147,6 +152,7 @@ function buildDeckMarkdown(
       condition: entry.condition,
       language: entry.language,
       labels: entry.labels,
+      tags: entry.tags,
       note: entry.note,
     })
   }
@@ -204,6 +210,8 @@ type FlatLineEntry = {
   language?: CardLanguage
   /** Label override — parsed collection entries and text-file imports; CSV rows never carry one. */
   labels?: CardLabel[]
+  /** `#tag` tokens — parsed entries and text-file imports carry them through. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
 }
@@ -219,6 +227,7 @@ function formatFlatListLine(listType: FlatListType, entry: FlatLineEntry): strin
       condition: entry.condition,
       language: entry.language,
       labels: entry.labels,
+      tags: entry.tags,
       note: entry.note,
       cardId: entry.cardId,
     })
@@ -231,6 +240,7 @@ function formatFlatListLine(listType: FlatListType, entry: FlatLineEntry): strin
         : undefined,
     finish: entry.finish,
     language: entry.language,
+    tags: entry.tags,
     note: entry.note,
     cardId: entry.cardId,
   })
@@ -365,6 +375,7 @@ function appendToDeck(
         condition: entry.condition,
         language: entry.language,
         labels: entry.labels,
+        tags: entry.tags,
         note: entry.note,
         cardId,
       })
@@ -377,6 +388,10 @@ function appendToDeck(
         finish: entry.finish,
         condition: entry.condition,
         language: entry.language,
+        // Labels and tags are add-merge identity in the deck engine, so the
+        // event must describe the line the import actually wrote.
+        labels: entry.labels,
+        tags: entry.tags,
         section: entry.section,
         board: boardForSection(entry.section),
         cardId,
@@ -409,6 +424,8 @@ function appendToFlatList(
       finish: copy.finish,
       condition: listType === 'collection' ? copy.condition : undefined,
       language: copy.language,
+      labels: copy.labels,
+      tags: copy.tags,
       section: copy.section,
       cardId: copy.cardId,
     }),

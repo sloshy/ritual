@@ -282,6 +282,7 @@ export async function buildWantedArtifacts(
       collectorNumber: entry.collectorNumber,
       finish: entry.finish,
       language: entry.language,
+      tags: entry.tags,
       ...art,
       price,
       fileOrder: i,

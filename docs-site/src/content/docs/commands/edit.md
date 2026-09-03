@@ -245,7 +245,7 @@ land on it by overshooting.
 | `↩️ Undo Last Edit`                      | Revert the most recent [edit-mode](#edit-mode) operation                                                                             |
 | `🗂️ Set Target Section`                  | Pin a deck section, create a new one, or prompt for each card (decks)                                                                |
 | `🏷️ Change Format`                       | Change the deck's [format](#deck-format) (decks)                                                                                     |
-| `🔖 Edit Tags`                           | Edit the deck's front-matter tags, comma-separated; empty clears them (decks)                                                        |
+| `🔖 Edit Deck Tags`                      | Edit the deck's front-matter `tags:` (the deck's own, not any card's), comma-separated; empty clears them (decks)                    |
 | `🏷️ Edit List Labels`                    | Change the list's default card labels (decks — `proxy` only — and collections); shows the current default                            |
 | `🌐 Card Language (…)`                   | Change the [language](#card-language) stamped on cards added from here on; shows the current one                                     |
 | `⚙️ Configure Session Filters`           | Adjust default sets, finish, condition, and (decks) target section (both entry modes)                                                |
@@ -467,10 +467,11 @@ For a **deck** line:
 | Action                     | Description                                                                                                   |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `🖼️ Change Printing`       | Pick a new printing, finish, and condition for the line (reads `🖼️ Set Printing` when the line pins none yet) |
-| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                           |
 | `➕ Add a Copy`            | Increment the line's quantity                                                                                 |
 | `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id                                      |
+| `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                           |
 | `🏷️ Change Label`          | Set the line's [label override](#card-labels) to **Proxy**, or revert to the deck's default                   |
+| `🔖 Edit Tags`             | Edit the line's [tags](#card-tags) in one field (empty clears them)                                           |
 | `🎨 Set Custom Art`        | Set or clear the line's [custom art](#custom-art) (an image URL, or a file from the art directory)            |
 | `🗂️ Move to Section`       | Move the line to another section (or a new one)                                                               |
 | `📤 Move to Another List`  | Move every copy of the line to a different list (see [Moving Cards](#moving-cards-to-another-list))           |
@@ -487,6 +488,7 @@ For a **collection** entry:
 | `📋 Change Condition`     | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                                                |
 | `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                                            |
 | `🏷️ Change Label`         | Set the [label override](#card-labels) (For sale / For trade / both / To keep / Proxy) or revert to the default |
+| `🔖 Edit Tags`            | Edit the entry's [tags](#card-tags) in one field (empty clears them)                                            |
 | `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art) (an image URL, or a file from the art directory)             |
 | `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))                          |
 | `📝 Edit Note`            | Edit or clear the entry's note                                                                                  |
@@ -499,6 +501,7 @@ For a **wanted list** entry:
 | `🖼️ Change Printing`      | Re-pick the specificity: name-only, or a specific printing with optional finish (reads `🖼️ Set Printing` for a name-only entry) |
 | `✨ Change Finish`        | Switch between `nonfoil`, `foil`, `etched`, or no preference (printed entries only)                                             |
 | `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                                                            |
+| `🔖 Edit Tags`            | Edit the entry's [tags](#card-tags) in one field (empty clears them)                                                            |
 | `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art)                                                                              |
 | `📤 Move to Another List` | Move the entry to a different list (see [Moving Cards](#moving-cards-to-another-list))                                          |
 | `📝 Edit Note`            | Edit or clear the entry's note                                                                                                  |
@@ -540,10 +543,10 @@ unreadable lines, or a printing-less card cannot enter a collection — the save
 source list is left unsaved with its session intact; saving from the exit menu then keeps the
 editor open rather than discarding the unsaved changes.
 
-Two things do not follow a moved card: its **note** (notes never move across lists — the CLI
-warns when one is left behind) and its **[label override](#card-labels)**. (The one-shot
-[`ritual move`](/commands/move/) does carry the override, as far as the destination type can
-express it.) Its **[custom art](/custom-art/#art-follows-the-card)** _does_ follow: the entry
+Three things do not follow a moved card: its **note** (notes never move across lists — the CLI
+warns when one is left behind), its **[label override](#card-labels)** and its **[tags](#card-tags)**.
+(The one-shot [`ritual move`](/commands/move/) does carry the tags, and the override as far as
+the destination type can express it.) Its **[custom art](/custom-art/#art-follows-the-card)** _does_ follow: the entry
 leaves the source list's `.art.json` and is re-filed under the destination line's new `&N` —
 unless the copy merged onto a line the destination already had, which keeps its own art.
 
@@ -606,6 +609,46 @@ everywhere rather than looking a price up:
 [Custom art](/custom-art/#custom-art-carries-no-price) carries the very same rule on its own — one
 rule, custom art or proxy ⇒ no price, no quotes, no sale. A card with both reports the unpriced
 reason `custom-art` and shows **CUSTOM**: custom art wins.
+
+## Card Tags
+
+A card entry on **any** list type can carry **tags** — your own words for the card, the way
+Archidekt has categories and Moxfield has tags. On the line they are one `#` token after the
+labels and before the note, the tags **comma-separated**, as many as you like:
+
+```
+- 1 Sol Ring (LTC:284) [proxy] #Ramp, Staple &2
+- Mox Ruby #Budget, Reserved List {any copy} &3
+```
+
+Tags are the open-vocabulary counterpart of [labels](#card-labels). A label is an instruction
+to Ritual drawn from a closed list (`[proxy]` changes pricing); a tag is your own word for the
+card and means whatever you meant — it drives grouping and sorting on the generated site and
+nothing else. The two are different token kinds on purpose: a `Keep` tag is a perfectly legal
+tag with no connection to the `[keep]` label. A tag is plain text: spaces are fine
+(`Card Draw`) and its case is kept exactly as you wrote it (`Ramp` and `ramp` are two tags), but
+it cannot contain `#`, `,`, `&`, brackets, braces or parentheses — the line's own punctuation.
+A line's tags are written deduplicated and sorted. The `#` is file punctuation that marks where
+the tags start; the editors, the site and the changelog never show it.
+
+A deck's front-matter `tags:` key is a different thing entirely: it describes the **deck**
+(`ritual metadata set <deck> tags edh,budget`, or the session's `🔖 Edit Deck Tags` menu row)
+and never applies to any card. Only the `#tags` token on a card line holds card tags.
+
+Edit a card's tags with the `🔖 Edit Tags` [edit-mode action](#edit-mode) — one free-text
+field prefilled with the line's current tags, **comma-separated** (`My Tag, My Other Tag` is
+two tags; an input the grammar refuses is reported and asked again; empty clears every tag) —
+or with
+[`set-card --tag` / `--untag`](/commands/set-card/#tag-updates) and
+[`add-card --tag`](/commands/add-card/). However the set is edited, the change is recorded
+**one changelog event per tag** that actually changed (`Added tag "Ramp" to "Sol Ring" &2`,
+`Removed tag "Staple" from "Sol Ring" &2`), never as a whole-set replacement, and an add and a
+remove of the same tag on the same card cancel out: re-adding a tag you removed earlier in
+the session leaves no trace in the changelog. `↩️ Undo Last Edit` reverts the whole field
+edit at once.
+
+Like labels, tags are part of a deck line's **identity** for merging: copies added with
+different tags land on their own line rather than folding into an existing one.
 
 ## Custom Art
 
@@ -757,7 +800,7 @@ used by the generated site for the deck's cover label and expected size. Creatin
 editor prompts for the format, and `🏷️ Change Format` in a deck session changes it later — the
 menu item shows the current format, and the change is written on the next save like any other
 pending edit (it counts as unsaved work, but is not a card change, so it does not appear in the
-changelog or the session-changes viewer). `🔖 Edit Tags` edits the deck's `tags:` and
+changelog or the session-changes viewer). `🔖 Edit Deck Tags` edits the deck's `tags:` and
 `🏷️ Edit List Labels` its [default card labels](#deck-front-matter-labels) the same
 deferred way; the description and sync-source fields have no session action — a single-line
 prompt would mangle a multi-line description, and linking is [`deck-sync link`](/commands/deck-sync/)'s
@@ -800,13 +843,13 @@ line releases it.
 The full line grammar is:
 
 ```
-- <quantity> Card Name (SET:CN) [finish] [condition] [lang] [labels] {note} &N
+- <quantity> Card Name (SET:CN) [finish] [condition] [lang] [labels] #tags {note} &N
 ```
 
 Everything after the quantity and name is optional, and `&N` is always last:
 
 ```
-- 1 Sol Ring (LTC:284) [proxy] &2
+- 1 Sol Ring (LTC:284) [proxy] #Ramp &2
 - 4 Lightning Bolt (LEA:161) [foil] [LP] [ja] {playtest copies} &3
 ```
 
@@ -817,7 +860,8 @@ full grammar and the per-type token table.
 
 `[labels]` on a deck line is the card's [label override](#card-labels), and the only label a deck
 carries is `proxy`. A hand-written token a deck cannot carry (`[keep]`, `[sale,trade]`) — or an
-illegal combination — is a parse warning: the card is kept, the labels are dropped.
+illegal combination — is a parse warning: the card is kept, the labels are dropped. `#tags` are
+the card's [tags](#card-tags), any number of them.
 
 ### Deck Front Matter Labels
 
@@ -849,14 +893,14 @@ block until you fix it. Set it with
 Each card entry is written to a markdown collection file in the `collections/` directory:
 
 ```
-- Card Name (SET:CN) [finish] [condition] [lang] [labels] {note} &N
+- Card Name (SET:CN) [finish] [condition] [lang] [labels] #tags {note} &N
 ```
 
 For example:
 
 ```
 - Sol Ring (C19:221) [foil] &1
-- Lightning Bolt (LEA:161) [LP] [keep] &2
+- Lightning Bolt (LEA:161) [LP] [keep] #Binder A &2
 - Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
 ```
 
@@ -873,7 +917,8 @@ alone — and the rules are shared with decks: see [Card Labels](#card-labels). 
 [`ritual move`](/commands/move/) carries the override as far as the destination type can express
 it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list
 keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow drops it in every case
-(like notes, the editor move events don't carry it).
+(like notes, the editor move events don't carry it). The optional `#tags` are the card's
+[tags](#card-tags) — free-form, any number, on every list type.
 
 ### Collection Front Matter
 
@@ -932,7 +977,7 @@ When adding a card to a wanted list, you are prompted to choose the specificity 
 Each card entry is written to a markdown file in the `wanted/` directory:
 
 ```
-- Card Name (SET:CN) [finish] [lang] {note} &N
+- Card Name (SET:CN) [finish] [lang] #tags {note} &N
 ```
 
 For example:
@@ -943,11 +988,13 @@ For example:
 - Mana Crypt (2XM:270) [foil] &3
 - Black Lotus (LEB:233) {birthday present to self} &4
 - Fblthp, the Lost (WAR:50) [ja] &5
+- Mox Ruby #Budget, Reserved List &6
 ```
 
 Any combination of set/collector number and finish can be omitted depending on the desired
 specificity level (wanted lines carry no condition; a `[ja]`-style token records a wanted
-non-English copy — see [Card Language](#card-language)). The note is optional. The `&N` suffix
+non-English copy — see [Card Language](#card-language)). Wanted lines carry no labels, but
+they do carry [`#tags`](#card-tags). The note is optional. The `&N` suffix
 is a persistent card ID used internally for change tracking and is auto-assigned.
 
 ## Sections

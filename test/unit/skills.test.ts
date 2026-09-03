@@ -56,7 +56,7 @@ describe('skill catalog invariants', () => {
     ['ritual-collections', 'Read 4 copies'],
     ['ritual', 'Every other name is a main-deck section'],
     ['ritual', 'expanded to four lines on save'],
-    ['ritual', 'planned, not implemented'],
+    ['ritual', 'A card line may carry tags'],
     ['ritual', 'Fenced code blocks are prose'],
     // The UI-locale surface. An agent that cannot tell `uiLocale` from
     // `defaultLanguage` will reach for the expensive one (a non-`en`
@@ -90,6 +90,13 @@ describe('skill catalog invariants', () => {
     ['ritual-decks', 'labels: [proxy]'],
     ['ritual-decks', 'prices as **0**'],
     ['ritual-collections', 'prices as **0**'],
+    // Card tags: the flag pair, and the one distinction an agent cannot infer —
+    // a deck's front-matter `tags:` is not a card tag.
+    ['ritual-edit', '`--tag <tags>` / `--untag <tags>`'],
+    ['ritual-edit', '🔖 Edit Tags'],
+    ['ritual-decks', 'The front-matter `tags:` key'],
+    ['ritual-decks', '`🔖 Edit Deck Tags`'],
+    ['ritual-wanted', 'Wanted entries carry no labels, but they do carry **tags**'],
   ])('the %s skill documents %p', (skillName, phrase) => {
     const skill = SKILLS.find((s) => s.name === skillName)
     expect(skill).toBeDefined()

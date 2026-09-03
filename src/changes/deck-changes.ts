@@ -11,6 +11,13 @@ import {
   resolveDefaultAddSection,
 } from '../list/deck-format'
 import { normalizedOverride, sameCardLabels } from '../card/card-labels'
+import {
+  normalizedTags,
+  sameCardTags,
+  withCardTag,
+  withoutCardTag,
+  type CardTag,
+} from '../card/card-tags'
 import { canSetFinish, finishMatchesPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { applyConditionUpdate } from '../card/finish-condition'
 import { noteOrUndefined } from '../card/note-helpers'
@@ -34,9 +41,15 @@ function mergesOntoCard(
   cardName: string,
   printing: PrintingTuple,
   labels: readonly CardLabel[] | undefined,
+  tags: readonly CardTag[] | undefined,
 ): boolean {
   return (
-    card.name === cardName && isSamePrinting(card, printing) && sameCardLabels(card.labels, labels)
+    card.name === cardName &&
+    isSamePrinting(card, printing) &&
+    sameCardLabels(card.labels, labels) &&
+    // A line's tags describe every copy on it, so a differently-tagged copy
+    // starts its own line rather than inheriting (or overwriting) the tags.
+    sameCardTags(card.tags, tags)
   )
 }
 
@@ -55,7 +68,7 @@ export function findDeckAddMergeTargetId(deck: DeckData, change: ChangeInput): n
   if (change.action !== 'add') return undefined
   for (const section of deck.sections) {
     const found = section.cards.find((c) =>
-      mergesOntoCard(c, change.cardName, change, change.labels),
+      mergesOntoCard(c, change.cardName, change, change.labels, change.tags),
     )
     if (found) return found.cardId
   }
@@ -111,6 +124,7 @@ export function applyChangeToDeck(
   // merge rule ({@link mergesOntoCard}) — name AND identical printing AND the
   // same label override.
   const changeLabels = 'labels' in change ? change.labels : undefined
+  const changeTags = 'tags' in change ? change.tags : undefined
   const findCardForAdd = (sectionList: typeof sections, printing: PrintingTuple) => {
     if (changeCardId !== undefined) {
       for (const section of sectionList) {
@@ -120,7 +134,7 @@ export function applyChangeToDeck(
     }
     for (const section of sectionList) {
       const idx = section.cards.findIndex((c) =>
-        mergesOntoCard(c, changeCardName, printing, changeLabels),
+        mergesOntoCard(c, changeCardName, printing, changeLabels, changeTags),
       )
       if (idx !== -1) return { section, idx, card: section.cards[idx]! }
     }
@@ -156,6 +170,7 @@ export function applyChangeToDeck(
         // An empty override is no override — the deck's front-matter default
         // applies, exactly as on a collection.
         labels: normalizedOverride(change.labels),
+        tags: normalizedTags(change.tags),
         cardId: change.cardId,
       })
       return { ...deck, sections }
@@ -297,6 +312,21 @@ export function applyChangeToDeck(
       return { ...deck, sections }
     }
 
+    case 'add-tag':
+    case 'remove-tag': {
+      const found = findCard(sections)
+      if (!found) {
+        options?.onMiss?.('no-target')
+        return { ...deck, sections }
+      }
+      // A deck line's tags describe every copy on it, exactly like its labels.
+      found.card.tags =
+        change.action === 'add-tag'
+          ? withCardTag(found.card.tags, change.tag)
+          : withoutCardTag(found.card.tags, change.tag)
+      return { ...deck, sections }
+    }
+
     case 'add-section': {
       findOrCreateSection(sections, change.section)
       return { ...deck, sections }
@@ -366,6 +396,7 @@ export function applyChangeToDeck(
           finish: change.finish,
           condition: change.condition,
           language: change.language,
+          tags: change.tags,
           section: change.section,
         },
         options,
@@ -430,7 +461,7 @@ function pinDeckLine(
   const cards = sections.flatMap((s) => s.cards)
   const landing =
     cards.find((c) => c.cardId === change.cardId) ??
-    cards.find((c) => mergesOntoCard(c, change.cardName, change, undefined))
+    cards.find((c) => mergesOntoCard(c, change.cardName, change, undefined, undefined))
   if (landing) {
     landing.quantity += 1
     return true

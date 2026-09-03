@@ -135,6 +135,10 @@ export const LIST_TYPE = enumOf(LIST_TYPES)
 export const FINISH = enumOf(VALID_FINISHES)
 export const CONDITION = enumOf(VALID_CONDITIONS)
 export const CARD_LABEL = enumOf(CARD_LABELS)
+/** One card tag as its owner wrote it: plain text, no `#` — the value `add-tag` takes. */
+export const CARD_TAG = str(
+  'A card tag, canonical: plain text in its owner\'s casing, without any "#" (e.g. "Ramp", "Card Draw").',
+)
 const LANGUAGE = enumOf(
   CARD_LANGUAGES,
   'Scryfall language code; absent means English ("en") — entries carry it only when not English.',
@@ -259,10 +263,24 @@ const ENTRY_PRINTING_PROPS = {
   condition: CONDITION,
 } as const satisfies Properties
 
-/** `cardId` + `note`: what a list entry carries beyond its name and printing. */
-const ENTRY_META_PROPS = {
+/** `note` + `cardId`: the per-line metadata any card-shaped payload carries. */
+const LINE_META_PROPS = {
   note: str(),
   cardId: int('The entry’s persistent &N id.'),
+} as const satisfies Properties
+
+/**
+ * {@link LINE_META_PROPS} plus `tags`: what a *list entry* carries beyond its
+ * name and printing. A physical card out of the move index carries the line
+ * metadata only — it does not report tags, so it must not advertise them.
+ */
+const ENTRY_META_PROPS = {
+  tags: arr(
+    CARD_TAG,
+    'The line’s tags in canonical order (trimmed, sorted, no "#"); absent when it has none. ' +
+      'Every list type carries them.',
+  ),
+  ...LINE_META_PROPS,
 } as const satisfies Properties
 
 /** Reusable `$defs` fragments. Each tool schema embeds only the subset it references. */
@@ -375,7 +393,7 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       listSlug: str(),
       name: str(),
       ...ENTRY_PRINTING_PROPS,
-      ...ENTRY_META_PROPS,
+      ...LINE_META_PROPS,
       copyIndex: int('Which copy of a multi-quantity deck line this is (0-based).'),
     },
     ['key', 'listType', 'listSlug', 'name'],
@@ -386,10 +404,10 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   // that discriminated union's, not this schema's.
   ChangeEvent: openObject(
     'One typed change event: `action` (add, remove, set-commander, unset-commander, set-finish, ' +
-      'set-printing, set-language, set-note, set-label, move-from, move-to, add-section, ' +
-      'remove-section, rename-section, set-section) plus that action’s fields — cardName, ' +
-      'cardId (&N), set, collectorNumber, finish, condition, language, labels, board, section, ' +
-      'newSection, note, to/from ({type, name}).',
+      'set-printing, set-language, set-note, set-label, add-tag, remove-tag, move-from, move-to, ' +
+      'add-section, remove-section, rename-section, set-section) plus that action’s fields — ' +
+      'cardName, cardId (&N), set, collectorNumber, finish, condition, language, labels, tags, ' +
+      'tag, board, section, newSection, note, to/from ({type, name}).',
   ),
   ChangeSet: obj(
     {

@@ -170,6 +170,7 @@ export async function buildCollectionArtifacts(
       condition: entry.condition ?? 'NM',
       language: entry.language,
       labels: entry.labels,
+      tags: entry.tags,
       ...art,
       price,
       fileOrder: i,

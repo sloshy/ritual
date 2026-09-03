@@ -47,6 +47,12 @@ interface CardContextMenuProps {
    */
   onSetLabel?: () => void
   /**
+   * Open the "Edit Tags…" dialog for the targeted card (every copy of the
+   * tile). Every list type carries tags; absent on read-only pages, hiding the
+   * item.
+   */
+  onEditTags?: () => void
+  /**
    * Open the language picker for the targeted card (every copy of the tile).
    * Absent on read-only pages, hiding the item.
    */
@@ -154,6 +160,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
         {(setLabel) => (
           <button class="card-context-menu-item" onClick={() => setLabel()()}>
             {t('ui.cardMenu.setLabel')}
+          </button>
+        )}
+      </Show>
+      <Show when={props.onEditTags}>
+        {(editTags) => (
+          <button class="card-context-menu-item" onClick={() => editTags()()}>
+            {t('ui.cardMenu.editTags')}
           </button>
         )}
       </Show>

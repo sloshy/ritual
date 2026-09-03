@@ -3,7 +3,11 @@ import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import type { Card } from '../../src/card/card'
 import type { DeckData } from '../../src/list/deck'
-import { createSetLanguageChange, type ChangeEvent } from '../../src/changes/change-event'
+import {
+  createAddTagChange,
+  createSetLanguageChange,
+  type ChangeEvent,
+} from '../../src/changes/change-event'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
@@ -24,8 +28,8 @@ let ws: BoundWorkspace
 let filePath: string
 let contentHash: string
 
-/** A deck card as the unvalidated wire carries it: `language` deliberately un-narrowed. */
-type WireDeckCard = Omit<Card, 'language'> & { language?: string }
+/** A deck card as the unvalidated wire carries it: `language` and `tags` deliberately un-narrowed. */
+type WireDeckCard = Omit<Card, 'language' | 'tags'> & { language?: string; tags?: string[] }
 
 /** One wire section of {@link WireDeck}. */
 type WireDeckSection = { name: string; cards: WireDeckCard[] }
@@ -35,6 +39,16 @@ type WireDeck = Omit<DeckData, 'sections'> & { sections: WireDeckSection[] }
 
 /** The deck as the client would send it after applying a set-language to &1. */
 function deckWithLanguage(language?: string): WireDeck {
+  return deckWith(language !== undefined ? { language } : {})
+}
+
+/** The deck as the client would send it after an edit to &1's tags. */
+function deckWithTags(tags: string[]): WireDeck {
+  return deckWith({ tags })
+}
+
+/** The seeded deck with `fields` layered onto its one card, as the client posts it. */
+function deckWith(fields: Partial<WireDeckCard>): WireDeck {
   return {
     name: 'Burn',
     sections: [
@@ -47,7 +61,7 @@ function deckWithLanguage(language?: string): WireDeck {
             set: 'lea',
             collectorNumber: '161',
             cardId: 1,
-            ...(language !== undefined ? { language } : {}),
+            ...fields,
           },
         ],
       },
@@ -76,6 +90,30 @@ function save(changes: ChangeEvent[], deck: WireDeck): Promise<Response> {
   })
   return handleDeckSave(req)
 }
+
+describe('POST /api/deck/:slug/save — tags', () => {
+  // The deck route serializes the request's cards directly, so the entry-side
+  // half of `normalizeRequestTags` is what stands between a typed tag and the
+  // deck line — canonicalizing `#Ramp` on the way in, and refusing a malformed
+  // one before anything is written.
+  test('a request card’s tags are canonicalized onto the line, and the add-tag is logged', async () => {
+    const resp = await save(
+      [createAddTagChange('Lightning Bolt', { tag: 'Ramp', cardId: 1 })],
+      deckWithTags(['#Ramp ']),
+    )
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('2 Lightning Bolt (LEA:161) #Ramp &1')
+    const changelog = await fs.readFile(path.join(ws.dir, 'decks', 'burn.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Added tag "Ramp" to "Lightning Bolt" &1')
+  })
+
+  test('a malformed tag on a request card is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save([], deckWithTags(['a,b']))
+    expect(resp.status).toBe(400)
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+})
 
 describe('POST /api/deck/:slug/save — languages', () => {
   test('set-language writes the [ja] token, the changelog line, and an updated effect', async () => {

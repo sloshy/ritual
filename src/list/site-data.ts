@@ -4,6 +4,7 @@ import type { DeckData } from './deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import type { ListImageRef } from './list-image'
 import type { CardLanguage } from '../card/card-language'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -186,6 +187,8 @@ export interface CollectionCardEntry {
    * this when present, else the list's `CollectionDetail.labels` default.
    */
   labels?: CardLabel[]
+  /** This card's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   /**
    * This entry's custom art, resolved like {@link BakedDeckCard.customArt}:
    * `art/<relpath>` for a local file, or the sidecar's URL verbatim.
@@ -262,6 +265,8 @@ export interface WantedListCardEntry {
   finish?: Finish
   /** The line's language token, when present. Absent means `en`. */
   language?: CardLanguage
+  /** This entry's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   /**
    * This entry's custom art, resolved like {@link BakedDeckCard.customArt}:
    * `art/<relpath>` for a local file, or the sidecar's URL verbatim.
@@ -393,6 +398,8 @@ export interface TradeCardEntry {
   language?: CardLanguage
   /** Effective card labels of the source entry — collection and deck rows. */
   labels?: CardLabel[]
+  /** The source entry's `#tag` tokens, when it carries any. */
+  tags?: CardTag[]
   /**
    * The source entry's baked custom art, when it has any. The row still shows
    * the real printing (it is the card being handed over); this only carries the

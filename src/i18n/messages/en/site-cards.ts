@@ -75,7 +75,8 @@ export const siteCardsMessages = {
   'site.cardModal.otherPrintingsHeading': 'Other Printings of {name} ({count})',
   'site.cardModal.otherPrintingsButton': 'Other Printings ({count})',
   'site.cardModal.findInLists': 'Find in Lists',
-  'site.cardModal.tags': 'Tags',
+  'site.cardModal.tags': 'Scryfall Tags',
+  'site.cardModal.cardTags': 'Tags',
   'site.cardModal.oracleTags': 'Oracle Tags',
   'site.cardModal.artTags': 'Art Tags',
   'site.cardModal.noTagData':

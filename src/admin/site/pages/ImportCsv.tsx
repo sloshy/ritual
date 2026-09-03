@@ -78,6 +78,7 @@ function emptySelections(): ColumnSelections {
     condition: -1,
     finish: -1,
     language: -1,
+    tags: -1,
     section: -1,
     quantity: -1,
   }

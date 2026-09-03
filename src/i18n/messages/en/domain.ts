@@ -261,6 +261,7 @@ export const domainMessages = {
   'domain.exportHint.isFoil': 'true when foil or etched',
   'domain.exportHint.language': 'Scryfall language code; blank for English',
   'domain.exportHint.labels': "effective labels — the card's override or its list default",
+  'domain.exportHint.tags': "the card's tags, comma-joined",
   'domain.exportFormat.csv': 'CSV',
   'domain.exportFormat.json': 'JSON',
   'domain.exportFormat.text': 'Plain text decklist (dialect picks the form)',
@@ -351,6 +352,16 @@ export const domainMessages = {
     $select: 'tense',
     present: 'Clear labels on {name}{id}',
     past: 'Cleared labels on {name}{id}',
+  },
+  'domain.change.addTag': {
+    $select: 'tense',
+    present: 'Add tag "{tag}" to {name}{id}',
+    past: 'Added tag "{tag}" to {name}{id}',
+  },
+  'domain.change.removeTag': {
+    $select: 'tense',
+    present: 'Remove tag "{tag}" from {name}{id}',
+    past: 'Removed tag "{tag}" from {name}{id}',
   },
   'domain.change.moveToList': {
     $select: 'tense',

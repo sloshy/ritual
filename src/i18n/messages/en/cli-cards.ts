@@ -21,6 +21,8 @@ export const cliCardsMessages = {
   // ── Shared by every one-shot card command ─────────────────────────────
   'cli.cardOps.cancelled': 'Cancelled.',
   'cli.cardOps.pinNeedsBoth': '--set and --collector-number must be given together.',
+  'cli.cardOps.tagFlagInvalid': '{reason} {flag} takes one or more tags separated by commas.',
+  'cli.cardOps.tagFlagEmpty': '{flag} needs at least one tag.',
   'cli.cardOps.wantedNoCondition':
     'Wanted list entries do not track condition — --condition applies to decks and collections only.',
   'cli.cardOps.labelsUnsupported': {
@@ -165,7 +167,9 @@ export const cliCardsMessages = {
   'cli.setCard.finishCheckCacheMiss':
     "Note: could not verify finish '{finish}' for {entry} — the card cache holds no complete printing list for it. Run 'ritual cache preload-all' to enable the check.",
   'cli.setCard.noChangeGiven':
-    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --art, --section, --commander, or --no-commander.',
+    'Specify at least one change: --set/--collector-number, --finish, --condition, --language, --label, --tag, --untag, --art, --section, --commander, or --no-commander.',
+  'cli.setCard.tagBothWays':
+    'A tag cannot be both added and removed in one run — given to both --tag and --untag: {tags}',
   'cli.setCard.artInvalid': "{reason}. Or pass 'none' to clear the custom art.",
   'cli.setCard.artFileMissing':
     "No image file at {path}. Custom art paths are relative to the art directory ({dir}) — move the image there, or point elsewhere with 'ritual config set artDir <dir>'.",
@@ -186,6 +190,10 @@ export const cliCardsMessages = {
   'cli.setCard.appliedFinish': 'finish → {finish}',
   'cli.setCard.labelCleared': 'label → none (list default)',
   'cli.setCard.appliedLabel': 'label → {labels}',
+  'cli.setCard.appliedTagsAdded': 'tags added → {tags}',
+  'cli.setCard.appliedTagsRemoved': 'tags removed → {tags}',
+  'cli.setCard.tagsAlreadyPresent': 'tags unchanged ({tags} already on the line)',
+  'cli.setCard.tagsAlreadyAbsent': 'tags unchanged ({tags} not on the line)',
   'cli.setCard.appliedSection': 'section → {section}',
   'cli.setCard.appliedCommander': 'commander',
   'cli.setCard.appliedNotCommander': 'not commander',

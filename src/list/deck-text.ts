@@ -30,6 +30,7 @@ export function serializeCardLine(card: Card): string {
     condition: card.condition,
     language: card.language,
     labels: card.labels,
+    tags: card.tags,
     note: card.note,
     cardId: card.cardId,
   })
@@ -125,6 +126,7 @@ export function canonicalCardLine(type: ListType, fields: EntryRef): string {
       condition: fields.condition,
       language: fields.language,
       labels: fields.labels,
+      tags: fields.tags,
       note: fields.note,
       cardId: fields.cardId,
     })
@@ -138,6 +140,7 @@ export function canonicalCardLine(type: ListType, fields: EntryRef): string {
       condition: fields.condition,
       language: fields.language,
       labels: fields.labels,
+      tags: fields.tags,
       note: fields.note,
       cardId: fields.cardId,
     }).trimEnd()
@@ -147,6 +150,7 @@ export function canonicalCardLine(type: ListType, fields: EntryRef): string {
     printing: resolvePrinting(fields.set, fields.collectorNumber),
     finish: fields.finish,
     language: fields.language,
+    tags: fields.tags,
     note: fields.note,
     cardId: fields.cardId,
   }).trimEnd()

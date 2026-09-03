@@ -38,6 +38,7 @@ import {
   type ViewMode,
   WUBRG,
 } from '../list-view/card-sorting'
+import { GROUP_BYS } from './list-page-options'
 
 /** The per-page defaults that determine which group/sort values are omitted from the URL. */
 export type ListViewDefaults = {
@@ -82,18 +83,6 @@ export type ListViewOverrides = {
 
 const VIEW_MODES: readonly ViewMode[] = ['binder', 'list', 'overlap', 'stack']
 const CARD_SIZES: readonly CardSize[] = ['large', 'medium', 'small']
-const GROUP_BYS: readonly GroupBy[] = [
-  'type',
-  'section',
-  'cmc',
-  'color-identity',
-  'price',
-  'buylist-price',
-  'on-buylist',
-  'printing',
-  'source',
-  'none',
-]
 const PRICE_STRATEGIES: readonly PriceGroupStrategy[] = ['archidekt', 'five', 'ten']
 const NUMERIC_OPS: readonly NumericComparator[] = ['=', '<', '<=', '>', '>=']
 

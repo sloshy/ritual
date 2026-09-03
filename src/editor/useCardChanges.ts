@@ -2,7 +2,10 @@ import { type Accessor, batch, createSignal, createMemo } from 'solid-js'
 import type { Finish } from '../card/finish-condition'
 import type { ChangeInput } from '../changes/change-event'
 import {
+  type CardTagChange,
   type ChangeEvent,
+  type ConsolidateManyResult,
+  type ConsolidateResult,
   type CardPrintingOptions,
   type PrintingTuple,
   type ListRef,
@@ -14,18 +17,31 @@ import {
   consolidateSetLanguage,
   consolidateSetPrinting,
   consolidateSetSection,
+  consolidateTagEdits,
 } from '../changes/change-event'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
+import type { CardTag } from '../card/card-tags'
+
+/**
+ * What a "set the tags to …" gesture recorded: the per-tag events that became
+ * pending, and the pending opposites it cancelled instead. Returned so the
+ * caller can see exactly what the session now holds (the live data is updated
+ * from the tag *delta*, which is the same whether an event was recorded or
+ * cancelled a pending one).
+ */
+export type TagEditResult = Omit<ConsolidateManyResult<CardTagChange>, 'changes'>
 
 /**
  * What an add (or the record of what a remove took away) may carry beyond the
- * printing: the line's label override. Labels ride the `add`/`remove` event
- * itself so they land on the copy the change is about — and so a remove and a
- * re-add under different overrides are not read as opposites.
+ * printing: the line's label override and its tags. Both ride the
+ * `add`/`remove` event itself so they land on the copy the change is about —
+ * and so a remove and a re-add under different overrides or tags are not read
+ * as opposites (see {@link RemoveChange.labels} and `areOppositeChanges`).
  */
 export type AddCardOptions = CardPrintingOptions & {
   labels?: CardLabel[]
+  tags?: CardTag[]
 }
 
 /**
@@ -85,6 +101,7 @@ export type UseCardChangesResult<T = unknown> = {
     cardId?: number,
     removedCardData?: T,
     labels?: CardLabel[],
+    tags?: CardTag[],
   ) => void
   /**
    * Add a copy, optionally under a label override the new line starts with.
@@ -130,6 +147,18 @@ export type UseCardChangesResult<T = unknown> = {
     originalLabels: readonly CardLabel[] | undefined,
     cardId?: number,
   ) => void
+  /**
+   * Set a card's tags to exactly `tags`, recorded as one `add-tag` /
+   * `remove-tag` event per tag that differs from `currentTags` — the card's
+   * *live* tags, so a tag added earlier this session and removed now cancels
+   * the pending add outright instead of stacking a remove on top of it.
+   */
+  setTags: (
+    cardName: string,
+    tags: readonly CardTag[],
+    currentTags: readonly CardTag[] | undefined,
+    cardId?: number,
+  ) => TagEditResult
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
@@ -243,8 +272,9 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     cardId?: number,
     removedCardData?: T,
     labels?: CardLabel[],
+    tags?: CardTag[],
   ) {
-    addChange({ action: 'remove', cardName, cardId, labels }, removedCardData)
+    addChange({ action: 'remove', cardName, cardId, labels, tags }, removedCardData)
   }
 
   function addCard(cardName: string, options?: AddCardOptions): AddCardResult {
@@ -269,18 +299,22 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     addChange({ action: 'move-from', cardName, ...options, to }, removedCardData)
   }
 
+  /**
+   * Commit a "latest wins" consolidation: adopt its change list and push one
+   * undo entry, or record nothing at all when it was a no-op (neither an added
+   * nor a cancelled change), so a true no-op leaves no undo step behind.
+   */
+  function commit(result: ConsolidateResult): void {
+    const { changes: newChanges, addedChange, cancelledChange } = result
+    if (addedChange === null && cancelledChange === null) return
+    changesRef = newChanges
+    undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
+    setChanges([...changesRef])
+    setUndoStack([...undoStackRef])
+  }
+
   function setFinish(cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) {
-    const {
-      changes: newChanges,
-      addedChange,
-      cancelledChange,
-    } = consolidateSetFinish(changesRef, cardName, finish, originalFinish, cardId)
-    if (addedChange !== null || cancelledChange !== null) {
-      changesRef = newChanges
-      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    }
+    commit(consolidateSetFinish(changesRef, cardName, finish, originalFinish, cardId))
   }
 
   function setPrinting(
@@ -289,31 +323,11 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     original: PrintingTuple,
     cardId?: number,
   ) {
-    const {
-      changes: newChanges,
-      addedChange,
-      cancelledChange,
-    } = consolidateSetPrinting(changesRef, cardName, target, original, cardId)
-    if (addedChange !== null || cancelledChange !== null) {
-      changesRef = newChanges
-      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    }
+    commit(consolidateSetPrinting(changesRef, cardName, target, original, cardId))
   }
 
   function setSection(cardName: string, section: string, originalSection: string, cardId?: number) {
-    const {
-      changes: newChanges,
-      addedChange,
-      cancelledChange,
-    } = consolidateSetSection(changesRef, cardName, section, originalSection, cardId)
-    if (addedChange !== null || cancelledChange !== null) {
-      changesRef = newChanges
-      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    }
+    commit(consolidateSetSection(changesRef, cardName, section, originalSection, cardId))
   }
 
   function setLanguage(
@@ -322,17 +336,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     originalLanguage: CardLanguage | undefined,
     cardId?: number,
   ) {
-    const {
-      changes: newChanges,
-      addedChange,
-      cancelledChange,
-    } = consolidateSetLanguage(changesRef, cardName, language, originalLanguage, cardId)
-    if (addedChange !== null || cancelledChange !== null) {
-      changesRef = newChanges
-      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
-    }
+    commit(consolidateSetLanguage(changesRef, cardName, language, originalLanguage, cardId))
   }
 
   function setLabel(
@@ -341,17 +345,38 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     originalLabels: readonly CardLabel[] | undefined,
     cardId?: number,
   ) {
+    commit(consolidateSetLabel(changesRef, cardName, labels, originalLabels, cardId))
+  }
+
+  function setTags(
+    cardName: string,
+    tags: readonly CardTag[],
+    currentTags: readonly CardTag[] | undefined,
+    cardId?: number,
+  ): TagEditResult {
     const {
       changes: newChanges,
-      addedChange,
-      cancelledChange,
-    } = consolidateSetLabel(changesRef, cardName, labels, originalLabels, cardId)
-    if (addedChange !== null || cancelledChange !== null) {
-      changesRef = newChanges
-      undoStackRef = [...undoStackRef, { addedChange, cancelledChange }]
-      setChanges([...changesRef])
-      setUndoStack([...undoStackRef])
+      addedChanges,
+      cancelledChanges,
+    } = consolidateTagEdits(changesRef, cardName, tags, currentTags, cardId)
+    if (addedChanges.length === 0 && cancelledChanges.length === 0) {
+      return { addedChanges, cancelledChanges }
     }
+    // One undo entry per event, not one per gesture: `UndoEntry` holds a single
+    // added *or* cancelled change, so a three-tag edit is three undo steps and
+    // Undo reverts one tag at a time (the most recent first). The alternative —
+    // widening `UndoEntry` to a list — would touch every consumer of the stack
+    // (pool reconciliation, art reset, replay) for a dialog that usually
+    // changes one tag.
+    const entries: UndoEntry<T>[] = [
+      ...addedChanges.map((addedChange) => ({ addedChange, cancelledChange: null })),
+      ...cancelledChanges.map((cancelledChange) => ({ addedChange: null, cancelledChange })),
+    ]
+    changesRef = newChanges
+    undoStackRef = [...undoStackRef, ...entries]
+    setChanges([...changesRef])
+    setUndoStack([...undoStackRef])
+    return { addedChanges, cancelledChanges }
   }
 
   const changeCount = createMemo(() => changes().length)
@@ -376,5 +401,6 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     setSection,
     setLanguage,
     setLabel,
+    setTags,
   }
 }

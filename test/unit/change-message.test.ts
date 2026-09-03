@@ -18,6 +18,8 @@ import {
   createSetCommanderChange,
   createSetFinishChange,
   createSetLabelChange,
+  createAddTagChange,
+  createRemoveTagChange,
   createSetLanguageChange,
   createSetNoteChange,
   createSetPrintingChange,
@@ -31,7 +33,7 @@ import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runt
 import { localeTag } from '../../src/i18n/locale-tag'
 
 /**
- * `changeMessage` is the single display renderer for the 21 change actions,
+ * `changeMessage` is the single display renderer for every change action,
  * replacing the wording `src/site/changelog-format.ts` used to mirror beside
  * `formatChangeCore`. Two properties matter and are both pinned here:
  *
@@ -146,6 +148,15 @@ describe('changeMessage — history (persisted) events', () => {
     expect(line({ action: 'set-label', labels: [] })).toBe('Cleared labels on Lightning Bolt')
   })
 
+  test('add-tag / remove-tag — the tag is quoted, never sigilled', () => {
+    expect(line({ action: 'add-tag', tag: 'Card Draw' })).toBe(
+      'Added tag "Card Draw" to Lightning Bolt',
+    )
+    expect(line({ action: 'remove-tag', tag: 'binder/trade' })).toBe(
+      'Removed tag "binder/trade" from Lightning Bolt',
+    )
+  })
+
   test('section-structural events name no card', () => {
     expect(renderChange(displayHistoryChange(createAddSectionChange('Foils')))).toBe(
       'Added section "Foils"',
@@ -252,6 +263,8 @@ describe('formatChange — pending change events', () => {
       createSetNoteChange('Sol Ring', { note: '', cardId: 4 }),
       createSetLabelChange('Sol Ring', { labels: ['sale', 'trade'], cardId: 4 }),
       createSetLabelChange('Sol Ring', { labels: [], cardId: 4 }),
+      createAddTagChange('Sol Ring', { tag: 'ramp', cardId: 4 }),
+      createRemoveTagChange('Sol Ring', { tag: 'binder/trade', cardId: 4 }),
       createMoveFromChange('Sol Ring', { set: 'neo', collectorNumber: '234', cardId: 5, to: list }),
       createMoveToChange('Sol Ring', { cardId: 5, from: list }),
       createAddSectionChange('Foils'),

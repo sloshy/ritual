@@ -139,7 +139,7 @@ The canonical list markdown, grouped by source: a `# List Name` H1 per list (in 
 
 The exportable properties are the fields stored in your list files (plus the list identity and three derived columns):
 
-`name`, `quantity`, `set`, `collectorNumber`, `edition`, `scryfallId`, `finish`, `isFoil`, `condition`, `language`, `labels`, `note`, `section`, `listName`, `listType`
+`name`, `quantity`, `set`, `collectorNumber`, `edition`, `scryfallId`, `finish`, `isFoil`, `condition`, `language`, `labels`, `tags`, `note`, `section`, `listName`, `listType`
 
 The default column set matches the site's CSV export: `name,set,collectorNumber,finish,condition,language,quantity`.
 
@@ -151,6 +151,7 @@ Notes on values:
 - **`isFoil`** is `true` when the card's finish is `foil` or `etched`, `false` otherwise (a real boolean in JSON, `true`/`false` text in CSV).
 - **`language`** is the line's Scryfall language code (`ja`, `zhs`, ...), blank for English — mirroring the markdown token, which is omitted on English lines. In the [`archidekt` dialect](#dialects) it is written as Archidekt's own CSV codes (`EN CT DE FR IT JP KR PT RU CS SP` — always filled in, `EN` for English), and a language Archidekt has no code for exports as `EN`.
 - **`labels`** is the card's _effective_ labels, comma-joined (`sale, trade`) — a deck line's resolve against the deck's front-matter `labels:` default exactly as a collection's do; empty for unlabeled cards and always empty for wanted entries. An export flattens away the list file, so the override/default split is not represented — and the `md` format writes the effective labels inline as `[labels]` tokens for collection entries only (it drops front matter along with `&N` ids); deck lines are written without labels, since their effective set can hold collection-only vocabulary a deck line could not re-parse — so a deck's `[proxy]` is not exported. The spelling is the same in every dialect: labels are Ritual-specific, so no foreign importer defines a vocabulary to translate into.
+- **`tags`** is the card's [tags](/commands/edit/#card-tags), comma-joined in canonical order (`Card Draw, Ramp`) — the same spelling the editors use, without the `#` the card line writes, which is card-line punctuation, never part of a value. Every list type carries tags, and unlike labels there is no list-level default: a card's tags are exactly the ones on its line, so the column is empty for an untagged card. The `md` format writes them back inline as the line's `#tags` token on every list type. The spelling is the same in every dialect, since tags are Ritual-specific.
 - JSON records **omit** properties the entry doesn't have (no `null`s); key order follows the column order.
 - CSV renders missing values as empty cells. An explicitly marked `[nonfoil]` finish is written as `nonfoil` — unlike the site's fixed CSV export, nothing is blanked.
 - Card `&N` IDs are internal and never exported.

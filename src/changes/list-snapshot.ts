@@ -11,6 +11,7 @@ import {
   createAddSectionChange,
   createSetCommanderChange,
   createSetLabelChange,
+  createAddTagChange,
   createSetNoteChange,
   createSetSectionChange,
   printingOptionsFrom,
@@ -31,8 +32,9 @@ export { loadListEntries as loadListSnapshot }
  * Build the events of a single "current state" change set. Emits, in order: an
  * add-section per non-default section, then per entry — one add per copy
  * (matching how the diff logs quantities), a set-commander for commanders, a
- * set-note for noted cards, a set-label for cards with a label override, and a
- * set-section for cards outside the default section.
+ * set-note for noted cards, a set-label for cards with a label override, an
+ * add-tag per tag on a tagged card, and a set-section for cards outside the
+ * default section.
  */
 export function buildDefaultChangeEvents(snapshot: ListSnapshot): ChangeEvent[] {
   const events: ChangeEvent[] = []
@@ -54,6 +56,9 @@ export function buildDefaultChangeEvents(snapshot: ListSnapshot): ChangeEvent[] 
     }
     if (entry.labels && entry.labels.length > 0) {
       events.push(createSetLabelChange(entry.name, { labels: entry.labels, cardId: entry.cardId }))
+    }
+    for (const tag of entry.tags ?? []) {
+      events.push(createAddTagChange(entry.name, { tag, cardId: entry.cardId }))
     }
     if (entry.section !== DEFAULT_SECTION) {
       events.push(createSetSectionChange(entry.name, entry.section, entry.cardId))

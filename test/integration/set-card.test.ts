@@ -1087,6 +1087,188 @@ describe('set-card --label (Integration)', () => {
   })
 })
 
+describe('set-card --tag / --untag (Integration)', () => {
+  test('--tag adds a canonical tag token and logs one changelog line per tag', async () => {
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--tag',
+        'Staple, Card Draw',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual(['tags added → Card Draw, Staple'])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) #Card Draw, Staple &1')
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Added tag "Card Draw" to "Sol Ring" &1')
+    expect(changelog).toContain('- Added tag "Staple" to "Sol Ring" &1')
+  })
+
+  test('--untag removes only the named tags; a tag already present is not re-logged', async () => {
+    const seed = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--tag', 'ramp, staple'],
+      dir,
+    )
+    expect(seed.exitCode).toBe(0)
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--untag',
+        'ramp',
+        '--tag',
+        'staple',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual([
+      'tags unchanged (staple already on the line)',
+      'tags removed → ramp',
+    ])
+
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) #staple &1')
+
+    const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
+    expect(changelog).toContain('- Removed tag "ramp" from "Sol Ring" &1')
+    expect(changelog.match(/Added tag "staple"/g)).toHaveLength(1)
+  })
+
+  test('tags land on deck and wanted lines too, before the id', async () => {
+    const deck = await runCli(
+      ['set-card', '--deck', 'test', '--card-id', '3', '--tag', 'edh', '--output', 'json'],
+      dir,
+    )
+    expect(deck.exitCode).toBe(0)
+    const deckContent = await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')
+    expect(deckContent).toContain('1 Lightning Bolt (2XM:157) #edh &3')
+
+    const wanted = await runCli(
+      ['set-card', '--wanted', 'needs', 'Underground Sea', '--tag', 'dual', '--output', 'json'],
+      dir,
+    )
+    expect(wanted.exitCode).toBe(0)
+    const wantedContent = await fs.readFile(path.join(dir, 'wanted', 'needs.md'), 'utf-8')
+    expect(wantedContent).toContain('- Underground Sea (LEB:286) #dual &2')
+  })
+
+  test('a run whose every tag is already in its requested state writes nothing', async () => {
+    const seed = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--tag', 'ramp'],
+      dir,
+    )
+    expect(seed.exitCode).toBe(0)
+    const before = await snapshotTree(dir)
+
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--tag',
+        'ramp',
+        '--untag',
+        'nope',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson
+    expect(json.applied).toEqual([
+      'tags unchanged (ramp already on the line)',
+      'tags unchanged (nope not on the line)',
+    ])
+    // No list rewrite, no changelog entry, no sidecar touch for a no-op.
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('repeating --tag accumulates', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--tag', 'ramp', '--tag', 'staple'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
+    expect(content).toContain('- Sol Ring (C21:240) #ramp, staple &1')
+  })
+
+  test('--dry-run previews the tag change and writes nothing', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--tag',
+        'ramp',
+        '--dry-run',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as SetCardJson & { dryRun?: boolean }
+    expect(json.dryRun).toBe(true)
+    expect(json.applied).toEqual(['tags added → ramp'])
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('the same tag to both --tag and --untag is a usage error', async () => {
+    const before = await snapshotTree(dir)
+    const result = await runCli(
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--tag',
+        'ramp',
+        '--untag',
+        'ramp',
+        '--output',
+        'json',
+      ],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    const err = JSON.parse(result.stderr) as ErrorJson
+    expect(err.error.code).toBe('usage_error')
+    expect(err.error.message).toContain('--untag: ramp')
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('a malformed tag is rejected at parse time', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--tag', 'ramp, R&D'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain('Invalid tag "R&D"')
+    expect(result.stderr).toContain('--tag')
+  })
+})
+
 describe('set-card --art (Integration)', () => {
   /** The `.art.json` sidecar as JSON.parse yields it: card id → file/url ref. */
   type ArtSidecar = Record<string, { file?: string; url?: string }>

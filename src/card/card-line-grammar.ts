@@ -12,7 +12,7 @@
  *
  * ```
  * card-line ::= [ bullet ] [ quantity ] name { WS token } [ WS id ]
- * token     ::= printing | finish | condition | language | labels | note
+ * token     ::= printing | finish | condition | language | labels | tags | note
  * printing  ::= "(" set ":" collector ")" | "(" set ")" WS [ marker WS ] collector
  * ```
  *
@@ -45,12 +45,21 @@ import {
   type CardLanguage,
 } from './card-language'
 import { isCondition, isFinish, type Condition, type Finish } from './finish-condition'
+import {
+  CARD_TAG_SHAPE_CLAUSE,
+  CARD_TAG_SIGIL,
+  normalizeCardTags,
+  parseCardTagsInput,
+  type CardTag,
+} from './card-tags'
 import { listTypeLabel, type ListType } from '../list/list-type'
 
 /**
- * Every kind of token a card line can carry. The future `#tag` feature adds a
- * `'tags'` member — the only *repeatable* one — which is why {@link GRAMMAR} is
- * a per-kind table rather than a fixed tuple.
+ * Every kind of token a card line can carry. `tags` is the only *repeatable*
+ * one — the writer emits one comma-separated `#a, b` token, but a reader also
+ * accepts several `#a #b` tokens on one line — which is why
+ * {@link GRAMMAR} is a per-kind table rather than a fixed tuple, and why
+ * {@link REPEATABLE_TOKEN_KINDS} exists beside it.
  */
 export type TokenKind =
   | 'quantity'
@@ -59,14 +68,14 @@ export type TokenKind =
   | 'condition'
   | 'language'
   | 'labels'
+  | 'tags'
   | 'note'
   | 'id'
 
 /**
  * Which token kinds a table row names. A full `Record` rather than a set
- * literal: adding a member to {@link TokenKind} — the future `#tag` — is then a
- * compile error in every {@link GRAMMAR} row rather than a silent "disallowed
- * everywhere".
+ * literal: adding a member to {@link TokenKind} is then a compile error in
+ * every {@link GRAMMAR} row rather than a silent "disallowed everywhere".
  */
 export type TokenKindFlags = Record<TokenKind, boolean>
 
@@ -82,9 +91,17 @@ export const TOKEN_KINDS: readonly TokenKind[] = Object.values({
   condition: 'condition',
   language: 'language',
   labels: 'labels',
+  tags: 'tags',
   note: 'note',
   id: 'id',
 } as const satisfies Record<TokenKind, TokenKind>)
+
+/**
+ * The kinds a line may carry more than once. Every other kind twice is a
+ * `duplicate-token` refusal; a second tag token simply carries more tags (and
+ * the same tag twice folds to one — nothing is lost, so it is not even an advisory).
+ */
+const REPEATABLE_TOKEN_KINDS: ReadonlySet<TokenKind> = new Set<TokenKind>(['tags'])
 
 /** Everything one card line says, once the grammar has read it. */
 export type LineTokens = {
@@ -99,6 +116,8 @@ export type LineTokens = {
   language?: CardLanguage
   /** The line's label override, absent when it carries no labels token. */
   labels?: readonly CardLabel[]
+  /** The line's tags in canonical form (trimmed, deduplicated, sorted); absent when none. */
+  tags?: readonly CardTag[]
   note?: string
   cardId?: number
 }
@@ -157,6 +176,8 @@ export type TokenErrorCode =
   | 'malformed-note'
   /** `[keep,sale]` and friends — see `EXCLUSIVE_CARD_LABELS`. */
   | 'conflicting-labels'
+  /** A `#…` token in tail position with an empty body or one that is not tag-shaped (`#`, `#a&b`). */
+  | 'malformed-tag'
 
 /** Refusals about the line as a whole, which have no one token to blame. */
 export type LineErrorCode =
@@ -187,6 +208,7 @@ export const CARD_LINE_ERROR_CODES: readonly CardLineErrorCode[] = Object.values
   'missing-printing': 'missing-printing',
   'malformed-note': 'malformed-note',
   'conflicting-labels': 'conflicting-labels',
+  'malformed-tag': 'malformed-tag',
 } as const satisfies Record<CardLineErrorCode, CardLineErrorCode>)
 
 /** What every refusal carries, whatever it blames. */
@@ -270,11 +292,12 @@ const EVERY_TOKEN = {
   condition: true,
   language: true,
   labels: true,
+  tags: true,
   note: true,
   id: true,
 } as const satisfies TokenKindFlags
 
-/** A wanted list carries neither a condition nor labels. */
+/** A wanted list carries neither a condition nor labels — but tags, like every type. */
 const WANTED_TOKENS = {
   quantity: true,
   printing: true,
@@ -282,6 +305,7 @@ const WANTED_TOKENS = {
   condition: false,
   language: true,
   labels: false,
+  tags: true,
   note: true,
   id: true,
 } as const satisfies TokenKindFlags
@@ -561,7 +585,7 @@ type ScannedToken = {
  * line that visibly names a printing be refused for *missing* one. It is found
  * here and reported as the separator problem it is.
  */
-const RESIDUE_TOKEN_RE = /&\d+|\([^()]*\)|\[[^\][]*\]|\{[^{}]*\}/g
+const RESIDUE_TOKEN_RE = /&\d+|\([^()]*\)|\[[^\][]*\]|\{[^{}]*\}|#(?:[^&[\]{}()]*[^&[\]{}()\s])?/g
 
 /** A token found inside the name, with where it sits and how it was spaced. */
 type MisplacedToken = {
@@ -610,7 +634,14 @@ function findMisplacedToken(
     }
     const inner = text.slice(1, -1)
     if (text.startsWith('&')) found.push({ text, column, kind: 'id', ...spacing })
-    else if (text.startsWith('(')) {
+    else if (text.startsWith(CARD_TAG_SIGIL)) {
+      // No real card name contains `#` (a sweep of 38,336 names found none), so
+      // a `#…` run inside the name is always a stranded tag token — glued to
+      // the word before it (`Ring#ramp`), or left behind when a delimiter
+      // branch stopped the peel early. The match runs to the next structural
+      // character, since a tag body may hold spaces.
+      found.push({ text, column, kind: 'tags', ...spacing })
+    } else if (text.startsWith('(')) {
       if (PRINTING_BODY_RE.test(inner)) found.push({ text, column, kind: 'printing', ...spacing })
     } else if (text.startsWith('{')) found.push({ text, column, kind: 'note', ...spacing })
     else {
@@ -618,7 +649,14 @@ function findMisplacedToken(
       if (kind !== undefined) found.push({ text, column, kind, ...spacing })
     }
   }
-  return found.find((token) => token.kind === 'id') ?? found[0]
+  // The id first (it must be last on the line); then the token that is
+  // actually stuck to its neighbour, so a glued `#Ramp{note}` is blamed on
+  // itself rather than on a well-spaced `(SET:CN)` earlier in the name.
+  return (
+    found.find((token) => token.kind === 'id') ??
+    found.find((token) => !token.spacedBefore || !token.spacedAfter) ??
+    found[0]
+  )
 }
 
 /** Which kind a bracket token's body names, or `undefined` for nothing known. */
@@ -718,6 +756,8 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
   let end = bodyEndRaw
   const tokens: Omit<LineTokens, 'name'> = { quantity }
   const seen = new Map<TokenKind, ScannedToken>()
+  /** Tag bodies as written, folded to canonical form once the scan is done. */
+  const tags: string[] = []
 
   /** Record a scanned token, refusing a duplicate or one this type cannot carry. */
   const accept = (token: ScannedToken): CardLineError | undefined => {
@@ -733,7 +773,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           (reason === undefined ? '.' : ` — ${reason}.`),
       })
     }
-    if (seen.has(token.kind)) {
+    if (seen.has(token.kind) && !REPEATABLE_TOKEN_KINDS.has(token.kind)) {
       return failToken(type, line, {
         code: 'duplicate-token',
         kind: token.kind,
@@ -757,22 +797,13 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
     const last = line.charAt(end - 1)
     const body = line.slice(bodyStart, end)
 
-    if (/\d/.test(last)) {
-      // The id is the line's *last* token by grammar (`… { WS token } [ WS id ]`)
-      // and by every writer. Reading one mid-line would make `readCardId` — which
-      // anchors on the end of the line, as the id-pool seeding does — disagree
-      // with this parser about which ids are in use, and a disagreement there
-      // hands an id that is already on a line to the next new card.
-      if (end !== bodyEndRaw) break
-      const id = matchCardId(body)
-      if (id === undefined) break
-      const column = bodyStart + id.index
-      const refusal = accept({ kind: 'id', text: id.text, column, body: id.text.slice(1) })
-      if (refusal) return refusal
-      tokens.cardId = id.id
-      end = column
-      continue
-    }
+    // Branch order matters around the `#tags` probe below. The delimiter
+    // branches (`}` `]` `)` `*`) run before it, because a note or bracket may
+    // legitimately hold a `#word` (`{needs #upgrade}`) that the probe would
+    // otherwise read as a tag. The id branch runs before it too — a tag token
+    // runs from its sigil to the end of what is left, so `#ramp &5` must have
+    // its `&5` peeled first — but only *peels* on a match: `#tier1` ends in a
+    // digit and is not an id, and the probe still has to see it.
 
     if (last === '}') {
       // Greedy to the *last* `}`: `{note with } brace}` is one note. The opening
@@ -897,8 +928,65 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
       continue
     }
 
+    if (/\d/.test(last) && end === bodyEndRaw) {
+      // The id is the line's *last* token by grammar (`… { WS token } [ WS id ]`)
+      // and by every writer. Reading one mid-line would make `readCardId` — which
+      // anchors on the end of the line, as the id-pool seeding does — disagree
+      // with this parser about which ids are in use, and a disagreement there
+      // hands an id that is already on a line to the next new card.
+      const id = matchCardId(body)
+      if (id !== undefined) {
+        const column = bodyStart + id.index
+        const refusal = accept({ kind: 'id', text: id.text, column, body: id.text.slice(1) })
+        if (refusal) return refusal
+        tokens.cardId = id.id
+        end = column
+        continue
+      }
+    }
+
+    // A tag token has no closing delimiter: it runs from the last
+    // whitespace-preceded `#` to the end of what is left, and its body is the
+    // same comma-separated list a person types (`#Ramp, Card Draw`). Taking the
+    // *last* sigil is what lets a line written with one sigil per tag
+    // (`#ramp #staple`, the Moxfield spelling) read as two tokens on two passes.
+    // Reached only once no delimiter branch claimed the tail, so a `#` here is
+    // a tag token or nothing.
+    let open = -1
+    for (let index = end - 1; index >= bodyStart; index -= 1) {
+      if (line.charAt(index) === CARD_TAG_SIGIL && isTokenBoundary(line, index, bodyStart)) {
+        open = index
+        break
+      }
+    }
+    if (open !== -1) {
+      const text = line.slice(open, end)
+      const parsed = parseCardTagsInput(text.slice(CARD_TAG_SIGIL.length))
+      // An unclosed `{` after the sigil is a broken note, not a broken tag:
+      // leave it in the name so the `malformed-note` check below names it.
+      if (!parsed.ok && text.includes('{')) break
+      if (!parsed.ok || parsed.tags.length === 0) {
+        return failToken(type, line, {
+          code: 'malformed-tag',
+          kind: 'tags',
+          token: text,
+          column: open,
+          message: `Malformed tag token ${text}: ${CARD_TAG_SHAPE_CLAUSE}.`,
+        })
+      }
+      const refusal = accept({ kind: 'tags', text, column: open, body: text.slice(1) })
+      if (refusal) return refusal
+      tags.push(...parsed.tags)
+      end = open
+      continue
+    }
+
     break
   }
+
+  // Folded once the scan is done: deduplicated and sorted — the same tag
+  // written twice, or in two tag tokens, is one tag.
+  if (tags.length > 0) tokens.tags = normalizeCardTags(tags)
 
   let name = line.slice(bodyStart, end).trim()
 

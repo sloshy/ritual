@@ -38,6 +38,7 @@ const COMBINED_SORT_BYS: readonly SortBy[] = [
   'set-code',
   'edhrec',
   'file-order',
+  'tags',
 ]
 
 /** Group by source list, sorted by name — the view's URL-omitted default. */
@@ -305,6 +306,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
           onAddToTrade={modalTrade()?.add}
           addToTradeDisabled={modalTrade()?.disabled}
           note={modalTile()?.selectedTile.note}
+          tags={modalTile()?.tags}
         />
       }
     />

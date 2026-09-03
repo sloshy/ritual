@@ -42,7 +42,14 @@ ritual add-card "To Buy" "Demonic Tutor" --wanted --set sta --collector-number 9
 ritual remove-card "To Buy" "Mox Ruby" --wanted              # one entry
 ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil   # entry pins STA:90
 ritual note "To Buy" "Mox Ruby" --wanted -n "budget copy only"
+ritual set-card "To Buy" "Mox Ruby" --wanted --tag "Budget, Reserved List"   # tags: any list type
 \`\`\`
+
+Wanted entries carry no labels, but they do carry **tags**: the owner's free-form words,
+one comma-separated \`#\` token before the note (\`- Mox Ruby #Budget, Reserved List &3\`),
+set with \`set-card
+--tag\`/\`--untag\`, \`add-card --tag\`, or the session's per-card \`🔖 Edit Tags\` action
+(see the **ritual-edit** skill).
 
 A finish belongs to a printing, so \`set-card --finish foil|etched\` needs the entry to
 pin one and exits 2 otherwise (pass \`--set\`/\`--collector-number\` in the same call to
@@ -100,7 +107,7 @@ ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the list's existing entries",
   editFields:
-    "change a card's printing (or make it name-only), finish, language, or note, move it to another list, or remove it",
+    "change a card's printing (or make it name-only), finish, language, tags, or note, move it to another list, or remove it",
   editModeNote:
     'The `✨ Change Finish` item is hidden for name-only entries — a finish only annotates a specific printing.',
   undoAddVerb: 'removes',

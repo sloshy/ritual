@@ -38,8 +38,18 @@ export const GROUP_BY_LABELS = {
   'on-buylist': 'domain.groupBy.onBuylist',
   printing: 'site.groupBy.printing',
   source: 'site.groupBy.source',
+  tags: 'site.groupBy.tags',
   none: 'site.groupBy.none',
 } as const satisfies Record<GroupBy, GroupByMessageKey>
+
+/**
+ * Every grouping, derived from the label table rather than restated — the URL
+ * sync's `group=` whitelist. `satisfies Record<GroupBy, …>` above makes the key
+ * set exactly `GroupBy`, so a new grouping can never be legal in a dropdown yet
+ * silently dropped from a shared link (the sort side does the same with
+ * `SORT_BYS`).
+ */
+export const GROUP_BYS = Object.keys(GROUP_BY_LABELS) as readonly GroupBy[]
 
 /**
  * Label an ordered list of groupings from {@link GROUP_BY_LABELS}. A fresh array
@@ -58,12 +68,20 @@ const sectionIf = (hasSections: boolean) => (hasSections ? (['section'] as const
 const sellIf = (sellMode: boolean) => (sellMode ? SELL_GROUP_BYS : [])
 
 /** The groupings a flat list page offers between `section` and "none". */
-const FLAT_GROUP_BYS = ['type', 'cmc', 'color-identity', 'price'] as const
+const FLAT_GROUP_BYS = ['type', 'cmc', 'color-identity', 'price', 'tags'] as const
 
 /** …plus `printing`, for lists whose lines need not name one. */
 const UNPINNED_GROUP_BYS = [...FLAT_GROUP_BYS, 'printing'] as const
 
-const DECK_GROUP_BYS = ['type', 'section', 'cmc', 'color-identity', 'price', 'printing'] as const
+const DECK_GROUP_BYS = [
+  'type',
+  'section',
+  'cmc',
+  'color-identity',
+  'price',
+  'tags',
+  'printing',
+] as const
 
 /**
  * The deck page's group-by options. Every builder here takes `sellMode` (and

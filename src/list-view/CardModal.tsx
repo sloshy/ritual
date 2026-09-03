@@ -20,6 +20,7 @@ import { findPrintingsAvailable, openFindPrintings } from './find-printings'
 // The one shared declaration: this component renders every page's meta table, so a
 // local copy could only ever drift from the tables it is handed.
 import type { MetaEntry } from './meta-entry'
+import type { CardTag } from '../card/card-tags'
 
 type PrintingsSortField = 'released_at' | 'set_name' | 'price'
 
@@ -47,6 +48,12 @@ interface CardModalProps {
   onClose: () => void
   meta?: MetaEntry[]
   note?: string
+  /**
+   * The entry's own tags, in canonical form. Rendered as chips beside the
+   * note; absent (or empty) draws nothing. Distinct from the Scryfall tag
+   * disclosure below, which is the community tagger's vocabulary.
+   */
+  tags?: readonly CardTag[]
   onAddToTrade?: () => void
   addToTradeDisabled?: boolean
 }
@@ -379,6 +386,21 @@ export const CardModal: Component<CardModalProps> = (props) => {
               </div>
               <Show when={props.note}>
                 <div class="modal-note">{t('site.cardModal.note', { note: props.note ?? '' })}</div>
+              </Show>
+              <Show when={(props.tags?.length ?? 0) > 0}>
+                <div
+                  class="modal-card-tags modal-tags-list"
+                  role="list"
+                  aria-label={t('site.cardModal.cardTags')}
+                >
+                  <For each={props.tags ?? []}>
+                    {(tag) => (
+                      <span class="modal-tag modal-card-tag" role="listitem">
+                        {tag}
+                      </span>
+                    )}
+                  </For>
+                </div>
               </Show>
               <div class="modal-actions">
                 <Show when={scryfallUrl()}>

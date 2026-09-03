@@ -92,6 +92,26 @@ ritual metadata get "Main Binder" labels
 ritual metadata unset "Main Binder" labels            # no default
 \`\`\`
 
+## Tags: the owner's own vocabulary
+
+Separate from labels, any card on any list type can carry **tags** — the owner's own
+words for a card, like Archidekt categories or Moxfield tags, written as one
+comma-separated \`#\` token after the labels and before the note (\`- Sol Ring (C21:240)
+[keep] #Binder Trade, Ramp &1\`), as many per card as wanted. A tag means whatever
+its author meant (it drives filtering and grouping, never pricing or any other
+behavior); it is plain text that keeps its spaces and case and cannot contain \`#\`,
+\`,\`, \`&\`, brackets, braces or parentheses. The \`#\` is file punctuation only —
+never part of a value, never shown by any UI. \`set-card --tag\` adds, \`--untag\`
+removes, and \`add-card --tag\` tags a fresh add; several tags go **comma-separated**
+(spaces are part of a tag). The interactive session's per-card \`🔖 Edit Tags\` action
+edits the whole set in one field.
+
+\`\`\`bash
+ritual set-card "Main Binder" "Sol Ring" --collection --tag "Ramp, Staple"
+ritual set-card "Main Binder" "Sol Ring" --collection --untag Ramp
+ritual add-card "Main Binder" "Mox Jet" --collection --set lea --collector-number 262 -c LP --tag "Binder Trade"
+\`\`\`
+
 The collection's \`description\` — the blurb the published site prints above the
 cards — is written the same way, on any list type:
 
@@ -133,7 +153,7 @@ ${sessionSemantics({
   fileNoun: 'file',
   editScope: "the collection's existing entries",
   editFields:
-    "change a card's printing, finish, condition, language, label, or note, move it to another list, or remove it",
+    "change a card's printing, finish, condition, language, label, tags, or note, move it to another list, or remove it",
   undoAddVerb: 'removes',
   changeKinds: 'adds, edits, and removals',
   discardTarget: 'same-card changes',

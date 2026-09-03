@@ -3,6 +3,9 @@ import type { Finish, Condition } from '../card/finish-condition'
 import { DEFAULT_SECTION } from '../list/deck'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
+import type { CardTag } from '../card/card-tags'
+import { tagSuggestions } from './card-tags-edit'
+import { promptCardTags } from './tags-prompt'
 import type { ChangeInput, ListRef, PrintingTuple } from '../changes/change-event'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import type { CardContextInfo } from '../list-view/card-context'
@@ -47,6 +50,8 @@ export type FlatEntry = {
   language?: CardLanguage
   /** The line's label override, where the list type carries labels. */
   labels?: CardLabel[]
+  /** The line's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   note?: string
 }
 
@@ -160,11 +165,11 @@ export function useFlatListEditController<E extends FlatEntry>(
   const handleDecrement = (entry: E) => {
     if (entry.cardId !== undefined) editor.pool.release(entry.cardId)
     const p = params.printingOf(entry)
-    // The line's override rides the removal: a re-add under a different one is
-    // not this removal undone, and must not cancel it out.
+    // The line's override and tags ride the removal: a re-add under different
+    // ones is not this removal undone, and must not cancel it out.
     editor.changes.removeCard(
       entry.name,
-      { ...p, cardId: entry.cardId, labels: entry.labels },
+      { ...p, cardId: entry.cardId, labels: entry.labels, tags: entry.tags },
       { ...entry },
     )
     editor.setData((prev) =>
@@ -411,6 +416,35 @@ export function FlatListContextMenu<E extends FlatEntry>(
                   }
                 : undefined
             }
+            onEditTags={() => {
+              const target = menu()
+              const entries = editor.data() ?? []
+              // The tile's live tags seed the field and are what the edit
+              // consolidates against (see `card-tags-edit.ts`). Every copy of a
+              // grouped tile shares them: differently-tagged copies never share
+              // a tile (`duplicateGroupKey`).
+              const current = findEntryByIdOrName(entries, target.cardName, target.cardIds[0])?.tags
+              props.ctrl.closeContextMenu()
+              promptCardTags({
+                current,
+                suggestions: tagSuggestions(entries),
+                onSave: (tags) => {
+                  // A card added this session may have no id yet; the editor
+                  // then resolves the line by name.
+                  const ids: readonly (number | undefined)[] =
+                    target.cardIds.length > 0 ? target.cardIds : [undefined]
+                  // The baseline is re-read per copy at save time, not the
+                  // snapshot the dialog was seeded from: the delta decides
+                  // which events exist, so it must be each copy's own live set.
+                  batch(() => {
+                    for (const id of ids) {
+                      const live = findEntryByIdOrName(editor.data() ?? [], target.cardName, id)
+                      editor.handleSetTagsFor(target.cardName, tags, live?.tags, id)
+                    }
+                  })
+                },
+              })
+            }}
             onSetLanguage={() => {
               const target = menu()
               // The tile's current language, for marking in the picker. The exact

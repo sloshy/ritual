@@ -18,6 +18,7 @@ import { apiError, badRequest, type ApiConflictResponse } from '../../api/http'
 import { normalizeNote } from '../../card/note-helpers'
 import {
   checkLabelsForListType,
+  normalizedOverride,
   parseCardLabelsValue,
   unsupportedLabelsMessage,
   type CardLabel,
@@ -28,6 +29,12 @@ import {
   storedLanguage,
   type CardLanguage,
 } from '../../card/card-language'
+import {
+  normalizedTags,
+  parseCardTag,
+  parseCardTagsValue,
+  type CardTag,
+} from '../../card/card-tags'
 import type { ChangeEvent, MoveReplacement } from '../../changes/change-event'
 import { isFinish } from '../../card/finish-condition'
 import type { DroppedNote } from '../../list/move-staging'
@@ -209,14 +216,78 @@ export function normalizeRequestLabels(
     ) {
       const result = normalizeLabelField(change.labels, type)
       if (!result.ok) return result.response
-      change.labels = result.labels.length > 0 ? result.labels : undefined
+      change.labels = normalizedOverride(result.labels)
     }
   }
   for (const entry of entries) {
     if (entry.labels === undefined) continue
     const result = normalizeLabelField(entry.labels, type)
     if (!result.ok) return result.response
-    entry.labels = result.labels.length > 0 ? result.labels : undefined
+    entry.labels = normalizedOverride(result.labels)
+  }
+  return null
+}
+
+/**
+ * An entry (deck card or wanted row) whose request-supplied tags need
+ * validating. `unknown` on purpose, like {@link RequestLabelEntry}: the request
+ * body is cast unvalidated, and this is the boundary that proves the value.
+ */
+type RequestTagEntry = { tags?: unknown }
+
+/** One incoming tag set, canonical (or `undefined` for none), or its 400 refusal. */
+type TagsFieldResult = { ok: true; tags: CardTag[] | undefined } | { ok: false; response: Response }
+
+function normalizeTagsField(raw: unknown): TagsFieldResult {
+  const result = parseCardTagsValue(raw, 'tags')
+  if (!result.ok) return { ok: false, response: badRequest(result.message) }
+  // The stored form: file data never carries an empty tag set, so an empty
+  // array on the way in is "no tags" on the way out (`normalizedTags`).
+  return { ok: true, tags: normalizedTags(result.tags) }
+}
+
+/**
+ * Validate and canonicalize the tags in a save request — the `tag` of every
+ * `add-tag` / `remove-tag` change, the `tags` an `add` / `remove` may carry, and
+ * the `tags` of every request entry that will be re-serialized (the deck and
+ * wanted routes write the entries they are handed) — mutating each in place to
+ * the canonical form (trimmed, single-spaced, deduplicated, sorted, no `#` — a
+ * typed leading `#` is tolerated and dropped). The request body is cast
+ * unvalidated, so this is the boundary that keeps a malformed tag (`a,b`,
+ * `R&D`) out of the serializer and the changelog: the tag
+ * grammar is a file-format rule, and a line written with a bad one would not
+ * re-parse. Returns a 400 Response carrying the parser's refusal for the first
+ * offender, or null when every tag is legal.
+ */
+export function normalizeRequestTags(
+  changes: ChangeEvent[],
+  entries: RequestTagEntry[],
+): Response | null {
+  for (const change of changes) {
+    if (change.action === 'add-tag' || change.action === 'remove-tag') {
+      // Refused, never coerced: `String(undefined)` is a perfectly tag-shaped
+      // "undefined", and a missing field must not become a `#undefined` token.
+      const raw: unknown = change.tag
+      if (typeof raw !== 'string') {
+        return badRequest(`A ${change.action} change requires a string "tag".`)
+      }
+      const result = parseCardTag(raw)
+      if (!result.ok) return badRequest(result.message)
+      change.tag = result.tag
+    } else if (
+      (change.action === 'add' || change.action === 'remove') &&
+      change.tags !== undefined
+    ) {
+      const result = normalizeTagsField(change.tags)
+      if (!result.ok) return result.response
+      change.tags = result.tags
+    }
+  }
+  for (const entry of entries) {
+    if (entry.tags === undefined) continue
+    const result = normalizeTagsField(entry.tags)
+    if (!result.ok) return result.response
+    entry.tags = result.tags
   }
   return null
 }

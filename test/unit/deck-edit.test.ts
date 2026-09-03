@@ -120,7 +120,7 @@ describe('deck edit-mode field edits', () => {
 })
 
 describe('performDeckLineRemoval', () => {
-  test('removes every pre-existing copy and restores them (with the note) on undo', () => {
+  test('removes every pre-existing copy and restores them (note, labels, tags) on undo', () => {
     const state = stateOf(
       deckOf([
         {
@@ -129,6 +129,8 @@ describe('performDeckLineRemoval', () => {
           set: 'c19',
           collectorNumber: '221',
           note: 'alt art',
+          labels: ['proxy'],
+          tags: ['ramp', 'staple'],
           cardId: 5,
         },
       ]),
@@ -143,8 +145,14 @@ describe('performDeckLineRemoval', () => {
 
     undoDeckEdit(state, ctx)
     const restored = findCardById(state.deck, 5)!.card
-    expect(restored.quantity).toBe(3)
-    expect(restored.note).toBe('alt art')
+    // The restoring add carries the label override and tags, so the line that
+    // comes back is the line that left.
+    expect(restored).toMatchObject({
+      quantity: 3,
+      note: 'alt art',
+      labels: ['proxy'],
+      tags: ['ramp', 'staple'],
+    })
     expect(ctx.sessionChanges).toHaveLength(0)
   })
 
@@ -527,6 +535,59 @@ describe('deck edit-mode — Change Label', () => {
     expect(findCardById(state.deck, 1)!.card.labels).toEqual(['proxy'])
     expect(ctx.sessionChanges).toHaveLength(0)
     expect(lastDeckEditLabel(state)).toBeNull()
+  })
+})
+
+describe('deck edit-mode — Edit Tags', () => {
+  const deps: DeckEditDeps = { sessionConfig: {}, excludeDigitalOnly: true }
+
+  test('the edit menu records one add-tag per tag, undoable back to none', async () => {
+    const state = stateOf(
+      deckOf([{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }]),
+    )
+    const ctx = contextOf()
+
+    prompts.inject(['tags', 'ramp, staple'])
+    await editDeckCard(state, ctx, 1, deps)
+
+    expect(findCardById(state.deck, 1)!.card.tags).toEqual(['ramp', 'staple'])
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'add-tag', tag: 'ramp', cardId: 1 },
+      { action: 'add-tag', tag: 'staple', cardId: 1 },
+    ])
+    expect(state.editUndo).toHaveLength(1)
+    expect(lastDeckEditLabel(state)).toBe('tags on Sol Ring')
+
+    undoDeckEdit(state, ctx)
+    expect(findCardById(state.deck, 1)!.card.tags).toBeUndefined()
+    expect(ctx.sessionChanges).toHaveLength(0)
+  })
+
+  test('re-adding a tag removed this session leaves no pending event', async () => {
+    const state = stateOf(deckOf([{ quantity: 1, name: 'Sol Ring', tags: ['ramp'], cardId: 1 }]))
+    const ctx = contextOf()
+
+    prompts.inject(['tags', ''])
+    await editDeckCard(state, ctx, 1, deps)
+    expect(findCardById(state.deck, 1)!.card.tags).toBeUndefined()
+    expect(ctx.sessionChanges.map((c) => c.action)).toEqual(['remove-tag'])
+
+    prompts.inject(['tags', 'ramp'])
+    await editDeckCard(state, ctx, 1, deps)
+    expect(findCardById(state.deck, 1)!.card.tags).toEqual(['ramp'])
+    expect(ctx.sessionChanges).toHaveLength(0)
+  })
+
+  test('cancelling the prompt changes nothing', async () => {
+    const state = stateOf(deckOf([{ quantity: 1, name: 'Sol Ring', tags: ['ramp'], cardId: 1 }]))
+    const ctx = contextOf()
+
+    prompts.inject(['tags', new Error('cancelled')])
+    await editDeckCard(state, ctx, 1, deps)
+
+    expect(findCardById(state.deck, 1)!.card.tags).toEqual(['ramp'])
+    expect(ctx.sessionChanges).toHaveLength(0)
+    expect(state.editUndo).toHaveLength(0)
   })
 })
 

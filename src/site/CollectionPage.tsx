@@ -64,6 +64,7 @@ const COLLECTION_SORT_BYS: readonly SortBy[] = [
   'color-identity',
   'set-code',
   'edhrec',
+  'tags',
 ]
 
 /**
@@ -144,6 +145,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       condition: entry.condition,
       language: entryLanguage(entry),
       labels: labels.length > 0 ? labels : undefined,
+      tags: entry.tags,
       customArt: entry.customArt,
       hasCustomArt: entry.hasCustomArt,
       note: entry.note,
@@ -216,6 +218,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       oracleTags: card?.oracleTags ?? [],
       artTags: card?.artTags ?? [],
       labels,
+      tags: entry.tags,
       customArt: entry.customArt,
       hasCustomArt: entry.hasCustomArt,
       finish: entry.finish,
@@ -314,6 +317,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         condition: entry?.condition,
         language: entry ? entryLanguage(entry) : undefined,
         labels: entry ? entryLabels(entry) : undefined,
+        tags: entry?.tags,
         customArt: c.customArt,
         hasCustomArt: c.hasCustomArt,
         note: entry?.note,
@@ -508,6 +512,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           onClose={props.onCloseModal}
           meta={modalMeta()}
           note={modalEntry()?.note}
+          tags={modalEntry()?.tags}
           onAddToTrade={modalAddToTrade()}
           addToTradeDisabled={modalAddToTradeDisabled()}
         />

@@ -112,11 +112,21 @@ To see every tag a card carries, open its detail modal (click the card) and pres
 
 Tags appear only when the local cache includes them. If the cache has no tags when you build the site, the build offers to download them automatically (under the same refresh prompt/flags as the bulk cache); you can also add them at any time with `ritual cache refresh-tags` — see the [`cache` command](/commands/cache/).
 
+## Grouping and sorting by tags
+
+Your own [card tags](/commands/edit/#card-tags) — the tags written on a card line — are a toolbar choice on every list view (decks, collections, wanted lists, and the combined view):
+
+- **Group: Tags** makes one section per distinct _set_ of tags, headed by the set itself (`Ramp`, `Ramp, Staple`, …) in alphabetical order, with an **Untagged** section last. A card lands in exactly one section — a card tagged `Ramp, Staple` sits under that heading, not under `Ramp` _and_ `Staple` — so section counts and totals add up to the list, like every other grouping. **Reverse Sections** puts Untagged first.
+- **Sort: Tags** orders cards by the same tag-set string, untagged cards last; add it as a second layer to sort within another field's ties.
+- The **card detail modal** lists a card's tags as chips under its note. The **Scryfall Tags** disclosure beneath them is a different vocabulary — the community tagger's oracle and art tags, which the [Oracle Tag and Art Tag filters](#oracle-tag-and-art-tag-filters) use.
+
+Both choices travel in a [shared link](#sharing-a-configured-view) (`group=tags`, `sort=tags`).
+
 ## Sharing a configured view
 
 How you've set up a list view is captured in the page URL, so you can copy the link from your browser and share it — whoever opens it sees the same view. This covers the whole toolbar:
 
-- the **grouping** (and the price-bracket size when grouping by price),
+- the **grouping** (and the price-bracket size when grouping by price) — including [**Tags**](#grouping-and-sorting-by-tags),
 - the **sorting** — every layer of it. You can stack multiple sort layers with the **+** button beside the sort dropdown: the first layer is the primary sort and each layer below it breaks ties within the one above (e.g. sort by name, then by price within cards of the same name). Each layer has its own **↑↓** reverse button joined to its dropdown, and a **−** button removes it once there is more than one. The **Reverse Sections** toggle (group order) is captured too,
 - the **view layout** (binder, overlap, stack, or list) and **card size**,
 - the chosen [**price store**](/public-site/price-sources/) when it differs from the default, and

@@ -1,7 +1,23 @@
 import { describe, expect, test } from 'bun:test'
-import { normalizeRequestLanguages } from '../../../src/admin/api/save-helpers'
+import {
+  normalizeRequestLanguages,
+  normalizeRequestTags,
+} from '../../../src/admin/api/save-helpers'
 import { createSetLanguageChange, type ChangeEvent } from '../../../src/changes/change-event'
+import { invalidCardTagMessage } from '../../../src/card/card-tags'
 import type { ApiErrorResponse } from '../../../src/api/http'
+
+/** A raw wire change: the request body is cast unvalidated, which is the point. */
+function wireChange(fields: Record<string, unknown>): ChangeEvent {
+  return { id: 'x', timestamp: 0, cardName: 'Sol Ring', ...fields } as unknown as ChangeEvent
+}
+
+/** The 400 body of a refusal, failing the test on a pass-through. */
+async function refusalMessage(response: Response | null): Promise<string> {
+  if (response === null) throw new Error('expected a 400 refusal, got null')
+  expect(response.status).toBe(400)
+  return ((await response.json()) as ApiErrorResponse).message
+}
 
 /**
  * The one language-validation boundary all three save routes share. The full
@@ -12,18 +28,6 @@ import type { ApiErrorResponse } from '../../../src/api/http'
 describe('normalizeRequestLanguages', () => {
   /** A request entry as the unvalidated wire carries it. */
   type WireEntry = { language?: unknown }
-
-  /** A raw wire change: the request body is cast unvalidated, which is the point. */
-  function wireChange(fields: Record<string, unknown>): ChangeEvent {
-    return { id: 'x', timestamp: 0, cardName: 'Sol Ring', ...fields } as unknown as ChangeEvent
-  }
-
-  /** The 400 body of a refusal, failing the test on a pass-through. */
-  async function refusalMessage(response: Response | null): Promise<string> {
-    if (response === null) throw new Error('expected a 400 refusal, got null')
-    expect(response.status).toBe(400)
-    return ((await response.json()) as ApiErrorResponse).message
-  }
 
   test('an uppercase change code normalizes to the canonical lowercase form', () => {
     const change = wireChange({ action: 'set-language', cardId: 1, language: 'JA' })
@@ -74,5 +78,68 @@ describe('normalizeRequestLanguages', () => {
     const message = await refusalMessage(normalizeRequestLanguages([], [{ language: 'xx' }]))
     expect(message).toContain('"xx"')
     expect(message).toContain('a card entry')
+  })
+})
+
+/**
+ * The tag-validation boundary the three save routes share. The grammar itself
+ * is pinned on `src/card/card-tags.ts`; what belongs here is what the boundary
+ * does with the wire: canonicalize a typed tag, refuse a malformed or missing
+ * one, and fold an empty set to "none" on both the changes and the entries the
+ * deck and wanted routes re-serialize.
+ */
+describe('normalizeRequestTags', () => {
+  /** A request entry as the unvalidated wire carries it. */
+  type WireEntry = { tags?: unknown }
+
+  test('a typed add-tag tag is canonicalized in place: sigil stripped, whitespace folded', () => {
+    const change = wireChange({ action: 'add-tag', cardId: 1, tag: '# Card  Draw ' })
+    expect(normalizeRequestTags([change], [])).toBeNull()
+    expect((change as { tag?: string }).tag).toBe('Card Draw')
+  })
+
+  test('a malformed tag on a tag event is refused with the parser’s message', async () => {
+    const change = wireChange({ action: 'remove-tag', cardId: 1, tag: 'a,b' })
+    const message = await refusalMessage(normalizeRequestTags([change], []))
+    expect(message).toBe(invalidCardTagMessage('a,b'))
+  })
+
+  test('a tag event without a string tag is refused, never coerced', async () => {
+    // `String(undefined)` is a perfectly tag-shaped "undefined": the boundary
+    // must refuse the missing field rather than write `#undefined`.
+    for (const tag of [undefined, null, ['ramp']]) {
+      const change = wireChange({ action: 'add-tag', cardId: 1, tag })
+      const message = await refusalMessage(normalizeRequestTags([change], []))
+      expect(message).toContain('requires a string "tag"')
+    }
+  })
+
+  test('the tags an add carries are canonicalized, with an empty set folded to absent', () => {
+    const tagged = wireChange({ action: 'add', tags: ['staple', '#Ramp', 'Ramp '] })
+    const cleared = wireChange({ action: 'add', tags: [] })
+    const bare = wireChange({ action: 'add' })
+    expect(normalizeRequestTags([tagged, cleared, bare], [])).toBeNull()
+    expect((tagged as { tags?: string[] }).tags).toEqual(['Ramp', 'staple'])
+    expect((cleared as { tags?: string[] }).tags).toBeUndefined()
+    expect((bare as { tags?: string[] }).tags).toBeUndefined()
+  })
+
+  test('a malformed tags array on an add is refused', async () => {
+    const change = wireChange({ action: 'add', tags: ['ramp', 'a&b'] })
+    const message = await refusalMessage(normalizeRequestTags([change], []))
+    expect(message).toBe(invalidCardTagMessage('a&b'))
+    const notArray = wireChange({ action: 'add', tags: 'ramp' })
+    expect(await refusalMessage(normalizeRequestTags([notArray], []))).toContain('tags must be')
+  })
+
+  test('entry tags are canonicalized the same way, and a malformed one is refused', async () => {
+    const entries: WireEntry[] = [{ tags: ['#B', 'a'] }, { tags: [] }, {}]
+    expect(normalizeRequestTags([], entries)).toBeNull()
+    expect(entries[0]!.tags).toEqual(['a', 'B'])
+    expect(entries[1]!.tags).toBeUndefined()
+    expect(entries[2]!.tags).toBeUndefined()
+
+    const message = await refusalMessage(normalizeRequestTags([], [{ tags: ['a,b'] }]))
+    expect(message).toBe(invalidCardTagMessage('a,b'))
   })
 })

@@ -19,6 +19,7 @@ export type GroupBy =
   | 'on-buylist'
   | 'printing'
   | 'source'
+  | 'tags'
   | 'none'
 export type SortBy =
   | 'name'
@@ -30,6 +31,7 @@ export type SortBy =
   | 'file-order'
   | 'set-code'
   | 'color-identity'
+  | 'tags'
 /**
  * One layer of an ordered, multi-level sort. Layers are applied in order: the
  * first is the primary sort, and each subsequent layer breaks ties within the
@@ -58,7 +60,10 @@ export type SelectOptionKey<T extends string = string, K extends MessageKey = Me
  * can render one without params, and `Extract` turns a key that no longer
  * exists in the catalog into `never` — a compile error at the table below.
  */
-export type SortByMessageKey = Extract<MessageKey, `domain.sortBy.${string}`>
+export type SortByMessageKey = Extract<
+  MessageKey,
+  `domain.sortBy.${string}` | `site.sortBy.${string}`
+>
 
 /** Canonical display label for each sort field; the single source of truth for toolbar option labels. */
 export const SORT_BY_LABELS = {
@@ -71,6 +76,7 @@ export const SORT_BY_LABELS = {
   'file-order': 'domain.sortBy.fileOrder',
   'set-code': 'domain.sortBy.setCode',
   'color-identity': 'domain.sortBy.colorIdentity',
+  tags: 'site.sortBy.tags',
 } as const satisfies Record<SortBy, SortByMessageKey>
 
 /**
@@ -196,6 +202,12 @@ export interface CardData {
    */
   labels: CardLabel[]
   /**
+   * The entry's own `#tag` tokens in canonical form (see `card-tags.ts`).
+   * Absent when the line carries none — the same value file data holds, so
+   * "no tags" never has two spellings. Drives the tags grouping and sort.
+   */
+  tags?: CardTag[]
+  /**
    * The entry's custom art, as baked into the list detail: `art/<relpath>` for
    * a local file or a verbatim URL. Absent for the overwhelming majority of
    * cards, which show their printing's own image.
@@ -228,6 +240,7 @@ import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
+import { formatCardTags, type CardTag } from '../card/card-tags'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { getCurrencySymbol, getCurrencySuffix } from '../pricing/price-currency'
 
@@ -374,6 +387,62 @@ export function groupTotalPrice(cards: CardData[]): number {
 }
 
 /**
+ * A card's tag-set key — `formatCardTags`, memoized per tag array. Every tag
+ * set in `CardData` is already canonical, so the key is stable for the life of
+ * the array, and a sort's `O(n log n)` comparisons must not re-canonicalize
+ * (Set + sort + join) both operands each time. `''` for no tags.
+ */
+const TAG_SET_KEYS = new WeakMap<readonly CardTag[], string>()
+function tagSetKey(tags: readonly CardTag[] | undefined): string {
+  if (tags === undefined) return ''
+  let key = TAG_SET_KEYS.get(tags)
+  if (key === undefined) {
+    key = formatCardTags(tags)
+    TAG_SET_KEYS.set(tags, key)
+  }
+  return key
+}
+
+/**
+ * The one ordering rule for tag-set keys, shared by the tags sort and the
+ * tags grouping's heading order: keys in display order, with `emptyKey` — the
+ * spelling of "no tags" in that context (`''` for a card, the localized
+ * "Untagged" heading for a group) — last. Locale-aware (`compareDisplay`)
+ * because the keys are the headings the reader sees; the order of tags
+ * *within* one set is the file's pinned data collation (`normalizeCardTags`),
+ * which is why `#ä` can sit one way inside a line and another between lines.
+ */
+function compareTagKeys(left: string, right: string, emptyKey: string): number {
+  if (left === right) return 0
+  if (left === emptyKey) return 1
+  if (right === emptyKey) return -1
+  return compareDisplay(left, right)
+}
+
+/** Order two cards' tag sets for the tags sort, untagged cards last. */
+function compareTagSets(
+  a: readonly CardTag[] | undefined,
+  b: readonly CardTag[] | undefined,
+): number {
+  return compareTagKeys(tagSetKey(a), tagSetKey(b), '')
+}
+
+/**
+ * The tags grouping's key for one card: the canonical tag-set string, or the
+ * localized "Untagged" heading (rendered once by the caller, not per card). One
+ * group per distinct *set* rather than one per tag: a card lands in exactly one
+ * group, like every other grouping, so group totals never count a two-tag card
+ * twice. The key is the bare `a, b` heading text, so the one collision a
+ * caller can hit is a single tag spelled exactly like the localized "Untagged"
+ * heading — the same class of collision every other grouping's fallback key
+ * has ("Unknown" for source), and accepted for the same reason.
+ */
+function tagGroupKey(tags: readonly CardTag[] | undefined, untaggedKey: string): string {
+  const key = tagSetKey(tags)
+  return key === '' ? untaggedKey : key
+}
+
+/**
  * Compare two cards by a single field, with no tiebreaker. Always ascending;
  * returns 0 when the field is equal, so callers can chain to the next sort
  * layer.
@@ -394,6 +463,8 @@ function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
       return a.buylistPrice - b.buylistPrice
     case 'buylist-spread':
       return a.buylistSpread - b.buylistSpread
+    case 'tags':
+      return compareTagSets(a.tags, b.tags)
     default:
       return a[sortBy] - b[sortBy]
   }
@@ -528,6 +599,13 @@ export function groupAndSortCards<T extends CardData>(
       if (!groups[key]) groups[key] = []
       groups[key].push(c)
     }
+  } else if (groupBy === 'tags') {
+    const untagged = t('site.groupBy.untagged')
+    for (const c of cards) {
+      const key = tagGroupKey(c.tags, untagged)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(c)
+    }
   }
 
   const keys = Object.keys(groups)
@@ -572,6 +650,9 @@ export function groupAndSortCards<T extends CardData>(
       if (!firstIndex.has(key)) firstIndex.set(key, i)
     })
     keys.sort((a, b) => (firstIndex.get(a) ?? 0) - (firstIndex.get(b) ?? 0))
+  } else if (groupBy === 'tags') {
+    // Tag sets in display order, the untagged group last.
+    keys.sort((a, b) => compareTagKeys(a, b, t('site.groupBy.untagged')))
   }
 
   const orderedKeys = keys.filter((key) => groups[key] && groups[key].length > 0)

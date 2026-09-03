@@ -2,6 +2,7 @@ import type { ChangeInput } from './change-event'
 import type { WantedListCardEntry } from '../list/site-data'
 import { DEFAULT_SECTION } from '../list/deck'
 import { noteOrUndefined } from '../card/note-helpers'
+import { normalizedTags, withCardTag, withoutCardTag } from '../card/card-tags'
 import { storedLanguage } from '../card/card-language'
 import { canSetFinish, finishMatchesPrinting } from '../card/card-printing'
 import { removeTarget, updateTarget } from './entry-targeting.js'
@@ -38,6 +39,7 @@ export function applyChangeToWantedList(
         finish: change.finish,
         // The written value: `undefined` means `en` and serializes bare.
         language: change.language,
+        tags: normalizedTags(change.tags),
         price: 0,
         fileOrder: entries.length,
         section: change.section ?? DEFAULT_SECTION,
@@ -111,6 +113,18 @@ export function applyChangeToWantedList(
       return entries
     }
 
+    case 'add-tag':
+      return updateTarget(entries, change, options, (e) => ({
+        ...e,
+        tags: withCardTag(e.tags, change.tag),
+      }))
+
+    case 'remove-tag':
+      return updateTarget(entries, change, options, (e) => ({
+        ...e,
+        tags: withoutCardTag(e.tags, change.tag),
+      }))
+
     case 'set-commander':
     case 'unset-commander':
     case 'set-label': {
@@ -151,6 +165,7 @@ export function applyChangeToWantedList(
           collectorNumber: change.collectorNumber,
           finish: change.finish,
           language: change.language,
+          tags: change.tags,
           section: change.section,
         },
         options,

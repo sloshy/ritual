@@ -327,16 +327,17 @@ neither line is printed.
   --columns "name=1,set=2,collector-number=3,finish=4,condition=5,quantity=6"
 ```
 
-| Field              | Notes                                                                |
-| ------------------ | -------------------------------------------------------------------- |
-| `name`             | Card name. Always required.                                          |
-| `set`              | Set code. Required for collections, optional for decks/wanted lists. |
-| `collector-number` | Collector number (a string, e.g. `221★`). Required for collections.  |
-| `condition`        | Card condition. Not allowed for wanted lists (they carry none).      |
-| `finish`           | Foil/etched finish.                                                  |
-| `language`         | Card language (Scryfall codes or aliases — see below).               |
-| `section`          | Section/board. Blank cells fall back to `Main`.                      |
-| `quantity`         | Copies per row. Blank cells mean one copy.                           |
+| Field              | Notes                                                                                                                     |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------- |
+| `name`             | Card name. Always required.                                                                                               |
+| `set`              | Set code. Required for collections, optional for decks/wanted lists.                                                      |
+| `collector-number` | Collector number (a string, e.g. `221★`). Required for collections.                                                       |
+| `condition`        | Card condition. Not allowed for wanted lists (they carry none).                                                           |
+| `finish`           | Foil/etched finish.                                                                                                       |
+| `language`         | Card language (Scryfall codes or aliases — see below).                                                                    |
+| `section`          | Section/board. Blank cells fall back to `Main`.                                                                           |
+| `quantity`         | Copies per row. Blank cells mean one copy.                                                                                |
+| `tags`             | Card tags (headers `tags` or `tag`), comma-separated: `Ramp, Card Draw` is two tags. A malformed tag fails only that row. |
 
 Every mapped column number is checked against the file's width before any row is
 converted: `--columns name=99` on a 6-column file is a single usage error (exit `2`) —
@@ -468,8 +469,9 @@ headers split the cards into sections:
 2 Pyroblast
 ```
 
-Lines may also carry a printing, finish, condition, language, labels, and note, e.g.
-`1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] {trade binder}`. The `[sale]` / `[trade]` /
+Lines may also carry a printing, finish, condition, language, labels, tags, and note, e.g.
+`1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is written
+through on every list type (see [Card tags](/commands/edit/#card-tags)). The `[sale]` / `[trade]` /
 `[keep]` label token is a **collection-only** feature: it is written through on a collection
 import, while a deck import warns that the label was dropped and a wanted-list import drops it
 the same way (wanted lists carry no labels).

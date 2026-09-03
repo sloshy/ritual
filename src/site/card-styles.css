@@ -1159,6 +1159,12 @@ h3 {
   gap: 0.25rem;
 }
 
+/* The owner's own #tags, shown as chips beside the note. Reuses .modal-tag so
+   both tag vocabularies wear the same chip; the row only adds its spacing. */
+.modal-card-tags {
+  margin-top: 0.5rem;
+}
+
 .modal-tag {
   font-size: 0.6875rem;
   font-family: var(--font-mono);

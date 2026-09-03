@@ -93,6 +93,7 @@ function ensureIds(content: string, type: ListType): EnsureIdsResult {
         condition: tokens.condition,
         language: tokens.language,
         labels: tokens.labels,
+        tags: tokens.tags,
         note: tokens.note,
       }
       const keptId =

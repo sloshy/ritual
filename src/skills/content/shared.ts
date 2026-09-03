@@ -341,7 +341,9 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
   const closing = wrapProse(
     `\`--columns\` maps fields to 1-based column numbers (fields: \`name\`, ` +
       `\`set\`, \`collector-number\`, \`condition\`, \`finish\`, \`language\`, ` +
-      `\`section\`, \`quantity\` — language cells take Scryfall codes or aliases ` +
+      `\`tags\`, \`section\`, \`quantity\` — a tags cell (header \`tags\` or \`tag\`) ` +
+      `holds the card's tags comma-separated, as \`Ramp, Card Draw\`, and a ` +
+      `cell that is not tag-shaped fails that row; language cells take Scryfall codes or aliases ` +
       `like \`JP\`/\`Japanese\`, and an empty cell means English; when no ` +
       `language column is mapped, pinned rows are stamped with the configured ` +
       `\`defaultLanguage\` when the printing exists in it); ` +

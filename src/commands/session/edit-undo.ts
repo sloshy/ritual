@@ -1,4 +1,8 @@
-import type { ChangeEvent, ConsolidateResult } from '../../changes/change-event'
+import type {
+  ChangeEvent,
+  ConsolidateManyResult,
+  ConsolidateResult,
+} from '../../changes/change-event'
 import type { CardArtEdit } from './art'
 import { t } from '../../i18n/t'
 import type { CardSessionContext, SessionAddItem, SessionChangeItem } from './strategy'
@@ -53,6 +57,14 @@ export function changelogDelta(result: ConsolidateResult): ChangelogDelta {
   return {
     addedToChangelog: result.addedChange ? [result.addedChange] : [],
     removedFromChangelog: result.cancelledChange ? [result.cancelledChange] : [],
+  }
+}
+
+/** The changelog footprint of a many-event consolidation, as undo-entry fields. */
+export function changelogDeltaMany(result: ConsolidateManyResult): ChangelogDelta {
+  return {
+    addedToChangelog: result.addedChanges,
+    removedFromChangelog: result.cancelledChanges,
   }
 }
 

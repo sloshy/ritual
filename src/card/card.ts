@@ -1,5 +1,6 @@
 import type { CardLabel } from './card-labels'
 import type { CardLanguage } from './card-language'
+import type { CardTag } from './card-tags'
 import type { Condition, Finish } from './finish-condition'
 
 export interface Card {
@@ -17,6 +18,8 @@ export interface Card {
    * `proxy` alone — see {@link LIST_TYPE_LABELS}.
    */
   labels?: CardLabel[]
+  /** The line's `#tag` tokens in canonical form; absent when it carries none. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
 }

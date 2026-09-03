@@ -47,12 +47,14 @@ import {
   parseLanguageFlag,
   parseQuantityFlag,
   parseSetFlag,
+  tagsFlagParser,
   resolveListTypeFlag,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
 import { appendChangelog } from '../changes/changelog-writer'
 import { createAddChange, type ConditionUpdate } from '../changes/change-event'
 import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
+import type { CardTag } from '../card/card-tags'
 import { allocateNextIdFromContent } from '../card/card-id'
 import { endsInsideOpenFence } from '../list/markdown-fence'
 import { appendFileWithHash } from '../changes/content-hash'
@@ -120,6 +122,8 @@ type AddCardOptions = {
   language?: CardLanguage
   /** Label override the new card starts with, where the list type carries labels. */
   label?: CardLabel[]
+  /** The tags the new card starts with (every list type carries tags). */
+  tag?: CardTag[]
   exact?: boolean
   set?: string
   collectorNumber?: string
@@ -159,6 +163,8 @@ type AddCardSuccess = {
   language?: CardLanguage
   /** The label override the new line carries, where the list type carries labels. */
   labels?: CardLabel[]
+  /** The tags the new line carries, canonical; omitted when none. */
+  tags?: CardTag[]
   quantity?: number
   cardId: number
   /** Deck adds only: the section the card's line ended up in. */
@@ -203,6 +209,7 @@ export function registerAddCardCommand(program: Command): void {
       parseLanguageFlag(value),
     )
     .option('--label <labels>', t('help.addCard.label'), parseAddLabelFlag)
+    .option('--tag <tags>', t('help.addCard.tag'), tagsFlagParser('--tag'))
     .option('--section <name>', t('help.addCard.section'))
     .option('--commander', t('help.addCard.commander'))
     .option('-e, --exact', t('help.addCard.exact'), false)
@@ -576,6 +583,7 @@ async function addToDeck(
     condition: applyConditionUpdate(options.condition, undefined),
     language: resolveAddLanguage(options.language, undefined),
     labels: options.label,
+    tags: options.tag,
   }
   const placement: DeckAddPlacement = {
     section: options.section,
@@ -602,6 +610,7 @@ async function addToDeck(
       condition: card.condition,
       language: card.language,
       labels: card.labels,
+      tags: card.tags,
       quantity: options.quantity,
       cardId: outcome.cardId,
       section: outcome.section,
@@ -658,6 +667,7 @@ async function addToCollection(
     condition: finishAndCondition.condition,
     language,
     labels: options.label,
+    tags: options.tag,
     cardId,
   })
   if (!options.dryRun) {
@@ -671,6 +681,7 @@ async function addToCollection(
         condition: finishAndCondition.condition,
         language,
         labels: options.label,
+        tags: options.tag,
         cardId,
       }),
     ])
@@ -687,6 +698,7 @@ async function addToCollection(
       condition: finishAndCondition.condition,
       language,
       labels: options.label,
+      tags: options.tag,
       cardId,
     },
     t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
@@ -779,13 +791,19 @@ async function addToWanted(
       name: selectedName,
       finish: options.finish,
       language,
+      tags: options.tag,
       cardId,
     })
     if (!options.dryRun) {
       await ensureTargetFile(target)
       await appendFileWithHash(target.filePath, line)
       await appendChangelog(target.filePath, target.name, [
-        createAddChange(selectedName, { finish: options.finish, language, cardId }),
+        createAddChange(selectedName, {
+          finish: options.finish,
+          language,
+          tags: options.tag,
+          cardId,
+        }),
       ])
     }
     emitSuccess(
@@ -795,6 +813,7 @@ async function addToWanted(
         cardName: selectedName,
         finish: options.finish,
         language,
+        tags: options.tag,
         cardId,
       },
       t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),
@@ -824,6 +843,7 @@ async function addToWanted(
     printing: { set: printing.set, collectorNumber: printing.collector_number },
     finish,
     language,
+    tags: options.tag,
     cardId,
   })
   if (!options.dryRun) {
@@ -835,6 +855,7 @@ async function addToWanted(
         collectorNumber: printing.collector_number,
         finish,
         language,
+        tags: options.tag,
         cardId,
       }),
     ])
@@ -849,6 +870,7 @@ async function addToWanted(
       collectorNumber: printing.collector_number,
       finish,
       language,
+      tags: options.tag,
       cardId,
     },
     t('cli.addCard.addedLine', { mode: addMode(options.dryRun ?? false), line: line.trim() }),

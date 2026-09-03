@@ -75,11 +75,11 @@ async function moveEventsFor(card: SelectedCard, dest: ListRef): Promise<ChangeE
   if (card.sourceKind === 'deck') {
     const cardId = card.cardIds[0]
     return Array.from({ length: card.groupSize }, () =>
-      createMoveFromChange(card.name, { ...printing, cardId, to: dest }),
+      createMoveFromChange(card.name, { ...printing, tags: card.tags, cardId, to: dest }),
     )
   }
   return card.cardIds.map((cardId) =>
-    createMoveFromChange(card.name, { ...printing, cardId, to: dest }),
+    createMoveFromChange(card.name, { ...printing, tags: card.tags, cardId, to: dest }),
   )
 }
 

@@ -17,6 +17,7 @@
 
 import type { CardPrinting } from './card-line'
 import { formatCardLabels, type CardLabel } from './card-labels'
+import { formatCardTagsToken, type CardTag } from './card-tags'
 import { languageToken, type CardLanguage } from './card-language'
 import type { ConditionUpdate, Finish } from './finish-condition'
 import type { ListType } from '../list/list-type'
@@ -62,26 +63,28 @@ export type CardLineTailFields = {
   language?: CardLanguage
   /** Written only when non-empty; an absent override inherits the list default. */
   labels?: readonly CardLabel[]
+  /** Written only when non-empty, as one comma-separated `#a, b` token in canonical order. */
+  tags?: readonly CardTag[]
   note?: string
   cardId?: number
 }
 
 /**
  * The canonical token tail of a card line — everything after the name:
- * ` (LEA:161) [foil] [LP] [ja] [sale,trade] {note} &12`, with a leading space
+ * ` (LEA:161) [foil] [LP] [ja] [sale,trade] #Card Draw, Ramp {note} &12`, with a leading space
  * before each token present and the empty string when there are none.
  *
  * The order is the canonical write order and is not negotiable: printing,
- * finish, condition, language, labels, ⟨reserved `#tag` slot⟩, note, id. Tokens
- * at their defaults are omitted, which is what makes an ordinary line read
- * `- Sol Ring (LEA:270)` rather than `- Sol Ring (LEA:270) [nonfoil] [NM] [en]`.
+ * finish, condition, language, labels, tags, note, id. Tokens at their defaults
+ * are omitted, which is what makes an ordinary line read `- Sol Ring (LEA:270)`
+ * rather than `- Sol Ring (LEA:270) [nonfoil] [NM] [en]`.
  *
  * A printing is a *pair* — `CardPrinting` cannot hold half of one (see
  * `resolvePrinting`) — so there is no way to write a set with no collector
  * number here.
  */
 export function formatTokenTail(fields: CardLineTailFields): string {
-  const { printing, finish, condition, language, labels, note, cardId } = fields
+  const { printing, finish, condition, language, labels, tags, note, cardId } = fields
   let tail = ''
   if (printing) tail += ` (${printingLabel(printing.set, printing.collectorNumber)})`
   if (finish && finish !== 'nonfoil') tail += ` [${finish}]`
@@ -90,8 +93,9 @@ export function formatTokenTail(fields: CardLineTailFields): string {
   if (condition && condition !== 'NM' && condition !== 'NONE') tail += ` [${condition}]`
   tail += languageToken(language)
   if (labels && labels.length > 0) tail += ` [${formatCardLabels(labels)}]`
-  // ⟨tag slot⟩ — reserved for the future `#tag` tokens, which are written
-  // between the labels and the note. Nothing else may go here.
+  // Structured tokens stay contiguous: the tags sit before the free-prose note,
+  // so a long note never pushes them off the visible end of the line.
+  if (tags && tags.length > 0) tail += ` ${formatCardTagsToken(tags)}`
   if (note) tail += ` {${note}}`
   if (cardId !== undefined) tail += ` &${cardId}`
   return tail

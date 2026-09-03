@@ -49,8 +49,10 @@ import {
   deckFormatSchema,
   finishField,
   finishSchema,
+  cardTagSchema,
   labelsOverrideField,
   labelsUpdateField,
+  tagsField,
   languageField,
   languageSchema,
   listImageSchema,
@@ -254,6 +256,7 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     condition: conditionSchema.optional(),
     language: languageField,
     labels: labelsOverrideField,
+    tags: tagsField,
     section: sectionField,
   }),
   z.object({
@@ -305,6 +308,16 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     action: z.literal('set-label'),
     ...changeBase,
     labels: labelsUpdateField,
+  }),
+  z.object({
+    action: z.literal('add-tag'),
+    ...changeBase,
+    tag: cardTagSchema.describe('The tag to put on the card, without its "#".'),
+  }),
+  z.object({
+    action: z.literal('remove-tag'),
+    ...changeBase,
+    tag: cardTagSchema.describe('The tag to take off the card, without its "#".'),
   }),
   z.object({ action: z.literal('set-commander'), ...changeBase }),
   z.object({ action: z.literal('unset-commander'), ...changeBase }),
@@ -437,7 +450,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Import cards from CSV text into a deck, collection, or wanted list — creating a new list, ' +
         'overwriting one, or appending to an existing one. Columns map to card fields via a ' +
         '1-based spec like "name=1,set=2,collector-number=3" (fields: name, set, collector-number, ' +
-        'condition, finish, language, section, quantity). Values are normalized (e.g. "Near Mint" ' +
+        'condition, finish, language, tags, section, quantity). Values are normalized (e.g. "Near Mint" ' +
         '→ NM, "F" → foil, "JP"/"Japanese" → ja; an empty language cell falls back to the ' +
         'configured defaultLanguage when that printing exists in it). Rows that fail validation ' +
         'are reported back and the rest still import, so a ' +
@@ -626,8 +639,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Add a card to any list (decks increment quantity if the same printing already exists). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
         'one save. Collections require set + collectorNumber together — an add without one is ' +
-        'rejected. labels gives the new card a label override (decks take "proxy" alone). ' +
-        'language records a ' +
+        'rejected. labels gives the new card a label override (decks take "proxy" alone); tags ' +
+        'gives it tags (plain text in the owner\'s casing, sent without any "#"; any list type). language records a ' +
         'non-English copy; without it the configured defaultLanguage applies.',
       inputSchema: z
         .object({
@@ -640,6 +653,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
           condition: conditionField,
           language: languageField,
           labels: labelsOverrideField,
+          tags: tagsField,
           section: sectionField,
           quantity: quantityField,
         })
@@ -664,6 +678,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       condition,
       language,
       labels,
+      tags,
       section,
       quantity,
     }) =>
@@ -676,6 +691,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
             condition,
             language,
             labels,
+            tags,
             section,
           }),
         )
@@ -838,7 +854,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       title: 'Apply changes',
       description:
         'Apply an ordered batch of card-level changes (add/remove/set-finish/set-printing/' +
-        'set-language/set-note/set-label/set-commander/unset-commander/set-section) to one list ' +
+        'set-language/set-note/set-label/add-tag/remove-tag/set-commander/unset-commander/' +
+        'set-section) to one list ' +
         'atomically: ' +
         'one load, one save, one changelog block. The batch is all-or-nothing — if any change ' +
         'fails to match (names are exact and case-sensitive), nothing is saved — but a later ' +
@@ -851,14 +868,16 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'This is also the only way to set or clear a card note (set-note), change a card’s ' +
         'language on its own (set-language — "en" clears the token, since a bare line means ' +
         'English), set or clear a card’s label override (set-label — the whole vocabulary on a ' +
-        'collection, "proxy" alone on a deck, never on a wanted list), move a card to a section ' +
+        'collection, "proxy" alone on a deck, never on a wanted list), put a tag on or take one ' +
+        'off a card (add-tag / remove-tag — one event per tag, the tag as its owner writes it, without any "#", ' +
+        'on any list type), move a card to a section ' +
         '(set-section), and set or clear a deck commander ' +
         '(set-commander/unset-commander); the commander actions apply to decks only and fail ' +
         'on a collection or wanted list. ' +
         'A removal drops the card’s custom art even when a later change in the same batch adds ' +
         'the card back and the new line reuses its &N: re-add art explicitly (set_card_art after ' +
         'this call) if the new copy should have it. ' +
-        'Flagged destructive because a batch CAN remove cards in bulk — the note, label, ' +
+        'Flagged destructive because a batch CAN remove cards in bulk — the note, label, tag, ' +
         'section, and commander actions are themselves additive; the hint reflects worst-case ' +
         'capability, not what your batch does.',
       inputSchema: z

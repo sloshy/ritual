@@ -86,6 +86,7 @@ function harness(entries: CollectionCardEntry[]): Harness {
         condition: e.condition,
         language: e.language,
         labels: e.labels,
+        tags: e.tags,
         note: e.note,
         cardId: e.cardId,
       }).trim(),
@@ -150,6 +151,7 @@ describe('sharedFlatListEditActions', () => {
   test('offers the move row only with move targets', () => {
     expect(sharedFlatListEditActions(env).map((r) => r.value)).toEqual([
       'language',
+      'tags',
       'art',
       'move-list',
       'note',
@@ -157,17 +159,19 @@ describe('sharedFlatListEditActions', () => {
     ])
     expect(sharedFlatListEditActions({}).map((r) => r.value)).toEqual([
       'language',
+      'tags',
       'art',
       'note',
       'remove',
     ])
   })
 
-  test('slots afterLanguage rows between the language and art rows', () => {
+  test('slots afterLanguage rows between the language and tags rows', () => {
     const label = { title: 'Label', value: 'label' }
     expect(sharedFlatListEditActions({}, [label]).map((r) => r.value)).toEqual([
       'language',
       'label',
+      'tags',
       'art',
       'note',
       'remove',
@@ -266,6 +270,94 @@ describe('applyFlatListFieldEdit', () => {
   })
 })
 
+describe('edit-mode tag edits', () => {
+  // The tags prompt goes through `ask`, which refuses to open without a terminal.
+  stubTty({ stdin: true })
+
+  const env = { sessionConfig: { sets: [] }, excludeDigitalOnly: true }
+
+  async function editTagsTo(h: Harness, typed: string): Promise<void> {
+    prompts.inject([typed])
+    const target = findFlatListEntry(h.list, 1)!
+    expect(await editSharedFlatListAction('tags', h.list, h.ctx, target, 1, env)).toBe(true)
+  }
+
+  test('records one add-tag per new tag, undoable as a single operation', async () => {
+    const h = harness([entry('Sol Ring', 1)])
+
+    await editTagsTo(h, 'staple, ramp')
+
+    expect(findFlatListEntry(h.list, 1)!.tags).toEqual(['ramp', 'staple'])
+    expect(
+      h.ctx.sessionChanges.map((c) => ({ action: c.action, tag: 'tag' in c && c.tag })),
+    ).toEqual([
+      { action: 'add-tag', tag: 'ramp' },
+      { action: 'add-tag', tag: 'staple' },
+    ])
+    expect(h.list.editUndo).toHaveLength(1)
+    expect(lastFlatListEditLabel(h.list)).toBe('tags on Sol Ring')
+
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)!.tags).toBeUndefined()
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+  })
+
+  test('clearing the field removes every tag, one remove-tag each', async () => {
+    const h = harness([entry('Sol Ring', 1, { tags: ['ramp', 'staple'] })])
+
+    await editTagsTo(h, '')
+
+    expect(findFlatListEntry(h.list, 1)!.tags).toBeUndefined()
+    expect(h.ctx.sessionChanges.map((c) => c.action)).toEqual(['remove-tag', 'remove-tag'])
+  })
+
+  test('re-adding a tag removed earlier in the session cancels the pending removal', async () => {
+    const h = harness([entry('Sol Ring', 1, { tags: ['ramp'] })])
+
+    await editTagsTo(h, '')
+    expect(h.ctx.sessionChanges.map((c) => c.action)).toEqual(['remove-tag'])
+
+    await editTagsTo(h, 'ramp')
+    expect(findFlatListEntry(h.list, 1)!.tags).toEqual(['ramp'])
+    // Back to the session-start state: nothing left to log.
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+    expect(h.list.editUndo).toHaveLength(2)
+
+    // Undoing the re-add puts the pending removal back.
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)!.tags).toBeUndefined()
+    expect(h.ctx.sessionChanges.map((c) => c.action)).toEqual(['remove-tag'])
+  })
+
+  test('a mixed edit is one undo entry whose inverse restores both halves', async () => {
+    const h = harness([entry('Sol Ring', 1, { tags: ['old', 'kept'] })])
+
+    await editTagsTo(h, 'kept, new')
+
+    expect(findFlatListEntry(h.list, 1)!.tags).toEqual(['kept', 'new'])
+    expect(
+      h.ctx.sessionChanges.map((c) => ({ action: c.action, tag: 'tag' in c && c.tag })),
+    ).toEqual([
+      { action: 'add-tag', tag: 'new' },
+      { action: 'remove-tag', tag: 'old' },
+    ])
+    expect(h.list.editUndo).toHaveLength(1)
+
+    undoFlatListEdit(h.list, h.ctx)
+    expect(findFlatListEntry(h.list, 1)!.tags).toEqual(['kept', 'old'])
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+  })
+
+  test('re-entering the current tags (in any order) is a no-op', async () => {
+    const h = harness([entry('Sol Ring', 1, { tags: ['ramp', 'staple'] })])
+
+    await editTagsTo(h, ' staple ,ramp')
+
+    expect(h.ctx.sessionChanges).toHaveLength(0)
+    expect(h.list.editUndo).toHaveLength(0)
+  })
+})
+
 describe('performFlatListRemoval', () => {
   test('removes a pre-existing entry, releases its id, and records a remove event', () => {
     const { list, ctx, session } = harness([entry('Sol Ring', 1), entry('Lightning Bolt', 2)])
@@ -312,8 +404,10 @@ describe('performFlatListRemoval', () => {
     expect(allocateId(session.pool)).toBe(2)
   })
 
-  test('restores the note and reclaims the id on undo', () => {
-    const { list, ctx, session } = harness([entry('Sol Ring', 1, { note: 'signed' })])
+  test('restores the note, labels and tags and reclaims the id on undo', () => {
+    const { list, ctx, session } = harness([
+      entry('Sol Ring', 1, { note: 'signed', labels: ['keep'], tags: ['ramp', 'staple'] }),
+    ])
 
     performFlatListRemoval(list, ctx, findFlatListEntry(list, 1)!, 1)
     expect(session.entries).toHaveLength(0)
@@ -322,6 +416,8 @@ describe('performFlatListRemoval', () => {
     expect(findFlatListEntry(list, 1)).toMatchObject({
       name: 'Sol Ring',
       note: 'signed',
+      labels: ['keep'],
+      tags: ['ramp', 'staple'],
       cardId: 1,
     })
     expect(ctx.sessionChanges).toHaveLength(0)
@@ -636,13 +732,20 @@ describe('performFlatListMove', () => {
   })
 
   test('undo restores the entry with its note and swaps the move-from back out', () => {
-    const h = harness([entry('Sol Ring', 1, { note: 'from Dad', labels: ['keep'] })])
+    const h = harness([
+      entry('Sol Ring', 1, { note: 'from Dad', labels: ['keep'], tags: ['ramp'] }),
+    ])
     performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
     expect(lastFlatListEditLabel(h.list)).toBe('move of Sol Ring to 🎯 To Buy')
 
     undoFlatListEdit(h.list, h.ctx)
     const restored = findFlatListEntry(h.list, 1)!
-    expect(restored).toMatchObject({ name: 'Sol Ring', note: 'from Dad', labels: ['keep'] })
+    expect(restored).toMatchObject({
+      name: 'Sol Ring',
+      note: 'from Dad',
+      labels: ['keep'],
+      tags: ['ramp'],
+    })
     expect(h.ctx.sessionChanges).toHaveLength(0)
     expect(h.session.pool.usedIds.has(1)).toBe(true)
   })

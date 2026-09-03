@@ -509,6 +509,115 @@ describe('notes', () => {
   })
 })
 
+describe('tags', () => {
+  test('reads the comma-separated tag token on every list type, canonicalized', () => {
+    for (const type of ['deck', 'collection', 'wanted'] as const) {
+      const head = type === 'deck' ? '- 1 Sol Ring (LTC:284)' : '- Sol Ring (LTC:284)'
+      const result = parseCardLine(
+        type,
+        `${head} [foil] #Zebra,  Card Draw ,binder/trade, Zebra {note} &12`,
+      )
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.tokens.tags).toEqual(['binder/trade', 'Card Draw', 'Zebra'])
+      expect(result.tokens.note).toBe('note')
+      expect(result.tokens.cardId).toBe(12)
+    }
+  })
+
+  test('a line with no tag tokens has no tags key at all', () => {
+    const result = parseCardLine('deck', '1 Sol Ring (LTC:284) &1')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect('tags' in result.tokens).toBe(false)
+  })
+
+  test('tags are the one repeatable kind: one sigil per tag also reads, mixed with other tokens', () => {
+    const result = parseCardLine('collection', '- Sol Ring #ramp (LTC:284) #staple [LP] #edh &3')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.tokens.tags).toEqual(['edh', 'ramp', 'staple'])
+    expect(result.tokens.condition).toBe('LP')
+    expect(result.tokens.name).toBe('Sol Ring')
+  })
+
+  test('the tag probe still sees a digit-ending tag once the id is peeled, and the id has to be last', () => {
+    const ok = parseCardLine('deck', '1 Sol Ring #tier1 &4')
+    expect(ok.ok && ok.tokens.tags).toEqual(['tier1'])
+    expect(ok.ok && ok.tokens.cardId).toBe(4)
+    const misplaced = parseCardLine('deck', '1 Sol Ring &4 #ramp')
+    expect(misplaced.ok).toBe(false)
+    if (misplaced.ok) return
+    expect(misplaced.code).toBe('misplaced-token')
+    expect(misplaced.hint).toBe('the &N id must be the last token on the line')
+  })
+
+  test('a tag token runs from its sigil to the end of the tail, spaces included', () => {
+    // No card name contains `#`, so the sigil is unambiguous: everything from
+    // it to the next delimited token is the tag list, spaces and all.
+    const result = parseCardLine('deck', '1 Sol Ring #Card Draw, Ramp (LTC:284)')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.tokens.name).toBe('Sol Ring')
+    expect(result.tokens.tags).toEqual(['Card Draw', 'Ramp'])
+    expect(result.tokens.printing).toEqual({ set: 'ltc', collectorNumber: '284' })
+  })
+
+  test('a # glued to the word before it is an unseparated token, not a tag', () => {
+    const result = parseCardLine('deck', '1 Sol#ramp Ring (LTC:284)')
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.code).toBe('unseparated-token')
+    // The stranded token runs to the end of the name: a tag body may hold spaces.
+    expect('token' in result && result.token).toBe('#ramp Ring')
+  })
+
+  test('an unclosed note after the tags is a malformed note, not a malformed tag', () => {
+    const result = parseCardLine('collection', '- Sol Ring (LTC:284) #Ramp {half a note')
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.code).toBe('malformed-note')
+  })
+
+  test('a tag glued to the note after it is blamed on itself, not on the printing', () => {
+    const result = parseCardLine('collection', '- Sol Ring (LTC:284) #Ramp{note} &7')
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.code).toBe('unseparated-token')
+    expect('token' in result && result.token).toBe('#Ramp')
+  })
+
+  test("a Moxfield-style paste's tags import for free", () => {
+    const result = parseCardLine('deck', '1 Sol Ring (C21) 263 #ramp')
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.tokens.printing).toEqual({ set: 'c21', collectorNumber: '263' })
+    expect(result.tokens.tags).toEqual(['ramp'])
+  })
+
+  test('a note ending in a #word is prose, never a malformed tag', () => {
+    // The delimiter branches run before the tag probe: `#upgrade}` closes the
+    // note, so the line reads exactly as its serializer wrote it.
+    for (const line of [
+      '- Lightning Bolt (LEA:161) {needs #upgrade}',
+      '- Lightning Bolt (LEA:161) #ramp {needs #upgrade} &4',
+      '- Sol Ring (LTC:284) {see #4 and &5} &8',
+    ]) {
+      const result = parseCardLine('collection', line)
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.tokens.name).toBe(line.startsWith('- Sol') ? 'Sol Ring' : 'Lightning Bolt')
+      expect(result.tokens.note?.includes('#')).toBe(true)
+    }
+    const tagged = parseCardLine(
+      'collection',
+      '- Lightning Bolt (LEA:161) #ramp {needs #upgrade} &4',
+    )
+    expect(tagged.ok && tagged.tokens.tags).toEqual(['ramp'])
+    expect(tagged.ok && tagged.tokens.cardId).toBe(4)
+  })
+})
+
 describe('every error code', () => {
   const rows: readonly [CardLineErrorCode, ListType, string, Partial<CardLineError>][] = [
     ['not-a-card-line', 'deck', '', { message: 'Blank line.' }],
@@ -548,6 +657,20 @@ describe('every error code', () => {
         message: '[keep] is not a wanted list token — wanted lists never carry labels.',
       },
     ],
+    [
+      'malformed-tag',
+      'deck',
+      '1 Sol Ring #R&D',
+      {
+        token: '#R&D',
+        kind: 'tags',
+        column: '1 Sol Ring '.length,
+        message:
+          "Malformed tag token #R&D: a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses.",
+      },
+    ],
+    ['malformed-tag', 'collection', '- Sol Ring (LEA:1) #', { token: '#' }],
+    ['malformed-tag', 'wanted', '- Sol Ring # , ,', { token: '# , ,' }],
     [
       'duplicate-token',
       'deck',
@@ -810,6 +933,18 @@ describe('readAnyCardId is the wider pool seeder', () => {
     expect(readAnyCardId(glued)).toBe(2)
     // The shape that motivates the rule: a glued id on a real flat-list line.
     expect(readAnyCardId('- Sol Ring (LEA:2)&2')).toBe(2)
+  })
+
+  test('a tag written after the id is refused by the parser but still reserves the id', () => {
+    const trailing = '- Sol Ring (LEA:2) &2 #ramp'
+    expect(refused('collection', trailing)).toMatchObject({ code: 'misplaced-token', token: '&2' })
+    expect(readCardId(trailing)).toBeUndefined()
+    expect(readAnyCardId(trailing)).toBe(2)
+    expect(readAnyCardId('- Sol Ring (LEA:2) &2 #Card Draw, staple')).toBe(2)
+    // Even glued — the seeder is deliberately wider than the entry parser.
+    expect(readAnyCardId('- Sol Ring (LEA:2)&2#Ramp')).toBe(2)
+    // …but never past a later `&N`: an `&12` inside a note is not the id.
+    expect(readAnyCardId('- Sol Ring (LEA:2) {trade w/ Bob &12 #trade} &7')).toBe(7)
   })
 
   test('both readers agree on a canonical line', () => {

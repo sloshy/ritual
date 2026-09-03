@@ -288,6 +288,26 @@ export const uiMeta = {
     description:
       'Title of the picker choosing which printed language a card is held in — the card itself, not the interface.',
   },
+  'ui.editor.editTagsTitle': {
+    description:
+      "Title of the dialog editing one card's own tags (free-form words such as `Ramp, Card Draw`).",
+  },
+  'ui.editor.tagsLabel': {
+    description: 'Label of the single text field in the tags dialog that holds the whole tag set.',
+  },
+  'ui.editor.tagsPlaceholder': {
+    description:
+      'Placeholder shown in the empty tags field — an example of two comma-separated tags. The tag words may be localized; keep the comma between them.',
+  },
+  'ui.editor.tagsHint': {
+    description:
+      'Help text under the tags field: that several tags are separated by commas, and that saving an empty field removes every tag.',
+  },
+  'ui.editor.tagsSuggestions': {
+    description:
+      'Heading of the row of one-click buttons offering tags already used on other cards in this list. Ends with a colon in English.',
+  },
+  'ui.editor.tagsSave': { description: 'Confirm button of the tags dialog.', maxLen: 16 },
   'ui.editor.languageCurrent': {
     description:
       "A language row in that picker, marked with a check because it is the card's current language. {name} is the language name.",
@@ -363,6 +383,11 @@ export const uiMeta = {
   'ui.cardMenu.setLabel': {
     description:
       'Menu row opening the label picker ("for sale", "for trade", "to keep"). Collections only.',
+    maxLen: 24,
+  },
+  'ui.cardMenu.editTags': {
+    description:
+      "Menu row opening the dialog that edits this card's own tags (free-form owner vocabulary such as `Ramp`). Every list type. The ellipsis marks that a dialog follows.",
     maxLen: 24,
   },
   'ui.cardMenu.setCustomArt': {

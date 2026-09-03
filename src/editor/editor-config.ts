@@ -8,6 +8,7 @@ import type { Accessor, Setter } from 'solid-js'
 import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
+import type { CardTag } from '../card/card-tags'
 import type { CardLabel } from '../card/card-labels'
 import type { CardArtRef } from '../list/card-art'
 import type { SaveEffect } from '../changes/save-effects'
@@ -356,6 +357,18 @@ export type UseEditorResult<TData, TCardEntry> = {
   handleSetFinishFor: (cardName: string, finish: Finish, cardId?: number) => void
   /** Set an explicit language on one targeted card/copy (backs the menu and bulk language actions). */
   handleSetLanguageFor: (cardName: string, language: CardLanguage, cardId?: number) => void
+  /**
+   * Set one card's tags to exactly `tags` (backs the "Edit Tags…" menu row on
+   * every list type). `currentTags` are the card's live tags, read by the
+   * caller from the entry it targeted — see `card-tags-edit.ts` for why the
+   * edit consolidates against the live set rather than the on-disk one.
+   */
+  handleSetTagsFor: (
+    cardName: string,
+    tags: readonly CardTag[],
+    currentTags: readonly CardTag[] | undefined,
+    cardId?: number,
+  ) => void
   handleAddCardFromSearch: (...args: Parameters<AddCardFromSearch>) => Promise<void>
   handleUndo: () => void
   handleSave: () => Promise<void>

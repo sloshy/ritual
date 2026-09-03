@@ -1,5 +1,6 @@
 import { formatCardLabels } from '../card/card-labels'
 import { displayLanguage } from '../card/card-language'
+import { formatCardTags } from '../card/card-tags'
 import type { CollectionCardEntry } from '../list/site-data'
 
 /** One duplicate-grouped tile: the representative entry and how many copies it stands for. */
@@ -7,16 +8,16 @@ export type GroupedEntry = { entry: CollectionCardEntry; count: number }
 
 /**
  * Identity of a tile when grouping duplicates: printing + condition plus the raw
- * label override and the copy's custom art, so a keep-marked or custom-art copy
- * never merges into (and mislabels, or zero-prices) a stack of otherwise
- * identical tradable copies. The art joins as the *fact* as well as the URL: a
+ * label override, the copy's tags and its custom art, so a keep-marked,
+ * differently-tagged or custom-art copy never merges into (and mislabels,
+ * mis-tags, or zero-prices) a stack of otherwise identical tradable copies. The art joins as the *fact* as well as the URL: a
  * copy whose art file was not deployed has no URL to tell it apart, and merging
  * would price the priceless copy at retail. Shared by
  * {@link groupDuplicateEntries} and {@link groupCardIds}, so a tile's card IDs
  * are exactly the entries it visually represents.
  */
 export function duplicateGroupKey(entry: CollectionCardEntry): string {
-  return `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatCardLabels(entry.labels ?? [])}|${entry.customArt ?? ''}|${entry.hasCustomArt === true ? 'art' : ''}`
+  return `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatCardLabels(entry.labels ?? [])}|${formatCardTags(entry.tags)}|${entry.customArt ?? ''}|${entry.hasCustomArt === true ? 'art' : ''}`
 }
 
 /**

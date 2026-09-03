@@ -41,6 +41,7 @@ import {
   supportedLabelsFor,
   type CardLabel,
 } from '../card/card-labels'
+import { normalizedTags, sameCardTags, type CardTag } from '../card/card-tags'
 import type { ListType } from './list-type'
 import type { ListEntry } from './list-info'
 import { readCardId } from '../card/card-line-grammar'
@@ -68,6 +69,8 @@ export type PhysicalCard = {
    * collections, matching the notes precedent.
    */
   labels?: CardLabel[]
+  /** The card's `#tag` tokens. Every list type carries them, so a move carries them unfiltered. */
+  tags?: CardTag[]
   note?: string
   cardId?: number
   listEntry: ListEntry
@@ -280,6 +283,7 @@ function removeDeckCopy(
     if (section.cards.length === 0) deck.sections = deck.sections.filter((s) => s !== section)
     return {
       name: c.name,
+      tags: c.tags,
       cardId: c.cardId,
       set: c.set?.toLowerCase(),
       collectorNumber: c.collectorNumber,
@@ -297,13 +301,13 @@ function removeDeckCopy(
  * grammar for the staged file's own type. Set code lowercased, as every
  * in-memory representation is.
  */
-type TextLineFields = PrintingTuple & { name: string; cardId?: number }
+type TextLineFields = PrintingTuple & { name: string; tags?: CardTag[]; cardId?: number }
 
 /** The parse of a flat-list bullet, or `undefined` when the line is not one. */
 function textLineFields(staged: StagedTextFile, trimmed: string): TextLineFields | undefined {
   const read = readCardLine(staged.type, trimmed)
   if (read === undefined) return undefined
-  const { name, printing, finish, condition, language, cardId } = read.tokens
+  const { name, printing, finish, condition, language, tags, cardId } = read.tokens
   return {
     name,
     set: printing?.set,
@@ -311,6 +315,7 @@ function textLineFields(staged: StagedTextFile, trimmed: string): TextLineFields
     finish,
     condition,
     language,
+    tags: tags === undefined ? undefined : [...tags],
     cardId,
   }
 }
@@ -389,6 +394,8 @@ export type IncomingCopy = PrintingTuple & { name: string; cardId?: number }
  */
 export type RemovedCopy = PrintingTuple & {
   name: string
+  /** The line's `#tag` tokens, so the source-side `move-from` records what left. */
+  tags?: CardTag[]
   cardId?: number
   /** The deck section the line sat in (absent for a flat-list bullet). */
   section?: string
@@ -631,7 +638,9 @@ function applyAddToDeck(
       (c.language ?? 'en') === (card.language ?? 'en') &&
       // Labels distinguish them the same way: merging a proxy into the line
       // holding real copies would either lose the `[proxy]` or spread it.
-      sameCardLabels(c.labels, labels),
+      sameCardLabels(c.labels, labels) &&
+      // And tags: a deck line's tags describe every copy on it.
+      sameCardTags(c.tags, card.tags),
   )
 
   if (existing) {
@@ -663,6 +672,7 @@ function applyAddToDeck(
     // stays a proxy, a `sale` override is dropped rather than written into a
     // grammar that has no room for it.
     labels,
+    tags: normalizedTags(card.tags),
     note: card.note,
     cardId,
   })
@@ -694,6 +704,7 @@ function applyAddCollectionLine(content: string, card: PhysicalCard): AppendedLi
     condition: card.condition,
     language: card.language,
     labels: labelsForDestination('collection', card.labels),
+    tags: normalizedTags(card.tags),
     note: card.note,
     cardId,
   })
@@ -709,6 +720,7 @@ function applyAddWantedLine(content: string, card: PhysicalCard): AppendedLine {
     printing,
     finish: card.finish,
     language: card.language,
+    tags: normalizedTags(card.tags),
     note: card.note,
     cardId,
   })
