@@ -10,9 +10,7 @@ Whenever possible, prefer using Language Server Protocol (LSP) features for code
 
 ## Git Usage
 
-Do NOT ever make a git commit unless explicitly asked to. I want to review any code changes you suggest, so leave them in the working tree for me to review. In the normal case, don't manage the staging state on my behalf (no proactively running `git add` to stage your edits, and don't un-stage either) — files that are already staged are fine and expected, since I may stage files or commit bits and pieces as we work.
-
-The exception is when staging or stashing is a means to an end for a task — e.g. `git stash` to test whether a failure is a pre-existing regression, then restoring afterward. That kind of transient, self-contained use is fine; just leave the working tree as you found it when done.
+Commits are managed automatically: when a phase or section of work is complete and verified (tests green, code formatted, reviews applied), commit it with a descriptive message rather than leaving it in the working tree. Group each commit around one coherent unit of work. Staging and stashing are ordinary tools — use them as the task needs.
 
 ## Coding Style
 
