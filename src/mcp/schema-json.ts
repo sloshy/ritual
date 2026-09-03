@@ -60,6 +60,7 @@ import {
   CONDITION,
   CUSTOM_ART_MAP,
   FINISH,
+  LIST_CATEGORIES,
   LIST_IMAGE_REF,
   LIST_TYPE,
   PRINTING_IDENTITY_REQUIRED,
@@ -109,6 +110,13 @@ const GET_LIST_CARDS_PROPS = {
     str(),
     'Problems with the list’s custom-art sidecar (unreadable, or art for cards that are gone). ' +
       'Separate from warnings: these never block a mutation. Absent when the sidecar is clean.',
+  ),
+  categories: LIST_CATEGORIES,
+  categoryWarnings: arr(
+    str(),
+    'Problems with the list’s categories sidecar (unreadable, or categories for cards that are ' +
+      'gone). Separate from warnings: these never block a mutation. Absent when the sidecar is ' +
+      'clean.',
   ),
 } as const satisfies Properties
 
@@ -487,6 +495,11 @@ export const GET_HISTORY_OUTPUT: JsonSchemaType = withDefs(
         ref('ChangeEvent'),
         'Events describing the list’s current state, for a rewrite-with-defaults.',
       ),
+      categoryWarnings: arr(
+        str(),
+        'Why defaultEvents names no categories: the list’s categories sidecar could not be read. ' +
+          'Absent when there was nothing to say.',
+      ),
     },
     ['header', 'sets', 'defaultEvents'],
   ),
@@ -742,6 +755,16 @@ export const SET_CARD_ART_OUTPUT: JsonSchemaType = obj(
   ['message', 'slug', 'cardId', 'art'],
 )
 
+/**
+ * Card names whose category assignments a write dropped. One wording for the
+ * three schemas that report it, since one handler channel feeds them all.
+ */
+const PRUNED_CATEGORIES = arr(
+  str(),
+  'Card names whose category assignments were dropped because the list no longer holds a line ' +
+    'of that name. Absent when nothing was pruned.',
+)
+
 export const MUTATION_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
@@ -760,6 +783,12 @@ export const MUTATION_OUTPUT: JsonSchemaType = withDefs(
           'The card lines were written; only the art re-filing did not happen. ' +
           'Absent when every reconcile was clean.',
       ),
+      categoryWarnings: arr(
+        str(),
+        'Categories sidecars this save could not read or write. The card lines were written; ' +
+          'only the sidecar did not change. Absent when clean.',
+      ),
+      prunedCategories: PRUNED_CATEGORIES,
     },
     ['applied', 'message', 'listType', 'slug', 'effects', 'unmatched'],
   ),
@@ -774,6 +803,7 @@ export const MOVE_SELECTED_CARDS_OUTPUT: JsonSchemaType = withDefs(
       skipped: int('Moves whose card or destination could not be resolved.'),
       droppedNotes: arr(ref('DroppedNote'), 'Notes the destination could not keep.'),
       warnings: arr(str(), 'List files that could not be fully read.'),
+      prunedCategories: PRUNED_CATEGORIES,
       ...MESSAGE_PROPS,
     },
     ['moved', 'requested', 'skipped', 'droppedNotes', 'warnings', 'message'],
@@ -787,6 +817,7 @@ export const REMOVE_SELECTED_CARDS_OUTPUT: JsonSchemaType = obj(
     requested: int(),
     skipped: int('Items whose card could not be resolved.'),
     warnings: arr(str(), 'List files that could not be fully read.'),
+    prunedCategories: PRUNED_CATEGORIES,
     ...MESSAGE_PROPS,
   },
   ['removed', 'requested', 'skipped', 'warnings', 'message'],

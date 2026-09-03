@@ -28,12 +28,23 @@ export type ListCardNames = {
   warnings: string[]
 }
 
+/**
+ * Names folded into the categories sidecar's key space. The one place
+ * {@link foldCategoryCardName} is applied to a whole list, so a caller with its
+ * own names in hand never re-spells the fold.
+ */
+export function foldedCardNameSet(names: Iterable<string>): Set<string> {
+  const folded = new Set<string>()
+  for (const name of names) folded.add(foldCategoryCardName(name))
+  return folded
+}
+
 /** The card names a list file holds. Reads only. */
 export async function listCardNameSet(type: ListType, filePath: string): Promise<ListCardNames> {
   const loaded = await loadListEntries(type, filePath)
   const warnings = loaded.warnings ?? []
   return {
-    names: new Set(loaded.entries.map((entry) => foldCategoryCardName(entry.name))),
+    names: foldedCardNameSet(loaded.entries.map((entry) => entry.name)),
     complete: warnings.length === 0,
     warnings,
   }
@@ -44,9 +55,7 @@ export async function listCardNameSet(type: ListType, filePath: string): Promise
  * a parsed deck model has no unread lines left in it.
  */
 export function deckCardNameSet(deck: DeckData): Set<string> {
-  return new Set(
-    deck.sections
-      .flatMap((section) => section.cards)
-      .map((card) => foldCategoryCardName(card.name)),
+  return foldedCardNameSet(
+    deck.sections.flatMap((section) => section.cards.map((card) => card.name)),
   )
 }

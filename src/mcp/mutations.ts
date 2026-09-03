@@ -182,6 +182,18 @@ export interface MutationResult extends ApiMessage {
    * `&N` re-filing of `<list>.art.json` did not happen. Absent when clean.
    */
   artWarnings?: string[]
+  /**
+   * Categories sidecars the save could not read or write. Never a failure: the
+   * card lines were written and only `<list>.categories.json` stayed as it was.
+   * Absent when clean.
+   */
+  categoryWarnings?: string[]
+  /**
+   * Card names whose category assignments this save dropped, because the list
+   * no longer holds a line of that name — categories are keyed by name in one
+   * list, so the assignment goes with the last copy. Absent when none.
+   */
+  prunedCategories?: string[]
 }
 
 /** {@link mutateList}, reported as the structured result the write tools return. */
@@ -203,5 +215,7 @@ export async function applyMutation(
     effects: saved.effects,
     unmatched: [],
     ...(saved.artWarnings === undefined ? {} : { artWarnings: saved.artWarnings }),
+    ...(saved.categoryWarnings === undefined ? {} : { categoryWarnings: saved.categoryWarnings }),
+    ...(saved.prunedCategories === undefined ? {} : { prunedCategories: saved.prunedCategories }),
   }
 }

@@ -945,6 +945,10 @@ export const adminMessages = {
     "The list's custom art was left as it is — it could not be read: {reason}",
   'admin.api.save.categoriesUnreconciled':
     'The card lines were saved, but the categories sidecar could not be updated: {reason}',
+  'admin.api.load.categoriesUnreadable':
+    'The list’s categories sidecar could not be read, so no categories are reported: {reason}',
+  'admin.api.load.categoriesStaleNames':
+    'Categories are recorded for cards this list no longer holds: {names}.',
   'admin.api.art.set': "Set custom art on '{name}'",
   'admin.api.art.cleared': "Cleared custom art on '{name}'",
   'admin.api.buildSite.built': 'Site built successfully',

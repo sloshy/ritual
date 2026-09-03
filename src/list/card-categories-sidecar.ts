@@ -295,6 +295,20 @@ export function orderedCategoryEntries(record: CardCategoriesRecord): CardCatego
 }
 
 /**
+ * One card's categories in this list, looked up by the sidecar's own fold — the
+ * answer every load body, bake and editor needs, so no caller re-derives
+ * {@link foldCategoryCardName}. `undefined` when the card has none; never `[]`,
+ * because absent means none everywhere this value is reported.
+ */
+export function cardCategoriesOf(
+  record: CardCategoriesRecord,
+  cardName: string,
+): CardCategory[] | undefined {
+  const entry = record.cards.get(foldCategoryCardName(cardName))
+  return entry === undefined || entry.categories.length === 0 ? undefined : entry.categories
+}
+
+/**
  * A record in its JSON shape: the resolved order, and the card entries keyed by
  * their stored spelling in the pinned data collation, each keeping its own
  * primary-first order.

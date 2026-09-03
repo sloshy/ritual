@@ -48,6 +48,15 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   contain "#", ",", "&", brackets, braces or parentheses; anything else is a schema refusal. Tags
   are not labels: a "Keep" tag is a plain tag with none of the "keep" label's
   meaning, and a deck's front-matter "tags" (set_list_metadata) describe the deck, not a card.
+- Card categories are the card's role in one list — what Archidekt calls a category and Moxfield
+  a tag — and they are keyed by card NAME, not by the &N id: one assignment covers every line of
+  that name, and a category never follows a card to another list. They are ordered, first is
+  primary. get_list reports them twice: the list's own "categories" ({order, cards}) beside the
+  entries, and each card's resolved "categories" on the entry itself — absent means none, at both
+  levels. apply_changes writes them: "set-categories" (per card, by name, replacing the whole
+  list; [] clears) and the two list-level actions "rename-category" and "set-category-order",
+  which are the only changes that name no card. They are not tags: a tag belongs to the physical
+  copy and travels with a move, a category belongs to the name in this list and does not.
 - A list's cover image is list front matter, not a card property: get_list reports it as "image"
   and set_list_metadata's image field overrides it for any list type; null there restores the
   built-in rule (a commander deck shows its commander, every other list its priciest printing).

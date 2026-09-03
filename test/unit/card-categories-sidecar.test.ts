@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   applyCategoryChangesToRecord,
+  cardCategoriesOf,
   categoriesHashPath,
   categoriesSidecarPath,
   commitCategoryChanges,
@@ -367,6 +368,23 @@ describe('the sidecar on disk', () => {
     ])
     expect(committed).toEqual({ writtenFiles: [], pruned: [], warnings: [] })
     expect(await Bun.file(sidecarPath).exists()).toBe(false)
+  })
+})
+
+describe('cardCategoriesOf', () => {
+  test('answers by the sidecar fold, and never with an empty list', () => {
+    const base = record(['Ramp'], { 'Sol Ring': ['Ramp'] })
+    expect(cardCategoriesOf(base, 'Sol Ring')).toEqual(['Ramp'])
+    // The fold is the sidecar's own: case and inner whitespace do not matter.
+    expect(cardCategoriesOf(base, 'sol  ring')).toEqual(['Ramp'])
+    expect(cardCategoriesOf(base, 'SOL RING')).toEqual(['Ramp'])
+    // Absent means none — never `[]`, which a body would advertise as a value.
+    expect(cardCategoriesOf(base, 'Rhystic Study')).toBeUndefined()
+    // And an entry that holds an empty list answers the same way: a hand-edited
+    // sidecar can carry one, and every load body relies on "absent means none".
+    const empty = record([], {})
+    empty.cards.set('sol ring', { name: 'Sol Ring', categories: [] })
+    expect(cardCategoriesOf(empty, 'Sol Ring')).toBeUndefined()
   })
 })
 

@@ -9,6 +9,7 @@ import type { JsonSchemaType } from '@modelcontextprotocol/server'
 import { LIST_TYPES } from '../list/list-type'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABELS } from '../card/card-labels'
+import { CARD_CATEGORY_SHAPE_CLAUSE } from '../card/card-categories'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { UNPRICED_REASONS } from '../pricing/price-report'
 
@@ -139,6 +140,34 @@ export const CARD_LABEL = enumOf(CARD_LABELS)
 export const CARD_TAG = str(
   'A card tag, canonical: plain text in its owner\'s casing, without any "#" (e.g. "Ramp", "Card Draw").',
 )
+/**
+ * One category name as its owner wrote it — plain text, the value the events
+ * carry. The shape rule is interpolated from the engine's own clause, so the
+ * advertised description can never drift from what the input schema refuses.
+ */
+export const CARD_CATEGORY = str(
+  `A category name, canonical: ${CARD_CATEGORY_SHAPE_CLAUSE}, in its owner's casing (e.g. "Ramp", "Card Draw").`,
+)
+
+/**
+ * A list's categories: the vocabulary in display order, and each card *name*'s
+ * ordered assignments (first = primary). Keyed by name, never `&N`; open by
+ * construction, since the key set is whichever cards the owner categorized.
+ */
+export const LIST_CATEGORIES: JsonSchemaType = obj(
+  {
+    order: arr(CARD_CATEGORY, 'The list’s category vocabulary, in display order.'),
+    cards: {
+      type: 'object',
+      description:
+        'Categories by card name, primary first. Case and spacing are folded when matched, ' +
+        'so a card’s own `categories` field is the reliable per-card answer.',
+      additionalProperties: arr(CARD_CATEGORY),
+    },
+  },
+  ['order', 'cards'],
+)
+
 const LANGUAGE = enumOf(
   CARD_LANGUAGES,
   'Scryfall language code; absent means English ("en") — entries carry it only when not English.',
@@ -270,11 +299,18 @@ const LINE_META_PROPS = {
 } as const satisfies Properties
 
 /**
- * {@link LINE_META_PROPS} plus `tags`: what a *list entry* carries beyond its
- * name and printing. A physical card out of the move index carries the line
- * metadata only — it does not report tags, so it must not advertise them.
+ * {@link LINE_META_PROPS} plus `categories` and `tags`: what a *list entry*
+ * carries beyond its name and printing. A physical card out of the move index
+ * carries the line metadata only — it reports neither, so it must not advertise
+ * them.
  */
 const ENTRY_META_PROPS = {
+  categories: arr(
+    CARD_CATEGORY,
+    'The card’s categories in this list, primary first; absent when it has none. Keyed by card ' +
+      'name, so every line of that name reports the same list. Set them with apply_changes ' +
+      '"set-categories".',
+  ),
   tags: arr(
     CARD_TAG,
     'The line’s tags in canonical order (trimmed, sorted, no "#"); absent when it has none. ' +
@@ -404,10 +440,13 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
   // that discriminated union's, not this schema's.
   ChangeEvent: openObject(
     'One typed change event: `action` (add, remove, set-commander, unset-commander, set-finish, ' +
-      'set-printing, set-language, set-note, set-label, add-tag, remove-tag, move-from, move-to, ' +
-      'add-section, remove-section, rename-section, set-section) plus that action’s fields — ' +
-      'cardName, cardId (&N), set, collectorNumber, finish, condition, language, labels, tags, ' +
-      'tag, board, section, newSection, note, to/from ({type, name}).',
+      'set-printing, set-language, set-note, set-label, add-tag, remove-tag, set-categories, ' +
+      'rename-category, set-category-order, move-from, move-to, add-section, remove-section, ' +
+      'rename-section, set-section) plus that action’s fields — cardName, cardId (&N), set, ' +
+      'collectorNumber, finish, condition, language, labels, tags, tag, categories, category, ' +
+      'newCategory, order, board, section, newSection, note, to/from ({type, name}). ' +
+      'set-categories is keyed by card name and carries no cardId; rename-category and ' +
+      'set-category-order target the list and carry no card at all.',
   ),
   ChangeSet: obj(
     {

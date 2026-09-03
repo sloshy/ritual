@@ -7,6 +7,11 @@ import {
   unsupportedLabelsMessage,
 } from '../card/card-labels'
 import { CARD_LANGUAGES } from '../card/card-language'
+import {
+  CARD_CATEGORY_SHAPE_CLAUSE,
+  isCardCategoryShaped,
+  normalizeCardCategory,
+} from '../card/card-categories'
 import { CARD_TAG_SHAPE_CLAUSE, isCardTagShaped, normalizeCardTag } from '../card/card-tags'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { isListType } from '../list/list-type'
@@ -53,6 +58,42 @@ export const tagsField = z
   .min(1)
   .optional()
   .describe('Tags for the new card (plain text, e.g. "Card Draw"); omit for none.')
+/**
+ * One category in canonical form — the same shape rule the sidecar and the CLI
+ * read (`isCardCategoryShaped`), already trimmed and single-spaced, in the
+ * owner's own casing. Canonical on input rather than normalized here, so the
+ * category an agent sends is exactly the one the changelog records.
+ */
+export const cardCategorySchema = z
+  .string()
+  .refine((raw) => isCardCategoryShaped(raw) && raw === normalizeCardCategory(raw), {
+    message: `Not a canonical category: ${CARD_CATEGORY_SHAPE_CLAUSE}; no surrounding or doubled spaces.`,
+  })
+  .describe('A category as its owner writes it, e.g. "Ramp" or "Card Draw" — plain text.')
+/**
+ * A card's whole ordered category list, primary first. **No `.min(1)`**, unlike
+ * {@link tagsField}: an empty array is a meaningful *clear*, because the event
+ * replaces the card's whole list rather than adding one value.
+ */
+export const categoriesField = z
+  .array(cardCategorySchema)
+  .describe(
+    'The card’s categories in this list, primary first — the whole list, replacing whatever ' +
+      'it had. An empty array clears them.',
+  )
+/**
+ * The list's vocabulary in display order. An empty array *clears* the declared
+ * order rather than restoring anything: the next write re-derives one from the
+ * categories the list's cards actually use, listing the configured
+ * `defaultCategories` first among those.
+ */
+export const categoryOrderField = z
+  .array(cardCategorySchema)
+  .describe(
+    'The list’s category vocabulary in display order. An empty array clears the declared ' +
+      'order; the next write re-derives one from the categories the cards use, listing the ' +
+      'configured defaultCategories first.',
+  )
 /**
  * A label-override *update*: the new override, where `sale` and `trade` combine
  * and `keep`/`proxy` each stand alone, or an empty array to clear the override

@@ -1,6 +1,8 @@
 import type { Condition, Finish } from '../../card/finish-condition'
-import type { DeckData } from '../../list/deck'
+import type { Card } from '../../card/card'
+import type { DeckData, DeckSection } from '../../list/deck'
 import type { CardArtRecord } from '../../list/card-art'
+import type { ListCategoriesFields, WithCardCategories } from './categories'
 import type { CardLabel } from '../../card/card-labels'
 import type { CardTag } from '../../card/card-tags'
 import type { ListImageRef } from '../../list/list-image'
@@ -10,6 +12,7 @@ import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader
 import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
 
 export type { ListCounts, ListLoadView, ListSectionCount }
+export type { WithCardCategories }
 
 /**
  * Response shapes of the deck/collection/wanted load endpoints.
@@ -64,8 +67,14 @@ export interface ListLoadStamp {
   contentHash?: string
 }
 
-/** Fields every non-summary load body carries, whatever the list type. */
-export interface ListLoadBase extends ListLoadStamp {
+/**
+ * Fields every non-summary load body carries, whatever the list type.
+ *
+ * The categories half is inherited from {@link ListCategoriesFields}, the very
+ * type `listCategories` produces, so the fields a handler spreads onto a body
+ * and the fields this type declares cannot drift apart.
+ */
+export interface ListLoadBase extends ListLoadStamp, ListCategoriesFields {
   success: true
   slug: string
   /**
@@ -101,10 +110,26 @@ export interface ListLoadBase extends ListLoadStamp {
   customArt?: CardArtRecord
 }
 
+/** The `cards` a load body's deck section carries. */
+type DeckLoadSectionCards = {
+  cards: WithCardCategories<Card>[]
+}
+
+/** A deck section as a load body carries it. See {@link WithCardCategories}. */
+export type DeckLoadSection = Omit<DeckSection, 'cards'> & DeckLoadSectionCards
+
+/** The `sections` a load body's deck carries. */
+type DeckLoadSections = {
+  sections: DeckLoadSection[]
+}
+
+/** A deck as a load body carries it. Assignable to {@link DeckData} everywhere it is consumed. */
+export type DeckLoadData = Omit<DeckData, 'sections'> & DeckLoadSections
+
 /** `GET /api/deck/:slug?view=cards` — the deck's lines and front matter. */
 export interface DeckCardsLoadResult extends ListLoadBase {
   view: 'cards'
-  deck: DeckData
+  deck: DeckLoadData
   frontMatter: Record<string, unknown>
   /**
    * The deck's default card labels from its front matter (`proxy` alone).
@@ -124,7 +149,7 @@ export interface DeckCardsLoadResult extends ListLoadBase {
 /** `GET /api/deck/:slug` (`view=full`) — the editor payload: the cards view plus Scryfall data. */
 export interface DeckFullLoadResult extends ListLoadBase, DeckCardLoadResult {
   view: 'full'
-  deck: DeckData
+  deck: DeckLoadData
   frontMatter: Record<string, unknown>
   /** See {@link DeckCardsLoadResult.labels}. */
   labels?: CardLabel[]
@@ -172,19 +197,23 @@ export interface FlatFullLoadResult<T> extends ListLoadBase, EntryCardLoadResult
 }
 
 /** `GET /api/collection/:slug?view=cards` — entries plus the section order. */
-export type CollectionCardsLoadResult = FlatCardsLoadResult<CollectionEntry>
+export type CollectionCardsLoadResult = FlatCardsLoadResult<WithCardCategories<CollectionEntry>>
 
 /** `GET /api/collection/:slug` (`view=full`) — the cards view plus Scryfall data. */
-export type CollectionFullLoadResult = FlatFullLoadResult<CollectionEntry>
+export type CollectionFullLoadResult = FlatFullLoadResult<WithCardCategories<CollectionEntry>>
 
 /** `GET /api/collection/:slug` — entries plus the section order and content hash. */
 export type CollectionLoadResult = CollectionCardsLoadResult | CollectionFullLoadResult
 
 /** `GET /api/wanted/:slug?view=cards` — entries plus the section order. Never carries `labels`. */
-export type WantedCardsLoadResult = FlatCardsLoadResult<ParsedWantedEntry> & { labels?: never }
+export type WantedCardsLoadResult = FlatCardsLoadResult<WithCardCategories<ParsedWantedEntry>> & {
+  labels?: never
+}
 
 /** `GET /api/wanted/:slug` (`view=full`) — the cards view plus Scryfall data. Never carries `labels`. */
-export type WantedFullLoadResult = FlatFullLoadResult<ParsedWantedEntry> & { labels?: never }
+export type WantedFullLoadResult = FlatFullLoadResult<WithCardCategories<ParsedWantedEntry>> & {
+  labels?: never
+}
 
 /** `GET /api/wanted/:slug` — entries plus the section order and content hash. */
 export type WantedLoadResult = WantedCardsLoadResult | WantedFullLoadResult

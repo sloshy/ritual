@@ -1561,6 +1561,14 @@ export const adminMeta = {
     description:
       "Warning in an editor save's response when the list's <list>.categories.json sidecar could not be read or written, so the save's category assignments were not recorded. {reason} is untranslated engine prose naming the file and the failure. A warning, never a failure: the card lines were written correctly.",
   },
+  'admin.api.load.categoriesUnreadable': {
+    description:
+      'Warning on a list load body when the list’s <list>.categories.json sidecar exists but could not be read or parsed. {reason} is untranslated engine prose naming the file and the failure. The load still returns the list: bad categories block nothing.',
+  },
+  'admin.api.load.categoriesStaleNames': {
+    description:
+      'Warning on a list load body naming sidecar entries whose card the list no longer holds. {names} is a comma-joined list of stored card names. A read reports them and never removes them; the next save prunes them.',
+  },
   'admin.api.art.set': {
     description:
       "Success alert after a card's custom art is set from the editor. {name} is the list's slug. The card is not named: card ids are internal, and the alert appears beside the card that was just edited.",

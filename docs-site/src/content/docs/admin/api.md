@@ -261,6 +261,14 @@ Every non-summary load also carries `customArt` when the list has any: a `{ "<ca
 
 Problems with the `.art.json` sidecar — it cannot be read, or it holds art filed under a card id the **whole** list no longer has — come back as a separate `artWarnings` array rather than failing the load. It is deliberately not folded into `warnings`: that channel means card lines the parser could not read, and the [save routes refuse](#unreadable-lines-block-a-save) a list that has any, while bad custom art blocks nothing. `artWarnings` is omitted when the sidecar is clean or absent. The orphan check ignores the filters, so a paged read never reports the cards it did not ask for.
 
+Every non-summary load also carries the list's [categories](/list-format/#categories-namecategoriesjson) when it has any, as `categories` — `{ "order": ["Ramp", "Artifacts"], "cards": { "Sol Ring": ["Ramp", "Artifacts"] } }` — and every returned card carries its own resolved `categories`, primary first. **Absent means none at both levels**: a list with no categories carries no `categories` key, and a card with none carries no `categories` key, never an empty array. The `order` is the resolved one — the same bytes the next Ritual write persists — so a body is never out of step with the file it describes. `categories` always describes the **whole list**, never just the returned page: a filtered read still reports every categorized name, while each card's own `categories` covers only the cards in the body.
+
+Keys in `cards` are card names as the sidecar stores them, matched case- and whitespace-insensitively. That fold is Ritual's, which is why each card's own `categories` field exists and is the one to read: a client that joins `cards` by raw name will miss an entry the list still resolves.
+
+Problems with the `.categories.json` sidecar — it cannot be read, or it records categories for card names the list no longer holds — come back as a separate `categoryWarnings` array, on the same channel logic as `artWarnings` and for the same reason: a categories problem blocks nothing. A read reports stale names and never removes them (the next save prunes them). The stale-name check is skipped entirely when the list has unreadable lines, since a line the parser refused still holds a card — so the warning is never raised from a partial answer.
+
+A `view=summary` body carries neither `categories` nor `categoryWarnings`: it returns before the sidecar is read.
+
 **Response (`view=summary`):**
 
 ```json
@@ -1035,7 +1043,7 @@ Returns the list of available collections.
 GET /api/collection/:slug
 ```
 
-Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `description` is the collection's front-matter blurb (absent when it declares none), and the top-level `labels` is its [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default. An entry's `tags` is its line's [tags](/commands/edit/#card-tags), canonical and without the `#`, absent when it has none.
+Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck. The top-level `description` is the collection's front-matter blurb (absent when it declares none), and the top-level `labels` is its [default card labels](/commands/edit/#collection-front-matter) (absent when none are declared), and an entry's own `labels` is its per-card override — effective labels are the override when present, else the default. An entry's `tags` is its line's [tags](/commands/edit/#card-tags), canonical and without the `#`, absent when it has none. An entry's `categories` is its card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none; the list's own vocabulary rides at the top level as `categories` — see [Load Deck](#load-deck).
 
 **Response:**
 
@@ -1206,7 +1214,7 @@ Returns the list of available wanted lists.
 GET /api/wanted/:slug
 ```
 
-Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck, plus the top-level `description` when the list declares one. An entry's `tags` is its line's [tags](/commands/edit/#card-tags), canonical and without the `#`, absent when it has none — wanted entries carry tags exactly as deck and collection cards do (they are the one list type without `labels`).
+Load a wanted list with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck, plus the top-level `description` when the list declares one. An entry's `tags` is its line's [tags](/commands/edit/#card-tags), canonical and without the `#`, absent when it has none — wanted entries carry tags exactly as deck and collection cards do (they are the one list type without `labels`). An entry's `categories` is its card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none; the list's own vocabulary rides at the top level as `categories` — see [Load Deck](#load-deck).
 
 **Response:**
 

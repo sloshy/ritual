@@ -6,10 +6,15 @@ import { handleDeckLoad } from '../../src/admin/api/deck-load'
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { handleWantedListLoad } from '../../src/admin/api/wanted-load'
 import type {
+  CollectionLoadResult,
   DeckLoadResult,
   ListSummaryLoadResult,
   WantedLoadResult,
 } from '../../src/admin/api/load-results'
+import {
+  writeCategoriesSidecar,
+  writeUnreadableCategoriesSidecar,
+} from '../helpers/card-categories'
 import { seedCardNames } from '../test-utils'
 import { callJson } from './helpers/request'
 import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
@@ -512,6 +517,176 @@ describe('tags reach the load bodies', () => {
       '/api/wanted/tagged?view=cards',
     )
     expect(wanted.body.entries[0]!.tags).toEqual(['ramp'])
+  })
+})
+
+describe('categories reach the load bodies', () => {
+  /** The collection every case below writes a sidecar beside. */
+  const binderPath = (): string => path.join(ws.dir, 'collections', 'binder.md')
+
+  test('every list type reports the list’s categories and each card’s own', async () => {
+    await writeCategoriesSidecar(path.join(ws.dir, 'decks', 'burn.md'), ['Burn'], {
+      'Lightning Bolt': ['Burn'],
+    })
+    await writeCategoriesSidecar(binderPath(), ['Ramp', 'Artifacts'], {
+      'Sol Ring': ['Ramp', 'Artifacts'],
+    })
+    await writeCategoriesSidecar(path.join(ws.dir, 'wanted', 'wishlist.md'), ['Ramp'], {
+      'Mana Crypt': ['Ramp'],
+    })
+
+    const deck = await callJson<DeckLoadResult>(handleDeckLoad, 'GET', '/api/deck/burn?view=cards')
+    expect(deck.body.categories).toEqual({ order: ['Burn'], cards: { 'Lightning Bolt': ['Burn'] } })
+    const deckCards = deck.body.deck.sections.flatMap((section) => section.cards)
+    expect(deckCards.find((card) => card.name === 'Lightning Bolt')?.categories).toEqual(['Burn'])
+    // Absent means none: bun's `toEqual` ignores an undefined-valued key, so the
+    // key's presence is what the assertion has to look at.
+    expect('categories' in deckCards.find((card) => card.name === 'Lava Spike')!).toBeFalse()
+
+    const collection = await callJson<CollectionLoadResult>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards',
+    )
+    expect(collection.body.categories?.cards).toEqual({ 'Sol Ring': ['Ramp', 'Artifacts'] })
+    expect(collection.body.entries[0]!.categories).toEqual(['Ramp', 'Artifacts'])
+    expect('categories' in collection.body.entries[1]!).toBeFalse()
+
+    const wanted = await callJson<WantedLoadResult>(
+      handleWantedListLoad,
+      'GET',
+      '/api/wanted/wishlist?view=cards',
+    )
+    expect(wanted.body.categories?.order).toEqual(['Ramp'])
+    expect(wanted.body.entries[0]!.categories).toEqual(['Ramp'])
+    expect('categories' in wanted.body.entries[1]!).toBeFalse()
+  })
+
+  test('a list with no sidecar carries neither field', async () => {
+    const { body } = await callJson<Record<string, unknown>>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards',
+    )
+    expect(Object.keys(body)).not.toContain('categories')
+    expect(Object.keys(body)).not.toContain('categoryWarnings')
+  })
+
+  test('an unreadable sidecar warns and blocks nothing', async () => {
+    await writeUnreadableCategoriesSidecar(binderPath())
+    const { status, body } = await callJson<CollectionLoadResult>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards',
+    )
+    expect(status).toBe(200)
+    expect(body.categoryWarnings).toHaveLength(1)
+    expect(body.categoryWarnings![0]).toContain('binder.categories.json')
+    // The card lines are untouched: a sidecar problem is not a `warnings` entry.
+    expect(body.warnings).toEqual([])
+    expect(Object.keys(body)).not.toContain('categories')
+    expect(body.entries).toHaveLength(2)
+  })
+
+  test('entries for cards the list no longer holds are reported, not dropped', async () => {
+    await writeCategoriesSidecar(binderPath(), ['Ramp'], {
+      'Mana Crypt': ['Ramp'],
+    })
+    const { body } = await callJson<CollectionLoadResult>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards',
+    )
+    expect(body.categoryWarnings?.[0]).toContain('Mana Crypt')
+    // A read never prunes: the entry is still in the body's record.
+    expect(body.categories?.cards).toEqual({ 'Mana Crypt': ['Ramp'] })
+  })
+
+  test('a list with unreadable lines skips the stale check', async () => {
+    const listPath = binderPath()
+    await Bun.write(listPath, (await Bun.file(listPath).text()) + '\n- (LEA:161) &9\n')
+    await writeCategoriesSidecar(listPath, ['Ramp'], { 'Mana Crypt': ['Ramp'] })
+    const { body } = await callJson<CollectionLoadResult>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards',
+    )
+    // The list holds a line the parser refused, so "this name is gone" is not a
+    // question a read can answer — the check is skipped rather than guessed at.
+    expect(body.warnings.length).toBeGreaterThan(0)
+    expect(Object.keys(body)).not.toContain('categoryWarnings')
+    expect(body.categories?.cards).toEqual({ 'Mana Crypt': ['Ramp'] })
+  })
+
+  test('the stale check reads the whole list, not the filtered page', async () => {
+    // Decision 0.4's real hazard: the known-names set is built from the
+    // unfiltered list. Filtering `Lightning Bolt` out of the page must not make
+    // its assignment look like an entry the list no longer holds.
+    await writeCategoriesSidecar(binderPath(), ['Burn'], { 'Lightning Bolt': ['Burn'] })
+    const { body } = await callJson<CollectionLoadResult>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=cards&nameContains=sol',
+    )
+    expect(Object.keys(body)).not.toContain('categoryWarnings')
+    expect(body.categories?.cards).toEqual({ 'Lightning Bolt': ['Burn'] })
+    // The per-card join runs over the page, so the survivor answers for itself.
+    expect(body.entries).toHaveLength(1)
+    expect('categories' in body.entries[0]!).toBeFalse()
+  })
+
+  test('a summary view carries neither field', async () => {
+    await writeCategoriesSidecar(binderPath(), ['Ramp'], {
+      'Sol Ring': ['Ramp'],
+    })
+    const { body } = await callJson<Record<string, unknown>>(
+      handleCollectionLoad,
+      'GET',
+      '/api/collection/binder?view=summary',
+    )
+    expect(Object.keys(body)).not.toContain('categories')
+    expect(Object.keys(body)).not.toContain('categoryWarnings')
+  })
+
+  describe('view=full carries them too', () => {
+    let stubbed: StubbedFetch
+
+    beforeEach(async () => {
+      // The `full` arm builds its own body object, so it needs its own case —
+      // and, like the suite's other full-view tests, a warm cache and a stubbed
+      // symbology fetch so nothing reaches the network.
+      await seedCardNames('Lightning Bolt', 'Lava Spike', 'Smash to Smithereens', 'Sol Ring')
+      stubbed = stubFetch({ 'https://api.scryfall.com': () => Response.json({ data: [] }) })
+    })
+
+    afterEach(() => {
+      stubbed.restore()
+    })
+
+    test('a collection’s full body carries the list’s categories and the entry’s own', async () => {
+      await writeCategoriesSidecar(binderPath(), ['Ramp'], { 'Sol Ring': ['Ramp'] })
+      const { body } = await callJson<CollectionLoadResult>(
+        handleCollectionLoad,
+        'GET',
+        '/api/collection/binder?view=full',
+      )
+      expect(body.categories?.cards).toEqual({ 'Sol Ring': ['Ramp'] })
+      expect(body.entries.find((entry) => entry.name === 'Sol Ring')?.categories).toEqual(['Ramp'])
+    })
+
+    test('a deck’s full body carries them on the deck it returns', async () => {
+      await writeCategoriesSidecar(path.join(ws.dir, 'decks', 'burn.md'), ['Burn'], {
+        'Lightning Bolt': ['Burn'],
+      })
+      const { body } = await callJson<DeckLoadResult>(
+        handleDeckLoad,
+        'GET',
+        '/api/deck/burn?view=full',
+      )
+      expect(body.categories?.order).toEqual(['Burn'])
+      const cards = body.deck.sections.flatMap((section) => section.cards)
+      expect(cards.find((card) => card.name === 'Lightning Bolt')?.categories).toEqual(['Burn'])
+    })
   })
 })
 

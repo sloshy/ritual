@@ -23,8 +23,12 @@ import type {
   FlatFullLoadResult,
   ListLoadStamp,
   ListSummaryLoadResult,
+  WithCardCategories,
 } from './load-results'
 import { listArtRecord } from './art'
+import { listCategories, withEntryCategories } from './categories'
+import { foldedCardNameSet } from '../../list/card-names'
+import { isEmptyCardCategoriesRecord } from '../../list/card-categories-sidecar'
 import { apiError } from '../../api/http'
 import { parseSlugFromUrl } from './target'
 
@@ -207,13 +211,28 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       // carries, which a filtered page cannot answer on its own.
       knownCardIds: new Set(collectExistingIds(allEntries)),
     })
+    // Spread onto the body, never merged into `warnings`: a categories sidecar is
+    // list metadata, not a line the save would eat.
+    const categories = await listCategories(filePath, {
+      // The unfiltered entries: "the list no longer holds this name" is not a
+      // question a filtered page can answer.
+      cardNames: foldedCardNameSet(allEntries.map((entry) => entry.name)),
+      parsedLosslessly: warnings.length === 0,
+    })
+    // Each entry's own categories, resolved by name so no client re-implements
+    // the sidecar's fold. No key at all when the card has none.
+    const entriesWithCategories: WithCardCategories<T>[] = isEmptyCardCategoriesRecord(
+      categories.record,
+    )
+      ? entries
+      : entries.map((entry) => withEntryCategories(entry, categories.record))
 
     if (params.view === 'cards') {
-      const body: FlatCardsLoadResult<T> = {
+      const body: FlatCardsLoadResult<WithCardCategories<T>> = {
         success: true,
         slug,
         view: 'cards',
-        entries,
+        entries: entriesWithCategories,
         sectionOrder,
         description,
         labels,
@@ -221,6 +240,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
         totalCount,
         warnings,
         ...art,
+        ...categories.body,
       }
       return Response.json(stampLoadBody(body, partial, contentHash))
     }
@@ -237,10 +257,10 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
     })
     const symbolMap = await fetchSymbolMap()
 
-    const body: FlatFullLoadResult<T> = {
+    const body: FlatFullLoadResult<WithCardCategories<T>> = {
       success: true,
       view: 'full',
-      entries,
+      entries: entriesWithCategories,
       totalCount,
       sectionOrder,
       description,
@@ -251,6 +271,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
       slug,
       warnings,
       ...art,
+      ...categories.body,
     }
     return Response.json(stampLoadBody(body, partial, contentHash))
   })

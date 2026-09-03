@@ -11,6 +11,7 @@ import {
   GET_CACHE_STATUS_OUTPUT,
   GET_CARD_PRINTINGS_OUTPUT,
   GET_CONFIG_OUTPUT,
+  GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
   IMPORT_CSV_OUTPUT,
@@ -109,6 +110,27 @@ async function validates(schema: JsonSchemaType, sample: unknown): Promise<boole
   return result.issues === undefined
 }
 
+/**
+ * An entry-only field advertised on all three list-entry fragments as an
+ * optional array of plain strings — the shape both `categories` and `tags` have,
+ * asserted once so a third such field is one call rather than another copy. Each
+ * caller keeps its own contrast (which fragments must *not* advertise it), since
+ * that is what distinguishes them.
+ */
+function expectEntryOnlyStringArray(field: 'categories' | 'tags'): void {
+  for (const def of ['DeckCard', 'CollectionEntry', 'WantedEntry'] as const) {
+    const schema = defsFor(def)[def] as unknown as SchemaNode
+    expect({
+      def,
+      type: schema.properties?.[field]?.type,
+      items: schema.properties?.[field]?.items?.type,
+    }) //
+      .toEqual({ def, type: 'array', items: 'string' })
+    // Absent means none, so the field must never be required.
+    expect(schema.required ?? []).not.toContain(field)
+  }
+}
+
 describe('MCP output schemas, as advertised over a connection', () => {
   let session: McpTestSession
   let client: Client
@@ -195,6 +217,8 @@ describe('MCP output schemas, as authored', () => {
         'customArt',
         'totalCount',
         'artWarnings',
+        'categories',
+        'categoryWarnings',
       ],
       [
         'view',
@@ -209,6 +233,8 @@ describe('MCP output schemas, as authored', () => {
         'customArt',
         'totalCount',
         'artWarnings',
+        'categories',
+        'categoryWarnings',
       ],
       ['view', 'listType', 'slug', 'warnings', 'counts'],
     ])
@@ -246,6 +272,21 @@ describe('MCP output schemas, as authored', () => {
       expect(branch.required ?? []).not.toContain('artWarnings')
     }
     expect(listBranches[2]?.properties?.artWarnings).toBeUndefined()
+    // Categories ride beside the entries too, keyed by card NAME: `order` is the
+    // vocabulary and `cards` is an open map of name → ordered category list.
+    // Never required — absent means the list has none, which is the same rule
+    // the per-card field obeys.
+    for (const branch of listBranches.slice(0, 2)) {
+      const categories = branch.properties?.categories
+      expect(categories?.properties?.order?.items?.type).toBe('string')
+      expect(categories?.properties?.cards?.type).toBe('object')
+      const cardValues = categories?.properties?.cards?.additionalProperties
+      expect(typeof cardValues === 'object' ? cardValues.type : undefined).toBe('array')
+      expect(typeof cardValues === 'object' ? cardValues.items?.type : undefined).toBe('string')
+      expect(branch.required ?? []).not.toContain('categories')
+      expect(branch.required ?? []).not.toContain('categoryWarnings')
+    }
+    expect(listBranches[2]?.properties?.categories).toBeUndefined()
     for (const branch of listBranches) {
       expect(branch.required).toContain('view')
       expect(branch.required).toContain('listType')
@@ -273,8 +314,10 @@ describe('MCP output schemas, as authored', () => {
       'slug',
       'effects',
       'unmatched',
-      // The sidecar channel a save reports on, mirroring get_list's arms.
+      // The sidecar channels a save reports on, mirroring get_list's arms.
       'artWarnings',
+      'categoryWarnings',
+      'prunedCategories',
     ])
     expect(mutation.required).toEqual([
       'applied',
@@ -285,8 +328,27 @@ describe('MCP output schemas, as authored', () => {
       'unmatched',
     ])
     // Optional, like the load routes' copy: a save whose art reconcile was
-    // clean says nothing at all rather than an empty list.
+    // clean says nothing at all rather than an empty list. The two categories
+    // channels obey the same rule.
     expect(mutation.required ?? []).not.toContain('artWarnings')
+    expect(mutation.required ?? []).not.toContain('categoryWarnings')
+    expect(mutation.required ?? []).not.toContain('prunedCategories')
+
+    // The three other schemas that report a categories channel the handler
+    // already sends: the two cross-list batches prune the lists they write, and
+    // get_history says when it could not read the sidecar it derives category
+    // events from. All optional — nothing pruned means nothing said.
+    const categoryChannels: { schema: JsonSchemaType; field: string }[] = [
+      { schema: MOVE_SELECTED_CARDS_OUTPUT, field: 'prunedCategories' },
+      { schema: REMOVE_SELECTED_CARDS_OUTPUT, field: 'prunedCategories' },
+      { schema: GET_HISTORY_OUTPUT, field: 'categoryWarnings' },
+    ]
+    for (const { schema, field } of categoryChannels) {
+      const node = schema as unknown as SchemaNode
+      expect(Object.keys(node.properties ?? {})).toContain(field)
+      expect(node.properties?.[field]?.items?.type).toBe('string')
+      expect(node.required ?? []).not.toContain(field)
+    }
 
     // set_card_art echoes what the card now carries, and `art` is required with
     // `null` as a *value*: a cleared card carries nothing, and an omitted key
@@ -420,21 +482,24 @@ describe('MCP output schemas, as authored', () => {
     ])
   })
 
+  test('every list-entry fragment carries its categories, as plain strings', () => {
+    // Categories ride on every entry shape on every list type, as an optional
+    // array of plain strings in the owner's own casing, primary first.
+    expectEntryOnlyStringArray('categories')
+    // A physical card out of the move index and a save effect never report
+    // categories, so neither may advertise the field — the same contrast the
+    // tags test draws.
+    const physical = defsFor('PhysicalCard').PhysicalCard as unknown as SchemaNode
+    expect(physical.properties?.categories).toBeUndefined()
+    const effect = defsFor('SaveEffect').SaveEffect as unknown as SchemaNode
+    expect(effect.properties?.categories).toBeUndefined()
+  })
+
   test('every list-entry fragment carries the card tags, as canonical strings', () => {
     // Tags ride on every entry shape on every list type — unlike labels, which
     // a wanted entry never carries — as an optional array of plain strings: the
     // canonical value (lowercase, no "#"), never the card-line token.
-    for (const def of ['DeckCard', 'CollectionEntry', 'WantedEntry'] as const) {
-      const schema = defsFor(def)[def] as unknown as SchemaNode
-      expect({
-        def,
-        type: schema.properties?.tags?.type,
-        items: schema.properties?.tags?.items?.type,
-      }) //
-        .toEqual({ def, type: 'array', items: 'string' })
-      // Absent means untagged, so `tags` must never be required.
-      expect(schema.required ?? []).not.toContain('tags')
-    }
+    expectEntryOnlyStringArray('tags')
     // The contrast the comment draws: a wanted entry has tags but no labels.
     const wanted = defsFor('WantedEntry').WantedEntry as unknown as SchemaNode
     expect(wanted.properties?.labels).toBeUndefined()

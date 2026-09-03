@@ -3,14 +3,16 @@ import type { CardArtRecord } from '../list/card-art'
 import type { CardLabel } from '../card/card-labels'
 import type { ListImageRef } from '../list/list-image'
 import type { ListType } from '../list/list-type'
-import type { DeckData } from '../list/deck'
+import type { CardCategoriesJson } from '../list/card-categories-sidecar'
 import { callApi } from './dispatch'
 import type {
   CollectionEntry,
   CollectionLoadResult,
+  DeckLoadData,
   DeckLoadResult,
   ParsedWantedEntry,
   WantedLoadResult,
+  WithCardCategories,
 } from './types'
 
 /**
@@ -38,6 +40,11 @@ import type {
  * by `&N` — the shape the load routes and the `<list>.art.json` sidecar both
  * use, and the raw references `set_card_art` takes back rather than display
  * URLs.
+ *
+ * Categories ride beside the entries as `categories` — the list's vocabulary and
+ * its per-name assignments — and on each entry as its own resolved `categories`,
+ * so a client never re-implements the name fold. Absent means none, at both
+ * levels.
  */
 
 /** Read options `get_list` and the resource reader pass to the load routes. */
@@ -60,7 +67,7 @@ export type DeckProjection = {
   view: 'cards'
   listType: 'deck'
   slug: string
-  deck: DeckData
+  deck: DeckLoadData
   frontMatter: Record<string, unknown>
   /**
    * The deck's default card labels (`proxy` alone) — its front matter's, read
@@ -79,6 +86,12 @@ export type DeckProjection = {
   /** See the module comment: custom art by `&N`, absent when no card has any. */
   customArt?: CardArtRecord
   /**
+   * The list's categories, beside the entries and keyed by card *name*: the
+   * vocabulary's `order` and each name's ordered assignments. Absent when the
+   * list has none, exactly as {@link DeckProjection.customArt} is.
+   */
+  categories?: CardCategoriesJson
+  /**
    * Lines that matched before `limit`/`offset` applied. Always present; on an
    * unfiltered read it is the deck's whole line count.
    */
@@ -96,6 +109,13 @@ export type DeckProjection = {
    * the sidecar is clean or there is none.
    */
   artWarnings?: string[]
+  /**
+   * What was wrong with the `<list>.categories.json` sidecar, kept apart from
+   * {@link DeckProjection.warnings} for the same reason
+   * {@link DeckProjection.artWarnings} is. Absent when the sidecar is clean or
+   * there is none.
+   */
+  categoryWarnings?: string[]
 }
 
 /** Projected flat-list (collection/wanted) load payload: entries plus section order. */
@@ -103,7 +123,7 @@ export type FlatListProjection = {
   view: 'cards'
   listType: 'collection' | 'wanted'
   slug: string
-  entries: CollectionEntry[] | ParsedWantedEntry[]
+  entries: WithCardCategories<CollectionEntry>[] | WithCardCategories<ParsedWantedEntry>[]
   sectionOrder?: string[]
   /**
    * The list's prose blurb from its front matter, absent when it declares none.
@@ -117,12 +137,16 @@ export type FlatListProjection = {
   image?: ListImageRef
   /** See {@link DeckProjection.customArt}. */
   customArt?: CardArtRecord
+  /** See {@link DeckProjection.categories}. */
+  categories?: CardCategoriesJson
   /** See {@link DeckProjection.totalCount}. */
   totalCount: number
   /** See {@link DeckProjection.warnings}. */
   warnings: string[]
   /** See {@link DeckProjection.artWarnings}. */
   artWarnings?: string[]
+  /** See {@link DeckProjection.categoryWarnings}. */
+  categoryWarnings?: string[]
 }
 
 /** Projected `?view=summary` payload: how much is in the list, and nothing else. */
@@ -174,6 +198,10 @@ export async function loadProjectedList(
     }
     return summary
   }
+  // The categories fields are spread conditionally, the same idiom
+  // `applyMutation` uses: an `undefined`-valued key survives an in-process
+  // transport and advertises a field the client cannot read, and absent means
+  // none at both levels.
   if (listType === 'deck') {
     const data = (await callApi('GET', path)) as DeckLoadResult
     const projection: DeckProjection = {
@@ -185,9 +213,11 @@ export async function loadProjectedList(
       labels: data.labels,
       image: data.image,
       customArt: data.customArt,
+      ...(data.categories === undefined ? {} : { categories: data.categories }),
       totalCount: data.totalCount,
       warnings: data.warnings,
       artWarnings: data.artWarnings,
+      ...(data.categoryWarnings === undefined ? {} : { categoryWarnings: data.categoryWarnings }),
     }
     return projection
   }
@@ -202,9 +232,11 @@ export async function loadProjectedList(
     labels: data.labels,
     image: data.image,
     customArt: data.customArt,
+    ...(data.categories === undefined ? {} : { categories: data.categories }),
     totalCount: data.totalCount,
     warnings: data.warnings,
     artWarnings: data.artWarnings,
+    ...(data.categoryWarnings === undefined ? {} : { categoryWarnings: data.categoryWarnings }),
   }
   return projection
 }

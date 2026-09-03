@@ -101,6 +101,22 @@ export async function setupMcpClient(clientName = 'ritual-test'): Promise<McpTes
   }
 }
 
+/** The seeded shoebox collection every write suite rewrites. */
+export function shoeboxPath(session: McpTestSession): string {
+  return path.join(session.env.dir, 'collections', 'shoebox.md')
+}
+
+/**
+ * A cached card's first printing as a card line writes it (`SET:CN`, set code
+ * uppercase — markdown is the one place set codes are not lowercase). Derived
+ * from the seeded cache so a line the suite writes always resolves.
+ */
+export async function cachedPrintingRef(name: string): Promise<string> {
+  const printings = (await cardCache.get(name)) ?? []
+  const printing = printings[0]!
+  return `${printing.set.toUpperCase()}:${printing.collector_number}`
+}
+
 export async function setupRitualTestEnv(): Promise<RitualTestEnv> {
   const ws = await bindWorkspace({ init: true })
   const dir = ws.dir

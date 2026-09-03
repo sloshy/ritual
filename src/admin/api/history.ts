@@ -18,7 +18,8 @@ import { changelogSidecarPath } from '../../list/list-sidecars'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list/list-file-name'
 import { apiMessage, type ApiMessage } from '../../api/result'
-import { autoCommitAndPush, categoriesUnreconciledWarning } from './save-helpers'
+import { autoCommitAndPush } from './save-helpers'
+import { categoriesUnreadableWarning } from './categories'
 import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
 import { MAX_LIST_BODY_SIZE } from '../validation'
@@ -80,7 +81,7 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
       // client is told, because a rewrite built from these events discards the
       // existing history.
       if (defaults.categoriesWarning !== undefined) {
-        categoryWarnings = [categoriesUnreconciledWarning(defaults.categoriesWarning)]
+        categoryWarnings = [categoriesUnreadableWarning(defaults.categoriesWarning)]
       }
     } catch {
       // A list file that can't be parsed simply offers no default rewrite.

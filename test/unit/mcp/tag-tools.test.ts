@@ -1,9 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import path from 'node:path'
 import type { Client } from '@modelcontextprotocol/client'
-import { cardCache } from '../../../src/cache'
-import { setupMcpClient, type McpTestSession } from './harness'
+import { cachedPrintingRef, setupMcpClient, shoeboxPath, type McpTestSession } from './harness'
 import { expectSchemaRejection, toolData } from '../../mcp-test-utils'
 
 /**
@@ -21,18 +19,13 @@ const TAG_SHAPE_REFUSAL = /Not a canonical tag: a tag is non-empty plain text/
 
 /** Seed the shoebox with the harness's cached Sol Ring, tagged `ramp`. */
 async function seedTaggedCollection(session: McpTestSession): Promise<string> {
-  const printings = (await cardCache.get('Sol Ring')) ?? []
-  const printing = printings[0]!
-  const printingRef = `${printing.set.toUpperCase()}:${printing.collector_number}`
-  await fs.writeFile(
-    path.join(session.env.dir, 'collections', 'shoebox.md'),
-    `# Shoebox\n\n- Sol Ring (${printingRef}) #ramp &1\n`,
-  )
+  const printingRef = await cachedPrintingRef('Sol Ring')
+  await fs.writeFile(shoeboxPath(session), `# Shoebox\n\n- Sol Ring (${printingRef}) #ramp &1\n`)
   return printingRef
 }
 
 function readShoebox(session: McpTestSession): Promise<string> {
-  return fs.readFile(path.join(session.env.dir, 'collections', 'shoebox.md'), 'utf-8')
+  return fs.readFile(shoeboxPath(session), 'utf-8')
 }
 
 describe('card tags over MCP', () => {

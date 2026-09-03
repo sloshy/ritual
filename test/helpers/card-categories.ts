@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import { foldCategoryCardName } from '../../src/card/card-categories'
 import {
   categoriesSidecarPath,
+  serializeCardCategoriesSidecar,
   type CardCategoriesRecord,
   emptyCardCategoriesRecord,
 } from '../../src/list/card-categories-sidecar'
@@ -29,6 +30,22 @@ export function categoriesOf(value: CardCategoriesRecord): Record<string, string
   const out: Record<string, string[]> = {}
   for (const entry of value.cards.values()) out[entry.name] = entry.categories
   return out
+}
+
+/**
+ * Put a readable `<list>.categories.json` next to `listFilePath`, written by the
+ * production serializer at the production path — so a suite never hand-rolls the
+ * file name, the fold or the canonical bytes.
+ */
+export async function writeCategoriesSidecar(
+  listFilePath: string,
+  order: string[],
+  cards: Record<string, string[]>,
+): Promise<void> {
+  await fs.writeFile(
+    categoriesSidecarPath(listFilePath),
+    serializeCardCategoriesSidecar(categoriesRecord(order, cards)),
+  )
 }
 
 /**

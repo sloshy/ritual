@@ -236,8 +236,8 @@ list, plus the vocabulary's display order:
 - **Ordered per card, first is primary** — the one the site groups by. \`order\` is the
   vocabulary's display order; names a card uses but \`order\` does not list are appended on
   the next Ritual write (the configured \`defaultCategories\` first, then the rest).
-- **A name follows the tag shape rule** (plain text; no \`#\`, \`,\`, \`&\`, \`*\`, quotes,
-  brackets, braces or parentheses; case kept).
+- **A name follows the tag shape rule** (plain text; no \`#\`, \`,\`, \`&\`, \`*\`, double
+  quotes, brackets, braces or parentheses; case kept).
 - **It carries its own \`.sha256\` and is part of the list's recorded history** — unlike
   \`<name>.art.json\`, which records nothing. Edits appear in the list's \`.changes.md\` as
   \`Set categories of "Sol Ring" to Ramp, Artifacts\`, \`Renamed category "Draw" to "Card Draw"\`
@@ -252,6 +252,10 @@ Edit them with \`ritual categories\` (\`list\`/\`rename\`/\`order\`/\`remove\`),
 \`set-card --categories\`/\`--no-categories\`, or the editors' \`🗂 Edit Categories\` action and
 the list menu's \`🗂 Rename Category…\` / \`🗂 Reorder Categories…\` rows — see the
 **ritual-edit** skill.
+
+Over MCP: \`get_list\` reports the list's \`categories\` and each card's own; \`apply_changes\`
+takes \`set-categories\` (by name, whole list, \`[]\` clears), \`rename-category\` and
+\`set-category-order\`.
 
 ## Custom art
 
@@ -456,6 +460,9 @@ ritual config set priceSources tcgplayer cardkingdom  # stores the sites offer p
                                   #   cardkingdom = CK NM retail). Default tcgplayer; remove every
                                   #   entry (--remove) to hide all site prices. cardkingdom makes
                                   #   builds/servers download the ~70 MB CK feed like sell mode
+ritual config set defaultCategories Ramp Draw Removal  # global category vocabulary: what new
+                                  #   lists suggest and the order categories are listed in
+                                  #   (--add/--remove edit it; a name follows the tag shape rule)
 ritual config set defaultLanguage ja   # language stamped on newly added cards (Scryfall codes;
                                   #   aliases like jp/Japanese normalize). Non-en switches cache
                                   #   downloads to Scryfall's much larger all-cards bulk

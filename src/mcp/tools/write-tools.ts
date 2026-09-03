@@ -6,6 +6,7 @@ import {
   createRemoveChange,
   createSetPrintingChange,
   type CardChange,
+  type CategoryChange,
   type ChangeEvent,
 } from '../../changes/change-event'
 import { parseChangeBundle } from '../../changes/change-bundle'
@@ -50,6 +51,9 @@ import {
   finishField,
   finishSchema,
   cardTagSchema,
+  cardCategorySchema,
+  categoriesField,
+  categoryOrderField,
   labelsOverrideField,
   labelsUpdateField,
   tagsField,
@@ -227,7 +231,9 @@ const cardArtSchema = z
 /**
  * Fields shared by every card-level change in `apply_changes` that *targets* an
  * existing entry. The `add` branch spells its fields out instead: `cardId` is a
- * targeting field, and an add has nothing to target.
+ * targeting field, and an add has nothing to target — and the three category
+ * branches share none of it, since a category is keyed by card *name* or by the
+ * list itself.
  *
  * A change's `id` and `timestamp` are deliberately absent: they are bookkeeping
  * the server generates, an agent has nothing better to put there, and the union
@@ -240,9 +246,12 @@ const changeBase = {
 }
 
 /**
- * The card-level {@link ChangeEvent} actions `apply_changes` accepts. Cross-list
- * moves (`move-from`/`move-to`) belong to `move_selected_cards` and are rejected
- * here; section-structural events are not agent-facing at all.
+ * The {@link ChangeEvent} actions `apply_changes` accepts. Cross-list moves
+ * (`move-from`/`move-to`) belong to `move_selected_cards` and are rejected here;
+ * *section*-structural events are not agent-facing. The three category actions
+ * are, and two of them (`rename-category`, `set-category-order`) target the list
+ * rather than a card, which makes this the one tool that takes a card-less
+ * change.
  */
 const applyChangeSchema = z.discriminatedUnion('action', [
   z.object({
@@ -326,6 +335,23 @@ const applyChangeSchema = z.discriminatedUnion('action', [
     ...changeBase,
     section: z.string().min(1).describe('Target section (created when missing).'),
   }),
+  z.object({
+    action: z.literal('set-categories'),
+    // No `cardId`: categories are keyed by card NAME — one assignment covers
+    // every line of that name — so an id would name a line the sidecar does not
+    // address. The save route refuses one too.
+    cardName: cardNameField,
+    categories: categoriesField,
+  }),
+  z.object({
+    action: z.literal('rename-category'),
+    category: cardCategorySchema.describe('The category to rename.'),
+    newCategory: cardCategorySchema.describe('Its new name; every card using it is rewritten.'),
+  }),
+  z.object({
+    action: z.literal('set-category-order'),
+    order: categoryOrderField,
+  }),
 ])
 
 type ApplyChangeInput = z.infer<typeof applyChangeSchema>
@@ -340,6 +366,15 @@ type SameUnion<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : neve
 void (true satisfies SameUnion<
   Exclude<CardChange['action'], ApplyChangeInput['action']>,
   'move-from' | 'move-to'
+>)
+
+// The three category actions are agent-facing too, and `CardChange` cannot
+// enforce them: a name-keyed or list-level event is not a card-line change, so
+// it is deliberately outside that union. A fourth category action fails this
+// line until `applyChangeSchema` classifies it.
+void (true satisfies SameUnion<
+  Exclude<CategoryChange['action'], ApplyChangeInput['action']>,
+  never
 >)
 
 /** Stamp the id and timestamp a change carries, yielding a full {@link ChangeEvent}. */
@@ -853,9 +888,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Apply changes',
       description:
-        'Apply an ordered batch of card-level changes (add/remove/set-finish/set-printing/' +
+        'Apply an ordered batch of changes (add/remove/set-finish/set-printing/' +
         'set-language/set-note/set-label/add-tag/remove-tag/set-commander/unset-commander/' +
-        'set-section) to one list ' +
+        'set-section/set-categories/rename-category/set-category-order) to one list ' +
         'atomically: ' +
         'one load, one save, one changelog block. The batch is all-or-nothing — if any change ' +
         'fails to match (names are exact and case-sensitive), nothing is saved — but a later ' +
@@ -874,12 +909,23 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         '(set-section), and set or clear a deck commander ' +
         '(set-commander/unset-commander); the commander actions apply to decks only and fail ' +
         'on a collection or wanted list. ' +
+        'Categories are a card’s role in this one list, keyed by card NAME — one set-categories ' +
+        'covers every line of that name, whatever its printing, section or quantity, and it ' +
+        'carries no cardId. It replaces the card’s whole ordered list (first = primary); an ' +
+        'empty categories array clears it. rename-category and set-category-order target the ' +
+        'LIST, not a card, and are the only changes here that name none: rename-category ' +
+        'rewrites every card that uses the name, set-category-order sets the display order — ' +
+        'an empty order array clears the declared order, and the next write re-derives one from ' +
+        'the categories the cards use, listing the configured defaultCategories first. ' +
+        'Removing a category is those two together — clear it off its cards, then send an order ' +
+        'without it. A set-categories naming a card this list does not hold applies and is then ' +
+        'pruned at save time, so check the list first. ' +
         'A removal drops the card’s custom art even when a later change in the same batch adds ' +
         'the card back and the new line reuses its &N: re-add art explicitly (set_card_art after ' +
         'this call) if the new copy should have it. ' +
         'Flagged destructive because a batch CAN remove cards in bulk — the note, label, tag, ' +
-        'section, and commander actions are themselves additive; the hint reflects worst-case ' +
-        'capability, not what your batch does.',
+        'category, section, and commander actions are themselves additive; the hint reflects ' +
+        'worst-case capability, not what your batch does.',
       inputSchema: z
         .object({
           listType: listTypeSchema,
@@ -918,7 +964,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'skipped and counted; notes that a destination cannot keep are reported in droppedNotes. ' +
         "A moved card's tags follow it onto the destination line, and so does its custom art: the " +
         "entry is re-filed under the destination line's new cardId, except for a copy that merges " +
-        'onto a line the destination already had, which keeps its own art.',
+        'onto a line the destination already had, which keeps its own art. ' +
+        'Categories do NOT follow a moved card — a category belongs to a card name in one list — ' +
+        'so a source list that loses its last copy of a name drops that name’s assignment and ' +
+        'reports it in prunedCategories.',
       inputSchema: z.object({
         moves: z.array(moveItemSchema).min(1).describe('Moves to apply atomically.'),
       }),
@@ -955,7 +1004,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Remove a batch of cards across lists in one atomic pass. Each item names its entry by ' +
         'listType + slug + cardName, with cardId/copyIndex to pin the exact entry. Unresolvable ' +
         "items are skipped and counted. A removed line's custom art is dropped with it; a deck " +
-        'line that still has copies left keeps its cardId, and its art.',
+        'line that still has copies left keeps its cardId, and its art. A removal that takes a ' +
+        'list’s last copy of a name also drops that name’s categories, reported in ' +
+        'prunedCategories.',
       inputSchema: z.object({
         removes: z.array(removeItemSchema).min(1).describe('Cards to remove atomically.'),
       }),

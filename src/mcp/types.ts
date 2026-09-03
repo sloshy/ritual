@@ -9,9 +9,11 @@ import type { ParsedWantedEntry } from '../list/wanted-entries'
  */
 export type {
   CollectionEntry,
+  DeckLoadData,
   DeckLoadResult,
   CollectionLoadResult,
   WantedLoadResult,
+  WithCardCategories,
 } from '../admin/api/load-results'
 
 /** A wanted-list entry as returned by `GET /api/wanted/:slug`. */

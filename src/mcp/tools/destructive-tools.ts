@@ -219,7 +219,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'interface language — site.bannedPrintings — "SET:COLLECTOR" printings barred from auto-selection as a ' +
         "card's default printing — or priceSources — which stores the sites offer prices from " +
         '(any of "tcgplayer", "cardmarket", "cardkingdom"; [] hides all site prices; enabling ' +
-        'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does). ' +
+        'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does) — ' +
+        'or defaultCategories — the global category vocabulary new lists suggest and order by. ' +
         'Nested "admin" fields merge; other top-level keys replace. ' +
         'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
         'flag overrides (get_config reports these under overrides) persists the value but does ' +

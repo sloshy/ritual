@@ -8,9 +8,38 @@ import { getDecksDir } from '../../config/ritual-config'
 import { addChangelogCardNames, fetchSymbolMap, loadDeckCardData } from './card-data-loader'
 import { resolveDeckFile } from './list-file'
 import { listArtRecord } from './art'
+import { listCategories, withEntryCategories } from './categories'
+import { deckCardNameSet } from '../../list/card-names'
+import { isEmptyCardCategoriesRecord } from '../../list/card-categories-sidecar'
+import type { CardCategoriesRecord } from '../../list/card-categories-sidecar'
+import type { DeckData } from '../../list/deck'
 import { readListLoadRequest, stampLoadBody } from './list-load'
 import { countDeck, filterDeck, isNarrowedLoad, toCountParams } from './list-load-params'
-import type { DeckCardsLoadResult, DeckFullLoadResult, ListSummaryLoadResult } from './load-results'
+import type {
+  DeckCardsLoadResult,
+  DeckFullLoadResult,
+  DeckLoadData,
+  ListSummaryLoadResult,
+} from './load-results'
+
+/**
+ * Attach each card's own categories, resolved by name from the list's sidecar.
+ *
+ * The widening is the load body's ({@link DeckLoadData}), never the engine
+ * deck's: categories are keyed by card name and are never on a card line. Only
+ * the section/card traversal lives here — the per-card rule (no key at all when
+ * the card has none) is {@link withEntryCategories}'.
+ */
+function withDeckCategories(deck: DeckData, record: CardCategoriesRecord): DeckLoadData {
+  if (isEmptyCardCategoriesRecord(record)) return deck
+  return {
+    ...deck,
+    sections: deck.sections.map((section) => ({
+      ...section,
+      cards: section.cards.map((card) => withEntryCategories(card, record)),
+    })),
+  }
+}
 
 /**
  * `GET /api/deck/:slug` — a deck, at the depth `?view=` asks for.
@@ -73,6 +102,13 @@ export function handleDeckLoad(req: Request): Promise<Response> {
       // carries, which a filtered page cannot answer on its own.
       knownCardIds: new Set(collectDeckCardIds(loaded)),
     })
+    // Spread onto the body, never merged into `warnings`: a categories sidecar is
+    // list metadata, not a line the save would eat.
+    const categories = await listCategories(filePath, {
+      cardNames: deckCardNameSet(loaded),
+      parsedLosslessly: warnings.length === 0,
+    })
+    const deckWithCategories = withDeckCategories(deck, categories.record)
 
     if (params.view === 'cards') {
       // Front matter travels with the cards view because the deck save flow
@@ -81,13 +117,14 @@ export function handleDeckLoad(req: Request): Promise<Response> {
         success: true,
         slug,
         view: 'cards',
-        deck,
+        deck: deckWithCategories,
         frontMatter,
         labels: frontMatter.labels,
         image: frontMatter.image,
         totalCount,
         warnings,
         ...art,
+        ...categories.body,
       }
       return Response.json(stampLoadBody(body, partial, contentHash))
     }
@@ -111,7 +148,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     const body: DeckFullLoadResult = {
       success: true,
       view: 'full',
-      deck,
+      deck: deckWithCategories,
       totalCount,
       ...cardData,
       symbolMap,
@@ -121,6 +158,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
       slug,
       warnings,
       ...art,
+      ...categories.body,
     }
     return Response.json(stampLoadBody(body, partial, contentHash))
   })
