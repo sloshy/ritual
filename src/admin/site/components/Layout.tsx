@@ -20,6 +20,8 @@ import type { NamedListRef } from '../../../list-view/combined-list'
 import { useAllSelections, type RemoveAllTarget } from '../../../list-view/useCardSelection'
 import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
 import { useAdminLists, listInfosToNamedRefs } from '../move-targets'
+import type { DroppedNote } from '../../../list/move-staging'
+import { formatPrunedCategoriesSuffix } from '../../../editor/save-notices'
 
 /** Sidebar order. Names and icons come from {@link PAGE_DISPLAY}. */
 const NAV_PAGES: readonly Page[] = [
@@ -135,13 +137,45 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
     setRemoveConfirm({ cards, count: cards.reduce((sum, c) => sum + c.quantity, 0) })
   }
 
+  /**
+   * Say what a navbar move/remove did beyond moving cards. Neither action has a
+   * status surface, so a dropped note — or a set of categories dropped because
+   * the list lost its last line of that name — would otherwise be silent data
+   * loss. The CLI warns about both (`ritual move`), and so does the editor's
+   * save tail; this is the third client of the same channel.
+   */
+  const reportSideEffects = (
+    droppedNotes: readonly DroppedNote[],
+    prunedCategories: readonly string[] | undefined,
+  ) => {
+    const pruned = formatPrunedCategoriesSuffix(prunedCategories ?? []).trim()
+    if (droppedNotes.length > 0) {
+      setNotice({
+        title: t('admin.layout.notesDroppedTitle'),
+        message: t('admin.layout.notesDropped', { count: droppedNotes.length }),
+        details: [
+          ...droppedNotes.map((d) =>
+            t('admin.layout.droppedNote', { name: d.cardName, note: d.note }),
+          ),
+          ...(pruned ? [pruned] : []),
+        ],
+      })
+      return
+    }
+    if (pruned) setNotice({ title: t('admin.layout.categoriesPrunedTitle'), message: pruned })
+  }
+
   const confirmRemoveAll = () => {
     const target = removeConfirm()
     setRemoveConfirm(null)
     if (target === null) return
     void removeSelectedAdmin(target.cards).then((res) => {
-      if (res.success) allSelections.clear()
-      else setNotice({ title: t('admin.layout.actionFailedTitle'), message: res.message })
+      if (!res.success) {
+        setNotice({ title: t('admin.layout.actionFailedTitle'), message: res.message })
+        return
+      }
+      allSelections.clear()
+      reportSideEffects([], res.prunedCategories)
     })
   }
 
@@ -153,17 +187,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         return
       }
       allSelections.clear()
-      // The navbar move has no status surface; a dropped note is silent data
-      // loss without this notice.
-      if (res.droppedNotes.length > 0) {
-        setNotice({
-          title: t('admin.layout.notesDroppedTitle'),
-          message: t('admin.layout.notesDropped', { count: res.droppedNotes.length }),
-          details: res.droppedNotes.map((d) =>
-            t('admin.layout.droppedNote', { name: d.cardName, note: d.note }),
-          ),
-        })
-      }
+      reportSideEffects(res.droppedNotes, res.prunedCategories)
     })
   }
 

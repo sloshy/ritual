@@ -360,6 +360,37 @@ Enabling \`cardkingdom\` makes builds and servers want the Card Kingdom feed exa
 cardkingdom enabled"), and the admin Settings page edits the key as **Price Stores**
 checkboxes.
 
+**Card categories** — a card's role in one list (\`Ramp\`, \`Board Wipes\`), kept in the list's
+\`.categories.json\` sidecar and keyed by card *name*, ordered with the first one *primary* —
+reach the site in four places:
+
+- **Group by → Category** puts each card under its primary category only.
+- **Group by → Categories** shows a card under *every* category it holds; the appearances whose
+  primary category differs are dimmed and carry an "also" badge naming the primary, and the
+  section count says that totals include those secondary placements. On a deck the board comes
+  first: the mainboard is what gets grouped, and the commander, sideboard and extras stay below
+  it ungrouped, exactly as every other grouping behaves.
+- **Sort by → Category** orders by primary category, uncategorized last.
+- A **Categories** filter row (Include / Exclude / Exact), shown only on a list that has a
+  category vocabulary. Matching is case-insensitive; the names keep their case in the chips and
+  in the shared link.
+
+Group headings follow the list's own \`order\` from the sidecar, with **Uncategorized** last.
+Shared links carry \`group=category\` / \`group=categories\`, \`sort=category\`, and the filter
+row's \`cats=Ramp,Board Wipes\` plus \`catMode=include|exclude|exact\`. The combined multi-list
+view offers none of the three, because each list has its own vocabulary.
+
+The \`defaultCategories\` config key is the **global suggestion vocabulary**: it seeds a list
+that has declared no order of its own, and it seeds the one-click suggestions in the site
+editors' category dialogs. It reaches both sites — \`build-site\` bakes it into \`index.json\`,
+and the admin SPA reads it from \`/api/config\` — so an empty array means "no suggested
+vocabulary" on both, never the shipped default:
+
+\`\`\`bash
+ritual config set defaultCategories --add "Board Wipes"
+ritual config set defaultCategories --remove Tokens
+\`\`\`
+
 A site can also offer **sell mode**: Card Kingdom buylist prices beside each
 card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
 buylist price or by buylist-minus-retail ascending (\`Buylist vs Price\`, where a missing offer or

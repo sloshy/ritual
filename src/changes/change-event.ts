@@ -4,6 +4,7 @@ import type { ListType } from '../list/list-type'
 import { formatCardLabels, sameCardLabels, type CardLabel } from '../card/card-labels'
 import {
   type CardCategory,
+  foldCategoryCardName,
   formatCardCategories,
   normalizeCardCategories,
   normalizeCardCategory,
@@ -1079,6 +1080,19 @@ export function consolidateSetLabel(
  * Name-keyed, so `cardId` is deliberately `undefined`: the assignment covers
  * every line of that name.
  */
+/**
+ * Is this change a `set-categories` for the card name whose fold key is
+ * `foldedCardName` (from `foldCategoryCardName`)? The one spelling of the rule
+ * both name-keyed folds need — `foldOutCardChanges` in the CLI session and
+ * `foldGoneCardCategories` in the web editors — because an id-keyed fold can
+ * never reach a `set-categories`, which carries no `cardId`.
+ */
+export function isSetCategoriesFor(change: ChangeEvent, foldedCardName: string): boolean {
+  return (
+    change.action === 'set-categories' && foldCategoryCardName(change.cardName) === foldedCardName
+  )
+}
+
 export function consolidateSetCategories(
   changes: ChangeEvent[],
   cardName: string,

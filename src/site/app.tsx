@@ -676,6 +676,7 @@ function App() {
                           slug={wantedListSlug() ?? undefined}
                           entries={wantedListDetail()!.entries}
                           sectionOrder={wantedListDetail()!.sectionOrder}
+                          categories={wantedListDetail()!.categories}
                           description={wantedListDetail()!.description}
                           listImage={wantedListDetail()!.listImage}
                           cards={wantedListDetail()!.cards}
@@ -739,6 +740,7 @@ function App() {
                           slug={collectionSlug() ?? undefined}
                           entries={collectionDetail()!.entries}
                           sectionOrder={collectionDetail()!.sectionOrder}
+                          categories={collectionDetail()!.categories}
                           description={collectionDetail()!.description}
                           listLabels={collectionDetail()!.labels}
                           listImage={collectionDetail()!.listImage}
@@ -793,6 +795,7 @@ function App() {
                       fallback={
                         <DeckPage
                           deck={deckDetail()!.deck}
+                          categories={deckDetail()!.categories}
                           listLabels={deckDetail()!.labels}
                           cards={deckDetail()!.cards}
                           printings={deckDetail()!.printings ?? {}}

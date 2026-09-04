@@ -1,6 +1,6 @@
 import type { DroppedNote } from '../list/move-staging'
 import type { SaveEffect } from '../changes/save-effects'
-import { formatDroppedNotesSuffix } from '../list/dropped-notes'
+import { saveSuccessSuffix } from './save-notices'
 import { type EditorStatusActions, statusMessage, statusText } from './useEditorStatus'
 
 type SaveResponse = {
@@ -17,6 +17,16 @@ type SaveResponse = {
    * serializer renumbers a line whose number another entry claimed first.
    */
   effects?: SaveEffect[]
+  /**
+   * Categories-sidecar trouble the save reported (`save-helpers.ts`'s
+   * `categoryWarnings`), already rendered server-side.
+   */
+  categoryWarnings?: string[]
+  /**
+   * Card names whose categories this save pruned, because its removals took the
+   * list's last line of that name (`save-helpers.ts`'s `prunedCategories`).
+   */
+  prunedCategories?: string[]
 }
 
 export async function saveEditorChanges(
@@ -35,13 +45,17 @@ export async function saveEditorChanges(
     })
     const data = (await resp.json()) as SaveResponse
     if (data.success) {
-      // The dropped-note report is already a rendered sentence (it splices card
-      // names and their notes), so it rides in as a parameter rather than being
+      // Every notice is already a rendered sentence (they splice card names and
+      // server prose), so they ride in as one parameter rather than being
       // concatenated onto a second message.
-      const droppedNote = formatDroppedNotesSuffix(data.droppedNotes ?? [])
+      const notices = saveSuccessSuffix({
+        droppedNotes: data.droppedNotes,
+        prunedCategories: data.prunedCategories,
+        categoryWarnings: data.categoryWarnings,
+      })
       statusActions.saveSuccess(
-        droppedNote
-          ? statusMessage('ui.editor.saveSuccessDroppedNotes', { notes: droppedNote })
+        notices
+          ? statusMessage('ui.editor.saveSuccessNotices', { notes: notices })
           : statusMessage('ui.editor.saveSuccess'),
       )
       discardAll()

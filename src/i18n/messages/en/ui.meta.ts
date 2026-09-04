@@ -86,6 +86,10 @@ export const uiMeta = {
     description:
       'Reported after a save merged a card into an existing line and its note could not be kept. {items} is a comma-separated list of card names with their dropped notes.',
   },
+  'ui.editor.prunedCategories': {
+    description:
+      'Reported after a save whose card removals left categories sidecar entries behind; the save pruned them. {count} is how many names were pruned (the plural selector) and {items} is the comma-separated list of them. The CLI states the same fact in its own voice as cli.session.categoriesPruned; the two are deliberately worded per surface.',
+  },
   'ui.editor.loading': {
     description:
       'Placeholder shown while an editor fetches the list it is about to edit. {listType} is deck, collection or wanted.',
@@ -111,9 +115,9 @@ export const uiMeta = {
   'ui.editor.saveSuccess': {
     description: 'Confirmation banner after the editor successfully wrote its edits to disk.',
   },
-  'ui.editor.saveSuccessDroppedNotes': {
+  'ui.editor.saveSuccessNotices': {
     description:
-      'Save confirmation when the save also had to drop a card note. {notes} is the already-rendered `ui.editor.droppedNotes` sentence and arrives with a leading space.',
+      'Save confirmation when the save also had news to report. {notes} is one or more already-rendered notice sentences (dropped notes, pruned categories, sidecar warnings), each arriving with a leading space.',
   },
   'ui.editor.saveConflict': {
     description:
@@ -308,6 +312,72 @@ export const uiMeta = {
       'Heading of the row of one-click buttons offering tags already used on other cards in this list. Ends with a colon in English.',
   },
   'ui.editor.tagsSave': { description: 'Confirm button of the tags dialog.', maxLen: 16 },
+  'ui.editor.editCategoriesTitle': { description: 'Title of the per-card categories dialog.' },
+  'ui.editor.categoriesLabel': {
+    description: "Label of the text field holding the card's whole ordered category list.",
+  },
+  'ui.editor.categoriesPlaceholder': {
+    description: 'Placeholder in the categories field; example category names, comma-separated.',
+  },
+  'ui.editor.categoriesHint': {
+    description:
+      'Help text under the categories field, stating the separator, the primary rule and how to clear.',
+  },
+  'ui.editor.categoriesSuggestions': {
+    description: 'Label above the one-click category suggestions in the dialog.',
+  },
+  'ui.editor.categoriesSave': {
+    description: 'Confirm button of the categories dialog.',
+    maxLen: 16,
+  },
+  'ui.editor.categoriesOrderLabel': {
+    description: 'Accessible name for the reorderable chip row above the categories field.',
+  },
+  'ui.editor.categoriesPrimaryBadge': {
+    description:
+      "Badge on the first category chip, marking it as the card's primary category. Keep it short.",
+    maxLen: 12,
+  },
+  'ui.editor.categoriesMoveEarlier': {
+    description:
+      'Button that moves a category one place towards the front, where the first place is primary.',
+  },
+  'ui.editor.categoriesMoveLater': {
+    description: 'Button that moves a category one place towards the back.',
+  },
+  'ui.editor.categories': {
+    description: "Editor action-bar button opening the list's Manage categories dialog.",
+    maxLen: 16,
+  },
+  'ui.editor.manageCategories': { description: 'Title of the list-level categories dialog.' },
+  'ui.editor.categoriesHelp': {
+    description: 'Help text in the Manage categories dialog.',
+  },
+  'ui.editor.noCategories': {
+    description: "Shown in the Manage categories dialog when the list's vocabulary is empty.",
+  },
+  'ui.editor.renameCategory': {
+    description: 'Label of the prompt that renames a category across the whole list.',
+  },
+  'ui.editor.newCategoryName': { description: 'Placeholder in the rename-category prompt.' },
+  'ui.editor.categoryExists': {
+    description:
+      'Refusal when a rename would collide with another category, compared case-insensitively. {name} is the existing category.',
+  },
+  'ui.editor.categoryInvalid': {
+    description:
+      'Refusal when a typed category name breaks the name rule. {reason} is the shared shape explanation, English by construction.',
+  },
+  'ui.editor.moveCategoryUp': {
+    description: "Button that moves a category one place earlier in the list's display order.",
+  },
+  'ui.editor.moveCategoryDown': {
+    description: "Button that moves a category one place later in the list's display order.",
+  },
+  'ui.editor.removeCategory': {
+    description: 'Button that removes a category from the list and from every card holding it.',
+    maxLen: 16,
+  },
   'ui.editor.languageCurrent': {
     description:
       "A language row in that picker, marked with a check because it is the card's current language. {name} is the language name.",
@@ -389,6 +459,10 @@ export const uiMeta = {
     description:
       "Menu row opening the dialog that edits this card's own tags (free-form owner vocabulary such as `Ramp`). Every list type. The ellipsis marks that a dialog follows.",
     maxLen: 24,
+  },
+  'ui.cardMenu.editCategories': {
+    description:
+      'Card context-menu row opening the categories dialog. The ellipsis means a dialog follows.',
   },
   'ui.cardMenu.setCustomArt': {
     description:

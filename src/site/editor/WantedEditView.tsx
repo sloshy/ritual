@@ -56,7 +56,10 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
       data: props.detail.entries,
       poolIds: collectExistingIds(props.detail.entries),
       contentHash: '',
-      extra: { sectionOrder: props.detail.sectionOrder ?? [] },
+      extra: {
+        sectionOrder: props.detail.sectionOrder ?? [],
+        categories: props.detail.categories ?? null,
+      },
     }),
     loadCardData: () =>
       cardActions.load({
@@ -154,6 +157,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
           cards={props.detail.cards}
           cardsCardKingdom={props.detail.cardsCardKingdom}
           printings={props.detail.printings ?? {}}
+          categories={props.detail.categories}
           symbolMap={props.detail.symbolMap}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           totalPrice={props.detail.totalPrice}

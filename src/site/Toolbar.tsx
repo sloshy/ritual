@@ -75,6 +75,8 @@ interface ToolbarProps {
   oracleTagOptions: string[]
   /** Art tag slugs present in the list, for the art tag filter autocomplete. */
   artTagOptions: string[]
+  /** Category names present in the current list; the filter row hides itself when empty. */
+  categoryOptions: string[]
   /** Show the "Hide Extras" filter toggle (deck pages only). */
   showHideExtras?: boolean
   /** Show the Labels filter chips (label-bearing views only). */
@@ -258,6 +260,7 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
       cardTypeOptions={props.cardTypeOptions}
       oracleTagOptions={props.oracleTagOptions}
       artTagOptions={props.artTagOptions}
+      categoryOptions={props.categoryOptions}
       showHideExtras={props.showHideExtras}
       showLabelsFilter={props.showLabelsFilter}
       availableLabels={props.availableLabels}

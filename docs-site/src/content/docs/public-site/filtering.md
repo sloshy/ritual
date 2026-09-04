@@ -12,13 +12,13 @@ Empty the field (or press **Escape** in it, or use its **×**, or hit **Clear** 
 
 ## Match modes
 
-Every filter that takes more than one value — Color Identity, Sets, Card Type, Oracle Tags, and Art Tags — has the same toggle beside its heading, so one vocabulary covers the whole menu:
+Every filter that takes more than one value — Color Identity, Sets, Card Type, Oracle Tags, Art Tags, and Categories — has the same toggle beside its heading, so one vocabulary covers the whole menu:
 
 - **Include** — keep cards matching **any** of the values you selected.
 - **Exclude** — keep cards matching **none** of them.
 - **Exact** — keep cards matching **all** of them.
 
-**Exact** is the default for Card Type, Oracle Tags, and Art Tags, so adding a second value narrows the results rather than widening them.
+**Exact** is the default for Card Type, Oracle Tags, Art Tags, and Categories, so adding a second value narrows the results rather than widening them.
 
 A few filters differ, because of what their values mean:
 
@@ -50,10 +50,11 @@ The Color Identity row has a sixth swatch for **Colorless**, matching cards with
 - **Buylist ($)** — _(sell mode only)_ a comparison against the buyer's per-copy offer, working like **Price**. Always in dollars whatever currency the page shows, so it survives a currency switch (the Price filter does not). Cards with no active offer never match. See [Sell mode](/public-site/sell/).
 - **Buylist** — _(sell mode only)_ two chips, **On buylist** and **Not on buylist**, matching whether the selected buyer is **currently buying** the card's printing — a paused offer (a published price the buyer is not taking today) counts as **Not on buylist**. The two combine as an OR, so selecting both (or neither) matches everything. See [Sell mode](/public-site/sell/).
 
-The token tag inputs (Sets, Card Type, Oracle Tags, and Art Tags) share the same autocomplete behavior: as you type, a suggestion list appears. Use the **↑/↓ arrow keys** to move through it and **Enter** to add the highlighted suggestion; with nothing highlighted, Enter adds whatever you've typed. You can also click a suggestion, and **Backspace** on an empty input removes the last tag. The two share rows take list names rather than tokens and commit them a little differently — see [Filtering against other lists](#filtering-against-other-lists).
+The token tag inputs (Sets, Card Type, Oracle Tags, Art Tags, and Categories — the last of which commits on **commas only**, since a space is part of a category name) share the same autocomplete behavior: as you type, a suggestion list appears. Use the **↑/↓ arrow keys** to move through it and **Enter** to add the highlighted suggestion; with nothing highlighted, Enter adds whatever you've typed. You can also click a suggestion, and **Backspace** on an empty input removes the last tag. The two share rows take list names rather than tokens and commit them a little differently — see [Filtering against other lists](#filtering-against-other-lists).
 
 - **Card Type** — a tag input of card types and subtypes (see below).
 - **Oracle Tags** / **Art Tags** — tag inputs backed by [Scryfall Tagger](https://tagger.scryfall.com/) data (see below).
+- **Categories** — _(lists whose cards carry [categories](/commands/categories/))_ a tag input of the list's category names, with the usual **Include / Exclude / Exact** modes (**Exact** is the default). Unlike the other token inputs it commits on **commas only** — a space is part of a category name (`Board Wipes`) — and committed names keep their own capitalization. See [Grouping, sorting and filtering by category](#grouping-sorting-and-filtering-by-category).
 - **Mana Value** — pick a comparison operator (`=`, `<`, `≤`, `>`, `≥`) from the toggle buttons and type a value to compare against the card's mana value.
 - **Price** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price in the currency chosen by the header **Prices** selector. Pick the operator from the toggle buttons and type an amount (up to two decimals); the filter's label shows which currency the threshold is in — **Price ($)**, **Price (€)**, and so on. Cards with no price in that currency never match. Because the threshold is currency-specific, switching the currency selector — or the [price store](/public-site/price-sources/) — clears the field automatically.
 - **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of the card you have in the list, added up across every entry that counts as the same card. For example, searching **Copies = 1** finds cards you have exactly one of, while **Copies ≥ 2** finds everything you have duplicates of. A **Name / Number / Exact** toggle decides what "the same card" means (see below).
@@ -122,11 +123,27 @@ Your own [card tags](/commands/edit/#card-tags) — the tags written on a card l
 
 Both choices travel in a [shared link](#sharing-a-configured-view) (`group=tags`, `sort=tags`).
 
+## Grouping, sorting and filtering by category
+
+[Card categories](/commands/categories/) — a card's role in one list (`Ramp`, `Board Wipes`), ordered so the first one is its **primary** category — are a toolbar choice on every single list view. The two groupings and the **Category** sort are always offered (a list with no categories simply shows one **Uncategorized** group); only the filter row waits for a list whose cards actually carry categories:
+
+- **Group: Category** puts each card under its primary category only.
+- **Group: Categories** shows a card under _every_ category it holds. The appearances whose primary category differs are dimmed and carry a small **also** badge whose tooltip names the card's primary category, and the section heading notes that its count includes those secondary placements — under this grouping alone, section totals deliberately overlap.
+- **Sort: Category** orders cards by their primary category, uncategorized cards last.
+- The **Categories** filter row in the Filters menu narrows to selected categories with the usual **Include / Exclude / Exact** modes. Matching is case-insensitive, names keep their own capitalization in the chips and in a shared link, and the field commits on commas only. The row appears on a list whose cards carry categories — and, so its chips stay individually removable, whenever a shared link arrived with a category selection.
+- The **card detail modal** lists a card's categories as chips, the primary one outlined.
+
+Section headings follow the list's own category order — the `order` in its `.categories.json` sidecar, which `ritual categories order` sets — with any category the order does not name after the ones it does, and **Uncategorized** last.
+
+On a **deck**, the board comes first: the mainboard is what gets grouped by category, while the commander, sideboard and extras stay below it in their own ungrouped sections — exactly as grouping by type, mana value or tags behaves today.
+
+All four travel in a [shared link](#sharing-a-configured-view): `group=category`, `group=categories`, `sort=category`, and the filter row's `cats=Ramp,Board Wipes` plus `catMode=include|exclude|exact`.
+
 ## Sharing a configured view
 
 How you've set up a list view is captured in the page URL, so you can copy the link from your browser and share it — whoever opens it sees the same view. This covers the whole toolbar:
 
-- the **grouping** (and the price-bracket size when grouping by price) — including [**Tags**](#grouping-and-sorting-by-tags),
+- the **grouping** (and the price-bracket size when grouping by price) — including [**Tags**](#grouping-and-sorting-by-tags) and the two [**Category**](#grouping-sorting-and-filtering-by-category) groupings,
 - the **sorting** — every layer of it. You can stack multiple sort layers with the **+** button beside the sort dropdown: the first layer is the primary sort and each layer below it breaks ties within the one above (e.g. sort by name, then by price within cards of the same name). Each layer has its own **↑↓** reverse button joined to its dropdown, and a **−** button removes it once there is more than one. The **Reverse Sections** toggle (group order) is captured too,
 - the **view layout** (binder, overlap, stack, or list) and **card size**,
 - the chosen [**price store**](/public-site/price-sources/) when it differs from the default, and

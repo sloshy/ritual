@@ -39,6 +39,13 @@ export type TagsInputProps = {
    * historical clear-on-Enter behavior for the token-style filters.
    */
   keepUnresolvedDraft?: boolean
+  /**
+   * Membership key for "already selected": the suggestion filter and
+   * `addValues` compare by this instead of raw equality. Defaults to identity,
+   * which is right for the lowercase token filters; the categories row passes
+   * `foldCardCategory`, whose values keep their case.
+   */
+  key?: (value: string) => string
 }
 
 /**
@@ -56,10 +63,13 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
   // callbacks for surviving rows when the list shrinks, so index-based refs go stale.
   const itemRefs = new Map<string, HTMLButtonElement>()
 
+  const keyOf = (value: string): string => (props.key ?? ((v: string) => v))(value)
+
   const suggestions = createMemo(() => {
     const query = props.query(draft())
+    const selected = new Set(props.selected.map(keyOf))
     return props.options.filter(
-      (option) => !props.selected.includes(option) && props.matches(option, query),
+      (option) => !selected.has(keyOf(option)) && props.matches(option, query),
     )
   })
 
@@ -79,8 +89,12 @@ export const TagsInput: Component<TagsInputProps> = (props) => {
   const addValues = (values: string[]) => {
     if (values.length === 0) return
     const merged = [...props.selected]
+    const seen = new Set(merged.map(keyOf))
     for (const value of values) {
-      if (!merged.includes(value)) merged.push(value)
+      const key = keyOf(value)
+      if (seen.has(key)) continue
+      seen.add(key)
+      merged.push(value)
     }
     props.onChange(merged)
   }

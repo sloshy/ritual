@@ -39,6 +39,8 @@ export const GROUP_BY_LABELS = {
   printing: 'site.groupBy.printing',
   source: 'site.groupBy.source',
   tags: 'site.groupBy.tags',
+  category: 'site.groupBy.category',
+  categories: 'site.groupBy.categories',
   none: 'site.groupBy.none',
 } as const satisfies Record<GroupBy, GroupByMessageKey>
 
@@ -63,6 +65,9 @@ export function groupByOptionsFrom<T extends GroupBy>(
 
 /** Offered only once the list actually has more than one section. */
 const sectionIf = (hasSections: boolean) => (hasSections ? (['section'] as const) : [])
+
+/** The category groupings, offered on a single list and never in the combined view. */
+const CATEGORY_GROUP_BYS = ['category', 'categories'] as const satisfies readonly GroupBy[]
 
 /** Sell mode's groupings, which always come last, before "none". */
 const sellIf = (sellMode: boolean) => (sellMode ? SELL_GROUP_BYS : [])
@@ -90,14 +95,20 @@ const DECK_GROUP_BYS = [
  * legally name — while the dropdown shows only what is currently offered.
  */
 export const deckGroupByOptions = (sellMode: boolean): readonly GroupByOption[] =>
-  groupByOptionsFrom([...DECK_GROUP_BYS, ...sellIf(sellMode), 'none'])
+  groupByOptionsFrom([...DECK_GROUP_BYS, ...CATEGORY_GROUP_BYS, ...sellIf(sellMode), 'none'])
 
 /** The collection page's group-by options. */
 export const collectionGroupByOptions = (
   sellMode: boolean,
   hasSections: boolean,
 ): readonly GroupByOption<CollectionGroupBy>[] =>
-  groupByOptionsFrom([...sectionIf(hasSections), ...FLAT_GROUP_BYS, ...sellIf(sellMode), 'none'])
+  groupByOptionsFrom([
+    ...sectionIf(hasSections),
+    ...FLAT_GROUP_BYS,
+    ...CATEGORY_GROUP_BYS,
+    ...sellIf(sellMode),
+    'none',
+  ])
 
 /** The wanted list page's group-by options: the collection set plus `printing`. */
 export const wantedGroupByOptions = (
@@ -107,6 +118,7 @@ export const wantedGroupByOptions = (
   groupByOptionsFrom([
     ...sectionIf(hasSections),
     ...UNPINNED_GROUP_BYS,
+    ...CATEGORY_GROUP_BYS,
     ...sellIf(sellMode),
     'none',
   ])

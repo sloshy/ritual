@@ -17,11 +17,14 @@ import {
   consolidateSetLanguage,
   consolidateSetPrinting,
   consolidateSetSection,
+  consolidateSetCategories,
   consolidateTagEdits,
+  isSetCategoriesFor,
 } from '../changes/change-event'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
+import { foldCategoryCardName, type CardCategory } from '../card/card-categories'
 
 /**
  * What a "set the tags to …" gesture recorded: the per-tag events that became
@@ -68,6 +71,13 @@ export type UndoEntry<T = unknown> = {
   addedChange: ChangeEvent | null
   cancelledChange: ChangeEvent | null
   removedCardData?: T
+  /**
+   * `set-categories` events folded out of the pending list because this
+   * operation took the last line of their card's name — the web half of the
+   * CLI's `FoldOptions.goneCardName` (`src/commands/session/edit-undo.ts`).
+   * Restored verbatim when this entry is undone.
+   */
+  displacedChanges?: ChangeEvent[]
 }
 
 export type UndoResult<T = unknown> = {
@@ -159,6 +169,29 @@ export type UseCardChangesResult<T = unknown> = {
     currentTags: readonly CardTag[] | undefined,
     cardId?: number,
   ) => TagEditResult
+  /**
+   * Set a card's categories to exactly `categories` — one whole-list,
+   * latest-wins `set-categories` event with **no `cardId`** (categories are
+   * keyed by card name and cover every line of it). `originalCategories` is the
+   * on-disk value; restoring it cancels the pending change outright, exactly as
+   * `setLabel` does. One undo entry, not one per category.
+   */
+  setCategories: (
+    cardName: string,
+    categories: CardCategory[],
+    originalCategories: readonly CardCategory[] | undefined,
+  ) => void
+  /**
+   * Fold the pending `set-categories` events for `cardName` out of the session,
+   * attaching them to the undo entry the immediately preceding removal or move
+   * pushed. Call it **directly after** the `remove` / `move-from` that took the
+   * list's last line of that name; the events come back if that operation is
+   * undone. A `set-categories` carries no `cardId`, so an id-keyed cancel can
+   * never reach it — this is the web half of `FoldOptions.goneCardName`
+   * (`src/commands/session/edit-undo.ts`), and the surviving-line test is the
+   * caller's, exactly as it is in the CLI.
+   */
+  foldGoneCardCategories: (cardName: string) => void
 }
 
 export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
@@ -226,11 +259,24 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     // Both sides: undoing an entry re-adds its `cancelledChange`, so an entry
     // naming a dropped change on either side would resurrect one the engine
     // refused.
-    undoStackRef = undoStackRef.filter(
-      (entry) =>
-        (entry.addedChange === null || !changeIds.has(entry.addedChange.id)) &&
-        (entry.cancelledChange === null || !changeIds.has(entry.cancelledChange.id)),
-    )
+    undoStackRef = undoStackRef
+      .filter(
+        (entry) =>
+          (entry.addedChange === null || !changeIds.has(entry.addedChange.id)) &&
+          (entry.cancelledChange === null || !changeIds.has(entry.cancelledChange.id)),
+      )
+      // A folded `set-categories` sits outside those two slots, so it would slip
+      // past the filter and be re-added by `undo()`. An entry is never dropped
+      // for its displaced half — the removal it belongs to is still undoable.
+      .map((entry) => {
+        if (entry.displacedChanges === undefined) return entry
+        const kept = entry.displacedChanges.filter((change) => !changeIds.has(change.id))
+        if (kept.length === entry.displacedChanges.length) return entry
+        // An entry whose displaced events were all refused keeps no empty array:
+        // "absent means none" is the shape every reader assumes.
+        const { displacedChanges: _dropped, ...rest } = entry
+        return kept.length > 0 ? { ...rest, displacedChanges: kept } : rest
+      })
     // One update cycle, for the reason `recordChange` gives: the change list and
     // the undo button both repaint from this.
     batch(() => {
@@ -258,6 +304,9 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     }
     if (entry.cancelledChange) {
       next = [...next, entry.cancelledChange]
+    }
+    if (entry.displacedChanges) {
+      next = [...next, ...entry.displacedChanges]
     }
     changesRef = next
 
@@ -348,6 +397,45 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     commit(consolidateSetLabel(changesRef, cardName, labels, originalLabels, cardId))
   }
 
+  function setCategories(
+    cardName: string,
+    categories: CardCategory[],
+    originalCategories: readonly CardCategory[] | undefined,
+  ) {
+    commit(consolidateSetCategories(changesRef, cardName, categories, originalCategories))
+  }
+
+  function foldGoneCardCategories(cardName: string) {
+    const key = foldCategoryCardName(cardName)
+    const displaced: ChangeEvent[] = []
+    const kept: ChangeEvent[] = []
+    for (const change of changesRef) {
+      if (isSetCategoriesFor(change, key)) {
+        displaced.push(change)
+      } else {
+        kept.push(change)
+      }
+    }
+    if (displaced.length === 0) return
+    const last = undoStackRef[undoStackRef.length - 1]
+    changesRef = kept
+    // Nothing to attach to: the events still leave the session (the card is
+    // gone), they simply cannot be restored by an undo that does not exist.
+    undoStackRef =
+      last === undefined
+        ? undoStackRef
+        : [
+            ...undoStackRef.slice(0, -1),
+            // Merged, not replaced: an entry restores everything folded onto it,
+            // so a gesture that takes the last line of two names keeps both.
+            { ...last, displacedChanges: [...(last.displacedChanges ?? []), ...displaced] },
+          ]
+    batch(() => {
+      setChanges([...changesRef])
+      setUndoStack([...undoStackRef])
+    })
+  }
+
   function setTags(
     cardName: string,
     tags: readonly CardTag[],
@@ -396,6 +484,8 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     addCard,
     removeCard,
     moveCardToList,
+    setCategories,
+    foldGoneCardCategories,
     setFinish,
     setPrinting,
     setSection,

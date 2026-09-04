@@ -10,6 +10,23 @@ import {
   onCleanup,
 } from 'solid-js'
 import { replaySectionOrder } from '../changes/change-event'
+import { hasCardCategory, withoutCardCategory, type CardCategory } from '../card/card-categories'
+import {
+  applyCategoryChangesToRecord,
+  cardCategoriesOf,
+  cardCategoriesToJson,
+  recordFromJson,
+  emptyCardCategoriesRecord,
+  orderedCategoryEntries,
+  removeCategoryFromRecord,
+  type CardCategoriesJson,
+  type CardCategoriesRecord,
+} from '../list/card-categories-record'
+import {
+  categoryManagerOrder,
+  categoryRenameError,
+  recordWithoutCardNames,
+} from './card-categories-edit'
 import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
@@ -20,7 +37,7 @@ import { DEFAULT_CURRENCY } from '../pricing/price-currency'
 import type { ChangeEvent, CardPrintingOptions } from '../changes/change-event'
 import { retargetImportedChanges } from './import-changes'
 import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
-import { statusMessage, useEditorStatus } from './useEditorStatus'
+import { statusMessage, statusText, useEditorStatus } from './useEditorStatus'
 import { entityListType } from './entity'
 import type { ListType } from '../list/list-type'
 import { useT } from '../ui/i18n'
@@ -102,6 +119,12 @@ export function useEditor<TData, TCardEntry = unknown>(
   // A signal (not a plain variable) so the `sectionOrder` memo recomputes when a new
   // list loads, independent of the `changes` signal write that happens alongside it.
   const [originalSectionOrder, setOriginalSectionOrder] = createSignal<string[]>([])
+  // The categories sidecar as loaded from disk. The live record is this replayed
+  // against the session's category events (see `categoriesRecord`). A signal for
+  // the same reason `originalSectionOrder` is one.
+  const [originalCategories, setOriginalCategories] = createSignal<CardCategoriesRecord>(
+    emptyCardCategoriesRecord(),
+  )
 
   const isDataReady = createMemo(() => {
     const d = data()
@@ -150,6 +173,7 @@ export function useEditor<TData, TCardEntry = unknown>(
                 ? loadedOrder.filter((s): s is string => typeof s === 'string')
                 : [],
             )
+            setOriginalCategories(recordFromJson(result.extra.categories))
             pool.resetPool(result.poolIds)
             config.loadCardData(response)
             setContentHash(result.contentHash)
@@ -157,6 +181,14 @@ export function useEditor<TData, TCardEntry = unknown>(
             changes.discardAll()
             setHasSavedThisSession(false)
             statusActions.loadSuccess()
+            // Sidecar trouble the load route reported (unreadable file, entries
+            // for cards the list no longer holds), already rendered server-side.
+            // Shown once per load, or the editor would edit a categories record
+            // the server could not fully read with no sign of it.
+            const categoryWarnings = result.extra.categoryWarnings
+            if (Array.isArray(categoryWarnings) && categoryWarnings.length > 0) {
+              statusActions.setError(statusText(categoryWarnings.join(' ')))
+            }
           } else {
             statusActions.loadError(statusMessage('ui.editor.loadFailed', { listType: listType() }))
           }
@@ -456,6 +488,50 @@ export function useEditor<TData, TCardEntry = unknown>(
     return sectionInfoFrom(sectionOrder(), counts)
   })
 
+  const categoriesRecord = createMemo<CardCategoriesRecord>(() =>
+    applyCategoryChangesToRecord(originalCategories(), changes.changes()),
+  )
+
+  // One derivation of the JSON shape the read pages take, so the three editor
+  // bodies neither repeat it nor hand the page a fresh object every render.
+  const categoriesJson = createMemo<CardCategoriesJson>(() =>
+    cardCategoriesToJson(categoriesRecord()),
+  )
+
+  const handleSetCategoriesFor = (cardName: string, categories: CardCategory[]) => {
+    // The baseline is the *loaded* record, never the live one: that is what makes
+    // "restore the original ⇒ record nothing" work. No `setData` — categories are
+    // not in the card data.
+    changes.setCategories(cardName, categories, cardCategoriesOf(originalCategories(), cardName))
+  }
+
+  const handleRenameCategory = (from: CardCategory, to: CardCategory) => {
+    // Validated against the *resolved* order — the same list the Manage modal
+    // shows — so a rename onto a category cards use but `order` never named is
+    // refused instead of silently merging two categories.
+    if (categoryRenameError(categoryManagerOrder(categoriesRecord()), to, from) !== null) return
+    changes.addChange({ action: 'rename-category', category: from, newCategory: to })
+  }
+
+  const handleSetCategoryOrder = (order: CardCategory[]) => {
+    changes.addChange({ action: 'set-category-order', order })
+  }
+
+  const handleRemoveCategory = (category: CardCategory) => {
+    const record = categoriesRecord()
+    // One flush for the whole removal: each `set-categories` writes both the
+    // changes and the undo signals, so an unbatched loop re-runs every memo that
+    // reads them once per affected card.
+    batch(() => {
+      for (const entry of orderedCategoryEntries(record)) {
+        if (!hasCardCategory(entry.categories, category)) continue
+        handleSetCategoriesFor(entry.name, withoutCardCategory(entry.categories, category))
+      }
+      // The order comes from the pure helper; the events remain the source of truth.
+      handleSetCategoryOrder(removeCategoryFromRecord(record, category).order)
+    })
+  }
+
   const canonicalSection = (name: string): string | undefined =>
     canonicalSectionIn(sectionOrder(), name)
 
@@ -574,6 +650,22 @@ export function useEditor<TData, TCardEntry = unknown>(
     })
   }
 
+  const promptRenameCategory = (oldName: CardCategory) => {
+    setTextPrompt({
+      title: t('ui.editor.renameCategory'),
+      label: t('ui.editor.categoriesLabel'),
+      initialValue: oldName,
+      confirmLabel: t('ui.editor.rename'),
+      placeholder: t('ui.editor.newCategoryName'),
+      validate: (v) =>
+        categoryRenameError(categoryManagerOrder(categoriesRecord()), v.trim(), oldName),
+      onConfirm: (v) => {
+        handleRenameCategory(oldName, v.trim())
+        closeTextPrompt()
+      },
+    })
+  }
+
   /**
    * Take the changes a replay refused back out of the pending list. The engines
    * are the authority on what a list can hold, so a change they will not apply
@@ -620,6 +712,10 @@ export function useEditor<TData, TCardEntry = unknown>(
     const s = slug()
     const d = data()
     if (!s || !d || !config.hasData(d) || changes.changes().length === 0) return
+    // Snapshot before committing: a successful commit clears the pending changes,
+    // and `categoriesRecord` is the loaded record replayed over them — without
+    // adopting the saved state it would snap back to the pre-save vocabulary.
+    const savedCategories = categoriesRecord()
     const result = await config.commit({
       slug: s,
       data: d,
@@ -634,6 +730,10 @@ export function useEditor<TData, TCardEntry = unknown>(
     if (result?.contentHash) {
       setContentHash(result.contentHash)
       setHasSavedThisSession(true)
+      // What is on disk now is the new baseline for the next edit's "restore the
+      // original ⇒ record nothing" test. The server's word wins on pruning: names
+      // it dropped are gone from the file.
+      setOriginalCategories(recordWithoutCardNames(savedCategories, result.prunedCategories ?? []))
       // Only on a save that actually landed: the effects say which `&N` each
       // line ended up with, which is what a staged art write has been waiting
       // for. A failed or conflicted save leaves the staging alone to be flushed
@@ -766,6 +866,12 @@ export function useEditor<TData, TCardEntry = unknown>(
     restoreChanges,
 
     sectionOrder,
+    categoriesRecord,
+    categoriesJson,
+    handleSetCategoriesFor,
+    handleRenameCategory,
+    handleSetCategoryOrder,
+    handleRemoveCategory,
     sectionInfo,
     handleAddSection,
     handleRenameSection,
@@ -780,5 +886,6 @@ export function useEditor<TData, TCardEntry = unknown>(
     promptNewSectionForCard,
     promptNewSectionForCards,
     promptRenameSection,
+    promptRenameCategory,
   }
 }

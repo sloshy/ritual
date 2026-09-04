@@ -395,6 +395,20 @@ export const siteChromeMeta = {
   'site.filter.artTagsSuggestions': {
     description: 'Accessible name of the art-tag autocomplete list.',
   },
+  'site.filter.categories': {
+    description: 'Heading for the filter row that narrows the list to selected categories.',
+  },
+  'site.filter.categoryMode': {
+    description:
+      'Accessible name for the include/exclude/exact toggle on the categories filter row.',
+  },
+  'site.filter.categoriesPlaceholder': {
+    description:
+      'Placeholder in the categories filter input; example category names, comma-separated.',
+  },
+  'site.filter.categoriesSuggestions': {
+    description: 'Label above the one-click category suggestions in the filter row.',
+  },
   'site.filter.manaValue': {
     description:
       'Heading of the filter matching on mana value — the total cost of a card, a whole number. The game\'s own term, previously "converted mana cost".',
@@ -506,6 +520,9 @@ export const siteChromeMeta = {
   'site.filterMode.artTagInclude': { description: MATCH_MODE_CONTEXT },
   'site.filterMode.artTagExclude': { description: MATCH_MODE_CONTEXT },
   'site.filterMode.artTagExact': { description: MATCH_MODE_CONTEXT },
+  'site.filterMode.categoryInclude': { description: MATCH_MODE_CONTEXT },
+  'site.filterMode.categoryExclude': { description: MATCH_MODE_CONTEXT },
+  'site.filterMode.categoryExact': { description: MATCH_MODE_CONTEXT },
   'site.filterMode.colorSubset': {
     description: `${MATCH_MODE_CONTEXT} This one describes deck legality: every colour the card needs is among the selected ones.`,
   },
@@ -792,6 +809,13 @@ export const siteChromeMeta = {
   },
 
   // ── Variables (one swatch each) ───────────────────────────────────────
+  'site.themeVar.categoryMarker.label': {
+    description:
+      'Theme editor label for the colour of the "also" badge on a card shown under a non-primary category.',
+  },
+  'site.themeVar.categoryMarker.description': {
+    description: 'Theme editor tooltip for the `--category-marker` swatch.',
+  },
   'site.themeVar.bgBody.label': {
     description: 'Swatch label for the `--bg-body` CSS variable in the theme editor.',
   },

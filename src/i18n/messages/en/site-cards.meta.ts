@@ -158,6 +158,9 @@ export const siteCardsMeta = {
     description:
       "Accessible name of the row listing the owner's own tags on this card (each chip is one tag, e.g. `Ramp`). Distinct from the Scryfall tags disclosure below it.",
   },
+  'site.cardModal.cardCategories': {
+    description: 'Accessible name for the category chips in the card detail modal.',
+  },
   'site.cardModal.oracleTags': {
     description: "Heading for tags describing what the card's rules text does.",
   },

@@ -149,7 +149,7 @@ ritual config set priceSources --add cardmarket
 | ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `defaultCategories` | the fourteen below | The global [category](/list-format/#categories-namecategoriesjson) vocabulary: the suggestions offered wherever a category is typed, and the fallback display order for a list whose `.categories.json` sidecar declares none. |
 
-The shipped vocabulary is `Ramp, Draw, Removal, Board Wipes, Counterspells, Tutors, Recursion, Protection, Combo, Tokens, Burn, Lifegain, Finishers, Utility`. A list may use any category name at all — nothing has to be declared here first; this key only decides what is suggested and how an undeclared category sorts into a list's display order.
+The shipped vocabulary is `Ramp, Draw, Removal, Board Wipes, Counterspells, Tutors, Recursion, Protection, Combo, Tokens, Burn, Lifegain, Finishers, Utility`. A list may use any category name at all — nothing has to be declared here first; this key only decides what is suggested and how an undeclared category sorts into a list's display order. It also seeds the site editors' category suggestions on both sites: `build-site` bakes it into the built site's `index.json`, and the admin SPA reads it from `/api/config`.
 
 Each name follows the [category shape rule](/list-format/#categories-namecategoriesjson); a malformed one is refused where it is typed, and on load a malformed entry warns and resets the whole key to the shipped default. An explicit empty array is meaningful: no suggestions.
 

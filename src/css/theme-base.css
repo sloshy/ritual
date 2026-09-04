@@ -45,6 +45,12 @@
   --label-keep: oklch(70% 0.17 25);
   --label-proxy: oklch(72% 0.14 310);
 
+  /* The "also" marker on a card shown under a non-primary category. Same
+     mid-lightness family as the label tones above: it is drawn as text on the
+     --overlay-light scrim over a card image, and must read on light and dark
+     themes alike. */
+  --category-marker: oklch(80% 0.06 260);
+
   /* ---- Overlays ---- */
   --overlay-light: rgba(0, 0, 0, 0.5);
   --overlay-medium: rgba(0, 0, 0, 0.7);

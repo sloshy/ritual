@@ -5,7 +5,8 @@
  * here, and one `TagsEditDialog` mounted in the editor shell renders it.
  */
 
-import { createSignal, type Accessor } from 'solid-js'
+import type { Accessor } from 'solid-js'
+import { createPromptSingleton } from '../ui/prompt-singleton'
 import type { CardTag } from '../card/card-tags'
 
 /** A pending "edit this card's tags" request. */
@@ -18,17 +19,13 @@ export interface TagsPrompt {
   onSave: (tags: CardTag[]) => void
 }
 
-const [pending, setPending] = createSignal<TagsPrompt | null>(null)
+const singleton = createPromptSingleton<TagsPrompt>()
 
 /** The tag edit currently awaiting the user, or null. */
-export const pendingTagsPrompt: Accessor<TagsPrompt | null> = pending
+export const pendingTagsPrompt: Accessor<TagsPrompt | null> = singleton.pending
 
 /** Open the tags dialog. Replaces any request already open. */
-export function promptCardTags(prompt: TagsPrompt): void {
-  setPending(prompt)
-}
+export const promptCardTags: (prompt: TagsPrompt) => void = singleton.open
 
 /** Dismiss the tags dialog without saving. */
-export function closeTagsPrompt(): void {
-  setPending(null)
-}
+export const closeTagsPrompt: () => void = singleton.close

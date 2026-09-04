@@ -94,11 +94,32 @@ export async function openCardMenu(page: Page, tile: Locator): Promise<Locator> 
   return menu
 }
 
+/**
+ * Remove a single-copy tile from the open editor with its decrement control —
+ * the gesture that takes a whole card line out of the list.
+ */
+export async function removeCardTile(tile: Locator): Promise<void> {
+  await tile.hover()
+  await tile.locator('.edit-btn-decrement').click()
+}
+
 /** Open a tile's `⋯` → **Edit Tags…** dialog and return it. */
 export async function openEditTags(page: Page, tile: Locator): Promise<Locator> {
   const menu = await openCardMenu(page, tile)
   await menu.locator('button', { hasText: 'Edit Tags…' }).click()
   const dialog = page.locator('.tags-prompt')
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+/**
+ * Open a card's "Edit Categories…" dialog from its context menu. The
+ * {@link openEditTags} sibling; the dialog's e2e hook is `.categories-prompt`.
+ */
+export async function openEditCategories(page: Page, tile: Locator): Promise<Locator> {
+  const menu = await openCardMenu(page, tile)
+  await menu.locator('button', { hasText: 'Edit Categories…' }).click()
+  const dialog = page.locator('.categories-prompt')
   await expect(dialog).toBeVisible()
   return dialog
 }

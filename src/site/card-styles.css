@@ -1175,6 +1175,79 @@ h3 {
   border-radius: 0.25rem;
 }
 
+.modal-card-categories {
+  margin-top: 0.5rem;
+}
+
+/* The card's primary category, marked in the modal's chip row. */
+.modal-card-category--primary {
+  border-color: var(--accent);
+}
+
+/* One tile under the "Categories (all)" grouping. Every tile is wrapped so the
+   grid stays uniform; only the appearances whose primary differs are dimmed. */
+.card-slot {
+  position: relative;
+}
+
+.card-slot--secondary {
+  opacity: 0.72;
+}
+
+/* The overlap and stack layouts key off the tiles being siblings, and under the
+   "Categories (all)" grouping each tile is wrapped in a `.card-slot`. Repeat the
+   four sibling rules for the wrapper; the `.card-item` originals still cover
+   every ungrouped case (inside a slot a `.card-item` is always :first-child, so
+   it never takes a margin of its own). */
+.view-overlap .card-slot:not(:first-child) {
+  margin-left: calc(var(--card-width, 190px) * -0.654);
+}
+
+.view-overlap .card-slot:hover {
+  z-index: 20;
+}
+
+.view-overlap .card-slot:hover ~ .card-slot {
+  transform: translateX(calc(var(--card-width, 190px) * 0.692));
+}
+
+.view-stack .card-slot {
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+  overflow: visible;
+}
+
+.view-stack .card-slot:not(:first-child) {
+  margin-top: calc(var(--card-width, 190px) * -1.393 + 35px);
+}
+
+.view-stack .card-slot:hover {
+  z-index: 20;
+}
+
+.view-stack .card-slot:hover ~ .card-slot {
+  transform: translateY(calc(var(--card-width, 190px) * 1.393 - 35px));
+}
+
+.card-secondary-marker {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  background: var(--overlay-light);
+  color: var(--category-marker);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 0 0.25rem;
+}
+
+/* "count includes secondary placements", beside a category section's count. */
+.section-note {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
+}
+
 .modal-tags-warning {
   display: flex;
   align-items: flex-start;

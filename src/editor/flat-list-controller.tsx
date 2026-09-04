@@ -6,6 +6,8 @@ import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
 import { tagSuggestions } from './card-tags-edit'
 import { promptCardTags } from './tags-prompt'
+import { openCategoriesPrompt } from './card-categories-edit'
+import { holdsCardName } from '../card/card-categories'
 import type { ChangeInput, ListRef, PrintingTuple } from '../changes/change-event'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import type { CardContextInfo } from '../list-view/card-context'
@@ -164,6 +166,13 @@ export function useFlatListEditController<E extends FlatEntry>(
     )
   }
 
+  /** Does the list still hold any line of `cardName`? (The shared fold rule.) */
+  const listHoldsCardName = (entries: readonly E[], cardName: string): boolean =>
+    holdsCardName(
+      entries.map((entry) => entry.name),
+      cardName,
+    )
+
   const handleDecrement = (entry: E) => {
     if (entry.cardId !== undefined) editor.pool.release(entry.cardId)
     const p = params.printingOf(entry)
@@ -186,6 +195,12 @@ export function useFlatListEditController<E extends FlatEntry>(
           })
         : prev,
     )
+    // The removal took the list's last line of this name, so its pending
+    // `set-categories` events no longer have a card — fold them onto the undo
+    // entry the removal just pushed (the web half of `FoldOptions.goneCardName`).
+    if (!listHoldsCardName(editor.data() ?? [], entry.name)) {
+      editor.changes.foldGoneCardCategories(entry.name)
+    }
   }
 
   const closeContextMenu = () => editor.setContextMenuCard(null)
@@ -231,6 +246,9 @@ export function useFlatListEditController<E extends FlatEntry>(
             : prev,
         )
         editor.pool.release(id)
+      }
+      if (!listHoldsCardName(editor.data() ?? [], cardName)) {
+        editor.changes.foldGoneCardCategories(cardName)
       }
     })
   }
@@ -449,6 +467,11 @@ export function FlatListContextMenu<E extends FlatEntry>(
                   })
                 },
               })
+            }}
+            onEditCategories={() => {
+              const target = menu()
+              props.ctrl.closeContextMenu()
+              openCategoriesPrompt(editor, target.cardName)
             }}
             onSetLanguage={() => {
               const target = menu()

@@ -5,6 +5,8 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
 import type { CardLabel } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
+import type { CardCategory, CardCategoriesOverlay } from '../card/card-categories'
+import type { CardCategoriesJson } from './card-categories-sidecar'
 import type { ListImageRef } from './list-image'
 import type { CardLanguage } from '../card/card-language'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -63,8 +65,12 @@ export type CardKingdomCards = Record<string, ScryfallCard>
  * data only the site carries. Deliberately a site-side widening of {@link Card}
  * rather than a field on the engine type — `customArt` is never written to a
  * deck file, and the serializers must not learn about it.
+ *
+ * `categories` is the same site-side widening as `customArt`: a category belongs
+ * to a card **name in this list**, never to the line, so `Card` must not learn
+ * about it.
  */
-export interface BakedDeckCard extends Card {
+export interface BakedDeckCard extends Card, CardCategoriesOverlay {
   /**
    * Custom art replacing this card's Scryfall image: `art/<relpath>` for a
    * local file (served from the built site or by `serve --api`'s art route), or
@@ -152,11 +158,18 @@ export interface DeckDetail {
   missingCards?: Partial<Record<PriceCurrency, string[]>>
   pricesDate?: string
   changelog?: ChangelogPage[]
+  /**
+   * The list's category vocabulary and per-name assignments, exactly as its
+   * `.categories.json` sidecar resolves. Absent when the list has none.
+   */
+  categories?: CardCategoriesJson
+  /** Sidecar trouble (unreadable, or entries for cards that are gone). Absent when clean. */
+  categoryWarnings?: string[]
   /** Baked buylist offers for this deck's printings; absent when nothing was quoted. */
   buylist?: BakedBuylist
 }
 
-export interface CollectionCardEntry {
+export interface CollectionCardEntry extends CardCategoriesOverlay {
   name: string
   set: string
   collectorNumber: string
@@ -252,13 +265,20 @@ export interface CollectionDetail {
   defaultCurrency: PriceCurrency
   pricesDate?: string
   changelog?: ChangelogPage[]
+  /**
+   * The list's category vocabulary and per-name assignments, exactly as its
+   * `.categories.json` sidecar resolves. Absent when the list has none.
+   */
+  categories?: CardCategoriesJson
+  /** Sidecar trouble (unreadable, or entries for cards that are gone). Absent when clean. */
+  categoryWarnings?: string[]
   /** Baked buylist offers for this collection's printings; absent when nothing was quoted. */
   buylist?: BakedBuylist
 }
 
 export type WantedListEntryState = 'name-only' | 'printing' | 'fully-specified'
 
-export interface WantedListCardEntry {
+export interface WantedListCardEntry extends CardCategoriesOverlay {
   name: string
   set?: string
   collectorNumber?: string
@@ -326,6 +346,13 @@ export interface WantedListDetail {
   defaultCurrency: PriceCurrency
   pricesDate?: string
   changelog?: ChangelogPage[]
+  /**
+   * The list's category vocabulary and per-name assignments, exactly as its
+   * `.categories.json` sidecar resolves. Absent when the list has none.
+   */
+  categories?: CardCategoriesJson
+  /** Sidecar trouble (unreadable, or entries for cards that are gone). Absent when clean. */
+  categoryWarnings?: string[]
   /** Baked buylist offers for this wanted list's printings; absent when nothing was quoted. */
   buylist?: BakedBuylist
 }
@@ -384,6 +411,15 @@ export interface SiteIndex {
    * existed, which reads as the default `['tcgplayer']`.
    */
   priceSources?: readonly PriceSource[]
+  /**
+   * The configured `defaultCategories` vocabulary, baked from config like
+   * {@link searchDebounceMs}. Seeds the category dialogs' one-click
+   * suggestions on this site; a list's own vocabulary always comes first.
+   * Absent on sites built before categories existed, which reads as
+   * "no configured suggestions" — never as the shipped fourteen, because an
+   * explicit empty array is meaningful (`getDefaultCategories`' own TSDoc).
+   */
+  defaultCategories?: readonly CardCategory[]
 }
 
 export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'

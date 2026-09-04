@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { artSidecarPath } from '../list/card-art'
+import { categoriesSidecarPath } from '../list/card-categories-sidecar'
 import { cardCache } from '../cache'
 import { getCacheFile } from '../cache/file-cache'
 import { getCacheServerBaseUrl } from '../cache/config'
@@ -10,6 +11,7 @@ import {
   getBannedPrintings,
   getDefaultCurrency,
   getDefaultLanguage,
+  getDefaultCategories,
   getPriceSources,
   getSearchDebounceMs,
   getSiteSelectionConfig,
@@ -76,6 +78,8 @@ type ListStamp = {
   changesMtimeMs: number
   /** mtime of the `.art.json` custom-art sidecar; 0 when the list has none. */
   artMtimeMs: number
+  /** mtime of the `.categories.json` sidecar; 0 when the list has none. */
+  categoriesMtimeMs: number
   generation: number
   configStamp: string
 }
@@ -101,8 +105,23 @@ function stampsEqual(a: ListStamp, b: ListStamp): boolean {
     a.listMtimeMs === b.listMtimeMs &&
     a.changesMtimeMs === b.changesMtimeMs &&
     a.artMtimeMs === b.artMtimeMs &&
+    a.categoriesMtimeMs === b.categoriesMtimeMs &&
     a.generation === b.generation &&
     a.configStamp === b.configStamp
+  )
+}
+
+/**
+ * The newest of a list's stamped file mtimes — its `Last-Modified`. Stated once
+ * so a new sidecar is one edit: missing one of the two places this was spelled
+ * out by hand served a stale payload that no type could catch.
+ */
+function newestStampMtime(stamp: ListStamp): number {
+  return Math.max(
+    stamp.listMtimeMs,
+    stamp.changesMtimeMs,
+    stamp.artMtimeMs,
+    stamp.categoriesMtimeMs,
   )
 }
 
@@ -216,6 +235,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       selection: getSiteSelectionConfig(config.site),
       sellMode: getSiteSellMode(config),
       priceSources: getPriceSources(config),
+      defaultCategories: getDefaultCategories(config),
       // Not config, but details carry baked buylist quotes, so a refreshed
       // buyer feed has to invalidate them too. `null` = no feed, or sell mode off.
       buylist: buylistRetrievedAt,
@@ -271,10 +291,15 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     // moves no other file's mtime — without this the detail would keep its
     // previously baked art until the list itself was edited.
     const artMtimeMs = await statMtimeMs(artSidecarPath(listFilePath))
+    // Categories live in their own sidecar too, so a categories edit moves no
+    // other file's mtime — without this the detail would keep its previously
+    // baked categories until the list itself was edited.
+    const categoriesMtimeMs = await statMtimeMs(categoriesSidecarPath(listFilePath))
     const stamp: ListStamp = {
       listMtimeMs,
       changesMtimeMs,
       artMtimeMs,
+      categoriesMtimeMs,
       generation,
       configStamp,
     }
@@ -302,7 +327,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       detail: {
         body: detailBody,
         etag: etagFor(detailBody),
-        lastModified: new Date(Math.max(listMtimeMs, changesMtimeMs, artMtimeMs)).toUTCString(),
+        lastModified: new Date(newestStampMtime(stamp)).toUTCString(),
       },
       stamp,
     }
@@ -354,8 +379,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     // carries each list's totals, and those move when custom art is set or
     // cleared. Matches the per-detail `lastModified` below it.
     const newestMtime = [...listMemo.values()].reduce(
-      (max, built) =>
-        Math.max(max, built.stamp.listMtimeMs, built.stamp.changesMtimeMs, built.stamp.artMtimeMs),
+      (max, built) => Math.max(max, newestStampMtime(built.stamp)),
       0,
     )
     return {

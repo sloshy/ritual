@@ -4,6 +4,9 @@ import { matchesAllTerms } from '../card/term-match'
 import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
+import { matchesCardCategories } from './card-categories-filter'
+import { cardCategorySpellings, foldCardCategory, type CardCategory } from '../card/card-categories'
+import { compareDisplay } from '../i18n/collate'
 import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
 import { displayLanguage } from '../card/card-language'
 import { displayFinish } from '../card/finish-condition'
@@ -185,6 +188,14 @@ export interface CardFilters {
   artTags: string[]
   /** 'include': any selected tag. 'exclude': none of them. 'exact': every one. */
   artTagMode: FilterMatchMode
+  /**
+   * Selected category names **as the list spells them** (case kept), matched
+   * case-insensitively — see `card-categories-filter.ts`. Empty = no category
+   * filtering.
+   */
+  cardCategories: string[]
+  /** 'include': any selected category. 'exclude': none of them. 'exact': every one. */
+  cardCategoryMode: FilterMatchMode
   /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
   manaValue: number | null
   manaValueOp: ManaValueComparator
@@ -270,6 +281,8 @@ export function createDefaultCardFilters(): CardFilters {
     oracleTagMode: 'exact',
     artTags: [],
     artTagMode: 'exact',
+    cardCategories: [],
+    cardCategoryMode: 'exact',
     manaValue: null,
     manaValueOp: '=',
     price: null,
@@ -573,6 +586,9 @@ export function filterCards<T extends CardData>(
     if (!matchesCardTypes(card.type, filters.cardTypes, filters.cardTypeMode)) return false
     if (!matchesTags(card.oracleTags, filters.oracleTags, filters.oracleTagMode)) return false
     if (!matchesTags(card.artTags, filters.artTags, filters.artTagMode)) return false
+    if (!matchesCardCategories(card.categories, filters.cardCategories, filters.cardCategoryMode)) {
+      return false
+    }
     if (
       filters.manaValue !== null &&
       !compareNumeric(card.cmc, filters.manaValueOp, filters.manaValue)
@@ -612,6 +628,7 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.cardTypes.length > 0) count++
   if (filters.oracleTags.length > 0) count++
   if (filters.artTags.length > 0) count++
+  if (filters.cardCategories.length > 0) count++
   if (filters.manaValue !== null) count++
   if (filters.price !== null) count++
   if (filters.copies !== null) count++
@@ -668,6 +685,35 @@ export function collectOracleTags(cards: CardData[]): string[] {
 /** Collect the unique art tag slugs present in `cards`, sorted, for autocomplete. */
 export function collectArtTags(cards: CardData[]): string[] {
   return collectTagField(cards, 'artTags')
+}
+
+/**
+ * The category names present in `cards`, deduped by fold and ordered by `order`
+ * — the list's vocabulary — with anything it does not name after it, collated
+ * for display. The filter autocomplete's options, in the vocabulary's own
+ * spelling: the shared {@link cardCategorySpellings} table is the same one the
+ * group headings use, so a chip and a heading can never disagree.
+ */
+export function collectCardCategories(cards: CardData[], order: readonly CardCategory[]): string[] {
+  const { spelling, used } = cardCategorySpellings(
+    cards.map((card) => card.categories),
+    order,
+  )
+  const options: string[] = []
+  const taken = new Set<string>()
+  for (const name of order) {
+    const key = foldCardCategory(name)
+    if (!used.has(key) || taken.has(key)) continue
+    taken.add(key)
+    options.push(spelling.get(key) ?? name)
+  }
+  const rest = [...used].flatMap((key) => {
+    if (taken.has(key)) return []
+    const name = spelling.get(key)
+    return name === undefined ? [] : [name]
+  })
+  rest.sort(compareDisplay)
+  return [...options, ...rest]
 }
 
 /** Whether an oracle or art tag filter is currently active. */

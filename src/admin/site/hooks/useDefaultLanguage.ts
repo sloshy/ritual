@@ -27,7 +27,7 @@ export function applyDefaultLanguage(language: CardLanguage): void {
 /**
  * The configured default card language, as a reactive accessor.
  *
- * Unlike `useDefaultCurrency`/`useSearchDebounce` (which re-fetch per page
+ * Unlike `useDefaultCurrency`/`useAdminConfigDefaults` (which re-fetch per page
  * mount), this is wired once at the logged-in shell (`Layout`): the language
  * must be primed before any editor page mounts because `CardSearchModal` and
  * `TradePrintingPicker` read the non-reactive runtime holder, and after boot

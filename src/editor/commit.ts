@@ -30,7 +30,17 @@ export type CommitContext<TData> = {
  * ids became. A sink with no server behind it (the public editor's export)
  * returns neither.
  */
-export type CommitResult = { contentHash?: string; effects?: readonly SaveEffect[] } | undefined
+export type CommitResult =
+  | {
+      contentHash?: string
+      effects?: readonly SaveEffect[]
+      /**
+       * Card names whose categories the save pruned, so the editor's baseline
+       * record can adopt exactly what the file now holds.
+       */
+      prunedCategories?: readonly string[]
+    }
+  | undefined
 
 /** The editor state a {@link createApiCommit} `buildSaveBody` turns into a POST body. */
 export type SaveBodyParams<TData> = {
@@ -75,7 +85,11 @@ export function createApiCommit<TData>(
       ctx.discardAll,
     )
     return result?.contentHash
-      ? { contentHash: result.contentHash, effects: result.effects }
+      ? {
+          contentHash: result.contentHash,
+          effects: result.effects,
+          prunedCategories: result.prunedCategories,
+        }
       : undefined
   }
 }

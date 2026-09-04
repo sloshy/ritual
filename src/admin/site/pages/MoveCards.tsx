@@ -3,7 +3,7 @@ import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useT, useTKey } from '../../../ui/i18n'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
-import { useSearchDebounce } from '../hooks/useSearchDebounce'
+import { useAdminConfigDefaults } from '../hooks/useAdminConfigDefaults'
 import type { CardPrintingOptions } from '../../../changes/change-event'
 import type { CardContextInfo } from '../../../list-view/card-context'
 import { DeckPage } from '../../../site/DeckPage'
@@ -52,7 +52,7 @@ export function MoveCards(): JSX.Element {
   const t = useT()
   const tKey = useTKey()
   const defaultCurrency = useDefaultCurrency()
-  useSearchDebounce()
+  useAdminConfigDefaults()
   const session = useMoveSession()
   // One conversion for the three list views' share filters, so the array keeps
   // its identity (and downstream option memos stay warm) across re-renders.

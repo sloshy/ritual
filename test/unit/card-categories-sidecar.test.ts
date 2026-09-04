@@ -11,6 +11,7 @@ import {
   loadCardCategories,
   parseCardCategoriesSidecar,
   pruneCardCategories,
+  recordFromJson,
   removeCategoryFromRecord,
   resolveCategoryOrder,
   saveCardCategories,
@@ -417,5 +418,20 @@ describe('removeCategoryFromRecord', () => {
     const next = removeCategoryFromRecord(base, 'Combo')
     expect(next.order).toEqual(base.order)
     expect(cardsOf(next)).toEqual(cardsOf(base))
+  })
+})
+
+describe('recordFromJson', () => {
+  test('parses a baked detail into a record', () => {
+    const rec = recordFromJson({ order: ['Ramp'], cards: { 'Sol Ring': ['Ramp'] } })
+    expect(rec.order).toEqual(['Ramp'])
+    expect(rec.cards.get('sol ring')?.categories).toEqual(['Ramp'])
+  })
+
+  test('returns the empty record for absent, null and malformed input, never throwing', () => {
+    expect(recordFromJson(undefined).cards.size).toBe(0)
+    expect(recordFromJson(null).cards.size).toBe(0)
+    expect(recordFromJson({ cards: 3 }).cards.size).toBe(0)
+    expect(recordFromJson('nonsense').order).toEqual([])
   })
 })

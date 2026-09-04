@@ -22,7 +22,7 @@ let inflight: Promise<RitualConfig | null> | null = null
  * callers decide how to surface the failure.
  *
  * Concurrent callers share one in-flight request: several page-level hooks
- * (`useDefaultCurrency`, `useSearchDebounce`) each fetch on the same page
+ * (`useDefaultCurrency`, `useAdminConfigDefaults`) each fetch on the same page
  * mount, and without coalescing every one would issue its own identical GET.
  * Once the request settles, the next call fetches fresh — the per-page-mount
  * refresh semantics are unchanged.

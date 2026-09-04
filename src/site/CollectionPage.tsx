@@ -1,5 +1,6 @@
 import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import type { Component } from 'solid-js'
+import { useListCategories } from './list-categories'
 import { createSignal, createMemo, For } from 'solid-js'
 import { CardItem } from './CardItem'
 import {
@@ -65,6 +66,7 @@ const COLLECTION_SORT_BYS: readonly SortBy[] = [
   'set-code',
   'edhrec',
   'tags',
+  'category',
 ]
 
 /**
@@ -197,6 +199,11 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // Build flat card list from entries. The displayed card is language-resolved
   // (a `[ja]` entry shows its ja scan when baked); the price stays the one
   // `currencyEntries` computed from the printing's default-language object.
+  // Resolved from the list's own record rather than read off the entry: the
+  // editing panes carry no baked categories on their card data and pass the live
+  // record instead. See `useListCategories`.
+  const { categoriesFor, categoriesField } = useListCategories(() => props.categories)
+
   const toCardData = (entry: CollectionCardEntry, quantity: number): CardData => {
     const card = entryCard(entry)
     const labels = entryLabels(entry)
@@ -219,6 +226,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
       artTags: card?.artTags ?? [],
       labels,
       tags: entry.tags,
+      ...categoriesField(entry.name),
       customArt: entry.customArt,
       hasCustomArt: entry.hasCustomArt,
       finish: entry.finish,
@@ -247,6 +255,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
     },
     cards: allCards,
     sectionOrder,
+    categoryOrder: () => props.categories?.order ?? [],
     // Seed the session cache from this collection's baked card data so the
     // editor's card search and the trade page reuse it instead of re-fetching.
     seed: () => {
@@ -493,6 +502,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
               label={group.key}
               cards={group.cards}
               currency={props.currency}
+              secondaryOf={page.toolbar.groupBy() === 'categories' ? group.category : undefined}
               renderCard={renderCollectionCard}
             />
           )}
@@ -513,6 +523,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
           meta={modalMeta()}
           note={modalEntry()?.note}
           tags={modalEntry()?.tags}
+          categories={categoriesFor(modalEntry()?.name)}
           onAddToTrade={modalAddToTrade()}
           addToTradeDisabled={modalAddToTradeDisabled()}
         />

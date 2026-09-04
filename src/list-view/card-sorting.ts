@@ -20,6 +20,8 @@ export type GroupBy =
   | 'printing'
   | 'source'
   | 'tags'
+  | 'category'
+  | 'categories'
   | 'none'
 export type SortBy =
   | 'name'
@@ -32,6 +34,7 @@ export type SortBy =
   | 'set-code'
   | 'color-identity'
   | 'tags'
+  | 'category'
 /**
  * One layer of an ordered, multi-level sort. Layers are applied in order: the
  * first is the primary sort, and each subsequent layer breaks ties within the
@@ -77,6 +80,7 @@ export const SORT_BY_LABELS = {
   'set-code': 'domain.sortBy.setCode',
   'color-identity': 'domain.sortBy.colorIdentity',
   tags: 'site.sortBy.tags',
+  category: 'site.sortBy.category',
 } as const satisfies Record<SortBy, SortByMessageKey>
 
 /**
@@ -208,6 +212,14 @@ export interface CardData {
    */
   tags?: CardTag[]
   /**
+   * This card's categories in its list, primary first (see
+   * `card-categories-sidecar.cardCategoriesOf`). Absent when it has none — the
+   * same value the sidecar reports, so "uncategorized" never has two spellings.
+   * Drives the two category groupings and the category sort. `readonly` because
+   * the loaded record's own array is shared by every card of that name.
+   */
+  categories?: readonly CardCategory[]
+  /**
    * The entry's custom art, as baked into the list detail: `art/<relpath>` for
    * a local file or a verbatim URL. Absent for the overwhelming majority of
    * cards, which show their printing's own image.
@@ -233,6 +245,13 @@ export interface CardData {
 export interface CardGroup<T extends CardData = CardData> {
   key: string
   cards: T[]
+  /**
+   * The category this group *is*, for the `'categories'` grouping — where one
+   * card appears in every category it holds and the renderer dims the
+   * appearances whose primary differs. Absent for every other grouping and for
+   * the Uncategorized group.
+   */
+  category?: CardCategory
 }
 
 import { BUYLIST_CURRENCY } from '../buylist'
@@ -241,6 +260,12 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import { formatCardTags, type CardTag } from '../card/card-tags'
+import {
+  cardCategorySpellings,
+  foldCardCategory,
+  primaryCardCategory,
+  type CardCategory,
+} from '../card/card-categories'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { getCurrencySymbol, getCurrencySuffix } from '../pricing/price-currency'
 
@@ -404,15 +429,15 @@ function tagSetKey(tags: readonly CardTag[] | undefined): string {
 }
 
 /**
- * The one ordering rule for tag-set keys, shared by the tags sort and the
- * tags grouping's heading order: keys in display order, with `emptyKey` — the
+ * The one ordering rule for group keys, shared by the tags sort and grouping and
+ * by the two category groupings: keys in display order, with `emptyKey` — the
  * spelling of "no tags" in that context (`''` for a card, the localized
  * "Untagged" heading for a group) — last. Locale-aware (`compareDisplay`)
  * because the keys are the headings the reader sees; the order of tags
  * *within* one set is the file's pinned data collation (`normalizeCardTags`),
  * which is why `#ä` can sit one way inside a line and another between lines.
  */
-function compareTagKeys(left: string, right: string, emptyKey: string): number {
+function compareGroupKeys(left: string, right: string, emptyKey: string): number {
   if (left === right) return 0
   if (left === emptyKey) return 1
   if (right === emptyKey) return -1
@@ -424,7 +449,7 @@ function compareTagSets(
   a: readonly CardTag[] | undefined,
   b: readonly CardTag[] | undefined,
 ): number {
-  return compareTagKeys(tagSetKey(a), tagSetKey(b), '')
+  return compareGroupKeys(tagSetKey(a), tagSetKey(b), '')
 }
 
 /**
@@ -440,6 +465,41 @@ function compareTagSets(
 function tagGroupKey(tags: readonly CardTag[] | undefined, untaggedKey: string): string {
   const key = tagSetKey(tags)
   return key === '' ? untaggedKey : key
+}
+
+/** A card's primary category, or `''` for none — the sort's and grouping's key. */
+function primaryCategoryKey(categories: readonly CardCategory[] | undefined): string {
+  return primaryCardCategory(categories) ?? ''
+}
+
+/**
+ * Order two cards by primary category, uncategorized last. Display collation:
+ * the comparator has no access to the list's vocabulary, so the *sort* orders
+ * primary-category strings the way the reader reads them, while the *group
+ * heading* order is the sidecar's own `order`.
+ */
+function compareCategories(
+  a: readonly CardCategory[] | undefined,
+  b: readonly CardCategory[] | undefined,
+): number {
+  return compareGroupKeys(primaryCategoryKey(a), primaryCategoryKey(b), '')
+}
+
+/**
+ * Bucket key → the spelling shown in the heading. The shared
+ * {@link cardCategorySpellings} table, which the filter row's options are built
+ * from too, so a heading and a chip can never spell one category two ways.
+ */
+type CategoryHeadings = ReadonlyMap<string, CardCategory>
+
+function categoryHeadings(
+  cards: readonly CardData[],
+  categoryOrder: readonly CardCategory[],
+): CategoryHeadings {
+  return cardCategorySpellings(
+    cards.map((card) => card.categories),
+    categoryOrder,
+  ).spelling
 }
 
 /**
@@ -465,6 +525,8 @@ function compareByField(a: CardData, b: CardData, sortBy: SortBy): number {
       return a.buylistSpread - b.buylistSpread
     case 'tags':
       return compareTagSets(a.tags, b.tags)
+    case 'category':
+      return compareCategories(a.categories, b.categories)
     default:
       return a[sortBy] - b[sortBy]
   }
@@ -537,6 +599,11 @@ export function groupAndSortCards<T extends CardData>(
   priceGroupStrategy?: PriceGroupStrategy,
   currency: PriceCurrency = 'usd',
   reverseGroups: boolean = false,
+  /**
+   * The list's category vocabulary, in its sidecar order — the heading order for
+   * the two category groupings. Empty for every other grouping.
+   */
+  categoryOrder: readonly CardCategory[] = [],
 ): CardGroup<T>[] {
   const sortFn = (a: CardData, b: CardData) => compareBySortLayers(a, b, sortLayers)
 
@@ -606,6 +673,35 @@ export function groupAndSortCards<T extends CardData>(
       if (!groups[key]) groups[key] = []
       groups[key].push(c)
     }
+  } else if (groupBy === 'category') {
+    const uncategorized = t('site.groupBy.uncategorized')
+    const headings = categoryHeadings(cards, categoryOrder)
+    for (const c of cards) {
+      const primary = primaryCardCategory(c.categories)
+      const key =
+        primary === undefined ? uncategorized : (headings.get(foldCardCategory(primary)) ?? primary)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(c)
+    }
+  } else if (groupBy === 'categories') {
+    const uncategorized = t('site.groupBy.uncategorized')
+    const headings = categoryHeadings(cards, categoryOrder)
+    for (const c of cards) {
+      const own = c.categories ?? []
+      if (own.length === 0) {
+        if (!groups[uncategorized]) groups[uncategorized] = []
+        groups[uncategorized].push(c)
+        continue
+      }
+      // Deliberately breaks the one-card-one-group invariant: a card appears
+      // under every category it holds, so group totals overlap (design §7) and
+      // the section heading says so.
+      for (const name of own) {
+        const key = headings.get(foldCardCategory(name)) ?? name
+        if (!groups[key]) groups[key] = []
+        groups[key].push(c)
+      }
+    }
   }
 
   const keys = Object.keys(groups)
@@ -652,14 +748,28 @@ export function groupAndSortCards<T extends CardData>(
     keys.sort((a, b) => (firstIndex.get(a) ?? 0) - (firstIndex.get(b) ?? 0))
   } else if (groupBy === 'tags') {
     // Tag sets in display order, the untagged group last.
-    keys.sort((a, b) => compareTagKeys(a, b, t('site.groupBy.untagged')))
+    keys.sort((a, b) => compareGroupKeys(a, b, t('site.groupBy.untagged')))
+  } else if (groupBy === 'category' || groupBy === 'categories') {
+    // The list's own vocabulary order, anything it does not name after it, and
+    // Uncategorized last. Ranks are folded, so the buckets and the ranks agree.
+    const uncategorized = t('site.groupBy.uncategorized')
+    const rank = new Map(categoryOrder.map((name, i) => [foldCardCategory(name), i] as const))
+    keys.sort((a, b) => {
+      if (a === uncategorized) return 1
+      if (b === uncategorized) return -1
+      const ra = rank.get(foldCardCategory(a)) ?? Number.MAX_SAFE_INTEGER
+      const rb = rank.get(foldCardCategory(b)) ?? Number.MAX_SAFE_INTEGER
+      return ra === rb ? compareGroupKeys(a, b, uncategorized) : ra - rb
+    })
   }
 
   const orderedKeys = keys.filter((key) => groups[key] && groups[key].length > 0)
   if (reverseGroups) orderedKeys.reverse()
 
+  const uncategorizedKey = t('site.groupBy.uncategorized')
   return orderedKeys.map((key) => ({
     key,
     cards: groups[key]!.sort(sortFn),
+    ...(groupBy === 'categories' && key !== uncategorizedKey ? { category: key } : {}),
   }))
 }

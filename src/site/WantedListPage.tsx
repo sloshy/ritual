@@ -1,5 +1,6 @@
 import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import type { Component } from 'solid-js'
+import { useListCategories } from './list-categories'
 import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
@@ -68,6 +69,7 @@ const WANTED_SORT_BYS: readonly SortBy[] = [
   'set-code',
   'edhrec',
   'tags',
+  'category',
 ]
 type WantedTradePicker = {
   cardName: string
@@ -189,6 +191,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     return currencyEntries().reduce((sum, e) => sum + e.price, 0)
   })
 
+  // Resolved from the list's own record rather than read off the entry: the
+  // editing panes carry no baked categories on their card data and pass the live
+  // record instead. See `useListCategories`.
+  const { categoriesFor, categoriesField } = useListCategories(() => props.categories)
+
   const allCards = createMemo((): CardData[] => {
     return currencyEntries().map((entry) => {
       const card = resolveWantedCardEntry(entry, cardMaps())
@@ -211,6 +218,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         artTags: card?.artTags ?? [],
         labels: [],
         tags: entry.tags,
+        ...categoriesField(entry.name),
         customArt: entry.customArt,
         hasCustomArt: entry.hasCustomArt,
         finish: entry.finish,
@@ -233,6 +241,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
     },
     cards: allCards,
     sectionOrder,
+    categoryOrder: () => props.categories?.order ?? [],
     // Seed the session cache from this list's baked card data so the editor's
     // card search and the trade page reuse it instead of re-fetching.
     seed: () => {
@@ -457,6 +466,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
               label={group.key}
               cards={group.cards}
               currency={props.currency}
+              secondaryOf={page.toolbar.groupBy() === 'categories' ? group.category : undefined}
               renderCard={renderWantedListCard}
             />
           )}
@@ -478,6 +488,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
             meta={modalMeta()}
             note={modalEntry()?.note}
             tags={modalEntry()?.tags}
+            categories={categoriesFor(modalEntry()?.name)}
             onAddToTrade={modalAddToTrade()}
             addToTradeDisabled={modalAddToTradeDisabled()}
           />

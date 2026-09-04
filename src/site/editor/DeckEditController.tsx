@@ -16,6 +16,8 @@ import { promptListMove, promptSectionMove } from '../../list-view/move-prompt'
 import { promptCardLabels } from '../../list-view/label-prompt'
 import { promptCardLanguage } from '../../list-view/language-prompt'
 import { promptCardTags } from '../../editor/tags-prompt'
+import { openCategoriesPrompt } from '../../editor/card-categories-edit'
+import { holdsCardName } from '../../card/card-categories'
 import { tagSuggestions } from '../../editor/card-tags-edit'
 import { useEditor } from '../../editor/useEditor'
 import { sharedBulkEdit } from '../../editor/shared-bulk-edit'
@@ -130,6 +132,13 @@ export function useDeckEditController(
     )
   }
 
+  /** Does the deck still hold any line of `cardName`? (The shared fold rule.) */
+  const deckHoldsCardName = (cardName: string): boolean =>
+    holdsCardName(
+      (editor.data()?.sections ?? []).flatMap((section) => section.cards.map((card) => card.name)),
+      cardName,
+    )
+
   const handleDecrement = (cardName: string) => {
     const d = editor.data()
     const cardId = d ? findDeckCardId(d, cardName) : undefined
@@ -156,6 +165,10 @@ export function useDeckEditController(
     editor.setData((prev) =>
       prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
     )
+    // The removal took the deck's last line of this name, so its pending
+    // `set-categories` events no longer have a card — fold them onto the undo
+    // entry the removal just pushed (the web half of `FoldOptions.goneCardName`).
+    if (!deckHoldsCardName(cardName)) editor.changes.foldGoneCardCategories(cardName)
   }
 
   const closeContextMenu = () => {
@@ -262,6 +275,7 @@ export function useDeckEditController(
         )
       }
       if (cardId !== undefined) editor.pool.release(cardId)
+      if (!deckHoldsCardName(cardName)) editor.changes.foldGoneCardCategories(cardName)
     })
   }
 
@@ -517,6 +531,11 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                     },
                   })
                 }}
+                onEditCategories={() => {
+                  const target = menu()
+                  ctrl.closeContextMenu()
+                  openCategoriesPrompt(editor, target.cardName)
+                }}
                 onSetLanguage={() => {
                   const target = menu()
                   const d = editor.data()
@@ -584,6 +603,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
             listLabels={props.listLabels}
             cards={ctrl.cardData.cards}
             printings={ctrl.cardData.printings}
+            categories={ctrl.editor.categoriesJson()}
             lowestPriceCards={ctrl.cardData.lowestPriceCards}
             lowestPriceCardsEur={ctrl.cardData.lowestPriceCardsEur}
             lowestPriceCardsTix={ctrl.cardData.lowestPriceCardsTix}

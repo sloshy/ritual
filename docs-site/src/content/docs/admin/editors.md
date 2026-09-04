@@ -38,6 +38,7 @@ The list toolbar (shared with the public site pages) groups all card filters und
 - **Color Identity** — toggle any combination of the five colors plus a **Colorless** swatch (select it alone to find cards with no color identity), then pick a match mode: **Subset** (the default) matches any card that could be played in a deck of the selected colors, **Include** matches cards using at least one of them, **Exclude** matches cards using none of them, and **Exact** matches cards whose identity is exactly the selection
 - **Sets** — a tag input filtering by set code; type a code (space or comma finishes the tag) or pick from the autocomplete list of codes present in the list. **Include** (the default) keeps the selected sets; **Exclude** drops them
 - **Card Type** / **Oracle Tags** / **Art Tags** — tag inputs sharing the same **Include / Exclude / Exact** match mode, defaulting to **Exact** (a card must carry every selected value)
+- **Categories** — shown when the list's cards carry [categories](#card-categories); a tag input with the same **Include / Exclude / Exact** modes, defaulting to **Exact**. It commits on **commas only** (a space is part of a category name) and keeps each name's own capitalization. The toolbar's grouping menu also offers **Category** (primary only) and **Categories** (every category a card holds, non-primary appearances dimmed and badged), and its sort menu offers **Category** — see [grouping, sorting and filtering by category](/public-site/filtering/#grouping-sorting-and-filtering-by-category)
 - **Labels** — label-carrying pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Proxy** / **Unlabeled**, matched against each card's effective [labels](#card-labels). A deck page shows only the two chips a deck can answer, **Proxy** and **Unlabeled**; a wanted list shows the row not at all (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
 - **Price** — shown while prices are displayed; a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price from the selected [price store](/public-site/price-sources/). The label carries the currency (**Price ($)**), and switching the store clears the field
@@ -168,7 +169,7 @@ Both fields reset for the next card, including after **Add Another Card**.
 
 ### Context Menu
 
-Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Edit Tags…**](#card-tags), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices, and [**Swap printing…**](#swap-printings), which opens the swap wizard on that one card (on a card that pins none, the wizard sets its printing from a copy owned in another list).
+Right-clicking a card (or clicking the **⋯** button in binder/overlap views) opens a context menu. **Set as Foil** (disabled until the card pins a printing), **Change Printing…** (**Set Printing…** on a card that pins none), [**Set Language…**](#card-language), [**Edit Tags…**](#card-tags), [**Edit Categories…**](#card-categories), [**Set Custom Art…**](#custom-art), and **Move to section…** are available in all editors. The Deck Editor additionally offers **Set as Commander**; the Deck and Collection Editors offer [**Set Label…**](#card-labels) with their type's choices, and [**Swap printing…**](#swap-printings), which opens the swap wizard on that one card (on a card that pins none, the wizard sets its printing from a copy owned in another list).
 
 #### Move to Section
 
@@ -186,7 +187,7 @@ Click the **Sections** button in the bottom [action bar](#editor-action-bar) to 
 
 One deck section does not survive a save while empty: an **extras** section (a name containing `maybeboard` or `token`) is dropped when it holds no cards, whether you just created it or just removed its last card. Extras count toward no total, so a header with nothing under it is a leftover rather than content — add a card to it in the same save if you want it to stick.
 
-Cards with no explicit section belong to an implicit **Main** section, which is written out explicitly the next time the list is saved. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a selectable grouping option in the toolbar.
+Cards with no explicit section belong to an implicit **Main** section, which is written out explicitly the next time the list is saved. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a selectable grouping option in the toolbar. The **Category** and **Categories** groupings and the **Category** sort are offered on every list (a list with no categories shows one **Uncategorized** group) — see [Card Categories](#card-categories).
 
 On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See the [collection](/commands/edit/#collection-files) and [wanted list](/commands/edit/#wanted-list-files) file formats.
 
@@ -239,6 +240,15 @@ Every card entry on every list type can carry [tags](/commands/edit/#card-tags) 
 - **Edit Tags…** in a card's `⋯` context menu opens a dialog with one field holding the card's whole tag set, seeded with its current tags. Type tags **separated by commas** — `My Tag, My Other Tag` is two tags; spaces are part of a tag — and the field validates as you type (a tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses; an invalid one is explained under the field and blocks **Save**). Tags already used on other cards in the list appear as one-click suggestions. Saving an empty field removes every tag. On a collection tile that groups identical copies, the edit applies to every copy.
 - Saving records **one change per tag that differs** — an `add-tag` for each tag added, a `remove-tag` for each removed — rather than one whole-set change, and each is its own **Undo** step (undo reverts one tag at a time, most recent first). A `remove-tag` cancels a pending `add-tag` of the same tag (and vice versa), so adding a tag and removing it again in one session leaves nothing pending. Changes are listed in **Changes** and written on save (changelog: `Added tag "Ramp" to "Sol Ring" &5`).
 - Tags are not offered in the multi-select **Selected** menu; edit them per card.
+
+### Card Categories
+
+Every list type can carry [categories](/commands/categories/) — a card's **role in this list** (`Ramp`, `Board Wipes`), ordered so the first is its **primary** category. Unlike a tag, a category belongs to a card **name in this list**: one assignment covers every line of that name, and it never follows a card to another list. Categories drive the [Category groupings, sort and filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category) on the public site.
+
+- **Edit Categories…** in a card's `⋯` context menu opens a dialog with one field holding the card's whole ordered category list, seeded with its current categories. Type categories **separated by commas** — `Ramp, Artifacts` is two, and spaces are part of a name — and the field validates as you type (the same shape rule tags use: no `#`, `,`, `&`, `*`, quotes, brackets, braces or parentheses; an invalid entry is explained under the field and blocks **Save**). Above the field, the parsed categories appear as chips in order, the first marked **primary**; the ◀ and ▶ buttons on a chip move it, so changing which category is primary is one click. Categories already used elsewhere in the list — followed by the configured [`defaultCategories`](/configuration/#default-categories) — appear as one-click suggestions. Saving an empty field clears the card's categories.
+- Saving records **one** `set-categories` change for the card, whatever changed inside it, and it is **one** Undo step. Repeated edits of the same card consolidate into the last one, and restoring the card's on-disk categories cancels the pending change outright, leaving nothing in **Changes**.
+- **Categories** in the bottom [action bar](#editor-action-bar) opens the **Manage categories** dialog: every category the list uses, with how many cards hold it, **▲ ▼** to reorder (that order is the site's group-heading order), **Rename** (refused if another category already has that name, compared case-insensitively) and **Remove**, which takes the category off every card holding it. The list here is the list's whole **vocabulary** — including categories its `order` declares that no card currently holds, which show a count of 0. Reorder and rename are one Undo step each; **Remove** records one `set-categories` change per card that held the category plus one order change, so undoing a removal takes one step per recorded change.
+- Saving writes the list's `<list>.categories.json` sidecar and records the changes in its changelog. If the save's removals left the sidecar naming cards the list no longer holds, those entries are pruned and the status line names them. The same status line carries any categories-sidecar warning the save reported (an unreadable sidecar, entries for cards the list no longer holds), and a warning reported when the list **loads** is shown once as an editor error.
 
 ### Custom Art
 
@@ -314,6 +324,7 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 - **+ Add Card** — opens the card search modal (see [Adding Cards](#adding-cards)); also **Ctrl+Enter**
 - **Add Card Defaults** — expands the [defaults panel](#add-card-defaults) upward
 - **Sections** — opens the [Manage Sections](#sections) dialog
+- **Categories** — opens the [Manage categories](#card-categories) dialog (all three editors)
 - **Labels** — opens the [Default Labels](#card-labels) modal (deck and collection editors)
 - **Cover Image…** — opens the [Cover Image](#cover-image) modal (all three editors)
 - **Import…** — loads an exported [change bundle](/commands/admin/#loading-changes-into-an-editor) as pending edits
@@ -350,7 +361,8 @@ Open **Edit Lists** (admin sidebar or Dashboard card) and select the **Decks** t
 
 The **⋯** button opens a context menu with the [items every editor shares](#context-menu) —
 **Set as Foil**, **Change Printing…**, [**Swap printing…**](#swap-printings), [**Set
-Language…**](#card-language), [**Edit Tags…**](#card-tags), [**Set Custom Art…**](#custom-art), and
+Language…**](#card-language), [**Edit Tags…**](#card-tags), [**Edit
+Categories…**](#card-categories), [**Set Custom Art…**](#custom-art), and
 **Move to section…** — plus two the Deck Editor adds:
 
 - **Set as Commander** — Move the card to the Commander section (supports multiple commanders)
@@ -466,6 +478,7 @@ A list's front-matter [`description:`](/commands/metadata/) — the blurb the bu
 | Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
 | Card labels               | ✅ Proxy + list default | ✅ + list default | ❌                 |
 | Card tags                 | ✅                      | ✅                | ✅                 |
+| Card categories           | ✅                      | ✅                | ✅                 |
 | Custom art                | ✅                      | ✅                | ✅                 |
 | Cover image               | ✅                      | ✅                | ✅                 |
 | Description               | 👁️ Read-only            | 👁️ Read-only      | 👁️ Read-only       |

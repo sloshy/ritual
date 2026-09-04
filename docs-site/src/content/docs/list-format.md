@@ -194,12 +194,14 @@ Categories are never written on a card line. They live in a JSON sidecar beside 
 
 - **Keyed by card name.** One assignment covers every line of that name in the list, whatever its printing, section or quantity. Lookups fold case and whitespace; the stored key is the name as the card line spells it, including the `A // B` spelling of a double-faced card.
 - **`cards` is ordered per card, and the first entry is the card's primary category.** Reordering is a real edit.
-- **`order` is the display order** of the list's vocabulary. Categories a card uses but `order` does not name are appended when Ritual next writes the file — the [`defaultCategories`](/configuration/) config vocabulary first, in its configured order, then the rest alphabetically — so the file describes itself.
+- **`order` is the display order** of the list's vocabulary. Categories a card uses but `order` does not name are appended when Ritual next writes the file — the [`defaultCategories`](/configuration/#default-categories) config vocabulary first, in its configured order, then the rest alphabetically — so the file describes itself.
 - **A category name follows the tag shape rule**: non-empty plain text that cannot contain `#`, `,`, `&`, `*`, double quotes, brackets, braces or parentheses. Case is kept exactly as written; `Ramp` and `ramp` are one category with two spellings.
 - **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning rather than being dropped on read. It is pruned by the list's own save (an editor session, an admin save), by a cross-list [`move`](/commands/move/) that rewrites the list — but only when the move could read every card line in it — and by [`ritual cleanup`](/commands/cleanup/). [`ritual categories`](/commands/categories/) reports stale entries and never prunes them, because a read does not write.
 - **A malformed sidecar is refused as a whole.** It is never partially loaded and never silently overwritten, so a list with an unreadable sidecar still saves.
 - **Empty means gone.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
 - **It carries its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history: hand edits to it are detected by [`detect-changes`](/commands/detect-changes/) and recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` / `Set category order to …` / `Renamed category "Draw" to "Card Draw"` entries in the **list's** `.changes.md`. A sidecar Ritual did not itself last write keeps its stale hash, so the edit is not silently declared recorded.
+
+The sidecar is what the sites read: the built site bakes it into each list's detail JSON, and the pages offer the [Category groupings, the Category sort and the Categories filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category); the admin and public editors write it through their [Edit Categories… and Manage categories dialogs](/admin/editors/#card-categories).
 
 ## The `.changes.md` changelog
 

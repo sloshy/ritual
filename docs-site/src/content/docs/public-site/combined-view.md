@@ -38,6 +38,7 @@ Viewing rules are applied in a **lowest-common-denominator** fashion across the 
 - **Cards are never merged.** Decks normally collapse copies onto one line, but because collections and wanted lists keep each card separate, the combined view does too: every entry stands on its own. (A deck entry keeps its own per-line quantity.)
 - **Sections are preserved**, but a deck's special sections lose their special treatment — there is no commander pinning, no sideboard-at-the-bottom, and **no "extras" to hide**. A deck's mainboard, sideboard, maybeboard, and token sections all appear as ordinary sections.
 - **Grouping and sorting** offer the options common to every combined list type, plus a new **Source List** grouping that groups cards by the list they came from — and, in [sell mode](/public-site/sell/), the buylist groupings and sorts. The **Printing** grouping is offered only when no collection is part of the combination (collection cards are always pinned to a specific printing, so the distinction is moot once one is mixed in).
+- **Categories are not offered here.** The **Category** and **Categories** groupings, the **Category** sort and the **Categories** filter row are single-list features: each list has its own category vocabulary and its own display order, so one dropdown could not honestly speak for all of them.
 
 ## Selecting and trading
 

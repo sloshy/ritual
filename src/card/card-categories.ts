@@ -288,3 +288,101 @@ export function parseDefaultCategories(value: unknown): CardCategory[] | ConfigP
   }
   return normalizeCardCategories(categories)
 }
+
+/**
+ * Does any of `names` fold to `cardName` under the categories key space? The
+ * "does this list still hold a line of that name" test the editors run before
+ * folding a `set-categories` out of the session — stated here, on the
+ * browser-safe leaf that owns the fold, rather than in each controller:
+ * `src/list/card-names.ts` pulls `loadListEntries` (and therefore `fs`) into the
+ * browser bundle.
+ */
+export function holdsCardName(names: Iterable<string>, cardName: string): boolean {
+  const key = foldCategoryCardName(cardName)
+  for (const name of names) {
+    if (foldCategoryCardName(name) === key) return true
+  }
+  return false
+}
+
+/**
+ * Whether a category list holds `category`, comparing through the shared fold.
+ * The one membership rule: the record transform, the editor's remove handler and
+ * the usage counter all ask it here so the events they emit and the record they
+ * rewrite provably agree.
+ */
+export function hasCardCategory(
+  categories: readonly CardCategory[] | undefined,
+  category: CardCategory,
+): boolean {
+  const key = foldCardCategory(category)
+  return (categories ?? []).some((name) => foldCardCategory(name) === key)
+}
+
+/** `categories` without `category` (fold-compared), order otherwise preserved. */
+export function withoutCardCategory(
+  categories: readonly CardCategory[] | undefined,
+  category: CardCategory,
+): CardCategory[] {
+  const key = foldCardCategory(category)
+  return (categories ?? []).filter((name) => foldCardCategory(name) !== key)
+}
+
+/**
+ * Fold key → the spelling a heading or a filter chip shows, plus which keys the
+ * cards actually hold. The vocabulary's own spelling wins (it is what the sidecar
+ * and every other surface display); a category no `order` names is spelled by the
+ * first card that holds it. One table so a group heading and a filter chip can
+ * never spell one category two ways.
+ */
+export type CardCategorySpellings = {
+  /** Fold key → display spelling; vocabulary names first, then card-only ones. */
+  spelling: ReadonlyMap<string, CardCategory>
+  /** Fold keys at least one card holds, in first-seen order. */
+  used: ReadonlySet<string>
+}
+
+export function cardCategorySpellings(
+  cardCategories: Iterable<readonly CardCategory[] | undefined>,
+  order: readonly CardCategory[],
+): CardCategorySpellings {
+  const spelling = new Map<string, CardCategory>()
+  const used = new Set<string>()
+  for (const name of order) spelling.set(foldCardCategory(name), name)
+  for (const categories of cardCategories) {
+    for (const name of categories ?? []) {
+      const key = foldCardCategory(name)
+      used.add(key)
+      if (!spelling.has(key)) spelling.set(key, name)
+    }
+  }
+  return { spelling, used }
+}
+
+/** The per-card categories a load body, a baked detail or a `CardData` attaches. */
+export type CardCategoriesOverlay = {
+  /**
+   * The card name's categories in this list, primary first; absent when none.
+   *
+   * `readonly` on purpose: the join hands out the loaded record's own array by
+   * reference (one array is shared by every line of that name), so a consumer
+   * that sorted or spliced it would mutate the record.
+   */
+  categories?: readonly CardCategory[]
+}
+
+/**
+ * A shape as a *payload* carries it: the engine's own type plus the categories
+ * resolved for its name. The widening lives outside the engine types rather than
+ * on `Card`/`CollectionEntry` because categories are never on a card line — the
+ * engine model must stay the line, or the serializer, the deck-sync differ and
+ * the merge identity would start seeing a sidecar-owned value.
+ *
+ * A body echoed back to a save route (the deck save re-sends `deck`) carries the
+ * field harmlessly: the serializer writes named fields only, and the sidecar is
+ * written from `set-categories` changes, never from a payload.
+ *
+ * It lives on this browser-safe leaf because the baked site payloads
+ * (`src/list/site-data.ts`) need it too and must not import `src/admin/api/*`.
+ */
+export type WithCardCategories<T> = T & CardCategoriesOverlay

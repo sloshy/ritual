@@ -60,9 +60,33 @@ export const sitePagesMeta = {
     description:
       'Heading of the group holding cards that carry no tag at all when grouping by tags. Shown last.',
   },
+  'site.groupBy.category': {
+    description: 'Toolbar grouping that puts each card under its primary category only.',
+  },
+  'site.groupBy.categories': {
+    description:
+      'Toolbar grouping that shows a card under every category it holds; the non-primary appearances are dimmed.',
+  },
+  'site.groupBy.uncategorized': {
+    description: 'Heading for the group of cards with no categories; always shown last.',
+  },
+  'site.cardSection.alsoMarker': {
+    description:
+      'Tiny badge on a card shown under a category that is not its primary one. Keep it very short — it sits on the card image.',
+  },
+  'site.cardSection.alsoTitle': {
+    description: 'Tooltip on the "also" badge. {primary} is the card\'s own first category.',
+  },
+  'site.cardSection.secondaryCountNote': {
+    description:
+      'Note beside a group\'s card count under the "Categories" grouping, where one card can appear in several groups.',
+  },
   'site.groupBy.none': { description: 'Toolbar "Group by" choice: do not group at all.' },
   'site.sortBy.tags': {
     description: 'Toolbar "Sort by" choice: order cards by their tag set, untagged cards last.',
+  },
+  'site.sortBy.category': {
+    description: 'Toolbar sort field: orders cards by their primary category, uncategorized last.',
   },
 
   // ── Export menu ───────────────────────────────────────────────────────
@@ -547,6 +571,14 @@ export const sitePagesMeta = {
   'site.detail.artUnknownCards': {
     description:
       'Build warning: the custom-art sidecar names card ids that the list no longer contains. {ids} is a comma-separated list of those raw numeric ids.',
+  },
+  'site.detail.categoriesUnreadable': {
+    description:
+      "Build/load warning when a list's `.categories.json` is malformed. {reason} is the parser's own English explanation.",
+  },
+  'site.detail.categoriesUnknownCards': {
+    description:
+      'Build/load warning listing sidecar entries with no matching card line. {names} is a comma-separated list of the names exactly as the sidecar stores them.',
   },
   'site.detail.listDescriptionInvalid': {
     description:

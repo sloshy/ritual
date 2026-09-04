@@ -39,6 +39,7 @@ import {
   WUBRG,
 } from '../list-view/card-sorting'
 import { GROUP_BYS } from './list-page-options'
+import { foldCardCategory, parseCardCategory } from '../card/card-categories'
 
 /** The per-page defaults that determine which group/sort values are omitted from the URL. */
 export type ListViewDefaults = {
@@ -108,6 +109,8 @@ const KEYS = {
   oracleTagMode: 'otagMode',
   artTags: 'atags',
   artTagMode: 'atagMode',
+  cardCategories: 'cats',
+  cardCategoryMode: 'catMode',
   manaValue: 'mv',
   manaValueOp: 'mvOp',
   price: 'price',
@@ -237,6 +240,14 @@ export function writeListViewParams(
     hasArtTags && f.artTagMode !== d.artTagMode ? f.artTagMode : null,
   )
 
+  const hasCategories = f.cardCategories.length > 0
+  setOrDelete(params, KEYS.cardCategories, hasCategories ? f.cardCategories.join(',') : null)
+  setOrDelete(
+    params,
+    KEYS.cardCategoryMode,
+    hasCategories && f.cardCategoryMode !== d.cardCategoryMode ? f.cardCategoryMode : null,
+  )
+
   const hasMana = f.manaValue !== null
   setOrDelete(params, KEYS.manaValue, hasMana ? String(f.manaValue) : null)
   setOrDelete(
@@ -330,14 +341,49 @@ function oneOf<T extends string>(value: string | null, allowed: readonly T[]): T
   return value !== null && (allowed as readonly string[]).includes(value) ? (value as T) : undefined
 }
 
+/**
+ * Parse a comma-separated list of tokens, dropping blanks and anything `store`
+ * refuses (it returns `undefined` for a token this parameter may not carry),
+ * deduped by `fold`. The one CSV reader: the lowercase-slug parameters fold and
+ * store lowercase, while a category keeps the user's own spelling.
+ */
+function parseCsvBy(
+  value: string | null,
+  fold: (v: string) => string,
+  store: (v: string) => string | undefined,
+): string[] | undefined {
+  if (value === null) return undefined
+  const seen = new Set<string>()
+  const items: string[] = []
+  for (const raw of value.split(',')) {
+    const item = store(raw.trim())
+    if (item === undefined || item.length === 0) continue
+    const key = fold(item)
+    if (seen.has(key)) continue
+    seen.add(key)
+    items.push(item)
+  }
+  return items.length > 0 ? items : undefined
+}
+
+const lowercase = (value: string): string => value.toLowerCase()
+
 /** Parse a comma-separated list of lowercase tokens, dropping blanks. */
 function parseCsv(value: string | null): string[] | undefined {
-  if (value === null) return undefined
-  const items = value
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s.length > 0)
-  return items.length > 0 ? [...new Set(items)] : undefined
+  return parseCsvBy(value, lowercase, lowercase)
+}
+
+/**
+ * Parse the `cats` parameter: **case-preserving** category names, validated by
+ * the shipped grammar so a link cannot inject a chip no card could ever match
+ * (and that the toolbar would then write straight back out). Lenient per token —
+ * a refused name is dropped, the rest apply — like the share and buylist readers.
+ */
+function parseCategoryCsv(value: string | null): string[] | undefined {
+  return parseCsvBy(value, foldCardCategory, (raw) => {
+    const parsed = parseCardCategory(raw)
+    return parsed.ok ? parsed.category : undefined
+  })
 }
 
 /** A parsed color selection: WUBRG colors in canonical order, plus the colorless flag. */
@@ -422,6 +468,11 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (artTags) filters.artTags = artTags
   const artTagMode = oneOf(get(KEYS.artTagMode), FILTER_MATCH_MODES)
   if (artTagMode) filters.artTagMode = artTagMode
+
+  const cardCategories = parseCategoryCsv(get(KEYS.cardCategories))
+  if (cardCategories) filters.cardCategories = cardCategories
+  const cardCategoryMode = oneOf(get(KEYS.cardCategoryMode), FILTER_MATCH_MODES)
+  if (cardCategoryMode) filters.cardCategoryMode = cardCategoryMode
 
   const manaValue = parseIntegerParam(get(KEYS.manaValue))
   if (manaValue !== undefined) {

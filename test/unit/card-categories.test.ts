@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   DEFAULT_CARD_CATEGORIES,
   foldCategoryCardName,
+  holdsCardName,
   formatCardCategories,
   invalidCardCategoryMessage,
   isCardCategoryShaped,
@@ -11,8 +12,10 @@ import {
   parseCardCategoriesValue,
   parseCardCategory,
   parseDefaultCategories,
+  hasCardCategory,
   primaryCardCategory,
   sameCardCategories,
+  withoutCardCategory,
 } from '../../src/card/card-categories'
 import { isConfigParseError } from '../../src/config/ritual-config'
 
@@ -174,5 +177,28 @@ describe('parseDefaultCategories', () => {
     const malformed = parseDefaultCategories(['Ramp', 'a,b'])
     expect(isConfigParseError(malformed)).toBe(true)
     if (isConfigParseError(malformed)) expect(malformed.error).toContain('a,b')
+  })
+})
+
+describe('holdsCardName', () => {
+  test('folds both sides, so a differently spelled line still counts', () => {
+    expect(holdsCardName(['SOL RING', 'Rhystic Study'], 'sol  ring')).toBe(true)
+  })
+
+  test('an empty list, or one without the name, holds nothing', () => {
+    expect(holdsCardName([], 'Sol Ring')).toBe(false)
+    expect(holdsCardName(['Rhystic Study'], 'Sol Ring')).toBe(false)
+  })
+})
+
+describe('hasCardCategory / withoutCardCategory', () => {
+  test('membership and removal both fold, and removal preserves the rest of the order', () => {
+    expect(hasCardCategory(['Ramp', 'Artifacts'], 'ramp')).toBe(true)
+    expect(hasCardCategory(undefined, 'Ramp')).toBe(false)
+    expect(withoutCardCategory(['Ramp', 'Artifacts', 'Draw'], 'ARTIFACTS')).toEqual([
+      'Ramp',
+      'Draw',
+    ])
+    expect(withoutCardCategory(undefined, 'Ramp')).toEqual([])
   })
 })

@@ -28,10 +28,19 @@ export const sitePagesMessages = {
   'site.groupBy.source': 'Source List',
   'site.groupBy.tags': 'Tags',
   'site.groupBy.untagged': 'Untagged',
+  'site.groupBy.category': 'Category',
+  'site.groupBy.categories': 'Categories',
+  'site.groupBy.uncategorized': 'Uncategorized',
   'site.groupBy.none': 'None',
 
   // ── Sort-by options (the rest live in the shared `domain.sortBy.*` set) ──
   'site.sortBy.tags': 'Tags',
+  'site.sortBy.category': 'Category',
+
+  // ── Card section chrome (the "Categories (all)" grouping's markers) ───
+  'site.cardSection.alsoMarker': 'also',
+  'site.cardSection.alsoTitle': 'Primary category: {primary}',
+  'site.cardSection.secondaryCountNote': 'count includes secondary placements',
 
   // ── Export menu ───────────────────────────────────────────────────────
   'site.export.copy': 'Copy',
@@ -217,6 +226,9 @@ export const sitePagesMessages = {
     "No {language} card object for '{name}' ({printing}); using the default-language object",
   'site.detail.artUnreadable': 'Custom art sidecar ignored: {reason}',
   'site.detail.artUnknownCards': 'Custom art is set for cards no longer in this list: {ids}',
+  'site.detail.categoriesUnreadable': 'Categories sidecar could not be read: {reason}',
+  'site.detail.categoriesUnknownCards':
+    'Categories sidecar names cards this list no longer holds: {names}',
   'site.detail.listDescriptionInvalid': "Front matter 'description' ignored: {reason}",
   'site.detail.listImageInvalid': "Front matter 'image' ignored: {reason}",
   'site.detail.listImageUnknownCard': {

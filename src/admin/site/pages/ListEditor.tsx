@@ -3,7 +3,7 @@ import { type ListType, LIST_TYPES, LIST_TYPE_DISPLAY } from '../../../list/list
 import { useTKey } from '../../../ui/i18n'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useRouting } from '../routing'
-import { useSearchDebounce } from '../hooks/useSearchDebounce'
+import { useAdminConfigDefaults } from '../hooks/useAdminConfigDefaults'
 import { DeckEditor } from './DeckEditor'
 import { CollectionEditor } from './CollectionEditor'
 import { WantedListEditor } from './WantedListEditor'
@@ -30,7 +30,7 @@ export function ListEditor(): JSX.Element {
   // clears it so the newly opened editor starts from its empty selector.
   const [deepLinkSlug, setDeepLinkSlug] = createSignal<string | null>(editing?.slug ?? null)
   const navigationGuard = useNavigationGuard()
-  useSearchDebounce()
+  useAdminConfigDefaults()
 
   // Selections made on this page rewrite the current history entry rather than
   // adding one, so Back leaves the editor instead of stepping through the lists

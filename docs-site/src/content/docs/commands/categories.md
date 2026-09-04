@@ -153,11 +153,17 @@ Categories are recorded for cards this list no longer holds: Sol Ring. They are 
 
 `cardsChanged` is computed from the record diff, so a rename — one list-level event that rewrites every card carrying the name — reports the cards it touched.
 
+## On the site
+
+The built site reads the same sidecar. On any single list view, **Group: Category** puts each card under its primary category, **Group: Categories** shows it under every category it holds (the non-primary appearances dimmed and badged), **Sort: Category** orders by primary, and a **Categories** filter row narrows the list — all shareable in the view URL. See [Grouping, sorting and filtering by category](/public-site/filtering/#grouping-sorting-and-filtering-by-category).
+
+Both the admin and the public in-browser editors edit categories directly: an **Edit Categories…** row in a card's `⋯` menu and a **Categories** (Manage categories) dialog for renaming, reordering and removing. See [Card Categories in the editors](/admin/editors/#card-categories).
+
 ## Related
 
 - [`set-card --categories` / `--no-categories`](/commands/set-card/#category-updates) — set one card's categories.
 - [`ritual edit`](/commands/edit/#card-categories) — the `🗂 Edit Categories` action and the list menu's `Rename Category…` / `Reorder Categories…` rows.
-- [`defaultCategories`](/configuration/) — the global vocabulary that seeds a list's resolved order.
+- [`defaultCategories`](/configuration/#default-categories) — the global vocabulary that seeds a list's resolved order.
 
 ## Exit Codes
 

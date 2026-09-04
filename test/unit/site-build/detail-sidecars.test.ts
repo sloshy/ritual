@@ -243,3 +243,111 @@ describe('detail loaders: list image', () => {
     ).toBeTrue()
   })
 })
+
+/**
+ * The categories sidecar, read alongside the art one. The parser itself is
+ * pinned in test/unit/card-categories-sidecar.test.ts; what is covered here is
+ * the loaders' warning channel and the record they hand the bake, including the
+ * lossless gate — a list the parser could not fully read passes no known-name
+ * set, so a live assignment is never reported stale.
+ */
+describe('detail loaders: categories sidecar', () => {
+  let dir: string
+
+  beforeEach(async () => {
+    dir = await createWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await removeWorkspace(dir)
+  })
+
+  async function writeList(name: string, content: string, categories?: string): Promise<void> {
+    await fs.writeFile(path.join(dir, `${name}.md`), content)
+    if (categories !== undefined) {
+      await fs.writeFile(path.join(dir, `${name}.categories.json`), categories)
+    }
+  }
+
+  test('a collection carries its categories record, keyed by folded card name', async () => {
+    await writeList(
+      'binder',
+      '# Binder\n\n- Arcane Signet (ECC:55) &1\n',
+      '{ "order": ["Ramp"], "cards": { "Arcane Signet": ["Ramp"] } }',
+    )
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.cardCategories?.order).toEqual(['Ramp'])
+    expect(loaded.cardCategories?.cards.get('arcane signet')?.categories).toEqual(['Ramp'])
+    expect(loaded.warnings).toHaveLength(0)
+  })
+
+  test('a deck carries its categories record', async () => {
+    await writeList(
+      'burn',
+      '---\nname: Burn\n---\n\n## Mainboard\n\n4 Lightning Bolt &1\n',
+      '{ "order": ["Burn"], "cards": { "Lightning Bolt": ["Burn"] } }',
+    )
+
+    const loaded = await loadDeckSource(dir, 'burn')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.cardCategories?.cards.get('lightning bolt')?.categories).toEqual(['Burn'])
+  })
+
+  test('a wanted list carries its categories record', async () => {
+    await writeList('wants', '# Wants\n\n- Sol Ring &1\n', '{ "cards": { "Sol Ring": ["Ramp"] } }')
+
+    const loaded = await loadWantedSource(dir, 'wants')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.cardCategories?.cards.get('sol ring')?.categories).toEqual(['Ramp'])
+  })
+
+  test('a malformed sidecar warns and leaves the list with the empty record', async () => {
+    await writeList('binder', '# Binder\n\n- Arcane Signet (ECC:55) &1\n', '{ "cards": 3 }')
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.warnings).toHaveLength(1)
+    expect(loaded.warnings[0]).toContain('"cards" must be an object')
+    expect(loaded.cardCategories?.cards.size).toBe(0)
+  })
+
+  test('an entry for a card the list no longer holds warns by name, and is kept', async () => {
+    await writeList(
+      'binder',
+      '# Binder\n\n- Arcane Signet (ECC:55) &1\n',
+      '{ "cards": { "Arcane Signet": ["Ramp"], "Sol Ring": ["Ramp"] } }',
+    )
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.warnings).toHaveLength(1)
+    expect(loaded.warnings[0]).toContain('Sol Ring')
+    expect(loaded.cardCategories?.cards.has('sol ring')).toBe(true)
+  })
+
+  test('a list the parser could not fully read reports no stale names', async () => {
+    // The `??` line is unreadable, so the name set is incomplete and the gate
+    // withholds it — the sidecar's entries are loaded without judgement.
+    await writeList(
+      'binder',
+      '# Binder\n\n- Arcane Signet (ECC:55) &1\n- ?? not a card line ??\n',
+      '{ "cards": { "Sol Ring": ["Ramp"] } }',
+    )
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.warnings.some((w) => w.includes('Sol Ring'))).toBe(false)
+    expect(loaded.cardCategories?.cards.has('sol ring')).toBe(true)
+  })
+
+  test('a missing sidecar is the normal case: the empty record, no warning', async () => {
+    await writeList('binder', '# Binder\n\n- Arcane Signet (ECC:55) &1\n')
+
+    const loaded = await loadCollectionSource(dir, 'binder')
+    if (typeof loaded === 'string') throw new Error(loaded)
+    expect(loaded.cardCategories?.cards.size).toBe(0)
+    expect(loaded.warnings).toHaveLength(0)
+  })
+})

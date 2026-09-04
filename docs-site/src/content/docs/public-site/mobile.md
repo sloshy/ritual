@@ -27,6 +27,8 @@ List pages collapse the full desktop toolbar into a single compact row:
 - a **Sort** button that opens a _Sort & Group_ bottom sheet holding the full controls: grouping (and price brackets), sorting — including stacking multiple sort layers with the **+** button, each with its own reverse (**↑↓**) and remove (**−**) button — the Reverse Sections toggle, card size, and any page-specific extras, and
 - the **Filters** button with its active-filter count badge.
 
+The two [category groupings](/public-site/filtering/#grouping-sorting-and-filtering-by-category), the **Category** sort and the **Categories** filter row appear in those same sheets — there is no separate phone control path for them.
+
 On pages that support it, the **Update prices** button lives in the button group above the toolbar (alongside actions like Combine and View Changes), the same as on desktop — see [Update Prices](/commands/build-site/#update-prices-per-page).
 
 ## Bottom sheets

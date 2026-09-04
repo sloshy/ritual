@@ -914,6 +914,94 @@
   background: var(--btn-hover);
 }
 
+/* Categories dialog (Edit Categories…): the reorderable chip row above the
+   field, then the hint and one-click suggestion chips, mirroring the tags
+   dialog's block above. */
+.categories-prompt-order {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+}
+
+.categories-prompt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  padding: 1px 4px;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+}
+
+.categories-prompt-chip--primary {
+  border-color: var(--accent);
+}
+
+.categories-prompt-primary-badge {
+  font-size: 0.625rem;
+  color: var(--text-secondary);
+}
+
+.categories-prompt-move {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.categories-prompt-move:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.categories-prompt-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.categories-prompt-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+}
+
+.categories-prompt-suggestions-label {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-right: 0.25rem;
+}
+
+.categories-prompt-suggestion {
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  padding: 1px 6px;
+  background: var(--bg-active);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.categories-prompt-suggestion:hover {
+  background: var(--btn-hover);
+}
+
+/* One row of the Manage-categories modal: the section-manager row plus the
+   ▲▼ reorder column. */
+.category-manager-row {
+  gap: 0.25rem;
+}
+
 .section-manager-count {
   font-size: 0.75rem;
   color: var(--text-secondary);

@@ -77,6 +77,7 @@ export const siteCardsMessages = {
   'site.cardModal.findInLists': 'Find in Lists',
   'site.cardModal.tags': 'Scryfall Tags',
   'site.cardModal.cardTags': 'Tags',
+  'site.cardModal.cardCategories': 'Categories',
   'site.cardModal.oracleTags': 'Oracle Tags',
   'site.cardModal.artTags': 'Art Tags',
   'site.cardModal.noTagData':

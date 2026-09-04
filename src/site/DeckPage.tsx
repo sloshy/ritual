@@ -1,5 +1,6 @@
 import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import type { SellModeProps } from '../list-view/sell-mode'
+import { useListCategories } from './list-categories'
 import type { Component } from 'solid-js'
 import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
@@ -84,6 +85,7 @@ const DECK_SORT_BYS: readonly SortBy[] = [
   'color-identity',
   'edhrec',
   'tags',
+  'category',
 ]
 
 export interface DeckPageProps extends SellModeProps, ListPageCommonProps {
@@ -301,6 +303,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   })
 
   // Build flat card list with metadata
+  // Resolved from the list's own record rather than read off the entry: the
+  // editing panes carry no baked categories on their card data and pass the live
+  // record instead. See `useListCategories`.
+  const { categoriesFor, categoriesField } = useListCategories(() => props.categories)
+
   const allCards = createMemo((): CardData[] => {
     sessionCacheVersion() // re-resolve card prices after an in-session "Update Prices"
     const result: CardData[] = []
@@ -334,6 +341,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           artTags: card?.artTags ?? [],
           labels,
           tags: entry.tags,
+          ...categoriesField(entry.name),
           customArt: entry.customArt,
           hasCustomArt: entry.hasCustomArt,
           finish: entry.finish,
@@ -390,6 +398,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       alsoFiltered: () => partitioned().sideboardCards,
     },
     sectionOrder,
+    categoryOrder: () => props.categories?.order ?? [],
     seed: () => {
       seedCards(props.cards)
       seedPrintings(props.printings)
@@ -710,6 +719,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 label={group.key}
                 cards={group.cards}
                 currency={props.currency}
+                secondaryOf={page.toolbar.groupBy() === 'categories' ? group.category : undefined}
                 renderCard={renderDeckCard(false)}
               />
             )}
@@ -758,6 +768,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             onClose={props.onCloseModal}
             meta={modalMeta()}
             tags={modalDeckEntry()?.tags}
+            categories={categoriesFor(modalDeckEntry()?.name)}
             onAddToTrade={!props.editMode && !props.onCardMove ? handleModalAddToTrade : undefined}
             addToTradeDisabled={
               !props.editMode && !props.onCardMove ? modalAddToTradeDisabled() : undefined

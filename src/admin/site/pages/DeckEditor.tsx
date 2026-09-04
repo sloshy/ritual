@@ -1,4 +1,5 @@
 import { createMemo, createSignal, type JSX } from 'solid-js'
+import type { CardCategoriesJson } from '../../../list/card-categories-record'
 import type { DeckData } from '../../../list/deck'
 import type { ScryfallCard } from '../../../scryfall/types'
 import type { CardLabel } from '../../../card/card-labels'
@@ -48,6 +49,10 @@ type DeckDataResponse = {
   image?: ListImageRef
   customArt?: CardArtRecord
   slug: string
+  /** The list's categories sidecar, as the load route sends it (phase 3). */
+  categories?: CardCategoriesJson
+  /** Sidecar trouble the load route reported; absent when clean. */
+  categoryWarnings?: string[]
   contentHash: string
 }
 
@@ -111,7 +116,11 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         data: r.deck,
         poolIds: collectDeckCardIds(r.deck),
         contentHash: r.contentHash,
-        extra: { frontMatter: r.frontMatter },
+        extra: {
+          frontMatter: r.frontMatter,
+          categories: r.categories ?? null,
+          categoryWarnings: r.categoryWarnings ?? [],
+        },
       }
     },
 

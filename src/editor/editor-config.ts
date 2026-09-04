@@ -9,6 +9,8 @@ import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
+import type { CardCategory } from '../card/card-categories'
+import type { CardCategoriesJson, CardCategoriesRecord } from '../list/card-categories-record'
 import type { CardLabel } from '../card/card-labels'
 import type { CardArtRef } from '../list/card-art'
 import type { SaveEffect } from '../changes/save-effects'
@@ -272,8 +274,15 @@ export type EditorConfig<TData> = {
   currency?: Accessor<PriceCurrency>
 }
 
-/** A section plus how many cards it currently holds. */
-export type SectionInfo = { name: string; count: number }
+/**
+ * One row of a manager modal: a name and how many cards it currently covers.
+ * The Sections modal and the Manage-categories modal render the same row markup
+ * (`.section-manager-row`) from this one model, so the two cannot drift apart.
+ */
+export type ManagerRow = { name: string; count: number }
+
+/** A section plus how many cards it currently holds — a {@link ManagerRow}. */
+export type SectionInfo = ManagerRow
 
 /** An in-app text-input prompt (replaces native `window.prompt` for section naming). */
 export type TextPromptState = {
@@ -369,6 +378,30 @@ export type UseEditorResult<TData, TCardEntry> = {
     currentTags: readonly CardTag[] | undefined,
     cardId?: number,
   ) => void
+  /**
+   * Set one card's categories to exactly `categories` (backs the "Edit
+   * Categories…" menu row on every list type). Name-keyed and latest-wins, so
+   * there is no `cardId` parameter: the event covers every line of the name.
+   */
+  handleSetCategoriesFor: (cardName: string, categories: CardCategory[]) => void
+  /** The list's categories as loaded, with the session's pending category events replayed. */
+  categoriesRecord: Accessor<CardCategoriesRecord>
+  /**
+   * {@link categoriesRecord} in the JSON shape the read pages take, memoized —
+   * one derivation for the three editor bodies, and one stable identity per
+   * change rather than a fresh object per render.
+   */
+  categoriesJson: Accessor<CardCategoriesJson>
+  /** Rename a category across the whole list (`rename-category`). */
+  handleRenameCategory: (from: CardCategory, to: CardCategory) => void
+  /** Replace the list's declared vocabulary order (`set-category-order`). */
+  handleSetCategoryOrder: (order: CardCategory[]) => void
+  /**
+   * Remove a category: one `set-categories` per card that held it, plus a
+   * `set-category-order` without it. There is no `remove-category` action —
+   * design §5 keeps the action set to three.
+   */
+  handleRemoveCategory: (category: CardCategory) => void
   handleAddCardFromSearch: (...args: Parameters<AddCardFromSearch>) => Promise<void>
   handleUndo: () => void
   handleSave: () => Promise<void>
@@ -408,4 +441,6 @@ export type UseEditorResult<TData, TCardEntry> = {
   promptNewSectionForCards: (targets: CardContextInfo[]) => void
   /** Open a styled prompt to rename an existing section. */
   promptRenameSection: (oldName: string) => void
+  /** Open the shell's text prompt to rename one category across the whole list. */
+  promptRenameCategory: (oldName: CardCategory) => void
 }

@@ -148,6 +148,56 @@ describe('createLiveSiteData', () => {
     expect((await live.getIndex()).lastModified).not.toBe(indexBefore.lastModified)
   })
 
+  test('rebuilds when the categories sidecar changes', async () => {
+    // Categories live in their own sidecar too, so nothing else about the list
+    // moves when they are edited — without the categories stamp the memo would
+    // serve the old detail until the markdown itself changed.
+    const live = createLiveSiteData()
+    const before = await live.getDetail('deck', 'emberwild-aggro')
+    expect(deckCard(before!.body, 2)).not.toHaveProperty('categories')
+    const indexBefore = await live.getIndex()
+
+    const categoriesPath = path.join(ws.dir, 'decks', 'emberwild-aggro.categories.json')
+    fsSync.writeFileSync(categoriesPath, '{"order":["Burn"],"cards":{"Lightning Bolt":["Burn"]}}\n')
+    // Last-Modified has second resolution; stamp the sidecar far enough ahead
+    // that the header has to move rather than sleeping for a second.
+    const later = new Date(Date.now() + 60_000)
+    fsSync.utimesSync(categoriesPath, later, later)
+
+    const after = await live.getDetail('deck', 'emberwild-aggro')
+    expect(after!.lastModified).not.toBe(before!.lastModified)
+    expect(deckCard(after!.body, 2).categories).toEqual(['Burn'])
+    expect((JSON.parse(after!.body) as DeckDetail).categories?.order).toEqual(['Burn'])
+    // The index is built from the same files, so its Last-Modified moves too.
+    expect((await live.getIndex()).lastModified).not.toBe(indexBefore.lastModified)
+  })
+
+  test('a defaultCategories config change re-resolves the served order and index', async () => {
+    // The config's vocabulary decides a sidecar's *resolved* order, so it is part
+    // of the per-list memo stamp: without it the detail would keep the order it
+    // resolved under the previous config until some file's mtime moved.
+    const categoriesPath = path.join(ws.dir, 'decks', 'emberwild-aggro.categories.json')
+    fsSync.writeFileSync(
+      categoriesPath,
+      '{"order":[],"cards":{"Lightning Bolt":["Artifice","Zeal"]}}\n',
+    )
+
+    const live = createLiveSiteData()
+    const before = await live.getDetail('deck', 'emberwild-aggro')
+    // Neither name is a configured default yet, so display collation orders them.
+    expect((JSON.parse(before!.body) as DeckDetail).categories?.order).toEqual(['Artifice', 'Zeal'])
+    const indexBefore = await live.getIndex()
+    expect(JSON.parse(indexBefore.body).defaultCategories).not.toContain('Zeal')
+
+    await patchConfig({ defaultCategories: ['Zeal'] })
+
+    const after = await live.getDetail('deck', 'emberwild-aggro')
+    expect((JSON.parse(after!.body) as DeckDetail).categories?.order).toEqual(['Zeal', 'Artifice'])
+    const indexAfter = await live.getIndex()
+    expect(JSON.parse(indexAfter.body).defaultCategories).toEqual(['Zeal'])
+    expect(indexAfter.etag).not.toBe(indexBefore.etag)
+  })
+
   test('bakes a local art reference as the path the /art route serves', async () => {
     fsSync.writeFileSync(
       path.join(ws.dir, 'decks', 'emberwild-aggro.art.json'),

@@ -53,6 +53,12 @@ interface CardContextMenuProps {
    */
   onEditTags?: () => void
   /**
+   * Open the "Edit Categories…" dialog for the targeted card's *name* (every
+   * line of it in this list). Every list type carries categories; absent on
+   * read-only pages, hiding the item.
+   */
+  onEditCategories?: () => void
+  /**
    * Open the language picker for the targeted card (every copy of the tile).
    * Absent on read-only pages, hiding the item.
    */
@@ -167,6 +173,13 @@ export const CardContextMenu: Component<CardContextMenuProps> = (props) => {
         {(editTags) => (
           <button class="card-context-menu-item" onClick={() => editTags()()}>
             {t('ui.cardMenu.editTags')}
+          </button>
+        )}
+      </Show>
+      <Show when={props.onEditCategories}>
+        {(editCategories) => (
+          <button class="card-context-menu-item" onClick={() => editCategories()()}>
+            {t('ui.cardMenu.editCategories')}
           </button>
         )}
       </Show>

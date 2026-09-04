@@ -28,7 +28,15 @@ import {
   resolveListCover,
   slugifyListName,
 } from './shared'
-import type { BuylistBakeSource, CustomArtLookup, ListCoverOverrideEntry } from './shared'
+import { bakedListCategoryFields, cardCategoriesLookup } from './shared'
+import type {
+  BuylistBakeSource,
+  CardCategoriesLookup,
+  CustomArtLookup,
+  ListCoverOverrideEntry,
+} from './shared'
+import { deckCardNameSet } from '../list/card-names'
+import type { CardCategoriesRecord } from '../list/card-categories-sidecar'
 import type { DeckArtifacts, SiteDetailContext } from './types'
 
 export type LoadedDeck = {
@@ -44,6 +52,10 @@ export type LoadedDeck = {
   image?: ListImageRef
   /** Custom art from the `.art.json` sidecar, keyed by card id. */
   art?: CardArtMap
+  /** The deck's categories from the `.categories.json` sidecar; absent when it has none. */
+  cardCategories?: CardCategoriesRecord
+  /** What was wrong with the categories sidecar; absent/empty when clean. */
+  categoryWarnings?: string[]
   /** Lines the deck parser could not read — reported by callers, never fatal. */
   warnings: string[]
   /** ISO timestamp of the deck file's mtime, or undefined for non-file sources. */
@@ -89,12 +101,13 @@ export async function loadDeckSource(
   }
 
   const baseName = source.endsWith('.md') ? source.slice(0, -3) : source
-  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
-    decksDir,
-    baseName,
-    filePath,
-    { knownCardIds: cardIdsOf(data.sections.flatMap((section) => section.cards)) },
-  )
+  const { changelog, fileMtime, art, artWarnings, cardCategories, categoryWarnings } =
+    await loadListSidecars(decksDir, baseName, filePath, {
+      knownCardIds: cardIdsOf(data.sections.flatMap((section) => section.cards)),
+      // The lossless gate: a line the parser refused still holds a card, so an
+      // incomplete name set would report live assignments stale.
+      ...(warnings.length === 0 ? { knownCardNames: deckCardNameSet(data) } : {}),
+    })
 
   return {
     data,
@@ -102,10 +115,12 @@ export async function loadDeckSource(
     labels,
     image,
     art,
+    cardCategories,
+    categoryWarnings,
     // One channel for everything the user must hear about, in the order it was
     // discovered: unreadable lines, an ignored front-matter key, then the art
-    // sidecar's.
-    warnings: [...warnings, ...droppedAdvisories, ...artWarnings],
+    // sidecar's, then the categories sidecar's.
+    warnings: [...warnings, ...droppedAdvisories, ...artWarnings, ...categoryWarnings],
     fileMtime,
   }
 }
@@ -126,6 +141,23 @@ function withDeckCustomArt(deck: DeckData, artFor: CustomArtLookup): BakedDeckDa
       cards: section.cards.map((card) => {
         const art = artFor(card.cardId)
         return art.hasCustomArt === true ? { ...card, ...art } : card
+      }),
+    })),
+  }
+}
+
+/** The deck's card lines with their categories baked on, by name. */
+function withDeckCardCategories(
+  deck: BakedDeckData,
+  categoriesFor: CardCategoriesLookup,
+): BakedDeckData {
+  return {
+    ...deck,
+    sections: deck.sections.map((section) => ({
+      ...section,
+      cards: section.cards.map((card) => {
+        const own = categoriesFor(card.name)
+        return own.categories === undefined ? card : { ...card, ...own }
       }),
     })),
   }
@@ -352,7 +384,17 @@ export async function buildDeckArtifacts(
   // not a separate entry list). A deck with no art is passed through by
   // identity, so it is baked byte for byte as before.
   const hasArt = loaded.art !== undefined && loaded.art.size > 0
-  const bakedDeck: BakedDeckData = hasArt ? withDeckCustomArt(deckData, customArtFor) : deckData
+  const artBakedDeck: BakedDeckData = hasArt ? withDeckCustomArt(deckData, customArtFor) : deckData
+  // Same identity guard as the art step: a deck with no categories is baked byte
+  // for byte as before.
+  const hasCategories = (loaded.cardCategories?.cards.size ?? 0) > 0
+  const bakedDeck: BakedDeckData = hasCategories
+    ? withDeckCardCategories(artBakedDeck, cardCategoriesLookup(loaded.cardCategories))
+    : artBakedDeck
+  const categoryFields = await bakedListCategoryFields(
+    loaded.cardCategories,
+    loaded.categoryWarnings,
+  )
 
   // cardId is shipped on each public-site card so the trade page can
   // encode deck cards into shareable URLs.
@@ -377,6 +419,7 @@ export async function buildDeckArtifacts(
     missingCards: deckMissingCards,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
+    ...categoryFields,
     buylist: bakeBuylistQuotes(ctx, buylistSources, deckPrintingsMap),
   }
 

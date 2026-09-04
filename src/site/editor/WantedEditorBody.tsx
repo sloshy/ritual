@@ -43,6 +43,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
           cards={ctrl.cardData.cards}
           cardsCardKingdom={props.cardsCardKingdom}
           printings={ctrl.cardData.printings}
+          categories={ctrl.editor.categoriesJson()}
           symbolMap={ctrl.cardData.symbolMap}
           useScryfallImgUrls={props.useScryfallImgUrls}
           totalPrice={0}

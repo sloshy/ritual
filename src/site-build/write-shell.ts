@@ -6,6 +6,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import { t } from '../i18n/t'
 import {
+  getDefaultCategories,
   getDefaultLanguage,
   getPriceSources,
   getSearchDebounceMs,
@@ -25,7 +26,12 @@ import type { SiteSpaAssets } from './assets'
  */
 export type SiteIndexParts = Omit<
   SiteIndex,
-  'wantedLists' | 'searchDebounceMs' | 'defaultLanguage' | 'sellMode' | 'priceSources'
+  | 'wantedLists'
+  | 'searchDebounceMs'
+  | 'defaultLanguage'
+  | 'sellMode'
+  | 'priceSources'
+  | 'defaultCategories'
 > & { wantedLists: NonNullable<SiteIndex['wantedLists']> }
 
 /** Assemble `index.json` from its parts and the (given or current) config. */
@@ -37,6 +43,7 @@ export function buildSiteIndex(parts: SiteIndexParts, config?: RitualConfig): Si
     defaultLanguage: getDefaultLanguage(config),
     sellMode: getSiteSellMode(config),
     priceSources: getPriceSources(config),
+    defaultCategories: getDefaultCategories(config),
   }
 }
 

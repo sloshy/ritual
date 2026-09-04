@@ -759,6 +759,164 @@ export async function mockPublicSiteCollectionWithTags(page: Page): Promise<void
   await fulfillJson(page, '**/collections/tag-binder.json', MOCK_TAG_BINDER_DETAIL)
 }
 
+// ===== Collection with card categories =====
+
+function makeCategoryEntry(
+  name: string,
+  collectorNumber: string,
+  fileOrder: number,
+  categories?: string[],
+): CollectionCardEntry {
+  return makeCollectionEntry({
+    name,
+    collectorNumber,
+    ...(categories ? { categories } : {}),
+    price: 1.0,
+    fileOrder,
+    cardId: fileOrder + 1,
+  })
+}
+
+// Every shape the two groupings have to render: a single-category card, a
+// two-category card (which the "Categories" grouping shows twice, dimmed under
+// its non-primary one), a card in a third category, and an uncategorized card.
+const MOCK_CATEGORY_BINDER_DETAIL = makeCollectionDetail({
+  name: 'Category Binder',
+  entries: [
+    makeCategoryEntry('Ramp Rock', '1', 0, ['Ramp']),
+    makeCategoryEntry('Signet Rock', '2', 1, ['Ramp', 'Artifacts']),
+    makeCategoryEntry('Draw Spell', '3', 2, ['Draw']),
+    makeCategoryEntry('Plain Card', '4', 3),
+  ],
+  cards: {
+    'tst:1': makeTagCard('Ramp Rock', '1'),
+    'tst:2': makeTagCard('Signet Rock', '2'),
+    'tst:3': makeTagCard('Draw Spell', '3'),
+    'tst:4': makeTagCard('Plain Card', '4'),
+  },
+  categories: {
+    order: ['Ramp', 'Draw', 'Artifacts'],
+    cards: {
+      'Ramp Rock': ['Ramp'],
+      'Signet Rock': ['Ramp', 'Artifacts'],
+      'Draw Spell': ['Draw'],
+    },
+  },
+  totalPrice: 4.0,
+})
+
+/**
+ * The configured vocabulary baked into `index.json`. `Board Wipes` is
+ * deliberately a name the list itself never uses, so the dialog offering it
+ * proves the bake reached the editor's suggestions.
+ */
+export const MOCK_SITE_DEFAULT_CATEGORY = 'Board Wipes'
+
+const MOCK_SITE_INDEX_FOR_CATEGORIES = makeSiteIndex({
+  collections: [
+    makeCollectionSummary({
+      slug: 'category-binder',
+      name: 'Category Binder',
+      cardCount: 4,
+      totalPrice: 4.0,
+    }),
+  ],
+  defaultCategories: [MOCK_SITE_DEFAULT_CATEGORY],
+})
+
+/** Mock one categorized collection for the categories grouping / filter / editor tests. */
+export async function mockPublicSiteCollectionWithCategories(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_CATEGORIES)
+  await fulfillJson(page, '**/collections/category-binder.json', MOCK_CATEGORY_BINDER_DETAIL)
+}
+
+// Two lines of ONE card name, so a removal that leaves the other line behind can
+// be told apart from the one that takes the list's last line of that name — the
+// name-keyed `set-categories` fold the editors run.
+const MOCK_DUPLICATE_CATEGORY_BINDER_DETAIL = makeCollectionDetail({
+  name: 'Duplicate Binder',
+  entries: [
+    makeCategoryEntry('Ramp Rock', '1', 0, ['Ramp']),
+    makeCategoryEntry('Ramp Rock', '2', 1, ['Ramp']),
+    makeCategoryEntry('Draw Spell', '3', 2, ['Draw']),
+  ],
+  cards: {
+    'tst:1': makeTagCard('Ramp Rock', '1'),
+    'tst:2': makeTagCard('Ramp Rock', '2'),
+    'tst:3': makeTagCard('Draw Spell', '3'),
+  },
+  categories: {
+    order: ['Ramp', 'Draw'],
+    cards: { 'Ramp Rock': ['Ramp'], 'Draw Spell': ['Draw'] },
+  },
+  totalPrice: 3.0,
+})
+
+const MOCK_SITE_INDEX_FOR_DUPLICATE_CATEGORIES = makeSiteIndex({
+  collections: [
+    makeCollectionSummary({
+      slug: 'duplicate-binder',
+      name: 'Duplicate Binder',
+      cardCount: 3,
+      totalPrice: 3.0,
+    }),
+  ],
+  defaultCategories: [MOCK_SITE_DEFAULT_CATEGORY],
+})
+
+/** Mock the two-lines-of-one-name collection used by the fold spec. */
+export async function mockPublicSiteCollectionWithDuplicateNames(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_DUPLICATE_CATEGORIES)
+  await fulfillJson(
+    page,
+    '**/collections/duplicate-binder.json',
+    MOCK_DUPLICATE_CATEGORY_BINDER_DETAIL,
+  )
+}
+
+// A deck whose mainboard AND sideboard both hold categorized cards: only the
+// mainboard is grouped by category (the boards are partitioned before grouping),
+// so the sideboard must stay its own ungrouped section.
+const MOCK_CATEGORY_DECK_DETAIL = makeDeckDetail({
+  deck: {
+    name: 'Category Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Ramp Rock', set: 'tst', collectorNumber: '1', cardId: 1 },
+          { quantity: 1, name: 'Plain Card', set: 'tst', collectorNumber: '4', cardId: 2 },
+        ],
+      },
+      {
+        name: 'Sideboard',
+        cards: [{ quantity: 1, name: 'Draw Spell', set: 'tst', collectorNumber: '3', cardId: 3 }],
+      },
+    ],
+  },
+  cards: {
+    'Ramp Rock': makeTagCard('Ramp Rock', '1'),
+    'Plain Card': makeTagCard('Plain Card', '4'),
+    'Draw Spell': makeTagCard('Draw Spell', '3'),
+  },
+  printings: {},
+  categories: {
+    order: ['Ramp', 'Draw'],
+    cards: { 'Ramp Rock': ['Ramp'], 'Draw Spell': ['Draw'] },
+  },
+})
+
+const MOCK_SITE_INDEX_FOR_CATEGORY_DECK = makeSiteIndex({
+  decks: [makeDeckSummary({ slug: 'category-deck', name: 'Category Deck' })],
+  defaultCategories: [MOCK_SITE_DEFAULT_CATEGORY],
+})
+
+/** Mock a deck whose mainboard and sideboard both carry categories. */
+export async function mockPublicSiteDeckWithCategories(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_CATEGORY_DECK)
+  await fulfillJson(page, '**/decks/category-deck.json', MOCK_CATEGORY_DECK_DETAIL)
+}
+
 // ===== Deck with a proxy and custom art =====
 
 /** The baked `customArt` of the deck's proxy card — a site-relative art path. */

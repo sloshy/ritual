@@ -48,7 +48,9 @@ import { listRefKey, type ListRefKey, type NamedListRef } from '../list-view/com
 import { LIST_TYPE_SINGULAR } from '../list/list-type'
 import { normalizeForSearch } from '../card/term-match'
 import { compareDisplay } from '../i18n/collate'
-import { TagsInput } from './TagsInput'
+import { TagsInput, type TagsInputScan } from './TagsInput'
+import { foldCardCategory } from '../card/card-categories'
+import { parseCardCategoryFilterInput, scanCardCategoryInput } from './card-categories-filter'
 import type { CardFiltersControl } from './useCardFilters'
 import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
 
@@ -275,6 +277,12 @@ const ART_TAG_MODE_COPY = {
   exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.artTagExact' },
 } as const satisfies Record<FilterMatchMode, FilterModeCopy>
 
+const CATEGORY_MODE_COPY = {
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.categoryInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.categoryExclude' },
+  exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.categoryExact' },
+} as const satisfies Record<FilterMatchMode, FilterModeCopy>
+
 const COLOR_MODE_COPY = {
   subset: { labelKey: 'site.filterMode.subset', titleKey: 'site.filterMode.colorSubset' },
   include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.colorInclude' },
@@ -340,6 +348,12 @@ export interface FilterMenuProps {
   oracleTagOptions: string[]
   /** Art tag slugs present in the current list, for the art tag filter autocomplete. */
   artTagOptions: string[]
+  /**
+   * Category names present in the current list, in the list's own spelling; the
+   * row is hidden when empty, which is what keeps a list with no vocabulary (and
+   * the combined view) clean.
+   */
+  categoryOptions: string[]
   /** Show the "Hide Extras" toggle (deck pages only). */
   showHideExtras?: boolean
   /** Show the Labels chip row (label-bearing views only). */
@@ -450,12 +464,25 @@ type TagFilterRowProps = {
   mode: FilterMatchMode
   onTags: (tags: string[]) => void
   onMode: (mode: FilterMatchMode) => void
+  /** How a selected value is displayed as a chip. Default: verbatim. */
+  format?: (value: string) => string
+  /** How the draft text becomes a query. Default: `trim().toLowerCase()`. */
+  query?: (draft: string) => string
+  /** Whether an option matches the query. Default: substring. */
+  matches?: (value: string, query: string) => boolean
+  /** Split partial input into committed values plus a draft. Default: the card-type scanner (lowercasing). */
+  scan?: (value: string) => TagsInputScan
+  /** Commit the whole field. Default: the card-type parser (lowercasing). */
+  parse?: (value: string) => string[]
+  /** Membership key for dedupe/suggestion filtering. Default: identity. */
+  key?: (value: string) => string
 }
 
 /**
  * A tag filter row (Oracle or Art): a match-mode toggle beside the heading and a
- * chip autocomplete. Tag slugs are already lowercase, so the card-type scanner is
- * reused and matching is a plain substring test.
+ * chip autocomplete. Tag slugs are lowercase, which is why the defaults
+ * lowercase; a case-preserving vocabulary (categories) passes its own scanner,
+ * parser and fold key.
  */
 const TagFilterRow: Component<TagFilterRowProps> = (props) => {
   return (
@@ -478,11 +505,12 @@ const TagFilterRow: Component<TagFilterRowProps> = (props) => {
         inputId={props.inputId}
         placeholder={props.placeholder}
         suggestionsLabel={props.suggestionsLabel}
-        format={(tag) => tag}
-        query={(draft) => draft.trim().toLowerCase()}
-        matches={(tag, query) => query.length === 0 || tag.includes(query)}
-        scan={scanCardTypeInput}
-        parse={parseCardTypesInput}
+        format={props.format ?? ((tag) => tag)}
+        query={props.query ?? ((draft) => draft.trim().toLowerCase())}
+        matches={props.matches ?? ((tag, query) => query.length === 0 || tag.includes(query))}
+        scan={props.scan ?? scanCardTypeInput}
+        parse={props.parse ?? parseCardTypesInput}
+        key={props.key}
       />
     </div>
   )
@@ -673,6 +701,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
           cardTypeOptions={props.cardTypeOptions}
           oracleTagOptions={props.oracleTagOptions}
           artTagOptions={props.artTagOptions}
+          categoryOptions={props.categoryOptions}
           showHideExtras={props.showHideExtras}
           showLabelsFilter={props.showLabelsFilter}
           availableLabels={props.availableLabels}
@@ -1078,6 +1107,30 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
         onTags={(artTags) => props.filters.update({ artTags })}
         onMode={(artTagMode) => props.filters.update({ artTagMode })}
       />
+      {/* Shown when the list has categories to offer, or when a shared link left
+          chips active with none — so those chips stay individually removable. */}
+      <Show
+        when={props.categoryOptions.length > 0 || props.filters.filters.cardCategories.length > 0}
+      >
+        <TagFilterRow
+          label={t('site.filter.categories')}
+          modeAriaLabel={t('site.filter.categoryMode')}
+          inputId="filter-categories"
+          placeholder={t('site.filter.categoriesPlaceholder')}
+          suggestionsLabel={t('site.filter.categoriesSuggestions')}
+          options={props.categoryOptions}
+          selected={props.filters.filters.cardCategories}
+          modeOptions={modeOptions(FILTER_MATCH_MODES, CATEGORY_MODE_COPY, t)}
+          mode={props.filters.filters.cardCategoryMode}
+          onTags={(cardCategories) => props.filters.update({ cardCategories })}
+          onMode={(cardCategoryMode) => props.filters.update({ cardCategoryMode })}
+          query={(draft) => foldCardCategory(draft.trim())}
+          matches={(value, query) => query.length === 0 || foldCardCategory(value).includes(query)}
+          scan={scanCardCategoryInput}
+          parse={parseCardCategoryFilterInput}
+          key={foldCardCategory}
+        />
+      </Show>
       <NumericFilterRow
         label={t('site.filter.manaValue')}
         inputId="filter-mana-value"

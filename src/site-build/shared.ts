@@ -12,12 +12,24 @@ import { t } from '../i18n/t'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../buylist'
 import { loadCardArt, type CardArtMap, type CardArtRef } from '../list/card-art'
 import {
+  cardCategoriesOf,
+  cardCategoriesToJson,
+  emptyCardCategoriesRecord,
+  isEmptyCardCategoriesRecord,
+  loadCardCategories,
+  type CardCategoriesJson,
+  type CardCategoriesRecord,
+} from '../list/card-categories-sidecar'
+import { loadDefaultCategories } from '../config/ritual-config'
+import type { CardCategoriesOverlay } from '../card/card-categories'
+import {
   isListImageCardRef,
   isListImageUrlRef,
   readListImage,
   type ListImageRef,
 } from '../list/list-image'
 import { readListDescription } from '../list/list-description'
+import { foldedCardNameSet } from '../list/card-names'
 import { readFrontMatterMapping } from '../list/front-matter-write'
 import { printingFinishPairs } from '../card/card-printing'
 import { siteArtUrl } from '../list/art-url'
@@ -132,6 +144,10 @@ export type ListSidecars = {
    * warning channel. A sidecar that cannot be parsed yields no art at all.
    */
   artWarnings: string[]
+  /** The list's categories from the `.categories.json` sidecar; the empty record when it has none. */
+  cardCategories: CardCategoriesRecord
+  /** What was wrong with the categories sidecar, phrased for the caller's warning channel. */
+  categoryWarnings: string[]
 }
 
 export type ListSidecarOptions = {
@@ -140,6 +156,13 @@ export type ListSidecarOptions = {
    * reported (by raw id — the cards they named are gone) and still loaded.
    */
   knownCardIds?: ReadonlySet<number>
+  /**
+   * Every card name the list holds, folded through `foldCategoryCardName`
+   * (`foldedCardNameSet` in `../list/card-names`). Sidecar entries outside it are
+   * reported stale and still loaded. Omitted when the parse was lossy — a line
+   * the grammar refused still holds a card (the `listCategories` gate, phase 3).
+   */
+  knownCardNames?: ReadonlySet<string>
 }
 
 /**
@@ -178,13 +201,41 @@ export async function loadListSidecars(
     }
   }
 
-  return { changelog, fileMtime, art: loadedArt.ok ? loadedArt.art : new Map(), artWarnings }
+  const loadedCategories = await loadCardCategories(listFilePath, {
+    ...(options.knownCardNames === undefined ? {} : { knownCardNames: options.knownCardNames }),
+  })
+  const categoryWarnings: string[] = []
+  if (!loadedCategories.ok) {
+    categoryWarnings.push(
+      t('site.detail.categoriesUnreadable', { reason: loadedCategories.message }),
+    )
+  } else {
+    for (const warning of loadedCategories.warnings) {
+      categoryWarnings.push(
+        t('site.detail.categoriesUnknownCards', { names: warning.names.join(', ') }),
+      )
+    }
+  }
+
+  return {
+    changelog,
+    fileMtime,
+    art: loadedArt.ok ? loadedArt.art : new Map(),
+    artWarnings,
+    // Exactly the art branch's shape: an unreadable sidecar yields no categories
+    // at all, and the warning above is the only report.
+    cardCategories: loadedCategories.ok ? loadedCategories.categories : emptyCardCategoriesRecord(),
+    categoryWarnings,
+  }
 }
 
 /** Anything carrying a card line's `&N` id — every list type's entry shape. */
 export type CardIdBearing = {
   cardId?: number
 }
+
+/** The one thing the categories join needs of a flat-list entry: its card name. */
+export type NamedFlatListEntry = FlatListEntry & { name: string }
 
 /**
  * A loaded collection or wanted list: the parsed file plus its sidecars. The
@@ -203,6 +254,10 @@ export type LoadedFlatList<Entry> = {
   image?: ListImageRef
   /** Custom art from the `.art.json` sidecar, keyed by card id. */
   art?: CardArtMap
+  /** The list's categories from the `.categories.json` sidecar; absent when it has none. */
+  cardCategories?: CardCategoriesRecord
+  /** What was wrong with the categories sidecar; absent/empty when clean. */
+  categoryWarnings?: string[]
   warnings: string[]
   changelog: ChangelogPage[]
   fileMtime?: string
@@ -219,7 +274,7 @@ export type FlatListParseResult<Entry extends FlatListEntry> = Pick<
  * the given parser. Returns an error message string when the file can't be
  * read.
  */
-export async function loadFlatListSource<Entry extends FlatListEntry>(
+export async function loadFlatListSource<Entry extends NamedFlatListEntry>(
   dir: string,
   name: string,
   parse: (content: string) => FlatListParseResult<Entry>,
@@ -245,14 +300,16 @@ export async function loadFlatListSource<Entry extends FlatListEntry>(
     image,
     warnings: frontMatterWarnings,
   } = readListFrontMatter(frontMatter?.data ?? {})
-  const { changelog, fileMtime, art, artWarnings } = await loadListSidecars(
-    dir,
-    baseName,
-    filePath,
-    {
+  // The lossless gate (phase 3's `listCategories`): a line the grammar refused
+  // still holds a card, so an incomplete name set would malign live assignments.
+  const parsedLosslessly = warnings.length === 0 && advisories.length === 0
+  const { changelog, fileMtime, art, artWarnings, cardCategories, categoryWarnings } =
+    await loadListSidecars(dir, baseName, filePath, {
       knownCardIds: cardIdsOf(entries),
-    },
-  )
+      ...(parsedLosslessly
+        ? { knownCardNames: foldedCardNameSet(entries.map((entry) => entry.name)) }
+        : {}),
+    })
   return {
     displayName: parseTitleFromContent(content) ?? name,
     entries,
@@ -261,11 +318,19 @@ export async function loadFlatListSource<Entry extends FlatListEntry>(
     description,
     image,
     art,
+    cardCategories,
+    categoryWarnings,
     // The parser's own advisories ride the same channel as its warnings and the
     // sidecar's: an ignored `labels:` and an ignored `image:` are both things
     // the user must hear about, and reporting one but not the other would be an
     // inconsistency with no reason behind it.
-    warnings: [...warnings, ...advisories, ...frontMatterWarnings, ...artWarnings],
+    warnings: [
+      ...warnings,
+      ...advisories,
+      ...frontMatterWarnings,
+      ...artWarnings,
+      ...categoryWarnings,
+    ],
     changelog,
     fileMtime,
   }
@@ -356,6 +421,53 @@ export function customArtLookup(
     if (!ref) return NO_CARD_ART
     const url = artRefUrl(ref, missing)
     return url === undefined ? { hasCustomArt: true } : { customArt: url, hasCustomArt: true }
+  }
+}
+
+/** The categories a baked entry carries, resolved by card name. */
+export type CardCategoriesLookup = (cardName: string) => CardCategoriesOverlay
+
+/** Shared so every uncategorized card spreads the same empty object. */
+const NO_CARD_CATEGORIES: CardCategoriesOverlay = {}
+
+/**
+ * Resolve a list's categories into the field baked onto each entry. Goes through
+ * `cardCategoriesOf` — the one per-card resolution — so no bake re-joins
+ * `categories.cards` by raw name (the fold is `foldCategoryCardName`).
+ */
+export function cardCategoriesLookup(
+  record: CardCategoriesRecord | undefined,
+): CardCategoriesLookup {
+  if (!record || record.cards.size === 0) return () => NO_CARD_CATEGORIES
+  return (cardName) => {
+    const own = cardCategoriesOf(record, cardName)
+    return own === undefined ? NO_CARD_CATEGORIES : { categories: own }
+  }
+}
+
+/** The list-level category fields a baked detail carries. */
+export type BakedListCategoryFields = {
+  categories?: CardCategoriesJson
+  categoryWarnings?: string[]
+}
+
+/**
+ * The list-level categories bake, stated once for all three list types: the
+ * baked `order` is the **resolved** order a Ritual write would persist (which is
+ * why the config defaults are passed), and a list with no categories carries no
+ * key at all — absent means absent, never `{}`.
+ */
+export async function bakedListCategoryFields(
+  record: CardCategoriesRecord | undefined,
+  warnings: readonly string[] | undefined,
+): Promise<BakedListCategoryFields> {
+  const categories =
+    record && !isEmptyCardCategoriesRecord(record)
+      ? cardCategoriesToJson(record, await loadDefaultCategories())
+      : undefined
+  return {
+    ...(categories ? { categories } : {}),
+    ...(warnings?.length ? { categoryWarnings: [...warnings] } : {}),
   }
 }
 

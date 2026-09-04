@@ -75,6 +75,11 @@ export const uiMessages = {
     one: 'Note dropped on merge: {items}.',
     other: 'Notes dropped on merge: {items}.',
   },
+  'ui.editor.prunedCategories': {
+    $plural: 'count',
+    one: 'Categories dropped for a card the list no longer holds: {items}.',
+    other: 'Categories dropped for cards the list no longer holds: {items}.',
+  },
 
   // ── Editor lifecycle status ───────────────────────────────────────────
   //
@@ -119,7 +124,7 @@ export const uiMessages = {
 
   // ── Save status ───────────────────────────────────────────────────────
   'ui.editor.saveSuccess': 'Changes saved successfully',
-  'ui.editor.saveSuccessDroppedNotes': 'Changes saved successfully.{notes}',
+  'ui.editor.saveSuccessNotices': 'Changes saved successfully.{notes}',
   'ui.editor.saveConflict': 'Content has been modified. Please reload to continue editing.',
   'ui.editor.saveFailed': 'Save failed',
   'ui.editor.saveRequestFailed': 'Failed to save changes',
@@ -187,6 +192,31 @@ export const uiMessages = {
   'ui.editor.tagsSuggestions': 'Used in this list:',
   'ui.editor.tagsSave': 'Save',
 
+  // ── Categories dialogs ────────────────────────────────────────────────
+  'ui.editor.editCategoriesTitle': 'Edit categories',
+  'ui.editor.categoriesLabel': 'Categories',
+  'ui.editor.categoriesPlaceholder': 'Ramp, Artifacts',
+  'ui.editor.categoriesHint':
+    "Separate categories with commas. The first one is the card's primary category. Leave the field empty to clear them.",
+  'ui.editor.categoriesSuggestions': 'Used in this list:',
+  'ui.editor.categoriesSave': 'Save',
+  'ui.editor.categoriesOrderLabel': 'Category order',
+  'ui.editor.categoriesPrimaryBadge': 'primary',
+  'ui.editor.categoriesMoveEarlier': 'Move earlier',
+  'ui.editor.categoriesMoveLater': 'Move later',
+  'ui.editor.categories': 'Categories',
+  'ui.editor.manageCategories': 'Manage categories',
+  'ui.editor.categoriesHelp':
+    "Rename, reorder or remove this list's categories. Removing one takes it off every card that holds it.",
+  'ui.editor.noCategories': 'This list has no categories yet.',
+  'ui.editor.renameCategory': 'Rename category',
+  'ui.editor.newCategoryName': 'New name',
+  'ui.editor.categoryExists': 'A category called "{name}" already exists',
+  'ui.editor.categoryInvalid': '{reason}',
+  'ui.editor.moveCategoryUp': 'Move up',
+  'ui.editor.moveCategoryDown': 'Move down',
+  'ui.editor.removeCategory': 'Remove',
+
   // ── Pending-changes dialogs ───────────────────────────────────────────
   'ui.editor.pendingChanges': 'Pending changes',
   'ui.editor.pendingChangesTitle': 'Pending Changes ({count})',
@@ -228,6 +258,7 @@ export const uiMessages = {
   'ui.cardMenu.setPrinting': 'Set Printing…',
   'ui.cardMenu.setLabel': 'Set Label…',
   'ui.cardMenu.editTags': 'Edit Tags…',
+  'ui.cardMenu.editCategories': 'Edit Categories…',
   'ui.cardMenu.setLanguage': 'Set Language…',
   'ui.cardMenu.setCustomArt': 'Set Custom Art…',
   'ui.cardMenu.setCommander': 'Set as Commander',

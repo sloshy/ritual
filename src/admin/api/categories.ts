@@ -8,7 +8,7 @@ import {
   type CardCategoriesRecord,
 } from '../../list/card-categories-sidecar'
 import { loadDefaultCategories } from '../../config/ritual-config'
-import type { CardCategory } from '../../card/card-categories'
+import type { WithCardCategories } from '../../card/card-categories'
 import { t } from '../../i18n/t'
 
 /**
@@ -55,24 +55,13 @@ export type NamedEntry = {
   name: string
 }
 
-/** The per-card categories a load body attaches. See {@link WithCardCategories}. */
-export type CardCategoriesOverlay = {
-  /** The card name's categories in this list, primary first; absent when none. */
-  categories?: CardCategory[]
-}
-
 /**
- * A parsed entry as a *load body* carries it: the engine's own shape plus the
- * categories resolved for its name. The widening lives at the API layer rather
- * than on `Card`/`CollectionEntry` because categories are never on a card line —
- * the engine model must stay the line, or the serializer, the deck-sync differ
- * and the merge identity would start seeing a sidecar-owned value.
- *
- * A body echoed back to a save route (the deck save re-sends `deck`) carries the
- * field harmlessly: the serializer writes named fields only, and the sidecar is
- * written from `set-categories` changes, never from a payload.
+ * The per-card categories overlay and its wrapper live on the browser-safe
+ * `src/card/card-categories` leaf, because the baked site payloads
+ * (`src/list/site-data.ts`) need them too and must not import `src/admin/api/*`.
+ * Re-exported here so every phase-3 call site keeps its import.
  */
-export type WithCardCategories<T> = T & CardCategoriesOverlay
+export type { CardCategoriesOverlay, WithCardCategories } from '../../card/card-categories'
 
 /**
  * One entry as a load body carries it: unchanged when its name has no

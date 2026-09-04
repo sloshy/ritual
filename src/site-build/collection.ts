@@ -11,6 +11,8 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { CollectionCardEntry, CollectionDetail, CollectionSummary } from '../list/site-data'
 import {
   bakeBuylistQuotes,
+  bakedListCategoryFields,
+  cardCategoriesLookup,
   customArtLookup,
   includeChangelogCards,
   loadFlatListSource,
@@ -56,6 +58,7 @@ export async function buildCollectionArtifacts(
   /** Every entry's displayed printing, for the buylist bake (empty when not baking). */
   const buylistSources: BuylistBakeSource[] = []
   const customArtFor = customArtLookup(loaded.art, ctx)
+  const cardCategoriesFor = cardCategoriesLookup(loaded.cardCategories)
   /**
    * The `&N` the list's `image:` override names, when it names one. Captured
    * from the walk below rather than by a second pass: the entry's printing is
@@ -172,6 +175,7 @@ export async function buildCollectionArtifacts(
       labels: entry.labels,
       tags: entry.tags,
       ...art,
+      ...cardCategoriesFor(entry.name),
       price,
       fileOrder: i,
       section: entry.section,
@@ -184,6 +188,11 @@ export async function buildCollectionArtifacts(
 
   // Include changelog-referenced cards in the card maps
   await includeChangelogCards(changelog, cardMap, printingsMap, ctx)
+
+  const categoryFields = await bakedListCategoryFields(
+    loaded.cardCategories,
+    loaded.categoryWarnings,
+  )
 
   const detail: CollectionDetail = {
     name: displayName,
@@ -202,6 +211,7 @@ export async function buildCollectionArtifacts(
     defaultCurrency: ctx.defaultCurrency,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
+    ...categoryFields,
     buylist: bakeBuylistQuotes(ctx, buylistSources, printingsMap),
   }
 

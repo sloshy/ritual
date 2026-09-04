@@ -5,6 +5,7 @@ import type { ScryfallCard } from '../../../scryfall/types'
 import { compareData, compareDisplay } from '../../../i18n/collate'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../../list/site-data'
 import { createChangeId } from '../../../changes/change-event'
+import { formatPrunedCategoriesSuffix } from '../../../editor/save-notices'
 import { formatDroppedNotesSuffix } from '../../../list/dropped-notes'
 import { t } from '../../../i18n/t'
 import type { MoveCommitResponse } from '../../api/move'
@@ -472,7 +473,12 @@ export function useMoveSession(): UseMoveSessionResult {
       const skippedNote =
         json.skipped > 0 ? t('admin.move.skippedSuffix', { count: json.skipped }) : ''
       const droppedNote = formatDroppedNotesSuffix(json.droppedNotes)
-      setStatus(`${t('admin.api.move.moved', { count: json.moved })}${skippedNote}${droppedNote}`)
+      // The same channel the editor's save tail and the CLI's `move` report:
+      // categories dropped because the move took the list's last line of a name.
+      const prunedNote = formatPrunedCategoriesSuffix(json.prunedCategories ?? [])
+      setStatus(
+        `${t('admin.api.move.moved', { count: json.moved })}${skippedNote}${droppedNote}${prunedNote}`,
+      )
     } catch (err) {
       setError(t('admin.move.saveFailed', { reason: errorMessage(err) }))
     } finally {

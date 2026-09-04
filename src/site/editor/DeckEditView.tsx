@@ -73,7 +73,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       data: props.detail.deck,
       poolIds: collectDeckCardIds(props.detail.deck),
       contentHash: '',
-      extra: { frontMatter: {} },
+      extra: { frontMatter: {}, categories: props.detail.categories ?? null },
     }),
     loadCardData: () =>
       cardActions.load({
@@ -160,6 +160,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           listLabels={props.detail.labels}
           cards={props.detail.cards}
           printings={props.detail.printings ?? {}}
+          categories={props.detail.categories}
           lowestPriceCards={props.detail.lowestPriceCards}
           lowestPriceCardsEur={props.detail.lowestPriceCardsEur}
           lowestPriceCardsTix={props.detail.lowestPriceCardsTix}

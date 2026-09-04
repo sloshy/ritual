@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
   collectArtTags,
+  collectCardCategories,
   collectCardTypes,
   collectOracleTags,
   collectSetCodes,
@@ -586,6 +587,10 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(makeFilters({ name: '   ' }))).toBe(0)
   })
 
+  test('the categories row counts once, however many chips it holds', () => {
+    expect(countActiveFilters(makeFilters({ cardCategories: ['Ramp', 'Draw'] }))).toBe(1)
+  })
+
   test('mana value 0 counts as active', () => {
     expect(countActiveFilters(makeFilters({ manaValue: 0 }))).toBe(1)
   })
@@ -772,6 +777,71 @@ describe('collectOracleTags', () => {
       makeCard({ oracleTags: [] }),
     ]
     expect(collectOracleTags(cards)).toEqual(['card-draw', 'mana-rock', 'ramp'])
+  })
+})
+
+describe('collectCardCategories', () => {
+  test("returns the vocabulary's spelling, in its order, with unnamed categories after", () => {
+    const cards = [
+      makeCard({ categories: ['ramp', 'Combo'] }),
+      makeCard({ categories: ['Draw'] }),
+      makeCard({}),
+    ]
+    expect(collectCardCategories(cards, ['Ramp', 'Draw', 'Artifacts'])).toEqual([
+      'Ramp',
+      'Draw',
+      'Combo',
+    ])
+  })
+
+  test('dedupes by fold across cards', () => {
+    const cards = [makeCard({ categories: ['Ramp'] }), makeCard({ categories: ['RAMP'] })]
+    expect(collectCardCategories(cards, [])).toEqual(['Ramp'])
+  })
+
+  test('the categories the vocabulary does not name are collated, not left in card order', () => {
+    // Otherwise the suggestion order would shift as cards are filtered or sorted.
+    const cards = [
+      makeCard({ categories: ['Zeal'] }),
+      makeCard({ categories: ['Artifice'] }),
+      makeCard({ categories: ['Ramp'] }),
+    ]
+    expect(collectCardCategories(cards, ['Ramp'])).toEqual(['Ramp', 'Artifice', 'Zeal'])
+  })
+})
+
+describe('filterCards — categories', () => {
+  const solRing = makeCard({ name: 'Sol Ring', categories: ['Ramp', 'Artifacts'] })
+  const study = makeCard({ name: 'Rhystic Study', categories: ['draw'] })
+  const plain = makeCard({ name: 'Plain Card' })
+  const cards = [solRing, study, plain]
+
+  test('include keeps cards in any selected category, folding both sides', () => {
+    const result = filterCards(
+      cards,
+      makeFilters({ cardCategories: ['Draw'], cardCategoryMode: 'include' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Rhystic Study'])
+  })
+
+  test('exclude drops them and keeps the uncategorized card', () => {
+    const result = filterCards(
+      cards,
+      makeFilters({ cardCategories: ['Ramp'], cardCategoryMode: 'exclude' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Rhystic Study', 'Plain Card'])
+  })
+
+  test('exact demands every selected category', () => {
+    const result = filterCards(
+      cards,
+      makeFilters({ cardCategories: ['Ramp', 'Artifacts'], cardCategoryMode: 'exact' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Sol Ring'])
+  })
+
+  test('an empty selection filters nothing', () => {
+    expect(filterCards(cards, makeFilters({ cardCategories: [] }))).toEqual(cards)
   })
 })
 

@@ -314,6 +314,15 @@ a specific printing first. Notes and label overrides never follow an editor/TUI 
 (the scripted \`ritual move\` carries labels); the card's tags and its
 **custom art** do, the art re-filed under the destination line's new \`&N\`.
 
+The web editors (admin and public) carry the same categories affordances: an
+**Edit Categories…** row in a card's ⋯ menu (a comma-separated field, first name primary,
+with ◀ ▶ buttons on the parsed chips to change which one is primary), and a **Categories**
+button on the action bar opening a **Manage categories** dialog that renames, reorders and
+removes the list's categories — removing one takes it off every card that holds it. An
+edit, a rename and a reorder are **one** undo step each; a removal records one change per
+card that held the category plus one order change, so undoing it takes that many steps. After a save whose removals left sidecar entries behind, the
+status line names the cards whose categories were pruned.
+
 The web editors (admin and public) also offer a batch **Swap Printings…** wizard on decks and
 collections, built on the same moves: re-pick the printings of many lines at once using copies
 already owned in the *other* lists. Entry points are the action bar / navbar edit row (whole

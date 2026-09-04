@@ -27,6 +27,7 @@ export const adminMessages = {
       'The cards moved, but {count} notes were lost when their cards merged onto existing lines:',
   },
   'admin.layout.droppedNote': '{name}: "{note}"',
+  'admin.layout.categoriesPrunedTitle': 'Some categories were dropped',
 
   // ── Shared controls ───────────────────────────────────────────────────
   'admin.select.chooseList': '— Choose a list —',

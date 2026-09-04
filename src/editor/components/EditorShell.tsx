@@ -15,6 +15,9 @@ import { EditorActionBar, focusActionBar } from './EditorActionBar'
 import { SwapPrintingsWizard, type SwapPrintingsWizardProps } from './SwapPrintingsWizard'
 import { TextPromptDialog } from './TextPromptDialog'
 import { TagsEditDialog } from './TagsEditDialog'
+import { CategoriesEditDialog } from './CategoriesEditDialog'
+import { categoryManagerOrder, categoryUsageCount } from '../card-categories-edit'
+import type { CategoryManagerRow } from './EditorActionBar'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { StatusToast } from '../../ui/StatusToast'
 import { useEditorShortcuts } from '../useEditorShortcuts'
@@ -87,6 +90,15 @@ export function EditorShell<TData, TCardEntry>(
   const listType = (): ListType => entityListType(props.entityLabel)
   let actionBarEl: HTMLDivElement | undefined
   const [showShortcuts, setShowShortcuts] = createSignal(false)
+
+  /** The Manage-categories rows: the list's vocabulary with each name's usage count. */
+  const categoryRows = createMemo((): CategoryManagerRow[] => {
+    const record = editor.categoriesRecord()
+    return categoryManagerOrder(record).map((name) => ({
+      name,
+      count: categoryUsageCount(record, name),
+    }))
+  })
 
   // Whether the change-printing flow's target already pins a printing — false
   // both when it does not and when no flow is running (the dialogs are closed).
@@ -245,6 +257,10 @@ export function EditorShell<TData, TCardEntry>(
           outside them) */}
       <TagsEditDialog />
 
+      {/* "Edit Categories…" dialog, driven by the `categories-prompt` singleton
+          the same card context menus open */}
+      <CategoriesEditDialog />
+
       {/* Action bar */}
       <Show when={editor.isDataReady()}>
         <EditorActionBar
@@ -261,6 +277,10 @@ export function EditorShell<TData, TCardEntry>(
           onAddSection={editor.handleAddSection}
           onRequestRename={editor.promptRenameSection}
           onRemoveSection={editor.handleRemoveSection}
+          categories={categoryRows()}
+          onSetCategoryOrder={editor.handleSetCategoryOrder}
+          onRequestRenameCategory={editor.promptRenameCategory}
+          onRemoveCategory={editor.handleRemoveCategory}
           onShowShortcuts={() => setShowShortcuts(true)}
           onImport={props.enableImport ? editor.dialogs.openImport : undefined}
           onSwapPrintings={props.onSwapPrintings}

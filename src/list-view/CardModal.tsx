@@ -21,6 +21,7 @@ import { findPrintingsAvailable, openFindPrintings } from './find-printings'
 // local copy could only ever drift from the tables it is handed.
 import type { MetaEntry } from './meta-entry'
 import type { CardTag } from '../card/card-tags'
+import type { CardCategory } from '../card/card-categories'
 
 type PrintingsSortField = 'released_at' | 'set_name' | 'price'
 
@@ -54,6 +55,11 @@ interface CardModalProps {
    * disclosure below, which is the community tagger's vocabulary.
    */
   tags?: readonly CardTag[]
+  /**
+   * The card name's categories in this list, primary first. Rendered as chips
+   * beside the tags, the primary one marked; absent (or empty) draws nothing.
+   */
+  categories?: readonly CardCategory[]
   onAddToTrade?: () => void
   addToTradeDisabled?: boolean
 }
@@ -397,6 +403,24 @@ export const CardModal: Component<CardModalProps> = (props) => {
                     {(tag) => (
                       <span class="modal-tag modal-card-tag" role="listitem">
                         {tag}
+                      </span>
+                    )}
+                  </For>
+                </div>
+              </Show>
+              <Show when={(props.categories?.length ?? 0) > 0}>
+                <div
+                  class="modal-card-categories modal-tags-list"
+                  role="list"
+                  aria-label={t('site.cardModal.cardCategories')}
+                >
+                  <For each={props.categories ?? []}>
+                    {(category, i) => (
+                      <span
+                        class={`modal-tag modal-card-category${i() === 0 ? ' modal-card-category--primary' : ''}`}
+                        role="listitem"
+                      >
+                        {category}
                       </span>
                     )}
                   </For>

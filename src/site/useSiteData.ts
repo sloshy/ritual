@@ -8,6 +8,7 @@ import type {
 } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { setSearchDebounceMs } from '../config/search-debounce'
+import { setDefaultCategories } from '../config/default-categories'
 import { setDefaultLanguage } from '../editor/default-language'
 import {
   apiActive,
@@ -127,6 +128,9 @@ export function useSiteData(): UseSiteDataResult {
       if (data.pricesDate) setPricesDate(data.pricesDate)
       if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
       if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
+      // Absent on sites built before categories existed, which reads as "no
+      // configured suggestions" — never as the shipped default vocabulary.
+      if (data.defaultCategories) setDefaultCategories(data.defaultCategories)
       // Absent on sites built before locales existed, which reads as English-only.
       if (data.availableLocales && data.availableLocales.length > 0) {
         setAvailableLocales(data.availableLocales)

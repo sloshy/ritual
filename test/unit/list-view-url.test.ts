@@ -497,6 +497,67 @@ describe('labels param', () => {
   })
 })
 
+describe('category filter parameters', () => {
+  test('an empty selection writes neither key', () => {
+    const params = encode(defaultState())
+    expect(params.has('cats')).toBe(false)
+    expect(params.has('catMode')).toBe(false)
+  })
+
+  test("a selection round-trips with the list's own spelling intact", () => {
+    const filters = createDefaultCardFilters()
+    filters.cardCategories = ['Ramp', 'Board Wipes']
+    const params = encode(defaultState({ filters }))
+    expect(params.get('cats')).toBe('Ramp,Board Wipes')
+    // The mode at its default stays out of the URL.
+    expect(params.has('catMode')).toBe(false)
+    expect(parseListViewParams(params).filters?.cardCategories).toEqual(['Ramp', 'Board Wipes'])
+  })
+
+  test('a shared link is parsed case-preserving and deduped by fold', () => {
+    const parsed = parseListViewParams(new URLSearchParams('cats=Ramp,ramp'))
+    expect(parsed.filters?.cardCategories).toEqual(['Ramp'])
+  })
+
+  test('a token the category grammar refuses is dropped, the rest apply', () => {
+    const parsed = parseListViewParams(new URLSearchParams('cats=%23bad,Ramp'))
+    expect(parsed.filters?.cardCategories).toEqual(['Ramp'])
+    expect(parseListViewParams(new URLSearchParams('cats=%23bad')).filters).toBeUndefined()
+  })
+
+  test('the category keys count as list-view parameters', () => {
+    expect(hasListViewParams(new URLSearchParams('cats=Ramp'))).toBe(true)
+    expect(hasListViewParams(new URLSearchParams('catMode=exclude'))).toBe(true)
+  })
+
+  test('a mode with no selection still overrides, exactly as the tag modes do', () => {
+    expect(parseListViewParams(new URLSearchParams('catMode=exclude')).filters).toEqual({
+      cardCategoryMode: 'exclude',
+    })
+  })
+
+  test('a non-default mode rides with an active selection', () => {
+    const filters = createDefaultCardFilters()
+    filters.cardCategories = ['Ramp']
+    filters.cardCategoryMode = 'exclude'
+    const params = encode(defaultState({ filters }))
+    expect(params.get('catMode')).toBe('exclude')
+    expect(parseListViewParams(params).filters?.cardCategoryMode).toBe('exclude')
+  })
+
+  test('group=category / group=categories / sort=category are legal tokens', () => {
+    const params = encode(
+      defaultState({ groupBy: 'categories', sortLayers: [{ sortBy: 'category', reverse: false }] }),
+    )
+    expect(params.get('group')).toBe('categories')
+    expect(params.get('sort')).toBe('category')
+    const parsed = parseListViewParams(params)
+    expect(parsed.groupBy).toBe('categories')
+    expect(parsed.sortLayers).toEqual([{ sortBy: 'category', reverse: false }])
+    expect(parseListViewParams(new URLSearchParams('group=category')).groupBy).toBe('category')
+  })
+})
+
 describe('share filter parameters', () => {
   test('default (empty) share filters write none of the five keys', () => {
     const params = encode(defaultState())

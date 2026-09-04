@@ -1,3 +1,4 @@
+import type { CardCategoriesJson } from '../list/card-categories-record'
 /**
  * The props the three public list pages share. Restated per page they drifted —
  * one page's `pricesDate` doc said what the others' did not, and a caller that
@@ -16,6 +17,12 @@ import type { ScryfallCard } from '../scryfall/types'
 
 /** Everything a list page takes that does not depend on which list type it is. */
 export type ListPageCommonProps = {
+  /**
+   * The list's category vocabulary and per-name assignments, as its detail bakes
+   * them. Drives the two category groupings' heading order and the filter row's
+   * options; absent on a list with no categories.
+   */
+  categories?: CardCategoriesJson
   cards: Record<string, ScryfallCard | null>
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>

@@ -561,7 +561,7 @@ export const cliMeta = {
   },
   'cli.session.categoriesPruned': {
     description:
-      'Save-time notice listing card names whose category entries were pruned because the list no longer holds them.',
+      'Save-time notice listing card names whose category entries were pruned because the list no longer holds them. Deliberately worded for the CLI (stderr, one line after a move or save) rather than shared with the site editors’ ui.editor.prunedCategories, which states the same fact as a sentence appended to a status toast; keep them separate rather than "fixing" one to match the other.',
   },
   'cli.session.promptTagsEdit': {
     description:

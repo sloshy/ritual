@@ -665,3 +665,169 @@ describe('groupAndSortCards — tags', () => {
     ])
   })
 })
+
+// Categories are name-keyed, ordered (the first is primary) and case-kept with a
+// fold. The two groupings differ in exactly one way: `'category'` places a card
+// under its primary only, `'categories'` under every category it holds — which
+// deliberately breaks the one-card-one-group invariant, so group totals overlap.
+describe('groupAndSortCards — categories', () => {
+  const uncategorized = t('site.groupBy.uncategorized')
+  const order = ['Ramp', 'Draw', 'Artifacts']
+  const cards = [
+    makeCard({ name: 'Sol Ring', categories: ['Ramp', 'Artifacts'] }),
+    makeCard({ name: 'Rhystic Study', categories: ['Draw'] }),
+    makeCard({ name: 'Arcane Signet', categories: ['Ramp'] }),
+    makeCard({ name: 'Plain Card' }),
+  ]
+
+  test('primary grouping puts each card under its first category, uncategorized last', () => {
+    const groups = groupAndSortCards(
+      cards,
+      'category',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      false,
+      order,
+    )
+    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', uncategorized])
+    expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Arcane Signet', 'Sol Ring'])
+    expect(groups.at(-1)!.cards.map((c) => c.name)).toEqual(['Plain Card'])
+  })
+
+  test("headings follow the list's vocabulary order, not the alphabet", () => {
+    // Alphabetically Artifacts < Draw < Ramp; the sidecar says otherwise.
+    const groups = groupAndSortCards(
+      [makeCard({ name: 'A', categories: ['Artifacts'] }), ...cards],
+      'category',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      false,
+      order,
+    )
+    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', 'Artifacts', uncategorized])
+  })
+
+  test('a category the vocabulary does not name comes after the named ones', () => {
+    const groups = groupAndSortCards(
+      [makeCard({ name: 'Zed', categories: ['Combo'] }), ...cards],
+      'category',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      false,
+      order,
+    )
+    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', 'Combo', uncategorized])
+  })
+
+  test('the all-categories grouping puts a two-category card in both groups', () => {
+    const groups = groupAndSortCards(
+      cards,
+      'categories',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      false,
+      order,
+    )
+    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', 'Artifacts', uncategorized])
+    expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Arcane Signet', 'Sol Ring'])
+    expect(groups[2]!.cards.map((c) => c.name)).toEqual(['Sol Ring'])
+  })
+
+  test('each non-uncategorized group carries its own category; the others carry no key at all', () => {
+    const groups = groupAndSortCards(
+      cards,
+      'categories',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      false,
+      order,
+    )
+    expect(groups[0]!.category).toBe('Ramp')
+    expect(groups[2]!.category).toBe('Artifacts')
+    // bun's toEqual ignores undefined-valued keys, so assert presence.
+    expect(groups.at(-1)!).not.toHaveProperty('category')
+  })
+
+  test('the primary grouping tags no group with a category', () => {
+    const groups = groupAndSortCards(
+      cards,
+      'category',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      false,
+      order,
+    )
+    for (const group of groups) expect(group).not.toHaveProperty('category')
+  })
+
+  test("two spellings of one category are one group, headed by the vocabulary's spelling", () => {
+    const mixed = [
+      makeCard({ name: 'One', categories: ['Ramp'] }),
+      makeCard({ name: 'Two', categories: ['ramp'] }),
+      makeCard({ name: 'Three', categories: ['RAMP'] }),
+    ]
+    const groups = groupAndSortCards(mixed, 'category', sl('name'), [], undefined, 'usd', false, [
+      'Ramp',
+    ])
+    expect(groups.map((g) => g.key)).toEqual(['Ramp'])
+    expect(groups[0]!.cards.map((c) => c.name)).toEqual(['One', 'Three', 'Two'])
+  })
+
+  test('a category no vocabulary names is headed by the first spelling seen', () => {
+    const mixed = [
+      makeCard({ name: 'One', categories: ['combo'] }),
+      makeCard({ name: 'Two', categories: ['Combo'] }),
+    ]
+    const groups = groupAndSortCards(mixed, 'category', sl('name'), [], undefined, 'usd', false, [])
+    expect(groups.map((g) => g.key)).toEqual(['combo'])
+    expect(groups[0]!.cards).toHaveLength(2)
+  })
+
+  test('reverseGroups still reverses', () => {
+    const groups = groupAndSortCards(
+      cards,
+      'category',
+      sl('name'),
+      [],
+      undefined,
+      'usd',
+      true,
+      order,
+    )
+    expect(groups[0]!.key).toBe(uncategorized)
+  })
+})
+
+describe('compareBySortLayers — category', () => {
+  test('orders by primary category with display collation, uncategorized last', () => {
+    const cards = [
+      makeCard({ name: 'None' }),
+      makeCard({ name: 'Ramp Rock', categories: ['Ramp'] }),
+      makeCard({ name: 'Draw Spell', categories: ['Draw', 'Ramp'] }),
+      makeCard({ name: 'Empty List', categories: [] }),
+    ]
+    const sorted = [...cards].sort((a, b) => compareBySortLayers(a, b, sl('category')))
+    expect(sorted.map((c) => c.name)).toEqual(['Draw Spell', 'Ramp Rock', 'Empty List', 'None'])
+  })
+
+  test('reversing the layer puts uncategorized first', () => {
+    const cards = [
+      makeCard({ name: 'None' }),
+      makeCard({ name: 'Ramp Rock', categories: ['Ramp'] }),
+    ]
+    const sorted = [...cards].sort((a, b) => compareBySortLayers(a, b, sl('category', true)))
+    expect(sorted.map((c) => c.name)).toEqual(['None', 'Ramp Rock'])
+  })
+})

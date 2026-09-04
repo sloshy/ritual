@@ -18,6 +18,7 @@ import type { ListImageRef } from '../../../src/list/list-image'
 import { cardPricelessReason } from '../../../src/list-view/priceless'
 import type { ChangelogPage } from '../../../src/changes/changelog-parser'
 import { createRemoveChange } from '../../../src/changes/change-event'
+import { categoriesRecord as record } from '../../helpers/card-categories'
 
 type StubContextOptions = {
   cardData?: Partial<SiteCardData>
@@ -1961,5 +1962,142 @@ describe('list cover overrides', () => {
       flatContext().ctx,
     )
     expect(collection.featuredCardImage).toBe('https://img/bolt.jpg')
+  })
+})
+
+/**
+ * Categories ride the bake exactly like custom art: resolved by card *name*
+ * through `cardCategoriesOf`, spread onto each entry, and absent — never `[]` —
+ * for a card the sidecar says nothing about. The list-level record is baked
+ * beside the changelog with its **resolved** order, so the site's headings match
+ * the file's.
+ */
+describe('categories baking', () => {
+  const catDeck: LoadedDeck = {
+    data: {
+      name: 'Burn Deck',
+      sections: [
+        { name: 'Commander', cards: [{ name: 'Serra Angel', quantity: 1 }] },
+        { name: 'Mainboard', cards: [{ name: 'Lightning Bolt', quantity: 4 }] },
+      ],
+    },
+    changelog: [],
+    warnings: [],
+  }
+
+  const catCardData: Partial<SiteCardData> = {
+    cards: { 'Lightning Bolt': bolt, 'Serra Angel': angel },
+    printings: { 'Lightning Bolt': [bolt, boltCheap], 'Serra Angel': [angel] },
+  }
+
+  const collectionEntries: CollectionEntry[] = [
+    {
+      name: 'Serra Angel',
+      quantity: 1,
+      set: 'fdn',
+      collectorNumber: '35',
+      section: 'Main',
+      cardId: 1,
+    },
+    {
+      name: 'Lightning Bolt',
+      quantity: 1,
+      set: 'fdn',
+      collectorNumber: '9',
+      section: 'Main',
+      cardId: 2,
+    },
+  ]
+
+  test("a collection's entries carry their categories in primary order", async () => {
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel], 'Lightning Bolt': [bolt] },
+    })
+    const loaded: LoadedCollection = {
+      displayName: 'Binder',
+      entries: collectionEntries,
+      sectionOrder: ['Main'],
+      cardCategories: record(['Fliers'], { 'Serra Angel': ['Fliers', 'Finishers'] }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildCollectionArtifacts(loaded, ctx)
+
+    expect(detail.entries[0]?.categories).toEqual(['Fliers', 'Finishers'])
+    // Absent, never `[]`: "no categories" has one spelling at every level.
+    expect(detail.entries[1]).not.toHaveProperty('categories')
+    expect(detail.categories?.cards).toEqual({ 'Serra Angel': ['Fliers', 'Finishers'] })
+    // The resolved order: the stored one first, then what the cards use.
+    expect(detail.categories?.order).toEqual(['Fliers', 'Finishers'])
+  })
+
+  test("a wanted list's entries carry theirs too", async () => {
+    const { ctx } = makeContext({ printingsByName: { 'Serra Angel': [angel] } })
+    const loaded: LoadedWanted = {
+      displayName: 'Wants',
+      entries: [{ name: 'Serra Angel', quantity: 1, section: 'Main', cardId: 1 }],
+      sectionOrder: ['Main'],
+      cardCategories: record([], { 'Serra Angel': ['Finishers'] }),
+      warnings: [],
+      changelog: [],
+    }
+
+    const { detail } = await buildWantedArtifacts(loaded, ctx)
+    expect(detail.entries[0]?.categories).toEqual(['Finishers'])
+  })
+
+  test("a deck's card lines carry theirs, matched case-insensitively by name", async () => {
+    const { ctx } = makeContext({ cardData: catCardData })
+    const loaded: LoadedDeck = {
+      ...catDeck,
+      cardCategories: record(['Burn'], { 'lightning bolt': ['Burn'] }),
+    }
+
+    const { detail } = await buildDeckArtifacts(loaded, ctx)
+
+    const main = detail.deck.sections.find((s) => s.name === 'Mainboard')
+    expect(main?.cards[0]?.categories).toEqual(['Burn'])
+    const commander = detail.deck.sections.find((s) => s.name === 'Commander')
+    expect(commander?.cards[0]).not.toHaveProperty('categories')
+    expect(detail.categories?.order).toEqual(['Burn'])
+  })
+
+  test('a list with no sidecar bakes neither key', async () => {
+    const { ctx } = makeContext({ cardData: catCardData })
+    const { detail } = await buildDeckArtifacts(catDeck, ctx)
+    expect(detail).not.toHaveProperty('categories')
+    expect(detail).not.toHaveProperty('categoryWarnings')
+  })
+
+  test('a deck with an empty record is passed through by identity, like art', async () => {
+    const { ctx } = makeContext({ cardData: catCardData })
+    const { detail } = await buildDeckArtifacts({ ...catDeck, cardCategories: record([], {}) }, ctx)
+    expect(detail.deck).toBe(catDeck.data)
+  })
+
+  test('the resolved order puts the configured defaults before the rest, not alphabetically', async () => {
+    // `Removal` ships in `defaultCategories`; `Artifice` does not, and sorts
+    // before it by display collation — so this case fails if the bake stops
+    // passing the config defaults to the order resolution.
+    const { ctx } = makeContext({ cardData: catCardData })
+    const loaded: LoadedDeck = {
+      ...catDeck,
+      cardCategories: record([], { 'Lightning Bolt': ['Artifice', 'Removal'] }),
+    }
+
+    const { detail } = await buildDeckArtifacts(loaded, ctx)
+    expect(detail.categories?.order).toEqual(['Removal', 'Artifice'])
+  })
+
+  test("the loader's categories warnings reach the detail", async () => {
+    const { ctx } = makeContext({ cardData: catCardData })
+    const { detail } = await buildDeckArtifacts(
+      { ...catDeck, categoryWarnings: ['sidecar names cards this list no longer holds: Sol Ring'] },
+      ctx,
+    )
+    expect(detail.categoryWarnings).toEqual([
+      'sidecar names cards this list no longer holds: Sol Ring',
+    ])
   })
 })

@@ -186,6 +186,10 @@ export const adminMeta = {
     description:
       'One row of the dropped-notes notice: the card name and the note text that was lost.',
   },
+  'admin.layout.categoriesPrunedTitle': {
+    description:
+      'Title of the notice shown when a navbar move or remove took a list’s last line of a card, so that card’s categories were dropped from the list.',
+  },
 
   // ── Shared controls ───────────────────────────────────────────────────
   'admin.select.chooseList': {

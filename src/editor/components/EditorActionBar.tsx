@@ -1,6 +1,7 @@
 import { type Component, type JSX, For, Show, createSignal, createMemo, onCleanup } from 'solid-js'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
-import type { SectionInfo } from '../editor-config'
+import { swapNeighbour } from '../../util/array'
+import type { ManagerRow, SectionInfo } from '../editor-config'
 import { EditorDefaultsForm } from './EditorDefaultsForm'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
@@ -19,6 +20,14 @@ type EditorActionBarProps = {
   onAddSection: (name: string) => void
   onRequestRename: (name: string) => void
   onRemoveSection: (name: string) => void
+  /** The list's categories in display order, with the number of cards holding each. */
+  categories: readonly CategoryManagerRow[]
+  /** Replace the list's declared vocabulary order (one `set-category-order`). */
+  onSetCategoryOrder: (order: string[]) => void
+  /** Ask the shell's text prompt to rename a category across the whole list. */
+  onRequestRenameCategory: (name: string) => void
+  /** Remove a category from the list and from every card holding it. */
+  onRemoveCategory: (name: string) => void
   /** Opens the keyboard shortcuts reference (also bound to `?`). */
   onShowShortcuts: () => void
   /** When provided, shows an "Import…" button (admin only) to load an exported change file. */
@@ -52,6 +61,9 @@ type EditorActionBarProps = {
   barRef?: (el: HTMLDivElement | undefined) => void
 }
 
+/** One row of the Manage-categories modal — the shared manager-row model. */
+export type CategoryManagerRow = ManagerRow
+
 /** The bar's enabled buttons, in visual order. */
 function barButtons(bar: HTMLElement): HTMLButtonElement[] {
   return [...bar.querySelectorAll<HTMLButtonElement>('button:not([disabled])')]
@@ -66,10 +78,16 @@ export function focusActionBar(bar: HTMLElement | undefined): void {
   barButtons(bar)[0]?.focus()
 }
 
+/** The row names, in display order — the array a reorder swaps within. */
+function namesOf(rows: readonly CategoryManagerRow[]): string[] {
+  return rows.map((row) => row.name)
+}
+
 export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
   const t = useT()
   const [defaultsOpen, setDefaultsOpen] = createSignal(false)
   const [sectionsOpen, setSectionsOpen] = createSignal(false)
+  const [categoriesOpen, setCategoriesOpen] = createSignal(false)
   const [newSectionName, setNewSectionName] = createSignal('')
   // Condition is tracked for every list kind except wanted lists; derive it
   // from the defaults discriminant rather than threading a separate prop.
@@ -155,6 +173,9 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         </button>
         <button type="button" class="btn-sections" onClick={() => setSectionsOpen(true)}>
           {t('ui.editor.sections')}
+        </button>
+        <button type="button" class="btn-categories" onClick={() => setCategoriesOpen(true)}>
+          {t('ui.editor.categories')}
         </button>
         <Show when={props.onEditLabels}>
           <button type="button" class="btn-labels" onClick={() => props.onEditLabels!()}>
@@ -284,6 +305,75 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
 
         <div class="confirm-dialog-actions">
           <button type="button" class="btn btn-secondary" onClick={closeSections}>
+            {t('ui.dialog.done')}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={categoriesOpen()}
+        onClose={() => setCategoriesOpen(false)}
+        size="md"
+        panelClass="modal-panel--prompt category-manager"
+      >
+        <h3>{t('ui.editor.manageCategories')}</h3>
+        <p class="dialog-message">{t('ui.editor.categoriesHelp')}</p>
+
+        <Show when={props.categories.length === 0}>
+          <p class="dialog-message">{t('ui.editor.noCategories')}</p>
+        </Show>
+
+        <ul class="section-manager-list">
+          <For each={props.categories}>
+            {(category, i) => (
+              <li class="section-manager-row category-manager-row">
+                <span class="section-manager-name">{category.name}</span>
+                <span class="section-manager-count">{category.count}</span>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm category-manager-up"
+                  title={t('ui.editor.moveCategoryUp')}
+                  aria-label={t('ui.editor.moveCategoryUp')}
+                  disabled={i() === 0}
+                  onClick={() =>
+                    props.onSetCategoryOrder(swapNeighbour(namesOf(props.categories), i(), -1))
+                  }
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm category-manager-down"
+                  title={t('ui.editor.moveCategoryDown')}
+                  aria-label={t('ui.editor.moveCategoryDown')}
+                  disabled={i() === props.categories.length - 1}
+                  onClick={() =>
+                    props.onSetCategoryOrder(swapNeighbour(namesOf(props.categories), i(), 1))
+                  }
+                >
+                  ▼
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm category-manager-rename"
+                  onClick={() => props.onRequestRenameCategory(category.name)}
+                >
+                  {t('ui.editor.rename')}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm category-manager-remove"
+                  onClick={() => props.onRemoveCategory(category.name)}
+                >
+                  {t('ui.editor.removeCategory')}
+                </button>
+              </li>
+            )}
+          </For>
+        </ul>
+
+        <div class="confirm-dialog-actions">
+          <button type="button" class="btn btn-secondary" onClick={() => setCategoriesOpen(false)}>
             {t('ui.dialog.done')}
           </button>
         </div>

@@ -72,6 +72,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
           listLabels={props.listLabels}
           cards={ctrl.cardData.cards}
           printings={ctrl.cardData.printings}
+          categories={ctrl.editor.categoriesJson()}
           symbolMap={ctrl.cardData.symbolMap}
           useScryfallImgUrls={props.useScryfallImgUrls}
           totalPrice={0}

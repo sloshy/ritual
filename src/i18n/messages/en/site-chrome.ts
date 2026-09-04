@@ -142,6 +142,10 @@ export const siteChromeMessages = {
   'site.filter.artTagMode': 'Art Tags match mode',
   'site.filter.artTagsPlaceholder': 'Art tags…',
   'site.filter.artTagsSuggestions': 'Art tag suggestions',
+  'site.filter.categories': 'Categories',
+  'site.filter.categoryMode': 'Category match mode',
+  'site.filter.categoriesPlaceholder': 'Ramp, Card Draw',
+  'site.filter.categoriesSuggestions': 'Used in this list:',
   'site.filter.manaValue': 'Mana Value',
   'site.filter.manaValueCompare': 'Mana value comparison',
   'site.filter.price': 'Price',
@@ -183,6 +187,9 @@ export const siteChromeMessages = {
   'site.filterMode.artTagInclude': 'Match cards with any of the selected art tags',
   'site.filterMode.artTagExclude': 'Hide cards with any of the selected art tags',
   'site.filterMode.artTagExact': 'Match cards with all of the selected art tags',
+  'site.filterMode.categoryInclude': 'Keep cards in any of the selected categories',
+  'site.filterMode.categoryExclude': 'Hide cards in any of the selected categories',
+  'site.filterMode.categoryExact': 'Keep cards in every selected category',
   'site.filterMode.colorSubset': 'Card could be played in a deck of the selected colors',
   'site.filterMode.colorInclude': 'Card uses at least one of the selected colors',
   'site.filterMode.colorExclude': 'Card uses none of the selected colors',
@@ -309,6 +316,9 @@ export const siteChromeMessages = {
   'site.themeGroup.misc.description': 'Sizing tokens and other non-color values.',
 
   // ── Variables (one swatch each) ───────────────────────────────────────
+  'site.themeVar.categoryMarker.label': 'Secondary category marker',
+  'site.themeVar.categoryMarker.description':
+    'Text colour of the "also" badge on a card shown under a category that is not its primary one.',
   'site.themeVar.bgBody.label': 'Page background',
   'site.themeVar.bgBody.description': 'The main background filling the entire viewport.',
   'site.themeVar.bgPanel.label': 'Panel background',

@@ -1,4 +1,5 @@
 import { createMemo, createSignal, type JSX } from 'solid-js'
+import type { CardCategoriesJson } from '../../../list/card-categories-record'
 import type { ScryfallCard } from '../../../scryfall/types'
 import type { CardLabel } from '../../../card/card-labels'
 import type { CardArtRecord } from '../../../list/card-art'
@@ -43,6 +44,10 @@ type CollectionDataResponse = {
   printings: Record<string, ScryfallCard[]>
   symbolMap: Record<string, string>
   slug: string
+  /** The list's categories sidecar, as the load route sends it (phase 3). */
+  categories?: CardCategoriesJson
+  /** Sidecar trouble the load route reported; absent when clean. */
+  categoryWarnings?: string[]
   contentHash: string
 }
 
@@ -101,7 +106,11 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
         data: r.entries,
         poolIds: collectExistingIds(r.entries),
         contentHash: r.contentHash,
-        extra: { sectionOrder: r.sectionOrder ?? [] },
+        extra: {
+          sectionOrder: r.sectionOrder ?? [],
+          categories: r.categories ?? null,
+          categoryWarnings: r.categoryWarnings ?? [],
+        },
       }
     },
 

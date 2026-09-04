@@ -14,6 +14,7 @@
  * evaluates eagerly, and the sell summary this hook builds reads through them
  * immediately — a memo declared after the call is in its temporal dead zone.
  */
+import type { CardCategory } from '../card/card-categories'
 import {
   createEffect,
   createMemo,
@@ -58,6 +59,7 @@ import { useCardNavScroll } from './card-nav'
 import {
   collectArtTags,
   collectCardTypes,
+  collectCardCategories,
   collectOracleTags,
   collectSetCodes,
   filterCards,
@@ -177,6 +179,12 @@ export type ListPageConfig<G extends GroupBy, C extends CardData> = ListPageScop
   valued?: ListPageValuedCards<C>
   /** Section names in display order, for section grouping. */
   sectionOrder: Accessor<string[]>
+  /**
+   * The list's category vocabulary, in its sidecar order — the heading order for
+   * the two category groupings and the filter row's option order. Empty (or
+   * absent) on a page with none; the combined view passes nothing.
+   */
+  categoryOrder?: Accessor<readonly CardCategory[]>
   /** The onMount seed of the session card cache from this page's baked data. */
   seed?: () => void
   currency: Accessor<PriceCurrency>
@@ -229,6 +237,8 @@ export type ListPageToolbarView = Pick<
   cardTypeOptions: Accessor<string[]>
   oracleTagOptions: Accessor<string[]>
   artTagOptions: Accessor<string[]>
+  /** The category names present on this page, in the list's vocabulary order. */
+  categoryOptions: Accessor<string[]>
   availableLabels: Accessor<readonly CardLabelSelection[]>
   /** The share filters' other lists — never this page's own. */
   shareLists: Accessor<readonly NamedListRef[]>
@@ -382,6 +392,9 @@ export function useListPage<G extends GroupBy, C extends CardData>(
   const cardTypeOptions = createMemo(() => collectCardTypes(config.cards()))
   const oracleTagOptions = createMemo(() => collectOracleTags(config.cards()))
   const artTagOptions = createMemo(() => collectArtTags(config.cards()))
+  const categoryOptions = createMemo(() =>
+    collectCardCategories(config.cards(), config.categoryOrder?.() ?? []),
+  )
   const untaggedAddedNames = createMemo(() =>
     isTagFilterActive(cardFilters.filters)
       ? untaggedAddedCardNames(config.cards(), config.addedCardNames?.() ?? [])
@@ -442,6 +455,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
       toolbar.priceGroupStrategy(),
       config.currency(),
       toolbar.reverseGroups(),
+      config.categoryOrder?.() ?? [],
     ),
   )
 
@@ -462,6 +476,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     cardTypeOptions,
     oracleTagOptions,
     artTagOptions,
+    categoryOptions,
     availableLabels: config.options.availableLabels,
     shareLists: otherShareLists,
     cardWidth: () => CARD_SIZE_WIDTHS[toolbar.cardSize()],

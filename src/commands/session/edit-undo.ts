@@ -3,6 +3,7 @@ import type {
   ConsolidateManyResult,
   ConsolidateResult,
 } from '../../changes/change-event'
+import { isSetCategoriesFor } from '../../changes/change-event'
 import type { CardArtEdit } from './art'
 import type { CategoryEdit } from './categories'
 import { foldCategoryCardName } from '../../card/card-categories'
@@ -226,10 +227,7 @@ export function foldOutCardChanges(
     options.goneCardName === undefined ? undefined : foldCategoryCardName(options.goneCardName)
   for (const change of changes) {
     const targetsCard = 'cardId' in change && change.cardId === cardId
-    const targetsGoneName =
-      goneName !== undefined &&
-      change.action === 'set-categories' &&
-      foldCategoryCardName(change.cardName) === goneName
+    const targetsGoneName = goneName !== undefined && isSetCategoriesFor(change, goneName)
     if (targetsGoneName) displaced.push(change)
     else if (targetsCard && !(options.keepAdds && change.action === 'add')) displaced.push(change)
     else kept.push(change)

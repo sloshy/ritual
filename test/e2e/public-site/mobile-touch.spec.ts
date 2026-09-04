@@ -176,6 +176,24 @@ test.describe('Touch toolbar', () => {
     ).toHaveValue('cmc')
   })
 
+  test('choosing a category grouping in the sheet re-sections the grid', async ({ page }) => {
+    // The phone layout reuses the desktop selects, so a new grouping reaches the
+    // sheet with no separate mobile code path — and must actually reach the grid.
+    await page.locator('.toolbar-sort-sheet-btn').click()
+    const sheet = page.locator('.sheet-shell[open]')
+    const groupSelect = sheet.locator('.sheet-control', { hasText: 'Group' }).locator('select')
+    await expect(groupSelect.locator('option[value="category"]')).toHaveCount(1)
+    await expect(groupSelect.locator('option[value="categories"]')).toHaveCount(1)
+
+    await groupSelect.selectOption('category')
+    await sheet.locator('.sheet-close').click()
+    await expect(page.locator('.sheet-shell[open]')).toHaveCount(0)
+
+    // This deck carries no categories, so the whole mainboard lands in one
+    // Uncategorized group — the grouping is live, not just offered.
+    await expect(page.locator('.section-divider h2').first()).toHaveText('Uncategorized')
+  })
+
   test('offers only binder and list views (overlap/stack need hover)', async ({ page }) => {
     await expect(page.locator('[data-view="binder"]')).toBeVisible()
     await expect(page.locator('[data-view="list"]')).toBeVisible()

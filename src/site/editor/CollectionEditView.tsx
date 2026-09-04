@@ -58,7 +58,10 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
       data: props.detail.entries,
       poolIds: collectExistingIds(props.detail.entries),
       contentHash: '',
-      extra: { sectionOrder: props.detail.sectionOrder ?? [] },
+      extra: {
+        sectionOrder: props.detail.sectionOrder ?? [],
+        categories: props.detail.categories ?? null,
+      },
     }),
     loadCardData: () =>
       cardActions.load({
@@ -165,6 +168,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
           listLabels={props.detail.labels}
           cards={props.detail.cards}
           printings={props.detail.printings ?? {}}
+          categories={props.detail.categories}
           symbolMap={props.detail.symbolMap}
           useScryfallImgUrls={props.detail.useScryfallImgUrls}
           totalPrice={props.detail.totalPrice}

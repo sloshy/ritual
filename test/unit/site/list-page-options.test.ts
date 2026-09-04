@@ -28,6 +28,8 @@ describe('deckGroupByOptions', () => {
       'price',
       'tags',
       'printing',
+      'category',
+      'categories',
       'none',
     ])
   })
@@ -41,6 +43,8 @@ describe('deckGroupByOptions', () => {
       'price',
       'tags',
       'printing',
+      'category',
+      'categories',
       'buylist-price',
       'on-buylist',
       'none',
@@ -56,6 +60,8 @@ describe('deckGroupByOptions', () => {
       'site.groupBy.price',
       'site.groupBy.tags',
       'site.groupBy.printing',
+      'site.groupBy.category',
+      'site.groupBy.categories',
       'domain.groupBy.buylistPrice',
       'domain.groupBy.onBuylist',
       'site.groupBy.none',
@@ -71,6 +77,8 @@ describe('collectionGroupByOptions', () => {
       'color-identity',
       'price',
       'tags',
+      'category',
+      'categories',
       'none',
     ])
   })
@@ -83,6 +91,8 @@ describe('collectionGroupByOptions', () => {
       'color-identity',
       'price',
       'tags',
+      'category',
+      'categories',
       'none',
     ])
   })
@@ -94,6 +104,8 @@ describe('collectionGroupByOptions', () => {
       'color-identity',
       'price',
       'tags',
+      'category',
+      'categories',
       'buylist-price',
       'on-buylist',
       'none',
@@ -110,6 +122,8 @@ describe('wantedGroupByOptions', () => {
       'price',
       'tags',
       'printing',
+      'category',
+      'categories',
       'none',
     ])
   })
@@ -123,6 +137,8 @@ describe('wantedGroupByOptions', () => {
       'price',
       'tags',
       'printing',
+      'category',
+      'categories',
       'buylist-price',
       'on-buylist',
       'none',
@@ -180,6 +196,8 @@ describe('combinedGroupByOptions', () => {
  */
 const ALL_GROUP_BYS = [
   'buylist-price',
+  'categories',
+  'category',
   'cmc',
   'color-identity',
   'none',
@@ -195,6 +213,12 @@ const ALL_GROUP_BYS = [
 describe('GROUP_BY_LABELS', () => {
   test('labels every grouping, so no dropdown row can fall back to its raw token', () => {
     expect(Object.keys(GROUP_BY_LABELS).sort()).toEqual(ALL_GROUP_BYS)
+  })
+
+  test('the combined view offers neither category grouping (each list has its own vocabulary)', () => {
+    const combined = values(combinedGroupByOptions(true, true, true))
+    expect(combined).not.toContain('category')
+    expect(combined).not.toContain('categories')
   })
 
   test('every labelled grouping is reachable from some page, so no label is dead', () => {

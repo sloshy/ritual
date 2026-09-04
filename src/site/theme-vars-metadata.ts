@@ -455,6 +455,14 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     type: 'color',
   },
 
+  {
+    name: '--category-marker',
+    label: 'site.themeVar.categoryMarker.label',
+    description: 'site.themeVar.categoryMarker.description',
+    group: 'labels',
+    type: 'color',
+  },
+
   // ----- Overlays -----
   {
     name: '--overlay-light',
