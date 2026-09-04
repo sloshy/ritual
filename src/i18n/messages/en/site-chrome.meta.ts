@@ -816,6 +816,13 @@ export const siteChromeMeta = {
   'site.themeVar.categoryMarker.description': {
     description: 'Theme editor tooltip for the `--category-marker` swatch.',
   },
+  'site.themeVar.cardSecondaryDim.label': {
+    description:
+      'Theme editor label for how strongly a card shown under a non-primary category is dimmed.',
+  },
+  'site.themeVar.cardSecondaryDim.description': {
+    description: 'Theme editor tooltip for the `--card-secondary-opacity` control.',
+  },
   'site.themeVar.bgBody.label': {
     description: 'Swatch label for the `--bg-body` CSS variable in the theme editor.',
   },

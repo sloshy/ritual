@@ -11,7 +11,7 @@
 
 import type { MessageKey } from '../i18n/messages/en'
 
-export type ThemeVarType = 'color' | 'length'
+export type ThemeVarType = 'color' | 'length' | 'opacity'
 
 /** Units a `length` theme variable may be authored in. */
 export type LengthUnit = 'px' | '%'
@@ -30,7 +30,10 @@ export type ThemeVarMeta = {
   group: ThemeVarGroupId
   /** Control type — determines the picker rendered for this variable. */
   type: ThemeVarType
-  /** CSS unit for `length` variables. Defaults to `px`. */
+  /**
+   * CSS unit for `length` variables. Defaults to `px`. `length` variables only;
+   * an `opacity` variable is unitless.
+   */
   unit?: LengthUnit
 }
 
@@ -461,6 +464,14 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     description: 'site.themeVar.categoryMarker.description',
     group: 'labels',
     type: 'color',
+  },
+
+  {
+    name: '--card-secondary-opacity',
+    label: 'site.themeVar.cardSecondaryDim.label',
+    description: 'site.themeVar.cardSecondaryDim.description',
+    group: 'labels',
+    type: 'opacity',
   },
 
   // ----- Overlays -----

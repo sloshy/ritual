@@ -51,6 +51,10 @@
      themes alike. */
   --category-marker: oklch(80% 0.06 260);
 
+  /* How strongly a card tile is dimmed when it appears under a category that is
+     not its primary one. Unitless opacity, 0–1. */
+  --card-secondary-opacity: 0.72;
+
   /* ---- Overlays ---- */
   --overlay-light: rgba(0, 0, 0, 0.5);
   --overlay-medium: rgba(0, 0, 0, 0.7);

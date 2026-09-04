@@ -106,6 +106,16 @@ export const SELL_GROUP_BYS = ['buylist-price', 'on-buylist'] as const satisfies
  */
 export type SellGroupBy = (typeof SELL_GROUP_BYS)[number]
 
+/**
+ * The groupings that nest inside a deck's boards (design §1.1, §7). One table,
+ * compile-checked against `GroupBy`, shared by the page dropdowns and by the
+ * deck nesting leaf so the two halves can never disagree.
+ */
+export const CATEGORY_GROUP_BYS = ['category', 'categories'] as const satisfies readonly GroupBy[]
+
+/** The group-by values that nest inside a deck's boards. */
+export type CategoryGroupBy = (typeof CATEGORY_GROUP_BYS)[number]
+
 /** The sort fields sell mode adds. */
 export const SELL_SORT_BYS = [
   'buylist-price',

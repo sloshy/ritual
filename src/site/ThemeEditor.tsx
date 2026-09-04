@@ -6,7 +6,9 @@
 //     import, reset, exit).
 //   - Tabs row: the variable groups.
 //   - Variables row: every variable in the active group, each as a swatch
-//     button. Clicking a swatch opens an OKLch (or length) picker popover.
+//     button. Clicking a swatch opens the control for that variable's type: an
+//     OKLch picker for colors, a length input for lengths, or a unitless 0–1
+//     input for opacities.
 //
 // The toolbar lives at the document level (fixed-position) so it overlays
 // pages without disturbing their layout. A small spacer in the SPA root
@@ -31,13 +33,16 @@ import {
   type CustomTheme,
 } from '../theme/themes'
 import { useTheme, readCssVar } from './useTheme'
+import { Dynamic } from 'solid-js/web'
 import {
   themeVarGroups,
   themeVarsByGroup,
+  type LengthUnit,
   type ThemeVarGroupId,
   type ThemeVarMeta,
+  type ThemeVarType,
 } from './theme-vars-metadata'
-import { ColorPicker, LengthPicker } from './ColorPicker'
+import { ColorPicker, LengthPicker, OpacityPicker } from './ColorPicker'
 import { useT, useTKey } from '../ui/i18n'
 
 type ThemeOption = {
@@ -333,6 +338,19 @@ const PICKER_VIEWPORT_MARGIN = 8
 
 type PickerPos = { top: number; left: number }
 
+/** The common shape every theme-variable control accepts. */
+type ThemeVarPickerProps = { value: string; onInput: (next: string) => void; unit?: LengthUnit }
+
+/**
+ * The control each variable type opens. Total over `ThemeVarType`, so adding a
+ * fourth type is a compile error here rather than a popover with no control.
+ */
+const THEME_VAR_PICKERS = {
+  color: ColorPicker,
+  length: LengthPicker,
+  opacity: OpacityPicker,
+} as const satisfies Record<ThemeVarType, Component<ThemeVarPickerProps>>
+
 const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
   const t = useT()
   const tKey = useTKey()
@@ -399,14 +417,12 @@ const ThemeVarSwatch: Component<ThemeVarSwatchProps> = (props) => {
               <code class="theme-editor-picker-varname">{props.meta.name}</code>
             </div>
             <p class="theme-editor-picker-desc">{tKey(props.meta.description)}</p>
-            <Show
-              when={props.meta.type === 'color'}
-              fallback={
-                <LengthPicker value={props.value} onInput={props.onChange} unit={props.meta.unit} />
-              }
-            >
-              <ColorPicker value={props.value} onInput={props.onChange} />
-            </Show>
+            <Dynamic
+              component={THEME_VAR_PICKERS[props.meta.type]}
+              value={props.value}
+              onInput={props.onChange}
+              unit={props.meta.unit}
+            />
             <Show when={props.isOverridden}>
               <button
                 type="button"

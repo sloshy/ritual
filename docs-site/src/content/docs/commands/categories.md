@@ -155,7 +155,7 @@ Categories are recorded for cards this list no longer holds: Sol Ring. They are 
 
 ## On the site
 
-The built site reads the same sidecar. On any single list view, **Group: Category** puts each card under its primary category, **Group: Categories** shows it under every category it holds (the non-primary appearances dimmed and badged), **Sort: Category** orders by primary, and a **Categories** filter row narrows the list — all shareable in the view URL. See [Grouping, sorting and filtering by category](/public-site/filtering/#grouping-sorting-and-filtering-by-category).
+The built site reads the same sidecar. On any single list view, **Group: Category** puts each card under its primary category, **Group: Categories** shows it under every category it holds (the non-primary appearances dimmed and badged), **Sort: Category** orders by primary, and a **Categories** filter row narrows the list — all shareable in the view URL. On a deck the two groupings nest inside every board, so headings read `Main › Ramp` and `Sideboard › Draw`. See [Grouping, sorting and filtering by category](/public-site/filtering/#grouping-sorting-and-filtering-by-category).
 
 Both the admin and the public in-browser editors edit categories directly: an **Edit Categories…** row in a card's `⋯` menu and a **Categories** (Manage categories) dialog for renaming, reordering and removing. See [Card Categories in the editors](/admin/editors/#card-categories).
 

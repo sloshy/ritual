@@ -824,6 +824,9 @@ export const adminMessages = {
   'admin.settings.priceSources': 'Price Stores',
   'admin.settings.priceSourcesHint':
     'Which stores the sites offer prices from. USD views can switch between TCGplayer and Card Kingdom; EUR always uses Cardmarket. Unchecking all of them hides prices on the sites entirely. Enabling Card Kingdom downloads its ~70 MB pricelist feed on builds and cache refreshes, like sell mode.',
+  'admin.settings.defaultCategories': 'Default Categories',
+  'admin.settings.defaultCategoriesHint':
+    'Suggested categories offered when editing a card, and the default heading order for a list that declares none. Separate them with commas; spaces are part of a name.',
   'admin.settings.currencyTix': 'TIX (MTGO)',
   'admin.settings.defaultLanguage': 'Default Language',
   'admin.settings.languageOption': '{name} ({code})',

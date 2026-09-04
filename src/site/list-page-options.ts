@@ -1,5 +1,10 @@
 import type { MessageKey } from '../i18n/messages/en'
-import { SELL_GROUP_BYS, type GroupBy, type SelectOptionKey } from '../list-view/card-sorting'
+import {
+  CATEGORY_GROUP_BYS,
+  SELL_GROUP_BYS,
+  type GroupBy,
+  type SelectOptionKey,
+} from '../list-view/card-sorting'
 
 /**
  * Every key a group-by dropdown label may name. Narrower than `MessageKey` so
@@ -65,9 +70,6 @@ export function groupByOptionsFrom<T extends GroupBy>(
 
 /** Offered only once the list actually has more than one section. */
 const sectionIf = (hasSections: boolean) => (hasSections ? (['section'] as const) : [])
-
-/** The category groupings, offered on a single list and never in the combined view. */
-const CATEGORY_GROUP_BYS = ['category', 'categories'] as const satisfies readonly GroupBy[]
 
 /** Sell mode's groupings, which always come last, before "none". */
 const sellIf = (sellMode: boolean) => (sellMode ? SELL_GROUP_BYS : [])

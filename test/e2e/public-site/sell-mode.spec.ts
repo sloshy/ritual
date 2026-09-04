@@ -220,12 +220,15 @@ test.describe('Sell mode', () => {
     await gotoSellBinder(page)
     const groupField = page.locator('.toolbar-select').first()
     await groupField.selectOption('cmc')
+    const before = await groupField.locator('option').count()
 
     await enableSellMode(page)
     // Wait for the mode to actually land: `enableSellMode` returns while the
     // button is only *pressed*, which is before the deferred flip rebuilds the
-    // option list this test is about.
-    await expect(groupField.locator('option')).toHaveCount(7)
+    // option list this test is about. Sell mode adds exactly the two
+    // `SELL_GROUP_BYS` entries (buylist price, on buylist), so assert the growth
+    // rather than a literal that the next grouping to land would falsify.
+    await expect(groupField.locator('option')).toHaveCount(before + 2)
 
     // Entering sell mode changes neither the grouping nor the control naming it.
     await expect(groupField).toHaveValue('cmc')

@@ -1370,6 +1370,14 @@ export const adminMeta = {
     description:
       'Hint under the price-stores checkboxes explaining the USD/EUR store split, that unchecking all hides prices entirely, and the Card Kingdom feed download cost. Store and mode names (TCGplayer, Card Kingdom, Cardmarket, sell mode) refer to the labeled controls.',
   },
+  'admin.settings.defaultCategories': {
+    description:
+      'Label for the Settings field holding the global card-category vocabulary (the `defaultCategories` config key).',
+  },
+  'admin.settings.defaultCategoriesHint': {
+    description:
+      'Hint under the Default Categories field explaining what the vocabulary is used for and that commas separate names.',
+  },
   'admin.settings.currencyTix': {
     description: 'Currency option: Magic Online event tickets, the currency of MTGO.',
   },

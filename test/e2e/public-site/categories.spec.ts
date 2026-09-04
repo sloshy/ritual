@@ -62,6 +62,20 @@ test.describe('Card categories', () => {
     await expect(artifacts.locator('.card-secondary-marker')).toHaveAttribute('title', /Ramp/)
     await expect(artifacts.locator('.section-note')).toBeVisible()
 
+    // The dimming *reads* the `--card-secondary-opacity` theme variable rather
+    // than a literal: overriding the variable moves the dimmed tile. Reverting
+    // the rule to a hardcoded 0.72 would pass every other assertion here and in
+    // the theme-editor spec.
+    const secondary = artifacts.locator('.card-slot--secondary').first()
+    await expect.poll(() => secondary.evaluate((el) => getComputedStyle(el).opacity)).toBe('0.72')
+    await page.evaluate(() =>
+      document.documentElement.style.setProperty('--card-secondary-opacity', '0.4'),
+    )
+    await expect.poll(() => secondary.evaluate((el) => getComputedStyle(el).opacity)).toBe('0.4')
+    await page.evaluate(() =>
+      document.documentElement.style.removeProperty('--card-secondary-opacity'),
+    )
+
     const ramp = page.locator('[data-section="Ramp"]')
     await expect(ramp.locator('.card-slot--secondary')).toHaveCount(0)
     await expect(ramp.locator('.card-secondary-marker')).toHaveCount(0)
@@ -112,25 +126,58 @@ test.describe('Card categories', () => {
 })
 
 /**
- * Design §1.1 as this phase implements it: a deck partitions its boards before
- * grouping, so the **mainboard** is what gets grouped by category while the
- * sideboard and extras stay in their own ungrouped sections below.
+ * Owner decision §1.1: on a deck, the two category groupings nest inside every
+ * board — the board first, its categories in the list's order, Uncategorized
+ * last within each board — so a `Ramp` card in the sideboard heads under
+ * `Sideboard › Ramp`. Every other grouping still groups the mainboard alone.
  */
-test.describe('Card categories — decks group the mainboard only', () => {
-  test('the sideboard keeps its own section and never appears under a category', async ({
+test.describe('Card categories — decks nest categories inside each board', () => {
+  test('every board heads its own category groups, sideboard and extras included', async ({
     page,
   }) => {
     await mockPublicSiteDeckWithCategories(page)
     await gotoList(page, '#/deck/category-deck')
-    await page.locator('.toolbar select').first().selectOption('category')
+    const groupField = page.locator('.toolbar select').first()
+    await groupField.selectOption('category')
 
-    // Mainboard headings are categories; the sideboard is still its own section.
+    // Board order: commander, mainboard, sideboard, then each extras section.
     const headings = page.locator('.section-divider h2')
-    await expect(headings).toHaveText(['Ramp', 'Uncategorized', 'Sideboard'])
-    await expect(page.locator('[data-section="Ramp"] .card-item')).toHaveCount(1)
-    // The sideboard's categorized card draws no `Draw` heading of its own.
-    await expect(page.locator('[data-section="Draw"]')).toHaveCount(0)
-    await expect(page.locator('[data-section="Sideboard"] .card-item')).toHaveCount(1)
+    await expect(headings).toHaveText([
+      'Commander › Ramp',
+      'Main › Ramp',
+      'Main › Uncategorized',
+      'Sideboard › Draw',
+      'Maybeboard › Ramp',
+    ])
+    await expect(page.locator('[data-section="Sideboard › Draw"] .card-item')).toHaveCount(1)
+    // No un-nested heading survives on any side.
+    await expect(page.locator('[data-section="Ramp"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="Sideboard"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="Maybeboard"]')).toHaveCount(0)
+
+    // The commander board keeps its count-free tiles: both boards hold a
+    // two-copy card, and only the mainboard's draws a quantity badge.
+    await expect(page.locator('[data-section="Commander › Ramp"] .qty-badge')).toHaveCount(0)
+    await expect(page.locator('[data-section="Main › Ramp"] .qty-badge')).toHaveCount(1)
+
+    // Hiding extras drops the extras boards and leaves the others alone.
+    await openFilterMenu(page)
+    const hideExtras = page.getByRole('button', { name: 'Hide Extras' })
+    await hideExtras.click()
+    await expect(page.locator('[data-section="Maybeboard › Ramp"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="Sideboard › Draw"]')).toHaveCount(1)
+    await hideExtras.click()
+    await page.keyboard.press('Escape')
+
+    // The all-categories grouping takes the same path.
+    await groupField.selectOption('categories')
+    await expect(page.locator('[data-section="Sideboard › Draw"] .card-item')).toHaveCount(1)
+
+    // …and every other grouping still renders the un-nested blocks the nested
+    // branch replaced: the mainboard grouped, the other boards on their own.
+    await groupField.selectOption('type')
+    await expect(page.locator('[data-section="Sideboard"]')).toHaveCount(1)
+    await expect(page.locator('.section-divider h2').filter({ hasText: '›' })).toHaveCount(0)
   })
 })
 

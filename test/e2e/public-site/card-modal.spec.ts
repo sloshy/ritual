@@ -81,7 +81,7 @@ test.describe('Card detail modal — tags', () => {
 
     // Tags are hidden until the button is pressed.
     await expect(page.locator('.modal-tags')).toHaveCount(0)
-    await page.getByRole('button', { name: /^Tags/ }).click()
+    await page.getByRole('button', { name: /^Scryfall Tags/ }).click()
 
     const tags = page.locator('.modal-tags')
     await expect(tags).toBeVisible()
@@ -102,7 +102,7 @@ test.describe('Card detail modal — tags', () => {
     await page.locator('.card-item[data-name="test forest"] .card-binder').click()
     await expect(page.locator('.card-modal')).toBeVisible({ timeout: 5000 })
 
-    await page.getByRole('button', { name: /^Tags/ }).click()
+    await page.getByRole('button', { name: /^Scryfall Tags/ }).click()
     await expect(page.locator('.modal-tags-warning')).toBeVisible()
     await expect(page.locator('.modal-tags-warning')).toContainText(/cache is incomplete/i)
     await expect(page.locator('.modal-tags')).toHaveCount(0)

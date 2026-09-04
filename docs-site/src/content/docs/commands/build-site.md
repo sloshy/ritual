@@ -157,7 +157,7 @@ The app's flame logo — both the header icon and the browser-tab favicon — is
 
 The header's **Theme** button opens a picker popover listing every built-in palette with a preview swatch. Clicking a palette switches the base theme; if the visitor has in-progress customizations, the picker first asks for confirmation before discarding them. Only the chosen theme name (and any explicit overrides) is stored in `localStorage` — when a future build ships updated built-in palettes, visitors who haven't customized see those updates automatically.
 
-For per-variable tweaks, the picker has a **Customize theme…** entry that opens the in-browser **theme editor**. The editor exposes every CSS variable as a labeled control (OKLch sliders for colors, number inputs for sizes) grouped into tabs — including a **Flame icon** group for the six gradient stops of the app logo — lets the user start from any built-in palette, and live-previews changes across all pages (the flame logo and favicon recolor as you drag). The user's edits persist in `localStorage` so subsequent visits restore their custom palette.
+For per-variable tweaks, the picker has a **Customize theme…** entry that opens the in-browser **theme editor**. The editor exposes every CSS variable as a labeled control (OKLch sliders for colors, number inputs for sizes, and a unitless 0–1 input for opacities such as the secondary-card dimming) grouped into tabs — including a **Flame icon** group for the six gradient stops of the app logo — lets the user start from any built-in palette, and live-previews changes across all pages (the flame logo and favicon recolor as you drag). The user's edits persist in `localStorage` so subsequent visits restore their custom palette.
 
 A **Download JSON** button in the editor exports the full set of variables as a `.json` file. To bake one of those palettes back into a build, pass it to `--theme-file`:
 
@@ -653,7 +653,7 @@ Collection pages show:
 - An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall, priced under the selected [price store](/public-site/price-sources/) with alternate finishes underneath. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
 - Cards displayed individually by default (not grouped), with a "Group Duplicates" toggle
 - File order as the default sort, with options for name, price, set code, type, mana value, and color identity
-- Grouping by section (the default when the collection has two or more sections), type, mana value, color identity, price brackets, [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tag), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
+- Grouping by section (the default when the collection has two or more sections), type, mana value, color identity, price brackets, [tags](/public-site/filtering/#grouping-and-sorting-by-tags), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
 - Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
 - A "No Price Data" group that appears at the bottom when grouping by price, collecting cards without price data for their finish
 - Download as original Markdown or CSV for importing into other sites
@@ -672,7 +672,7 @@ Wanted list pages show:
   - **Fully specified** entries use the exact printing and finish specified
 - Individual card prices in the card detail modal
 - State indicator showing whether each card is name-only, printing-specific, or fully specified
-- Grouping by section (the default when the wanted list has two or more sections), type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tag), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
+- Grouping by section (the default when the wanted list has two or more sections), type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-and-sorting-by-tags), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
 - Download as original Markdown
 - No condition display (wanted lists track desired cards, not owned cards)
 
@@ -685,10 +685,11 @@ Deck pages include:
 - "Lowest Price" toggle that swaps all cards to their cheapest available printing (images and prices update)
 - Card detail modal with Scryfall link, other printings (paginated, sortable by release date, set name, or price, and priced under the selected [price store](/public-site/price-sources/)), and full card details
 - Section/group price totals shown next to card counts
-- Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tag), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped — applies to mainboard only
+- Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-and-sorting-by-tags), or ungrouped — applies to the mainboard only
+- Grouping by [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category) instead nests inside every board: headings read `Main › Ramp`, `Sideboard › Draw`
 - Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
-- Sideboard always displayed in its own section at the bottom, ungrouped
-- Extras (maybeboard, tokens) displayed below sideboard, toggled via "Hide Extras" checkbox
+- Under the non-category groupings, the sideboard is always displayed in its own section at the bottom, ungrouped
+- Extras (maybeboard, tokens) displayed below the sideboard under the non-category groupings, and as their own nested boards (`Maybeboard › Ramp`) under the category ones; the "Hide Extras" checkbox removes them either way
 - Only printings with a listed price are considered for price analysis
 - **View Changes** button (when a changelog exists) opens a paginated modal showing the edit history
 

@@ -2644,7 +2644,8 @@ body.theme-editor-active {
   color: var(--text-muted);
 }
 
-.theme-length-picker {
+.theme-length-picker,
+.theme-opacity-picker {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;

@@ -162,37 +162,85 @@ type LengthPickerProps = {
   unit?: LengthUnit
 }
 
-type LengthBounds = { max: number; step: number }
+/** Input bounds for one numeric theme control. */
+type NumericBounds = { max: number; step: number }
 
 // Per-unit input bounds. Percentage lengths (e.g. --card-radius, a fraction of
 // the card width) need a much smaller range than pixel lengths.
-const LENGTH_BOUNDS: Record<LengthUnit, LengthBounds> = {
+const LENGTH_BOUNDS: Record<LengthUnit, NumericBounds> = {
   px: { max: 64, step: 0.5 },
   '%': { max: 20, step: 0.25 },
 }
 
-export const LengthPicker: Component<LengthPickerProps> = (props) => {
-  const unit = (): LengthUnit => props.unit ?? 'px'
-  const bounds = () => LENGTH_BOUNDS[unit()]
-  const numeric = createMemo(() => {
-    const match = props.value.match(/^(-?\d*\.?\d+)/)
-    return match ? parseFloat(match[1]!) : 0
-  })
+/** The leading number of a CSS value (`12px`, `0.72`), or 0 when there is none. */
+function leadingNumber(value: string): number {
+  const match = value.match(/^(-?\d*\.?\d+)/)
+  return match ? parseFloat(match[1]!) : 0
+}
+
+type NumericPickerProps = {
+  value: string
+  onInput: (next: string) => void
+  bounds: NumericBounds
+  /** Appended to the emitted value and shown beside the input. Absent ⇒ unitless. */
+  suffix?: string
+  class?: string
+}
+
+/**
+ * The one numeric theme control: a bounded number input, optionally suffixed
+ * with a CSS unit. Both the length and the opacity picker are thin wrappers, so
+ * the value parsing and clamping live in exactly one place.
+ */
+const NumericPicker: Component<NumericPickerProps> = (props) => {
+  const numeric = createMemo(() => leadingNumber(props.value))
 
   return (
-    <div class="theme-length-picker">
+    <div class={props.class ? `theme-length-picker ${props.class}` : 'theme-length-picker'}>
       <input
         type="number"
         min="0"
-        max={bounds().max}
-        step={bounds().step}
+        max={props.bounds.max}
+        step={props.bounds.step}
         value={numeric()}
         onInput={(e) => {
           const v = parseFloat(e.target.value)
-          if (Number.isFinite(v)) props.onInput(`${v}${unit()}`)
+          if (Number.isFinite(v)) props.onInput(`${v}${props.suffix ?? ''}`)
         }}
       />
-      <span class="theme-length-picker-unit">{unit()}</span>
+      <Show when={props.suffix}>
+        {(suffix) => <span class="theme-length-picker-unit">{suffix()}</span>}
+      </Show>
     </div>
   )
 }
+
+export const LengthPicker: Component<LengthPickerProps> = (props) => {
+  const unit = (): LengthUnit => props.unit ?? 'px'
+  return (
+    <NumericPicker
+      value={props.value}
+      onInput={props.onInput}
+      bounds={LENGTH_BOUNDS[unit()]}
+      suffix={unit()}
+    />
+  )
+}
+
+type OpacityPickerProps = { value: string; onInput: (next: string) => void }
+
+/** Bounds for every `opacity` theme variable: a unitless 0–1 fraction. */
+const OPACITY_BOUNDS = { max: 1, step: 0.05 } as const satisfies NumericBounds
+
+/**
+ * The {@link NumericPicker} for a unitless number. `parseCustomTheme` stores every
+ * variable as a plain non-empty string, so a bare `0.4` round-trips unchanged.
+ */
+export const OpacityPicker: Component<OpacityPickerProps> = (props) => (
+  <NumericPicker
+    value={props.value}
+    onInput={props.onInput}
+    bounds={OPACITY_BOUNDS}
+    class="theme-opacity-picker"
+  />
+)

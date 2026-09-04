@@ -218,9 +218,11 @@ test.describe('Deck Editor — Manage categories', () => {
   test('Rename posts one rename-category', async ({ page }) => {
     const saved = await captureSave(page)
     await page.locator('.category-manager-row').nth(1).locator('.category-manager-rename').click()
-    // `.text-prompt` also matches the (closed) tags and categories dialogs, so
-    // the rename prompt is picked by its own heading.
-    const prompt = page.locator('.text-prompt', { hasText: 'Rename category' })
+    // `Modal` renders its panel div (and its class list) even while closed, and
+    // the tags/categories dialogs reuse `.text-prompt`, so the live prompt is
+    // the one inside an `[open]` dialog — the same idiom the collection-editor
+    // spec uses, and one that survives a reworded heading.
+    const prompt = page.locator('dialog.modal-shell[open] .modal-panel.text-prompt')
     await expect(prompt).toBeVisible()
     await prompt.locator('input').fill('Card Draw')
     await prompt.getByRole('button', { name: 'Rename' }).click()

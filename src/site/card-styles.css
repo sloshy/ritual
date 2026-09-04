@@ -1191,7 +1191,7 @@ h3 {
 }
 
 .card-slot--secondary {
-  opacity: 0.72;
+  opacity: var(--card-secondary-opacity);
 }
 
 /* The overlap and stack layouts key off the tiles being siblings, and under the

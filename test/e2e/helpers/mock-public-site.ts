@@ -874,17 +874,26 @@ export async function mockPublicSiteCollectionWithDuplicateNames(page: Page): Pr
   )
 }
 
-// A deck whose mainboard AND sideboard both hold categorized cards: only the
-// mainboard is grouped by category (the boards are partitioned before grouping),
-// so the sideboard must stay its own ungrouped section.
+// A deck with all four board kinds — commander, mainboard, sideboard and an
+// extras section — each holding categorized cards: under a category grouping
+// every board nests its own categories inside it (design §1.1), so the
+// sideboard's card heads under `Sideboard › Draw` and the commander keeps its
+// count-free tiles.
 const MOCK_CATEGORY_DECK_DETAIL = makeDeckDetail({
   deck: {
     name: 'Category Deck',
     sections: [
       {
+        name: 'Commander',
+        // Two copies, unrealistic for a commander but deliberate: the commander
+        // board renders count-free tiles, so a quantity > 1 that draws no badge
+        // is the observable for that.
+        cards: [{ quantity: 2, name: 'Lead Rock', set: 'tst', collectorNumber: '5', cardId: 4 }],
+      },
+      {
         name: 'Main',
         cards: [
-          { quantity: 1, name: 'Ramp Rock', set: 'tst', collectorNumber: '1', cardId: 1 },
+          { quantity: 2, name: 'Ramp Rock', set: 'tst', collectorNumber: '1', cardId: 1 },
           { quantity: 1, name: 'Plain Card', set: 'tst', collectorNumber: '4', cardId: 2 },
         ],
       },
@@ -892,17 +901,28 @@ const MOCK_CATEGORY_DECK_DETAIL = makeDeckDetail({
         name: 'Sideboard',
         cards: [{ quantity: 1, name: 'Draw Spell', set: 'tst', collectorNumber: '3', cardId: 3 }],
       },
+      {
+        name: 'Maybeboard',
+        cards: [{ quantity: 1, name: 'Maybe Rock', set: 'tst', collectorNumber: '6', cardId: 5 }],
+      },
     ],
   },
   cards: {
+    'Lead Rock': makeTagCard('Lead Rock', '5'),
     'Ramp Rock': makeTagCard('Ramp Rock', '1'),
     'Plain Card': makeTagCard('Plain Card', '4'),
     'Draw Spell': makeTagCard('Draw Spell', '3'),
+    'Maybe Rock': makeTagCard('Maybe Rock', '6'),
   },
   printings: {},
   categories: {
     order: ['Ramp', 'Draw'],
-    cards: { 'Ramp Rock': ['Ramp'], 'Draw Spell': ['Draw'] },
+    cards: {
+      'Lead Rock': ['Ramp'],
+      'Ramp Rock': ['Ramp'],
+      'Draw Spell': ['Draw'],
+      'Maybe Rock': ['Ramp'],
+    },
   },
 })
 

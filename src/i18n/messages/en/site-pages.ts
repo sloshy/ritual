@@ -41,6 +41,7 @@ export const sitePagesMessages = {
   'site.cardSection.alsoMarker': 'also',
   'site.cardSection.alsoTitle': 'Primary category: {primary}',
   'site.cardSection.secondaryCountNote': 'count includes secondary placements',
+  'site.cardSection.boardCategoryHeading': '{board} › {category}',
 
   // ── Export menu ───────────────────────────────────────────────────────
   'site.export.copy': 'Copy',

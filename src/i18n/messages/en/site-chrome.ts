@@ -319,6 +319,9 @@ export const siteChromeMessages = {
   'site.themeVar.categoryMarker.label': 'Secondary category marker',
   'site.themeVar.categoryMarker.description':
     'Text colour of the "also" badge on a card shown under a category that is not its primary one.',
+  'site.themeVar.cardSecondaryDim.label': 'Secondary card dimming',
+  'site.themeVar.cardSecondaryDim.description':
+    'Opacity of a card tile shown under a category that is not its primary one, from 0 (invisible) to 1 (not dimmed at all).',
   'site.themeVar.bgBody.label': 'Page background',
   'site.themeVar.bgBody.description': 'The main background filling the entire viewport.',
   'site.themeVar.bgPanel.label': 'Panel background',

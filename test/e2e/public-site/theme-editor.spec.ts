@@ -49,6 +49,33 @@ test.describe('Theme editor', () => {
     await expect(cssTextbox).toHaveValue('oklch(24% 0.035 245)')
   })
 
+  test('the secondary-card dimming is a numeric control that overrides the CSS variable', async ({
+    page,
+  }) => {
+    // The first non-colour control with e2e coverage: an `opacity` theme
+    // variable, a unitless 0-1 number rather than an OKLch swatch.
+    await openThemeEditor(page)
+    await page.getByRole('tab', { name: 'Labels' }).click()
+    await page.getByRole('button', { name: 'Secondary card dimming' }).click()
+
+    // Scoped to the popover: the editor renders `length` variables through the
+    // same number input, so an unqualified spinbutton would go strict-mode.
+    const popover = page.getByRole('dialog', { name: /Edit Secondary card dimming/ })
+    const input = popover.getByRole('spinbutton')
+    await expect(input).toHaveValue('0.72')
+    await input.fill('0.4')
+
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          getComputedStyle(document.documentElement)
+            .getPropertyValue('--card-secondary-opacity')
+            .trim(),
+        ),
+      )
+      .toBe('0.4')
+  })
+
   test('color picker popover appears above page content', async ({ page }) => {
     await openThemeEditor(page)
     await page.getByRole('button', { name: 'Panel background' }).click()

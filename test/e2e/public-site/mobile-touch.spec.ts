@@ -190,8 +190,9 @@ test.describe('Touch toolbar', () => {
     await expect(page.locator('.sheet-shell[open]')).toHaveCount(0)
 
     // This deck carries no categories, so the whole mainboard lands in one
-    // Uncategorized group — the grouping is live, not just offered.
-    await expect(page.locator('.section-divider h2').first()).toHaveText('Uncategorized')
+    // Uncategorized group — the grouping is live, not just offered. The board
+    // prefix is unconditional on a deck, even with a single board.
+    await expect(page.locator('.section-divider h2').first()).toHaveText('Main › Uncategorized')
   })
 
   test('offers only binder and list views (overlap/stack need hover)', async ({ page }) => {

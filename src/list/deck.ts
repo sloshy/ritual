@@ -37,6 +37,11 @@ export type DeckFormatKey =
 export const BOARDS = ['Commander', 'Main', 'Sideboard', 'Maybeboard'] as const
 export type Board = (typeof BOARDS)[number]
 /**
+ * The main board, named rather than indexed out of {@link BOARDS}: callers that
+ * label the mainboard must not depend on that tuple's ordering.
+ */
+export const MAIN_BOARD = 'Main' satisfies Board
+/**
  * The implicit section name applied to card entries that have no explicit `## Section`
  * header. Cards parsed before the first header (or from a flat, section-less file) belong
  * to this section, and it is written out explicitly on the next save. Matches the deck

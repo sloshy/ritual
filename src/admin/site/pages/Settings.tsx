@@ -13,6 +13,8 @@ import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../ca
 import type { PriceCurrency } from '../../../pricing/price-currency'
 import { VALID_PRICE_SOURCES } from '../../../pricing/price-source'
 import { PRICE_SOURCE_LABELS, setEnabledPriceSources } from '../../../list-view/price-view'
+import { formatCardCategories, parseCardCategoriesInput } from '../../../card/card-categories'
+import { setDefaultCategories } from '../../../config/default-categories'
 import {
   INCLUDE_ALL,
   defaultSiteSelection,
@@ -63,6 +65,25 @@ export function Settings(): JSX.Element {
   const { status, error, loading, run, setStatus, setError } = useApiAction()
   /** True from Save click until every post-save push (incl. the status re-read) lands. */
   const [syncing, setSyncing] = createSignal(false)
+  // The Default Categories field keeps the *typed* text, not the parsed value:
+  // `parseCardCategoriesInput` trims, folds inner whitespace and dedupes, so
+  // binding the canonical spelling back into the input would rewrite it
+  // mid-typing (typing `Ramp,` would snap straight back to `Ramp`). `null` means
+  // "show the config's canonical spelling", which is what a fresh load and a
+  // completed save want.
+  const [categoriesDraft, setCategoriesDraft] = createSignal<string | null>(null)
+  /**
+   * The refusal for the current draft, or `undefined` while it parses. A refused
+   * draft is never committed, so without this the field would keep the typed
+   * text while Save quietly persisted the last accepted vocabulary. The prose is
+   * the parser's own (English by contract, as for every `CardCategoryError`).
+   */
+  const categoriesError = (): string | undefined => {
+    const draft = categoriesDraft()
+    if (draft === null) return undefined
+    const parsed = parseCardCategoriesInput(draft)
+    return parsed.ok ? undefined : parsed.message
+  }
 
   /**
    * Render a hint's segments with every parameter wrapped in `<code>`. The
@@ -112,6 +133,12 @@ export function Settings(): JSX.Element {
         // seeded at page mount, so a save must push the new list for already-
         // mounted editors to update their source selector and price reads.
         setEnabledPriceSources(saved.priceSources)
+        // Same again for the category vocabulary: `useAdminConfigDefaults` primes
+        // the module signal once per page mount, so without this push an
+        // already-open editor keeps offering the stale suggestions.
+        setDefaultCategories(saved.defaultCategories)
+        // The field re-renders from the saved, canonical config.
+        setCategoriesDraft(null)
         // Same reasoning for the interface language: the admin resolves it once at
         // boot, so a saved change has to be pushed for the running app to adopt it
         // (it is the weakest tier, so an explicit choice still wins).
@@ -300,6 +327,33 @@ export function Settings(): JSX.Element {
               )}
             </For>
             <p class="form-hint form-hint-top">{t('admin.settings.priceSourcesHint')}</p>
+          </div>
+          <div>
+            <label class="form-label">{t('admin.settings.defaultCategories')}</label>
+            <input
+              type="text"
+              class="form-input"
+              classList={{ 'form-input--invalid': categoriesError() !== undefined }}
+              name="defaultCategories"
+              aria-invalid={categoriesError() !== undefined}
+              value={categoriesDraft() ?? formatCardCategories(config()!.defaultCategories)}
+              onInput={(e) => {
+                setCategoriesDraft(e.currentTarget.value)
+                // A refused draft is not committed — the last accepted value
+                // stays in `config()` — so the refusal is shown below the field
+                // rather than swallowed.
+                const parsed = parseCardCategoriesInput(e.currentTarget.value)
+                if (parsed.ok) updateField('defaultCategories', parsed.categories)
+              }}
+            />
+            <p class="form-hint form-hint-top">{t('admin.settings.defaultCategoriesHint')}</p>
+            <Show when={categoriesError()}>
+              {(message) => (
+                <p class="form-error" role="alert">
+                  {message()}
+                </p>
+              )}
+            </Show>
           </div>
           <div>
             <label class="form-label">{t('admin.settings.defaultLanguage')}</label>

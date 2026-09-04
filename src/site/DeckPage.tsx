@@ -47,6 +47,13 @@ import {
 } from '../list-view/card-sorting'
 import { deckGroupByOptions } from './list-page-options'
 import { deckPrimerHash, partitionDeckCards } from './deck-page-logic'
+import {
+  groupDeckBoardsByCategory,
+  isCategoryGroupBy,
+  type DeckBoardCards,
+  type DeckBoardGroup,
+} from './deck-category-groups'
+import { MAIN_BOARD } from '../list/deck'
 import { CardModal } from '../list-view/CardModal'
 import { ListPageShell, type ListPageChangelog, type ListPageExport } from './ListPageShell'
 import type { ListPageCommonProps } from './list-page-props'
@@ -583,6 +590,41 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       }))
       .filter((s) => s.cards.length > 0)
   })
+
+  // The two board names the deck may spell for itself. Extracted so the nested
+  // and flat branches below can never disagree about a heading.
+  // i18n-exempt: a board name, English by contract (see BOARDS).
+  const commanderLabel = () =>
+    props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ?? 'Commander'
+  // i18n-exempt: a board name, English by contract (see BOARDS).
+  const sideboardLabel = () =>
+    props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'
+
+  // Owner decision (design §1.1, §7): the two category groupings nest inside
+  // every board — `Sideboard › Draw` — while every other grouping keeps grouping
+  // the mainboard alone. Empty (and unrendered) for those other groupings.
+  const nestedCategoryGroups = createMemo((): DeckBoardGroup<CardData>[] => {
+    const groupBy = page.toolbar.groupBy()
+    if (!isCategoryGroupBy(groupBy)) return []
+    const boards: DeckBoardCards<CardData>[] = []
+    const commanderCards = partitioned().commanderCards
+    // The commander is the deck's identity, so it stays unfiltered and keeps its
+    // count-free tiles; nesting changes where it is headed, not what reaches it.
+    if (commanderCards.length > 0) {
+      boards.push({ label: commanderLabel(), cards: commanderCards, hideCount: true })
+    }
+    boards.push({ label: MAIN_BOARD, cards: page.filteredCards(), hideCount: false })
+    boards.push({ label: sideboardLabel(), cards: page.filteredAlso(), hideCount: false })
+    for (const section of extraSections()) {
+      boards.push({ label: section.name, cards: section.cards, hideCount: false })
+    }
+    return groupDeckBoardsByCategory(boards, {
+      groupBy,
+      sortLayers: page.toolbar.sortLayers(),
+      reverseGroups: page.toolbar.reverseGroups(),
+      categoryOrder: props.categories?.order ?? [],
+    })
+  })
   return (
     <ListPageShell
       page={page}
@@ -697,60 +739,69 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         </>
       }
       sections={
-        <>
-          {/* Commander section always shown first */}
-          <Show when={partitioned().commanderCards.length > 0}>
-            <CardSection
-              label={
-                props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ??
-                // i18n-exempt: a board name, English by contract (see BOARDS).
-                'Commander'
-              }
-              cards={partitioned().commanderCards}
-              currency={props.currency}
-              renderCard={renderDeckCard(true)}
-            />
-          </Show>
+        <Show
+          when={isCategoryGroupBy(page.toolbar.groupBy())}
+          fallback={
+            <>
+              {/* Commander section always shown first */}
+              <Show when={partitioned().commanderCards.length > 0}>
+                <CardSection
+                  label={commanderLabel()}
+                  cards={partitioned().commanderCards}
+                  currency={props.currency}
+                  renderCard={renderDeckCard(true)}
+                />
+              </Show>
 
-          {/* Dynamic sorted/grouped sections (mainboard only) */}
-          <For each={page.cardGroups()}>
+              {/* Dynamic sorted/grouped sections (mainboard only) */}
+              <For each={page.cardGroups()}>
+                {(group) => (
+                  <CardSection
+                    label={group.key}
+                    cards={group.cards}
+                    currency={props.currency}
+                    renderCard={renderDeckCard(false)}
+                  />
+                )}
+              </For>
+
+              {/* Sideboard always shown at bottom, ungrouped */}
+              <Show when={page.filteredAlso().length > 0}>
+                <CardSection
+                  label={sideboardLabel()}
+                  cards={page.filteredAlso()}
+                  currency={props.currency}
+                  renderCard={renderDeckCard(false)}
+                />
+              </Show>
+
+              {/* Extras (maybeboard, tokens) shown below sideboard, ungrouped */}
+              <For each={extraSections()}>
+                {(s) => (
+                  <CardSection
+                    label={s.name}
+                    cards={s.cards}
+                    currency={props.currency}
+                    renderCard={renderDeckCard(false)}
+                  />
+                )}
+              </For>
+            </>
+          }
+        >
+          {/* Every board's categories, nested under it (design §1.1). */}
+          <For each={nestedCategoryGroups()}>
             {(group) => (
               <CardSection
                 label={group.key}
                 cards={group.cards}
                 currency={props.currency}
-                secondaryOf={page.toolbar.groupBy() === 'categories' ? group.category : undefined}
-                renderCard={renderDeckCard(false)}
+                secondaryOf={group.category}
+                renderCard={renderDeckCard(group.hideCount)}
               />
             )}
           </For>
-
-          {/* Sideboard always shown at bottom, ungrouped */}
-          <Show when={page.filteredAlso().length > 0}>
-            <CardSection
-              label={
-                props.deck.sections.find((s) => isSideboardSection(s.name))?.name ??
-                // i18n-exempt: a board name, English by contract (see BOARDS).
-                'Sideboard'
-              }
-              cards={page.filteredAlso()}
-              currency={props.currency}
-              renderCard={renderDeckCard(false)}
-            />
-          </Show>
-
-          {/* Extras (maybeboard, tokens) shown below sideboard, ungrouped */}
-          <For each={extraSections()}>
-            {(s) => (
-              <CardSection
-                label={s.name}
-                cards={s.cards}
-                currency={props.currency}
-                renderCard={renderDeckCard(false)}
-              />
-            )}
-          </For>
-        </>
+        </Show>
       }
       overlays={
         <>

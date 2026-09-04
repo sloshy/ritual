@@ -81,6 +81,10 @@ export const sitePagesMeta = {
     description:
       'Note beside a group\'s card count under the "Categories" grouping, where one card can appear in several groups.',
   },
+  'site.cardSection.boardCategoryHeading': {
+    description:
+      'Heading for a category group nested inside one board of a deck: the board name, then the category. Both halves are data — a deck section name and a category name — so translate only the separator and the order.',
+  },
   'site.groupBy.none': { description: 'Toolbar "Group by" choice: do not group at all.' },
   'site.sortBy.tags': {
     description: 'Toolbar "Sort by" choice: order cards by their tag set, untagged cards last.',

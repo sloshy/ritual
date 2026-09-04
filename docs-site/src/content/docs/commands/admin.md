@@ -287,6 +287,8 @@ Configure admin settings including:
 - **Wanted List Directory**: path to the wanted-lists folder (default: `./wanted`)
 - **Custom Art Directory**: path to the folder holding [custom card art](/custom-art/) images — the directory a card's `file` reference is relative to. Never created by Ritual; a missing directory just means the workspace has no local art (default: `./art`; see [Configuration](/configuration/#directory-options))
 - **Default Price Currency**: the currency price-touching surfaces default to (default: `usd`; see [Configuration](/configuration/#default-currency))
+- **Price Stores**: which [price stores](/public-site/price-sources/) the app quotes, in canonical order however the boxes are ticked (default: TCGplayer; see [Configuration](/configuration/#price-stores-pricesources))
+- **Default Categories**: the global [category](/commands/categories/) vocabulary — the suggestions offered wherever a category is typed, and the fallback heading order for a list whose sidecar declares none. Comma-separated, and spaces are part of a name (`Ramp, Board Wipes`); default: the shipped fourteen (see [Configuration](/configuration/#default-categories)). A name that breaks the [category shape rule](/commands/categories/) is refused as you type — the field keeps your text, the refusal is explained under it, and the last valid vocabulary is what a save stores. Saving applies at once, with no reload: already-open editors offer the new vocabulary as soon as the save returns
 - **Default Language**: the Scryfall language code stamped on newly added cards; a non-English value switches cache downloads to the much larger `all_cards` bulk (default: `en`; see [Configuration](/configuration/#default-language))
 - **Interface Language**: the language the admin and CLI **speak** — a BCP-47 tag, listing every locale this build ships, each named in its own language (default: `en`; see [Configuration](/configuration/#interface-language)). Deliberately placed below Default Language and worded against it: **this is not the card language**. Saving it relabels the admin immediately, with no rebuild; the public site picks it up on its next [build-site](/commands/build-site/#localized-builds). The header also carries a language switcher that changes the language for this browser only, without touching the config — see [Localization](/localization/#admin-site)
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default: `300`; see [Configuration](/configuration/#cache-lock-timeout))
@@ -315,6 +317,8 @@ Settings are stored in `ritual.config.json` in the base directory. The file is s
   "wantedDir": "./wanted",
   "defaultCurrency": "usd",
   "priceSources": ["tcgplayer"],
+  "artDir": "./art",
+  "defaultCategories": ["Ramp", "Draw", "Removal", "..."],
   "defaultLanguage": "en",
   "uiLocale": "en",
   "cacheLockTimeoutSeconds": 300,

@@ -164,7 +164,12 @@ test.describe('Collection Editor sections', () => {
     await page.locator('.move-picker-item', { hasText: 'New section' }).click()
 
     // A styled in-app dialog (site dialog chrome), not the browser's native window.prompt.
-    const prompt = page.locator('dialog.modal-shell .modal-panel.text-prompt')
+    // `Modal` renders its panel div (and its class list) even while closed, and
+    // the tags/categories dialogs reuse `.text-prompt`, so the live prompt is
+    // the one inside an `[open]` dialog. `useDialogModal` holds `open` through a
+    // 150 ms exit animation, so the closing assertion below is about the dialog
+    // losing `open` after that animation, and waits for it on auto-retry.
+    const prompt = page.locator('dialog.modal-shell[open] .modal-panel.text-prompt')
     await expect(prompt).toBeVisible()
     await expect(prompt.locator('h3')).toHaveText('Move to new section')
 
@@ -176,7 +181,7 @@ test.describe('Collection Editor sections', () => {
     // A fresh name moves the card: one add-section + one set-section change.
     await page.locator('#text-prompt-input').fill('Foils')
     await prompt.locator('button', { hasText: 'Move' }).click()
-    await expect(prompt).toBeHidden()
+    await expect(page.locator('dialog.modal-shell[open] .modal-panel.text-prompt')).toHaveCount(0)
     await expect(page.locator('.changes-badge')).toHaveText('2')
   })
 
@@ -189,7 +194,12 @@ test.describe('Collection Editor sections', () => {
       .locator('.section-manager-rename')
       .click()
 
-    const prompt = page.locator('dialog.modal-shell .modal-panel.text-prompt')
+    // `Modal` renders its panel div (and its class list) even while closed, and
+    // the tags/categories dialogs reuse `.text-prompt`, so the live prompt is
+    // the one inside an `[open]` dialog. `useDialogModal` holds `open` through a
+    // 150 ms exit animation, so the trailing `toBeHidden()` below passes on
+    // Playwright's auto-retry — deliberate, not a missing wait.
+    const prompt = page.locator('dialog.modal-shell[open] .modal-panel.text-prompt')
     await expect(prompt).toBeVisible()
     await expect(prompt.locator('h3')).toHaveText('Rename section')
     await expect(page.locator('#text-prompt-input')).toHaveValue('Main')

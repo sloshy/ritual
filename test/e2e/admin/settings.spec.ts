@@ -8,6 +8,7 @@ import { mockConfigApi, mockStatusApi, mockTotpApi, MOCK_CONFIG } from '../helpe
 type ConfigPutBody = {
   defaultLanguage?: string
   priceSources?: string[]
+  defaultCategories?: string[]
   cacheSource?: string
   cacheFeedUrl?: string
   searchDebounceMs?: number
@@ -181,6 +182,44 @@ test.describe('Settings Page', () => {
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
     expect(body.priceSources).toEqual(['tcgplayer', 'cardkingdom'])
+  })
+
+  test('editing Default Categories persists defaultCategories as a comma-separated vocabulary', async ({
+    page,
+  }) => {
+    const main = page.locator('main')
+    const field = main.locator('input[name="defaultCategories"]')
+    // Pre-populated from the fixture's ['Ramp', 'Draw', 'Removal'].
+    await expect(field).toHaveValue('Ramp, Draw, Removal')
+    await field.fill('Ramp, Board Wipes')
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    // Order preserved, and the space inside a name is part of it.
+    expect(body.defaultCategories).toEqual(['Ramp', 'Board Wipes'])
+
+    // The field keeps the *typed* text rather than the canonical spelling: a
+    // controlled binding would rewrite `Ramp,` back to `Ramp` mid-typing.
+    await field.fill('')
+    await field.pressSequentially('Ramp,')
+    await expect(field).toHaveValue('Ramp,')
+
+    // A refused draft stays in the field, is explained, and is not committed —
+    // the save still carries the last vocabulary that parsed.
+    await field.pressSequentially(' #bad')
+    await expect(field).toHaveValue('Ramp, #bad')
+    await expect(main.locator('.form-error')).toContainText('Invalid category')
+
+    const secondRequest = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const second = JSON.parse((await secondRequest).postData() ?? '{}') as ConfigPutBody
+    expect(second.defaultCategories).toEqual(['Ramp'])
   })
 
   test('editing public-site include and exclude lists persists to the config and shows success', async ({
