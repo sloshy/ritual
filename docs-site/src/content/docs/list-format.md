@@ -201,7 +201,7 @@ Categories are never written on a card line. They live in a JSON sidecar beside 
 - **Empty means gone.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
 - **It carries its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history: hand edits to it are detected by [`detect-changes`](/commands/detect-changes/) and recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` / `Set category order to …` / `Renamed category "Draw" to "Card Draw"` entries in the **list's** `.changes.md`. A sidecar Ritual did not itself last write keeps its stale hash, so the edit is not silently declared recorded.
 
-The sidecar is what the sites read: the built site bakes it into each list's detail JSON, and the pages offer the [Category groupings, the Category sort and the Categories filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category); the admin and public editors write it through their [Edit Categories… and Manage categories dialogs](/admin/editors/#card-categories).
+The sidecar is what the sites read: the built site bakes it into each list's detail JSON, and the pages offer the [Category groupings, the Category sort and the Categories filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category); the admin and public editors write it through their [Edit Categories… and Manage categories dialogs](/admin/editors/#card-categories). [`ritual export`](/commands/export/#properties)'s `categories`/`primaryCategory` columns read it, and a CSV import's [`categories` column](/commands/import/#value-normalization) writes it.
 
 ## The `.changes.md` changelog
 

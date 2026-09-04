@@ -14,6 +14,8 @@
  * wrapped paragraph for use inside a Markdown list.
  */
 
+import { CSV_FIELDS } from '../../importers/csv'
+
 /** Column budget for wrapped prose in installed SKILL.md files. */
 const WRAP_WIDTH = 80
 
@@ -339,11 +341,21 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
       `(running it bare opens an interactive column-mapping wizard):`,
   )
   const closing = wrapProse(
-    `\`--columns\` maps fields to 1-based column numbers (fields: \`name\`, ` +
-      `\`set\`, \`collector-number\`, \`condition\`, \`finish\`, \`language\`, ` +
-      `\`tags\`, \`section\`, \`quantity\` — a tags cell (header \`tags\` or \`tag\`) ` +
+    `\`--columns\` maps fields to 1-based column numbers (fields: ` +
+      `${CSV_FIELDS.map((field) => `\`${field}\``).join(', ')}` +
+      ` — a tags cell (header \`tags\` or \`tag\`) ` +
       `holds the card's tags comma-separated, as \`Ramp, Card Draw\`, and a ` +
-      `cell that is not tag-shaped fails that row; language cells take Scryfall codes or aliases ` +
+      `cell that is not tag-shaped fails that row; a categories cell (header ` +
+      `\`category\` or \`categories\`) holds the card's categories comma-separated ` +
+      `as \`Ramp, Artifacts\`, first is primary — a value that is not ` +
+      `category-shaped (\`Ramp (Rocks)\`) is ignored with a warning and the card ` +
+      `still imports — the refusal prints on stderr and rides the \`--output json\` ` +
+      `payload's \`advisories\` array, and never changes the exit code; and on a ` +
+      `deck a value naming a board (\`Sideboard\`, ` +
+      `\`Commander\`, \`Tokens\`, ...) sets the row's section instead, so an ` +
+      `Archidekt \`Ramp,Sideboard\` cell means section Sideboard + category Ramp; ` +
+      `imported categories are written to the list's \`.categories.json\` sidecar; ` +
+      `language cells take Scryfall codes or aliases ` +
       `like \`JP\`/\`Japanese\`, and an empty cell means English; when no ` +
       `language column is mapped, pinned rows are stamped with the configured ` +
       `\`defaultLanguage\` when the printing exists in it); ` +

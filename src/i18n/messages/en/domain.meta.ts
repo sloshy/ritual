@@ -380,6 +380,12 @@ export const domainMeta = {
   'domain.exportHint.tags': {
     description: `${EXPORT_HINT_CONTEXT} The "tags" column: the owner's free-form card tags (e.g. "Ramp", "Card Draw"), joined with commas.`,
   },
+  'domain.exportHint.categories': {
+    description: `${EXPORT_HINT_CONTEXT} The "categories" column: the roles the owner gave this card *in this list* (e.g. "Ramp", "Removal"), joined with commas, the first one being its primary category.`,
+  },
+  'domain.exportHint.primaryCategory': {
+    description: `${EXPORT_HINT_CONTEXT} The "primary category" column: just the first of the card's categories in this list — the one the site groups by.`,
+  },
   'domain.exportFormat.csv': {
     description: `${EXPORT_FORMAT_CONTEXT} Comma-separated values. A file-format name — normally left untranslated.`,
     maxLen: 48,

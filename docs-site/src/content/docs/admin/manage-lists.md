@@ -37,7 +37,7 @@ Click **Rename** next to any deck. Renaming a deck:
 
 - Updates the `name` field in the deck's YAML frontmatter
 - Renames the file to match the new name (e.g. `Old Name.md` → `New Name.md`)
-- Also renames every sidecar the deck has: the changelog (`*.changes.md`), the primer (`*.primer.md`), and the [custom-art](/custom-art/) sidecar (`*.art.json`)
+- Also renames every sidecar the deck has: the changelog (`*.changes.md`), the primer (`*.primer.md`), the [custom-art](/custom-art/) sidecar (`*.art.json`), and the [categories](/list-format/#categories-namecategoriesjson) sidecar (`*.categories.json`) with its still-valid `*.categories.json.sha256` — a rename never rewrites the sidecar, so its hash travels with it
 
 ### Deleting a deck
 
@@ -54,6 +54,7 @@ You must type the **exact deck name** before the Delete button becomes active. D
 - The changelog file (`<name>.changes.md`) if it exists
 - The primer file (`<name>.primer.md`) if it exists
 - The [custom-art](/custom-art/) sidecar (`<name>.art.json`) if it exists
+- The [categories](/list-format/#categories-namecategoriesjson) sidecar (`<name>.categories.json`) and its `<name>.categories.json.sha256` if they exist
 
 ## Collections
 
@@ -72,11 +73,11 @@ Click **Rename** next to any collection. Renaming a collection:
 
 - Updates the first `# <Title>` H1 in the file
 - Renames the file (e.g. `Old.md` → `New.md`)
-- Also renames every sidecar the collection has: the changelog (`*.changes.md`) and the [custom-art](/custom-art/) sidecar (`*.art.json`)
+- Also renames every sidecar the collection has: the changelog (`*.changes.md`), the [custom-art](/custom-art/) sidecar (`*.art.json`), and the [categories](/list-format/#categories-namecategoriesjson) sidecar (`*.categories.json`) with its still-valid `*.categories.json.sha256`
 
 ### Deleting a collection
 
-Click **Delete** next to any collection. As with decks, you must type the exact collection name to confirm. Deletion removes the `<name>.md` file and its `<name>.md.sha256`, `<name>.changes.md`, and `<name>.art.json` sidecars if present.
+Click **Delete** next to any collection. As with decks, you must type the exact collection name to confirm. Deletion removes the `<name>.md` file and its `<name>.md.sha256`, `<name>.changes.md`, `<name>.art.json`, `<name>.categories.json` and `<name>.categories.json.sha256` sidecars if present.
 
 ## Wanted Lists
 

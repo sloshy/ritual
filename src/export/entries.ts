@@ -16,6 +16,13 @@ import {
   type CardLabelSelection,
 } from '../card/card-labels'
 import { normalizedTags, type CardTag } from '../card/card-tags'
+import { type CardCategory, type WithCardCategories } from '../card/card-categories'
+import {
+  cardCategoriesOf,
+  emptyCardCategoriesRecord,
+  loadCardCategories,
+  type CardCategoriesRecord,
+} from '../list/card-categories-sidecar'
 import type { CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
 import type { ListLocation } from '../list/resolve-list'
@@ -31,8 +38,14 @@ import { matchesAllTerms } from '../card/term-match'
  * `condition` and `note`, and includes every deck section (a data export is
  * not a valuation, so maybeboard/token extras are in scope). Card `&N` IDs are
  * internal and deliberately not carried.
+ *
+ * `categories` is the one field that does not come from the list file: it is
+ * resolved by card name from the list's `<name>.categories.json` sidecar.
  */
-export type ExportEntry = {
+export type ExportEntry = WithCardCategories<ExportEntryFields>
+
+/** The list-file fields an export flattens; see {@link ExportEntry}. */
+type ExportEntryFields = {
   listType: ListType
   listName: string
   section: string
@@ -91,6 +104,15 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
   const warnings: string[] = []
 
   for (const location of locations) {
+    // The sidecar is read once per list and joined by name below. `knownCardNames`
+    // is deliberately not passed: an export never prunes, and the stale-name
+    // report belongs to the read API, which gates it on a lossless parse.
+    const loadedCategories = await loadCardCategories(location.filePath)
+    if (!loadedCategories.ok) warnings.push(`${location.name}: ${loadedCategories.message}`)
+    const categoriesRecord: CardCategoriesRecord = loadedCategories.ok
+      ? loadedCategories.categories
+      : emptyCardCategoriesRecord()
+
     if (location.type === 'deck') {
       const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
       warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
@@ -116,6 +138,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
             language: card.language,
             labels: normalizedOverride(labels),
             tags: normalizedTags(card.tags),
+            categories: cardCategoriesOf(categoriesRecord, card.name),
             note: card.note,
             fileOrder: fileOrder++,
           })
@@ -131,7 +154,14 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
       parsed.entries.forEach((entry, fileOrder) => {
         const labels = effectiveLabels(entry.labels, parsed.labels)
         entries.push(
-          flatEntry(location, entry, entry.condition, normalizedOverride(labels), fileOrder),
+          flatEntry({
+            location,
+            entry,
+            condition: entry.condition,
+            labels: normalizedOverride(labels),
+            categories: cardCategoriesOf(categoriesRecord, entry.name),
+            fileOrder,
+          }),
         )
       })
       continue
@@ -139,21 +169,46 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
     const parsed = parseWantedListFile(content)
     warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
     parsed.entries.forEach((entry, fileOrder) => {
-      entries.push(flatEntry(location, entry, undefined, undefined, fileOrder))
+      entries.push(
+        flatEntry({
+          location,
+          entry,
+          categories: cardCategoriesOf(categoriesRecord, entry.name),
+          fileOrder,
+        }),
+      )
     })
   }
 
   return { entries, warnings }
 }
 
-/** Map one parsed collection/wanted entry onto the unified export shape. */
-function flatEntry(
-  location: ListLocation,
-  entry: CollectionEntry | WantedListEntry,
-  condition: Condition | undefined,
-  labels: CardLabel[] | undefined,
-  fileOrder: number,
-): ExportEntry {
+/** What {@link flatEntry} needs to map one parsed entry onto the export shape. */
+type FlatEntryInput = {
+  location: ListLocation
+  entry: CollectionEntry | WantedListEntry
+  /** Absent on wanted lists, which record no condition. */
+  condition?: Condition
+  /** The entry's effective labels; absent when it has none. */
+  labels?: CardLabel[]
+  /** Resolved from the list's categories sidecar by card name. */
+  categories?: readonly CardCategory[]
+  fileOrder: number
+}
+
+/**
+ * Map one parsed collection/wanted entry onto the unified export shape. Named
+ * arguments rather than positional ones: three of the fields are optional and
+ * two of them are assignable to each other's slot.
+ */
+function flatEntry({
+  location,
+  entry,
+  condition,
+  labels,
+  categories,
+  fileOrder,
+}: FlatEntryInput): ExportEntry {
   return {
     listType: location.type,
     listName: location.name,
@@ -167,6 +222,7 @@ function flatEntry(
     language: entry.language,
     labels,
     tags: normalizedTags(entry.tags),
+    categories,
     note: entry.note,
     fileOrder,
   }

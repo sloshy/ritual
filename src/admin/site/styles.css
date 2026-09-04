@@ -1909,7 +1909,8 @@
 .csv-mapping-problem {
   color: var(--color-danger);
 }
-.csv-failures ul {
+.csv-failures ul,
+.csv-warnings ul {
   margin: 0.5rem 0 0;
   padding-left: 1.25rem;
 }

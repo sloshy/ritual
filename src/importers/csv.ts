@@ -2,6 +2,13 @@ import { DEFAULT_SECTION } from '../list/deck'
 import type { Condition, Finish } from '../card/finish-condition'
 import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../card/card-language'
 import { normalizedTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
+import {
+  CARD_CATEGORY_SEPARATOR,
+  normalizeCardCategories,
+  parseCardCategory,
+  type CardCategory,
+} from '../card/card-categories'
+import { canonicalSectionName, sectionRole } from '../list/deck-format'
 import type { ListType } from '../list/list-type'
 
 /**
@@ -110,6 +117,7 @@ export const CSV_FIELDS = [
   'finish',
   'language',
   'tags',
+  'categories',
   'section',
   'quantity',
 ] as const
@@ -124,6 +132,7 @@ export const CSV_FIELD_LABELS: Record<CsvField, string> = {
   finish: 'Finish',
   language: 'Language',
   tags: 'Tags',
+  categories: 'Categories',
   section: 'Section',
   quantity: 'Quantity',
 }
@@ -150,6 +159,7 @@ export type ColumnMapping = {
   finish?: number
   language?: number
   tags?: number
+  categories?: number
   section?: number
   quantity?: number
 }
@@ -163,6 +173,7 @@ export const FIELD_TO_KEY: Record<CsvField, keyof ColumnMapping> = {
   finish: 'finish',
   language: 'language',
   tags: 'tags',
+  categories: 'categories',
   section: 'section',
   quantity: 'quantity',
 }
@@ -399,6 +410,76 @@ const DECK_SECTION_ALIASES: Record<string, string> = {
 }
 
 /**
+ * The section a category cell's value names, or `undefined` when it is an
+ * ordinary category. The CSV importer's own alias table is consulted first
+ * (`side`, `sb`, `maybe`, `commandzone`, and `main`/`deck` -> `Main`) so the two
+ * halves of one import never disagree about what a board is called; anything it
+ * does not know falls through to `sectionRole()`, which adds `tokens`,
+ * `companion`, `oathbreaker`, `signature spell` and `command zone`.
+ */
+function categoryCellBoardSection(rawValue: string): string | undefined {
+  const board = DECK_SECTION_ALIASES[squash(rawValue)]
+  if (board !== undefined) return board
+  const role = sectionRole(rawValue)
+  return role === 'main' ? undefined : canonicalSectionName(role)
+}
+
+/** A categories cell, split into the board it named, the categories, and what was refused. */
+type RoutedCategoryCell = {
+  /** The section a board-alias value named; absent when none did. Decks only. */
+  section?: string
+  /**
+   * The cell value that named {@link RoutedCategoryCell.section}, exactly as
+   * written, so the routing can be reported: a value that becomes a board is
+   * silently no longer a category, and `Tokens` is both a shipped default
+   * category and a board.
+   */
+  routedFrom?: string
+  /** The remaining categories, canonical, in cell order — the first is primary. */
+  categories: CardCategory[]
+  /**
+   * Values the category grammar refused, exactly as written. Reported, never
+   * fatal: an Archidekt Category column routinely holds names the shape rule
+   * forbids (`Ramp (Rocks)`, `Draw & Filter`), and dropping the card over one
+   * would lose exactly the rows this feature exists to read.
+   */
+  refused: string[]
+}
+
+/**
+ * Normalize a categories cell. Values are comma-separated as a person types
+ * them (`Ramp, Artifacts`), the first being primary. Each value is judged on its
+ * own: a value the category grammar refuses is dropped and named in `refused`,
+ * and the rest of the row imports. On a **deck**, a value that names a board
+ * ({@link categoryCellBoardSection}) is the row's section rather than a category
+ * — Archidekt's `Ramp,Sideboard` cell yields section `Sideboard` + category
+ * `Ramp`. The first board value wins; every board value is dropped from the
+ * categories either way. An empty cell means no categories.
+ */
+function normalizeCategories(rawValue: string, listType: ListType): RoutedCategoryCell {
+  const categories: CardCategory[] = []
+  const refused: string[] = []
+  let section: string | undefined
+  let routedFrom: string | undefined
+  for (const part of rawValue.split(CARD_CATEGORY_SEPARATOR)) {
+    const raw = part.trim()
+    if (raw === '') continue
+    const board = listType === 'deck' ? categoryCellBoardSection(raw) : undefined
+    if (board !== undefined) {
+      if (section === undefined) {
+        section = board
+        routedFrom = raw
+      }
+      continue
+    }
+    const parsed = parseCardCategory(raw)
+    if (parsed.ok) categories.push(parsed.category)
+    else refused.push(raw)
+  }
+  return { section, routedFrom, categories: normalizeCardCategories(categories), refused }
+}
+
+/**
  * Normalize a section cell. Empty cells fall back to the implicit Main
  * section. For decks, common board names ("side", "sideboard", "maybe",
  * "maybeboard", "commander", ...) normalize to the canonical board headers;
@@ -412,6 +493,21 @@ export function normalizeSection(rawValue: string, listType: ListType): string {
     if (board !== undefined) return board
   }
   return trimmed
+}
+
+/**
+ * The row's section: an explicit, non-empty `section` cell always wins; a board
+ * value routed out of the categories cell fills in for a blank or unmapped one.
+ */
+function resolveRowSection(
+  sectionCell: string,
+  routedSection: string | undefined,
+  listType: ListType,
+): string {
+  if (sectionCell !== '' || routedSection === undefined) {
+    return normalizeSection(sectionCell, listType)
+  }
+  return routedSection
 }
 
 /**
@@ -444,6 +540,12 @@ export type CsvCardEntry = {
   language?: CardLanguage
   /** The row's tags, canonical; absent when the cell was blank or unmapped. */
   tags?: CardTag[]
+  /**
+   * The row's categories, canonical and primary-first; absent when the cell was
+   * blank, unmapped, or held only board values. Written to the list's categories
+   * sidecar, never to the card line.
+   */
+  categories?: CardCategory[]
   section: string
 }
 
@@ -454,9 +556,40 @@ export type CsvRowFailure = {
   reason: string
 }
 
+/**
+ * A notice about a row that **did** import — today, a category value the grammar
+ * refused, and a category value that named a board and became the row's section.
+ * Structured like its sibling {@link CsvRowFailure} so a consumer can link to the
+ * row, group by card or count values without re-parsing a sentence;
+ * {@link formatCsvRowWarning} is the one English rendering.
+ */
+export type CsvRowWarning = {
+  lineNumber: number
+  /** The card the row named; empty only when the row named none. */
+  cardName: string
+  /** The cell value the notice is about, exactly as written. */
+  value: string
+  /** What happened to it. English by contract, like `CsvRowFailure.reason`. */
+  reason: string
+}
+
+/**
+ * The one English rendering of a {@link CsvRowWarning}, shared by the CLI, the
+ * admin route and MCP so the same notice reads the same everywhere. English by
+ * contract: this module produces no localized prose.
+ */
+export function formatCsvRowWarning(warning: CsvRowWarning): string {
+  return `Line ${warning.lineNumber}: ${warning.reason} on "${warning.cardName}"`
+}
+
 export type CsvConversionResult = {
   entries: CsvCardEntry[]
   failures: CsvRowFailure[]
+  /**
+   * Notices about rows that **did** import — today, category values the grammar
+   * refused and category values that named a board.
+   */
+  warnings: CsvRowWarning[]
 }
 
 /**
@@ -471,6 +604,7 @@ export function convertCsvRows(
 ): CsvConversionResult {
   const entries: CsvCardEntry[] = []
   const failures: CsvRowFailure[] = []
+  const warnings: CsvRowWarning[] = []
 
   for (const row of rows) {
     const cellAt = (index: number | undefined): string =>
@@ -502,6 +636,11 @@ export function convertCsvRows(
     const tags = normalizeTags(cellAt(mapping.tags))
     if (!tags.ok) problems.push(tags.error)
 
+    // Category values are judged one at a time and never fail the row: an
+    // Archidekt Category column routinely holds names the category grammar
+    // forbids, and losing the card over one would defeat the import.
+    const categories = normalizeCategories(cellAt(mapping.categories), listType)
+
     const quantity = normalizeQuantity(cellAt(mapping.quantity))
     if (!quantity.ok) problems.push(quantity.error)
 
@@ -519,6 +658,30 @@ export function convertCsvRows(
       continue
     }
 
+    // Reported only now the row is known to have imported: a warning about a
+    // row that failed would name a decision about a card no one has, and on a
+    // nameless row it would name an empty card.
+    for (const value of categories.refused) {
+      warnings.push({
+        lineNumber: row.lineNumber,
+        cardName: name,
+        value,
+        reason: `ignored category ${JSON.stringify(value)}`,
+      })
+    }
+    // A board value is dropped from the categories whether or not it won the
+    // section (an explicit `section` cell outranks it), and `Tokens` is both a
+    // shipped default category and a board — so say what became of it.
+    const section = resolveRowSection(cellAt(mapping.section), categories.section, listType)
+    if (categories.routedFrom !== undefined) {
+      warnings.push({
+        lineNumber: row.lineNumber,
+        cardName: name,
+        value: categories.routedFrom,
+        reason: `category ${JSON.stringify(categories.routedFrom)} names a board — dropped from the categories, and the row's section is '${section}'`,
+      })
+    }
+
     entries.push({
       name,
       quantity: quantity.value ?? 1,
@@ -528,11 +691,12 @@ export function convertCsvRows(
       condition: listType === 'wanted' ? undefined : condition.value,
       language: language.value,
       tags: tags.value,
-      section: normalizeSection(cellAt(mapping.section), listType),
+      categories: categories.categories.length > 0 ? categories.categories : undefined,
+      section,
     })
   }
 
-  return { entries, failures }
+  return { entries, failures, warnings }
 }
 
 const HEADER_ALIASES: Record<string, CsvField> = {
@@ -558,7 +722,8 @@ const HEADER_ALIASES: Record<string, CsvField> = {
   tag: 'tags',
   section: 'section',
   board: 'section',
-  category: 'section',
+  category: 'categories',
+  categories: 'categories',
   quantity: 'quantity',
   count: 'quantity',
   qty: 'quantity',

@@ -1610,7 +1610,7 @@ A missing `a`/`b`, an invalid `by`, or a name that resolves to no list (or ambig
 ```
 
 `matches` includes identities whose quantities are equal on both sides — clients decide what counts
-as interesting. `warnings` carries list parse warnings from either side.
+as interesting. `warnings` carries list parse warnings from either side, and names a list's [`.categories.json` sidecar](/list-format/#categories-namecategoriesjson) that could not be read (the diff still runs).
 
 ## Load Change History
 
@@ -2300,15 +2300,15 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 }
 ```
 
-| Field       | Description                                                                      | Required |
-| ----------- | -------------------------------------------------------------------------------- | -------- |
-| `listType`  | `deck`, `collection`, or `wanted`                                                | Yes      |
-| `name`      | New list name (`create`/`overwrite`) or an existing list to append to (`append`) | Yes      |
-| `mode`      | `create` (default — fails if the list exists), `overwrite`, or `append`          | No       |
-| `format`    | Deck format; required when creating or overwriting a deck                        | No       |
-| `content`   | Raw CSV text                                                                     | Yes      |
-| `columns`   | 1-based column mapping spec, e.g. `name=1,set=2,collector-number=3`              | Yes      |
-| `hasHeader` | Whether the first row is a header row (default `true`)                           | No       |
+| Field       | Description                                                                                                                                                                                    | Required |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `listType`  | `deck`, `collection`, or `wanted`                                                                                                                                                              | Yes      |
+| `name`      | New list name (`create`/`overwrite`) or an existing list to append to (`append`)                                                                                                               | Yes      |
+| `mode`      | `create` (default — fails if the list exists), `overwrite`, or `append`                                                                                                                        | No       |
+| `format`    | Deck format; required when creating or overwriting a deck                                                                                                                                      | No       |
+| `content`   | Raw CSV text                                                                                                                                                                                   | Yes      |
+| `columns`   | 1-based column mapping spec, e.g. `name=1,set=2,collector-number=3`. Fields: `name`, `set`, `collector-number`, `condition`, `finish`, `language`, `tags`, `categories`, `section`, `quantity` | Yes      |
+| `hasHeader` | Whether the first row is a header row (default `true`)                                                                                                                                         | No       |
 
 `format`, when given, must be one of the canonical deck format keys — see
 [Deck Format](/commands/new/#deck-format). An unrecognized value returns `400`.
@@ -2334,7 +2334,9 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 
 In a **deck**, rows naming the same card **and** the same printing merge into one line with their quantities summed, whether the list is created, overwritten, or appended to — the same file always produces the same list. **Collections and wanted lists** keep one line per physical copy in every mode, so N rows of the same printing stay N lines.
 
-`warnings` reports what `hasHeader` caused, since there is no wizard here to ask: the row that was skipped as a header, plus a second entry when that row does not look like one (`… — set hasHeader to false to import it as a card.`). It is empty when `hasHeader` is `false`.
+`warnings` reports what `hasHeader` caused, since there is no wizard here to ask: the row that was skipped as a header, plus a second entry when that row does not look like one (`… — set hasHeader to false to import it as a card.`). It also carries category values a row's `categories` cell refused (the row still imported) and anything that went wrong writing the list's [categories sidecar](/list-format/#categories-namecategoriesjson), including the card names whose entries an overwrite pruned. It is empty when `hasHeader` is `false` and nothing else had news.
+
+A mapped `categories` column (headers `category` or `categories`) writes the list's `<name>.categories.json` sidecar — comma-separated values, the first primary. On a **deck**, a cell value that names a board (`Sideboard`, `Commander`, `Tokens`, …) sets the row's section instead of becoming a category, and an explicit non-empty `section` cell wins. The sidecar and its `.sha256` join the auto-commit set.
 
 `cardCount`, `failures`, `failedCount`, and `warnings` are **always** present. Rows that fail validation are returned in `failures` while the valid rows still import, and `success` is a pure envelope flag: a request where _every_ row failed is still a `200` carrying `cardCount: 0` and the per-row report, since the report is the whole point of the call. The response is `400` only when the **request** is invalid (bad body shape, unknown `listType`/`format`, an unparseable column spec, a mapped column number the file has no column for (`Column 99 (mapped to 'name') does not exist: the file has 6 column(s)`), an unparseable CSV, no data rows, or an append to a list that does not exist). Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
 
@@ -2438,7 +2440,7 @@ Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collecti
 
 `lists` names resolve like CLI list arguments (the optional `type` pins an ambiguous name). Each `cards` entry is whitespace-separated name terms; every entry across all lists whose name matches all terms is added (deduplicated against the selected lists). `filters.conditions` takes condition grades and/or `none` (cards with no condition marked), matching the CLI's `--condition` semantics; `filters.labels` takes label values (`sale`, `trade`, `keep`, `proxy`) and/or `none` (unlabeled), matched against each deck and collection card's effective labels like the CLI's `--labels` (wanted entries carry no labels and never match). `preset` starts from a saved or built-in [export preset](/commands/export/#presets) — the built-in `archidekt` preset needs no config, and a saved preset of that name shadows it; the explicit fields override the preset's values.
 
-`format` is one of `csv` (default), `json`, `text` (a plain-text decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, and `quoteAll` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination). `dialect` is the output vocabulary: for `csv`/`json` it spells finish and condition — `ritual` (the default — `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`) — and for `text` it picks the decklist form, where `arena` and `moxfield` write bare board markers over `1 Name (SET) CN` lines (moxfield splicing `*F*`/`*E*` between the set and the collector number) and omit maybeboard/token cards, naming them in the response's `warnings` — see [dialects](/commands/export/#dialects). It is ignored for `md`. An unknown `dialect` or `preset` is a `400`. A selected `scryfallId` column is resolved from the local Scryfall cache.
+`format` is one of `csv` (default), `json`, `text` (a plain-text decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats). `columns`, `header`, and `quoteAll` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination). `dialect` is the output vocabulary: for `csv`/`json` it spells finish and condition — `ritual` (the default — `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`) — and for `text` it picks the decklist form, where `arena` and `moxfield` write bare board markers over `1 Name (SET) CN` lines (moxfield splicing `*F*`/`*E*` between the set and the collector number) and omit maybeboard/token cards, naming them in the response's `warnings` — see [dialects](/commands/export/#dialects). It is ignored for `md`. An unknown `dialect` or `preset` is a `400`. A selected `scryfallId` column is resolved from the local Scryfall cache. The `categories` column exports the card name's [categories](/commands/categories/) in that list, comma-joined primary first, and `primaryCategory` just the first of them; both are empty for an uncategorized card, and the `text`/`md` formats drop them.
 
 **Response:** the body is discriminated by `mode`.
 
@@ -2473,4 +2475,4 @@ File mode (`write: true`):
 
 The file lands under an `exports/` directory in the base dir, which [`init-site`](/commands/init-site/) adds to `.gitignore`. The server picks the name — `<scope>-<YYYYMMDD>.<ext>`, where scope is the single selected list's sanitized name, `cards` for a card-pick-only export, or `all-lists` otherwise, and the date is UTC. A name already taken gains the lowest free `-2`, `-3`, … suffix, so a write never overwrites an earlier export. `path` is **base-dir-relative** by design: a relative path cannot be walked outside the workspace by a caller that trusts it. The written file is newline-terminated, byte-identical to what the CLI's `export --out` writes.
 
-`warnings` carries list parse warnings, `cards` terms that matched nothing, one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (with per-section counts), and — when the `scryfallId` column is selected — one entry per printing the local Scryfall cache does not hold (that cell renders empty). The response is `400` for an unknown list, preset, column, dialect, or filter value.
+`warnings` carries list parse warnings, `cards` terms that matched nothing, one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (with per-section counts), one entry per list whose [categories sidecar](/list-format/#categories-namecategoriesjson) could not be read (that list exports with empty category cells), and — when the `scryfallId` column is selected — one entry per printing the local Scryfall cache does not hold (that cell renders empty). The response is `400` for an unknown list, preset, column, dialect, or filter value.

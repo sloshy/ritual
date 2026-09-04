@@ -34,6 +34,8 @@ export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, ExportHintMes
   language: 'domain.exportHint.language',
   labels: 'domain.exportHint.labels',
   tags: 'domain.exportHint.tags',
+  categories: 'domain.exportHint.categories',
+  primaryCategory: 'domain.exportHint.primaryCategory',
 }
 
 /** A property's hint in the active UI locale, or `undefined` when it has none. */

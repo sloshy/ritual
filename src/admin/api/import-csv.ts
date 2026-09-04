@@ -7,6 +7,7 @@ import {
 } from '../../list/deck-format'
 import {
   convertCsvRows,
+  formatCsvRowWarning,
   guessHasHeader,
   parseColumnsSpec,
   parseCsv,
@@ -67,10 +68,12 @@ export interface ImportCsvResponse extends ApiMessage {
    */
   failedCount: number
   /**
-   * Notices about the import as a whole, as opposed to a single row: today, what
-   * `hasHeader` caused. A client has no wizard to ask the header question with,
-   * so the assumption is stated out loud — dropping a data row as a header is a
-   * lost card that would otherwise look like a clean import. Always present.
+   * Notices about the import as a whole, as opposed to a single row: what
+   * `hasHeader` caused, category values a row refused, and anything that went
+   * wrong writing the list's categories sidecar. A client has no wizard to ask
+   * the header question with, so the assumption is stated out loud — dropping a
+   * data row as a header is a lost card that would otherwise look like a clean
+   * import. Always present.
    */
   warnings: string[]
 }
@@ -161,7 +164,8 @@ export function handleImportCsv(req: Request): Promise<Response> {
     const dataRows = hasHeader ? parsed.rows.slice(1) : parsed.rows
     if (dataRows.length === 0) return badRequest('CSV contains no data rows')
 
-    const { entries, failures } = convertCsvRows(dataRows, mapping, listType)
+    const { entries, failures, warnings: rowWarnings } = convertCsvRows(dataRows, mapping, listType)
+    warnings.push(...rowWarnings.map(formatCsvRowWarning))
     if (entries.length === 0) {
       // A well-formed request whose every row failed validation: the per-row
       // report is the answer, and there is nothing to write.
@@ -178,10 +182,16 @@ export function handleImportCsv(req: Request): Promise<Response> {
 
     const result = await applyCsvImport({ listType, name, mode, format }, entries, {
       sourceHadLanguageColumn: mapping.language !== undefined,
+      sourceHadCategoriesColumn: mapping.categories !== undefined,
     })
     if ('error' in result) return badRequest(result.error)
+    warnings.push(...result.categoryNotices)
+    if (result.categoryError !== undefined) warnings.push(result.categoryError)
 
-    const filesToCommit = [result.filePath, hashPath(result.filePath)]
+    // The categories sidecar and its `.sha256` are written by the import too, so
+    // they join the auto-commit set; an import with no categories column writes
+    // neither, and adds no path `git add` would fail on.
+    const filesToCommit = [result.filePath, hashPath(result.filePath), ...result.writtenFiles]
     if (result.changelogPath) filesToCommit.push(result.changelogPath)
     await autoCommitAndPush(
       dirForType(listType),

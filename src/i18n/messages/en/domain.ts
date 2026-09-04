@@ -262,6 +262,8 @@ export const domainMessages = {
   'domain.exportHint.language': 'Scryfall language code; blank for English',
   'domain.exportHint.labels': "effective labels — the card's override or its list default",
   'domain.exportHint.tags': "the card's tags, comma-joined",
+  'domain.exportHint.categories': "the card's categories in this list, primary first",
+  'domain.exportHint.primaryCategory': "the first of the card's categories in this list",
   'domain.exportFormat.csv': 'CSV',
   'domain.exportFormat.json': 'JSON',
   'domain.exportFormat.text': 'Plain text decklist (dialect picks the form)',

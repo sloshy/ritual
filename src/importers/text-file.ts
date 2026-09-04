@@ -16,11 +16,11 @@ import { createLineDiagnostics, type ListFileParseOptions } from '../list/line-d
 import { listDescriptionOrUndefined } from '../list/list-description'
 import { readListImage } from '../list/list-image'
 import {
+  canonicalSectionName,
   isDroppedEmptySection,
   isMainBoardSection,
   isSideboardSection,
   parseDeckFormat,
-  SECTION_ROLES,
   type SectionRole,
 } from '../list/deck-format'
 import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence'
@@ -51,11 +51,6 @@ export async function readDeckName(filePath: string): Promise<string> {
 
 /** The roles an Arena export writes bare marker lines for. */
 const ARENA_MARKER_ROLES: readonly SectionRole[] = ['main', 'sideboard', 'commander', 'companion']
-/** A role's canonical section name: its first {@link SECTION_ROLES} alias, capitalized. */
-function canonicalSectionName(role: SectionRole): string {
-  const alias = SECTION_ROLES[role][0]!
-  return alias.charAt(0).toUpperCase() + alias.slice(1)
-}
 /**
  * Bare marker lines an Arena export uses in place of `##` section headers.
  *

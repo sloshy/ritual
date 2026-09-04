@@ -4,6 +4,7 @@ import path from 'node:path'
 import { handleImportCsv, type ImportCsvResponse } from '../../src/admin/api/import-csv'
 import type { ApiErrorResponse } from '../../src/api/http'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { readCategoriesSidecar } from '../helpers/card-categories'
 
 /**
  * The CSV import handler writes real list files, so it belongs here rather than
@@ -303,5 +304,36 @@ describe('admin import-csv handler (Integration)', () => {
 
     expect(result.data.warnings).toEqual([])
     expect(result.data.cardCount).toBe(2)
+  })
+
+  test('a mapped categories column writes the sidecar beside the list file', async () => {
+    const { status, data } = await importCsv({
+      listType: 'collection',
+      name: 'Binder',
+      content: 'Name,Set,Collector Number,Categories\nSol Ring,c19,221,"Ramp, Artifacts"',
+      columns: 'name=1,set=2,collector-number=3,categories=4',
+    })
+    expect(status).toBe(200)
+    expect(data.warnings).toEqual(['Skipped header row: Name,Set,Collector Number,Categories'])
+    expect(await readCategoriesSidecar(path.join(testDir, 'collections', 'Binder.md'))).toEqual({
+      'Sol Ring': ['Ramp', 'Artifacts'],
+    })
+    // Coverage gap, recorded rather than faked: `autoCommitAndPush` has no seam
+    // in this workspace helper, so the set of paths this route hands it — the
+    // list file, its `.sha256` and the sidecar pair from `result.writtenFiles` —
+    // is unverified at this layer, as is the pre-existing `hashPath` element.
+  })
+
+  test('a refused category value rides the warnings channel and fails no row', async () => {
+    const { status, data } = await importCsv({
+      listType: 'collection',
+      name: 'Binder',
+      content: 'Name,Set,Collector Number,Categories\nSol Ring,c19,221,Ramp (Rocks)',
+      columns: 'name=1,set=2,collector-number=3,categories=4',
+    })
+    expect(status).toBe(200)
+    expect(data.failedCount).toBe(0)
+    expect(data.cardCount).toBe(1)
+    expect(data.warnings).toContain('Line 2: ignored category "Ramp (Rocks)" on "Sol Ring"')
   })
 })

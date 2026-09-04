@@ -693,7 +693,7 @@ export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
       failedCount: int('failures.length, so a client can branch without walking the array.'),
       warnings: arr(
         str(),
-        'Whole-import notices, not per-row ones: what hasHeader caused (the header row that was skipped, and whether it actually looked like a header).',
+        "Import-level notices, not per-row validation failures (those are in failures): what hasHeader caused (the header row that was skipped, and whether it actually looked like a header), category values a row's categories cell refused (the row still imported), and anything that went wrong writing the list's categories sidecar.",
       ),
     },
     ['message', 'cardCount', 'failures', 'failedCount', 'warnings'],

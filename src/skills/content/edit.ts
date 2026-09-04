@@ -511,7 +511,10 @@ number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolve
 from the local Scryfall cache — an uncached printing exports an empty cell plus a
 warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
 \`language\` (Scryfall language code; blank for English), \`labels\`
-(effective labels, comma-joined), \`tags\` (the card's tags, comma-joined, no \`#\`), \`note\`,
+(effective labels, comma-joined), \`tags\` (the card's tags, comma-joined, no \`#\`),
+\`categories\` (the card name's categories in that list, comma-joined, primary
+first — empty for an uncategorized card; text/md exports drop them),
+\`primaryCategory\` (just the first of them), \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
 csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\`
 alongside an explicit \`--format text|md\` is a usage error (a preset's stored

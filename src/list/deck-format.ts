@@ -167,6 +167,18 @@ const ROLE_BY_ALIAS: ReadonlyMap<string, SectionRole> = new Map(
   ),
 )
 
+/**
+ * A role's canonical section name: its first {@link SECTION_ROLES} alias, with
+ * every word capitalized (`command zone` -> `Command Zone`). The one derivation
+ * of that rule — the Arena-marker importer and the CSV importer's category-cell
+ * board routing both read it from here, so a multi-word alias can never be
+ * spelled two ways. `toUpperCase` is locale-invariant on purpose.
+ */
+export function canonicalSectionName(role: SectionRole): string {
+  const alias = SECTION_ROLES[role][0] ?? role
+  return alias.replace(/\b\p{Ll}/gu, (letter) => letter.toUpperCase())
+}
+
 /** The role of a section, by exact (lowercased, trimmed) match against {@link SECTION_ROLES}. */
 export function sectionRole(name: string): SectionRole {
   return ROLE_BY_ALIAS.get(name.trim().toLowerCase()) ?? 'main'

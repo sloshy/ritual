@@ -15,7 +15,7 @@ import { formatCollectionLine, formatWantedListLine } from '../card/card-line'
 import type { CardLanguage } from '../card/card-language'
 import type { CardPrintingsLookup } from '../card/card-printing'
 import { resolvePrintingLanguage } from '../card/printing-language'
-import { getDefaultLanguage } from '../config/ritual-config'
+import { getDefaultLanguage, loadDefaultCategories } from '../config/ritual-config'
 import { getCachedCardPrintings } from '../scryfall'
 import { withFrontMatter } from '../list/list-export'
 import { parseFlatListFrontMatter } from '../list/flat-list-front-matter'
@@ -34,7 +34,19 @@ import { unreadableContentMessage, unreadableLines } from '../list/markdown-fenc
 import { unusableFileNameMessage } from '../list/list-file-name'
 import { listNameCollision } from '../list/list-lifecycle'
 import { reconcileListRefs } from '../list/list-refs'
-import { createAddChange, isSamePrinting, type ChangeEvent } from '../changes/change-event'
+import {
+  createAddChange,
+  createSetCategoriesChange,
+  isSamePrinting,
+  type ChangeEvent,
+} from '../changes/change-event'
+import {
+  commitCategoryChanges,
+  type CardCategoriesWarning,
+  type CommitCategoryChangesResult,
+} from '../list/card-categories-sidecar'
+import { foldCategoryCardName } from '../card/card-categories'
+import { foldedCardNameSet } from '../list/card-names'
 import { appendChangelog } from '../changes/changelog-writer'
 import {
   dirForType,
@@ -66,6 +78,15 @@ export type CsvImportOptions = {
    * column would be indistinguishable from no column at all.
    */
   sourceHadLanguageColumn?: boolean
+  /**
+   * Whether the source explicitly carried a categories column — a mapped
+   * `category`/`categories` column, even one whose every cell is blank. Only then
+   * does the import touch `<list>.categories.json` at all: a create/overwrite that
+   * carried categories prunes the entries the replaced list left behind, and one
+   * that carried none must not silently prune (or unlink) a sidecar it knows
+   * nothing about. URL and text-file imports never set it.
+   */
+  sourceHadCategoriesColumn?: boolean
   /**
    * The language stamped on pinned entries when the source carried none;
    * defaults to the configured `defaultLanguage`. A test seam — production
@@ -108,6 +129,26 @@ export type CsvImportSuccess = {
   mode: CsvImportMode
   /** The changelog written for an append; absent for create/overwrite and dry runs. */
   changelogPath?: string
+  /**
+   * Files the import wrote **besides** the list file and its `.sha256` — today
+   * the categories sidecar and its own `.sha256`, when the import carried
+   * categories. Empty for a dry run and for any source with no categories column.
+   * The caller's auto-commit set needs them, exactly as `SetCardResult.writtenFiles`
+   * does.
+   */
+  writtenFiles: string[]
+  /**
+   * News about the categories sidecar the import wrote: entries pruned because
+   * the replaced list no longer holds the card, and stale names the sidecar
+   * already carried. English by contract, like `categoryError` — the caller
+   * reports them on its own non-fatal channel. Empty when there is none.
+   */
+  categoryNotices: string[]
+  /**
+   * Why the categories sidecar was not written, when it was not. The list file
+   * itself imported fine — this is a warning channel, never a failure.
+   */
+  categoryError?: string
 }
 
 export type CsvImportError = { error: string }
@@ -116,6 +157,94 @@ export type CsvImportOutcome = CsvImportSuccess | CsvImportError
 
 function totalCards(entries: ImportCardEntry[]): number {
   return entries.reduce((sum, entry) => sum + entry.quantity, 0)
+}
+
+/**
+ * One `set-categories` event per distinct card name the import assigned
+ * categories to, in first-appearance order. A name on several rows with
+ * different cells keeps the **first** row's spelling and its categories: an
+ * import states a name's role once, and a later row silently winning would make
+ * the sidecar depend on row order in a way no one can see.
+ */
+function importedCategoryChanges(entries: ImportCardEntry[]): ChangeEvent[] {
+  const seen = new Set<string>()
+  const changes: ChangeEvent[] = []
+  for (const entry of entries) {
+    if (entry.categories === undefined || entry.categories.length === 0) continue
+    const key = foldCategoryCardName(entry.name)
+    if (seen.has(key)) continue
+    seen.add(key)
+    changes.push(createSetCategoriesChange(entry.name, entry.categories))
+  }
+  return changes
+}
+
+/**
+ * Write the import's categories to `<list>.categories.json`. Runs after the
+ * list file is written, so a failure is news rather than a save to undo — the
+ * sidecar module never throws and reports an unreadable sidecar instead of
+ * overwriting it.
+ *
+ * `knownCardNames` — and therefore pruning — is passed only when the source
+ * actually carried a categories column AND the mode replaces the list's whole
+ * body: `commitCategoryChanges` treats a non-`undefined` set as "reconcile this
+ * sidecar", so passing it on a categories-less import would prune (or unlink) a
+ * sidecar the import never spoke about. `append` cannot enumerate the surviving
+ * names at all, which is the rule `applyTargetedChanges` states
+ * (`src/list/line-mutate.ts`).
+ */
+async function commitImportedCategories(
+  filePath: string,
+  entries: ImportCardEntry[],
+  mode: CsvImportMode,
+  sourceHadCategoriesColumn: boolean,
+): Promise<CommitCategoryChangesResult> {
+  const changes = importedCategoryChanges(entries)
+  const knownCardNames =
+    sourceHadCategoriesColumn && mode !== 'append'
+      ? foldedCardNameSet(entries.map((entry) => entry.name))
+      : undefined
+  // `commitCategoryChanges` short-circuits on exactly this condition; delegating
+  // the empty case to it rather than re-spelling its result keeps one owner of
+  // both the rule and the shape.
+  if (changes.length === 0 && knownCardNames === undefined) {
+    return commitCategoryChanges(filePath, [], {})
+  }
+  return commitCategoryChanges(filePath, changes, {
+    knownCardNames,
+    defaultCategories: await loadDefaultCategories(),
+  })
+}
+
+/** A sidecar load warning as English prose. A `switch` so a new kind is a compile error. */
+function formatCategoryWarning(warning: CardCategoriesWarning): string {
+  switch (warning.kind) {
+    case 'unknown-card-names':
+      return `Categories are recorded for card(s) the list does not hold: ${warning.names.join(', ')}`
+  }
+}
+
+/**
+ * The categories half of a `CsvImportSuccess`, projected from the sidecar commit
+ * so both write paths state the contract once. `categoryError` is attached by
+ * conditional spread because the result is handed to `Response.json`, where an
+ * explicit `undefined` key would differ from an absent one.
+ */
+function importedCategoryFields(
+  result: CommitCategoryChangesResult,
+): Pick<CsvImportSuccess, 'writtenFiles' | 'categoryNotices' | 'categoryError'> {
+  // When the commit pruned, the load's stale-name warning named exactly the
+  // entries it went on to drop — reporting both would say the same names twice,
+  // once as news and once as an outcome. The outcome wins.
+  const categoryNotices =
+    result.pruned.length > 0
+      ? [`Dropped categories for card(s) no longer in the list: ${result.pruned.join(', ')}`]
+      : result.warnings.map(formatCategoryWarning)
+  return {
+    writtenFiles: result.writtenFiles,
+    categoryNotices,
+    ...(result.error === undefined ? {} : { categoryError: result.error }),
+  }
 }
 
 // ── Create / overwrite ──────────────────────────────────────────────
@@ -265,6 +394,7 @@ async function createList(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
   dryRun: boolean,
+  sourceHadCategoriesColumn: boolean,
 ): Promise<CsvImportOutcome> {
   const targetDir = dirForType(target.listType)
   const filePath = target.filePath ?? listFilePath(target.listType, target.name)
@@ -309,18 +439,37 @@ async function createList(
     }
   }
 
-  if (!dryRun) {
-    await fs.mkdir(targetDir, { recursive: true })
-    await writeFileWithHash(filePath, content)
-    // The replaced lines' `&N` ids are retired: the new lines are numbered from
-    // scratch, so custom art or a cover filed under an old id would otherwise
-    // reappear on whichever card takes the number next.
-    if (replaced !== null) {
-      const retired = existingCardIds(target.listType, replaced, target.name)
-      if (retired.length > 0) await reconcileListRefs(filePath, { removed: retired })
+  if (dryRun) {
+    return {
+      filePath,
+      cardCount: totalCards(entries),
+      mode: target.mode,
+      writtenFiles: [],
+      categoryNotices: [],
     }
   }
-  return { filePath, cardCount: totalCards(entries), mode: target.mode }
+
+  await fs.mkdir(targetDir, { recursive: true })
+  await writeFileWithHash(filePath, content)
+  // The replaced lines' `&N` ids are retired: the new lines are numbered from
+  // scratch, so custom art or a cover filed under an old id would otherwise
+  // reappear on whichever card takes the number next.
+  if (replaced !== null) {
+    const retired = existingCardIds(target.listType, replaced, target.name)
+    if (retired.length > 0) await reconcileListRefs(filePath, { removed: retired })
+  }
+  const categories = await commitImportedCategories(
+    filePath,
+    entries,
+    target.mode,
+    sourceHadCategoriesColumn,
+  )
+  return {
+    filePath,
+    cardCount: totalCards(entries),
+    mode: target.mode,
+    ...importedCategoryFields(categories),
+  }
 }
 
 /** The `&N` ids a list file's card lines hold. */
@@ -450,6 +599,7 @@ async function appendToList(
   target: CsvImportTarget,
   entries: ImportCardEntry[],
   dryRun: boolean,
+  sourceHadCategoriesColumn: boolean,
 ): Promise<CsvImportOutcome> {
   const location = await resolveList(target.name, target.listType)
   if (isResolveListError(location)) {
@@ -467,17 +617,40 @@ async function appendToList(
   }
 
   if (dryRun) {
-    return { filePath: location.filePath, cardCount: totalCards(entries), mode: 'append' }
+    return {
+      filePath: location.filePath,
+      cardCount: totalCards(entries),
+      mode: 'append',
+      writtenFiles: [],
+      categoryNotices: [],
+    }
   }
 
   await writeFileWithHash(location.filePath, result.content)
-  const changelogPath = await appendChangelog(location.filePath, location.name, result.changes)
+  // The sidecar is committed *before* the changelog is written so the two can
+  // never disagree: a sidecar Ritual refuses to overwrite (hand-edited,
+  // unparseable) must not leave `set-categories` prose in `.changes.md`
+  // describing assignments that were never persisted.
+  const categories = await commitImportedCategories(
+    location.filePath,
+    entries,
+    'append',
+    sourceHadCategoriesColumn,
+  )
+  // An append has a changelog, so the categories it states are recorded there
+  // too — create/overwrite have none, and a first snapshot picks their sidecar
+  // up through `buildDefaultChangeEvents`.
+  const changelogPath = await appendChangelog(location.filePath, location.name, [
+    ...result.changes,
+    ...(categories.error === undefined ? importedCategoryChanges(entries) : []),
+  ])
 
   return {
     filePath: location.filePath,
     cardCount: totalCards(entries),
     mode: 'append',
     changelogPath,
+    ...importedCategoryFields(categories),
   }
 }
 
@@ -550,9 +723,10 @@ export async function applyCsvImport(
   options: CsvImportOptions = {},
 ): Promise<CsvImportOutcome> {
   const dryRun = options.dryRun === true
+  const hadCategoriesColumn = options.sourceHadCategoriesColumn === true
   const withLanguage = await stampDefaultLanguage(entries, options)
   if (target.mode === 'append') {
-    return appendToList(target, withLanguage, dryRun)
+    return appendToList(target, withLanguage, dryRun, hadCategoriesColumn)
   }
-  return createList(target, withLanguage, dryRun)
+  return createList(target, withLanguage, dryRun, hadCategoriesColumn)
 }

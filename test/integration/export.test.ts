@@ -11,6 +11,7 @@ import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
 import { runCli, withTempDir } from './helpers/cli'
 import { writeCollectionFile, writeWantedFile } from '../helpers/workspace'
+import { writeCategoriesSidecar } from '../helpers/card-categories'
 
 // Kept as a literal on purpose: the `[NM]` on a deck line is non-canonical (the
 // deck serializer omits an NM condition), and the condition-filter case below
@@ -122,6 +123,27 @@ describe('export command (Integration)', () => {
         'Sol Ring',
       ])
       expect(result.stderr).toContain('Exported 7 cards')
+    })
+  }, 60_000)
+
+  test('exports the categories columns read from the list’s sidecar', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      await writeCategoriesSidecar(path.join(dir, 'collections', 'binder.md'), ['Ramp'], {
+        'Sol Ring': ['Ramp', 'Artifacts'],
+      })
+
+      const result = await runCli(
+        ['export', 'collection:binder', '--columns', 'name,categories,primaryCategory'],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe(
+        'Name,Categories,Primary Category\n' +
+          'Sol Ring,"Ramp, Artifacts",Ramp\n' +
+          'Lightning Bolt,,\n',
+      )
     })
   }, 60_000)
 

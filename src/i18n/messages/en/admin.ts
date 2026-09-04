@@ -349,6 +349,11 @@ export const adminMessages = {
   },
   'admin.importCsv.failureRow': 'Line {line}: {raw} — {reason}',
   'admin.importCsv.hasHeader': 'First row contains column headers',
+  'admin.importCsv.warningsLead': {
+    $plural: 'count',
+    one: '{count} notice about the import:',
+    other: '{count} notices about the import:',
+  },
   'admin.importCsv.mappingLabel': 'Column Mapping',
   'admin.importCsv.optional': '(optional)',
   'admin.importCsv.notInFile': '(not in this file)',

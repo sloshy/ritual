@@ -45,6 +45,9 @@ const ENTRIES: ExportEntry[] = [
     condition: 'LP',
     language: 'ja',
     labels: ['sale'],
+    // Non-empty so the fence covers the two new columns' *cells* (the join and
+    // the primary) and not only their header labels.
+    categories: ['Ramp', 'Artifacts'],
     note: 'trade bait',
     fileOrder: 0,
   },
@@ -82,7 +85,7 @@ describe('CSV exports are locale-invariant', () => {
     // Spot-check the header explicitly: a silent empty diff would pass the
     // equality above if both sides broke the same way.
     expect(english.split('\n')[0]).toBe(
-      'Name,Quantity,Set,Collector Number,Edition,Scryfall ID,Finish,Is Foil,Condition,Language,Labels,Tags,Note,Section,List,List Type',
+      'Name,Quantity,Set,Collector Number,Edition,Scryfall ID,Finish,Is Foil,Condition,Language,Labels,Tags,Categories,Primary Category,Note,Section,List,List Type',
     )
   })
 

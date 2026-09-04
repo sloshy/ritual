@@ -829,6 +829,10 @@ export const adminMeta = {
     description:
       'One refused row: {line} is its line number, {raw} the row itself rendered as code, {reason} why it was refused.',
   },
+  'admin.importCsv.warningsLead': {
+    description:
+      'Lead of the list of non-fatal notices about an import that succeeded (a category value that was ignored, a categories sidecar that could not be written). {count} is how many notices. Ends with a colon.',
+  },
   'admin.importCsv.hasHeader': {
     description:
       'Checkbox saying the first row of the file names the columns rather than holding data.',

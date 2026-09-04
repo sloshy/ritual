@@ -194,13 +194,20 @@ A CSV import emits a structured result instead:
   "filePath": "collections/Red Binder.md",
   "mode": "create",
   "dryRun": false,
-  "replacesExisting": false
+  "replacesExisting": false,
+  "advisories": []
 }
 ```
 
 `imported` counts copies written, `failures` lists the rejected rows by CSV line number, and
 `mode` is the resolved `create`/`overwrite`/`append`. `replacesExisting` is `true` when the
-import replaced — or, under `--dry-run`, would replace — a list that already existed. Errors are emitted on stderr as
+import replaced — or, under `--dry-run`, would replace — a list that already existed.
+`advisories` carries non-fatal notices about rows that **did** import: category values the
+grammar refused, category values that named a board and became the row's section, and a
+categories sidecar that could not be written. In text mode the same notices print on stderr as
+`Warning: ...` (even under `--quiet`), and they never change the exit code. (A CSV import has
+no `warnings` key — on a URL or text-file import that name means content was **lost**, which
+exits `1`.) Errors are emitted on stderr as
 `{ "error": { "code", "message" } }` in JSON modes. A partial failure still exits `1` even
 though the payload was emitted (see [Partial Failures](#partial-failures)).
 
@@ -338,6 +345,7 @@ neither line is printed.
 | `section`          | Section/board. Blank cells fall back to `Main`.                                                                           |
 | `quantity`         | Copies per row. Blank cells mean one copy.                                                                                |
 | `tags`             | Card tags (headers `tags` or `tag`), comma-separated: `Ramp, Card Draw` is two tags. A malformed tag fails only that row. |
+| `categories`       | Card categories (headers `category` or `categories`), comma-separated: `Ramp, Artifacts` is two, the first primary.       |
 
 Every mapped column number is checked against the file's width before any row is
 converted: `--columns name=99` on a 6-column file is a single usage error (exit `2`) —
@@ -356,6 +364,7 @@ CSV exports differ between tools, so cell values are normalized during import (a
 - **Finish** — `F`/`foil` (and `yes`/`true`/`1`) for foil, `E`/`etched`/`etched foil`/`foil etched` for etched; empty cells, `non-foil`/`nonfoil`, `normal`, `regular`, `no`, `false`, and `0` all mean non-foil.
 - **Language** — Scryfall codes (`en`, `ja`, `zhs`, ...), common printed-code aliases (`JP` → `ja`, `KR` → `ko`, `SP` → `es`, `CS` → `zhs`, `CT` → `zht` — Archidekt's CSV vocabulary), and full English names (`Japanese` → `ja`). An **explicit** cell value is honored as-is, and a **blank** cell in a present language column means English — the source recorded no language, so none is invented. Only when the import carries no language column at all are pinned rows stamped with the configured [`defaultLanguage`](/configuration/#default-language) — falling back to English when the printing does not exist in that language, then to the printing's only available language. Rows without a pinned printing are never stamped. English is written as a bare line (no token).
 - **Section** — blank means `Main`. For decks, common board names normalize to canonical headers: `side`/`sideboard`/`sb` → `Sideboard`, `maybe`/`maybeboard` → `Maybeboard`, `main`/`mainboard`/`maindeck`/`deck` → `Main`, `commander`/`command`/`command zone` → `Commander`. Anything else becomes a custom section verbatim.
+- **Categories** — comma-separated, in cell order, the first one primary. On a **deck**, a value that names a board (`sideboard`/`side`/`sb`, `maybeboard`/`maybe`, `commander`/`commanders`/`command`/`command zone`, `main`/`mainboard`/`maindeck`/`deck`, `tokens`/`token`, `companion`, `oathbreaker`/`signature spell` — the last one yielding section `Oathbreaker`) sets the row's **section** instead of becoming a category — so Archidekt's `Ramp,Sideboard` cell yields section `Sideboard` and category `Ramp`. When a cell names two board values the first one wins. An explicit, non-empty `section` cell wins over both, and every board value is dropped from the categories either way — which the import reports as an advisory, since `Tokens` is also one of the shipped default categories. On collections and wanted lists every value stays a category. A value that is not [category-shaped](/commands/categories/) (one containing `(`, `)`, `&`, `*`, `"`, brackets, braces or `#` — Archidekt names like `Ramp (Rocks)`) is **ignored with a warning; the card still imports** and its other categories are kept. Note that the `category` header now means categories, not section — `board` and `section` are the section headers. Imported categories are written to the list's `<name>.categories.json` sidecar, and recorded in the changelog on `--append`.
 - **Quantity** — a positive integer, tolerating `4x`/`x4`.
 - **Set codes** — stored lowercase internally and written uppercase in the markdown output, like everywhere else in Ritual.
 

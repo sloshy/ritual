@@ -24,6 +24,7 @@ import {
   FIELD_TO_KEY,
   convertCsvRows,
   formatColumnsSpec,
+  formatCsvRowWarning,
   guessColumns,
   guessHasHeader,
   isRequiredCsvField,
@@ -133,6 +134,14 @@ type ImportCsvJsonResult = {
   dryRun: boolean
   /** Whether the import replaced — or, under `dryRun`, would replace — an existing list. */
   replacesExisting: boolean
+  /**
+   * Non-fatal notices: category values a row refused, category values that named
+   * a board, and anything that went wrong writing the categories sidecar. Named
+   * `advisories` like the URL/text payload's own channel, because this command's
+   * `warnings` key means content was LOST and the run exits 1 — these never
+   * change the exit code.
+   */
+  advisories: string[]
 }
 
 /** Resolve the target list type for a text-file import: flag, prompt, or deck default. */
@@ -633,7 +642,7 @@ async function runCsvImport(
     return
   }
 
-  const { entries, failures } = convertCsvRows(dataRows, mapping, listType)
+  const { entries, failures, warnings: rowWarnings } = convertCsvRows(dataRows, mapping, listType)
   if (entries.length === 0) {
     emitError(
       'runtime_error',
@@ -667,6 +676,7 @@ async function runCsvImport(
     {
       dryRun,
       sourceHadLanguageColumn: mapping.language !== undefined,
+      sourceHadCategoriesColumn: mapping.categories !== undefined,
     },
   )
   if ('error' in result) {
@@ -676,6 +686,12 @@ async function runCsvImport(
   }
 
   const replacing = result.mode === 'overwrite' && existingPath !== null
+  // The import worked; these are things it did differently than the file said.
+  const advisories = [
+    ...rowWarnings.map(formatCsvRowWarning),
+    ...result.categoryNotices,
+    ...(result.categoryError === undefined ? [] : [result.categoryError]),
+  ]
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
@@ -705,6 +721,7 @@ async function runCsvImport(
         logger.info(t('cli.import.appliedCsv', applied))
       }
     }
+    for (const message of advisories) logger.warn(t('cli.import.advisory', { message }))
     if (failures.length > 0) reportFailures(failures)
   } else {
     const payload: ImportCsvJsonResult = {
@@ -715,6 +732,7 @@ async function runCsvImport(
       mode: result.mode,
       dryRun,
       replacesExisting: replacing,
+      advisories,
     }
     emitOutput(payload, scripting)
   }

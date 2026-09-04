@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  canonicalSectionName,
   isCommanderSection,
   isCompanionSection,
   isDroppedEmptySection,
@@ -90,4 +91,34 @@ describe('section predicates are wrappers over sectionRole', () => {
     expect(isDroppedEmptySection({ name: 'Token Generators', cards: [] })).toBe(false)
     expect(isDroppedEmptySection({ name: 'Sideboard', cards: [] })).toBe(false)
   })
+})
+
+// The one derivation of "a role's canonical section name", read by both the
+// Arena-marker importer and the CSV importer's category-cell board routing.
+describe('canonicalSectionName', () => {
+  test.each<[SectionRole, string]>([
+    ['commander', 'Commander'],
+    ['tokens', 'Tokens'],
+    ['sideboard', 'Sideboard'],
+    ['oathbreaker', 'Oathbreaker'],
+    ['main', 'Main'],
+  ])('%p is written %p', (role, name) => {
+    expect(canonicalSectionName(role)).toBe(name)
+  })
+
+  // Every role's canonical name is its own first alias, title-cased — the rule
+  // both importers rely on, checked against the table itself so a new role (or
+  // a multi-word first alias) cannot be spelled two ways.
+  test.each(Object.keys(SECTION_ROLES) as SectionRole[])(
+    'the %p name is its first alias, every word capitalized',
+    (role) => {
+      const alias = SECTION_ROLES[role][0]!
+      expect(canonicalSectionName(role).toLowerCase()).toBe(alias)
+      expect(
+        canonicalSectionName(role)
+          .split(' ')
+          .map((word) => word[0]),
+      ).toEqual(alias.split(' ').map((word) => word[0]!.toUpperCase()))
+    },
+  )
 })

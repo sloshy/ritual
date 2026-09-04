@@ -79,6 +79,7 @@ function emptySelections(): ColumnSelections {
     finish: -1,
     language: -1,
     tags: -1,
+    categories: -1,
     section: -1,
     quantity: -1,
   }
@@ -123,6 +124,10 @@ export function ImportCsv(): JSX.Element {
   const [status, setStatus] = createSignal<string | null>(null)
   const [error, setError] = createSignal<string | null>(null)
   const [failures, setFailures] = createSignal<CsvRowFailure[]>([])
+  // Non-fatal news the route reports on its own channel: a category value the
+  // grammar refused, a category value that named a board, a categories sidecar
+  // that could not be written. English by contract, like a row's `reason`.
+  const [warnings, setWarnings] = createSignal<string[]>([])
   const [loading, setLoading] = createSignal(false)
 
   const content = createMemo((): string => (method() === 'upload' ? fileContent() : text()))
@@ -167,6 +172,7 @@ export function ImportCsv(): JSX.Element {
           setStatus(null)
           setError(null)
           setFailures([])
+          setWarnings([])
         })
       },
       { defer: true },
@@ -250,6 +256,7 @@ export function ImportCsv(): JSX.Element {
     setStatus(null)
     setError(null)
     setFailures([])
+    setWarnings([])
     try {
       const requestMode = mode() === 'create' && overwrite() ? 'overwrite' : mode()
       const body = {
@@ -274,11 +281,13 @@ export function ImportCsv(): JSX.Element {
       const data = (await resp.json()) as ImportCsvResult
       if (!resp.ok) {
         setFailures([])
+        setWarnings([])
         setError(data.message || t('admin.importCsv.failed'))
         return
       }
       const imported = data as ImportCsvResponse
       setFailures(imported.failures)
+      setWarnings(imported.warnings)
       // An import that wrote nothing is not a success to banner in green, even
       // though the *request* succeeded: every row failed, and the message says
       // so. Anything that landed at least one copy reads as a status.
@@ -322,6 +331,14 @@ export function ImportCsv(): JSX.Element {
                 </li>
               )}
             </For>
+          </ul>
+        </div>
+      </Show>
+      <Show when={warnings().length > 0}>
+        <div class="alert alert-warning csv-warnings">
+          <p>{t('admin.importCsv.warningsLead', { count: warnings().length })}</p>
+          <ul>
+            <For each={warnings()}>{(warning) => <li>{warning}</li>}</For>
           </ul>
         </div>
       </Show>

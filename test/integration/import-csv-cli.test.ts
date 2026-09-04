@@ -4,6 +4,7 @@ import path from 'node:path'
 import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from '../helpers/workspace'
+import { readCategoriesSidecar } from '../helpers/card-categories'
 
 /**
  * The scripted (`--columns`) CSV path of `ritual import`, from the CLI in.
@@ -212,6 +213,87 @@ describe('import CSV scripted path (Integration)', () => {
         replacesExisting: false,
       })
       expect(result.stderr).not.toContain('Overwriting')
+    })
+  })
+
+  test('a categories cell routes its board value to the section and writes the sidecar', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'deck.csv')
+      await fs.writeFile(source, 'Sol Ring,"Ramp,Sideboard"\n')
+
+      const result = await runCli(
+        [
+          'import',
+          source,
+          '--type',
+          'deck',
+          '--name',
+          'Ramp Deck',
+          '--deck-format',
+          'commander',
+          '--columns',
+          'name=1,categories=2',
+          '--no-header',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(ExitCode.Success)
+      const list = await fs.readFile(path.join(dir, 'decks', 'Ramp Deck.md'), 'utf-8')
+      expect(list).toContain('## Sideboard')
+      expect(await readCategoriesSidecar(path.join(dir, 'decks', 'Ramp Deck.md'))).toEqual({
+        'Sol Ring': ['Ramp'],
+      })
+    })
+  })
+
+  test('a refused category value is warned about and the card still imports', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'deck.csv')
+      await fs.writeFile(source, 'Sol Ring,Ramp (Rocks)\n')
+
+      const result = await runCli(
+        [
+          'import',
+          source,
+          '--type',
+          'wanted',
+          '--name',
+          'Wants',
+          '--columns',
+          'name=1,categories=2',
+          '--no-header',
+        ],
+        dir,
+      )
+
+      expect(result.exitCode).toBe(ExitCode.Success)
+      expect(result.stderr).toContain('ignored category "Ramp (Rocks)"')
+      const list = await fs.readFile(path.join(dir, 'wanted', 'Wants.md'), 'utf-8')
+      expect(list).toContain('Sol Ring')
+
+      // The same refusal on the machine channel: it is an advisory (never
+      // `warnings`, which on this command means content was lost) and it does
+      // not count as a failed row.
+      const json = await runCli(
+        [
+          'import',
+          source,
+          '--type',
+          'wanted',
+          '--name',
+          'Wants 2',
+          '--columns',
+          'name=1,categories=2',
+          '--no-header',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      const payload = JSON.parse(json.stdout) as { advisories: string[]; failed: number }
+      expect(payload.advisories).toEqual(['Line 1: ignored category "Ramp (Rocks)" on "Sol Ring"'])
+      expect(payload.failed).toBe(0)
     })
   })
 })

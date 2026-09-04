@@ -127,7 +127,8 @@ surface. `printings` entries omit `set`/`collectorNumber` for the no-printing bu
 is always concrete (unmarked lines fold to `"nonfoil"`). Each `printings` row also carries the
 bucket's language — an `en` and a `[ja]` copy of the same printing are separate rows. Results keep a stable order: identities
 appear in first-seen file order, side A before side B. `warnings` carries list parse warnings from
-either side; the same warnings also print to stderr in every output mode,
+either side, and names a list's `<name>.categories.json` sidecar that could not be read (the
+diff still runs); the same warnings also print to stderr in every output mode,
 since a skipped line means the diff compared incomplete lists.
 
 ## Exit Codes

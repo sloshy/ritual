@@ -22,6 +22,7 @@ import type { CardArtSaveRequest, CardArtSaveResponse } from '../../admin/api/ar
 import type { DeckCreateRequest } from '../../admin/api/deck-create'
 import type { BundleImportResponse } from '../../admin/api/import-changes'
 import type { ImportCsvRequest, ImportCsvResponse } from '../../admin/api/import-csv'
+import { CSV_FIELDS } from '../../importers/csv'
 import type { ImportDeckResponse } from '../../admin/api/import-deck'
 import type { ListCreateResponse } from '../../admin/api/list-lifecycle'
 import type {
@@ -484,10 +485,14 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       description:
         'Import cards from CSV text into a deck, collection, or wanted list — creating a new list, ' +
         'overwriting one, or appending to an existing one. Columns map to card fields via a ' +
-        '1-based spec like "name=1,set=2,collector-number=3" (fields: name, set, collector-number, ' +
-        'condition, finish, language, tags, section, quantity). Values are normalized (e.g. "Near Mint" ' +
+        `1-based spec like "name=1,set=2,collector-number=3" (fields: ${CSV_FIELDS.join(', ')}). ` +
+        'Values are normalized (e.g. "Near Mint" ' +
         '→ NM, "F" → foil, "JP"/"Japanese" → ja; an empty language cell falls back to the ' +
-        'configured defaultLanguage when that printing exists in it). Rows that fail validation ' +
+        'configured defaultLanguage when that printing exists in it). A categories cell holds the ' +
+        'card\'s categories comma-separated ("Ramp, Artifacts", first is primary) and is written to ' +
+        'the list\'s categories sidecar; on a deck a value that names a board ("Sideboard", ' +
+        '"Commander", "Tokens", ...) sets the row\'s section instead, and a value the category ' +
+        'grammar refuses is dropped with a warning rather than failing the row. Rows that fail validation ' +
         'are reported back and the rest still import, so a ' +
         'partially-failed import still succeeds — read failedCount and failures rather than ' +
         'treating the call as all-or-nothing.',

@@ -219,11 +219,14 @@ export async function mockImportCsvApi(
   page: Page,
   onRequest?: (body: unknown) => void,
   failures?: { lineNumber: number; raw: string; reason: string }[],
+  warnings?: string[],
 ): Promise<void> {
   await fulfillJson(page, '**/api/import-csv', (route: Route) => {
     onRequest?.(route.request().postDataJSON())
     // `failures`/`failedCount` are always present on the real response: a
     // partially-failed import is a success whose per-row report is the point.
+    // `warnings` likewise — the non-fatal channel (a refused category value, a
+    // categories sidecar that could not be written) is always an array.
     const rows = failures ?? []
     return {
       success: true,
@@ -231,6 +234,7 @@ export async function mockImportCsvApi(
       cardCount: 3,
       failures: rows,
       failedCount: rows.length,
+      warnings: warnings ?? [],
     }
   })
 }

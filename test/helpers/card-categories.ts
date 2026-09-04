@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import { foldCategoryCardName } from '../../src/card/card-categories'
 import {
   categoriesSidecarPath,
+  loadCardCategories,
   serializeCardCategoriesSidecar,
   type CardCategoriesRecord,
   emptyCardCategoriesRecord,
@@ -56,4 +57,20 @@ export async function writeCategoriesSidecar(
  */
 export async function writeUnreadableCategoriesSidecar(listFilePath: string): Promise<void> {
   await fs.writeFile(categoriesSidecarPath(listFilePath), '{ not json')
+}
+
+/**
+ * Read a list's categories sidecar back as `{ name: categories }`, or `null`
+ * when the file is absent. The read counterpart of
+ * {@link writeCategoriesSidecar}: the path comes from the production rule and
+ * the parse from the production loader, so no suite hand-builds either.
+ */
+export async function readCategoriesSidecar(
+  listFilePath: string,
+): Promise<Record<string, string[]> | null> {
+  const sidecarPath = categoriesSidecarPath(listFilePath)
+  if (!(await Bun.file(sidecarPath).exists())) return null
+  const loaded = await loadCardCategories(listFilePath)
+  if (!loaded.ok) throw new Error(`categories sidecar unreadable: ${loaded.message}`)
+  return categoriesOf(loaded.categories)
 }

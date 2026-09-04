@@ -17,6 +17,13 @@ import {
   writeDeckFile,
   type BoundWorkspace,
 } from '../helpers/workspace'
+import { categoriesSidecarPath } from '../../src/list/card-categories-sidecar'
+import { hashPath } from '../../src/changes/content-hash'
+import {
+  readCategoriesSidecar,
+  writeCategoriesSidecar,
+  writeUnreadableCategoriesSidecar,
+} from '../helpers/card-categories'
 
 function prepareEntries(csv: string, spec: string, listType: ListType): CsvConversionResult {
   const parsed = parseCsv(csv)
@@ -348,5 +355,234 @@ describe('applyCsvImport', () => {
       { dryRun: true },
     )
     expect('error' in result && result.error).toContain('File already exists')
+  })
+
+  describe('imported categories', () => {
+    test('create writes the sidecar and its hash, and reports both in writtenFiles', async () => {
+      const { entries } = prepareEntries(
+        'Sol Ring,c19,221,"Ramp, Artifacts"\nLightning Bolt,lea,161,',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'create' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(await readCategoriesSidecar(result.filePath)).toEqual({
+        'Sol Ring': ['Ramp', 'Artifacts'],
+      })
+      expect(result.writtenFiles).toEqual([
+        categoriesSidecarPath(result.filePath),
+        hashPath(categoriesSidecarPath(result.filePath)),
+      ])
+      expect(result.categoryError).toBeUndefined()
+    })
+
+    // The regression decision 0.9 exists for: a URL/text import, or any CSV with
+    // no categories column, must not prune (or unlink) a sidecar it never spoke
+    // about — nothing would stage the files it silently rewrote.
+    test('an overwrite carrying no categories column leaves the sidecar byte-identical', async () => {
+      const filePath = await writeCollectionFile(tmpDir, 'Binder', {
+        entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+      })
+      await writeCategoriesSidecar(filePath, ['Ramp'], { 'Sol Ring': ['Ramp'] })
+      const before = await fs.readFile(categoriesSidecarPath(filePath), 'utf-8')
+
+      const { entries } = prepareEntries(
+        'Lightning Bolt,lea,161',
+        'name=1,set=2,collector-number=3',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'overwrite' },
+        entries,
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(result.writtenFiles).toEqual([])
+      expect(await fs.readFile(categoriesSidecarPath(filePath), 'utf-8')).toBe(before)
+    })
+
+    test('an overwrite carrying categories prunes the names the new CSV does not hold', async () => {
+      const filePath = await writeCollectionFile(tmpDir, 'Binder', {
+        entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+      })
+      await writeCategoriesSidecar(filePath, ['Ramp', 'Burn'], {
+        'Sol Ring': ['Ramp'],
+        'Lightning Bolt': ['Burn'],
+      })
+
+      const { entries } = prepareEntries(
+        'Sol Ring,c19,221,Ramp',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'overwrite' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(await readCategoriesSidecar(filePath)).toEqual({ 'Sol Ring': ['Ramp'] })
+    })
+
+    test('append records one set-categories entry per name in the changelog and prunes nothing', async () => {
+      const filePath = await writeCollectionFile(tmpDir, 'Binder', {
+        entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+      })
+      await writeCategoriesSidecar(filePath, ['Burn'], { 'Lightning Bolt': ['Burn'] })
+
+      const { entries } = prepareEntries(
+        'Sol Ring,c19,221,Ramp\nSol Ring,ltc,284,Ramp',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'append' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      // Nothing was pruned: an append cannot enumerate the surviving names.
+      expect(await readCategoriesSidecar(filePath)).toEqual({
+        'Lightning Bolt': ['Burn'],
+        'Sol Ring': ['Ramp'],
+      })
+      const changelog = await fs.readFile(result.changelogPath!, 'utf-8')
+      expect(changelog.match(/Set categories of "Sol Ring" to Ramp/g)).toHaveLength(1)
+      // The sidecar reaches the caller's auto-commit set on an append too, not
+      // only on a create. Its `.sha256` does not: the fixture sidecar was
+      // hand-written with no hash, so the write deliberately leaves it unstamped
+      // (`isRitualClean`) rather than claiming content Ritual did not author.
+      expect(result.writtenFiles).toEqual([categoriesSidecarPath(filePath)])
+    })
+
+    test('a name on two rows with different cells keeps the first row’s spelling', async () => {
+      const { entries } = prepareEntries(
+        'Sol Ring,c19,221,Ramp\nsol ring,ltc,284,Draw',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'create' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(await readCategoriesSidecar(result.filePath)).toEqual({ 'Sol Ring': ['Ramp'] })
+    })
+
+    test('a refused category value still writes the card line and no sidecar entry', async () => {
+      const { entries, warnings } = prepareEntries(
+        'Sol Ring,c19,221,Ramp (Rocks)',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      expect(warnings).toHaveLength(1)
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'create' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(await fs.readFile(result.filePath, 'utf-8')).toContain('Sol Ring')
+      expect(await readCategoriesSidecar(result.filePath)).toBeNull()
+      expect(result.writtenFiles).toEqual([])
+    })
+
+    test('a dry run writes no sidecar and reports no written files', async () => {
+      const { entries } = prepareEntries(
+        'Sol Ring,c19,221,Ramp',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'create' },
+        entries,
+        { sourceHadCategoriesColumn: true, dryRun: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(result.writtenFiles).toEqual([])
+      expect(await readCategoriesSidecar(result.filePath)).toBeNull()
+    })
+
+    test('an unreadable sidecar is left alone and reported, and the card lines still import', async () => {
+      const filePath = await writeCollectionFile(tmpDir, 'Binder', {
+        entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+      })
+      await writeUnreadableCategoriesSidecar(filePath)
+
+      const { entries } = prepareEntries(
+        'Lightning Bolt,lea,161,Burn',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'append' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(result.categoryError).toContain('.categories.json')
+      expect(result.writtenFiles).toEqual([])
+      expect(await fs.readFile(categoriesSidecarPath(filePath), 'utf-8')).toBe('{ not json')
+      expect(await fs.readFile(filePath, 'utf-8')).toContain('Lightning Bolt')
+      // The changelog must not describe a sidecar state that was never written:
+      // `history --rebuild`, the bundle export and `import-changes` all replay
+      // it, and there would be no way to tell which side is right.
+      const changelog = await fs.readFile(result.changelogPath!, 'utf-8')
+      expect(changelog).not.toContain('Set categories')
+      expect(changelog).toContain('Lightning Bolt')
+    })
+
+    // What this adds over the cell-level routing tests: the *deck* write path
+    // commits the sidecar too (the flat-list path is covered above).
+    test('a deck create commits the sidecar too', async () => {
+      const { entries } = prepareEntries('Sol Ring,"Ramp,Sideboard"', 'name=1,categories=2', 'deck')
+      const result = await applyCsvImport(
+        { listType: 'deck', name: 'Ramp Deck', mode: 'create', format: 'commander' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(await readCategoriesSidecar(result.filePath)).toEqual({ 'Sol Ring': ['Ramp'] })
+      expect(result.writtenFiles).toEqual([
+        categoriesSidecarPath(result.filePath),
+        hashPath(categoriesSidecarPath(result.filePath)),
+      ])
+    })
+
+    // Decision 0.9's destructive corner: a categories column whose every cell is
+    // blank still reconciles the sidecar, so an overwrite naming none of the
+    // previous cards prunes every entry — and says which ones it dropped. The
+    // vocabulary (`order`) survives the prune, so the file stays rather than
+    // being unlinked.
+    test('an overwrite whose categories cells are all blank prunes every entry, and says so', async () => {
+      const filePath = await writeCollectionFile(tmpDir, 'Binder', {
+        entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+      })
+      await writeCategoriesSidecar(filePath, ['Ramp', 'Burn'], {
+        'Sol Ring': ['Ramp'],
+        'Lightning Bolt': ['Burn'],
+      })
+
+      const { entries } = prepareEntries(
+        'Mox Diamond,sth,153,',
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      const result = await applyCsvImport(
+        { listType: 'collection', name: 'Binder', mode: 'overwrite' },
+        entries,
+        { sourceHadCategoriesColumn: true },
+      )
+      if ('error' in result) throw new Error(result.error)
+      expect(await readCategoriesSidecar(filePath)).toEqual({})
+      expect(result.writtenFiles).toEqual([categoriesSidecarPath(filePath)])
+      expect(result.categoryNotices).toEqual([
+        'Dropped categories for card(s) no longer in the list: Lightning Bolt, Sol Ring',
+      ])
+    })
   })
 })

@@ -164,6 +164,8 @@ Both the admin and the public in-browser editors edit categories directly: an **
 - [`set-card --categories` / `--no-categories`](/commands/set-card/#category-updates) — set one card's categories.
 - [`ritual edit`](/commands/edit/#card-categories) — the `🗂 Edit Categories` action and the list menu's `Rename Category…` / `Reorder Categories…` rows.
 - [`defaultCategories`](/configuration/#default-categories) — the global vocabulary that seeds a list's resolved order.
+- [`ritual export`](/commands/export/#properties) — the `categories` and `primaryCategory` columns.
+- [`ritual import`](/commands/import/#value-normalization) — the `categories` CSV field, and how a board value in that cell routes to the section.
 
 ## Exit Codes
 

@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   convertCsvRows,
   formatColumnsSpec,
+  formatCsvRowWarning,
   guessColumns,
   guessHasHeader,
   normalizeCondition,
@@ -101,6 +102,12 @@ describe('formatColumnsSpec', () => {
     ) as ColumnMapping
     expect(formatColumnsSpec(mapping)).toBe('name=2,set=1,finish=4,tags=5,quantity=3')
   })
+
+  test('round-trips a spec including a categories column', () => {
+    const mapping = parseColumnsSpec('name=1,categories=6', 'deck') as ColumnMapping
+    expect(mapping.categories).toBe(5)
+    expect(formatColumnsSpec(mapping)).toBe('name=1,categories=6')
+  })
 })
 
 describe('formatScriptingCommand', () => {
@@ -194,6 +201,7 @@ describe('validateMapping', () => {
 
   test('rejects two fields mapped to the same column', () => {
     expect(validateMapping({ name: 0, finish: 0 }, 'deck')).toMatch(/same column 1/)
+    expect(validateMapping({ name: 0, categories: 1, section: 1 }, 'deck')).toMatch(/same column 2/)
   })
 })
 
@@ -534,6 +542,149 @@ describe('convertCsvRows', () => {
     )
     expect(entries[0]!.section).toBe('Trade Binder')
   })
+
+  describe('categories column', () => {
+    const convert = (cells: string[], spec: string, listType: 'deck' | 'collection' | 'wanted') =>
+      convertCsvRows([row(cells, 7)], parseColumnsSpec(spec, listType) as ColumnMapping, listType)
+
+    test('reads the typed-input grammar, keeping cell order (first is primary)', () => {
+      const { entries, failures, warnings } = convert(
+        ['Sol Ring', 'Ramp, Artifacts'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(failures).toEqual([])
+      expect(warnings).toEqual([])
+      expect(entries[0]!.categories).toEqual(['Ramp', 'Artifacts'])
+    })
+
+    test('a blank cell leaves no categories and no warning', () => {
+      const { entries, warnings } = convert(['Sol Ring', ''], 'name=1,categories=2', 'deck')
+      expect(entries[0]!.categories).toBeUndefined()
+      expect(warnings).toEqual([])
+    })
+
+    // An Archidekt Category column routinely holds names the category grammar
+    // forbids; losing the card over one would defeat the whole feature.
+    test('a refused value is dropped and warned about, and the card still imports', () => {
+      const { entries, failures, warnings } = convert(
+        ['Sol Ring', 'Ramp (Rocks), Draw'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(failures).toEqual([])
+      expect(entries[0]!.categories).toEqual(['Draw'])
+      expect(warnings).toEqual([
+        {
+          lineNumber: 7,
+          cardName: 'Sol Ring',
+          value: 'Ramp (Rocks)',
+          reason: 'ignored category "Ramp (Rocks)"',
+        },
+      ])
+      expect(warnings.map(formatCsvRowWarning)).toEqual([
+        'Line 7: ignored category "Ramp (Rocks)" on "Sol Ring"',
+      ])
+    })
+
+    test('a cell whose only value is refused still imports the card, with no categories', () => {
+      const { entries, failures, warnings } = convert(
+        ['Sol Ring', 'Draw & Filter'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(failures).toEqual([])
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.categories).toBeUndefined()
+      expect(warnings).toHaveLength(1)
+    })
+
+    test('a deck routes a board value to the section and keeps the rest as categories', () => {
+      const { entries, warnings } = convert(
+        ['Sol Ring', 'Ramp,Sideboard'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(entries[0]!.section).toBe('Sideboard')
+      expect(entries[0]!.categories).toEqual(['Ramp'])
+      // A board value is a board, never a refusal — but it silently stopped
+      // being a category, so the row says what became of it.
+      expect(warnings.map(formatCsvRowWarning)).toEqual([
+        `Line 7: category "Sideboard" names a board — dropped from the categories,` +
+          ` and the row's section is 'Sideboard' on "Sol Ring"`,
+      ])
+    })
+
+    // `Tokens`, `Oathbreaker` and `Signature Spell` are known only to
+    // `sectionRole()`, whose canonical header is derived from the role's own
+    // first alias; `Command Zone` is deliberately included as the case where
+    // both alias tables agree.
+    test.each<[string, string]>([
+      ['Tokens', 'Tokens'],
+      ['Command Zone', 'Commander'],
+      ['Oathbreaker', 'Oathbreaker'],
+      ['Signature Spell', 'Oathbreaker'],
+    ])('a deck routes the board value %s to section %s', (cell, section) => {
+      const { entries } = convert(['Sol Ring', cell], 'name=1,categories=2', 'deck')
+      expect(entries[0]!.section).toBe(section)
+      expect(entries[0]!.categories).toBeUndefined()
+    })
+
+    test('a deck routes a board value only the CSV alias table knows', () => {
+      const { entries } = convert(['Sol Ring', 'Ramp,sb'], 'name=1,categories=2', 'deck')
+      expect(entries[0]!.section).toBe('Sideboard')
+      expect(entries[0]!.categories).toEqual(['Ramp'])
+    })
+
+    test('the first board value wins when a cell names two', () => {
+      const { entries } = convert(
+        ['Sol Ring', 'Sideboard,Maybeboard,Ramp'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(entries[0]!.section).toBe('Sideboard')
+      expect(entries[0]!.categories).toEqual(['Ramp'])
+    })
+
+    test('an explicit section cell wins, and the board value is still dropped', () => {
+      const { entries, warnings } = convert(
+        ['Sol Ring', 'Ramp,Sideboard', 'Main'],
+        'name=1,categories=2,section=3',
+        'deck',
+      )
+      expect(entries[0]!.section).toBe('Main')
+      expect(entries[0]!.categories).toEqual(['Ramp'])
+      // The routing notice reports the section the row actually landed in.
+      expect(warnings.map(formatCsvRowWarning)).toEqual([
+        `Line 7: category "Sideboard" names a board — dropped from the categories,` +
+          ` and the row's section is 'Main' on "Sol Ring"`,
+      ])
+    })
+
+    // A warning is a notice about a row that DID import: a row dropped for an
+    // unrelated reason must not also report a decision about a card no one has
+    // — and on a nameless row the message would name an empty card.
+    test('a row that fails for another reason produces no category warning', () => {
+      const { entries, failures, warnings } = convert(
+        ['', 'Ramp (Rocks)'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(entries).toEqual([])
+      expect(failures).toHaveLength(1)
+      expect(warnings).toEqual([])
+    })
+
+    test('flat lists keep a board-shaped value as an ordinary category', () => {
+      const { entries } = convert(
+        ['Sol Ring', 'C19', '221', 'Ramp,Sideboard'],
+        'name=1,set=2,collector-number=3,categories=4',
+        'collection',
+      )
+      expect(entries[0]!.section).toBe('Main')
+      expect(entries[0]!.categories).toEqual(['Ramp', 'Sideboard'])
+    })
+  })
 })
 
 describe('header guessing', () => {
@@ -562,5 +713,14 @@ describe('header guessing', () => {
   test('recognizes a tags header, plural and singular', () => {
     expect(guessColumns(['Name', 'Tags'])).toEqual({ name: 0, tags: 1 })
     expect(guessColumns(['Name', 'Tag'])).toEqual({ name: 0, tags: 1 })
+  })
+
+  // `Category` used to mean the section; it is the categories field now, and
+  // `Section`/`Board` are the section headers.
+  test('recognizes a categories header, and keeps Section/Board as the section', () => {
+    expect(guessColumns(['Name', 'Category'])).toEqual({ name: 0, categories: 1 })
+    expect(guessColumns(['Name', 'Categories'])).toEqual({ name: 0, categories: 1 })
+    expect(guessColumns(['Name', 'Section'])).toEqual({ name: 0, section: 1 })
+    expect(guessColumns(['Name', 'Board'])).toEqual({ name: 0, section: 1 })
   })
 })

@@ -13,11 +13,8 @@ import { removedArtCardIds, type LineQuantities } from '../../changes/line-copie
 import { listTypeLabel, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
 import { loadDefaultCategories, loadRitualConfig } from '../../config/ritual-config'
-import {
-  foldCategoryCardName,
-  parseCardCategoriesValue,
-  parseCardCategory,
-} from '../../card/card-categories'
+import { parseCardCategoriesValue, parseCardCategory } from '../../card/card-categories'
+import { foldedCardNameSet } from '../../list/card-names'
 import { commitCategoryChanges, isCategoryChange } from '../../list/card-categories-sidecar'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiError, badRequest, type ApiConflictResponse } from '../../api/http'
@@ -669,8 +666,7 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
   // category loads, replays nothing, serializes, finds the bytes identical and
   // writes nothing, leaving a hand-edited sidecar (and its stale hash) alone.
   const categories = await commitCategoryChanges(tail.filePath, tail.changes, {
-    knownCardNames:
-      tail.cardNames === undefined ? undefined : new Set(tail.cardNames.map(foldCategoryCardName)),
+    knownCardNames: tail.cardNames === undefined ? undefined : foldedCardNameSet(tail.cardNames),
     defaultCategories: await loadDefaultCategories(),
   })
   filesToCommit.push(...categories.writtenFiles)

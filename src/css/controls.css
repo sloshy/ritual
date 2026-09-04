@@ -188,6 +188,14 @@
   color: var(--error-text);
 }
 
+/* News about an action that succeeded — nothing failed, but something was
+   ignored or could not be written. */
+.alert-warning {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning-text);
+}
+
 /* ----- Floating toasts -----
    An alert that reports the result of an action (a save landing, a save
    failing) is useless pinned to the top of a page the reader has scrolled far

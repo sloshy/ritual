@@ -12,6 +12,10 @@ import {
 } from '../../src/export/entries'
 import type { ListLocation } from '../../src/list/resolve-list'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import {
+  writeCategoriesSidecar,
+  writeUnreadableCategoriesSidecar,
+} from '../helpers/card-categories'
 
 function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
   return {
@@ -315,6 +319,58 @@ describe('tags reach the export entries', () => {
     await withListFile(type, content, async (location) => {
       const { entries: loaded } = await loadExportEntries([location])
       expect(loaded.map((e) => e.tags)).toEqual(expected)
+    })
+  })
+})
+
+describe('categories reach the export entries', () => {
+  // Categories live in the list's sidecar, not on the card line, so every loader
+  // joins them by card name — one array shared by every line of that name.
+  test.each<[ListLocation['type'], string]>([
+    ['deck', '## Main\n1 Sol Ring (C21:263) &1\n1 Lightning Bolt (LEA:161) &2\n'],
+    ['collection', '# Test List\n\n- Sol Ring (C21:263) &1\n- Lightning Bolt (LEA:161) &2\n'],
+    ['wanted', '# Test List\n\n- Sol Ring &1\n- Lightning Bolt &2\n'],
+  ])('the %s loader joins the sidecar by card name', async (type, content) => {
+    await withListFile(type, content, async (location) => {
+      await writeCategoriesSidecar(location.filePath, ['Ramp', 'Artifacts'], {
+        'Sol Ring': ['Ramp', 'Artifacts'],
+      })
+      const { entries: loaded, warnings } = await loadExportEntries([location])
+      expect(warnings).toEqual([])
+      expect(loaded.map((e) => e.categories)).toEqual([['Ramp', 'Artifacts'], undefined])
+    })
+  })
+
+  test('every line of a name carries the same list, whatever its printing or section', async () => {
+    const content = [
+      '## Main',
+      '1 Sol Ring (C21:263) &1',
+      '## Sideboard',
+      '1 Sol Ring (LTC:284) [foil] &2',
+    ].join('\n')
+    await withListFile('deck', content, async (location) => {
+      await writeCategoriesSidecar(location.filePath, [], { 'Sol Ring': ['Ramp'] })
+      const { entries: loaded } = await loadExportEntries([location])
+      expect(loaded.map((e) => e.categories)).toEqual([['Ramp'], ['Ramp']])
+    })
+  })
+
+  test('a sidecar key spelled with different case and spacing still matches', async () => {
+    await withListFile('wanted', '# Test List\n\n- Sol Ring &1\n', async (location) => {
+      await writeCategoriesSidecar(location.filePath, [], { '  sol   ring ': ['Ramp'] })
+      const { entries: loaded } = await loadExportEntries([location])
+      expect(loaded[0]?.categories).toEqual(['Ramp'])
+    })
+  })
+
+  test('an unreadable sidecar warns and the export still loads with no categories', async () => {
+    await withListFile('wanted', '# Test List\n\n- Sol Ring &1\n', async (location) => {
+      await writeUnreadableCategoriesSidecar(location.filePath)
+      const { entries: loaded, warnings } = await loadExportEntries([location])
+      expect(warnings.length).toBe(1)
+      expect(warnings[0]).toStartWith('Test List: ')
+      expect(loaded).toHaveLength(1)
+      expect(loaded[0]?.categories).toBeUndefined()
     })
   })
 })

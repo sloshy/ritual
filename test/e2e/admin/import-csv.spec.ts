@@ -52,6 +52,32 @@ test.describe('Import CSV Page', () => {
     expect(captured?.content).toContain('Sol Ring')
   })
 
+  test('a Category header maps to the categories field, not the section', async ({ page }) => {
+    let captured: ImportCsvPayload | undefined
+    await mockImportCsvApi(page, (b) => (captured = b as ImportCsvPayload), undefined, [
+      'Line 2: ignored category "Ramp (Rocks)" on "Sol Ring"',
+    ])
+    const main = page.locator('main')
+
+    await main.locator('.segmented-option:has-text("Paste Text")').click()
+    await main
+      .locator('textarea.form-textarea')
+      .fill('Name,Set,Collector Number,Category\nSol Ring,C19,221,Ramp')
+
+    // `category` used to be a section alias; it is the categories field now.
+    await expect(main.locator('select[data-field="categories"]')).toHaveValue('3')
+    await expect(main.locator('select[data-field="section"]')).toHaveValue('-1')
+
+    await main.locator('input.form-input').fill('Red Binder')
+    await main.locator('button[type="submit"]').click()
+
+    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    // The whole spec, so a stray `section=4` cannot ride along unnoticed.
+    expect(captured?.columns).toBe('name=1,set=2,collector-number=3,categories=4')
+    // A non-fatal notice is news the user must see, not something the page drops.
+    await expect(main.locator('.alert-warning')).toContainText('ignored category "Ramp (Rocks)"')
+  })
+
   test('append mode lists existing collections and sends mode=append', async ({ page }) => {
     let captured: ImportCsvPayload | undefined
     await mockImportCsvApi(page, (b) => (captured = b as ImportCsvPayload))

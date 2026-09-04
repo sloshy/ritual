@@ -92,6 +92,30 @@ describe('renderJsonExport', () => {
     ])
   })
 
+  // Stored order is the sidecar's (primary first); the renderer joins it and
+  // derives `primaryCategory` from the head of the same list.
+  test('categories render comma-joined in stored order and primaryCategory is the first of them', () => {
+    expect(
+      JSON.parse(
+        renderJsonExport(
+          [entry({ categories: ['Ramp', 'Artifacts'] })],
+          ['name', 'categories', 'primaryCategory'],
+        ),
+      ),
+    ).toEqual([{ name: 'Lightning Bolt', categories: 'Ramp, Artifacts', primaryCategory: 'Ramp' }])
+  })
+
+  test('an uncategorized entry omits both JSON keys', () => {
+    expect(
+      JSON.parse(
+        renderJsonExport([entry({ categories: [] })], ['name', 'categories', 'primaryCategory']),
+      ),
+    ).toEqual([{ name: 'Lightning Bolt' }])
+    expect(
+      JSON.parse(renderJsonExport([entry()], ['name', 'categories', 'primaryCategory'])),
+    ).toEqual([{ name: 'Lightning Bolt' }])
+  })
+
   test('exports list identity properties', () => {
     const json = renderJsonExport([entry()], ['listName', 'listType', 'section'])
     expect(JSON.parse(json)).toEqual([
@@ -432,6 +456,10 @@ describe('renderMarkdownExport', () => {
         '## Sideboard\n- 1 Pyroblast (ICE:213)',
     )
   })
+  test('md exports drop categories, which are not on a card line', () => {
+    const plain = renderMarkdownExport([entry()])
+    expect(renderMarkdownExport([entry({ categories: ['Ramp', 'Artifacts'] })])).toBe(plain)
+  })
 })
 
 describe('renderCsvExport', () => {
@@ -450,6 +478,19 @@ describe('renderCsvExport', () => {
     const csv = renderCsvExport(tagged, ['name', 'tags'], { header: true, quoteAll: false })
     expect(csv).toBe('Name,Tags\nLightning Bolt,ramp')
     expect(renderCsvExport(tagged, ['name', 'tags'], { ...csvOptions, header: true })).toBe(csv)
+  })
+
+  test('the categories columns read the same in every dialect and empty out uncategorized', () => {
+    const categorized = [entry({ categories: ['Ramp', 'Artifacts'] })]
+    const columns = ['name', 'categories', 'primaryCategory'] as const
+    const csv = renderCsvExport(categorized, [...columns], { header: true, quoteAll: false })
+    expect(csv).toBe('Name,Categories,Primary Category\nLightning Bolt,"Ramp, Artifacts",Ramp')
+    // Ritual-specific like labels and tags: no foreign importer defines a
+    // vocabulary to translate into, so a dialect changes nothing here.
+    expect(renderCsvExport(categorized, [...columns], { ...csvOptions, header: true })).toBe(csv)
+    expect(renderCsvExport([entry()], [...columns], { header: false, quoteAll: false })).toBe(
+      'Lightning Bolt,,',
+    )
   })
 
   test('renders missing values as empty cells and keeps explicit nonfoil', () => {

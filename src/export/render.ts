@@ -9,6 +9,7 @@ import {
 } from './dialects'
 import { storedLanguage } from '../card/card-language'
 import { formatCardTags } from '../card/card-tags'
+import { formatCardCategories, primaryCardCategory } from '../card/card-categories'
 import {
   archidektCsvCondition,
   archidektCsvLanguage,
@@ -34,6 +35,8 @@ export const EXPORT_PROPERTIES = [
   'language',
   'labels',
   'tags',
+  'categories',
+  'primaryCategory',
   'note',
   'section',
   'listName',
@@ -60,6 +63,8 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
   language: 'Language',
   labels: 'Labels',
   tags: 'Tags',
+  categories: 'Categories',
+  primaryCategory: 'Primary Category',
   note: 'Note',
   section: 'Section',
   listName: 'List',
@@ -240,6 +245,16 @@ function propertyValue(
       // change-bundle payload and the admin API follow. Ritual-specific like
       // labels, so every dialect spells it the same way.
       return entry.tags?.length ? formatCardTags(entry.tags) : undefined
+    case 'categories':
+      // Comma-joined in stored order (primary first) — a category is the card
+      // *name*'s role in this list, so every line of that name reports the same
+      // list. Ritual-specific like labels and tags, so every dialect spells it
+      // the same way; `md`/`text` cannot write it back, because a category is
+      // never on a card line.
+      return entry.categories?.length ? formatCardCategories(entry.categories) : undefined
+    case 'primaryCategory':
+      // Derived, never stored: the first of the ordered list.
+      return primaryCardCategory(entry.categories)
     case 'note':
       return entry.note
     case 'section':

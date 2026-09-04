@@ -706,6 +706,19 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(await fs.exists(path.join(env.dir, data.path))).toBe(true)
   })
 
+  test('export_cards accepts the categories columns and labels them', async () => {
+    // Wiring only: the schema takes the two new EXPORT_PROPERTIES and the
+    // renderer's headers reach the client. Values are pinned in the unit suite.
+    const result = await callTool(client, 'export_cards', {
+      lists: [{ listType: 'deck', name: 'test-deck' }],
+      format: 'csv',
+      columns: ['categories', 'primaryCategory'],
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolData<{ content: string }>(result)
+    expect(data.content.split('\n')[0]).toBe('Categories,Primary Category')
+  })
+
   test('export_cards renders the selected list with chosen columns', async () => {
     const result = await callTool(client, 'export_cards', {
       lists: [{ listType: 'deck', name: 'test-deck' }],
@@ -1413,6 +1426,22 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
     const onDisk = await fs.readFile(path.join(env.dir, 'wanted', 'csv-wants.md'), 'utf-8')
     expect(onDisk).toContain('- Brainstorm &1')
+  })
+
+  test('import_csv accepts a categories column spec', async () => {
+    // Wiring only: the spec is accepted rather than 400ed, and the result shape
+    // is right. What lands on disk is pinned in test/integration/csv-apply and
+    // test/integration/import-csv.
+    const result = await callTool(client, 'import_csv', {
+      listType: 'wanted',
+      name: 'csv-categorized',
+      content: 'Name,Category\nBrainstorm,Draw',
+      columns: 'name=1,categories=2',
+    })
+    expect(result.isError).toBeFalsy()
+    const data = toolData<{ cardCount: number; failedCount: number }>(result)
+    expect(data.cardCount).toBe(1)
+    expect(data.failedCount).toBe(0)
   })
 
   test('import_csv rejects format for a non-deck list', async () => {
