@@ -17,6 +17,7 @@ import {
   normalizeRequestCategories,
   listSaveOutcome,
   listSaveResponse,
+  normalizeRequestLabels,
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
@@ -58,6 +59,13 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     const noteError = normalizeRequestNotes(changes, entries)
     if (noteError) return noteError
+
+    // A wanted list carries no labels (`LIST_TYPE_LABELS.wanted`), so a
+    // `set-label` change, a labelled `add`/`remove`, or an entry `labels` field
+    // is refused here rather than logged or handed to a serializer whose
+    // grammar cannot write it.
+    const labelError = normalizeRequestLabels(changes, 'wanted', entries)
+    if (labelError) return labelError
 
     // The request's entries are serialized directly, so their languages and
     // tags are validated alongside the changes'.

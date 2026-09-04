@@ -6,6 +6,7 @@ import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import {
   createAddChange,
   createAddTagChange,
+  createSetLabelChange,
   createSetLanguageChange,
 } from '../../src/changes/change-event'
 import { computeHash } from '../../src/changes/content-hash'
@@ -176,5 +177,71 @@ describe('POST /api/wanted/:slug/save — tags', () => {
     })
     expect(resp.status).toBe(400)
     expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+})
+
+describe('POST /api/wanted/:slug/save — labels', () => {
+  // A wanted list carries no labels (`LIST_TYPE_LABELS.wanted` is empty and
+  // the line grammar refuses the token), so the route refuses label input at
+  // the boundary instead of logging a `Set labels` line the changelog parser
+  // would read back for a list that can never hold one. The per-type decision
+  // is pinned by `test/unit/card-labels.test.ts`; this pins that the route asks.
+  const changelogPath = (): string => path.join(ws.dir, 'wanted', 'wishlist.changes.md')
+
+  test('a set-label change is a 400 that writes nothing — wanted lists carry no labels', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save({
+      // `sale` is legal on a collection — the refusal is the type rule, not the vocabulary.
+      changes: [createSetLabelChange('Lightning Bolt', { labels: ['sale'], cardId: 1 })],
+      entries: SEEDED,
+    })
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.message).toContain('labels do not apply to a wanted')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(await fs.exists(changelogPath())).toBe(false)
+  })
+
+  test('a label-carrying add is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save({
+      // A distinct branch from `set-label`: the label rides on the `add`
+      // itself. Without the refusal this run would write `&3` and open the
+      // changelog, so the effect assertions below can actually fail.
+      changes: [
+        createAddChange('Sol Ring', { set: 'c21', collectorNumber: '167', labels: ['sale'] }),
+      ],
+      entries: [
+        ...SEEDED,
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '167', section: 'Main' },
+      ],
+    })
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.message).toContain('labels do not apply to a wanted')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(await fs.exists(changelogPath())).toBe(false)
+  })
+
+  test('an entry carrying labels — even the empty set — is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save({
+      // Paired with a real add so the request would otherwise write a new line
+      // and a changelog — an entry-only request re-serializes byte-for-byte and
+      // logs nothing, which would leave the effect assertions unable to fail.
+      changes: [createAddChange('Sol Ring', { set: 'c21', collectorNumber: '167' })],
+      // The empty set is the clear every other type accepts; the cast is the
+      // point — the wire is unvalidated and a wanted row declares no `labels`.
+      entries: [
+        { ...SEEDED[0]!, labels: [] } as never,
+        SEEDED[1]!,
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '167', section: 'Main' },
+      ],
+    })
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { success: boolean; message: string }
+    expect(body.message).toContain('labels do not apply to a wanted')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+    expect(await fs.exists(changelogPath())).toBe(false)
   })
 })

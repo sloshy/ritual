@@ -168,11 +168,14 @@ export function normalizeRequestNotes(
 }
 
 /**
- * An entry (deck card) whose request-supplied labels need validating.
- * `unknown` on purpose: the request body is cast unvalidated, and this is the
- * boundary that exists to *prove* the value, not assume it.
+ * An entry (a named card line — a deck card or a wanted row) whose
+ * request-supplied labels need validating. `name` is what every request entry
+ * shape carries, so an entry type that declares no `labels` at all (a wanted
+ * row) still reaches the check: the request body is cast unvalidated, and this
+ * is the boundary that exists to *prove* the field's value — or its absence —
+ * not assume it. `unknown` on purpose, for the same reason.
  */
-type RequestLabelEntry = { labels?: unknown }
+type RequestLabelEntry = { name: string; labels?: unknown }
 
 /**
  * Validate one incoming label set against what `type` carries, returning the
@@ -200,8 +203,9 @@ function normalizeLabelField(raw: unknown, type: ListType): LabelFieldResult {
  * canonically ordered) form. The request body is cast unvalidated, so this is
  * the boundary that keeps an illegal combination (`keep` alongside
  * `sale`/`trade`), an unknown token, or a label the list type does not carry
- * (`sale` on a deck) out of the serializer. Returns a 400 Response naming the
- * first offender, or null when all are legal.
+ * (`sale` on a deck; any label, or the empty set, on a wanted list) out of the
+ * serializer. Returns a 400 Response naming the first offender, or null when
+ * all are legal.
  */
 export function normalizeRequestLabels(
   changes: ChangeEvent[],
