@@ -1,4 +1,7 @@
 import { describe, expect, test } from 'bun:test'
+import prompts from 'prompts'
+import { captureConsole } from '../../helpers/capture'
+import { stubTty } from '../../test-utils'
 import {
   hasExportRunSignal,
   shouldRunExportInteractive,
@@ -12,6 +15,7 @@ import {
   formatFiltersSegment,
   formatPresetSummary,
   formatWizardHeaderLines,
+  promptTagsFilter,
   type ExportWizardState,
 } from '../../../src/commands/export-wizard'
 import type { ExportEntry } from '../../../src/export/entries'
@@ -144,6 +148,7 @@ describe('wizard pure builders', () => {
     expect(
       formatFiltersSegment({ name: 'sol', set: 'c21', finish: 'foil', conditions: ['NM', 'none'] }),
     ).toBe('name "sol" · set C21 · foil · NM/none')
+    expect(formatFiltersSegment({ tags: ['Card Draw', 'ramp'] })).toBe('tags Card Draw, ramp')
   })
 
   test('formatWizardHeaderLines includes CSV options only for csv', () => {
@@ -270,5 +275,28 @@ describe('wizard pure builders', () => {
     expect(
       formatPresetSummary('mox', { format: 'text', columns: [], dialect: 'moxfield' }),
     ).toContain('moxfield lines')
+  })
+})
+
+describe('promptTagsFilter', () => {
+  // The prompt goes through `ask`, which refuses to open without a terminal.
+  stubTty({ stdin: true })
+
+  test('re-asks after a refused input, warning once, and canonicalizes the answer', async () => {
+    prompts.inject(['a#b', 'Ramp, Card Draw'])
+    const run = await captureConsole(['warn'], () => promptTagsFilter(undefined))
+    expect(run.result).toEqual(['Card Draw', 'Ramp'])
+    expect(run.lines.warn).toHaveLength(1)
+    expect(run.lines.warn[0]).toContain('Invalid tag "a#b"')
+  })
+
+  test('an empty answer clears the current filter', async () => {
+    prompts.inject([''])
+    expect(await promptTagsFilter(['ramp'])).toBeUndefined()
+  })
+
+  test('cancelling keeps the current filter', async () => {
+    prompts.inject([new Error('cancelled')])
+    expect(await promptTagsFilter(['ramp'])).toEqual(['ramp'])
   })
 })

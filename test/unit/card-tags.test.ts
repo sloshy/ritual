@@ -12,6 +12,7 @@ import {
   parseCardTagsValue,
   sameCardTags,
   withCardTag,
+  withCardTags,
   withoutCardTag,
 } from '../../src/card/card-tags'
 
@@ -163,6 +164,19 @@ describe('withCardTag / withoutCardTag', () => {
     expect(withCardTag(undefined, ' Ramp ')).toEqual(['Ramp'])
     expect(withCardTag(['ramp'], 'ramp')).toEqual(['ramp'])
     expect(withCardTag(['zebra'], 'apple')).toEqual(['apple', 'zebra'])
+  })
+
+  test('withCardTags unions the added set onto the current one, canonical', () => {
+    expect(withCardTags(undefined, ['Signed'])).toEqual(['Signed'])
+    expect(withCardTags(['ramp', 'staple'], ['Signed', ' ramp '])).toEqual([
+      'ramp',
+      'Signed',
+      'staple',
+    ])
+    // A tag the card already carries is a no-op, so the delta emits nothing for it.
+    expect(withCardTags(['ramp'], ['ramp'])).toEqual(['ramp'])
+    // Case is identity: `Ramp` joins `ramp` rather than replacing it.
+    expect(withCardTags(['ramp'], ['Ramp'])).toEqual(['ramp', 'Ramp'])
   })
 
   test('removing the last tag yields the stored empty form, undefined', () => {

@@ -9,13 +9,26 @@ import type { Accessor } from 'solid-js'
 import { createPromptSingleton } from '../ui/prompt-singleton'
 import type { CardTag } from '../card/card-tags'
 
-/** A pending "edit this card's tags" request. */
+/**
+ * Which gesture opened the dialog. `edit` replaces one card's whole set (the
+ * heading reads "Edit tags", the hint says an empty field clears every tag);
+ * `add` unions the typed tags onto every selected card (heading "Add tags",
+ * a hint saying existing tags are kept) and disables Save while the parsed
+ * set is empty — an empty add would be a no-op.
+ */
+export type TagsPromptMode = 'edit' | 'add'
+
+/** A pending "edit this card's tags" / "add tags to the selection" request. */
 export interface TagsPrompt {
+  mode: TagsPromptMode
   /** The card's tags right now (undefined = none); seeds the field. */
   current: readonly CardTag[] | undefined
   /** Tags already used elsewhere in the list, offered as one-click additions. */
   suggestions: readonly CardTag[]
-  /** Apply the edited set (`[]` clears every tag). The dialog closes itself first. */
+  /**
+   * Apply the edited set (`edit`: `[]` clears every tag) or the tags to add
+   * (`add`: never empty). The dialog closes itself first.
+   */
   onSave: (tags: CardTag[]) => void
 }
 

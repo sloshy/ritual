@@ -15,7 +15,12 @@ import {
   type CardLabel,
   type CardLabelSelection,
 } from '../card/card-labels'
-import { normalizedTags, type CardTag } from '../card/card-tags'
+import {
+  normalizedTags,
+  parseCardTagsInput,
+  parseCardTagsValue,
+  type CardTag,
+} from '../card/card-tags'
 import { type CardCategory, type WithCardCategories } from '../card/card-categories'
 import {
   cardCategoriesOf,
@@ -347,6 +352,37 @@ export function parseLabelFilterValues(values: readonly unknown[]): LabelFilterV
   return labels
 }
 
+/** The refusal for a tag set that names no tag at all — a filter that could match nothing. */
+const NO_TAGS_GIVEN = 'No tags given.'
+
+/**
+ * Validate a raw tags-filter value (an API body array) into canonical tags,
+ * or an error message naming `field` — the caller's path to it, so a route
+ * can say `filters.tags`. A non-array is refused here too. Tags are matched
+ * exactly and case-sensitively — the vocabulary rule — and there is no `none`
+ * sentinel: `none` is an ordinary tag. An empty list is refused rather than
+ * silently matching nothing.
+ */
+export function parseTagFilterValues(values: unknown, field = 'tags'): CardTag[] | string {
+  const parsed = parseCardTagsValue(values, field)
+  if (!parsed.ok) return parsed.message
+  if (parsed.tags.length === 0) return NO_TAGS_GIVEN
+  return parsed.tags
+}
+
+/**
+ * The typed form of {@link parseTagFilterValues}: one comma-separated string,
+ * as `--tags` receives it, read with the one input grammar every tag field
+ * shares (`parseCardTagsInput`), so the flag cannot disagree with the tag
+ * editor about what a typed list means.
+ */
+export function parseTagFilterInput(raw: string): CardTag[] | string {
+  const parsed = parseCardTagsInput(raw)
+  if (!parsed.ok) return parsed.message
+  if (parsed.tags.length === 0) return NO_TAGS_GIVEN
+  return parsed.tags
+}
+
 /**
  * Filters applied to the assembled export set. All present filters must match
  * (logical AND).
@@ -372,6 +408,13 @@ export type ExportFilters = {
    * not even `'none'`, which would otherwise select every one of them.
    */
   labels?: LabelFilterValue[]
+  /**
+   * Tags to match (logical OR within the list) against each entry's own tags,
+   * exactly and case-sensitively (`ramp` ≠ `Ramp`). Every list type carries
+   * tags, so wanted entries match too; an entry with no tags never matches.
+   * There is no `none` sentinel — `none` is a literal tag.
+   */
+  tags?: CardTag[]
 }
 
 export function hasActiveExportFilters(filters: ExportFilters): boolean {
@@ -380,7 +423,8 @@ export function hasActiveExportFilters(filters: ExportFilters): boolean {
     filters.set ||
     filters.finish ||
     (filters.conditions?.length ?? 0) > 0 ||
-    (filters.labels?.length ?? 0) > 0,
+    (filters.labels?.length ?? 0) > 0 ||
+    (filters.tags?.length ?? 0) > 0,
   )
 }
 
@@ -388,6 +432,7 @@ export function filterExportEntries(entries: ExportEntry[], filters: ExportFilte
   const set = filters.set?.toLowerCase()
   const conditions = filters.conditions
   const labels = filters.labels
+  const tags = filters.tags && filters.tags.length > 0 ? new Set(filters.tags) : undefined
   return entries.filter((entry) => {
     if (filters.name && !matchesAllTerms(entry.name, filters.name)) return false
     if (set && entry.set?.toLowerCase() !== set) return false
@@ -400,6 +445,7 @@ export function filterExportEntries(entries: ExportEntry[], filters: ExportFilte
       if (!supportsAnyLabels(entry.listType)) return false
       if (!matchesCardLabelSelection(entry.labels ?? [], labels)) return false
     }
+    if (tags && !(entry.tags ?? []).some((tag) => tags.has(tag))) return false
     return true
   })
 }

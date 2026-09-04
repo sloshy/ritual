@@ -4,7 +4,7 @@ import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
 import { filterRow, openFilterMenu } from '../helpers/filter-menu'
 import { fulfillJson } from '../helpers/fulfill'
-import { openEditTags } from '../helpers/list-ui'
+import { openAddTags, openEditTags, selectTile } from '../helpers/list-ui'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
@@ -176,6 +176,52 @@ test.describe('Deck Editor — card tags', () => {
       /Remove tag "ramp" from Tag Rock &3/,
       /Remove tag "staple" from Tag Rock &3/,
     ])
+  })
+
+  test('Add Tag… over a selection posts one add-tag per selected card', async ({ page }) => {
+    let savedBody: SavedBody | null = null
+    await fulfillJson(page, '**/api/deck/tag-deck/save', (route: Route) => {
+      savedBody = JSON.parse(route.request().postData() ?? '{}') as SavedBody
+      return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+    })
+
+    await selectTile(tile(page, 'Sol Ring'))
+    await selectTile(tile(page, 'Mox Opal'))
+    await expect(page.locator('.selection-menu-btn')).toHaveText(/Selected \(2\)/)
+    const dialog = await openAddTags(page)
+    await expect(dialog.locator('h3')).toHaveText('Add tags')
+    await dialog.locator('#tags-prompt-input').fill('Signed')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(page.locator('.changes-badge')).toHaveText('2')
+    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
+
+    // The union: Sol Ring's live tags are its own `staple` plus the new one.
+    const reopened = await openEditTags(page, tile(page, 'Sol Ring'))
+    await expect(reopened.locator('#tags-prompt-input')).toHaveValue('Signed, staple')
+    await reopened.getByRole('button', { name: 'Cancel' }).click()
+    await expect(reopened).not.toBeVisible()
+
+    await page.locator('.btn-save').click()
+    await expect.poll(() => savedBody?.changes.length).toBe(2)
+    // The selection's iteration order is not the contract; one event per card is.
+    expect(savedBody!.changes).toHaveLength(2)
+    expect(savedBody!.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          action: 'add-tag',
+          cardName: 'Sol Ring',
+          tag: 'Signed',
+          cardId: 1,
+        }),
+        expect.objectContaining({
+          action: 'add-tag',
+          cardName: 'Mox Opal',
+          tag: 'Signed',
+          cardId: 2,
+        }),
+      ]),
+    )
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
   })
 
   test('Save posts the per-tag events to the deck save route', async ({ page }) => {

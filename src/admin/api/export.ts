@@ -3,6 +3,7 @@ import {
   buildExportSelection,
   parseConditionFilterValues,
   parseLabelFilterValues,
+  parseTagFilterValues,
   type ExportFilters,
 } from '../../export/entries'
 import { renderExport } from '../../export/output'
@@ -43,6 +44,8 @@ type ExportRequestFilters = {
   conditions?: string[]
   /** Label values to match against effective labels; `'none'` selects unlabeled entries. */
   labels?: string[]
+  /** Tags to match, any of them; every list type, exact and case-sensitive. */
+  tags?: string[]
 }
 
 /** `POST /api/export` request body; every field is optional. */
@@ -168,6 +171,12 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
     const labels = parseLabelFilterValues(raw.labels)
     if (typeof labels === 'string') return labels
     filters.labels = labels
+  }
+  if (raw.tags !== undefined) {
+    // The parser refuses a non-array itself, naming the body path.
+    const tags = parseTagFilterValues(raw.tags, 'filters.tags')
+    if (typeof tags === 'string') return tags
+    filters.tags = tags
   }
   return filters
 }

@@ -8,7 +8,10 @@ import {
   loadExportEntries,
   parseConditionFilterValues,
   parseLabelFilterValues,
+  parseTagFilterInput,
+  parseTagFilterValues,
   type ExportEntry,
+  type ExportFilters,
 } from '../../src/export/entries'
 import type { ListLocation } from '../../src/list/resolve-list'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
@@ -191,6 +194,39 @@ describe('filterExportEntries', () => {
     expect(hasActiveExportFilters({ set: 'lea' })).toBe(true)
     expect(hasActiveExportFilters({ conditions: [] })).toBe(false)
     expect(hasActiveExportFilters({ conditions: ['none'] })).toBe(true)
+    expect(hasActiveExportFilters({ tags: [] })).toBe(false)
+    expect(hasActiveExportFilters({ tags: ['x'] })).toBe(true)
+  })
+})
+
+describe('tags filter', () => {
+  const tagged = [
+    entry({ name: 'Ramp Rock', tags: ['ramp'] }),
+    entry({ name: 'Deck Ramp', listType: 'deck', tags: ['Ramp'], fileOrder: 1 }),
+    entry({ name: 'Wanted Draw', listType: 'wanted', tags: ['Card Draw', 'ramp'], fileOrder: 2 }),
+    entry({ name: 'Plain Card', tags: undefined, fileOrder: 3 }),
+    entry({ name: 'None Card', tags: ['none'], fileOrder: 4 }),
+  ]
+  const names = (filters: ExportFilters) => filterExportEntries(tagged, filters).map((e) => e.name)
+
+  test('matches any of the given tags, on every list type — wanted entries included', () => {
+    expect(names({ tags: ['Card Draw', 'Ramp'] })).toEqual(['Deck Ramp', 'Wanted Draw'])
+  })
+
+  test('is exact and case-sensitive, and an untagged entry never matches', () => {
+    // `ramp` selects the lowercase carriers only; the deck's `Ramp` is another tag.
+    expect(names({ tags: ['ramp'] })).toEqual(['Ramp Rock', 'Wanted Draw'])
+    expect(names({ tags: ['ram'] })).toEqual([])
+  })
+
+  test("'none' is an ordinary tag, not a sentinel for untagged entries", () => {
+    expect(names({ tags: ['none'] })).toEqual(['None Card'])
+  })
+
+  test('composes with the labels filter by AND', () => {
+    // The tagged wanted entry matches the tag but wanted entries never match a
+    // labels filter, so the two together leave nothing.
+    expect(names({ tags: ['Card Draw'], labels: ['none'] })).toEqual([])
   })
 })
 
@@ -290,6 +326,37 @@ describe('labels filter', () => {
       expect(loaded[0]!.labels).toEqual(['keep'])
       expect(loaded[1]!.labels).toEqual(['sale'])
     })
+  })
+})
+
+describe('parseTagFilterValues', () => {
+  test('canonicalizes, dedupes and sorts', () => {
+    expect(parseTagFilterValues([' Ramp ', 'Ramp', 'draw'])).toEqual(['draw', 'Ramp'])
+  })
+
+  test('refuses a malformed tag, an empty list, and a non-string with an error string', () => {
+    expect(parseTagFilterValues(['a#b'])).toContain('Invalid tag "a#b"')
+    expect(parseTagFilterValues([])).toBe('No tags given.')
+    expect(parseTagFilterValues([1])).toBe('tags must be an array of tags.')
+  })
+
+  test('a shape refusal names the field the caller passes, non-array included', () => {
+    expect(parseTagFilterValues([1], 'filters.tags')).toBe('filters.tags must be an array of tags.')
+    expect(parseTagFilterValues('ramp', 'filters.tags')).toBe(
+      'filters.tags must be an array of tags.',
+    )
+  })
+})
+
+describe('parseTagFilterInput', () => {
+  test('reads a typed comma-separated list with the tag grammar', () => {
+    expect(parseTagFilterInput(' Ramp ,Ramp, Card Draw')).toEqual(['Card Draw', 'Ramp'])
+  })
+
+  test('refuses a malformed tag and an input naming no tag with an error string', () => {
+    expect(parseTagFilterInput('a#b')).toContain('Invalid tag "a#b"')
+    expect(parseTagFilterInput('')).toBe('No tags given.')
+    expect(parseTagFilterInput(' , ')).toBe('No tags given.')
   })
 })
 

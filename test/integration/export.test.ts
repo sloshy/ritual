@@ -347,6 +347,26 @@ describe('export command (Integration)', () => {
     60_000,
   )
 
+  // The --tags flag: comma split, exact match, and — because the only tagged
+  // line is on a wanted list — that wanted entries match, unlike --labels.
+  test('--tags narrows the export to cards carrying any of the tags, wanted lists included', async () => {
+    await withTempDir(async (dir) => {
+      await seedWorkspace(dir)
+      await writeWantedFile(dir, 'tagged', {
+        entries: [
+          { name: 'Mox Ruby', tags: ['Signed'], cardId: 1 },
+          { name: 'Black Lotus', tags: ['signed'], cardId: 2 },
+          { name: 'Mox Pearl', cardId: 3 },
+        ],
+      })
+
+      const result = await runCli(['export', '--format', 'json', '--tags', 'Signed,Binder'], dir)
+
+      expect(result.exitCode).toBe(0)
+      expect(parseJsonExport(result.stdout).map((r) => r.name)).toEqual(['Mox Ruby'])
+    })
+  }, 60_000)
+
   test('--card picks entries across all lists and dedupes against selected lists', async () => {
     await withTempDir(async (dir) => {
       await seedWorkspace(dir)
@@ -433,6 +453,7 @@ describe('export command (Integration)', () => {
     ['unknown column', ['export', '--all', '--columns', 'name,bogus'], 2],
     ['unresolved list', ['export', 'no-such-list'], 3],
     ['invalid condition', ['export', '--all', '--condition', 'OK'], 2],
+    ['invalid tag', ['export', '--all', '--tags', 'a#b'], 2],
     ['invalid export format', ['export', '--all', '--format', 'xml'], 2],
     [
       'dialect with a fixed-line format',

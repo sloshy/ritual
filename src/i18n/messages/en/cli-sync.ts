@@ -362,12 +362,14 @@ export const cliSyncMessages = {
   'cli.exportWizard.filterName': 'name "{value}"',
   'cli.exportWizard.filterSet': 'set {value}',
   'cli.exportWizard.filterLabels': 'labels {value}',
+  'cli.exportWizard.filterTags': 'tags {value}',
   'cli.exportWizard.promptFilters': 'Filters (applied to the whole export)',
   'cli.exportWizard.filterRowName': 'Name contains: {value}',
   'cli.exportWizard.filterRowSet': 'Set code: {value}',
   'cli.exportWizard.filterRowFinish': 'Finish: {value}',
   'cli.exportWizard.filterRowCondition': 'Condition: {value}',
   'cli.exportWizard.filterRowLabels': 'Labels: {value}',
+  'cli.exportWizard.filterRowTags': 'Tags: {value}',
   'cli.exportWizard.promptNameTerms': 'Name terms (empty for any)',
   'cli.exportWizard.promptSetCode': 'Set code (empty for any)',
   'cli.exportWizard.promptFinish': 'Show cards with finish',
@@ -376,6 +378,7 @@ export const cliSyncMessages = {
   'cli.exportWizard.promptLabels':
     'Show deck and collection cards with labels (toggle any combination)',
   'cli.exportWizard.noLabels': 'No labels at all',
+  'cli.exportWizard.promptTags': 'Tags, comma-separated (empty for any)',
 
   // ── `export` wizard — output shape ────────────────────────────────────
   'cli.exportWizard.promptFormat': 'Export format',

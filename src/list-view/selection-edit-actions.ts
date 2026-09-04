@@ -61,6 +61,15 @@ export type BulkEditBundle = {
    * clear row. The menu picks the offered choices from the selection's list type.
    */
   setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
+  /**
+   * Open the tags dialog empty, with the list's distinct tags as suggestions,
+   * and union the typed tags onto every selected card's *live* tag set — one
+   * `add-tag` per tag a card lacked, never a replacement. Every list type
+   * carries tags, so this is required on every bundle. `onApplied` runs once
+   * the union is applied — the selection is cleared there, not when the
+   * dialog opens, so cancelling keeps it (as **Set Label…** does).
+   */
+  addTags: (cards: SelectedCard[], onApplied: () => void) => void
   /** Move every selected card into an existing section. */
   moveToSection: (cards: SelectedCard[], section: string) => void
   /** Prompt for a new section name and move every selected card into it. */
@@ -76,8 +85,9 @@ export type BulkEditBundle = {
 /**
  * Bulk edit operations exposed by the selection menu when a list is open in edit
  * mode. Mirrors the per-card `⋯` context menu: quantity steppers, full removal,
- * foil toggling, change printing, commander (decks only), and section moves. The
- * owning page wires each to its editor's bulk-edit bundle over the live selection.
+ * foil toggling, change printing, commander (decks only), labels, tags (added,
+ * never replaced), and section moves. The owning page wires each to its
+ * editor's bulk-edit bundle over the live selection.
  */
 export interface SelectionEditActions {
   addCopy: () => void
@@ -103,6 +113,8 @@ export interface SelectionEditActions {
   setCommander?: () => void
   /** {@link BulkEditBundle.setLabel} over the selection; absent where unwired. */
   setLabel?: (labels: CardLabel[]) => void
+  /** {@link BulkEditBundle.addTags} over the selection: opens the dialog; the selection clears on save. */
+  addTags: () => void
   moveToSection: (section: string) => void
   promptNewSection: () => void
   sections: () => string[]
@@ -163,6 +175,7 @@ export function buildSelectionEditActions(
           selection.clear()
         }
       : undefined,
+    addTags: () => bulk.addTags(selection.selected(), () => selection.clear()),
     moveToSection: (section) => {
       bulk.moveToSection(selection.selected(), section)
       selection.clear()

@@ -504,7 +504,11 @@ one (e.g. \`--condition NM,none\`); wanted entries never match — and
 \`--labels <list>\` — comma-separated sale|trade|keep|proxy|none matched against
 each deck and collection card's *effective* labels (\`none\` = unlabeled), a deck
 line's resolved against the deck's front-matter default, so \`--labels proxy\`
-selects a deck's proxies; wanted entries carry no labels and never match.
+selects a deck's proxies; wanted entries carry no labels and never match — and
+\`--tags <list>\` — comma-separated tags matched exactly (case-sensitive, spaces
+kept, so quote the value) against each card's own tags on every list type,
+wanted lists included; a card with no tags never matches, and there is no
+\`none\` value (\`none\` is an ordinary tag).
 Available columns:
 \`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
 number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolved

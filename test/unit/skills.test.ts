@@ -93,6 +93,7 @@ describe('skill catalog invariants', () => {
     // Card tags: the flag pair, and the one distinction an agent cannot infer —
     // a deck's front-matter `tags:` is not a card tag.
     ['ritual-edit', '`--tag <tags>` / `--untag <tags>`'],
+    ['ritual-edit', '`--tags <list>`'],
     ['ritual-edit', '🔖 Edit Tags'],
     ['ritual-decks', 'The front-matter `tags:` key'],
     ['ritual-decks', '`🔖 Edit Deck Tags`'],

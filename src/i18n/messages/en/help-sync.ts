@@ -122,6 +122,8 @@ export const helpSyncMessages = {
     'Only cards with one of these conditions (comma-separated): {conditions}, none (no condition marked)',
   'help.export.labels':
     'Only deck and collection cards whose effective labels include one of these (comma-separated): {labels}, {none} (unlabeled)',
+  'help.export.tags':
+    'Only cards carrying one of these tags, comma-separated (exact, case-sensitive; spaces are part of a tag)',
   'help.export.format': 'Export format: {formats} (default: csv)',
   'help.export.columns':
     'Comma-separated columns in output order (csv/json only). Available: {properties}',

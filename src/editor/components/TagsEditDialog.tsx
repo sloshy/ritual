@@ -16,8 +16,10 @@ import { closeTagsPrompt, pendingTagsPrompt } from '../tags-prompt'
  * (`Ramp, Card Draw`, comma-separated — the same grammar the CLI prompt reads
  * through `parseCardTagsInput`), validated as you
  * type, with the list's other tags offered as one-click additions. Saving with
- * an empty field clears every tag. Rendered once per editor shell, driven by
- * the `tags-prompt` singleton.
+ * an empty field clears every tag. The same dialog serves the selection menu's
+ * "Add Tag…" (`mode: 'add'`): its heading and hint say the tags are added on
+ * top of what each card has, and an empty field cannot be saved. Rendered once
+ * per editor shell, driven by the `tags-prompt` singleton.
  */
 export const TagsEditDialog: Component = () => {
   let inputRef: HTMLInputElement | undefined
@@ -34,7 +36,14 @@ export const TagsEditDialog: Component = () => {
   )
 
   const parsed = createMemo(() => parseCardTagsInput(value()))
-  const canSave = () => parsed().ok
+  // `add` mode falls back to `edit` while the prompt is null so the closing
+  // transition never flips the heading or hint mid-fade.
+  const isAdd = () => pendingTagsPrompt()?.mode === 'add'
+  // An empty set is a legitimate `edit` (clear every tag) but a no-op `add`.
+  const canSave = () => {
+    const result = parsed()
+    return result.ok && !(isAdd() && result.tags.length === 0)
+  }
   // An empty field parses as "clear every tag", so there is nothing to
   // pre-flag: a message means something typed was refused.
   const error = () => {
@@ -67,10 +76,12 @@ export const TagsEditDialog: Component = () => {
     }
   }
 
+  // One gate for the button and the Enter key: `canSave` subsumes `result.ok`,
+  // and the `result.ok` read here only narrows the union for `result.tags`.
   const save = (): void => {
     const prompt = pendingTagsPrompt()
     const result = parsed()
-    if (!prompt || !result.ok) return
+    if (!prompt || !canSave() || !result.ok) return
     closeTagsPrompt()
     prompt.onSave(result.tags)
   }
@@ -83,7 +94,7 @@ export const TagsEditDialog: Component = () => {
       panelClass="modal-panel--prompt text-prompt tags-prompt"
       onOpen={() => focusAndSelectOnOpen(() => inputRef)}
     >
-      <h3>{t('ui.editor.editTagsTitle')}</h3>
+      <h3>{isAdd() ? t('ui.editor.addTagsTitle') : t('ui.editor.editTagsTitle')}</h3>
       <div class="text-prompt-field">
         <label class="text-prompt-label" for="tags-prompt-input">
           {t('ui.editor.tagsLabel')}
@@ -110,7 +121,7 @@ export const TagsEditDialog: Component = () => {
           }}
         />
         <p id="tags-prompt-hint" class="tags-prompt-hint">
-          {t('ui.editor.tagsHint')}
+          {isAdd() ? t('ui.editor.addTagsHint') : t('ui.editor.tagsHint')}
         </p>
         <Show when={error()}>
           {(message) => (

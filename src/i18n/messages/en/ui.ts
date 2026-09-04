@@ -186,9 +186,12 @@ export const uiMessages = {
 
   // ── Tags dialog ───────────────────────────────────────────────────────
   'ui.editor.editTagsTitle': 'Edit tags',
+  'ui.editor.addTagsTitle': 'Add tags',
   'ui.editor.tagsLabel': 'Tags',
   'ui.editor.tagsPlaceholder': 'Ramp, Card Draw',
   'ui.editor.tagsHint': 'Separate tags with commas. Leave the field empty to clear every tag.',
+  'ui.editor.addTagsHint':
+    'Separate tags with commas. They are added to every selected card; existing tags are kept.',
   'ui.editor.tagsSuggestions': 'Used in this list:',
   'ui.editor.tagsSave': 'Save',
 

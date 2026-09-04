@@ -4,7 +4,7 @@ import { DEFAULT_SECTION } from '../list/deck'
 import type { CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
-import { tagSuggestions } from './card-tags-edit'
+import { bulkAddTags, tagSuggestions, type TagTarget } from './card-tags-edit'
 import { promptCardTags } from './tags-prompt'
 import { openCategoriesPrompt } from './card-categories-edit'
 import { holdsCardName } from '../card/card-categories'
@@ -98,6 +98,14 @@ export type FlatListController<E extends FlatEntry> = SwapController & {
   handleMoveCardToList: (target: CardContextInfo, dest: ListRef) => void
   closeModal: () => void
   closeContextMenu: () => void
+  /**
+   * A line's tags as the live data holds them now — what every tag edit seeds
+   * from and consolidates against (see `card-tags-edit.ts`). Every copy of a
+   * grouped tile shares them: differently-tagged copies never share a tile
+   * (`duplicateGroupKey`). A card added this session may have no id yet; the
+   * lookup then resolves the line by name.
+   */
+  liveTagsOf: (cardName: string, cardId?: number) => readonly CardTag[] | undefined
   /** Bulk edit operations over a multi-select of flat-list cards. */
   bulkEdit: FlatBulkEdit
 }
@@ -288,6 +296,9 @@ export function useFlatListEditController<E extends FlatEntry>(
     } as E
   }
 
+  const liveTagsOf = (cardName: string, cardId?: number): readonly CardTag[] | undefined =>
+    findEntryByIdOrName(editor.data() ?? [], cardName, cardId)?.tags
+
   const bulkEdit: FlatBulkEdit = {
     addCopy: (cards) => {
       for (const c of cards) handleIncrement(entryToAdd(c))
@@ -337,6 +348,19 @@ export function useFlatListEditController<E extends FlatEntry>(
         }
       })
     },
+    addTags: (cards, onApplied) =>
+      bulkAddTags({
+        suggestions: tagSuggestions(editor.data() ?? []),
+        // One target per copy: each copy is its own entry with its own tags.
+        targets: cards.flatMap((c): TagTarget[] =>
+          c.cardIds.length > 0
+            ? c.cardIds.map((cardId) => ({ cardName: c.name, cardId }))
+            : [{ cardName: c.name }],
+        ),
+        liveTagsOf,
+        setTags: editor.handleSetTagsFor,
+        onApplied,
+      }),
     ...sharedBulkEdit(editor),
     moveToList: (cards, dest) =>
       bulkMoveToList(cards, dest, (c, to, printing) => emitMove(c.name, to, printing, c.cardIds)),
@@ -354,6 +378,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     handleChangePrinting,
     handleMoveCardToList,
     closeModal,
+    liveTagsOf,
     bulkEdit,
     closeContextMenu,
     ...swap,
@@ -441,16 +466,13 @@ export function FlatListContextMenu<E extends FlatEntry>(
             }
             onEditTags={() => {
               const target = menu()
-              const entries = editor.data() ?? []
-              // The tile's live tags seed the field and are what the edit
-              // consolidates against (see `card-tags-edit.ts`). Every copy of a
-              // grouped tile shares them: differently-tagged copies never share
-              // a tile (`duplicateGroupKey`).
-              const current = findEntryByIdOrName(entries, target.cardName, target.cardIds[0])?.tags
+              // The tile's live tags seed the field (see `liveTagsOf`).
+              const current = props.ctrl.liveTagsOf(target.cardName, target.cardIds[0])
               props.ctrl.closeContextMenu()
               promptCardTags({
+                mode: 'edit',
                 current,
-                suggestions: tagSuggestions(entries),
+                suggestions: tagSuggestions(editor.data() ?? []),
                 onSave: (tags) => {
                   // A card added this session may have no id yet; the editor
                   // then resolves the line by name.
@@ -461,8 +483,8 @@ export function FlatListContextMenu<E extends FlatEntry>(
                   // which events exist, so it must be each copy's own live set.
                   batch(() => {
                     for (const id of ids) {
-                      const live = findEntryByIdOrName(editor.data() ?? [], target.cardName, id)
-                      editor.handleSetTagsFor(target.cardName, tags, live?.tags, id)
+                      const live = props.ctrl.liveTagsOf(target.cardName, id)
+                      editor.handleSetTagsFor(target.cardName, tags, live, id)
                     }
                   })
                 },

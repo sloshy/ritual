@@ -1,7 +1,14 @@
 import { test, expect, type Page } from '@playwright/test'
 import { mockPublicSiteCollectionWithTags } from '../helpers/mock-public-site'
 import { filterRow, openFilterMenu } from '../helpers/filter-menu'
-import { enterEditMode, gotoList, openEditTags, switchToListView } from '../helpers/list-ui'
+import {
+  enterEditMode,
+  gotoList,
+  openAddTags,
+  openEditTags,
+  selectTile,
+  switchToListView,
+} from '../helpers/list-ui'
 
 /**
  * Card tags on the public site: grouping by tag set (one heading per distinct
@@ -165,6 +172,54 @@ test.describe('Public editor — Edit Tags…', () => {
     await dialog.locator('#tags-prompt-input').fill('')
     await dialog.getByRole('button', { name: 'Save' }).click()
     await expect(page.locator('.changes-badge')).toHaveCount(0)
+  })
+
+  test('Add Tag… adds the typed tags to every selected card and keeps their existing tags', async ({
+    page,
+  }) => {
+    await selectTile(tile(page, 'ramp rock'))
+    await selectTile(tile(page, 'plain card'))
+    await expect(page.locator('.selection-menu-btn')).toHaveText(/Selected \(2\)/)
+
+    const dialog = await openAddTags(page)
+    // The bulk gesture: an empty field (never seeded from one card), the list's
+    // tags as suggestions, and Save held back until something is typed — by
+    // the button and by Enter alike, which must not swallow the selection.
+    await expect(dialog.locator('h3')).toHaveText('Add tags')
+    const input = dialog.locator('#tags-prompt-input')
+    await expect(input).toHaveValue('')
+    await expect(dialog.locator('.tags-prompt-suggestion')).toHaveText([
+      'Card Draw',
+      'ramp',
+      'staple',
+    ])
+    await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
+    await input.press('Enter')
+    await expect(dialog).toBeVisible()
+    await expect(page.locator('.changes-badge')).toHaveCount(0)
+    await expect(page.locator('.selection-menu-btn')).toHaveText(/Selected \(2\)/)
+
+    await input.fill('Signed')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(dialog).not.toBeVisible()
+
+    // One add-tag per selected card; the selection is cleared on save. The
+    // selection's iteration order is not the contract, so no order is pinned.
+    await expect(page.locator('.selection-menu-btn')).toHaveCount(0)
+    await expect(page.locator('.changes-badge')).toHaveText('2')
+    await page.locator('.btn-changes').click()
+    const items = page.locator('.changes-modal .change-item')
+    await expect(items).toHaveCount(2)
+    await expect(items.filter({ hasText: 'Ramp Rock' })).toContainText('Add tag "Signed"')
+    await expect(items.filter({ hasText: 'Plain Card' })).toContainText('Add tag "Signed"')
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.changes-modal')).not.toBeVisible()
+
+    // The union kept Ramp Rock's own tag beside the new one.
+    await tile(page, 'ramp rock').locator('.card-binder').click()
+    const modal = page.locator('.card-modal', { hasText: 'Ramp Rock' })
+    await expect(modal).toBeVisible()
+    await expect(modal.locator('.modal-card-tag')).toHaveText(['ramp', 'Signed'])
   })
 
   test('an invalid tag is explained and blocks Save', async ({ page }) => {

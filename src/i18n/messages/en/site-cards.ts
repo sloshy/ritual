@@ -142,6 +142,7 @@ export const siteCardsMessages = {
   'site.selection.swapPrintings': 'Swap Printings…',
   'site.selection.setCommander': 'Set as Commander',
   'site.selection.setLabel': 'Set Label…',
+  'site.selection.addTag': 'Add Tag…',
   'site.selection.moveToSection': 'Move to section…',
   'site.selection.moveToList': 'Move to list…',
   'site.selection.copyText': 'Copy as Text',

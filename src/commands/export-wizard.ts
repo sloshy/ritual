@@ -24,6 +24,7 @@ import {
   type LabelFilterValue,
 } from '../export/entries'
 import { cardLabelName, CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card/card-labels'
+import { formatCardTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import { renderExport, saveExportPreset } from '../export/output'
 import { getCardPrintings } from '../scryfall'
 import {
@@ -135,6 +136,9 @@ export function formatFiltersSegment(filters: ExportFilters): string {
   }
   if (filters.labels && filters.labels.length > 0) {
     parts.push(t('cli.exportWizard.filterLabels', { value: filters.labels.join('/') }))
+  }
+  if (filters.tags && filters.tags.length > 0) {
+    parts.push(t('cli.exportWizard.filterTags', { value: formatCardTags(filters.tags) }))
   }
   return parts.join(' · ')
 }
@@ -442,9 +446,35 @@ async function promptLabelsFilter(
   )
 }
 
+/**
+ * Free-text prompt for the tag filter — tags are an open vocabulary, so there
+ * is no closed set to toggle through. Read with the one input grammar every
+ * tag field shares (`parseCardTagsInput`); a malformed entry is explained and
+ * the prompt repeats. Cancelling keeps the current filter; an empty answer
+ * clears it.
+ */
+export async function promptTagsFilter(
+  current: CardTag[] | undefined,
+): Promise<CardTag[] | undefined> {
+  while (true) {
+    const seed = current && current.length > 0 ? formatCardTags(current) : undefined
+    const answer = await promptTextFilter(t('cli.exportWizard.promptTags'), seed)
+    if (answer === seed) return current
+    if (answer === undefined) return undefined
+    const parsed = parseCardTagsInput(answer)
+    if (!parsed.ok) {
+      // The parser's refusal names a data-format rule (English by contract),
+      // on the same channel the wizard's other warnings use.
+      console.warn(`⚠️  ${parsed.message}`)
+      continue
+    }
+    return parsed.tags.length > 0 ? parsed.tags : undefined
+  }
+}
+
 async function promptFilters(state: ExportWizardState): Promise<void> {
   while (true) {
-    const pick = await ask<'name' | 'set' | 'finish' | 'condition' | 'labels' | 'back'>({
+    const pick = await ask<'name' | 'set' | 'finish' | 'condition' | 'labels' | 'tags' | 'back'>({
       type: 'select',
       message: t('cli.exportWizard.promptFilters'),
       choices: [
@@ -486,6 +516,15 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
           }),
           value: 'labels',
         },
+        {
+          title: t('cli.exportWizard.filterRowTags', {
+            value:
+              state.filters.tags && state.filters.tags.length > 0
+                ? formatCardTags(state.filters.tags)
+                : t('cli.exportWizard.anyValue'),
+          }),
+          value: 'tags',
+        },
         { title: t('cli.exportWizard.back'), value: 'back' },
       ],
     })
@@ -511,6 +550,9 @@ async function promptFilters(state: ExportWizardState): Promise<void> {
         break
       case 'labels':
         state.filters.labels = await promptLabelsFilter(state.filters.labels)
+        break
+      case 'tags':
+        state.filters.tags = await promptTagsFilter(state.filters.tags)
         break
     }
   }

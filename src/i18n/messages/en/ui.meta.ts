@@ -307,6 +307,14 @@ export const uiMeta = {
     description:
       'Help text under the tags field: that several tags are separated by commas, and that saving an empty field removes every tag.',
   },
+  'ui.editor.addTagsTitle': {
+    description:
+      'Title of the same tags dialog when opened from the multi-select "Add Tag…" bulk action: the typed tags are added to every selected card.',
+  },
+  'ui.editor.addTagsHint': {
+    description:
+      'Help text under the tags field in the bulk "Add Tag…" mode: tags are comma-separated, and they are added to each selected card on top of the tags it already has (nothing is replaced).',
+  },
   'ui.editor.tagsSuggestions': {
     description:
       'Heading of the row of one-click buttons offering tags already used on other cards in this list. Ends with a colon in English.',

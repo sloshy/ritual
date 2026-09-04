@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { applyCardTagsEdit, tagEditInputs, tagSuggestions } from '../../src/editor/card-tags-edit'
+import {
+  applyCardTagsEdit,
+  bulkAddTags,
+  tagEditInputs,
+  tagSuggestions,
+} from '../../src/editor/card-tags-edit'
+import { closeTagsPrompt, pendingTagsPrompt } from '../../src/editor/tags-prompt'
+import type { CardTag } from '../../src/card/card-tags'
 import { useCardChanges } from '../../src/editor/useCardChanges'
 import { applyChangeToCollection } from '../../src/changes/collection-changes'
 import type { CollectionCardEntry } from '../../src/list/site-data'
@@ -82,5 +89,57 @@ describe('applyCardTagsEdit', () => {
     })
     expect(changes.changes()).toHaveLength(0)
     expect(data?.[0]?.tags).toEqual(['old'])
+  })
+})
+
+/** One `setTags` call the bulk add made, as the controller's setter would see it. */
+type SetTagsCall = {
+  cardName: string
+  tags: readonly CardTag[]
+  currentTags: readonly CardTag[] | undefined
+  cardId: number | undefined
+}
+
+describe('bulkAddTags', () => {
+  test("opens the dialog in add mode and unions onto each target's live tags on save", () => {
+    const calls: SetTagsCall[] = []
+    let applied = 0
+    bulkAddTags({
+      suggestions: ['ramp', 'staple'],
+      targets: [
+        { cardName: 'Sol Ring', cardId: 1 },
+        { cardName: 'Mox Opal', cardId: 3 },
+        // A card added this session, with no `&N` yet.
+        { cardName: 'New Card' },
+      ],
+      liveTagsOf: (_name, cardId) => {
+        if (cardId === 1) return ['ramp']
+        if (cardId === 3) return ['Signed']
+        return undefined
+      },
+      setTags: (cardName, tags, currentTags, cardId) =>
+        calls.push({ cardName, tags, currentTags, cardId }),
+      onApplied: () => applied++,
+    })
+
+    const prompt = pendingTagsPrompt()
+    expect(prompt?.mode).toBe('add')
+    expect(prompt?.current).toBeUndefined()
+    expect(prompt?.suggestions).toEqual(['ramp', 'staple'])
+    // Nothing is applied — and the selection is not cleared — until a save.
+    expect(calls).toHaveLength(0)
+    expect(applied).toBe(0)
+
+    prompt?.onSave(['Signed', 'ramp'])
+    // Each target's own live set is the baseline, and a tag it already has is
+    // kept rather than doubled; the union is canonical.
+    expect(calls).toEqual([
+      { cardName: 'Sol Ring', tags: ['ramp', 'Signed'], currentTags: ['ramp'], cardId: 1 },
+      { cardName: 'Mox Opal', tags: ['ramp', 'Signed'], currentTags: ['Signed'], cardId: 3 },
+      { cardName: 'New Card', tags: ['ramp', 'Signed'], currentTags: undefined, cardId: undefined },
+    ])
+    expect(calls[2]?.cardId).toBeUndefined()
+    expect(applied).toBe(1)
+    closeTagsPrompt()
   })
 })

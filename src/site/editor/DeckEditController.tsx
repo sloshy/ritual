@@ -18,7 +18,8 @@ import { promptCardLanguage } from '../../list-view/language-prompt'
 import { promptCardTags } from '../../editor/tags-prompt'
 import { openCategoriesPrompt } from '../../editor/card-categories-edit'
 import { holdsCardName } from '../../card/card-categories'
-import { tagSuggestions } from '../../editor/card-tags-edit'
+import { bulkAddTags, tagSuggestions } from '../../editor/card-tags-edit'
+import type { CardTag } from '../../card/card-tags'
 import { useEditor } from '../../editor/useEditor'
 import { sharedBulkEdit } from '../../editor/shared-bulk-edit'
 import type { ListEditorConfig, UseEditorResult } from '../../editor/editor-config'
@@ -79,7 +80,12 @@ export type DeckEditController = SwapController & {
   handleMoveCardToList: (target: CardContextInfo, dest: ListRef) => void
   closeModal: () => void
   closeContextMenu: () => void
-  /** Bulk edit operations over a multi-select of deck cards. */
+  /**
+   * A line's tags as the live data holds them now — what every tag edit seeds
+   * from and consolidates against (see `card-tags-edit.ts`). A deck entry
+   * holds every copy under one `cardId`, so one lookup covers the tile.
+   */
+  liveTagsOf: (cardName: string, cardId?: number) => readonly CardTag[] | undefined
   /**
    * Bulk edit operations over a multi-select of deck cards. Each maps the
    * selection onto the controller's existing single-card primitives (quantity
@@ -308,6 +314,11 @@ export function useDeckEditController(
     mergeTargetId: deckSwapMergeTargetId,
   })
 
+  const liveTagsOf = (cardName: string, cardId?: number): readonly CardTag[] | undefined => {
+    const d = editor.data()
+    return d ? findDeckCard(d, cardName, cardId)?.tags : undefined
+  }
+
   const bulkEdit: DeckBulkEditBundle = {
     addCopy: (cards) => {
       for (const c of cards) handleIncrement(c.name)
@@ -348,6 +359,14 @@ export function useDeckEditController(
         for (const c of cards) handleSetLabelFor(c.name, labels, c.cardIds[0])
       })
     },
+    addTags: (cards, onApplied) =>
+      bulkAddTags({
+        suggestions: tagSuggestions(editor.data()?.sections.flatMap((s) => s.cards) ?? []),
+        targets: cards.map((c) => ({ cardName: c.name, cardId: c.cardIds[0] })),
+        liveTagsOf,
+        setTags: editor.handleSetTagsFor,
+        onApplied,
+      }),
     ...sharedBulkEdit(editor),
     swapPrintings: (cards) => swap.openSwapPrintings(cards.map(contextInfoFromSelected)),
     setCommander: (cards) => {
@@ -376,6 +395,7 @@ export function useDeckEditController(
     handleMoveCardToList,
     closeModal,
     closeContextMenu,
+    liveTagsOf,
     bulkEdit,
     ...swap,
   }
@@ -508,25 +528,20 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                 }}
                 onEditTags={() => {
                   const target = menu()
-                  const d = editor.data()
-                  // The line's live tags seed the field and are what the edit
-                  // consolidates against (see `card-tags-edit.ts`). A deck entry
-                  // holds every copy under one `cardId`, so one edit covers the tile.
-                  const current = d
-                    ? findDeckCard(d, target.cardName, target.cardIds[0])?.tags
-                    : undefined
-                  const suggestions = tagSuggestions(d?.sections.flatMap((s) => s.cards) ?? [])
+                  // The line's live tags seed the field (see `liveTagsOf`).
+                  const current = ctrl.liveTagsOf(target.cardName, target.cardIds[0])
+                  const suggestions = tagSuggestions(
+                    editor.data()?.sections.flatMap((s) => s.cards) ?? [],
+                  )
                   ctrl.closeContextMenu()
                   promptCardTags({
+                    mode: 'edit',
                     current,
                     suggestions,
                     // The baseline is re-read at save time, not the snapshot the
                     // dialog was seeded from: the delta decides which events exist.
                     onSave: (tags) => {
-                      const deck = editor.data()
-                      const live = deck
-                        ? findDeckCard(deck, target.cardName, target.cardIds[0])?.tags
-                        : undefined
+                      const live = ctrl.liveTagsOf(target.cardName, target.cardIds[0])
                       editor.handleSetTagsFor(target.cardName, tags, live, target.cardIds[0])
                     },
                   })

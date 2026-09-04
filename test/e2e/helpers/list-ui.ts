@@ -70,13 +70,17 @@ export async function enterEditMode(page: Page, hash?: string): Promise<void> {
 }
 
 /**
- * Hover the nth card tile and click its selection checkbox. The checkbox is a
+ * Hover a card tile and click its selection checkbox. The checkbox is a
  * toggle: this selects an unselected card and deselects a selected one.
  */
+export async function selectTile(tile: Locator): Promise<void> {
+  await tile.locator('.card-binder').hover()
+  await tile.locator('.card-select-checkbox').click()
+}
+
+/** {@link selectTile} on the nth card tile. */
 export async function selectCard(page: Page, index: number): Promise<void> {
-  const card = page.locator('.card-item').nth(index)
-  await card.locator('.card-binder').hover()
-  await card.locator('.card-select-checkbox').click()
+  await selectTile(page.locator('.card-item').nth(index))
 }
 
 /** Open the toolbar "Selected (N)" menu and return its panel. */
@@ -107,6 +111,18 @@ export async function removeCardTile(tile: Locator): Promise<void> {
 export async function openEditTags(page: Page, tile: Locator): Promise<Locator> {
   const menu = await openCardMenu(page, tile)
   await menu.locator('button', { hasText: 'Edit Tags…' }).click()
+  const dialog = page.locator('.tags-prompt')
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+/**
+ * Open the **Selected** menu's **Add Tag…** dialog over the current selection
+ * and return it — the bulk sibling of {@link openEditTags}.
+ */
+export async function openAddTags(page: Page): Promise<Locator> {
+  const panel = await openSelectionMenu(page)
+  await panel.locator('.selection-menu-item', { hasText: 'Add Tag…' }).click()
   const dialog = page.locator('.tags-prompt')
   await expect(dialog).toBeVisible()
   return dialog

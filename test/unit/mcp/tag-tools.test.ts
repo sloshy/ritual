@@ -187,4 +187,34 @@ describe('card tags over MCP', () => {
       /tags/,
     )
   })
+
+  test('export_cards filters.tags selects the tagged line', async () => {
+    const printingRef = await seedTaggedCollection(session)
+    await fs.appendFile(shoeboxPath(session), `- Mox Opal (${printingRef}) &2\n`)
+    const result = await client.callTool({
+      name: 'export_cards',
+      arguments: {
+        lists: [{ listType: 'collection', name: 'shoebox' }],
+        filters: { tags: ['ramp'] },
+        format: 'text',
+      },
+    })
+    const data = toolData<{ entryCount: number; content: string }>(result)
+    expect(data.entryCount).toBe(1)
+    expect(data.content).toContain('Sol Ring')
+  })
+
+  test('export_cards refuses a non-canonical filter tag at the schema', async () => {
+    await seedTaggedCollection(session)
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'export_cards',
+        arguments: {
+          lists: [{ listType: 'collection', name: 'shoebox' }],
+          filters: { tags: ['#ramp'] },
+        },
+      }),
+      TAG_SHAPE_REFUSAL,
+    )
+  })
 })

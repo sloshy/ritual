@@ -9,6 +9,7 @@ import {
   hasActiveExportFilters,
   parseConditionFilterValues,
   parseLabelFilterValues,
+  parseTagFilterInput,
   type ExportFilters,
 } from '../export/entries'
 import {
@@ -67,6 +68,8 @@ type ExportCommandOptions = {
   finish?: string
   condition?: string
   labels?: string
+  /** `--tags <list>`: comma-separated card tags, any of which selects a card. */
+  tags?: string
   /** The `--format <format>` export format, validated by its argParser. */
   format?: ExportFormat
   columns?: string
@@ -164,6 +167,15 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
       return undefined
     }
     filters.labels = labels
+  }
+  if (options.tags !== undefined) {
+    // The tag grammar owns its own comma split (spaces are part of a tag).
+    const tags = parseTagFilterInput(options.tags)
+    if (typeof tags === 'string') {
+      failWith(TEXT_ONLY, 'usage_error', tags)
+      return undefined
+    }
+    filters.tags = tags
   }
 
   let columns: ExportProperty[] | undefined
@@ -370,6 +382,7 @@ export function registerExportCommand(program: Command): void {
           none: CARD_LABEL_SELECTION_NONE,
         }),
       )
+      .option('--tags <list>', t('help.export.tags'))
       // Validated by the shared argParser, but deliberately given no commander
       // default: `undefined` must keep meaning "not given" so a preset's stored
       // format can fill it in (tri-state precedence).

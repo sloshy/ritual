@@ -223,6 +223,19 @@ export function withCardTag(tags: readonly CardTag[] | undefined, tag: CardTag):
 }
 
 /**
+ * The set with every tag of `added` present, canonical — the bulk-add union
+ * rule: a selection-wide "Add Tag…" *adds* the typed tags to each card's own
+ * set and never replaces it, so a tag the card already carries is a no-op and
+ * everything it had stays. `undefined` current tags are an empty set.
+ */
+export function withCardTags(
+  tags: readonly CardTag[] | undefined,
+  added: readonly CardTag[],
+): CardTag[] {
+  return normalizeCardTags([...(tags ?? []), ...added])
+}
+
+/**
  * The set with `tag` absent, or `undefined` when nothing is left — the stored
  * form (see {@link normalizedTags}).
  */

@@ -78,6 +78,7 @@ ritual set-card "Main Binder" "Sol Ring" --collection --label proxy     # not a 
 ritual set-card "Main Binder" "Sol Ring" --collection --label none      # back to the list default
 ritual add-card "Main Binder" "Mox Jet" --collection --set lea --collector-number 262 -c LP --label keep
 ritual export --collection --labels trade --columns name,set,collectorNumber,labels
+ritual export --collection --tags Signed --columns name,set,collectorNumber,tags
 \`\`\`
 
 The list-level default is set with \`ritual metadata\` (the scripting surface —

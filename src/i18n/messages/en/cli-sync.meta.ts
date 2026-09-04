@@ -830,6 +830,10 @@ export const cliSyncMeta = {
     description:
       'Filter summary segment for a label filter. {value} is a "/"-joined list of label slugs.',
   },
+  'cli.exportWizard.filterTags': {
+    description:
+      'Filter summary segment for a card-tag filter. {value} is the comma-joined list of tags as the owner writes them.',
+  },
   'cli.exportWizard.promptFilters': { description: 'Heading of the filter sub-menu.' },
   'cli.exportWizard.filterRowName': { description: 'Filter menu row for the card-name filter.' },
   'cli.exportWizard.filterRowSet': { description: 'Filter menu row for the set-code filter.' },
@@ -838,6 +842,10 @@ export const cliSyncMeta = {
     description: 'Filter menu row for the condition filter.',
   },
   'cli.exportWizard.filterRowLabels': { description: 'Filter menu row for the label filter.' },
+  'cli.exportWizard.filterRowTags': {
+    description:
+      'Filter menu row for the card-tag filter. {value} is the comma-joined tag list, or the "any" placeholder.',
+  },
   'cli.exportWizard.promptNameTerms': { description: 'Text prompt for the card-name filter.' },
   'cli.exportWizard.promptSetCode': { description: 'Text prompt for the set-code filter.' },
   'cli.exportWizard.promptFinish': { description: 'Heading of the finish filter picker.' },
@@ -850,6 +858,10 @@ export const cliSyncMeta = {
   'cli.exportWizard.promptLabels': { description: 'Heading of the label filter picker.' },
   'cli.exportWizard.noLabels': {
     description: 'Label filter choice matching cards carrying no label at all.',
+  },
+  'cli.exportWizard.promptTags': {
+    description:
+      'Text prompt for the card-tag filter: the user types tags separated by commas; an empty answer clears the filter.',
   },
 
   // ── `export` wizard — output shape ────────────────────────────────────

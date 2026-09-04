@@ -17,9 +17,10 @@
 import { batch, type Setter } from 'solid-js'
 import { tagEditChanges, type ChangeInput } from '../changes/change-event'
 import type { ApplyChange } from '../changes/apply-batch'
-import { normalizeCardTags, type CardTag } from '../card/card-tags'
+import { normalizeCardTags, withCardTags, type CardTag } from '../card/card-tags'
 import { compareDisplay } from '../i18n/collate'
 import type { TagEditResult, UseCardChangesResult } from './useCardChanges'
+import { promptCardTags } from './tags-prompt'
 
 /** What one tag edit targets and asks for. */
 export type CardTagsEdit = {
@@ -95,4 +96,57 @@ export function tagSuggestions(entries: readonly TaggedEntry[]): CardTag[] {
   // Chips a person reads, so display collation — the pinned data order
   // `normalizeCardTags` gives is for the file, not the eye.
   return normalizeCardTags(entries.flatMap((entry) => entry.tags ?? [])).sort(compareDisplay)
+}
+
+/** One line a bulk tag add targets: its card name and, when it has one, its `&N`. */
+export type TagTarget = { cardName: string; cardId?: number }
+
+/** What the selection menu's "Add Tag…" needs from the controller that opens it. */
+export type BulkAddTagsParams = {
+  /** The list's distinct tags, offered as one-click additions ({@link tagSuggestions}). */
+  suggestions: readonly CardTag[]
+  /**
+   * Every line the add applies to. The flat controllers expand a tile into its
+   * copies (a card added this session may have no `&N` yet, so one target
+   * with no id resolves by name); a deck tile is one line under one id.
+   */
+  targets: readonly TagTarget[]
+  /** A line's tags as the live data holds them *now*; read per target at save time. */
+  liveTagsOf: (cardName: string, cardId?: number) => readonly CardTag[] | undefined
+  /** The editor's per-line setter — `handleSetTagsFor`. */
+  setTags: (
+    cardName: string,
+    tags: readonly CardTag[],
+    currentTags: readonly CardTag[] | undefined,
+    cardId?: number,
+  ) => void
+  /**
+   * Runs once the union has been applied. The selection menu clears its
+   * selection here, so cancelling the dialog keeps the cards selected.
+   */
+  onApplied: () => void
+}
+
+/**
+ * The bulk "Add Tag…" gesture, once for every controller: open the tags dialog
+ * empty (`mode: 'add'`) and, on save, union the typed tags onto each target's
+ * *live* tag set — one `add-tag` per tag a line lacked, never a replacement.
+ * The baseline is re-read per target inside the batch, not taken from the
+ * selection snapshot: an earlier target in the same batch may share the line.
+ */
+export function bulkAddTags(params: BulkAddTagsParams): void {
+  promptCardTags({
+    mode: 'add',
+    current: undefined,
+    suggestions: params.suggestions,
+    onSave: (added) => {
+      batch(() => {
+        for (const target of params.targets) {
+          const live = params.liveTagsOf(target.cardName, target.cardId)
+          params.setTags(target.cardName, withCardTags(live, added), live, target.cardId)
+        }
+      })
+      params.onApplied()
+    },
+  })
 }

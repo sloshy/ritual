@@ -28,7 +28,7 @@ beforeEach(async () => {
     title: 'Binder',
     entries: [
       { name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
-      { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 2 },
+      { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 2, tags: ['ramp'] },
     ],
   })
 })
@@ -115,6 +115,37 @@ describe('handleExport', () => {
     // Accepting the casing is only half of it: the normalized values must then
     // *match*, so the LEA card comes back and the C21 one does not.
     expect(body).toMatchObject({ entryCount: 1 })
+  })
+
+  test('filters.tags narrows to tagged entries and refuses a malformed tag or a non-array', async () => {
+    const narrowed = await post({
+      lists: [{ type: 'collection', name: 'binder' }],
+      filters: { tags: ['ramp'] },
+      format: 'json',
+    })
+    expect(narrowed.status).toBe(200)
+    expect(narrowed.body).toMatchObject({ entryCount: 1 })
+    // The count alone cannot tell "kept the tagged one" from its inverse.
+    if (!('content' in narrowed.body)) throw new Error('expected content mode')
+    expect(narrowed.body.content).toContain('Sol Ring')
+    expect(narrowed.body.content).not.toContain('Lightning Bolt')
+
+    const malformed = await post({ filters: { tags: ['a#b'] } })
+    expect(malformed.status).toBe(400)
+    expect(malformed.body).toMatchObject({
+      success: false,
+      message: expect.stringContaining('Invalid tag'),
+    })
+
+    // Both shape refusals name the body path, not the parser's bare field.
+    for (const tags of ['ramp', [1]]) {
+      const refused = await post({ filters: { tags } })
+      expect(refused.status).toBe(400)
+      expect(refused.body).toMatchObject({
+        success: false,
+        message: 'filters.tags must be an array of tags.',
+      })
+    }
   })
 
   test('a malformed set filter is a 400 rather than a filter matching nothing', async () => {

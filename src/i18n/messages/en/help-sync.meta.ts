@@ -145,6 +145,10 @@ export const helpSyncMeta = {
     description:
       '`export --labels`. {labels} is a comma-separated list of literal label tokens and {none} the literal token selecting unlabeled cards.',
   },
+  'help.export.tags': {
+    description:
+      '`export --tags`: the flag takes comma-separated card tags and keeps cards carrying any of them, matched exactly. No placeholders.',
+  },
   'help.export.format': {
     description: '`export --format`. {formats} and csv are literal values.',
   },

@@ -330,6 +330,10 @@ export const siteCardsMeta = {
     description:
       'Bulk action setting the for-sale / for-trade / to-keep label on the selected cards. Collections only.',
   },
+  'site.selection.addTag': {
+    description:
+      'Bulk action opening the tags dialog to add tags to every selected card (existing tags are kept). Every list type.',
+  },
   'site.selection.moveToSection': {
     description: 'Bulk action moving the selected cards into another section of the same list.',
   },

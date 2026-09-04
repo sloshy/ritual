@@ -52,6 +52,7 @@ function harness(options: HarnessOptions = {}): Harness {
     changePrinting: record('changePrinting'),
     swapPrintings: withSwap ? record('swapPrintings') : undefined,
     setCommander: withCommander ? record('setCommander') : undefined,
+    addTags: (cards, onApplied) => calls.push({ name: 'addTags', cards, arg: onApplied }),
     moveToSection: (cards, section) => calls.push({ name: 'moveToSection', cards, arg: section }),
     promptNewSection: record('promptNewSection'),
     sections: () => ['Main', 'Sideboard'],
@@ -108,6 +109,19 @@ describe('buildSelectionEditActions', () => {
     ])
     for (const call of h.calls) expect(call.cards).toBe(h.cards)
     expect(h.cleared()).toBe(5)
+  })
+
+  test('addTags forwards the live selection and clears it only once the dialog applies', () => {
+    const h = harness()
+    h.actions.addTags()
+    expect(h.calls.map((c) => c.name)).toEqual(['addTags'])
+    expect(h.calls[0]?.cards).toBe(h.cards)
+    // Cancelling the dialog keeps the selection (as Set Label… does) …
+    expect(h.cleared()).toBe(0)
+    // … and saving clears it.
+    const onApplied = h.calls[0]?.arg as () => void
+    onApplied()
+    expect(h.cleared()).toBe(1)
   })
 
   test('setFoil/setNonfoil pass the finish', () => {

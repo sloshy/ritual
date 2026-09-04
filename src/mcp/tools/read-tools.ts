@@ -5,6 +5,7 @@ import { loadProjectedList, type ListProjection } from '../projection'
 import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../pricing/price-source'
 import { outputSchemaFor, runTool } from '../result'
 import {
+  cardTagSchema,
   currencySchema,
   finishSchema,
   languageSchema,
@@ -855,7 +856,7 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Render a CSV, JSON, plain-text, or Markdown export of cards from decks, collections, ' +
         'and wanted lists. Select whole lists and/or pick cards by name terms; filter by name, ' +
-        'set, finish, condition, or labels; choose the columns and their order (csv/json only — ' +
+        'set, finish, condition, labels, or tags; choose the columns and their order (csv/json only — ' +
         'text and md have fixed line formats). With no lists and no cards, every list is exported. ' +
         'By default the rendered export comes back inline and nothing is written to disk; with ' +
         'write: true it instead writes a server-named file under exports/ in the base dir and ' +
@@ -891,6 +892,15 @@ export function registerReadTools(server: McpServer): void {
                 'Only deck and collection cards whose effective labels (their override, else ' +
                   "the list default) include one of these; 'none' matches unlabeled cards. " +
                   'Wanted entries carry no labels and never match.',
+              ),
+            tags: z
+              .array(cardTagSchema)
+              .min(1)
+              .optional()
+              .describe(
+                'Only cards carrying one of these tags (exact, case-sensitive; every list ' +
+                  'type, wanted lists included). A card with no tags never matches; there is ' +
+                  "no 'none' value — none is an ordinary tag.",
               ),
           })
           .optional(),

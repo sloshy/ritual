@@ -362,6 +362,14 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
               type="button"
               role="menuitem"
               class="selection-menu-item"
+              onClick={() => runEdit(actions().addTags)}
+            >
+              {t('site.selection.addTag')}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
               onClick={() => {
                 props.onClose()
                 promptSectionMove(
