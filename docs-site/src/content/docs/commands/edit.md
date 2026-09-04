@@ -641,8 +641,9 @@ labels and before the note, the tags **comma-separated**, as many as you like:
 
 Tags are the open-vocabulary counterpart of [labels](#card-labels). A label is an instruction
 to Ritual drawn from a closed list (`[proxy]` changes pricing); a tag is your own word for the
-card and means whatever you meant — it drives grouping and sorting on the generated site and
-nothing else. The two are different token kinds on purpose: a `Keep` tag is a perfectly legal
+card and means whatever you meant — it drives
+[grouping, sorting and filtering](/public-site/filtering/#grouping-sorting-and-filtering-by-tags)
+on the generated site and nothing else. The two are different token kinds on purpose: a `Keep` tag is a perfectly legal
 tag with no connection to the `[keep]` label. A tag is plain text: spaces are fine
 (`Card Draw`) and its case is kept exactly as you wrote it (`Ramp` and `ramp` are two tags), but
 it cannot contain `#`, `,`, `&`, brackets, braces or parentheses — the line's own punctuation.

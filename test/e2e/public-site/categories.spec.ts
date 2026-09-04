@@ -12,7 +12,7 @@ import {
   removeCardTile,
   switchToListView,
 } from '../helpers/list-ui'
-import { openFilterMenu } from '../helpers/filter-menu'
+import { filterRow, openFilterMenu } from '../helpers/filter-menu'
 
 /**
  * Card categories on the public site: the two groupings (primary only, and every
@@ -105,7 +105,7 @@ test.describe('Card categories', () => {
 
     await field.fill('Ramp,')
     // The committed chip keeps the list's own capitalization.
-    const row = page.locator('.filter-row', { has: page.locator('#filter-categories') })
+    const row = filterRow(page, 'filter-categories')
     await expect(row.locator('.filter-tag')).toHaveText([/Ramp/])
     await expect(page).toHaveURL(/cats=Ramp/)
     await expect(page.locator('.list-name')).toHaveText(['Ramp Rock', 'Signet Rock'])
@@ -237,7 +237,7 @@ test.describe('Card categories — shared link', () => {
     await expect(page.locator('.toolbar select').first()).toHaveValue('categories')
 
     await openFilterMenu(page)
-    const row = page.locator('.filter-row', { has: page.locator('#filter-categories') })
+    const row = filterRow(page, 'filter-categories')
     await expect(row.locator('.filter-tag')).toHaveText([/Ramp/])
   })
 })

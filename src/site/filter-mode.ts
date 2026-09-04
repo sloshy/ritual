@@ -1,6 +1,7 @@
 /**
  * The three-way match mode shared by every multi-value card filter (color
- * identity, card types, oracle tags, art tags) and the matching helper behind it.
+ * identity, card types, oracle tags, art tags, card categories, card tags) and
+ * the matching helper behind it.
  *
  * Each of those filters compares a card's own set of values against the set the
  * user selected, and the mode picks which relationship counts as a match. Having
@@ -70,8 +71,12 @@ export const LIST_SHARE_MATCHES = ['name', 'printing'] as const
 export type ListShareMatch = (typeof LIST_SHARE_MATCHES)[number]
 
 /**
- * Does a card's `values` match `selected` under `mode`? `selected` entries are
- * lowercase. With nothing selected the filter is inactive, so this returns true.
+ * Does a card's `values` match `selected` under `mode`? Both sides must already
+ * be in the *same* canonical form — this helper never folds anything itself:
+ * the slug filters (card types, oracle/art tags) lowercase, the categories row
+ * folds both sides through `foldCardCategory`, and the card-tags row passes
+ * canonical, case-sensitive tags (`card-tag-filter.ts`). With nothing selected
+ * the filter is inactive, so this returns true.
  */
 export function matchesSelection(
   values: ReadonlySet<string>,

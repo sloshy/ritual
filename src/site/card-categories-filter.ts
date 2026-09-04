@@ -15,7 +15,7 @@ import {
   type CardCategory,
 } from '../card/card-categories'
 import { matchesSelection, type FilterMatchMode } from './filter-mode'
-import type { TagsInputScan } from './TagsInput'
+import { scanSeparatedTokens, type TagsInputScan } from './TagsInput'
 
 /**
  * Does a card's category list match the selected categories under the given
@@ -61,11 +61,7 @@ function commitCategoryTokens(value: string): CardCategory[] {
  * pasted list does not discard the good ones.
  */
 export function scanCardCategoryInput(value: string): TagsInputScan {
-  const lastComma = value.lastIndexOf(CARD_CATEGORY_SEPARATOR)
-  if (lastComma === -1) return { tags: [], remainder: value }
-  const head = value.slice(0, lastComma)
-  const remainder = value.slice(lastComma + 1)
-  return { tags: commitCategoryTokens(head), remainder }
+  return scanSeparatedTokens(value, CARD_CATEGORY_SEPARATOR, commitCategoryTokens)
 }
 
 /**

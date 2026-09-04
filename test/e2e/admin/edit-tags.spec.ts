@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page, type Route } from '@playwright/t
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
+import { filterRow, openFilterMenu } from '../helpers/filter-menu'
 import { fulfillJson } from '../helpers/fulfill'
 import { openEditTags } from '../helpers/list-ui'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
@@ -13,7 +14,8 @@ import { disableSearchDebounce } from '../helpers/search-modal'
  * public-site tags spec): the field is seeded with the line's tags, the deck's
  * other tags are offered as suggestions, every changed tag is its own pending
  * change, restoring the original set cancels it, and Save posts the events to
- * the deck save route.
+ * the deck save route. The Filters menu's Tags row narrows the editor the same
+ * way it narrows the public site.
  */
 
 function makeDeckCard(id: string, name: string, collectorNumber: string): ScryfallCard {
@@ -104,6 +106,26 @@ const tile = (page: Page, name: string): Locator =>
 test.describe('Deck Editor — card tags', () => {
   test.beforeEach(async ({ page }) => {
     await openTagDeck(page)
+  })
+
+  test('the tags filter narrows the editor and Clear restores it', async ({ page }) => {
+    await openFilterMenu(page)
+    const field = page.locator('#filter-card-tags')
+    await expect(field).toBeVisible()
+
+    await field.fill('staple,')
+    await expect(page.locator('.card-item')).toHaveCount(2)
+    await expect(tile(page, 'Sol Ring')).toBeVisible()
+    await expect(tile(page, 'Tag Rock')).toBeVisible()
+    await expect(tile(page, 'Mox Opal')).toHaveCount(0)
+
+    const row = filterRow(page, 'filter-card-tags')
+    await row.getByRole('button', { name: 'Exclude' }).click()
+    await expect(page.locator('.card-item')).toHaveCount(1)
+    await expect(tile(page, 'Mox Opal')).toBeVisible()
+
+    await page.locator('.filter-clear').click()
+    await expect(page.locator('.card-item')).toHaveCount(3)
   })
 
   test("Edit Tags… seeds the line, offers the deck's other tags, and consolidates", async ({

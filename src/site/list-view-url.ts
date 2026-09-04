@@ -40,6 +40,7 @@ import {
 } from '../list-view/card-sorting'
 import { GROUP_BYS } from './list-page-options'
 import { foldCardCategory, parseCardCategory } from '../card/card-categories'
+import { normalizeCardTag, parseCardTag } from '../card/card-tags'
 
 /** The per-page defaults that determine which group/sort values are omitted from the URL. */
 export type ListViewDefaults = {
@@ -111,6 +112,8 @@ const KEYS = {
   artTagMode: 'atagMode',
   cardCategories: 'cats',
   cardCategoryMode: 'catMode',
+  cardTags: 'tags',
+  cardTagMode: 'tagMode',
   manaValue: 'mv',
   manaValueOp: 'mvOp',
   price: 'price',
@@ -135,6 +138,25 @@ const KEYS = {
 function setOrDelete(params: URLSearchParams, key: string, value: string | null): void {
   if (value === null) params.delete(key)
   else params.set(key, value)
+}
+
+type SelectionParamKeys = { values: string; mode: string }
+
+/**
+ * Write one multi-value selection and its match mode: the values as a CSV, and
+ * the mode only while a selection is active *and* it differs from the default —
+ * a mode never rides alone, so a cleared filter leaves nothing in the link.
+ */
+function setSelectionParams(
+  params: URLSearchParams,
+  keys: SelectionParamKeys,
+  values: readonly string[],
+  mode: string,
+  defaultMode: string,
+): void {
+  const active = values.length > 0
+  setOrDelete(params, keys.values, active ? values.join(',') : null)
+  setOrDelete(params, keys.mode, active && mode !== defaultMode ? mode : null)
 }
 
 /**
@@ -208,44 +230,47 @@ export function writeListViewParams(
   )
   setOrDelete(params, KEYS.colorMode, hasColors && f.colorMode !== d.colorMode ? f.colorMode : null)
 
-  const hasSets = f.setCodes.length > 0
-  setOrDelete(params, KEYS.setCodes, hasSets ? f.setCodes.join(',') : null)
-  setOrDelete(
+  setSelectionParams(
     params,
-    KEYS.setCodeMode,
-    hasSets && f.setCodeMode !== d.setCodeMode ? f.setCodeMode : null,
+    { values: KEYS.setCodes, mode: KEYS.setCodeMode },
+    f.setCodes,
+    f.setCodeMode,
+    d.setCodeMode,
   )
-
-  const hasTypes = f.cardTypes.length > 0
-  setOrDelete(params, KEYS.cardTypes, hasTypes ? f.cardTypes.join(',') : null)
-  setOrDelete(
+  setSelectionParams(
     params,
-    KEYS.cardTypeMode,
-    hasTypes && f.cardTypeMode !== d.cardTypeMode ? f.cardTypeMode : null,
+    { values: KEYS.cardTypes, mode: KEYS.cardTypeMode },
+    f.cardTypes,
+    f.cardTypeMode,
+    d.cardTypeMode,
   )
-
-  const hasOracleTags = f.oracleTags.length > 0
-  setOrDelete(params, KEYS.oracleTags, hasOracleTags ? f.oracleTags.join(',') : null)
-  setOrDelete(
+  setSelectionParams(
     params,
-    KEYS.oracleTagMode,
-    hasOracleTags && f.oracleTagMode !== d.oracleTagMode ? f.oracleTagMode : null,
+    { values: KEYS.oracleTags, mode: KEYS.oracleTagMode },
+    f.oracleTags,
+    f.oracleTagMode,
+    d.oracleTagMode,
   )
-
-  const hasArtTags = f.artTags.length > 0
-  setOrDelete(params, KEYS.artTags, hasArtTags ? f.artTags.join(',') : null)
-  setOrDelete(
+  setSelectionParams(
     params,
-    KEYS.artTagMode,
-    hasArtTags && f.artTagMode !== d.artTagMode ? f.artTagMode : null,
+    { values: KEYS.artTags, mode: KEYS.artTagMode },
+    f.artTags,
+    f.artTagMode,
+    d.artTagMode,
   )
-
-  const hasCategories = f.cardCategories.length > 0
-  setOrDelete(params, KEYS.cardCategories, hasCategories ? f.cardCategories.join(',') : null)
-  setOrDelete(
+  setSelectionParams(
     params,
-    KEYS.cardCategoryMode,
-    hasCategories && f.cardCategoryMode !== d.cardCategoryMode ? f.cardCategoryMode : null,
+    { values: KEYS.cardCategories, mode: KEYS.cardCategoryMode },
+    f.cardCategories,
+    f.cardCategoryMode,
+    d.cardCategoryMode,
+  )
+  setSelectionParams(
+    params,
+    { values: KEYS.cardTags, mode: KEYS.cardTagMode },
+    f.cardTags,
+    f.cardTagMode,
+    d.cardTagMode,
   )
 
   const hasMana = f.manaValue !== null
@@ -386,6 +411,18 @@ function parseCategoryCsv(value: string | null): string[] | undefined {
   })
 }
 
+/**
+ * Parse the `tags` parameter: the owner's card tags, **case-sensitive** (`ramp`
+ * and `Ramp` are two chips), validated by the shipped tag grammar and deduped
+ * only by whitespace fold. Lenient per token like `parseCategoryCsv`.
+ */
+function parseTagCsv(value: string | null): string[] | undefined {
+  return parseCsvBy(value, normalizeCardTag, (raw) => {
+    const parsed = parseCardTag(raw)
+    return parsed.ok ? parsed.tag : undefined
+  })
+}
+
 /** A parsed color selection: WUBRG colors in canonical order, plus the colorless flag. */
 type ParsedColors = { colors: string[]; colorless: boolean }
 
@@ -473,6 +510,11 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (cardCategories) filters.cardCategories = cardCategories
   const cardCategoryMode = oneOf(get(KEYS.cardCategoryMode), FILTER_MATCH_MODES)
   if (cardCategoryMode) filters.cardCategoryMode = cardCategoryMode
+
+  const cardTags = parseTagCsv(get(KEYS.cardTags))
+  if (cardTags) filters.cardTags = cardTags
+  const cardTagMode = oneOf(get(KEYS.cardTagMode), FILTER_MATCH_MODES)
+  if (cardTagMode) filters.cardTagMode = cardTagMode
 
   const manaValue = parseIntegerParam(get(KEYS.manaValue))
   if (manaValue !== undefined) {

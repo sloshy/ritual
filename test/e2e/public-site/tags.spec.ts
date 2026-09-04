@@ -1,13 +1,15 @@
 import { test, expect, type Page } from '@playwright/test'
 import { mockPublicSiteCollectionWithTags } from '../helpers/mock-public-site'
-import { enterEditMode, gotoList, openEditTags } from '../helpers/list-ui'
+import { filterRow, openFilterMenu } from '../helpers/filter-menu'
+import { enterEditMode, gotoList, openEditTags, switchToListView } from '../helpers/list-ui'
 
 /**
  * Card tags on the public site: grouping by tag set (one heading per distinct
  * set, comma-joined, untagged last), the card modal's tag chips, and the
  * public editor's "Edit Tags…" flow — including the cancel rule, where clearing
- * a tag added this session leaves nothing pending. The ordering rules
- * themselves (sort by tags, heading order) are pinned at the unit layer.
+ * a tag added this session leaves nothing pending — plus the Filters menu's
+ * Tags row. The ordering and matching rules themselves (sort by tags, heading
+ * order, case-sensitive identity) are pinned at the unit layer.
  */
 
 const tile = (page: Page, name: string) => page.locator(`.card-item[data-name="${name}"]`)
@@ -46,6 +48,72 @@ test.describe('Card tags', () => {
     await tile(page, 'plain card').locator('.card-binder').click()
     await expect(modal).toBeVisible()
     await expect(modal.locator('.modal-card-tag')).toHaveCount(0)
+  })
+
+  test('the tags filter narrows the list, rides the URL, and Clear restores it', async ({
+    page,
+  }) => {
+    await switchToListView(page)
+    await openFilterMenu(page)
+    const field = page.locator('#filter-card-tags')
+    await expect(field).toBeVisible()
+    const row = filterRow(page, 'filter-card-tags')
+
+    // The suggestions are the list's own tags, searched case-insensitively —
+    // a lowercase query surfaces the capitalised tag — and picking one commits
+    // it exactly as the list spells it.
+    await field.fill('card d')
+    await expect(page.locator('.filter-tags-suggestions button')).toHaveText(['Card Draw'])
+    await page.locator('.filter-tags-suggestions button', { hasText: 'Card Draw' }).click()
+    await expect(row.locator('.filter-tag')).toHaveText([/Card Draw/])
+    await expect(page.locator('.list-name')).toHaveText(['Draw Spell'])
+    await row.locator('.filter-tag-remove').click()
+    await expect(row.locator('.filter-tag')).toHaveCount(0)
+
+    await field.fill('staple,')
+    await expect(row.locator('.filter-tag')).toHaveText([/staple/])
+    await expect(page.locator('.list-name')).toHaveText(['Staple Rock'])
+    // Anchored on the key boundary: `otags=` / `atags=` would satisfy a bare `tags=`.
+    await expect(page).toHaveURL(/[?&]tags=staple/)
+
+    // Exclude inverts the selection and travels too.
+    await row.getByRole('button', { name: 'Exclude' }).click()
+    await expect(page.locator('.list-name')).toHaveText(['Ramp Rock', 'Draw Spell', 'Plain Card'])
+    await expect(page).toHaveURL(/[?&]tagMode=exclude/)
+
+    // Clear restores every card and drops the keys from the link.
+    await page.locator('.filter-clear').click()
+    await expect(page.locator('.list-name')).toHaveText([
+      'Ramp Rock',
+      'Staple Rock',
+      'Draw Spell',
+      'Plain Card',
+    ])
+    await expect(page).not.toHaveURL(/[?&]tags=/)
+    // The mode never rides alone: a cleared selection takes its mode with it.
+    await expect(page).not.toHaveURL(/[?&]tagMode=/)
+  })
+})
+
+/**
+ * Opened cold, in its own describe: the app's toolbar state is module-level and
+ * survives an in-SPA navigation, so a link's parameters are only read on the
+ * first navigation of a test.
+ */
+test.describe('Card tags — shared link', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteCollectionWithTags(page)
+  })
+
+  test('a shared link restores a spaced tag chip and narrows the list', async ({ page }) => {
+    await gotoList(page, '#/collection/tag-binder?tags=Card%20Draw')
+    await expect(page.locator('.card-item')).toHaveCount(1)
+    await expect(tile(page, 'draw spell')).toBeVisible()
+
+    await openFilterMenu(page)
+    await expect(filterRow(page, 'filter-card-tags').locator('.filter-tag')).toHaveText([
+      /Card Draw/,
+    ])
   })
 })
 

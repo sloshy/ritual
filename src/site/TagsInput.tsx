@@ -9,6 +9,24 @@ export type TagsInputScan = {
   remainder: string
 }
 
+/**
+ * The one split every single-separator vocabulary row shares: everything before
+ * the *last* `separator` is committed through `commit` (which owns the row's
+ * grammar — what a token may be, how duplicates fold), and everything after it
+ * is the draft still being typed. With no separator in the field nothing
+ * commits and the whole value stays the draft. The quoted, whitespace-splitting
+ * card-type grammar is deliberately not built on this.
+ */
+export function scanSeparatedTokens(
+  value: string,
+  separator: string,
+  commit: (head: string) => string[],
+): TagsInputScan {
+  const last = value.lastIndexOf(separator)
+  if (last === -1) return { tags: [], remainder: value }
+  return { tags: commit(value.slice(0, last)), remainder: value.slice(last + separator.length) }
+}
+
 export type TagsInputProps = {
   /** Currently selected values, in canonical internal form (e.g. lowercase). */
   selected: string[]

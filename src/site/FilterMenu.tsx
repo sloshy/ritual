@@ -51,6 +51,8 @@ import { compareDisplay } from '../i18n/collate'
 import { TagsInput, type TagsInputScan } from './TagsInput'
 import { foldCardCategory } from '../card/card-categories'
 import { parseCardCategoryFilterInput, scanCardCategoryInput } from './card-categories-filter'
+import { normalizeCardTag } from '../card/card-tags'
+import { parseCardTagFilterInput, scanCardTagInput } from './card-tag-filter'
 import type { CardFiltersControl } from './useCardFilters'
 import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
 
@@ -283,6 +285,12 @@ const CATEGORY_MODE_COPY = {
   exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.categoryExact' },
 } as const satisfies Record<FilterMatchMode, FilterModeCopy>
 
+const CARD_TAG_MODE_COPY = {
+  include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.tagInclude' },
+  exclude: { labelKey: 'site.filterMode.exclude', titleKey: 'site.filterMode.tagExclude' },
+  exact: { labelKey: 'site.filterMode.exact', titleKey: 'site.filterMode.tagExact' },
+} as const satisfies Record<FilterMatchMode, FilterModeCopy>
+
 const COLOR_MODE_COPY = {
   subset: { labelKey: 'site.filterMode.subset', titleKey: 'site.filterMode.colorSubset' },
   include: { labelKey: 'site.filterMode.include', titleKey: 'site.filterMode.colorInclude' },
@@ -354,6 +362,11 @@ export interface FilterMenuProps {
    * the combined view) clean.
    */
   categoryOptions: string[]
+  /**
+   * The owner's card tags present in the current list (distinct, display-collated,
+   * case kept); the row is hidden when empty, like the categories row.
+   */
+  tagOptions: string[]
   /** Show the "Hide Extras" toggle (deck pages only). */
   showHideExtras?: boolean
   /** Show the Labels chip row (label-bearing views only). */
@@ -481,8 +494,8 @@ type TagFilterRowProps = {
 /**
  * A tag filter row (Oracle or Art): a match-mode toggle beside the heading and a
  * chip autocomplete. Tag slugs are lowercase, which is why the defaults
- * lowercase; a case-preserving vocabulary (categories) passes its own scanner,
- * parser and fold key.
+ * lowercase; a case-preserving vocabulary (categories, card tags) passes its own
+ * scanner, parser and fold key.
  */
 const TagFilterRow: Component<TagFilterRowProps> = (props) => {
   return (
@@ -702,6 +715,7 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
           oracleTagOptions={props.oracleTagOptions}
           artTagOptions={props.artTagOptions}
           categoryOptions={props.categoryOptions}
+          tagOptions={props.tagOptions}
           showHideExtras={props.showHideExtras}
           showLabelsFilter={props.showLabelsFilter}
           availableLabels={props.availableLabels}
@@ -1129,6 +1143,28 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
           scan={scanCardCategoryInput}
           parse={parseCardCategoryFilterInput}
           key={foldCardCategory}
+        />
+      </Show>
+      {/* The owner's own card tags: same visibility rule as categories. Suggestion
+          search is case-insensitive for convenience; the committed identity is not. */}
+      <Show when={props.tagOptions.length > 0 || props.filters.filters.cardTags.length > 0}>
+        <TagFilterRow
+          label={t('site.filter.tags')}
+          modeAriaLabel={t('site.filter.tagMode')}
+          inputId="filter-card-tags"
+          placeholder={t('site.filter.tagsPlaceholder')}
+          suggestionsLabel={t('site.filter.tagsSuggestions')}
+          options={props.tagOptions}
+          selected={props.filters.filters.cardTags}
+          modeOptions={modeOptions(FILTER_MATCH_MODES, CARD_TAG_MODE_COPY, t)}
+          mode={props.filters.filters.cardTagMode}
+          onTags={(cardTags) => props.filters.update({ cardTags })}
+          onMode={(cardTagMode) => props.filters.update({ cardTagMode })}
+          query={(draft) => draft.trim().toLowerCase()}
+          matches={(value, query) => query.length === 0 || value.toLowerCase().includes(query)}
+          scan={scanCardTagInput}
+          parse={parseCardTagFilterInput}
+          key={normalizeCardTag}
         />
       </Show>
       <NumericFilterRow

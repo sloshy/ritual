@@ -158,6 +158,7 @@ export function ListPageShell(props: ListPageShellProps): JSX.Element {
         oracleTagOptions={toolbar().oracleTagOptions()}
         artTagOptions={toolbar().artTagOptions()}
         categoryOptions={toolbar().categoryOptions()}
+        tagOptions={toolbar().tagOptions()}
         showHideExtras={props.showHideExtras}
         showLabelsFilter={toolbar().availableLabels().length > 0}
         availableLabels={toolbar().availableLabels()}

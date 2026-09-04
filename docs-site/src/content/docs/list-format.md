@@ -164,7 +164,7 @@ Anything between ` ``` ` or `~~~` fences in a list file is ignored: a card-looki
 
 ### Card tags vs. list tags
 
-A `#tags` token on a card line holds **card** tags — the owner's own free-form words for that copy (`Signed`, `Trade Binder`), which follow the card when it moves to another list, edited with [`set-card --tag`/`--untag`](/commands/set-card/#tag-updates), [`add-card --tag`](/commands/add-card/), or the editors' `🔖 Edit Tags` action, and recorded in the changelog one event per tag (`Added tag "Ramp" to "Sol Ring" &1`). It is the open-vocabulary counterpart of the closed `[labels]` vocabulary: a label instructs Ritual (`[proxy]` changes pricing), a tag means whatever its author meant and drives [grouping and sorting](/public-site/filtering/#grouping-and-sorting-by-tags) only.
+A `#tags` token on a card line holds **card** tags — the owner's own free-form words for that copy (`Signed`, `Trade Binder`), which follow the card when it moves to another list, edited with [`set-card --tag`/`--untag`](/commands/set-card/#tag-updates), [`add-card --tag`](/commands/add-card/), or the editors' `🔖 Edit Tags` action, and recorded in the changelog one event per tag (`Added tag "Ramp" to "Sol Ring" &1`). It is the open-vocabulary counterpart of the closed `[labels]` vocabulary: a label instructs Ritual (`[proxy]` changes pricing), a tag means whatever its author meant and drives [grouping, sorting and filtering](/public-site/filtering/#grouping-sorting-and-filtering-by-tags) only.
 
 A deck's front-matter `tags:` key is a different thing: it describes the **list itself** and never applies to any card on it. Only the `#tags` token on a card line holds card tags.
 

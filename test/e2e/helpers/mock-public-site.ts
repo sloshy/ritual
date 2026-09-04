@@ -2806,6 +2806,9 @@ const MOCK_CV_COLLECTION = makeCollectionDetail({
       fileOrder: 0,
       section: 'Main',
       cardId: 1,
+      // The only tagged card across the two lists, so the combined view's
+      // Tags filter row appears exactly when this collection joins it.
+      tags: ['staple'],
     },
   ],
   cards: { 'c19:221': MS_RING },

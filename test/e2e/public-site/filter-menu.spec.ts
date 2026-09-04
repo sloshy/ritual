@@ -241,11 +241,12 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['White Knight'])
   })
 
-  test('the categories row is absent on a list with no category vocabulary', async ({ page }) => {
+  test('the categories and tags rows are absent on a list that uses neither', async ({ page }) => {
     await openFilterMenu(page)
-    // The row renders only when the list actually uses categories, which is what
-    // keeps it off this deck (and off the combined view).
+    // Each row renders only when the list actually uses its vocabulary, which is
+    // what keeps both off this deck (and the categories row off the combined view).
     await expect(page.locator('#filter-categories')).toHaveCount(0)
+    await expect(page.locator('#filter-card-tags')).toHaveCount(0)
   })
 
   test('oracle tag filter matches by tag and inverts with Exclude', async ({ page }) => {

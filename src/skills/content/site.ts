@@ -374,6 +374,11 @@ reach the site in four places:
   category vocabulary. Matching is case-insensitive; the names keep their case in the chips and
   in the shared link.
 
+**Card tags** — the owner's own free-form tags, distinct from the Scryfall Oracle Tags / Art
+Tags rows — also get a **Tags** filter row (Include / Exclude / Exact), shown only on a list
+whose cards carry tags (the combined view included). Matching is exact and case-sensitive
+(\`Ramp\` and \`ramp\` are two tags) and the field commits on commas only.
+
 On a **deck** the board comes first and the categories nest inside it — headings read
 \`Main › Ramp\`, \`Sideboard › Draw\` — for both category groupings: every board takes part
 (commander, mainboard, sideboard, then each extras section under its own name). The other
@@ -382,8 +387,9 @@ groupings (type, mana value, tags, …) still group the mainboard only.
 Group headings follow the list's own \`order\` from the sidecar, with **Uncategorized** last —
 on a deck, last within each board.
 Shared links carry \`group=category\` / \`group=categories\`, \`sort=category\`, and the filter
-row's \`cats=Ramp,Board Wipes\` plus \`catMode=include|exclude|exact\`. The combined multi-list
-view offers none of the three, because each list has its own vocabulary.
+row's \`cats=Ramp,Board Wipes\` plus \`catMode=include|exclude|exact\`; the tags row rides as
+\`tags=Signed,Trade Binder\` plus \`tagMode=include|exclude|exact\`. The combined multi-list
+view offers none of the three category controls, because each list has its own vocabulary.
 
 The \`defaultCategories\` config key is the **global suggestion vocabulary**: it seeds a list
 that has declared no order of its own, and it seeds the one-click suggestions in the site

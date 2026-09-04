@@ -5,6 +5,7 @@ import { getFrontFaceName } from '../scryfall/card-utils'
 import { extractCardTypeTags, matchesCardTypes } from './card-types'
 import { matchesTags } from './card-tags'
 import { matchesCardCategories } from './card-categories-filter'
+import { matchesCardTags } from './card-tag-filter'
 import { cardCategorySpellings, foldCardCategory, type CardCategory } from '../card/card-categories'
 import { compareDisplay } from '../i18n/collate'
 import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
@@ -196,6 +197,14 @@ export interface CardFilters {
   cardCategories: string[]
   /** 'include': any selected category. 'exclude': none of them. 'exact': every one. */
   cardCategoryMode: FilterMatchMode
+  /**
+   * Selected card tags — the owner's own tags, matched by exact, case-sensitive
+   * identity (`Ramp` and `ramp` are two tags) — see `card-tag-filter.ts`.
+   * Empty = no tag filtering.
+   */
+  cardTags: string[]
+  /** 'include': any selected tag. 'exclude': none of them. 'exact': every one. */
+  cardTagMode: FilterMatchMode
   /** Mana value compared via `manaValueOp`. Null = no mana value filtering. */
   manaValue: number | null
   manaValueOp: ManaValueComparator
@@ -283,6 +292,8 @@ export function createDefaultCardFilters(): CardFilters {
     artTagMode: 'exact',
     cardCategories: [],
     cardCategoryMode: 'exact',
+    cardTags: [],
+    cardTagMode: 'exact',
     manaValue: null,
     manaValueOp: '=',
     price: null,
@@ -589,6 +600,7 @@ export function filterCards<T extends CardData>(
     if (!matchesCardCategories(card.categories, filters.cardCategories, filters.cardCategoryMode)) {
       return false
     }
+    if (!matchesCardTags(card.tags, filters.cardTags, filters.cardTagMode)) return false
     if (
       filters.manaValue !== null &&
       !compareNumeric(card.cmc, filters.manaValueOp, filters.manaValue)
@@ -629,6 +641,7 @@ export function countActiveFilters(filters: CardFilters): number {
   if (filters.oracleTags.length > 0) count++
   if (filters.artTags.length > 0) count++
   if (filters.cardCategories.length > 0) count++
+  if (filters.cardTags.length > 0) count++
   if (filters.manaValue !== null) count++
   if (filters.price !== null) count++
   if (filters.copies !== null) count++

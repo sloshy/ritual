@@ -409,6 +409,22 @@ export const siteChromeMeta = {
   'site.filter.categoriesSuggestions': {
     description: 'Label above the one-click category suggestions in the filter row.',
   },
+  'site.filter.tags': {
+    description:
+      "Heading for the filter row that narrows the list to selected card tags — the owner's own free-form tags on their cards, distinct from the Scryfall oracle/art tag rows.",
+  },
+  'site.filter.tagMode': {
+    description:
+      "Accessible name for the include/exclude/exact toggle on the card-tags filter row (the owner's own tags, not Scryfall oracle/art tags).",
+  },
+  'site.filter.tagsPlaceholder': {
+    description:
+      "Placeholder in the card-tags filter input; example tags of the owner's own, comma-separated (not Scryfall oracle/art tags).",
+  },
+  'site.filter.tagsSuggestions': {
+    description:
+      "Accessible name of the card-tag autocomplete list — the owner's own tags, distinct from the oracle/art tag lists.",
+  },
   'site.filter.manaValue': {
     description:
       'Heading of the filter matching on mana value — the total cost of a card, a whole number. The game\'s own term, previously "converted mana cost".',
@@ -523,6 +539,15 @@ export const siteChromeMeta = {
   'site.filterMode.categoryInclude': { description: MATCH_MODE_CONTEXT },
   'site.filterMode.categoryExclude': { description: MATCH_MODE_CONTEXT },
   'site.filterMode.categoryExact': { description: MATCH_MODE_CONTEXT },
+  'site.filterMode.tagInclude': {
+    description: `${MATCH_MODE_CONTEXT} The tags are the owner's own card tags, not Scryfall oracle/art tags.`,
+  },
+  'site.filterMode.tagExclude': {
+    description: `${MATCH_MODE_CONTEXT} The tags are the owner's own card tags, not Scryfall oracle/art tags.`,
+  },
+  'site.filterMode.tagExact': {
+    description: `${MATCH_MODE_CONTEXT} The tags are the owner's own card tags, not Scryfall oracle/art tags.`,
+  },
   'site.filterMode.colorSubset': {
     description: `${MATCH_MODE_CONTEXT} This one describes deck legality: every colour the card needs is among the selected ones.`,
   },

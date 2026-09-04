@@ -591,6 +591,10 @@ describe('countActiveFilters', () => {
     expect(countActiveFilters(makeFilters({ cardCategories: ['Ramp', 'Draw'] }))).toBe(1)
   })
 
+  test('the tags row counts once, however many chips it holds', () => {
+    expect(countActiveFilters(makeFilters({ cardTags: ['ramp', 'staple'] }))).toBe(1)
+  })
+
   test('mana value 0 counts as active', () => {
     expect(countActiveFilters(makeFilters({ manaValue: 0 }))).toBe(1)
   })
@@ -842,6 +846,43 @@ describe('filterCards — categories', () => {
 
   test('an empty selection filters nothing', () => {
     expect(filterCards(cards, makeFilters({ cardCategories: [] }))).toEqual(cards)
+  })
+})
+
+describe('filterCards — tags', () => {
+  const rock = makeCard({ name: 'Staple Rock', tags: ['ramp', 'staple'] })
+  const draw = makeCard({ name: 'Draw Spell', tags: ['Card Draw'] })
+  const plain = makeCard({ name: 'Plain Card' })
+  const cards = [rock, draw, plain]
+
+  test('include keeps cards carrying any selected tag', () => {
+    const result = filterCards(
+      cards,
+      makeFilters({ cardTags: ['Card Draw'], cardTagMode: 'include' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Draw Spell'])
+  })
+
+  test('identity is case-sensitive at this layer too', () => {
+    const result = filterCards(cards, makeFilters({ cardTags: ['Ramp'], cardTagMode: 'include' }))
+    expect(result).toEqual([])
+  })
+
+  test('exclude drops them and keeps the untagged card', () => {
+    const result = filterCards(cards, makeFilters({ cardTags: ['ramp'], cardTagMode: 'exclude' }))
+    expect(result.map((c) => c.name)).toEqual(['Draw Spell', 'Plain Card'])
+  })
+
+  test('exact demands every selected tag', () => {
+    const result = filterCards(
+      cards,
+      makeFilters({ cardTags: ['ramp', 'staple'], cardTagMode: 'exact' }),
+    )
+    expect(result.map((c) => c.name)).toEqual(['Staple Rock'])
+  })
+
+  test('an empty selection filters nothing', () => {
+    expect(filterCards(cards, makeFilters({ cardTags: [] }))).toEqual(cards)
   })
 })
 

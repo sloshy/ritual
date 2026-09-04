@@ -558,6 +558,65 @@ describe('category filter parameters', () => {
   })
 })
 
+describe('tag filter parameters', () => {
+  test('an empty selection writes neither key', () => {
+    const params = encode(defaultState())
+    expect(params.has('tags')).toBe(false)
+    expect(params.has('tagMode')).toBe(false)
+  })
+
+  test('a selection round-trips with its spelling and spaces intact', () => {
+    const filters = createDefaultCardFilters()
+    filters.cardTags = ['Card Draw', 'staple']
+    const params = encode(defaultState({ filters }))
+    expect(params.get('tags')).toBe('Card Draw,staple')
+    // The mode at its default stays out of the URL.
+    expect(params.has('tagMode')).toBe(false)
+    expect(parseListViewParams(params).filters?.cardTags).toEqual(['Card Draw', 'staple'])
+  })
+
+  test('a shared link is case-sensitive: ramp and Ramp are two chips', () => {
+    const parsed = parseListViewParams(new URLSearchParams('tags=ramp,Ramp'))
+    expect(parsed.filters?.cardTags).toEqual(['ramp', 'Ramp'])
+  })
+
+  test('whitespace variants of one tag dedupe', () => {
+    const parsed = parseListViewParams(new URLSearchParams('tags=ramp,%20ramp'))
+    expect(parsed.filters?.cardTags).toEqual(['ramp'])
+  })
+
+  test('a token the tag grammar refuses is dropped, the rest apply', () => {
+    const parsed = parseListViewParams(new URLSearchParams('tags=R%26D,ramp'))
+    expect(parsed.filters?.cardTags).toEqual(['ramp'])
+    expect(parseListViewParams(new URLSearchParams('tags=R%26D')).filters).toBeUndefined()
+  })
+
+  test('a leading # is tolerated, as the tag parser does everywhere', () => {
+    const parsed = parseListViewParams(new URLSearchParams('tags=%23ramp'))
+    expect(parsed.filters?.cardTags).toEqual(['ramp'])
+  })
+
+  test('the tag keys count as list-view parameters', () => {
+    expect(hasListViewParams(new URLSearchParams('tags=ramp'))).toBe(true)
+    expect(hasListViewParams(new URLSearchParams('tagMode=exclude'))).toBe(true)
+  })
+
+  test('a mode with no selection still overrides, exactly as the other modes do', () => {
+    expect(parseListViewParams(new URLSearchParams('tagMode=exclude')).filters).toEqual({
+      cardTagMode: 'exclude',
+    })
+  })
+
+  test('a non-default mode rides with an active selection', () => {
+    const filters = createDefaultCardFilters()
+    filters.cardTags = ['ramp']
+    filters.cardTagMode = 'exclude'
+    const params = encode(defaultState({ filters }))
+    expect(params.get('tagMode')).toBe('exclude')
+    expect(parseListViewParams(params).filters?.cardTagMode).toBe('exclude')
+  })
+})
+
 describe('share filter parameters', () => {
   test('default (empty) share filters write none of the five keys', () => {
     const params = encode(defaultState())

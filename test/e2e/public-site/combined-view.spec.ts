@@ -161,9 +161,16 @@ test.describe('Combined list view', () => {
     const panel = await openFilterMenu(page)
     const labelChips = panel.getByRole('group', { name: 'Label filter' }).getByRole('button')
     await expect(labelChips).toHaveText(['Proxy', 'Unlabeled'])
+    // The deck carries no tags, so the Tags row is withheld as on any untagged list.
+    await expect(page.locator('#filter-card-tags')).toHaveCount(0)
 
     await gotoCombined(page, 'lists=deck:cv-deck,collection:cv-box')
     await expect(labelChips).toHaveText(['For sale', 'For trade', 'To keep', 'Proxy', 'Unlabeled'])
+    // A tag is a copy property with one vocabulary, so the combined view offers
+    // the Tags row once a tagged card joins it — unlike categories, which are
+    // per-list and never appear here.
+    await expect(page.locator('#filter-card-tags')).toHaveCount(1)
+    await expect(page.locator('#filter-categories')).toHaveCount(0)
   })
 
   test('cards in the combined view are multi-selectable', async ({ page }) => {

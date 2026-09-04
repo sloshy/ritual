@@ -41,6 +41,7 @@ import {
 } from '../list-view/card-sorting'
 import type { CombinedListRef, NamedListRef } from '../list-view/combined-list'
 import { cartBuyer } from '../list-view/sell-mode'
+import { tagSuggestions } from '../editor/card-tags-edit'
 import {
   buildSelectionEditActions,
   type BulkEditBundle,
@@ -239,6 +240,8 @@ export type ListPageToolbarView = Pick<
   artTagOptions: Accessor<string[]>
   /** The category names present on this page, in the list's vocabulary order. */
   categoryOptions: Accessor<string[]>
+  /** The owner's card tags present on this page, distinct and display-collated. */
+  tagOptions: Accessor<string[]>
   availableLabels: Accessor<readonly CardLabelSelection[]>
   /** The share filters' other lists — never this page's own. */
   shareLists: Accessor<readonly NamedListRef[]>
@@ -395,6 +398,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
   const categoryOptions = createMemo(() =>
     collectCardCategories(config.cards(), config.categoryOrder?.() ?? []),
   )
+  const tagOptions = createMemo(() => tagSuggestions(config.cards()))
   const untaggedAddedNames = createMemo(() =>
     isTagFilterActive(cardFilters.filters)
       ? untaggedAddedCardNames(config.cards(), config.addedCardNames?.() ?? [])
@@ -477,6 +481,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     oracleTagOptions,
     artTagOptions,
     categoryOptions,
+    tagOptions,
     availableLabels: config.options.availableLabels,
     shareLists: otherShareLists,
     cardWidth: () => CARD_SIZE_WIDTHS[toolbar.cardSize()],
