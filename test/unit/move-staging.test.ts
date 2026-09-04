@@ -8,6 +8,7 @@ import {
 } from '../../src/list/move-staging'
 import type { PhysicalCard } from '../../src/list/move-staging'
 import type { DeckData } from '../../src/list/deck'
+import type { Card } from '../../src/card/card'
 import { scratchListPath } from '../test-utils'
 import path from 'node:path'
 import { commitStagedCategoryPrunes, stagedCardNames } from '../../src/list/move-staging'
@@ -214,6 +215,119 @@ describe('applyAddToStaged (deck) ID allocation', () => {
     expect(main).toHaveLength(1)
     expect(main[0]!.quantity).toBe(2)
     expect(main[0]!.cardId).toBe(1)
+  })
+})
+
+describe('applyAddToStaged (deck) finish and condition identity', () => {
+  const printing: Pick<PhysicalCard, 'set' | 'collectorNumber'> = {
+    set: 'c21',
+    collectorNumber: '167',
+  }
+
+  function solRingDeck(line?: Partial<Card>): DeckData {
+    return {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 1, name: 'Sol Ring', ...printing, cardId: 1, ...line }],
+        },
+      ],
+    }
+  }
+
+  test('a foil copy never merges onto the nonfoil line of the same printing', () => {
+    const deck = solRingDeck()
+    const staged = deckStaged(deck)
+
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { ...printing, finish: 'foil' }),
+      'deck',
+    )
+
+    expect(result.merged).toBe(false)
+    const main = deck.sections[0]!.cards
+    expect(main).toHaveLength(2)
+    expect(main[0]!.quantity).toBe(1)
+    // bun's toEqual ignores undefined-valued keys — assert the bare line
+    // explicitly stayed bare.
+    expect(main[0]!.finish).toBeUndefined()
+    expect(main[1]).toMatchObject({ quantity: 1, finish: 'foil', cardId: 2 })
+  })
+
+  test('an LP copy never merges onto the NM line of the same printing', () => {
+    const deck = solRingDeck()
+    const staged = deckStaged(deck)
+
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { ...printing, condition: 'LP' }),
+      'deck',
+    )
+
+    expect(result.merged).toBe(false)
+    const main = deck.sections[0]!.cards
+    expect(main).toHaveLength(2)
+    expect(main[0]!.quantity).toBe(1)
+    expect(main[0]!.condition).toBeUndefined()
+    expect(main[1]).toMatchObject({ quantity: 1, condition: 'LP', cardId: 2 })
+  })
+
+  test('the same finish and condition still merge', () => {
+    const deck = solRingDeck({ finish: 'foil', condition: 'LP' })
+    const staged = deckStaged(deck)
+
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { ...printing, finish: 'foil', condition: 'LP' }),
+      'deck',
+    )
+
+    expect(result).toMatchObject({ merged: true, cardId: 1 })
+    const main = deck.sections[0]!.cards
+    expect(main).toHaveLength(1)
+    expect(main[0]!.quantity).toBe(2)
+  })
+
+  test('a copy stating the bare-line defaults still merges onto the bare line', () => {
+    // The site path: `printingForMove` carries the baked, `displayFinish`-resolved
+    // finish, so an ordinary copy arrives as an explicit `nonfoil`/`NM`/`en` and
+    // must land ON the bare line, not beside it.
+    const deck = solRingDeck()
+    const staged = deckStaged(deck)
+
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { ...printing, finish: 'nonfoil', condition: 'NM', language: 'en' }),
+      'deck',
+    )
+
+    expect(result).toMatchObject({ merged: true, cardId: 1 })
+    const main = deck.sections[0]!.cards
+    expect(main).toHaveLength(1)
+    expect(main[0]!.quantity).toBe(2)
+    expect(main[0]!.finish).toBeUndefined()
+    expect(main[0]!.condition).toBeUndefined()
+    expect(main[0]!.language).toBeUndefined()
+  })
+
+  test('a [ja] copy never merges onto the English line of the same printing', () => {
+    const deck = solRingDeck()
+    const staged = deckStaged(deck)
+
+    const result = applyAddToStaged(
+      staged,
+      physicalCard('Sol Ring', { ...printing, language: 'ja' }),
+      'deck',
+    )
+
+    expect(result.merged).toBe(false)
+    const main = deck.sections[0]!.cards
+    expect(main).toHaveLength(2)
+    expect(main[0]!.quantity).toBe(1)
+    expect(main[0]!.language).toBeUndefined()
+    expect(main[1]).toMatchObject({ quantity: 1, language: 'ja', cardId: 2 })
   })
 })
 

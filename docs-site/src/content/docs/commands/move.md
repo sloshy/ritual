@@ -127,6 +127,7 @@ The session requires a terminal with prompts enabled. When prompts are unavailab
 Key behaviors:
 
 - **Deck moves**: Moving a card from a deck decrements its quantity by 1. The line is removed when quantity reaches 0.
+- **Deck merges**: a copy arriving in a deck joins an existing line only when it agrees on card, printing, finish, condition, language, labels and tags — the same rule the editors' add uses. A `[foil]` or `[LP]` copy lands on its own line beside the plain one rather than losing its token.
 - **Note preservation**: Notes (`{note}`) on deck, collection, and wanted list entries are carried over to the destination list. The one exception is a quantity-merge onto an existing deck line that already carries a different note — the existing note wins and the dropped note is reported after saving.
 - **Tag preservation**: A card's tags travel with the move on every list type — all three types carry [tags](/commands/edit/#card-tags) — and, like labels, are part of the identity a deck destination merges on: a tagged copy lands on its own line rather than folding into an untagged one.
 - **Label preservation**: A card's `[labels]` override travels with the move, filtered on arrival to what the destination type [carries](/commands/edit/#card-labels): another collection keeps all of it, a deck keeps `proxy` and drops the rest, and a wanted list keeps none. A move never invents a label, and never writes one the destination grammar cannot express. (The list _default_ never travels — the destination's own front matter applies.)

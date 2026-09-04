@@ -29,7 +29,7 @@ import {
 } from './markdown-fence'
 import type { Card } from '../card/card'
 import type { DeckData } from './deck'
-import type { ListRef, PrintingTuple } from '../changes/change-event'
+import { isSamePrinting, type ListRef, type PrintingTuple } from '../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
 import { t } from '../i18n/t'
@@ -742,11 +742,13 @@ function applyAddToDeck(
   const existing = targetSection.cards.find(
     (c) =>
       c.name === card.name &&
-      c.set?.toLowerCase() === card.set?.toLowerCase() &&
-      c.collectorNumber === card.collectorNumber &&
-      // Language distinguishes variants like the printing does: a `[ja]` copy
-      // must never merge onto (or absorb) an English line.
-      (c.language ?? 'en') === (card.language ?? 'en') &&
+      // The printing half is `isSamePrinting`: set, collector number, finish,
+      // condition and language, absent tokens folded to their bare-line
+      // defaults — the same rule the editors' `mergesOntoCard`
+      // (`deck-changes.ts`) and `add-card`'s `findDeckMergeLineIndex`
+      // (`line-mutate.ts`) merge on, so a `[foil]` or `[LP]` copy lands beside
+      // the plain line instead of losing its token on it.
+      isSamePrinting(c, card) &&
       // Labels distinguish them the same way: merging a proxy into the line
       // holding real copies would either lose the `[proxy]` or spread it.
       sameCardLabels(c.labels, labels) &&
