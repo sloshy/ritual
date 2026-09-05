@@ -176,13 +176,13 @@ If the recorded collection state exists but cannot be read, that is reported as 
 Collection: sync state unreadable (the file is not valid JSON).
 ```
 
-The reason lands in `collectionStateError` under `--output json`, and as a `{"kind":"collection-state-error","reason":...}` row under `--output ndjson`. The listing is the whole payload, so `status` registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)). Being read-only, it never triggers the card-ID backfill.
+The reason lands in `collectionStateError` under `--output json`, and as a `{"kind":"collection-state-error","reason":...}` row under `--output ndjson`. The listing is the whole payload, so `status` registers no `--quiet` ([shared convention](/cli-conventions/#scripting)). Being read-only, it never triggers the card-ID backfill.
 
 The same data backs the admin Sync Decks page and the MCP `get_sync_status` tool.
 
 ## Unreadable Lines
 
-Both directions rewrite the deck file, so a line the parser cannot read (a stray comment, a malformed card line) would be **deleted** by the save. A [fenced code block](/commands/edit/#fenced-code-blocks) counts too: it parses cleanly as prose, but the canonical serializer cannot re-emit it, so a sync would delete it just the same. Rather than let that happen silently, a sync lists every affected deck and the exact lines at stake, then asks:
+Both directions rewrite the deck file, so a line the parser cannot read (a stray comment, a malformed card line) would be **deleted** by the save. A [fenced code block](/list-format/#fenced-code-blocks) counts too: it parses cleanly as prose, but the canonical serializer cannot re-emit it, so a sync would delete it just the same. Rather than let that happen silently, a sync lists every affected deck and the exact lines at stake, then asks:
 
 ```
 1 deck contains lines Ritual cannot read.

@@ -33,7 +33,7 @@ ritual history [listName] [options]
 | `--limit <n>`       | With `--show`: print only the newest `<n>` change sets (positive integer) |
 | `--output <format>` | Output format for `--show`: `text` (default), `json`, or `ndjson`         |
 
-`--show` prints its payload and the editor needs a terminal, so `history` registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
+`--show` prints its payload and the editor needs a terminal, so `history` registers no `--quiet` ([shared convention](/cli-conventions/#scripting)).
 
 `--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` and `--output json`/`ndjson` both require `--show`.
 

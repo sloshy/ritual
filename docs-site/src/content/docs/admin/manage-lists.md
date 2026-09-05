@@ -23,7 +23,7 @@ A live preview of the resulting file name is shown below the input on both the C
 
 ## Decks
 
-A deck is a Markdown file in the configured `decksDir` (defaults to `decks/`) with YAML front matter (`name`, `format`, `created`, `description`, `tags`, `labels`, `sourceId`, `sourceUrl`). `labels` holds the deck's [default card labels](/commands/edit/#card-labels), `proxy` alone on a deck.
+A deck is a Markdown file in the configured `decksDir` (defaults to `decks/`) with YAML front matter (`name`, `format`, `created`, `description`, `tags`, `labels`, `sourceId`, `sourceUrl`). `labels` holds the deck's [default card labels](/list-format/#card-labels), `proxy` alone on a deck.
 
 ### Creating a deck
 
@@ -59,7 +59,7 @@ You must type the **exact deck name** before the Delete button becomes active. D
 
 ## Collections
 
-A collection is a Markdown file in the configured `collectionsDir` (defaults to `collections/`). Collection files are simpler than decks: an optional YAML front-matter block holding the list's [default card labels](/commands/edit/#collection-front-matter), then a top-level `# Title` heading followed by card lines, optionally organized under `## Section Name` (H2) headers (see the [collection format](/commands/edit/#sections)).
+A collection is a Markdown file in the configured `collectionsDir` (defaults to `collections/`). Collection files are simpler than decks: an optional YAML front-matter block holding the list's [default card labels](/list-format/#default-labels-and-descriptions), then a top-level `# Title` heading followed by card lines, optionally organized under `## Section Name` (H2) headers (see the [collection format](/list-format/#title-and-sections)).
 
 ### Creating a collection
 
@@ -82,7 +82,7 @@ Click **Delete** next to any collection. As with decks, you must type the exact 
 
 ## Wanted Lists
 
-A wanted list is a Markdown file in the configured `wantedDir` (defaults to `wanted/`). It uses the same simple format as a collection: a `# Title` heading followed by card lines (without condition fields), optionally organized under `## Section Name` (H2) headers (see the [wanted format](/commands/edit/#sections)).
+A wanted list is a Markdown file in the configured `wantedDir` (defaults to `wanted/`). It uses the same simple format as a collection: a `# Title` heading followed by card lines (without condition fields), optionally organized under `## Section Name` (H2) headers (see the [wanted format](/list-format/#title-and-sections)).
 
 The Create / Rename / Delete flow is identical to **Collections**, including the changelog and custom-art sidecar handling.
 

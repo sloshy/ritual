@@ -26,7 +26,7 @@ Both list names resolve like every list command (see [List Names](/list-resoluti
 | `--by <mode>`       | Identity to compare by: `name` or `printing` | `name`  |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`   | `text`  |
 
-A diff prints its payload plus parse warnings and nothing else, so it registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
+A diff prints its payload plus parse warnings and nothing else, so it registers no `--quiet` ([shared convention](/cli-conventions/#scripting)).
 
 ## Identity modes
 

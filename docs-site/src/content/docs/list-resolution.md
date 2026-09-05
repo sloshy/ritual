@@ -66,7 +66,7 @@ ritual delete deck:"Trade Binder" --collection
 
 Commands that take **more than one** list cannot be scoped one argument at a time by a single whole-command flag, so the prefix is the mechanism their ambiguity errors suggest. That covers [`diff`](/commands/diff/)'s two sides, [`move`](/commands/move/)'s `--from`/`--to`, and the list arguments of [`export`](/commands/export/) and [`sell`](/commands/sell/). [`lists`](/commands/lists/) does not resolve a name at all, but accepts the same three flags to filter which types it enumerates.
 
-Single-type commands (`deck-sync`, `collection-sync`, `get-primer`) already know their type, so they never need a flag. They match names by the same case- and accent-insensitive, substring, ambiguity-aware rules.
+Single-type commands (`deck-sync`, `collection-sync`, `get-primer`, and the CSV importer) already know their type, so they never need a flag. They match names by the same case- and accent-insensitive, substring, ambiguity-aware rules, and their ambiguity errors always take the first row of the table below.
 
 ### What the ambiguity error advises
 
@@ -84,8 +84,6 @@ The error always lists every match. The remedy line under it names the mechanism
 A type selector can never break a tie between two lists of the same type, so the same-type case always asks for a longer name. A type is only suggested when it holds exactly **one** match; pinning a type that would just produce a second ambiguity error is never offered, and when no type qualifies the error asks for a longer name instead.
 
 The suggested example name is always one that would actually resolve. When two files fold to the same name (`Storm Crow.md` and `storm-crow.md`), a longer name would not help, so the advice asks for one list's exact full name, which the byte-exact tier honors. Only when the matches are byte-identical (the same file name under two different list types) is no example offered, because no name can break that tie.
-
-Single-type commands (`get-primer`, the sync engines, the CSV importer) resolve within one type, so their ambiguities are always same-type and always take the first row.
 
 ## Examples
 

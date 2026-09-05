@@ -17,7 +17,7 @@ A list's front-matter [`description:`](/commands/metadata/), the blurb the built
 
 ## How editing works
 
-Each card displays **+** and **−** buttons to add or remove copies. Reducing a card's quantity to zero removes it entirely. In binder and overlap views these appear as transparent overlay buttons on hover. In list view they appear inline. The **⋯** button (or a right-click) opens the card's [context menu](#context-menu) for everything else, and **+ Add Card** in the bottom [action bar](#editor-action-bar) adds new cards.
+Each card displays **+** and **−** buttons to add or remove copies. Reducing a card's quantity to zero removes it entirely. In binder and overlap views the **+** and **−** buttons appear as transparent overlays on hover. In list view they appear inline. The **⋯** button (or a right-click) opens the card's [context menu](#context-menu) for everything else, and **+ Add Card** in the bottom [action bar](#editor-action-bar) adds new cards.
 
 ### Change Tracking
 
@@ -38,11 +38,11 @@ All edits are tracked as in-memory change events until explicitly saved.
 
 The same confirmation appears automatically whenever you navigate away with pending changes: selecting a different file in the dropdown, switching the **Decks** / **Collections** / **Wanted Lists** tab, moving to another page via the admin sidebar, or logging out. Confirming discards the pending changes and proceeds. Cancelling keeps you on the current file with your changes intact. Changes you want to keep must be saved explicitly first. Reloading or closing the browser tab with pending changes triggers the browser's own "leave site?" prompt as a final safeguard.
 
-A save re-serializes the whole file from its parsed cards, so it can only be applied to a file the parsers read completely. If the file on disk holds a line the parser cannot read (a stray comment, a malformed card line) or a [fenced code block](/commands/edit/#fenced-code-blocks), which parses cleanly as prose but which the canonical serializer cannot emit, the save is [refused with a `400`](/admin/api/#unreadable-lines-block-a-save) naming each offending piece, and nothing is written. Fix or remove it in the file and reload. The same content is reported up front when the editor loads, so the problem is visible before you start editing.
+A save re-serializes the whole file from its parsed cards, so it can only be applied to a file the parsers read completely. If the file on disk holds a line the parser cannot read (a stray comment, a malformed card line) or a [fenced code block](/list-format/#fenced-code-blocks), which parses cleanly as prose but which the canonical serializer cannot emit, the save is [refused with a `400`](/admin/api/#unreadable-lines-block-a-save) naming each offending piece, and nothing is written. Fix or remove it in the file and reload. The same content is reported up front when the editor loads, so the problem is visible before you start editing.
 
-### What a saved line looks like
+### What a saved deck line looks like
 
-A saved card line carries the card's printing metadata as optional fields:
+A saved deck line carries the card's printing metadata as optional fields:
 
 ```
 - 1 Sol Ring (2XM:1) [foil] &1
@@ -56,12 +56,12 @@ Fields in order (see [List File Format](/list-format/) for the full grammar):
 - `[finish]`: `nonfoil`, `foil`, or `etched`
 - `[condition]`: `NM`, `LP`, `MP`, `HP`, or `DMG` (`NM` is the default and is not written)
 - `[lang]`: a [Scryfall language code](#card-language), omitted for English
-- `[labels]`: the card's [label override](/commands/edit/#card-labels). A deck carries `proxy` only
+- `[labels]`: the card's [label override](/list-format/#card-labels). A deck carries `proxy` only
 - `#tags`: the card's [tags](#card-tags), one comma-separated token. Every list type carries them
 - `{note}`: the card's [note](/commands/note/)
 - `&N`: persistent card ID, auto-assigned and used internally for change tracking
 
-All fields are optional and backwards-compatible with the basic format.
+Collections and wanted lists write one line per copy with no quantity. A collection line always carries `(SET:CN)`, and a wanted line never carries `[condition]` or `[labels]`. See [List Files](/list-format/#card-lines) for the full grammar.
 
 ## Keyboard Shortcuts
 
@@ -216,15 +216,15 @@ Click the **Sections** button in the bottom [action bar](#editor-action-bar) to 
 - **Rename a section**: click **Rename** on a row. All cards in that section move with it. A rename that would collide with another section (case-insensitive) is rejected.
 - **Delete a section**: click **Delete** on a row. Only **empty** sections can be deleted. The button is disabled while a section still holds cards.
 
-One deck section does not survive a save while empty. An **extras** section (a name containing `maybeboard` or `token`) is dropped when it holds no cards, whether you just created it or just removed its last card. Extras count toward no total, so a header with nothing under it is a leftover rather than content. Add a card to it in the same save if you want it to stick.
+One deck section does not survive a save while empty. An **extras** section (`## Maybeboard` or `## Tokens`, matched exactly as on [List Files](/list-format/#title-and-sections)) is dropped when it holds no cards, whether you just created it or just removed its last card. Extras count toward no total, so a header with nothing under it is a leftover rather than content. Add a card to it in the same save if you want it to stick.
 
 Cards with no explicit section belong to an implicit **Main** section, which is written out explicitly the next time the list is saved. On the public site, a list with two or more sections defaults to grouping by section, and **Section** becomes a selectable grouping option in the toolbar. The **Category** and **Categories** groupings and the **Category** sort are offered on every list (a list with no categories shows one **Uncategorized** group). See [Card Categories](#card-categories).
 
-On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See the [collection](/commands/edit/#collection-files) and [wanted list](/commands/edit/#wanted-list-files) file formats.
+On disk, sections are `## Section Name` (H2) headers beneath the list's `# Title`, with card lines grouped under each header. See [Title and sections](/list-format/#title-and-sections) on the List Files page.
 
 ## Multi-Select
 
-Cards can be selected across every view mode for bulk actions. Hovering a card in binder, row, or column view reveals a translucent checkbox in its top-left corner. In list view the checkbox sits at the far left of each row. Clicking it, or **Ctrl-clicking** (**⌘-clicking** on macOS) anywhere on the card, marks the card with an accent-colored checkmark, and a **Selected (N)** button appears in the toolbar showing the running count of selected copies for the list you're editing. The selection persists across grouping, sorting, and view-mode changes. A quantity group (`4×`) selects all of its copies at once and counts them individually. Once some copies are removed it shows a **dash** instead of a checkmark.
+Cards can be selected across every view mode for bulk actions. Hovering a card in binder, overlap, or stack view reveals a translucent checkbox in its top-left corner. In list view the checkbox sits at the far left of each row. Clicking it, or **Ctrl-clicking** (**⌘-clicking** on macOS) anywhere on the card, marks the card with an accent-colored checkmark, and a **Selected (N)** button appears in the toolbar showing the running count of selected copies for the list you're editing. The selection persists across grouping, sorting, and view-mode changes. A quantity group (`4×`) selects all of its copies at once and counts them individually. Once some copies are removed it shows a **dash** instead of a checkmark.
 
 Opening the button reveals a menu of actions over that list's selection:
 
@@ -306,7 +306,7 @@ The edited view updates immediately, the moves appear in the [Changes](#change-t
 
 ## Card Language
 
-Every card entry has a [language](/commands/edit/#card-language), a Scryfall code written on the line as a lowercase bracket token (`[ja]`) and omitted for English, so a bare line always means `en`.
+Every card entry has a [language](/list-format/#card-language), a Scryfall code written on the line as a lowercase bracket token (`[ja]`) and omitted for English, so a bare line always means `en`.
 
 - **Set Language…** in a card's **⋯** context menu (and in the multi-select **Selected** menu) opens a picker over the 17 Scryfall languages, with the current one marked. Picking **English** clears the token. The change is a pending `set-language` edit like any other: undoable, listed in **Changes**, and written on save (changelog: `Set language of "Sol Ring" to Japanese &7`).
 - **Adding never asks for a language.** New cards are stamped with the configured [`defaultLanguage`](/configuration/#default-language) (editable on the admin **Settings** page). Change an individual copy afterwards with **Set Language…**.
@@ -314,7 +314,7 @@ Every card entry has a [language](/commands/edit/#card-language), a Scryfall cod
 
 ## Card Tags
 
-Every card entry on every list type can carry [tags](/commands/edit/#card-tags): your own words for the card as a copy (`Signed`, `Trade Binder`), as many as you like. They follow the card when it moves to another list. Unlike a [label](#card-labels), a tag is not an instruction to Ritual. It is your word for the card, and it drives the **Tags** grouping, sort and filter row on the [public site](/public-site/filtering/#grouping-sorting-and-filtering-by-tags).
+Every card entry on every list type can carry [tags](/list-format/#card-tags): your own words for the card as a copy (`Signed`, `Trade Binder`), as many as you like. They follow the card when it moves to another list. Unlike a [label](#card-labels), a tag is not an instruction to Ritual. It is your word for the card, and it drives the **Tags** grouping, sort and filter row on the [public site](/public-site/filtering/#grouping-sorting-and-filtering-by-tags).
 
 - **Edit Tags…** in a card's **⋯** context menu opens a dialog with one field holding the card's whole tag set, seeded with its current tags. Type tags **separated by commas** (`My Tag, My Other Tag` is two tags, and spaces are part of a tag). The field validates as you type: a tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses, and an invalid one is explained under the field and blocks **Save**. Tags already used on other cards in the list appear as one-click suggestions. Saving an empty field removes every tag. On a collection tile that groups identical copies, the edit applies to every copy.
 - Saving records **one change per tag that differs**, an `add-tag` for each tag added and a `remove-tag` for each removed, rather than one whole-set change. Each is its own **Undo** step (undo reverts one tag at a time, most recent first). A `remove-tag` cancels a pending `add-tag` of the same tag (and vice versa), so adding a tag and removing it again in one session leaves nothing pending. Changes are listed in **Changes** and written on save (changelog: `Added tag "Ramp" to "Sol Ring" &5`).
@@ -331,7 +331,7 @@ Every list type can carry [categories](/commands/categories/): a card's **role i
 
 ## Card Labels
 
-A [card label](/commands/edit/#card-labels) tells Ritual what a copy is for. Collections carry the whole vocabulary (**For sale**, **For trade**, **To keep**, **Proxy**). A deck carries **Proxy** alone, and a wanted list carries none. Labels are set at two levels:
+A [card label](/list-format/#card-labels) tells Ritual what a copy is for. Collections carry the whole vocabulary (**For sale**, **For trade**, **To keep**, **Proxy**). A deck carries **Proxy** alone, and a wanted list carries none. Labels are set at two levels:
 
 - **Set Label…** in a card's **⋯** context menu (and in the multi-select **Selected** menu) sets one line's override. On a collection the picker offers the five label states plus **Use list default**, which clears the override. On a deck it offers **Proxy** and **Use list default**. The change is a pending `set-label` edit like any other: undoable, listed in **Changes**, and written on save. Tiles badge cards whose _override_ differs from the list default.
 - The action bar's **Labels** button opens the **Default Labels** modal, which sets the list's front-matter `labels:` default (**No default** or **Proxy** on a deck). It writes through the [List Metadata](/admin/api/#list-metadata) route immediately. Front matter is not part of the card-change pipeline, so it needs no save, and the editor adopts the returned content hash so pending card edits still save cleanly afterward. This is how you mark a whole playtest deck as proxies without touching a card line.

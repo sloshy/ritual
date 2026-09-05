@@ -3,11 +3,13 @@ title: 'Prices'
 description: Currencies, price stores, per-page price updates, and cards the site prices at zero.
 ---
 
-Every card on the site carries a price, and every list carries a total. Prices come from Scryfall's card data at build time, in up to three currencies, and from up to three **stores**. This page covers where they come from, how to switch between them, and the cards that are priced at zero on purpose.
+Every card on the site carries a price, and every list carries a total. Prices are baked in at build time, in up to three currencies and from up to three **stores**. This page covers where they come from, how to switch between them, and the cards that are priced at zero on purpose.
+
+Two controls share the label **Prices**. The header's dropdown picks the **currency**, and the list toolbar's selector picks the **store** behind USD prices. This page calls the first the currency selector and the second the Prices selector.
 
 ## Currencies
 
-The site header has a **Prices** dropdown for switching between USD (TCGplayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO) at runtime. The `--currencies` flag on [`build-site`](/commands/build-site/) controls which currencies are built into the site. The dropdown only shows built currencies **that an enabled [price store](#price-stores) can answer for** (USD needs `tcgplayer` or `cardkingdom`, EUR needs `cardmarket`), and hides itself entirely when [`priceSources`](/configuration/#price-stores-pricesources) is empty.
+The site header has a currency selector (labelled **Prices**) for switching between USD (TCGplayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO) at runtime. The `--currencies` flag on [`build-site`](/commands/build-site/) controls which currencies are built into the site. The currency selector only shows built currencies **that an enabled [price store](#price-stores) can answer for** (USD needs `tcgplayer` or `cardkingdom`, EUR needs `cardmarket`), and hides itself entirely when [`priceSources`](/configuration/#price-stores-pricesources) is empty.
 
 When switching currencies:
 
@@ -43,7 +45,7 @@ The choice is part of the [shareable view URL](/public-site/filtering/#sharing-a
 
 The same selector appears inside the dialogs that show one card's printings: the card modal's **Other Printings** grid, the trade/edit printing picker, and the add-card dialog's printing step. It is the same one choice, not a second one. Switching it in a dialog switches the page behind it, and vice versa. Each printing there is priced under the selected store, and a printing sold in more than one finish lists its **alternate finishes underneath** its main price: the price you would pay for the copy as displayed, then what the foil (or etched) costs. The grid's price sort follows the selected store too.
 
-### The Card Kingdom view is honest
+### Card Kingdom prices never fall back
 
 Card Kingdom retail prices ride on the same baked buylist quotes sell mode uses, so they work on a fully static site. A printing Card Kingdom does not sell, or a non-English copy (which their English-only catalog can never match), shows **no price** under this view. There is no TCGplayer fallback, so a total under the Card Kingdom view is a real "what these cards cost at CK" figure. An out-of-stock product keeps its listed price; the price stands even when the shelf is empty.
 
@@ -96,6 +98,6 @@ On the index page, deck and collection entries with missing prices display the t
 
 ## Cards priced at zero
 
-A **proxy** (a card whose effective [labels](/commands/edit/#card-labels) include `proxy`) is not a real card, so the build prices it at **0** in every currency. It is left out of the list totals, left out of the missing-price counts and banner, and never offered to a buyer in [sell mode](/public-site/sell/). Switching currency or pressing **Update Prices** cannot resurrect a price for it; the rule is applied client-side too.
+A **proxy** (a card whose effective [labels](/list-format/#card-labels) include `proxy`) is not a real card, so the build prices it at **0** in every currency. It is left out of the list totals, left out of the missing-price counts and banner, and never offered to a buyer in [sell mode](/public-site/sell/). Switching currency or pressing **Update Prices** cannot resurrect a price for it; the rule is applied client-side too.
 
 A card wearing [custom art](/custom-art/) is treated exactly the same way, for the same reason: it is no longer the printing a price would be quoted for. Wherever a per-card price is shown (the grid and list views, the card modal, the [Trade Planner](/public-site/trade/)), such a card reads **CUSTOM**, and a proxy without custom art reads **PROXY**, in place of the amount. A card that is both reads **CUSTOM**. Custom art wins.

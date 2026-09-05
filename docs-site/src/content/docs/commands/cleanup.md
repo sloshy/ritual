@@ -22,7 +22,7 @@ Cleanup never touches a `.changes.md` changelog. A cleaned-up file has the same 
 Two cases are reported with a warning instead of fully acted on:
 
 - A rename whose target name is already taken by another list, either the same file name or one that merely [folds onto it](/list-resolution/#names-that-would-collide-are-refused-at-creation), which would leave both lists unaddressable.
-- A file holding content the canonical rewrite cannot reproduce. That covers lines the parse skipped (refused card lines, but also prose or any other text the list grammar does not model; `//` comment lines are read and dropped, so they never block) and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit.
+- A file holding content the canonical rewrite cannot reproduce. That covers lines the parse skipped (refused card lines, but also prose or any other text the list grammar does not model; `//` comment lines are read and dropped, so they never block) and [fenced code blocks](/list-format/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit.
 
 In either case the file is still renamed if its name drifted, but its content is left alone. Rewriting it would silently drop that content; fix, remove, or accept it and rerun.
 

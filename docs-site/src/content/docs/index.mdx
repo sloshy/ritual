@@ -26,7 +26,7 @@ irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | i
   </TabItem>
 </Tabs>
 
-The installer puts the `ritual` binary on your `PATH`. Run `ritual --help` to check it worked.
+The installer puts the `ritual` binary in `~/.local/bin` and adds that directory to your `PATH`. Open a new shell and run `ritual --help` to check it worked.
 
 ### Prerelease Builds
 
@@ -79,11 +79,11 @@ bun run build
 Ritual works in the directory you run it from. Make a folder for your cards, step into it, and create a deck:
 
 ```bash
-ritual new deck "My Commander Deck"
+ritual new deck "My Commander Deck"    # add --format modern (or standard, …) for other formats
 ritual add-card "My Commander Deck" Sol Ring
 ```
 
-The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Every later lookup reads from that cache, so it is fast and works offline.
+The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Commands that work on your lists read from that cache afterwards, so they are fast and work offline.
 
 Already have a deck online? Import it from Archidekt, Moxfield, or MTGGoldfish instead:
 

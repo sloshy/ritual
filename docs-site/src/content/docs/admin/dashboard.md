@@ -3,7 +3,7 @@ title: 'Build, Cache & Settings'
 description: The dashboard pages for building the site, refreshing the card cache, signing in to Archidekt, changing settings, and reading the audit log.
 ---
 
-Besides the editors and the list tools, the admin dashboard has a handful of single-purpose pages. This page describes each of them.
+Besides the editors and the list tools, the admin dashboard has a handful of single-purpose pages. This page describes each of them. The two Archidekt sync pages are covered on their own: [Sync Decks](/admin/sync-decks/) and [Sync Collection](/admin/sync-collection/).
 
 ## Build Site
 
@@ -11,7 +11,7 @@ Trigger a full static site build from the browser. This runs the same build as `
 
 ## Refresh Cache
 
-Download and cache all Scryfall card data, the Scryfall half of `ritual cache preload-all`. Unlike the CLI command, it never touches the [Card Kingdom buylist](/commands/sell/). This page has its own button for that, below.
+Download and cache all Scryfall card data, the Scryfall half of `ritual cache preload-all`. Unlike the CLI command, it never touches the [Card Kingdom buylist](/commands/sell/). The Refresh Cache page has a separate **Refresh buylist** button for that, described below.
 
 The Refresh Cache page shows real-time progress during the operation:
 
@@ -19,7 +19,7 @@ The Refresh Cache page shows real-time progress during the operation:
 - **Stage indicators** tracking each phase: Downloading & processing → Saving (cards are parsed and processed as the stream downloads, so they are one phase)
 - A graceful fallback if streaming is unavailable
 
-When [sell mode](/commands/admin/#sell-mode) is on, the page also carries a **Card Kingdom buylist** card, backing sell mode and the [`sell`](/commands/sell/) command. With sell mode off and no `cardkingdom` price source the card is not shown at all, and its routes answer `404`. It shows when the feed was last downloaded, Card Kingdom's own generation stamp, and the product count, with a **Refresh buylist** button. Once the server is up, that ~70 MB download only ever happens on an explicit click. No page load triggers it, and the button forces a redownload even when the cached copy is still fresh. (Server _startup_ refreshes a day-old feed on its own, so the button is for forcing one mid-session.) A workspace that has never downloaded it shows an empty state offering the button rather than an error. If a download fails but a stale copy exists, the card reports "The buylist was not updated." instead of claiming success.
+When [sell mode](/commands/admin/#sell-mode) is on, the page also shows a **Card Kingdom buylist** panel, backing sell mode and the [`sell`](/commands/sell/) command. With sell mode off and no `cardkingdom` price store the panel is not shown at all, and its routes answer `404`. It shows when the feed was last downloaded, Card Kingdom's own generation stamp, and the product count, with a **Refresh buylist** button. Once the server is up, that ~70 MB download only ever happens on an explicit click. No page load triggers it, and the button forces a redownload even when the cached copy is still fresh. (Server _startup_ refreshes a day-old feed on its own, so the button is for forcing one mid-session.) A workspace that has never downloaded it shows an empty state offering the button rather than an error. If a download fails but a stale copy exists, the panel reports "The buylist was not updated." instead of claiming success.
 
 When the refresh actually brings down a new feed, the admin also discards the quotes it has already resolved in this browser session, so an editor opened afterwards prices every card against the feed you just downloaded. A refresh that changed nothing (a copy that was still fresh, or a failed download that fell back to the stale one) leaves them alone, since they already quote that feed.
 
@@ -33,18 +33,6 @@ The page also shows the status of the stored login:
 - **Refresh token**: how long the longer-lived refresh token remains valid. Once it expires too, a fresh login is required.
 
 When both the access token and refresh token have expired, the page reports that a login is required to use Archidekt account features.
-
-## Sync Decks
-
-Pull or push Archidekt-linked decks, with per-deck progress streaming into the page as the run proceeds. Toggle which decks to sync (all by default), pick a direction, and optionally preview without writing. Each deck shows when it last synced, and the page signs in to Archidekt inline when the stored token has expired.
-
-Same engine as [`deck-sync`](/commands/deck-sync/). See [Sync Decks](/admin/sync-decks/) for the full page.
-
-## Sync Collection
-
-Pull or push the signed-in Archidekt account's collection, with per-list progress streaming into the page as the run proceeds. Choose a direction, a scope (the whole collection or selected lists), a change filter (all changes, additions only, removals only), the list a pull adds new cards to, an ordered removal priority (which binders may give copies up when a removal is ambiguous; without it such a run stops without writing anything), whether a push uploads its new cards as one CSV import (on by default; with it off a push adding more than 25 of them stops without pushing anything), and optionally preview without writing. A finished push reports what that import did, including any row Archidekt refused. An account has one collection, so the page shows a single account-level "last synced".
-
-Same engine as [`collection-sync`](/commands/collection-sync/). See [Sync Collection](/admin/sync-collection/) for the full page.
 
 ## Settings
 

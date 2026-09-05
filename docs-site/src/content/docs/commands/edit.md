@@ -51,8 +51,6 @@ A name that matches nothing (or more than one list) fails with an error before t
 The name is matched against the list's **file name** (without `.md`), like every other command. The selection menu, by contrast, shows decks by their **display name** (the `# Title` heading). A deck whose title differs from its file name is addressed here by the file name: a deck at `decks/old-burn.md` titled `Modern Burn` opens with `ritual edit old-burn`, not `ritual edit "Modern Burn"`.
 :::
 
-The session filters (sets, finish, condition, entry mode, and the deck target section) are shared across every list you open, so they carry over when you switch lists. The condition applies to decks and collections. Wanted lists track desired cards, not owned ones, so they have no condition.
-
 ## Cache Freshness
 
 The editor reads card data from the built-in Scryfall cache. The shared `--refresh <mode>` option decides how its freshness is handled before the session starts:
@@ -94,6 +92,8 @@ Lists can be created from two places: the `➕ New …` items in the list select
 ## Switching Lists
 
 Inside a list session, `🔀 Switch List` backs out to the list selection menu, keeping the list's unsaved changes in memory. Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main card prompt does the same. Reopening a list you already edited resumes exactly where you left off, pending changes, undo history, and all.
+
+The session filters (sets, finish, condition, entry mode, and the deck target section) are shared across every list you open, so they carry over when you switch lists. The condition applies to decks and collections. Wanted lists track desired cards, not owned ones, so they have no condition.
 
 ## Multi-List Modes
 
@@ -175,7 +175,7 @@ Unlike the other type-specific rows, the two `🗂️` category rows appear on d
 
 `↩️ Undo Last Add` appears only after you have added at least one card this session, and `📋 View Session Changes` once the session has any change to show (see [Reviewing Session Changes](#reviewing-session-changes)). `🌐 Change Language` likewise needs a card to have been added, since it retargets that one card.
 
-While you are **adding** cards, in either [name](#name-mode-default) or [collector number](#collector-number-mode) mode, typing narrows the menu along with the cards, but only briefly. Once your input passes three characters, or contains a `:`, the menu rows step out of the suggestions entirely and leave the list to the card matches.
+While you are **adding** cards, typing narrows the menu rows along with the card suggestions, and past three characters (or a `:`) the rows step aside entirely. See [Menu Rows Step Aside](#name-mode-default).
 
 Neither language row appears in [edit mode](#edit-mode). The session default only governs adds, and editing an existing entry's language is one of that entry's own actions there.
 
@@ -342,52 +342,11 @@ Two things do not follow a moved card: its **note** (notes never move across lis
 
 ## Card Labels
 
-A card entry can carry **labels**: a bracket token on its line (`[sale,trade]`, `[keep]`, `[proxy]`) declaring what you intend to do with that copy. Which labels a list type carries differs, because the vocabulary describes two different things:
-
-| List type   | Labels it carries                |
-| ----------- | -------------------------------- |
-| Collection  | `sale`, `trade`, `keep`, `proxy` |
-| Deck        | `proxy` only                     |
-| Wanted list | none                             |
-
-- **`sale`** ("For sale") and **`trade`** ("For trade") are the only two that combine, as `[sale,trade]`.
-- **`keep`** ("To keep") and **`proxy`** ("Proxy") are each **exclusive**. Neither combines with any other label, including each other. A token like `[sale,keep]` or `[keep,proxy]` is a parse warning, as is one naming a label the list's type does not carry. The entry is kept and its labels dropped, and the warning blocks whole-file rewrites until it is fixed.
-- **`proxy`** marks a copy that is not a real card, which is why it is the one label a deck carries. Proxied decks are normal, proxied collections are a matter of bookkeeping, and a wanted list is a list of cards you do not have yet. It has [pricing consequences](#proxies-carry-no-price).
-
-A list can also declare a **default** in its front matter (`labels:`), which every entry without its own token inherits. See [Collection Front Matter](#collection-front-matter) and [Deck Front Matter Labels](#deck-front-matter-labels). A card's _effective_ labels are its own token when present, else the list default. An override **replaces** the default; it never merges with it.
-
-Set an override with [`set-card --label`](/commands/set-card/), the CLI editor's `🏷️ Change Label` [edit-mode action](#edit-mode), or, on a collection, the web editors' **Set Label…** menu item. `--label none` (or "Use list default") clears it. Every picker offers only what its list type carries, so on a deck the choice is **Proxy** or "use the list default", and asking for `sale` on a deck is a usage error naming the labels that type supports, never a silent drop. `set-card --label` is also the way to **repair** a line whose token the parser refuses. It replaces the token outright, so it is the one edit that is not blocked by it; every other edit to that line refuses rather than dropping the token silently, including a [`remove-card`](/commands/remove-card/) that would decrement the line's quantity.
-
-Labels are part of a deck line's **identity** for merging purposes. Copies added by [`add-card`](/commands/add-card/), by the editors, or by a [`ritual move`](/commands/move/) join an existing line only when its label override matches theirs, so a proxy never disappears into the line holding the real copies, and never confers `[proxy]` on a real card added beside it.
-
-### Proxies carry no price
-
-A card whose effective labels include `proxy` is not a real card, so Ritual prices it at **zero** everywhere rather than looking a price up:
-
-- [`price`](/commands/price/) reports it at `0` with the unpriced reason `proxy`, shows **PROXY** in its price cell instead of `N/A`, and counts it as a card but **not** as unpriced. A deck of proxies is fully priced at nothing, not a deck of price-lookup failures.
-- The generated site bakes `0` in every currency, leaves proxies out of list totals and out of the missing-price counts, and never asks a buyer for a quote on one.
-- [`sell`](/commands/sell/) drops proxy entries before matching, so they are never quoted, never counted, and never merged into an identical real copy.
-
-[Custom art](/custom-art/#custom-art-carries-no-price) carries the very same rule on its own. One rule: custom art or proxy means no price, no quotes, no sale. A card with both reports the unpriced reason `custom-art` and shows **CUSTOM**. Custom art wins.
+Labels (`[proxy]`, `[sale,trade]`, `[keep]`) are a card-line token described on [List Files](/list-format/#card-labels). In a session, `🏷️ Change Label` in [edit mode](#edit-mode) sets a card's override, offering only what the list type carries (on a deck, **Proxy** or the list default), and **Use list default** clears it. `🏷️ Edit List Labels` on the list menu sets the list's front-matter [default](/list-format/#default-labels-and-descriptions), deferred to the next save like any other edit. A proxied card [carries no price](/list-format/#proxies-carry-no-price).
 
 ## Card Tags
 
-A card entry on **any** list type can carry **tags**: your own words for the card as a copy (`Signed`, `Trade Binder`, `Gift from Dad`), which follow the card wherever it moves. A card's role within one list (what Archidekt calls a category) is a separate, per-list thing, not a tag; see [Card Categories](#card-categories) and [`ritual categories`](/commands/categories/). On the line, tags are one `#` token after the labels and before the note, **comma-separated**, as many as you like:
-
-```
-- 1 Sol Ring (LTC:284) [proxy] #Ramp, Staple &2
-- Mox Ruby #Budget, Reserved List {any copy} &3
-```
-
-Tags are the open-vocabulary counterpart of [labels](#card-labels). A label is an instruction to Ritual drawn from a closed list (`[proxy]` changes pricing). A tag is your own word for the card and means whatever you meant. It drives [grouping, sorting and filtering](/public-site/filtering/#grouping-sorting-and-filtering-by-tags) on the generated site and selects cards for [`export --tags`](/commands/export/#filters). The two are different token kinds on purpose: a `Keep` tag is a perfectly legal tag with no connection to the `[keep]` label.
-
-A tag is plain text. Spaces are fine (`Card Draw`) and its case is kept exactly as you wrote it (`Ramp` and `ramp` are two tags), but it cannot contain `#`, `,`, `&`, brackets, braces or parentheses, the line's own punctuation. A line's tags are written deduplicated and sorted. The `#` is file punctuation that marks where the tags start; the editors, the site and the changelog never show it.
-
-A deck's front-matter `tags:` key is a different thing entirely. It describes the **deck** (`ritual metadata set <deck> tags edh,budget`, or the session's `🔖 Edit Deck Tags` menu row) and never applies to any card. Only the `#tags` token on a card line holds card tags.
-
-Edit a card's tags with the `🔖 Edit Tags` [edit-mode action](#edit-mode): one free-text field prefilled with the line's current tags, **comma-separated** (`My Tag, My Other Tag` is two tags; an input the grammar refuses is reported and asked again; empty clears every tag). Or use [`set-card --tag` / `--untag`](/commands/set-card/#tag-updates) and [`add-card --tag`](/commands/add-card/). However the set is edited, the change is recorded **one changelog event per tag** that actually changed (`Added tag "Ramp" to "Sol Ring" &2`, `Removed tag "Staple" from "Sol Ring" &2`), never as a whole-set replacement. An add and a remove of the same tag on the same card cancel out, so re-adding a tag you removed earlier in the session leaves no trace in the changelog. `↩️ Undo Last Edit` reverts the whole field edit at once.
-
-Like labels, tags are part of a deck line's **identity** for merging. Copies added with different tags land on their own line rather than folding into an existing one.
+Tags (`#Ramp, Staple` on the line) are described on [List Files](/list-format/#card-tags). Edit a card's tags with the `🔖 Edit Tags` [edit-mode action](#edit-mode): one free-text field prefilled with the line's current tags, **comma-separated** (`My Tag, My Other Tag` is two tags; an input the grammar refuses is reported and asked again; empty clears every tag). The change is recorded one changelog event per tag that actually changed, and `↩️ Undo Last Edit` reverts the whole field edit at once. Copies added with different tags land on their own line rather than folding into an existing one.
 
 ## Card Categories
 
@@ -434,17 +393,7 @@ A card with custom art also [carries no price](/custom-art/#custom-art-carries-n
 
 ## Card Language
 
-Every card entry has a **language**, written as a lowercase bracket token in canonical position on the line: after the finish and condition, before labels and the note.
-
-```
-- Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
-- 3 Counterspell (LEA:55) [de] &12
-- Sol Ring (C21:263) [zhs] &4
-```
-
-The vocabulary is **Scryfall's language codes** (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`), not ISO codes: Chinese is `zhs`/`zht`. The token is **omitted for English**. A bare line always means `en`, whatever the configured default, so a list file stays self-describing.
-
-Adding a card **never prompts** for a language. The [session's current language](#the-session-language) is stamped on new cards, and the `🌐 Change Language` edit action (or [`set-card --language`](/commands/set-card/)) changes an individual copy afterwards. Under a non-English session language, the printing picker notes printings that do not exist in that language. Picking one records it in the language that does exist (English when available), rather than writing a language token Scryfall has no card object for. Language availability is checked against the card cache (which holds every language's objects when [`defaultLanguage`](/configuration/#default-language) is non-English), falling back to a direct Scryfall lookup when the cache cannot vouch for the printing.
+Every card entry has a [language](/list-format/#card-language) token (`[ja]`), omitted for English. Adding a card never prompts for one. The [session's current language](#the-session-language) is stamped on new cards, and the `🌐 Change Language` edit action changes an individual copy afterwards. Under a non-English session language, the printing picker notes printings that do not exist in that language and records the copy in the language that does exist (English when available).
 
 ### The Session Language
 
@@ -493,7 +442,7 @@ Adding a card whose **printing already exists anywhere in the deck** increments 
 
 Every deck records a format (Commander, Standard, Modern, …) in its `format:` front matter field, used by the generated site for the deck's cover label and expected size. Creating a deck in the editor prompts for the format, and `🏷️ Change Format` in a deck session changes it later. The menu item shows the current format, and the change is written on the next save like any other pending edit. It counts as unsaved work, but is not a card change, so it does not appear in the changelog or the session-changes viewer.
 
-`🔖 Edit Deck Tags` edits the deck's `tags:` and `🏷️ Edit List Labels` its [default card labels](#deck-front-matter-labels) the same deferred way. The description and sync-source fields have no session action: a single-line prompt would mangle a multi-line description, and linking is [`deck-sync link`](/commands/deck-sync/)'s job. Use [`ritual metadata`](/commands/metadata/) (or the admin metadata editor) for those.
+`🔖 Edit Deck Tags` edits the deck's `tags:` and `🏷️ Edit List Labels` its [default card labels](/list-format/#default-labels-and-descriptions) the same deferred way. The description and sync-source fields have no session action: a single-line prompt would mangle a multi-line description, and linking is [`deck-sync link`](/commands/deck-sync/)'s job. Use [`ritual metadata`](/commands/metadata/) (or the admin metadata editor) for those.
 
 A deck with no `format:` (an older file, or one imported from a source that reports no format) is not formatless. It is read as Commander when it has a `## Commander` section, or Oathbreaker for a `## Oathbreaker` or `## Signature Spell` section, which is what the menu shows and what the site displays. Saving the deck writes that resolved format into the file, so the guess only has to be made once. See [new](/commands/new/#deck-format) for the full list of formats.
 
@@ -537,21 +486,6 @@ This is the canonical form every save writes. The reader is more lenient (bracke
 
 `[labels]` on a deck line is the card's [label override](#card-labels), and the only label a deck carries is `proxy`. A hand-written token a deck cannot carry (`[keep]`, `[sale,trade]`), or an illegal combination, is a parse warning: the card is kept, the labels are dropped. `#tags` are the card's [tags](#card-tags), any number of them.
 
-### Deck Front Matter Labels
-
-A deck's front matter can declare a `labels:` default the same way a collection's can, and with the same one-label vocabulary as its lines:
-
-```markdown
----
-format: commander
-labels: [proxy]
----
-```
-
-Every line without its own `[labels]` token then counts as a proxy, which is how you mark a whole playtest deck without touching a single card line. An empty list (or no key) means no default. A value the deck cannot carry is dropped **whole** rather than filtered down: `labels: [sale, proxy]` is a statement about a deck this format cannot make, and keeping half of it would be a different statement. Such a value is also a **parse warning**, exactly like a refused card-line token. The next whole-file save deletes the key, so the warning names it and the whole-file-rewrite gates block until you fix it.
-
-Set it with [`ritual metadata set <deck> labels proxy`](/commands/metadata/), the editor's `🏷️ Edit List Labels` action, the admin deck editor's **Labels** button, or the MCP `set_list_metadata` tool.
-
 ## Collections
 
 ### Collection Files
@@ -574,44 +508,11 @@ Non-foil finish, the default `NM` condition, and the English language are omitte
 
 The optional `[labels]` token is the card's **label override**. Collections carry the whole vocabulary (`sale` and `trade` combine as `[sale,trade]`, while `keep` and `proxy` each stand alone), and the rules are shared with decks; see [Card Labels](#card-labels). A [`ritual move`](/commands/move/) carries the override as far as the destination type can express it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow drops it in every case, since, like notes, the editor move events don't carry it. The optional `#tags` are the card's [tags](#card-tags): free-form, any number, on every list type.
 
-### Collection Front Matter
-
-A collection file may open with a YAML front-matter block declaring the list's **default labels** and its **description**, the blurb the built site prints above the cards:
-
-```markdown
----
-description: Everything I will trade away.
-labels: [sale, trade]
----
-
-# Trade Binder
-```
-
-Every entry without its own `[labels]` override inherits the default. `labels:` takes `sale` and `trade` (together or alone), or `keep` or `proxy` (each alone). An empty list means no default.
-
-How the block survives edits:
-
-- **Card-line saves round-trip the block byte-for-byte**, unknown hand-authored keys included. A block whose YAML cannot be read is carried verbatim with an advisory rather than rejected.
-- **A metadata edit re-dumps the YAML.** [`ritual metadata`](/commands/metadata/), the editor's `🏷️ Edit List Labels` action, the admin **Labels** button, and `set_list_metadata` all rewrite the block: every key and value survives, but comments and quoting style do not.
-- **The editor action refuses to run when the existing block's YAML cannot be read**, since a merge over keys it cannot see would clobber them. Fix the block by hand; every other session edit still carries it verbatim.
-
-Set the default with [`ritual metadata set <list> labels …`](/commands/metadata/) (the surgical, front-matter-only write), the editor's `🏷️ Edit List Labels` menu action (deferred to the session's next Save, which, like any session save, rewrites the whole file in canonical form), the admin editor's **Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
-
-`description:` is written the same way, with [`ritual metadata`](/commands/metadata/), the admin/HTTP route, or `set_list_metadata`, and is the one key **every** list type carries. A wanted list carries `description:` and the cover [`image:`](/list-images/) (which [`set-list-image`](/commands/set-list-image/) writes) and nothing else of its own; any other block on one is preserved. Note that a cover written from outside while a session is open is dropped by that session's next save, since the session re-emits the block it snapshotted when it opened.
-
 ## Wanted Lists
 
 ### Card States
 
-Each card on a wanted list exists in one of three states, which determines how pricing works:
-
-| State               | Format                          | Pricing Behavior                              |
-| ------------------- | ------------------------------- | --------------------------------------------- |
-| **Name only**       | `- Card Name`                   | Uses cheapest printing across all sets        |
-| **Printing**        | `- Card Name (SET:CN)`          | Uses cheapest _finish_ of that exact printing |
-| **Fully specified** | `- Card Name (SET:CN) [finish]` | Uses the exact printing and finish specified  |
-
-When adding a card to a wanted list, you are prompted to choose the specificity level:
+A wanted card is name-only, pinned to a printing, or fully specified with a finish; see [Wanted-list card states](/list-format/#wanted-list-card-states) for how each is priced. When adding a card to a wanted list, you are prompted to choose the specificity level:
 
 1. **Name only (cheapest printing)** skips printing and finish selection entirely.
 2. **Choose specific printing** enters the printing selection flow, then optionally a finish.
@@ -651,49 +552,11 @@ Collections and wanted lists can be split into named **sections** using `## Sect
 - Lightning Bolt (LEA:161) &2
 ```
 
-Section order is preserved as written. Cards added by this command go to the file's **last** section. On the generated site, a list with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin editors](/admin/editors/#sections); pricing commands ignore section headers.
+Section order is preserved as written. Cards added in an `edit` session go to the file's **last** section. On the generated site, a list with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin editors](/admin/editors/#sections); pricing commands ignore section headers.
 
 ## Fenced Code Blocks
 
-List files are hand-authored markdown, so a deck, collection, or wanted list may carry a fenced code block: an example line, a template, a snippet of output. **Everything inside a fence is prose.** Card parsing ignores it completely: a card-looking line inside a fence is not a card, a `## Heading` inside a fence is not a section, an `&N` inside a fence is not a card ID, and none of it is reported as an unreadable line.
-
-````markdown
-# My Binder
-
-## Main
-
-- Sol Ring (C19:221) &1
-
-Cards are written like this:
-
-```
-- Card Name (SET:CN) [finish] [condition] {note} &N
-- Black Lotus (LEA:232) &99
-```
-
-- Lightning Bolt (LEA:161) &2
-````
-
-That file holds two cards. The `- Black Lotus (LEA:232) &99` line is an example: it is not counted, not priced, not exported, never offered by a picker, and never the target of `add-card`, `set-card`, `remove-card`, `note`, or `move`. `&99` is not "in use", so a future card may be assigned that ID. The `&N` backfill leaves fenced lines unstamped, and every line-preserving edit leaves the block byte-for-byte as you wrote it.
-
-Both fence styles are recognized: three or more backticks or three or more tildes, indented by up to three spaces, with an optional info string (` ```markdown `). The closing fence uses the same character, is at least as long, and carries nothing after it. Fences do not nest; tildes inside a backtick fence are ordinary content, and vice versa. **An unclosed fence runs to the end of the file** (the CommonMark rule), so a stray ` ``` ` hides every card line below it. If cards go missing from a list, check for an unbalanced fence.
-
-Inline code spans (`` `like this` ``) and four-space indented blocks are _not_ treated as code. Only fenced blocks are. A four-space indent is indistinguishable from a nested list item, so an indented block's card lines are read as real cards and its ` ``` ` delimiters as unreadable lines. Use a fenced block whenever a list file needs to hold prose card lines.
-
-### Whole-file rewrites
-
-The surfaces that rewrite a whole file from its parsed cards cannot re-emit a fenced block, so they treat one exactly as they treat an unreadable line:
-
-| Surface                                                                               | Behavior with a fenced block                                                                    |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| The admin editors' save (and the MCP tools that reuse it)                             | Refuses with a `400` and writes nothing                                                         |
-| [`cleanup`](/commands/cleanup/)                                                       | Reports the block and skips the content rewrite; a drifted file name is still corrected         |
-| [`deck-sync`](/commands/deck-sync/) / [`collection-sync`](/commands/collection-sync/) | Held back by the unreadable-lines gate (`-y/--yes` accepts the loss)                            |
-| [`import --append`](/commands/import/)                                                | Refuses and writes nothing                                                                      |
-| A deck on either side of [`move`](/commands/move/)                                    | Refuses and writes nothing                                                                      |
-| `ritual edit` sessions                                                                | **Warns on load and drops the block on the next save** — check the session output before saving |
-
-The one-shot card commands (`add-card`, `set-card`, `remove-card`, `note`) are line-preserving and work normally, as does a `move` between two collections or wanted lists. The one exception is an **append into an unclosed fence**. Because an unclosed fence runs to end of file, a new card line appended at the end would be prose, so `add-card` and `move` refuse rather than write a line no later parse can see.
+A fenced code block in a list file is prose, never cards; see [Fenced code blocks](/list-format/#fenced-code-blocks). A session **warns on load and drops the block on the next save**, since the canonical form it writes cannot express one, so check the session output before saving a hand-edited file.
 
 ## Examples
 

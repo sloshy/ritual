@@ -161,42 +161,7 @@ Live browser sessions are held **in memory inside the running admin server proce
 
 ## Configuration File
 
-Settings are stored in `ritual.config.json` in the base directory. The file is shared by the entire app; see [Configuration](/configuration/) for the full reference and how it interacts with `--base-dir`. It is created the first time something writes a setting (a **Settings** page save, `config set`, `init-site`). Until then the defaults below apply with no file on disk.
-
-```json
-{
-  "decksDir": "./decks",
-  "collectionsDir": "./collections",
-  "wantedDir": "./wanted",
-  "defaultCurrency": "usd",
-  "priceSources": ["tcgplayer"],
-  "artDir": "./art",
-  "defaultCategories": ["Ramp", "Draw", "Removal", "..."],
-  "defaultLanguage": "en",
-  "uiLocale": "en",
-  "cacheLockTimeoutSeconds": 300,
-  "cacheSource": "scryfall",
-  "searchDebounceMs": 500,
-  "admin": {
-    "gitEnabled": false,
-    "gitAutoCommit": false,
-    "gitAutoPush": false,
-    "trustProxy": false,
-    "secureCookies": false,
-    "ipAllowList": [],
-    "ipDenyList": [],
-    "userAgentAllowList": [],
-    "userAgentDenyList": [],
-    "rateLimitEnabled": true,
-    "rateLimitMaxAttempts": 5,
-    "rateLimitWindowMinutes": 5,
-    "failedAuthDelayMs": 3000
-  },
-  "collectionSync": {
-    "pullTarget": "Inbox"
-  }
-}
-```
+Settings are stored in `ritual.config.json` in the base directory. The file is shared by the entire app; see [Configuration](/configuration/) for the full reference and how it interacts with `--base-dir`. It is created the first time something writes a setting (a **Settings** page save, `config set`, `init-site`). Until then the [defaults](/configuration/#default-settings) apply with no file on disk.
 
 All admin-server settings live under the nested `admin` key. Set them from the **Settings** page, with [`config set admin.<field>`](/commands/config/), or by hand.
 
@@ -210,13 +175,17 @@ When git integration is enabled in settings:
 
 Enable this feature in the Settings page by checking both **Enable Git integration** and **Auto-commit changes**.
 
-Auto-commit covers writes made through the admin web UI and the [MCP server](/commands/mcp/), which reuses the same handlers in-process. CLI commands never auto-commit. That includes [`ritual import-changes`](/commands/import-changes/), which replays bundles through the same save handlers with auto-commit suppressed.
+Auto-commit covers the admin web UI and the [MCP server](/commands/mcp/) only. CLI commands never auto-commit. See [Git integration](/configuration/#git-integration) for the keys and the `import-changes` exception.
 
 ## Security
 
+### Network options
+
+`admin.trustProxy` makes the server take the client address from the last `X-Forwarded-For` entry, the one a reverse proxy appends, instead of the connection's own address. Turn it on only behind a proxy you control. `admin.secureCookies` marks the session cookie `Secure`, so browsers send it over HTTPS only.
+
 ### Failed Login Delay
 
-Every failed authentication attempt incurs a configurable delay (default: 3 seconds) before the server responds. This is implemented using `Bun.sleep()` so it does not block other requests. The server remains fully responsive during the delay.
+Every failed authentication attempt incurs a configurable delay (default: 3 seconds) before the server responds. The delay does not slow other requests.
 
 ### Rate Limiting
 

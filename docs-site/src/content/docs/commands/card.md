@@ -27,7 +27,7 @@ ritual card [name] [options]
 | `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output |
 | `--output <format>`  | Output format (`json`, `ndjson`, or `text`)       |
 
-`card` registers no `--quiet`. Everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/cli-conventions/#scripting-conventions)).
+`card` registers no `--quiet`. Everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/cli-conventions/#scripting)).
 
 ## Batch output shape
 

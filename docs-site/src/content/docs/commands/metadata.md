@@ -4,7 +4,7 @@ title: 'metadata'
 
 Inspect and change a list's front matter from scripts, with the same `set`, `get`, `list`, and `unset` subcommands as [`config`](/commands/config/).
 
-Every list type takes `description`, the prose blurb the [built site](/commands/build-site/) prints above the cards. Decks add `tags`, `format`, `labels`, `sourceId`, and `sourceUrl`. Collections add `labels`, their [default card labels](/commands/edit/#collection-front-matter). A wanted list carries the description alone.
+Every list type takes `description`, the prose blurb the [built site](/commands/build-site/) prints above the cards. Decks add `tags`, `format`, `labels`, `sourceId`, and `sourceUrl`. Collections add `labels`, their [default card labels](/list-format/#default-labels-and-descriptions). A wanted list carries the description alone.
 
 Every list type also carries a cover [`image`](/list-images/), but that one is **out of scope here**. It is a mapping rather than a scalar, so [`set-list-image`](/commands/set-list-image/) writes it. This command's `set`, `unset` and `get` all point you there, and only `list` reports it.
 
@@ -44,7 +44,7 @@ None of the subcommands ever prompts once a list name is given, so they are safe
 | any        | `description` | Free text; values are joined with spaces, so quoting the whole description is optional. Stored trimmed; an empty value clears it. Printed above the cards on the list's page in the [built site](/commands/build-site/).                                                                                                                                 |
 | deck       | `tags`        | One tag per argument (commas inside an argument split too). `--add` appends to the current tags, `--remove` drops from them; otherwise values replace. Removing the last tag clears the key.                                                                                                                                                             |
 | deck       | `format`      | A [deck format key](/commands/new/#deck-format) (e.g. `commander`, `modern`); exactly one value.                                                                                                                                                                                                                                                         |
-| deck       | `labels`      | Default card labels for the deck — [`proxy`](/commands/edit/#card-labels) is the only label a deck carries, so `proxy` is the only accepted value. Every line without its own `[labels]` token inherits it. `--add`/`--remove` merge as they do for a collection; an empty `set` is refused (clearing is `unset`'s job).                                 |
+| deck       | `labels`      | Default card labels for the deck — [`proxy`](/list-format/#card-labels) is the only label a deck carries, so `proxy` is the only accepted value. Every line without its own `[labels]` token inherits it. `--add`/`--remove` merge as they do for a collection; an empty `set` is refused (clearing is `unset`'s job).                                   |
 | deck       | `sourceId`    | The deck's id on its sync source; exactly one value. Must agree with `sourceUrl` (see below).                                                                                                                                                                                                                                                            |
 | deck       | `sourceUrl`   | The deck's `http(s)` URL on its sync source; exactly one value.                                                                                                                                                                                                                                                                                          |
 | collection | `labels`      | Default card labels: `sale`/`trade` (combinable) or `keep`/`proxy` (each exclusive), as separate values or comma-joined, case-insensitively. `--add`/`--remove` merge with the current set (a typo'd label errors rather than silently removing nothing; removing the last label clears the key). An empty `set` is refused — clearing is `unset`'s job. |
@@ -80,7 +80,7 @@ ritual metadata list my-deck
 
 `set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`); a value that cleared the key reports `Cleared`. `get` prints the raw value, arrays as JSON, and exits `3` with a `not_found` error when the property is unset. `list` prints every property for the list's type, `(unset)` included, and the non-settable `image` among them. With `--output json` the `list` payload is `{ type, list, frontMatter }`, where `frontMatter` is the **full** mapping, including non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys. This is the same shape the admin route returns.
 
-Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting-conventions).
+Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting).
 
 ## Behavior
 

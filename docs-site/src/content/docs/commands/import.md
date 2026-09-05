@@ -48,6 +48,79 @@ CSV import is also available in the [admin site](/admin/import/#import-csv) (**I
 
 Flags are validated against the resolved source. A CSV-only flag on a URL or text-file import, or `--moxfield-user-agent` / `--sync-printings` / `--no-sync-printings` on a CSV **or text-file** import, fails with a usage error (exit code `2`) naming the offending flag. Those three only apply to URL imports; a local file's printings are the file's own data.
 
+`-y, --yes` answers the overwrite confirmation on conflicts. For that purpose it is equivalent to `--overwrite`. Neither flag disables prompting; use the global `--no-input` for headless runs.
+
+Cancelling any interactive prompt (the conflict prompt's **Cancel**, the list-type prompt, the [printings prompt](#printings-from-a-url-import), or any step of the CSV wizard) aborts the import with `Cancelled.` on stderr and exit code `2`. In JSON modes nothing is written to stdout.
+
+## Supported Sources
+
+| Source      | Example                                  |
+| ----------- | ---------------------------------------- |
+| Archidekt   | `https://archidekt.com/decks/12345`      |
+| Moxfield    | `https://moxfield.com/decks/abc123`      |
+| MTGGoldfish | `https://www.mtggoldfish.com/deck/12345` |
+| Text File   | `./my-deck.txt`                          |
+| CSV File    | `./moxfield-export.csv`                  |
+
+## Local Text File Format
+
+When importing from a local text file, use the standard decklist format: quantity-led lines, with or without Ritual's `- ` bullet (see [List Files](/list-format/)). `## Section` headers split the cards into sections:
+
+```
+4 Lightning Bolt
+4 Monastery Swiftspear
+2 Mountain
+
+## Sideboard
+2 Pyroblast
+```
+
+Lines may also carry a printing, finish, condition, language, labels, tags, and note, as in `1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is written through on every list type (see [Card tags](/list-format/#card-tags)). The `[sale]` / `[trade]` / `[keep]` label token is a **collection-only** feature. It is written through on a collection import, while a deck import warns that the label was dropped and a wanted-list import drops it the same way (wanted lists carry no labels).
+
+When importing into a collection or wanted list, each line expands to one bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines), matching how those lists track individual physical cards. Into a deck, the quantity stays on the line and the bullet is added (`- 4 Lightning Bolt`).
+
+Collection imports require a printing (`(SET:123)`) on every line, since collection entries always reference a specific physical printing. Wanted list entries may be name-only.
+
+### MTG Arena / MTGO Exports
+
+Text imports also read the MTG Arena (and MTGO) export dialect, so a list copied straight out of Arena imports without editing:
+
+```
+About
+Name Mono-Red Aggro
+
+Commander
+1 Krenko, Mob Boss (M19) 149
+
+Deck
+4 Lightning Bolt (M10) 146
+2 Shock (M20) 160
+
+Sideboard
+2 Pyroblast (ICE) 213
+```
+
+- `N Name (SET) NUM` card lines become printings (`4 Lightning Bolt (M10:146)`) instead of card names containing the printing text.
+- A `*F*` / `*E*` finish marker becomes the card's finish, in either of the two positions the export dialects use: trailing, as Archidekt's and MTGO's plain-text exports append it (`1 Sol Ring (LTC) 284 *F*`), or between the set and the collector number, as [Moxfield's bulk-edit grammar](https://moxfield.com/help) spells it (`1 Sol Ring (LTC) *F* 284`). Both import as `1 Sol Ring (LTC:284) [foil]`, so a `ritual export --format text --dialect moxfield` file reads straight back in.
+- Bare `Deck`, `Sideboard`, `Commander`, and `Companion` marker lines start sections (`Deck` is `Main`). An empty `Commander` or `Companion` marker is a dropped section and warns like an empty `##` header would. An empty `Deck` or `Sideboard` marker in an import that has cards elsewhere is kept as a bare header, like the equivalent `##` heading.
+- An `About` block's `Name ...` line names the deck. The block's other lines are skipped with an advisory.
+
+**A set with no collector number is not read as a printing.** A card line can only carry `(SET:NUM)`, since half a printing cannot be written back, and a trailing parenthesized word is a real part of many card names (`Very Cryptic Command (Untap)`, `Hazmat Suit (Used)`). So `1 Sol Ring (LTC)` keeps the name exactly as written and prints an advisory instead of inventing a printing and then dropping it on the way to disk. The same rule applies to URL imports: a source that names a set but no collector number yields a name-only card line.
+
+### Fenced Decklists
+
+A decklist pasted from Discord, Reddit, or GitHub usually arrives wrapped in a ``` fence. On the **import path** the fence is packaging. Its delimiter lines are dropped and the lines inside are parsed like any other, so the cards import normally.
+
+This applies to imports only (`ritual import <file>` and the admin/MCP paste-text route). Everywhere else a [fenced code block is prose](/list-format/#fenced-code-blocks) that the parsers leave untouched.
+
+The bare board markers and the `About` block are **import-only**. The `(SET) NUM` and `*F*`/`*E*` printing forms are a [read tolerance](/list-format/#read-tolerances) of the card-line grammar itself, so a list file holding them is read the same way, and rewritten to `(SET:CN)` and `[foil]` on its next save.
+
+If a card line's format is not recognized at all and the parsed name still contains a parenthesized set-like token, the import writes the card but prints an advisory naming the line (`Warning: Card name still contains a printing token, ...`). Advisories go to stderr, survive `--quiet`, appear in the JSON `advisories` array, and do **not** change the exit code. Nothing was lost, but the name is probably not what you wanted.
+
+### Skipped Lines
+
+Any body line matching none of the above (a bare card name with no leading quantity, a stray marker word the Arena dialect does not define, prose) is **skipped**, not imported. Every skipped line is reported and the command exits `1` so a lossy import never looks clean (see [Partial Failures](#partial-failures)).
+
 ## Printings from a URL import
 
 Archidekt and Moxfield state each card's exact printing: set code, collector number, and foil/etched finish. Keeping that is a choice, the same one [`deck-sync --sync-printings`](/commands/deck-sync/#printing-sync---sync-printings) makes explicit:
@@ -59,9 +132,7 @@ Archidekt and Moxfield state each card's exact printing: set code, collector num
 
 [`import-account`](/commands/import-account/) takes the same pair of flags, asked once for the whole run. The admin site's Import Deck page has the same choice as a checkbox (ticked by default), and the MCP `import_deck` tool requires a `syncPrintings` boolean on every URL import.
 
-`-y, --yes` answers the overwrite confirmation on conflicts. For that purpose it is equivalent to `--overwrite`. Neither flag disables prompting; use the global `--no-input` for headless runs.
-
-Cancelling any interactive prompt (the conflict prompt's **Cancel**, the list-type prompt, the [printings prompt](#printings-from-a-url-import), or any step of the CSV wizard) aborts the import with `Cancelled.` on stderr and exit code `2`. In JSON modes nothing is written to stdout.
+When the printings are kept, the line is written as `1 Sol Ring (C19:221)`, with `[foil]` or `[etched]` when the source says so, carried through exactly as the source states it. Nothing is verified against Scryfall, the same trust level as a CSV import. Cards of the same printing in one section merge into a single line; different printings of the same card stay separate lines. MTGGoldfish deck pages carry no printing data, so those imports remain name-only.
 
 ## Dry Runs
 
@@ -128,22 +199,6 @@ A CSV import emits a structured result instead:
 
 `imported` counts copies written, `failures` lists the rejected rows by CSV line number, and `mode` is the resolved `create`/`overwrite`/`append`. `replacesExisting` is `true` when the import replaced (or, under `--dry-run`, would replace) a list that already existed. `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. In text mode the same notices print on stderr as `Warning: ...` (even under `--quiet`), and they never change the exit code. A CSV import has no `warnings` key; on a URL or text-file import that name means content was **lost**, which exits `1`. Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes. A partial failure still exits `1` even though the payload was emitted (see [Partial Failures](#partial-failures)).
 
-## Supported Sources
-
-| Source      | Example                                  |
-| ----------- | ---------------------------------------- |
-| Archidekt   | `https://archidekt.com/decks/12345`      |
-| Moxfield    | `https://moxfield.com/decks/abc123`      |
-| MTGGoldfish | `https://www.mtggoldfish.com/deck/12345` |
-| Text File   | `./my-deck.txt`                          |
-| CSV File    | `./moxfield-export.csv`                  |
-
-### Printings from URL Imports
-
-Archidekt and Moxfield state which printing each card in the deck is, and keeping that is a choice; see [Printings from a URL import](#printings-from-a-url-import). When kept, the line is written as `1 Sol Ring (C19:221)`, with `[foil]` or `[etched]` when the source says so, carried through exactly as the source states it. Nothing is verified against Scryfall, the same trust level as a CSV import. Cards of the same printing in one section merge into a single line; different printings of the same card stay separate lines.
-
-MTGGoldfish deck pages carry no printing data, so those imports remain name-only.
-
 ## Deck Format
 
 A deck imported from a URL or text file is written with a `format:` in its front matter **when one can be established**. Otherwise the deck is written without a `format:`, which you can add later by editing the file's front matter.
@@ -181,7 +236,7 @@ Appending:
 - Continues the list's `&N` card IDs from its existing pool.
 - For decks, merges rows into existing lines when the name and printing match (incrementing quantity) and creates any missing sections.
 - Records every added card in the list's changelog (visible in `ritual history` and the admin Change History page).
-- Rewrites the whole target file in canonical form, so it **refuses** (exit `1`, nothing written) when that file holds content the rewrite cannot reproduce: a line the parser could not read, or a [fenced code block](/commands/edit/#fenced-code-blocks). `--overwrite` has no such gate, since replacing the file is the point.
+- Rewrites the whole target file in canonical form, so it **refuses** (exit `1`, nothing written) when that file holds content the rewrite cannot reproduce: a line the parser could not read, or a [fenced code block](/list-format/#fenced-code-blocks). `--overwrite` has no such gate, since replacing the file is the point.
 
 A `--dry-run` CSV import performs every validation and resolution step, including the row conversion and its failures, but writes neither the list file nor a changelog.
 
@@ -327,62 +382,3 @@ Moxfield imports require a unique Moxfield-approved user agent string.
 - Pass `--moxfield-user-agent <agent>`
 
 If you need a unique user agent string, contact Moxfield support.
-
-## Local Text File Format
-
-When importing from a local text file, use the standard decklist format: quantity-led lines, with or without Ritual's `- ` bullet (see [List Files](/list-format/)). `## Section` headers split the cards into sections:
-
-```
-4 Lightning Bolt
-4 Monastery Swiftspear
-2 Mountain
-
-## Sideboard
-2 Pyroblast
-```
-
-Lines may also carry a printing, finish, condition, language, labels, tags, and note, as in `1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is written through on every list type (see [Card tags](/commands/edit/#card-tags)). The `[sale]` / `[trade]` / `[keep]` label token is a **collection-only** feature. It is written through on a collection import, while a deck import warns that the label was dropped and a wanted-list import drops it the same way (wanted lists carry no labels).
-
-When importing into a collection or wanted list, each line expands to one bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines), matching how those lists track individual physical cards. Into a deck, the quantity stays on the line and the bullet is added (`- 4 Lightning Bolt`).
-
-Collection imports require a printing (`(SET:123)`) on every line, since collection entries always reference a specific physical printing. Wanted list entries may be name-only.
-
-### MTG Arena / MTGO Exports
-
-Text imports also read the MTG Arena (and MTGO) export dialect, so a list copied straight out of Arena imports without editing:
-
-```
-About
-Name Mono-Red Aggro
-
-Commander
-1 Krenko, Mob Boss (M19) 149
-
-Deck
-4 Lightning Bolt (M10) 146
-2 Shock (M20) 160
-
-Sideboard
-2 Pyroblast (ICE) 213
-```
-
-- `N Name (SET) NUM` card lines become printings (`4 Lightning Bolt (M10:146)`) instead of card names containing the printing text.
-- A `*F*` / `*E*` finish marker becomes the card's finish, in either of the two positions the export dialects use: trailing, as Archidekt's and MTGO's plain-text exports append it (`1 Sol Ring (LTC) 284 *F*`), or between the set and the collector number, as [Moxfield's bulk-edit grammar](https://moxfield.com/help) spells it (`1 Sol Ring (LTC) *F* 284`). Both import as `1 Sol Ring (LTC:284) [foil]`, so a `ritual export --format text --dialect moxfield` file reads straight back in.
-- Bare `Deck`, `Sideboard`, `Commander`, and `Companion` marker lines start sections (`Deck` is `Main`). An empty `Commander` or `Companion` marker is a dropped section and warns like an empty `##` header would. An empty `Deck` or `Sideboard` marker in an import that has cards elsewhere is kept as a bare header, like the equivalent `##` heading.
-- An `About` block's `Name ...` line names the deck. The block's other lines are skipped with an advisory.
-
-**A set with no collector number is not read as a printing.** A card line can only carry `(SET:NUM)`, since half a printing cannot be written back, and a trailing parenthesized word is a real part of many card names (`Very Cryptic Command (Untap)`, `Hazmat Suit (Used)`). So `1 Sol Ring (LTC)` keeps the name exactly as written and prints an advisory instead of inventing a printing and then dropping it on the way to disk. The same rule applies to URL imports: a source that names a set but no collector number yields a name-only card line.
-
-### Fenced Decklists
-
-A decklist pasted from Discord, Reddit, or GitHub usually arrives wrapped in a ``` fence. On the **import path** the fence is packaging. Its delimiter lines are dropped and the lines inside are parsed like any other, so the cards import normally.
-
-This applies to imports only (`ritual import <file>` and the admin/MCP paste-text route). Everywhere else a [fenced code block is prose](/commands/edit/#fenced-code-blocks) that the parsers leave untouched.
-
-The bare board markers and the `About` block are **import-only**. The `(SET) NUM` and `*F*`/`*E*` printing forms are a [read tolerance](/list-format/#read-tolerances) of the card-line grammar itself, so a list file holding them is read the same way, and rewritten to `(SET:CN)` and `[foil]` on its next save.
-
-If a card line's format is not recognized at all and the parsed name still contains a parenthesized set-like token, the import writes the card but prints an advisory naming the line (`Warning: Card name still contains a printing token, ...`). Advisories go to stderr, survive `--quiet`, appear in the JSON `advisories` array, and do **not** change the exit code. Nothing was lost, but the name is probably not what you wanted.
-
-### Skipped Lines
-
-Any body line matching none of the above (a bare card name with no leading quantity, a stray marker word the Arena dialect does not define, prose) is **skipped**, not imported. Every skipped line is reported and the command exits `1` so a lossy import never looks clean (see [Partial Failures](#partial-failures)).

@@ -14,12 +14,10 @@ ritual build-site [options]
 
 ## Options
 
-By default, deck card images use Scryfall URLs from card data. `--cache-images` downloads them and uses local images instead.
-
 | Option                          | Description                                                                                                                                                                                                                                                                                                                                                                                                           |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `-v, --verbose`                 | Show list of cards being fetched from Scryfall                                                                                                                                                                                                                                                                                                                                                                        |
-| `--cache-images`                | Download and use local deck card images in `dist/images` instead of URLs                                                                                                                                                                                                                                                                                                                                              |
+| `--cache-images`                | Download deck card images into `dist/images` and use them instead of the Scryfall URLs the card data carries                                                                                                                                                                                                                                                                                                          |
 | `--decks [names...]`            | Deck names (display name or file base name) or URLs to include in the site (default: the `site.includeDecks` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                              |
 | `--collections [names...]`      | Collection names (display name or file base name) to include in the site (default: the `site.includeCollections` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                          |
 | `--wanted-lists [names...]`     | Wanted list names (display name or file base name) to include in the site (default: the `site.includeWantedLists` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                         |
@@ -109,6 +107,8 @@ Setting a list to specific **display names** publishes only those lists and filt
 Each category also has an `exclude*` list (`site.excludeDecks`, `site.excludeCollections`, `site.excludeWantedLists`) that drops lists by display name even when the `include*` list selects them. Exclusion always wins. The exclude lists default to empty and have no wildcard. For example, `"includeDecks": ["*"]` with `"excludeDecks": ["Untuned Brew"]` publishes every deck except "Untuned Brew". The admin **Manage Lists** page toggles these per list; see [publishing visibility](/admin/manage-lists/#publishing-visibility).
 
 You can edit these lists from the admin **Settings** page, with [`config set`](/commands/config/), or by hand.
+
+Each collection card must have a set code and collector number (`- Sol Ring (C19:221)`). Cards without this information are skipped with a warning.
 
 ## Building decks from URLs
 
@@ -234,9 +234,11 @@ The build generates a single-page application in the `dist/` directory (or the `
 - `locales/{tag}.json`: one message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json`: full deck data loaded on demand
 - `collections/{slug}.json`: full collection data with pricing loaded on demand
-- `wanted/{slug}.json`: full wanted list data with pricing loaded on demand. Each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/prices/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. Under the `cardkingdom` price store the quotes cover every printing the list _carries_, at every finish, not just the ones its tiles display, so the card modal's other-printings grid and the printing pickers can price them with no backend. Each list's detail also carries that list's [categories](/commands/categories/): the build reads its `.categories.json` sidecar, bakes the vocabulary and per-name assignments into the JSON alongside each card's own categories, and prints the sidecar's warnings (unreadable file, entries naming cards the list no longer holds) with that list's other warnings
+- `wanted/{slug}.json`: full wanted list data with pricing loaded on demand
 - `art/{path}`: [custom card art](/custom-art/) files referenced by any published list, copied out of the configured art directory under their art-dir-relative path (once per unique path, so lists sharing an image share the file). A referenced file that is not on disk is a build warning and is left out of the baked data, so the card falls back to its normal art
 - `styles.css`: the bundled CSS
+
+The three list files carry more than cards. Each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/prices/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. Under the `cardkingdom` price store the quotes cover every printing the list _carries_, at every finish, not just the ones its tiles display, so the card modal's other-printings grid and the printing pickers can price them with no backend. Each list's detail also carries that list's [categories](/commands/categories/): the build reads its `.categories.json` sidecar, bakes the vocabulary and per-name assignments into the JSON alongside each card's own categories, and prints the sidecar's warnings (unreadable file, entries naming cards the list no longer holds) with that list's other warnings.
 
 The site is responsive for desktop and mobile, supports dark mode, uses client-side hash routing (`#/` for the index, `#/deck/{slug}`, `#/collection/{slug}`, and `#/wanted/{slug}` for list pages), keeps a navigation bar with "Decks", "Collections", and "Wanted" links always visible, and animates page transitions.
 
@@ -319,7 +321,7 @@ If nothing was priced, the build says which of the two causes it was and exits `
 
 ## Card Cache Refresh
 
-A build pulls card data and prices from three places, in order:
+A build gets card data and prices in four steps, in order:
 
 1. **Automatic bulk download**: if the cache is empty, more than a week old, or missing more than 100 of the requested cards, the full Scryfall bulk dataset is downloaded first (equivalent to `ritual cache preload-all`).
 2. **Bulk price-refresh prompt**: otherwise, if more than 100 cards have prices older than 24 hours, `build-site` offers a bulk redownload (fresh prices for everything in one request) instead of refreshing each card individually:
@@ -348,7 +350,7 @@ The shared `--refresh <mode>` option answers the prompts non-interactively and c
 | `no-bulk`           | **Suppressed**                   | **Skipped**                          | Yes                                       | **Skipped**                          | Yes, when not cached                 |
 | `never`             | **Suppressed**                   | **Skipped**                          | **No** (uses cached prices as-is)         | **Skipped**                          | **Skipped** (warns; symbols missing) |
 
-[`serve --api`](/commands/serve/#live-api-mode---api) runs steps 1, 2, and 4 of this table at startup, over the cards its served lists reference. It never runs step 3, since a live server answers requests from the cache and never fetches from Scryfall, so for the warm, `no-bulk` and `never` are equivalent.
+[`serve --api`](/commands/serve/#live-api-mode---api) runs steps 1, 2, and 4 of this table at startup, over the cards its served lists reference. It never runs step 3, since a live server answers requests from the cache and never fetches from Scryfall, so on a warm cache, `no-bulk` and `never` behave the same.
 
 ```bash
 ritual build-site --refresh auto     # fastest full refresh, no prompts

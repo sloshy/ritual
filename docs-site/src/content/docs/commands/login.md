@@ -87,7 +87,7 @@ ritual login status --output json
 
 This is the same payload the admin API serves at `GET /api/login/archidekt` and the same snapshot the MCP `get_sync_status` tool carries as its `archidekt` section, so every surface answers the question identically.
 
-The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)). To branch purely on the exit code, redirect stdout:
+The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/cli-conventions/#scripting)). To branch purely on the exit code, redirect stdout:
 
 ```bash
 ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"

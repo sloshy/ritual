@@ -24,7 +24,7 @@ ritual cache status [--output text|json|ndjson]
 | ------------------- | ---------------------------------------------------- |
 | `--output <format>` | Output format: `text` (default), `json`, or `ndjson` |
 
-The status report is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
+The status report is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting)).
 
 Text output is aligned `key: value` lines. `json`/`ndjson` emit an object with these fields:
 

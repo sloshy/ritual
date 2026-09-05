@@ -37,7 +37,7 @@ With no list name, the command runs interactively and prompts you to pick a list
 | `--condition <condition>`   | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only)                                       |         |
 | `--language <code>`         | New language as a Scryfall code (`ja`, `de`, `zhs`, ...; aliases like `jp`/`Japanese` normalize); `en` clears the line's token                           |         |
 | `--label <labels>`          | New label override: `sale,trade` (combinable), `keep` or `proxy`, or `none` to clear it (decks take `proxy` only)                                        |         |
-| `--tag <tags>`              | Add these [tags](/commands/edit/#card-tags) to the card: one or more, comma-separated (`"Ramp, Card Draw"`); any list type                               |         |
+| `--tag <tags>`              | Add these [tags](/list-format/#card-tags) to the card: one or more, comma-separated (`"Ramp, Card Draw"`); any list type                                 |         |
 | `--untag <tags>`            | Remove these tags from the card: one or more, comma-separated; any list type                                                                             |         |
 | `--categories <categories>` | Set the card's [categories](/commands/categories/) in this list: one or more, comma-separated (`"Ramp, Artifacts"`); the first is primary; any list type |         |
 | `--no-categories`           | Clear the card's categories in this list                                                                                                                 |         |
@@ -142,7 +142,7 @@ Internally there is no standalone "set condition" change event. A condition chan
 
 ### Label Updates
 
-`--label` sets the card's [label override](/commands/edit/#card-labels), and `--label none` clears it so the list's front-matter default applies again. Which labels the flag accepts depends on the list type. A **collection** takes the whole vocabulary (`sale` and `trade` combine as `sale,trade`; `keep` and `proxy` each stand alone), a **deck** takes `proxy` alone, and a **wanted list** carries no labels at all. A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports. It is never silently dropped.
+`--label` sets the card's [label override](/list-format/#card-labels), and `--label none` clears it so the list's front-matter default applies again. Which labels the flag accepts depends on the list type. A **collection** takes the whole vocabulary (`sale` and `trade` combine as `sale,trade`; `keep` and `proxy` each stand alone), a **deck** takes `proxy` alone, and a **wanted list** carries no labels at all. A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports. It is never silently dropped.
 
 `--label` is also the only edit that can **repair** a line whose existing `[labels]` token the parser refuses (`[sale,keep]`, or a label the type does not carry). It replaces the token outright, while every other edit to that line refuses rather than dropping it silently.
 
@@ -153,11 +153,11 @@ ritual set-card --deck "Winota Stax" "Sol Ring" --label proxy
 ritual set-card --deck "Winota Stax" "Sol Ring" --label none
 ```
 
-A `proxy` card is priced at zero everywhere and is excluded from buylist and sell reports. See [Proxies carry no price](/commands/edit/#proxies-carry-no-price).
+A `proxy` card is priced at zero everywhere and is excluded from buylist and sell reports. See [Proxies carry no price](/list-format/#proxies-carry-no-price).
 
 ### Tag Updates
 
-`--tag` adds [tags](/commands/edit/#card-tags) to the card's line and `--untag` removes them, on **every** list type. Either flag takes one or more tags **separated by commas**. Spaces are part of a tag, so `--tag "Card Draw, Ramp"` is two tags, kept in the case you wrote them. A tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses, and one that does is rejected at parse time (exit `2`).
+`--tag` adds [tags](/list-format/#card-tags) to the card's line and `--untag` removes them, on **every** list type. Either flag takes one or more tags **separated by commas**. Spaces are part of a tag, so `--tag "Card Draw, Ramp"` is two tags, kept in the case you wrote them. A tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses, and one that does is rejected at parse time (exit `2`).
 
 Tags the line already carries are left alone: `--tag` never replaces the set, and `--untag` removes only the tags it names. Only the tags that actually move are recorded. A `--tag` or `--untag` in which _nothing_ changed reports `tags unchanged (…)`, naming the tags you passed, instead of re-recording them. Naming the same tag in both flags is a usage error. Repeating a flag accumulates (`--tag ramp --tag staple` is `--tag ramp,staple`), and an empty value (`--tag ""`) is refused at parse time rather than read as a no-op, unlike the editor's tag prompt, where an empty field clears the tags.
 

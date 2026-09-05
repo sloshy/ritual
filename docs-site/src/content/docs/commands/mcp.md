@@ -388,7 +388,7 @@ response; notes a destination cannot keep are reported as `droppedNotes`.
 
 Entries carry a `language` field only when the copy is not English: an absent value always means
 `en`, mirroring the card lines themselves, where the `[ja]`-style token is omitted on English
-lines (see [Card Language](/commands/edit/#card-language)). The vocabulary everywhere is the 17
+lines (see [Card Language](/list-format/#card-language)). The vocabulary everywhere is the 17
 Scryfall codes (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`) — canonical codes only,
 no aliases. `add_card` takes an optional `language` (omitted, the configured
 [`defaultLanguage`](/configuration/#default-language) stamps the new card — adds never prompt);
@@ -402,7 +402,7 @@ take an optional `language` for the same reason (a non-English copy gets no quot
 
 #### Card labels are per list type
 
-The [label](/commands/edit/#card-labels) vocabulary is shared, but which of it a list carries is
+The [label](/list-format/#card-labels) vocabulary is shared, but which of it a list carries is
 not: a **collection** takes all of it (`sale`/`trade` combine; `keep` and `proxy` each stand
 alone), a **deck** takes `proxy` alone, and a **wanted list** carries none. Every tool that pairs
 a `listType` with `labels` — `add_card`, `set_list_metadata`, and `apply_changes`' `add` /
@@ -422,7 +422,7 @@ quotes, no sale — reported as `unpricedReason: "custom-art"`, which wins when 
 
 #### Card tags
 
-[Tags](/commands/edit/#card-tags) are the owner's own free-form vocabulary, carried by **every**
+[Tags](/list-format/#card-tags) are the owner's own free-form vocabulary, carried by **every**
 list type and never resolved against a list default — a card's tags are exactly the ones on its
 line. Over MCP a tag is always its canonical value: plain text in the owner's own casing, trimmed
 and single-spaced (`Ramp`, `Card Draw`), **without** the `#` the card line writes, and never
@@ -561,7 +561,7 @@ note, label, tag, category, section, and commander actions are themselves additi
 capability, not what any particular batch does.
 
 `set_list_metadata` writes deck front matter (tags, format, source link) and — on a
-deck or a collection — `labels`, the [default card labels](/commands/edit/#card-labels) every
+deck or a collection — `labels`, the [default card labels](/list-format/#card-labels) every
 entry without its own override inherits (`null` clears them). All three list types take
 `description`, the blurb the built site prints above the cards (`null` or `""` clears it), and
 `image`, the list's [cover image](/list-images/): a single-key mapping — `{"card": N}` (the `&N`

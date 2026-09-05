@@ -75,7 +75,7 @@ The file is a **`ritual-change-bundle`** JSON (format version **2**) covering on
 
 - its source and destination list as `{ kind, slug?, name }`. `slug` is a best-effort hint; `name` is what the import resolves by when the slug is absent or stale;
 - the copy's printing fields (`set`, `collectorNumber`, `finish`, `condition`, `language`);
-- optional `tags`, the card's [tags](/commands/edit/#card-tags) in canonical form, which land on the destination line;
+- optional `tags`, the card's [tags](/list-format/#card-tags) in canonical form, which land on the destination line;
 - an optional `cardId`, the **source** list's `&N` line id the copy was taken from. It is a removal hint the importer falls back from to a printing/name match;
 - an optional `toCardId`, the **destination** line id the exporting editor gave the arriving copy. It is re-targeted on import exactly like an `add`'s id, so a later edit of that copy in the same export still finds it;
 - for deck destinations, an optional `section`;

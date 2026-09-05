@@ -95,7 +95,7 @@ Everything here writes the sidecar directly, with no changelog entry, exactly li
 
 ## Custom art carries no price
 
-A card given custom art is priced at **0 everywhere**, exactly like a card labeled [`proxy`](/commands/edit/#card-labels). One rule covers both: custom art or proxy means no price, no quotes, no sale.
+A card given custom art is priced at **0 everywhere**, exactly like a card labeled [`proxy`](/list-format/#card-labels). One rule covers both: custom art or proxy means no price, no quotes, no sale.
 
 - [`ritual price`](/commands/price/) short-circuits the entry before any lookup. Price and lowest price are `0`, the unpriced reason is `custom-art`, and it counts toward the card count but **not** toward the unpriced count, since it is not a gap in the price data. A card that is both custom-arted and labeled `proxy` reports `custom-art`; custom art wins.
 - [`ritual sell`](/commands/sell/) drops the entry before matching, so it is never quoted against a buylist and never counted as a card the buyer declined.
@@ -140,6 +140,6 @@ A list's [cover image](/list-images/) shares all of this. A `file` cover is copi
 - [`set-card --art`](/commands/set-card/#custom-art) — the CLI writer
 - [`edit` → Custom Art](/commands/edit/#custom-art) — the interactive editor's action and its art-directory file browser
 - [Admin editors → Custom Art](/admin/editors/#custom-art) — the dialog
-- [Card labels](/commands/edit/#card-labels) — the `proxy` label, which pairs naturally with a scanned proxy image (neither one implies the other, but both mean the card carries no price)
+- [Card labels](/list-format/#card-labels) — the `proxy` label, which pairs naturally with a scanned proxy image (neither one implies the other, but both mean the card carries no price)
 - [Admin API → Card Art](/admin/api/#card-art) — `PUT /api/art/:type/:slug`
 - [MCP → `set_card_art`](/commands/mcp/) — the agent-facing writer

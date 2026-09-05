@@ -328,7 +328,7 @@ This is an **advisory**, not an [unreadable line](#unreadable-lines). Nothing is
 
 ## Unreadable Lines
 
-A list file may hold lines the parser cannot read (stray prose, a refused card line) or a [fenced code block](/commands/edit/#fenced-code-blocks), which parses cleanly as prose but which the canonical serializer cannot re-emit. Both directions refuse to sync such a list without confirmation, because both directions would lose that content. A pull rewrites the file (deleting it), and a push treats the file as the truth (so the cards on those lines are deleted from your Archidekt collection).
+A list file may hold lines the parser cannot read (stray prose, a refused card line) or a [fenced code block](/list-format/#fenced-code-blocks), which parses cleanly as prose but which the canonical serializer cannot re-emit. Both directions refuse to sync such a list without confirmation, because both directions would lose that content. A pull rewrites the file (deleting it), and a push treats the file as the truth (so the cards on those lines are deleted from your Archidekt collection).
 
 ```
 1 collection list contains lines Ritual cannot read.

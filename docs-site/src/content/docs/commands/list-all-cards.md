@@ -76,7 +76,7 @@ The generated GitHub Actions workflow uses this file as the cache key for the Sc
 
 ```yaml
 - name: Generate card manifest
-  run: ritual list-all-cards --out all-cards.md
+  run: ./ritual list-all-cards --out all-cards.md
 
 - name: Restore Scryfall cache
   uses: actions/cache@v5

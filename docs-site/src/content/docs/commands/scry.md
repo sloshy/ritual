@@ -27,9 +27,9 @@ ritual scry [query] --random [options]
 | `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output  | -                                          |
 | `--output <format>` | Output format (`json`, `ndjson`, `text`, or `csv`) | `json`                                     |
 
-`scry` registers no `--quiet`. Results are the payload and the truncation notice below is a content-loss warning, and [the convention](/cli-conventions/#scripting-conventions) lets `--quiet` hide neither.
+`scry` registers no `--quiet`. Results are the payload and the truncation notice below is a content-loss warning, and [the convention](/cli-conventions/#scripting) lets `--quiet` hide neither.
 
-`scry`'s `--output` accepts a fourth value, `csv`. Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag. ([`sell`](/commands/sell/) widens the vocabulary the same way, with a different payload.) Everything else follows the [shared scripting conventions](/cli-conventions/#scripting-conventions).
+`scry`'s `--output` accepts a fourth value, `csv`. Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag. ([`sell`](/commands/sell/) widens the vocabulary the same way, with a different payload.) Everything else follows the [shared scripting conventions](/cli-conventions/#scripting).
 
 `--random` cannot be combined with `--pages` or `--output csv`, and `--count` requires `--random`. Either combination is rejected with a usage error. Without `--random`, a search query is required.
 

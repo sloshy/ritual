@@ -26,7 +26,7 @@ ritual dep-license [package] [options]
 | `--plain`           | Output license text directly to stdout                     | `false` |
 | `--output <format>` | Output format for `--list`: `text`, `json`, or `ndjson`    | `text`  |
 
-The listing (or a package's license text) is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
+The listing (or a package's license text) is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting)).
 
 `--list` cannot be combined with a package name argument. It never prompts, so it also works outside a TTY. Without either a package name or `--list`, an invocation that cannot open the picker is a usage error (exit `2`). That covers a non-TTY stdout and every case where [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including `--no-input`.
 

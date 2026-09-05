@@ -67,16 +67,16 @@ Deck and collection pages offer four view modes, toggled via buttons in the tool
 
 - **Binder** (▦): a dense card image grid
 - **List** (☰): compact text rows showing name, mana cost, and price
-- **Row** (⧗): a horizontally scrolling fan of overlapping cards
-- **Column** (▥): vertical stacked columns of cards
+- **Overlap** (⧗): a horizontally scrolling fan of overlapping cards
+- **Stack** (▥): vertical stacked columns of cards
 
-In binder, row, and column modes, hovering a card shows its name and price in an overlay at the bottom of the card image.
+In binder, overlap, and stack modes, hovering a card shows its name and price in an overlay at the bottom of the card image.
 
 Double-faced cards show a translucent **flip** button (⇄) on the left edge when hovered in these three image views (it is not shown in list view). Clicking it flips the card in place, with a short rotate animation that does not disturb the surrounding layout, to reveal the back face. Clicking again flips back to the front. The flip is purely visual and does not change grouping, sorting, or any saved data.
 
 When grouping by **type**, double-faced cards are categorized by their **front face only**. A card whose front is a creature and whose back is a land is grouped under Creature.
 
-A card size selector (**L / M / S**) appears in the toolbar for binder, row, and column modes. The three sizes are:
+A card size selector (**L / M / S**) appears in the toolbar for binder, overlap, and stack modes. The three sizes are:
 
 | Size               | Card width |
 | ------------------ | ---------- |
@@ -84,7 +84,7 @@ A card size selector (**L / M / S**) appears in the toolbar for binder, row, and
 | M (Medium)         | 140 px     |
 | S (Small)          | 100 px     |
 
-Card size applies uniformly across all three image views. In row and column modes, the row width and column width shift automatically to match the selected card size.
+Card size applies uniformly across all three image views. In overlap and stack modes, the row and column widths shift automatically to match the selected card size.
 
 ## Card Detail Modal
 
@@ -100,7 +100,7 @@ A card carrying [custom art](/custom-art/) shows that image on its tile in every
 
 ## Card Labels
 
-Cards carry [labels](/commands/edit/#card-labels): `sale`, `trade`, `keep`, `proxy` on a collection, `proxy` on a deck. The site filters on each card's _effective_ labels (its own override, else the list's front-matter default) through the toolbar's [Labels filter](/public-site/filtering/#available-filters), which offers only the chips the page's lists can answer. Tiles **badge** the entry's own override, in a themable color per label. A list-wide default is not badged on every tile. In a [combined view](/public-site/combined-view/), where there is no one ambient default, the badge shows the effective labels instead.
+Cards carry [labels](/list-format/#card-labels): `sale`, `trade`, `keep`, `proxy` on a collection, `proxy` on a deck. The site filters on each card's _effective_ labels (its own override, else the list's front-matter default) through the toolbar's [Labels filter](/public-site/filtering/#available-filters), which offers only the chips the page's lists can answer. Tiles **badge** the entry's own override, in a themable color per label. A list-wide default is not badged on every tile. In a [combined view](/public-site/combined-view/), where there is no one ambient default, the badge shows the effective labels instead.
 
 A **proxy** is not a real card, so the site prices it at zero. See [Cards priced at zero](/public-site/prices/#cards-priced-at-zero).
 
@@ -116,7 +116,7 @@ Every list page (deck, collection, or wanted list) carries a **Copy** and a **Do
 
 ## Multi-Select
 
-Any list page (deck, collection, or wanted list) lets you select cards across every view mode and act on the whole selection at once. Hovering a card in binder, row, or column mode reveals a translucent checkbox in its top-left corner. Clicking it marks the card with a checkmark in the current theme's accent color. In list view the checkbox sits at the far left of each row. You can also **Ctrl-click** (or **⌘-click** on macOS) anywhere on a card in any view to toggle its selection without opening the card modal.
+Any list page (deck, collection, or wanted list) lets you select cards across every view mode and act on the whole selection at once. Hovering a card in binder, overlap, or stack mode reveals a translucent checkbox in its top-left corner. Clicking it marks the card with a checkmark in the current theme's accent color. In list view the checkbox sits at the far left of each row. You can also **Ctrl-click** (or **⌘-click** on macOS) anywhere on a card in any view to toggle its selection without opening the card modal.
 
 A card shown with a quantity (`4×` in a deck, or a grouped duplicate in a collection) is selected as all of its copies at once, and the count reflects the individual copies (selecting `4× Lightning Bolt` counts as four). When you later remove some, but not all, of a group's copies (from the dialog below), its checkbox shows a **dash** instead of a checkmark to indicate the partial selection.
 
@@ -154,7 +154,7 @@ Deck pages show:
 
 - The total deck price (mainboard + sideboard) at the top, updating when the "Lowest Price" toggle is enabled. When extras are visible, a separate parenthetical "all cards" total is shown next to the main price
 - A **Lowest Price** toggle that swaps all cards to their cheapest available printing. Cheapest means cheapest in the active currency and at the active [price store](/public-site/prices/), so under Card Kingdom it is the cheapest printing CK actually sells. When enabled, card images and prices update to reflect the lowest-priced version. Only printings with a listed price are considered
-- The card detail modal with Scryfall link, other printings (paginated, sortable by release date, set name, or price, and priced under the selected [price store](/public-site/prices/)), and full card details
+- The [card detail modal](#card-detail-modal), with its Scryfall link and Other Printings grid
 - Section/group price totals shown next to card counts
 - Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), or ungrouped. These apply to the mainboard only
 - Grouping by [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), which instead nests inside every board: headings read `Main › Ramp`, `Sideboard › Draw`
@@ -165,15 +165,12 @@ Deck pages show:
 
 ## Collection Pages
 
-Collections are included in the build by default: every list allowed by `site.includeCollections`, or exactly the ones named by `--collections`. Collection files come from the `collections/` directory. Each collection card must have a set code and collector number (`- Sol Ring (C19:221)`). Cards without this information are skipped with a warning.
-
 Collection pages show:
 
 - The total collection value based on specific printing and finish prices
 - Individual card prices, conditions, finishes, and set/collector number in the card detail modal
-- Non-English copies labelled with their [language](/commands/edit/#card-language) beside the finish and condition: `(Foil · JA)` on card tiles in the art views, and as part of the parenthesised list-view label
-- A "View on Scryfall" link in the card detail modal that opens the card's Scryfall page
-- An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall, priced under the selected [price store](/public-site/prices/) with alternate finishes underneath. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction
+- Non-English copies labelled with their [language](/list-format/#card-language) beside the finish and condition: `(Foil · JA)` on card tiles in the art views, and as part of the parenthesised list-view label
+- The [card detail modal](#card-detail-modal), with its Scryfall link and Other Printings grid
 - Cards displayed individually by default (not grouped), with a "Group Duplicates" toggle
 - File order as the default sort, with options for name, price, set code, type, mana value, and color identity
 - Grouping by section (the default when the collection has two or more sections), type, mana value, color identity, price brackets, [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
@@ -184,7 +181,7 @@ Collection pages show:
 
 ## Wanted List Pages
 
-Wanted lists are included in the build by default: every list allowed by `site.includeWantedLists`, or exactly the ones named by `--wanted-lists`. Wanted list files come from the `wanted/` directory. Unlike collections, wanted list entries can have varying levels of specificity, from just a card name to a fully pinned printing and finish.
+Unlike collections, wanted list entries can have varying levels of specificity, from just a card name to a fully pinned printing and finish.
 
 Wanted list pages show:
 

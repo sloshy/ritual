@@ -87,7 +87,7 @@ ritual set-list-image                                  # wizard
 
 Text output is one line: `Deck 'winota-stax': cover image is now the card &12`, or `… cover image cleared; the built-in choice applies again`. A `--dry-run` prefixes it with `[dry-run]` and says _would become_ (or _would be cleared_, for `--default`).
 
-With `--output json` the payload is `{ type, list, mode, image }`. `mode` is `default`, `card`, `file`, or `url`, and `image` is the stored mapping (`{"card":12}`) or `null` when the key was removed. A dry run adds `"dryRun": true`. Errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting-conventions).
+With `--output json` the payload is `{ type, list, mode, image }`. `mode` is `default`, `card`, `file`, or `url`, and `image` is the stored mapping (`{"card":12}`) or `null` when the key was removed. A dry run adds `"dryRun": true`. Errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting).
 
 ## Behavior
 

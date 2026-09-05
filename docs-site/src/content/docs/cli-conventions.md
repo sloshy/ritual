@@ -109,7 +109,7 @@ Run [`ritual locale`](/commands/locale/) to see which tier won, or [`ritual loca
 
 ## Scripting
 
-Every command that produces data can emit it in a machine-readable form:
+Most commands that produce data can emit it in a machine-readable form:
 
 ```bash
 # One JSON document
@@ -127,8 +127,6 @@ A few habits make scripts robust:
 - Prefer `--output json` or `--output ndjson` over parsing text.
 - Use `--fields` to project a stable subset of the data.
 - Set `--no-input` (or `RITUAL_NO_INPUT`) in headless environments so no command ever prompts, and pass `--yes` where a confirmation is required.
-
-## Scripting conventions
 
 Three flags and one exit-code vocabulary behave the same way on every command that has them.
 

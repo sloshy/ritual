@@ -2,7 +2,7 @@
 title: 'init-site'
 ---
 
-Set up the current directory for publishing a Ritual site: a CI workflow, a README, a `.gitignore`, and the site settings in `ritual.config.json`.
+Set up the current directory for publishing a Ritual site: a README, a `.gitignore`, the site settings in `ritual.config.json`, and, for GitHub Actions, a deploy workflow.
 
 ## Usage
 
