@@ -2,7 +2,7 @@
 title: 'lists'
 ---
 
-Enumerate every deck, collection, and wanted list — the discovery counterpart to the list management commands (`new`, `rename`, `delete`) and a quick way for scripts to learn what exists before targeting a list by name.
+List every deck, collection, and wanted list in the workspace. This is the quickest way to see what exists, and the way a script learns the names it can pass to other commands.
 
 ## Usage
 
@@ -20,7 +20,7 @@ ritual lists [options]
 | `--output <format>` | Output format: `text`, `json`, or `ndjson` | `text`  |
 | `--quiet`           | Suppress non-essential output              | `false` |
 
-The three type flags are mutually exclusive; passing more than one is a usage error.
+The three type flags are mutually exclusive. Passing more than one is a usage error.
 
 ## Examples
 
@@ -37,7 +37,7 @@ collection  main   Main Binder
 wanted      needs  Needs
 ```
 
-Each text row is three aligned columns: the list type, the slug (the file basename, which is what other commands resolve), and the display name (a deck's front-matter `name`, a flat list's `# H1`).
+Each text row is three aligned columns: the list type, the slug (the file basename, which is what other commands resolve), and the display name (the list's `# Title` heading).
 
 Only decks, as JSON:
 
@@ -52,7 +52,7 @@ ritual lists --deck --output json
 ]
 ```
 
-`ndjson` emits the same rows one JSON object per line.
+`ndjson` emits the same rows, one JSON object per line.
 
 ## Behavior
 

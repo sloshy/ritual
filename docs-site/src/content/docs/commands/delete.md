@@ -10,16 +10,16 @@ Delete a deck, collection, or wanted list, along with all of its sidecar files.
 ritual delete <list> [options]
 ```
 
-`<list>` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate.
+`<list>` names a list of any type; see [List Names](/list-resolution/). Pass `--deck`, `--collection`, or `--wanted` (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate.
 
-Deletion is destructive, so it must be confirmed with the list's **display name** (not its slug) — the same confirmation the admin site asks for. Pass it with `--confirm`; without the flag, an interactive terminal names the resolved target and prompts for its exact display name, and a non-interactive run exits with a usage error pointing at `--confirm`:
+Deletion is destructive, so it must be confirmed with the list's **display name** (not its slug), the same confirmation the admin site asks for. Pass it with `--confirm`. Without the flag, an interactive terminal names the resolved target and prompts for its exact display name, and a non-interactive run exits with a usage error pointing at `--confirm`:
 
 ```
 About to delete deck 'Modern Burn' (decks/Modern Burn.md) and its sidecar files.
 ? Type 'Modern Burn' to confirm: ›
 ```
 
-Note the two halves are addressed differently on purpose: `<list>` is [resolved](/list-resolution/) (so a partial, differently-cased, or colon-carrying display name finds the list), while `--confirm` must be the display name character for character.
+The two halves are addressed differently on purpose. `<list>` is [resolved](/list-resolution/), so a partial, differently-cased, or colon-carrying display name finds the list. `--confirm` must be the display name character for character.
 
 ## Arguments
 
@@ -52,11 +52,11 @@ Delete a collection and capture the result as JSON:
 ritual delete --collection main --confirm "Trade Binder" --output json
 ```
 
-The JSON payload is `{ type, slug, deleted: true, deletedFiles }`, where `deletedFiles` lists every path removed — the list plus whichever sidecars it had.
+The JSON payload is `{ type, slug, deleted: true, deletedFiles }`, where `deletedFiles` lists every path removed: the list plus whichever sidecars it had.
 
 ## Behavior
 
-Deleting a list removes the markdown file and every sidecar it may have: the `.sha256` content hash, the `.changes.md` changelog, the `.art.json` [custom art](/custom-art/) map, the `.categories.json` [categories](/list-format/#categories-namecategoriesjson) sidecar and its own `.categories.json.sha256`, and — for decks — the `.primer.md` primer. Nothing is deleted until the confirmation name matches the display name exactly.
+Deleting a list removes the markdown file and every sidecar it may have: the `.sha256` content hash, the `.changes.md` changelog, the `.art.json` [custom art](/custom-art/) map, the `.categories.json` [categories](/list-format/#categories-namecategoriesjson) sidecar and its own `.categories.json.sha256`, and, for decks, the `.primer.md` primer. Nothing is deleted until the confirmation name matches the display name exactly.
 
 ## Exit Codes
 

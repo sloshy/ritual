@@ -4,9 +4,9 @@ title: 'note'
 
 Set, replace, or clear the note on a card that already exists in a deck, collection, or wanted list.
 
-Notes are stored in list files as `{note text}` between the bracketed metadata and the `&N` card ID.
+Notes are stored in list files as `{note text}`, between the bracketed metadata and the `&N` card ID.
 
-The edit is line-preserving: only the targeted card's line is rewritten. Everything else in the file — prose, comments, lines the parser cannot read — stays byte-for-byte intact.
+The edit is line-preserving: only the targeted card's line is rewritten. Everything else in the file, including prose, comments, and lines the parser cannot read, stays byte-for-byte intact.
 
 ## Usage
 
@@ -14,7 +14,9 @@ The edit is line-preserving: only the targeted card's line is rewritten. Everyth
 ritual note [listName] [cardName...] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate; a prefix that contradicts the flag is a usage error. If invoked with no list name, the command runs interactively, prompting you to pick a list (filtered by the type flag if given), then the card and note text. Any argument or option you supply skips the corresponding prompt — fully scripting-friendly. The list and card prompts require a terminal with prompts enabled too — with piped stdin or `--no-input`, a missing `[listName]` or card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
+`[listName]` names a list of any type; see [List Names](/list-resolution/). Pass `--deck`, `--collection`, or `--wanted` (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. A prefix that contradicts the flag is a usage error.
+
+With no list name, the command runs interactively: it prompts you to pick a list (filtered by the type flag if given), then the card, then the note text. Any argument or option you supply skips the corresponding prompt. The list and card prompts need a terminal with prompts enabled. With piped stdin or `--no-input`, a missing `[listName]` or card selector (`[cardName...]` or `--card-id`) exits with a usage error (code `2`) instead of prompting.
 
 ## Arguments
 
@@ -37,7 +39,7 @@ ritual note [listName] [cardName...] [options]
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`                                                                  | `text`  |
 | `--quiet`           | Suppress non-essential output                                                                               | `false` |
 
-If neither `--note` nor `--clear` is given, the command prompts for the note text (prefilled with the card's current note). When prompts are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT` is in force), one of the two flags is required — instead of prompting, the command exits with code `2` (`Input required: …`).
+If neither `--note` nor `--clear` is given, the command prompts for the note text, prefilled with the card's current note. When prompts are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT` is in force), one of the two flags is required. Instead of prompting, the command exits with code `2` (`Input required: …`).
 
 ## Examples
 
@@ -59,7 +61,7 @@ Pin the list type when a name is ambiguous, or to be explicit:
 ritual note --deck "My Deck" --card-id 17 --note "alpha printing"
 ```
 
-Replace an existing note — setting always overwrites:
+Replace an existing note. Setting always overwrites:
 
 ```bash
 ritual note --collection "Main" "Mana Crypt" --note "tutor target"
@@ -81,7 +83,7 @@ ritual note --collection main "Sol Ring" --note "first edition" --output json
 
 ### Setting Replaces
 
-Setting a note **unconditionally replaces** any existing note — there is no overwrite guard or confirmation. The previous text is reported back (`previousNote` in JSON output), so scripts can detect that a replacement happened.
+Setting a note **unconditionally replaces** any existing note. There is no overwrite guard or confirmation. The previous text is reported back (`previousNote` in JSON output), so scripts can detect that a replacement happened.
 
 ```json
 {
@@ -113,30 +115,30 @@ When a note is removed, the response includes the removed text:
 
 ### List Resolution
 
-`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/list-resolution/) for the full rules.
+`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring). A name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Names](/list-resolution/) for the full rules.
 
 ### Card Resolution
 
-- **By name**: the input is fuzzy-matched against the cards in the list. Punctuation, case, and accents are ignored (so `seance` matches `Séance`); substring matches are accepted. If multiple cards match (e.g. two different printings of "Lightning Bolt"), the command exits with a `usage_error` listing each match. Disambiguate with `--card-id` or run interactively.
+- **By name**: the input is fuzzy-matched against the cards in the list. Punctuation, case, and accents are ignored (so `seance` matches `Séance`), and substring matches are accepted. If multiple cards match (say, two different printings of "Lightning Bolt"), the command exits with a `usage_error` listing each match. Disambiguate with `--card-id` or run interactively.
 - **By card ID**: pass `--card-id <N>` to target an entry by its persistent `&N` suffix. Card IDs are unique within each list file, and must be positive integers.
 
-When a card name **and** `--card-id` are both given they must agree: the ID's entry has to match the name by the same rule the name-only path uses. A disagreement is a usage error naming both (`--card-id 3 is 'Demonic Tutor', which does not match 'Lightning Bolt'.`) — IDs are reused from a pool after a removal, so a stale ID paired with a name is a strong signal the wrong card is about to be touched. ID-only and name-only invocations are unaffected.
+When a card name **and** `--card-id` are both given they must agree: the ID's entry has to match the name by the same rule the name-only path uses. A disagreement is a usage error naming both (`--card-id 3 is 'Demonic Tutor', which does not match 'Lightning Bolt'.`). IDs are reused from a pool after a removal, so a stale ID paired with a name is a strong signal the wrong card is about to be touched. ID-only and name-only invocations are unaffected.
 
 ### Dry Runs
 
-`--dry-run` resolves the list, the card, and the note text, then reports what the note _would_ become and stops — nothing is written (list file, changelog, `.sha256` sidecar, or the card-ID backfill). The short `-n` is not available here: it is already `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true` — including on the idempotent `--clear` no-op, which reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
+`--dry-run` resolves the list, the card, and the note text, then reports what the note _would_ become and stops. Nothing is written: no list file, no changelog, no `.sha256` sidecar, and no card-ID backfill. The short `-n` is not available here, since it is already `--note`. Text output is prefixed `[dry-run]`; JSON output carries `"dryRun": true`, including on the idempotent `--clear` no-op, which reports `cleared: false` and `previousNote: null` whether or not it is a dry run.
 
 ### Quantity Behavior
 
-For deck lists with more than one quantity of any card not separated by printing (e.g. `4 Lightning Bolt`), all copies share a single line and a single `&N` ID, so a single note attaches to all of them. To give one copy a different note, split the line into multiple entries first.
+In a deck, several copies of a card with the same printing share a single line and a single `&N` ID (`4 Lightning Bolt`), so a single note attaches to all of them. To give one copy a different note, split the line into multiple entries first.
 
 ### Note Validation
 
-Notes are single-line text. The command trims surrounding whitespace and rejects any control characters (newlines, tabs, NUL, DEL, escape sequences). Quotes and other printable punctuation are allowed. The same validation applies to notes coming from the admin UI. An empty or whitespace-only `--note` value is rejected — clearing is an explicit action via `--clear`, never an empty set.
+Notes are single-line text. The command trims surrounding whitespace and rejects any control characters (newlines, tabs, NUL, DEL, escape sequences). Quotes and other printable punctuation are allowed. The same validation applies to notes coming from the admin UI. An empty or whitespace-only `--note` value is rejected: clearing is an explicit action via `--clear`, never an empty set.
 
 ### Change Tracking
 
-A set is recorded in the list's `.changes.md` changelog as `Set note on "<Card>" &N to "<text>"`; a clear as `Cleared note on "<Card>" &N`. An idempotent `--clear` records nothing.
+A set is recorded in the list's `.changes.md` changelog as `Set note on "<Card>" &N to "<text>"`, and a clear as `Cleared note on "<Card>" &N`. An idempotent `--clear` records nothing.
 
 ## Exit Codes
 

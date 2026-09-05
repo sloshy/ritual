@@ -2,9 +2,13 @@
 title: 'metadata'
 ---
 
-Inspect and modify a list's front-matter metadata from scripts, mirroring [`config`](/commands/config/)'s subcommand shape: `set`, `get`, `list`, and `unset`.
+Inspect and change a list's front matter from scripts, with the same `set`, `get`, `list`, and `unset` subcommands as [`config`](/commands/config/).
 
-Every list type takes `description`, the prose blurb the [built site](/commands/build-site/) prints above the cards. Decks add `tags`, `format`, `labels`, `sourceId`, and `sourceUrl`; collections add `labels` (their [default card labels](/commands/edit/#collection-front-matter)); a wanted list carries the description alone. Every list type also carries a cover [`image`](/list-images/), but that one is **out of scope here** — it is a mapping rather than a scalar, so [`set-list-image`](/commands/set-list-image/) writes it and this command's `set`, `unset` and `get` all point you there; only `list` reports it. Writes go through the same engine as the admin [List Metadata](/admin/api/#list-metadata) route and the MCP `set_list_metadata` tool, so validation and the body-preserving write live exactly once: card lines — `&N` ids, label overrides, notes — survive byte for byte, and only the front-matter block is re-dumped (comments and quoting style are not preserved, though every key and value is).
+Every list type takes `description`, the prose blurb the [built site](/commands/build-site/) prints above the cards. Decks add `tags`, `format`, `labels`, `sourceId`, and `sourceUrl`. Collections add `labels`, their [default card labels](/commands/edit/#collection-front-matter). A wanted list carries the description alone.
+
+Every list type also carries a cover [`image`](/list-images/), but that one is **out of scope here**. It is a mapping rather than a scalar, so [`set-list-image`](/commands/set-list-image/) writes it. This command's `set`, `unset` and `get` all point you there, and only `list` reports it.
+
+Writes go through the same engine as the admin [List Metadata](/admin/api/#list-metadata) route and the MCP `set_list_metadata` tool, so validation and the body-preserving write live exactly once. Card lines (`&N` ids, label overrides, notes) survive byte for byte. Only the front-matter block is re-dumped; comments and quoting style are not preserved, though every key and value is.
 
 ## Usage
 
@@ -15,7 +19,7 @@ ritual metadata list [listName]
 ritual metadata unset [listName] <property>
 ```
 
-`[listName]` is resolved with the shared [List Resolution](/list-resolution/) rules across all three list types. Pass `--deck`, `--collection` or `--wanted` to pin the type or disambiguate. When the name is omitted, an interactive picker opens ([prompts permitting](/cli-conventions/#when-prompts-are-unavailable)), offering every list.
+`[listName]` names a list of any type; see [List Names](/list-resolution/). Pass `--deck`, `--collection` or `--wanted` to pin the type or disambiguate. When the name is omitted, an interactive picker opens ([prompts permitting](/cli-conventions/#when-prompts-are-unavailable)), offering every list.
 
 ### Options
 
@@ -46,9 +50,9 @@ None of the subcommands ever prompts once a list name is given, so they are safe
 | collection | `labels`      | Default card labels: `sale`/`trade` (combinable) or `keep`/`proxy` (each exclusive), as separate values or comma-joined, case-insensitively. `--add`/`--remove` merge with the current set (a typo'd label errors rather than silently removing nothing; removing the last label clears the key). An empty `set` is refused — clearing is `unset`'s job. |
 | any        | `image`       | **Not settable here.** `list` reports the stored [cover image](/list-images/) mapping; `get`, like `set` and `unset`, refuses it (exit `2`) with a message naming [`set-list-image`](/commands/set-list-image/), which is the command that writes it (a cover is `{card: 12}`, not a scalar `set` could spell).                                          |
 
-Setting `sourceId` + an `archidekt.com` `sourceUrl` is what makes a deck [sync-linked](/commands/deck-sync/); the two must name the same Archidekt deck, and a write that would leave them disagreeing is refused — the same validation the admin route applies. For the interactive linking flow, prefer `deck-sync link`.
+Setting `sourceId` plus an `archidekt.com` `sourceUrl` is what makes a deck [sync-linked](/commands/deck-sync/). The two must name the same Archidekt deck, and a write that would leave them disagreeing is refused, the same validation the admin route applies. For the interactive linking flow, prefer `deck-sync link`.
 
-A deck's `lastSynced` field is not settable here (a usage error says it is stamped by deck sync), and any other property is refused with the accepted-fields listing. A list's name is not front matter at all — it is the file's `# Title` heading, changed with [`rename`](/commands/rename/).
+A deck's `lastSynced` field is not settable here (a usage error says it is stamped by deck sync), and any other property is refused with the accepted-fields listing. A list's name is not front matter at all. It is the file's `# Title` heading, changed with [`rename`](/commands/rename/).
 
 ## Examples
 
@@ -74,14 +78,14 @@ ritual metadata list my-deck
 
 ## Output
 
-`set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`; a value that cleared the key reports `Cleared`). `get` prints the raw value — arrays as JSON — and exits `3` with a `not_found` error when the property is unset. `list` prints every property for the list's type, `(unset)` included — the non-settable `image` among them; with `--output json` the payload is `{ type, list, frontMatter }` where `frontMatter` is the **full** mapping — non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys included, the same honest shape the admin route returns.
+`set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`); a value that cleared the key reports `Cleared`. `get` prints the raw value, arrays as JSON, and exits `3` with a `not_found` error when the property is unset. `list` prints every property for the list's type, `(unset)` included, and the non-settable `image` among them. With `--output json` the `list` payload is `{ type, list, frontMatter }`, where `frontMatter` is the **full** mapping, including non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys. This is the same shape the admin route returns.
 
 Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting-conventions).
 
 ## Behavior
 
-- **Only the front-matter block is touched.** The write is body-preserving: prose, fenced blocks, and card lines survive byte for byte. No changelog entry is recorded — the changelog is card-level, and metadata is not a card change.
-- **Unknown keys round-trip.** A hand-authored key the vocabulary does not know is preserved through every write; only the addressed property changes. One deck-side exception: a _named_ field stored with the wrong type (say, a `tags:` holding a string) is dropped by the write, exactly as a full deck save would drop it. A file whose existing front matter cannot be read as YAML refuses every subcommand with a runtime error (a merge over keys that cannot be seen would clobber them) — fix the block by hand first.
+- **Only the front-matter block is touched.** The write is body-preserving: prose, fenced blocks, and card lines survive byte for byte. No changelog entry is recorded, since the changelog is card-level and metadata is not a card change.
+- **Unknown keys round-trip.** A hand-authored key the vocabulary does not know is preserved through every write; only the addressed property changes. One deck-side exception: a _named_ field stored with the wrong type (say, a `tags:` holding a string) is dropped by the write, exactly as a full deck save would drop it. A file whose existing front matter cannot be read as YAML refuses every subcommand with a runtime error, since a merge over keys that cannot be seen would clobber them. Fix the block by hand first.
 - **An empty array reads as unset.** `labels: []` means "no default" and `tags: []` says nothing, so `get` exits `3` for both, and removing an array's last value deletes the key rather than writing `[]`.
 - **The `.sha256` sidecar** is refreshed only when it matched the file before the write, so a hand-edited file keeps its stale sidecar and [`detect-changes`](/commands/detect-changes/) still records the edit.
 - **Validation matches the other surfaces**: the label vocabulary, the `keep`/`proxy` exclusivity rule, which labels the list's own type carries, deck format keys, `http(s)` source URLs, and the Archidekt id/URL agreement rule are all enforced exactly as the admin route enforces them.
