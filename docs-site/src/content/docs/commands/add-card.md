@@ -9,10 +9,10 @@ Uses the local card cache for fast autocomplete-based card selection. If the cac
 ## Usage
 
 ```bash
-./ritual add-card <targetName> <cardName...> [options]
+ritual add-card <targetName> <cardName...> [options]
 ```
 
-The target list is resolved from `<targetName>` across all three list types (see [List Resolution](/commands/list-resolution/)). Pass a `--deck`, `--collection`, or `--wanted` flag to pin the type — required when the name is ambiguous, and required to **create** a missing collection or wanted list. A `deck:`/`collection:`/`wanted:` prefix on the name (e.g. `collection:Main Binder`) supplies the type when no flag is given; a prefix that **contradicts** the flag is a usage error (exit `2`) naming both, rather than one silently winning.
+The target list is resolved from `<targetName>` across all three list types (see [List Resolution](/list-resolution/)). Pass a `--deck`, `--collection`, or `--wanted` flag to pin the type — required when the name is ambiguous, and required to **create** a missing collection or wanted list. A `deck:`/`collection:`/`wanted:` prefix on the name (e.g. `collection:Main Binder`) supplies the type when no flag is given; a prefix that **contradicts** the flag is a usage error (exit `2`) naming both, rather than one silently winning.
 
 ## Arguments
 
@@ -53,66 +53,66 @@ The target list is resolved from `<targetName>` across all three list types (see
 Add a single card to a deck (resolved by name across all types):
 
 ```bash
-./ritual add-card "My Deck" Sol Ring
+ritual add-card "My Deck" Sol Ring
 ```
 
 Pin the type explicitly when a name could be ambiguous:
 
 ```bash
-./ritual add-card --deck "My Deck" Lightning Bolt -q 4
+ritual add-card --deck "My Deck" Lightning Bolt -q 4
 ```
 
 Pin an exact printing onto a deck line:
 
 ```bash
-./ritual add-card --deck "My Deck" Sol Ring --exact --set C21 --collector-number 263
+ritual add-card --deck "My Deck" Sol Ring --exact --set C21 --collector-number 263
 ```
 
 Add a foil straight into a deck's Sideboard, or a commander into its Commander section:
 
 ```bash
-./ritual add-card --deck "My Deck" Lightning Bolt --exact \
+ritual add-card --deck "My Deck" Lightning Bolt --exact \
   --set STA --collector-number 42 --finish foil --section Sideboard
-./ritual add-card --deck "My Deck" Kenrith, the Returned King --exact --commander
+ritual add-card --deck "My Deck" Kenrith, the Returned King --exact --commander
 ```
 
 Preview an add without touching a file:
 
 ```bash
-./ritual add-card --deck "My Deck" Sol Ring --exact -q 4 --dry-run
+ritual add-card --deck "My Deck" Sol Ring --exact -q 4 --dry-run
 ```
 
 Fully scripted collection add — no prompts, machine-readable result:
 
 ```bash
-./ritual add-card --collection "Main" Lightning Bolt --exact \
+ritual add-card --collection "Main" Lightning Bolt --exact \
   --set STA --collector-number 42 --finish etched --condition LP --output json
 ```
 
 Record no condition without being asked for one:
 
 ```bash
-./ritual add-card --collection "Main" Sol Ring --exact \
+ritual add-card --collection "Main" Sol Ring --exact \
   --set LEA --collector-number 270 --condition NONE
 ```
 
 Add a name-only wanted entry with a finish preference:
 
 ```bash
-./ritual add-card --wanted "My Wants" Demonic Tutor --exact --name-only --finish foil
+ritual add-card --wanted "My Wants" Demonic Tutor --exact --name-only --finish foil
 ```
 
 Add a wanted entry pinned to a printing (the pin implies `--specific`):
 
 ```bash
-./ritual add-card --wanted "My Wants" Lightning Bolt --exact --set STA --collector-number 42
+ritual add-card --wanted "My Wants" Lightning Bolt --exact --set STA --collector-number 42
 ```
 
 ## Behavior
 
 ### List Resolution
 
-`<targetName>` is matched case- and accent-insensitively against existing list files — an exact name wins, otherwise a unique substring match is accepted, and any ambiguity is an error. A `--deck`/`--collection`/`--wanted` flag restricts the search to that type. See [List Resolution](/commands/list-resolution/) for the full rules.
+`<targetName>` is matched case- and accent-insensitively against existing list files — an exact name wins, otherwise a unique substring match is accepted, and any ambiguity is an error. A `--deck`/`--collection`/`--wanted` flag restricts the search to that type. See [List Resolution](/list-resolution/) for the full rules.
 
 A missing **collection** or **wanted list** is created automatically, but only when the type is pinned with a flag or a `collection:`/`wanted:` prefix (the command can't know which kind of list to create otherwise). This includes the first-run case where the workspace holds no lists of that type at all. Decks are never auto-created — create them first with [`new deck`](/commands/new/).
 
@@ -202,7 +202,7 @@ Deck entries record the card name and quantity, plus the set code and collector 
 
 Collection entries always record the specific printing (set code and collector number), since collection cards have monetary value tied to the exact printing.
 
-There is no implicit condition — pass `--condition NONE` to record none. When [prompts are unavailable](/#when-prompts-are-unavailable), a run missing `--condition`, or missing `--finish` on a printing that comes in more than one finish, is a usage error (exit `2`) naming the flag rather than a silent no-op: an exit `0` always means a line was written.
+There is no implicit condition — pass `--condition NONE` to record none. When [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), a run missing `--condition`, or missing `--finish` on a printing that comes in more than one finish, is a usage error (exit `2`) naming the flag rather than a silent no-op: an exit `0` always means a line was written.
 
 ### Wanted List Mode
 
@@ -210,7 +210,7 @@ There is no implicit condition — pass `--condition NONE` to record none. When 
 2. Specificity comes from `--name-only`, `--specific`, or a printing pin; with none of them you are prompted: **Name only (any copy)** appends just the card name, while **Choose specific printing** enters the printing selection flow followed by a finish prompt. When prompts are unavailable (stdin is not a terminal, or `--no-input` / `RITUAL_NO_INPUT`), one of the flags is required — instead of prompting, the command exits with code `2`.
 3. The entry is appended to the wanted list file in `wanted/`.
 
-As with collection adds, a specific-printing add whose printing comes in more than one finish requires `--finish` when [prompts are unavailable](/#when-prompts-are-unavailable) (exit `2`). Only the name-only flow is finish-optional.
+As with collection adds, a specific-printing add whose printing comes in more than one finish requires `--finish` when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (exit `2`). Only the name-only flow is finish-optional.
 
 In the specific flow, a printing that cannot be resolved (no pin and no way to ask) is an **error** — the command never silently degrades a specific request to a name-only entry. Wanted list entries require only the card name; the printing and finish are optional (see the [card states](/commands/edit/#card-states)). A default finish can be specified with `-f`.
 
@@ -243,9 +243,9 @@ Deck adds include `quantity` (the number of copies added, not the merged line's 
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                                                                       |
-| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Card added (or, under `--dry-run`, the add reported with nothing written)                                                                                                                                                                                                     |
-| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                                                                        |
-| `2`  | Usage error (invalid or conflicting flags, a type prefix contradicting a type flag, unknown printing pin, unavailable finish, cancelled prompt, or a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/#when-prompts-are-unavailable)) |
-| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                                                              |
+| Code | Meaning                                                                                                                                                                                                                                                                                       |
+| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Card added (or, under `--dry-run`, the add reported with nothing written)                                                                                                                                                                                                                     |
+| `1`  | Runtime error (card cache unavailable, printing unresolvable in the specific flow, file write failure)                                                                                                                                                                                        |
+| `2`  | Usage error (invalid or conflicting flags, a type prefix contradicting a type flag, unknown printing pin, unavailable finish, cancelled prompt, or a missing `--finish`/`--condition`/wanted-specificity flag when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)) |
+| `3`  | Not found (missing deck, no exact card-name match, no cards matching the search)                                                                                                                                                                                                              |

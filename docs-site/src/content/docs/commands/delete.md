@@ -7,10 +7,10 @@ Delete a deck, collection, or wanted list, along with all of its sidecar files.
 ## Usage
 
 ```bash
-./ritual delete <list> [options]
+ritual delete <list> [options]
 ```
 
-`<list>` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate.
+`<list>` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate.
 
 Deletion is destructive, so it must be confirmed with the list's **display name** (not its slug) — the same confirmation the admin site asks for. Pass it with `--confirm`; without the flag, an interactive terminal names the resolved target and prompts for its exact display name, and a non-interactive run exits with a usage error pointing at `--confirm`:
 
@@ -19,7 +19,7 @@ About to delete deck 'Modern Burn' (decks/Modern Burn.md) and its sidecar files.
 ? Type 'Modern Burn' to confirm: ›
 ```
 
-Note the two halves are addressed differently on purpose: `<list>` is [resolved](/commands/list-resolution/) (so a partial, differently-cased, or colon-carrying display name finds the list), while `--confirm` must be the display name character for character.
+Note the two halves are addressed differently on purpose: `<list>` is [resolved](/list-resolution/) (so a partial, differently-cased, or colon-carrying display name finds the list), while `--confirm` must be the display name character for character.
 
 ## Arguments
 
@@ -43,13 +43,13 @@ Note the two halves are addressed differently on purpose: `<list>` is [resolved]
 Delete a deck non-interactively:
 
 ```bash
-./ritual delete deck:burn --confirm "Modern Burn"
+ritual delete deck:burn --confirm "Modern Burn"
 ```
 
 Delete a collection and capture the result as JSON:
 
 ```bash
-./ritual delete --collection main --confirm "Trade Binder" --output json
+ritual delete --collection main --confirm "Trade Binder" --output json
 ```
 
 The JSON payload is `{ type, slug, deleted: true, deletedFiles }`, where `deletedFiles` lists every path removed — the list plus whichever sidecars it had.

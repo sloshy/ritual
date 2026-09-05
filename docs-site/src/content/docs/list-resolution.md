@@ -1,5 +1,5 @@
 ---
-title: 'List Resolution'
+title: 'List Names'
 ---
 
 Every command that loads a deck, collection, or wanted list by name resolves that name the same way. This page is the single reference for that shared behavior.
@@ -58,7 +58,7 @@ Type-agnostic commands (`add-card`, `remove-card`, `set-card`, `note`, `edit`, `
 The flags are mutually exclusive. A `deck:`/`collection:`/`wanted:` prefix on the name itself (e.g. `collection:staples`) pins the type too, and supplies it when no flag is given. A prefix that **contradicts** the flag is a usage error (exit `2`) naming both, rather than one silently winning:
 
 ```bash
-./ritual delete deck:"Trade Binder" --collection
+ritual delete deck:"Trade Binder" --collection
 #   'deck:Trade Binder' selects a deck, which conflicts with --collection.
 #   Drop the 'deck:' prefix or the --collection flag.
 ```
@@ -88,32 +88,32 @@ Single-type commands (`get-primer`, the sync engines, the CSV importer) resolve 
 
 ```bash
 # Exact, case- and accent-insensitive — resolves decks/Goblins.md
-./ritual price goblins --deck
+ritual price goblins --deck
 
 # Unique substring — resolves decks/mono-red-burn.md
-./ritual price burn --deck
+ritual price burn --deck
 
 # Ambiguous across types — fails, asking you to disambiguate
-./ritual note staples "Sol Ring" --note ramp
+ritual note staples "Sol Ring" --note ramp
 #   'staples' is ambiguous — it matches multiple lists:
 #     - Deck: staples
 #     - Collection: staples
 #   Disambiguate with --deck, --collection, or --wanted.
 
 # Disambiguated with a flag
-./ritual note --collection staples "Sol Ring" --note ramp
+ritual note --collection staples "Sol Ring" --note ramp
 
 # Ambiguous within one type — no flag can help, so type more of the name
-./ritual edit bur
+ritual edit bur
 #   'bur' is ambiguous — it matches multiple lists:
 #     - Deck: burn
 #     - Deck: burn-red
 #   Type more of the name to narrow the match (e.g. 'burn').
 
 # Two decks that fold together — each is still reachable, exactly as spelled
-./ritual edit "atraxa superfriends"   # resolves decks/atraxa superfriends.md
-./ritual edit "Atraxa Superfriends"   # resolves decks/Atraxa Superfriends.md
+ritual edit "atraxa superfriends"   # resolves decks/atraxa superfriends.md
+ritual edit "Atraxa Superfriends"   # resolves decks/Atraxa Superfriends.md
 
 # The display name round-trips, colon and all
-./ritual delete "Atraxa: Praetors' Voice" --confirm "Atraxa: Praetors' Voice"
+ritual delete "Atraxa: Praetors' Voice" --confirm "Atraxa: Praetors' Voice"
 ```

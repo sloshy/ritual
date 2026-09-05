@@ -7,7 +7,7 @@ Enumerate every deck, collection, and wanted list — the discovery counterpart 
 ## Usage
 
 ```bash
-./ritual lists [options]
+ritual lists [options]
 ```
 
 ## Options
@@ -27,7 +27,7 @@ The three type flags are mutually exclusive; passing more than one is a usage er
 List everything:
 
 ```bash
-./ritual lists
+ritual lists
 ```
 
 ```text
@@ -42,7 +42,7 @@ Each text row is three aligned columns: the list type, the slug (the file basena
 Only decks, as JSON:
 
 ```bash
-./ritual lists --deck --output json
+ritual lists --deck --output json
 ```
 
 ```json

@@ -11,10 +11,10 @@ The write is front-matter-only: card lines — `&N` ids, label overrides, notes 
 ## Usage
 
 ```bash
-./ritual set-list-image [listName] [options]
+ritual set-list-image [listName] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass `--deck`, `--collection`, or `--wanted` (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. With no list name — or with no mode option — the command runs as a wizard: pick the list, pick the mode, then pick the card, browse for a file, or type the URL.
+`[listName]` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass `--deck`, `--collection`, or `--wanted` (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. With no list name — or with no mode option — the command runs as a wizard: pick the list, pick the mode, then pick the card, browse for a file, or type the URL.
 
 ## Arguments
 
@@ -70,28 +70,28 @@ A value the wizard cannot parse is reported (`Cover image unchanged — …`) an
 
 ## `--no-input`
 
-Every prompt goes through the shared [prompt gate](/#when-prompts-are-unavailable). With piped stdin, `--no-input`, or `RITUAL_NO_INPUT`, a run that would have to ask — no list name, or no mode option — exits `2` with `Input required: …` instead of prompting. A fully-flagged invocation is always safe to script.
+Every prompt goes through the shared [prompt gate](/cli-conventions/#when-prompts-are-unavailable). With piped stdin, `--no-input`, or `RITUAL_NO_INPUT`, a run that would have to ask — no list name, or no mode option — exits `2` with `Input required: …` instead of prompting. A fully-flagged invocation is always safe to script.
 
 ## Examples
 
 ```bash
-./ritual set-list-image "Winota Stax" --card 12          # &12 also works
-./ritual set-list-image "Main Binder" --file alters/binder.png
-./ritual set-list-image "To Buy" --wanted --url https://example.com/cover.jpg
-./ritual set-list-image "Winota Stax" --default          # back to the commander
-./ritual set-list-image "Winota Stax" --card 12 --dry-run
-./ritual set-list-image                                  # wizard
+ritual set-list-image "Winota Stax" --card 12          # &12 also works
+ritual set-list-image "Main Binder" --file alters/binder.png
+ritual set-list-image "To Buy" --wanted --url https://example.com/cover.jpg
+ritual set-list-image "Winota Stax" --default          # back to the commander
+ritual set-list-image "Winota Stax" --card 12 --dry-run
+ritual set-list-image                                  # wizard
 ```
 
 ## Output
 
 Text output is one line: `Deck 'winota-stax': cover image is now the card &12`, or `… cover image cleared; the built-in choice applies again`. A `--dry-run` prefixes it with `[dry-run]` and says _would become_ (or _would be cleared_, for `--default`).
 
-With `--output json` the payload is `{ type, list, mode, image }` — `mode` is `default`, `card`, `file`, or `url`, and `image` is the stored mapping (`{"card":12}`) or `null` when the key was removed. A dry run adds `"dryRun": true`. Errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/#scripting-conventions).
+With `--output json` the payload is `{ type, list, mode, image }` — `mode` is `default`, `card`, `file`, or `url`, and `image` is the stored mapping (`{"card":12}`) or `null` when the key was removed. A dry run adds `"dryRun": true`. Errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting-conventions).
 
 ## Behavior
 
-- **The card-ID backfill is conditional.** This command [backfills `&N` ids](/#the-card-id-backfill) only when the run actually consumes one — `--card`, or the wizard's card picker. A `--file`, `--url`, or `--default` run writes nothing but the front matter, so it triggers no backfill at all, and neither does any `--dry-run`.
+- **The card-ID backfill is conditional.** This command [backfills `&N` ids](/cli-conventions/#the-card-id-backfill) only when the run actually consumes one — `--card`, or the wizard's card picker. A `--file`, `--url`, or `--default` run writes nothing but the front matter, so it triggers no backfill at all, and neither does any `--dry-run`.
 - **One validator, three surfaces.** The card-id check, the path rules, and the URL rule are the [admin route's](/admin/api/#list-metadata) own, so this command, the HTTP API, the MCP `set_list_metadata` tool, and the admin editors refuse the same values in the same words.
 - **The `.sha256` sidecar** is refreshed only when it matched the file before the write, so a hand-edited file keeps its stale sidecar and [`detect-changes`](/commands/detect-changes/) still records the edit.
 - **Wanted lists are in scope**, as they are for [`metadata`](/commands/metadata/): `image` and `description` are the two front-matter keys they carry.

@@ -13,7 +13,7 @@ With scripting flags (or when stdin or stdout is piped, or the global `--no-inpu
 ## Usage
 
 ```bash
-./ritual price [listName] [options]
+ritual price [listName] [options]
 ```
 
 ## Arguments
@@ -22,7 +22,7 @@ With scripting flags (or when stdin or stdout is piped, or the global `--no-inpu
 | ------------ | -------------------------------------------------- | -------- |
 | `[listName]` | Open (or print) a single list instead of all lists | No       |
 
-The name is matched case- and accent-insensitively across all three list types, with a unique-substring fallback; an ambiguous name is rejected — disambiguate with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/).
+The name is matched case- and accent-insensitively across all three list types, with a unique-substring fallback; an ambiguous name is rejected — disambiguate with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/list-resolution/).
 
 ## Options
 
@@ -86,21 +86,21 @@ Three views, chosen by the flags:
 
 ```bash
 # Summary of every list (the main screen as text)
-./ritual price --summary
+ritual price --summary
 
 # One list's cards and totals
-./ritual price "Red Binder" --no-input
+ritual price "Red Binder" --no-input
 
 # Search cards across all lists
-./ritual price --set neo --sort price --descending
-./ritual price --name "sol ring"
+ritual price --set neo --sort price --descending
+ritual price --name "sol ring"
 ```
 
 Each view supports `--output json` (one structured document) and `--output ndjson` (one JSON line per list or card). The summary JSON includes `lastRefreshedAt`, per-list summaries, per-type totals, grand totals, and a `warnings` array of lines the list parsers could not read (prose, comments, malformed card lines — such lines are not priced); the single-list and card-search JSON payloads carry the same `warnings` field. The warnings **also** print to stderr in every output mode, including under `--quiet`: a skipped card line means the totals exclude cards, and nothing else would tell you. Card listings include per-entry prices, lowest prices, and unpriced reasons.
 
 ```bash
-./ritual price --summary --output json
-./ritual price --wanted --set otc --output ndjson
+ritual price --summary --output json
+ritual price --wanted --set otc --output ndjson
 ```
 
 Prices reflect NM (Near Mint) values — Scryfall market prices, or Card Kingdom's NM retail under `--source cardkingdom`.

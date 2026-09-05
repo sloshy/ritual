@@ -7,7 +7,7 @@ Serve the generated static site locally, optionally building it first.
 ## Usage
 
 ```bash
-./ritual serve [options]
+ritual serve [options]
 ```
 
 By default, `serve` serves a previously built `dist/` directory (or the directory given by `--out-dir`). A directory with no `index.html` is **refused** rather than answered with bare 404s — see [Exit Codes](#exit-codes) — except under `--api`, which builds the missing site itself. Pass `--build` to build the site first and then serve the result — the one-shot preview that used to require running [`build-site`](/commands/build-site/) and `serve` separately. Pass `--api` to additionally host a live, read-only data API alongside the site — see [Hosting with a live backend](/public-site/hosted/).
@@ -34,19 +34,19 @@ With `--api`, the server hosts the same static `dist/` **plus** a live, unauthen
 | GET    | `/art/{path}`                                            | One [custom art](/custom-art/) image, read live from the configured art directory at the same path a built site carries it (see below).                                                                                   |
 | GET    | `/api/autocomplete`                                      | Card-name autocomplete over the card cache with the **same term matching as the admin editor** (`in tre` finds "In the Trenches").                                                                                        |
 | GET    | `/api/card-printings`, `/api/card-price`                 | Cached printings and staleness-gated price lookups (the same endpoints the admin editor uses).                                                                                                                            |
-| GET    | `/api/cards?ids=…`                                       | Cache-only card lookup by Scryfall ID (max 200 per request), used to restore a shared [trade link](/commands/build-site/#trade-planner) without Scryfall.                                                                 |
+| GET    | `/api/cards?ids=…`                                       | Cache-only card lookup by Scryfall ID (max 200 per request), used to restore a shared [trade link](/public-site/trade/) without Scryfall.                                                                                 |
 | POST   | `/api/card-prices`                                       | Batch price refresh by card name (used by the site's **Update Prices** button in hosted mode).                                                                                                                            |
 | GET    | `/api/buylist/status`                                    | Which buyers this server can quote against and how fresh its cached buylist is. `404` unless [sell mode](/public-site/sell/) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. |
 | POST   | `/api/buylist/quotes`                                    | Card Kingdom's current offer for specific printings (max 500 per request). Strictly cache-backed — there is deliberately **no** public refresh route.                                                                     |
 
-The two buylist routes are **not** how the public site prices a list: it gets its buy prices baked into the live list payloads (below). The quotes route is used for one thing the payloads cannot cover — printings the build never saw, which the add-card dialog's search turns up and the [printing pickers](/public-site/price-sources/#the-prices-selector) price under the Card Kingdom store. They are also mounted for other clients (a script, a second front end), and answer `404` when neither sell mode nor the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is on.
+The two buylist routes are **not** how the public site prices a list: it gets its buy prices baked into the live list payloads (below). The quotes route is used for one thing the payloads cannot cover — printings the build never saw, which the add-card dialog's search turns up and the [printing pickers](/public-site/prices/#the-prices-selector) price under the Card Kingdom store. They are also mounted for other clients (a script, a second front end), and answer `404` when neither sell mode nor the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is on.
 
 The web app detects the backend through the served `index.json` and switches its behavior: list pages refetch live data on navigation, the editor's add-card search uses the cache-backed term matching (the "results may differ" Scryfall note disappears), and price refreshes go through the server. A small **Live** badge appears in the site header.
 
 Details:
 
-- **Sell mode quotes are baked into the live payloads, from a cache refreshed at startup.** [Sell mode](/public-site/sell/) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or the run passed `--sell-mode`. When it is on, each served list payload carries that list's Card Kingdom buy prices, computed from the cached feed exactly the way [`build-site`](/commands/build-site/#sell-mode---sell-mode) bakes them — so pricing a list never calls the quotes API, and a served list picks up a newly refreshed feed on its next request without a rebuild. When [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`, the live payloads also carry Card Kingdom's own [printing picks](/public-site/price-sources/#which-printing-a-card-is-priced-at) for name-only lines and a quote for **every printing each list carries**, at every finish, so the card modal's other-printings grid and the printing pickers can price them; only printings outside those lists entirely (an add-card search result) reach `POST /api/buylist/quotes`. The feed itself is never downloaded per request (an unauthenticated wildcard-CORS endpoint must not be able to pull ~70 MB): startup is where that happens, where an already-downloaded feed more than a day old (Card Kingdom regenerates it daily) is redownloaded before the server binds — under the same `--refresh` policy, so `no-bulk`/`never` skip it, and a failed download leaves the older feed in place with a warning rather than failing the start. Startup only ever _updates_ a buylist: a workspace that has never downloaded one is left alone (no prompt, no ~70 MB on a capability this deployment may not use), the buylist routes answer `503` with the remedy, and sell mode shows the "prices unavailable" notice until you download one with `ritual sell --refresh auto` or the admin site.
-- **Read-only, no auth.** Only the routes above exist; an unmatched `/api/*` path answers a JSON 404 (never the SPA fallback), and none of the admin server's mutation or auth surface is reachable. Public edits stay client-side (export/import change bundles), exactly as on the static site. One local exception: like every list-writing command, startup runs the [card-ID backfill](/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files on first run (plain `serve`, without `--build` or `--api`, never does).
+- **Sell mode quotes are baked into the live payloads, from a cache refreshed at startup.** [Sell mode](/public-site/sell/) is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or the run passed `--sell-mode`. When it is on, each served list payload carries that list's Card Kingdom buy prices, computed from the cached feed exactly the way [`build-site`](/commands/build-site/#sell-mode---sell-mode) bakes them — so pricing a list never calls the quotes API, and a served list picks up a newly refreshed feed on its next request without a rebuild. When [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`, the live payloads also carry Card Kingdom's own [printing picks](/public-site/prices/#which-printing-a-card-is-priced-at) for name-only lines and a quote for **every printing each list carries**, at every finish, so the card modal's other-printings grid and the printing pickers can price them; only printings outside those lists entirely (an add-card search result) reach `POST /api/buylist/quotes`. The feed itself is never downloaded per request (an unauthenticated wildcard-CORS endpoint must not be able to pull ~70 MB): startup is where that happens, where an already-downloaded feed more than a day old (Card Kingdom regenerates it daily) is redownloaded before the server binds — under the same `--refresh` policy, so `no-bulk`/`never` skip it, and a failed download leaves the older feed in place with a warning rather than failing the start. Startup only ever _updates_ a buylist: a workspace that has never downloaded one is left alone (no prompt, no ~70 MB on a capability this deployment may not use), the buylist routes answer `503` with the remedy, and sell mode shows the "prices unavailable" notice until you download one with `ritual sell --refresh auto` or the admin site.
+- **Read-only, no auth.** Only the routes above exist; an unmatched `/api/*` path answers a JSON 404 (never the SPA fallback), and none of the admin server's mutation or auth surface is reachable. Public edits stay client-side (export/import change bundles), exactly as on the static site. One local exception: like every list-writing command, startup runs the [card-ID backfill](/cli-conventions/#the-card-id-backfill), persisting any missing `&N` card IDs into the list files on first run (plain `serve`, without `--build` or `--api`, never does).
 - **Builds when there is nothing to serve.** With `--api` the data is served live, so an unbuilt served directory (`dist/`, or `--out-dir`) is a missing app shell rather than missing content: the command builds the site itself and then serves it, instead of refusing. (Plain `serve` still refuses — there the build _is_ the content.) An existing build is served as-is; pass `--build` to rebuild it, which is also the only way to give the build any of its flags.
 - **Cache warming.** Live payloads are computed from the card cache with **no Scryfall fallback**, so startup applies the same freshness gates [`build-site`](/commands/build-site/#card-cache-refresh) applies, over every card the served lists reference — entries, deck primers, and change history — under the same `--refresh` policy (which is therefore valid with `--api` even without `--build`): a bulk download when the cache has never been downloaded, is more than a week old, or is missing many of those cards; then the offer to redownload day-old prices; then, when a sample of the site's cards carries no oracle/art tags, the offer to download them (skipped entirely on an empty cache). The one gate a build has that this does not is the **per-card refetch** of missing or stale cards — a live server never fetches from Scryfall — so `--refresh no-bulk` warms nothing here, exactly like `--refresh never`, which is what a [cache server](/commands/cache/) deployment wants. Each gate is best-effort: a declined prompt or a cold network leaves the cache as it was and the server still starts. When `--api` builds (or `--build` was given), the build applied these gates already and startup does not ask again.
 - **Cache backend.** The server reads the card cache through the standard selection: the local `cache/cache.json` by default, or a [cache server](/commands/cache/) when `--cache-server`/`RITUAL_CACHE_SERVER` is set. A bulk refresh run by a separate CLI process is picked up automatically (the server watches the cache file). **Never expose the cache server itself to browsers** — it has unauthenticated write routes; only the `serve --api` process should talk to it.
@@ -59,7 +59,7 @@ Details:
 
 ### Build options (require `--build`)
 
-With `--build`, `serve` accepts the full [`build-site`](/commands/build-site/) option surface. Passing any of these **without** `--build` is a usage error: the command exits with code 2 and an error naming the offending flag(s). Four exceptions: `--refresh`, which is also meaningful with `--api` (cache warming); `--sell-mode`, likewise, since the live server reads sell mode per request; `--out-dir`, which names the directory to serve whether or not a build runs; and `--locale`, which is a [global flag](/#global-options) every command accepts. The first two are exempt **only under `--api`**.
+With `--build`, `serve` accepts the full [`build-site`](/commands/build-site/) option surface. Passing any of these **without** `--build` is a usage error: the command exits with code 2 and an error naming the offending flag(s). Four exceptions: `--refresh`, which is also meaningful with `--api` (cache warming); `--sell-mode`, likewise, since the live server reads sell mode per request; `--out-dir`, which names the directory to serve whether or not a build runs; and `--locale`, which is a [global flag](/cli-conventions/#global-options) every command accepts. The first two are exempt **only under `--api`**.
 
 :::note[`--locale` is shared with the build surface]
 `--locale <tag>` is declared twice — once on the root program, where it chooses the language **Ritual's own terminal output** speaks, and once on the build surface, where it chooses the language the **generated site** opens in. Commander routes the value to the root from either position, so one flag drives both, and the effect depends on whether a build runs:
@@ -95,50 +95,50 @@ Plain `serve` — no `--build`, no `--api` — is a static file server: nothing 
 Serve a previously built site on the default port (3000):
 
 ```bash
-./ritual serve
+ritual serve
 ```
 
 Serve a preview directory built earlier, without rebuilding it:
 
 ```bash
-./ritual build-site --out-dir preview
-./ritual serve --out-dir preview
+ritual build-site --out-dir preview
+ritual serve --out-dir preview
 ```
 
 Serve on a custom port:
 
 ```bash
-./ritual serve --port 8080
+ritual serve --port 8080
 ```
 
 Build everything and serve at http://localhost:3000:
 
 ```bash
-./ritual serve --build
+ritual serve --build
 ```
 
 Build only specific decks, then serve:
 
 ```bash
-./ritual serve --build --decks "Atraxa Superfriends" "Mono Red Aggro"
+ritual serve --build --decks "Atraxa Superfriends" "Mono Red Aggro"
 ```
 
 Host the site with the live backend, building it first if it has not been built yet:
 
 ```bash
-./ritual serve --api
+ritual serve --api
 ```
 
 Rebuild the static site and then host it:
 
 ```bash
-./ritual serve --build --api
+ritual serve --build --api
 ```
 
 Host with a shared cache server providing the card data:
 
 ```bash
-./ritual serve --api --refresh never --cache-server cache-host:4000
+ritual serve --api --refresh never --cache-server cache-host:4000
 ```
 
 ## Exit Codes

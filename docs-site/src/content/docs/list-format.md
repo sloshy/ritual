@@ -1,5 +1,5 @@
 ---
-title: 'List File Format'
+title: 'List Files'
 ---
 
 Every deck, collection, and wanted list is one markdown file — `decks/<name>.md`, `collections/<name>.md`, `wanted/<name>.md` — that Ritual reads and writes and that you may also edit by hand. This page is the single reference for that format: the front matter each type carries, the `# Title` / `## Section` structure, the card-line grammar with its per-type token table, what the parser tolerates on read versus what it writes, and the `.changes.md` changelog that lives beside each list.
@@ -78,7 +78,7 @@ An optional YAML block between `---` fences at the top of the file. Keys are per
 
 ## Title and sections
 
-The first `# Title` line (outside any fenced code block) names the list, on all three types: it is the display name the sites and pickers show and what `new` and `rename` write. Commands address a list by its **file name** (see [List Resolution](/commands/list-resolution/)), which `cleanup` keeps equal to the title. A file with no H1 is named after its file name.
+The first `# Title` line (outside any fenced code block) names the list, on all three types: it is the display name the sites and pickers show and what `new` and `rename` write. Commands address a list by its **file name** (see [List Resolution](/list-resolution/)), which `cleanup` keeps equal to the title. A file with no H1 is named after its file name.
 
 `## Section` headings are the only structural marker. Cards before the first heading belong to an implicit `Main` section. Collections and wanted lists may use sections freely as groupings; in a deck, a section's **role** is decided by an exact (case-insensitive, trimmed) match against a closed alias table:
 
@@ -156,7 +156,7 @@ The reader accepts all of the following and the next save rewrites them into the
 
 ### Card IDs (`&N`)
 
-Every card line ends in a persistent numeric id. Ids are sequential from 1 within each file, stable across every edit that keeps the line, and released to a reuse pool only when the line is removed outright (decrementing a deck quantity keeps the id). New lines take the smallest free id. **Never hand-author or renumber them** — commands that write card lines backfill missing ids on startup and stamp them into the file (see [the card-ID backfill](/#the-card-id-backfill)); they are an internal handle for change tracking, the admin editors, custom art, and cover images, and are not shown in the UI.
+Every card line ends in a persistent numeric id. Ids are sequential from 1 within each file, stable across every edit that keeps the line, and released to a reuse pool only when the line is removed outright (decrementing a deck quantity keeps the id). New lines take the smallest free id. **Never hand-author or renumber them** — commands that write card lines backfill missing ids on startup and stamp them into the file (see [the card-ID backfill](/cli-conventions/#the-card-id-backfill)); they are an internal handle for change tracking, the admin editors, custom art, and cover images, and are not shown in the UI.
 
 ### Fenced code blocks are opaque
 

@@ -7,7 +7,7 @@ The public site is normally a fully static build: [`build-site`](/commands/build
 `ritual serve --api` adds a third option between "fully static" and "run the admin server": host the same public site backed by a **live, unauthenticated, read-only API**. With a backend available:
 
 - **List data is live.** Deck, collection, and wanted-list pages are computed from the markdown files on request — edits made through the CLI or the admin server appear on the next navigation, with no rebuild.
-- **Card search matches the admin editor.** The add-card search and trade-page search query the server's card cache with the same term-separation matching (`in tre` finds "In the Trenches"), and the "results may differ" Scryfall note disappears. The [trade page](/commands/build-site/#right-column--their-cards)'s right column drops its "Search Scryfall instead" toggle too: the cache covers every card, so each query searches your wanted lists and the cache together.
+- **Card search matches the admin editor.** The add-card search and trade-page search query the server's card cache with the same term-separation matching (`in tre` finds "In the Trenches"), and the "results may differ" Scryfall note disappears. The [trade page](/public-site/trade/#right-column--their-cards)'s right column drops its "Search Scryfall instead" toggle too: the cache covers every card, so each query searches your wanted lists and the cache together.
 - **Shared trade links restore from the cache.** A trade URL pins some rows by Scryfall ID — cards from none of your lists, plus any deck or wanted printing chosen through the picker. Hosted, those IDs are resolved through `/api/cards` instead of Scryfall, and list-less rows are tagged **Cache** rather than **Scryfall**. An ID the server's cache doesn't hold is reported as a missing card rather than fetched externally.
 - **Prices refresh server-side.** The **Update Prices** button asks the backend, which refreshes stale prices from Scryfall into its cache — shared by every visitor — instead of each browser fetching from Scryfall itself.
 - **Sell mode quotes refresh without a rebuild.** [Sell mode](/public-site/sell/) — Card Kingdom buylist prices beside each card, buylist filters (on-buylist chips and a price threshold), buylist grouping and sorting, and a sell-cart export — works on a static site too, since the buy prices are baked into each list's JSON. What hosting adds is currency and reach: a live server bakes them per request, so a refreshed feed shows up on the next page load rather than at the next build, and it can quote printings no list carries — which is the only way an add-card search result gets a Card Kingdom price. It is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or the run passed `--sell-mode`. (The feed itself is also downloaded whenever [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`, whose retail prices ride on the same baked quotes.) The server refreshes a day-old feed once, at startup — never on a request — so a long-running deployment restarts into current offers. It never downloads the _first_ feed, though: for that, run `ritual sell --refresh auto` or use the admin site.
@@ -21,7 +21,7 @@ A **Live** badge in the site header shows the mode is active.
 The simplest deployment is one process serving both the static assets and the API:
 
 ```bash
-./ritual serve --api
+ritual serve --api
 ```
 
 There is no separate build step to remember: `--api` builds the site when `dist/` holds none, since the data is live and the build only provides the app shell. Add `--build` to rebuild an existing one (and to pass the build any of its flags).
@@ -33,8 +33,8 @@ There is no separate build step to remember: `--api` builds the site when `dist/
 The static build can also stay on a CDN (e.g. GitHub Pages via [`init-site`](/commands/init-site/)) while a separately reachable `serve --api` instance provides the live backend. Point the build at the API with:
 
 ```bash
-./ritual config set site.apiBaseUrl "https://ritual-api.example.com"
-./ritual build-site
+ritual config set site.apiBaseUrl "https://ritual-api.example.com"
+ritual build-site
 ```
 
 The URL is baked into `index.json`; on load, the site fetches the live index from that base and switches to hosted behavior. The API's routes answer with `Access-Control-Allow-Origin: *`, so the cross-origin fetches work without further setup.

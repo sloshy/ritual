@@ -9,13 +9,13 @@ Every list type takes `description`, the prose blurb the [built site](/commands/
 ## Usage
 
 ```bash
-./ritual metadata set [listName] <property> <value...> [--add | --remove]
-./ritual metadata get [listName] <property>
-./ritual metadata list [listName]
-./ritual metadata unset [listName] <property>
+ritual metadata set [listName] <property> <value...> [--add | --remove]
+ritual metadata get [listName] <property>
+ritual metadata list [listName]
+ritual metadata unset [listName] <property>
 ```
 
-`[listName]` is resolved with the shared [List Resolution](/commands/list-resolution/) rules across all three list types. Pass `--deck`, `--collection` or `--wanted` to pin the type or disambiguate. When the name is omitted, an interactive picker opens ([prompts permitting](/#when-prompts-are-unavailable)), offering every list.
+`[listName]` is resolved with the shared [List Resolution](/list-resolution/) rules across all three list types. Pass `--deck`, `--collection` or `--wanted` to pin the type or disambiguate. When the name is omitted, an interactive picker opens ([prompts permitting](/cli-conventions/#when-prompts-are-unavailable)), offering every list.
 
 ### Options
 
@@ -53,30 +53,30 @@ A deck's `lastSynced` field is not settable here (a usage error says it is stamp
 ## Examples
 
 ```bash
-./ritual metadata set trade-binder labels sale,trade   # collection default labels
-./ritual metadata set trade-binder labels keep         # keep is exclusive
-./ritual metadata unset trade-binder labels            # back to no default
+ritual metadata set trade-binder labels sale,trade   # collection default labels
+ritual metadata set trade-binder labels keep         # keep is exclusive
+ritual metadata unset trade-binder labels            # back to no default
 
-./ritual metadata set my-deck labels proxy            # every deck line counts as a proxy
-./ritual metadata unset my-deck labels                # back to no default
+ritual metadata set my-deck labels proxy            # every deck line counts as a proxy
+ritual metadata unset my-deck labels                # back to no default
 
-./ritual metadata set my-deck description "A budget mono-red burn list"
-./ritual metadata set trade-binder description "Everything I will trade away"
-./ritual metadata set wants description "Cards I still need" --wanted
-./ritual metadata unset wants description
-./ritual metadata set my-deck tags aggro budget
-./ritual metadata set my-deck tags spicy --add
-./ritual metadata set my-deck format modern
+ritual metadata set my-deck description "A budget mono-red burn list"
+ritual metadata set trade-binder description "Everything I will trade away"
+ritual metadata set wants description "Cards I still need" --wanted
+ritual metadata unset wants description
+ritual metadata set my-deck tags aggro budget
+ritual metadata set my-deck tags spicy --add
+ritual metadata set my-deck format modern
 
-./ritual metadata get my-deck tags                     # ["aggro","budget","spicy"]
-./ritual metadata list my-deck
+ritual metadata get my-deck tags                     # ["aggro","budget","spicy"]
+ritual metadata list my-deck
 ```
 
 ## Output
 
 `set` reports the property's new stored value (`Set labels = ["sale","trade"] on collection 'trade-binder'`; a value that cleared the key reports `Cleared`). `get` prints the raw value — arrays as JSON — and exits `3` with a `not_found` error when the property is unset. `list` prints every property for the list's type, `(unset)` included — the non-settable `image` among them; with `--output json` the payload is `{ type, list, frontMatter }` where `frontMatter` is the **full** mapping — non-settable keys (`lastSynced`, `sourceUpdatedAt`) and hand-authored unknown keys included, the same honest shape the admin route returns.
 
-Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/#scripting-conventions).
+Under `--output json`/`ndjson`, errors are emitted on stderr as `{ "error": { "code", "message" } }` per the [scripting conventions](/cli-conventions/#scripting-conventions).
 
 ## Behavior
 

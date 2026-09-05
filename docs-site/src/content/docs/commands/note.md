@@ -11,10 +11,10 @@ The edit is line-preserving: only the targeted card's line is rewritten. Everyth
 ## Usage
 
 ```bash
-./ritual note [listName] [cardName...] [options]
+ritual note [listName] [cardName...] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate; a prefix that contradicts the flag is a usage error. If invoked with no list name, the command runs interactively, prompting you to pick a list (filtered by the type flag if given), then the card and note text. Any argument or option you supply skips the corresponding prompt — fully scripting-friendly. The list and card prompts require a terminal with prompts enabled too — with piped stdin or `--no-input`, a missing `[listName]` or card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
+`[listName]` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate; a prefix that contradicts the flag is a usage error. If invoked with no list name, the command runs interactively, prompting you to pick a list (filtered by the type flag if given), then the card and note text. Any argument or option you supply skips the corresponding prompt — fully scripting-friendly. The list and card prompts require a terminal with prompts enabled too — with piped stdin or `--no-input`, a missing `[listName]` or card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
 
 ## Arguments
 
@@ -44,37 +44,37 @@ If neither `--note` nor `--clear` is given, the command prompts for the note tex
 Fully interactive (prompts for everything):
 
 ```bash
-./ritual note
+ritual note
 ```
 
 Set a note on a deck card (name resolved across all list types):
 
 ```bash
-./ritual note "My Deck" Sol Ring --note "starts the engine"
+ritual note "My Deck" Sol Ring --note "starts the engine"
 ```
 
 Pin the list type when a name is ambiguous, or to be explicit:
 
 ```bash
-./ritual note --deck "My Deck" --card-id 17 --note "alpha printing"
+ritual note --deck "My Deck" --card-id 17 --note "alpha printing"
 ```
 
 Replace an existing note — setting always overwrites:
 
 ```bash
-./ritual note --collection "Main" "Mana Crypt" --note "tutor target"
+ritual note --collection "Main" "Mana Crypt" --note "tutor target"
 ```
 
 Remove a note:
 
 ```bash
-./ritual note --collection "Main" "Mana Crypt" --clear
+ritual note --collection "Main" "Mana Crypt" --clear
 ```
 
 Pipe a JSON record for scripting:
 
 ```bash
-./ritual note --collection main "Sol Ring" --note "first edition" --output json
+ritual note --collection main "Sol Ring" --note "first edition" --output json
 ```
 
 ## Behavior
@@ -113,7 +113,7 @@ When a note is removed, the response includes the removed text:
 
 ### List Resolution
 
-`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/commands/list-resolution/) for the full rules.
+`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with `--deck`, `--collection`, or `--wanted`. See [List Resolution](/list-resolution/) for the full rules.
 
 ### Card Resolution
 

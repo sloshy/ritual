@@ -57,15 +57,15 @@ A _valid_ `image:` needs no fixing on any type: there is nothing to normalize, s
 [`ritual metadata`](/commands/metadata/) deliberately does **not** write it: a cover is a mapping, which that command's scalar `<value…>` arguments cannot spell. `metadata list` reports the stored mapping; `set`, `unset` and `get` alike refuse the key (exit `2`) with a message naming `ritual set-list-image`.
 
 ```bash
-./ritual set-list-image "Winota Stax" --card 12
-./ritual set-list-image "Main Binder" --file alters/binder.png
-./ritual set-list-image "To Buy" --wanted --url https://example.com/cover.jpg
-./ritual set-list-image "Winota Stax" --default
+ritual set-list-image "Winota Stax" --card 12
+ritual set-list-image "Main Binder" --file alters/binder.png
+ritual set-list-image "To Buy" --wanted --url https://example.com/cover.jpg
+ritual set-list-image "Winota Stax" --default
 ```
 
 ## The card reference follows the card
 
-A `card` cover names a card **line**, by the same [`&N` id](/#the-card-id-backfill) the line carries — not a printing, so it can point at a specific one of two lines of the same card, or at a line that pins no printing at all.
+A `card` cover names a card **line**, by the same [`&N` id](/cli-conventions/#the-card-id-backfill) the line carries — not a printing, so it can point at a specific one of two lines of the same card, or at a line that pins no printing at all.
 
 Those ids are recycled: removing a line releases its id to the next card added. A cover reference is therefore reconciled the way [custom art](/custom-art/) is, on every path that removes, moves, or renumbers a card line:
 

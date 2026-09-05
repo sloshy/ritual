@@ -58,7 +58,7 @@ ritual config set uiLocale de        # this workspace, persistently
 
 The flag wins when both it and the environment variable are given, and an empty or
 whitespace-only `RITUAL_LOCALE` counts as **not set** — the same rule every other
-[global option](/#global-options) follows.
+[global option](/cli-conventions/#global-options) follows.
 
 The three tiers differ in how strictly they are validated, on purpose:
 
@@ -103,7 +103,7 @@ __ritualLocale__  →  localStorage  →  navigator.languages, negotiated
 The admin has no hash query, so there is no `?locale=` tier. Its initial language comes
 from the same `uiLocale` config key the CLI reads, which means changing it on the
 **Settings** page (or with `config set`) relabels the admin with **no rebuild** — see
-[Admin → Settings](/commands/admin/#settings).
+[Admin → Settings](/admin/dashboard/#settings).
 
 Both apps stamp `<html lang>` and `<html dir>` before first paint from a same-origin
 `boot.js`, so there is no flash of the wrong language and no stale `lang` left behind

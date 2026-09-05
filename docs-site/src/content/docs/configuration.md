@@ -132,7 +132,7 @@ Any combination of three store names:
   same buylist API routes.
 
 With both USD stores enabled, list pages grow a **Prices** source selector — see
-[Price stores on the site](/public-site/price-sources/). An **empty array** (`config set
+[Price stores on the site](/public-site/prices/). An **empty array** (`config set
 priceSources --remove tcgplayer`) hides every price surface on the sites: per-card prices,
 totals, the price sort/filter/grouping, and the currency selector. The CLI
 [`price`](/commands/price/) command (which has its own `--source` flag) and sell mode are
@@ -149,7 +149,7 @@ ritual config set priceSources --add cardmarket
 | ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `defaultCategories` | the fourteen below | The global [category](/list-format/#categories-namecategoriesjson) vocabulary: the suggestions offered wherever a category is typed, and the fallback display order for a list whose `.categories.json` sidecar declares none. |
 
-The shipped vocabulary is `Ramp, Draw, Removal, Board Wipes, Counterspells, Tutors, Recursion, Protection, Combo, Tokens, Burn, Lifegain, Finishers, Utility`. A list may use any category name at all — nothing has to be declared here first; this key only decides what is suggested and how an undeclared category sorts into a list's display order. It also seeds the site editors' category suggestions on both sites: `build-site` bakes it into the built site's `index.json`, and the admin SPA reads it from `/api/config`. It is editable on the admin **Settings** page as **Default Categories** (see [Settings](/commands/admin/#settings)), comma-separated.
+The shipped vocabulary is `Ramp, Draw, Removal, Board Wipes, Counterspells, Tutors, Recursion, Protection, Combo, Tokens, Burn, Lifegain, Finishers, Utility`. A list may use any category name at all — nothing has to be declared here first; this key only decides what is suggested and how an undeclared category sorts into a list's display order. It also seeds the site editors' category suggestions on both sites: `build-site` bakes it into the built site's `index.json`, and the admin SPA reads it from `/api/config`. It is editable on the admin **Settings** page as **Default Categories** (see [Settings](/admin/dashboard/#settings)), comma-separated.
 
 Each name follows the [category shape rule](/list-format/#categories-namecategoriesjson); a malformed one is refused where it is typed, and on load a malformed entry warns and resets the whole key to the shipped default. An explicit empty array is meaningful: no suggestions.
 
@@ -232,7 +232,7 @@ the next [build-site](/commands/build-site/#localized-builds), where `--locale`
 overrides it for one build — except under a live-backend
 [`serve --api`](/commands/serve/#live-api-mode---api) deployment, which reports the
 current value on every index request with no rebuild. It is also editable on the admin
-[Settings page](/commands/admin/#settings).
+[Settings page](/admin/dashboard/#settings).
 
 **Translations are a separate matter from this setting.** No translated catalogs ship
 yet, so today every value renders English text (dates, numbers and currency still
@@ -373,7 +373,7 @@ Every feed-touching behavior this key drives — the build's buylist download an
 ritual config set site.sellMode true
 ```
 
-or tick **Offer sell mode** on the admin's [Settings](/commands/admin/#settings) page, which writes
+or tick **Offer sell mode** on the admin's [Settings](/admin/dashboard/#settings) page, which writes
 the same key (and removes it, rather than storing `false`, when you untick it).
 
 The key governs **every** surface, the admin site included — it is not a "what a published site
@@ -402,7 +402,7 @@ setting, so `config get site.sellMode` keeps reporting the stored value — and 
 server keeps offering sell mode even after its Settings checkbox is unticked and saved.
 
 A **running** server is the one place that difference is visible: its
-[`GET /api/config`](/commands/admin/#get-apiconfig) (and the MCP
+[`GET /api/config`](/admin/api/#get-config) (and the MCP
 [`get_config`](/commands/mcp/#stored-config-vs-what-this-server-runs-with) tool) answers with the
 stored config as `config` plus `overrides: {"site.sellMode": true}` when the process was started
 with the flag, so a client can tell that this instance answers its sell routes despite the key

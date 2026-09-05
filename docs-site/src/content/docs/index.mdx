@@ -5,7 +5,7 @@ description: 'An all-in-one toolkit for Magic: The Gathering decks, collections,
 
 import { Tabs, TabItem } from '@astrojs/starlight/components'
 
-An all-in-one toolkit for Magic: The Gathering decks, collections, and self-hosting.
+Ritual is a command-line toolkit for Magic: The Gathering. It keeps your decks, collections, and wanted lists as plain markdown files, prices them, imports from and syncs with the sites you already use, and publishes them as a website you can host anywhere.
 
 ## Installation
 
@@ -26,9 +26,11 @@ irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | i
   </TabItem>
 </Tabs>
 
+The installer puts the `ritual` binary on your `PATH`. Run `ritual --help` to check it worked.
+
 ### Prerelease Builds
 
-Ritual is pre-release, so there is no stable release yet. Install the newest build — prereleases included — with:
+Ritual is pre-release, so there is no stable release yet. To install the newest build, prereleases included:
 
 <Tabs>
   <TabItem label="macOS / Linux">
@@ -57,7 +59,7 @@ Both installers accept these options:
 
 ### Other Methods
 
-You can also download a platform-specific binary from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
+You can also download a binary for your platform from the [releases page](https://github.com/sloshy/ritual/releases) and run it directly:
 
 ```bash
 ./ritual --help
@@ -65,214 +67,51 @@ You can also download a platform-specific binary from the [releases page](https:
 
 ### Building from Source
 
-This project uses [Bun](https://bun.sh) as its runtime. First, install dependencies:
+Ritual runs on [Bun](https://bun.sh). Install the dependencies, then build the binary:
 
 ```bash
 bun install
-```
-
-Then build the binary:
-
-```bash
 bun run build
 ```
 
-## Quick Start
+## Your First Deck
 
-### Create Your First Deck
-
-```bash
-./ritual new deck "My Commander Deck" --format commander
-```
-
-### Import a Deck from a Website
-
-Import decks from Archidekt, Moxfield, or MTGGoldfish:
+Ritual works in the directory you run it from. Make a folder for your cards, step into it, and create a deck:
 
 ```bash
-./ritual import https://archidekt.com/decks/12345
+ritual new deck "My Commander Deck"
+ritual add-card "My Commander Deck" Sol Ring
 ```
 
-### Get Pricing Information
+The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Every later lookup reads from that cache, so it is fast and works offline.
+
+Already have a deck online? Import it from Archidekt, Moxfield, or MTGGoldfish instead:
 
 ```bash
-./ritual price "My Commander Deck"
+ritual import https://archidekt.com/decks/12345
 ```
 
-### Generate a Static Website (Experimental)
-
-Ritual supports building static websites to showcase your decks (and soon, your collection). This is an experimental feature, so expect some rough edges. To build and serve the site locally:
+From here:
 
 ```bash
-./ritual serve --build
+ritual edit                       # open the interactive editor
+ritual price "My Commander Deck"  # what the deck costs today
+ritual serve --build              # build the website and serve it at http://localhost:3000
 ```
 
-Then open http://localhost:3000 to view your deck collection.
+## What You Get
 
-## Global Options
+- **Lists as files.** Each deck, collection, and wanted list is one markdown file under `decks/`, `collections/`, or `wanted/`. Edit them with Ritual or by hand. See [List Files](/list-format/).
+- **Three ways to work.** The command line, a browser-based [admin site](/admin/) you run with `ritual admin`, and a [public site](/public-site/) you build and host.
+- **Imports and syncs.** Decks from Archidekt, Moxfield, MTGGoldfish, plain text, and CSV files, plus two-way sync with Archidekt for decks and your collection.
+- **Prices.** TCGplayer, Cardmarket, and Card Kingdom prices for every list, and Card Kingdom buylist quotes when you want to sell.
+- **Card lookup.** Search Scryfall with its full query syntax from the terminal.
+- **AI agents.** An [MCP server](/commands/mcp/) and installable [agent skills](/commands/skills/) so an assistant can drive Ritual for you.
 
-These options are available on every command:
+## Where to Go Next
 
-| Option                       | Environment variable  | Description                                                                 |
-| ---------------------------- | --------------------- | --------------------------------------------------------------------------- |
-| `--base-dir <path>`          | `RITUAL_BASE_DIR`     | Use this directory instead of the current working directory                 |
-| `--cache-server <host:port>` | `RITUAL_CACHE_SERVER` | Use a remote cache server instead of local cache files                      |
-| `--no-input`                 | `RITUAL_NO_INPUT`     | Never prompt; fail or use documented defaults where input would be required |
-| `--locale <tag>`             | `RITUAL_LOCALE`       | Language for Ritual's own interface text (BCP-47, e.g. `de-AT`)             |
-
-In every case the flag wins when both are given, and an empty or whitespace-only environment variable counts as **not set**.
-
-### `--base-dir`
-
-By default, Ritual reads and writes files relative to the directory you run it from (the current working directory). Use `--base-dir` to point Ritual at a different directory without needing to `cd` there first:
-
-```bash
-# Run from anywhere, but operate on files in ~/my-collection
-ritual --base-dir ~/my-collection build-site
-
-# Price all decks in a specific project directory
-ritual --base-dir /projects/mtg price "My Deck"
-```
-
-This affects all file paths: decks, collections, wanted lists, cache, config files, and the output `dist/` directory. The directory locations themselves can be customized via [`ritual.config.json`](/configuration/) — paths in that file are interpreted relative to `--base-dir`.
-
-The `RITUAL_BASE_DIR` environment variable does the same thing and is used whenever `--base-dir` itself is not passed, so a shell session or a service unit can pin a workspace once:
-
-```bash
-export RITUAL_BASE_DIR=~/my-collection
-ritual lists                              # operates on ~/my-collection
-ritual --base-dir /projects/mtg lists     # the flag wins for this one run
-```
-
-**The directory must already exist.** Ritual never creates a base directory: a path that is missing, or that is not a directory, is a usage error (exit code `2`) and nothing is read or written:
-
-```
-base directory does not exist: /home/you/my-collectoin
-base directory is not a directory: /home/you/notes.txt
-base directory is not readable: /srv/private — EACCES: permission denied, stat '/srv/private'
-```
-
-The third form covers permission problems and any other filesystem failure while checking the path.
-
-This is deliberate — a typo'd `--base-dir` used to read as a perfectly empty workspace (`(no lists)`) and a write would have forked your data into a stray tree.
-
-### `--no-input`
-
-Disables every interactive prompt across the CLI — the headless switch for scripts, CI, and agents. A command that would normally prompt either fails with a usage error or falls back to a documented default instead (the specific behavior is called out in each command's own docs, e.g. [`price`](/commands/price/#price-freshness), [`export`](/commands/export/#interactive-wizard), [`cleanup`](/commands/cleanup/#headless-runs)).
-
-The `RITUAL_NO_INPUT` environment variable does the same thing and is checked whenever `--no-input` itself is not passed — set it once in a CI environment instead of adding the flag to every invocation:
-
-```bash
-RITUAL_NO_INPUT=1 ritual cleanup --skip-formats
-ritual import ./decklist.txt --type deck --no-input
-```
-
-Setting it to a falsy value (`0`, `false`, `no`, `off`, any casing) counts as **not set**, so an inherited `RITUAL_NO_INPUT=1` can be turned back off for one invocation:
-
-```bash
-RITUAL_NO_INPUT=0 ritual edit "My Deck"   # prompts again, despite the CI default
-```
-
-### When prompts are unavailable
-
-A prompt cannot run when `--no-input`/`RITUAL_NO_INPUT` disabled prompting **or** when stdin is not a terminal (piped input, `</dev/null`, most CI runners). The two causes are treated identically everywhere in the CLI: no command opens a prompt, spawns a pager, or exits `0` having quietly skipped the work it was asked to do. Where an answer is genuinely required you get a usage error (exit code `2`) naming what was needed — the flag that would have supplied it where one exists (`Input required: pass --finish <nonfoil|foil> (...)`), otherwise the thing the prompt asked for (`Input required: a printing of the card (...)`), e.g.:
-
-```
-Input required: pass --finish <nonfoil|foil|etched> (no terminal available for prompts).
-Input required: pass --finish <nonfoil|foil|etched> (prompts are disabled by --no-input / RITUAL_NO_INPUT).
-```
-
-The parenthetical names which of the two causes applied, since the remedies differ — supply the missing flags, or reconsider `--no-input`. Interactive-only surfaces (`edit`, `history`'s editor, `move`'s session, `dep-license`'s picker) refuse to open at all and point at their headless equivalent; `license` and `dep-license <package>` print their text straight to stdout instead of paging it through `less`.
-
-Where a question has a documented default, that default is used instead of failing — each command's page says which: `--refresh ask` is declined rather than answered wherever it is a prompt — but three commands document their own reading, and two of them download without asking: [`build-site`](/commands/build-site/#card-cache-refresh) bulk-downloads an empty or stale card cache automatically, since it cannot build without card data; [`sell`](/commands/sell/#feed-freshness) redownloads an already-downloaded Card Kingdom buylist once it is a day old (as do [`admin`](/commands/admin/), [`serve --api`](/commands/serve/#live-api-mode---api), and a [sell-mode `build-site`](/commands/build-site/#sell-mode---sell-mode)), since a day-old feed quotes yesterday's offers — only the _first_ buylist download prompts; and [`collection-sync`](/commands/collection-sync/#cache-freshness) fails the run instead of skipping, and a text `import` without `--type` falls back to a deck **under an explicit `--no-input`** (a merely piped run still errors, since nothing said which type was meant). A URL `import` (and `import-account`) without a [`--sync-printings`/`--no-sync-printings`](/commands/import/#printings-from-a-url-import) answer behaves the same way: an explicit `--no-input` keeps the source's exact printings and says so, while a merely piped run errors.
-
-### `--locale`
-
-Sets the language **Ritual's own interface text** is written in — output, prompts, menus, help, and errors. It takes a [BCP-47](https://www.rfc-editor.org/info/bcp47) tag (`en`, `de`, `de-AT`, `pt-BR`), which is canonicalized, so `--locale de-at` and `--locale de-AT` are the same thing.
-
-```bash
-ritual --locale de lists            # this one run
-export RITUAL_LOCALE=de             # this shell
-ritual config set uiLocale de       # this workspace, persistently
-```
-
-The full precedence is `--locale` → `RITUAL_LOCALE` → the [`uiLocale`](/configuration/#interface-language) config key → your OS locale → `en`. Only the flag is strict: a tag naming no known language is a usage error (exit code `2`), while a bad `RITUAL_LOCALE` or `uiLocale` warns and falls through to the next tier, since an unusable interface language is cosmetic and refusing to run over one would be worse than the misconfiguration.
-
-Run [`ritual locale`](/commands/locale/) to see which tier won — or [`ritual locale --detect`](/commands/locale/#detecting-the-os-locale) to run the deeper OS probes (Windows/macOS) and optionally save the result as `uiLocale`.
-
-:::note[Not the card language]
-`--locale` is about the language **Ritual speaks**. Which _printing of a card_ gets recorded is [`defaultLanguage`](/configuration/#default-language), a separate setting with a separate vocabulary. They are independent — see [Localization](/localization/). No translations ship yet, so today every locale renders English text (dates, numbers, and currency still follow the tag).
-:::
-
-## The card-ID backfill
-
-Every card line in a deck, collection, or wanted list file carries a stable internal ID — the `&N` suffix (e.g. `- 1 Sol Ring &5`). The tools manage these IDs; never hand-author or renumber them. When a file is missing IDs (typically after a hand edit), Ritual backfills them automatically before running any command that **rewrites list card lines or needs every line to already carry an ID**: the editors (`edit`, `history`'s editor mode, `admin` — the server itself, not its `setup`/`reset-password`/`disable-totp` subcommands — `mcp`, and `serve --build`/`--api`), the one-shot card commands (`add-card`, `remove-card`, `set-card`, `note`, `move`), the importers and syncs (`import`, `import-account`, `import-changes`, `deck-sync pull`/`deck-sync push` — but not the read-only `deck-sync status` or the front-matter-only `deck-sync link` — and `collection-sync`), and the whole-workspace passes (`cleanup`, `build-site`). [`set-list-image`](/commands/set-list-image/) is conditional: it backfills only when the run actually consumes an `&N` — `--card`, or the wizard's card picker — and never for `--file`, `--url`, or `--default`.
-
-No other command triggers the backfill, so none of them ever rewrites the card lines in your list files. That covers the read-only commands (`lists`, `diff`, `price`, `sell`, `export`, `get-primer`, `history --show`, `list-all-cards`, `scry`, `card`, ...), the lifecycle commands (`new`, `rename`, `delete`), the front-matter-only [`metadata`](/commands/metadata/) command (it writes list files, but never their card lines), the sidecar-only [`categories`](/commands/categories/) command and the front-matter-only modes of [`set-list-image`](/commands/set-list-image/), and utilities like `detect-changes` — deliberately, since a backfill would rewrite the very files it is inspecting (that holds for `--hash-only` and `--verify` too). (Some of these still write files of their own, of course: `detect-changes --hash-only` writes `.sha256` sidecars, and `new`/`rename`/`delete` create, move, or remove list files as their whole purpose.) `-n`/`--dry-run` suppresses the backfill too: a dry run writes nothing.
-
-The backfill also never disturbs change tracking for hand-edited files: it refreshes a file's `.sha256` sidecar only when the sidecar already matched the file, so [`detect-changes`](/commands/detect-changes/) still sees your hand edits and records their changelog entries.
-
-## Features
-
-- **List Management**: Create and organize your decks, collections, and wanted lists
-- **Multi-source Import**: Import from Archidekt, Moxfield, MTGGoldfish, or local files
-- **Scryfall Integration**: Full card search powered by Scryfall
-- **Pricing**: Get min, max, and latest prices for your decks
-- **Static Site Generation**: Create a self-hosted website to showcase your decks or collection
-- **Caching**: Smart caching for fast card lookups
-
-## Scripting quickstart
-
-Use structured output for automation:
-
-```bash
-./ritual price "My Commander Deck" --output json | jq '.totals'
-```
-
-Stream multiple card lookups as NDJSON:
-
-```bash
-./ritual card --from-file cards.txt --output ndjson --fields name,set,prices.usd
-```
-
-Avoid interactive prompts in CI:
-
-```bash
-./ritual import-account johndoe --all --no-input --dry-run
-```
-
-## Scripting tips
-
-- Prefer `--output json` or `--output ndjson` for script parsing.
-- Use `--fields` to project stable subsets of data.
-- Add the global `--no-input` flag (or set `RITUAL_NO_INPUT`) in headless environments so no command ever prompts; pass `--yes` where a confirmation is required.
-
-## Scripting conventions
-
-Three flags and one exit-code vocabulary behave the same way on every command that has them.
-
-### `--output` always means the scripting format
-
-`--output text|json|ndjson` selects the **envelope** the command writes to stdout — never a file format, never a destination. `json` emits exactly one document per run (a batch of card lookups or a multi-page search is still one array); `ndjson` streams one JSON object per line; `text` is the human rendering. Three commands widen or drop the value list rather than redefining the flag: [`scry`](/commands/scry/) adds `--output csv` (Scryfall renders the CSV itself), [`sell`](/commands/sell/) adds `--output csv` too (a different payload — Card Kingdom's sell-cart upload rows, not the report re-rendered), and [`export`](/commands/export/) has no `--output` at all — its stdout payload _is_ the export, chosen with `--format csv|json|text|md` and redirected with `--out <file>`.
-
-Errors always go to **stderr**, structured to match: `{"error": {"code", "messageKey", "messageParams", "message", "details"}}` under `json`/`ndjson`, a plain line under `text`. `code` and `messageKey` are locale-invariant — match on those; `message` is prose that follows the UI locale (`messageKey`/`messageParams` are omitted when the failure has no message-catalog entry behind it, such as an error quoted verbatim from Scryfall or the filesystem). An unexpected internal failure is reported through the same envelope, with `code: "runtime_error"`, exit code `1`, and neither `messageKey` nor `details` — there is no catalog entry and no structured payload behind it. stdout stays parseable in every case.
-
-### `--quiet` suppresses chatter, never data
-
-`--quiet` removes progress and status messages — "Reading cards from file…", "Successfully imported…", applied counts, confirmations. It never removes:
-
-- the **structured payload**: `--output json`/`ndjson` stdout is always emitted, so `--quiet --output json` is a JSON document with no chatter around it. Scripts that want total silence redirect stdout.
-- **errors**, and **warnings that mean content was lost** — a card line the parser could not read, a change skipped as a conflict, a result set truncated by the page cap. These always print to stderr, `--quiet` or not, because nothing else would tell you.
-
-A command with no non-essential output does not register the flag at all rather than advertising an inert one. `card`, `diff`, `scry`, `cache status`, `dep-license`, `history`, `login status`, `deck-sync status`, and `skills list` therefore accept `--output` but no `--quiet`: everything they print is either the payload or a warning that has to survive anyway.
-
-### Exit codes
-
-| Code | Meaning                                                                                                             |
-| ---- | ------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                             |
-| `1`  | Runtime error — the work was attempted and failed                                                                   |
-| `2`  | Usage error — a bad flag value or an impossible combination, including a malformed `--base-dir` or `--cache-server` |
-| `3`  | Not found — a named list, file, card, or other resource does not exist                                              |
-
-A closed stdout pipe is not a failure: `ritual … --output ndjson | head` stops quietly and exits `0`, like any standard Unix tool.
+- [List Files](/list-format/) explains the file format Ritual reads and writes.
+- [Configuration](/configuration/) covers the optional `ritual.config.json`.
+- [CLI Conventions](/cli-conventions/) lists the global options, scripting output, and exit codes shared by every command.
+- [Commands](/commands/) is the full command reference.
+- [Public Site](/public-site/) and [Admin Site](/admin/) describe the two web interfaces.

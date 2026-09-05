@@ -7,7 +7,7 @@ Look up a single card by name using Scryfall.
 ## Usage
 
 ```bash
-./ritual card [name] [options]
+ritual card [name] [options]
 ```
 
 ## Arguments
@@ -27,7 +27,7 @@ Look up a single card by name using Scryfall.
 | `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output |
 | `--output <format>`  | Output format (`json`, `ndjson`, or `text`)       |
 
-`card` registers no `--quiet`: everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/#scripting-conventions)).
+`card` registers no `--quiet`: everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/cli-conventions/#scripting-conventions)).
 
 ## Batch output shape
 
@@ -42,37 +42,37 @@ Look up a single card by name using Scryfall.
 Look up a card by exact name:
 
 ```bash
-./ritual card "Sol Ring"
+ritual card "Sol Ring"
 ```
 
 Use fuzzy matching for approximate names:
 
 ```bash
-./ritual card "sol rng" --fuzzy
+ritual card "sol rng" --fuzzy
 ```
 
 Look up a specific printing by set:
 
 ```bash
-./ritual card "Lightning Bolt" --set lea
+ritual card "Lightning Bolt" --set lea
 ```
 
 Get plain text output:
 
 ```bash
-./ritual card "Sol Ring" --output text
+ritual card "Sol Ring" --output text
 ```
 
 Batch lookup from stdin as one JSON array:
 
 ```bash
-printf "Sol Ring\nArcane Signet\n" | ./ritual card --stdin --output json
+printf "Sol Ring\nArcane Signet\n" | ritual card --stdin --output json
 ```
 
 Stream a large batch as NDJSON instead:
 
 ```bash
-./ritual card --from-file cards.txt --output ndjson --fields name,set,prices.usd
+ritual card --from-file cards.txt --output ndjson --fields name,set,prices.usd
 ```
 
 ## Exit Codes

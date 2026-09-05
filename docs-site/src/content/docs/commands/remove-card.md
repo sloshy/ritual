@@ -9,10 +9,10 @@ The edit is line-preserving: only the targeted card's line is removed (or its de
 ## Usage
 
 ```bash
-./ritual remove-card [listName] [cardName...] [options]
+ritual remove-card [listName] [cardName...] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list and then a card. Both prompts need a terminal with prompting enabled — when [prompts are unavailable](/#when-prompts-are-unavailable) (piped stdin, or `--no-input` / `RITUAL_NO_INPUT`), omitting `[listName]` or a card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
+`[listName]` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list and then a card. Both prompts need a terminal with prompting enabled — when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (piped stdin, or `--no-input` / `RITUAL_NO_INPUT`), omitting `[listName]` or a card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting.
 
 ## Arguments
 
@@ -40,26 +40,26 @@ The edit is line-preserving: only the targeted card's line is removed (or its de
 Remove one copy of a card from a deck:
 
 ```bash
-./ritual remove-card --deck "My Deck" Sol Ring
+ritual remove-card --deck "My Deck" Sol Ring
 ```
 
 Remove a specific printing by its card ID:
 
 ```bash
-./ritual remove-card --deck "My Deck" --card-id 17
+ritual remove-card --deck "My Deck" --card-id 17
 ```
 
 Remove two copies, or the whole line:
 
 ```bash
-./ritual remove-card --deck "My Deck" Lightning Bolt -q 2
-./ritual remove-card --deck "My Deck" Lightning Bolt --all-copies
+ritual remove-card --deck "My Deck" Lightning Bolt -q 2
+ritual remove-card --deck "My Deck" Lightning Bolt --all-copies
 ```
 
 Remove a collection entry and capture the result as JSON:
 
 ```bash
-./ritual remove-card --collection main "Mana Crypt" --output json
+ritual remove-card --collection main "Mana Crypt" --output json
 ```
 
 The JSON payload is `{ type, list, cardName, cardId, removed, remaining }`, where `removed` is the number of copies taken off and `remaining` is what is left on the deck line (`0` once the line is gone, and always `0` for collections and wanted lists).

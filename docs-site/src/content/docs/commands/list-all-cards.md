@@ -6,12 +6,12 @@ Print a deduplicated, alphabetically sorted manifest of every card known to your
 
 The manifest **excludes** quantities, finishes, conditions, notes, and card IDs. If a card appears in multiple lists or with the same printing in different decks, it is collapsed into a single entry.
 
-The command is strictly read-only: it never writes to list files (it is exempt from the [card-ID backfill](/#the-card-id-backfill)), so running it in CI never dirties the checkout.
+The command is strictly read-only: it never writes to list files (it is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill)), so running it in CI never dirties the checkout.
 
 ## Usage
 
 ```bash
-./ritual list-all-cards [options]
+ritual list-all-cards [options]
 ```
 
 ## Options
@@ -43,7 +43,7 @@ Each line is a `- name (SET:CN)` entry, with the parenthesized printing omitted 
 `json` emits the raw entry array (set codes lowercase, as stored internally; absent fields are omitted):
 
 ```bash
-./ritual list-all-cards --output json
+ritual list-all-cards --output json
 ```
 
 ```json
@@ -76,7 +76,7 @@ The generated GitHub Actions workflow uses this file as the cache key for the Sc
 
 ```yaml
 - name: Generate card manifest
-  run: ./ritual list-all-cards --out all-cards.md
+  run: ritual list-all-cards --out all-cards.md
 
 - name: Restore Scryfall cache
   uses: actions/cache@v5
@@ -94,23 +94,23 @@ This means the cache is reused across builds whenever the set of cards in your l
 Print the manifest to stdout:
 
 ```bash
-./ritual list-all-cards
+ritual list-all-cards
 ```
 
 Write the CI cache-key file:
 
 ```bash
-./ritual list-all-cards --out all-cards.md
+ritual list-all-cards --out all-cards.md
 ```
 
 Feed the unique cards to a script:
 
 ```bash
-./ritual list-all-cards --output ndjson | jq -r .name | sort -u
+ritual list-all-cards --output ndjson | jq -r .name | sort -u
 ```
 
 Use with `--base-dir`:
 
 ```bash
-./ritual --base-dir ~/mtg list-all-cards
+ritual --base-dir ~/mtg list-all-cards
 ```

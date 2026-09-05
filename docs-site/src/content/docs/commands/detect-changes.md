@@ -23,9 +23,9 @@ That is why detection can skip a file whose content matches its sidecar: re-diff
 ## Usage
 
 ```bash
-./ritual detect-changes <commit> [options]
-./ritual detect-changes --hash-only [options]
-./ritual detect-changes --verify [options]
+ritual detect-changes <commit> [options]
+ritual detect-changes --hash-only [options]
+ritual detect-changes --verify [options]
 ```
 
 ## Arguments
@@ -53,10 +53,10 @@ Passing `<commit>` together with `--hash-only` or `--verify` is a usage error �
 When deck, collection, or wanted list files are edited directly (a text editor, a git merge, an external tool) rather than through the admin UI or CLI commands, no `.changes.md` changelog entries are created. The default mode inspects git history to retroactively generate them.
 
 ```bash
-./ritual detect-changes HEAD~1        # since the previous commit
-./ritual detect-changes abc123f       # since a specific commit
-./ritual detect-changes main          # since a branch point
-./ritual detect-changes HEAD~5 -n     # preview only
+ritual detect-changes HEAD~1        # since the previous commit
+ritual detect-changes abc123f       # since a specific commit
+ritual detect-changes main          # since a branch point
+ritual detect-changes HEAD~5 -n     # preview only
 ```
 
 The base directory must be a git repository and `<commit>` must resolve, otherwise the run fails with a message naming the problem (and pointing at `--hash-only` for the no-git case) rather than passing raw git output through.
@@ -119,7 +119,7 @@ The sidecar is refreshed only for a file whose diff actually produced changelog 
 
 This makes the command idempotent and lets a repository freely mix Ritual edits with raw git edits. Running it twice over the same range is a no-op the second time, because the first run records — and stamps — every file that had card changes.
 
-The [card-ID backfill](/#the-card-id-backfill) cooperates with this scheme from the other side: when a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` sidecar only if the sidecar already matched the file. A hand edit therefore keeps its stale or absent sidecar, and detection still records it. (`detect-changes` itself never runs the backfill, in any mode — it must see the working tree exactly as you committed it.)
+The [card-ID backfill](/cli-conventions/#the-card-id-backfill) cooperates with this scheme from the other side: when a list-writing command persists missing `&N` IDs into a hand-edited file, it refreshes the `.sha256` sidecar only if the sidecar already matched the file. A hand edit therefore keeps its stale or absent sidecar, and detection still records it. (`detect-changes` itself never runs the backfill, in any mode — it must see the working tree exactly as you committed it.)
 
 > **Limitation:** the sidecar reflects a file's _final_ state across the diff range, not its per-commit history. If a single range mixes a Ritual edit and a raw edit to the **same** file, the comparison only sees the final content: a range ending in a raw edit re-records the whole diff (including the part Ritual already logged), and a range ending in a Ritual edit is skipped entirely (dropping the raw edit's changelog). To keep changelogs exact, avoid mixing both kinds of edit to one file within a single detection range — in the CI workflow, that range is one push.
 
@@ -130,10 +130,10 @@ With `-n`/`--dry-run` the command prints what it would do without modifying any 
 ## `--hash-only`: stamp sidecars without git
 
 ```bash
-./ritual detect-changes --hash-only
+ritual detect-changes --hash-only
 ```
 
-Rewrites every list file's `.sha256` sidecar from the file's current on-disk content. It needs no git repository, writes no changelog entries, and never modifies list file content (`detect-changes` is exempt from the [card-ID backfill](/#the-card-id-backfill) in every mode, so a `--dry-run` preview always shows exactly the hashes a real run would write).
+Rewrites every list file's `.sha256` sidecar from the file's current on-disk content. It needs no git repository, writes no changelog entries, and never modifies list file content (`detect-changes` is exempt from the [card-ID backfill](/cli-conventions/#the-card-id-backfill) in every mode, so a `--dry-run` preview always shows exactly the hashes a real run would write).
 
 Deck, collection, and wanted **list files** are stamped, together with their [`.categories.json`](/list-format/#categories-namecategoriesjson) sidecars — never `.changes.md` changelogs, `.primer.md` primers, `.art.json` custom art, or anything else.
 
@@ -168,7 +168,7 @@ Use `--hash-only` when you deliberately do **not** want the current state record
 ## `--verify`: report sidecar drift
 
 ```bash
-./ritual detect-changes --verify
+ritual detect-changes --verify
 ```
 
 Answers "which lists have been hand-edited since Ritual last wrote them?" and writes nothing at all. Each list file is reported as:
@@ -324,17 +324,17 @@ You can also enable it later by setting `"detectChanges": true` under the `site`
 Emit the detection report as JSON for scripting:
 
 ```bash
-./ritual detect-changes HEAD~1 --output json
+ritual detect-changes HEAD~1 --output json
 ```
 
 Check for drift without writing anything:
 
 ```bash
-./ritual detect-changes --verify
+ritual detect-changes --verify
 ```
 
 Use a custom base directory:
 
 ```bash
-./ritual --base-dir /path/to/site detect-changes HEAD~1
+ritual --base-dir /path/to/site detect-changes HEAD~1
 ```

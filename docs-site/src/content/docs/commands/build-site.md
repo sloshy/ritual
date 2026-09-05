@@ -7,7 +7,7 @@ Generate a website for your decks, collections, and wanted lists.
 ## Usage
 
 ```bash
-./ritual build-site [options]
+ritual build-site [options]
 ```
 
 ## Options
@@ -37,55 +37,55 @@ By default, deck card images use Scryfall URLs from card data. This can be overr
 Build site for all decks and collections:
 
 ```bash
-./ritual build-site
+ritual build-site
 ```
 
 Build site for specific decks:
 
 ```bash
-./ritual build-site --decks "Atraxa Superfriends" "Mono Red Aggro"
+ritual build-site --decks "Atraxa Superfriends" "Mono Red Aggro"
 ```
 
 Build with verbose output:
 
 ```bash
-./ritual build-site --verbose
+ritual build-site --verbose
 ```
 
 Build with downloaded local deck card images:
 
 ```bash
-./ritual build-site --cache-images
+ritual build-site --cache-images
 ```
 
 Build directly from a URL (see [Building decks from URLs](#building-decks-from-urls)):
 
 ```bash
-./ritual build-site --decks https://archidekt.com/decks/12345
+ritual build-site --decks https://archidekt.com/decks/12345
 ```
 
 Build with specific collections:
 
 ```bash
-./ritual build-site --collections "Red Binder" "ECL"
+ritual build-site --collections "Red Binder" "ECL"
 ```
 
 Build with specific wanted lists:
 
 ```bash
-./ritual build-site --wanted-lists "High Priority" "Trade Targets"
+ritual build-site --wanted-lists "High Priority" "Trade Targets"
 ```
 
 Build with EUR as the default price currency:
 
 ```bash
-./ritual build-site --currencies eur
+ritual build-site --currencies eur
 ```
 
 Build with only USD and EUR (no TIX):
 
 ```bash
-./ritual build-site --currencies "usd,eur"
+ritual build-site --currencies "usd,eur"
 ```
 
 ## Choosing which lists to build
@@ -123,7 +123,7 @@ A URL deck comes from `--decks`, so it is a source you **named**: if it cannot b
 URL decks have no local file, so they carry no changelog and no file timestamp on the generated site.
 
 ```bash
-./ritual build-site --decks https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Build/1.0"
+ritual build-site --decks https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Build/1.0"
 ```
 
 ## Themes
@@ -149,8 +149,8 @@ Each theme also has an inverted variant accessible by appending `-inverted` to i
 The app's flame logo — both the header icon and the browser-tab favicon — is tinted from each theme's accent, so switching themes recolors the icon to match (a vivid flame for saturated accents, a pale "white flame" for near-neutral ones).
 
 ```bash
-./ritual build-site --theme izzet
-./ritual build-site --theme boros-inverted
+ritual build-site --theme izzet
+ritual build-site --theme boros-inverted
 ```
 
 ### Custom themes
@@ -162,9 +162,9 @@ For per-variable tweaks, the picker has a **Customize theme…** entry that open
 A **Download JSON** button in the editor exports the full set of variables as a `.json` file. To bake one of those palettes back into a build, pass it to `--theme-file`:
 
 ```bash
-./ritual build-site --theme-file ./my-palette.json
-./ritual build-site --theme-file ./palette-a.json --theme-file ./palette-b.json
-./ritual build-site --theme-file ./my-palette.json --theme my-palette
+ritual build-site --theme-file ./my-palette.json
+ritual build-site --theme-file ./palette-a.json --theme-file ./palette-b.json
+ritual build-site --theme-file ./my-palette.json --theme my-palette
 ```
 
 Each `--theme-file` adds a custom theme alongside the built-ins under the `name` field declared in the JSON. Combining `--theme-file` with `--theme <custom-name>` makes that custom theme the initial default for new visitors. The JSON shape is:
@@ -195,9 +195,9 @@ Three flags control it:
 | `--locale-file <path...>` | Loads a dictionary JSON from disk at build time. The **file name is the locale tag** (`de-AT.json`), matching the layout translators work in.                             |
 
 ```bash
-./ritual build-site --locales en de --locale de     # opens in German, English available
-./ritual build-site --locales all                   # every dictionary this build has
-./ritual build-site --locale-file ./de-AT.json --locales en de-AT
+ritual build-site --locales en de --locale de     # opens in German, English available
+ritual build-site --locales all                   # every dictionary this build has
+ritual build-site --locale-file ./de-AT.json --locales en de-AT
 ```
 
 `--locales` is variadic, so its tags are **space-separated**, like `--decks` and `--theme-file` (unlike `--currencies`, which takes one comma-separated value). English is always emitted whether or not you list it.
@@ -232,7 +232,7 @@ Generates a single-page application in the `dist/` directory (or the `--out-dir`
 - `locales/{tag}.json` — One message dictionary per published locale, fetched on demand when the visitor switches language
 - `decks/{slug}.json` — Full deck data loaded on demand
 - `collections/{slug}.json` — Full collection data with pricing loaded on demand
-- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/price-sources/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. Under the `cardkingdom` price store the quotes cover every printing the list _carries_, at every finish — not just the ones its tiles display — so the card modal's other-printings grid and the printing pickers can price them with no backend
+- `wanted/{slug}.json` — Full wanted list data with pricing loaded on demand — each of these three also carries that list's baked Card Kingdom quotes (buy **and** NM retail prices), plus Card Kingdom's own [printing picks](/public-site/prices/#which-printing-a-card-is-priced-at) for its name-only lines, when [sell mode](#sell-mode---sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`. Under the `cardkingdom` price store the quotes cover every printing the list _carries_, at every finish — not just the ones its tiles display — so the card modal's other-printings grid and the printing pickers can price them with no backend
   Each list's detail also carries that list's [categories](/commands/categories/): the build reads its `.categories.json` sidecar, bakes the vocabulary and per-name assignments into the JSON alongside each card's own categories, and prints the sidecar's warnings (unreadable file, entries naming cards the list no longer holds) with that list's other warnings.
 
 - `art/{path}` — [Custom card art](/custom-art/) files referenced by any published list, copied out of the configured art directory under their art-dir-relative path (once per unique path, so lists sharing an image share the file). A referenced file that is not on disk is a build warning and is left out of the baked data, so the card falls back to its normal art
@@ -259,7 +259,7 @@ directory — `--out-dir .` would otherwise delete your decks, collections, and
 `.git`.
 
 ```
-$ ./ritual build-site --out-dir .
+$ ritual build-site --out-dir .
 --out-dir may not be the Ritual directory itself (/home/you/ritual) — it is the
 site's output directory: a build replaces it wholesale, and serving it would
 publish your lists.
@@ -303,7 +303,7 @@ every such source is listed in a closing summary, the exit code is `1`, and
 nothing is published — the previous site stays up.
 
 ```
-$ ./ritual build-site --decks "Nonexistant Deck"
+$ ritual build-site --decks "Nonexistant Deck"
 Failed to load deck 'Nonexistant Deck': no deck named that in /home/you/ritual/decks
 
 ⚠️  1 source could not be built:
@@ -323,7 +323,7 @@ the same way, but the rest of the site is published without it and the build
 exits `0`.
 
 ```
-$ ./ritual build-site
+$ ritual build-site
 Failed to load deck 'winota': unexpected end of the stream within a flow collection
 
 ⚠️  1 source could not be built:
@@ -370,126 +370,11 @@ When they hold cards but the cache has no prices for them, it names the remedy:
 `No price data found in the card cache. Run \`ritual cache preload-all\` first,
 or re-run with --refresh auto to download it.`
 
-## View Modes and Card Size
-
-Deck and collection pages offer four view modes, toggled via buttons in the toolbar:
-
-- **Binder** (▦) — dense card image grid
-- **List** (☰) — compact text rows showing name, mana cost, and price
-- **Row** (⧗) — horizontally scrolling fan of overlapping cards
-- **Column** (▥) — vertical stacked columns of cards
-
-In binder, row, and column modes, hovering a card shows its name and price in an overlay at the bottom of the card image.
-
-Double-faced cards show a translucent **flip** button (⇄) on the left edge when hovered in these three image views (it is not shown in list view). Clicking it flips the card in place — with a short rotate animation that does not disturb the surrounding layout — to reveal the back face; clicking again flips back to the front. The flip is purely visual and does not change grouping, sorting, or any saved data.
-
-When grouping by **type**, double-faced cards are categorized by their **front face only**: a card whose front is a creature and whose back is a land is grouped under Creature.
-
-A card size selector (**L / M / S**) appears in the toolbar for binder, row, and column modes. The three sizes are:
-
-| Size               | Card width |
-| ------------------ | ---------- |
-| L (Large, default) | 190 px     |
-| M (Medium)         | 140 px     |
-| S (Small)          | 100 px     |
-
-Card size applies uniformly across all three image views. In row and column modes, the row width and column width shift automatically to match the selected card size.
-
-## Exporting a list
-
-Every list page (deck, collection, or wanted list) carries a **Copy** and a **Download** button in its header. Clicking either opens a dropdown of three formats:
-
-- **Text (.txt)** — for a deck, the [Moxfield export dialect](/commands/export/#dialects): bare `Commander` / `Deck` / `Sideboard` board markers over `N Card Name (SET) Collector Number` lines, with Moxfield's `*F*` / `*E*` finish marker between the set and the collector number — no `##` headers, no `-` bullets, and none of the ids, notes, conditions or labels a Ritual line carries, so it pastes straight into Moxfield or Arena. The file is the whole decklist: the command zone, every main-deck section, and the sideboard under its own `Sideboard` marker. Maybeboard and token sections are **not** included — they are deck-building extras rather than part of a decklist, and no dialect has a board for them. Collections and wanted lists render one line per card in Ritual's own quantity-prefixed form (`N Card Name (SET:Collector Number)`).
-- **Markdown (.md)** — the canonical source Markdown, with `## Section` headers and full bulleted card lines (`- 2 Lightning Bolt (2XM:157) [foil] &5`: printing, finish, condition, note, and internal id).
-- **CSV (.csv)** — spreadsheet rows under a `Name,Set,Collector Number,Finish,Condition,Language,Quantity` header, for importing into other sites.
-
-**Copy** writes the chosen format to the clipboard; **Download** saves it as a file named after the list. A small tooltip ("Copied!" / "Downloaded!") confirms the action — the button labels never change. The list is serialized in the browser from the data already on the page, so no extra files are generated at build time.
-
-## Multi-Select
-
-Any list page (deck, collection, or wanted list) lets you select cards across every view mode and act on the whole selection at once. Hovering a card in binder, row, or column mode reveals a translucent checkbox in its top-left corner; clicking it marks the card with a checkmark in the current theme's accent color. In list view the checkbox sits at the far left of each row. You can also **Ctrl-click** (or **⌘-click** on macOS) anywhere on a card in any view to toggle its selection without opening the card modal.
-
-A card shown with a quantity (e.g. `4×` in a deck, or a grouped duplicate in a collection) is selected as all of its copies at once, and the count reflects the individual copies (selecting `4× Lightning Bolt` counts as four). When you later remove some — but not all — of a group's copies (from the dialog below), its checkbox shows a **dash** instead of a checkmark to indicate the partial selection.
-
-Once at least one card is selected, a **Selected (N)** button appears in the toolbar (N is the running count of selected copies for the list you're viewing). The selection survives changes to grouping, sorting, and view mode. Opening the button reveals a menu of bulk actions over that list's selection:
-
-- **Copy as Text** — copies a quantity-prefixed list (`N Card Name (SET:Collector Number)`) to the clipboard, scoped to the selected cards. This is Ritual's own printing form — the same as the header **Copy → Text** on a collection or wanted list; a deck's header text export is the Moxfield decklist dialect instead
-- **Copy as CSV** — copies the same selection as CSV with a `Name,Set,Collector Number,Finish,Condition,Language,Quantity` header, matching the header **Copy → CSV** output but scoped to the selected cards
-- **Add to Trade** — adds the selected cards to the active [Trade Planner](#trade-planner) (deck and collection cards go to the offering side, wanted-list cards to the receiving side). Name-only cards (no pinned printing) prompt for a printing one at a time, exactly like the single-card add
-- **Clear selection** — deselects the current list's cards only
-
-Identical printings are merged and their quantities summed in both copy formats.
-
-### Selecting across lists
-
-Selections are held globally, so they persist as you navigate between lists. Whenever anything is selected, an **All Selected (N)** button is shown in the top navbar (N is the total across every list) — on every page, including the index and Trade Planner, not just list pages. Its menu offers the same actions but over the entire cross-list selection, and its **Clear all selections** entry wipes every list at once. This makes it easy to gather cards from several decks, collections, and wanted lists and then copy or trade them together.
-
-The menu's **View all selections…** entry opens a dialog listing every selected card — with its quantity, printing, foil/etched finish, and condition — alongside the list it came from. The cards can be shown in selection order or grouped by source, hovering a row previews the card art, and each row's ✕ removes a single copy (so a `4×` group drops to `3×`). The dialog repeats the **Copy as Text** / **Copy as CSV** and **Clear all selections** actions.
-
-## Deck Features
-
-Deck pages include a "Lowest Price" toggle that swaps all cards to their cheapest available printing — cheapest in the active currency and at the active [price store](/public-site/price-sources/), so under Card Kingdom it is the cheapest printing CK actually sells. When enabled, card images and prices update to reflect the lowest-priced version. Only printings with a listed price are considered.
-
-## Deck Cover Labels
-
-On the home page deck list and in the Quick Switch dialog, each deck cover shows the deck's format rather than a raw card count. Format is read from the deck's `format:` frontmatter field, falling back to section heuristics (a `Commander` section implies Commander; an `Oathbreaker` / `Signature Spell` section implies Oathbreaker).
-
-- Commander and Oathbreaker decks display just the format name (e.g. **Commander**).
-- For other supported formats (Standard, Modern, Pioneer, Legacy, Vintage, Pauper, Historic, Brawl, Duel Commander, Pre-Modern, Limited), the format name appears alone when the main-deck card count matches the format's expected size (60 for most, 100 for Commander/Duel Commander, 40 for Limited).
-- When the main-deck count is unusual for the format, a smaller parenthetical card count is shown next to the format name — e.g. **Modern (62 cards)** for a Modern deck with 62 mainboard cards.
-- Decks without a recognized format (no `format:` field and no Commander/Oathbreaker section) fall back to the original `N cards` display.
-
-The main-deck count includes the commander/oathbreaker section plus the mainboard, but excludes sideboard, maybeboard, and token sections so a 60-card format with a sideboard still reports 60.
-
-Collections and wanted lists continue to display a plain `N cards` count, since their card count is the primary fact about them.
-
-## Index Toolbar
-
-Every tab of the home page — **Decks**, **Collections**, and **Wanted Lists** — includes a shared filter toolbar (matching the look of the deck and collection page toolbars) for re-sorting and grouping the list. Each tab keeps its own selections, and state is per-session — selections reset on reload.
-
-Sort options (default: **Alphabetical**):
-
-- **Alphabetical** — A–Z by name (uses locale-aware case-insensitive comparison).
-- **Recently updated** — newest first, derived from the most recent changelog entry, falling back to the source file's mtime. Items with no timestamp sort last.
-- **Current price** — highest current total first, in the active currency.
-- **Lowest price** — highest "lowest possible" total first (the sum of the cheapest available printing of each card), in the active currency. **Decks only** — this option does not appear on the Collections or Wanted Lists tabs, where a per-card cheapest-printing total isn't meaningful.
-
-A **Reverse** toggle next to the selects flips the resulting order.
-
-Grouping applies only to the **Decks** tab, which adds a **Group** selector (default: **None**):
-
-- **None** — single flat grid.
-- **Format** — splits decks into one section per format (Commander, Modern, Standard, …) with the format label as the section heading. Decks without a recognized format land in a final **Other** bucket. The active sort is applied within each group.
-
-The **Collections** and **Wanted Lists** tabs have no format dimension to group by, so the Group selector is omitted from their toolbars entirely — they show only the Sort selector (Alphabetical, Recently updated, Current price) and the Reverse toggle.
-
-## Price Currency Switching
-
-The generated site includes a **Prices** dropdown in the header for switching between USD (TCGPlayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO) at runtime. The dropdown only shows currencies selected by the `--currencies` flag **that an enabled [price store](/configuration/#price-stores-pricesources) can answer for** (USD needs `tcgplayer` or `cardkingdom`, EUR needs `cardmarket`), and hides itself entirely when [`priceSources`](/configuration/#price-stores-pricesources) is empty. When switching currencies:
-
-- All displayed prices update to the selected currency
-- Deck totals and section totals recalculate
-- Collection prices recompute using the card's finish-specific price in the new currency
-- The "Lowest Price" toggle finds the cheapest printing per the active currency and [price store](/public-site/price-sources/#which-printing-a-card-is-priced-at) — images update accordingly
-- Price bracket grouping labels adapt to the active currency symbol
-
-The `--currencies` flag controls which currencies are available on the site. The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when it is among the built currencies and has an enabled store behind it, otherwise the first offered currency. Users can switch between offered currencies at any time using the dropdown.
-
-## Price Disclaimer
-
-The generated site displays a disclaimer below the header showing the date prices were retrieved. Prices are fetched from Scryfall at build time and reflect values as of the build date. The disclaimer reads: "Prices accurate as of &lt;date&gt;".
-
-### Update Prices (per page)
-
-Every deck, collection, and wanted-list page has an **Update Prices** button (also shown while editing), in the button group above the filter toolbar alongside actions like Combine and View Changes. It is a no-op until pressed; clicking it batch-fetches current prices for that page's cards directly from Scryfall (into an in-memory, per-tab session cache) and the displayed per-card prices and totals update in place. Nothing is written to disk — the refresh lives only in the current browser tab. On a site backed by a [live API](/public-site/hosted/), the refresh instead goes through the backend's batch price endpoint, which updates its shared card cache server-side.
-
-If a refresh only updates some cards (for example, a card Scryfall no longer returns by id), the remaining cards keep their older build-time price. When prices on a page end up with mixed dates, a small expandable warning appears listing the cards whose prices are now older than the rest. Refreshing again so every card is covered clears the warning. The same session cache is shared with the card search in the public editor and the Trade Planner, so a card fetched once is reused without another request.
-
 ## Card Cache Refresh
 
 A build pulls card data and prices from three places, in order:
 
-1. **Automatic bulk download** — if the cache is empty, more than a week old, or missing more than 100 of the requested cards, the full Scryfall bulk dataset is downloaded first (equivalent to `./ritual cache preload-all`).
+1. **Automatic bulk download** — if the cache is empty, more than a week old, or missing more than 100 of the requested cards, the full Scryfall bulk dataset is downloaded first (equivalent to `ritual cache preload-all`).
 2. **Bulk price-refresh prompt** — otherwise, if more than 100 cards have prices older than 24 hours, `build-site` offers a bulk redownload (fresh prices for everything in one request) instead of refreshing each card individually:
 
    ```
@@ -519,9 +404,9 @@ The shared `--refresh <mode>` option answers the prompts non-interactively and c
 [`serve --api`](/commands/serve/#live-api-mode---api) runs steps 1, 2, and 4 of this table at startup, over the cards its served lists reference. It never runs step 3 — a live server answers requests from the cache and never fetches from Scryfall — so for the warm, `no-bulk` and `never` are equivalent.
 
 ```bash
-./ritual build-site --refresh auto     # fastest full refresh, no prompts
-./ritual build-site --refresh no-bulk  # refresh prices without the big download
-./ritual build-site --refresh never    # build from the existing cache
+ritual build-site --refresh auto     # fastest full refresh, no prompts
+ritual build-site --refresh no-bulk  # refresh prices without the big download
+ritual build-site --refresh never    # build from the existing cache
 ```
 
 > **Note on `never`:** it makes no bulk, price, tag, or symbology request — but a card the cache does not hold is still fetched individually by step 3's per-card loop, since a card with no data cannot be rendered at all. With no cached symbology, the build prints a warning and the site renders without mana symbols; re-run with `--refresh auto` to download them.
@@ -538,7 +423,7 @@ workspace with [`ritual config set site.sellMode true`](/configuration/#offering
 or for a single build with `--sell-mode`:
 
 ```bash
-./ritual build-site --sell-mode
+ritual build-site --sell-mode
 ```
 
 The flag is enable-only (there is no `--no-sell-mode`); omit it and the build follows the config.
@@ -556,7 +441,7 @@ things:
    `cardkingdom`: a card line naming no printing gets a representative and a cheapest printing
    chosen from Card Kingdom's catalog at Card Kingdom's prices, baked beside the Scryfall picks so
    the site can switch stores without a rebuild. See
-   [Which printing a card is priced at](/public-site/price-sources/#which-printing-a-card-is-priced-at).
+   [Which printing a card is priced at](/public-site/prices/#which-printing-a-card-is-priced-at).
 3. **Bakes the buy prices into each list's JSON**, after the card data is assembled and before the
    per-list JSON is written. Every printing a list displays is quoted from the feed and written into
    that list's detail file, so the published site shows sell mode with **no backend at all** — a
@@ -565,7 +450,7 @@ things:
 
    With `priceSources` including `cardkingdom` this widens: every printing each list _carries_ is
    quoted, at every finish it is published in, because the card modal's other-printings grid and the
-   [printing pickers](/public-site/price-sources/#the-prices-selector) price printings no tile
+   [printing pickers](/public-site/prices/#the-prices-selector) price printings no tile
    displays and a static client cannot fetch a quote it was not given. The extra bytes therefore
    land only on builds that offer Card Kingdom prices — a sell-mode-only build still quotes the
    displayed printings alone.
@@ -591,203 +476,16 @@ exists to fill them in.
 With sell mode **off**, no Card Kingdom work happens at all: no download, no quoting, and the
 detail files carry no buylist field.
 
-## Quick Switch
-
-A **Quick switch** button (centered in the site header on desktop, right-aligned on mobile) opens a command-palette-style dialog for jumping between any deck, collection, or wanted list on the site. The same dialog also opens with the keyboard shortcut **Ctrl+K** (or **Cmd+K** on macOS).
-
-When the search field is empty, the dialog lists every deck, collection, and wanted list. As soon as you start typing, results are grouped into four priority tiers. Matching is case- and accent-insensitive throughout, so `teferi` finds `Téferi` and vice versa:
-
-1. **Lists** — matches against deck, collection, and wanted-list names (highest priority).
-2. **Commanders** — matches against the commander of any deck. Selecting one opens the deck containing that commander.
-3. **Cards** — matches against the name of any card in any list. Selecting one opens the list containing that card. The same card can produce multiple entries (one per containing list), and each row identifies the destination list in its subtitle.
-4. **Printings** — matches against the `set:collector` code of any card (e.g. `mkm:42`). The set:collector code is shown as the primary label (uppercased, e.g. `MKM:42`) and the card's name appears alongside in muted italics for context. Selecting one opens the list containing that printing.
-
-Each row shows a thumbnail (the list's featured art for list rows, the card art for commander and card rows), a kind tag (`Deck` / `Collection` / `Wanted` / `Commander` / `Card`), and the destination context. Commander and card matches require per-list detail data; the dialog pre-fetches that data the first time it opens, so card matches start appearing once the data has loaded.
-
-Keyboard controls inside the dialog:
-
-| Key                         | Action                      |
-| --------------------------- | --------------------------- |
-| <kbd>↑</kbd> / <kbd>↓</kbd> | Move the highlighted result |
-| <kbd>Enter</kbd>            | Open the highlighted entry  |
-| <kbd>Esc</kbd>              | Close the dialog            |
-
-Clicking a result also opens it. Clicking the darkened backdrop closes the dialog. The dialog closes automatically after navigation.
-
-## Card Detail Modal
-
-Both deck and collection pages share a unified card detail modal. Clicking any card opens a modal showing:
-
-- Card image with flip support for double-faced cards
-- Card name, type line, mana cost, and oracle text
-- Price, set info, rarity, and other metadata
-- A "View on Scryfall" link to the card's Scryfall page
-- An "Other Printings" button showing a paginated binder-style grid (8 per page) of all known printings, sorted by release date (newest first) by default, each linking to Scryfall. Every printing is priced under the selected [price store](/public-site/price-sources/), with its alternate finishes listed underneath, and the grid carries its own **Prices** selector — the same one the toolbar has. Sorting can be changed via a dropdown to release date, set name, or price (which follows the selected store too), with a toggle to reverse the sort direction.
-
-A card carrying [custom art](/custom-art/) shows that image on its tile in every view (grid, binder, stacks, and the list view's hover preview) and as the modal's main picture. Only the front is replaced — a double-faced card flips to its real back — and the **Other Printings** grid keeps real thumbnails, since showing you actual printings is what it is for.
-
-## Card Labels
-
-Cards carry [labels](/commands/edit/#card-labels) — `sale`, `trade`, `keep`, `proxy` on a collection, `proxy` on a deck — and the site filters on each card's _effective_ labels (its own override, else the list's front-matter default) through the toolbar's [Labels filter](/public-site/filtering/#available-filters), which offers only the chips the page's lists can answer. Tiles **badge** the entry's own override, in a themable color per label; a list-wide default is not badged on every tile (in a [combined view](/public-site/combined-view/), where there is no one ambient default, the badge shows the effective labels instead).
-
-A **proxy** is not a real card, so the build prices it at **0** in every currency: it is left out of the list totals, left out of the missing-price counts and banner, and never offered to a buyer in [sell mode](#sell-mode---sell-mode). Switching currency or pressing **Update Prices** cannot resurrect a price for it — the rule is applied client-side too.
-
-A card wearing [custom art](/custom-art/) is treated exactly the same way, for the same reason: it is no longer the printing a price would be quoted for. Wherever a per-card price is shown — the grid and list views, the card modal, the [Trade Planner](#trade-planner) — such a card reads **CUSTOM**, and a proxy without custom art reads **PROXY**, in place of the amount. A card that is both reads **CUSTOM**: custom art wins.
-
-## Missing Card Warnings
-
-When a card cannot be priced in a selected currency (e.g., a paper-only card has no TIX price, or an MTGO-only card has no USD/EUR price), it is omitted from price totals. A collapsible warning banner appears at the top of the deck page listing cards with missing prices for the active currency. The banner updates reactively when switching currencies. [Proxies](#card-labels) and [custom-art](/custom-art/) cards are not "missing" — they are priced at zero by rule and never appear in this banner.
-
-On the index page, deck and collection entries with missing prices display the total as **"At least $X.XX (missing N cards)"** instead of the raw total, making it clear the price is incomplete. The "lowest price" variant is hidden when a deck has missing prices to avoid confusion.
-
-## Collections
-
-Collections are included in the build by default — every list allowed by `site.includeCollections`, or exactly the ones named by `--collections`. Collection files come from the `collections/` directory. Each collection card must have a set code and collector number (e.g., `- Sol Ring (C19:221)`). Cards without this information are skipped with a warning.
-
-Collection pages show:
-
-- Total collection value based on specific printing and finish prices
-- Individual card prices, conditions, finishes, and set/collector number in the card detail modal
-- Non-English copies labelled with their [language](/commands/edit/#card-language) beside the finish and condition — `(Foil · JA)` on card tiles in the art views, and as part of the parenthesised list-view label
-- A "View on Scryfall" link in the card detail modal that opens the card's Scryfall page
-- An "Other Printings" button that shows a paginated binder-style grid (8 per page) of all known printings of the card, sorted by release date (newest first) by default, each linking to Scryfall, priced under the selected [price store](/public-site/price-sources/) with alternate finishes underneath. Sorting can be changed via a dropdown to release date, set name, or price, with a toggle to reverse the sort direction.
-- Cards displayed individually by default (not grouped), with a "Group Duplicates" toggle
-- File order as the default sort, with options for name, price, set code, type, mana value, and color identity
-- Grouping by section (the default when the collection has two or more sections), type, mana value, color identity, price brackets, [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
-- Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
-- A "No Price Data" group that appears at the bottom when grouping by price, collecting cards without price data for their finish
-- Download as original Markdown or CSV for importing into other sites
-- Section/group price totals that update dynamically
-
-## Wanted Lists
-
-Wanted lists are included in the build by default — every list allowed by `site.includeWantedLists`, or exactly the ones named by `--wanted-lists`. Wanted list files come from the `wanted/` directory. Unlike collections, wanted list entries can have varying levels of specificity — from just a card name to a fully pinned printing and finish.
-
-Wanted list pages show:
-
-- Total wanted list value based on current card prices
-- Prices always reflect the cheapest option for each entry's state:
-  - **Name only** entries use the cheapest printing across all sets
-  - **Printing** entries use the cheapest finish of that exact printing
-  - **Fully specified** entries use the exact printing and finish specified
-- Individual card prices in the card detail modal
-- State indicator showing whether each card is name-only, printing-specific, or fully specified
-- Grouping by section (the default when the wanted list has two or more sections), type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
-- Download as original Markdown
-- No condition display (wanted lists track desired cards, not owned cards)
-
-## Deck Features
-
-Deck pages include:
-
-- Total deck price (mainboard + sideboard) displayed at the top, updating when the "Lowest Price" toggle is enabled
-- When extras are visible, a separate parenthetical "all cards" total is shown next to the main price
-- "Lowest Price" toggle that swaps all cards to their cheapest available printing (images and prices update)
-- Card detail modal with Scryfall link, other printings (paginated, sortable by release date, set name, or price, and priced under the selected [price store](/public-site/price-sources/)), and full card details
-- Section/group price totals shown next to card counts
-- Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), or ungrouped — applies to the mainboard only
-- Grouping by [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category) instead nests inside every board: headings read `Main › Ramp`, `Sideboard › Draw`
-- Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
-- Under the non-category groupings, the sideboard is always displayed in its own section at the bottom, ungrouped
-- Extras (maybeboard, tokens) displayed below the sideboard under the non-category groupings, and as their own nested boards (`Maybeboard › Ramp`) under the category ones; the "Hide Extras" checkbox removes them either way
-- Only printings with a listed price are considered for price analysis
-- **View Changes** button (when a changelog exists) opens a paginated modal showing the edit history
-
-## Change History
-
-When a deck or collection has a `.changes.md` changelog file (created by the admin editor when saving changes), its edit history is included in the generated site.
-
-- A **View Changes** button appears next to the **Copy** and **Download** buttons in the page header
-- Clicking it opens a modal dialog showing paginated change entries, sorted most recent first
-- Each page shows one editing session with its timestamp and a list of additions, removals, and other changes (every save within a single session is grouped into that one entry)
-- Prev/Next buttons allow paging through older and newer changes
-- Card names in the change list are clickable links that open the card detail modal
-- Hovering a card name shows a preview image of the card
-
-Cards referenced in changelogs that are no longer in the deck or collection are automatically resolved during the build so their card data is available for previews and modals.
-
-## Editing on the Public Site
-
-Although the generated site is static (no server), the navbar has an **Edit** toggle (top-right) that opens the same editor used in the admin site, running entirely in the browser, for whichever deck, collection, or wanted list you're viewing. (The toggle is present site-wide but disabled on pages with nothing to edit, such as the index.) Edits are **ephemeral** — nothing is saved to a server and nothing is persisted unless you explicitly choose to.
-
-- **Edited vs. published** — while editing, the navbar grows a second row that makes it clear you are viewing a local copy, with an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode.
-- **Card search** — adding cards searches Scryfall directly (preferring the shared session cache), the same as the Trade Planner. Matching is Scryfall's own: the [autocomplete API](https://scryfall.com/docs/api/cards/autocomplete) treats your query as one contiguous string, unlike [the admin editor's term matching](/admin/editors/#step-1-search) over the local card cache (where `in tre` finds "In the Trenches"). Results can therefore differ between the two editors — the search dialog notes this and links to the Scryfall API docs. On a site backed by a [live API](/public-site/hosted/), search goes through the backend's cache with the admin editor's term matching instead, and the note disappears.
-- **Keyboard shortcuts** — the editor shares the admin site's [keyboard shortcuts](/admin/editors/#keyboard-shortcuts): **Ctrl+Enter** opens the card search, **Ctrl+B** focuses the bottom action bar, and every step of the add-card dialog is arrow-key navigable. Press **?** (or the **?** button at the end of the action bar) for the full list.
-- **Label a card as you add it** — the add-card dialog's [Card Options](/admin/editors/#card-options) row offers the new card's [label override](/commands/edit/#card-labels), listing what the list type carries (the full vocabulary on a collection, **Proxy** alone on a deck, nothing on a wanted list). The label rides the `add` change, so it travels in the exported bundle and lands on the copy you added. Custom art is not offered here: this editor writes no files, and art lives in a sidecar only the admin site (or the CLI) can write.
-- **Edit a card's categories** — **Edit Categories…** in the per-card **⋯** menu, and the action bar's **Categories** dialog for the list's whole vocabulary, work exactly as in [the admin editor](/admin/editors/#card-categories). Unlike custom art, categories _are_ editable here: they travel as change events in the exported bundle and are written when the bundle is imported into the admin editor or [`import-changes`](/commands/import-changes/), rather than being a file the browser would have to write itself.
-- **Set a card's language** — **Set Language…** is available in the per-card **⋯** context menu and in the multi-select **Selected** menu, exactly as in [the admin editor](/admin/editors/#card-language): a picker over the 17 Scryfall [card languages](/commands/edit/#card-language), with **English** clearing the line's token (a bare line always means `en`).
-- **Move a card to another list** — the per-card **⋯** menu, the per-list **Selected** menu, and the cross-list **All Selected** navbar menu each offer a single **Move to list…** item that opens a picker listing your other decks, collections, and wanted lists. Moving a card removes it from the list you're editing (it disappears from the edited view) and records the move in your exported change bundle, its [tags](/commands/edit/#card-tags) included. Moving a printing-less card into a collection (which needs a specific printing) opens the same printing picker the Trade Planner uses. Because the public site has no server, the destination list is only updated when the change bundle is later imported into the admin editor and saved.
-- **Swap printings** — on a deck or collection, the **Swap Printings…** button in the navbar's edit row opens a wizard that re-picks printings for many cards at once using copies you already own in your _other_ lists, and records the result as cross-list moves. The same wizard opens pre-checked on a selection from the per-list **Selected** menu (**Swap Printings…**), and on a single card from its **⋯** menu (**Swap printing…** — offered on a name-only card too, where it _sets_ the printing from a copy you own elsewhere). The steps: tick the cards to swap (a line that names no printing shows a "no printing set" note and takes part too — it is given whatever printing you pick for it); choose which lists to draw from (decks and collections on by default, wanted lists off but selectable — the list you're editing is never a source); pick a mode — **Manual** (choose per card), **Most expensive**, or **Least expensive** — and, in every mode, an optional finish filter (it also seeds the picker's quick-filter) and where displaced copies go (back to the list each replacement came from, or one chosen deck/collection), and, when a checked card has no printing, **Replace the copies taken from other lists** (off by default); the price modes add what to do with cards that have an unpriced candidate (**Skip** them, **Ignore** unpriced options, or **Ask me** — force a pick by hand); then, in the price modes only, review the plan — current → chosen printing with prices, per-card flags, and a **Change…** button to override any card — while manual mode goes from per-card picking straight on; with the replace option on, a **Replacements** step lists one row per source list and printing taken (`1× Lightning Bolt (LEA:161) taken from Binder`), each with **Choose replacement…** to say which printing that list gets back (**No replacement** leaves it a copy short); and apply from the summary (moves grouped by list, value before → after). Picking a copy that has no printing in its source list (a wanted line, or a name-only deck line) first confirms it is that entry and then asks which printing it actually is. Applying records each replacement as a move into the edited list and each displaced copy as a move out, so the result shows up in the edited view and in the **Changes** dialog, and travels in the exported bundle's top-level `moves` array. A copy arriving on a **name-only** line pins that line instead of adding a copy — nothing is displaced, so no move out accompanies it — and rides in the bundle as a move carrying `pinsCardId` (plus its `replacement`, when one was chosen) — nothing is written until the bundle is imported into the admin editor and saved. Wanted lists offer no swap entry points (they hold no physical cards).
-- **Export your edits** — the **Export…** panel offers two ways to keep your changes:
-  - **Download change list (JSON)** or **Copy JSON** — a portable change bundle that can later be applied to the real lists with the admin site's [Import Changes](/commands/admin/#import-changes) page or the [`import-changes`](/commands/import-changes/) CLI command (both preview the changes and ask for confirmation), or loaded into an editor as pending edits. Applied changes are re-targeted to the current card IDs.
-  - **Download updated file** — a full deck `.txt` (the same Moxfield decklist dialect the header's [Download → Text](#exporting-a-list) writes), or a collection/wanted `.md`/`.csv`, with the edits already applied.
-- **Export all edited lists at once** — because edit mode persists while you navigate, edits to several lists accumulate in one session. When more than the open list has pending changes, the Export panel gains a scope toggle — **This list (N changes)** vs. **All lists (M changes)** — showing exactly how many changes each export covers, and a **Review changes** section listing every pending change grouped by list before you commit to the export. The all-lists scope downloads a single **bundle** (`ritual-all-edits.json`) covering every edited list, importable by the same admin page and CLI command.
-- **Export from anywhere in edit mode** — the **Export…** button stays available in the navbar's edit row even when you are not on a single list — on a combined view or a list directory. Off a list it defaults to the **All lists** scope, and the **This list** option is greyed out (there is no single open list to export). On a **combined view**, a third **Current lists (N changes)** scope sits between them, covering just the edited lists that make up the combination (downloaded as `ritual-combined-edits.json`). The per-list extras — **Download updated file** and **Save to this browser** — appear only when a single list is open.
-- **Load changes** — the **Load Changes…** button (next to Export…) opens a dialog where you can upload or paste a change-list JSON (one exported from this site or from the admin editor) and apply it to the list you're editing. The changes load as pending edits, re-targeted to the current card IDs; any that can't be applied — the card is not in the list, the action doesn't apply to this kind of list, or it would set a foil/etched finish on a card that pins no printing — are reported with their reason and skipped. This is the same machinery the admin editor uses to [import changes](/commands/admin/#import-changes).
-- **Save to this browser (opt-in)** — the Export panel can also save the current edit session to `localStorage`. This never happens automatically. When you return to a list with a saved session, the editor offers to **Restore** it (applied through the same safe re-target path as import); **Clear saved edits** removes it.
-
 ## Serving the Site
 
 After building, use the [`serve`](/commands/serve/) command to preview locally:
 
 ```bash
-./ritual serve
+ritual serve
 ```
 
 To build and serve in a single step, pass `--build` to [`serve`](/commands/serve/):
 
 ```bash
-./ritual serve --build
+ritual serve --build
 ```
-
-## Trade Planner
-
-The generated site includes a **Trade Planner** page accessible via the "Trade" link in the site navigation at `#/trade`. This is a fully client-side, ephemeral tool — no data is persisted between page refreshes.
-
-The page provides a two-column layout for planning a trade:
-
-### Left Column — My Cards
-
-The left column is for cards you are offering. It searches cards from the collections included in this site. A "Include Decks in Search" toggle (disabled by default) extends the search to include cards from your decks as well.
-
-- Type a card name in the search box to get autocomplete suggestions showing card name and source list
-- Each result is deduplicated per source — if the same card appears in multiple collections, each collection shows up as a separate autocomplete result
-- Cards show: thumbnail image, name, set code and collector number — with the language badged beside it for a non-English copy (`2XM:270 · JA`) — finish, condition, and price
-- If a deck card has no specific printing pinned, selecting it opens the printing picker so you can choose one (the deck source is preserved on the resulting trade row)
-- Sort by card name or price (toggle ascending/descending independently)
-- A row whose card carries no price by rule — a [proxy](#card-labels), or a card with [custom art](/custom-art/) — shows **PROXY** / **CUSTOM** where its price would be and counts as $0 in the column total and the balance between the columns
-- Price total shown at the bottom of the column
-
-**Quantity caps:** Each trade row's quantity stepper caps at the maximum number of that exact variant available in its source — for collections this is the count of identical note-less entries (same name, set, collector number, finish, condition); for decks it is the sum across mainboard/sideboard/etc. for that printing in that deck. When only one copy exists the stepper is hidden and a fixed quantity of 1 is displayed.
-
-**Editing picker-sourced rows:** Trade rows added via the printing picker (everything on the right, deck cards without a pinned printing on the left) get a small yellow pencil button to the left of the quantity controls. Clicking it re-opens the printing picker for that card; choosing a printing replaces the row in place while preserving its quantity.
-
-### Right Column — Their Cards
-
-The right column is for cards the other party is offering. What it searches depends on whether the site has a [live backend](/public-site/hosted/).
-
-**Static site — wanted list mode (default):** Search across all wanted lists on this site instance. Results show card name and source wanted list name. Cards no wanted list holds are only reachable through the "Search Scryfall instead" toggle.
-
-**Static site — Scryfall mode:** When the toggle is on, autocomplete calls the Scryfall API directly from the browser, and only Scryfall's results are shown.
-
-**Hosted site:** With `serve --api` behind the site, the server's card cache already covers every card, so the toggle is replaced by a note and each query searches your wanted lists **and** the cache at once. Wanted-list matches lead (with their source, printing and price), followed by cache matches labelled "Card cache". No request goes to Scryfall.
-
-**Every right-column selection opens the printing picker.** A wanted list records the printing you'd _like_, not the one being offered, so picking a wanted card never assumes its printing: the picker opens with the printings your wanted lists ask for (across every list, for that card name) floated to the top and badged **Wanted**, and you choose what's actually on the table. The row keeps its wanted-list source and quantity cap whichever printing you take.
-
-The picker shows all available printings, paginated 8 at a time, with a set-code / collector-number filter — the same query grammar as the CLI's [collector mode](/commands/edit/#collector-number-mode): `mkm` matches set codes as a substring, a bare `12` also matches collector numbers as a prefix, and `ds 12`, `12 ds` or `mkm:123` requires both halves — terms are searched independently, so their order never matters. Typing anywhere in the dialog feeds the filter box without focusing it (tap the box to type on a touch device); **Backspace** erases and **Esc** clears the query before a second **Esc** closes the picker. Hovering an entry shows the full card art preview. Choose a printing and finish, then click "Add to Trade" to add the card.
-
-Non-English printings carry the same language badge as trade rows (`2XM:270 · JA`). Confirming a printing that exists **only** in a non-English language pauses on a notice — `This printing is only available in Japanese (ja) — it will be recorded as [ja].` — with a **Continue** button that accepts the language and a **Back** button that returns to the list. Shared trade URLs preserve each row's language, so the other party sees exactly the copies you encoded.
-
-Rows added from a bare card name belong to no list of yours, so they're tagged with the backend that answered the lookup — **Cache** on a hosted site, **Scryfall** on a static one — and are encoded in the trade URL by Scryfall ID.
-
-### Update Prices
-
-The toolbar's **Update prices** button refetches current prices for the cards currently loaded on the trade page (only — not your full collection), and updates each row's price and finish in place. A toast confirms how many cards were updated. On a static site it batches requests through Scryfall's `/cards/collection` endpoint (75 IDs per request); on a site backed by a [live API](/public-site/hosted/) it goes through the backend's batch price endpoint instead, which updates its shared card cache server-side.
-
-### Card Hover Previews
-
-Hovering over a card thumbnail (in the trade list, autocomplete suggestions, or printing picker) shows an enlarged preview of the card art that follows the mouse cursor.
-
-### Mobile Layout
-
-On narrow screens (≤768px), the two-column layout collapses to a single-pane view. Tab buttons at the top switch between "My Cards" and "Their Cards". Each pane fills the full screen width, with its own search, sort controls, card list, and price total.

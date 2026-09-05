@@ -17,7 +17,7 @@ One pass over all list files applies four normalizations:
 3. **Every file is named after its list.** The file name is derived from the list's actual name — its `# Title` heading, or for a deck that has none yet, its legacy `name:` front matter — keeping capitalization and punctuation and stripping only filename-illegal characters. A file whose name drifted (or that still uses an old kebab-case slug) is renamed, and its `.sha256`, `.changes.md`, `.art.json`, `.categories.json` (with its own `.sha256`), and `.primer.md` sidecars move with it.
 4. **Every list's [categories sidecar](/list-format/#categories-namecategoriesjson) is pruned and canonicalized.** A `<name>.categories.json` entry naming a card the list no longer holds is dropped (reported as `pruned 1 category assignment(s) for cards no longer in the list: Rhystic Study`), the vocabulary's display order is resolved and persisted, and the file is re-serialized in canonical form (`categories sidecar rewritten in canonical form`). Under `--dry-run` both are previewed without writing a byte. A file whose parse skipped lines is never pruned — a card whose line the parser could not read is still in the file — so its sidecar is only canonicalized, and `categories not pruned: …` says so. The stamp rule below applies to this sidecar as well: a hand-edited one is rewritten but keeps its stale (or absent) `.sha256`.
 
-Cleanup never touches a `.changes.md` changelog — a cleaned-up file has the same cards it had before, and a rename carries the changelog along unchanged. It refreshes a file's `.sha256` sidecar (and, separately, the categories sidecar's own) only when that sidecar already matched the file: a hand-edited list is rewritten but keeps its stale (or absent) sidecar, so [`detect-changes`](/commands/detect-changes/) still records the hand edits rather than having them stamped as recorded. Two cases are reported with a warning instead of fully acted on: a rename whose target name is already taken by another list — either the same file name, or one that merely [folds onto it](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation), which would leave both lists unaddressable — and a file holding content the canonical rewrite cannot reproduce. The second covers two things: lines the parse skipped — refused card lines, but also prose or any other text the list grammar does not model (`//` comment lines are read and dropped, so they never block) — and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit. In either case the file is still renamed if its name drifted, but its content is left alone (rewriting it would silently drop that content; fix, remove, or accept it and rerun).
+Cleanup never touches a `.changes.md` changelog — a cleaned-up file has the same cards it had before, and a rename carries the changelog along unchanged. It refreshes a file's `.sha256` sidecar (and, separately, the categories sidecar's own) only when that sidecar already matched the file: a hand-edited list is rewritten but keeps its stale (or absent) sidecar, so [`detect-changes`](/commands/detect-changes/) still records the hand edits rather than having them stamped as recorded. Two cases are reported with a warning instead of fully acted on: a rename whose target name is already taken by another list — either the same file name, or one that merely [folds onto it](/list-resolution/#names-that-would-collide-are-refused-at-creation), which would leave both lists unaddressable — and a file holding content the canonical rewrite cannot reproduce. The second covers two things: lines the parse skipped — refused card lines, but also prose or any other text the list grammar does not model (`//` comment lines are read and dropped, so they never block) — and [fenced code blocks](/commands/edit/#fenced-code-blocks), which parse cleanly as prose but which the canonical serializers do not emit. In either case the file is still renamed if its name drifted, but its content is left alone (rewriting it would silently drop that content; fix, remove, or accept it and rerun).
 
 A file cleanup cannot read at all — broken YAML front matter, bad permissions — is reported by name and **skipped**: nothing about it is rewritten or renamed, every other list is still cleaned up, and the run exits 1. This is the case cleanup exists for (hand-edited workspaces), so one unparseable file can no longer abort the pass:
 
@@ -37,7 +37,7 @@ Two further cases are reported _without_ holding anything back:
 ## Usage
 
 ```bash
-./ritual cleanup [options]
+ritual cleanup [options]
 ```
 
 ## Options
@@ -67,7 +67,7 @@ interactively to answer the prompts.
 `--check` is `--dry-run` with a meaningful exit code, for git hooks and CI:
 
 ```bash
-./ritual cleanup --check
+ritual cleanup --check
 ```
 
 It exits 1 when any file would be rewritten or renamed, would have its
@@ -112,7 +112,7 @@ report) and every warning, prefixed with its file:
 Preview what a cleanup would do:
 
 ```bash
-./ritual cleanup --dry-run
+ritual cleanup --dry-run
 ```
 
 ```text
@@ -126,23 +126,23 @@ Would clean up 3 of 12 list files.
 Run the cleanup:
 
 ```bash
-./ritual cleanup
+ritual cleanup
 ```
 
 Run headless (CI, scripts) without the format prompts:
 
 ```bash
-./ritual cleanup --skip-formats
+ritual cleanup --skip-formats
 ```
 
 Fail a CI job when the workspace needs a cleanup:
 
 ```bash
-./ritual cleanup --check
+ritual cleanup --check
 ```
 
 Clean up a workspace elsewhere:
 
 ```bash
-./ritual --base-dir /path/to/site cleanup
+ritual --base-dir /path/to/site cleanup
 ```

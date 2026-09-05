@@ -13,7 +13,7 @@ Every _other_ buylist surface — sell mode on the sites, the admin's sell route
 ## Usage
 
 ```bash
-./ritual sell [list...] [options]
+ritual sell [list...] [options]
 ```
 
 ## Arguments
@@ -22,7 +22,7 @@ Every _other_ buylist surface — sell mode on the sites, the admin's sell route
 | ----------- | ----------------------------------------------------------------------------------------------------------------- | -------- |
 | `[list...]` | Lists to check, of any type; `deck:`/`collection:`/`wanted:` prefixes disambiguate. Default: **every collection** | No       |
 
-Names resolve case- and accent-insensitively with a unique-substring fallback, like every list-taking command — see [List Resolution](/commands/list-resolution/). With no arguments the report covers all collections (the lists that hold physically owned, sellable cards); `--deck` / `--collection` / `--wanted` switch the scope to every list of that type.
+Names resolve case- and accent-insensitively with a unique-substring fallback, like every list-taking command — see [List Resolution](/list-resolution/). With no arguments the report covers all collections (the lists that hold physically owned, sellable cards); `--deck` / `--collection` / `--wanted` switch the scope to every list of that type.
 
 ## Options
 
@@ -71,7 +71,7 @@ As with every command, structured output (`json`, `ndjson`, `csv`) downgrades an
 `--output csv` renders the entries CK is buying as Card Kingdom's own [sell-cart CSV import format](https://www.cardkingdom.com/static/csvImport) — `card name, edition, foil, quantity`, data rows only (their importer expects no header row and prompts for column matching itself) — using CK's own listing title and edition spelling from the matched products, with quantities capped at their buy limits. A variant printing carries CK's variant note in parentheses, exactly as they title it (`Mishra's Factory (Autumn)`), so the row lands on that printing rather than the base one:
 
 ```bash
-./ritual sell --min 0.25 --output csv --out to-sell.csv
+ritual sell --min 0.25 --output csv --out to-sell.csv
 ```
 
 With nothing to sell the payload is empty rather than a lone header line. Upload the file on their CSV import page and the sell cart fills itself. Their importer caps one upload at 500 unique titles or 5,000 cards (the command warns when the file exceeds either), and the format cannot express etched foils — etched-quoted entries export as foil with a warning to adjust the cart by hand. The same rendering is available to other clients as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
@@ -80,16 +80,16 @@ With nothing to sell the payload is empty rather than a lone header line. Upload
 
 ```bash
 # Everything CK is buying from your collections
-./ritual sell
+ritual sell
 
 # One list, showing skipped entries too
-./ritual sell 'Red Binder' --all
+ritual sell 'Red Binder' --all
 
 # Only Duskmourn and Foundations cards worth at least 50¢, as JSON
-./ritual sell --sets dsk,fdn --min 0.50 --output json
+ritual sell --sets dsk,fdn --min 0.50 --output json
 
 # One line per matched entry
-./ritual sell --output ndjson
+ritual sell --output ndjson
 ```
 
 `--output json` emits the full report payload (`feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, and grand totals, plus parser `warnings`); `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.

@@ -1,10 +1,9 @@
 ---
-title: 'Admin API Endpoints'
+title: 'Admin API'
+description: Every HTTP route the admin server exposes, shared by the admin site, the MCP server, and any other client.
 ---
 
-The admin site exposes these API endpoints for deck and collection editing. All endpoints require authentication.
-
-For general admin API endpoints (authentication, config, audit log, etc.), see the [admin command reference](/commands/admin/#http-api-reference).
+The admin server exposes an HTTP API under `/api/`. The admin site, the [MCP server](/commands/mcp/), and any client you write all use these same routes. Except where a route says otherwise, every request needs an authenticated session.
 
 ## The message triple
 
@@ -41,6 +40,167 @@ the MCP tools, on a client's `notifications/cancelled`. HTTP requests are never 
 closing the connection leaves the handler running to completion.
 
 A handful of routes carry extra fields on failure, and only where they are a wire contract rather than duplication: [Card Details](#card-details) adds `card: null`, [Card Search](#card-search) keeps its paging fields and an empty `cards` array, and [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) fold success and failure into one shape. A save that loses an optimistic-concurrency race additionally carries `conflict: true` with its `409`.
+
+## Authentication
+
+The admin uses **session-based authentication**. To start a session, send a `POST /api/login` request with your credentials. If TOTP is enabled, include the TOTP code. The server responds with a `Set-Cookie` header containing the session token. All subsequent requests are authenticated automatically via the session cookie.
+
+Sessions expire after 24 hours. To end a session, call `POST /api/logout`.
+
+Unauthenticated requests to protected endpoints receive a `401 Unauthorized` JSON response.
+
+Rate-limited requests receive a `429 Too Many Requests` response with a `Retry-After` header indicating the remaining lockout seconds.
+
+## Server Status
+
+```
+GET /api/status
+```
+
+No authentication is required.
+
+Returns server health, whether first-time setup is needed, and which optional capabilities this server offers.
+
+**Response:**
+
+```json
+{
+  "ok": true,
+  "setupRequired": false,
+  "totpEnabled": true,
+  "sellMode": false
+}
+```
+
+`sellMode` is the **effective** value — `site.sellMode`, or `true` when the server was started with [`--sell-mode`](/commands/admin/#sell-mode). With it false a client hides its sell surfaces — though the `/api/sell/*` and `/api/buylist/*` routes themselves stay open when the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is enabled, since Card Kingdom retail prices ride the same feed.
+
+## Create Admin Account
+
+```
+POST /api/setup
+```
+
+No authentication is required (only works when no admin user exists).
+
+Create the initial admin account. Returns `409 Conflict` if an admin already exists.
+
+**Request body:**
+
+```json
+{
+  "username": "admin",
+  "password": "mypassword"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Admin account created successfully"
+}
+```
+
+## Log In
+
+```
+POST /api/login
+```
+
+No authentication is required.
+
+Authenticate with username, password, and optionally a TOTP code. On success, the response sets a session cookie.
+
+**Request body:**
+
+```json
+{
+  "username": "admin",
+  "password": "mypassword",
+  "totpCode": "123456"
+}
+```
+
+| Field      | Type   | Required | Description                             |
+| ---------- | ------ | -------- | --------------------------------------- |
+| `username` | string | Yes      | Admin username                          |
+| `password` | string | Yes      | Admin password                          |
+| `totpCode` | string | No       | TOTP code (required if TOTP is enabled) |
+
+**Response (success):**
+
+```json
+{
+  "success": true
+}
+```
+
+The response includes a `Set-Cookie` header with the session token.
+
+**Response (TOTP required):**
+
+```json
+{
+  "success": false,
+  "message": "TOTP code required",
+  "totpRequired": true
+}
+```
+
+## Log Out
+
+```
+POST /api/logout
+```
+
+Destroys the current session.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true
+}
+```
+
+## Audit Log
+
+```
+GET /api/audit-log
+```
+
+Returns recent login attempt records.
+
+**Query parameters:**
+
+| Parameter | Type   | Default | Description                    |
+| --------- | ------ | ------- | ------------------------------ |
+| `limit`   | number | `100`   | Max entries to return (1–1000) |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "entries": [
+    {
+      "timestamp": "2026-02-26T19:00:00.000Z",
+      "ip": "127.0.0.1",
+      "username": "admin",
+      "success": true,
+      "reason": "Login successful",
+      "userAgent": "Mozilla/5.0 ..."
+    }
+  ]
+}
+```
+
+Entries are returned most recent first.
+
+Every login attempt (successful or failed) is logged to `.logins/admin-audit.log` with timestamp, IP address, username, result, reason, and user agent. The log can be viewed in the admin UI under "Audit Log" or via the `GET /api/audit-log` endpoint.
 
 ## Create Deck
 
@@ -99,7 +259,7 @@ A refusal is the shared error envelope (`{ success: false, message }`, plus the 
 target name already taken.
 
 `409` covers more than a byte-identical file name: create and rename refuse any name that
-[resolves](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation) to an
+[resolves](/list-resolution/#names-that-would-collide-are-refused-at-creation) to an
 existing list of the same type — `atraxa superfriends` is refused while `Atraxa Superfriends`
 exists, with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends'
 under list-name folding).` Renaming a list to another spelling of its own name (a capitalization
@@ -238,7 +398,7 @@ A missing list is a `404` whose message names `GET /api/lists` as the way to fin
 
 A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `lowestPriceCardsTix` — the cheapest printing per card name, per currency.
 
-`cardsCardKingdom` (and, on decks, `lowestPriceCardsCardKingdom`) is [Card Kingdom's own printing pick](/public-site/price-sources/#which-printing-a-card-is-priced-at) for each card name: the printing CK actually sells, chosen at CK's prices, which a client displays instead of the Scryfall pick while the Card Kingdom price store is selected. Both are **sparse** — a card CK stocks no printing of has no entry, and the client falls back to the Scryfall pick — and both are **absent entirely** unless [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` and a buylist feed is cached. Nothing is downloaded to answer a load: with no cached feed the fields are simply absent.
+`cardsCardKingdom` (and, on decks, `lowestPriceCardsCardKingdom`) is [Card Kingdom's own printing pick](/public-site/prices/#which-printing-a-card-is-priced-at) for each card name: the printing CK actually sells, chosen at CK's prices, which a client displays instead of the Scryfall pick while the Card Kingdom price store is selected. Both are **sparse** — a card CK stocks no printing of has no entry, and the client falls back to the Scryfall pick — and both are **absent entirely** unless [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` and a buylist feed is cached. Nothing is downloaded to answer a load: with no cached feed the fields are simply absent.
 
 **Response (`view=cards`):**
 
@@ -657,15 +817,15 @@ and `POST /api/buylist/quotes` answer **`404`** unless something wants the buyer
 (off by default) or a server started with [`ritual admin --sell-mode`](/commands/admin/#sell-mode) —
 **or** the `cardkingdom` entry of [`priceSources`](/configuration/#price-stores-pricesources), whose
 retail prices ride on the same feed. The check reads the config per
-request, so a `config set` — or a [`PUT /api/config`](/commands/admin/#put-apiconfig) from the
+request, so a `config set` — or a [`PUT /api/config`](/admin/api/#update-config) from the
 Settings page's **Offer sell mode** checkbox or **Price Stores** checkboxes — takes effect on the
 very next request, without a restart, and
-[`GET /api/status`](/commands/admin/#get-apistatus) reports the effective value so a client can hide
+[`GET /api/status`](/admin/api/#server-status) reports the effective value so a client can hide
 its sell surfaces instead of offering controls that only ever 404. The public site server
 (`serve --api`) gates its two buylist routes the same way.
 
 A server running under `--sell-mode` opens these routes without anything on disk saying so.
-[`GET /api/config`](/commands/admin/#get-apiconfig) is where that shows up: alongside the stored
+[`GET /api/config`](/admin/api/#get-config) is where that shows up: alongside the stored
 `config` it reports `overrides: {"site.sellMode": true}`, which is the only way to tell an instance
 running with the flag from one whose config simply has the key unset.
 
@@ -865,7 +1025,7 @@ catalog is paused at any time, so a present quote is not by itself an offer.
 `variation` is CK's variant note for the matched product, present only when they publish one; a
 client rendering a [cart CSV](#sell-cart) row builds CK's listed title from `name (variation)`.
 `priceRetail`/`qtyRetail` are the buyer's own NM retail price and stock — what the sites'
-[Card Kingdom price view](/public-site/price-sources/) displays; a `qtyRetail` of `0` means out of
+[Card Kingdom price view](/public-site/prices/) displays; a `qtyRetail` of `0` means out of
 stock with the listed price standing, and a `priceRetail` of `0` means no published retail price.
 
 This route is also mounted by the public site server (`ritual serve --api`), unauthenticated, and
@@ -2477,3 +2637,388 @@ File mode (`write: true`):
 The file lands under an `exports/` directory in the base dir, which [`init-site`](/commands/init-site/) adds to `.gitignore`. The server picks the name — `<scope>-<YYYYMMDD>.<ext>`, where scope is the single selected list's sanitized name, `cards` for a card-pick-only export, or `all-lists` otherwise, and the date is UTC. A name already taken gains the lowest free `-2`, `-3`, … suffix, so a write never overwrites an earlier export. `path` is **base-dir-relative** by design: a relative path cannot be walked outside the workspace by a caller that trusts it. The written file is newline-terminated, byte-identical to what the CLI's `export --out` writes.
 
 `warnings` carries list parse warnings, `cards` terms that matched nothing, one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (with per-section counts), one entry per list whose [categories sidecar](/list-format/#categories-namecategoriesjson) could not be read (that list exports with empty category cells), and — when the `scryfallId` column is selected — one entry per printing the local Scryfall cache does not hold (that cell renders empty). The response is `400` for an unknown list, preset, column, dialect, or filter value.
+
+## List Decks
+
+```
+GET /api/decks
+```
+
+List all deck files in the decks directory.
+
+**Response:**
+
+```json
+{
+  "decks": ["burn", "elves", "mono-red-aggro"]
+}
+```
+
+## Import Deck
+
+```
+POST /api/import-deck
+```
+
+Import a deck from a supported URL, or from decklist text supplied directly (pasted in the UI or read from an uploaded file). The request is one of two shapes, distinguished by `mode`.
+
+**Request body (URL):**
+
+```json
+{
+  "mode": "url",
+  "url": "https://archidekt.com/decks/123456",
+  "overwrite": false,
+  "syncPrintings": true
+}
+```
+
+**Request body (text):**
+
+```json
+{
+  "mode": "text",
+  "content": "4 Lightning Bolt\n1 Sol Ring\n\n## Sideboard\n2 Pyroblast",
+  "name": "My Burn Deck",
+  "overwrite": false
+}
+```
+
+| Field           | Type    | Required         | Default | Description                                                                                                                                                                                                                                                                                                                                |
+| --------------- | ------- | ---------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `mode`          | string  | Yes              | —       | `"url"` or `"text"`                                                                                                                                                                                                                                                                                                                        |
+| `url`           | string  | When `url` mode  | —       | Archidekt, Moxfield, or MTGGoldfish URL                                                                                                                                                                                                                                                                                                    |
+| `content`       | string  | When `text` mode | —       | Decklist text (`QTY Name` per line; `## Heading` lines start sections)                                                                                                                                                                                                                                                                     |
+| `name`          | string  | No               | —       | Deck name for `text` mode; ignored if the text defines its own `# Title`                                                                                                                                                                                                                                                                   |
+| `overwrite`     | boolean | No               | `false` | Overwrite existing deck on conflict                                                                                                                                                                                                                                                                                                        |
+| `syncPrintings` | boolean | When `url` mode  | —       | `true` keeps the exact printings (set, collector number, finish) the source lists; `false` imports bare card names. Required — the CLI asks interactively, and over HTTP the caller must decide. Rejected in `text` mode, whose printings come from the pasted lines. See [Printing choice](/commands/import/#printings-from-a-url-import) |
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Successfully imported 'My Deck'",
+  "deckName": "My Deck",
+  "syncPrintings": true,
+  "warnings": [],
+  "advisories": []
+}
+```
+
+`warnings` lists any text lines the parser skipped — content that was **not** imported (always empty for URL imports). `advisories` lists content that **was** read but is worth a word — a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. When either array is non-empty, `message` notes the count, so the admin UI's status alert shows it.
+
+Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO/Moxfield exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers, and a `*F*`/`*E*` finish marker either trailing or between the set and the collector number).
+
+A name/ID conflict without `overwrite` and a deck name with no characters usable in a file name are both the client's to fix: they fail with a `400` (the same usage classification the CLI turns into exit code `2`), not a `500`.
+
+## Refresh Cache
+
+```
+POST /api/cache/refresh
+```
+
+Download and cache all Scryfall card data — the Scryfall half of `ritual cache preload-all`, without the [buylist](/commands/sell/) refresh that command also runs under sell mode (that is [`POST /api/sell/refresh`](/admin/api/#sell-refresh)). Returns a JSON response when complete. A refresh that fails answers a non-2xx with the failure's message rather than reporting success. A refresh cancelled by its caller (only an in-process caller such as the MCP `refresh_cache` tool can cancel one) answers `499`: the download stops, nothing is written, the previous cache is left exactly as it was, and the cache lock is released.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Cache refreshed successfully"
+}
+```
+
+## Refresh Cache Stream
+
+```
+GET /api/cache/refresh/stream
+```
+
+Stream cache refresh progress via Server-Sent Events (SSE). The UI uses this endpoint to show a real-time progress bar.
+
+**Response:** `text/event-stream` with the following event types:
+
+| Event      | Data Fields                       | Description                    |
+| ---------- | --------------------------------- | ------------------------------ |
+| `progress` | `stage`, `percentage?`, `message` | Progress update during refresh |
+| `done`     | `message`                         | Refresh completed successfully |
+| `error`    | `message`                         | Refresh failed                 |
+
+**Stage values:** `metadata`, `tags`, `download`, `save`, `done`, `info` (parsing/processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them). The stages come from the refresh engine itself rather than being scraped from log lines, so the `percentage` on a `download` event is present whenever the compressed download size is known.
+
+**Example event stream:**
+
+```
+event: progress
+data: {"stage":"download","percentage":45,"message":"Downloading: 45% (32.50/72.50 MiB)"}
+
+event: progress
+data: {"stage":"save","message":"Saving to cache..."}
+
+event: done
+data: {"message":"Cache refreshed successfully"}
+```
+
+## Archidekt Login
+
+```
+POST /api/login/archidekt
+```
+
+Login to Archidekt. Credentials are sent to the server which authenticates with the Archidekt API and stores the session token locally.
+
+**Request body:**
+
+```json
+{
+  "username": "myuser",
+  "password": "mypassword"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Logged in as myuser",
+  "username": "myuser"
+}
+```
+
+## Archidekt Login Status
+
+```
+GET /api/login/archidekt
+```
+
+Report the status of the stored Archidekt login, including how long the access and refresh tokens remain valid. Expirations are derived from the tokens' JWT `exp` claims. When neither token is valid, `loginRequired` is `true` and the user must sign in again.
+
+**Response:**
+
+```json
+{
+  "loggedIn": true,
+  "username": "myuser",
+  "accessTokenExpiration": "2026-05-24T19:53:49.000Z",
+  "accessTokenValid": true,
+  "refreshTokenExpiration": "2026-07-02T18:53:49.000Z",
+  "refreshTokenValid": true,
+  "loginRequired": false
+}
+```
+
+## TOTP Setup
+
+```
+POST /api/totp/setup
+```
+
+Generate a new TOTP secret for two-factor authentication. The secret is stored in a pending state until verified.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "secret": "JBSWY3DPEHPK3PXP",
+  "uri": "otpauth://totp/Ritual:admin?secret=JBSWY3DPEHPK3PXP&issuer=Ritual&algorithm=SHA1&digits=6&period=30"
+}
+```
+
+## TOTP Verify
+
+```
+POST /api/totp/verify-setup
+```
+
+Verify a TOTP code to activate the pending secret. This must be called after `/api/totp/setup` to confirm the user has successfully configured their authenticator app.
+
+**Request body:**
+
+```json
+{
+  "code": "123456"
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "TOTP enabled successfully"
+}
+```
+
+## TOTP Disable
+
+```
+POST /api/totp/disable
+```
+
+Disable TOTP two-factor authentication.
+
+**Request body:** None
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "TOTP disabled"
+}
+```
+
+## TOTP Status
+
+```
+GET /api/totp/status
+```
+
+Check whether TOTP is enabled for the admin account.
+
+**Response:**
+
+```json
+{
+  "enabled": true
+}
+```
+
+## Get Config
+
+```
+GET /api/config
+```
+
+Returns the current application configuration.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "config": {
+    "decksDir": "./decks",
+    "collectionsDir": "./collections",
+    "wantedDir": "./wanted",
+    "defaultCurrency": "usd",
+    "priceSources": ["tcgplayer"],
+    "defaultLanguage": "en",
+    "uiLocale": "en",
+    "cacheLockTimeoutSeconds": 300,
+    "cacheSource": "scryfall",
+    "searchDebounceMs": 500,
+    "admin": {
+      "gitEnabled": false,
+      "gitAutoCommit": false,
+      "gitAutoPush": false,
+      "trustProxy": false,
+      "secureCookies": false,
+      "ipAllowList": [],
+      "ipDenyList": [],
+      "userAgentAllowList": [],
+      "userAgentDenyList": [],
+      "rateLimitEnabled": true,
+      "rateLimitMaxAttempts": 5,
+      "rateLimitWindowMinutes": 5,
+      "failedAuthDelayMs": 3000
+    },
+    "collectionSync": {
+      "pullTarget": "Inbox"
+    }
+  }
+}
+```
+
+`config` is the **stored** configuration. When this server was started with a session flag that
+displaces one of those values — today that means [`--sell-mode`](/commands/admin/#sell-mode) — the response also
+carries an `overrides` object saying what the running process is actually operating with, keyed by
+the config path each override displaces:
+
+```json
+{
+  "success": true,
+  "config": { "site": {} },
+  "overrides": { "site.sellMode": true }
+}
+```
+
+The flag writes nothing, so `config.site.sellMode` keeps reporting the stored value (usually unset)
+while the server's sell routes answer anyway. The key is **absent entirely** when no override is in
+force — no `overrides` means the stored config is what this server runs with. It is a
+process-local fact, which is why `ritual config get` has no equivalent, and why `PUT /api/config`
+never returns it: a write echoes back what it persisted.
+
+## Update Config
+
+```
+PUT /api/config
+```
+
+Update the application configuration. Partial updates are supported — only the fields you include will be changed. The nested `admin` object is merged field-by-field, so you can send just the admin settings you want to change.
+
+Every key in the request body is validated **before** the merge is persisted — a malformed update is rejected with a `400`, never written to disk and silently dropped on the next config load. Specifically:
+
+- Unknown top-level keys are rejected with a `400` (`Unknown config key "x"`).
+- Unknown keys inside `admin` are rejected with a `400` (`Unknown admin config key "x"`), matching `config set admin.<field>`.
+- When `admin` or `site` is present, its fields are validated field-by-field (the same rules the config loader applies), and any malformed field rejects the whole update with a `400`.
+
+`collectionSync` replaces wholesale like `site` rather than merging like `admin`: its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one and a malformed value rejects the whole update with a `400`.
+
+`defaultCurrency`, `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only — no aliases on the API), `uiLocale` (a BCP-47 tag naming the interface language — not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated the same way as [`config set`](/commands/config/) and rejected with a `400` when malformed. `cacheFeedUrl` has one extra rule: sending it as an **empty string** explicitly clears a previously-set override (falling back to the built-in default) — omitting the field entirely, by contrast, leaves the current value untouched.
+
+**Request body:**
+
+```json
+{
+  "admin": {
+    "gitEnabled": true,
+    "gitAutoCommit": true
+  }
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "config": {
+    "decksDir": "./decks",
+    "collectionsDir": "./collections",
+    "wantedDir": "./wanted",
+    "defaultCurrency": "usd",
+    "priceSources": ["tcgplayer"],
+    "defaultLanguage": "en",
+    "uiLocale": "en",
+    "cacheLockTimeoutSeconds": 300,
+    "cacheSource": "scryfall",
+    "searchDebounceMs": 500,
+    "admin": {
+      "gitEnabled": true,
+      "gitAutoCommit": true,
+      "gitAutoPush": false,
+      "trustProxy": false,
+      "secureCookies": false,
+      "ipAllowList": [],
+      "ipDenyList": [],
+      "userAgentAllowList": [],
+      "userAgentDenyList": [],
+      "rateLimitEnabled": true,
+      "rateLimitMaxAttempts": 5,
+      "rateLimitWindowMinutes": 5,
+      "failedAuthDelayMs": 3000
+    },
+    "collectionSync": {
+      "pullTarget": "Inbox"
+    }
+  }
+}
+```

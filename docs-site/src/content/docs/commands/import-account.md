@@ -7,7 +7,7 @@ Import all public decks from an Archidekt user account.
 ## Usage
 
 ```bash
-./ritual import-account [username] [options]
+ritual import-account [username] [options]
 ```
 
 ## Arguments
@@ -44,7 +44,7 @@ line saying so.
 
 The global `--no-input` flag (or `RITUAL_NO_INPUT`) disables all prompts. Deck selection is
 a prompt, so a headless run must pass `--all` explicitly — omitting it whenever
-[prompts are unavailable](/#when-prompts-are-unavailable) (including a plain piped run) is a
+[prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (including a plain piped run) is a
 usage error (exit code `2`) before anything is fetched. A per-deck name conflict in such a run
 reports the same `--overwrite`/`--yes` guidance [import](/commands/import/) gives, and the run
 exits `2`. `-y, --yes` only answers the
@@ -113,25 +113,25 @@ That warning goes to stderr and survives `--quiet`. The run still exits `0` — 
 Import decks interactively (select which ones to import):
 
 ```bash
-./ritual import-account johndoe
+ritual import-account johndoe
 ```
 
 Import all public decks from a user:
 
 ```bash
-./ritual import-account johndoe --all
+ritual import-account johndoe --all
 ```
 
 Plan an import in CI without prompts:
 
 ```bash
-./ritual import-account johndoe --all --no-input --dry-run
+ritual import-account johndoe --all --no-input --dry-run
 ```
 
 Import every deck and consume the result in a script:
 
 ```bash
-./ritual import-account johndoe --all --no-input --output json --quiet
+ritual import-account johndoe --all --no-input --output json --quiet
 ```
 
 ## Notes

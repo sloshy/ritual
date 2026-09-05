@@ -9,7 +9,7 @@ Without a package name, opens an interactive list showing all bundled dependenci
 ## Usage
 
 ```bash
-./ritual dep-license [package] [options]
+ritual dep-license [package] [options]
 ```
 
 ## Arguments
@@ -26,12 +26,12 @@ Without a package name, opens an interactive list showing all bundled dependenci
 | `--plain`           | Output license text directly to stdout                     | `false` |
 | `--output <format>` | Output format for `--list`: `text`, `json`, or `ndjson`    | `text`  |
 
-The listing (or a package's license text) is the command's entire output, so there is no `--quiet` ([shared convention](/#scripting-conventions)).
+The listing (or a package's license text) is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
 
 `--list` cannot be combined with a package name argument. It never prompts, so it also works
 outside a TTY — without either a package name or `--list`, an invocation that cannot open the
 picker is a usage error (exit `2`). That covers a non-TTY stdout and every case where
-[prompts are unavailable](/#when-prompts-are-unavailable), including `--no-input`.
+[prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including `--no-input`.
 
 A license printed for a named package is paged the same way [`license`](/commands/license/) is:
 `less` only when both ends are a terminal and prompts are available, plain stdout otherwise.
@@ -41,31 +41,31 @@ A license printed for a named package is paged the same way [`license`](/command
 Open the interactive dependency picker:
 
 ```bash
-./ritual dep-license
+ritual dep-license
 ```
 
 View a specific package license directly:
 
 ```bash
-./ritual dep-license commander
+ritual dep-license commander
 ```
 
 View a scoped package license:
 
 ```bash
-./ritual dep-license prompts
+ritual dep-license prompts
 ```
 
 Print a license to stdout:
 
 ```bash
-./ritual dep-license prompts --plain
+ritual dep-license prompts --plain
 ```
 
 List every dependency (primary first, then transitive) as `name version license` lines:
 
 ```bash
-./ritual dep-license --list
+ritual dep-license --list
 ```
 
 ```text
@@ -80,11 +80,11 @@ Transitive:
 
 `--list --output json` emits one `{ name, version, license, isPrimary }` object per
 dependency (`ndjson` emits the same rows one object per line). The payload deliberately
-excludes the full license text — it is large; run `./ritual dep-license <package>` to see a
+excludes the full license text — it is large; run `ritual dep-license <package>` to see a
 package's complete license text.
 
 ```bash
-./ritual dep-license --list --output json
+ritual dep-license --list --output json
 ```
 
 ```json
@@ -96,8 +96,8 @@ package's complete license text.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                            |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                                                            |
-| `2`  | Usage error (no package name and no `--list` when [prompts are unavailable](/#when-prompts-are-unavailable) or stdout is not a TTY, or both given) |
-| `3`  | Package not found                                                                                                                                  |
+| Code | Meaning                                                                                                                                                            |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success                                                                                                                                                            |
+| `2`  | Usage error (no package name and no `--list` when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) or stdout is not a TTY, or both given) |
+| `3`  | Package not found                                                                                                                                                  |

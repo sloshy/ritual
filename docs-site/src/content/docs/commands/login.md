@@ -7,9 +7,9 @@ Login to a supported website to save authentication tokens for future requests, 
 ## Usage
 
 ```bash
-./ritual login archidekt [options]
-./ritual login status [--output <format>]
-./ritual login logout [--output <format>] [--quiet]
+ritual login archidekt [options]
+ritual login status [--output <format>]
+ritual login logout [--output <format>] [--quiet]
 ```
 
 ## Subcommands
@@ -37,7 +37,7 @@ Interactively prompts for a username and password on a terminal. When a valid se
 For scripts and agents, pass `--username` together with `--password-stdin` and pipe the password on stdin — no prompts are shown, and explicit credentials always perform a fresh login:
 
 ```bash
-printf '%s' "$ARCHIDEKT_PASSWORD" | ./ritual login archidekt --username myuser --password-stdin
+printf '%s' "$ARCHIDEKT_PASSWORD" | ritual login archidekt --username myuser --password-stdin
 ```
 
 Passing only one of the two flags is a usage error (exit code `2`), as is an empty password on stdin. When prompts are disabled (`--no-input`, `RITUAL_NO_INPUT`, or stdin is not a terminal) and no credential flags are given, the command fails with a usage error pointing at `--username`/`--password-stdin` instead of hanging.
@@ -57,7 +57,7 @@ Reports whether an Archidekt login is stored, for which user, and — the questi
 An expired **access** token is not a problem on its own; it is refreshed automatically on the next request. Only when the **refresh** token has expired too does the session need a fresh `login archidekt`, which is what `loginRequired` reports.
 
 ```bash
-./ritual login status
+ritual login status
 # Logged in to Archidekt as myuser (session valid until 2026-08-03T00:00:00.000Z)
 ```
 
@@ -70,7 +70,7 @@ An expired **access** token is not a problem on its own; it is refreshed automat
 | None                          | `Not logged in.`                                                                            |
 
 ```bash
-./ritual login status --output json
+ritual login status --output json
 ```
 
 ```json
@@ -87,10 +87,10 @@ An expired **access** token is not a problem on its own; it is refreshed automat
 
 This is the same payload the admin API serves at `GET /api/login/archidekt` and the same snapshot the MCP `get_sync_status` tool carries as its `archidekt` section, so every surface answers the question identically.
 
-The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/#scripting-conventions)). To branch purely on the exit code, redirect stdout:
+The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)). To branch purely on the exit code, redirect stdout:
 
 ```bash
-./ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
+ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
 ```
 
 ### Exit Codes
@@ -106,10 +106,10 @@ The status line is the command's entire payload, so `status` registers no `--qui
 Deletes the stored Archidekt token file. Reports the username that was logged out, or that there was nothing to clear; both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation line while still emitting the structured payload under `--output json`/`ndjson`.
 
 ```bash
-./ritual login logout
+ritual login logout
 # Logged out of Archidekt (was myuser). Stored token cleared.
 
-./ritual login logout --output json
+ritual login logout --output json
 ```
 
 ```json

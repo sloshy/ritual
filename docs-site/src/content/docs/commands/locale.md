@@ -8,12 +8,12 @@ what the card language is — side by side, so the two are never confused.
 ## Usage
 
 ```bash
-./ritual locale
-./ritual locale --detect
+ritual locale
+ritual locale --detect
 ```
 
 Plain `locale` is read-only: it never writes `ritual.config.json`, never touches your
-list files, and never triggers the [card-ID backfill](/#the-card-id-backfill) — the same
+list files, and never triggers the [card-ID backfill](/cli-conventions/#the-card-id-backfill) — the same
 classification [`config set`](/commands/config/) has. The one thing that can write is
 [`--detect`](#detecting-the-os-locale), and only after you answer its prompt with yes.
 To _change_ the language directly, use `--locale`, `RITUAL_LOCALE`, or
@@ -34,7 +34,7 @@ closing explanation and the footer are treated as chatter.
 ## Output
 
 ```text
-$ ./ritual locale
+$ ritual locale
 UI locale: de-AT (--locale)
 Available UI locales: en
 Detected OS locale: de-DE
@@ -84,7 +84,7 @@ English-only build never spawns them. `--detect` is the opt-in that pays for the
 anyway, reports what **every** source said, and offers to persist the answer:
 
 ```text
-$ ./ritual locale --detect
+$ ritual locale --detect
 UI locale: en (built-in default)
 Available UI locales: en
 Detected OS locale: none
@@ -139,7 +139,7 @@ environment probe and reports both OS probes as not applicable — there is no
 ## JSON output
 
 ```bash
-$ RITUAL_LOCALE=de-at ./ritual locale --output json
+$ RITUAL_LOCALE=de-at ritual locale --output json
 {
   "uiLocale": "de-AT",
   "source": "env",
@@ -166,7 +166,7 @@ matching translated prose.
 `--detect` adds two more keys, and only then:
 
 ```bash
-$ ./ritual locale --detect --output json
+$ ritual locale --detect --output json
 {
   "uiLocale": "en",
   "source": "default",
@@ -197,22 +197,22 @@ ask cannot change what that field means.
 Check what a specific override would do, without changing anything:
 
 ```bash
-./ritual --locale de locale
-RITUAL_LOCALE=ja ./ritual locale
+ritual --locale de locale
+RITUAL_LOCALE=ja ritual locale
 ```
 
 Confirm the two language settings are what you think they are:
 
 ```bash
-./ritual locale --output json | jq '{uiLocale, defaultLanguage}'
+ritual locale --output json | jq '{uiLocale, defaultLanguage}'
 ```
 
 Adopt whatever the OS says, on a machine where the environment does not say it:
 
 ```bash
-./ritual locale --detect                       # asks first, writes uiLocale on yes
-./ritual locale --detect --no-input            # prints the finding, writes nothing
-./ritual locale --detect --output json | jq -r '.suggestedUiLocale // empty'
+ritual locale --detect                       # asks first, writes uiLocale on yes
+ritual locale --detect --no-input            # prints the finding, writes nothing
+ritual locale --detect --output json | jq -r '.suggestedUiLocale // empty'
 ```
 
 ## Exit Codes

@@ -16,8 +16,8 @@ the connection is the logged-in account.
 ## Usage
 
 ```bash
-./ritual collection-sync pull [lists...]
-./ritual collection-sync push [lists...]
+ritual collection-sync pull [lists...]
+ritual collection-sync push [lists...]
 ```
 
 ## Arguments
@@ -31,7 +31,7 @@ Each name is matched case- and accent-insensitively with a unique-substring fall
 collection lists only. An ambiguous or unknown name is reported as a **failed** list (not
 `skipped`) and the run exits 1; since resolution is already collection-scoped, the error asks you
 to type more of the name rather than suggesting type flags this command does not have. See
-[List Resolution](/commands/list-resolution/).
+[List Resolution](/list-resolution/).
 
 ## Options
 
@@ -65,7 +65,7 @@ contradict each other (upload them / do not upload them), so giving both exits w
 You must be signed into Archidekt, and the stored login must name your account:
 
 ```bash
-./ritual login archidekt
+ritual login archidekt
 ```
 
 The collection is read by numeric user id, which the login records alongside the token. A login
@@ -174,7 +174,7 @@ from; repeat it to give a fallback order. Copies are taken only from those lists
 the order given and removing each list's last lines first:
 
 ```bash
-./ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
+ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
 ```
 
 Names are matched **by name only** (like `--into`), never by the unique-substring rule — a priority
@@ -411,7 +411,7 @@ changes and removals still push normally. The cards are counted as _pending_ rat
 are in a file, not in your account — and the run says so:
 
 ```bash
-./ritual collection-sync push --csv-file archidekt-import.csv
+ritual collection-sync push --csv-file archidekt-import.csv
 ```
 
 ```
@@ -694,47 +694,47 @@ per-card request at all.
 Pull the whole collection, letting new cards land in the configured target list:
 
 ```bash
-./ritual collection-sync pull
+ritual collection-sync pull
 ```
 
 Pull into a specific binder:
 
 ```bash
-./ritual collection-sync pull --into "Blue Binder"
+ritual collection-sync pull --into "Blue Binder"
 ```
 
 Pull unattended, letting the overflow box give up any copies the run cannot place on its own:
 
 ```bash
-./ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
+ritual collection-sync pull --removal-priority "Long Box" --removal-priority "Blue Binder"
 ```
 
 Push one binder's contents without letting the lists you did not name look like losses:
 
 ```bash
-./ritual collection-sync push "Blue Binder" --only additions
+ritual collection-sync push "Blue Binder" --only additions
 ```
 
 Preview a whole-collection push (over 25 new printings this makes no per-card request at all):
 
 ```bash
-./ritual collection-sync push --dry-run
+ritual collection-sync push --dry-run
 ```
 
 Push a big first collection unattended, uploading the new cards as one CSV import:
 
 ```bash
-./ritual collection-sync push --csv
+ritual collection-sync push --csv
 ```
 
 Write the new cards to a CSV to check (or upload) yourself, pushing only the removals:
 
 ```bash
-./ritual collection-sync push --csv-file archidekt-import.csv
+ritual collection-sync push --csv-file archidekt-import.csv
 ```
 
 Script a pull and inspect the per-list results:
 
 ```bash
-./ritual collection-sync pull --output json
+ritual collection-sync pull --output json
 ```

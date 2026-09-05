@@ -7,8 +7,8 @@ Run a raw Scryfall card search, or fetch random cards with `--random`.
 ## Usage
 
 ```bash
-./ritual scry <query> [options]
-./ritual scry [query] --random [options]
+ritual scry <query> [options]
+ritual scry [query] --random [options]
 ```
 
 ## Arguments
@@ -27,9 +27,9 @@ Run a raw Scryfall card search, or fetch random cards with `--random`.
 | `--fields <list>`   | Comma-separated fields for `json`/`ndjson` output  | -                                          |
 | `--output <format>` | Output format (`json`, `ndjson`, `text`, or `csv`) | `json`                                     |
 
-`scry` registers no `--quiet`: results are the payload and the truncation notice below is a content-loss warning, and [the convention](/#scripting-conventions) lets `--quiet` hide neither.
+`scry` registers no `--quiet`: results are the payload and the truncation notice below is a content-loss warning, and [the convention](/cli-conventions/#scripting-conventions) lets `--quiet` hide neither.
 
-`scry`'s `--output` accepts a fourth value, `csv` — Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag ([`sell`](/commands/sell/) widens the vocabulary the same way, with a different payload). Everything else follows the [shared scripting conventions](/#scripting-conventions).
+`scry`'s `--output` accepts a fourth value, `csv` — Scryfall renders the CSV server-side, so it is a format of the same payload rather than a separate flag ([`sell`](/commands/sell/) widens the vocabulary the same way, with a different payload). Everything else follows the [shared scripting conventions](/cli-conventions/#scripting-conventions).
 
 `--random` cannot be combined with `--pages` or `--output csv`, and `--count` requires `--random`; either combination is rejected with a usage error. Without `--random`, a search query is required.
 
@@ -66,25 +66,25 @@ Output shape: a single pick (`--count 1`, the default) emits a bare card object;
 Get a completely random card:
 
 ```bash
-./ritual scry --random
+ritual scry --random
 ```
 
 Get a random legendary creature:
 
 ```bash
-./ritual scry "type:legendary type:creature" --random
+ritual scry "type:legendary type:creature" --random
 ```
 
 Get five random cards under $1:
 
 ```bash
-./ritual scry "usd<1" --random --count 5
+ritual scry "usd<1" --random --count 5
 ```
 
 Get text output for shell scripts:
 
 ```bash
-./ritual scry --random --output text
+ritual scry --random --output text
 ```
 
 ## Examples
@@ -92,37 +92,37 @@ Get text output for shell scripts:
 Search for legendary creatures:
 
 ```bash
-./ritual scry "type:legendary type:creature"
+ritual scry "type:legendary type:creature"
 ```
 
 Search for cards legal in Commander under $5:
 
 ```bash
-./ritual scry "legal:commander usd<5"
+ritual scry "legal:commander usd<5"
 ```
 
 Export search results to CSV:
 
 ```bash
-./ritual scry "set:mh2 type:creature" --output csv > creatures.csv
+ritual scry "set:mh2 type:creature" --output csv > creatures.csv
 ```
 
 Force text output:
 
 ```bash
-./ritual scry "type:artifact" --output text
+ritual scry "type:artifact" --output text
 ```
 
 Stream projected card fields as NDJSON:
 
 ```bash
-./ritual scry "type:artifact" --fields name,set,prices.usd --output ndjson
+ritual scry "type:artifact" --fields name,set,prices.usd --output ndjson
 ```
 
 Get multiple pages of results without prompts:
 
 ```bash
-./ritual scry "type:planeswalker" --pages 5
+ritual scry "type:planeswalker" --pages 5
 ```
 
 ## Query Syntax

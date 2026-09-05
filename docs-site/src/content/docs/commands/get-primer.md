@@ -7,7 +7,7 @@ Extract and output the primer for a deck as Markdown.
 ## Usage
 
 ```bash
-./ritual get-primer <source>
+ritual get-primer <source>
 ```
 
 ## Arguments
@@ -16,7 +16,7 @@ Extract and output the primer for a deck as Markdown.
 | ---------- | ------------------------------------------------------------- | -------- |
 | `<source>` | Local deck name (e.g. `winota-snowball-stax`) or Moxfield URL | Yes      |
 
-A local deck name is matched case- and accent-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/commands/list-resolution/).
+A local deck name is matched case- and accent-insensitively, with a unique-substring fallback; an ambiguous name is rejected. See [List Resolution](/list-resolution/).
 
 ## Options
 
@@ -41,20 +41,20 @@ The Moxfield primer format supports the following features which are transformed
 Output the primer for a local deck:
 
 ```bash
-./ritual get-primer winota-snowball-stax
+ritual get-primer winota-snowball-stax
 ```
 
 Fetch and parse a primer from Moxfield:
 
 ```bash
-./ritual get-primer https://moxfield.com/decks/j-0aJlxuOUm9FnKRvJcfZw \
+ritual get-primer https://moxfield.com/decks/j-0aJlxuOUm9FnKRvJcfZw \
   --moxfield-user-agent "MyApp/1.0"
 ```
 
 Save the parsed primer to a file:
 
 ```bash
-./ritual get-primer winota-snowball-stax > primer.md
+ritual get-primer winota-snowball-stax > primer.md
 ```
 
 ## Exit Codes

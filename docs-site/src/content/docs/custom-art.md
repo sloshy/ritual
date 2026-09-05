@@ -11,7 +11,7 @@ Custom art never changes the card line or the printing it is pinned to. It does 
 Local images live in the directory named by the [`artDir`](/configuration/#directory-options) config key — `./art` unless you change it, resolved against the base directory like `decksDir` and friends:
 
 ```bash
-./ritual config set artDir ./art
+ritual config set artDir ./art
 ```
 
 Nothing ever creates the directory: a workspace with no `art/` simply has no local art, and only a reference to a file that is not there is an error. Organize it however you like — a reference is the path **relative to that directory**, so subdirectories are free:
@@ -29,7 +29,7 @@ The same relative path identifies the image everywhere: on disk, in the built si
 
 ## The sidecar
 
-Each list's art lives beside it as `<list>.art.json` — `decks/Winota Stax.art.json` next to `decks/Winota Stax.md`. It is a JSON object keyed by the card line's [`&N` id](/#the-card-id-backfill), whose values carry exactly one of `file` or `url`:
+Each list's art lives beside it as `<list>.art.json` — `decks/Winota Stax.art.json` next to `decks/Winota Stax.md`. It is a JSON object keyed by the card line's [`&N` id](/cli-conventions/#the-card-id-backfill), whose values carry exactly one of `file` or `url`:
 
 ```json
 {
@@ -58,9 +58,9 @@ Five surfaces write the sidecar, and all of them validate identically:
 - **CLI** — [`set-card --art`](/commands/set-card/#custom-art):
 
   ```bash
-  ./ritual set-card --deck "Winota Stax" "Sol Ring" --art proxies/sol-ring.jpg
-  ./ritual set-card --collection main "Lightning Bolt" --art https://example.com/bolt.png
-  ./ritual set-card --deck "Winota Stax" "Sol Ring" --art none
+  ritual set-card --deck "Winota Stax" "Sol Ring" --art proxies/sol-ring.jpg
+  ritual set-card --collection main "Lightning Bolt" --art https://example.com/bolt.png
+  ritual set-card --deck "Winota Stax" "Sol Ring" --art none
   ```
 
 - **CLI editor** — `🎨 Set Custom Art` in the [`edit`](/commands/edit/#custom-art) TUI's per-card action menu, on every list type: enter a URL, browse the art directory for a file, or clear what is there. Unlike the other writers this one is **deferred** — the edit is staged like every other session edit and written by the save, so `↩️ Undo Last Edit` takes it back and exiting without saving writes nothing.
@@ -107,7 +107,7 @@ The reasoning is the same as for a proxy: the price of a Sol Ring is the price o
 On the public site and in the editors, a card with custom art shows it on:
 
 - card tiles in every art view (grid, binder, stacks) and the list view's hover preview,
-- the [card detail modal](/commands/build-site/#card-detail-modal)'s main image,
+- the [card detail modal](/public-site/browsing/#card-detail-modal)'s main image,
 - the list's cover image on the site index, when that card is the one the cover
   picks (a deck's commander, or a collection's or wanted list's priciest entry).
   The cover ranks entries by the **printing's** price rather than the zero

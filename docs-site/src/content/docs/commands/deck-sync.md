@@ -10,10 +10,10 @@ The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page a
 ## Usage
 
 ```bash
-./ritual deck-sync pull [decks...] [--sync-printings]
-./ritual deck-sync push [decks...] [--force] [--sync-printings]
-./ritual deck-sync link <deck> <url>
-./ritual deck-sync status
+ritual deck-sync pull [decks...] [--sync-printings]
+ritual deck-sync push [decks...] [--force] [--sync-printings]
+ritual deck-sync link <deck> <url>
+ritual deck-sync status
 ```
 
 ## Subcommands
@@ -33,7 +33,7 @@ Anything else is a usage error (exit code `2`).
 | ------------ | --------------------------------------------------------------------------------------------------------------------- | -------- |
 | `[decks...]` | Deck names to sync (matched case- and accent-insensitively, no `.md`). If omitted, syncs all Archidekt-sourced decks. | No       |
 
-Each name is matched case- and accent-insensitively with a unique-substring fallback, within decks only. An ambiguous or unknown name is reported as a **failed** deck (not `skipped`) and the run exits 1; since resolution is already deck-scoped, the error asks you to type more of the name rather than suggesting type flags this command does not have. See [List Resolution](/commands/list-resolution/).
+Each name is matched case- and accent-insensitively with a unique-substring fallback, within decks only. An ambiguous or unknown name is reported as a **failed** deck (not `skipped`) and the run exits 1; since resolution is already deck-scoped, the error asks you to type more of the name rather than suggesting type flags this command does not have. See [List Resolution](/list-resolution/).
 
 ## Options
 
@@ -182,7 +182,7 @@ only `import`/`import-account` produce. `link` writes those two fields for a dec
 exists on Archidekt:
 
 ```bash
-./ritual deck-sync link "Winota Stax" https://archidekt.com/decks/123456
+ritual deck-sync link "Winota Stax" https://archidekt.com/decks/123456
 # Linked "Winota Stax" to https://archidekt.com/decks/123456 (deck 123456).
 ```
 
@@ -214,7 +214,7 @@ A read-only, offline view of the sync surface — which decks are linked, when e
 when the account's collection last synced. It requires no Archidekt session and makes no requests.
 
 ```bash
-./ritual deck-sync status
+ritual deck-sync status
 # 2 decks linked to Archidekt:
 #   Winota Stax — https://archidekt.com/decks/123456
 #     last synced: 2026-08-01T00:00:00.000Z
@@ -237,7 +237,7 @@ Collection: sync state unreadable (the file is not valid JSON).
 The reason lands in `collectionStateError` under `--output json`, and as a
 `{"kind":"collection-state-error","reason":...}` row under `--output ndjson`. The
 listing is the whole payload, so `status` registers no `--quiet`
-([shared convention](/#scripting-conventions)). Being read-only, it never triggers the card-ID
+([shared convention](/cli-conventions/#scripting-conventions)). Being read-only, it never triggers the card-ID
 backfill.
 
 The same data backs the admin Sync Decks page and the MCP `get_sync_status` tool.
@@ -304,7 +304,7 @@ variable (`0` disables it); the 429 handling is always on.
 You must be signed into Archidekt before syncing:
 
 ```bash
-./ritual login archidekt
+ritual login archidekt
 ```
 
 Decks must be linked to Archidekt — that is, they carry `sourceUrl` and `sourceId` in their YAML
@@ -506,66 +506,66 @@ tool takes it as a `syncPrintings` field.
 Pull changes for a specific deck:
 
 ```bash
-./ritual deck-sync pull black-panther
+ritual deck-sync pull black-panther
 ```
 
 Push changes for multiple decks:
 
 ```bash
-./ritual deck-sync push black-panther oops-all-soldiers
+ritual deck-sync push black-panther oops-all-soldiers
 ```
 
 Pull for all Archidekt decks:
 
 ```bash
-./ritual deck-sync pull
+ritual deck-sync pull
 ```
 
 Preview a push without sending anything:
 
 ```bash
-./ritual deck-sync push --dry-run
+ritual deck-sync push --dry-run
 ```
 
 Pull new cards without letting a pull delete anything locally:
 
 ```bash
-./ritual deck-sync pull --only additions
+ritual deck-sync pull --only additions
 ```
 
 Sync in a script, accepting the loss of any lines Ritual cannot read:
 
 ```bash
-./ritual deck-sync pull --yes --no-input
+ritual deck-sync pull --yes --no-input
 ```
 
 Script a pull and inspect per-deck results:
 
 ```bash
-./ritual deck-sync pull --output json
+ritual deck-sync pull --output json
 ```
 
 Link a locally built deck to an empty deck you created on Archidekt, then push it:
 
 ```bash
-./ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456
-./ritual deck-sync push "Alpha Deck"
+ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456
+ritual deck-sync push "Alpha Deck"
 ```
 
 See what is linked and when it last synced:
 
 ```bash
-./ritual deck-sync status --output json
+ritual deck-sync status --output json
 ```
 
 Overwrite remote edits made since your last sync:
 
 ```bash
-./ritual deck-sync push "Winota Stax" --force
+ritual deck-sync push "Winota Stax" --force
 ```
 
 Push the exact printings and finishes you picked locally to Archidekt:
 
 ```bash
-./ritual deck-sync push "Winota Stax" --sync-printings
+ritual deck-sync push "Winota Stax" --sync-printings
 ```

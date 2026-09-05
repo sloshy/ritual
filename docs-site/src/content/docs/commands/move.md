@@ -8,16 +8,16 @@ Move cards between decks, collections, and wanted lists — interactively by def
 
 ```bash
 # Interactive session across all lists
-./ritual move
+ritual move
 
 # Interactive session, pre-filtered to one source list
-./ritual move --from <list>
+ritual move --from <list>
 
 # Scripted (headless) move — no prompts
-./ritual move [cardName...] --from <list> --to <list> [options]
+ritual move [cardName...] --from <list> --to <list> [options]
 ```
 
-`<list>` accepts an optional `deck:`, `collection:`, or `wanted:` prefix (e.g. `wanted:needs`). The prefix pins the list type; without it, the name is resolved across all three types and an ambiguous name is an error (see [List Resolution](/commands/list-resolution/)).
+`<list>` accepts an optional `deck:`, `collection:`, or `wanted:` prefix (e.g. `wanted:needs`). The prefix pins the list type; without it, the name is resolved across all three types and an ambiguous name is an error (see [List Resolution](/list-resolution/)).
 
 ## Arguments
 
@@ -55,38 +55,38 @@ When a move quantity-merges onto an existing deck line that already carries a di
 Record a purchase — a wanted card arrived and goes into the collection with its printing assigned in the same command:
 
 ```bash
-./ritual move "Demonic Tutor" --from wanted:needs --to collection:binder \
+ritual move "Demonic Tutor" --from wanted:needs --to collection:binder \
   --set sta --collector-number 90
 ```
 
 Move a card between decks:
 
 ```bash
-./ritual move "Lightning Bolt" --from deck:burn --to deck:storm
+ritual move "Lightning Bolt" --from deck:burn --to deck:storm
 ```
 
 Move two copies at once:
 
 ```bash
-./ritual move "Lightning Bolt" --from deck:burn --to collection:binder -q 2
+ritual move "Lightning Bolt" --from deck:burn --to collection:binder -q 2
 ```
 
 Disambiguate between printings with `--set` (or `--card-id`):
 
 ```bash
-./ritual move "Lightning Bolt" --from deck:burn --to deck:storm --set lea
+ritual move "Lightning Bolt" --from deck:burn --to deck:storm --set lea
 ```
 
 Move a card into a specific deck section:
 
 ```bash
-./ritual move "Duress" --from collection:binder --to deck:storm --to-section Sideboard
+ritual move "Duress" --from collection:binder --to deck:storm --to-section Sideboard
 ```
 
 Select by card ID and emit a JSON record for scripting:
 
 ```bash
-./ritual move --card-id 7 --from wanted:needs --to deck:storm --output json
+ritual move --card-id 7 --from wanted:needs --to deck:storm --output json
 ```
 
 ```json

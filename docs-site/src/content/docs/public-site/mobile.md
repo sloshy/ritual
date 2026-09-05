@@ -29,7 +29,7 @@ List pages collapse the full desktop toolbar into a single compact row:
 
 The two [category groupings](/public-site/filtering/#grouping-sorting-and-filtering-by-category), the **Category** sort and the **Categories** filter row appear in those same sheets — there is no separate phone control path for them.
 
-On pages that support it, the **Update prices** button lives in the button group above the toolbar (alongside actions like Combine and View Changes), the same as on desktop — see [Update Prices](/commands/build-site/#update-prices-per-page).
+On pages that support it, the **Update prices** button lives in the button group above the toolbar (alongside actions like Combine and View Changes), the same as on desktop — see [Update Prices](/public-site/prices/#update-prices-per-page).
 
 ## Bottom sheets
 

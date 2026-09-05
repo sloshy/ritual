@@ -33,7 +33,7 @@ import type { SetListImageOptions } from './set-list-image'
  * user never wrote, and `--verify` must write nothing at all.
  *
  * When editing this list, keep the prose enumerations in sync: the
- * "card-ID backfill" section in docs-site/src/content/docs/index.mdx, the
+ * "card-ID backfill" section in docs-site/src/content/docs/cli-conventions.md, the
  * Backfill policy paragraph in AGENTS.md, and the `&N` bullet in
  * src/skills/content/overview.ts.
  */

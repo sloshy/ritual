@@ -1,6 +1,6 @@
 ---
-title: Price Stores
-description: Choose which store's prices the site displays — TCGplayer, Cardmarket, or Card Kingdom retail — per currency, shareable by link.
+title: 'Prices'
+description: Currencies, price stores, per-page price updates, and cards the site prices at zero.
 ---
 
 The prices on the public and admin sites come from a configurable set of **stores**, declared
@@ -123,3 +123,31 @@ buylist API routes open, and the first ~70 MB download still has to be deliberat
 example `ritual sell --refresh auto`, or the admin **Refresh Cache** page). A build with no
 feed ships the site without Card Kingdom prices — the view then shows every card unpriced —
 and never fails over it. Sell mode itself stays a separate, independent toggle.
+
+## Price Currency Switching
+
+The generated site includes a **Prices** dropdown in the header for switching between USD (TCGPlayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO) at runtime. The dropdown only shows currencies selected by the `--currencies` flag **that an enabled [price store](/configuration/#price-stores-pricesources) can answer for** (USD needs `tcgplayer` or `cardkingdom`, EUR needs `cardmarket`), and hides itself entirely when [`priceSources`](/configuration/#price-stores-pricesources) is empty. When switching currencies:
+
+- All displayed prices update to the selected currency
+- Deck totals and section totals recalculate
+- Collection prices recompute using the card's finish-specific price in the new currency
+- The "Lowest Price" toggle finds the cheapest printing per the active currency and [price store](/public-site/prices/#which-printing-a-card-is-priced-at) — images update accordingly
+- Price bracket grouping labels adapt to the active currency symbol
+
+The `--currencies` flag controls which currencies are available on the site. The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when it is among the built currencies and has an enabled store behind it, otherwise the first offered currency. Users can switch between offered currencies at any time using the dropdown.
+
+## Price Disclaimer
+
+The generated site displays a disclaimer below the header showing the date prices were retrieved. Prices are fetched from Scryfall at build time and reflect values as of the build date. The disclaimer reads: "Prices accurate as of &lt;date&gt;".
+
+### Update Prices (per page)
+
+Every deck, collection, and wanted-list page has an **Update Prices** button (also shown while editing), in the button group above the filter toolbar alongside actions like Combine and View Changes. It is a no-op until pressed; clicking it batch-fetches current prices for that page's cards directly from Scryfall (into an in-memory, per-tab session cache) and the displayed per-card prices and totals update in place. Nothing is written to disk — the refresh lives only in the current browser tab. On a site backed by a [live API](/public-site/hosted/), the refresh instead goes through the backend's batch price endpoint, which updates its shared card cache server-side.
+
+If a refresh only updates some cards (for example, a card Scryfall no longer returns by id), the remaining cards keep their older build-time price. When prices on a page end up with mixed dates, a small expandable warning appears listing the cards whose prices are now older than the rest. Refreshing again so every card is covered clears the warning. The same session cache is shared with the card search in the public editor and the Trade Planner, so a card fetched once is reused without another request.
+
+## Missing Card Warnings
+
+When a card cannot be priced in a selected currency (e.g., a paper-only card has no TIX price, or an MTGO-only card has no USD/EUR price), it is omitted from price totals. A collapsible warning banner appears at the top of the deck page listing cards with missing prices for the active currency. The banner updates reactively when switching currencies. [Proxies](/public-site/browsing/#card-labels) and [custom-art](/custom-art/) cards are not "missing" — they are priced at zero by rule and never appear in this banner.
+
+On the index page, deck and collection entries with missing prices display the total as **"At least $X.XX (missing N cards)"** instead of the raw total, making it clear the price is incomplete. The "lowest price" variant is hidden when a deck has missing prices to avoid confusion.

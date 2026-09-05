@@ -5,10 +5,10 @@ title: 'config'
 Inspect and modify `ritual.config.json` from the command line. The `config` group has four subcommands:
 
 ```bash
-./ritual config set <property> <value...>   # set or update a value
-./ritual config get <property>              # print one effective value
-./ritual config list                        # print the full effective configuration
-./ritual config unset <property>            # remove a value, reverting to its default
+ritual config set <property> <value...>   # set or update a value
+ritual config get <property>              # print one effective value
+ritual config list                        # print the full effective configuration
+ritual config unset <property>            # remove a value, reverting to its default
 ```
 
 All subcommands accept the standard scripting options:
@@ -103,14 +103,14 @@ Each `exclude*` list drops lists by display name even when the matching `include
 
 `site.apiBaseUrl` points a statically deployed site at a separately hosted [`serve --api`](/commands/serve/#live-api-mode---api) backend; it must be an `http(s)` URL (stored without a trailing slash) or the empty string for a same-origin reverse proxy. See [Hosting with a live backend](/public-site/hosted/).
 
-`site.sellMode` decides whether the sites offer [sell mode](/public-site/sell/) — the admin site included. It defaults to **off**, because turning it on makes every build and cache refresh download and index Card Kingdom's ~70 MB buylist; set it to `true` to opt in. A single run can opt in without a config write using `--sell-mode` on [`build-site`](/commands/build-site/#sell-mode---sell-mode), [`serve`](/commands/serve/), [`admin`](/commands/admin/), or [`mcp`](/commands/mcp/#sell-tools-need-sell-mode); `config get site.sellMode` keeps reporting the stored value under such a run — and exits `3` (`not_found`) when the key has never been set — since the flag is a session setting rather than configuration. The admin's [Settings](/commands/admin/#settings) page writes the same key from its **Offer sell mode** checkbox; unticking it is a `config unset site.sellMode`, not a stored `false`. See [Offering sell mode](/configuration/#offering-sell-mode-sellmode).
+`site.sellMode` decides whether the sites offer [sell mode](/public-site/sell/) — the admin site included. It defaults to **off**, because turning it on makes every build and cache refresh download and index Card Kingdom's ~70 MB buylist; set it to `true` to opt in. A single run can opt in without a config write using `--sell-mode` on [`build-site`](/commands/build-site/#sell-mode---sell-mode), [`serve`](/commands/serve/), [`admin`](/commands/admin/), or [`mcp`](/commands/mcp/#sell-tools-need-sell-mode); `config get site.sellMode` keeps reporting the stored value under such a run — and exits `3` (`not_found`) when the key has never been set — since the flag is a session setting rather than configuration. The admin's [Settings](/admin/dashboard/#settings) page writes the same key from its **Offer sell mode** checkbox; unticking it is a `config unset site.sellMode`, not a stored `false`. See [Offering sell mode](/configuration/#offering-sell-mode-sellmode).
 
 The rest of the `site` key (the deployment settings) is managed exclusively by `ritual init-site` and cannot be set or unset with this command. `exportPresets` is managed by [`ritual export --save-preset`](/commands/export/) — it can be read with `config get exportPresets` but not written here.
 
 ## config set
 
 ```bash
-./ritual config set [options] <property> <value...>
+ritual config set [options] <property> <value...>
 ```
 
 | Argument     | Description                                     | Required |
@@ -135,31 +135,31 @@ The rest of the `site` key (the deployment settings) is managed exclusively by `
 ### Examples
 
 ```bash
-./ritual config set admin.gitEnabled true
-./ritual config set decksDir ./my-decks
-./ritual config set defaultLanguage ja        # aliases work too: jp, Japanese
-./ritual config set uiLocale de-AT            # the interface language, not the card language
-./ritual config set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"   # replaces the whole list
-./ritual config set --add admin.ipAllowList "10.0.0.2"
-./ritual config set --remove admin.ipAllowList "10.0.0.1"
-./ritual config set site.includeDecks "Izzet Storm" "Atraxa Superfriends"
-./ritual config set site.includeCollections "*"                     # back to "everything"
-./ritual config set --add site.excludeDecks "Untuned Brew"
-./ritual config set --add site.bannedPrintings "SLD:123"
+ritual config set admin.gitEnabled true
+ritual config set decksDir ./my-decks
+ritual config set defaultLanguage ja        # aliases work too: jp, Japanese
+ritual config set uiLocale de-AT            # the interface language, not the card language
+ritual config set admin.ipAllowList "192.168.1.0/24" "10.0.0.1"   # replaces the whole list
+ritual config set --add admin.ipAllowList "10.0.0.2"
+ritual config set --remove admin.ipAllowList "10.0.0.1"
+ritual config set site.includeDecks "Izzet Storm" "Atraxa Superfriends"
+ritual config set site.includeCollections "*"                     # back to "everything"
+ritual config set --add site.excludeDecks "Untuned Brew"
+ritual config set --add site.bannedPrintings "SLD:123"
 ```
 
 ## config get
 
 ```bash
-./ritual config get <property>
+ritual config get <property>
 ```
 
 Prints the effective value of a single property — the value the rest of Ritual actually uses, whether it came from the file or a built-in default. Text output is the bare value (arrays and objects as JSON); `--output json` emits the value as JSON.
 
 ```bash
-$ ./ritual config get decksDir
+$ ritual config get decksDir
 ./decks
-$ ./ritual config get admin.ipAllowList --output json
+$ ritual config get admin.ipAllowList --output json
 ["192.168.1.0/24"]
 ```
 
@@ -168,7 +168,7 @@ Genuinely optional keys that have never been set — `cacheFeedUrl`, `exportPres
 ## config list
 
 ```bash
-./ritual config list
+ritual config list
 ```
 
 Prints the full effective configuration as flat `key = value` lines (dot notation for nested keys), one per settable property:
@@ -183,12 +183,12 @@ admin.gitEnabled = false (default)
 
 `(default)` marks keys whose value **equals** the built-in default; `(unset)` marks optional keys with no value. The marker is computed by comparing values against the built-in defaults, not by checking whether the key is present in `ritual.config.json` — any write to the config file materializes the defaulted keys onto disk, so file presence says nothing about whether you customized a value. For the `site.*` selection lists the comparison uses their documented effective defaults (`["*"]` for include lists, `[]` for exclude lists).
 
-`--output json` emits the effective config as one JSON object — the same payload the admin server's [`GET /api/config`](/commands/admin/#get-apiconfig) (and the MCP `get_config` tool) reports as its `config` field. Those two can report one thing this command cannot: a **running** server started with a session flag such as `--sell-mode` also answers with an `overrides` object saying what it is actually operating with. A CLI run is a fresh process with no session overrides, so there is nothing here to report.
+`--output json` emits the effective config as one JSON object — the same payload the admin server's [`GET /api/config`](/admin/api/#get-config) (and the MCP `get_config` tool) reports as its `config` field. Those two can report one thing this command cannot: a **running** server started with a session flag such as `--sell-mode` also answers with an `overrides` object saying what it is actually operating with. A CLI run is a fresh process with no session overrides, so there is nothing here to report.
 
 ## config unset
 
 ```bash
-./ritual config unset <property>
+ritual config unset <property>
 ```
 
 Removes a property from `ritual.config.json`:
@@ -199,9 +199,9 @@ Removes a property from `ritual.config.json`:
 Unsetting a key that is already at its default (or was never set) succeeds with the same message — the command is idempotent. Nested parents that become empty are pruned from the file. The `site` deployment keys are owned by `ritual init-site` and cannot be unset here.
 
 ```bash
-./ritual config unset decksDir
-./ritual config unset cacheFeedUrl
-./ritual config unset site.includeDecks    # back to ["*"] (publish everything)
+ritual config unset decksDir
+ritual config unset cacheFeedUrl
+ritual config unset site.includeDecks    # back to ["*"] (publish everything)
 ```
 
 ## Exit Codes

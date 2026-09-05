@@ -20,7 +20,7 @@ Kingdom's ~70 MB pricelist, so it is opt-in:
 ritual config set site.sellMode true
 ```
 
-The admin's [Settings](/commands/admin/#settings) page has the same switch — an **Offer sell mode**
+The admin's [Settings](/admin/dashboard/#settings) page has the same switch — an **Offer sell mode**
 checkbox writing the same key — and both the admin's own sell surfaces and its sell routes follow a
 save immediately, with no reload or restart. One exception: on a server started with `--sell-mode`
 the flag wins for that session, so unticking the checkbox stores the change without turning
@@ -56,13 +56,13 @@ prices are shown. See [Downloading the buylist](#downloading-the-buylist).
 
 The **admin site** follows the same key: with sell mode off its editors show no sell toggle and the
 **Refresh buylist** card is hidden; its `/api/sell/*` and `/api/buylist/*` routes answer `404`
-unless the [`cardkingdom` price store](/public-site/price-sources/) — which rides on the same
+unless the [`cardkingdom` price store](/public-site/prices/) — which rides on the same
 feed — is enabled.
 Run `ritual admin --sell-mode`, set the config key, or tick **Offer sell mode** on the admin's
-[Settings](/commands/admin/#settings) page to use it there — the checkbox takes effect as soon as it
+[Settings](/admin/dashboard/#settings) page to use it there — the checkbox takes effect as soon as it
 is saved, without a reload. Unlike the public site, the admin editors quote **live** against their
 own server, so a card added mid-edit is priced immediately, and a
-[**Refresh buylist**](/commands/admin/#refresh-cache) that brings down a new feed drops the quotes
+[**Refresh buylist**](/admin/dashboard/#refresh-cache) that brings down a new feed drops the quotes
 already resolved in the browser so the next editor prices against the new one.
 
 [`ritual sell`](/commands/sell/) on the CLI is never gated: running it is itself the request for
@@ -135,7 +135,7 @@ at a $12 offer is a worse deal than a $2 card at a $1.90 offer, even though the 
 Reversing the layer puts the best offers first.
 
 Both sides are read in dollars, so the comparison means the same thing whatever currency the page
-is displaying. The retail side is the **selected [price store](/public-site/price-sources/)**'s
+is displaying. The retail side is the **selected [price store](/public-site/prices/)**'s
 dollar price: entering sell mode defaults the view to Card Kingdom retail when that store is
 enabled (offer versus what CK charges for the same card), and switching the toolbar's Prices
 selector to TCGplayer compares the offer against the market price instead. A missing or paused
@@ -150,7 +150,7 @@ Kingdom such a line is shown at the printing CK actually sells, and its offer �
 Buylist total — is that printing's quote, which can differ from the one the TCGplayer view shows.
 Because entering sell mode defaults the store to Card Kingdom, turning sell mode on can itself
 change which printing a name-only card displays. Lines that name their printing never move. See
-[Which printing a card is priced at](/public-site/price-sources/#which-printing-a-card-is-priced-at).
+[Which printing a card is priced at](/public-site/prices/#which-printing-a-card-is-priced-at).
 
 ### Currency and condition
 
@@ -215,15 +215,15 @@ cards per upload.
 
 Sell mode's state rides in the URL hash like every other toolbar and filter value:
 
-| Parameter                                  | Meaning                                                                                                                                                      |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `sell=1`                                   | Sell mode is on.                                                                                                                                             |
-| `buyer=cardkingdom`                        | The selected buyer (only written while sell mode is on).                                                                                                     |
-| `buylist=on,off`                           | The buylist filter chips.                                                                                                                                    |
-| `group=buylist-price` / `group=on-buylist` | The buylist groupings.                                                                                                                                       |
-| `sort=buylist-price`                       | Sort by buylist price (prefix with `-` to reverse).                                                                                                          |
-| `sort=buylist-spread`                      | Sort by Buylist vs Price (prefix with `-` to reverse).                                                                                                       |
-| `prices=cardkingdom`                       | An explicitly chosen [price store](/public-site/price-sources/); the courtesy default sell mode applies is reproduced by `sell=1` itself and is not written. |
+| Parameter                                  | Meaning                                                                                                                                               |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sell=1`                                   | Sell mode is on.                                                                                                                                      |
+| `buyer=cardkingdom`                        | The selected buyer (only written while sell mode is on).                                                                                              |
+| `buylist=on,off`                           | The buylist filter chips.                                                                                                                             |
+| `group=buylist-price` / `group=on-buylist` | The buylist groupings.                                                                                                                                |
+| `sort=buylist-price`                       | Sort by buylist price (prefix with `-` to reverse).                                                                                                   |
+| `sort=buylist-spread`                      | Sort by Buylist vs Price (prefix with `-` to reverse).                                                                                                |
+| `prices=cardkingdom`                       | An explicitly chosen [price store](/public-site/prices/); the courtesy default sell mode applies is reproduced by `sell=1` itself and is not written. |
 
 Opening such a link on a site that does not offer sell mode simply ignores these parameters — you
 never land on a list narrowed by a filter the toolbar cannot show or clear.
@@ -236,7 +236,7 @@ Sell mode is off unless something turned it on, so "disabling" it means clearing
 ritual config set site.sellMode false   # or: config unset site.sellMode
 ```
 
-Unticking **Offer sell mode** on the admin's [Settings](/commands/admin/#settings) page is the
+Unticking **Offer sell mode** on the admin's [Settings](/admin/dashboard/#settings) page is the
 `config unset` form of this. A server started with `--sell-mode` is the exception: the flag is a
 session override, so that process keeps offering sell mode until it is restarted without it.
 

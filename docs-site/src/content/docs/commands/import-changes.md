@@ -2,14 +2,14 @@
 title: 'import-changes'
 ---
 
-Apply a change bundle exported from the public site's [in-browser editor](/commands/build-site/#editing-on-the-public-site) (or the admin editor's Export panel) to your list files. The full change list is previewed grouped by target list, with the bundle's cross-list moves listed after them, and nothing is written until you confirm.
+Apply a change bundle exported from the public site's [in-browser editor](/public-site/editing/) (or the admin editor's Export panel) to your list files. The full change list is previewed grouped by target list, with the bundle's cross-list moves listed after them, and nothing is written until you confirm.
 
-The same JSON can also be applied in the [admin site](/commands/admin/#import-changes) (**Import Changes** page) and via the [MCP](/commands/mcp/) `import_change_bundle` tool, all backed by the same engine.
+The same JSON can also be applied in the [admin site](/admin/import/#import-changes) (**Import Changes** page) and via the [MCP](/commands/mcp/) `import_change_bundle` tool, all backed by the same engine.
 
 ## Usage
 
 ```bash
-./ritual import-changes <file>
+ritual import-changes <file>
 ```
 
 ## Arguments

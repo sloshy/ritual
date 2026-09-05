@@ -7,7 +7,7 @@ Create a new deck, collection, or wanted list file.
 ## Usage
 
 ```bash
-./ritual new <type> <name...> [options]
+ritual new <type> <name...> [options]
 ```
 
 ## Arguments
@@ -43,26 +43,26 @@ An unrecognized format is an error — the deck file is not created.
 Create a new Commander deck:
 
 ```bash
-./ritual new deck "Atraxa Superfriends"
+ritual new deck "Atraxa Superfriends"
 ```
 
 Create a Standard deck:
 
 ```bash
-./ritual new deck "Mono Red Aggro" --format standard
+ritual new deck "Mono Red Aggro" --format standard
 ```
 
 Create a collection and a wanted list:
 
 ```bash
-./ritual new collection "Trade Binder"
-./ritual new wanted "Grail Cards"
+ritual new collection "Trade Binder"
+ritual new wanted "Grail Cards"
 ```
 
 Capture the created list as JSON:
 
 ```bash
-./ritual new deck "Burn" --output json
+ritual new deck "Burn" --output json
 ```
 
 The JSON payload is `{ type, slug, name, filePath }`.
@@ -84,7 +84,7 @@ escape the directory). So `Atraxa: Praetors' Voice` is stored as
 left with nothing usable (`"???"`) is an error, and no file is written.
 
 Because a name is also how you address a list later, `new` refuses a name that would
-[resolve](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation) to a
+[resolve](/list-resolution/#names-that-would-collide-are-refused-at-creation) to a
 list of the same type that already exists — not just one that lands on the same file name.
 Creating `atraxa superfriends` beside an existing `Atraxa Superfriends.md` is refused with
 `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under

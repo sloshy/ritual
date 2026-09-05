@@ -9,16 +9,16 @@ side, only in the other, and where quantities differ. The same engine backs the 
 ## Usage
 
 ```bash
-./ritual diff <listA> <listB> [options]
+ritual diff <listA> <listB> [options]
 ```
 
-Both list names resolve like every list command (see [List Resolution](/commands/list-resolution/));
+Both list names resolve like every list command (see [List Resolution](/list-resolution/));
 a `deck:` / `collection:` / `wanted:` prefix pins the type. That prefix is the headline move here:
 a deck and a collection sharing a name is exactly the situation you diff them in, so
-`./ritual diff deck:vampires collection:vampires` disambiguates each side. An unprefixed ambiguous
+`ritual diff deck:vampires collection:vampires` disambiguates each side. An unprefixed ambiguous
 name is a usage error; it suggests the prefixed forms when a type holds exactly one match, and
 otherwise asks you to type more of the name — see
-[List Resolution](/commands/list-resolution/#what-the-ambiguity-error-advises).
+[List Resolution](/list-resolution/#what-the-ambiguity-error-advises).
 
 ## Arguments
 
@@ -34,7 +34,7 @@ otherwise asks you to type more of the name — see
 | `--by <mode>`       | Identity to compare by: `name` or `printing` | `name`  |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`   | `text`  |
 
-A diff prints its payload plus parse warnings and nothing else, so it registers no `--quiet` ([shared convention](/#scripting-conventions)).
+A diff prints its payload plus parse warnings and nothing else, so it registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
 
 ## Identity modes
 

@@ -10,13 +10,13 @@ A category is a card's **role in one list** (`Ramp`, `Removal`, `Board Wipes`) �
 ## Usage
 
 ```bash
-./ritual categories list [listName]
-./ritual categories rename [listName] <from> <to>
-./ritual categories order [listName] <value>
-./ritual categories remove [listName] <name>
+ritual categories list [listName]
+ritual categories rename [listName] <from> <to>
+ritual categories order [listName] <value>
+ritual categories remove [listName] <name>
 ```
 
-`listName` is resolved across every list type unless a type flag narrows it; omit it to pick a list interactively (see [List Resolution](/commands/list-resolution/)).
+`listName` is resolved across every list type unless a type flag narrows it; omit it to pick a list interactively (see [List Resolution](/list-resolution/)).
 
 ## Subcommands
 
@@ -76,18 +76,18 @@ Remove a category from the list's vocabulary **and** from every card that uses i
 ## Examples
 
 ```bash
-./ritual categories list --deck "Winota Stax"
-./ritual categories list --deck "Winota Stax" --output json
-./ritual categories rename --deck "Winota Stax" Draw "Card Draw"
-./ritual categories order --deck "Winota Stax" "Ramp, Card Draw, Removal"
-./ritual categories remove --collection main Ramp --dry-run
+ritual categories list --deck "Winota Stax"
+ritual categories list --deck "Winota Stax" --output json
+ritual categories rename --deck "Winota Stax" Draw "Card Draw"
+ritual categories order --deck "Winota Stax" "Ramp, Card Draw, Removal"
+ritual categories remove --collection main Ramp --dry-run
 ```
 
 ## Behavior
 
 ### What this command writes
 
-Every mutating subcommand writes the list's `<list>.categories.json` sidecar and its `<list>.categories.json.sha256` **when the edit changes them**, then appends one entry to the list's `.changes.md` changelog. Those paths come back in `writtenFiles`. The list `.md` file is **never** rewritten: this command writes no card lines and reads no `&N`, which is also why it does not trigger the [card-ID backfill](/#the-card-id-backfill).
+Every mutating subcommand writes the list's `<list>.categories.json` sidecar and its `<list>.categories.json.sha256` **when the edit changes them**, then appends one entry to the list's `.changes.md` changelog. Those paths come back in `writtenFiles`. The list `.md` file is **never** rewritten: this command writes no card lines and reads no `&N`, which is also why it does not trigger the [card-ID backfill](/cli-conventions/#the-card-id-backfill).
 
 An edit that changes nothing — `rename Draw Draw`, or an `order` equal to the one on disk — reports `wouldWrite: false`, writes no sidecar **and no changelog entry**, and comes back with an empty `writtenFiles`. A real run and its `--dry-run` preview therefore always agree about whether the command touches disk.
 

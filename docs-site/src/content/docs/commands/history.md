@@ -4,7 +4,7 @@ title: 'history'
 
 Interactively compact and rewrite the change history (`.changes.md`) for a deck, collection, or wanted list.
 
-Sometimes a list's change log gets noisy — many small sessions before a commit, mistimed entries, or sets you'd rather merge. `history` is a menu-driven editor for the change log **only**. It never edits the list's own `.md` file: every action operates on the change sets, and nothing is written until you explicitly choose to save. (Opening the editor does run the standard [card-ID backfill](/#the-card-id-backfill) first, since the _Rewrite with defaults_ action embeds `&N` IDs in the lines it generates; the read-only `--show` path skips it.)
+Sometimes a list's change log gets noisy — many small sessions before a commit, mistimed entries, or sets you'd rather merge. `history` is a menu-driven editor for the change log **only**. It never edits the list's own `.md` file: every action operates on the change sets, and nothing is written until you explicitly choose to save. (Opening the editor does run the standard [card-ID backfill](/cli-conventions/#the-card-id-backfill) first, since the _Rewrite with defaults_ action embeds `&N` IDs in the lines it generates; the read-only `--show` path skips it.)
 
 For scripts (or a quick look), `--show` prints the history read-only and exits without opening the editor — see [Read-only output with --show](#read-only-output-with---show).
 
@@ -13,10 +13,10 @@ The admin site offers the same editor in the browser — see the [Change History
 ## Usage
 
 ```bash
-./ritual history [listName] [options]
+ritual history [listName] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag to pin the type or disambiguate. If invoked with no list name, the command prompts you to pick one (filtered by the type flag if given).
+`[listName]` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag to pin the type or disambiguate. If invoked with no list name, the command prompts you to pick one (filtered by the type flag if given).
 
 ## Arguments
 
@@ -35,18 +35,18 @@ The admin site offers the same editor in the browser — see the [Change History
 | `--limit <n>`       | With `--show`: print only the newest `<n>` change sets (positive integer) |
 | `--output <format>` | Output format for `--show`: `text` (default), `json`, or `ndjson`         |
 
-`--show` prints its payload and the editor needs a terminal, so `history` registers no `--quiet` ([shared convention](/#scripting-conventions)).
+`--show` prints its payload and the editor needs a terminal, so `history` registers no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
 
 `--deck`, `--collection`, and `--wanted` are mutually exclusive. `--limit` and `--output json`/`ndjson` both require `--show`.
 
 ## Read-only output with `--show`
 
-`--show` skips the editor entirely and prints the change history newest-first, then exits. Nothing is ever written — not even the [card-ID backfill](/#the-card-id-backfill) that runs when the editor opens.
+`--show` skips the editor entirely and prints the change history newest-first, then exits. Nothing is ever written — not even the [card-ID backfill](/cli-conventions/#the-card-id-backfill) that runs when the editor opens.
 
 ```bash
-./ritual history my-deck --show
-./ritual history my-deck --show --limit 3
-./ritual history my-deck --show --output json
+ritual history my-deck --show
+ritual history my-deck --show --limit 3
+ritual history my-deck --show --output json
 ```
 
 Text output starts with a header line — `Change history for Deck 'my-deck' — 4 change set(s).` (the count is the full history, before any `--limit` truncation) — followed by each printed set: its timestamp and line count, then its raw change lines indented two spaces **verbatim**, including the leading `- ` and the `&N` card IDs, then any preserved hand-written lines attached to the set (see [Lossless editing](#lossless-editing)), indented the same way. A list with no recorded history prints `No change history recorded.` and still exits `0`.
@@ -79,7 +79,7 @@ With `--output json`, the payload is deliberately the same shape as the admin si
 - `header` — everything before the first change set in the `.changes.md` file.
 - `sets` — the change sets newest first (truncated to `--limit`), each `{ timestamp, lines, events }` with the raw `- ` lines verbatim and `events` the set's typed change events from its [`ritual-changes` block](/list-format/#the-changesmd-changelog) (one per line, in order; empty for a legacy entry that has no block), plus a `trailing` array when hand-written text follows the set's change lines (see [Lossless editing](#lossless-editing)). An empty history emits `"sets": []`.
 
-Because `--show` output is meant for scripts, invoking it without a `[listName]` when [prompts are unavailable](/#when-prompts-are-unavailable) is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
+Because `--show` output is meant for scripts, invoking it without a `[listName]` when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) is a usage error (exit `2`) rather than a hang — the interactive list picker only runs on a TTY.
 
 `--show` is also the only fork available to a script: the editor is interactive from its first screen, so running `history <list>` without `--show` when prompts are unavailable exits `2` (`Input required: the interactive history editor is unavailable …`) instead of rendering prompt UI and exiting `0` having changed nothing. For the same reason `--output json`/`ndjson` requires `--show`.
 
@@ -111,7 +111,7 @@ you just did, and the destructive rewrite below the harmless preview rather than
 
 ### List Resolution
 
-`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with a type flag. See [List Resolution](/commands/list-resolution/).
+`[listName]` is matched case- and accent-insensitively across all list types (exact name first, then a unique substring), and a name that exists in more than one type is rejected unless you pin it with a type flag. See [List Resolution](/list-resolution/).
 
 ### Combining sets
 
@@ -125,12 +125,12 @@ Hand-written text between change sets is preserved too: non-change lines are att
 
 ### Only the change log is modified
 
-Every action edits the `.changes.md` file alongside the list. The list's own `.md` file is never read for mutation (only "rewrite with defaults" reads it — and the categories sidecar beside it — to describe its current state) and never edited — the only write outside the changelog is the startup [card-ID backfill](/#the-card-id-backfill) noted above.
+Every action edits the `.changes.md` file alongside the list. The list's own `.md` file is never read for mutation (only "rewrite with defaults" reads it — and the categories sidecar beside it — to describe its current state) and never edited — the only write outside the changelog is the startup [card-ID backfill](/cli-conventions/#the-card-id-backfill) noted above.
 
 ## Exit Codes
 
-| Code | Meaning                                                                                                                                                                                                                                                   |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success (saved, discarded, or nothing to save; with `--show`, printed — even an empty history)                                                                                                                                                            |
-| `2`  | Usage error (conflicting type flags, ambiguous list name, `--limit` or `--output json`/`ndjson` without `--show`, or a run needing a prompt when [prompts are unavailable](/#when-prompts-are-unavailable) — the editor, or `--show` without a list name) |
-| `3`  | Not found (no matching list, or no lists at all)                                                                                                                                                                                                          |
+| Code | Meaning                                                                                                                                                                                                                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success (saved, discarded, or nothing to save; with `--show`, printed — even an empty history)                                                                                                                                                                            |
+| `2`  | Usage error (conflicting type flags, ambiguous list name, `--limit` or `--output json`/`ndjson` without `--show`, or a run needing a prompt when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) — the editor, or `--show` without a list name) |
+| `3`  | Not found (no matching list, or no lists at all)                                                                                                                                                                                                                          |

@@ -8,7 +8,7 @@ server and peer-to-peer cache feed.
 ## Usage
 
 ```bash
-./ritual cache <subcommand> [options]
+ritual cache <subcommand> [options]
 ```
 
 ## Subcommands
@@ -20,14 +20,14 @@ prompts, never downloads or refreshes anything, and exits `0` even when the
 cache is empty — branch on the `empty` field, not the exit code.
 
 ```bash
-./ritual cache status [--output text|json|ndjson]
+ritual cache status [--output text|json|ndjson]
 ```
 
 | Option              | Description                                          |
 | ------------------- | ---------------------------------------------------- |
 | `--output <format>` | Output format: `text` (default), `json`, or `ndjson` |
 
-The status report is the command's entire output, so there is no `--quiet` ([shared convention](/#scripting-conventions)).
+The status report is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting-conventions)).
 
 Text output is aligned `key: value` lines; `json`/`ndjson` emit an object with
 these fields:
@@ -52,7 +52,7 @@ The same report is available over HTTP as [`GET /api/cache/status`](/admin/api/#
 Preload all cards from a specific set into the cache.
 
 ```bash
-./ritual cache preload-set <setCode>
+ritual cache preload-set <setCode>
 ```
 
 | Argument    | Description                              | Required |
@@ -83,7 +83,7 @@ or `--source feed`, it syncs from a peer-to-peer [cache feed](#feed-fetch)
 instead, falling back to Scryfall when the feed is unreachable.
 
 ```bash
-./ritual cache preload-all [options]
+ritual cache preload-all [options]
 ```
 
 | Option              | Description                                                                                                                                          | Default                                          |
@@ -101,7 +101,7 @@ site's card search. An older cache built before this filtering existed still
 holds them; re-run `preload-all` to clear them out.
 
 A failed preload exits `1`. The same refresh over HTTP
-([`POST /api/cache/refresh`](/commands/admin/#post-apicacherefresh), and the MCP
+([`POST /api/cache/refresh`](/admin/api/#refresh-cache), and the MCP
 `refresh_cache` tool that reuses it) likewise **reports the failure** rather than
 answering success unconditionally, and honours cancellation from an in-process
 caller (the MCP tool): the download stops, nothing is written, the previous cache
@@ -160,7 +160,7 @@ larger card bulk rarely changes — so this is the fast way to keep tags current
 without re-downloading every card. A failed refresh exits `1`.
 
 ```bash
-./ritual cache refresh-tags
+ritual cache refresh-tags
 ```
 
 ### server
@@ -170,7 +170,7 @@ commands (on this or other machines) use it instead of their local cache files
 — see [Client configuration](#client-configuration).
 
 ```bash
-./ritual cache server [options]
+ritual cache server [options]
 ```
 
 | Option                        | Description                                                                                                    | Default                                                 |
@@ -198,7 +198,7 @@ Sharing the bulk data peer-to-peer puts daily load on Scryfall's servers once
 per group instead of once per machine.
 
 ```bash
-./ritual cache feed host --public-url https://feed.example.com
+ritual cache feed host --public-url https://feed.example.com
 ```
 
 | Option                 | Description                                                                                                      | Default                                                                          |
@@ -221,7 +221,7 @@ artifacts back to other peers — sharing is caring, and every seeder reduces
 the load on both Scryfall and the feed host. Press Ctrl+C to stop.
 
 ```bash
-./ritual cache feed fetch --url https://feed.example.com/feed.json
+ritual cache feed fetch --url https://feed.example.com/feed.json
 ```
 
 | Option                 | Description                                                                                     | Default                                          |
@@ -259,8 +259,8 @@ To make feed syncing the default for **all** of ritual's cache refreshes (the
 price refreshes), set the [`cacheSource` config key](/configuration/#cache-source):
 
 ```bash
-./ritual config set cacheSource feed
-./ritual config set cacheFeedUrl https://feed.example.com/feed.json
+ritual config set cacheSource feed
+ritual config set cacheFeedUrl https://feed.example.com/feed.json
 ```
 
 Refreshes then check the feed's infohashes instead of re-downloading from
@@ -426,7 +426,7 @@ root for clients, so it should be HTTPS. Peers additionally need the torrent
 TCP port (`--torrent-port`) reachable directly.
 
 ```bash
-./ritual cache feed host --torrent-port 6885 --public-url https://feed.example.com
+ritual cache feed host --torrent-port 6885 --public-url https://feed.example.com
 ```
 
 ## Exit Codes
@@ -443,49 +443,49 @@ TCP port (`--torrent-port`) reachable directly.
 Preload Kaldheim cards:
 
 ```bash
-./ritual cache preload-set khm
+ritual cache preload-set khm
 ```
 
 Cache all cards and tags:
 
 ```bash
-./ritual cache preload-all
+ritual cache preload-all
 ```
 
 Preload from a specific cache feed regardless of the configured source:
 
 ```bash
-./ritual cache preload-all --url https://feed.example.com/feed.json
+ritual cache preload-all --url https://feed.example.com/feed.json
 ```
 
 Refresh just the tags on an already-populated cache:
 
 ```bash
-./ritual cache refresh-tags
+ritual cache refresh-tags
 ```
 
 Check the cache's state from a script:
 
 ```bash
-./ritual cache status --output json
+ritual cache status --output json
 ```
 
 Start the cache server with weekly cards refresh and monthly prices refresh:
 
 ```bash
-./ritual cache server --cards-refresh weekly --prices-refresh monthly
+ritual cache server --cards-refresh weekly --prices-refresh monthly
 ```
 
 Use the cache server from another Ritual command:
 
 ```bash
-./ritual --cache-server 127.0.0.1:4000 price "My Deck"
+ritual --cache-server 127.0.0.1:4000 price "My Deck"
 ```
 
 Sync the cache from a feed without staying open to seed:
 
 ```bash
-./ritual cache feed fetch --url https://feed.example.com/feed.json --no-seed
+ritual cache feed fetch --url https://feed.example.com/feed.json --no-seed
 ```
 
 ## Notes

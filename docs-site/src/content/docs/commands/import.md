@@ -7,7 +7,7 @@ Import a deck from a URL, or a deck, collection, or wanted list from a local tex
 ## Usage
 
 ```bash
-./ritual import <source>
+ritual import <source>
 ```
 
 The source decides how the import runs:
@@ -30,7 +30,7 @@ rather than falling back to a file lookup. Only scheme-less input falls back
 to a local file path, so relative paths and file names containing dots keep
 working.
 
-CSV import is also available in the [admin site](/commands/admin/#import-csv) (**Import
+CSV import is also available in the [admin site](/admin/import/#import-csv) (**Import
 CSV** page) and as the [MCP](/commands/mcp/) `import_csv` tool, both backed by the same
 engine.
 
@@ -132,10 +132,10 @@ For URL and text-file imports:
   visible). Pass `--type` to import a collection or wanted list.
 - A name/ID conflict with an existing list fails with a usage error (exit code `2`) instead of
   prompting — pass `--overwrite` or `--yes` to replace the existing list. A name conflict is
-  judged by [list-name folding](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation),
+  judged by [list-name folding](/list-resolution/#names-that-would-collide-are-refused-at-creation),
   not by the file name alone, so importing `atraxa superfriends` beside `Atraxa Superfriends.md`
   is a conflict rather than a second, mutually-unaddressable list. The same error and
-  exit code apply whenever [prompts are unavailable](/#when-prompts-are-unavailable), including
+  exit code apply whenever [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including
   a plain piped run without `--no-input`.
 
 For CSV imports, prompts are unavailable — and every required value must come from a flag —
@@ -150,7 +150,7 @@ A scripted CSV run missing `--type`, `--name`, `--columns`, or (when creating a 
 
 Without `--no-input`, a run whose stdin is not a terminal fails with a usage error
 (exit code `2`) whenever a prompt would be required — the two causes are treated identically
-(see [when prompts are unavailable](/#when-prompts-are-unavailable)).
+(see [when prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)).
 
 The one deliberate exception is the missing-`--type` default above: it applies only under an
 explicit `--no-input`/`RITUAL_NO_INPUT`. A piped run without `--type` is a usage error, since
@@ -261,7 +261,7 @@ is already in the file.
 Run with no other flags to use the interactive wizard:
 
 ```bash
-./ritual import ./moxfield-export.csv
+ritual import ./moxfield-export.csv
 ```
 
 The wizard asks for the list type, a name (and deck format for decks), whether the first
@@ -285,14 +285,14 @@ and CSV. Under `--dry-run` the preview line says it instead
 payload carries `replacesExisting: true`.
 
 By default the import **creates** a new list and refuses to touch an existing one — including a
-list whose name merely [folds onto](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation)
+list whose name merely [folds onto](/list-resolution/#names-that-would-collide-are-refused-at-creation)
 the one being imported. Pass
 `--overwrite` to replace an existing list, or `--append` to add the cards to it
 (`--overwrite` and `--append` are mutually exclusive). `--yes` auto-answers an existing-file
 conflict with overwrite, like it does for URL and text-file imports. Interactively, when a
 list with the chosen name already exists, the wizard asks whether to append, overwrite, or
 cancel — cancelling exits `2` with `Cancelled.` on stderr. In a scripted run (see
-[when prompts are unavailable](/#when-prompts-are-unavailable), or any run with `--columns`)
+[when prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), or any run with `--columns`)
 the same conflict is a usage error (exit `2`) naming `--append`, `--overwrite`, and `--yes`.
 
 Appending:
@@ -330,7 +330,7 @@ neither line is printed.
 `--columns` takes a comma-separated list of `field=column` pairs with **1-based** column numbers:
 
 ```bash
-./ritual import cards.csv --type collection --name "Red Binder" \
+ritual import cards.csv --type collection --name "Red Binder" \
   --columns "name=1,set=2,collector-number=3,finish=4,condition=5,quantity=6"
 ```
 
@@ -388,70 +388,70 @@ Text-file imports behave the same way: a body line that is neither a section hea
 Import a deck from Archidekt:
 
 ```bash
-./ritual import https://archidekt.com/decks/12345
+ritual import https://archidekt.com/decks/12345
 ```
 
 Import a deck from Moxfield with an explicit user agent:
 
 ```bash
-./ritual import https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Import/1.0"
+ritual import https://moxfield.com/decks/abc123 --moxfield-user-agent "YourName Ritual Import/1.0"
 ```
 
 Import from a local text file (prompts for the list type):
 
 ```bash
-./ritual import ./decklist.txt
+ritual import ./decklist.txt
 ```
 
 Import a text file into a collection:
 
 ```bash
-./ritual import ./binder.txt --type collection
+ritual import ./binder.txt --type collection
 ```
 
 Import a text file into a wanted list without prompts:
 
 ```bash
-./ritual import ./wants.txt --type wanted --no-input
+ritual import ./wants.txt --type wanted --no-input
 ```
 
 Preview an import without writing files:
 
 ```bash
-./ritual import ./decklist.txt --dry-run --no-input
+ritual import ./decklist.txt --dry-run --no-input
 ```
 
 Interactive CSV import (wizard maps the columns):
 
 ```bash
-./ritual import ./moxfield-export.csv
+ritual import ./moxfield-export.csv
 ```
 
 Scripted CSV collection import:
 
 ```bash
-./ritual import binder.csv --type collection --name "Red Binder" \
+ritual import binder.csv --type collection --name "Red Binder" \
   --columns "name=1,set=2,collector-number=3,finish=4,condition=5,quantity=6"
 ```
 
 Scripted deck import from a headerless CSV:
 
 ```bash
-./ritual import burn.csv --type deck --name "Burn" --deck-format modern \
+ritual import burn.csv --type deck --name "Burn" --deck-format modern \
   --columns "quantity=1,name=2,section=3" --no-header
 ```
 
 Append new cards to an existing collection:
 
 ```bash
-./ritual import new-cards.csv --type collection --name "Red Binder" \
+ritual import new-cards.csv --type collection --name "Red Binder" \
   --columns "name=1,set=2,collector-number=3,quantity=4" --append
 ```
 
 Import a CSV that lacks the `.csv` extension:
 
 ```bash
-./ritual import export.txt --csv --type wanted --name "To Buy" --columns "name=1,quantity=2"
+ritual import export.txt --csv --type wanted --name "To Buy" --columns "name=1,quantity=2"
 ```
 
 ## Moxfield User-Agent Requirement

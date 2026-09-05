@@ -9,10 +9,10 @@ The edit is line-preserving: only the targeted card's line is rewritten (or move
 ## Usage
 
 ```bash
-./ritual set-card [listName] [cardName...] [options]
+ritual set-card [listName] [cardName...] [options]
 ```
 
-`[listName]` is resolved across all three list types (see [List Resolution](/commands/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list and then a card. Both prompts need a terminal with prompting enabled — when [prompts are unavailable](/#when-prompts-are-unavailable) (piped stdin, or `--no-input` / `RITUAL_NO_INPUT`), omitting `[listName]` or a card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting. At least one mutation flag is required.
+`[listName]` is resolved across all three list types (see [List Resolution](/list-resolution/)); pass a `--deck`, `--collection`, or `--wanted` flag (or a `deck:`/`collection:`/`wanted:` prefix on the name) to pin the type or disambiguate. If invoked with no list name, the command runs interactively, prompting you to pick a list and then a card. Both prompts need a terminal with prompting enabled — when [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (piped stdin, or `--no-input` / `RITUAL_NO_INPUT`), omitting `[listName]` or a card selector (`[cardName...]`/`--card-id`) exits with a usage error (code `2`) instead of prompting. At least one mutation flag is required.
 
 ## Arguments
 
@@ -54,38 +54,38 @@ Multiple mutation flags can be combined in one invocation; each is applied and r
 Change a card's finish:
 
 ```bash
-./ritual set-card --deck "My Deck" Sol Ring --finish foil
+ritual set-card --deck "My Deck" Sol Ring --finish foil
 ```
 
 Switch to a different printing (validated against the Scryfall cache):
 
 ```bash
-./ritual set-card --collection main "Lightning Bolt" --set 2xm --collector-number 157
+ritual set-card --collection main "Lightning Bolt" --set 2xm --collector-number 157
 ```
 
 Change the printing and finish together, targeting a specific entry:
 
 ```bash
-./ritual set-card --collection main --card-id 12 --set lea --collector-number 161 --finish nonfoil
+ritual set-card --collection main --card-id 12 --set lea --collector-number 161 --finish nonfoil
 ```
 
 Downgrade a collection card's condition:
 
 ```bash
-./ritual set-card --collection main "Mana Crypt" --condition LP
+ritual set-card --collection main "Mana Crypt" --condition LP
 ```
 
 Mark a copy as Japanese, or back to English (the token is removed — a bare line means English):
 
 ```bash
-./ritual set-card --collection main "Sol Ring" --language ja
-./ritual set-card --collection main "Sol Ring" --language en
+ritual set-card --collection main "Sol Ring" --language ja
+ritual set-card --collection main "Sol Ring" --language en
 ```
 
 Move a deck card to the sideboard section and capture JSON output:
 
 ```bash
-./ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --section Sideboard --output json
+ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --section Sideboard --output json
 ```
 
 The JSON payload is `{ type, list, cardName, cardId, applied, writtenFiles }` (plus `dryRun: true` under `--dry-run`), where `applied` is one entry per change made (e.g. `"printing → 2XM:157"`, `"finish → foil"`, `"condition → LP"`, `"language → ja (Japanese)"`, `"label → sale, trade"`, `"tags added → Card Draw, Ramp"`, `"tags removed → Ramp"`, `"categories → Ramp, Artifacts"`, `"categories cleared"`, `"custom art → proxies/sol-ring.jpg"`, `"section → Sideboard"`, `"commander"`, `"not commander"`).
@@ -95,7 +95,7 @@ The JSON payload is `{ type, list, cardName, cardId, applied, writtenFiles }` (p
 Make a card the deck's commander:
 
 ```bash
-./ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --commander
+ritual set-card --deck "My Deck" "Winota, Joiner of Forces" --commander
 ```
 
 ## Behavior
@@ -121,7 +121,7 @@ Validating `--finish` against an entry's **existing** printing is cache-only: no
 `--finish foil` and `--finish etched` require the line to name a printing. A deck or wanted-list line with no `(SET:CN)` has nothing for the token to describe, so the edit is a usage error (exit `2`) rather than a silently unvalidated write — pass `--set` and `--collector-number` in the same invocation to pin a printing and record the finish together:
 
 ```bash
-./ritual set-card --deck "My Deck" "Sol Ring" --set c19 --collector-number 221 --finish foil
+ritual set-card --deck "My Deck" "Sol Ring" --set c19 --collector-number 221 --finish foil
 ```
 
 `--finish nonfoil` is always accepted: it clears a finish token rather than asserting one, so a hand-written `[foil]` on a printing-less line can still be removed. Combining `--finish foil` with `--condition` is refused for the same reason — that pairing is recorded as a printing update, but it still writes the finish token.
@@ -141,10 +141,10 @@ Condition applies to decks and collections only (wanted-list entries never track
 `--label` sets the card's [label override](/commands/edit/#card-labels), and `--label none` clears it so the list's front-matter default applies again. Which labels the flag accepts depends on the list type: a **collection** takes the whole vocabulary (`sale` and `trade` combine as `sale,trade`; `keep` and `proxy` each stand alone), a **deck** takes `proxy` alone, and a **wanted list** carries no labels at all. A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports — it is never silently dropped. `--label` is also the only edit that can **repair** a line whose existing `[labels]` token the parser refuses (`[sale,keep]`, or a label the type does not carry): it replaces the token outright, while every other edit to that line refuses rather than dropping it silently.
 
 ```bash
-./ritual set-card --collection main "Sol Ring" --label keep
-./ritual set-card --collection main "Sol Ring" --label sale,trade
-./ritual set-card --deck "Winota Stax" "Sol Ring" --label proxy
-./ritual set-card --deck "Winota Stax" "Sol Ring" --label none
+ritual set-card --collection main "Sol Ring" --label keep
+ritual set-card --collection main "Sol Ring" --label sale,trade
+ritual set-card --deck "Winota Stax" "Sol Ring" --label proxy
+ritual set-card --deck "Winota Stax" "Sol Ring" --label none
 ```
 
 A `proxy` card is priced at zero everywhere and is excluded from buylist and sell reports — see [Proxies carry no price](/commands/edit/#proxies-carry-no-price).
@@ -154,10 +154,10 @@ A `proxy` card is priced at zero everywhere and is excluded from buylist and sel
 `--tag` adds [tags](/commands/edit/#card-tags) to the card's line and `--untag` removes them, on **every** list type. Either flag takes one or more tags **separated by commas** — spaces are part of a tag, so `--tag "Card Draw, Ramp"` is two tags — kept in the case you wrote them; a tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses, and one that does is rejected at parse time (exit `2`). Tags the line already carries are left alone: `--tag` never replaces the set and `--untag` removes only the tags it names. Only the tags that actually move are recorded — a `--tag` or `--untag` in which _nothing_ changed reports `tags unchanged (…)`, naming the tags you passed, instead of re-recording them. Naming the same tag in both flags is a usage error. Repeating a flag accumulates (`--tag ramp --tag staple` is `--tag ramp,staple`), and an empty value (`--tag ""`) is refused at parse time rather than read as a no-op — unlike the editor's tag prompt, where an empty field clears the tags. Tags are the owner's own vocabulary, unrelated to labels — a `Keep` tag is a legal tag with nothing to do with the `[keep]` label — and a deck's front-matter `tags:` key is a property of the deck, never of its cards.
 
 ```bash
-./ritual set-card --collection main "Sol Ring" --tag "ramp, staple"
-./ritual set-card --collection main "Sol Ring" --untag ramp
-./ritual set-card --deck "Winota Stax" "Sol Ring" --tag edh-staple
-./ritual set-card --wanted needs "Mox Ruby" --tag budget --untag reserved-list
+ritual set-card --collection main "Sol Ring" --tag "ramp, staple"
+ritual set-card --collection main "Sol Ring" --untag ramp
+ritual set-card --deck "Winota Stax" "Sol Ring" --tag edh-staple
+ritual set-card --wanted needs "Mox Ruby" --tag budget --untag reserved-list
 ```
 
 The line is rewritten with its tags in canonical order — `- Sol Ring (C21:240) #Card Draw, Ramp &1` — and each tag that actually changed is its own changelog line (`Added tag "Ramp" to "Sol Ring" &1`, `Removed tag "Staple" from "Sol Ring" &1`), so an add and a later remove of the same tag read as exactly that in the history.
@@ -171,9 +171,9 @@ The value is one or more categories **separated by commas** — spaces and case 
 Unlike `--tag`, the flag is a **whole-list replacement**: whatever the card had is replaced by what you pass. An empty value (`--categories ""`) is a usage error rather than a clear — `--no-categories` is the clear. Giving both flags in one command line is last-wins, Commander's own rule for a flag and its negation.
 
 ```bash
-./ritual set-card --deck "Winota Stax" "Sol Ring" --categories "Ramp, Artifacts"
-./ritual set-card --collection main "Rhystic Study" --categories Draw
-./ritual set-card --wanted needs "Mana Crypt" --no-categories
+ritual set-card --deck "Winota Stax" "Sol Ring" --categories "Ramp, Artifacts"
+ritual set-card --collection main "Rhystic Study" --categories Draw
+ritual set-card --wanted needs "Mana Crypt" --no-categories
 ```
 
 The card line is byte-identical afterwards — and when `--categories`/`--no-categories` is the run's **only** change, the list `.md` is not rewritten at all, so neither it nor its `.sha256` appears in `writtenFiles`. The assignment is written to the list's `<list>.categories.json` sidecar and its `.sha256` — both reported in `writtenFiles`, though the hash is refreshed only when it matched the sidecar before the write, so a hand-edited sidecar keeps its stale hash — and recorded in the changelog as `Set categories of "Sol Ring" to Ramp, Artifacts` or `Cleared categories of "Sol Ring"`. Because `set-categories` is a latest-wins whole-list event, it is recorded even when the new list equals the old.
@@ -191,9 +191,9 @@ This command never **prunes** the sidecar: an entry naming a card the list no lo
 - `none`, which removes whatever art the card carried.
 
 ```bash
-./ritual set-card --deck "Winota Stax" "Sol Ring" --art proxies/sol-ring.jpg
-./ritual set-card --collection main "Lightning Bolt" --art https://example.com/bolt.png
-./ritual set-card --wanted "My Wants" "Mana Crypt" --art none
+ritual set-card --deck "Winota Stax" "Sol Ring" --art proxies/sol-ring.jpg
+ritual set-card --collection main "Lightning Bolt" --art https://example.com/bolt.png
+ritual set-card --wanted "My Wants" "Mana Crypt" --art none
 ```
 
 A path is checked against the configured art directory **before** anything is written: a missing file is a `not_found` (exit `3`) naming both the absolute path that was checked and the art directory, an unreadable one a runtime error (exit `1`), and a directory a usage error. A malformed value (a backslash, an absolute path, a `..` escape, an extension that is not an image, a non-`http(s)` URL) is rejected by argument parsing itself, exit `2`.

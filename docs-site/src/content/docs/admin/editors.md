@@ -42,7 +42,7 @@ The list toolbar (shared with the public site pages) groups all card filters und
 - **Tags** — shown when the list's cards carry [tags](#card-tags) — your own card tags, not the Scryfall oracle/art rows; a tag input with the same **Include / Exclude / Exact** modes, defaulting to **Exact**. It commits on **commas only** (a space is part of a tag) and matches exactly, case-sensitively: `Ramp` and `ramp` are two tags — see [grouping, sorting and filtering by tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags)
 - **Labels** — label-carrying pages only; chips for **For Sale** / **For Trade** / **To Keep** / **Proxy** / **Unlabeled**, matched against each card's effective [labels](#card-labels). A deck page shows only the two chips a deck can answer, **Proxy** and **Unlabeled**; a wanted list shows the row not at all (see the public-site [filtering](/public-site/filtering/#available-filters) page for the selection rules)
 - **Mana Value** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against a non-negative value (0 is valid)
-- **Price** — shown while prices are displayed; a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price from the selected [price store](/public-site/price-sources/). The label carries the currency (**Price ($)**), and switching the store clears the field
+- **Price** — shown while prices are displayed; a comparison (`=`, `<`, `≤`, `>`, `≥`) against the card's price from the selected [price store](/public-site/prices/). The label carries the currency (**Price ($)**), and switching the store clears the field
 - **Copies** — a comparison (`=`, `<`, `≤`, `>`, `≥`) against how many total copies of the card the list holds, with a **Name / Number / Exact** toggle picking what counts as the same card (see [what counts as a copy](/public-site/filtering/#what-counts-as-a-copy))
 - **Buylist ($)** — sell mode only; a comparison against the buyer's per-copy offer, always in dollars
 - **Buylist** — sell mode only; chips for **On buylist** / **Not on buylist**, matched against whether the selected buyer is currently buying the card's printing — a paused offer counts as **Not on buylist** (see [sell mode](/public-site/sell/))
@@ -52,7 +52,7 @@ Filters combine, and the **Clear** action at the top of the panel resets everyth
 
 The toolbar also carries the [quick filter](/public-site/filtering/#quick-filter): start typing anywhere outside a field and a small **Quick filter** tab drops out of its bottom-right corner, holding the same **Name** filter as the panel. Empty it (or press Escape in it) and it goes away.
 
-When [sell mode](/public-site/sell/) is enabled, the toolbar also carries a **Sell mode** toggle and a buyer selector, and buylist prices, the Buylist filters, the buylist grouping and sorting, and the Card Kingdom cart export become available in the editors. It is **off by default** on the admin site too — enable it with the **Offer sell mode** checkbox on the [Settings](/commands/admin/#settings) page, with `ritual config set site.sellMode true`, or by starting the server as [`ritual admin --sell-mode`](/commands/admin/#sell-mode); with it off the toggle and buyer selector are not rendered at all, and the sell routes behind them answer `404` unless the `cardkingdom` [price store](/public-site/price-sources/) — which rides on the same feed — is enabled. Saving the checkbox applies at once: reopen an editor and the toggle is there (or gone), with no reload.
+When [sell mode](/public-site/sell/) is enabled, the toolbar also carries a **Sell mode** toggle and a buyer selector, and buylist prices, the Buylist filters, the buylist grouping and sorting, and the Card Kingdom cart export become available in the editors. It is **off by default** on the admin site too — enable it with the **Offer sell mode** checkbox on the [Settings](/admin/dashboard/#settings) page, with `ritual config set site.sellMode true`, or by starting the server as [`ritual admin --sell-mode`](/commands/admin/#sell-mode); with it off the toggle and buyer selector are not rendered at all, and the sell routes behind them answer `404` unless the `cardkingdom` [price store](/public-site/prices/) — which rides on the same feed — is enabled. Saving the checkbox applies at once: reopen an editor and the toggle is there (or gone), with no reload.
 
 The editors also follow the [`priceSources`](/configuration/#price-stores-pricesources) config: with both USD stores enabled their toolbar carries the same **Prices** source selector as the public site, and with an empty list their price displays hide entirely. Unlike the public site (which reads prices baked into its list data), the editors quote **live** against the admin's own API, so a card added mid-edit is priced immediately. Quotes come from the locally cached buylist. The first download is deliberate — the **Refresh Cache** page's _Refresh buylist_ button, or `ritual sell --refresh auto` — after which [`admin`](/commands/admin/) refreshes a day-old copy at startup and the button forces one mid-session. A button press that actually downloads a new feed also clears the quotes this browser session has already resolved, so an editor opened afterwards prices against the new feed rather than the one it had asked about before. See [Sell mode](/public-site/sell/).
 
@@ -123,7 +123,7 @@ Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar), 
 #### Step 1: Search
 
 - Type at least 2 characters to search (debounced — 500 ms by default, configurable via [`searchDebounceMs`](/configuration/#search-debounce))
-- What you type is split on whitespace and **every term must appear in the card name**, in any order — `in tre` finds "In the Trenches", `bolt light` finds "Lightning Bolt". Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"). This is the same matching the CLI prompts use. (The static [public site's editor](/commands/build-site/#editing-on-the-public-site) is the exception: it queries the Scryfall API directly, which matches the query as one plain contiguous string, so its results can differ. A public site [backed by a live API](/public-site/hosted/) gets this same term matching.)
+- What you type is split on whitespace and **every term must appear in the card name**, in any order — `in tre` finds "In the Trenches", `bolt light` finds "Lightning Bolt". Case, accents, and punctuation don't have to match (`jaces archivist` finds "Jace's Archivist"). This is the same matching the CLI prompts use. (The static [public site's editor](/public-site/editing/) is the exception: it queries the Scryfall API directly, which matches the query as one plain contiguous string, so its results can differ. A public site [backed by a live API](/public-site/hosted/) gets this same term matching.)
 - The closest matches lead: a name you have typed in full, then names your query prefixes, then names whose words your terms begin, then names matched mid-word
 - Results are keyboard navigable (↑/↓ arrows, Enter to select)
 - Hovering or navigating to a card shows a preview image of the cheapest printing
@@ -132,7 +132,7 @@ Click the **+ Add Card** button in the bottom [action bar](#editor-action-bar), 
 
 Choose a specific printing from the grid showing set, collector number, and price. In the Deck Editor and Wanted List Editor, you may also choose **No specific printing** to add without printing details.
 
-Prices follow the selected [price store](/public-site/price-sources/): the step carries its own **Prices** selector (the same one the list toolbar has, when both USD stores are enabled), each printing lists its alternate finishes underneath its main price, and the finish prices on the next step follow the same store. Card Kingdom quotes for printings no list carries are fetched from the admin API as the grid opens, so a printing the search just turned up is priced like any other.
+Prices follow the selected [price store](/public-site/prices/): the step carries its own **Prices** selector (the same one the list toolbar has, when both USD stores are enabled), each printing lists its alternate finishes underneath its main price, and the finish prices on the next step follow the same store. Card Kingdom quotes for printings no list carries are fetched from the admin API as the grid opens, so a printing the search just turned up is priced like any other.
 
 The grid navigates in two dimensions: **←**/**→** move to the previous/next printing, and **↑**/**↓** move a whole row up or down (the row width follows the grid's responsive column count). Moving past the printings shown on the current page pages the grid automatically. **Enter** selects the highlighted printing.
 
@@ -329,7 +329,7 @@ A bar pinned to the bottom of the editor holds all editing controls, from left t
 - **Categories** — opens the [Manage categories](#card-categories) dialog (all three editors)
 - **Labels** — opens the [Default Labels](#card-labels) modal (deck and collection editors)
 - **Cover Image…** — opens the [Cover Image](#cover-image) modal (all three editors)
-- **Import…** — loads an exported [change bundle](/commands/admin/#loading-changes-into-an-editor) as pending edits
+- **Import…** — loads an exported [change bundle](/admin/import/#loading-changes-into-an-editor) as pending edits
 - **Swap Printings…** — opens the [Swap Printings](#swap-printings) wizard over the whole list (deck and collection editors)
 - **Changes** — shows the pending-change count and opens the changes dialog
 - **Undo** — reverts the most recent change
@@ -354,6 +354,22 @@ nothing is written. Fix or remove it in the file and reload. The same content is
 in the editor's load, so the problem is visible before you start editing.
 
 ---
+
+### Moving Cards to Another List
+
+While editing a deck, collection, or wanted list you can move a card into another list without leaving the editor (this is separate from the dedicated **Move Cards** batch tool). A single **Move to list…** item appears in three places:
+
+- the per-card **⋯** context menu (moves that card),
+- the per-list **Selected** menu (moves the current multi-selection), and
+- the cross-list **All Selected** navbar menu (moves every selected card from its own list).
+
+Choosing **Move to list…** opens a small picker listing your other decks, collections, and wanted lists; pick one to set the destination. (The picker replaces the older layout that listed every destination as its own menu entry.)
+
+For the per-card and per-list **Selected** moves, choosing a destination removes the card from the list you're editing and **stages** a move. **When you Save, both lists are written**: the card is removed from the source (with a "Move … to …" changelog entry) and added to the destination (with a matching "Move … from …" entry). Moving a printing-less card into a collection — which requires a specific printing — opens a printing picker first.
+
+The editor's pending changes can also carry **incoming** moves — a `move-to` recording a copy that arrives in the list you're editing from another list (a printing swap that pulls a copy you own elsewhere, or a bundle loaded through **Import…**). Save handles these symmetrically: the copy is added here, **taken out of the source list** — by the source line id the change names when that line still holds the card, otherwise by the exact printing, otherwise (for a source line that pinned no printing, such as a wanted entry) by name — and both changelogs are written ("Move … from …" here, "Move … to …" on the source). A move from the **Swap Printings** wizard that gives one of this list's name-only lines a printing carries `replacesCardId` instead: the line is converted in place (keeping its `&N`) or, when only some of its copies are filled, split — no copy is added. Such a move may also carry a `replacement`, a printing added back to the source list in the section the departed line left and logged there as an `Added` line (see [Save Deck](/admin/api/#save-deck)). Every move, in either direction, is validated in memory before anything is written: a missing list, a source with no copy left to take, or a printing-less card headed into a collection fails the save with nothing written. A swap that leaves and enters the same other list stages both halves against one copy of its file. The moved copy’s tags and custom art follow it both ways.
+
+The cross-list **All Selected** move does not go through the editor's Save button: it is applied **immediately** and atomically across every affected file via `POST /api/move/selected` (each card moves from its own list to the chosen destination).
 
 ## Deck Editor
 

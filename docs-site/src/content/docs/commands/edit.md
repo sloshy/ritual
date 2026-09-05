@@ -14,7 +14,7 @@ or mirror a change across two lists, all in one session with one save at the end
 ## Usage
 
 ```bash
-./ritual edit [listName] [options]
+ritual edit [listName] [options]
 ```
 
 With no arguments, the editor starts at the [list selection menu](#the-list-selection-menu). Pass
@@ -50,17 +50,17 @@ printings. Options can be combined; `--collector` needs no sets of its own, sinc
 
 ## Opening a List Directly
 
-`./ritual edit <listName>` opens that list's editing session immediately, skipping the selection
+`ritual edit <listName>` opens that list's editing session immediately, skipping the selection
 menu. The name is resolved across all three list types with the shared
-[list resolution](/commands/list-resolution/) rules (case- and accent-insensitive, exact match
+[list resolution](/list-resolution/) rules (case- and accent-insensitive, exact match
 first, then a unique substring). Narrow the search with a type flag, or with a
 `deck:` / `collection:` / `wanted:` prefix on the name itself. The prefix supplies the type when no
 flag is given; a prefix that **contradicts** the flag is a usage error (exit `2`) naming both:
 
 ```bash
-./ritual edit Burn                # any list named Burn
-./ritual edit "To Buy" --wanted   # only wanted lists are searched
-./ritual edit collection:Binder   # prefix form of the same idea
+ritual edit Burn                # any list named Burn
+ritual edit "To Buy" --wanted   # only wanted lists are searched
+ritual edit collection:Binder   # prefix form of the same idea
 ```
 
 Once open, the session behaves exactly as if you had picked the list from the menu: the same
@@ -73,8 +73,8 @@ see [Exit Codes](#exit-codes).
 :::note
 The name is matched against the list's **file name** (without `.md`), like every other command. The
 selection menu, by contrast, shows decks by their **display name** (the `# Title` heading) — so a deck whose title differs from its file name is addressed here by the file name. A
-deck at `decks/old-burn.md` titled `Modern Burn` opens with `./ritual edit old-burn`, not
-`./ritual edit "Modern Burn"`.
+deck at `decks/old-burn.md` titled `Modern Burn` opens with `ritual edit old-burn`, not
+`ritual edit "Modern Burn"`.
 :::
 
 The session filters (sets, finish, condition, entry mode, and the deck target section) are shared
@@ -147,7 +147,7 @@ A new deck prompts for its [format](#deck-format) and is written with the same Y
 list type's file is named as the list is named — see
 [List file names](/commands/new/#list-file-names). A name with no usable file-name characters
 is rejected at the prompt, and so is a name that would
-[collide with an existing list](/commands/list-resolution/#names-that-would-collide-are-refused-at-creation)
+[collide with an existing list](/list-resolution/#names-that-would-collide-are-refused-at-creation)
 — including one that merely folds onto it, and including a list created earlier in the same session
 that has not been saved yet.
 
@@ -396,7 +396,7 @@ Set codes match on **substring** (so a half-typed code still finds its sets) and
 grammar filters the sites' printing pickers: the
 [add-card grid](/admin/editors/#step-2-select-printing) in both editors, the
 [Swap Printings wizard](/admin/editors/#swap-printings), and the
-[Trade Planner picker](/commands/build-site/#trade-planner).
+[Trade Planner picker](/public-site/trade/).
 
 - **Narrowing the pool** — The ordinary `⚙️ Configure Session Filters` set filter is what restricts
   collector mode to particular sets; changing it rebuilds the printing pool.
@@ -1149,33 +1149,33 @@ later parse can see.
 Start the editor at the list selection menu:
 
 ```bash
-./ritual edit
+ritual edit
 ```
 
 Jump straight into a list — a deck by file name, or any list with a type prefix:
 
 ```bash
-./ritual edit Burn
-./ritual edit collection:Binder
+ritual edit Burn
+ritual edit collection:Binder
 ```
 
 Cataloging session with defaults, hopping between a collection and a wanted list:
 
 ```bash
-./ritual edit --sets "FDN" --finish nonfoil --condition NM
+ritual edit --sets "FDN" --finish nonfoil --condition NM
 ```
 
 Build a deck's sideboard without per-card section prompts:
 
 ```bash
-./ritual edit --section Sideboard
+ritual edit --section Sideboard
 ```
 
 Collector-number entry, narrowed to two sets (the `--sets` filter is optional — without it the
 search covers every printing in the cache):
 
 ```bash
-./ritual edit --collector --sets "FDN, SPG"
+ritual edit --collector --sets "FDN, SPG"
 ```
 
 ## Exit Codes

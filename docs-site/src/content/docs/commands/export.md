@@ -8,22 +8,22 @@ Export any grouping of cards from your decks, collections, and wanted lists as *
 
 ```bash
 # Interactive wizard
-./ritual export
+ritual export
 
 # Everything, as JSON on stdout
-./ritual export --format json > all-cards.json
+ritual export --format json > all-cards.json
 
 # One deck to a CSV file with custom columns
-./ritual export deck:burn --out burn.csv --columns name,quantity,listName
+ritual export deck:burn --out burn.csv --columns name,quantity,listName
 
 # One flat decklist of everything you own
-./ritual export --collection --format text
+ritual export --collection --format text
 
 # Cherry-pick cards across lists, filtered
-./ritual export --card "sol ring" --card "lightning bolt" --finish foil
+ritual export --card "sol ring" --card "lightning bolt" --finish foil
 
 # A CSV ready for Archidekt's collection importer
-./ritual export --collection --preset archidekt --out archidekt.csv
+ritual export --collection --preset archidekt --out archidekt.csv
 ```
 
 ## Arguments
@@ -221,7 +221,7 @@ Precedence when exporting: built-in defaults → `--preset` values → explicit 
 Built-ins need no config and are always available to `--preset`; saving a preset of the same name shadows it for `ritual export` (the sync builds its own upload either way).
 
 ```bash
-./ritual export --collection --preset archidekt --out archidekt.csv
+ritual export --collection --preset archidekt --out archidekt.csv
 # 1b59533a-3e38-495d-873e-2f89fbd08494,2,Normal,NM,EN
 ```
 
