@@ -5,19 +5,19 @@ description: Every HTTP route the admin server exposes, shared by the admin site
 
 The admin server exposes an HTTP API under `/api/`. The admin site, the [MCP server](/commands/mcp/), and any client you write all use these same routes. Except where a route says otherwise, every request needs an authenticated session.
 
+The page opens with the conventions every route shares (response messages, error bodies, authentication), then documents one route per section in the order the server registers them.
+
 ## The message triple
 
-Every response body — success or refusal — carries user-facing prose as up to three fields:
+Every response body, success or refusal, carries user-facing prose as up to three fields:
 
-| Field           | Presence | Meaning                                                                                                                                                                                  |
-| --------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `message`       | always   | The sentence, rendered in **English**. What `curl`, scripts, and the MCP server read; it never follows the operator's UI locale.                                                         |
-| `messageKey`    | optional | The message-catalog key `message` was rendered from — locale-invariant, so a client may match on it instead of on prose. Absent when the handler has no catalog entry for that sentence. |
-| `messageParams` | optional | The parameters `messageKey` interpolates. Absent for a message that takes none.                                                                                                          |
+| Field           | Presence | Meaning                                                                                                                                                                                       |
+| --------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `message`       | always   | The sentence, rendered in **English**. This is what `curl`, scripts, and the MCP server read. It never follows the operator's UI locale.                                                      |
+| `messageKey`    | optional | The message-catalog key `message` was rendered from. It is locale-invariant, so a client may match on it instead of on prose. Absent when the handler has no catalog entry for that sentence. |
+| `messageParams` | optional | The parameters `messageKey` interpolates. Absent for a message that takes none.                                                                                                               |
 
-The pair is additive: a client that ignores it sees exactly what it always did. The admin SPA
-prefers it, which is what relabels an alert already on screen when the UI language changes without
-a round trip. Match on `messageKey`, never on the English text.
+The pair is additive. A client that ignores it sees exactly what it always did. The admin SPA prefers it, which is what relabels an alert already on screen when the UI language changes without a round trip. Match on `messageKey`, never on the English text.
 
 ## Error responses
 
@@ -32,14 +32,11 @@ Every route refuses a request with the same body, whatever the status:
 }
 ```
 
-`messageKey`/`messageParams` follow [the message triple](#the-message-triple) above — present on a
-keyed refusal, absent on one whose prose has no catalog entry.
+`messageKey` and `messageParams` follow [the message triple](#the-message-triple) above. They are present on a keyed refusal and absent on one whose prose has no catalog entry.
 
-`499` is the status any route answers when an **in-process** caller cancels the request part way —
-the MCP tools, on a client's `notifications/cancelled`. HTTP requests are never cancelled this way:
-closing the connection leaves the handler running to completion.
+`499` is the status any route answers when an **in-process** caller cancels the request part way, which the MCP tools do on a client's `notifications/cancelled`. HTTP requests are never cancelled this way. Closing the connection leaves the handler running to completion.
 
-A handful of routes carry extra fields on failure, and only where they are a wire contract rather than duplication: [Card Details](#card-details) adds `card: null`, [Card Search](#card-search) keeps its paging fields and an empty `cards` array, and [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) fold success and failure into one shape. A save that loses an optimistic-concurrency race additionally carries `conflict: true` with its `409`.
+A handful of routes carry extra fields on failure, and only where they are a wire contract rather than duplication. [Card Details](#card-details) adds `card: null`, [Card Search](#card-search) keeps its paging fields and an empty `cards` array, and [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) fold success and failure into one shape. A save that loses an optimistic-concurrency race additionally carries `conflict: true` with its `409`.
 
 ## Authentication
 
