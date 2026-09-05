@@ -175,7 +175,7 @@ Unlike the other type-specific rows, the two `🗂️` category rows appear on d
 
 `↩️ Undo Last Add` appears only after you have added at least one card this session, and `📋 View Session Changes` once the session has any change to show (see [Reviewing Session Changes](#reviewing-session-changes)). `🌐 Change Language` likewise needs a card to have been added, since it retargets that one card.
 
-While you are **adding** cards, typing narrows the menu rows along with the card suggestions, and past three characters (or a `:`) the rows step aside entirely. See [Menu Rows Step Aside](#name-mode-default).
+While you are **adding** cards, typing narrows the menu rows along with the card suggestions, and past three characters (or a `:`) the rows step aside entirely. See **Menu Rows Step Aside** under [Name Mode](#name-mode-default).
 
 Neither language row appears in [edit mode](#edit-mode). The session default only governs adds, and editing an existing entry's language is one of that entry's own actions there.
 
@@ -185,7 +185,7 @@ Neither language row appears in [edit mode](#edit-mode). The session default onl
 
 Changes accumulate **in memory per list**. Nothing is written to any file as you add or edit cards.
 
-A save re-serializes the whole list file in canonical form, so any line the parser could not read (prose, comments, malformed card lines) is dropped by the save, and so is a [fenced code block](#fenced-code-blocks), which the canonical form cannot express. Both are printed as warnings when the session loads the list, so check the session output before saving a hand-edited file, or run [`cleanup --check`](/commands/cleanup/) first to find them. For an edit that must leave such lines untouched, use the line-preserving one-shot commands: [`set-card`](/commands/set-card/), [`remove-card`](/commands/remove-card/), and [`note`](/commands/note/).
+A save re-serializes the whole list file in canonical form, so any line the parser could not read (prose, comments, malformed card lines) is dropped by the save, and so is a [fenced code block](/list-format/#fenced-code-blocks), which the canonical form cannot express. Both are printed as warnings when the session loads the list, so check the session output before saving a hand-edited file, or run [`cleanup --check`](/commands/cleanup/) first to find them. For an edit that must leave such lines untouched, use the line-preserving one-shot commands: [`set-card`](/commands/set-card/), [`remove-card`](/commands/remove-card/), and [`note`](/commands/note/).
 
 The save actions cover all open lists:
 
@@ -194,7 +194,7 @@ The save actions cover all open lists:
 
 The save-current item appears only when the list you are editing has anything unsaved **and** at least one other open list does too. When just one list has anything unsaved, saving all and saving the current list are the same thing, so a single `💾 Save N change(s) (keep editing)` item is shown, even when that one dirty list is not the one you are currently in. In a [multi-list mode](#multi-list-modes) there is no current list to single out, so the save-current item is never shown.
 
-The counts track card changes. Pending work that is not a card change (a changed [deck format](#deck-format), edited deck tags, or an edited list [default-labels block](#card-labels)) still surfaces the save items, but is left out of the counts. A list whose only pending work is such an edit shows count-less labels instead (`💾 Save changes (keep editing)`, `💾 Save current list changes`, `💾 Save all changes (M lists)`).
+The counts track card changes. Pending work that is not a card change (a changed [deck format](#deck-format), edited deck tags, or an edited list [default-labels block](/list-format/#default-labels-and-descriptions)) still surfaces the save items, but is left out of the counts. A list whose only pending work is such an edit shows count-less labels instead (`💾 Save changes (keep editing)`, `💾 Save current list changes`, `💾 Save all changes (M lists)`).
 
 Saving repeatedly in one session does **not** create a new changelog entry per save. Each list's later changes are folded into that list's existing entry (bumping its timestamp), so one editing session is always one changelog entry per list.
 
@@ -467,36 +467,13 @@ format: commander
 - 4 Lightning Bolt (LEA:161) &3
 ```
 
-The `# Title` heading names the deck, and each card line is a `- ` bullet followed by the card quantity. Non-foil finish, `NM` condition, and the English language are omitted (a non-English copy carries a `[ja]`-style token after the condition; see [Card Language](#card-language)). The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned. Decrementing a quantity keeps the ID; only removing the whole line releases it.
-
-The full line grammar is:
-
-```
-- <quantity> Card Name (SET:CN) [finish] [condition] [lang] [labels] #tags {note} &N
-```
-
-Everything after the quantity and name is optional, and `&N` is always last:
-
-```
-- 1 Sol Ring (LTC:284) [proxy] #Ramp &2
-- 4 Lightning Bolt (LEA:161) [foil] [LP] [ja] {playtest copies} &3
-```
-
-This is the canonical form every save writes. The reader is more lenient (bracket tokens in any order, an optional bullet, `4x` quantities, Arena/Moxfield `(SET) CN` printings), and the next save rewrites what it read into the form above. See [List Files](/list-format/) for the full grammar and the per-type token table.
-
-`[labels]` on a deck line is the card's [label override](#card-labels), and the only label a deck carries is `proxy`. A hand-written token a deck cannot carry (`[keep]`, `[sale,trade]`), or an illegal combination, is a parse warning: the card is kept, the labels are dropped. `#tags` are the card's [tags](#card-tags), any number of them.
+The `# Title` heading names the deck, and each card line is a `- ` bullet followed by the card quantity. Non-foil finish, `NM` condition, and the English language are omitted. The full line grammar, the tokens a deck line carries, what the reader tolerates, and the `&N` card IDs are on [List Files](/list-format/#card-lines).
 
 ## Collections
 
 ### Collection Files
 
-Each card entry is written to a markdown collection file in the `collections/` directory:
-
-```
-- Card Name (SET:CN) [finish] [condition] [lang] [labels] #tags {note} &N
-```
-
-For example:
+Each card entry is written to a markdown collection file in the `collections/` directory, one line per copy (see [List Files](/list-format/#card-lines) for the grammar). For example:
 
 ```
 - Sol Ring (C19:221) [foil] &1
@@ -504,9 +481,9 @@ For example:
 - Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
 ```
 
-Non-foil finish, the default `NM` condition, and the English language are omitted, matching deck lines. A "Don't Care" condition choice is treated as `NM` and therefore not written, and a bare line always means English (see [Card Language](#card-language)). The note is optional and can be added after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the generated site. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
+Non-foil finish, the default `NM` condition, and the English language are omitted, matching deck lines. A "Don't Care" condition choice is treated as `NM` and therefore not written. The note is optional and can be added after entry via the `📝 Add Note` menu option. Notes are displayed in the card detail modal on the generated site.
 
-The optional `[labels]` token is the card's **label override**. Collections carry the whole vocabulary (`sale` and `trade` combine as `[sale,trade]`, while `keep` and `proxy` each stand alone), and the rules are shared with decks; see [Card Labels](#card-labels). A [`ritual move`](/commands/move/) carries the override as far as the destination type can express it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow drops it in every case, since, like notes, the editor move events don't carry it. The optional `#tags` are the card's [tags](#card-tags): free-form, any number, on every list type.
+The optional `[labels]` token is the card's [label override](/list-format/#card-labels). A [`ritual move`](/commands/move/) carries the override as far as the destination type can express it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow drops it in every case, since, like notes, the editor move events don't carry it.
 
 ## Wanted Lists
 
@@ -519,13 +496,7 @@ A wanted card is name-only, pinned to a printing, or fully specified with a fini
 
 ### Wanted List Files
 
-Each card entry is written to a markdown file in the `wanted/` directory:
-
-```
-- Card Name (SET:CN) [finish] [lang] #tags {note} &N
-```
-
-For example:
+Each card entry is written to a markdown file in the `wanted/` directory, one line per copy. For example:
 
 ```
 - Sol Ring &1
@@ -536,11 +507,11 @@ For example:
 - Mox Ruby #Budget, Reserved List &6
 ```
 
-Any combination of set/collector number and finish can be omitted depending on the desired specificity level. Wanted lines carry no condition, and a `[ja]`-style token records a wanted non-English copy (see [Card Language](#card-language)). Wanted lines carry no labels, but they do carry [`#tags`](#card-tags). The note is optional. The `&N` suffix is a persistent card ID used internally for change tracking and is auto-assigned.
+Any combination of set/collector number and finish can be omitted depending on the desired [specificity level](#card-states). Wanted lines carry no condition and no labels, but do carry a [language](/list-format/#card-language) token, [tags](/list-format/#card-tags), and an optional note. See [List Files](/list-format/#which-tokens-each-type-accepts).
 
 ## Sections
 
-Collections and wanted lists can be split into named **sections** using `## Section Name` (H2) headers beneath the `# Title`. Cards are grouped under the header that precedes them. Cards before the first header (or in a section-less file) belong to an implicit **Main** section that is written out explicitly the next time the file is saved.
+Collections and wanted lists can be split into named **sections** with `## Section Name` (H2) headers beneath the `# Title`; see [Title and sections](/list-format/#title-and-sections).
 
 ```
 # My Binder
@@ -552,11 +523,7 @@ Collections and wanted lists can be split into named **sections** using `## Sect
 - Lightning Bolt (LEA:161) &2
 ```
 
-Section order is preserved as written. Cards added in an `edit` session go to the file's **last** section. On the generated site, a list with two or more sections defaults to grouping by section, and **Section** appears as a grouping option in the toolbar. Sections are managed from the [admin editors](/admin/editors/#sections); pricing commands ignore section headers.
-
-## Fenced Code Blocks
-
-A fenced code block in a list file is prose, never cards; see [Fenced code blocks](/list-format/#fenced-code-blocks). A session **warns on load and drops the block on the next save**, since the canonical form it writes cannot express one, so check the session output before saving a hand-edited file.
+Section order is preserved as written. Cards added in an `edit` session go to the file's **last** section. Sections are managed from the [admin editors](/admin/editors/#sections); pricing commands ignore section headers.
 
 ## Examples
 

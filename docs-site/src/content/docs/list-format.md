@@ -106,8 +106,8 @@ Set the default with [`ritual metadata set <list> labels …`](/commands/metadat
 How the block survives edits:
 
 - **Card-line saves round-trip the block byte-for-byte**, unknown hand-authored keys included. A block whose YAML cannot be read is carried verbatim with an advisory rather than rejected.
-- **A metadata edit re-dumps the YAML.** [`ritual metadata`](/commands/metadata/), the editor's `🏷️ Edit List Labels` action, the admin **Labels** button, and `set_list_metadata` all rewrite the block: every key and value survives, but comments and quoting style do not.
-- **The editor action refuses to run when the existing block's YAML cannot be read**, since a merge over keys it cannot see would clobber them. Fix the block by hand; every other session edit still carries it verbatim.
+- **A metadata edit re-dumps the YAML.** [`ritual metadata`](/commands/metadata/), the `edit` session's `🏷️ Edit List Labels` action, the admin **Labels** button, and `set_list_metadata` all rewrite the block: every key and value survives, but comments and quoting style do not.
+- **The `edit` session's action refuses to run when the existing block's YAML cannot be read**, since a merge over keys it cannot see would clobber them. Fix the block by hand; every other session edit still carries it verbatim.
 
 `description:` is written the same way, with [`ritual metadata`](/commands/metadata/), the admin/HTTP route, or `set_list_metadata`, and is the one key **every** list type carries. A wanted list carries `description:` and the cover [`image:`](/list-images/) (which [`set-list-image`](/commands/set-list-image/) writes) and nothing else of its own; any other block on one is preserved. A cover written from outside while an `edit` session is open is dropped by that session's next save, since the session re-emits the block it snapshotted when it opened.
 
@@ -254,7 +254,7 @@ Tags are the open-vocabulary counterpart of [labels](#card-labels). A label is a
 
 A tag is plain text. Spaces are fine (`Card Draw`) and its case is kept exactly as you wrote it (`Ramp` and `ramp` are two tags), but it cannot contain `#`, `,`, `&`, brackets, braces or parentheses, the line's own punctuation. A line's tags are written deduplicated and sorted. The `#` is file punctuation that marks where the tags start; the editors, the site and the changelog never show it.
 
-A deck's front-matter `tags:` key is a different thing entirely. It describes the **deck** (`ritual metadata set <deck> tags edh,budget`, or the session's `🔖 Edit Deck Tags` menu row) and never applies to any card. Only the `#tags` token on a card line holds card tags.
+A deck's front-matter `tags:` key is a different thing entirely. It describes the **deck** (`ritual metadata set <deck> tags edh,budget`, or the [`edit`](/commands/edit/#deck-format) session's `🔖 Edit Deck Tags` row) and never applies to any card. Only the `#tags` token on a card line holds card tags.
 
 Edit a card's tags with [`set-card --tag` / `--untag`](/commands/set-card/#tag-updates), [`add-card --tag`](/commands/add-card/), or the editors' tag dialogs ([`ritual edit`](/commands/edit/#card-tags), the [admin editors](/admin/editors/#card-tags)). However the set is edited, the change is recorded **one changelog event per tag** that actually changed (`Added tag "Ramp" to "Sol Ring" &2`, `Removed tag "Staple" from "Sol Ring" &2`), never as a whole-set replacement. An add and a remove of the same tag on the same card cancel out, so re-adding a tag you removed earlier in a session leaves no trace in the changelog.
 

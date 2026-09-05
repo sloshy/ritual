@@ -26,7 +26,7 @@ irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | i
   </TabItem>
 </Tabs>
 
-The installer puts the `ritual` binary in `~/.local/bin` and adds that directory to your `PATH`. Open a new shell and run `ritual --help` to check it worked.
+The installer puts the `ritual` binary on your `PATH` (`~/.local/bin` on macOS and Linux, `%LOCALAPPDATA%\Programs\ritual\bin` on Windows), adding the directory if it was not already there. Open a new shell and run `ritual --help` to check it worked.
 
 ### Prerelease Builds
 

@@ -66,7 +66,7 @@ ritual delete deck:"Trade Binder" --collection
 
 Commands that take **more than one** list cannot be scoped one argument at a time by a single whole-command flag, so the prefix is the mechanism their ambiguity errors suggest. That covers [`diff`](/commands/diff/)'s two sides, [`move`](/commands/move/)'s `--from`/`--to`, and the list arguments of [`export`](/commands/export/) and [`sell`](/commands/sell/). [`lists`](/commands/lists/) does not resolve a name at all, but accepts the same three flags to filter which types it enumerates.
 
-Single-type commands (`deck-sync`, `collection-sync`, `get-primer`, and the CSV importer) already know their type, so they never need a flag. They match names by the same case- and accent-insensitive, substring, ambiguity-aware rules, and their ambiguity errors always take the first row of the table below.
+Single-type commands (`deck-sync`, `collection-sync`, `get-primer`, and the CSV importer) already know their type, so they never need a flag. They match names by the same case- and accent-insensitive, substring, ambiguity-aware rules, and their ambiguity errors never suggest a type selector: they take the first row of the table below, or the second when the matching names fold together.
 
 ### What the ambiguity error advises
 
