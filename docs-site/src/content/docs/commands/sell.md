@@ -2,12 +2,12 @@
 title: 'sell'
 ---
 
-Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_singles) ("Sell us your cards") is currently paying for cards in your lists.
+Check what [Card Kingdom's buylist](https://www.cardkingdom.com/purchasing/mtg_singles) ("Sell us your cards") is currently paying for the cards in your lists.
 
-The report is built from Card Kingdom's public pricelist feed — one ~70 MB download covering their entire singles catalog, cached locally under `cache/cardkingdom.json` and considered fresh for a day (matching their daily regeneration). Every check after that is a purely local join: no scraping, no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/#sell-report), and [sell mode](/public-site/sell/) on the admin site and on published sites — so a quote is the same wherever you read it.
+The report is built from Card Kingdom's public pricelist feed: one ~70 MB download covering their entire singles catalog, cached locally under `cache/cardkingdom.json` and considered fresh for a day (matching their daily regeneration). Every check after that is a purely local join, with no scraping and no per-card requests. The same engine backs the [MCP](/commands/mcp/) `get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, and `refresh_buylist` tools, the [admin sell endpoints](/admin/api/#sell-report), and [sell mode](/public-site/sell/) on the admin site and on published sites, so a quote is the same wherever you read it.
 
 :::note[Not gated on `site.sellMode`]
-Every _other_ buylist surface — sell mode on the sites, the admin's sell routes and its startup buylist refresh, the buylist half of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode) — is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` (whose retail prices ride on the same feed). `ritual sell` is the exception: running it is itself the explicit request for Card Kingdom prices, so it downloads, refreshes, and quotes whatever that key says. Downloading a feed this way is also what a later `--sell-mode` build has to bake from.
+Every _other_ buylist surface is off unless [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom` (whose retail prices ride on the same feed): sell mode on the sites, the admin's sell routes and its startup buylist refresh, and the buylist half of [`cache preload-all`](/commands/cache/#the-buylist-rides-along-under-sell-mode). `ritual sell` is the exception. Running it is itself the explicit request for Card Kingdom prices, so it downloads, refreshes, and quotes whatever that key says. Downloading a feed this way is also what a later `--sell-mode` build has to bake from.
 :::
 
 ## Usage
@@ -22,7 +22,7 @@ ritual sell [list...] [options]
 | ----------- | ----------------------------------------------------------------------------------------------------------------- | -------- |
 | `[list...]` | Lists to check, of any type; `deck:`/`collection:`/`wanted:` prefixes disambiguate. Default: **every collection** | No       |
 
-Names resolve case- and accent-insensitively with a unique-substring fallback, like every list-taking command — see [List Resolution](/list-resolution/). With no arguments the report covers all collections (the lists that hold physically owned, sellable cards); `--deck` / `--collection` / `--wanted` switch the scope to every list of that type.
+Names resolve case- and accent-insensitively with a unique-substring fallback, like every list-taking command; see [List Names](/list-resolution/). With no arguments the report covers all collections, the lists that hold physically owned, sellable cards. `--deck` / `--collection` / `--wanted` switch the scope to every list of that type.
 
 ## Options
 
@@ -43,38 +43,38 @@ Names resolve case- and accent-insensitively with a unique-substring fallback, l
 
 Card Kingdom's feed links almost every product (99.5%) to its Scryfall card, so matching runs on the same identifiers your lists already pin:
 
-- An entry pinned to a printing (set + collector number — every collection entry) resolves through the card cache to that printing's Scryfall id, then to the CK product in the entry's finish. Foil, nonfoil, and etched copies of the same card are distinct CK products and are matched exactly.
+- An entry pinned to a printing (set + collector number, which every collection entry has) resolves through the card cache to that printing's Scryfall id, then to the CK product in the entry's finish. Foil, nonfoil, and etched copies of the same card are distinct CK products and are matched exactly.
 - When CK's feed lacks the Scryfall link (brand-new sets, some promos), a fallback matches CK's sku (`DSK-0136` ⇔ `DSK:136`) at the same finish.
-- An unpinned entry (deck or wanted lines without a printing) is quoted at the **best-paying** CK product across all printings of the name, so the report answers "what would CK pay if I sent the right copy". Such quotes carry `pinned: false`, report the quoted printing's set/collector number and finish (`ckFinish`), and — like any entry where several products matched — set `ambiguous`.
-- When you point it at a deck, sections classified as extras (maybeboard/token sections) are excluded, matching [`price`](/commands/price/); sideboards are included.
+- An unpinned entry (deck or wanted lines without a printing) is quoted at the **best-paying** CK product across all printings of the name, so the report answers "what would CK pay if I sent the right copy". Such quotes carry `pinned: false`, report the quoted printing's set/collector number and finish (`ckFinish`), and, like any entry where several products matched, set `ambiguous`.
+- When you point it at a deck, sections classified as extras (maybeboard/token sections) are excluded, matching [`price`](/commands/price/). Sideboards are included.
 
 Each entry lands in one of three states:
 
-- **buying** — CK lists an active offer: the cash price per Near Mint copy, capped at their buy quantity (`×2 of 4` means they'll take 2 of your 4).
-- **not buying** — the product exists on CK's list but their buy quantity is 0 (their feed keeps token prices on paused offers; those are not real quotes).
-- **no match** — no CK product was found, with a reason: the card cache has no printings for the name, the pinned printing isn't in the cache, the printing simply isn't in CK's catalog — or the entry is **non-English** (a `[ja]`-style [language token](/commands/edit/#card-language)): Card Kingdom's feed is English-only, so a foreign copy is reported as `no-match` with reason `non-english` rather than silently quoted at the English price.
+- **buying**: CK lists an active offer, the cash price per Near Mint copy, capped at their buy quantity (`×2 of 4` means they'll take 2 of your 4).
+- **not buying**: the product exists on CK's list but their buy quantity is 0. Their feed keeps token prices on paused offers, and those are not real quotes.
+- **no match**: no CK product was found, with a reason. The card cache has no printings for the name, the pinned printing isn't in the cache, the printing simply isn't in CK's catalog, or the entry is **non-English** (a `[ja]`-style [language token](/commands/edit/#card-language)). Card Kingdom's feed is English-only, so a foreign copy is reported as `no-match` with reason `non-english` rather than silently quoted at the English price.
 
-**[Proxies](/commands/edit/#card-labels) and [custom-art](/custom-art/) cards never enter the report at all.** An entry whose effective labels include `proxy`, and an entry the list's `.art.json` sidecar gives custom art, are both dropped before matching — neither is quoted, counted, or reported as a no-match: there is nothing to sell. It is the same rule pricing uses (no price, no quote, no sale). The drop happens before aggregation on purpose, so such a copy can never merge into an identical real one (the variant key is printing, finish, condition, and language — not labels or art) and offer the buyer a card that does not exist.
+**[Proxies](/commands/edit/#card-labels) and [custom-art](/custom-art/) cards never enter the report at all.** An entry whose effective labels include `proxy`, and an entry the list's `.art.json` sidecar gives custom art, are both dropped before matching. Neither is quoted, counted, or reported as a no-match: there is nothing to sell. It is the same rule pricing uses (no price, no quote, no sale). The drop happens before aggregation so that such a copy can never merge into an identical real one (the variant key is printing, finish, condition, and language, not labels or art) and offer the buyer a card that does not exist.
 
 Identical variant lines (same name, printing, finish, condition, and language, within a section) are aggregated first, so a playset spelled as four collection lines reports as one entry with quantity 4. Entries matching the same CK product draw down one shared buy-quantity budget, so several lists holding the same card never sum past CK's cap.
 
-Buy prices are Card Kingdom's **cash** quotes for **Near Mint** copies: played conditions are graded down on receipt, store credit typically pays more, and quotes change daily. Treat the report as a planning tool, not a locked-in offer.
+Buy prices are Card Kingdom's **cash** quotes for **Near Mint** copies. Played conditions are graded down on receipt, store credit typically pays more, and quotes change daily. Treat the report as a planning tool, not a locked-in offer.
 
 ## Feed Freshness
 
-The shared `--refresh <mode>` option governs two caches: the Scryfall card cache (needed to resolve printings; an empty one is an error, and `ask`/`auto` offer to download it) and the Card Kingdom feed itself. A missing feed downloads under `auto`, prompts under `ask` (default yes), and errors under `no-bulk`/`never`. A stale feed (older than a day, so quoting yesterday's offers) is redownloaded **without prompting** under both `ask` and `auto` — the same automatic treatment the Scryfall bulk cache gets, since consenting to the first download is what licenses keeping it current — and is used as-is under `no-bulk`/`never`. A failed download falls back to the stale feed when one exists.
+The shared `--refresh <mode>` option governs two caches: the Scryfall card cache (needed to resolve printings; an empty one is an error, and `ask`/`auto` offer to download it) and the Card Kingdom feed itself. A missing feed downloads under `auto`, prompts under `ask` (default yes), and errors under `no-bulk`/`never`. A stale feed (older than a day, so quoting yesterday's offers) is redownloaded **without prompting** under both `ask` and `auto`, the same automatic treatment the Scryfall bulk cache gets, since consenting to the first download is what licenses keeping it current. It is used as-is under `no-bulk`/`never`. A failed download falls back to the stale feed when one exists.
 
-As with every command, structured output (`json`, `ndjson`, `csv`) downgrades an unanswerable `ask` to `never` — which also opts out of the automatic stale-feed redownload, so `sell --output json` quotes from whatever is cached unless you pass `--refresh auto` — and under `never` card names resolve from the cache only. When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal) the `ask` prompts are declined — so a missing feed or an empty card cache exits `1` with the `--refresh auto` advice instead of hanging.
+As with every command, structured output (`json`, `ndjson`, `csv`) downgrades an unanswerable `ask` to `never`. That also opts out of the automatic stale-feed redownload, so `sell --output json` quotes from whatever is cached unless you pass `--refresh auto`, and under `never` card names resolve from the cache only. When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal) the `ask` prompts are declined, so a missing feed or an empty card cache exits `1` with the `--refresh auto` advice instead of hanging.
 
 ## Sell-Cart CSV Export
 
-`--output csv` renders the entries CK is buying as Card Kingdom's own [sell-cart CSV import format](https://www.cardkingdom.com/static/csvImport) — `card name, edition, foil, quantity`, data rows only (their importer expects no header row and prompts for column matching itself) — using CK's own listing title and edition spelling from the matched products, with quantities capped at their buy limits. A variant printing carries CK's variant note in parentheses, exactly as they title it (`Mishra's Factory (Autumn)`), so the row lands on that printing rather than the base one:
+`--output csv` renders the entries CK is buying as Card Kingdom's own [sell-cart CSV import format](https://www.cardkingdom.com/static/csvImport): `card name, edition, foil, quantity`, data rows only (their importer expects no header row and prompts for column matching itself). It uses CK's own listing title and edition spelling from the matched products, with quantities capped at their buy limits. A variant printing carries CK's variant note in parentheses, exactly as they title it (`Mishra's Factory (Autumn)`), so the row lands on that printing rather than the base one:
 
 ```bash
 ritual sell --min 0.25 --output csv --out to-sell.csv
 ```
 
-With nothing to sell the payload is empty rather than a lone header line. Upload the file on their CSV import page and the sell cart fills itself. Their importer caps one upload at 500 unique titles or 5,000 cards (the command warns when the file exceeds either), and the format cannot express etched foils — etched-quoted entries export as foil with a warning to adjust the cart by hand. The same rendering is available to other clients as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
+With nothing to sell the payload is empty rather than a lone header line. Upload the file on their CSV import page and the sell cart fills itself. Their importer caps one upload at 500 unique titles or 5,000 cards (the command warns when the file exceeds either), and the format cannot express etched foils, so etched-quoted entries export as foil with a warning to adjust the cart by hand. The same rendering is available to other clients as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
 
 ## Non-Interactive Output
 
@@ -92,7 +92,7 @@ ritual sell --sets dsk,fdn --min 0.50 --output json
 ritual sell --output ndjson
 ```
 
-`--output json` emits the full report payload (`feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, and grand totals, plus parser `warnings`); `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.
+`--output json` emits the full report payload (`feedCreatedAt`, `feedRetrievedAt`, the active `filters`, per-list summaries, every entry, and grand totals, plus parser `warnings`). `ndjson` emits one entry per line. Text reports sort each list's offers by value, best first.
 
 ## Exit Codes
 

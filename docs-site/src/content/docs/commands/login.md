@@ -2,7 +2,7 @@
 title: 'login'
 ---
 
-Login to a supported website to save authentication tokens for future requests, check the stored login, or clear it.
+Sign in to Archidekt so syncs and imports can use your account, check the stored login, or clear it.
 
 ## Usage
 
@@ -22,7 +22,7 @@ ritual login logout [--output <format>] [--quiet]
 
 ## `login archidekt`
 
-Interactively prompts for a username and password on a terminal. When a valid session already exists, the command reports it and exits without prompting (use `--force-login` to login again anyway).
+Prompts for a username and password on a terminal. When a valid session already exists, the command reports it and exits without prompting. Use `--force-login` to log in again anyway.
 
 ### Options
 
@@ -34,7 +34,7 @@ Interactively prompts for a username and password on a terminal. When a valid se
 
 ### Non-Interactive Login
 
-For scripts and agents, pass `--username` together with `--password-stdin` and pipe the password on stdin — no prompts are shown, and explicit credentials always perform a fresh login:
+For scripts and agents, pass `--username` together with `--password-stdin` and pipe the password on stdin. No prompts are shown, and explicit credentials always perform a fresh login:
 
 ```bash
 printf '%s' "$ARCHIDEKT_PASSWORD" | ritual login archidekt --username myuser --password-stdin
@@ -52,7 +52,7 @@ Passing only one of the two flags is a usage error (exit code `2`), as is an emp
 
 ## `login status`
 
-Reports whether an Archidekt login is stored, for which user, and — the question a script is really asking — whether the next sync will authenticate with it. Never touches the network: the validity comes from the stored tokens' own `exp` claims.
+Reports whether an Archidekt login is stored, for which user, and whether the next sync will authenticate with it, which is the question a script is really asking. It never touches the network. The validity comes from the stored tokens' own `exp` claims.
 
 An expired **access** token is not a problem on its own; it is refreshed automatically on the next request. Only when the **refresh** token has expired too does the session need a fresh `login archidekt`, which is what `loginRequired` reports.
 
@@ -103,7 +103,7 @@ ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
 
 ## `login logout`
 
-Deletes the stored Archidekt token file. Reports the username that was logged out, or that there was nothing to clear; both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation line while still emitting the structured payload under `--output json`/`ndjson`.
+Deletes the stored Archidekt token file. It reports the username that was logged out, or that there was nothing to clear. Both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation line while still emitting the structured payload under `--output json`/`ndjson`.
 
 ```bash
 ritual login logout

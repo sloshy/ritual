@@ -12,27 +12,13 @@ ritual import <source>
 
 The source decides how the import runs:
 
-- **URL** — a deck URL from a supported service (Archidekt, Moxfield, MTGGoldfish). URL
-  imports always create decks — importing a collection or wanted list from a URL is not
-  supported.
-- **CSV file** — a path ending in `.csv` (case-insensitive), or any file with the `--csv`
-  flag. An interactive setup wizard maps the CSV's columns to card fields, and prints the
-  equivalent flag-only command so the same import can be scripted. See
-  [CSV Imports](#csv-imports).
-- **Text file** — any other path. `import` asks whether the cards are a deck, a collection,
-  or a wanted list (pass `--type` to skip the prompt).
+- **URL**: a deck URL from a supported service (Archidekt, Moxfield, MTGGoldfish). URL imports always create decks. Importing a collection or wanted list from a URL is not supported.
+- **CSV file**: a path ending in `.csv` (case-insensitive), or any file with the `--csv` flag. An interactive setup wizard maps the CSV's columns to card fields, and prints the equivalent flag-only command so the same import can be scripted. See [CSV Imports](#csv-imports).
+- **Text file**: any other path. `import` asks whether the cards are a deck, a collection, or a wanted list (pass `--type` to skip the prompt).
 
-The scheme is optional for supported deck sites: `archidekt.com/decks/12345`
-is treated as `https://archidekt.com/decks/12345`. A source with an explicit
-scheme (`https://`, `http://`, etc.) is always treated as a URL — an
-unsupported host fails with an "URL not supported" usage error (exit code 2)
-rather than falling back to a file lookup. Only scheme-less input falls back
-to a local file path, so relative paths and file names containing dots keep
-working.
+The scheme is optional for supported deck sites: `archidekt.com/decks/12345` is treated as `https://archidekt.com/decks/12345`. A source with an explicit scheme (`https://`, `http://`, etc.) is always treated as a URL, and an unsupported host fails with an "URL not supported" usage error (exit code 2) rather than falling back to a file lookup. Only scheme-less input falls back to a local file path, so relative paths and file names containing dots keep working.
 
-CSV import is also available in the [admin site](/admin/import/#import-csv) (**Import
-CSV** page) and as the [MCP](/commands/mcp/) `import_csv` tool, both backed by the same
-engine.
+CSV import is also available in the [admin site](/admin/import/#import-csv) (**Import CSV** page) and as the [MCP](/commands/mcp/) `import_csv` tool, both backed by the same engine.
 
 ## Arguments
 
@@ -60,101 +46,51 @@ engine.
 | `--output <format>`             | all        | Output format: `text` (default), `json`, or `ndjson`                                                                                                                                                                                                                    |
 | `--quiet`                       | all        | Suppress progress and confirmation lines on every source kind (URL, text, CSV). Never suppressed: the structured payload, errors, the conflict messages and prompt, the `Overwriting <file>...` notice, advisories, the header-row warning, and the skipped-line report |
 
-Flags are validated against the resolved source: a CSV-only flag on a URL or text-file
-import, or `--moxfield-user-agent` / `--sync-printings` / `--no-sync-printings` on a CSV
-**or text-file** import, fails with a usage error (exit code `2`) naming the offending
-flag. Those three only apply to URL imports — a local file's printings are the file's
-own data.
+Flags are validated against the resolved source. A CSV-only flag on a URL or text-file import, or `--moxfield-user-agent` / `--sync-printings` / `--no-sync-printings` on a CSV **or text-file** import, fails with a usage error (exit code `2`) naming the offending flag. Those three only apply to URL imports; a local file's printings are the file's own data.
 
 ## Printings from a URL import
 
-Archidekt and Moxfield state each card's exact printing — set code, collector number,
-and foil/etched finish — and keeping that is a choice, the same one
-[`deck-sync --sync-printings`](/commands/deck-sync/#printing-sync---sync-printings)
-makes explicit:
+Archidekt and Moxfield state each card's exact printing: set code, collector number, and foil/etched finish. Keeping that is a choice, the same one [`deck-sync --sync-printings`](/commands/deck-sync/#printing-sync---sync-printings) makes explicit:
 
-- **Neither flag** — the import asks
-  (`Import the exact printings (set, collector number, and finish) the source lists?`,
-  default yes). Declining writes bare card names (`1 Sol Ring` instead of
-  `1 Sol Ring (LTC:284) [foil]`); sections and everything else are unaffected, and
-  cards that differed only by printing collapse into one line with their quantities
-  summed. A deck whose entries state no printing at all (MTGGoldfish) has nothing
-  to decide and never asks. `--output json`/`ndjson` cannot host the prompt, so with
-  neither flag such a run is refused; the emitted payload records the decision as
-  `syncPrintings` on URL imports.
-- **`--sync-printings`** — keep them, without asking.
-- **`--no-sync-printings`** — drop them, without asking. Good for scripted runs and
-  agent tooling that must not block on a prompt.
-- **`--no-input`** (with neither flag) — keeps the printings, the command's historical
-  behavior, and says so:
-  `Keeping the exact printings the source lists (pass --no-sync-printings to import bare card names).`
-  Without a terminal and without `--no-input`, the unanswerable prompt is a usage error
-  naming both flags.
+- **Neither flag**: the import asks (`Import the exact printings (set, collector number, and finish) the source lists?`, default yes). Declining writes bare card names (`1 Sol Ring` instead of `1 Sol Ring (LTC:284) [foil]`). Sections and everything else are unaffected, and cards that differed only by printing collapse into one line with their quantities summed. A deck whose entries state no printing at all (MTGGoldfish) has nothing to decide and never asks. `--output json`/`ndjson` cannot host the prompt, so with neither flag such a run is refused. The emitted payload records the decision as `syncPrintings` on URL imports.
+- **`--sync-printings`**: keep them, without asking.
+- **`--no-sync-printings`**: drop them, without asking. Good for scripted runs and agent tooling that must not block on a prompt.
+- **`--no-input`** (with neither flag): keeps the printings, the command's historical behavior, and says so: `Keeping the exact printings the source lists (pass --no-sync-printings to import bare card names).` Without a terminal and without `--no-input`, the unanswerable prompt is a usage error naming both flags.
 
-[`import-account`](/commands/import-account/) takes the same pair of flags, asked once
-for the whole run. The admin site's Import Deck page has the same choice as a checkbox
-(ticked by default), and the MCP `import_deck` tool requires a `syncPrintings` boolean
-on every URL import.
+[`import-account`](/commands/import-account/) takes the same pair of flags, asked once for the whole run. The admin site's Import Deck page has the same choice as a checkbox (ticked by default), and the MCP `import_deck` tool requires a `syncPrintings` boolean on every URL import.
 
-`-y, --yes` answers the overwrite confirmation on conflicts — for that purpose it is
-equivalent to `--overwrite`. Neither flag disables prompting; use the global `--no-input`
-for headless runs.
+`-y, --yes` answers the overwrite confirmation on conflicts. For that purpose it is equivalent to `--overwrite`. Neither flag disables prompting; use the global `--no-input` for headless runs.
 
-Cancelling any interactive prompt — the conflict prompt's **Cancel**, the list-type
-prompt, the [printings prompt](#printings-from-a-url-import), or any step of the CSV
-wizard — aborts the import with `Cancelled.` on stderr and exit code `2`; in JSON modes
-nothing is written to stdout.
+Cancelling any interactive prompt (the conflict prompt's **Cancel**, the list-type prompt, the [printings prompt](#printings-from-a-url-import), or any step of the CSV wizard) aborts the import with `Cancelled.` on stderr and exit code `2`. In JSON modes nothing is written to stdout.
 
 ## Dry Runs
 
-`-n, --dry-run` previews an import: the source is fetched or read, every card is resolved
-and validated, and the summary reports exactly what would be written — but **nothing on
-disk changes**. That includes directories: a dry run does not create the `decks/`,
-`collections/`, or `wanted/` directory it would have written into, so previewing an import
-in a fresh directory leaves that directory holding only the file you imported from.
+`-n, --dry-run` previews an import. The source is fetched or read, every card is resolved and validated, and the summary reports exactly what would be written, but **nothing on disk changes**. That includes directories: a dry run does not create the `decks/`, `collections/`, or `wanted/` directory it would have written into, so previewing an import in a fresh directory leaves that directory holding only the file you imported from.
 
-A dry run that would replace an existing list says so rather than reading like a fresh
-create: `[dry-run] Would overwrite deck: <path>` (or `[dry-run] Would overwrite
-collection: <path>`) in place of `[dry-run] Would save deck to: <path>`, and the JSON
-payload's `action` is `overwritten`.
+A dry run that would replace an existing list says so rather than reading like a fresh create: `[dry-run] Would overwrite deck: <path>` (or `[dry-run] Would overwrite collection: <path>`) in place of `[dry-run] Would save deck to: <path>`, and the JSON payload's `action` is `overwritten`.
 
-Warnings still surface and still affect the exit code — see
-[Partial Failures](#partial-failures).
+Warnings still surface and still affect the exit code. See [Partial Failures](#partial-failures).
 
 ## Scripting Without Prompts
 
-The global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) is the headless
-switch: with it, `import` never prompts.
+The global `--no-input` flag (or the `RITUAL_NO_INPUT` environment variable) is the headless switch. With it, `import` never prompts.
 
 For URL and text-file imports:
 
-- A text file import without `--type` defaults to a **deck** (logged, so the defaulting is
-  visible). Pass `--type` to import a collection or wanted list.
-- A name/ID conflict with an existing list fails with a usage error (exit code `2`) instead of
-  prompting — pass `--overwrite` or `--yes` to replace the existing list. A name conflict is
-  judged by [list-name folding](/list-resolution/#names-that-would-collide-are-refused-at-creation),
-  not by the file name alone, so importing `atraxa superfriends` beside `Atraxa Superfriends.md`
-  is a conflict rather than a second, mutually-unaddressable list. The same error and
-  exit code apply whenever [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including
-  a plain piped run without `--no-input`.
+- A text file import without `--type` defaults to a **deck** (logged, so the defaulting is visible). Pass `--type` to import a collection or wanted list.
+- A name/ID conflict with an existing list fails with a usage error (exit code `2`) instead of prompting. Pass `--overwrite` or `--yes` to replace the existing list. A name conflict is judged by [list-name folding](/list-resolution/#names-that-would-collide-are-refused-at-creation), not by the file name alone, so importing `atraxa superfriends` beside `Atraxa Superfriends.md` is a conflict rather than a second, mutually-unaddressable list. The same error and exit code apply whenever [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including a plain piped run without `--no-input`.
 
-For CSV imports, prompts are unavailable — and every required value must come from a flag —
-when any of the following holds:
+For CSV imports, prompts are unavailable, and every required value must come from a flag, when any of the following holds:
 
 - prompts are disabled globally (`--no-input` or `RITUAL_NO_INPUT`),
 - stdin is not a terminal (piped or redirected input), or
 - `--columns` is given (an explicit mapping means the import is scripted).
 
-A scripted CSV run missing `--type`, `--name`, `--columns`, or (when creating a deck)
-`--deck-format` fails with a usage error (exit code `2`) instead of prompting.
+A scripted CSV run missing `--type`, `--name`, `--columns`, or (when creating a deck) `--deck-format` fails with a usage error (exit code `2`) instead of prompting.
 
-Without `--no-input`, a run whose stdin is not a terminal fails with a usage error
-(exit code `2`) whenever a prompt would be required — the two causes are treated identically
-(see [when prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)).
+Without `--no-input`, a run whose stdin is not a terminal fails with a usage error (exit code `2`) whenever a prompt would be required. The two causes are treated identically (see [when prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)).
 
-The one deliberate exception is the missing-`--type` default above: it applies only under an
-explicit `--no-input`/`RITUAL_NO_INPUT`. A piped run without `--type` is a usage error, since
-nothing said which list type was intended.
+The one exception is the missing-`--type` default above. It applies only under an explicit `--no-input`/`RITUAL_NO_INPUT`. A piped run without `--type` is a usage error, since nothing said which list type was intended.
 
 ## JSON Output
 
@@ -173,16 +109,7 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
 }
 ```
 
-`action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution).
-`warnings` lists any text-file lines the parser skipped (always empty for URL imports);
-a non-empty array means content was lost and the command exits `1` (see
-[Partial Failures](#partial-failures)). `advisories` lists content that **was** read but is
-worth a word — a card name still carrying a printing token, a skipped Arena `About` line, or
-an empty extras section (`## Maybeboard`, `## Tokens`) the write drops because it holds
-nothing; advisories print on stderr (even under `--quiet`) and never change the exit code, so
-a file whose only oddity is a bare `## Maybeboard` imports cleanly and exits `0`. A URL
-import's payload additionally carries `syncPrintings` — whether the written deck kept the
-[exact printings the source listed](#printings-from-a-url-import).
+`action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution). `warnings` lists any text-file lines the parser skipped (always empty for URL imports). A non-empty array means content was lost and the command exits `1` (see [Partial Failures](#partial-failures)). `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped Arena `About` line, or an empty extras section (`## Maybeboard`, `## Tokens`) the write drops because it holds nothing. Advisories print on stderr (even under `--quiet`) and never change the exit code, so a file whose only oddity is a bare `## Maybeboard` imports cleanly and exits `0`. A URL import's payload additionally carries `syncPrintings`, whether the written deck kept the [exact printings the source listed](#printings-from-a-url-import).
 
 A CSV import emits a structured result instead:
 
@@ -199,17 +126,7 @@ A CSV import emits a structured result instead:
 }
 ```
 
-`imported` counts copies written, `failures` lists the rejected rows by CSV line number, and
-`mode` is the resolved `create`/`overwrite`/`append`. `replacesExisting` is `true` when the
-import replaced — or, under `--dry-run`, would replace — a list that already existed.
-`advisories` carries non-fatal notices about rows that **did** import: category values the
-grammar refused, category values that named a board and became the row's section, and a
-categories sidecar that could not be written. In text mode the same notices print on stderr as
-`Warning: ...` (even under `--quiet`), and they never change the exit code. (A CSV import has
-no `warnings` key — on a URL or text-file import that name means content was **lost**, which
-exits `1`.) Errors are emitted on stderr as
-`{ "error": { "code", "message" } }` in JSON modes. A partial failure still exits `1` even
-though the payload was emitted (see [Partial Failures](#partial-failures)).
+`imported` counts copies written, `failures` lists the rejected rows by CSV line number, and `mode` is the resolved `create`/`overwrite`/`append`. `replacesExisting` is `true` when the import replaced (or, under `--dry-run`, would replace) a list that already existed. `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. In text mode the same notices print on stderr as `Warning: ...` (even under `--quiet`), and they never change the exit code. A CSV import has no `warnings` key; on a URL or text-file import that name means content was **lost**, which exits `1`. Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes. A partial failure still exits `1` even though the payload was emitted (see [Partial Failures](#partial-failures)).
 
 ## Supported Sources
 
@@ -223,38 +140,22 @@ though the payload was emitted (see [Partial Failures](#partial-failures)).
 
 ### Printings from URL Imports
 
-Archidekt and Moxfield state which printing each card in the deck is, and keeping that
-is a choice — see [Printings from a URL import](#printings-from-a-url-import). When kept,
-the line is written as `1 Sol Ring (C19:221)`, with `[foil]` or `[etched]` when the source
-says so, carried through exactly as the source states it — nothing is verified against
-Scryfall, the same trust level as a CSV import. Cards of the same printing in one section
-merge into a single line; different printings of the same card stay separate lines.
+Archidekt and Moxfield state which printing each card in the deck is, and keeping that is a choice; see [Printings from a URL import](#printings-from-a-url-import). When kept, the line is written as `1 Sol Ring (C19:221)`, with `[foil]` or `[etched]` when the source says so, carried through exactly as the source states it. Nothing is verified against Scryfall, the same trust level as a CSV import. Cards of the same printing in one section merge into a single line; different printings of the same card stay separate lines.
 
 MTGGoldfish deck pages carry no printing data, so those imports remain name-only.
 
 ## Deck Format
 
-A deck imported from a URL or text file is written with a `format:` in its front matter
-**when one can be established** — otherwise the deck is written without a `format:`, which
-you can add later by editing the file's front matter.
+A deck imported from a URL or text file is written with a `format:` in its front matter **when one can be established**. Otherwise the deck is written without a `format:`, which you can add later by editing the file's front matter.
 
 A format is established in one of two ways:
 
-1. **The source reports it.** Archidekt and Moxfield do, and the reported format is mapped
-   onto Ritual's format keys (Archidekt's "Commander / EDH" and Moxfield's `commander` both
-   become `commander`). A format Ritual does not model (Archidekt's "Custom", Moxfield's
-   `none`) counts as not reported.
-2. **The deck's sections imply it.** Inference only recognizes a command zone: a
-   `## Commander` section means Commander, and an `## Oathbreaker` section means
-   Oathbreaker. Nothing else is inferred — a plain `Main`/`Sideboard` text decklist imports
-   with **no** `format:`.
+1. **The source reports it.** Archidekt and Moxfield do, and the reported format is mapped onto Ritual's format keys (Archidekt's "Commander / EDH" and Moxfield's `commander` both become `commander`). A format Ritual does not model (Archidekt's "Custom", Moxfield's `none`) counts as not reported.
+2. **The deck's sections imply it.** Inference only recognizes a command zone: a `## Commander` section means Commander, and an `## Oathbreaker` section means Oathbreaker. Nothing else is inferred. A plain `Main`/`Sideboard` text decklist imports with **no** `format:`.
 
-MTGGoldfish reports no format, so a MTGGoldfish import gets a format only through
-inference. See [new](/commands/new/#deck-format) for the full list of format keys.
+MTGGoldfish reports no format, so a MTGGoldfish import gets a format only through inference. See [new](/commands/new/#deck-format) for the full list of format keys.
 
-CSV rows carry no sections to infer from, so creating a deck from a CSV requires an explicit
-`--deck-format` (or the wizard's format prompt). Appending to a deck does not — the format
-is already in the file.
+CSV rows carry no sections to infer from, so creating a deck from a CSV requires an explicit `--deck-format` (or the wizard's format prompt). Appending to a deck does not, since the format is already in the file.
 
 ## CSV Imports
 
@@ -264,36 +165,15 @@ Run with no other flags to use the interactive wizard:
 ritual import ./moxfield-export.csv
 ```
 
-The wizard asks for the list type, a name (and deck format for decks), whether the first
-row is a header, and which column holds each card field. Every import requires a name, and
-creating a deck also requires a deck format; in a scripted run pass `--name` (and
-`--deck-format`).
+The wizard asks for the list type, a name (and deck format for decks), whether the first row is a header, and which column holds each card field. Every import requires a name, and creating a deck also requires a deck format. In a scripted run pass `--name` (and `--deck-format`).
 
 ### Create, Overwrite, or Append
 
-In a **deck**, rows naming the same card **and** the same printing merge into one line with
-the quantities summed — in create/overwrite mode as well as append, so the same file
-produces the same list either way. A different printing (set, collector number, finish, or
-condition) stays its own line. **Collections and wanted lists** keep one bullet line per
-physical copy in every mode, so N rows of the same printing stay N lines (each with its own
-`&N` id).
+In a **deck**, rows naming the same card **and** the same printing merge into one line with the quantities summed, in create/overwrite mode as well as append, so the same file produces the same list either way. A different printing (set, collector number, finish, or condition) stays its own line. **Collections and wanted lists** keep one bullet line per physical copy in every mode, so N rows of the same printing stay N lines, each with its own `&N` id.
 
-Replacing an existing list prints `Overwriting <file>...` on stderr, even under `--quiet`,
-so a destructive import is never silent. This holds for every source kind — URL, text file,
-and CSV. Under `--dry-run` the preview line says it instead
-(`[dry-run] Would overwrite collection 'Red Binder' with 12 card(s): ...`), and the JSON
-payload carries `replacesExisting: true`.
+Replacing an existing list prints `Overwriting <file>...` on stderr, even under `--quiet`, so a destructive import is never silent. This holds for every source kind: URL, text file, and CSV. Under `--dry-run` the preview line says it instead (`[dry-run] Would overwrite collection 'Red Binder' with 12 card(s): ...`), and the JSON payload carries `replacesExisting: true`.
 
-By default the import **creates** a new list and refuses to touch an existing one — including a
-list whose name merely [folds onto](/list-resolution/#names-that-would-collide-are-refused-at-creation)
-the one being imported. Pass
-`--overwrite` to replace an existing list, or `--append` to add the cards to it
-(`--overwrite` and `--append` are mutually exclusive). `--yes` auto-answers an existing-file
-conflict with overwrite, like it does for URL and text-file imports. Interactively, when a
-list with the chosen name already exists, the wizard asks whether to append, overwrite, or
-cancel — cancelling exits `2` with `Cancelled.` on stderr. In a scripted run (see
-[when prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), or any run with `--columns`)
-the same conflict is a usage error (exit `2`) naming `--append`, `--overwrite`, and `--yes`.
+By default the import **creates** a new list and refuses to touch an existing one, including a list whose name merely [folds onto](/list-resolution/#names-that-would-collide-are-refused-at-creation) the one being imported. Pass `--overwrite` to replace an existing list, or `--append` to add the cards to it (`--overwrite` and `--append` are mutually exclusive). `--yes` auto-answers an existing-file conflict with overwrite, as it does for URL and text-file imports. Interactively, when a list with the chosen name already exists, the wizard asks whether to append, overwrite, or cancel; cancelling exits `2` with `Cancelled.` on stderr. In a scripted run (see [when prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), or any run with `--columns`) the same conflict is a usage error (exit `2`) naming `--append`, `--overwrite`, and `--yes`.
 
 Appending:
 
@@ -301,29 +181,19 @@ Appending:
 - Continues the list's `&N` card IDs from its existing pool.
 - For decks, merges rows into existing lines when the name and printing match (incrementing quantity) and creates any missing sections.
 - Records every added card in the list's changelog (visible in `ritual history` and the admin Change History page).
-- Rewrites the whole target file in canonical form, so it **refuses** (exit `1`, nothing written) when
-  that file holds content the rewrite cannot reproduce: a line the parser could not read, or a
-  [fenced code block](/commands/edit/#fenced-code-blocks). `--overwrite` has no such gate — replacing
-  the file is the point.
+- Rewrites the whole target file in canonical form, so it **refuses** (exit `1`, nothing written) when that file holds content the rewrite cannot reproduce: a line the parser could not read, or a [fenced code block](/commands/edit/#fenced-code-blocks). `--overwrite` has no such gate, since replacing the file is the point.
 
-A `--dry-run` CSV import performs every validation and resolution step — including the
-row conversion and its failures — but writes neither the list file nor a changelog.
+A `--dry-run` CSV import performs every validation and resolution step, including the row conversion and its failures, but writes neither the list file nor a changelog.
 
 ### Header Rows
 
-The wizard asks whether the first row is a header. A scripted run (`--columns`) does not
-ask: the first row is treated as a header unless `--no-header` is given. Because that
-assumption drops a row, a scripted run always says which one — `Skipping header row: ...` —
-and when the dropped row does **not** look like a header (none of its cells match a known
-column name), an extra warning names `--no-header`:
+The wizard asks whether the first row is a header. A scripted run (`--columns`) does not ask: the first row is treated as a header unless `--no-header` is given. Because that assumption drops a row, a scripted run always says which one (`Skipping header row: ...`), and when the dropped row does **not** look like a header (none of its cells match a known column name), an extra warning names `--no-header`:
 
 ```
 Warning: the first row does not look like a header but was skipped as one: Lightning Bolt,lea,161,4 — pass --no-header to import it as a card.
 ```
 
-That warning goes to stderr and survives `--quiet`, since a data-shaped "header" is almost
-certainly a lost card. `--no-header` always wins outright: with it, no row is dropped and
-neither line is printed.
+That warning goes to stderr and survives `--quiet`, since a data-shaped "header" is almost certainly a lost card. `--no-header` always wins outright. With it, no row is dropped and neither line is printed.
 
 ### Column Mapping
 
@@ -347,32 +217,27 @@ ritual import cards.csv --type collection --name "Red Binder" \
 | `tags`             | Card tags (headers `tags` or `tag`), comma-separated: `Ramp, Card Draw` is two tags. A malformed tag fails only that row. |
 | `categories`       | Card categories (headers `category` or `categories`), comma-separated: `Ramp, Artifacts` is two, the first primary.       |
 
-Every mapped column number is checked against the file's width before any row is
-converted: `--columns name=99` on a 6-column file is a single usage error (exit `2`) —
-`Column 99 (mapped to 'name') does not exist: the file has 6 column(s)` — rather than a
-`Missing card name` failure for every row.
+Every mapped column number is checked against the file's width before any row is converted. `--columns name=99` on a 6-column file is a single usage error (exit `2`), `Column 99 (mapped to 'name') does not exist: the file has 6 column(s)`, rather than a `Missing card name` failure for every row.
 
-After the wizard completes, the command prints a ready-to-run `ritual import ... --columns ...`
-line that pre-selects the same answers, so you can repeat the import without the wizard
-(including `--csv` when the file's extension would not trigger CSV detection on its own).
+After the wizard completes, the command prints a ready-to-run `ritual import ... --columns ...` line that pre-selects the same answers, so you can repeat the import without the wizard (including `--csv` when the file's extension would not trigger CSV detection on its own).
 
 ### Value Normalization
 
-CSV exports differ between tools, so cell values are normalized during import (all matching is case-insensitive):
+CSV exports differ between tools, so cell values are normalized during import. All matching is case-insensitive.
 
-- **Condition** — canonical codes (`NM`, `LP`, `MP`, `HP`, `DMG`), spelled-out names (`Near Mint`, `Lightly Played`/`Light Played`/`Slightly Played`, `Moderately Played`, `Heavily Played`/`Heavy Played`, `Damaged`, plus `Mint`, `Played`, `Poor`), short codes (`SP` → LP, `PL` → MP), and single letters (`N`, `M`, `L`, `H`, `D`).
-- **Finish** — `F`/`foil` (and `yes`/`true`/`1`) for foil, `E`/`etched`/`etched foil`/`foil etched` for etched; empty cells, `non-foil`/`nonfoil`, `normal`, `regular`, `no`, `false`, and `0` all mean non-foil.
-- **Language** — Scryfall codes (`en`, `ja`, `zhs`, ...), common printed-code aliases (`JP` → `ja`, `KR` → `ko`, `SP` → `es`, `CS` → `zhs`, `CT` → `zht` — Archidekt's CSV vocabulary), and full English names (`Japanese` → `ja`). An **explicit** cell value is honored as-is, and a **blank** cell in a present language column means English — the source recorded no language, so none is invented. Only when the import carries no language column at all are pinned rows stamped with the configured [`defaultLanguage`](/configuration/#default-language) — falling back to English when the printing does not exist in that language, then to the printing's only available language. Rows without a pinned printing are never stamped. English is written as a bare line (no token).
-- **Section** — blank means `Main`. For decks, common board names normalize to canonical headers: `side`/`sideboard`/`sb` → `Sideboard`, `maybe`/`maybeboard` → `Maybeboard`, `main`/`mainboard`/`maindeck`/`deck` → `Main`, `commander`/`command`/`command zone` → `Commander`. Anything else becomes a custom section verbatim.
-- **Categories** — comma-separated, in cell order, the first one primary. On a **deck**, a value that names a board (`sideboard`/`side`/`sb`, `maybeboard`/`maybe`, `commander`/`commanders`/`command`/`command zone`, `main`/`mainboard`/`maindeck`/`deck`, `tokens`/`token`, `companion`, `oathbreaker`/`signature spell` — the last one yielding section `Oathbreaker`) sets the row's **section** instead of becoming a category — so Archidekt's `Ramp,Sideboard` cell yields section `Sideboard` and category `Ramp`. When a cell names two board values the first one wins. An explicit, non-empty `section` cell wins over both, and every board value is dropped from the categories either way — which the import reports as an advisory, since `Tokens` is also one of the shipped default categories. On collections and wanted lists every value stays a category. A value that is not [category-shaped](/commands/categories/) (one containing `(`, `)`, `&`, `*`, `"`, brackets, braces or `#` — Archidekt names like `Ramp (Rocks)`) is **ignored with a warning; the card still imports** and its other categories are kept. Note that the `category` header now means categories, not section — `board` and `section` are the section headers. Imported categories are written to the list's `<name>.categories.json` sidecar, and recorded in the changelog on `--append`.
-- **Quantity** — a positive integer, tolerating `4x`/`x4`.
-- **Set codes** — stored lowercase internally and written uppercase in the markdown output, like everywhere else in Ritual.
+- **Condition**: canonical codes (`NM`, `LP`, `MP`, `HP`, `DMG`), spelled-out names (`Near Mint`, `Lightly Played`/`Light Played`/`Slightly Played`, `Moderately Played`, `Heavily Played`/`Heavy Played`, `Damaged`, plus `Mint`, `Played`, `Poor`), short codes (`SP` → LP, `PL` → MP), and single letters (`N`, `M`, `L`, `H`, `D`).
+- **Finish**: `F`/`foil` (and `yes`/`true`/`1`) for foil, `E`/`etched`/`etched foil`/`foil etched` for etched. Empty cells, `non-foil`/`nonfoil`, `normal`, `regular`, `no`, `false`, and `0` all mean non-foil.
+- **Language**: Scryfall codes (`en`, `ja`, `zhs`, ...), common printed-code aliases (`JP` → `ja`, `KR` → `ko`, `SP` → `es`, `CS` → `zhs`, `CT` → `zht`, Archidekt's CSV vocabulary), and full English names (`Japanese` → `ja`). An **explicit** cell value is honored as-is, and a **blank** cell in a present language column means English, since the source recorded no language and none is invented. Only when the import carries no language column at all are pinned rows stamped with the configured [`defaultLanguage`](/configuration/#default-language), falling back to English when the printing does not exist in that language, then to the printing's only available language. Rows without a pinned printing are never stamped. English is written as a bare line (no token).
+- **Section**: blank means `Main`. For decks, common board names normalize to canonical headers: `side`/`sideboard`/`sb` → `Sideboard`, `maybe`/`maybeboard` → `Maybeboard`, `main`/`mainboard`/`maindeck`/`deck` → `Main`, `commander`/`command`/`command zone` → `Commander`. Anything else becomes a custom section verbatim.
+- **Categories**: comma-separated, in cell order, the first one primary. On a **deck**, a value that names a board (`sideboard`/`side`/`sb`, `maybeboard`/`maybe`, `commander`/`commanders`/`command`/`command zone`, `main`/`mainboard`/`maindeck`/`deck`, `tokens`/`token`, `companion`, `oathbreaker`/`signature spell`, the last one yielding section `Oathbreaker`) sets the row's **section** instead of becoming a category, so Archidekt's `Ramp,Sideboard` cell yields section `Sideboard` and category `Ramp`. When a cell names two board values the first one wins. An explicit, non-empty `section` cell wins over both, and every board value is dropped from the categories either way, which the import reports as an advisory, since `Tokens` is also one of the shipped default categories. On collections and wanted lists every value stays a category. A value that is not [category-shaped](/commands/categories/) (one containing `(`, `)`, `&`, `*`, `"`, brackets, braces or `#`, such as Archidekt names like `Ramp (Rocks)`) is **ignored with a warning; the card still imports** and its other categories are kept. Note that the `category` header means categories, not section; `board` and `section` are the section headers. Imported categories are written to the list's `<name>.categories.json` sidecar, and recorded in the changelog on `--append`.
+- **Quantity**: a positive integer, tolerating `4x`/`x4`.
+- **Set codes**: stored lowercase internally and written uppercase in the markdown output, like everywhere else in Ritual.
 
 ### Partial Failures
 
-Rows that fail validation (missing name, missing printing for a collection, unrecognized condition/finish/quantity) do **not** abort the import: every valid row is imported, and each failed row is reported with its line number, raw text, and reason. When any row fails, the command exits non-zero (`1`) even though the import was written — check stderr for the failed lines.
+Rows that fail validation (missing name, missing printing for a collection, unrecognized condition/finish/quantity) do **not** abort the import. Every valid row is imported, and each failed row is reported with its line number, raw text, and reason. When any row fails, the command exits non-zero (`1`) even though the import was written. Check stderr for the failed lines.
 
-Text-file imports behave the same way: a body line that is neither a section header nor a card line (see [Local Text File Format](#local-text-file-format)) is skipped and reported — on stderr in text mode (`N line(s) could not be imported:` followed by each `Skipped malformed line: ...`), or in the JSON `warnings` array under `--output json`/`ndjson` — and makes the command exit `1` in every mode even though the import was written. `--dry-run` reports the same warnings, so a preview reveals the loss too.
+Text-file imports behave the same way. A body line that is neither a section header nor a card line (see [Local Text File Format](#local-text-file-format)) is skipped and reported, on stderr in text mode (`N line(s) could not be imported:` followed by each `Skipped malformed line: ...`) or in the JSON `warnings` array under `--output json`/`ndjson`, and makes the command exit `1` in every mode even though the import was written. `--dry-run` reports the same warnings, so a preview reveals the loss too.
 
 ## Exit Codes
 
@@ -421,7 +286,7 @@ Preview an import without writing files:
 ritual import ./decklist.txt --dry-run --no-input
 ```
 
-Interactive CSV import (wizard maps the columns):
+Interactive CSV import (the wizard maps the columns):
 
 ```bash
 ritual import ./moxfield-export.csv
@@ -465,9 +330,7 @@ If you need a unique user agent string, contact Moxfield support.
 
 ## Local Text File Format
 
-When importing from a local text file, use the standard decklist format — quantity-led lines,
-with or without Ritual's `- ` bullet (see [List File Format](/list-format/)). `## Section`
-headers split the cards into sections:
+When importing from a local text file, use the standard decklist format: quantity-led lines, with or without Ritual's `- ` bullet (see [List Files](/list-format/)). `## Section` headers split the cards into sections:
 
 ```
 4 Lightning Bolt
@@ -478,26 +341,15 @@ headers split the cards into sections:
 2 Pyroblast
 ```
 
-Lines may also carry a printing, finish, condition, language, labels, tags, and note, e.g.
-`1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is written
-through on every list type (see [Card tags](/commands/edit/#card-tags)). The `[sale]` / `[trade]` /
-`[keep]` label token is a **collection-only** feature: it is written through on a collection
-import, while a deck import warns that the label was dropped and a wanted-list import drops it
-the same way (wanted lists carry no labels).
+Lines may also carry a printing, finish, condition, language, labels, tags, and note, as in `1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is written through on every list type (see [Card tags](/commands/edit/#card-tags)). The `[sale]` / `[trade]` / `[keep]` label token is a **collection-only** feature. It is written through on a collection import, while a deck import warns that the label was dropped and a wanted-list import drops it the same way (wanted lists carry no labels).
 
-When importing into a collection or wanted list, each line expands to one
-bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines),
-matching how those lists track individual physical cards. Into a deck, the quantity stays on
-the line and the bullet is added (`- 4 Lightning Bolt`).
+When importing into a collection or wanted list, each line expands to one bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines), matching how those lists track individual physical cards. Into a deck, the quantity stays on the line and the bullet is added (`- 4 Lightning Bolt`).
 
-Collection imports require a printing (`(SET:123)`) on every line, since
-collection entries always reference a specific physical printing. Wanted list
-entries may be name-only.
+Collection imports require a printing (`(SET:123)`) on every line, since collection entries always reference a specific physical printing. Wanted list entries may be name-only.
 
 ### MTG Arena / MTGO Exports
 
-Text imports also read the MTG Arena (and MTGO) export dialect, so a list copied straight
-out of Arena imports without editing:
+Text imports also read the MTG Arena (and MTGO) export dialect, so a list copied straight out of Arena imports without editing:
 
 ```
 About
@@ -514,53 +366,23 @@ Sideboard
 2 Pyroblast (ICE) 213
 ```
 
-- `N Name (SET) NUM` card lines become printings — `4 Lightning Bolt (M10:146)` — instead
-  of card names containing the printing text.
-- A `*F*` / `*E*` finish marker becomes the card's finish, in either of the two positions
-  the export dialects use: trailing, as Archidekt's and MTGO's plain-text exports append it
-  (`1 Sol Ring (LTC) 284 *F*`), or between the set and the collector number, as
-  [Moxfield's bulk-edit grammar](https://moxfield.com/help) spells it
-  (`1 Sol Ring (LTC) *F* 284`). Both import as `1 Sol Ring (LTC:284) [foil]`, so a
-  `ritual export --format text --dialect moxfield` file reads straight back in.
-- Bare `Deck`, `Sideboard`, `Commander`, and `Companion` marker lines start sections
-  (`Deck` is `Main`). An empty `Commander` or `Companion` marker is a dropped section and
-  warns like an empty `##` header would; an empty `Deck` or `Sideboard` marker in an import
-  that has cards elsewhere is kept as a bare header, like the equivalent `##` heading.
-- An `About` block's `Name ...` line names the deck; the block's other lines are skipped
-  with an advisory.
+- `N Name (SET) NUM` card lines become printings (`4 Lightning Bolt (M10:146)`) instead of card names containing the printing text.
+- A `*F*` / `*E*` finish marker becomes the card's finish, in either of the two positions the export dialects use: trailing, as Archidekt's and MTGO's plain-text exports append it (`1 Sol Ring (LTC) 284 *F*`), or between the set and the collector number, as [Moxfield's bulk-edit grammar](https://moxfield.com/help) spells it (`1 Sol Ring (LTC) *F* 284`). Both import as `1 Sol Ring (LTC:284) [foil]`, so a `ritual export --format text --dialect moxfield` file reads straight back in.
+- Bare `Deck`, `Sideboard`, `Commander`, and `Companion` marker lines start sections (`Deck` is `Main`). An empty `Commander` or `Companion` marker is a dropped section and warns like an empty `##` header would. An empty `Deck` or `Sideboard` marker in an import that has cards elsewhere is kept as a bare header, like the equivalent `##` heading.
+- An `About` block's `Name ...` line names the deck. The block's other lines are skipped with an advisory.
 
-**A set with no collector number is not read as a printing.** A card line can only carry
-`(SET:NUM)` — half a printing cannot be written back — and a trailing parenthesized word is
-a real part of many card names (`Very Cryptic Command (Untap)`, `Hazmat Suit (Used)`). So
-`1 Sol Ring (LTC)` keeps the name exactly as written and prints an advisory instead of
-inventing a printing and then dropping it on the way to disk. The same rule applies to URL
-imports: a source that names a set but no collector number yields a name-only card line.
+**A set with no collector number is not read as a printing.** A card line can only carry `(SET:NUM)`, since half a printing cannot be written back, and a trailing parenthesized word is a real part of many card names (`Very Cryptic Command (Untap)`, `Hazmat Suit (Used)`). So `1 Sol Ring (LTC)` keeps the name exactly as written and prints an advisory instead of inventing a printing and then dropping it on the way to disk. The same rule applies to URL imports: a source that names a set but no collector number yields a name-only card line.
 
 ### Fenced Decklists
 
-A decklist pasted from Discord, Reddit, or GitHub usually arrives wrapped in a ``` fence.
-On the **import path** the fence is packaging: its delimiter lines are dropped and the lines
-inside are parsed like any other, so the cards import normally.
+A decklist pasted from Discord, Reddit, or GitHub usually arrives wrapped in a ``` fence. On the **import path** the fence is packaging. Its delimiter lines are dropped and the lines inside are parsed like any other, so the cards import normally.
 
-This applies to imports only (`ritual import <file>` and the admin/MCP paste-text route).
-Everywhere else a
-[fenced code block is prose](/commands/edit/#fenced-code-blocks) that the parsers leave
-untouched.
+This applies to imports only (`ritual import <file>` and the admin/MCP paste-text route). Everywhere else a [fenced code block is prose](/commands/edit/#fenced-code-blocks) that the parsers leave untouched.
 
-The bare board markers and the `About` block are **import-only**. The `(SET) NUM` and
-`*F*`/`*E*` printing forms are a [read tolerance](/list-format/#read-tolerances) of the card-line
-grammar itself, so a list file holding them is read the same way — and rewritten to `(SET:CN)`
-and `[foil]` on its next save.
+The bare board markers and the `About` block are **import-only**. The `(SET) NUM` and `*F*`/`*E*` printing forms are a [read tolerance](/list-format/#read-tolerances) of the card-line grammar itself, so a list file holding them is read the same way, and rewritten to `(SET:CN)` and `[foil]` on its next save.
 
-If a card line's format is not recognized at all and the parsed name still contains a
-parenthesized set-like token, the import writes the card but prints an advisory naming the
-line (`Warning: Card name still contains a printing token, ...`). Advisories go to stderr,
-survive `--quiet`, appear in the JSON `advisories` array, and do **not** change the exit
-code — nothing was lost, but the name is probably not what you wanted.
+If a card line's format is not recognized at all and the parsed name still contains a parenthesized set-like token, the import writes the card but prints an advisory naming the line (`Warning: Card name still contains a printing token, ...`). Advisories go to stderr, survive `--quiet`, appear in the JSON `advisories` array, and do **not** change the exit code. Nothing was lost, but the name is probably not what you wanted.
 
 ### Skipped Lines
 
-Any body line matching none of the above — a bare card name with no leading
-quantity, a stray marker word the Arena dialect does not define, prose — is **skipped**, not
-imported. Every skipped line is reported and the command exits `1` so a lossy
-import never looks clean (see [Partial Failures](#partial-failures)).
+Any body line matching none of the above (a bare card name with no leading quantity, a stray marker word the Arena dialect does not define, prose) is **skipped**, not imported. Every skipped line is reported and the command exits `1` so a lossy import never looks clean (see [Partial Failures](#partial-failures)).

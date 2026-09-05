@@ -2,7 +2,7 @@
 title: 'card'
 ---
 
-Look up a single card by name using Scryfall.
+Look up a single card by name on Scryfall, or a batch of names from a file or stdin.
 
 ## Usage
 
@@ -27,14 +27,14 @@ ritual card [name] [options]
 | `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output |
 | `--output <format>`  | Output format (`json`, `ndjson`, or `text`)       |
 
-`card` registers no `--quiet`: everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/cli-conventions/#scripting-conventions)).
+`card` registers no `--quiet`. Everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/cli-conventions/#scripting-conventions)).
 
 ## Batch output shape
 
 `--stdin` and `--from-file` look up every name in the input. The output shape depends only on the flag you passed, never on how many lines the input happened to hold:
 
-- **`--output json`** (the default) emits **one** JSON array of cards for the whole batch — the same contract [`scry`](/commands/scry/) gives a multi-page search. A run where some lookups failed still emits the cards that were found (the failures go to stderr and set the exit code), and a run where all of them failed emits `[]`. A single-name lookup, batch or not, emits a bare card object.
-- **`--output ndjson`** streams one JSON object per card as it arrives — the opt-in streaming mode for large inputs.
+- **`--output json`** (the default) emits **one** JSON array of cards for the whole batch, the same contract [`scry`](/commands/scry/) gives a multi-page search. A run where some lookups failed still emits the cards that were found (the failures go to stderr and set the exit code), and a run where all of them failed emits `[]`. A single-name lookup, batch or not, emits a bare card object.
+- **`--output ndjson`** streams one JSON object per card as it arrives. This is the streaming mode for large inputs.
 - **`--output text`** prints one `Name (SET)` line per card.
 
 ## Examples
@@ -84,4 +84,4 @@ ritual card --from-file cards.txt --output ndjson --fields name,set,prices.usd
 | `2`  | Usage error (missing card name, `--stdin` with `--from-file`, invalid fields)  |
 | `3`  | Not found (a card does not exist, or the `--from-file` file could not be read) |
 
-In batch mode each failure is reported individually; if both a request failure and a not-found occur, the exit code is `1`.
+In batch mode each failure is reported individually. If both a request failure and a not-found occur, the exit code is `1`.

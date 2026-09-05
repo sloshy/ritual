@@ -24,7 +24,7 @@ View the license in an interactive pager (press `q` or `ESC` to exit):
 ritual license
 ```
 
-The pager only opens when it can be driven interactively — when stdout is not a terminal, or [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal), the text is printed straight to stdout as if `--plain` were passed, instead of blocking in `less`.
+The pager only opens when it can be driven interactively. When stdout is not a terminal, or [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal), the text is printed straight to stdout as if `--plain` were passed, instead of blocking in `less`.
 
 Print the license text to stdout (useful for piping or scripting):
 

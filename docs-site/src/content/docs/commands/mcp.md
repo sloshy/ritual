@@ -2,15 +2,9 @@
 title: 'mcp'
 ---
 
-Start an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that exposes Ritual's
-deck, collection, and wanted-list management to AI agents (Claude Desktop, Claude Code, and other MCP
-clients).
+Start an [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server that lets AI agents (Claude Desktop, Claude Code, and other MCP clients) manage your decks, collections, and wanted lists.
 
-The MCP server runs the **same operations as the [web admin interface](/commands/admin/)** in-process — it
-reuses the admin route handlers directly, so editing through MCP behaves identically to editing in the
-browser (the same changelog, content-hash conflict detection, and optional git auto-commit). It does
-**not** open the admin HTTP server or require an admin login; it is a local, trusted process you launch
-yourself.
+The MCP server runs the **same operations as the [admin site](/commands/admin/)**, in-process. It reuses the admin route handlers directly, so editing through MCP behaves identically to editing in the browser: the same changelog, the same content-hash conflict detection, and the same optional git auto-commit. It does **not** open the admin HTTP server or require an admin login. It is a local, trusted process you launch yourself.
 
 ## Usage
 
@@ -29,31 +23,19 @@ ritual mcp [options]
 | `--allow-unauthenticated` | Serve the HTTP transport without a bearer token on a non-loopback host                        |             |
 | `--sell-mode`             | Answer the sell/buylist tools for this run even when `site.sellMode` is off (both transports) |             |
 
-`--token` may also be supplied via the `RITUAL_MCP_TOKEN` environment variable (the flag takes
-precedence); this keeps the secret out of the process list. The global `--base-dir <path>` option
-selects which Ritual workspace (decks/collections/wanted dirs) the server operates on — the
-`RITUAL_BASE_DIR` environment variable does the same, which is handy in an MCP client's `env` block,
-and the directory must already exist or the server exits `2` before starting. Likewise, a
-[malformed `ritual.config.json`](/configuration/#malformed-files-are-a-hard-error) aborts the server
-with exit `1` before the transport opens. `--cache-server <host:port>` is also honoured.
+`--token` may also be supplied via the `RITUAL_MCP_TOKEN` environment variable (the flag takes precedence), which keeps the secret out of the process list. The global `--base-dir <path>` option selects which Ritual workspace (decks/collections/wanted dirs) the server operates on. The `RITUAL_BASE_DIR` environment variable does the same, which is handy in an MCP client's `env` block. The directory must already exist or the server exits `2` before starting. Likewise, a [malformed `ritual.config.json`](/configuration/#malformed-files-are-a-hard-error) aborts the server with exit `1` before the transport opens. `--cache-server <host:port>` is also honoured.
 
 ## Transports
 
 ### stdio (default)
 
-The standard transport for local MCP clients: the client launches `ritual mcp` and exchanges JSON-RPC
-over stdin/stdout. There is no network exposure and no authentication — the client already controls the
-process.
+The standard transport for local MCP clients. The client launches `ritual mcp` and exchanges JSON-RPC over stdin/stdout. There is no network exposure and no authentication, since the client already controls the process.
 
 :::note
-On the stdio transport, **stdout is the JSON-RPC channel**, so Ritual diverts all of its own logging to
-stderr. Do not pipe other commands' output into `ritual mcp`.
+On the stdio transport, **stdout is the JSON-RPC channel**, so Ritual diverts all of its own logging to stderr. Do not pipe other commands' output into `ritual mcp`.
 :::
 
-Over stdio the protocol era is chosen by the connection's opening exchange (a 2025-era `initialize`
-is served on a compatibility path; a 2026-07-28 client is served statelessly), and one server
-instance is pinned for the life of the connection — the per-request stateless model described below
-applies to HTTP only.
+Over stdio the protocol era is chosen by the connection's opening exchange (a 2025-era `initialize` is served on a compatibility path; a 2026-07-28 client is served statelessly), and one server instance is pinned for the life of the connection. The per-request stateless model described below applies to HTTP only.
 
 ### HTTP (Streamable HTTP)
 
@@ -61,31 +43,15 @@ applies to HTTP only.
 ritual mcp --transport http --port 8765 --token "$MCP_TOKEN"
 ```
 
-Serves the MCP [Streamable HTTP](https://modelcontextprotocol.io) transport at `http://<host>:<port>/mcp`
-for remote/networked clients. It binds to `127.0.0.1` by default. `--port` is validated at parse
-time (1–65535); an invalid value exits with code 2. **If you expose it beyond localhost,
-set a token (`--token` or `RITUAL_MCP_TOKEN`) so every request must send `Authorization: Bearer <token>`**
-— there is no other authentication layer.
+Serves the MCP [Streamable HTTP](https://modelcontextprotocol.io) transport at `http://<host>:<port>/mcp` for remote/networked clients. It binds to `127.0.0.1` by default. `--port` is validated at parse time (1–65535); an invalid value exits with code 2. **If you expose it beyond localhost, set a token (`--token` or `RITUAL_MCP_TOKEN`) so every request must send `Authorization: Bearer <token>`.** There is no other authentication layer.
 
-Ritual implements MCP revision **2026-07-28**, whose Streamable HTTP transport is **stateless**: there is
-no `initialize` handshake and no `Mcp-Session-Id` header. Every POST to `/mcp` is served on its own,
-carrying the protocol version and client capabilities in the request itself. Clients speaking the older
-2025-era protocol (including current Claude Desktop / Claude Code releases) are still served — Ritual
-answers their `initialize` handshake on a compatibility path. On that path the standalone `GET /mcp` SSE
-stream and `DELETE /mcp` session teardown are not available and answer `405`; Ritual uses neither feature.
+Ritual implements MCP revision **2026-07-28**, whose Streamable HTTP transport is **stateless**. There is no `initialize` handshake and no `Mcp-Session-Id` header. Every POST to `/mcp` is served on its own, carrying the protocol version and client capabilities in the request itself. Clients speaking the older 2025-era protocol (including current Claude Desktop / Claude Code releases) are still served: Ritual answers their `initialize` handshake on a compatibility path. On that path the standalone `GET /mcp` SSE stream and `DELETE /mcp` session teardown are not available and answer `405`. Ritual uses neither feature.
 
-Without a token, the command **refuses to bind a non-loopback `--host`** (exit code `2`) unless you
-explicitly pass `--allow-unauthenticated` — an unauthenticated MCP endpoint exposed beyond the local
-machine would let anyone on the network edit your lists. Tokenless binds to a loopback host
-(`127.0.0.1`, `localhost`, `::1`) are allowed and print a one-line notice on stderr.
+Without a token, the command **refuses to bind a non-loopback `--host`** (exit code `2`) unless you explicitly pass `--allow-unauthenticated`. An unauthenticated MCP endpoint exposed beyond the local machine would let anyone on the network edit your lists. Tokenless binds to a loopback host (`127.0.0.1`, `localhost`, `::1`) are allowed and print a one-line notice on stderr.
 
-The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) have no effect under the
-default stdio transport; passing them there prints a warning on stderr and they are ignored.
+The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) have no effect under the default stdio transport. Passing them there prints a warning on stderr and they are ignored.
 
-`Ctrl+C` (`SIGINT`) or `SIGTERM` stops the listener and drops active connections, so the port is
-released and the process exits on its own rather than being killed with a bound socket behind it. A
-teardown that fails is reported on stderr instead of being swallowed. `ritual admin --mcp` does the
-same for both of its listeners.
+`Ctrl+C` (`SIGINT`) or `SIGTERM` stops the listener and drops active connections, so the port is released and the process exits on its own rather than being killed with a bound socket behind it. A teardown that fails is reported on stderr instead of being swallowed. `ritual admin --mcp` does the same for both of its listeners.
 
 #### Errors
 
@@ -97,45 +63,25 @@ same for both of its listeners.
 | `405`    | `GET`/`DELETE` on `/mcp` — the 2025-era session operations, which stateless serving does not have.                                                                                                                            |
 | `415`    | A POST whose `Content-Type` is not `application/json`.                                                                                                                                                                        |
 
-On 2026-07-28 responses, the catalog surfaces (`tools/list`, `resources/templates/list`,
-`server/discover`) advertise a one-hour private cache hint; list enumerations and reads
-(`resources/list`, `resources/read`) are marked never-cacheable, since their contents change with
-every edit. Ritual declares no tool-list-changed notifications and no resource subscriptions; see
-[Resources](#resources) for the transport-dependent `resources.listChanged`.
+On 2026-07-28 responses, the catalog surfaces (`tools/list`, `resources/templates/list`, `server/discover`) advertise a one-hour private cache hint. List enumerations and reads (`resources/list`, `resources/read`) are marked never-cacheable, since their contents change with every edit. Ritual declares no tool-list-changed notifications and no resource subscriptions; see [Resources](#resources) for the transport-dependent `resources.listChanged`.
 
 ### Embedding in a running admin server
 
-Instead of a standalone process, you can serve the same MCP endpoint **inside a running web admin** with
-[`ritual admin --mcp`](/commands/admin/#embedded-mcp-server). That runs one process exposing both the web admin
-and an MCP endpoint (on `--mcp-port`, default `8765`), sharing the same config, cache, and data. It uses
-the **same bearer-token auth** as this command: a token (`--mcp-token` or `RITUAL_MCP_TOKEN`) is required
-there (since the admin binds `0.0.0.0` by default) and is independent of the browser admin login.
+Instead of a standalone process, you can serve the same MCP endpoint **inside a running web admin** with [`ritual admin --mcp`](/commands/admin/#embedded-mcp-server). That runs one process exposing both the web admin and an MCP endpoint (on `--mcp-port`, default `8765`), sharing the same config, cache, and data. It uses the **same bearer-token auth** as this command. A token (`--mcp-token` or `RITUAL_MCP_TOKEN`) is required there, since the admin binds `0.0.0.0` by default, and is independent of the browser admin login.
 
 ## Results and errors
 
-Both halves of the tool-result contract are transport-independent — they hold identically over
-stdio, over Streamable HTTP, and on either protocol era.
+Both halves of the tool-result contract are transport-independent. They hold identically over stdio, over Streamable HTTP, and on either protocol era.
 
 ### Structured results
 
-Every tool declares an `outputSchema` and answers with `structuredContent`. **Read
-`structuredContent`, not `content[0].text`** — a successful result carries an empty `content` array
-on purpose, so the same JSON is never put on the wire twice. Only a failure carries a text block, and
-it holds the `message` below. The one other shape a call can answer with is an `input_required`
-result: `sync_collection` returns one instead of a result when it needs an
-[ambiguous-removal decision](#destructive) and the client can be asked.
+Every tool declares an `outputSchema` and answers with `structuredContent`. **Read `structuredContent`, not `content[0].text`.** A successful result carries an empty `content` array on purpose, so the same JSON is never put on the wire twice. Only a failure carries a text block, and it holds the `message` below. The one other shape a call can answer with is an `input_required` result: `sync_collection` returns one instead of a result when it needs an [ambiguous-removal decision](#destructive) and the client can be asked.
 
-A tool's `outputSchema`, as returned by `tools/list`, **is the authoritative field-level
-documentation of its response**: every field, its type, whether it is always present, and a
-description of what it means. This page describes the tools; the schemas describe their replies, and
-they are what the client validates against. The one exception is the failure payload — `isError`
-results are exempt from output-schema validation, so no schema carries it and it is documented in
-prose below instead.
+A tool's `outputSchema`, as returned by `tools/list`, **is the authoritative field-level documentation of its response**: every field, its type, whether it is always present, and a description of what it means. This page describes the tools; the schemas describe their replies, and they are what the client validates against. The one exception is the failure payload. `isError` results are exempt from output-schema validation, so no schema carries it and it is documented in prose below instead.
 
 ### Tool errors
 
-A failed tool call is **not** a JSON-RPC error. It comes back as a normal result with
-`isError: true`, carrying a one-line text block (the message) **and** a structured payload:
+A failed tool call is **not** a JSON-RPC error. It comes back as a normal result with `isError: true`, carrying a one-line text block (the message) **and** a structured payload:
 
 ```json
 {
@@ -154,82 +100,40 @@ A failed tool call is **not** a JSON-RPC error. It comes back as a normal result
 | `recovery`  | The next concrete action, when there is one.                                                                                 |
 | `unmatched` | Changes that did not apply, when an all-or-nothing batch was rejected whole.                                                 |
 
-Ritual's internal conflict code `-32012` is **never visible to a client**: Ritual itself catches
-every error thrown inside a tool call and converts it into the `isError` result above, so the
-numeric code is spent before the SDK — let alone a client — ever sees it. It survives only as the
-internal signal that drives the one automatic retry. The `-32010` / `-32011` codes in the HTTP
-[Errors](#errors) table are different — they are emitted by the HTTP wrapper before the request
-reaches the protocol layer, so they _are_ wire-visible, and correspondingly never appear inside a
-tool result.
+Ritual's internal conflict code `-32012` is **never visible to a client**. Ritual itself catches every error thrown inside a tool call and converts it into the `isError` result above, so the numeric code is spent before the SDK, let alone a client, ever sees it. It survives only as the internal signal that drives the one automatic retry. The `-32010` / `-32011` codes in the HTTP [Errors](#errors) table are different. They are emitted by the HTTP wrapper before the request reaches the protocol layer, so they _are_ wire-visible, and correspondingly never appear inside a tool result.
 
-(One error is deliberately re-raised rather than structured: a URL-elicitation request is a protocol
-handshake the client must answer, not a tool failure.)
+One error is re-raised rather than structured: a URL-elicitation request is a protocol handshake the client must answer, not a tool failure.
 
 ### Language: English by contract
 
-Ritual's CLI output and its two web UIs follow the configured
-[UI locale](/localization/) (`--locale`, `RITUAL_LOCALE`, or the `uiLocale` config key).
-**This surface does not.** Tool
-names, titles, descriptions, parameter documentation, output-schema descriptions, the server
-`instructions`, and the `message` of every result — success or failure — stay English no matter
-what that setting says. They are model-facing prose densely interleaved with flags, file paths,
-and `snake_case` tool names, so a translated copy would help no one and would break the very
-identifiers a client matches on.
+Ritual's CLI output and its two web UIs follow the configured [UI locale](/localization/) (`--locale`, `RITUAL_LOCALE`, or the `uiLocale` config key). **This surface does not.** Tool names, titles, descriptions, parameter documentation, output-schema descriptions, the server `instructions`, and the `message` of every result, success or failure, stay English no matter what that setting says. They are model-facing prose densely interleaved with flags, file paths, and `snake_case` tool names, so a translated copy would help no one and would break the very identifiers a client matches on.
 
-A client that _does_ render for a human gets the sentence unrendered instead of translated.
-Results produced by the shared admin handlers carry two optional fields beside `message`:
+A client that _does_ render for a human gets the sentence unrendered instead of translated. Results produced by the shared admin handlers carry two optional fields beside `message`:
 
 | Field           | Meaning                                                                                                                                                              |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `messageKey`    | The catalog key `message` was rendered from — stable across locales _and_ across rewordings of the English text. Absent when a handler has no key for that sentence. |
 | `messageParams` | The values that key interpolates. Absent when the message takes none.                                                                                                |
 
-Match on `messageKey` (or, for a failure, on `code`) rather than on the prose: both are
-locale-invariant, and `message` is the field most likely to be reworded. The two sync tools carry
-the same triple per clause in `summary.clauses`, so a run's one-line outcome can be re-joined and
-re-pluralized in another language instead of being re-parsed out of English. The `isError` payload
-carries no key — `code` is already its discriminator.
+Match on `messageKey` (or, for a failure, on `code`) rather than on the prose. Both are locale-invariant, and `message` is the field most likely to be reworded. The two sync tools carry the same triple per clause in `summary.clauses`, so a run's one-line outcome can be re-joined and re-pluralized in another language instead of being re-parsed out of English. The `isError` payload carries no key, since `code` is already its discriminator.
 
-Data payloads are never localized either — see
-[what never gets translated](/localization/#what-never-gets-translated) for the full contract.
+Data payloads are never localized either. See [what never gets translated](/localization/#what-never-gets-translated) for the full contract.
 
 ### Progress notifications
 
-The four long-running tools — `refresh_cache`, `sync_decks`, `sync_collection`, and `build_site` —
-emit `notifications/progress` **during** the call, but only when the client asked for them by
-supplying a `progressToken` (which the SDK client does automatically when you pass `onprogress` to
-`callTool`). Without a token nothing is emitted.
+The four long-running tools (`refresh_cache`, `sync_decks`, `sync_collection`, and `build_site`) emit `notifications/progress` **during** the call, but only when the client asked for them by supplying a `progressToken` (which the SDK client does automatically when you pass `onprogress` to `callTool`). Without a token nothing is emitted.
 
-Each notification carries `progress`, `total`, and a human-readable `message`; `progress` strictly
-increases across a run. The scales differ by tool: the cache refresh reports 0–100, and the two syncs
-report one notification per deck/list plus a terminal `n/n`. `build_site` reports three structural
-steps (start → building → publishing → done).
+Each notification carries `progress`, `total`, and a human-readable `message`. `progress` strictly increases across a run. The scales differ by tool: the cache refresh reports 0–100, and the two syncs report one notification per deck/list plus a terminal `n/n`. `build_site` reports three structural steps (start → building → publishing → done).
 
-The result itself is **unchanged and still blocking**: the tool returns its ordinary structured
-result when the work finishes. Over Streamable HTTP the response upgrades to an SSE stream
-automatically as soon as a notification precedes the result, so no client configuration is needed for
-the frames to arrive.
+The result itself is **unchanged and still blocking**. The tool returns its ordinary structured result when the work finishes. Over Streamable HTTP the response upgrades to an SSE stream automatically as soon as a notification precedes the result, so no client configuration is needed for the frames to arrive.
 
-One client-side setting does matter: the SDK's default request timeout is 60 seconds and does **not**
-reset on progress. A client driving a long call should pass `resetTimeoutOnProgress: true` (or a
-larger `timeout`) alongside `onprogress`. Ritual cannot set it — it is a client option.
+One client-side setting does matter. The SDK's default request timeout is 60 seconds and does **not** reset on progress. A client driving a long call should pass `resetTimeoutOnProgress: true` (or a larger `timeout`) alongside `onprogress`. Ritual cannot set it; it is a client option.
 
-All four also honour cancellation (a client's `notifications/cancelled`, which the SDK client sends
-when the `signal` passed to `callTool` aborts), each at the point its partial state is recoverable:
+All four also honour cancellation (a client's `notifications/cancelled`, which the SDK client sends when the `signal` passed to `callTool` aborts), each at the point its partial state is recoverable:
 
-- `build_site` kills the child build; because the build publishes atomically the live site is left
-  untouched. The cancelled call answers with a tool error saying the site build was cancelled;
-  `dist/` still holds the previous site, byte for byte, and the next `build_site` is accepted
-  immediately.
-- `refresh_cache` stops the download and writes nothing: the previous card cache is left exactly as
-  it was, the cache lock is released, and the call answers with a tool error saying the refresh was
-  cancelled.
-- `sync_decks` and `sync_collection` stop **between items**. The deck or list in flight finishes —
-  nothing is ever half-pushed or half-written — and every item the run never reached is reported
-  `skipped` with the reason `cancelled before it started`. The result is the ordinary report with
-  `report.cancelled: true` (and, for the collection, no `lastSynced` recorded), because the items
-  already synced are real; a client that cancels should still read it. Note that a cancelled push
-  has already sent whatever it pushed before stopping.
+- `build_site` kills the child build. Because the build publishes atomically the live site is left untouched. The cancelled call answers with a tool error saying the site build was cancelled; `dist/` still holds the previous site, byte for byte, and the next `build_site` is accepted immediately.
+- `refresh_cache` stops the download and writes nothing. The previous card cache is left exactly as it was, the cache lock is released, and the call answers with a tool error saying the refresh was cancelled.
+- `sync_decks` and `sync_collection` stop **between items**. The deck or list in flight finishes (nothing is ever half-pushed or half-written), and every item the run never reached is reported `skipped` with the reason `cancelled before it started`. The result is the ordinary report with `report.cancelled: true` (and, for the collection, no `lastSynced` recorded), because the items already synced are real. A client that cancels should still read it. Note that a cancelled push has already sent whatever it pushed before stopping.
 
 ## Tools
 
