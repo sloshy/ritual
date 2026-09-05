@@ -1,38 +1,39 @@
 ---
 title: 'Move Cards'
+description: Move cards between decks, collections, and wanted lists from the browser, staging many moves and saving them at once.
 ---
 
-The **Move Cards** page moves cards between decks, collections, and wanted lists from the browser. It mirrors the CLI [`move`](/commands/move/) command — every move is staged in memory and nothing is written until you save — but presents a web-native UI built around the same standard list view used by the public site and the editors.
+The **Move Cards** page moves cards between decks, collections, and wanted lists from the browser. It mirrors the CLI [`move`](/commands/move/) command: every move is staged in memory and nothing is written until you save. The page is built around the same standard list view the public site and the editors use.
 
 ## Finding cards
 
 There are two ways to surface the cards you want to move:
 
-When [sell mode](/public-site/sell/) is enabled (the **Offer sell mode** checkbox on the [Settings](/admin/dashboard/#settings) page, `site.sellMode`, or [`ritual admin --sell-mode`](/commands/admin/#sell-mode) — it is off by default), the toolbar's **Sell mode** toggle works here too, so you can pick out what a buyer will take before moving it.
+- **Browse a list.** Choose a deck, collection, or wanted list from the **Browse list** dropdown to view it in the standard list/grid view (the same one the public site uses, minus the editing controls), complete with the usual toolbar, sections, and view modes. The toolbar's **Filters** dropdown includes the [share filters](/public-site/filtering/#filtering-against-other-lists) (**Shares Cards With** / **Doesn't Share Cards With**), which are distinct from this page's own [Filters](#filters) panel that picks the session's From/To lists. They compare against the **saved** files, so queued but unsaved moves don't count.
+- **Search by name.** Type a card name into the **Search cards** box to find matching cards across every enabled source list. What you type is split on whitespace and every term must appear in the card name, in any order (`in tre` finds "In the Trenches"), ignoring case, accents, and punctuation, the same matching the [editors](/admin/editors/#step-1-search) and the CLI prompts use, with the closest matches first. Results are grouped per list and tagged with their source. Hovering a result shows the card-image preview, and clicking anywhere on the row opens its destination menu.
 
-- **Browse a list** — Choose a deck, collection, or wanted list from the **Browse list** dropdown to view it in the standard list/grid view (the same one the public site uses, minus the editing controls), complete with the usual toolbar, sections, and view modes. The toolbar's **Filters** dropdown includes the [share filters](/public-site/filtering/#filtering-against-other-lists) (**Shares Cards With** / **Doesn't Share Cards With**) — distinct from this page's own [Filters](#filters) panel, which picks the session's From/To lists. They compare against the **saved** files, so queued but unsaved moves don't count.
-- **Search by name** — Type a card name into the **Search cards** box to find matching cards across every enabled source list. What you type is split on whitespace and every term must appear in the card name, in any order (`in tre` finds "In the Trenches"), ignoring case, accents, and punctuation — the same matching the [editors](/admin/editors/#step-1-search) and the CLI prompts use — with the closest matches first. Results are grouped per list and tagged with their source; hovering a result shows the card-image preview, and clicking anywhere on the row opens its destination menu.
+When [sell mode](/public-site/sell/) is enabled (the **Offer sell mode** checkbox on the [Settings](/admin/dashboard/#settings) page, `site.sellMode`, or [`ritual admin --sell-mode`](/commands/admin/#sell-mode); it is off by default), the toolbar's **Sell mode** toggle works here too, so you can pick out what a buyer will take before moving it.
 
 ## Moving a card
 
 Each card shows a single rightward-arrow button (**→**) in place of the editor's edit controls. Hovering it shows a **Move To…** tooltip. Clicking it opens a menu of destination lists, grouped by type, excluding the card's current list and any lists disabled in [Filters](#filters).
 
 - **Choosing a destination** queues the move. When more than one copy of the card is available to move (a deck entry with quantity > 1, a grouped collection tile, or several identical entries), a prompt asks how many copies to move.
-- **Moving a printing-less card into a collection** — Collections require a specific printing. When a card without one (for example a name-only wanted-list entry) is moved into a collection, a printing picker opens so you can choose the exact set and collector number first.
-- **Deck sections** — Unlike the CLI session, which asks which section a card lands in, a deck destination here always uses the deck's default section (the first that is neither the commander nor the sideboard).
+- **Moving a printing-less card into a collection.** Collections require a specific printing. When a card without one (for example a name-only wanted-list entry) is moved into a collection, a printing picker opens so you can choose the exact set and collector number first.
+- **Deck sections.** Unlike the CLI session, which asks which section a card lands in, a deck destination here always uses the deck's default section (the first that is neither the commander nor the sideboard).
 
-Queued moves are reflected immediately in the list view: a card moved away disappears from its source list and appears under its destination when you browse there. Re-moving a card that is already queued updates its destination (a move chain `A → B → C` collapses to `A → C`); moving it back to its original list cancels the queued move.
+Queued moves are reflected immediately in the list view. A card moved away disappears from its source list and appears under its destination when you browse there. Re-moving a card that is already queued updates its destination (a move chain `A → B → C` collapses to `A → C`), and moving it back to its original list cancels the queued move.
 
 ## Switching lists in a session
 
-Unlike the editor pages — which discard unsaved changes when you switch files — the Move Cards page keeps **all** queued moves in memory as you browse between lists. You can move cards out of several lists and into several others before committing, exactly like the CLI `move` command.
+Unlike the editor pages, which discard unsaved changes when you switch files, the Move Cards page keeps **all** queued moves in memory as you browse between lists. You can move cards out of several lists and into several others before committing, exactly like the CLI `move` command.
 
 ## Filters
 
 The **Filters** toggle expands a panel for restricting which lists participate in the session, mirroring the CLI's session filters:
 
-- **From** — which lists are browsed and searched as sources.
-- **To** — which lists are offered as move destinations.
+- **From**: which lists are browsed and searched as sources.
+- **To**: which lists are offered as move destinations.
 
 All lists are enabled by default. Selections persist across reloads in `localStorage` under `ritual:admin:move:disabled-sources` and `ritual:admin:move:disabled-dests`.
 
@@ -42,7 +43,7 @@ All lists are enabled by default. Selections persist across reloads in `localSto
 - **Save Moves** commits every queued move atomically. Each source list records a `Moved … to …` changelog entry and each destination a `Moved … from …` entry, matching the CLI. Intermediate lists in a move chain are never touched.
 - **Discard** clears all queued moves without writing anything.
 
-Queued moves live on this page until you save them, so leaving it discards them. Navigating away with moves still queued — a sidebar item, a dashboard card, the browser's back or forward button — asks for confirmation first, and reloading or closing the tab raises the browser's own "leave site?" prompt.
+Queued moves live on this page until you save them, so leaving it discards them. Navigating away with moves still queued (a sidebar item, a dashboard card, the browser's back or forward button) asks for confirmation first, and reloading or closing the tab raises the browser's own "leave site?" prompt.
 
 Saving rebuilds the move state from disk, so any move whose card can no longer be found (for example because the underlying file changed) is skipped and reported rather than failing the whole batch.
 

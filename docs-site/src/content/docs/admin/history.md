@@ -1,8 +1,9 @@
 ---
 title: 'Change History'
+description: Compact and rewrite a list's change log from the browser.
 ---
 
-The **Change History** page compacts and rewrites the change log (`.changes.md`) of a deck, collection, or wanted list from the browser. It mirrors the CLI [`history`](/commands/history/) command — every edit is staged in memory and nothing is written until you save — and, like the command, it **only ever touches the change log**: the list's own `.md` file is never modified.
+The **Change History** page compacts and rewrites the change log (`.changes.md`) of a deck, collection, or wanted list from the browser. It mirrors the CLI [`history`](/commands/history/) command. Every edit is staged in memory and nothing is written until you save, and, like the command, it **only ever touches the change log**. The list's own `.md` file is never modified.
 
 ## Choosing a list
 
@@ -33,11 +34,13 @@ A summary line above the sets shows how the saved file will differ from what was
 
 ## Combining sets
 
-When two change sets are combined, their lines are interleaved by age — the older set's entries on top, the newer set's beneath — so newer changes always end up at the bottom, no matter which set you combined into which. The merge then compacts the result the same way the card editor's live change log does: an **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) annihilate, as do set/unset-commander and add/remove-section pairs. A combine that cancels everything leaves the set empty, so it is dropped. Lines that survive keep their exact original text, including their internal card IDs.
+When two change sets are combined, their lines are interleaved by age, with the older set's entries on top and the newer set's beneath, so newer changes always end up at the bottom no matter which set you combined into which. The merge then compacts the result the same way the card editor's live change log does. An **add** and a later **remove** of the same card (matching printing, finish, condition, board, and ID) annihilate, as do set/unset-commander and add/remove-section pairs. A combine that cancels everything leaves the set empty, so it is dropped. Lines that survive keep their exact original text, including their internal card IDs.
 
 ## Lossless editing
 
-Apart from combine's compaction, change lines — including their internal card IDs — are moved around verbatim, each with the typed event from its entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog); the editor never re-parses or reformats them. A legacy entry that has no block is carried as-is; it can be combined only with another legacy entry (merged as opaque prose, nothing cancels) and is never offered an entry that carries a block, nor is an entry whose prose and events are out of step. Hand-written text between change sets is preserved as well: it stays attached to the set it follows (shown beneath its change lines when a set is expanded), travels with that set through edits, and is re-emitted on save with each line kept as written, always after the set's change lines. Deleting a set deletes its attached text with it, and **Rewrite with defaults** discards every set's attached text along with the sets it replaces; the rewrite otherwise regenerates lines from the current list contents.
+Apart from combine's compaction, change lines, including their internal card IDs, are moved around verbatim, each with the typed event from its entry's [`ritual-changes` block](/list-format/#the-changesmd-changelog). The editor never re-parses or reformats them. A legacy entry that has no block is carried as-is. It can be combined only with another legacy entry (merged as opaque prose, nothing cancels) and is never offered an entry that carries a block, nor is an entry whose prose and events are out of step.
+
+Hand-written text between change sets is preserved as well. It stays attached to the set it follows (shown beneath its change lines when a set is expanded), travels with that set through edits, and is re-emitted on save with each line kept as written, always after the set's change lines. Deleting a set deletes its attached text with it, and **Rewrite with defaults** discards every set's attached text along with the sets it replaces. The rewrite otherwise regenerates lines from the current list contents.
 
 :::note
 Only the `.changes.md` file is written. When git auto-commit is enabled in the admin config, the save is recorded in a single commit (`Rewrite change history for <list>`), the same as the editor and move endpoints.

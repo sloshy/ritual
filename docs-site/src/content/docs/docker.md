@@ -1,9 +1,9 @@
 ---
 title: 'Docker'
+description: Run Ritual in a container, for a cache server or a hosted public site.
 ---
 
-Ritual can be run inside a Docker container. This is particularly useful for self-hosting the static site generator and cache server.
-The provided Dockerfile uses Alpine Linux and uses the CLI as its entrypoint, so you can run any command directly by passing it to `docker run` or in your `docker-compose.yml`.
+Ritual can run inside a Docker container. This is most useful for self-hosting the [cache server](/commands/cache/#server) or the [public site with a live backend](/public-site/hosted/). The provided Dockerfile uses Alpine Linux and uses the CLI as its entrypoint, so you can run any command directly by passing it to `docker run` or in your `docker-compose.yml`.
 
 ## Building and Publishing the Image
 
@@ -25,7 +25,7 @@ If git metadata is unavailable, the script falls back to a short commit SHA, the
 
 ### Example `docker-compose.yml`
 
-This `docker-compose.yml` example shows an example of running the `cache server` command, which starts the [cache server](/commands/cache/#server) with some common options:
+This example runs the [cache server](/commands/cache/#server) with some common options:
 
 ```yaml
 services:
@@ -45,7 +45,7 @@ services:
 
 ### Hosting the public site with a live backend
 
-To self-host the [hosted public site](/public-site/hosted/) — live list data plus cache-backed card search — run [`serve --api`](/commands/serve/#live-api-mode---api) instead, mounting the list directories and a pre-populated cache:
+To self-host the [hosted public site](/public-site/hosted/) (live list data plus cache-backed card search), run [`serve --api`](/commands/serve/#live-api-mode---api) instead, mounting the list directories and a pre-populated cache:
 
 ```yaml
 services:
@@ -63,11 +63,13 @@ services:
     command: serve --api --host 0.0.0.0 --port 3000 --refresh never
 ```
 
-`--refresh never` stops the container from downloading Scryfall's bulk data on startup — under the default `ask`, an empty or week-old cache is bulk-downloaded without prompting. So populate the cache first with `ritual cache preload-all`, or point the container at a shared cache server with `--cache-server`. An empty `dist/` mount is fine: `--api` builds the site on startup when there is none — but that build needs card data, so with `--refresh never` **and** an empty cache it fails and the container exits 1. Add `--build` to rebuild the site on every start. `--refresh never` also opts out of the startup [buylist](/commands/sell/) refresh (which only runs when [sell mode](/public-site/sell/) is enabled at all), so a long-lived container's sell mode quotes the feed it started with until you refresh it from the admin site or a CLI run.
+`--refresh never` stops the container from downloading Scryfall's bulk data on startup. Under the default `ask`, an empty or week-old cache is bulk-downloaded without prompting. So populate the cache first with `ritual cache preload-all`, or point the container at a shared cache server with `--cache-server`. An empty `dist/` mount is fine: `--api` builds the site on startup when there is none. That build needs card data, though, so with `--refresh never` **and** an empty cache it fails and the container exits 1. Add `--build` to rebuild the site on every start.
+
+`--refresh never` also opts out of the startup [buylist](/commands/sell/) refresh (which only runs when [sell mode](/public-site/sell/) is enabled at all), so a long-lived container's sell mode quotes the feed it started with until you refresh it from the admin site or a CLI run.
 
 ## Directory Mounts
 
-To ensure persistence and allow you to interact with the files Ritual uses, you should mount the following directories:
+To keep your data and let you work with the files Ritual uses, mount these directories:
 
 | Host Directory  | Container Directory | Purpose                                         |
 | :-------------- | :------------------ | :---------------------------------------------- |
