@@ -94,13 +94,11 @@ export function autoAllocate(
 
   const options: SwapRankedOption[] = [
     { candidate: null, price: currentPrintingPrice(target, priceOf), available: target.quantity },
-    ...pool.map(
-      (candidate): SwapRankedOption => ({
-        candidate,
-        price: candidate.price,
-        available: candidate.available,
-      }),
-    ),
+    ...pool.map((candidate): SwapRankedOption => ({
+      candidate,
+      price: candidate.price,
+      available: candidate.available,
+    })),
   ]
   const flags: SwapFlag[] = []
   // A name-only target's keep option is "no printing", not an unpriced

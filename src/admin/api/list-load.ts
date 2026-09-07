@@ -54,8 +54,7 @@ export interface ListLoadPrologue {
 
 /** {@link readListLoadRequest}'s outcome: the prologue, or the response to return. */
 export type ListLoadPrologueResult =
-  | { ok: true; value: ListLoadPrologue }
-  | { ok: false; response: Response }
+  { ok: true; value: ListLoadPrologue } | { ok: false; response: Response }
 
 /** Slug parse → file resolution → `?view/section/nameContains/limit/offset` parse. */
 export async function readListLoadRequest(

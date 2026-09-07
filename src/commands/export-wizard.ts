@@ -306,12 +306,10 @@ async function promptAddLists(
       message: t('cli.exportWizard.promptAddList', { count: state.lists.length }),
       choices: [
         { title: t('cli.exportWizard.done'), value: DONE_SENTINEL },
-        ...remaining.map(
-          (location): Choice => ({
-            title: `${LIST_TYPE_DISPLAY[location.type].icon} ${location.name}`,
-            value: location,
-          }),
-        ),
+        ...remaining.map((location): Choice => ({
+          title: `${LIST_TYPE_DISPLAY[location.type].icon} ${location.name}`,
+          value: location,
+        })),
       ],
       limit: 14,
       suggest: suggestByTitleTerms,
@@ -334,9 +332,10 @@ async function promptAddCards(state: ExportWizardState, allEntries: ExportEntry[
       message: t('cli.exportWizard.promptAddCard', { count: state.picked.length }),
       choices: [
         { title: t('cli.exportWizard.done'), value: DONE_SENTINEL },
-        ...remaining.map(
-          (entry): Choice => ({ title: formatExportEntryChoice(entry), value: entry }),
-        ),
+        ...remaining.map((entry): Choice => ({
+          title: formatExportEntryChoice(entry),
+          value: entry,
+        })),
       ],
       limit: 15,
       suggest: suggestByTitleTerms,
@@ -570,12 +569,10 @@ async function promptFormat(state: ExportWizardState): Promise<void> {
   const pick = await ask<ExportFormat>({
     type: 'select',
     message: t('cli.exportWizard.promptFormat'),
-    choices: EXPORT_FORMATS.map(
-      (format): Choice => ({
-        title: `${t(FORMAT_CHOICE_LABELS[format])}${state.settings.format === format ? t('cli.exportWizard.currentSuffix') : ''}`,
-        value: format,
-      }),
-    ),
+    choices: EXPORT_FORMATS.map((format): Choice => ({
+      title: `${t(FORMAT_CHOICE_LABELS[format])}${state.settings.format === format ? t('cli.exportWizard.currentSuffix') : ''}`,
+      value: format,
+    })),
   })
   if (pick) state.settings.format = pick
 }

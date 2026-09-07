@@ -7,8 +7,7 @@ export type LoginService = Pick<ArchidektAuth, 'login' | 'getStoredUser'>
 
 /** How a credentialed login attempt ended (credentials already in hand). */
 export type LoginResult =
-  | { outcome: 'success'; username: string | undefined }
-  | { outcome: 'failed'; error: string }
+  { outcome: 'success'; username: string | undefined } | { outcome: 'failed'; error: string }
 
 /**
  * Perform the actual Archidekt login with credentials already in hand. Prints

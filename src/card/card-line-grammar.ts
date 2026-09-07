@@ -62,15 +62,7 @@ import { listTypeLabel, type ListType } from '../list/list-type'
  * {@link REPEATABLE_TOKEN_KINDS} exists beside it.
  */
 export type TokenKind =
-  | 'quantity'
-  | 'printing'
-  | 'finish'
-  | 'condition'
-  | 'language'
-  | 'labels'
-  | 'tags'
-  | 'note'
-  | 'id'
+  'quantity' | 'printing' | 'finish' | 'condition' | 'language' | 'labels' | 'tags' | 'note' | 'id'
 
 /**
  * Which token kinds a table row names. A full `Record` rather than a set

@@ -90,27 +90,21 @@ export function buildListSelectionChoices(
   const listChoices = LIST_TYPES.flatMap((type) =>
     refs
       .filter((ref) => ref.type === type)
-      .map(
-        (ref): Choice => ({
-          title: `${listRefTitle(ref)}${pendingBadge(pending.get(ref.file))}`,
-          value: { kind: 'open', list: ref } satisfies UnifiedSelection,
-        }),
-      ),
+      .map((ref): Choice => ({
+        title: `${listRefTitle(ref)}${pendingBadge(pending.get(ref.file))}`,
+        value: { kind: 'open', list: ref } satisfies UnifiedSelection,
+      })),
   )
   return [
-    ...LIST_SCOPES.filter((scope) => isScopeOffered(scope, refs)).map(
-      (scope): Choice => ({
-        title: listScopeTitle(scope),
-        value: { kind: 'scope', scope } satisfies UnifiedSelection,
-      }),
-    ),
+    ...LIST_SCOPES.filter((scope) => isScopeOffered(scope, refs)).map((scope): Choice => ({
+      title: listScopeTitle(scope),
+      value: { kind: 'scope', scope } satisfies UnifiedSelection,
+    })),
     ...listChoices,
-    ...LIST_TYPES.map(
-      (type): Choice => ({
-        title: newListTitle(type),
-        value: { kind: 'new', type } satisfies UnifiedSelection,
-      }),
-    ),
+    ...LIST_TYPES.map((type): Choice => ({
+      title: newListTitle(type),
+      value: { kind: 'new', type } satisfies UnifiedSelection,
+    })),
     { title: `🚪 ${t('cli.menu.exit')}`, value: { kind: 'exit' } satisfies UnifiedSelection },
   ]
 }

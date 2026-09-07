@@ -87,8 +87,7 @@ export type LocaleCatalog = Record<string, MessageValue>
 
 /** A rendered message split into literal text and interpolated parameters. */
 export type MessageSegment =
-  | { kind: 'text'; value: string }
-  | { kind: 'param'; name: string; value: string }
+  { kind: 'text'; value: string } | { kind: 'param'; name: string; value: string }
 
 /**
  * True when the value is a {@link PluralForms} table.

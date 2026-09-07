@@ -32,9 +32,7 @@ const ART_PREVIEW_DEBOUNCE_MS = 500
  * parser's refusal.
  */
 export type CardArtInput =
-  | { state: 'empty' }
-  | { state: 'valid'; art: CardArtRef }
-  | { state: 'invalid'; reason: string }
+  { state: 'empty' } | { state: 'valid'; art: CardArtRef } | { state: 'invalid'; reason: string }
 
 /**
  * Read one form value as an art reference, through the same grammar the sidecar,

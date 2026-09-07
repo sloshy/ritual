@@ -1959,10 +1959,7 @@ describe('Ritual MCP server (2026-07-28 era)', () => {
     // against the exported constants so policy and test cannot drift apart.
     type HintedResult = { ttlMs?: number; cacheScope?: string }
     type CacheableMethod =
-      | 'tools/list'
-      | 'resources/templates/list'
-      | 'resources/list'
-      | 'resources/read'
+      'tools/list' | 'resources/templates/list' | 'resources/list' | 'resources/read'
     const hintOf = async (
       method: CacheableMethod,
       params: Record<string, unknown>,

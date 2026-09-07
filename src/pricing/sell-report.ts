@@ -232,12 +232,10 @@ export async function loadSellListInputs(
 ): Promise<LoadedSellInputs> {
   const { inputs, warnings } = await loadPriceListInputs(type, locations)
   return {
-    inputs: inputs.map(
-      (input): SellListInput => ({
-        ...input,
-        entries: aggregateSellEntries(input.entries.filter((entry) => !isPricelessEntry(entry))),
-      }),
-    ),
+    inputs: inputs.map((input): SellListInput => ({
+      ...input,
+      entries: aggregateSellEntries(input.entries.filter((entry) => !isPricelessEntry(entry))),
+    })),
     warnings,
   }
 }
@@ -575,14 +573,12 @@ export function applySellFilters(report: SellReport, filters: SellEntryFilters):
  * "Copy CK cart CSV" so both produce byte-identical files.
  */
 export function buildSellCartCsv(entries: SellReportEntry[]): SellCartCsv {
-  const items = entries.filter(isBuyingEntry).map(
-    (entry): CkCartItem => ({
-      name: entry.ckName,
-      edition: entry.ckEdition,
-      variation: entry.ckVariation,
-      finish: entry.ckFinish,
-      quantity: entry.sellableQuantity,
-    }),
-  )
+  const items = entries.filter(isBuyingEntry).map((entry): CkCartItem => ({
+    name: entry.ckName,
+    edition: entry.ckEdition,
+    variation: entry.ckVariation,
+    finish: entry.ckFinish,
+    quantity: entry.sellableQuantity,
+  }))
   return buildCkCartCsv(items)
 }

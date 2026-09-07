@@ -37,9 +37,7 @@ export type SaveConflict =
   | { file: string; reason: 'name'; listType: ListType }
 
 export type ConflictResolution =
-  | { action: 'overwrite' }
-  | { action: 'rename'; newName: string }
-  | { action: 'cancel' }
+  { action: 'overwrite' } | { action: 'rename'; newName: string } | { action: 'cancel' }
 
 /**
  * Settles a conflict neither `forceOverwrite` nor `assumeYes` covers. May throw

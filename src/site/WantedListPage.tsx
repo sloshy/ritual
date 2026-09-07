@@ -160,13 +160,11 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
    * The card maps every entry resolves against — one object, rebuilt only when
    * the currency or the baked maps change, rather than per entry per pass.
    */
-  const cardMaps = createMemo(
-    (): SourceCardMaps => ({
-      cards: props.cards,
-      cardKingdom: props.cardsCardKingdom,
-      currency: props.currency,
-    }),
-  )
+  const cardMaps = createMemo((): SourceCardMaps => ({
+    cards: props.cards,
+    cardKingdom: props.cardsCardKingdom,
+    currency: props.currency,
+  }))
 
   const currencyEntries = createMemo((): WantedListCardEntry[] => {
     sessionCacheVersion() // re-price after an in-session "Update Prices"

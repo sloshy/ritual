@@ -137,23 +137,21 @@ export async function planCollectionCsv(
   creates: readonly PushCreate[],
   lookup: CardPrintingsLookup,
 ): Promise<CollectionCsvPlan> {
-  const entries = creates.map(
-    (operation, fileOrder): ExportEntry => ({
-      listType: 'collection',
-      // Only the columns the preset selects are rendered, so the list a copy
-      // came from is carried for completeness rather than for the file.
-      listName: operation.lists[0] ?? '',
-      section: DEFAULT_SECTION,
-      name: operation.name,
-      quantity: operation.quantity,
-      set: operation.parts.set,
-      collectorNumber: operation.parts.collectorNumber,
-      finish: operation.parts.finish,
-      condition: operation.parts.condition,
-      language: operation.parts.language,
-      fileOrder,
-    }),
-  )
+  const entries = creates.map((operation, fileOrder): ExportEntry => ({
+    listType: 'collection',
+    // Only the columns the preset selects are rendered, so the list a copy
+    // came from is carried for completeness rather than for the file.
+    listName: operation.lists[0] ?? '',
+    section: DEFAULT_SECTION,
+    name: operation.name,
+    quantity: operation.quantity,
+    set: operation.parts.set,
+    collectorNumber: operation.parts.collectorNumber,
+    finish: operation.parts.finish,
+    condition: operation.parts.condition,
+    language: operation.parts.language,
+    fileOrder,
+  }))
 
   // A language Archidekt cannot model renders `EN` in the CSV (the dialect's
   // fallback); the file must not carry that silently, so the plan warns the
@@ -286,9 +284,7 @@ function rawRowCells(raw: string): string[] | undefined {
 }
 
 type RowPairing =
-  | { kind: 'operation'; operation: PushCreate }
-  | { kind: 'header-echo' }
-  | { kind: 'unmatched' }
+  { kind: 'operation'; operation: PushCreate } | { kind: 'header-echo' } | { kind: 'unmatched' }
 
 /**
  * Pair one row result with the create it answers: by the identity parsed from

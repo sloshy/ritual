@@ -221,16 +221,14 @@ export function buildMainMenuChoices(report: PriceReport): Choice[] {
   const listChoices = LIST_TYPES.flatMap((type) =>
     report.lists
       .filter((summary) => summary.type === type)
-      .map(
-        (summary): Choice => ({
-          title: formatListChoiceTitle(summary, report.currency),
-          value: {
-            kind: 'open',
-            type: summary.type,
-            name: summary.name,
-          } satisfies PriceMainSelection,
-        }),
-      ),
+      .map((summary): Choice => ({
+        title: formatListChoiceTitle(summary, report.currency),
+        value: {
+          kind: 'open',
+          type: summary.type,
+          name: summary.name,
+        } satisfies PriceMainSelection,
+      })),
   )
   return [
     ...listChoices,
@@ -333,12 +331,10 @@ export function buildCardBrowserChoices(
   })
   return [
     ...controls,
-    ...visible.map(
-      (entry): Choice => ({
-        title: formatEntryChoiceTitle(entry, currency, options.showSource),
-        value: { kind: 'entry', entry } satisfies CardBrowserSelection,
-      }),
-    ),
+    ...visible.map((entry): Choice => ({
+      title: formatEntryChoiceTitle(entry, currency, options.showSource),
+      value: { kind: 'entry', entry } satisfies CardBrowserSelection,
+    })),
   ]
 }
 

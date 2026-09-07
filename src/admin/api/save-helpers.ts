@@ -370,13 +370,11 @@ type RequestLanguageEntry = { language?: unknown }
  * unknown code out of the serializer.
  */
 type RequiredLanguageFieldResult =
-  | { ok: true; language: CardLanguage }
-  | { ok: false; response: Response }
+  { ok: true; language: CardLanguage } | { ok: false; response: Response }
 
 /** {@link requireLanguageField}'s shape, with "field absent" as a legal outcome. */
 type OptionalLanguageFieldResult =
-  | { ok: true; language: CardLanguage | undefined }
-  | { ok: false; response: Response }
+  { ok: true; language: CardLanguage | undefined } | { ok: false; response: Response }
 
 /** The required variant: the field must be present and name a known language. */
 function requireLanguageField(raw: unknown, where: string): RequiredLanguageFieldResult {

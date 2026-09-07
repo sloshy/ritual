@@ -140,12 +140,10 @@ export function listSessionChangeItems(
   isSameCard: SameCardCheck,
 ): SessionChangeItem[] {
   return [
-    ...adds.map(
-      (add): SessionChangeItem => ({
-        label: `➕ ${t('cli.edit.sessionAdd', { label: add.label })}`,
-        editable: add.cardId !== undefined && isSameCard(add.cardId, add.name),
-      }),
-    ),
+    ...adds.map((add): SessionChangeItem => ({
+      label: `➕ ${t('cli.edit.sessionAdd', { label: add.label })}`,
+      editable: add.cardId !== undefined && isSameCard(add.cardId, add.name),
+    })),
     ...editUndo.map((entry, index): SessionChangeItem => {
       // Two spaces after the icon: variation-selector emoji render double-wide.
       const icon = entry.kind === 'removal' ? '🗑️' : entry.kind === 'move' ? '📤' : '✏️'

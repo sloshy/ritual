@@ -492,8 +492,7 @@ export type RemovalAssignment = {
  * caller must never write half a decision.
  */
 export type AmbiguityResolution =
-  | { ok: true; removals: PullRemoval[] }
-  | { ok: false; unresolved: AmbiguousRemoval[] }
+  { ok: true; removals: PullRemoval[] } | { ok: false; unresolved: AmbiguousRemoval[] }
 
 /**
  * Choose which lists lose copies for one ambiguous removal, or `null` when this

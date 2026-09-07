@@ -379,18 +379,16 @@ export function renderTextExport(
   // Boards partition the dialect's aggregation (`aggregateDialectCards`): two
   // copies of a card in different boards are two lines, exactly as they are two
   // lines in the deck they came from.
-  const cards = entries.map(
-    (entry): SectionedDialectCard => ({
-      section: entry.section,
-      quantity: entry.quantity,
-      name: entry.name,
-      set: entry.set,
-      collectorNumber: entry.collectorNumber,
-      finish: entry.finish,
-      condition: entry.condition,
-      language: entry.language,
-    }),
-  )
+  const cards = entries.map((entry): SectionedDialectCard => ({
+    section: entry.section,
+    quantity: entry.quantity,
+    name: entry.name,
+    set: entry.set,
+    collectorNumber: entry.collectorNumber,
+    finish: entry.finish,
+    condition: entry.condition,
+    language: entry.language,
+  }))
   return {
     content: renderDialectText(aggregateDialectCards(cards), textDialect),
     warnings: omittedExtrasWarning(entries),

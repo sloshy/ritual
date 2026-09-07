@@ -23,30 +23,28 @@ import type { ScryfallCard } from '../../src/scryfall/types'
 type SeedPrinting = { set: string; setName: string; collectorNumber: string; finishes: string[] }
 
 function seedPrintings(name: string, printings: SeedPrinting[]): ScryfallCard[] {
-  return printings.map(
-    (p, i): ScryfallCard => ({
-      id: `it-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${i}`,
-      name,
-      cmc: 1,
-      type_line: 'Artifact',
-      prices: {
-        usd: '1.00',
-        usd_foil: null,
-        usd_etched: null,
-        eur: null,
-        eur_foil: null,
-        tix: null,
-      },
-      finishes: p.finishes,
-      games: ['paper'],
-      set: p.set,
-      set_name: p.setName,
-      collector_number: p.collectorNumber,
-      rarity: 'rare',
-      color_identity: [],
-      released_at: '2020-01-01',
-    }),
-  )
+  return printings.map((p, i): ScryfallCard => ({
+    id: `it-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${i}`,
+    name,
+    cmc: 1,
+    type_line: 'Artifact',
+    prices: {
+      usd: '1.00',
+      usd_foil: null,
+      usd_etched: null,
+      eur: null,
+      eur_foil: null,
+      tix: null,
+    },
+    finishes: p.finishes,
+    games: ['paper'],
+    set: p.set,
+    set_name: p.setName,
+    collector_number: p.collectorNumber,
+    rarity: 'rare',
+    color_identity: [],
+    released_at: '2020-01-01',
+  }))
 }
 
 const SEED_CARDS: Record<string, ScryfallCard[]> = {

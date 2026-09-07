@@ -100,8 +100,7 @@ export type ValidatedPrintingFields = {
 }
 
 export type PrintingFieldsResult =
-  | { ok: true; fields: ValidatedPrintingFields }
-  | { ok: false; error: string }
+  { ok: true; fields: ValidatedPrintingFields } | { ok: false; error: string }
 
 /**
  * Validate the printing-ish fields shared by changes and moves (`set`,

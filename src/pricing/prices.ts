@@ -1,8 +1,7 @@
 import type { PriceCurrency } from './price-currency'
 
 export type ParsePriceCacheKeyResult =
-  | { ok: true; cardName: string; currency: PriceCurrency }
-  | { ok: false; error: string }
+  { ok: true; cardName: string; currency: PriceCurrency } | { ok: false; error: string }
 
 /** Parse a stored price cache key (`<card name>:<currency>`) into card name and currency. */
 export function parsePriceCacheKey(key: string): ParsePriceCacheKeyResult {

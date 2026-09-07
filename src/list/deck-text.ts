@@ -86,18 +86,16 @@ export function deckToMarkdown(deck: DeckData): string {
  */
 export function deckToExportText(deck: DeckData): string {
   const cards = deck.sections.flatMap((section) =>
-    section.cards.map(
-      (card): SectionedDialectCard => ({
-        section: section.name,
-        quantity: card.quantity,
-        name: card.name,
-        set: card.set,
-        collectorNumber: card.collectorNumber,
-        finish: card.finish,
-        condition: card.condition,
-        language: card.language,
-      }),
-    ),
+    section.cards.map((card): SectionedDialectCard => ({
+      section: section.name,
+      quantity: card.quantity,
+      name: card.name,
+      set: card.set,
+      collectorNumber: card.collectorNumber,
+      finish: card.finish,
+      condition: card.condition,
+      language: card.language,
+    })),
   )
   return renderDialectText(aggregateDialectCards(cards), 'moxfield')
 }

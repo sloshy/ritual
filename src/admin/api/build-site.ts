@@ -276,8 +276,7 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
  * shape the sync streams use, so a client folds it with one switch.
  */
 export type BuildSiteStreamEvent =
-  | ({ kind: 'step' } & RouteProgress)
-  | { kind: 'output'; line: string }
+  ({ kind: 'step' } & RouteProgress) | { kind: 'output'; line: string }
 
 /** `event: done` payload — the same fields the JSON endpoint returns. */
 export type BuildSiteDoneEvent = ApiMessage & Pick<BuildSiteResponse, 'outDir' | 'durationMs'>

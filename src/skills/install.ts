@@ -57,9 +57,7 @@ export type SkillWriteOptions = {
  *   markers, or a hash mismatch); protected from overwrites without `force`.
  */
 export type InstalledSkillState =
-  | { kind: 'missing' }
-  | { kind: 'user-edited' }
-  | { kind: 'machine-managed'; version: string }
+  { kind: 'missing' } | { kind: 'user-edited' } | { kind: 'machine-managed'; version: string }
 
 /**
  * Classify an installed `SKILL.md`'s content. Every failure mode (unparseable

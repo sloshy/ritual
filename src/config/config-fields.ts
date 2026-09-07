@@ -41,9 +41,9 @@ type ConfigFieldTypeFor<T> = T extends string
 // The `admin` and `site` object keys are automatically excluded because
 // ConfigFieldTypeFor<object> = never.
 type SettableFieldsMap = {
-  [K in keyof RitualConfig as ConfigFieldTypeFor<RitualConfig[K]> extends never
-    ? never
-    : K]: ConfigFieldTypeFor<RitualConfig[K]>
+  [
+    K in keyof RitualConfig as ConfigFieldTypeFor<RitualConfig[K]> extends never ? never : K
+  ]: ConfigFieldTypeFor<RitualConfig[K]>
 }
 
 // The admin settings live under `admin`. Like the site selection lists below,

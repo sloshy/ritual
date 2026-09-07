@@ -31,15 +31,13 @@ export type ListInfo = {
 export async function loadAllLists(): Promise<ListEntry[]> {
   const locations = await listLocations()
   return Promise.all(
-    locations.map(
-      async (location): Promise<ListEntry> => ({
-        ref: {
-          type: location.type,
-          name: await listDisplayName(location.type, location.filePath).catch(() => location.name),
-        },
-        filePath: location.filePath,
-      }),
-    ),
+    locations.map(async (location): Promise<ListEntry> => ({
+      ref: {
+        type: location.type,
+        name: await listDisplayName(location.type, location.filePath).catch(() => location.name),
+      },
+      filePath: location.filePath,
+    })),
   )
 }
 

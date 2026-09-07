@@ -58,8 +58,7 @@ export type AddCardOptions = CardPrintingOptions & {
  * rather than folded into a bare `null`.
  */
 export type AddCardResult =
-  | { kind: 'added'; change: ChangeEvent }
-  | { kind: 'cancelled'; cancelled: RemoveChange | null }
+  { kind: 'added'; change: ChangeEvent } | { kind: 'cancelled'; cancelled: RemoveChange | null }
 
 /**
  * Stores enough context to fully reverse a single user action.

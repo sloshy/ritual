@@ -213,9 +213,10 @@ export function registerSkillsCommand(program: Command): void {
       const scripting = normalizeScriptingOptions(options)
 
       if (scripting.output !== 'text') {
-        const entries = SKILLS.map(
-          (skill): SkillListEntry => ({ name: skill.name, description: skill.description }),
-        )
+        const entries = SKILLS.map((skill): SkillListEntry => ({
+          name: skill.name,
+          description: skill.description,
+        }))
         emitOutput(entries, scripting)
         return
       }

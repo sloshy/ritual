@@ -42,16 +42,12 @@ test.describe('Admin editors — sell mode gating', () => {
   test('a server reporting no sell mode renders the toolbar without the toggle', async ({
     page,
   }) => {
-    await fulfillJson(
-      page,
-      '**/api/status',
-      (): StatusResponse => ({
-        ok: true,
-        setupRequired: false,
-        totpEnabled: false,
-        sellMode: false,
-      }),
-    )
+    await fulfillJson(page, '**/api/status', (): StatusResponse => ({
+      ok: true,
+      setupRequired: false,
+      totpEnabled: false,
+      sellMode: false,
+    }))
     // Navigate after the fake is installed: the signal is read once, at boot.
     await gotoAdminDashboard(page)
     await openSyntheticDeck(page)
@@ -100,16 +96,12 @@ async function mockSellModeServer(page: Page, initial: boolean): Promise<SellMod
       }
     : MOCK_CONFIG
   const puts: Partial<RitualConfig>[] = []
-  await fulfillJson(
-    page,
-    '**/api/status',
-    (): StatusResponse => ({
-      ok: true,
-      setupRequired: false,
-      totpEnabled: false,
-      sellMode: stored.site?.sellMode === true,
-    }),
-  )
+  await fulfillJson(page, '**/api/status', (): StatusResponse => ({
+    ok: true,
+    setupRequired: false,
+    totpEnabled: false,
+    sellMode: stored.site?.sellMode === true,
+  }))
   await fulfillJson(page, '**/api/config', (route: Route): ConfigResponse => {
     if (route.request().method() === 'PUT') {
       const body = route.request().postDataJSON() as Partial<RitualConfig>

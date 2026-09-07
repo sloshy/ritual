@@ -787,9 +787,7 @@ export async function promptWantedFinish(
 
 /** What a wanted finish picker resolved to, before each caller's own return convention. */
 type WantedFinishAnswer =
-  | { kind: 'finish'; finish: Finish }
-  | { kind: 'none' }
-  | { kind: 'cancelled' }
+  { kind: 'finish'; finish: Finish } | { kind: 'none' } | { kind: 'cancelled' }
 
 /** How a wanted finish picker asks: its message, and the edit picker's subject/cursor. */
 type WantedFinishAsk = { message: string; subjectKey?: PromptSubjectKey; initial?: number }

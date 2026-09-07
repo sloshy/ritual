@@ -101,9 +101,7 @@ export type FetchCardResult = ScryfallCard | ScryfallFetchError | null
 
 /** A {@link FetchCardResult} classified into its three outcomes for exhaustive handling. */
 export type FetchCardOutcome =
-  | { kind: 'card'; card: ScryfallCard }
-  | { kind: 'not-found' }
-  | { kind: 'failed'; message: string }
+  { kind: 'card'; card: ScryfallCard } | { kind: 'not-found' } | { kind: 'failed'; message: string }
 
 /**
  * Classify a {@link FetchCardResult} so callers share one discrimination of the

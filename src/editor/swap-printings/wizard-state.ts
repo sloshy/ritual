@@ -40,13 +40,7 @@ const PLANNER_VERDICT_FLAGS: ReadonlySet<SwapFlag> = new Set<SwapFlag>([
 
 /** The wizard's steps, in their natural order. */
 export type SwapWizardStep =
-  | 'cards'
-  | 'sources'
-  | 'mode'
-  | 'pick'
-  | 'review'
-  | 'replacements'
-  | 'summary'
+  'cards' | 'sources' | 'mode' | 'pick' | 'review' | 'replacements' | 'summary'
 
 /** Stable identity of a wizard target across steps. */
 export function swapTargetKey(target: SwapTarget): string {

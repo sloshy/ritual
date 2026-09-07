@@ -143,8 +143,7 @@ export function parseNameArray(raw: unknown, rules: NameArrayRules): string[] | 
  * it are both strings — the caller must not have to guess which it was handed.
  */
 export type OptionalTextResult =
-  | { ok: true; value: string | undefined }
-  | { ok: false; message: string }
+  { ok: true; value: string | undefined } | { ok: false; message: string }
 
 /**
  * Validate an optional free-text field (the pull target's `into`). An absent,

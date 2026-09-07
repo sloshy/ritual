@@ -31,8 +31,7 @@ export interface ListFileLookup {
 
 /** A resolved list file, or the refusal (status + message) that replaces it. */
 export type ResolvedListFile =
-  | { ok: true; filePath: string }
-  | { ok: false; status: number; message: string }
+  { ok: true; filePath: string } | { ok: false; status: number; message: string }
 
 /** How one list type turns a slug into a file path. */
 export type ResolveListFile = (lookup: ListFileLookup) => Promise<ResolvedListFile>

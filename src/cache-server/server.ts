@@ -135,19 +135,17 @@ function createPriceStream(
         }
 
         await runStaggeredTasksInCompletionOrder(
-          refreshQueue.map(
-            (key) => async (): Promise<PriceStreamTaskResult> => ({
+          refreshQueue.map((key) => async (): Promise<PriceStreamTaskResult> => ({
+            key,
+            result: await resolvePriceCacheReadThrough(
+              localPriceCache,
+              localScryfallClient,
               key,
-              result: await resolvePriceCacheReadThrough(
-                localPriceCache,
-                localScryfallClient,
-                key,
-                logCacheUpdate,
-                priceRefreshScheduler,
-                localCardCache,
-              ),
-            }),
-          ),
+              logCacheUpdate,
+              priceRefreshScheduler,
+              localCardCache,
+            ),
+          })),
           PRICE_REFRESH_STAGGER_MS,
           async ({ key, result }) => {
             controller.enqueue(

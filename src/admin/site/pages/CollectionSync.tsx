@@ -423,12 +423,10 @@ export function CollectionSync(): JSX.Element {
         setRunLog((current) => [
           ...current,
           ...data.report.errors.map((text): SyncRunMessage => ({ level: 'error', text })),
-          ...unplaced.map(
-            (entry): SyncRunMessage => ({
-              level: 'warn',
-              text: describeAmbiguousRemoval(entry),
-            }),
-          ),
+          ...unplaced.map((entry): SyncRunMessage => ({
+            level: 'warn',
+            text: describeAmbiguousRemoval(entry),
+          })),
         ])
         // The report carries the unreadable lists too, so this path offers the
         // same confirmation the streamed one does.

@@ -310,12 +310,10 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
 
     const cardChoices: Choice[] =
       sessionMode === 'edit'
-        ? strategy.listEntries().map(
-            (entry): Choice => ({
-              title: entry.label,
-              value: { type: 'entry', cardId: entry.cardId } satisfies EntryChoiceValue,
-            }),
-          )
+        ? strategy.listEntries().map((entry): Choice => ({
+            title: entry.label,
+            value: { type: 'entry', cardId: entry.cardId } satisfies EntryChoiceValue,
+          }))
         : sessionConfig.entryMode === 'name'
           ? cardNames.map((name) => ({ title: name, value: name }))
           : // Built once and cached on the shared config, so the whole-cache

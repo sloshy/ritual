@@ -37,14 +37,12 @@ export function formatEntry(entry: DepLicenseEntry): string {
 export function toDepLicenseListEntries(
   entries: readonly DepLicenseEntry[],
 ): DepLicenseListEntry[] {
-  return entries.map(
-    (entry): DepLicenseListEntry => ({
-      name: entry.name,
-      version: entry.version,
-      license: entry.license,
-      isPrimary: entry.isPrimary,
-    }),
-  )
+  return entries.map((entry): DepLicenseListEntry => ({
+    name: entry.name,
+    version: entry.version,
+    license: entry.license,
+    isPrimary: entry.isPrimary,
+  }))
 }
 
 /**

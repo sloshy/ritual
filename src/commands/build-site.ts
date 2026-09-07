@@ -121,8 +121,7 @@ export interface BuildSiteOptions {
 
 /** What a selection flag parsed to: names (or none given), or a usage error. */
 export type SelectionFlagResult =
-  | { ok: true; names: string[] | undefined }
-  | { ok: false; error: string }
+  { ok: true; names: string[] | undefined } | { ok: false; error: string }
 
 /**
  * The names an optional-variadic selection flag carries.

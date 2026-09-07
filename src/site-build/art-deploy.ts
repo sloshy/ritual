@@ -62,9 +62,7 @@ export type CardArtDeployOptions = {
  * does. The card simply keeps its normal art, and the build says why.
  */
 type ArtSourceCheck =
-  | { kind: 'file' }
-  | { kind: 'missing' }
-  | { kind: 'unreadable'; message: string }
+  { kind: 'file' } | { kind: 'missing' } | { kind: 'unreadable'; message: string }
 
 async function checkArtSource(filePath: string): Promise<ArtSourceCheck> {
   try {

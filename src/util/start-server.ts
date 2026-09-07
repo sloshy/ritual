@@ -14,8 +14,7 @@ export type BoundServer = {
 
 /** The outcome of binding a server: the live handle, or why the bind failed. */
 export type StartServerResult<T extends BoundServer> =
-  | { ok: true; server: T }
-  | { ok: false; error: string }
+  { ok: true; server: T } | { ok: false; error: string }
 
 /**
  * Run `start` (a `Bun.serve` call, or a synchronous wrapper around one) and turn

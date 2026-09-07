@@ -36,7 +36,7 @@ The run streams over server-sent events, so each deck updates as it is processed
 | ---- | -------------------------------------------------------------------------------------------- |
 | ⏳   | In progress.                                                                                 |
 | ✓    | Synced — including "no changes detected".                                                    |
-| ⏭   | Skipped, with the reason (e.g. an Archidekt deck you do not own, which a push cannot write). |
+| ⏭    | Skipped, with the reason (e.g. an Archidekt deck you do not own, which a push cannot write). |
 | ✗    | Failed, with the error. The run continues with the remaining decks.                          |
 
 Under each deck are the same lines the CLI prints. The change summary: a pull reports `Changes: +2 added, -1 removed, ~0 quantity changed`, a push `Changes: +2 to add, -1 to remove, ~0 quantity changes`, each gaining a `, 3 printings changed` / `, 3 printings to change` clause when printing sync is on. Then what the change filter left out (`Skipped 3 removals (applying additions only).`), any format change, a warning for each card whose printings the two sides cannot square up when printing sync is **off** (`Printings not synced for "Lightning Bolt": … Re-run with --sync-printings to reconcile them.`), and the final `Saved.` / `Pushed N card changes to Archidekt.` A closing alert summarizes the run, such as `Pulled 3 decks, 1 skipped.`, or `Previewed 3 decks, 1 skipped.` for a preview run.

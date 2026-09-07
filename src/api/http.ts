@@ -79,8 +79,7 @@ export function badRequest(reason: string | ApiMessage): Response {
 
 /** The outcome of {@link readJsonObjectBody}: the parsed object, or the response to return. */
 export type JsonObjectBody =
-  | { ok: true; body: Record<string, unknown> }
-  | { ok: false; response: Response }
+  { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
 
 /**
  * The shared route prologue for a JSON body: size cap, parse, object guard, one

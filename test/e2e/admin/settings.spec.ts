@@ -290,20 +290,16 @@ test.describe('Settings Page — site key prefill', () => {
     // Serve a config that already has a stored (lowercase) banned printing and
     // sell mode on, so both prefill paths are exercised. PUTs echo the plain
     // mock config back.
-    await fulfillJson(
-      page,
-      '**/api/config',
-      (route: Route): ConfigResponse => ({
-        success: true,
-        config:
-          route.request().method() === 'GET'
-            ? {
-                ...MOCK_CONFIG,
-                site: { ...defaultSiteSelection(), bannedPrintings: ['sld:123'], sellMode: true },
-              }
-            : MOCK_CONFIG,
-      }),
-    )
+    await fulfillJson(page, '**/api/config', (route: Route): ConfigResponse => ({
+      success: true,
+      config:
+        route.request().method() === 'GET'
+          ? {
+              ...MOCK_CONFIG,
+              site: { ...defaultSiteSelection(), bannedPrintings: ['sld:123'], sellMode: true },
+            }
+          : MOCK_CONFIG,
+    }))
     await mockTotpApi(page)
     await mockStatusApi(page, true)
     await gotoAdminDashboard(page)

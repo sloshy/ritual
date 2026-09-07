@@ -61,12 +61,10 @@ describe('admin git', () => {
     expect(shouldAutoCommit(config, projectRoot)).toBe(true)
     expect(shouldAutoPush(config, projectRoot)).toBe(true)
 
-    const inside = await suppressAutoCommit(
-      async (): Promise<GateSnapshot> => ({
-        commit: shouldAutoCommit(config, projectRoot),
-        push: shouldAutoPush(config, projectRoot),
-      }),
-    )
+    const inside = await suppressAutoCommit(async (): Promise<GateSnapshot> => ({
+      commit: shouldAutoCommit(config, projectRoot),
+      push: shouldAutoPush(config, projectRoot),
+    }))
     expect(inside).toEqual({ commit: false, push: false })
 
     // Both gates come back once the wrapped call completes.

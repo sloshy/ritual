@@ -78,9 +78,7 @@ export type AddOptionsRowProps = {
  * value this row accepts is a value the art route will accept.
  */
 export type AddCardArtInput =
-  | { state: 'empty' }
-  | { state: 'valid'; art: CardArtRef }
-  | { state: 'invalid'; reason: string }
+  { state: 'empty' } | { state: 'valid'; art: CardArtRef } | { state: 'invalid'; reason: string }
 
 export function readAddCardArt(raw: string): AddCardArtInput {
   if (raw.trim() === '') return { state: 'empty' }

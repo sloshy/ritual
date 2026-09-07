@@ -424,20 +424,18 @@ export async function loadPriceListInputs(
       inputs.push({
         type: location.type,
         name: location.name,
-        entries: parsed.entries.map(
-          (entry): PriceListEntry => ({
-            name: entry.name,
-            quantity: entry.quantity,
-            set: entry.set.toLowerCase(),
-            collectorNumber: entry.collectorNumber,
-            finish: entry.finish,
-            condition: entry.condition,
-            language: entry.language,
-            labels: labelsOrUndefined(entry.labels, parsed.labels),
-            hasCustomArt: customArtFlag(art, entry.cardId),
-            section: entry.section,
-          }),
-        ),
+        entries: parsed.entries.map((entry): PriceListEntry => ({
+          name: entry.name,
+          quantity: entry.quantity,
+          set: entry.set.toLowerCase(),
+          collectorNumber: entry.collectorNumber,
+          finish: entry.finish,
+          condition: entry.condition,
+          language: entry.language,
+          labels: labelsOrUndefined(entry.labels, parsed.labels),
+          hasCustomArt: customArtFlag(art, entry.cardId),
+          section: entry.section,
+        })),
       })
       continue
     }
@@ -446,18 +444,16 @@ export async function loadPriceListInputs(
     inputs.push({
       type: location.type,
       name: location.name,
-      entries: parsed.entries.map(
-        (entry): PriceListEntry => ({
-          name: entry.name,
-          quantity: entry.quantity,
-          set: entry.set?.toLowerCase(),
-          collectorNumber: entry.collectorNumber,
-          finish: entry.finish,
-          language: entry.language,
-          hasCustomArt: customArtFlag(art, entry.cardId),
-          section: entry.section,
-        }),
-      ),
+      entries: parsed.entries.map((entry): PriceListEntry => ({
+        name: entry.name,
+        quantity: entry.quantity,
+        set: entry.set?.toLowerCase(),
+        collectorNumber: entry.collectorNumber,
+        finish: entry.finish,
+        language: entry.language,
+        hasCustomArt: customArtFlag(art, entry.cardId),
+        section: entry.section,
+      })),
     })
   }
 

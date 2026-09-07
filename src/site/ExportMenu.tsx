@@ -102,9 +102,11 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
 
   const entries = (): MenuEntry[] => [
     ...FORMATS.map((format): MenuEntry => ({ kind: 'format', label: t(format.label), format })),
-    ...(props.extraFormats ?? []).map(
-      (extra): MenuEntry => ({ kind: 'extra', label: extra.label, extra }),
-    ),
+    ...(props.extraFormats ?? []).map((extra): MenuEntry => ({
+      kind: 'extra',
+      label: extra.label,
+      extra,
+    })),
   ]
 
   /** Render an entry, capturing any advisory warnings it reports. */

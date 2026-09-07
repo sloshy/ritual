@@ -490,19 +490,17 @@ async function applyBatch(progress: TargetProgress, batch: ImportBatch): Promise
  */
 export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImportResult> {
   const plan = planImportBatches(bundle)
-  const progress: TargetProgress[] = plan.targets.map(
-    (target): TargetProgress => ({
-      ref: target,
-      retarget: createRetargetState(),
-      result: {
-        kind: target.kind,
-        slug: target.slug ?? '',
-        name: target.name,
-        applied: 0,
-        conflicts: [],
-      },
-    }),
-  )
+  const progress: TargetProgress[] = plan.targets.map((target): TargetProgress => ({
+    ref: target,
+    retarget: createRetargetState(),
+    result: {
+      kind: target.kind,
+      slug: target.slug ?? '',
+      name: target.name,
+      applied: 0,
+      conflicts: [],
+    },
+  }))
   for (const batch of plan.batches) {
     await applyBatch(progress[batch.target]!, batch)
   }

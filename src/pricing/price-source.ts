@@ -51,8 +51,7 @@ export type UsdPriceSource = (typeof USD_PRICE_SOURCES)[number]
  * on the subtle half (explicit-only); each surface words its own error.
  */
 export type SourceCurrencyResolution =
-  | { ok: true; currency: PriceCurrency }
-  | { ok: false; source: PriceSource; implied: PriceCurrency }
+  { ok: true; currency: PriceCurrency } | { ok: false; source: PriceSource; implied: PriceCurrency }
 
 export function resolveSourceCurrency(
   source: PriceSource,

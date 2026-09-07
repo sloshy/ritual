@@ -35,7 +35,7 @@ The run streams over server-sent events, so each list updates as it is processed
 | ---- | ------------------------------------------------------------------- |
 | ⏳   | In progress.                                                        |
 | ✓    | Synced — including "no changes".                                    |
-| ⏭   | Skipped, with the reason.                                           |
+| ⏭    | Skipped, with the reason.                                           |
 | ✗    | Failed, with the error. The run continues with the remaining lists. |
 
 A finished list shows its tally (`+2 added, -1 removed`) beside its name, counting **copies** rather than cards. A collection line is one physical copy, so that is the unit both directions move. Under each list are the lines the CLI prints: the change summary, what the change filter left out, and the final `Saved.` Lines that belong to the run rather than to one list sit above the list rows: the phase progress a run opens with (reading the list files, matching them against the card cache, one line per page of the fetched collection, each with how long it took), the size of the fetched collection, and any removal too ambiguous to place (see below). A closing alert summarizes the run, such as `Pulled +4 added, -1 removed into "Inbox".`

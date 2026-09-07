@@ -151,14 +151,12 @@ function input(entries: Partial<SellListEntry>[]): SellListInput[] {
     {
       type: 'collection',
       name: 'Binder',
-      entries: entries.map(
-        (entry): SellListEntry => ({
-          name: 'Arahbo',
-          quantity: 1,
-          section: 'Main',
-          ...entry,
-        }),
-      ),
+      entries: entries.map((entry): SellListEntry => ({
+        name: 'Arahbo',
+        quantity: 1,
+        section: 'Main',
+        ...entry,
+      })),
     },
   ]
 }

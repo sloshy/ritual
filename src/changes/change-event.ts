@@ -848,12 +848,10 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   }
 
   // Add/remove of the same card cancels out
-  if (
-    !(
-      (a.action === 'add' && b.action === 'remove') ||
-      (a.action === 'remove' && b.action === 'add')
-    )
-  ) {
+  if (!(
+    (a.action === 'add' && b.action === 'remove') ||
+    (a.action === 'remove' && b.action === 'add')
+  )) {
     return false
   }
 

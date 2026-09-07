@@ -358,8 +358,8 @@ The edit is recorded as **one** `set-categories` event per card, a whole-list re
 
 The list menu carries two list-level rows, on all three list types:
 
-| Row                      | What it does                                                                                                                          |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Row                     | What it does                                                                                                                          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
 | `🗂 Rename Category…`    | Pick a category from the list's vocabulary and type its new name — renamed on every card carrying it, each card's own order preserved |
 | `🗂 Reorder Categories…` | Retype the vocabulary in the order you want it displayed                                                                              |
 

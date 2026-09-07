@@ -120,20 +120,16 @@ export async function collectListRefs(): Promise<UnifiedListRef[]> {
   const wanted = await listMarkdownNames(dirForType('wanted'))
   return [
     ...decks.map((d): UnifiedListRef => ({ type: 'deck', name: d.name, file: d.file })),
-    ...collections.map(
-      (name): UnifiedListRef => ({
-        type: 'collection',
-        name,
-        file: path.join(dirForType('collection'), `${name}.md`),
-      }),
-    ),
-    ...wanted.map(
-      (name): UnifiedListRef => ({
-        type: 'wanted',
-        name,
-        file: path.join(dirForType('wanted'), `${name}.md`),
-      }),
-    ),
+    ...collections.map((name): UnifiedListRef => ({
+      type: 'collection',
+      name,
+      file: path.join(dirForType('collection'), `${name}.md`),
+    })),
+    ...wanted.map((name): UnifiedListRef => ({
+      type: 'wanted',
+      name,
+      file: path.join(dirForType('wanted'), `${name}.md`),
+    })),
   ]
 }
 
@@ -437,13 +433,11 @@ export async function saveOpenList(
   let offline: PreparedOutgoingMoves
   try {
     offline = await prepareOutgoingMoves(
-      plans.map(
-        (plan): OutgoingMoveBatch => ({
-          sourceRef: plan.sourceRef,
-          sourceFile: plan.source.ref.file,
-          changes: plan.offline,
-        }),
-      ),
+      plans.map((plan): OutgoingMoveBatch => ({
+        sourceRef: plan.sourceRef,
+        sourceFile: plan.source.ref.file,
+        changes: plan.offline,
+      })),
     )
   } catch (error) {
     return fail(getErrorMessage(error))

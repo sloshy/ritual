@@ -23,8 +23,7 @@ type QuantityStepperBase = {
  * A focusable stepper is a real focus stop, so it must carry an accessible name.
  */
 type QuantityStepperFocus =
-  | { focusable: true; label: string }
-  | { focusable?: false; label?: undefined }
+  { focusable: true; label: string } | { focusable?: false; label?: undefined }
 
 export type QuantityStepperProps = QuantityStepperBase & QuantityStepperFocus
 

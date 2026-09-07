@@ -573,13 +573,11 @@ export async function prepareOutgoingMoves(
   batches: readonly OutgoingMoveBatch[],
 ): Promise<PreparedOutgoingMoves> {
   const prepared = await prepareCrossListMoves(
-    batches.map(
-      ({ sourceRef, sourceFile, changes }): MoveBatch => ({
-        ref: sourceRef,
-        file: sourceFile,
-        changes: changes.filter((c) => c.action === 'move-from'),
-      }),
-    ),
+    batches.map(({ sourceRef, sourceFile, changes }): MoveBatch => ({
+      ref: sourceRef,
+      file: sourceFile,
+      changes: changes.filter((c) => c.action === 'move-from'),
+    })),
   )
   return {
     droppedNotes: prepared.droppedNotes,

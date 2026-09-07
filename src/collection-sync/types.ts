@@ -213,8 +213,7 @@ export type ScryfallIdLookup = (ids: readonly string[]) => Promise<Map<string, S
  * scripted run (`--output json`) carries the reason too.
  */
 export type AmbiguityResolutionOutcome =
-  | { ok: true; assignments: RemovalAssignment[] }
-  | { ok: false; message: string }
+  { ok: true; assignments: RemovalAssignment[] } | { ok: false; message: string }
 
 /**
  * Decide where every ambiguous removal takes its copies from, in one go.

@@ -133,13 +133,7 @@ export const COMMANDER_SECTION = 'Commander'
  * `Commander Damage Notes`, `Sideboard (post-board)` — is a main-deck section.
  */
 export type SectionRole =
-  | 'commander'
-  | 'companion'
-  | 'oathbreaker'
-  | 'sideboard'
-  | 'maybeboard'
-  | 'tokens'
-  | 'main'
+  'commander' | 'companion' | 'oathbreaker' | 'sideboard' | 'maybeboard' | 'tokens' | 'main'
 
 /**
  * The closed alias set for every non-`main` role, plus the spellings of `main`

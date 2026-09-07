@@ -122,20 +122,16 @@ type AddTarget = { kind: 'list'; open: OpenList } | { kind: 'new'; type: ListTyp
  */
 export function buildAddTargetChoices(lists: OpenList[], scope: ListScope): Choice[] {
   return [
-    ...lists.map(
-      (open): Choice => ({
-        title: open.isNew()
-          ? t('cli.edit.new', { label: listRefTitle(open.ref) })
-          : listRefTitle(open.ref),
-        value: { kind: 'list', open } satisfies AddTarget,
-      }),
-    ),
-    ...scopeCreatableTypes(scope).map(
-      (type): Choice => ({
-        title: newListTitle(type),
-        value: { kind: 'new', type } satisfies AddTarget,
-      }),
-    ),
+    ...lists.map((open): Choice => ({
+      title: open.isNew()
+        ? t('cli.edit.new', { label: listRefTitle(open.ref) })
+        : listRefTitle(open.ref),
+      value: { kind: 'list', open } satisfies AddTarget,
+    })),
+    ...scopeCreatableTypes(scope).map((type): Choice => ({
+      title: newListTitle(type),
+      value: { kind: 'new', type } satisfies AddTarget,
+    })),
   ]
 }
 

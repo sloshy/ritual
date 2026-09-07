@@ -35,10 +35,7 @@ import {
  * the page at the same time.
  */
 export type PriceSourceSelectId =
-  | 'price-source'
-  | 'card-modal-price-source'
-  | 'trade-picker-price-source'
-  | 'add-card-price-source'
+  'price-source' | 'card-modal-price-source' | 'trade-picker-price-source' | 'add-card-price-source'
 
 export type PriceSourceSelectProps = {
   /** The currency in view; the control hides itself outside USD. */

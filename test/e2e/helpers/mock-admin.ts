@@ -283,11 +283,12 @@ export async function mockTotpApi(page: Page): Promise<void> {
  * locally instead (see sell-mode-gate.spec.ts).
  */
 export async function mockStatusApi(page: Page, sellMode = false): Promise<void> {
-  await fulfillJson(
-    page,
-    '**/api/status',
-    (): StatusResponse => ({ ok: true, setupRequired: false, totpEnabled: false, sellMode }),
-  )
+  await fulfillJson(page, '**/api/status', (): StatusResponse => ({
+    ok: true,
+    setupRequired: false,
+    totpEnabled: false,
+    sellMode,
+  }))
 }
 
 /**
@@ -658,15 +659,13 @@ export async function mockCollectionSyncApi(
     (route: Route): CollectionSyncRunResponse => {
       posted.push(route.request().postDataJSON())
       // Typed against the real response so the mock cannot drift from the handler.
-      const results = currentLists.map(
-        (list): CollectionSyncListResult => ({
-          name: list.name,
-          status: 'synced',
-          added: 1,
-          removed: 0,
-          pending: 0,
-        }),
-      )
+      const results = currentLists.map((list): CollectionSyncListResult => ({
+        name: list.name,
+        status: 'synced',
+        added: 1,
+        removed: 0,
+        pending: 0,
+      }))
       const summary: SyncSummary = {
         clauses: [
           apiMessage('admin.api.collectionSync.totalsInto', {

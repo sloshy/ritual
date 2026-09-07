@@ -54,8 +54,7 @@ export type EditorTarget = {
 
 /** Where in the admin site the URL points: a page, plus the editor's place within it. */
 export type Route =
-  | { page: Exclude<Page, 'list-editor'> }
-  | { page: 'list-editor'; editing?: EditorTarget }
+  { page: Exclude<Page, 'list-editor'> } | { page: 'list-editor'; editing?: EditorTarget }
 
 /**
  * Deep-link details for a navigation — currently only the editor's tab and list,

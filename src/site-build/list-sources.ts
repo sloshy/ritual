@@ -193,8 +193,7 @@ export function selectNamedSources(entries: ListSourceEntry[], names: string[]):
  * a config-driven selection and conclude nothing had been requested.
  */
 export type SourceSelection =
-  | (NamedSelection & { explicit: true })
-  | (ConfiguredSelection & { explicit: false })
+  (NamedSelection & { explicit: true }) | (ConfiguredSelection & { explicit: false })
 
 /** Which `site` config keys select each list type, and how its files carry their display name. */
 export const SITE_SELECTION_KEYS = {

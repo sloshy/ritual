@@ -981,19 +981,17 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     async ({ moves }) =>
       runTool(async (): Promise<MoveSelectedResult> => {
         const body: SelectedMoveRequest = {
-          moves: moves.map(
-            (m): SelectedMoveItem => ({
-              ...toEntryTarget(m),
-              toType: m.toListType,
-              toSlug: m.toSlug,
-              toSection: m.toSection,
-              set: m.set,
-              collectorNumber: m.collectorNumber,
-              finish: m.finish,
-              condition: m.condition,
-              language: m.language,
-            }),
-          ),
+          moves: moves.map((m): SelectedMoveItem => ({
+            ...toEntryTarget(m),
+            toType: m.toListType,
+            toSlug: m.toSlug,
+            toSection: m.toSection,
+            set: m.set,
+            collectorNumber: m.collectorNumber,
+            finish: m.finish,
+            condition: m.condition,
+            language: m.language,
+          })),
           validateCardNames: true,
         }
         const data = await callApiData<MoveCommitResponse>('POST', '/api/move/selected', body)

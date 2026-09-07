@@ -25,11 +25,7 @@ export type AutocompleteItem =
  * ({@link TradeColumnMode `wanted-cache`}) and the toggle has nothing left to do.
  */
 export type TradeColumnMode =
-  | 'collection'
-  | 'collection-decks'
-  | 'wanted'
-  | 'scryfall'
-  | 'wanted-cache'
+  'collection' | 'collection-decks' | 'wanted' | 'scryfall' | 'wanted-cache'
 
 /** The row under the search box: a mode switch, or a note when the mode is fixed. */
 export type TradeColumnModeControl =
