@@ -72,8 +72,8 @@ export interface CardItemProps {
   /**
    * The entry pins no printing, so the tile shows a representative one. Decks
    * and wanted lists pass this for name-only lines; collections, which always
-   * pin, never do. Rendered as an always-visible ANY marker on the art views
-   * and as "any printing" in the parenthesised printing label.
+   * pin, never do. Rendered as an always-visible ANY tag: on the art below the
+   * mana cost, and inline after the name in the list view.
    */
   anyPrinting?: boolean
   collectionPrice?: number
@@ -343,22 +343,16 @@ export const CardItem: Component<CardItemProps> = (props) => {
         // Uppercased for display, like set codes; null when the entry is English.
         const entryLanguageBadge = () => languageBadge(props.collectionLanguage)
 
-        // "any printing" leads the parenthetical of an unpinned line, in the
-        // slot the pinned line's SET:CN would occupy.
-        const anyPrintingLabel = () => (props.anyPrinting ? t('site.card.anyPrinting') : null)
-
-        // The parenthetical after the name in the art views: "any printing",
-        // finish, language, or "any printing · Foil · JA" when all apply.
-        // Empty string (falsy) when none does.
+        // The parenthetical after the name in the art views: finish, language, or
+        // "Foil · JA" when both apply. Empty string (falsy) when neither does.
         const finishLanguageLabel = () =>
-          [anyPrintingLabel(), finishLabel(), entryLanguageBadge()]
+          [finishLabel(), entryLanguageBadge()]
             .filter((part): part is string => Boolean(part))
             .join(' · ')
 
-        // The at-rest marker on the art views, where the label only shows on
-        // hover; the hover label then names the state in words. Shared by the
-        // binder and stack branches. The tag is a pointer-events: none overlay
-        // that fades on hover, so a title tooltip could never show — the
+        // The ANY tag, shared by all three view modes: an overlay on the art
+        // (below the mana cost) and an inline chip in the list view. It takes
+        // no pointer events, so a title tooltip could never show — the
         // explanation is its accessible name instead.
         const anyPrintingMarker = () => (
           <Show when={props.anyPrinting}>
@@ -428,7 +422,6 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const printingLabel = () => {
           const parts = [
             props.collectionSetCN,
-            anyPrintingLabel(),
             finishLabel(),
             props.collectionCondition,
             entryLanguageBadge(),
@@ -570,6 +563,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <Show when={printingLabel()}>
                     {(label) => <span class="list-printing">{label()}</span>}
                   </Show>
+                  {anyPrintingMarker()}
                   {badgeRun()}
                 </span>
                 <span class="list-mana">

@@ -330,15 +330,10 @@ h3 {
 
 /* ===== Any-printing marker =====
    A deck or wanted line that pins no printing shows a representative one, and
-   says so with an always-visible ANY tag in the art views' top-right corner
-   (the quantity badge owns the top-left). The hover label spells the state out
-   as "any printing", so the tag steps aside on hover rather than crowding the
-   scrim and the trade button that share that corner. */
-.card-binder .card-any-printing,
-.card-overlap .card-any-printing {
-  position: absolute;
-  top: 4px;
-  right: 4px;
+   says so with an always-visible ANY tag. It is the only text for the state —
+   there is no "any printing" wording anywhere — so it never hides, on hover or
+   on touch. */
+.card-any-printing {
   background: var(--overlay-medium);
   color: var(--label-any-printing);
   font-size: 0.6rem;
@@ -349,18 +344,26 @@ h3 {
   border-radius: 4px;
   pointer-events: none;
   line-height: 1.4;
-  transition: opacity 0.15s;
+}
+
+/* On the art it sits at the right edge just under the mana cost, which the
+   card frame prints in the top ~10% of the image, clear of the trade bookmark
+   and the quantity badge in the two top corners. */
+.card-binder .card-any-printing,
+.card-overlap .card-any-printing {
+  position: absolute;
+  top: 11%;
+  right: 4px;
 }
 
 .card-overlap .card-any-printing {
-  top: 3px;
   right: 3px;
   padding: 1px 4px;
 }
 
-.card-binder:hover .card-any-printing,
-.card-overlap:hover .card-any-printing {
-  opacity: 0;
+.card-list .card-any-printing {
+  margin-left: 4px;
+  vertical-align: baseline;
 }
 
 .card-binder:hover .card-label,

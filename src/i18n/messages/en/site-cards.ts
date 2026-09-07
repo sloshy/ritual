@@ -63,7 +63,6 @@ export const siteCardsMessages = {
   'site.card.buylistOffer': 'Buy {price}',
   'site.card.markerProxy': 'PROXY',
   'site.card.markerCustomArt': 'CUSTOM',
-  'site.card.anyPrinting': 'any printing',
   'site.card.anyPrintingMarker': 'ANY',
   'site.card.anyPrintingTitle': 'No specific printing selected; showing a representative printing.',
 

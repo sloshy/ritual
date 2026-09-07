@@ -42,16 +42,18 @@ test.describe('Wanted List Page', () => {
   })
 
   test('a name-only entry is marked as showing a representative printing', async ({ page }) => {
-    // Binder view: the at-rest corner tag, on the unpinned card only.
+    // Binder view: the tag on the art, on the unpinned card only.
     const bolt = page.locator('.card-item', { hasText: 'Lightning Bolt' })
     const solRing = page.locator('.card-item', { hasText: 'Sol Ring' })
-    await expect(bolt.locator('.card-any-printing')).toHaveText('ANY')
+    await expect(bolt.locator('.card-binder .card-any-printing')).toHaveText('ANY')
     await expect(solRing.locator('.card-any-printing')).toHaveCount(0)
 
-    // List view: the words fill the slot a pinned line's SET:CN occupies.
+    // List view: the same tag inline; the pinned line shows its SET:CN instead.
     await switchToListView(page)
-    await expect(bolt.locator('.list-printing')).toHaveText('(any printing)')
+    await expect(bolt.locator('.card-list .card-any-printing')).toHaveText('ANY')
+    await expect(bolt.locator('.list-printing')).toHaveCount(0)
     await expect(solRing.locator('.list-printing')).toHaveText('(C19:221)')
+    await expect(solRing.locator('.card-any-printing')).toHaveCount(0)
   })
 
   test("an entry with no finish token is priced at the printing's default finish", async ({

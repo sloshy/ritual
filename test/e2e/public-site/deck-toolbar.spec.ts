@@ -153,9 +153,8 @@ test.describe('Deck list view tooltip', () => {
 })
 
 test.describe('Deck any-printing marker', () => {
-  // The deck page's wiring of the marker, plus the two art-view renderings the
-  // wanted spec does not reach: the stack view's copy of the tag and the hover
-  // label. (The list-view wording is pinned on the wanted page.)
+  // The deck page's wiring of the marker, plus the stack view's copy of the tag,
+  // which the wanted spec does not reach. (The list-view chip is pinned there.)
   test('a name-only line carries the tag in binder and stack views; a pinned line does not', async ({
     page,
   }) => {
@@ -165,9 +164,7 @@ test.describe('Deck any-printing marker', () => {
     const artifact = page.locator('.card-item', { hasText: 'Test Artifact' })
     const creature = page.locator('.card-item', { hasText: 'Test Creature' })
     await expect(artifact.locator('.card-binder .card-any-printing')).toHaveText('ANY')
-    await expect(artifact.locator('.card-label-finish')).toContainText('any printing')
     await expect(creature.locator('.card-any-printing')).toHaveCount(0)
-    await expect(creature).not.toContainText('any printing')
 
     await page.locator('[data-view="stack"]').click()
     await expect(artifact.locator('.card-overlap .card-any-printing')).toHaveText('ANY')

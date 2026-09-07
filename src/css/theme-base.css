@@ -44,9 +44,8 @@
   --label-trade: oklch(75% 0.12 250);
   --label-keep: oklch(70% 0.17 25);
   --label-proxy: oklch(72% 0.14 310);
-  /* The ANY marker on a deck or wanted card showing a representative printing:
-     neutral, clearly not one of the ownership tones. */
-  --label-any-printing: oklch(80% 0.03 250);
+  /* --label-any-printing (the ANY tag on a card showing a representative
+     printing) is per-theme, generated from the accent in src/theme/themes.ts. */
 
   /* The "also" marker on a card shown under a non-primary category. Same
      mid-lightness family as the label tones above: it is drawn as text on the

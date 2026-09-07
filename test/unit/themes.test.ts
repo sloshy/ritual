@@ -97,6 +97,21 @@ describe('generateThemeCss', () => {
     }
   })
 
+  test('hues the any-printing tag to the theme accent, light enough for the scrim', () => {
+    for (const name of themeNames) {
+      const css = generateThemeCss(name)
+      const match = /--label-any-printing: oklch\((\d+)% [\d.]+ ([\d.]+)\);/.exec(css)
+      expect(match).not.toBeNull()
+      // Drawn on the dark overlay in both modes, so lightness never follows isDark.
+      expect(Number(match![1])).toBeGreaterThanOrEqual(80)
+      expect(Number(match![2])).toBe(themes[name].accentHue)
+    }
+    // default (violet) and izzet (red) accents produce different tags.
+    expect(generateThemeCss('izzet')).not.toContain(
+      /--label-any-printing: [^;]+/.exec(generateThemeCss('default'))![0],
+    )
+  })
+
   test('emits all six app-icon flame stops, hued to the theme accent', () => {
     // flameVars passes accentHue straight through for every theme; one
     // saturated accent (izzet) and one near-neutral (orzhov) exercise both

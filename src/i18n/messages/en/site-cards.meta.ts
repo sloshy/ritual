@@ -110,17 +110,13 @@ export const siteCardsMeta = {
     description:
       'Shown in place of a price on a card given custom art, which is no longer the printing a price would be for. All-caps like a stamp; keep it short enough for a price column. Takes precedence over the proxy marker when a card is both.',
   },
-  'site.card.anyPrinting': {
-    description:
-      "Printing-slot text on a deck or wanted card that pins no printing, shown in the list view parenthetical and the art views' hover label where a pinned card shows its SET:CN. Lowercase, a short noun phrase.",
-  },
   'site.card.anyPrintingMarker': {
     description:
-      'The always-visible corner tag on a deck or wanted card that pins no printing, in the binder and stack views. Very short (one word, uppercase), like the PROXY and CUSTOM markers.',
+      'The always-visible tag on a deck or wanted card that pins no printing: on the art below the mana cost in the binder and stack views, inline after the name in the list view. Very short (one word, uppercase), like the PROXY and CUSTOM markers.',
   },
   'site.card.anyPrintingTitle': {
     description:
-      'Accessible name (screen-reader text) of the corner tag marking a card with no specific printing. Explains that the image shown is a representative printing rather than one the list chose.',
+      'Accessible name (screen-reader text) of the tag marking a card with no specific printing. Explains that the image shown is a representative printing rather than one the list chose.',
   },
 
   // ── Card modal ────────────────────────────────────────────────────────

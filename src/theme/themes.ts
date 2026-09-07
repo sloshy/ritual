@@ -192,6 +192,7 @@ export type ResolvedPalette = ThemeCssVars &
     '--card-label-meta': string
     '--card-label-price': string
     '--card-label-buylist': string
+    '--label-any-printing': string
     '--foil-blend': string
     '--foil-opacity': string
     '--foil-opacity-hover': string
@@ -331,6 +332,15 @@ function flameVars(p: ThemePalette): FlameCssVars {
   }
 }
 
+// The ANY tag on a deck or wanted card that pins no printing. It is drawn on
+// the dark --overlay-medium scrim in every view and every mode, so its
+// lightness is fixed high like the card-label tones above; the hue is the
+// theme's accent, at a fraction of the accent's chroma, so the tag wears the
+// theme without competing with the quantity badge's --text-accent.
+function anyPrintingTagVar(p: ThemePalette): Pick<ResolvedPalette, '--label-any-printing'> {
+  return { '--label-any-printing': ok(84, Math.min(p.accentChroma * 0.6, 0.1), p.accentHue) }
+}
+
 function darkVars(p: ThemePalette): ResolvedPalette {
   const { bgHue: bH, bgChroma: bC, accentHue: aH, accentChroma: aC } = p
   const textC = Math.min(bC, 0.005)
@@ -368,6 +378,7 @@ function darkVars(p: ThemePalette): ResolvedPalette {
     ...darkStatusVars,
     ...darkLinkVars,
     ...cardLabelVars,
+    ...anyPrintingTagVar(p),
     ...darkFoilVars,
     ...flameVars(p),
   }
@@ -409,6 +420,7 @@ function lightVars(p: ThemePalette): ResolvedPalette {
     ...lightStatusVars,
     ...lightLinkVars,
     ...cardLabelVars,
+    ...anyPrintingTagVar(p),
     ...lightFoilVars,
     ...flameVars(p),
   }

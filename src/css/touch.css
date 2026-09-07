@@ -33,13 +33,6 @@
     opacity: 1;
   }
 
-  /* That label already reads "(any printing)", and no hover will ever fade the
-     corner tag out, so the tag would only duplicate it. */
-  .card-binder .card-any-printing,
-  .card-overlap .card-any-printing {
-    display: none;
-  }
-
   /* ----- Keep the art-tile corners clear -----
 
      The two absolutely-positioned corner controls are deliberately *not*
