@@ -1,5 +1,5 @@
 # Stage 1: Build
-FROM oven/bun:1.3.14-alpine AS builder
+FROM oven/bun:1.4.2-alpine AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ ENV GIT_VERSION=$GIT_VERSION
 RUN bun run build
 
 # Stage 2: Runtime
-FROM alpine:3.21
+FROM alpine:3.24
 
 WORKDIR /app
 
