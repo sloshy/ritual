@@ -440,6 +440,9 @@ export const siteChromeMessages = {
   'site.themeVar.labelProxy.label': 'Proxy',
   'site.themeVar.labelProxy.description':
     'Tone of the PROXY badge on cards labeled as proxies, which carry no value.',
+  'site.themeVar.labelAnyPrinting.label': 'Any printing',
+  'site.themeVar.labelAnyPrinting.description':
+    'Tone of the ANY marker on deck and wanted cards that pin no printing and show a representative one.',
   'site.themeVar.overlayLight.label': 'Light overlay',
   'site.themeVar.overlayLight.description':
     'Translucent dark scrim for shadows and small backdrops.',

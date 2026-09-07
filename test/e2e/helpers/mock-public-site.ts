@@ -487,6 +487,42 @@ export async function mockPublicSiteDeckWithMultipleSections(page: Page): Promis
   await fulfillJson(page, '**/decks/test-multi-section-deck.json', MOCK_MULTI_SECTION_DECK)
 }
 
+// ===== Deck mixing a pinned line with a name-only one =====
+
+const MOCK_ANY_PRINTING_DECK = makeDeckDetail({
+  deck: {
+    name: 'Any Printing Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          { quantity: 1, name: 'Test Creature', set: 'tst', collectorNumber: '1', cardId: 1 },
+          { quantity: 1, name: 'Test Artifact', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: { 'Test Creature': MOCK_SCRYFALL_CREATURE, 'Test Artifact': MOCK_SCRYFALL_ARTIFACT },
+  printings: {
+    'Test Creature': [MOCK_SCRYFALL_CREATURE],
+    'Test Artifact': [MOCK_SCRYFALL_ARTIFACT],
+  },
+})
+
+const MOCK_SITE_INDEX_WITH_ANY_PRINTING_DECK = makeSiteIndex({
+  decks: [makeDeckSummary({ slug: 'any-printing-deck', name: 'Any Printing Deck', cardCount: 2 })],
+})
+
+/**
+ * A deck whose Test Creature pins a printing and whose Test Artifact does not,
+ * so the representative-printing marker has one card to appear on and one to
+ * stay off.
+ */
+export async function mockPublicSiteDeckWithAnyPrinting(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_ANY_PRINTING_DECK)
+  await fulfillJson(page, '**/decks/any-printing-deck.json', MOCK_ANY_PRINTING_DECK)
+}
+
 // ===== Deck with a sideboard and a maybeboard =====
 
 /**

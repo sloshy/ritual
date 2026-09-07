@@ -328,6 +328,41 @@ h3 {
   --label-tone: var(--label-proxy);
 }
 
+/* ===== Any-printing marker =====
+   A deck or wanted line that pins no printing shows a representative one, and
+   says so with an always-visible ANY tag in the art views' top-right corner
+   (the quantity badge owns the top-left). The hover label spells the state out
+   as "any printing", so the tag steps aside on hover rather than crowding the
+   scrim and the trade button that share that corner. */
+.card-binder .card-any-printing,
+.card-overlap .card-any-printing {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: var(--overlay-medium);
+  color: var(--label-any-printing);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  pointer-events: none;
+  line-height: 1.4;
+  transition: opacity 0.15s;
+}
+
+.card-overlap .card-any-printing {
+  top: 3px;
+  right: 3px;
+  padding: 1px 4px;
+}
+
+.card-binder:hover .card-any-printing,
+.card-overlap:hover .card-any-printing {
+  opacity: 0;
+}
+
 .card-binder:hover .card-label,
 .card-overlap:hover .card-label {
   opacity: 1;

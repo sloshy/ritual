@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test'
 import { mockPublicSiteWantedList } from '../helpers/mock-public-site'
+import { switchToListView } from '../helpers/list-ui'
 
 test.describe('Wanted List Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -38,6 +39,19 @@ test.describe('Wanted List Page', () => {
     // Sol Ring and Mana Crypt are pinned to a printing → Specific Printing.
     await expect(specific).toContainText('Sol Ring')
     await expect(specific).toContainText('Mana Crypt')
+  })
+
+  test('a name-only entry is marked as showing a representative printing', async ({ page }) => {
+    // Binder view: the at-rest corner tag, on the unpinned card only.
+    const bolt = page.locator('.card-item', { hasText: 'Lightning Bolt' })
+    const solRing = page.locator('.card-item', { hasText: 'Sol Ring' })
+    await expect(bolt.locator('.card-any-printing')).toHaveText('ANY')
+    await expect(solRing.locator('.card-any-printing')).toHaveCount(0)
+
+    // List view: the words fill the slot a pinned line's SET:CN occupies.
+    await switchToListView(page)
+    await expect(bolt.locator('.list-printing')).toHaveText('(any printing)')
+    await expect(solRing.locator('.list-printing')).toHaveText('(C19:221)')
   })
 
   test("an entry with no finish token is priced at the printing's default finish", async ({

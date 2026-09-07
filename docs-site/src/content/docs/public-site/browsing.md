@@ -157,6 +157,7 @@ Deck pages show:
 - The [card detail modal](#card-detail-modal), with its Scryfall link and Other Printings grid
 - Section/group price totals shown next to card counts
 - Grouping by type, section, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), or ungrouped. These apply to the mainboard only
+- A representative-printing marker on every card whose line pins no printing (`1 Sol Ring` rather than `1 Sol Ring (C19:221)`). The binder and stack views show an always-visible **ANY** tag in the tile's top-right corner, hidden while the tile is hovered; the hover label and the list view spell it out as `(any printing)` in the printing parenthetical after the card name. The tag's tone is the **Any printing** swatch in the theme editor's Labels group. The same marker appears on wanted lists and in the [combined view](/public-site/combined-view/); collections never show it, since every collection line pins a printing
 - Grouping by [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), which instead nests inside every board: headings read `Main › Ramp`, `Sideboard › Draw`
 - Price bracket grouping with three strategies: Archidekt-style brackets, every $5, or every $10
 - Under the non-category groupings, the sideboard is always displayed in its own section at the bottom, ungrouped
@@ -192,6 +193,7 @@ Wanted list pages show:
   - **Fully specified** entries use the exact printing and finish specified
 - Individual card prices in the card detail modal
 - A state indicator showing whether each card is name-only, printing-specific, or fully specified
+- The same representative-printing marker [deck pages](#deck-pages) show: an **ANY** tag on the art views and `(any printing)` in the list view for name-only entries
 - Grouping by section (the default when the wanted list has two or more sections), type, mana value, color identity, price brackets, printing (whether a card is pinned to a specific printing), [tags](/public-site/filtering/#grouping-sorting-and-filtering-by-tags), [category or categories](/public-site/filtering/#grouping-sorting-and-filtering-by-category), or ungrouped
 - Download as original Markdown
 - No condition display, since wanted lists track desired cards, not owned cards

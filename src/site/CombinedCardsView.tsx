@@ -235,6 +235,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
           ? `${c.selectedTile.set.toUpperCase()}:${c.selectedTile.collectorNumber}`
           : undefined
       }
+      anyPrinting={!c.hasPrinting}
       collectionPrice={c.price}
       labelBadges={c.labels.length > 0 ? c.labels : undefined}
       currency={props.currency}

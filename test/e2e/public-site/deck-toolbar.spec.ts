@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test'
 import {
+  mockPublicSiteDeckWithAnyPrinting,
   mockPublicSiteDeckWithMultipleSections,
   mockPublicSiteDeckWithSidewaysCard,
 } from '../helpers/mock-public-site'
+import { gotoList } from '../helpers/list-ui'
 
 test.describe('Deck Toolbar', () => {
   test.beforeEach(async ({ page }) => {
@@ -147,5 +149,28 @@ test.describe('Deck list view tooltip', () => {
     await expect(row).toBeVisible()
     await row.hover()
     await expect(page.locator('.list-tooltip.visible')).toBeVisible()
+  })
+})
+
+test.describe('Deck any-printing marker', () => {
+  // The deck page's wiring of the marker, plus the two art-view renderings the
+  // wanted spec does not reach: the stack view's copy of the tag and the hover
+  // label. (The list-view wording is pinned on the wanted page.)
+  test('a name-only line carries the tag in binder and stack views; a pinned line does not', async ({
+    page,
+  }) => {
+    await mockPublicSiteDeckWithAnyPrinting(page)
+    await gotoList(page, '#/deck/any-printing-deck')
+
+    const artifact = page.locator('.card-item', { hasText: 'Test Artifact' })
+    const creature = page.locator('.card-item', { hasText: 'Test Creature' })
+    await expect(artifact.locator('.card-binder .card-any-printing')).toHaveText('ANY')
+    await expect(artifact.locator('.card-label-finish')).toContainText('any printing')
+    await expect(creature.locator('.card-any-printing')).toHaveCount(0)
+    await expect(creature).not.toContainText('any printing')
+
+    await page.locator('[data-view="stack"]').click()
+    await expect(artifact.locator('.card-overlap .card-any-printing')).toHaveText('ANY')
+    await expect(creature.locator('.card-any-printing')).toHaveCount(0)
   })
 })

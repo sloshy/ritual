@@ -346,10 +346,9 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         collectionFinish={entry?.finish}
         collectionLanguage={storedLanguage(entry?.language)}
         collectionSetCN={
-          entry && hasSpecificPrinting(entry)
-            ? `${entry.set.toUpperCase()}:${entry.collectorNumber}`
-            : undefined
+          entry && specific ? `${entry.set.toUpperCase()}:${entry.collectorNumber}` : undefined
         }
+        anyPrinting={entry !== undefined && !specific}
         collectionPrice={entry?.price}
         priceless={cardPricelessReason(c)}
         currency={props.currency}

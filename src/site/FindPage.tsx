@@ -290,6 +290,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
           ? `${c.selectedTile.set.toUpperCase()}:${c.selectedTile.collectorNumber}`
           : undefined
       }
+      anyPrinting={!c.hasPrinting}
       collectionPrice={c.price}
       currency={props.currency}
       selectable

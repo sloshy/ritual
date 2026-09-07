@@ -540,6 +540,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         onTooltipEnter={(src, sideways) => page.tooltip.setTooltip({ src, sideways })}
         onTooltipLeave={() => page.tooltip.setTooltip(null)}
         collectionFinish={deckEntry?.finish}
+        anyPrinting={deckEntry !== undefined && !specific}
         // The entry's own price, not the printing's: a proxy computed 0 above,
         // and letting the tile re-derive from the Scryfall card would print a
         // retail figure the deck total does not include.

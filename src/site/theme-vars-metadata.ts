@@ -457,6 +457,13 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     group: 'labels',
     type: 'color',
   },
+  {
+    name: '--label-any-printing',
+    label: 'site.themeVar.labelAnyPrinting.label',
+    description: 'site.themeVar.labelAnyPrinting.description',
+    group: 'labels',
+    type: 'color',
+  },
 
   {
     name: '--category-marker',
