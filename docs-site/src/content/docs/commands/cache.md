@@ -84,6 +84,10 @@ ritual cache preload-all [options]
 
 Printings that no list should ever reference are dropped during ingestion and never enter the cache: **tokens**, **Arena-only** prints, and **Art Series** prints (the oversized art-only cards from set boosters, which share their card's name). Filtering them at ingest keeps them out of every search surface at once: CLI autocomplete and printing pickers, the admin editor, and the hosted public site's card search. An older cache built before this filtering existed still holds them; re-run `preload-all` to clear them out.
 
+**Reversible printings**, one card printed on both sides with different art on each (a Secret Lair `Steam Vents` that Scryfall names `Steam Vents // Steam Vents`), are filed under the card they print rather than under a doubled name of their own. Searching `Steam Vents` offers one card, and its printing pickers list the reversible printings beside the ordinary ones. Such a printing keeps both of its sides: it still shows its back face and flips to it. A name written with the repeated face, such as a list line reading `Steam Vents // Steam Vents`, still resolves to the same card.
+
+Every preload **replaces** the card cache rather than merging into it, so an entry the new data no longer produces (a printing an exclusion now drops, a doubled name now folded) is gone once `preload-all` finishes.
+
 A failed preload exits `1`. The same refresh over HTTP ([`POST /api/cache/refresh`](/admin/api/#refresh-cache), and the MCP `refresh_cache` tool that reuses it) likewise **reports the failure** rather than answering success unconditionally, and honours cancellation from an in-process caller (the MCP tool): the download stops, nothing is written, the previous cache stands, and the cache lock is released.
 
 #### The buylist rides along under sell mode

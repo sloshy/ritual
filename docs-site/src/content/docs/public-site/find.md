@@ -14,7 +14,7 @@ Open the **Find** link in the navbar (next to **Trade**). Paste or type card nam
 Matching is by **card name**, case- and accent-insensitive:
 
 - **Front faces only.** For a double-faced card written as `Front // Back`, only the front side is searched. Everything from the `//` onward is ignored. Searching `Bruce Banner` matches `Bruce Banner // The Incredible Hulk`; searching `The Incredible Hulk` does not.
-- **Double-art printings are included.** Some cards are printed with two identical faces, such as `Steam Vents // Steam Vents`. A search for `Steam Vents` returns both the normal printings and those double-faced printings.
+- **Double-art printings are included.** Some cards are printed with two identical faces. The card cache files those printings under the card's own name, but a list line may still spell one `Steam Vents // Steam Vents`. A search for `Steam Vents` returns those lines along with the rest.
 
 ## Choosing where to search
 

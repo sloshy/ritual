@@ -2902,6 +2902,34 @@ const MOCK_SCRYFALL_DFC = makeMockScryfallCard({
   edhrec_rank: 500,
 })
 
+// A reversible printing: one card on both sides, each with its own art. Mapped
+// the way the cache ingest stores it — folded name, card-level fields lifted —
+// with both faces kept, so it still flips while its text reads as one card.
+const REVERSIBLE_FACE = {
+  name: 'Reversible Wurm',
+  mana_cost: '{4}{G}',
+  type_line: 'Creature — Wurm',
+  oracle_text: 'Trample.',
+}
+const MOCK_SCRYFALL_REVERSIBLE = makeMockScryfallCard({
+  id: 'reversible-id',
+  name: 'Reversible Wurm',
+  layout: 'reversible_card',
+  cmc: 5,
+  mana_cost: '{4}{G}',
+  type_line: 'Creature — Wurm',
+  oracle_text: 'Trample.',
+  image_uris: null,
+  card_faces: [
+    { ...REVERSIBLE_FACE, image_uris: { normal: 'https://card-images.test/wurm-front.svg' } },
+    { ...REVERSIBLE_FACE, image_uris: { normal: 'https://card-images.test/wurm-back.svg' } },
+  ],
+  prices: { usd: '1.00' },
+  collector_number: '32',
+  color_identity: ['G'],
+  edhrec_rank: 700,
+})
+
 const MOCK_SCRYFALL_PLAIN_LAND = makeMockScryfallCard({
   id: 'land-id',
   name: 'Test Wastes',
@@ -2928,6 +2956,7 @@ const MOCK_DFC_DECK = makeDeckDetail({
             cardId: 1,
           },
           { quantity: 1, name: 'Test Wastes', set: 'tst', collectorNumber: '31', cardId: 2 },
+          { quantity: 1, name: 'Reversible Wurm', set: 'tst', collectorNumber: '32', cardId: 3 },
         ],
       },
     ],
@@ -2935,23 +2964,26 @@ const MOCK_DFC_DECK = makeDeckDetail({
   cards: {
     'Werewolf Front // Werewolf Back': MOCK_SCRYFALL_DFC,
     'Test Wastes': MOCK_SCRYFALL_PLAIN_LAND,
+    'Reversible Wurm': MOCK_SCRYFALL_REVERSIBLE,
   },
   printings: {
     'Werewolf Front // Werewolf Back': [MOCK_SCRYFALL_DFC],
     'Test Wastes': [MOCK_SCRYFALL_PLAIN_LAND],
+    'Reversible Wurm': [MOCK_SCRYFALL_REVERSIBLE],
   },
   useScryfallImgUrls: true,
 })
 
 const MOCK_SITE_INDEX_WITH_DFC_DECK = makeSiteIndex({
-  decks: [makeDeckSummary({ slug: 'test-dfc-deck', name: 'Test DFC Deck', cardCount: 2 })],
+  decks: [makeDeckSummary({ slug: 'test-dfc-deck', name: 'Test DFC Deck', cardCount: 3 })],
   useScryfallImgUrls: true,
 })
 
 /**
  * Mock the public site JSON endpoints with a synthetic deck containing a
- * double-faced card (Creature front / Land back) alongside a plain land, for
- * testing front-face type grouping and the in-place flip button.
+ * double-faced card (Creature front / Land back), a reversible printing (the
+ * same card on both sides) and a plain land, for testing front-face type
+ * grouping, the in-place flip button, and one-card text for a reversible.
  */
 export async function mockPublicSiteDeckWithDoubleFacedCard(page: Page): Promise<void> {
   await mockCardImageSvgs(page)

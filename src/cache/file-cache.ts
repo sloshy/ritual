@@ -4,12 +4,14 @@ import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import {
   createDefaultFileSystemClient,
+  type BulkSetOptions,
   type CacheManager,
   type CacheStreamEntryMeta,
 } from '../util/interfaces'
 import { writeFileAtomic } from './atomic-write'
 import { getLogger } from '../util/logger'
 import { getBaseDir } from '../config/base-dir'
+import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 
 export function getCacheDir(): string {
   return path.join(getBaseDir(), 'cache')
@@ -91,6 +93,16 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     this.memoryCache = null
   }
 
+  /**
+   * The stored key for a requested one. Card names fold repeated faces
+   * (`Forest // Forest` → `Forest`), the rule the ingest names printings by, so
+   * every lookup — however the caller spelled the name — reaches the one entry
+   * that holds all of the card's printings. Other sections store keys verbatim.
+   */
+  private storedKey(key: string): string {
+    return this.section === 'cards' ? foldRepeatedFaceNames(key) : key
+  }
+
   private async load(): Promise<CacheSchema> {
     if (this.memoryCache) return this.memoryCache
 
@@ -148,7 +160,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     // Safety check if section was somehow undefined despite load defaults
     if (!sectionData) return null
 
-    const entry = sectionData[key]
+    const entry = sectionData[this.storedKey(key)]
 
     if (!entry) return null
 
@@ -165,7 +177,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
   async getTimestamp(key: string): Promise<number | null> {
     const cache = await this.load()
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>> | undefined
-    const entry = sectionData?.[key]
+    const entry = sectionData?.[this.storedKey(key)]
     return entry?.timestamp ?? null
   }
 
@@ -189,7 +201,8 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     return streamFromBatchResults(keys, results, onEntry)
   }
 
-  async set(key: string, value: DataType<K>): Promise<void> {
+  async set(requestedKey: string, value: DataType<K>): Promise<void> {
+    const key = this.storedKey(requestedKey)
     const cache = await this.load()
     // Ensure section exists
     if (!cache[this.section]) {
@@ -210,18 +223,19 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     await this.save()
   }
 
-  async bulkSet(entries: Record<string, DataType<K>>): Promise<void> {
+  async bulkSet(entries: Record<string, DataType<K>>, options?: BulkSetOptions): Promise<void> {
     const cache = await this.load()
-    if (!cache[this.section]) {
+    if (!cache[this.section] || options?.replace) {
       cache[this.section] = {}
     }
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>>
 
     const now = this.now()
     if (this.section === 'cards') {
-      cache.cardNameIndex = cache.cardNameIndex ?? {}
+      cache.cardNameIndex = options?.replace ? {} : (cache.cardNameIndex ?? {})
     }
-    for (const [key, value] of Object.entries(entries)) {
+    for (const [requestedKey, value] of Object.entries(entries)) {
+      const key = this.storedKey(requestedKey)
       const item: CachedItem<DataType<K>> = {
         timestamp: now,
         data: value,
@@ -246,8 +260,9 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
   async delete(key: string): Promise<void> {
     const cache = await this.load()
     const sectionData = cache[this.section] as Record<string, CachedItem<DataType<K>>> | undefined
-    if (sectionData && key in sectionData) {
-      delete sectionData[key]
+    const storedKey = this.storedKey(key)
+    if (sectionData && storedKey in sectionData) {
+      delete sectionData[storedKey]
       await this.save()
     }
   }
@@ -275,7 +290,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
 
   async resolveCardName(lowercaseName: string): Promise<string | null> {
     const cache = await this.load()
-    return cache.cardNameIndex?.[lowercaseName] ?? null
+    return cache.cardNameIndex?.[foldRepeatedFaceNames(lowercaseName)] ?? null
   }
 
   async addToBlocklist(name: string): Promise<void> {

@@ -18,7 +18,7 @@ Either entry point opens the same dialog, titled **Other Copies**.
 
 ## What it shows
 
-Every copy of the card across every list, matched by **front-face name**, the same rule the Find page uses, so double-sided printings count. A lookup on `Steam Vents` includes a double-art `Steam Vents // Steam Vents`, and vice versa.
+Every copy of the card across every list, matched by **front-face name**, the same rule the Find page uses, so double-sided printings count. A lookup on `Steam Vents` includes a line written as `Steam Vents // Steam Vents`, and vice versa.
 
 Copies are **not merged**. A `3x` deck line appears as three side-by-side cards, and each physical collection entry stands alone with its own printing, finish, and condition. Results are grouped by list. The list you're currently viewing is always shown first, titled **Current List — _\<list name\>_**.
 

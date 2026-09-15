@@ -661,6 +661,25 @@ export function bakeBuylistQuotes(
 }
 
 /**
+ * Also key a resolved card under the spelling the text used, when that differs
+ * from the cache's canonical name. The page looks a changelog or primer card up
+ * by the name as written, and a written `Forest // Forest` now resolves to the
+ * cache's folded `Forest`. Mutates `cardMap` and `printingsMap`.
+ */
+export function aliasWrittenCardName(
+  written: string,
+  canonical: string,
+  cardMap: Record<string, ScryfallCard | null>,
+  printingsMap: Record<string, ScryfallCard[]>,
+): void {
+  if (written === canonical) return
+  if (canonical in cardMap && !(written in cardMap)) cardMap[written] = cardMap[canonical]!
+  if (canonical in printingsMap && !(written in printingsMap)) {
+    printingsMap[written] = printingsMap[canonical]!
+  }
+}
+
+/**
  * Add changelog-referenced cards to a detail's card/printings maps so change
  * history card links resolve at runtime. Mutates `cardMap` and `printingsMap`.
  */
@@ -689,6 +708,7 @@ export async function includeChangelogCards(
         cardMap[canonical] = repPrints.usd?.representative ?? sorted[0]!
       }
     }
+    aliasWrittenCardName(clName, canonical, cardMap, printingsMap)
   }
 }
 

@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os'
 import * as path from 'node:path'
 import type { ApplyChange, MissReason } from '../src/changes/apply-batch'
 import {
+  type BulkSetOptions,
   type HttpClient,
   type CacheManager,
   type FileSystemClient,
@@ -297,6 +298,13 @@ export class InMemoryCacheManager<T> implements CacheManager<T> {
 
   async set(key: string, value: T): Promise<void> {
     this.cache.set(key, { timestamp: Date.now(), data: value })
+  }
+
+  /** Like the real backends: merges (or, under `replace`, replaces) and stamps the refresh time. */
+  async bulkSet(entries: Record<string, T>, options?: BulkSetOptions): Promise<void> {
+    if (options?.replace) this.cache.clear()
+    for (const [key, value] of Object.entries(entries)) await this.set(key, value)
+    await this.markRefreshed()
   }
 
   async streamGetMany(

@@ -7,6 +7,7 @@ import {
   MemoryFileSystemClient,
   MemoryLogger,
   gzipJsonLinesResponse,
+  makeReversibleScryfallCard,
   makeScryfallCard,
   resetLogger,
   setLogger,
@@ -140,6 +141,32 @@ describe('cache printing exclusions', () => {
     expect(await cache.get('Clearwater Pathway // Clearwater Pathway')).toBeNull()
     expect(await cache.get('Dinosaur')).toBeNull()
     expect(await cache.keys()).toHaveLength(2)
+  })
+
+  test('preloadCache files a reversible printing under its card and drops names the bulk no longer produces', async () => {
+    const face = {
+      name: 'Ghalta, Primal Hunger',
+      oracle_id: 'o-ghalta',
+      mana_cost: '{10}{G}{G}',
+      type_line: 'Legendary Creature — Elder Dinosaur',
+      oracle_text: 'Trample',
+    }
+    const reversible = makeReversibleScryfallCard(
+      'Ghalta, Primal Hunger // Ghalta, Primal Hunger',
+      [face, face],
+      { id: 'reversible-1', set: 'sld', collector_number: '999' },
+    )
+    // What an older ingest left behind: the reversible printing under its raw name.
+    await cache.set('Ghalta, Primal Hunger // Ghalta, Primal Hunger', [reversible])
+    http.mock(DEFAULT_URI, () => gzipJsonLinesResponse([REAL_PRINTING, reversible]))
+
+    await client.preloadCache()
+
+    expect((await cache.get('Ghalta, Primal Hunger'))?.map((c) => c.id)).toEqual([
+      'real-1',
+      'reversible-1',
+    ])
+    expect(await cache.keys()).toEqual(['Ghalta, Primal Hunger'])
   })
 
   test('getCardPrintings evicts art-series prints left in an older cache entry', async () => {

@@ -414,6 +414,25 @@ describe('buildCollectionArtifacts', () => {
     expect(detail.cards['Lightning Bolt']).toBe(boltCheap)
     expect(detail.printings['Lightning Bolt']).toEqual([bolt, boltCheap])
   })
+
+  test('a changelog name that resolves to a different spelling is also keyed as written', async () => {
+    // The page looks a changelog card up by the name the entry carries, and the
+    // cache folds a reversible printing's doubled name onto its card.
+    const changelog: ChangelogPage[] = [
+      {
+        timestamp: '2026-07-21T00:00:00.000Z',
+        changes: [createRemoveChange('Lightning Bolt // Lightning Bolt')],
+      },
+    ]
+    const { ctx } = makeContext({
+      printingsByName: { 'Serra Angel': [angel], 'Lightning Bolt': [bolt] },
+      canonicalNames: { 'lightning bolt // lightning bolt': 'Lightning Bolt' },
+    })
+    const { detail } = await buildCollectionArtifacts({ ...loaded, changelog }, ctx)
+
+    expect(detail.cards['Lightning Bolt // Lightning Bolt']).toBe(bolt)
+    expect(detail.printings['Lightning Bolt // Lightning Bolt']).toEqual([bolt])
+  })
 })
 
 describe('buildWantedArtifacts', () => {

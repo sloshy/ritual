@@ -27,9 +27,16 @@ export interface ScryfallCard {
   }
   card_faces?: {
     name: string
+    /**
+     * Per-face oracle identity. Scryfall sets it on a face only when the card's
+     * top level carries none — a reversible printing, whose faces all share it.
+     */
+    oracle_id?: string
     mana_cost: string
     type_line: string
     oracle_text: string
+    cmc?: number
+    colors?: string[]
     /** Per-face artwork identity (double-faced cards). Join key for art tags. */
     illustration_id?: string
     image_uris?: {

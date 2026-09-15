@@ -6,6 +6,7 @@
  */
 
 import type { ScryfallCard } from '../../src/scryfall/types'
+import type { CardFace } from '../../src/scryfall/card-utils'
 import type { CardData } from '../../src/list-view/card-sorting'
 import type { CardContextInfo } from '../../src/list-view/card-context'
 import type { SelectedCard } from '../../src/list-view/useCardSelection'
@@ -47,6 +48,26 @@ export function makeScryfallCard(overrides: ScryfallCardOverrides = {}): Scryfal
       ...prices,
     },
   }
+}
+
+/**
+ * A raw Scryfall `reversible_card` printing, as the bulk file carries it: the
+ * card-level `oracle_id`, `type_line`, and `cmc` are absent from the top level
+ * and live only on the faces. Other overrides apply as for {@link makeScryfallCard}.
+ */
+export function makeReversibleScryfallCard(
+  name: string,
+  faces: CardFace[],
+  overrides: ScryfallCardOverrides = {},
+): ScryfallCard {
+  const {
+    oracle_id: _oracleId,
+    type_line: _typeLine,
+    cmc: _cmc,
+    ...bare
+  } = makeScryfallCard({ ...overrides, name, layout: 'reversible_card', card_faces: faces })
+  // The raw shape deliberately lacks fields `ScryfallCard` requires.
+  return bare as ScryfallCard
 }
 
 /**

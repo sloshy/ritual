@@ -27,7 +27,11 @@ export function isDigitalOnlySet(setCode: string): boolean {
 export function isToken(card: ScryfallCard): boolean {
   if (card.layout === 'token' || card.layout === 'double_faced_token') return true
   // Fallback for cached cards where layout was not preserved:
-  // tokens always carry "Token" as a supertype in their type line.
+  // tokens always carry "Token" as a supertype in their type line. A card that
+  // does carry a layout has already answered — a reversible printing's lifted
+  // type line (see `mapScryfallCard`) must not reclassify a printing the ingest
+  // kept.
+  if (card.layout !== undefined) return false
   return /\bToken\b/.test(card.type_line ?? '')
 }
 
@@ -85,8 +89,90 @@ export function getFrontFaceName(name: string): string {
   return name.includes(' // ') ? name.split(' // ')[0]!.trim() : name.trim()
 }
 
-/** Map a raw Scryfall JSON object to a normalized ScryfallCard. */
+/**
+ * Fold a name that repeats a face onto the card it prints: `Forest // Forest`
+ * → `Forest`, and a reversible Omen's `Bloomvine Regent // Claim Territory //
+ * Bloomvine Regent` → `Bloomvine Regent // Claim Territory`. Every other name,
+ * split cards (`Fire // Ice`) included, comes back unchanged.
+ *
+ * Scryfall names a reversible printing — the same card on both sides, each with
+ * its own art — by joining its faces, so without this every such printing sits
+ * under a name of its own beside the card's other printings. This is the one
+ * rule the card data folds them by: the ingest names printings by it, and the
+ * card cache folds its lookup keys by it, so a list line written with the
+ * repeated spelling still reaches the card. List files are not rewritten, and
+ * name-keyed list data (categories) keeps the spelling a line carries. Exact
+ * and case-preserving, which makes it safe on an already-lowercased key.
+ */
+export function foldRepeatedFaceNames(name: string): string {
+  if (!name.includes(' // ')) return name
+  const parts = name.split(' // ')
+  const distinct = [...new Set(parts)]
+  return distinct.length === parts.length ? name : distinct.join(' // ')
+}
+
+/** One face of a multi-faced card. */
+export type CardFace = NonNullable<ScryfallCard['card_faces']>[number]
+
+/**
+ * A card's faces with repeated faces dropped, by name: a reversible printing's
+ * two `Forest` faces are one face of text, though each keeps its own image.
+ * What text renderers iterate, so the same oracle text never shows twice.
+ */
+export function distinctCardFaces(faces: readonly CardFace[]): CardFace[] {
+  const seen = new Set<string>()
+  return faces.filter((face) => {
+    if (seen.has(face.name)) return false
+    seen.add(face.name)
+    return true
+  })
+}
+
+/** The gameplay fields a reversible printing carries only on its faces. */
+type LiftedFaceFields = Pick<
+  ScryfallCard,
+  'oracle_id' | 'type_line' | 'mana_cost' | 'oracle_text' | 'cmc' | 'colors'
+>
+
+/**
+ * The card-level fields of a printing that has the same card on every face, or
+ * `null` for any other card.
+ *
+ * Scryfall leaves a `reversible_card` printing's top level bare — no
+ * `oracle_id`, `type_line`, `mana_cost`, or `cmc` — because each side is a full
+ * card face of its own. Every face sharing one `oracle_id` is what says those
+ * sides are one card, and it is what lets the printing join that card's other
+ * printings under one name without reading as a typeless, zero-cost card there.
+ * The multi-part fields join the distinct faces the way Scryfall spells them on
+ * the card's ordinary printings (`{3}{G}{G} // {2}{G}` for an Omen); oracle
+ * text stays on the faces when there is more than one.
+ */
+function sameCardFaceFields(item: ScryfallCard): LiftedFaceFields | null {
+  const faces = item.card_faces
+  const front = faces?.[0]
+  if (item.oracle_id !== undefined || !faces || !front?.oracle_id) return null
+  if (faces.some((face) => face.oracle_id !== front.oracle_id)) return null
+  const distinct = distinctCardFaces(faces)
+  return {
+    oracle_id: front.oracle_id,
+    type_line: distinct.map((face) => face.type_line).join(' // '),
+    mana_cost: distinct.map((face) => face.mana_cost).join(' // '),
+    oracle_text: distinct.length === 1 ? front.oracle_text : undefined,
+    cmc: front.cmc ?? 0,
+    colors: front.colors,
+  }
+}
+
+/**
+ * Map a raw Scryfall JSON object to a normalized ScryfallCard.
+ *
+ * A reversible printing is named for the card it prints
+ * ({@link foldRepeatedFaceNames}) and given that card's top-level fields, while
+ * keeping its `layout` and both `card_faces` — so it groups with the card's
+ * other printings and still shows, and flips to, its second side.
+ */
 export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
+  const sameCard = sameCardFaceFields(item)
   return {
     // The printing's language. `en` is deliberately dropped rather than stored:
     // absent means `en` everywhere `lang` is read, and omitting it keeps an
@@ -94,15 +180,15 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
     // languages existed — no churn, no size cost.
     ...(item.lang !== undefined && item.lang !== 'en' ? { lang: item.lang } : {}),
     id: item.id,
-    oracle_id: item.oracle_id,
+    oracle_id: item.oracle_id ?? sameCard?.oracle_id,
     illustration_id: item.illustration_id,
-    name: item.name,
+    name: foldRepeatedFaceNames(item.name),
     layout: item.layout,
-    cmc: item.cmc || 0,
+    cmc: item.cmc || sameCard?.cmc || 0,
     edhrec_rank: item.edhrec_rank || 999999,
-    mana_cost: item.mana_cost,
-    type_line: item.type_line,
-    oracle_text: item.oracle_text,
+    mana_cost: item.mana_cost ?? sameCard?.mana_cost,
+    type_line: item.type_line ?? sameCard?.type_line,
+    oracle_text: item.oracle_text ?? sameCard?.oracle_text,
     image_uris: item.image_uris,
     card_faces: item.card_faces,
     prices: {
@@ -125,7 +211,7 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
     collector_number: item.collector_number,
     rarity: item.rarity,
     color_identity: item.color_identity || [],
-    colors: item.colors,
+    colors: item.colors ?? sameCard?.colors,
     keywords: item.keywords,
     legalities: item.legalities,
     released_at: item.released_at,

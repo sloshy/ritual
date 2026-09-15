@@ -4,7 +4,7 @@ import { defaultHttpClient } from '../util/http'
 import { getCacheSource, type CacheSource } from '../config/ritual-config'
 import { CacheFeedClient, type FeedSyncResult } from '../cache/feed-client'
 import { getFeedClientDataDir, resolveFeedUrl } from '../cache/refresh-source'
-import type { HttpClient } from '../util/interfaces'
+import type { BulkSetOptions, HttpClient } from '../util/interfaces'
 import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
@@ -33,6 +33,7 @@ import type { CacheServerCommandOptions, PriceReadThroughResult } from './types'
 
 interface BulkSetPayload {
   entries?: Record<string, PriceData> | Record<string, ScryfallCard[]>
+  replace?: unknown
 }
 
 interface PriceStreamPayload {
@@ -230,11 +231,21 @@ function createCacheServerFetchHandler(
           return respond(jsonResponse({ error: "Expected JSON body with 'entries' object." }, 400))
         }
 
+        if (payload.replace !== undefined && typeof payload.replace !== 'boolean') {
+          return respond(jsonResponse({ error: "Expected 'replace' to be a boolean." }, 400))
+        }
+        const bulkOptions: BulkSetOptions = { replace: payload.replace === true }
         if (section === 'cards') {
-          await localCardCache.bulkSet(payload.entries as Record<string, ScryfallCard[]>)
+          await localCardCache.bulkSet(
+            payload.entries as Record<string, ScryfallCard[]>,
+            bulkOptions,
+          )
         } else {
           const entries = payload.entries as Record<string, PriceData>
-          await localPriceCache.bulkSet(entries)
+          await localPriceCache.bulkSet(entries, bulkOptions)
+          // A replace drops every key it does not name; their refreshes must go too,
+          // or the scheduler would write the dropped keys straight back.
+          if (bulkOptions.replace) priceRefreshScheduler?.clearAll()
           if (priceRefreshScheduler) {
             for (const key of Object.keys(entries)) {
               priceRefreshScheduler.scheduleFromNow(key)

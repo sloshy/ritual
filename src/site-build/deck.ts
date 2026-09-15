@@ -28,7 +28,7 @@ import {
   resolveListCover,
   slugifyListName,
 } from './shared'
-import { bakedListCategoryFields, cardCategoriesLookup } from './shared'
+import { aliasWrittenCardName, bakedListCategoryFields, cardCategoriesLookup } from './shared'
 import type {
   BuylistBakeSource,
   CardCategoriesLookup,
@@ -322,6 +322,7 @@ export async function buildDeckArtifacts(
         deckPrintingsMap[canonical] =
           cardData.printings[canonical] ?? cardData.printings[actualName] ?? []
       }
+      aliasWrittenCardName(name, canonical, deckCardMap, deckPrintingsMap)
     }
   }
 
@@ -336,6 +337,7 @@ export async function buildDeckArtifacts(
       deckPrintingsMap[canonical] =
         cardData.printings[canonical] ?? cardData.printings[actualName] ?? []
     }
+    aliasWrittenCardName(name, canonical, deckCardMap, deckPrintingsMap)
   }
 
   // Collect missing cards for this deck

@@ -68,6 +68,35 @@ describe('FileCacheManager - cardNameIndex', () => {
     }
     expect(raw.cardNameIndex?.counterspell).toBe('Counterspell')
   })
+
+  test('a repeated-face spelling reads, resolves, and writes the one folded entry', async () => {
+    await cache.set('Forest', [makeCard('Forest')])
+
+    expect((await cache.get('Forest // Forest'))?.map((c) => c.id)).toEqual(['Forest'])
+    expect(await cache.resolveCardName('forest // forest')).toBe('Forest')
+
+    // A write under the repeated spelling must not recreate a key of its own.
+    await cache.set('Steam Vents // Steam Vents', [makeCard('Steam Vents')])
+    expect(await cache.keys()).toEqual(['Forest', 'Steam Vents'])
+  })
+
+  test('bulkSet merges by default; replace drops keys the entries do not name', async () => {
+    await cache.bulkSet({
+      'Forest // Forest': [makeCard('Forest // Forest')],
+      'Sol Ring': [makeCard('Sol Ring')],
+    })
+    // A doubled spelling folds on write, like every other keyed call.
+    expect(await cache.keys()).toEqual(['Forest', 'Sol Ring'])
+
+    await cache.bulkSet({ Island: [makeCard('Island')] })
+    expect(await cache.keys()).toEqual(['Forest', 'Sol Ring', 'Island'])
+
+    await cache.bulkSet({ Island: [makeCard('Island')] }, { replace: true })
+    expect(await cache.keys()).toEqual(['Island'])
+    // The name index is rebuilt too, so no lookup resolves to a dropped entry.
+    expect(await cache.resolveCardName('sol ring')).toBeNull()
+    expect(await cache.resolveCardName('island')).toBe('Island')
+  })
 })
 
 describe('FileCacheManager - cardBlocklist', () => {

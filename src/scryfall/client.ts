@@ -1,6 +1,7 @@
 import type { ScryfallCard, ScryfallList } from './types'
 import { getCacheDir, getImageCacheDir } from '../cache'
 import {
+  type BulkSetOptions,
   type HttpClient,
   type CacheManager,
   type PricingBackend,
@@ -22,6 +23,7 @@ import {
   isRealPrinting,
   classifyExcludedPrinting,
   type PrintingExclusion,
+  foldRepeatedFaceNames,
   getFrontFaceName,
   mapScryfallCard,
   normalizeSetFilter,
@@ -374,14 +376,23 @@ export class ScryfallClient implements PricingBackend {
     const tagIndex = await this.loadTagIndex()
     if (tagIndex) attachTags(card, tagIndex)
 
-    // Merge rather than overwrite: the cache entry is the card's printing list,
-    // and this is one printing of it. Deduped by Scryfall id — never by
-    // set:collector-number, since every language of a printing shares those and
-    // each language's object must coexist in the list.
-    const existing = (await this.cardCache.get(card.name)) ?? []
-    const merged = existing.some((p) => p.id === card.id) ? existing : [...existing, card]
-    await this.cardCache.set(card.name, merged)
+    await this.mergeCachedPrintings(card.name, [card])
     return card
+  }
+
+  /**
+   * Merge fetched printings into a card's cached printing list by Scryfall id —
+   * a fetched copy replaces the cached one, every other cached printing stays.
+   *
+   * Never an overwrite: the cache entry is the card's whole printing list, and a
+   * fetch answers for a subset of it (one printing, or the printings one
+   * spelling of the name searches up). Deduped by id, never by
+   * set:collector-number, since every language of a printing shares those.
+   */
+  private async mergeCachedPrintings(name: string, fetched: ScryfallCard[]): Promise<void> {
+    const byId = new Map((await this.cardCache.get(name))?.map((p) => [p.id, p]))
+    for (const printing of fetched) byId.set(printing.id, printing)
+    await this.cardCache.set(name, [...byId.values()])
   }
 
   /**
@@ -566,7 +577,11 @@ export class ScryfallClient implements PricingBackend {
     name: string,
     currencies: PriceCurrency[],
   ): Promise<RepresentativePrintsResult> {
-    const encodedName = encodeURIComponent(`!"${name}"`)
+    // The folded name: a doubled spelling (`Steam Vents // Steam Vents`) would
+    // search only the reversible printings, and the card's cache entry is the
+    // folded one holding every printing of it.
+    const cardName = foldRepeatedFaceNames(name)
+    const encodedName = encodeURIComponent(`!"${cardName}"`)
     const firstPageUrl = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=released`
 
     return new Promise<RepresentativePrintsResult>((resolve) => {
@@ -574,11 +589,13 @@ export class ScryfallClient implements PricingBackend {
       let firstPageDone = false
       const allCards: ScryfallCard[] = []
 
-      const finish = () => {
+      // Resolves only once the printings are cached: callers read the cache
+      // straight after awaiting this (the admin price routes do).
+      const finish = async (): Promise<void> => {
         const realPrintings = allCards.filter(isRealPrinting)
         const mapped = realPrintings.map((c) => mapScryfallCard(c))
         if (mapped.length > 0) {
-          this.cardCache.set(name, mapped).catch((e) => {
+          await this.mergeCachedPrintings(cardName, mapped).catch((e: unknown) => {
             getLogger().warn(`Failed to cache printings for '${name}':`, e)
           })
         }
@@ -602,7 +619,7 @@ export class ScryfallClient implements PricingBackend {
               if (response.status === 404 && !firstPageDone) {
                 await this.cardCache.addToBlocklist?.(name)
               }
-              finish()
+              await finish()
               return
             }
             const json = (await response.json()) as ScryfallList<ScryfallCard>
@@ -615,10 +632,10 @@ export class ScryfallClient implements PricingBackend {
             if (json.has_more && json.next_page) {
               this.requestQueue.enqueueFront(processPage(json.next_page))
             } else {
-              finish()
+              await finish()
             }
           } catch {
-            finish()
+            await finish()
           }
         }
 
@@ -629,7 +646,7 @@ export class ScryfallClient implements PricingBackend {
   async fetchMinMaxPrice(name: string, currency: PriceCurrency = 'usd'): Promise<MinMaxPrice> {
     const priceField = getPriceField(currency)
     const orderField = priceField
-    const encodedName = encodeURIComponent(`!"${name}"`)
+    const encodedName = encodeURIComponent(`!"${foldRepeatedFaceNames(name)}"`)
     const url = `https://api.scryfall.com/cards/search?q=${encodedName}+unique%3Aprints&order=${orderField}&dir=asc`
 
     try {
@@ -825,15 +842,15 @@ export class ScryfallClient implements PricingBackend {
     return fetchScryfallBulkManifest(this.http)
   }
 
-  /** Persist a batch of name → printings entries, using bulkSet when available. */
-  private async flushCardEntries(entries: Record<string, ScryfallCard[]>): Promise<void> {
-    if (this.cardCache.bulkSet) {
-      await this.cardCache.bulkSet(entries)
-    } else {
-      for (const [name, cards] of Object.entries(entries)) {
-        await this.cardCache.set(name, cards)
-      }
-    }
+  /**
+   * Persist a batch of name → printings entries. `replace` makes the batch the cache's whole contents (see
+   * {@link BulkSetOptions.replace}).
+   */
+  private async flushCardEntries(
+    entries: Record<string, ScryfallCard[]>,
+    options?: BulkSetOptions,
+  ): Promise<void> {
+    await this.cardCache.bulkSet(entries, options)
   }
 
   /**
@@ -1069,7 +1086,10 @@ export class ScryfallClient implements PricingBackend {
     throwIfCancelled(signal)
     getLogger().info('Saving to cache...')
     report({ stage: 'save', message: 'Saving to cache…' })
-    await this.flushCardEntries(entries)
+    // Replaced, not merged: a name the bulk no longer produces — a printing an
+    // exclusion now drops, a reversible printing now folded into its card — is
+    // stale, and merging would leave it in autocomplete indefinitely.
+    await this.flushCardEntries(entries, { replace: true })
   }
 
   /**

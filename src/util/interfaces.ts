@@ -11,6 +11,18 @@ export interface CacheStreamEntryMeta {
   updated: boolean
 }
 
+/** Options for {@link CacheManager.bulkSet}. */
+export type BulkSetOptions = {
+  /**
+   * Make `entries` the section's whole contents, dropping every key it does not
+   * name. What a bulk ingest wants: an entry the new bulk no longer produces — a
+   * printing since excluded, a name since folded — must not outlive the refresh.
+   * Off by default, where `bulkSet` merges (and `bulkSet({})` only stamps the
+   * refresh time).
+   */
+  replace?: boolean
+}
+
 export interface CacheManager<T> {
   get(key: string): Promise<T | null>
   getTimestamp?(key: string): Promise<number | null>
@@ -22,7 +34,7 @@ export interface CacheManager<T> {
     onEntry: (key: string, value: T, meta: CacheStreamEntryMeta) => void,
   ): Promise<Record<string, T>>
   set(key: string, value: T): Promise<void>
-  bulkSet?(entries: Record<string, T>): Promise<void>
+  bulkSet(entries: Record<string, T>, options?: BulkSetOptions): Promise<void>
   isEmpty?(): Promise<boolean>
   delete(key: string): Promise<void>
   clear(): Promise<void>

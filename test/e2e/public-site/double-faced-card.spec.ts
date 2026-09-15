@@ -2,8 +2,10 @@ import { test, expect } from '@playwright/test'
 import { mockPublicSiteDeckWithDoubleFacedCard } from '../helpers/mock-public-site'
 
 // The synthetic deck has a double-faced card ("Werewolf Front // Werewolf Back",
-// a Creature front with a Land back) and a plain land ("Test Wastes").
+// a Creature front with a Land back), a reversible printing ("Reversible Wurm",
+// the same card on both sides) and a plain land ("Test Wastes").
 const DFC = '.card-item[data-name="werewolf front // werewolf back"]'
+const REVERSIBLE = '.card-item[data-name="reversible wurm"]'
 const LAND = '.card-item[data-name="test wastes"]'
 
 test.describe('Double-faced cards', () => {
@@ -71,6 +73,33 @@ test.describe('Double-faced cards', () => {
     await expect(flipWrap).toHaveClass(/flipped/)
     await modal.locator('.flip-btn').click()
     await expect(flipWrap).not.toHaveClass(/flipped/)
+  })
+
+  test('a reversible printing flips to its back but reads as one card in the modal', async ({
+    page,
+  }) => {
+    await page.locator(REVERSIBLE).locator('.card-binder').click()
+    const modal = page.locator('.card-modal')
+    await expect(modal).toBeVisible({ timeout: 5000 })
+
+    // Both sides stay a real flip, each with its own art…
+    const flipWrap = modal.locator('.card-modal-flip')
+    await expect(flipWrap.locator('.card-modal-flip-back')).toHaveAttribute('src', /wurm-back\.svg/)
+    await modal.locator('.flip-btn').click()
+    await expect(flipWrap).toHaveClass(/flipped/)
+
+    // …while the identical faces' text is shown once, not doubled.
+    await expect(modal.locator('.modal-mana-cost')).toHaveText('{4}{G}')
+    await expect(modal.locator('.modal-oracle-text .dfc-separator')).toHaveCount(0)
+    await expect(modal.locator('.modal-oracle-text')).toContainText('Trample.')
+  })
+
+  test("a two-card double-faced printing still shows both faces' text", async ({ page }) => {
+    await page.locator(DFC).locator('.card-binder').click()
+    const oracle = page.locator('.card-modal .modal-oracle-text')
+    await expect(oracle.locator('.dfc-separator')).toHaveCount(1)
+    await expect(oracle).toContainText('Front face.')
+    await expect(oracle).toContainText('Back face.')
   })
 
   test('flip button is absent in list view but present in stack view', async ({ page }) => {

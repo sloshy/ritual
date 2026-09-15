@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { setBaseDir } from '../../src/config/base-dir'
-import { defaultCache } from '../../src/cache'
+import { cardCache, defaultCache } from '../../src/cache'
 import {
   clearCacheServerAddressOverride,
   setCacheServerAddressOverride,
@@ -231,6 +231,25 @@ describe('cache server command (Integration)', () => {
     )
     const body = (await response.json()) as { value: PriceData | null }
     expect(body.value).toEqual({ latest: 2, min: 1, max: 3 })
+  }, 20000)
+
+  test('a replacing bulk write through the HTTP cache drops every key it does not name', async () => {
+    const server = await startServer()
+    runningServers.push(server)
+    setCacheServerAddressOverride(`127.0.0.1:${server.port}`)
+    const island = { ...(await cardCache.get('Sol Ring'))![0]!, name: 'Island' }
+
+    await cardCache.bulkSet({ Island: [island] }, { replace: true })
+
+    // The server seeded Sol Ring; the replace carried over the wire removes it.
+    expect(await cardCache.keys()).toEqual(['Island'])
+
+    const malformed = await fetch(`http://127.0.0.1:${server.port}/cache/cards/bulk`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: {}, replace: 'yes' }),
+    })
+    expect(malformed.status).toBe(400)
   }, 20000)
 
   test('logs verbose requests, cache updates, and scheduled refreshes', async () => {

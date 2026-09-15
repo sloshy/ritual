@@ -7,7 +7,8 @@
  * discarded — so a search for `Bruce Banner` matches `Bruce Banner // The
  * Incredible Hulk` but `The Incredible Hulk` does not. Because both the query
  * and the card name are reduced to their front face, a search for `Steam Vents`
- * also matches double-art printings named `Steam Vents // Steam Vents`.
+ * also matches a list line still spelled `Steam Vents // Steam Vents` (the card
+ * cache itself files those reversible printings under the card's own name).
  */
 
 import { normalizeForSearch } from './term-match'

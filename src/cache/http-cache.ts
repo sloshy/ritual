@@ -1,4 +1,4 @@
-import type { CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
+import type { BulkSetOptions, CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
 import type { CacheSection, DataType } from './file-cache'
 
 interface CacheServerGetResponse<T> {
@@ -25,7 +25,8 @@ interface CacheServerSetRequest<T> {
   value: T
 }
 
-interface CacheServerBulkSetRequest<T> {
+/** The `PUT /bulk` body: the entries, plus the options the server's own `bulkSet` takes. */
+interface CacheServerBulkSetRequest<T> extends BulkSetOptions {
   entries: Record<string, T>
 }
 
@@ -188,11 +189,14 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
     })
   }
 
-  async bulkSet(entries: Record<string, DataType<K>>): Promise<void> {
+  async bulkSet(entries: Record<string, DataType<K>>, options?: BulkSetOptions): Promise<void> {
     await this.requestJson<void>('/bulk', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries } satisfies CacheServerBulkSetRequest<DataType<K>>),
+      body: JSON.stringify({
+        entries,
+        replace: options?.replace,
+      } satisfies CacheServerBulkSetRequest<DataType<K>>),
     })
   }
 

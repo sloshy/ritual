@@ -421,11 +421,11 @@ function matchesColorIdentity(query: ColorIdentityQuery): boolean {
 }
 
 /**
- * The key a card name groups under in the copies filter. Double-faced cards are
- * stored as "Front // Back" (Scryfall's own name), so a two-sided printing is
- * reduced to its front face before comparing — otherwise a double-faced
- * "Steam Vents // Steam Vents" would never group with a single-sided
- * "Steam Vents" of the same card.
+ * The key a card name groups under in the copies filter. A list line may spell
+ * a double-faced card "Front // Back" (Scryfall's own name) or by its front face
+ * alone, so both are reduced to the front face before comparing — otherwise a
+ * line still written "Steam Vents // Steam Vents" would never group with a
+ * "Steam Vents" line of the same card.
  *
  * Deliberately not `term-match`'s exported `normalizeCardName`, which folds
  * diacritics and strips punctuation for *searching*; this is an identity key,

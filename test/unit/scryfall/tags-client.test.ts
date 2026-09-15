@@ -12,15 +12,6 @@ import {
   setLogger,
 } from '../../test-utils'
 
-/** InMemoryCacheManager that also implements the optional bulkSet fast path. */
-class BulkSetCacheManager<T> extends InMemoryCacheManager<T> {
-  bulkSetCalled = false
-  async bulkSet(entries: Record<string, T>): Promise<void> {
-    this.bulkSetCalled = true
-    for (const [key, value] of Object.entries(entries)) await this.set(key, value)
-  }
-}
-
 const BULK_META_URL = 'https://api.scryfall.com/bulk-data'
 const DEFAULT_URI = 'https://data.example/default-cards.jsonl.gz'
 const ORACLE_URI = 'https://data.example/oracle-tags.jsonl.gz'
@@ -200,17 +191,6 @@ describe('ScryfallClient tag integration', () => {
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(client.refreshTags()).rejects.toThrow('Tag refresh aborted')
-  })
-
-  test('refreshTags uses the cache bulkSet fast path when available', async () => {
-    const bulkCache = new BulkSetCacheManager<ScryfallCard[]>(0)
-    await bulkCache.set('Sol Ring', [SOL_RING as ScryfallCard])
-    const bulkClient = new ScryfallClient(http, bulkCache, makeMemoryFs())
-
-    await bulkClient.refreshTags()
-
-    expect(bulkCache.bulkSetCalled).toBeTrue()
-    expect((await bulkCache.get('Sol Ring'))![0]!.oracleTags).toEqual(['artifact', 'ramp'])
   })
 
   test('fetchCardData attaches tags from the persisted tags.json on a cache miss', async () => {

@@ -1,4 +1,4 @@
-import type { CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
+import type { BulkSetOptions, CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
 import { getCacheServerBaseUrl } from './config'
 import { type CacheSection, type DataType, DEFAULT_EXPIRATION_MS, FileCacheManager } from './file-cache'
 import { HttpCacheManager } from './http-cache'
@@ -58,14 +58,8 @@ export class RuntimeCacheManager<K extends CacheSection> implements CacheManager
     return this.getActiveCache().set(key, value)
   }
 
-  async bulkSet(entries: Record<string, DataType<K>>): Promise<void> {
-    const cache = this.getActiveCache()
-    if (cache.bulkSet) {
-      return cache.bulkSet(entries)
-    }
-    for (const [key, value] of Object.entries(entries)) {
-      await cache.set(key, value)
-    }
+  async bulkSet(entries: Record<string, DataType<K>>, options?: BulkSetOptions): Promise<void> {
+    return this.getActiveCache().bulkSet(entries, options)
   }
 
   async isEmpty(): Promise<boolean> {

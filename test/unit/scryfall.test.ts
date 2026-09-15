@@ -12,12 +12,19 @@ import {
   isArtSeries,
   isToken,
 } from '../../src/scryfall'
-import { normalizeSetFilter } from '../../src/scryfall/card-utils'
+import {
+  type CardFace,
+  distinctCardFaces,
+  foldRepeatedFaceNames,
+  isRealPrinting,
+  normalizeSetFilter,
+} from '../../src/scryfall/card-utils'
 import type { FileSystemClient } from '../../src/util/interfaces'
 import {
   MockHttpClient,
   InMemoryCacheManager,
   MemoryLogger,
+  makeReversibleScryfallCard,
   makeScryfallCard,
   resetLogger,
   setLogger,
@@ -691,6 +698,21 @@ describe('ScryfallClient', () => {
       expect(result.usd?.representative?.id).toBe('a')
       expect(result.usd?.cheapest?.id).toBe('b')
     })
+
+    test('a doubled name searches the folded card and merges into its printings', async () => {
+      const cached = makeScryfallCard({ id: 'forest-ordinary', name: 'Forest' })
+      await mockCache.set('Forest', [cached])
+      const fetched = makeScryfallCard({ id: 'forest-reversible', name: 'Forest' })
+      mockHttp.mock(searchUrl('Forest'), () => Response.json({ data: [fetched], has_more: false }))
+
+      await client.fetchRepresentativePrints('Forest // Forest', ['usd'])
+
+      // A subset answer must never overwrite the card's whole printing list.
+      expect((await mockCache.get('Forest'))?.map((c) => c.id)).toEqual([
+        'forest-ordinary',
+        'forest-reversible',
+      ])
+    })
   })
 
   describe('downloadSymbol', () => {
@@ -901,6 +923,147 @@ describe('mapScryfallCard language retention', () => {
   })
 })
 
+describe('foldRepeatedFaceNames', () => {
+  test.each([
+    ['Forest // Forest', 'Forest'],
+    ['A // A // A', 'A'],
+    [
+      'Bloomvine Regent // Claim Territory // Bloomvine Regent',
+      'Bloomvine Regent // Claim Territory',
+    ],
+    ['forest // forest', 'forest'],
+    // Exact: a case difference is not a repeat.
+    ['Forest // forest', 'Forest // forest'],
+    ['Fire // Ice', 'Fire // Ice'],
+    ['Sol Ring', 'Sol Ring'],
+  ])('%s → %s', (name, folded) => {
+    expect(foldRepeatedFaceNames(name)).toBe(folded)
+  })
+})
+
+describe('distinctCardFaces', () => {
+  const face = (name: string, oracleId?: string): CardFace => ({
+    name,
+    oracle_id: oracleId,
+    mana_cost: '',
+    type_line: 'Land',
+    oracle_text: '',
+  })
+
+  test('drops a face repeating an earlier one by name, keeping the first', () => {
+    const front = face('Forest', 'o-forest')
+    expect(distinctCardFaces([front, face('Forest', 'o-forest')])).toEqual([front])
+  })
+
+  test('keeps differently named faces, whatever their oracle identity', () => {
+    // Two-card double-faced faces carry no oracle_id; sharing that absence must not merge them.
+    const faces = [face('Delver of Secrets'), face('Insectile Aberration')]
+    expect(distinctCardFaces(faces)).toEqual(faces)
+  })
+})
+
+describe('mapScryfallCard reversible printings', () => {
+  const face = (overrides: Partial<CardFace>): CardFace => ({
+    name: 'Clarion Conqueror',
+    oracle_id: 'o-clarion',
+    mana_cost: '{2}{W}',
+    type_line: 'Creature — Dragon',
+    oracle_text: 'Flying',
+    cmc: 3,
+    colors: ['W'],
+    ...overrides,
+  })
+
+  test('a same-card reversible joins its card: folded name and lifted card fields', () => {
+    const faces = [face({ illustration_id: 'art-front' }), face({ illustration_id: 'art-back' })]
+    const mapped = mapScryfallCard(
+      makeReversibleScryfallCard('Clarion Conqueror // Clarion Conqueror', faces),
+    )
+
+    expect(mapped).toMatchObject({
+      name: 'Clarion Conqueror',
+      oracle_id: 'o-clarion',
+      type_line: 'Creature — Dragon',
+      mana_cost: '{2}{W}',
+      oracle_text: 'Flying',
+      cmc: 3,
+      colors: ['W'],
+    })
+    // What makes it two-sided is kept: the layout, and both faces with their own art.
+    expect(mapped.layout).toBe('reversible_card')
+    expect(mapped.card_faces).toEqual(faces)
+  })
+
+  test('a reversible Omen joins its distinct halves the way its ordinary printings spell them', () => {
+    // The face shape Scryfall serves for these printings: the two halves, not a doubled front.
+    const mapped = mapScryfallCard(
+      makeReversibleScryfallCard('Bloomvine Regent // Claim Territory // Bloomvine Regent', [
+        face({ name: 'Bloomvine Regent', mana_cost: '{3}{G}{G}', cmc: 5, colors: ['G'] }),
+        face({
+          name: 'Claim Territory',
+          type_line: 'Sorcery — Omen',
+          mana_cost: '{2}{G}',
+          cmc: 3,
+          colors: ['U'],
+        }),
+      ]),
+    )
+
+    // cmc and colors are the front face's, as on the card's ordinary printings.
+    expect(mapped).toMatchObject({
+      name: 'Bloomvine Regent // Claim Territory',
+      type_line: 'Creature — Dragon // Sorcery — Omen',
+      mana_cost: '{3}{G}{G} // {2}{G}',
+      cmc: 5,
+      colors: ['G'],
+    })
+    expect(mapped.oracle_text).toBeUndefined()
+  })
+
+  test('a reversible token-typed printing the ingest kept is not reclassified as a token', () => {
+    const tokenFace = face({ name: 'Mechtitan', type_line: 'Token Legendary Artifact Creature' })
+    const mapped = mapScryfallCard(
+      makeReversibleScryfallCard('Mechtitan // Mechtitan', [tokenFace, tokenFace]),
+    )
+
+    expect(mapped.type_line).toContain('Token')
+    expect(isRealPrinting(mapped)).toBe(true)
+  })
+
+  test('a reversible holding two different cards lifts nothing', () => {
+    const mapped = mapScryfallCard(
+      makeReversibleScryfallCard('Clarion Conqueror // Serra Angel', [
+        face({}),
+        face({ name: 'Serra Angel', oracle_id: 'o-serra' }),
+      ]),
+    )
+
+    expect(mapped.oracle_id).toBeUndefined()
+    expect(mapped.type_line).toBeUndefined()
+    expect(mapped.mana_cost).toBeUndefined()
+  })
+
+  test('a two-card double-faced printing keeps its own name and top-level fields', () => {
+    const transform = makeScryfallCard({
+      name: 'Delver of Secrets // Insectile Aberration',
+      oracle_id: 'o-delver',
+      layout: 'transform',
+      type_line: 'Creature — Human Wizard // Creature — Human Insect',
+      cmc: 1,
+      card_faces: [
+        face({ name: 'Delver of Secrets', oracle_id: undefined }),
+        face({ name: 'Insectile Aberration', oracle_id: undefined }),
+      ],
+    })
+    const mapped = mapScryfallCard(transform)
+
+    expect(mapped.name).toBe('Delver of Secrets // Insectile Aberration')
+    // Fields its top level lacks stay absent rather than being joined from the faces.
+    expect(mapped.mana_cost).toBeUndefined()
+    expect(mapped.colors).toBeUndefined()
+  })
+})
+
 const makeGamesCard = (games: string[]): ScryfallCard => makeScryfallCard({ games })
 
 describe('isToken', () => {
@@ -918,6 +1081,15 @@ describe('isToken', () => {
       expected: true,
     },
     { label: 'normal card layout', card: makeScryfallCard({ layout: 'normal' }), expected: false },
+    {
+      // A layout has already answered; the type-line fallback is for cards cached without one.
+      label: 'non-token layout with Token in type_line',
+      card: makeScryfallCard({
+        layout: 'reversible_card',
+        type_line: 'Token Creature — Construct',
+      }),
+      expected: false,
+    },
     {
       label: 'layout absent and type_line has no Token',
       card: makeScryfallCard(),
