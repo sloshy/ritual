@@ -11,6 +11,8 @@ import {
   loadCardCategories,
   parseCardCategoriesSidecar,
   pruneCardCategories,
+  foldRepeatedFaceCategoryChanges,
+  type CardCategoriesRecord,
   recordFromJson,
   removeCategoryFromRecord,
   resolveCategoryOrder,
@@ -418,6 +420,37 @@ describe('removeCategoryFromRecord', () => {
     const next = removeCategoryFromRecord(base, 'Combo')
     expect(next.order).toEqual(base.order)
     expect(cardsOf(next)).toEqual(cardsOf(base))
+  })
+})
+
+describe('foldRepeatedFaceCategoryChanges', () => {
+  const fold = (rec: CardCategoriesRecord): Record<string, string[]> =>
+    cardsOf(applyCategoryChangesToRecord(rec, foldRepeatedFaceCategoryChanges(rec)))
+
+  test('moves a doubled name onto the folded one', () => {
+    const rec = record(['Lands'], { 'Steam Vents // Steam Vents': ['Lands'] })
+    expect(fold(rec)).toEqual({ 'Steam Vents': ['Lands'] })
+  })
+
+  test("merges into the folded name's entry, which keeps its primary category first", () => {
+    const rec = record(['Ramp', 'Lands'], {
+      'Steam Vents // Steam Vents': ['Lands', 'Ramp'],
+      'Steam Vents': ['Ramp'],
+    })
+    expect(fold(rec)).toEqual({ 'Steam Vents': ['Ramp', 'Lands'] })
+  })
+
+  test('several spellings of one card all merge, in stored order', () => {
+    const rec = record(['Lands', 'Ramp'], {
+      'Steam Vents // Steam Vents': ['Lands'],
+      'Steam Vents // Steam Vents // steam vents': ['Ramp'],
+    })
+    expect(fold(rec)).toEqual({ 'Steam Vents': ['Lands', 'Ramp'] })
+  })
+
+  test('changes nothing when no name repeats a face', () => {
+    const rec = record(['Draw'], { 'Fire // Ice': ['Draw'], 'Sol Ring': ['Draw'] })
+    expect(foldRepeatedFaceCategoryChanges(rec)).toEqual([])
   })
 })
 

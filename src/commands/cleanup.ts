@@ -24,12 +24,16 @@ import { parseDeckText } from '../importers/text-file'
 import { listNameCollision } from '../list/list-lifecycle'
 import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
 import {
+  applyCategoryChangesToRecord,
   categoriesSaveTouchesDisk,
   commitCategoryChanges,
+  foldRepeatedFaceCategoryChanges,
   loadCardCategories,
   previewCategoriesSaveAction,
   pruneCardCategories,
 } from '../list/card-categories-sidecar'
+import type { ChangeEvent } from '../changes/change-event'
+import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 import { loadDefaultCategories } from '../config/ritual-config'
 import { listCardNameSet } from '../list/card-names'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
@@ -46,10 +50,12 @@ import {
 } from '../cli/output'
 import { addDryRunOption, addScriptingOptions } from '../cli/options'
 import { t } from '../i18n/t'
+import { compareData } from '../i18n/collate'
 
 /**
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
- * list that brings each file up to the current conventions —
+ * list that brings each file up to the current conventions (the categories
+ * sidecar is pruned and canonicalized alongside, see `cleanupList`) —
  *
  * 1. every deck gets an explicit `format:`, chosen by the user via
  *    {@link CleanupOptions.chooseFormat} — the deck's shape (command zone, card
@@ -62,7 +68,11 @@ import { t } from '../i18n/t'
  *    `name:` and `created:` dropped (every other key, `tags:` included, stays);
  * 3. every file is named exactly as its list is named (its `# Title` H1, or for
  *    a deck without one its legacy `name:`), replacing file names left over from
- *    the old lower-kebab-case deck slugs.
+ *    the old lower-kebab-case deck slugs;
+ * 4. every card line spelled with a repeated face (`Steam Vents // Steam Vents`,
+ *    Scryfall's name for a reversible printing) is renamed to the card's folded
+ *    name, the one the card cache files that printing under — and its category
+ *    assignments move with it.
  *
  * Cleanup never touches a `.changes.md` changelog — a cleaned-up file has the
  * same cards it had before, and a rename carries the sidecar along unchanged —
@@ -114,6 +124,13 @@ export type CleanupResult = {
    */
   unreadable?: boolean
   /**
+   * Card names, as the file spelled them, whose lines were (or would be) renamed
+   * to the card's folded name ({@link foldRepeatedFaceNames}). Absent when no
+   * line repeats a face, and when the rewrite is blocked or declined — a name is
+   * only folded by a rewrite that happens.
+   */
+  cardNamesFolded?: string[]
+  /**
    * Card names whose category assignments were dropped, because the list no
    * longer holds a line of that name. Absent when nothing was pruned.
    */
@@ -161,6 +178,28 @@ type ListDocument = {
   formatSet?: DeckFormatKey
   /** True for a deck left without a format (no answer, or dry-run). */
   missingFormat?: boolean
+  /** The distinct card names `canonical` folds (see {@link CleanupResult.cardNamesFolded}). */
+  foldedNames: string[]
+}
+
+/** A parsed card line, reduced to the one field the name fold rewrites. */
+type NamedCardLine = { name: string }
+
+/**
+ * Rename every card line spelled with a repeated face to the card's folded name,
+ * in place, and return the distinct spellings that changed (sorted). The list
+ * file is the one place the doubled spelling can outlive a cache refresh, so this
+ * is where it converges on the name the cache files the printing under.
+ */
+function foldCardLineNames(lines: Iterable<NamedCardLine>): string[] {
+  const folded = new Set<string>()
+  for (const line of lines) {
+    const name = foldRepeatedFaceNames(line.name)
+    if (name === line.name) continue
+    folded.add(line.name)
+    line.name = name
+  }
+  return [...folded].sort(compareData)
 }
 
 /**
@@ -177,6 +216,7 @@ type ParsedDeckDocument = {
   frontMatter: DeckFrontMatter
   parseWarnings: string[]
   advisories: string[]
+  foldedNames: string[]
 }
 
 async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocument> {
@@ -198,7 +238,8 @@ async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocum
   // and drops `name:` (and `created:`), so this key is read exactly once.
   const legacyName = legacyDeckName(original, frontMatter)
   if (legacyName !== undefined) deck.name = legacyName
-  return { original, deck, frontMatter, parseWarnings: warnings, advisories }
+  const foldedNames = foldCardLineNames(deck.sections.flatMap((section) => section.cards))
+  return { original, deck, frontMatter, parseWarnings: warnings, advisories, foldedNames }
 }
 
 /** A deck's legacy `name:` front matter, when it has one and no `# Title` H1 names it instead. */
@@ -245,6 +286,8 @@ async function resolveDeckDocument(
         parseWarnings: warnings,
         advisories: parsed.advisories,
         missingFormat,
+        // Nothing is written, so nothing is folded.
+        foldedNames: [],
       }
     }
   }
@@ -256,28 +299,33 @@ async function resolveDeckDocument(
     advisories: parsed.advisories,
     formatSet,
     missingFormat,
+    foldedNames: parsed.foldedNames,
   }
 }
 
 async function readCollectionDocument(location: ListLocation): Promise<ListDocument> {
   const file = await readCollectionFile(location.filePath)
+  const foldedNames = foldCardLineNames(file.entries)
   return {
     displayName: file.title,
     original: file.content,
     canonical: collectionToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
     parseWarnings: file.warnings,
     advisories: file.advisories,
+    foldedNames,
   }
 }
 
 async function readWantedDocument(location: ListLocation): Promise<ListDocument> {
   const file = await readWantedFile(location.filePath)
+  const foldedNames = foldCardLineNames(file.entries)
   return {
     displayName: file.title,
     original: file.content,
     canonical: wantedToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
     parseWarnings: file.warnings,
     advisories: file.advisories,
+    foldedNames,
   }
 }
 
@@ -380,6 +428,7 @@ export async function cleanupList(
     result.warnings.push(t('cli.cleanup.notRewritten'))
   } else {
     result.rewritten = document.canonical !== document.original
+    if (document.foldedNames.length > 0) result.cardNamesFolded = document.foldedNames
   }
 
   // The categories sidecar's preview. Computed above the dry-run return —
@@ -393,6 +442,12 @@ export async function cleanupList(
   // blocked file's sidecar is canonicalized and left otherwise intact.
   const defaultCategories = await loadDefaultCategories()
   let knownCardNames: Set<string> | undefined
+  // Whether this run's rewrite folds repeated-face names: it applies to content
+  // cleanup rewrites, never to a blocked file or a deck left without a format.
+  const namesFold = result.rewriteBlocked !== true && result.missingFormat !== true
+  // The events moving assignments off the names the rewrite folds; replayed
+  // by the preview and the commit alike.
+  let foldChanges: ChangeEvent[] = []
   let categoriesReadable = true
   // Per-file contract: a categories problem is a warning on this file, never a
   // throw that aborts the whole pass.
@@ -400,7 +455,11 @@ export async function cleanupList(
     if (result.rewriteBlocked === true) {
       result.warnings.push(t('cli.cleanup.categoriesNotPruned'))
     } else {
-      knownCardNames = (await listCardNameSet(location.type, location.filePath)).names
+      // Read from the file as it is on disk — so folded only when its rewrite
+      // folds them: a deck left without a format keeps its doubled spellings, and
+      // its assignments under them must not read as cards the list lost.
+      const names = (await listCardNameSet(location.type, location.filePath)).names
+      knownCardNames = namesFold ? new Set([...names].map(foldRepeatedFaceNames)) : names
     }
     const loadedCategories = await loadCardCategories(location.filePath, { knownCardNames })
     if (!loadedCategories.ok) {
@@ -408,6 +467,12 @@ export async function cleanupList(
       result.warnings.push(loadedCategories.message)
     } else {
       let record = loadedCategories.categories
+      // Folded whenever the names are, not only when a line changed: a sidecar
+      // key left doubled by a hand edit beside already-folded lines merges too.
+      if (namesFold) {
+        foldChanges = foldRepeatedFaceCategoryChanges(record)
+        record = applyCategoryChangesToRecord(record, foldChanges)
+      }
       if (knownCardNames !== undefined) {
         const prune = pruneCardCategories(record, knownCardNames)
         if (prune.pruned.length > 0) result.categoriesPruned = prune.pruned
@@ -451,7 +516,7 @@ export async function cleanupList(
   // so a hand-edited sidecar keeps its stale `.sha256` and `detect-changes`
   // still records the edit, the same rule the list file's rewrite follows.
   if (categoriesReadable) {
-    const committed = await commitCategoryChanges(targetPath, [], {
+    const committed = await commitCategoryChanges(targetPath, foldChanges, {
       knownCardNames,
       defaultCategories,
       canonicalize: true,
@@ -494,6 +559,14 @@ function describeActions(result: CleanupResult, dryRun: boolean, skipFormats: bo
   }
   if (result.renamedTo) actions.push(t('cli.cleanup.actionRenamed', { file: result.renamedTo }))
   if (result.rewritten) actions.push(t('cli.cleanup.actionRewritten'))
+  if (result.cardNamesFolded !== undefined) {
+    actions.push(
+      t('cli.cleanup.cardNamesFolded', {
+        count: result.cardNamesFolded.length,
+        names: result.cardNamesFolded.join(', '),
+      }),
+    )
+  }
   if (result.categoriesRewritten === true) {
     actions.push(t('cli.cleanup.actionCategoriesRewritten'))
   }

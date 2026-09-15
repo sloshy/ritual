@@ -11,6 +11,7 @@ import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import type { DeckFormatSignal } from '../../src/list/deck-format'
 import { computeHash, hashPath, writeFileWithHash } from '../../src/changes/content-hash'
 import { runCli } from './helpers/cli'
+import { readCategoriesSidecar, writeCategoriesSidecar } from '../helpers/card-categories'
 import {
   bindWorkspace,
   snapshotTree,
@@ -741,6 +742,82 @@ describe('cleanup — categories', () => {
     // The seeded sidecar carried no `.sha256`, so Ritual never claimed it as
     // recorded — cleanup canonicalizes the bytes but stamps nothing.
     expect(await Bun.file(hashPath(sidecarPath)).exists()).toBe(false)
+  })
+})
+
+describe('cleanup — repeated-face card names', () => {
+  let workspace: BoundWorkspace
+
+  beforeEach(async () => {
+    workspace = await bindWorkspace({ init: true })
+  })
+
+  afterEach(async () => {
+    await workspace.dispose()
+  })
+
+  const DOUBLED = 'Steam Vents // Steam Vents'
+
+  /** A collection whose only line spells a reversible printing's doubled name, categorized under it. */
+  async function seedDoubled(): Promise<string> {
+    const filePath = await writeCollectionFile(workspace.dir, 'Binder', {
+      entries: [{ name: DOUBLED, set: 'ecl', collectorNumber: '348', cardId: 1 }],
+    })
+    await writeCategoriesSidecar(filePath, ['Lands'], { [DOUBLED]: ['Lands'] })
+    return filePath
+  }
+
+  test('--dry-run previews the fold and the categories move without writing', async () => {
+    const filePath = await seedDoubled()
+    const before = await snapshotTree(workspace.dir)
+
+    const result = await cleanupList(
+      { type: 'collection', filePath, name: 'Binder' },
+      { dryRun: true },
+    )
+
+    expect(result).toMatchObject({
+      cardNamesFolded: [DOUBLED],
+      rewritten: true,
+      categoriesRewritten: true,
+    })
+    // Previewed as a move, never as a card the list lost.
+    expect(result.categoriesPruned).toBeUndefined()
+    expect(await snapshotTree(workspace.dir)).toEqual(before)
+  })
+
+  test('folds the line onto its card and moves its categories along', async () => {
+    const filePath = await seedDoubled()
+
+    const result = await cleanupList({ type: 'collection', filePath, name: 'Binder' })
+
+    expect(result.cardNamesFolded).toEqual([DOUBLED])
+    expect(result.categoriesPruned).toBeUndefined()
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- Steam Vents (ECL:348) &1')
+    expect(content).not.toContain('//')
+    expect(await readCategoriesSidecar(filePath)).toEqual({ 'Steam Vents': ['Lands'] })
+
+    // A second pass has nothing left to fold.
+    const again = await cleanupList({ type: 'collection', filePath, name: 'Binder' })
+    expect(hasCleanupActions(again)).toBe(false)
+  })
+
+  test('a deck left without a format keeps its doubled line and its categories', async () => {
+    const filePath = await writeDeckFile(workspace.dir, 'Jank', {
+      cards: [{ quantity: 1, name: DOUBLED, cardId: 1 }],
+    })
+    await writeCategoriesSidecar(filePath, ['Lands'], { [DOUBLED]: ['Lands'] })
+    const content = await fs.readFile(filePath, 'utf-8')
+
+    // No chooseFormat: what --skip-formats and a declined prompt both amount to.
+    const result = await cleanupList({ type: 'deck', filePath, name: 'Jank' })
+
+    expect(result.missingFormat).toBe(true)
+    expect(result.cardNamesFolded).toBeUndefined()
+    expect(result.categoriesPruned).toBeUndefined()
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
+    expect(await readCategoriesSidecar(filePath)).toEqual({ [DOUBLED]: ['Lands'] })
   })
 })
 

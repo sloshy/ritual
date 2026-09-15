@@ -972,6 +972,10 @@ export const cliCardsMeta = {
     description:
       "One reported action: the list's <list>.categories.json sidecar was re-serialized in canonical form (resolved display order, sorted card keys).",
   },
+  'cli.cleanup.cardNamesFolded': {
+    description:
+      "One reported action: card lines spelled with a repeated face (Scryfall's name for a reversible printing, e.g. 'Steam Vents // Steam Vents') were renamed to the card's own name ('Steam Vents'). {count} is how many distinct spellings, {names} the comma-joined original spellings (never translated).",
+  },
   'cli.cleanup.categoriesPruned': {
     description:
       'One reported action: category assignments were dropped because the list no longer holds a card of that name. {count} is how many, {names} the comma-joined card names (never translated).',

@@ -586,6 +586,8 @@ export const cliCardsMessages = {
   'cli.cleanup.actionRenamed': "renamed to '{file}'",
   'cli.cleanup.actionRewritten': 'rewritten in canonical form',
   'cli.cleanup.actionCategoriesRewritten': 'categories sidecar rewritten in canonical form',
+  'cli.cleanup.cardNamesFolded':
+    'folded {count} repeated-face card name(s) onto the card they print: {names}',
   'cli.cleanup.categoriesPruned':
     'pruned {count} category assignment(s) for cards no longer in the list: {names}',
   'cli.cleanup.actionNeedsFormat': 'needs a format',

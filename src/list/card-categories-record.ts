@@ -24,7 +24,12 @@ import {
   parseCardCategoriesValue,
   withoutCardCategory,
 } from '../card/card-categories'
-import { CATEGORY_ACTIONS, type ChangeEvent } from '../changes/change-event'
+import {
+  CATEGORY_ACTIONS,
+  createSetCategoriesChange,
+  type ChangeEvent,
+} from '../changes/change-event'
+import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 import { compareData } from '../i18n/collate'
 import { getErrorMessage } from '../util/errors'
 import { isRecord } from '../util/json'
@@ -283,12 +288,6 @@ export function serializeCardCategoriesSidecar(
 }
 
 /**
- * Read a list's categories. An absent sidecar is the normal case and yields an
- * empty record; a sidecar that exists but cannot be read or parsed is reported
- * rather than silently treated as "no categories" — that would make the next
- * save delete assignments the user still has on disk.
-
-/**
  * Drop the entries naming a card the list does not hold any more. `order` is
  * left alone: a vocabulary entry with no cards is still the owner's vocabulary.
  * Pure.
@@ -309,6 +308,35 @@ export function pruneCardCategories(
   if (pruned.length === 0) return { categories: cloneRecord(record), pruned: [], changed: false }
   pruned.sort(compareData)
   return { categories: { order: [...record.order], cards }, pruned, changed: true }
+}
+
+/**
+ * The `set-categories` events that move every entry stored under a
+ * repeated-face name (`Steam Vents // Steam Vents`) onto the card's folded name
+ * ({@link foldRepeatedFaceNames}), merged with any entry already there — whose
+ * categories stay first, so its primary category holds. What `ritual cleanup`
+ * replays when it folds a list's card lines, so assignments follow their lines
+ * rather than being pruned as cards the list no longer holds. Empty when no
+ * entry needs folding. Pure.
+ */
+export function foldRepeatedFaceCategoryChanges(record: CardCategoriesRecord): ChangeEvent[] {
+  const clears: ChangeEvent[] = []
+  const targets = new Map<string, CardCategoryEntry>()
+  for (const entry of record.cards.values()) {
+    const folded = foldRepeatedFaceNames(entry.name)
+    if (folded === entry.name) continue
+    clears.push(createSetCategoriesChange(entry.name, []))
+    const key = foldCategoryCardName(folded)
+    const target = targets.get(key) ?? record.cards.get(key) ?? { name: folded, categories: [] }
+    targets.set(key, {
+      name: target.name,
+      categories: normalizeCardCategories([...target.categories, ...entry.categories]),
+    })
+  }
+  const sets = [...targets.values()].map((entry) =>
+    createSetCategoriesChange(entry.name, entry.categories),
+  )
+  return [...clears, ...sets]
 }
 
 /**

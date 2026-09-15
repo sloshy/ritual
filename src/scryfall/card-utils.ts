@@ -100,14 +100,23 @@ export function getFrontFaceName(name: string): string {
  * under a name of its own beside the card's other printings. This is the one
  * rule the card data folds them by: the ingest names printings by it, and the
  * card cache folds its lookup keys by it, so a list line written with the
- * repeated spelling still reaches the card. List files are not rewritten, and
- * name-keyed list data (categories) keeps the spelling a line carries. Exact
- * and case-preserving, which makes it safe on an already-lowercased key.
+ * repeated spelling still reaches the card, and `ritual cleanup` renames such
+ * list lines (and their category assignments) to the folded name.
+ *
+ * Faces compare case-insensitively and the first spelling is kept, so it agrees
+ * with itself on an already-lowercased key (the name index, the categories
+ * sidecar's keys) and on the spelling a line carries.
  */
 export function foldRepeatedFaceNames(name: string): string {
   if (!name.includes(' // ')) return name
   const parts = name.split(' // ')
-  const distinct = [...new Set(parts)]
+  const seen = new Set<string>()
+  const distinct = parts.filter((part) => {
+    const key = part.toLowerCase()
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
   return distinct.length === parts.length ? name : distinct.join(' // ')
 }
 

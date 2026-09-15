@@ -932,8 +932,8 @@ describe('foldRepeatedFaceNames', () => {
       'Bloomvine Regent // Claim Territory',
     ],
     ['forest // forest', 'forest'],
-    // Exact: a case difference is not a repeat.
-    ['Forest // forest', 'Forest // forest'],
+    // Faces compare case-insensitively; the first spelling is kept.
+    ['Forest // forest', 'Forest'],
     ['Fire // Ice', 'Fire // Ice'],
     ['Sol Ring', 'Sol Ring'],
   ])('%s → %s', (name, folded) => {
