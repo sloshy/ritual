@@ -160,7 +160,7 @@ describe('collection-sync CLI (Integration)', () => {
     const exitCode = await runSync(['pull'])
 
     expect(exitCode).toBe(0)
-    expect(logged()).toContain('is not in the Scryfall cache; syncing it as nonfoil')
+    expect(logged()).toContain('is not in the Scryfall card cache')
     expect(sent.some((request) => request.url.includes('scryfall.com'))).toBe(false)
   })
 

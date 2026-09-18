@@ -222,6 +222,10 @@ export const domainMeta = {
     description:
       'Reports the end of that phase. {printings} is a pre-rendered count of printings (a card in one specific set), {elapsed} a pre-rendered duration.',
   },
+  'domain.sync.printingNotCached': {
+    description:
+      'Warning during a collection sync: a card line names no finish, and the printing is missing from the local Scryfall card cache, so its finish (nonfoil/foil/etched) could not be looked up and nonfoil is assumed. {card} is the card name followed by its printing, e.g. "Sol Ring (C21:240)"; {copies} is a pre-rendered count like "2 copies". The backticked text is a CLI command and must stay untranslated.',
+  },
   'domain.sync.reindexingLocal': {
     description:
       'Announces a second pass of the local-cache lookup phase, run when a push had to download a fresh Scryfall card cache partway through (before uploading a CSV): the first pass used the old cache, so its results are recomputed. Followed by the same completion line as the first pass.',

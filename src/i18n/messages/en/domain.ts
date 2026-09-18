@@ -174,6 +174,8 @@ export const domainMessages = {
   'domain.sync.indexingLocal':
     'Matching {entries} against the local card cache (loading the cache the first time, which can take a while)...',
   'domain.sync.localIndexed': 'Indexed {printings} across the local lists in {elapsed}.',
+  'domain.sync.printingNotCached':
+    '{card} is not in the Scryfall card cache; syncing {copies} as nonfoil. If the cache is out of date, refreshing it (`ritual cache preload-all`) lets its finish be read.',
   'domain.sync.reindexingLocal':
     'The card cache was just refreshed, so matching the local lists against it again (this replaces any cache warnings above)...',
   'domain.sync.fetchingCollection':

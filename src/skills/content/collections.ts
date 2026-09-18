@@ -265,8 +265,8 @@ ${wrapProse(
     "condition — Ritual's five conditions are exactly Archidekt's, so " +
     'NM/LP/MP/HP/DMG round-trip as-is. A line with no explicit finish resolves ' +
     'against the card cache first, so an etched-only printing compares as ' +
-    'etched; a printing the cache does not hold syncs as nonfoil with a warning ' +
-    'naming the line (that lookup is cache-only — a sync never fetches cards ' +
+    'etched; a printing the cache does not hold syncs as nonfoil with one ' +
+    'warning per list naming the printing and how many copies it covers (that lookup is cache-only — a sync never fetches cards ' +
     'one at a time, so preload the cache first if finishes matter). Language ' +
     'round-trips: a `[ja]`-style token pulls down as, and pushes up as, that ' +
     "Archidekt language, and a code Archidekt's CSV cannot express pushes as " +

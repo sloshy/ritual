@@ -1519,9 +1519,9 @@ describe('runCollectionSync (push CSV additions)', () => {
     expect(logs).toContain(
       '1 addition cannot ride the CSV (the printing is not in the Scryfall cache); it is added one at a time instead.',
     )
-    expect(logs.some((line) => line.includes('Card 3 (LTC:3) is not in the Scryfall cache'))).toBe(
-      true,
-    )
+    expect(
+      logs.some((line) => line.includes('Card 3 (LTC:3) is not in the Scryfall card cache')),
+    ).toBe(true)
   })
 
   test('a cache holding no printing at all reports an empty CSV and pushes the slow way', async () => {
@@ -2141,7 +2141,7 @@ describe('runCollectionSync (push CSV additions)', () => {
 
       // The first pass's guess stands; the re-index finds the same gap and stays quiet.
       const guesses = logs.filter((message) =>
-        message.startsWith('Clarion Conqueror (TDM:377) is not in the Scryfall cache'),
+        message.startsWith('Clarion Conqueror (TDM:377) is not in the Scryfall card cache'),
       )
       expect(guesses).toHaveLength(1)
     })

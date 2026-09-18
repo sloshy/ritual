@@ -32,6 +32,8 @@ import {
   type CardLanguage,
 } from '../card/card-language'
 import { printingSuffix } from '../card/card-line'
+import { printingKey } from '../card/printing-key'
+import { t } from '../i18n/t'
 import { findPrinting, type CardPrintingsLookup } from '../card/card-printing'
 import { createAddChange, createRemoveChange } from '../changes/change-event'
 import type { CollectionEntry } from '../list/collection-file'
@@ -134,14 +136,17 @@ export type LocalIndexResult = {
  * (Archidekt's `Etched` modifier, its own collector number) compares as
  * `etched` rather than sliding to `nonfoil` and reading as a different card.
  * A printing the cache does not hold canonicalizes to `nonfoil` with a warning
- * — the sync still runs, it just says which line it had to guess about.
+ * — the sync still runs, it just says which printing it had to guess about. One
+ * warning per printing per list, counting its copies: a binder holding four
+ * copies of an uncached printing is one gap in the cache, not four.
  */
 export async function buildLocalIndex(
   lists: readonly LocalListEntries[],
   lookup: CardPrintingsLookup,
 ): Promise<LocalIndexResult> {
   const index: LocalCollectionIndex = new Map()
-  const warnings: LocalIndexWarning[] = []
+  // Guessed printings by list and printing, in first-seen order, counting copies.
+  const guessed = new Map<string, GuessedPrinting>()
 
   // One lookup per distinct name per run: a collection list repeats names often
   // (several copies, several printings), and the lookup is a cache read.
@@ -172,10 +177,15 @@ export async function buildLocalIndex(
           finish = defaultPrintingFinish(card)
         } else {
           finish = 'nonfoil'
-          warnings.push({
-            list: list.name,
-            message: `${entry.name}${printingSuffix(set, entry.collectorNumber)} is not in the Scryfall cache; syncing it as nonfoil.`,
-          })
+          // Neither language nor condition splits a guess: a line of any language
+          // resolves against the same `set:cn` objects, so it is one cache gap.
+          const guessKey = `${list.name}\0${printingKey(set, entry.collectorNumber)}`
+          const existing = guessed.get(guessKey)
+          if (existing) existing.copies++
+          else {
+            const label = `${entry.name}${printingSuffix(set, entry.collectorNumber)}`
+            guessed.set(guessKey, { list: list.name, label, copies: 1 })
+          }
         }
       }
 
@@ -205,7 +215,22 @@ export async function buildLocalIndex(
     }
   }
 
+  const warnings = [...guessed.values()].map((guess): LocalIndexWarning => ({
+    list: guess.list,
+    message: t('domain.sync.printingNotCached', {
+      card: guess.label,
+      copies: t('domain.count.copies', { count: guess.copies }),
+    }),
+  }))
   return { index, warnings }
+}
+
+/** A printing {@link buildLocalIndex} had to guess the finish of, in one list. */
+type GuessedPrinting = {
+  list: string
+  /** The first copy's name and printing, as a warning names it. */
+  label: string
+  copies: number
 }
 
 // ── Remote side ───────────────────────────────────────────────────────

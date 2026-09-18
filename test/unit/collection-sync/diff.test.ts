@@ -95,6 +95,10 @@ describe('sync key canonicalization', () => {
     expect(index.has('ltc|284|nonfoil|NM|en')).toBe(true)
   })
 
+  /** The warning for a printing the cache does not hold. */
+  const notCached = (card: string, copies: string): string =>
+    `${card} is not in the Scryfall card cache; syncing ${copies} as nonfoil. If the cache is out of date, refreshing it (\`ritual cache preload-all\`) lets its finish be read.`
+
   test('a printing missing from the cache falls back to nonfoil with a warning', async () => {
     const result = await buildLocalIndex(
       [{ name: 'binder', entries: [entry('Made Up Card', 'xxx', '1')] }],
@@ -103,10 +107,34 @@ describe('sync key canonicalization', () => {
 
     expect(result.index.has('xxx|1|nonfoil|NM|en')).toBe(true)
     expect(result.warnings).toEqual([
-      {
-        list: 'binder',
-        message: 'Made Up Card (XXX:1) is not in the Scryfall cache; syncing it as nonfoil.',
-      },
+      { list: 'binder', message: notCached('Made Up Card (XXX:1)', '1 copy') },
+    ])
+  })
+
+  test('an uncached printing is warned about once per list, counting its copies', async () => {
+    const result = await buildLocalIndex(
+      [
+        {
+          name: 'binder',
+          entries: [
+            entry('Zed Card', 'xxx', '2'),
+            entry('Made Up Card', 'xxx', '1a'),
+            // Same printing: collector-number case, spelling, condition and
+            // language never split one cache gap into several warnings.
+            entry('made up card', 'xxx', '1A', { condition: 'LP' }),
+            entry('Made Up Card', 'xxx', '1a', { language: 'ja' }),
+          ],
+        },
+        { name: 'long-box', entries: [entry('Made Up Card', 'xxx', '1a')] },
+      ],
+      noPrintings,
+    )
+
+    // First-seen order, each named by its first copy's spelling.
+    expect(result.warnings).toEqual([
+      { list: 'binder', message: notCached('Zed Card (XXX:2)', '1 copy') },
+      { list: 'binder', message: notCached('Made Up Card (XXX:1a)', '3 copies') },
+      { list: 'long-box', message: notCached('Made Up Card (XXX:1a)', '1 copy') },
     ])
   })
 
