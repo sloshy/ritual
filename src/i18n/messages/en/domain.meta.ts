@@ -222,6 +222,10 @@ export const domainMeta = {
     description:
       'Reports the end of that phase. {printings} is a pre-rendered count of printings (a card in one specific set), {elapsed} a pre-rendered duration.',
   },
+  'domain.sync.reindexingLocal': {
+    description:
+      'Announces a second pass of the local-cache lookup phase, run when a push had to download a fresh Scryfall card cache partway through (before uploading a CSV): the first pass used the old cache, so its results are recomputed. Followed by the same completion line as the first pass.',
+  },
   'domain.sync.fetchingCollection': {
     description:
       'Announces the phase that downloads the whole Archidekt collection; the parenthetical explains why it is slow — Ritual deliberately spaces the requests out.',

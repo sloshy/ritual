@@ -23,6 +23,7 @@ import type {
 import type { CardMutationChange } from '../../../src/list/list-mutate'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
 import { SYNC_CANCELLED_REASON } from '../../../src/sync/common'
+import type { UploadCacheReady } from '../../../src/cache/freshness'
 import {
   collectionPage,
   entry,
@@ -1937,7 +1938,7 @@ describe('runCollectionSync (push CSV additions)', () => {
   describe('the cache-freshness gate', () => {
     /** A `--csv` push of one addition, with the gate answering `answer`. */
     async function gated(
-      answer: true | string,
+      answer: UploadCacheReady | string,
     ): Promise<Harness & { requests: RecordedRequest[]; asked: number[] }> {
       const store = fakeStore([
         { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
@@ -1964,10 +1965,14 @@ describe('runCollectionSync (push CSV additions)', () => {
     }
 
     test('is asked once with the additions, and its log lines join the run', async () => {
-      const { run, requests, asked, logs } = await gated(true)
+      const { run, requests, asked, logs } = await gated({ refreshed: false })
 
       expect(asked).toEqual([1])
       expect(logs).toContain('Refreshing the card cache...')
+      // A gate that did not refresh leaves the plan as it was.
+      expect(logs.some((message) => message.startsWith('The card cache was just refreshed'))).toBe(
+        false,
+      )
       expect(requests.filter((request) => request.csv !== undefined)).toHaveLength(1)
       expect(run.report.csv).toMatchObject({ status: 'uploaded' })
     })
@@ -2001,7 +2006,7 @@ describe('runCollectionSync (push CSV additions)', () => {
         lookupPrintings: printingsLookup([printing('Sol Ring', 'ltc', '284', ['nonfoil'])]),
         ensureCsvCache: () => {
           asked = true
-          return true
+          return { refreshed: false }
         },
       })
 
@@ -2025,7 +2030,7 @@ describe('runCollectionSync (push CSV additions)', () => {
         lookupPrintings: additionCache(CSV_UPLOAD_THRESHOLD),
         ensureCsvCache: () => {
           asked = true
-          return true
+          return { refreshed: false }
         },
       })
 
@@ -2054,6 +2059,100 @@ describe('runCollectionSync (push CSV additions)', () => {
       expect(requests.map((request) => request.method)).toEqual(['GET'])
       expect(run.report.errors).toEqual([
         'Could not prepare the card cache for a CSV upload: the cache lock is held. Nothing was pushed.',
+      ])
+    })
+
+    const REINDEX_LINE =
+      'The card cache was just refreshed, so matching the local lists against it again (this replaces any cache warnings above)...'
+
+    /**
+     * A `--csv` push of one unmarked foil-only line, planned against a cache that
+     * lacks the printing until the gate refreshes it.
+     */
+    async function refreshedMidRun(
+      options: {
+        remote?: ArchidektCollectionRecord[]
+        cancelDuringRefresh?: boolean
+        /** The cache after the refresh; by default it holds the printing. */
+        fresh?: CardPrintingsLookup
+      } = {},
+    ): Promise<Harness & { requests: RecordedRequest[]; gateCalls: number }> {
+      const store = fakeStore([
+        { name: 'blue-binder', entries: [entry('Clarion Conqueror', 'tdm', '377', { cardId: 1 })] },
+      ])
+      const { client, requests } = mockArchidekt({ pages: [options.remote ?? []] })
+      const fresh =
+        options.fresh ?? printingsLookup([printing('Clarion Conqueror', 'tdm', '377', ['foil'])])
+      let lookup = noPrintings
+      let gateCalls = 0
+      const controller = new AbortController()
+      const harness = await sync({
+        direction: 'push',
+        client,
+        store,
+        state: fakeState(),
+        csv: true,
+        signal: controller.signal,
+        lookupPrintings: (...args) => lookup(...args),
+        ensureCsvCache: () => {
+          gateCalls++
+          // The gate is where a refresh spends its minutes, so it is where a
+          // user's cancel lands.
+          if (options.cancelDuringRefresh) controller.abort()
+          lookup = fresh
+          return { refreshed: true }
+        },
+      })
+      return { ...harness, requests, gateCalls }
+    }
+
+    test('a refresh re-plans the push: a guessed finish that now matches pushes nothing', async () => {
+      // The stale cache guesses nonfoil — a create plus a delete of the account's
+      // foil record. The refreshed cache knows the printing is foil-only.
+      const { run, requests, logs, gateCalls } = await refreshedMidRun({
+        remote: [
+          record({
+            id: 9,
+            name: 'Clarion Conqueror',
+            set: 'tdm',
+            collectorNumber: '377',
+            modifier: 'Foil',
+          }),
+        ],
+      })
+
+      expect(gateCalls).toBe(1)
+      expect(requests.map((request) => request.method)).toEqual(['GET'])
+      expect(run.report.totals).toEqual({ added: 0, removed: 0, skipped: 0, pending: 0 })
+      expect(logs).toContain(REINDEX_LINE)
+    })
+
+    test('a refresh re-plans the push: an addition that survives uploads its real finish', async () => {
+      const { run, requests } = await refreshedMidRun()
+
+      const rows = uploadedRows(requests)
+      expect(rows).toHaveLength(1)
+      expect(rows[0]).toContain('Foil')
+      expect(run.report.totals.added).toBe(1)
+    })
+
+    test('a printing the refreshed cache still lacks is warned about once, not per pass', async () => {
+      const { logs } = await refreshedMidRun({ fresh: noPrintings })
+
+      // The first pass's guess stands; the re-index finds the same gap and stays quiet.
+      const guesses = logs.filter((message) =>
+        message.startsWith('Clarion Conqueror (TDM:377) is not in the Scryfall cache'),
+      )
+      expect(guesses).toHaveLength(1)
+    })
+
+    test('a cancel during the refresh stops the push before the upload', async () => {
+      const { run, requests } = await refreshedMidRun({ cancelDuringRefresh: true })
+
+      expect(requests.map((request) => request.method)).toEqual(['GET'])
+      expect(run.report.cancelled).toBe(true)
+      expect(run.report.lists.map((list) => [list.name, list.status])).toEqual([
+        ['blue-binder', 'skipped'],
       ])
     })
   })

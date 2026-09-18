@@ -26,7 +26,7 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000
  * else. A download that fails has to leave the caller with the cache it already
  * had, not an exception out of `ritual admin`'s startup path. Callers that
  * report to the user print the message; {@link ensureCardCacheForUpload}, whose
- * whole contract is "true, or the reason not", returns it.
+ * whole contract is "ready, or the reason not", returns it.
  *
  * @returns `null` when the preload succeeded, else the reason it did not.
  */
@@ -283,6 +283,13 @@ export type CacheRefreshLog = (message: string) => void
 export type UploadCacheDeps = SessionCacheDeps & { log?: CacheRefreshLog }
 
 /**
+ * A cache {@link ensureCardCacheForUpload} vouched for. `refreshed` says the gate
+ * replaced it on the way — so anything the caller already derived from the old
+ * cache is stale and has to be derived again.
+ */
+export type UploadCacheReady = { refreshed: boolean }
+
+/**
  * Ensure the card cache is fresh enough to build a bulk upload's rows from.
  *
  * A collection push's CSV keys every row by the Scryfall id the **local cache**
@@ -300,13 +307,13 @@ export type UploadCacheDeps = SessionCacheDeps & { log?: CacheRefreshLog }
  * {@link refreshCardCacheForSession} takes, since "no timestamp" is a cache that
  * was filled by something other than a bulk download rather than an old one.
  *
- * @returns `true` when the cache may be used, else the reason it may not — worded
- *   for the caller to report verbatim.
+ * @returns An {@link UploadCacheReady} when the cache may be used, else the
+ *   reason it may not — worded for the caller to report verbatim.
  */
 export async function ensureCardCacheForUpload(
   policy: RefreshPolicy,
   deps: UploadCacheDeps = {},
-): Promise<true | string> {
+): Promise<UploadCacheReady | string> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
   const log = deps.log ?? ((message: string) => console.log(message))
@@ -314,7 +321,7 @@ export async function ensureCardCacheForUpload(
   const empty = await cache.isEmpty()
   const lastRefreshed = empty ? null : await cache.getLastRefreshedAt()
   const age = lastRefreshed === null ? null : Date.now() - lastRefreshed
-  if (!empty && (age === null || age <= PRICE_MAX_AGE_MS)) return true
+  if (!empty && (age === null || age <= PRICE_MAX_AGE_MS)) return { refreshed: false }
 
   const state = empty ? 'empty' : `${formatDuration(age ?? 0)} old`
   const because = `Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is ${state}.`
@@ -344,7 +351,7 @@ export async function ensureCardCacheForUpload(
   if (await cache.isEmpty()) {
     return 'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.'
   }
-  return true
+  return { refreshed: true }
 }
 
 /**

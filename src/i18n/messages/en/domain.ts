@@ -174,6 +174,8 @@ export const domainMessages = {
   'domain.sync.indexingLocal':
     'Matching {entries} against the local card cache (loading the cache the first time, which can take a while)...',
   'domain.sync.localIndexed': 'Indexed {printings} across the local lists in {elapsed}.',
+  'domain.sync.reindexingLocal':
+    'The card cache was just refreshed, so matching the local lists against it again (this replaces any cache warnings above)...',
   'domain.sync.fetchingCollection':
     'Fetching the Archidekt collection (paced to stay under the rate limit)...',
   'domain.sync.fetchedPage': 'Fetched page {page} of {totalPages} — {records} so far.',

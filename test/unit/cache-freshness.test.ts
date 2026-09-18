@@ -411,7 +411,7 @@ describe('ensureCardCacheForUpload', () => {
       ...h,
     })
 
-    expect(ready).toBe(true)
+    expect(ready).toEqual({ refreshed: false })
     expect(h.confirmCalls).toHaveLength(0)
     expect(h.preloadCalls).toBe(0)
     expect(logged).toEqual([])
@@ -427,7 +427,7 @@ describe('ensureCardCacheForUpload', () => {
       ...h,
     })
 
-    expect(ready).toBe(true)
+    expect(ready).toEqual({ refreshed: false })
     expect(h.preloadCalls).toBe(0)
   })
 
@@ -445,7 +445,7 @@ describe('ensureCardCacheForUpload', () => {
       },
     })
 
-    expect(ready).toBe(true)
+    expect(ready).toEqual({ refreshed: true })
     expect(h.confirmCalls).toHaveLength(0)
     expect(h.preloadCalls).toBe(1)
     expect(logged).toEqual([
@@ -462,7 +462,7 @@ describe('ensureCardCacheForUpload', () => {
       ...h,
     })
 
-    expect(ready).toBe(true)
+    expect(ready).toEqual({ refreshed: true })
     expect(h.preloadCalls).toBe(1)
   })
 
@@ -475,7 +475,7 @@ describe('ensureCardCacheForUpload', () => {
       ...h,
     })
 
-    expect(ready).toBe(true)
+    expect(ready).toEqual({ refreshed: true })
     // Freshness is a requirement here, so the default answer is yes — unlike the
     // ordinary weekly nag, which defaults to no.
     expect(h.confirmCalls).toEqual([

@@ -32,7 +32,12 @@ import { formatResolveListError } from '../list/resolve-list'
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { getCachedCardPrintings } from '../scryfall'
 import { formatElapsed } from '../util/duration'
-import { buildLocalIndex, buildRemoteIndex } from './diff'
+import {
+  buildLocalIndex,
+  buildRemoteIndex,
+  type LocalCollectionIndex,
+  type LocalIndexWarning,
+} from './diff'
 import { writeCsvFile } from './csv'
 import {
   createDiskCollectionListStore,
@@ -189,19 +194,31 @@ export async function runCollectionSync(
       }),
     )
   }
-  const indexingStartedAt = Date.now()
-  const local = await buildLocalIndex(loaded.lists, lookupPrintings)
-  if (entryCount > 0) {
-    progress(
-      t('domain.sync.localIndexed', {
-        printings: t('domain.count.printings', { count: local.index.size }),
-        elapsed: formatElapsed(Date.now() - indexingStartedAt),
-      }),
+  // A re-index after a mid-run cache refresh does not repeat what an earlier pass
+  // already reported — whatever the new cache still cannot resolve was said once.
+  const reportedWarnings = new Set<string>()
+  const indexLocal = async (): Promise<LocalCollectionIndex> => {
+    const indexingStartedAt = Date.now()
+    const local = await buildLocalIndex(loaded.lists, lookupPrintings)
+    if (entryCount > 0) {
+      progress(
+        t('domain.sync.localIndexed', {
+          printings: t('domain.count.printings', { count: local.index.size }),
+          elapsed: formatElapsed(Date.now() - indexingStartedAt),
+        }),
+      )
+    }
+    const warningKey = (warning: LocalIndexWarning): string => `${warning.list}\0${warning.message}`
+    const unreported = local.warnings.filter(
+      (warning) => !reportedWarnings.has(warningKey(warning)),
     )
+    for (const warning of unreported) {
+      emit({ kind: 'log', level: 'warn', item: warning.list, message: warning.message })
+    }
+    for (const warning of local.warnings) reportedWarnings.add(warningKey(warning))
+    return local.index
   }
-  for (const warning of local.warnings) {
-    emit({ kind: 'log', level: 'warn', item: warning.list, message: warning.message })
-  }
+  const localIndex = await indexLocal()
 
   // Destination names are validated before the remote fetch: they are local
   // facts, and a typo must fail in milliseconds rather than after paging in an
@@ -277,6 +294,10 @@ export async function runCollectionSync(
     emit,
     results,
     lookupPrintings,
+    reindexLocal: () => {
+      progress(t('domain.sync.reindexingLocal'))
+      return indexLocal()
+    },
     lookupByScryfallId,
     writeCsv: options.writeCsv ?? writeCsvFile,
     localComplete: loaded.complete,
@@ -285,8 +306,8 @@ export async function runCollectionSync(
   const names = loaded.lists.map((list) => list.name)
   const outcome =
     direction === 'pull'
-      ? await pullFromArchidekt(flow, local.index, remote.index, names)
-      : await pushToArchidekt(flow, local.index, remote.index, names)
+      ? await pullFromArchidekt(flow, localIndex, remote.index, names)
+      : await pushToArchidekt(flow, localIndex, remote.index, names)
 
   // 5. Record when the account last synced. A dry run changed nothing, and
   //    neither did a run that aborted before applying anything — stamping the

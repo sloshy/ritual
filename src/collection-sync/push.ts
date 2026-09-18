@@ -18,6 +18,7 @@ import {
   type LocalCollectionIndex,
   type PushCreate,
   type PushOperation,
+  type PushPlan,
   type RemoteCollectionIndex,
 } from './diff'
 import {
@@ -40,40 +41,40 @@ export async function pushToArchidekt(
   const { emit, results } = flow
   const errors: string[] = []
 
-  const plan = planPush(local, remote, flow.only)
-  const skippedMessage = describeSkippedChanges(flow.only, plan.skipped)
-  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, message: skippedMessage })
-
-  // The mirror image of the pull guard above: a list missing from the comparison
-  // makes the cards it holds look gone, and a push would delete them from the
-  // account. Only the operations that take copies away are withheld — the ones
-  // that add copies are as valid as they would be with the list present.
-  let operations = plan.operations
-  if (!flow.localComplete) {
-    const shrinking = operations.filter((operation) => operationRemoved(operation) > 0)
-    if (shrinking.length > 0) {
-      const copies = shrinking.reduce((total, operation) => total + operationRemoved(operation), 0)
-      emit({
-        kind: 'log',
-        level: 'error',
-        item: null,
-        message: `Not removing ${t('domain.count.copies', { count: copies })} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.`,
-      })
-      operations = operations.filter((operation) => operationRemoved(operation) === 0)
-    }
-  }
-
   // How the additions reach Archidekt is settled *before* the first remote
   // write, the way an ambiguous removal is settled before the first file write: a
   // run that cannot answer the question leaves the account untouched rather than
   // half-pushed.
-  const creates = operations.filter(
-    (operation): operation is PushCreate => operation.kind === 'create',
-  )
-  const route = await routeAdditions(flow, creates)
-  if (typeof route === 'string') {
-    emit({ kind: 'log', level: 'error', item: null, message: route })
-    return abortedOutcome([route])
+  let planned = planOperations(flow, local, remote)
+  const routed = await routeAdditions(flow, planned.creates)
+  if (typeof routed === 'string') {
+    emit({ kind: 'log', level: 'error', item: null, message: routed })
+    return abortedOutcome([routed])
+  }
+  const { route } = routed
+  // Settling the route refreshed the card cache, and the local index keyed each
+  // unmarked line's finish against the cache it replaced — a printing the old
+  // cache lacked was guessed as nonfoil. Re-plan from an index of the new cache;
+  // the route stands, since the question it answered was about the upload's size.
+  if (routed.refreshed) planned = planOperations(flow, await flow.reindexLocal(), remote)
+  // A refresh is a bulk download that can take minutes, and a cancel during it
+  // must not be followed by the CSV upload that runs ahead of the per-list loop.
+  if (flow.signal?.aborted) {
+    markCancelled(names, emit, results)
+    return { ...abortedOutcome([]), aborted: false, cancelled: true }
+  }
+
+  const { plan, creates, withheldCopies } = planned
+  let { operations } = planned
+  const skippedMessage = describeSkippedChanges(flow.only, plan.skipped)
+  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, message: skippedMessage })
+  if (withheldCopies > 0) {
+    emit({
+      kind: 'log',
+      level: 'error',
+      item: null,
+      message: `Not removing ${t('domain.count.copies', { count: withheldCopies })} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.`,
+    })
   }
 
   let added = 0
@@ -193,6 +194,42 @@ export async function pushToArchidekt(
     // A push never removes locally, so it never meets an ambiguous removal.
     unresolvedAmbiguity: false,
   }
+}
+
+/** A push plan, with the operations this run may actually apply. */
+type PlannedPush = {
+  plan: PushPlan
+  /** The plan's operations, less any withheld for an incomplete local side. */
+  operations: PushOperation[]
+  /** The creates among {@link operations} — the additions a route is chosen for. */
+  creates: PushCreate[]
+  /** Copies the withheld operations would have removed; 0 when none were. */
+  withheldCopies: number
+}
+
+/**
+ * Plan the push from a local index, withholding what an incomplete local side
+ * cannot vouch for: a list missing from the comparison makes the cards it holds
+ * look gone, and a push would delete them from the account — the mirror image of
+ * the pull's guard. Only the operations that take copies away are withheld; the
+ * ones that add copies are as valid as they would be with the list present.
+ */
+function planOperations(
+  flow: SyncFlow,
+  local: LocalCollectionIndex,
+  remote: RemoteCollectionIndex,
+): PlannedPush {
+  const plan = planPush(local, remote, flow.only)
+  let operations = plan.operations
+  let withheldCopies = 0
+  if (!flow.localComplete) {
+    for (const operation of operations) withheldCopies += operationRemoved(operation)
+    operations = operations.filter((operation) => operationRemoved(operation) === 0)
+  }
+  const creates = operations.filter(
+    (operation): operation is PushCreate => operation.kind === 'create',
+  )
+  return { plan, operations, creates, withheldCopies }
 }
 
 /** The reason recorded when an orphaned operation fails; the log carries the detail. */

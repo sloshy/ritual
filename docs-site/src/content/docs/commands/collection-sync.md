@@ -251,7 +251,7 @@ Without a terminal, `ask` cannot prompt, so it fails the same way `never` does:
 Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Run `ritual cache preload-all`, or re-run with --refresh auto. Nothing was pushed.
 ```
 
-The check runs after the remote collection is read (the additions are not known before the diff) but **before the first remote write**, so a refusal leaves your collection exactly as it was. The server surfaces cannot prompt, so they treat freshness as `auto` and report the refresh in the run log.
+The check runs after the remote collection is read (the additions are not known before the diff) but **before the first remote write**, so a refusal leaves your collection exactly as it was. The local lists were matched against the cache as it stood when the run started, so a refresh here re-matches them against the new cache and re-plans the push before anything is sent: a printing the old cache lacked (and so had to be guessed as nonfoil) is keyed by its real finish. The server surfaces cannot prompt, so they treat freshness as `auto` and report the refresh in the run log.
 
 #### Cards the cache cannot resolve
 

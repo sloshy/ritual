@@ -9,6 +9,7 @@ import { t } from '../i18n/t'
 import type { CollectionCsvUploadResult } from '../importers/archidekt-collection'
 import { describeCsvFailure, describeCsvFailureReasons, describeCsvSize } from './describe'
 import type { PushCreate } from './diff'
+import type { UploadCacheReady } from '../cache/freshness'
 import {
   ARCHIDEKT_IMPORT_URL,
   COLLECTION_CSV_UPLOAD,
@@ -32,6 +33,12 @@ import type {
  */
 export type CsvRoute = Exclude<CsvUploadDecision, { kind: 'abort' }>
 
+/**
+ * The settled route, and whether settling it refreshed the card cache — in
+ * which case the plan the route was chosen for was keyed against the old one.
+ */
+export type RoutedAdditions = UploadCacheReady & { route: CsvRoute }
+
 /** The two routes that build a CSV out of the additions. */
 export type CsvBulkRoute = Exclude<CsvRoute, { kind: 'individual' }>
 
@@ -48,31 +55,32 @@ export type CsvBulkRoute = Exclude<CsvRoute, { kind: 'individual' }>
  *
  * Whichever way a CSV route is reached, the local cache the rows are keyed from
  * has to be fit for it, so `EnsureCsvCache` gets the last word — a refusal
- * there is a refusal of the run.
+ * there is a refusal of the run, and a refresh there is reported back so the
+ * caller can re-plan from the new cache.
  */
 export async function routeAdditions(
   flow: SyncFlow,
   creates: readonly PushCreate[],
-): Promise<CsvRoute | string> {
+): Promise<RoutedAdditions | string> {
   const route = await chooseAdditionsRoute(flow, creates)
-  if (typeof route === 'string' || route.kind === 'individual') return route
+  if (typeof route === 'string') return route
+  if (route.kind === 'individual') return { route, refreshed: false }
 
   // The rows are built from the local Scryfall cache, so a cache the surface's
   // policy will not vouch for stops the run here — before the first remote write,
   // and without falling back to a search per card.
-  if (flow.ensureCsvCache) {
-    let ready: true | string
-    try {
-      ready = await flow.ensureCsvCache({
-        additions: creates.length,
-        log: (message) => flow.emit({ kind: 'log', level: 'info', item: null, message }),
-      })
-    } catch (error: unknown) {
-      return `Could not prepare the card cache for a CSV upload: ${getErrorMessage(error)}. Nothing was pushed.`
-    }
-    if (ready !== true) return `${ready} Nothing was pushed.`
+  if (!flow.ensureCsvCache) return { route, refreshed: false }
+  let ready: UploadCacheReady | string
+  try {
+    ready = await flow.ensureCsvCache({
+      additions: creates.length,
+      log: (message) => flow.emit({ kind: 'log', level: 'info', item: null, message }),
+    })
+  } catch (error: unknown) {
+    return `Could not prepare the card cache for a CSV upload: ${getErrorMessage(error)}. Nothing was pushed.`
   }
-  return route
+  if (typeof ready === 'string') return `${ready} Nothing was pushed.`
+  return { route, ...ready }
 }
 
 /** The route itself, before the cache the rows come from is taken into account. */

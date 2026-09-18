@@ -20,7 +20,8 @@ import { syncCancellationLog, SYNC_CANCELLED_REASON } from '../sync/common'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardPrintingsLookup } from '../card/card-printing'
 import type { AmbiguousRemoval, CollectionCsvFailure } from './describe'
-import type { RemovalAssignment } from './diff'
+import type { LocalCollectionIndex, RemovalAssignment } from './diff'
+import type { UploadCacheReady } from '../cache/freshness'
 import type { CsvFileWriter } from './csv'
 import type { CollectionListStore } from './store'
 import type { CollectionSyncStateStore } from './state'
@@ -285,11 +286,17 @@ export type CsvCacheRequest = {
  * path exists to avoid. Consulted once, after the route is settled and **before
  * any remote write**, so a refusal (the string) leaves the account untouched.
  *
+ * A gate that refreshed the cache says so (`refreshed: true`): the local index
+ * the push was planned from was keyed against the old cache, so the run
+ * re-indexes and re-plans before building anything from it.
+ *
  * Surfaces supply their own policy: the CLI's `--refresh` mode, and `auto` for the
  * server surfaces, which cannot prompt. Omitted, no freshness is required — which
  * is only right for a caller that has already vouched for the cache.
  */
-export type EnsureCsvCache = (request: CsvCacheRequest) => Promise<true | string> | true | string
+export type EnsureCsvCache = (
+  request: CsvCacheRequest,
+) => Promise<UploadCacheReady | string> | UploadCacheReady | string
 
 export type CollectionSyncOptions = {
   direction: SyncDirection
@@ -535,6 +542,13 @@ export type SyncFlow = {
   results: ListResults
   /** The Scryfall cache, by card name — CSV rows are built from it. */
   lookupPrintings: CardPrintingsLookup
+  /**
+   * Push only: index the run's loaded lists again, reporting any warning the
+   * earlier pass did not. For a push whose {@link EnsureCsvCache} gate refreshed
+   * the card cache mid-run: the index it was handed canonicalized finishes
+   * against the cache as it was.
+   */
+  reindexLocal: () => Promise<LocalCollectionIndex>
   lookupByScryfallId: ScryfallIdLookup
   writeCsv: CsvFileWriter
   /** False when some in-scope list is missing from the local index; see the report field. */

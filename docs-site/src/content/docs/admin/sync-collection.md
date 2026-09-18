@@ -72,7 +72,7 @@ Turned **off**, new cards are created one at a time, and a push with more than 2
 
 Switch the toggle back on and run again. A **Preview only** run is exempt: over the threshold it reports the upload it would make and resolves no printings at all, which is what keeps a first preview from being rate limited.
 
-Because every row is keyed by the Scryfall ID your local card cache holds for that printing, a run that uploads a CSV needs that cache to be reasonably fresh. The browser cannot be asked about it mid-run, so the page's runs treat freshness as `auto`. An empty or day-old cache is redownloaded before the file is built, and the run log says so (`Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Refreshing it from Scryfall first...`). It is the same requirement the CLI's [`--refresh`](/commands/collection-sync/#cache-freshness) governs.
+Because every row is keyed by the Scryfall ID your local card cache holds for that printing, a run that uploads a CSV needs that cache to be reasonably fresh. The browser cannot be asked about it mid-run, so the page's runs treat freshness as `auto`. An empty or day-old cache is redownloaded before the file is built, and the run log says so (`Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Refreshing it from Scryfall first...`). After a refresh, the run matches your lists against the new cache again and re-plans the push before sending anything. It is the same requirement the CLI's [`--refresh`](/commands/collection-sync/#cache-freshness) governs.
 
 When the run finishes, what the import did is reported above the log:
 

@@ -314,8 +314,10 @@ ${wrapProse(
     '`no-bulk`/`never` — or a declined prompt, or no terminal to prompt on — ' +
     '**fail the run before any remote write** naming `ritual cache preload-all`. ' +
     'It never falls back to per-card searches, which is the rate limiting the ' +
-    'CSV path exists to avoid. The server surfaces cannot prompt, so they treat ' +
-    'freshness as `auto` and report the refresh in the run log.',
+    'CSV path exists to avoid. A refresh there re-matches the local lists ' +
+    'against the new cache and re-plans the push before anything is sent. The ' +
+    'server surfaces cannot prompt, so they treat freshness as `auto` and report ' +
+    'the refresh in the run log.',
 )}
 
 ${wrapProse(
