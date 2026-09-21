@@ -2015,10 +2015,17 @@ h3 {
   background: transparent;
 }
 
-.selection-menu-status {
-  padding: 0.35rem 0.6rem 0.15rem;
-  font-size: 0.75rem;
+/* A copy button confirming its own result (see useSelectionCopy). */
+.selection-menu-item.is-copied,
+.selection-modal-actions .btn.is-copied {
   color: var(--text-accent);
+  font-weight: 600;
+}
+
+.selection-menu-item.is-copy-failed,
+.selection-modal-actions .btn.is-copy-failed {
+  color: var(--error-text);
+  font-weight: 600;
 }
 
 /* Touch presentation of the selection actions: a fixed bar along the bottom
@@ -2269,11 +2276,6 @@ h3 {
   gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-top: 1px solid var(--border-separator);
-}
-
-.selection-modal-status {
-  font-size: 0.8rem;
-  color: var(--text-accent);
 }
 
 /* Hover preview sits above the modal content (the modal overlay's stacking context). */

@@ -9,6 +9,8 @@ import { mockPublicSiteMultiSelectLists } from '../helpers/mock-public-site'
  * the name-only printing prompt during a bulk "Add to Trade".
  */
 test.describe('Cross-list multi-select', () => {
+  test.use({ permissions: ['clipboard-read', 'clipboard-write'] })
+
   test.beforeEach(async ({ page }) => {
     await mockPublicSiteMultiSelectLists(page)
   })
@@ -130,9 +132,12 @@ test.describe('Cross-list multi-select', () => {
     await expect(modal.locator('.selection-modal-row')).toHaveCount(2)
     await expect(modal.locator('.selection-modal-title')).toContainText('Selected Cards (2)')
 
-    // The copy action reports a status (clipboard content isn't asserted).
-    await modal.locator('button', { hasText: 'Copy as Text' }).click()
-    await expect(modal.locator('.selection-modal-status')).toBeVisible()
+    // The pressed copy button confirms on itself, then reverts to its idle label.
+    const copyBtn = modal.locator('.selection-modal-actions .btn').first()
+    await expect(copyBtn).toHaveText('Copy as Text')
+    await copyBtn.click()
+    await expect(copyBtn).toHaveText('Copied!')
+    await expect(copyBtn).toHaveText('Copy as Text')
 
     // Clearing from the modal closes it and removes the navbar button.
     await modal.locator('button', { hasText: 'Clear all selections' }).click()

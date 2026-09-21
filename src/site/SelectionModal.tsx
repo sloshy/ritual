@@ -16,7 +16,6 @@ import { finishName } from '../list-view/printing-display'
 import { useT } from '../ui/i18n'
 import type { TranslateFn } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
-import { buyerName } from '../buylist'
 import { cartBuyer } from '../list-view/sell-mode'
 import { BUYLIST_CURRENCY } from '../list-view/card-sorting'
 import { sellShortfallNote } from './sell-value'
@@ -216,18 +215,28 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
       </div>
 
       <div class="selection-modal-actions">
-        <button type="button" class="btn btn-secondary" onClick={() => void copy.copyText()}>
-          {t('site.selection.copyText')}
+        <button
+          type="button"
+          class={`btn btn-secondary ${copy.stateClass('text')}`}
+          onClick={() => void copy.copyText()}
+        >
+          {copy.label('text')}
         </button>
-        <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCsv()}>
-          {t('site.selection.copyCsv')}
+        <button
+          type="button"
+          class={`btn btn-secondary ${copy.stateClass('csv')}`}
+          onClick={() => void copy.copyCsv()}
+        >
+          {copy.label('csv')}
         </button>
         <Show when={cartBuyer()}>
-          {(buyer) => (
-            <button type="button" class="btn btn-secondary" onClick={() => void copy.copyCart()}>
-              {t('site.selection.copyCart', { buyer: buyerName(buyer()) })}
-            </button>
-          )}
+          <button
+            type="button"
+            class={`btn btn-secondary ${copy.stateClass('cart')}`}
+            onClick={() => void copy.copyCart()}
+          >
+            {copy.label('cart')}
+          </button>
         </Show>
         <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
           <button
@@ -267,11 +276,9 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
         >
           {t('site.selection.clearAll')}
         </button>
-        <Show when={copy.status()}>
-          <span class="selection-modal-status" aria-live="polite">
-            {copy.status()}
-          </span>
-        </Show>
+        <span class="visually-hidden" aria-live="polite">
+          {copy.announcement()}
+        </span>
       </div>
     </Modal>
   )

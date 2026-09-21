@@ -16,7 +16,6 @@ import { promptCardLanguage } from '../list-view/language-prompt'
 import { supportsAnyLabels, type CardLabel } from '../card/card-labels'
 import type { ListType } from '../list/list-type'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
-import { buyerName } from '../buylist'
 import { cartBuyer } from '../list-view/sell-mode'
 import { useT } from '../ui/i18n'
 
@@ -401,30 +400,28 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
       <button
         type="button"
         role="menuitem"
-        class="selection-menu-item"
+        class={`selection-menu-item ${copy.stateClass('text')}`}
         onClick={() => void copy.copyText()}
       >
-        {t('site.selection.copyText')}
+        {copy.label('text')}
       </button>
       <button
         type="button"
         role="menuitem"
-        class="selection-menu-item"
+        class={`selection-menu-item ${copy.stateClass('csv')}`}
         onClick={() => void copy.copyCsv()}
       >
-        {t('site.selection.copyCsv')}
+        {copy.label('csv')}
       </button>
       <Show when={cartBuyer()}>
-        {(buyer) => (
-          <button
-            type="button"
-            role="menuitem"
-            class="selection-menu-item"
-            onClick={() => void copy.copyCart()}
-          >
-            {t('site.selection.copyCart', { buyer: buyerName(buyer()) })}
-          </button>
-        )}
+        <button
+          type="button"
+          role="menuitem"
+          class={`selection-menu-item ${copy.stateClass('cart')}`}
+          onClick={() => void copy.copyCart()}
+        >
+          {copy.label('cart')}
+        </button>
       </Show>
       <Show when={copy.cartWarnings().length > 0}>
         <For each={copy.cartWarnings()}>
@@ -481,11 +478,9 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
       >
         {props.clearLabel ?? t('site.selection.clear')}
       </button>
-      <Show when={copy.status()}>
-        <div class="selection-menu-status" aria-live="polite">
-          {copy.status()}
-        </div>
-      </Show>
+      <span class="visually-hidden" aria-live="polite">
+        {copy.announcement()}
+      </span>
     </>
   )
 }

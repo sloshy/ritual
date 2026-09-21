@@ -107,7 +107,11 @@ type ExportSnapshot = {
 export const ExportPanel: Component<ExportPanelProps> = (props) => {
   const t = useT()
   const tSegments = useTSegments()
-  const [copied, setCopied] = createSignal(false)
+  const [copied, setCopied] = createSignal<'copied' | 'failed' | null>(null)
+  let copiedTimer: ReturnType<typeof setTimeout> | null = null
+  onCleanup(() => {
+    if (copiedTimer !== null) clearTimeout(copiedTimer)
+  })
   const [saved, setSaved] = createSignal(false)
   const [scope, setScope] = createSignal<ExportScope>('current')
   const [reviewOpen, setReviewOpen] = createSignal(false)
@@ -178,7 +182,7 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
       () => props.open,
       (open) => {
         if (!open) return
-        setCopied(false)
+        setCopied(null)
         setSaved(false)
         setReviewOpen(false)
         setSnapshot({
@@ -218,11 +222,15 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
   const copyJson = async (): Promise<void> => {
     try {
       await navigator.clipboard.writeText(props.buildJson(activeScope()))
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      setCopied('copied')
     } catch {
-      setCopied(false)
+      setCopied('failed')
     }
+    if (copiedTimer !== null) clearTimeout(copiedTimer)
+    copiedTimer = setTimeout(() => {
+      setCopied(null)
+      copiedTimer = null
+    }, 2000)
   }
 
   return (
@@ -356,7 +364,11 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
               disabled={scopeCount() === 0}
               onClick={() => void copyJson()}
             >
-              {copied() ? t('site.editor.copied') : t('site.editor.copyJson')}
+              {copied() === 'copied'
+                ? t('site.editor.copied')
+                : copied() === 'failed'
+                  ? t('site.export.copyFailed')
+                  : t('site.editor.copyJson')}
             </button>
             <For each={props.fileExports ?? []}>
               {(fx) => (
