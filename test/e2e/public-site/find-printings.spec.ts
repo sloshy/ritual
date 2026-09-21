@@ -166,4 +166,23 @@ test.describe('Find Other Printings modal', () => {
     await expect(modal).toBeVisible()
     await expect(modal.locator('.find-printings-summary')).toHaveText('4 copies across 2 lists')
   })
+
+  test('combined-view tiles offer the ⋯ lookup, with no list pinned as current', async ({
+    page,
+  }) => {
+    await gotoList(page, '#/combined?lists=deck:print-deck,collection:print-binder')
+    // A hash-only goto keeps the document, so wait out the deck page's tiles.
+    await expect(page.locator('.combined-sources')).toBeVisible()
+    const tile = page.locator('.card-item[data-name="steam vents"]').first()
+    await tile.locator('.card-binder').hover()
+    await tile.locator('.edit-btn-context').click()
+    await page
+      .locator('.card-context-menu')
+      .locator('.card-context-menu-item', { hasText: 'Find in Lists' })
+      .click()
+
+    const modal = page.locator('.find-printings-modal')
+    await expect(modal.locator('.find-printings-summary')).toHaveText('4 copies across 2 lists')
+    await expect(modal.locator('.find-printings-group-name').first()).toHaveText('Print Deck')
+  })
 })

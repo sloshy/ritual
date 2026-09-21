@@ -11,7 +11,7 @@ Like [Find Cards](/public-site/find/), this is a public-site browsing feature on
 
 There are two entry points, both scoped to one card:
 
-- **From the card ⋯ menu**: hover a card, open its **⋯** menu, and choose **Find in Lists**. The ⋯ menu is available on every list page. Outside edit mode it carries just this lookup, while in edit mode it sits alongside the usual edit actions.
+- **From the card ⋯ menu**: hover a card, open its **⋯** menu, and choose **Find in Lists**. The ⋯ menu is available on every list page, including combined list views and Find results. Outside edit mode it carries just this lookup, while in edit mode it sits alongside the usual edit actions.
 - **From the card detail modal**: click any card to open its detail modal, then press **Find in Lists**.
 
 Either entry point opens the same dialog, titled **Other Copies**.

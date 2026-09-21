@@ -105,8 +105,8 @@ interface CombinedCardsViewProps extends SellModeProps {
  * frame ({@link useListPage} + {@link ListPageShell}); what it holds itself is
  * a selection scoped to a *set* of lists rather than one, and source-derived
  * grouping. It has no list identity of its own — no slug, so no share-filter
- * self-exclusion, no card-nav target, and no per-tile ⋯ menu (the frame mounts
- * the menu element, but these tiles never open it).
+ * self-exclusion and no card-nav target — and its per-tile ⋯ menu is always the
+ * frame's read-mode one, carrying only the cross-list lookup.
  */
 export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   const t = useT()
@@ -239,6 +239,22 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       collectionPrice={c.price}
       labelBadges={c.labels.length > 0 ? c.labels : undefined}
       currency={props.currency}
+      // Read-only view: the ⋯ menu carries only the cross-list lookup, which
+      // needs just the card's name.
+      onContextMenu={
+        page.readMenu.enabled()
+          ? (rect) =>
+              page.readMenu.open(
+                {
+                  cardName: c.name,
+                  card: c.card,
+                  cardIds: c.selectedTile.cardIds,
+                  quantity: c.quantity,
+                },
+                rect,
+              )
+          : undefined
+      }
       selectable
       selectState={selection.state(c.selectKey)}
       onToggleSelect={() => selection.toggle(c.selectedTile)}
