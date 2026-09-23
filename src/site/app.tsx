@@ -55,8 +55,15 @@ import { offeredCurrencies } from '../list-view/price-view'
 import { useFetchJson } from '../list-view/useFetchJson'
 import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
-import { SelectionModal, isSelectionViewOpen, closeSelectionView } from './SelectionModal'
-import { useAllSelections, type RemoveAllTarget } from '../list-view/useCardSelection'
+import { SelectionModal } from './SelectionModal'
+import {
+  deselectCards,
+  useAllSelections,
+  type RemoveAllTarget,
+  snapshotRemoval,
+  type SelectedCard,
+  type SelectionBulkActions,
+} from '../list-view/useCardSelection'
 import { removeAllSelectedPublic, moveAllSelectedPublic } from './remove-selected'
 import {
   clearEditSessions,
@@ -192,11 +199,9 @@ function App() {
   // selected when it is confirmed.
   const [removeAllTarget, setRemoveAllTarget] = createSignal<RemoveAllTarget | null>(null)
 
-  const handleRemoveAll = () => {
-    const cards = allSelections.selected()
-    const count = cards.reduce((sum, c) => sum + c.quantity, 0)
-    if (count === 0) return
-    setRemoveAllTarget({ cards, count })
+  const handleRemoveAll = (cards: SelectedCard[]) => {
+    const target = snapshotRemoval(cards)
+    if (target !== null) setRemoveAllTarget(target)
   }
 
   const confirmRemoveAll = () => {
@@ -204,12 +209,11 @@ function App() {
     setRemoveAllTarget(null)
     if (target === null) return
     removeAllSelectedPublic(target.cards)
-    allSelections.clear()
+    deselectCards(target.cards)
   }
 
-  const handleMoveAll = (dest: NamedListRef) => {
-    const cards = allSelections.selected()
-    void moveAllSelectedPublic(cards, dest).then(() => allSelections.clear())
+  const handleMoveAll = (dest: NamedListRef, cards: SelectedCard[]) => {
+    void moveAllSelectedPublic(cards, dest).then(() => deselectCards(cards))
   }
 
   useQuickSwitchShortcut(() => setQuickSwitchOpen((v) => !v))
@@ -264,6 +268,14 @@ function App() {
 
   // Every list as a move destination (all are offered; per-card self-moves are skipped).
   const moveAllTargets = (): NamedListRef[] => allNamedLists()
+
+  // The navbar menu's and the dialog's destructive bulk actions, offered only
+  // while editing.
+  const bulkActions: SelectionBulkActions = {
+    removeAll: handleRemoveAll,
+    moveAll: handleMoveAll,
+    moveTargets: moveAllTargets,
+  }
 
   // The other lists a single editor's cards can move to (excludes the current list).
   const moveTargetsFor = (type: ListRef['type'], slug: () => string | null) => (): ListRef[] =>
@@ -538,10 +550,8 @@ function App() {
             label={t('site.app.allSelected')}
             clearLabel={t('site.app.clearAllSelections')}
             buttonClass="selection-menu-btn--navbar"
-            showViewAll
-            onRemoveAll={editMode() ? handleRemoveAll : undefined}
-            onMoveAll={editMode() ? handleMoveAll : undefined}
-            moveAllTargets={editMode() ? moveAllTargets : undefined}
+            viewScope="all"
+            bulk={editMode() ? bulkActions : undefined}
           />
           <Show when={!mobileLayout()}>
             <ThemeHeaderControls />
@@ -952,13 +962,9 @@ function App() {
 
       {/* Cross-list "view all selections" modal. */}
       <SelectionModal
-        open={isSelectionViewOpen()}
         selection={allSelections}
         currency={currency()}
-        onClose={closeSelectionView}
-        onRemoveAll={editMode() ? handleRemoveAll : undefined}
-        onMoveAll={editMode() ? handleMoveAll : undefined}
-        moveAllTargets={editMode() ? moveAllTargets : undefined}
+        bulk={editMode() ? bulkActions : undefined}
       />
 
       {/* Cross-list "Find Other Printings" lookup, opened from the card modal or

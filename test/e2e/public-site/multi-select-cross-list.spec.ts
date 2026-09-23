@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test'
-import { enterEditMode, gotoList, selectCard } from '../helpers/list-ui'
+import { test, expect, type Locator, type Page } from '@playwright/test'
+import { enterEditMode, gotoList, openSelectionMenu, selectCard } from '../helpers/list-ui'
 import { mockPublicSiteMultiSelectLists } from '../helpers/mock-public-site'
 
 /**
@@ -143,6 +143,118 @@ test.describe('Cross-list multi-select', () => {
     await modal.locator('button', { hasText: 'Clear all selections' }).click()
     await expect(page.locator('.selection-modal')).not.toBeVisible()
     await expect(page.locator('.selection-menu-btn--navbar')).toHaveCount(0)
+  })
+
+  /** Every card on both multi-select decks: A's two and B's one. */
+  const DECKS = {
+    'ms-a': { title: 'MS Deck A', cards: 2 },
+    'ms-b': { title: 'MS Deck B', cards: 1 },
+  } as const
+  type DeckSlug = keyof typeof DECKS
+
+  /** Select every card on both decks, visiting `end` last so it is the list in view. */
+  async function selectAcrossDecks(page: Page, end: DeckSlug): Promise<void> {
+    const order: DeckSlug[] = end === 'ms-a' ? ['ms-b', 'ms-a'] : ['ms-a', 'ms-b']
+    for (const slug of order) {
+      await page.evaluate((hash) => {
+        window.location.hash = hash
+      }, `#/deck/${slug}`)
+      await expect(page.locator('.page-title')).toHaveText(DECKS[slug].title)
+      for (let i = 0; i < DECKS[slug].cards; i++) await selectCard(page, i)
+    }
+  }
+
+  /** Open the Selected Cards dialog from the toolbar's per-list menu. */
+  async function openPageSelectionView(page: Page): Promise<Locator> {
+    const menu = await openSelectionMenu(page)
+    await menu.locator('.selection-menu-item', { hasText: 'View selected cards' }).click()
+    return page.locator('.selection-modal')
+  }
+
+  test('the toolbar menu opens the dialog scoped to the current page, with a toggle to all lists', async ({
+    page,
+  }) => {
+    await gotoList(page, '#/deck/ms-a', '[data-view]')
+    await selectAcrossDecks(page, 'ms-a')
+
+    const modal = await openPageSelectionView(page)
+    const scope = modal.locator('.selection-modal-scope')
+    await expect(scope.locator('button.active')).toHaveText('This page (2)')
+    await expect(modal.locator('.selection-modal-title')).toContainText('Selected Cards (2)')
+    await expect(modal.locator('.selection-modal-row')).toHaveCount(2)
+    // Outside edit mode there is no Edit row.
+    await expect(modal.locator('.selection-modal-action-label')).toHaveText(['Copy', 'Selection'])
+
+    // Switching to all lists shows every selection.
+    await scope.locator('button', { hasText: 'All lists (3)' }).click()
+    await expect(modal.locator('.selection-modal-title')).toContainText('Selected Cards (3)')
+    await expect(modal.locator('.selection-modal-row')).toHaveCount(3)
+
+    // Back on this page, a row's ✕ drops that card from the selection.
+    await scope.locator('button', { hasText: 'This page (' }).click()
+    await modal.locator('.selection-modal-row-remove').first().click()
+    await expect(modal.locator('.selection-modal-row')).toHaveCount(1)
+    await expect(scope.locator('button', { hasText: 'All lists (2)' })).toBeVisible()
+
+    // Clearing this page leaves the dialog open (deck B still has a card) and
+    // the other list's selection intact.
+    await modal.locator('button', { hasText: 'Clear selection' }).click()
+    await expect(modal.locator('.selection-modal-empty')).toBeVisible()
+    await expect(page.locator('.selection-menu-btn--navbar')).toHaveText(/All Selected \(1\)/)
+
+    // Opening from the navbar pre-selects all lists.
+    await page.keyboard.press('Escape')
+    await expect(modal).toBeHidden()
+    await page.locator('.selection-menu-btn--navbar').click()
+    await page.locator('.selection-menu-item', { hasText: 'View all selections' }).click()
+    await expect(scope.locator('button.active')).toHaveText('All lists (1)')
+
+    // Off a list page there is no current page, so no toggle.
+    await page.keyboard.press('Escape')
+    await page.evaluate(() => {
+      window.location.hash = '#/'
+    })
+    await page.locator('.selection-menu-btn--navbar').click()
+    await page.locator('.selection-menu-item', { hasText: 'View all selections' }).click()
+    await expect(modal.locator('.selection-modal-row')).toHaveCount(1)
+    await expect(scope).toHaveCount(0)
+  })
+
+  test('in edit mode the dialog groups actions by row and acts on the chosen scope', async ({
+    page,
+  }) => {
+    // Narrow enough that the old single action row overflowed the panel.
+    await page.setViewportSize({ width: 640, height: 800 })
+    await enterEditMode(page, '#/deck/ms-a')
+    await selectAcrossDecks(page, 'ms-b')
+
+    const modal = await openPageSelectionView(page)
+    const actions = modal.locator('.selection-modal-actions')
+    await expect(actions.locator('.selection-modal-action-label')).toHaveText([
+      'Copy',
+      'Edit',
+      'Selection',
+    ])
+    // Every action button stays inside the panel.
+    const panel = await modal.boundingBox()
+    for (const button of await actions.locator('button').all()) {
+      const box = await button.boundingBox()
+      expect(box!.x + box!.width).toBeLessThanOrEqual(panel!.x + panel!.width)
+    }
+
+    // "Remove all selected" on this page removes only deck B's card.
+    await actions.locator('button', { hasText: 'Remove all selected' }).click()
+    await expect(page.locator('.modal-panel--prompt h3')).toHaveText(/Remove 1 selected card/)
+    await page.locator('.confirm-dialog-actions .btn-danger').click()
+    await expect(page.locator('.card-item')).toHaveCount(0)
+    await expect(page.locator('.selection-menu-btn--navbar')).toHaveText(/All Selected \(2\)/)
+
+    // Deck A's selected cards are still in it.
+    await page.evaluate(() => {
+      window.location.hash = '#/deck/ms-a'
+    })
+    await expect(page.locator('.page-title')).toHaveText('MS Deck A')
+    await expect(page.locator('.card-item')).toHaveCount(2)
   })
 
   test('the cross-list "Remove all selected" action appears only in edit mode', async ({

@@ -93,7 +93,7 @@ With sell mode on, the header's price line gains a **Buylist total**: what the b
 120 cards · Total: $840.00 · Buylist total: $214.60 (18 cards not on buylist)
 ```
 
-Selecting cards adds a **Selected** total to the page header and to the "All Selected" dialog. This is not gated on sell mode. Knowing what a handful of picked cards is worth is useful whether or not you are selling them.
+Selecting cards adds a **Selected** total to the page header and to the **Selected Cards** dialog. This is not gated on sell mode. Knowing what a handful of picked cards is worth is useful whether or not you are selling them.
 
 With sell mode on, the selection gets its own buylist figure too, **Sell value** (abbreviated to `sell` in the dialog): what the buyer would pay for the selected cards:
 
@@ -107,7 +107,7 @@ Both buylist figures are capped at what the buyer will actually take, so they ma
 
 With Card Kingdom selected as the buyer, two exports appear:
 
-- **Copy Card Kingdom cart CSV** in the selection menu and the "All Selected" dialog: just the selected cards.
+- **Copy Card Kingdom cart CSV** in the selection menu and the **Selected Cards** dialog: just the selected cards.
 - **Card Kingdom cart (.csv)** in the page header's Copy/Download menus: every card in the current _filtered_ view.
 
 Both produce Card Kingdom's sell-cart import format (`card name,edition,foil,quantity`, data rows only, since their importer expects no header row) using Card Kingdom's own listing titles, including their parenthesized variant note for variant printings, with quantities capped at their buy limits. Upload the file at [cardkingdom.com/static/csvImport](https://www.cardkingdom.com/static/csvImport).

@@ -11,13 +11,16 @@ import { ConfirmDialog } from '../../../ui/ConfirmDialog'
 import { LanguageSwitcher } from '../../../site/LanguageSwitcher'
 import { availableLocales, switchAdminLocale, useAdminLocale } from '../hooks/useAdminLocale'
 import { SelectionMenu } from '../../../site/SelectionMenu'
-import {
-  SelectionModal,
-  isSelectionViewOpen,
-  closeSelectionView,
-} from '../../../site/SelectionModal'
+import { SelectionModal } from '../../../site/SelectionModal'
 import type { NamedListRef } from '../../../list-view/combined-list'
-import { useAllSelections, type RemoveAllTarget } from '../../../list-view/useCardSelection'
+import {
+  deselectCards,
+  useAllSelections,
+  type RemoveAllTarget,
+  snapshotRemoval,
+  type SelectedCard,
+  type SelectionBulkActions,
+} from '../../../list-view/useCardSelection'
 import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
 import { useAdminLists, listInfosToNamedRefs } from '../move-targets'
 import type { DroppedNote } from '../../../list/move-staging'
@@ -132,9 +135,9 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   const [removeConfirm, setRemoveConfirm] = createSignal<RemoveAllTarget | null>(null)
   const [notice, setNotice] = createSignal<LayoutNotice | null>(null)
 
-  const handleRemoveAll = () => {
-    const cards = allSelections.selected()
-    setRemoveConfirm({ cards, count: cards.reduce((sum, c) => sum + c.quantity, 0) })
+  const handleRemoveAll = (cards: SelectedCard[]) => {
+    const target = snapshotRemoval(cards)
+    if (target !== null) setRemoveConfirm(target)
   }
 
   /**
@@ -174,24 +177,29 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         setNotice({ title: t('admin.layout.actionFailedTitle'), message: res.message })
         return
       }
-      allSelections.clear()
+      deselectCards(target.cards)
       reportSideEffects([], res.prunedCategories)
     })
   }
 
-  const handleMoveAll = (dest: NamedListRef) => {
-    const cards = allSelections.selected()
+  const handleMoveAll = (dest: NamedListRef, cards: SelectedCard[]) => {
     void moveSelectedAdmin(cards, dest).then((res) => {
       if (!res.success) {
         setNotice({ title: t('admin.layout.actionFailedTitle'), message: res.message })
         return
       }
-      allSelections.clear()
+      deselectCards(cards)
       reportSideEffects(res.droppedNotes, res.prunedCategories)
     })
   }
 
   const moveAllTargets = (): NamedListRef[] => listInfosToNamedRefs(lists())
+
+  const bulkActions: SelectionBulkActions = {
+    removeAll: handleRemoveAll,
+    moveAll: handleMoveAll,
+    moveTargets: moveAllTargets,
+  }
 
   const navList = () => (
     <For each={NAV_PAGES}>
@@ -231,10 +239,8 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
             label={t('admin.layout.allSelected')}
             clearLabel={t('admin.layout.clearSelections')}
             buttonClass="selection-menu-btn--navbar"
-            showViewAll
-            onRemoveAll={handleRemoveAll}
-            onMoveAll={handleMoveAll}
-            moveAllTargets={moveAllTargets}
+            viewScope="all"
+            bulk={bulkActions}
           />
           <Show when={props.onLogout}>
             {(logout) => (
@@ -298,15 +304,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           {props.children}
         </main>
       </div>
-      <SelectionModal
-        open={isSelectionViewOpen()}
-        selection={allSelections}
-        currency={defaultCurrency()}
-        onClose={closeSelectionView}
-        onRemoveAll={handleRemoveAll}
-        onMoveAll={handleMoveAll}
-        moveAllTargets={moveAllTargets}
-      />
+      <SelectionModal selection={allSelections} currency={defaultCurrency()} bulk={bulkActions} />
       {/* `!== null` rather than a truthiness test: a zero count is a real state. */}
       <Show when={removeConfirm() !== null}>
         <ConfirmDialog

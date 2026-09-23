@@ -1,10 +1,10 @@
 import type { Accessor, Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Show, onCleanup } from 'solid-js'
 import { Modal } from '../ui/Modal'
-import type { NamedListRef } from '../list-view/combined-list'
 import type {
   CardSelectionControl,
   SelectedCard,
+  SelectionBulkActions,
   SelectionSourceKind,
 } from '../list-view/useCardSelection'
 import { groupSelectionsBySource } from '../list-view/useCardSelection'
@@ -22,18 +22,43 @@ import { sellShortfallNote } from './sell-value'
 import { createSellSummary } from './useSellMode'
 import { DEFAULT_CURRENCY, formatPrice, type PriceCurrency } from '../pricing/price-currency'
 
+/**
+ * Which cards the dialog lists: the selection on the list page in view, or the
+ * whole cross-list selection. The entry point picks the initial scope (the page
+ * toolbar's menu opens on `current`, the navbar's on `all`); the dialog's toggle
+ * switches between them.
+ */
+export type SelectionViewScope = 'current' | 'all'
+
 // Module-level open state so the modal can live at the app root (a proper
-// full-screen overlay) while the navbar menu button toggles it.
-const [viewOpen, setViewOpen] = createSignal(false)
-export const isSelectionViewOpen: Accessor<boolean> = viewOpen
-export function openSelectionView(): void {
-  setViewOpen(true)
+// full-screen overlay) while the menu buttons toggle it. `null` is closed.
+const [viewScope, setViewScope] = createSignal<SelectionViewScope | null>(null)
+export const isSelectionViewOpen: Accessor<boolean> = () => viewScope() !== null
+export function openSelectionView(scope: SelectionViewScope): void {
+  setViewScope(scope)
 }
 export function closeSelectionView(): void {
-  setViewOpen(false)
+  setViewScope(null)
+}
+
+// The selection of the list page in view, which the `current` scope shows. Held
+// here rather than threaded from the app root, which does not know which page
+// (or combined view) is mounted.
+const [pageSelection, setPageSelection] = createSignal<CardSelectionControl | null>(null)
+
+/**
+ * Publish a list page's selection as the dialog's `current` scope for as long
+ * as the calling component is mounted. Call from the page's setup.
+ */
+export function registerPageSelection(selection: CardSelectionControl): void {
+  setPageSelection(() => selection)
+  onCleanup(() => setPageSelection((prev) => (prev === selection ? null : prev)))
 }
 
 type GroupMode = 'order' | 'source'
+
+/** The dialog's resolved scope and the selection control it shows. */
+type ScopedSelection = { scope: SelectionViewScope; control: CardSelectionControl }
 
 /**
  * The compact name of the kind of list a selected card came from. Keys, not
@@ -62,37 +87,45 @@ function printingLabel(t: TranslateFn, card: SelectedCard): string | null {
 }
 
 export interface SelectionModalProps {
-  open: boolean
+  /** The cross-list selection, shown in the `all` scope. */
   selection: CardSelectionControl
-  onClose: () => void
-  /** When set, show a "Remove all selected" action that deletes every selected card from its list. */
-  onRemoveAll?: () => void
-  /** When set (with {@link moveAllTargets}), show a "Move all to list" group moving each card from its own list. */
-  onMoveAll?: (dest: NamedListRef) => void
-  /** Destination lists for the "Move all to list" group (slug-bearing, so senders can address by slug). */
-  moveAllTargets?: () => NamedListRef[]
+  /** When set, show the "Move all to list" / "Remove all selected" row over the listed cards. */
+  bulk?: SelectionBulkActions
   /** Active currency, for the selection's total value. */
   currency?: PriceCurrency
 }
 
 /**
- * "View all selections" dialog: lists every selected card and the list it came
- * from, groupable by source or shown in selection order. Individual cards can be
- * removed, and the copy/clear actions mirror the dropdown menu.
+ * "Selected Cards" dialog: lists the selected cards — on the list page in view,
+ * or across every list — and the list each came from, groupable by source or
+ * shown in selection order. Individual cards can be removed, and the copy/clear
+ * actions mirror the dropdown menu. Its open state is module-level (see
+ * {@link openSelectionView}), so it is mounted once at the app root.
  */
 export const SelectionModal: Component<SelectionModalProps> = (props) => {
   const t = useT()
   const [groupMode, setGroupMode] = createSignal<GroupMode>('order')
-  const copy = useSelectionCopy(() => props.selection.selected())
+  const open = isSelectionViewOpen
+  const close = closeSelectionView
+  // The `current` scope needs a list page in view; elsewhere it falls back to all.
+  const scoped = createMemo((): ScopedSelection => {
+    const page = pageSelection()
+    return viewScope() === 'current' && page
+      ? { scope: 'current', control: page }
+      : { scope: 'all', control: props.selection }
+  })
+  const scope = (): SelectionViewScope => scoped().scope
+  const selection = (): CardSelectionControl => scoped().control
+  const copy = useSelectionCopy(() => selection().selected())
   // Gated on exactly what renders it below, so the walk-and-budget over the whole
   // cross-list selection does not run on every selection change while the figure
   // is hidden — a memo stays hot whether or not anything reads it.
   const sellSummary = createSellSummary(
     () => cartBuyer() !== undefined,
-    () => props.selection.selected(),
+    () => selection().selected(),
   )
   // Memoized so <For> gets a stable array; only recomputes when the selection changes.
-  const groupedBySource = createMemo(() => groupSelectionsBySource(props.selection.selected()))
+  const groupedBySource = createMemo(() => groupSelectionsBySource(selection().selected()))
 
   // Hover preview of the card art, mirroring the list-view tooltip on list pages.
   const { tooltip, tooltipPos, tooltipRef, setTooltip } = useTooltip()
@@ -104,18 +137,20 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
   // Reset the preview whenever the modal closes — mouseleave won't fire when the
   // rows are torn down by the <Show>, so the tooltip signal could otherwise stick.
   createEffect(() => {
-    if (!props.open) hidePreview()
+    if (!open()) hidePreview()
   })
 
-  // Close once the selection empties (e.g. after removing the last card or Clear).
+  // Close once the whole selection empties (e.g. after removing the last card or
+  // Clear). An empty `current` scope stays open: the other lists may still hold
+  // cards, one toggle away.
   createEffect(() => {
-    if (props.open && props.selection.count() === 0) props.onClose()
+    if (open() && props.selection.count() === 0) close()
   })
 
   return (
     <Modal
-      open={props.open}
-      onClose={props.onClose}
+      open={open()}
+      onClose={close}
       size="lg"
       aria-label={t('site.selection.modalAria')}
       panelClass="selection-modal"
@@ -130,11 +165,11 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
     >
       <div class="selection-modal-header">
         <span class="selection-modal-title">
-          {t('site.selection.modalTitle', { count: props.selection.count() })}
+          {t('site.selection.modalTitle', { count: selection().count() })}
         </span>
         <span class="selection-modal-value">
           {formatPrice(
-            props.selection.value(props.currency ?? DEFAULT_CURRENCY),
+            selection().value(props.currency ?? DEFAULT_CURRENCY),
             props.currency ?? DEFAULT_CURRENCY,
           )}
           <Show when={cartBuyer()}>
@@ -149,18 +184,44 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
           type="button"
           class="selection-modal-close"
           aria-label={t('ui.dialog.close')}
-          onClick={props.onClose}
+          onClick={close}
         >
           ×
         </button>
       </div>
 
       <div class="selection-modal-controls">
+        <Show when={pageSelection()}>
+          {(current) => (
+            <>
+              <span class="selection-modal-controls-label">{t('site.selection.scope')}</span>
+              <div class="view-toggle selection-modal-scope">
+                <button
+                  type="button"
+                  classList={{ active: scope() === 'current' }}
+                  aria-pressed={scope() === 'current'}
+                  onClick={() => setViewScope('current')}
+                >
+                  {t('site.selection.scopeCurrent', { count: current().count() })}
+                </button>
+                <button
+                  type="button"
+                  classList={{ active: scope() === 'all' }}
+                  aria-pressed={scope() === 'all'}
+                  onClick={() => setViewScope('all')}
+                >
+                  {t('site.selection.scopeAll', { count: props.selection.count() })}
+                </button>
+              </div>
+            </>
+          )}
+        </Show>
         <span class="selection-modal-controls-label">{t('site.selection.group')}</span>
         <div class="view-toggle">
           <button
             type="button"
             classList={{ active: groupMode() === 'order' }}
+            aria-pressed={groupMode() === 'order'}
             onClick={() => setGroupMode('order')}
           >
             {t('site.selection.groupOrder')}
@@ -168,6 +229,7 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
           <button
             type="button"
             classList={{ active: groupMode() === 'source' }}
+            aria-pressed={groupMode() === 'source'}
             onClick={() => setGroupMode('source')}
           >
             {t('site.selection.groupSource')}
@@ -176,10 +238,13 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
       </div>
 
       <div class="selection-modal-list">
+        <Show when={scope() === 'current' && selection().count() === 0}>
+          <p class="selection-modal-empty">{t('site.selection.emptyCurrent')}</p>
+        </Show>
         <Show
           when={groupMode() === 'source'}
           fallback={
-            <For each={props.selection.selected()}>
+            <For each={selection().selected()}>
               {(card) => (
                 <SelectionRow
                   card={card}
@@ -214,68 +279,93 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
         </Show>
       </div>
 
+      {/* One row per intent — copying out, editing the lists, and managing the
+          selection itself — so the edit-mode actions wrap onto their own line
+          instead of overflowing the panel. */}
       <div class="selection-modal-actions">
-        <button
-          type="button"
-          class={`btn btn-secondary ${copy.stateClass('text')}`}
-          onClick={() => void copy.copyText()}
-        >
-          {copy.label('text')}
-        </button>
-        <button
-          type="button"
-          class={`btn btn-secondary ${copy.stateClass('csv')}`}
-          onClick={() => void copy.copyCsv()}
-        >
-          {copy.label('csv')}
-        </button>
-        <Show when={cartBuyer()}>
-          <button
-            type="button"
-            class={`btn btn-secondary ${copy.stateClass('cart')}`}
-            onClick={() => void copy.copyCart()}
-          >
-            {copy.label('cart')}
-          </button>
-        </Show>
-        <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            onClick={() =>
-              promptListMove(props.moveAllTargets?.() ?? [], (dest) => {
-                props.onMoveAll!(dest)
-                props.onClose()
-              })
-            }
-          >
-            {t('site.selection.moveAllToList')}
-          </button>
-        </Show>
-        <Show when={props.onRemoveAll}>
-          {(onRemoveAll) => (
+        <div class="selection-modal-action-row">
+          <span class="selection-modal-action-label">{t('site.selection.actionsCopy')}</span>
+          <div class="selection-modal-action-buttons">
             <button
               type="button"
-              class="btn btn-danger"
-              onClick={() => {
-                onRemoveAll()()
-                props.onClose()
-              }}
+              class={`btn btn-secondary ${copy.stateClass('text')}`}
+              onClick={() => void copy.copyText()}
             >
-              {t('site.selection.removeAll')}
+              {copy.label('text')}
             </button>
+            <button
+              type="button"
+              class={`btn btn-secondary ${copy.stateClass('csv')}`}
+              onClick={() => void copy.copyCsv()}
+            >
+              {copy.label('csv')}
+            </button>
+            <Show when={cartBuyer()}>
+              <button
+                type="button"
+                class={`btn btn-secondary ${copy.stateClass('cart')}`}
+                onClick={() => void copy.copyCart()}
+              >
+                {copy.label('cart')}
+              </button>
+            </Show>
+          </div>
+        </div>
+        <Show when={props.bulk}>
+          {(bulk) => (
+            <div class="selection-modal-action-row">
+              <span class="selection-modal-action-label">{t('site.selection.actionsEdit')}</span>
+              <div class="selection-modal-action-buttons">
+                <Show when={bulk().moveTargets().length > 0}>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onClick={() => {
+                      // Snapshot now: the picker is asynchronous, and the scope,
+                      // the selection, or edit mode may change before it resolves.
+                      const { moveAll, moveTargets } = bulk()
+                      const cards = selection().selected()
+                      promptListMove(moveTargets(), (dest) => {
+                        moveAll(dest, cards)
+                        close()
+                      })
+                    }}
+                  >
+                    {t('site.selection.moveAllToList')}
+                  </button>
+                </Show>
+                <button
+                  type="button"
+                  class="btn btn-danger"
+                  onClick={() => {
+                    bulk().removeAll(selection().selected())
+                    close()
+                  }}
+                >
+                  {t('site.selection.removeAll')}
+                </button>
+              </div>
+            </div>
           )}
         </Show>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          onClick={() => {
-            props.selection.clear()
-            props.onClose()
-          }}
-        >
-          {t('site.selection.clearAll')}
-        </button>
+        <div class="selection-modal-action-row">
+          <span class="selection-modal-action-label">{t('site.selection.actionsSelection')}</span>
+          <div class="selection-modal-action-buttons">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              onClick={() => {
+                selection().clear()
+                if (scope() === 'all') close()
+              }}
+            >
+              {scope() === 'current' ? t('site.selection.clear') : t('site.selection.clearAll')}
+            </button>
+          </div>
+        </div>
+        <For each={copy.cartWarnings()}>
+          {(warning) => <p class="selection-menu-warning selection-modal-warning">{warning}</p>}
+        </For>
         <span class="visually-hidden" aria-live="polite">
           {copy.announcement()}
         </span>

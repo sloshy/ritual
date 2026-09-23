@@ -4,6 +4,8 @@ import {
   useAllSelections,
   clearAllSelections,
   groupSelectionsBySource,
+  deselectCards,
+  snapshotRemoval,
   type SelectedCard,
   type SelectionListId,
 } from '../../../src/list-view/useCardSelection'
@@ -110,6 +112,25 @@ describe('cross-list selection', () => {
     expect(all.count()).toBe(3)
     all.clear()
     expect(all.count()).toBe(0)
+  })
+
+  test('deselectCards drops only the given cards, whatever list they came from', () => {
+    useCardSelection(DECK).toggle(card(DECK, 'a'))
+    useCardSelection(COLLECTION).toggle(card(COLLECTION, 'b'))
+    const all = useAllSelections()
+    deselectCards(useCardSelection(DECK).selected())
+    expect(all.selected().map((c) => c.sourceName)).toEqual(['My Cards'])
+  })
+})
+
+describe('snapshotRemoval', () => {
+  test('counts copies, not tiles', () => {
+    const cards = [card(DECK, 'a', { quantity: 3 }), card(DECK, 'b')]
+    expect(snapshotRemoval(cards)).toEqual({ cards, count: 4 })
+  })
+
+  test('is null when there is nothing to remove', () => {
+    expect(snapshotRemoval([])).toBeNull()
   })
 })
 

@@ -17,6 +17,7 @@ import { ListPageStats, SellModeNotice } from './PageStats'
 import { UpdatePricesButton } from './PriceControls'
 import { PriceStalenessNotice } from './PriceStalenessNotice'
 import { SelectionMenu } from './SelectionMenu'
+import { registerPageSelection } from './SelectionModal'
 import { TagFilterWarning } from './TagFilterWarning'
 import { Toolbar, type ExtraToggle } from './Toolbar'
 import type { ListPageCommonProps } from './list-page-props'
@@ -76,6 +77,8 @@ export function ListPageShell(props: ListPageShellProps): JSX.Element {
   const t = useT()
   const page = (): ListPageChrome => props.page
   const toolbar = (): ListPageChrome['toolbar'] => props.page.toolbar
+  // Offer this page's selection as the "Selected Cards" dialog's current-list scope.
+  registerPageSelection(props.page.selection)
   // An empty changelog reads exactly as a missing one: no button, no modal.
   const changelog = (): ListPageChangelog | undefined =>
     props.changelog && props.changelog.pages.length > 0 ? props.changelog : undefined
@@ -171,6 +174,7 @@ export function ListPageShell(props: ListPageShellProps): JSX.Element {
             enableTrade={props.enableTrade}
             useScryfallImgUrls={props.useScryfallImgUrls}
             editActions={page().editActions()}
+            viewScope="current"
             dockOnTouch
           />
         }

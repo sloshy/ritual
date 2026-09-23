@@ -6,6 +6,7 @@ import type { CardTag } from '../card/card-tags'
 import { isPricelessCard } from './priceless'
 import type { CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
+import type { NamedListRef } from './combined-list'
 import { getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
 
 /**
@@ -218,6 +219,15 @@ export function clearAllSelections(): void {
   setSelectedCards([])
 }
 
+/**
+ * Drop the given cards (by global key) from the selection — after a bulk action
+ * consumed them, leaving anything outside that snapshot selected.
+ */
+export function deselectCards(cards: readonly SelectedCard[]): void {
+  const keys = new Set(cards.map((c) => c.key))
+  setSelectedCards((prev) => prev.filter((c) => !keys.has(c.key)))
+}
+
 /** Remove the selections belonging to one list. */
 export function clearListSelections(list: SelectionListId): void {
   setSelectedCards((prev) =>
@@ -293,4 +303,23 @@ export function useAllSelections(): CardSelectionControl {
 export type RemoveAllTarget = {
   cards: SelectedCard[]
   count: number
+}
+
+/** Snapshot `cards` for a removal confirmation, or null when there is nothing to remove. */
+export function snapshotRemoval(cards: SelectedCard[]): RemoveAllTarget | null {
+  const count = sumQuantities(cards)
+  return count > 0 ? { cards, count } : null
+}
+
+/**
+ * The destructive cross-list actions the selection menu and the "Selected
+ * Cards" dialog offer while a list is editable. Each handler receives the cards
+ * it acts on — snapshotted by the caller, since the dialog may be scoped to one
+ * list — and owns confirmation and deselecting them.
+ */
+export type SelectionBulkActions = {
+  removeAll: (cards: SelectedCard[]) => void
+  moveAll: (dest: NamedListRef, cards: SelectedCard[]) => void
+  /** Destination lists for "Move all to list" (slug-bearing, so senders can address by slug). */
+  moveTargets: () => NamedListRef[]
 }

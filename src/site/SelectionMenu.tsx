@@ -3,13 +3,16 @@ import { For, Show, createMemo } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { usePointerCoarse } from '../ui/useMediaQuery'
-import type { NamedListRef } from '../list-view/combined-list'
 import type { PriceCurrency } from '../pricing/price-currency'
-import type { CardSelectionControl, SelectedCard } from '../list-view/useCardSelection'
+import type {
+  CardSelectionControl,
+  SelectedCard,
+  SelectionBulkActions,
+} from '../list-view/useCardSelection'
 import type { SelectionEditActions } from '../list-view/selection-edit-actions'
 import { useSelectionCopy } from './useSelectionCopy'
 import { addSelectionToTrade } from './useSelectionTrade'
-import { openSelectionView } from './SelectionModal'
+import { openSelectionView, type SelectionViewScope } from './SelectionModal'
 import { promptListMove, promptSectionMove } from '../list-view/move-prompt'
 import { promptCardLabels } from '../list-view/label-prompt'
 import { promptCardLanguage } from '../list-view/language-prompt'
@@ -55,8 +58,11 @@ export interface SelectionMenuProps {
   clearLabel?: string
   /** Extra class for the trigger button (navbar styling). */
   buttonClass?: string
-  /** Show the "View all selections" item that opens the full selection modal (navbar only). */
-  showViewAll?: boolean
+  /**
+   * Show the item opening the "Selected Cards" dialog, pre-scoped to the page's
+   * list (`current`, the toolbar) or every list (`all`, the navbar).
+   */
+  viewScope?: SelectionViewScope
   /** When set (edit mode), show bulk edit actions over the selection. */
   editActions?: SelectionEditActions
   /**
@@ -67,19 +73,11 @@ export interface SelectionMenuProps {
    */
   dockOnTouch?: boolean
   /**
-   * When set, show a "Remove all selected" action. Used by the cross-list navbar
-   * menu to delete every selected card from its list; passed only while a list is
-   * open in edit mode. The handler owns confirmation and clearing the selection.
+   * When set, show the cross-list "Move all to list" and "Remove all selected"
+   * actions over the whole selection. Passed by the navbar menu only while a
+   * list is editable.
    */
-  onRemoveAll?: () => void
-  /**
-   * When set (with {@link moveAllTargets}), show a cross-list "Move all to list"
-   * group. Used by the navbar menu to move every selected card from its own list
-   * into the chosen destination; passed only while a list is open in edit mode.
-   */
-  onMoveAll?: (dest: NamedListRef) => void
-  /** Destination lists for the cross-list "Move all to list" group (slug-bearing, so senders can address by slug). */
-  moveAllTargets?: () => NamedListRef[]
+  bulk?: SelectionBulkActions
 }
 
 /**
@@ -204,8 +202,8 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
     return type ? { type, setLabel } : undefined
   })
 
-  const viewAll = () => {
-    openSelectionView()
+  const viewSelection = (scope: SelectionViewScope) => {
+    openSelectionView(scope)
     props.onClose()
   }
 
@@ -230,11 +228,20 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
 
   return (
     <>
-      <Show when={props.showViewAll}>
-        <button type="button" role="menuitem" class="selection-menu-item" onClick={viewAll}>
-          {t('site.selection.viewAll')}
-        </button>
-        <div class="selection-menu-sep" />
+      <Show when={props.viewScope}>
+        {(scope) => (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item"
+              onClick={() => viewSelection(scope())}
+            >
+              {scope() === 'current' ? t('site.selection.view') : t('site.selection.viewAll')}
+            </button>
+            <div class="selection-menu-sep" />
+          </>
+        )}
       </Show>
       <Show when={props.editActions}>
         {(actions) => (
@@ -439,32 +446,38 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
         </button>
       </Show>
       <div class="selection-menu-sep" />
-      <Show when={props.onMoveAll && (props.moveAllTargets?.().length ?? 0) > 0}>
-        <button
-          type="button"
-          role="menuitem"
-          class="selection-menu-item"
-          onClick={() => {
-            props.onClose()
-            promptListMove(props.moveAllTargets?.() ?? [], (dest) => props.onMoveAll!(dest))
-          }}
-        >
-          {t('site.selection.moveAllToList')}
-        </button>
-      </Show>
-      <Show when={props.onRemoveAll}>
-        {(onRemoveAll) => (
-          <button
-            type="button"
-            role="menuitem"
-            class="selection-menu-item selection-menu-item--danger"
-            onClick={() => {
-              onRemoveAll()()
-              props.onClose()
-            }}
-          >
-            {t('site.selection.removeAll')}
-          </button>
+      <Show when={props.bulk}>
+        {(bulk) => (
+          <>
+            <Show when={bulk().moveTargets().length > 0}>
+              <button
+                type="button"
+                role="menuitem"
+                class="selection-menu-item"
+                onClick={() => {
+                  // Capture before closing: the picker's callback runs later,
+                  // after the close may have unmounted this <Show>.
+                  const { moveAll, moveTargets } = bulk()
+                  const cards = props.selection.selected()
+                  props.onClose()
+                  promptListMove(moveTargets(), (dest) => moveAll(dest, cards))
+                }}
+              >
+                {t('site.selection.moveAllToList')}
+              </button>
+            </Show>
+            <button
+              type="button"
+              role="menuitem"
+              class="selection-menu-item selection-menu-item--danger"
+              onClick={() => {
+                bulk().removeAll(props.selection.selected())
+                props.onClose()
+              }}
+            >
+              {t('site.selection.removeAll')}
+            </button>
+          </>
         )}
       </Show>
       <button

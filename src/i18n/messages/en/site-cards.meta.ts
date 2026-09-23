@@ -307,6 +307,10 @@ export const siteCardsMeta = {
     description:
       'Opens a dialog listing every selected card. The trailing ellipsis signals that a dialog opens.',
   },
+  'site.selection.view': {
+    description:
+      "Opens a dialog listing the cards selected on the page's own list (a toggle there switches to every list). The trailing ellipsis signals that a dialog opens.",
+  },
   'site.selection.addCopy': { description: 'Bulk action adding one copy of every selected card.' },
   'site.selection.removeCopy': {
     description:
@@ -375,6 +379,34 @@ export const siteCardsMeta = {
   'site.selection.sell': {
     description:
       'Introduces what the selection is worth if sold to the chosen buyer, beside its retail value. Lower case: it sits mid-line after a separator.',
+  },
+  'site.selection.scope': {
+    description:
+      'Label of the toggle choosing whether the selected-cards dialog lists the current list only or every list.',
+  },
+  'site.selection.scopeCurrent': {
+    description:
+      'Toggle option listing only the cards selected on the page in view — one list, or the several lists of a combined view (hence "page", not "list"). {count} is how many copies are selected there.',
+  },
+  'site.selection.scopeAll': {
+    description:
+      'Toggle option listing the cards selected across every deck, collection and wanted list. {count} is how many copies are selected in total.',
+  },
+  'site.selection.emptyCurrent': {
+    description:
+      'Shown in the selected-cards dialog when the current-page scope is chosen but nothing on that page is selected (other lists still hold selections).',
+  },
+  'site.selection.actionsCopy': {
+    description:
+      'Short label heading the dialog row of copy-to-clipboard actions (text, CSV, cart). A verb, as in "copy these".',
+  },
+  'site.selection.actionsEdit': {
+    description:
+      'Short label heading the dialog row of actions that change the lists themselves (move the cards to another list, remove them). A verb.',
+  },
+  'site.selection.actionsSelection': {
+    description:
+      'Short label heading the dialog row of actions on the selection itself (clearing it), as opposed to the cards or lists.',
   },
   'site.selection.group': {
     description: 'Label of the control choosing how the selected cards are grouped.',
