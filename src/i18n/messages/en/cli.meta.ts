@@ -53,6 +53,10 @@ export const cliMeta = {
     description:
       'Which pages of Scryfall results were fetched, spliced into a truncation notice. The singular form names page 1 alone; the plural is an inclusive range starting at 1.',
   },
+  'cli.serve.currenciesUnderApi': {
+    description:
+      'Usage error: `serve --api --build --currencies` was given, but the live server derives its currencies from config. `--currencies`, `--api` and `priceSources` are literal and must not be translated.',
+  },
   'cli.serve.buildFlagsIgnored': {
     description:
       'Flags that only mean something with --build were passed to a plain `ritual serve`. {flags} is a comma-joined list of flag names, never translated; the verb agrees with how many were given.',

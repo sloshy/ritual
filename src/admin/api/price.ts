@@ -59,10 +59,10 @@ type PriceView = {
 /**
  * Resolve `?currency=` and `?source=` together, mirroring the CLI's rules: a
  * source names its own currency (tcgplayer/cardkingdom → usd, cardmarket →
- * eur), an explicit conflicting currency is a 400, and `cardkingdom` prices
- * from the cached buyer feed — strictly cache-backed, like every other server
- * read; a missing feed is refused with the refresh advice rather than
- * silently answered with Scryfall prices.
+ * eur, cardhoarder → tix), an explicit conflicting currency is a 400, and
+ * `cardkingdom` prices from the cached buyer feed — strictly cache-backed, like
+ * every other server read; a missing feed is refused with the refresh advice
+ * rather than silently answered with Scryfall prices.
  */
 async function parsePriceViewParams(url: URL): Promise<PriceView | Response> {
   const currency = parseCurrencyParam(url)

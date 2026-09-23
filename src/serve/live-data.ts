@@ -40,8 +40,7 @@ import type {
 } from '../list/site-data'
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
-import { VALID_CURRENCIES } from '../pricing/price-currency'
-import type { PriceCurrency } from '../pricing/price-currency'
+import { resolveSiteCurrencies, type SiteCurrencies } from '../pricing/price-source'
 
 /** A ready-to-serve JSON payload with its HTTP caching metadata. */
 export type LiveJson = {
@@ -70,8 +69,10 @@ export type LiveSiteDataOptions = {
   distDir?: string
 }
 
-/** All three currencies are always served live (build-site's default set). */
-const LIVE_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
+/** The currencies a live payload offers: exactly what the enabled price stores quote in. */
+function liveCurrencies(config: RitualConfig): SiteCurrencies {
+  return resolveSiteCurrencies(getPriceSources(config), getDefaultCurrency(config))
+}
 
 type ListStamp = {
   listMtimeMs: number
@@ -248,12 +249,12 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
   ): Promise<SiteDetailContext> {
     const bannedPrintings = getBannedPrintings(config)
     const buylist = siteBuylistContext(buylistFeed, config)
+    const currencies = liveCurrencies(config)
     const source = await createCacheCardSource(names, {
-      currencies: LIVE_CURRENCIES,
+      currencies: currencies.available,
       bannedPrintings,
       ...(buylist?.quotePrintings ? { cardKingdomQuote: buylist.quote } : {}),
     })
-    const configuredCurrency = getDefaultCurrency(config)
     return {
       cardData: source.cardData,
       resolveCardName: source.resolveCardName,
@@ -261,8 +262,8 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       bannedPrintings,
       symbolMap: await getSymbolMap(),
       useScryfallImgUrls: true,
-      defaultCurrency: configuredCurrency,
-      availableCurrencies: LIVE_CURRENCIES,
+      defaultCurrency: currencies.defaultCurrency,
+      availableCurrencies: currencies.available,
       pricesDate,
       // Baked exactly as `build-site` bakes them, so sell mode reads one shape
       // in both modes. Absent feed (or sell mode off) = no baked field.
@@ -358,14 +359,15 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
     await collect('collection', collections)
     await collect('wanted', wantedLists)
 
+    const currencies = liveCurrencies(config)
     const index = buildSiteIndex(
       {
         decks,
         collections,
         wantedLists,
         useScryfallImgUrls: true,
-        defaultCurrency: getDefaultCurrency(config),
-        availableCurrencies: LIVE_CURRENCIES,
+        defaultCurrency: currencies.defaultCurrency,
+        availableCurrencies: currencies.available,
         pricesDate,
         uiLocale: getUiLocale(config),
         availableLocales: await publishedLocales(options.distDir),

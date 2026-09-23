@@ -119,7 +119,7 @@ Flag: `--currency <currency>`
     TIX - MTGO tickets
 ```
 
-Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key, the currency the [price](/commands/price/) command, editor price displays, and the public site default to. USD is the default, and the currently configured value is preselected. Change it later with `config set defaultCurrency <usd|eur|tix>`.
+Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key, the currency the [price](/commands/price/) command, editor price displays, and the public site default to. USD is the default, and the currently configured value is preselected. Change it later with `config set defaultCurrency <usd|eur|tix>`. The public site offers EUR or TIX only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardmarket` or `cardhoarder` respectively.
 
 ### Agent skills
 

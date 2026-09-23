@@ -248,6 +248,8 @@ export const cliMessages = {
     one: 'page 1',
     other: 'pages 1-{count}',
   },
+  'cli.serve.currenciesUnderApi':
+    '--currencies has no effect under --api: the live server offers the currencies of the enabled priceSources. Change priceSources instead.',
   'cli.serve.buildFlagsIgnored': {
     $plural: 'count',
     one: '{flags} only applies when building; add --build to build the site before serving.',

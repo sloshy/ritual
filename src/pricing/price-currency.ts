@@ -339,28 +339,27 @@ export function parseCurrencyFlagOrError<T>(
   }
 }
 
-/** Parse a comma-separated currencies string (e.g., "usd,eur") into PriceCurrency[]. */
-export function parseCurrenciesFlag(input: string | undefined): PriceCurrencies {
-  if (!input) return [...VALID_CURRENCIES]
-  const parts = input
+/**
+ * Parse a comma-separated currencies string (e.g., "usd,eur") into PriceCurrency[].
+ * Absent or blank (no currency named at all) is `undefined`: the caller derives
+ * the set from the enabled price stores (see `resolveSiteCurrencies`).
+ */
+export function parseCurrenciesFlag(input: string | undefined): PriceCurrencies | undefined {
+  const parts = (input ?? '')
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s.length > 0)
   const result: PriceCurrency[] = []
   for (const part of parts) {
-    if (part === 'usd' || part === 'eur' || part === 'tix') {
-      if (!result.includes(part)) result.push(part)
-    } else {
+    if (!isPriceCurrency(part)) {
       throw new Error(
-        `Invalid currency '${part}' in currencies list. Must be comma-separated values of: usd, eur, tix`,
+        `Invalid currency '${part}' in currencies list. Must be comma-separated values of: ${VALID_CURRENCIES.join(', ')}`,
       )
     }
+    if (!result.includes(part)) result.push(part)
   }
   const [first, ...rest] = result
-  if (first === undefined) {
-    throw new Error('At least one currency must be specified.')
-  }
-  return [first, ...rest]
+  return first === undefined ? undefined : [first, ...rest]
 }
 
 /** A parsed `--currencies` list: never empty, so the first one is always a valid default. */

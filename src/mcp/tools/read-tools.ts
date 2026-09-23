@@ -602,9 +602,9 @@ export function registerReadTools(server: McpServer): void {
         'its priced card entries; with listType alone, per-list totals across every list of ' +
         'that type; with neither, per-list totals across every list. Errors when the card ' +
         'cache is empty (run refresh_cache first). source picks the store: tcgplayer ' +
-        '(Scryfall USD, default), cardmarket (Scryfall EUR), or cardkingdom (NM retail from ' +
-        'the cached Card Kingdom feed — errors when no feed is downloaded; run ' +
-        'refresh_buylist). A source implies its currency, so pass at most one of the two.',
+        '(Scryfall USD, default), cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), ' +
+        'or cardkingdom (NM retail from the cached Card Kingdom feed — errors when no feed is ' +
+        'downloaded; run refresh_buylist). A source implies its currency, so pass at most one of the two.',
       inputSchema: z
         .object({
           listType: listTypeSchema
@@ -618,7 +618,7 @@ export function registerReadTools(server: McpServer): void {
             .enum(VALID_PRICE_SOURCES)
             .optional()
             .describe(
-              'Price store; implies its currency (tcgplayer/cardkingdom: usd, cardmarket: eur).',
+              'Price store; implies its currency (tcgplayer/cardkingdom: usd, cardmarket: eur, cardhoarder: tix).',
             ),
         })
         .superRefine((val, ctx) => {

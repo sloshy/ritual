@@ -58,7 +58,10 @@ describe('enabled sources and offered currencies', () => {
     setEnabledPriceSources(['cardmarket'])
     expect(currencyHasSource('usd')).toBe(false)
     expect(currencyHasSource('eur')).toBe(true)
-    expect(offeredCurrencies(['usd', 'eur', 'tix'])).toEqual(['eur', 'tix'])
+    expect(currencyHasSource('tix')).toBe(false)
+    expect(offeredCurrencies(['usd', 'eur', 'tix'])).toEqual(['eur'])
+    setEnabledPriceSources(['tcgplayer', 'cardhoarder'])
+    expect(offeredCurrencies(['usd', 'eur', 'tix'])).toEqual(['usd', 'tix'])
   })
 
   test('the source choice exists only for USD with both stores enabled', () => {

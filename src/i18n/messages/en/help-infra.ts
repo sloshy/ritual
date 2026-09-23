@@ -119,7 +119,7 @@ export const helpInfraMessages = {
   'help.buildSite.wantedLists':
     'Wanted list names to build (default: the site.includeWantedLists config selection)',
   'help.buildSite.currencies':
-    'Comma-separated currencies to include: usd, eur, tix (default: all three; first is default)',
+    'Comma-separated currencies to include: usd, eur, tix (default: the currencies of the enabled priceSources, which this can only narrow; first is default)',
   'help.buildSite.theme':
     'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via --theme-file)',
   'help.buildSite.themeFile':
@@ -213,7 +213,7 @@ export const helpInfraMessages = {
   'help.price.listArg': 'Open (or print) a single list instead of all lists',
   'help.price.prices': 'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
   'help.price.source':
-    'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), or cardkingdom (NM retail from the Card Kingdom feed)',
+    'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix)',
   'help.price.name': 'Print cards whose name contains every term',
   'help.price.set': 'Print cards from this set code',
   'help.price.collector': 'Print cards with this collector number',

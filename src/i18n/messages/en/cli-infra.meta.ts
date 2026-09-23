@@ -226,6 +226,10 @@ export const cliInfraMeta = {
     description:
       'Warning: the baked-in locale has no dictionary, so the site renders English under a non-English html lang.',
   },
+  'cli.buildSite.currenciesWithoutStore': {
+    description:
+      'Usage error: every currency given to `build-site --currencies` lacks an enabled price store. {currencies} is the comma-joined currency codes, {sources} the enabled store tokens; both, `--currencies`, `priceSources`, `tix` and the quoted command are literal and must not be translated.',
+  },
   'cli.buildSite.selectionFlagEmpty': {
     description: 'A --decks/--collections/--wanted-lists flag was given with no names.',
   },

@@ -218,8 +218,10 @@ describe('isCurrencyAvailableForCard', () => {
 })
 
 describe('parseCurrenciesFlag', () => {
-  test('returns all currencies when undefined', () => {
-    expect(parseCurrenciesFlag(undefined)).toEqual(['usd', 'eur', 'tix'])
+  test('absent and empty are undefined, leaving the set to the price stores', () => {
+    expect(parseCurrenciesFlag(undefined)).toBeUndefined()
+    expect(parseCurrenciesFlag('')).toBeUndefined()
+    expect(parseCurrenciesFlag(' , ')).toBeUndefined()
   })
 
   test('parses single currency', () => {
@@ -243,11 +245,7 @@ describe('parseCurrenciesFlag', () => {
   })
 
   test('throws for invalid currency', () => {
-    expect(() => parseCurrenciesFlag('usd,gbp')).toThrow()
-  })
-
-  test('returns all currencies for empty string (treated as no input)', () => {
-    expect(parseCurrenciesFlag('')).toEqual(['usd', 'eur', 'tix'])
+    expect(() => parseCurrenciesFlag('usd,gbp')).toThrow(/Invalid currency 'gbp'/)
   })
 })
 

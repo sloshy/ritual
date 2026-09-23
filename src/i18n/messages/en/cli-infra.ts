@@ -142,6 +142,8 @@ export const cliInfraMessages = {
     "--locales names '{tag}', which this build has no dictionary for. Load one with --locale-file <path>, or bake it in with RITUAL_BUNDLED_LOCALES.",
   'cli.buildSite.bakedLocaleUndictionaried':
     '⚠️  No dictionary for the baked locale \'{tag}\'; the site will render English text under <html lang="{tag}">. Load one with --locale-file <path>.',
+  'cli.buildSite.currenciesWithoutStore':
+    '--currencies {currencies} names no currency an enabled price store quotes in (priceSources: {sources}). Add a store for it, e.g. `ritual config set priceSources --add cardhoarder` for tix.',
   'cli.buildSite.selectionFlagEmpty': '{flag} requires at least one name.',
 
   // ── build-site: list kinds ────────────────────────────────────────────

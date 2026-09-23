@@ -81,6 +81,10 @@ describe('price --source (Integration)', () => {
     const usd = await summary(['--source', 'tcgplayer'])
     expect(usd.currency).toBe('usd')
     expect(usd.totals.total).toBeCloseTo(1.99)
+
+    const tix = await summary(['--source', 'cardhoarder'])
+    expect(tix.currency).toBe('tix')
+    expect(tix.source).toBeUndefined()
   })
 
   test('a conflicting --prices is a usage error', async () => {

@@ -1258,6 +1258,12 @@ async function stubBuylistApiUnreachable(page: Page, watch?: BuylistApiWatch): P
 // `sellMode: true` is the capability flag the build stamps.
 const MOCK_SITE_INDEX_FOR_SELL = makeSellBinderIndex({ sellMode: true })
 
+/** Index knobs for the price-source mocks: the enabled stores and the baked currencies. */
+export type PriceSourceMockOptions = {
+  priceSources?: SiteIndex['priceSources']
+  availableCurrencies?: SiteIndex['availableCurrencies']
+}
+
 /**
  * Mock a static site whose config enables **both USD price stores** but not
  * sell mode: the price-source selector must appear on its own, quotes must
@@ -1268,10 +1274,11 @@ const MOCK_SITE_INDEX_FOR_SELL = makeSellBinderIndex({ sellMode: true })
  */
 export async function mockPublicSiteCollectionForPriceSources(
   page: Page,
-  options: { priceSources?: SiteIndex['priceSources'] } = {},
+  options: PriceSourceMockOptions = {},
 ): Promise<void> {
   const index = makeSellBinderIndex({
     priceSources: options.priceSources ?? ['tcgplayer', 'cardkingdom'],
+    ...(options.availableCurrencies ? { availableCurrencies: options.availableCurrencies } : {}),
   })
   await fulfillJson(page, '**/index.json', index)
   await fulfillJson(page, '**/collections/sell-binder.json', MOCK_SELL_BINDER_DETAIL)
@@ -1412,7 +1419,7 @@ const MOCK_DECK_FOR_PRICE_SOURCES = makeDeckDetail({
  */
 export async function mockPublicSiteDeckForPriceSources(
   page: Page,
-  options: { priceSources?: SiteIndex['priceSources'] } = {},
+  options: PriceSourceMockOptions = {},
 ): Promise<BuylistApiWatch> {
   await fulfillJson(
     page,
@@ -1420,6 +1427,7 @@ export async function mockPublicSiteDeckForPriceSources(
     makeSiteIndex({
       decks: [makeDeckSummary({ slug: 'split-pick-deck', name: 'Split Pick Deck', cardCount: 1 })],
       priceSources: options.priceSources ?? ['tcgplayer', 'cardkingdom'],
+      ...(options.availableCurrencies ? { availableCurrencies: options.availableCurrencies } : {}),
     }),
   )
   await fulfillJson(page, '**/decks/split-pick-deck.json', MOCK_DECK_FOR_PRICE_SOURCES)
@@ -2603,6 +2611,9 @@ export async function mockPublicSiteForQuickSwitch(page: Page): Promise<void> {
 // formats (Modern first alphabetically, then Commander) so format grouping has
 // exact expected sections.
 const MOCK_SITE_INDEX_MULTI_LISTS: SiteIndex = makeSiteIndex({
+  // Two currencies, so the header's currency selector (hidden when there is
+  // nothing to choose between) renders for the header-layout tests.
+  availableCurrencies: ['usd', 'eur'],
   decks: [
     makeDeckSummary({
       slug: 'aggro-alpha',

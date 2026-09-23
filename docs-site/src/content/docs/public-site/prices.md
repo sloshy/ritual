@@ -3,13 +3,15 @@ title: 'Prices'
 description: Currencies, price stores, per-page price updates, and cards the site prices at zero.
 ---
 
-Every card on the site carries a price, and every list carries a total. Prices are baked in at build time, in up to three currencies and from up to three **stores**. This page covers where they come from, how to switch between them, and the cards that are priced at zero on purpose.
+Every card on the site carries a price, and every list carries a total. Prices are baked in at build time, in up to three currencies and from up to four **stores**. This page covers where they come from, how to switch between them, and the cards that are priced at zero on purpose.
 
 Two controls share the label **Prices**. The header's dropdown picks the **currency**, and the list toolbar's selector picks the **store** behind USD prices. This page calls the first the currency selector and the second the Prices selector.
 
 ## Currencies
 
-The site header has a currency selector (labelled **Prices**) for switching between USD (TCGplayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO) at runtime. The `--currencies` flag on [`build-site`](/commands/build-site/) controls which currencies are built into the site. The currency selector only shows built currencies **that an enabled [price store](#price-stores) can answer for** (USD needs `tcgplayer` or `cardkingdom`, EUR needs `cardmarket`), and hides itself entirely when [`priceSources`](/configuration/#price-stores-pricesources) is empty.
+A site offers exactly the currencies its enabled [price stores](#price-stores) quote in: USD (TCGplayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO, via Cardhoarder). A build or [live server](/public-site/hosted/) with the default `priceSources: ["tcgplayer"]` offers USD only. TIX appears only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardhoarder`. The `--currencies` flag on [`build-site`](/commands/build-site/) can narrow that set for one build, but never adds a currency with no enabled store behind it. A list naming only such currencies is refused. Under `serve --api` the flag is refused outright, since the live server always offers the configured stores' currencies.
+
+When more than one currency is offered, the site header has a currency selector (labelled **Prices**) for switching between them at runtime. With a single currency there is nothing to choose, so the selector is not shown. It is also hidden when `priceSources` is empty.
 
 When switching currencies:
 
@@ -32,10 +34,7 @@ The prices on the public and admin sites come from a configurable set of **store
 | `tcgplayer`   | USD      | Scryfall's USD market price (TCGplayer). The default.                                               |
 | `cardmarket`  | EUR      | Scryfall's EUR trend price (Cardmarket).                                                            |
 | `cardkingdom` | USD      | Card Kingdom's Near Mint **retail** price, from the same feed [sell mode](/public-site/sell/) uses. |
-
-MTGO tix stays a Scryfall-only currency with no store behind it. It is offered whenever any prices are.
-
-One misconfiguration to watch for: with `priceSources: ["cardmarket"]` on a build whose [`--currencies`](/commands/build-site/#options) excluded EUR, no offered currency remains. The currency selector hides, and the pages keep showing the built default currency's Scryfall prices. Enable a store for a currency the site was actually built with.
+| `cardhoarder` | TIX      | Scryfall's MTGO tix price (Cardhoarder).                                                            |
 
 ### The Prices selector
 

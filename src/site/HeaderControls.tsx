@@ -7,7 +7,7 @@
 // app.tsx). Each is a standalone component so both layouts can render the same
 // control without duplicating its markup.
 
-import { type Component, Show, createEffect, createSignal, onCleanup } from 'solid-js'
+import { type Component, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
 import { type PriceCurrency, isPriceCurrency } from '../pricing/price-currency'
 import { offeredCurrencies } from '../list-view/price-view'
 import { useT } from '../ui/i18n'
@@ -16,7 +16,7 @@ import { useTheme } from './useTheme'
 
 export type CurrencySelectorProps = {
   currency: PriceCurrency
-  available: PriceCurrency[]
+  available: readonly PriceCurrency[]
   onChange: (currency: PriceCurrency) => void
 }
 
@@ -24,11 +24,12 @@ export const CurrencySelector: Component<CurrencySelectorProps> = (props) => {
   const t = useT()
   // The site's baked currencies narrowed to the ones the enabled price sources
   // can answer for (USD needs TCGplayer or Card Kingdom, EUR needs Cardmarket,
-  // tix just needs prices to be on at all). With `priceSources: []` nothing
-  // survives and the control hides itself with the rest of the price UI.
-  const offered = () => offeredCurrencies(props.available)
+  // tix needs Cardhoarder). The control only renders when there is a choice to
+  // make: a single currency needs no switcher, and with `priceSources: []`
+  // nothing survives and it hides with the rest of the price UI.
+  const offered = createMemo(() => offeredCurrencies(props.available))
   return (
-    <Show when={offered().length > 0}>
+    <Show when={offered().length > 1}>
       <div class="currency-selector">
         <label class="currency-label">{t('site.header.pricesLabel')}</label>
         <select

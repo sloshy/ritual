@@ -144,8 +144,10 @@ export interface RitualConfig {
   defaultCurrency: PriceCurrency
   /**
    * The stores whose prices the sites offer: `tcgplayer` (Scryfall USD, the
-   * default), `cardmarket` (Scryfall EUR), and `cardkingdom` (Card Kingdom NM
-   * retail from the buylist pricelist feed). Always present, defaulting to
+   * default), `cardmarket` (Scryfall EUR), `cardkingdom` (Card Kingdom NM
+   * retail from the buylist pricelist feed), and `cardhoarder` (Scryfall MTGO
+   * tix). The sites offer exactly the currencies these stores quote in, so tix
+   * is opt-in. Always present, defaulting to
    * `['tcgplayer']`. An explicit empty array means the sites display no prices
    * at all; the CLI `price` command and sell mode are unaffected by it.
    * Enabling `cardkingdom` makes builds and servers download/refresh the Card

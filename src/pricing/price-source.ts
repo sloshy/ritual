@@ -1,4 +1,4 @@
-import type { PriceCurrency } from './price-currency'
+import { VALID_CURRENCIES, type PriceCurrencies, type PriceCurrency } from './price-currency'
 // Type-only, so the value-level import cycle (ritual-config parses this
 // module's config key) never materializes at runtime.
 import type { ConfigParseError } from '../config/ritual-config'
@@ -11,17 +11,20 @@ import type { ConfigParseError } from '../config/ritual-config'
  * - `cardmarket` — Scryfall's `eur*` prices (Cardmarket trend price).
  * - `cardkingdom` — Card Kingdom's NM retail price, read from the same daily
  *   pricelist feed the buylist uses (USD).
+ * - `cardhoarder` — Scryfall's `tix` price (Cardhoarder's MTGO price). Opt-in:
+ *   a site offers MTGO tix only when this store is enabled.
  *
  * Source names are machine tokens (config values, URL params, flag values):
  * always lowercase, never localized. Human-facing labels go through the
  * message catalog.
  */
-export type PriceSource = 'tcgplayer' | 'cardmarket' | 'cardkingdom'
+export type PriceSource = 'tcgplayer' | 'cardmarket' | 'cardkingdom' | 'cardhoarder'
 
 export const VALID_PRICE_SOURCES = [
   'tcgplayer',
   'cardmarket',
   'cardkingdom',
+  'cardhoarder',
 ] as const satisfies readonly PriceSource[]
 
 /** What `priceSources` means when the config key is absent: Scryfall USD only. */
@@ -33,7 +36,7 @@ export function isPriceSource(value: string): value is PriceSource {
 
 /**
  * The USD stores, in canonical (selector) order — the one axis a user can
- * switch between; EUR is always Cardmarket.
+ * switch between; EUR is always Cardmarket and tix always Cardhoarder.
  */
 export const USD_PRICE_SOURCES = [
   'tcgplayer',
@@ -64,10 +67,7 @@ export function resolveSourceCurrency(
   return { ok: true, currency: implied }
 }
 
-/**
- * The one currency a source quotes in. MTGO tix has no store behind it and is
- * deliberately not a source — it stays a Scryfall-only currency.
- */
+/** The one currency a source quotes in. */
 export function sourceCurrency(source: PriceSource): PriceCurrency {
   switch (source) {
     case 'tcgplayer':
@@ -75,13 +75,15 @@ export function sourceCurrency(source: PriceSource): PriceCurrency {
       return 'usd'
     case 'cardmarket':
       return 'eur'
+    case 'cardhoarder':
+      return 'tix'
   }
 }
 
 /**
- * The enabled sources that quote in a currency, in canonical order. `tix` has
- * no sources; an empty result for `usd`/`eur` means the currency has no store
- * to price from under the current config.
+ * The enabled sources that quote in a currency, in canonical order. An empty
+ * result means the currency has no store to price from under the current
+ * config.
  */
 export function sourcesForCurrency(
   currency: PriceCurrency,
@@ -90,6 +92,69 @@ export function sourcesForCurrency(
   return VALID_PRICE_SOURCES.filter(
     (source) => sourceCurrency(source) === currency && enabled.includes(source),
   )
+}
+
+/** The currencies a site built or served under a config offers, and the one it opens in. */
+export type SiteCurrencies = {
+  available: PriceCurrencies
+  /** The configured default when it is available, else the first available currency. */
+  defaultCurrency: PriceCurrency
+}
+
+/** An explicit `--currencies` list naming no currency an enabled store quotes in. */
+export type SiteCurrenciesError = {
+  error: 'no-store-for-currencies'
+  requested: PriceCurrencies
+}
+
+/**
+ * Resolve a site's currencies: exactly the ones the enabled stores quote in,
+ * in canonical currency order, so tix appears only when `cardhoarder` is
+ * enabled. An explicit `--currencies` list narrows (and orders) that set but
+ * never adds a currency with no store behind it; one that keeps nothing is an
+ * error. With no stores at all the site shows no prices, but still bakes one
+ * currency (the explicit list's, else the configured default) so its data
+ * stays well-formed.
+ */
+export function resolveSiteCurrencies(
+  sources: readonly PriceSource[],
+  configured: PriceCurrency,
+): SiteCurrencies
+export function resolveSiteCurrencies(
+  sources: readonly PriceSource[],
+  configured: PriceCurrency,
+  explicit: PriceCurrencies | undefined,
+): SiteCurrencies | SiteCurrenciesError
+export function resolveSiteCurrencies(
+  sources: readonly PriceSource[],
+  configured: PriceCurrency,
+  explicit?: PriceCurrencies,
+): SiteCurrencies | SiteCurrenciesError {
+  const backed = VALID_CURRENCIES.filter(
+    (currency) => sourcesForCurrency(currency, sources).length > 0,
+  )
+  const candidates =
+    backed.length === 0
+      ? (explicit ?? [configured])
+      : explicit
+        ? explicit.filter((currency) => backed.includes(currency))
+        : backed
+  const [first, ...rest] = candidates
+  if (first === undefined) {
+    // Only reachable with an explicit list: `backed` is non-empty here.
+    return { error: 'no-store-for-currencies', requested: explicit ?? [configured] }
+  }
+  const available: PriceCurrencies = [first, ...rest]
+  return {
+    available,
+    defaultCurrency: available.includes(configured) ? configured : first,
+  }
+}
+
+export function isSiteCurrenciesError(
+  value: SiteCurrencies | SiteCurrenciesError,
+): value is SiteCurrenciesError {
+  return 'error' in value
 }
 
 /**

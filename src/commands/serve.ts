@@ -94,6 +94,14 @@ export function registerServeCommand(program: Command): void {
       }
     }
 
+    // The live server answers index.json and every list itself, from config, so
+    // a `--currencies` override baked by the build would never reach a browser.
+    if (options.api === true && command.getOptionValueSource('currencies') === 'cli') {
+      console.error(t('cli.serve.currenciesUnderApi'))
+      process.exitCode = ExitCode.UsageError
+      return
+    }
+
     // Resolved once and shared by the build and the server: `--build --out-dir X`
     // used to publish into X and then serve a hard-coded `dist/`, i.e. serve the
     // *previous* build. Same rule as `ritual build-site`, same module.

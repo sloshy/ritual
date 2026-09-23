@@ -37,6 +37,15 @@ describe('serve command (Integration)', () => {
     })
   })
 
+  test('--currencies under --api is refused: the live server derives them from config', async () => {
+    await withWorkspace(async (dir) => {
+      const result = await runCli(['serve', '--api', '--build', '--currencies', 'usd'], dir)
+      expect(result.exitCode).toBe(2)
+      expect(result.stderr).toContain('priceSources')
+      expect(result.stdout).not.toContain('Building site...')
+    })
+  })
+
   test('--api builds the missing site itself, accepting --refresh as the cache policy', async () => {
     await withWorkspace(async (dir) => {
       // The empty workspace fails the build for lack of lists, which is proof

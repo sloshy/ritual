@@ -5,14 +5,15 @@ import { cardCache } from '../../src/cache'
 import { refreshRitualConfig } from '../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { runBuildSite } from '../../src/commands/build-site'
+import { captureExitCode } from '../helpers/cli'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { SiteIndex } from '../../src/list/site-data'
 
 /**
- * Wiring pin: a configured `site.apiBaseUrl` is baked into the built
- * `index.json` (the split-deployment marker the SPA reads). The URL parsing
- * itself is unit-tested in ritual-config.test.ts; this covers the one
- * build-side integration point.
+ * Wiring pins: a configured `site.apiBaseUrl` and the store-derived currencies
+ * are baked into the built `index.json`. The URL parsing and the currency rule
+ * are unit-tested (ritual-config.test.ts, price-source.test.ts); this covers
+ * the build-side integration points.
  */
 describe('build-site index baking (Integration)', () => {
   let ws: BoundWorkspace
@@ -40,5 +41,15 @@ describe('build-site index baking (Integration)', () => {
     const index = JSON.parse(raw) as SiteIndex
     expect(index.apiBaseUrl).toBe('https://ritual-api.example.com')
     expect(index.decks.length).toBeGreaterThan(0)
+    // The synthetic workspace enables tcgplayer + cardmarket: no cardhoarder, no tix.
+    expect(index.availableCurrencies).toEqual(['usd', 'eur'])
   }, 120_000)
+
+  test('--currencies naming only store-less currencies is refused before building', async () => {
+    await fs.rm(path.join(ws.dir, 'dist'), { recursive: true, force: true })
+    expect(await captureExitCode(() => runBuildSite({ refresh: 'never', currencies: 'tix' }))).toBe(
+      2,
+    )
+    expect(await Bun.file(path.join(ws.dir, 'dist', 'index.json')).exists()).toBeFalse()
+  })
 })

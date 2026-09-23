@@ -293,8 +293,9 @@ export function registerPriceCommand(program: Command): void {
       if (!currency) return
 
       // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
-      // → eur). An explicit --prices that disagrees is a usage error rather than
-      // a silent override; an omitted one simply follows the source.
+      // → eur, cardhoarder → tix). An explicit --prices that disagrees is a
+      // usage error rather than a silent override; an omitted one simply
+      // follows the source.
       const source = options.source
       if (source) {
         const resolved = resolveSourceCurrency(

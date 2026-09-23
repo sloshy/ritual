@@ -21,7 +21,7 @@ ritual build-site [options]
 | `--decks [names...]`            | Deck names (display name or file base name) or URLs to include in the site (default: the `site.includeDecks` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                              |
 | `--collections [names...]`      | Collection names (display name or file base name) to include in the site (default: the `site.includeCollections` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                          |
 | `--wanted-lists [names...]`     | Wanted list names (display name or file base name) to include in the site (default: the `site.includeWantedLists` config selection). Passing the flag with no names is a usage error, not "build everything".                                                                                                                                                                                                         |
-| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: all three)                                                                                                                                                                                                                                                                                                                           |
+| `--currencies <list>`           | Comma-separated currencies to include on the site: `usd`, `eur`, `tix` (default: the currencies of the enabled [`priceSources`](/configuration/#price-stores-pricesources); narrows that set, never adds to it)                                                                                                                                                                                                       |
 | `--refresh <mode>`              | Card cache refresh policy: `ask` (default — bulk-downloads an empty or stale cache **without asking**, prompts for the price and tag refreshes), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                                        |
 | `--theme <name>`                | Initial theme served to first-time visitors (built-in name or a custom name from `--theme-file`). Defaults to `default`.                                                                                                                                                                                                                                                                                              |
 | `--theme-file <path...>`        | Load one or more custom theme JSON files; each is added to the runtime theme list under its declared `name`.                                                                                                                                                                                                                                                                                                          |
@@ -76,13 +76,15 @@ Build with specific wanted lists:
 ritual build-site --wanted-lists "High Priority" "Trade Targets"
 ```
 
-Build with EUR as the default price currency:
+Without `--currencies`, a build offers exactly the currencies its enabled [price stores](/configuration/#price-stores-pricesources) quote in: USD for `tcgplayer`/`cardkingdom`, EUR for `cardmarket`, TIX for `cardhoarder`. The default `["tcgplayer"]` builds a USD-only site. The flag narrows and reorders that set for one build (the first listed is the fallback default currency). It never adds a currency with no enabled store behind it: those are dropped, and a list that keeps none is refused with exit code `2`. To offer TIX, add `cardhoarder` to `priceSources`.
+
+Build with EUR only:
 
 ```bash
 ritual build-site --currencies eur
 ```
 
-Build with only USD and EUR (no TIX):
+Build with USD and EUR, USD first:
 
 ```bash
 ritual build-site --currencies "usd,eur"

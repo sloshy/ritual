@@ -26,22 +26,22 @@ The name is matched case- and accent-insensitively across all three list types, 
 
 ## Options
 
-| Option                 | Description                                                                                                                                                                           |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`               | Only decks (also disambiguates list names)                                                                                                                                            |
-| `--collection`         | Only collections (also disambiguates list names)                                                                                                                                      |
-| `--wanted`             | Only wanted lists (also disambiguates list names)                                                                                                                                     |
-| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency))                                                                |
-| `--source <store>`     | Price store: `tcgplayer` (Scryfall USD, the default behavior), `cardmarket` (Scryfall EUR), or `cardkingdom` (Card Kingdom NM retail from the cached [buylist feed](/commands/sell/)) |
-| `--name <terms>`       | Print cards whose name contains every space-separated term                                                                                                                            |
-| `--set <code>`         | Print cards from this set code                                                                                                                                                        |
-| `--collector <number>` | Print cards with this collector number                                                                                                                                                |
-| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                                                                                        |
-| `--descending`         | Reverse the sort direction                                                                                                                                                            |
-| `--summary`            | Print the price summary instead of opening the browser                                                                                                                                |
-| `--refresh <mode>`     | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                 |
-| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                           |
-| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                                                                            |
+| Option                 | Description                                                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--deck`               | Only decks (also disambiguates list names)                                                                                                                                                                               |
+| `--collection`         | Only collections (also disambiguates list names)                                                                                                                                                                         |
+| `--wanted`             | Only wanted lists (also disambiguates list names)                                                                                                                                                                        |
+| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency))                                                                                                   |
+| `--source <store>`     | Price store: `tcgplayer` (Scryfall USD, the default behavior), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached [buylist feed](/commands/sell/)) |
+| `--name <terms>`       | Print cards whose name contains every space-separated term                                                                                                                                                               |
+| `--set <code>`         | Print cards from this set code                                                                                                                                                                                           |
+| `--collector <number>` | Print cards with this collector number                                                                                                                                                                                   |
+| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                                                                                                                           |
+| `--descending`         | Reverse the sort direction                                                                                                                                                                                               |
+| `--summary`            | Print the price summary instead of opening the browser                                                                                                                                                                   |
+| `--refresh <mode>`     | Card cache refresh policy: `ask` (default — prompt; skip when prompts are unavailable), `auto`, `no-bulk`, or `never`                                                                                                    |
+| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                                                              |
+| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                                                                                                               |
 
 ## The Interactive Browser
 
@@ -57,7 +57,7 @@ Selecting a list opens a card browser over that list. **🔎 Search all cards** 
 
 ## Price stores (`--source`)
 
-A source names the store prices come from, and therefore its currency. `tcgplayer` and `cardkingdom` price in USD, `cardmarket` in EUR, so `--source cardmarket` is `--prices eur` by another name. Passing a `--prices` that disagrees with the source is a usage error.
+A source names the store prices come from, and therefore its currency. `tcgplayer` and `cardkingdom` price in USD, `cardmarket` in EUR, `cardhoarder` in TIX, so `--source cardmarket` is `--prices eur` (and `--source cardhoarder` is `--prices tix`) by another name. Passing a `--prices` that disagrees with the source is a usage error.
 
 `--source cardkingdom` prices every entry at Card Kingdom's **Near Mint retail** price from the cached [pricelist feed](/commands/sell/), matched by Scryfall ID (with the same SKU fallback the sell report uses). The feed follows this run's `--refresh` policy like the card cache. With no feed cached and bulk downloads disallowed, the command errors rather than silently falling back to Scryfall.
 

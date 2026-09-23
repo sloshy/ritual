@@ -684,14 +684,14 @@ Price every deck, collection, and wanted list from the local card cache and retu
 
 **Query Parameters:**
 
-| Parameter  | Description                                                                                                             | Required |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------- | -------- |
-| `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                      | No       |
-| `currency` | `usd`, `eur`, or `tix` (default: the configured `defaultCurrency`)                                                      | No       |
-| `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), or `cardkingdom` (Card Kingdom NM retail from the cached feed) | No       |
+| Parameter  | Description                                                                                                                                                | Required |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                                                         | No       |
+| `currency` | `usd`, `eur`, or `tix` (default: the configured `defaultCurrency`)                                                                                         | No       |
+| `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed) | No       |
 
 An unknown `type`, `currency`, or `source` returns `400`. A `source` implies its currency
-(`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`), so a conflicting explicit `currency` is a
+(`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), so a conflicting explicit `currency` is a
 `400` too. `source=cardkingdom` reads the cached [buylist feed](/commands/sell/) — strictly
 cache-backed like everything else here, so with no feed downloaded it returns `503` with the refresh
 advice rather than falling back to Scryfall — and the response then carries `"source":

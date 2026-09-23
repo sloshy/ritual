@@ -4,6 +4,7 @@ import {
   mockPublicSiteDeckForPriceSources,
 } from '../helpers/mock-public-site'
 import { gotoList } from '../helpers/list-ui'
+import type { SiteIndex } from '../../../src/list/site-data'
 
 /**
  * The price-source selector on the public site: with both USD stores enabled
@@ -83,6 +84,36 @@ test.describe('price-source selector', () => {
     await gotoSellBinder(page)
     await expect(page.locator('.toolbar')).toBeVisible()
     await expect(page.locator(SOURCE_SELECT)).toHaveCount(0)
+  })
+
+  test('the currency selector offers only store-backed currencies, and hides with one', async ({
+    page,
+  }) => {
+    const currencySelect = page.locator('.currency-select')
+    const optionValues = () =>
+      currencySelect
+        .locator('option')
+        .evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))
+    const offer = async (priceSources: SiteIndex['priceSources']): Promise<void> => {
+      await mockPublicSiteCollectionForPriceSources(page, {
+        priceSources,
+        availableCurrencies: ['usd', 'eur', 'tix'],
+      })
+      await gotoSellBinder(page)
+      await page.reload()
+    }
+
+    // Tix is offered with Cardhoarder and dropped without it.
+    await offer(['tcgplayer', 'cardhoarder'])
+    await expect.poll(optionValues).toEqual(['usd', 'tix'])
+    await offer(['tcgplayer', 'cardmarket'])
+    await expect.poll(optionValues).toEqual(['usd', 'eur'])
+
+    // USD alone: nothing to choose, so no selector, while prices still render.
+    await offer(['tcgplayer'])
+    await switchToListView(page)
+    await expect(row(page, 'Bought Card').locator('.list-price')).toHaveText('$10.00')
+    await expect(currencySelect).toHaveCount(0)
   })
 
   test('an empty priceSources hides every price surface', async ({ page }) => {

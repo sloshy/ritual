@@ -10,8 +10,8 @@
  * `/api/config`.
  *
  * Only USD has a real choice (TCGplayer vs Card Kingdom retail); EUR is always
- * Cardmarket and tix is always Scryfall, so the store models exactly the one
- * axis that exists: {@link usdPriceSource}.
+ * Cardmarket and tix is always Cardhoarder (both read off Scryfall), so the
+ * store models exactly the one axis that exists: {@link usdPriceSource}.
  */
 
 import { batch, createSignal, type Accessor } from 'solid-js'
@@ -40,6 +40,7 @@ export const PRICE_SOURCE_LABELS = {
   tcgplayer: 'site.priceSource.tcgplayer',
   cardmarket: 'site.priceSource.cardmarket',
   cardkingdom: 'site.priceSource.cardkingdom',
+  cardhoarder: 'site.priceSource.cardhoarder',
 } as const satisfies Record<PriceSource, MessageKey>
 
 const [enabled, setEnabled] = createSignal<readonly PriceSource[]>([...DEFAULT_PRICE_SOURCES])
@@ -129,10 +130,9 @@ export function usdSourceChoices(): UsdPriceSource[] {
 /**
  * Whether a currency has anywhere to read prices from under the enabled
  * sources: USD needs TCGplayer or Card Kingdom, EUR needs Cardmarket, and tix
- * (storeless by design) needs only prices to be on at all.
+ * needs Cardhoarder.
  */
 export function currencyHasSource(currency: PriceCurrency): boolean {
-  if (currency === 'tix') return pricesEnabled()
   return sourcesForCurrency(currency, enabled()).length > 0
 }
 

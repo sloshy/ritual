@@ -1372,7 +1372,7 @@ export const adminMeta = {
   },
   'admin.settings.priceSourcesHint': {
     description:
-      'Hint under the price-stores checkboxes explaining the USD/EUR store split, that unchecking all hides prices entirely, and the Card Kingdom feed download cost. Store and mode names (TCGplayer, Card Kingdom, Cardmarket, sell mode) refer to the labeled controls.',
+      'Hint under the price-stores checkboxes explaining the USD/EUR/tix store split, that only currencies with an enabled store are offered, that unchecking all hides prices entirely, and the Card Kingdom feed download cost. Store and mode names (TCGplayer, Card Kingdom, Cardmarket, Cardhoarder, sell mode) refer to the labeled controls.',
   },
   'admin.settings.defaultCategories': {
     description:
@@ -1383,7 +1383,8 @@ export const adminMeta = {
       'Hint under the Default Categories field explaining what the vocabulary is used for and that commas separate names.',
   },
   'admin.settings.currencyTix': {
-    description: 'Currency option: Magic Online event tickets, the currency of MTGO.',
+    description:
+      'Currency option: Magic Online event tickets, the currency of MTGO, priced by the Cardhoarder store (a brand name — usually left untranslated).',
   },
   'admin.settings.defaultLanguage': {
     description:

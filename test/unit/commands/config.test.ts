@@ -494,7 +494,7 @@ describe('applyConfigSet — priceSources', () => {
     const result = applyConfigSet(base, 'priceSources', ['ebay'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('tcgplayer, cardmarket, cardkingdom')
+      expect(result.error).toContain('tcgplayer, cardmarket, cardkingdom, cardhoarder')
     }
   })
 

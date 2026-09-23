@@ -461,7 +461,8 @@ ritual config set <prop> <value>  # set a config value (dot notation for nested 
 ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
 ritual config set priceSources tcgplayer cardkingdom  # stores the sites offer prices from
                                   #   (tcgplayer = Scryfall USD, cardmarket = Scryfall EUR,
-                                  #   cardkingdom = CK NM retail). Default tcgplayer; remove every
+                                  #   cardkingdom = CK NM retail, cardhoarder = MTGO tix); sites
+                                  #   offer only these stores' currencies. Default tcgplayer; remove every
                                   #   entry (--remove) to hide all site prices. cardkingdom makes
                                   #   builds/servers download the ~70 MB CK feed like sell mode
 ritual config set defaultCategories Ramp Draw Removal  # global category vocabulary: what new

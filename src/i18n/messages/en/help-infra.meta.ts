@@ -114,7 +114,7 @@ export const helpInfraMeta = {
     description: '`build-site --wanted-lists`. site.includeWantedLists is a config key.',
   },
   'help.buildSite.currencies': {
-    description: '`build-site --currencies`. usd/eur/tix are literal currency codes.',
+    description: '`build-site --currencies`. usd/eur/tix and priceSources are literal tokens.',
   },
   'help.buildSite.theme': {
     description: '`build-site --theme`. {themes} is the comma-separated list of built-in themes.',
@@ -211,7 +211,7 @@ export const helpInfraMeta = {
   },
   'help.price.source': {
     description:
-      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom) are literal values and must not be translated.',
+      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom, cardhoarder) are literal values and must not be translated.',
   },
   'help.price.name': { description: '`price --name`.' },
   'help.price.set': { description: '`price --set`.' },

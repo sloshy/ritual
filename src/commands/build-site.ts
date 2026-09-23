@@ -28,6 +28,7 @@ import {
   getCollectionsDir,
   getDecksDir,
   getDefaultCurrency,
+  getPriceSources,
   getRitualConfig,
   getSiteApiBaseUrl,
   getSiteSelectionConfig,
@@ -41,6 +42,7 @@ import {
   type PriceCurrencies,
   type PriceCurrency,
 } from '../pricing/price-currency'
+import { isSiteCurrenciesError, resolveSiteCurrencies } from '../pricing/price-source'
 import type {
   CollectionSummary,
   DeckSummary,
@@ -168,18 +170,24 @@ function refuse(message: string, code: ExitCodeValue): undefined {
  * so the caller can stop before anything is read or written.
  */
 async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSettings | undefined> {
-  let availableCurrencies: PriceCurrencies
+  let explicitCurrencies: PriceCurrencies | undefined
   try {
-    availableCurrencies = parseCurrenciesFlag(options.currencies)
+    explicitCurrencies = parseCurrenciesFlag(options.currencies)
   } catch (e) {
     return refuse(getErrorMessage(e), ExitCode.UsageError)
   }
-  // The site opens in the configured default currency when it's built at all,
-  // otherwise the first built currency.
-  const configuredCurrency = getDefaultCurrency()
-  const defaultCurrency = availableCurrencies.includes(configuredCurrency)
-    ? configuredCurrency
-    : availableCurrencies[0]
+  const priceSources = getPriceSources()
+  const currencies = resolveSiteCurrencies(priceSources, getDefaultCurrency(), explicitCurrencies)
+  if (isSiteCurrenciesError(currencies)) {
+    return refuse(
+      t('cli.buildSite.currenciesWithoutStore', {
+        currencies: currencies.requested.join(','),
+        sources: priceSources.join(', '),
+      }),
+      ExitCode.UsageError,
+    )
+  }
+  const { available: availableCurrencies, defaultCurrency } = currencies
 
   const customThemes = await loadCustomThemes(options.themeFile ?? [])
   if (typeof customThemes === 'string') return refuse(customThemes, ExitCode.RuntimeError)

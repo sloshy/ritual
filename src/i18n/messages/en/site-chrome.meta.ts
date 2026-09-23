@@ -211,6 +211,11 @@ export const siteChromeMeta = {
       'Store name for Cardmarket, the source of EUR prices. A brand name — usually left untranslated.',
     maxLen: CHIP_MAX_LEN,
   },
+  'site.priceSource.cardhoarder': {
+    description:
+      'Store name for Cardhoarder, the source of MTGO tix prices. A brand name — usually left untranslated.',
+    maxLen: CHIP_MAX_LEN,
+  },
   'site.toolbar.sortAscending': {
     description:
       "Tooltip on a sort layer's direction toggle, stating the direction currently in force (A→Z, cheapest first, and so on).",

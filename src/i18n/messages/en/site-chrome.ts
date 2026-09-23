@@ -72,6 +72,7 @@ export const siteChromeMessages = {
   'site.priceSource.tcgplayer': 'TCGplayer',
   'site.priceSource.cardkingdom': 'Card Kingdom',
   'site.priceSource.cardmarket': 'Cardmarket',
+  'site.priceSource.cardhoarder': 'Cardhoarder',
   'site.toolbar.sortAscending': 'Sorted ascending',
   'site.toolbar.sortDescending': 'Sorted descending',
   'site.toolbar.sortReverse': 'Reverse this sort',
