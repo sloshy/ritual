@@ -3,7 +3,7 @@ title: 'Public Site'
 description: What the generated website is, how to build and serve it, and where each of its features is documented.
 ---
 
-The public site is a website of your decks, collections, and wanted lists. [`ritual build-site`](/commands/build-site/) generates it as static files, so you can host it anywhere that serves plain files. Visitors can browse and filter your lists, see prices, plan trades, and even edit a list in the browser and hand you the changes as a file.
+The public site is a website of your decks, collections, and wanted lists. [`ritual build-site`](/commands/build-site/) generates it as static files, so you can host it anywhere that serves plain files. Visitors can browse and filter your lists, see prices, plan trades, and edit a list in the browser and hand you the changes as a file.
 
 ## Building and Serving
 

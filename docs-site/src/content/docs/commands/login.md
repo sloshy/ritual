@@ -52,9 +52,9 @@ Passing only one of the two flags is a usage error (exit code `2`), as is an emp
 
 ## `login status`
 
-Reports whether an Archidekt login is stored, for which user, and whether the next sync will authenticate with it, which is the question a script is really asking. It never touches the network. The validity comes from the stored tokens' own `exp` claims.
+Reports whether an Archidekt login is stored, for which user, and whether the next sync can authenticate with it. It never touches the network; validity comes from the stored tokens' own `exp` claims.
 
-An expired **access** token is not a problem on its own; it is refreshed automatically on the next request. Only when the **refresh** token has expired too does the session need a fresh `login archidekt`, which is what `loginRequired` reports.
+An expired **access** token is not a problem on its own; it is refreshed automatically on the next request. Only when the **refresh** token has also expired does the session need a fresh `login archidekt`. That is what `loginRequired` reports.
 
 ```bash
 ritual login status
@@ -85,9 +85,9 @@ ritual login status --output json
 }
 ```
 
-This is the same payload the admin API serves at `GET /api/login/archidekt` and the same snapshot the MCP `get_sync_status` tool carries as its `archidekt` section, so every surface answers the question identically.
+The admin API serves the same payload at `GET /api/login/archidekt`, and the MCP `get_sync_status` tool carries it as its `archidekt` section.
 
-The status line is the command's entire payload, so `status` registers no `--quiet` ([shared convention](/cli-conventions/#scripting)). To branch purely on the exit code, redirect stdout:
+The status line is the command's entire payload, so `status` has no `--quiet` ([shared convention](/cli-conventions/#scripting)). To branch purely on the exit code, redirect stdout:
 
 ```bash
 ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
@@ -103,7 +103,7 @@ ritual login status > /dev/null && echo "ready to sync" || echo "sign in first"
 
 ## `login logout`
 
-Deletes the stored Archidekt token file. It reports the username that was logged out, or that there was nothing to clear. Both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation line while still emitting the structured payload under `--output json`/`ndjson`.
+Deletes the stored Archidekt token file. It reports the username that was logged out, or that there was nothing to clear. Both cases exit `0`. It takes the same `--output` flag as `status`, plus `--quiet`, which drops the text confirmation while still emitting the structured payload under `--output json`/`ndjson`.
 
 ```bash
 ritual login logout
@@ -125,10 +125,10 @@ With nothing stored the payload is `{ "loggedOut": false }`.
 
 :::note[Moxfield Login]
 
-Moxfield login is currently not supported due to an explicit lack of support from Moxfield. You can still import decks from Moxfield using the `import` command, but you cannot upload data to your Moxfield account or access private decks.
+Moxfield login is not supported, because Moxfield offers no supported way to sign in. You can still import decks from Moxfield with the `import` command, but you cannot upload to your Moxfield account or access private decks.
 
 :::
 
 ## Token Storage
 
-Authentication tokens are stored locally in the `.logins/` directory and are used automatically for subsequent requests.
+Authentication tokens are stored locally in the `.logins/` directory and used automatically for later requests.

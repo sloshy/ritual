@@ -5,7 +5,7 @@ description: 'An all-in-one toolkit for Magic: The Gathering decks, collections,
 
 import { Tabs, TabItem } from '@astrojs/starlight/components'
 
-Ritual is a command-line toolkit for Magic: The Gathering. It keeps your decks, collections, and wanted lists as plain markdown files, prices them, imports from and syncs with the sites you already use, and publishes them as a website you can host anywhere.
+Ritual is a command-line toolkit for Magic: The Gathering. It keeps your decks, collections, and wanted lists as plain markdown files. It prices them, imports from and syncs with the sites you already use, and publishes them as a website you can host anywhere.
 
 ## Installation
 
@@ -26,11 +26,11 @@ irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | i
   </TabItem>
 </Tabs>
 
-The installer puts the `ritual` binary on your `PATH` (`~/.local/bin` on macOS and Linux, `%LOCALAPPDATA%\Programs\ritual\bin` on Windows), adding the directory if it was not already there. Open a new shell and run `ritual --help` to check it worked.
+The installer copies the `ritual` binary into `~/.local/bin` on macOS and Linux (`%LOCALAPPDATA%\Programs\ritual\bin` on Windows) and adds that directory to your `PATH` if needed. Open a new shell and run `ritual --help` to check it worked.
 
 ### Prerelease Builds
 
-Ritual is pre-release, so there is no stable release yet. To install the newest build, prereleases included:
+There is no stable release yet. To install the newest build, prereleases included:
 
 <Tabs>
   <TabItem label="macOS / Linux">
@@ -83,7 +83,7 @@ ritual new deck "My Commander Deck"    # add --format modern (or standard, …) 
 ritual add-card "My Commander Deck" Sol Ring
 ```
 
-The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Commands that work on your lists read from that cache afterwards, so they are fast and work offline.
+The first command that needs card data offers to download Scryfall's card database into a local cache. Say yes. Later commands read from that cache, so they are fast and work offline.
 
 Already have a deck online? Import it from Archidekt, Moxfield, or MTGGoldfish instead:
 

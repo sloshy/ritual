@@ -4,7 +4,7 @@ title: 'dep-license'
 
 Show the license for a dependency bundled with Ritual.
 
-Without a package name, it opens an interactive list of all bundled dependencies. Primary dependencies (direct entries in `package.json`) are listed first, followed by transitive dependencies. Type to search and filter across both sections.
+Without a package name, the command opens an interactive list of every bundled dependency. Primary dependencies (direct entries in `package.json`) come first, then transitive ones. Type to search both sections.
 
 ## Usage
 
@@ -26,11 +26,13 @@ ritual dep-license [package] [options]
 | `--plain`           | Output license text directly to stdout                     | `false` |
 | `--output <format>` | Output format for `--list`: `text`, `json`, or `ndjson`    | `text`  |
 
-The listing (or a package's license text) is the command's entire output, so there is no `--quiet` ([shared convention](/cli-conventions/#scripting)).
+There is no `--quiet`: the listing or license text is the command's entire output ([shared convention](/cli-conventions/#scripting)).
 
-`--list` cannot be combined with a package name argument. It never prompts, so it also works outside a TTY. Without either a package name or `--list`, an invocation that cannot open the picker is a usage error (exit `2`). That covers a non-TTY stdout and every case where [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including `--no-input`.
+Rules:
 
-A license printed for a named package is paged the same way [`license`](/commands/license/) is: `less` only when both ends are a terminal and prompts are available, plain stdout otherwise.
+- `--list` cannot be combined with a package name. It never prompts, so it works outside a TTY.
+- With neither a package name nor `--list`, the command needs to open the picker. If it cannot (stdout is not a TTY, or [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable), including `--no-input`), that is a usage error (exit `2`).
+- A named package's license is paged like [`license`](/commands/license/): `less` when both ends are a terminal and prompts are available, plain stdout otherwise.
 
 ## Examples
 
@@ -74,7 +76,7 @@ Transitive:
 
 ## Scripted Output
 
-`--list --output json` emits one `{ name, version, license, isPrimary }` object per dependency (`ndjson` emits the same rows one object per line). The payload excludes the full license text, which is large. Run `ritual dep-license <package>` to see a package's complete license text.
+`--list --output json` emits one `{ name, version, license, isPrimary }` object per dependency (`ndjson` emits one object per line). The full license text is not included; run `ritual dep-license <package>` for it.
 
 ```bash
 ritual dep-license --list --output json

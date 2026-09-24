@@ -16,7 +16,7 @@ ritual get-primer <source>
 | ---------- | ------------------------------------------------------------- | -------- |
 | `<source>` | Local deck name (e.g. `winota-snowball-stax`) or Moxfield URL | Yes      |
 
-A local deck name is matched case- and accent-insensitively, with a unique-substring fallback. An ambiguous name is rejected. See [List Names](/list-resolution/).
+Local deck names resolve as described in [List Names](/list-resolution/). An ambiguous name is rejected.
 
 ## Options
 
@@ -26,15 +26,15 @@ A local deck name is matched case- and accent-insensitively, with a unique-subst
 
 ## Description
 
-Given a **local deck name**, `get-primer` reads the deck's `.primer.md` sidecar from the `decks/` directory (for example `decks/winota-snowball-stax.primer.md`) and prints it to stdout.
+For a **local deck name**, the command reads the deck's `.primer.md` file from `decks/` (for example `decks/winota-snowball-stax.primer.md`) and prints it to stdout.
 
-Given a **Moxfield URL**, `get-primer` fetches the primer from the Moxfield API, converts it from Moxfield's custom format into markdown, and prints the result. This requires a valid `MOXFIELD_USER_AGENT` environment variable or the `--moxfield-user-agent` option.
+For a **Moxfield URL**, it fetches the primer from the Moxfield API, converts it to markdown, and prints the result. This needs the `MOXFIELD_USER_AGENT` environment variable or the `--moxfield-user-agent` option.
 
 The conversion handles these Moxfield features:
 
-- `===panel: Heading Text` / `===endpanel` become markdown headings (H2, H3, … based on nesting depth).
-- `===accordion` / `===endaccordion` wrapper lines are stripped. Collapsible sections are not currently implemented.
-- `[[Card Name]]` and `[[youtube:videoId]]` tokens are preserved as-is, for the built site to render.
+- `===panel: Heading Text` / `===endpanel` become markdown headings (H2, H3, … by nesting depth).
+- `===accordion` / `===endaccordion` wrapper lines are stripped. Collapsible sections are not implemented.
+- `[[Card Name]]` and `[[youtube:videoId]]` tokens are kept as-is for the built site to render.
 
 ## Examples
 
@@ -66,12 +66,12 @@ ritual get-primer winota-snowball-stax > primer.md
 | `2`  | Usage error (an ambiguous deck name, or a Moxfield URL with no user agent configured)                                                       |
 | `3`  | Not found — no deck matched the name, the local deck has no primer (its `.primer.md` sidecar is absent), or the Moxfield deck has no primer |
 
-A deck with no primer is a **missing resource**, not a failure. It exits `3`, so a script can tell "this deck has no primer" from "fetching the primer broke".
+A deck with no primer is a missing resource, not a failure, so it exits `3`. A script can tell "no primer" from "fetching broke".
 
 ## Site Integration
 
-When a deck has a primer sidecar (`<deck>.primer.md`, written automatically by the `import` command for Moxfield decks), the built site renders it with:
+When a deck has a primer file (`<deck>.primer.md`, written automatically by `import` for Moxfield decks), the built site renders it with:
 
 - Formatted headings and a table of contents sidebar
-- `[[Card Name]]` tokens rendered as clickable links that open the card detail modal
-- `[[youtube:videoId]]` tokens rendered as embedded YouTube videos
+- `[[Card Name]]` tokens as clickable links that open the card detail modal
+- `[[youtube:videoId]]` tokens as embedded YouTube videos

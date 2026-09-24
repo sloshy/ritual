@@ -29,13 +29,15 @@ ritual import-account [username] [options]
 | `--output <format>`   | Output format: `text` (default), `json`, or `ndjson`                                                  |
 | `--quiet`             | Suppress progress lines; never the structured payload, errors, or essential warnings                  |
 
-The account's deck list is fetched **in full**. The Archidekt endpoint paginates, and every page is followed (through the same paced, rate-limit-aware client the sync commands use), so `Found N decks.` and `--all` cover the whole account rather than its first page.
+The account's deck list is fetched **in full**. Archidekt paginates it, and every page is followed through the same rate-limited client the sync commands use, so `Found N decks.` and `--all` cover the whole account.
 
-Whether the imported decks keep the exact printings Archidekt states is the same choice [`import`](/commands/import/#printings-from-a-url-import) makes, asked **once for the whole run**. It is asked before anything is fetched, like the `--all` gate, so an unanswerable run fails without wasted requests (default yes). `--sync-printings` / `--no-sync-printings` answer it up front. Under `--no-input` with neither flag the printings are kept, with a line saying so.
+Whether imported decks keep the exact printings Archidekt states is the same choice [`import`](/commands/import/#printings-from-a-url-import) makes. It is asked **once for the whole run**, before anything is fetched (default yes), so an unanswerable run fails without wasted requests. `--sync-printings` / `--no-sync-printings` answer it up front. Under `--no-input` with neither flag, the printings are kept and a line says so.
 
 ## Scripting Without Prompts
 
-The global `--no-input` flag (or `RITUAL_NO_INPUT`) disables all prompts. Deck selection is a prompt, so a headless run must pass `--all` explicitly. Omitting it whenever [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (including a plain piped run) is a usage error (exit code `2`) before anything is fetched. A per-deck name conflict in such a run reports the same `--overwrite`/`--yes` guidance [import](/commands/import/) gives, and the run exits `2`. `-y, --yes` only answers the overwrite confirmation on conflicts. For that purpose it is equivalent to `--overwrite`, matching [import](/commands/import/), and it does not imply `--all`.
+The global `--no-input` flag (or `RITUAL_NO_INPUT`) disables all prompts. Deck selection is a prompt, so a headless run must pass `--all`. Omitting it whenever [prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable) (including a plain piped run) is a usage error (exit code `2`) before anything is fetched.
+
+A per-deck name conflict in such a run reports the same `--overwrite`/`--yes` guidance [import](/commands/import/) gives, and the run exits `2`. `-y, --yes` only answers the overwrite confirmation on conflicts; for that purpose it is equivalent to `--overwrite`. It does not imply `--all`.
 
 ## JSON Output
 
@@ -72,7 +74,7 @@ Each deck's `status` is `imported`, `planned` (a `--dry-run` preview), `failed`,
 
 ## Empty Results
 
-Archidekt answers an unknown `ownerUsername` with an empty result set, exactly what a real account with no public decks returns, so the two cannot be told apart. A run that finds no decks says so:
+Archidekt answers an unknown username with an empty result set, the same as a real account with no public decks, so the two cannot be told apart. A run that finds no decks says so:
 
 ```
 No public decks found for 'johndoe' — check the spelling; Archidekt does not distinguish an

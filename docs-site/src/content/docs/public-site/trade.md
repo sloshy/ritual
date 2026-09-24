@@ -3,50 +3,48 @@ title: 'Trade Planner'
 description: Plan a trade from the cards on the site, with printing pickers, live price updates, and shareable links.
 ---
 
-The **Trade Planner** page, reached from the "Trade" link in the site navigation at `#/trade`, lays out a trade in two columns: the cards you are offering on the left, the cards the other party is offering on the right, with a price total under each. It is a fully client-side, ephemeral tool. No data is persisted between page refreshes, though a trade can be shared by URL.
+The **Trade Planner** (the **Trade** link in the navbar, at `#/trade`) lays out a trade in two columns: the cards you offer on the left, the cards the other party offers on the right, with a price total under each. It runs entirely in the browser. Nothing persists across page refreshes, but a trade can be shared by URL.
 
 ## Left Column — My Cards
 
-The left column is for cards you are offering. It searches cards from the collections included in this site. An "Include Decks in Search" toggle (off by default) extends the search to cards from your decks as well.
+The left column holds cards you are offering. It searches the collections on the site. An **Include Decks in Search** toggle (off by default) adds cards from your decks.
 
-- Type a card name in the search box to get autocomplete suggestions showing card name and source list.
-- Each result is deduplicated per source. If the same card appears in multiple collections, each collection shows up as a separate autocomplete result.
-- Cards show: thumbnail image, name, set code and collector number (with the language badged beside it for a non-English copy, `2XM:270 · JA`), finish, condition, and price.
-- If a deck card has no specific printing pinned, selecting it opens the printing picker so you can choose one. The deck source is preserved on the resulting trade row.
-- Sort by card name or price (toggle ascending/descending independently).
-- A row whose card carries no price by rule (a [proxy](/public-site/prices/#cards-priced-at-zero), or a card with [custom art](/custom-art/)) shows **PROXY** / **CUSTOM** where its price would be and counts as $0 in the column total and the balance between the columns.
-- The price total is shown at the bottom of the column.
+- Type a card name to get autocomplete suggestions showing the card name and source list.
+- Results are deduplicated per source. A card in several collections appears once per collection.
+- Each card shows a thumbnail, name, set code and collector number (with a language badge for a non-English copy, `2XM:270 · JA`), finish, condition, and price.
+- Selecting a deck card with no pinned printing opens the printing picker. The deck source is kept on the resulting row.
+- Sort by card name or price, each with its own ascending/descending toggle.
+- A card with no price by rule (a [proxy](/public-site/prices/#cards-priced-at-zero), or a card with [custom art](/custom-art/)) shows **PROXY** / **CUSTOM** in place of its price and counts as $0 in the column total and the balance.
+- The price total is at the bottom of the column.
 
-**Quantity caps:** each trade row's quantity stepper caps at the maximum number of that exact variant available in its source. For collections this is the count of identical note-less entries (same name, set, collector number, finish, condition). For decks it is the sum across mainboard/sideboard/etc. for that printing in that deck. When only one copy exists the stepper is hidden and a fixed quantity of 1 is displayed.
+**Quantity caps:** each row's quantity stepper caps at the number of that exact variant available in its source. For a collection, that is the count of identical note-less entries (same name, set, collector number, finish, condition). For a deck, it is the sum of that printing across mainboard, sideboard, and other sections. When only one copy exists, the stepper is hidden and a fixed quantity of 1 is shown.
 
-**Editing picker-sourced rows:** trade rows added via the printing picker (everything on the right, deck cards without a pinned printing on the left) get a small yellow pencil button to the left of the quantity controls. Clicking it re-opens the printing picker for that card. Choosing a printing replaces the row in place while preserving its quantity.
+**Editing picker-sourced rows:** rows added through the printing picker (everything on the right, and deck cards without a pinned printing on the left) have a small yellow pencil button left of the quantity controls. It re-opens the picker for that card, and choosing a printing replaces the row in place, keeping its quantity.
 
 ## Right Column — Their Cards
 
-The right column is for cards the other party is offering. What it searches depends on whether the site has a [live backend](/public-site/hosted/).
+The right column holds cards the other party is offering. What it searches depends on whether the site has a [live backend](/public-site/hosted/).
 
-**Static site, wanted list mode (default):** search across all wanted lists on this site instance. Results show card name and source wanted list name. Cards no wanted list holds are only reachable through the "Search Scryfall instead" toggle.
+- **Static site, wanted list mode (default):** searches every wanted list on the site. Results show the card name and source wanted list. Cards no wanted list holds are reachable only through the **Search Scryfall instead** toggle.
+- **Static site, Scryfall mode:** with the toggle on, autocomplete calls the Scryfall API from the browser and shows only Scryfall's results.
+- **Hosted site:** with `serve --api` behind the site, the server's card cache covers every card, so the toggle is replaced by a note. Each query searches your wanted lists **and** the cache at once. Wanted-list matches come first (with source, printing, and price), followed by cache matches labelled "Card cache". No request goes to Scryfall.
 
-**Static site, Scryfall mode:** when the toggle is on, autocomplete calls the Scryfall API directly from the browser, and only Scryfall's results are shown.
+**Every right-column selection opens the printing picker.** A wanted list records the printing you'd _like_, not the one on offer, so picking a wanted card never assumes its printing. The printings your wanted lists ask for (across every list, for that name) float to the top badged **Wanted**, and you choose what's actually on the table. The row keeps its wanted-list source and quantity cap whichever printing you take.
 
-**Hosted site:** with `serve --api` behind the site, the server's card cache already covers every card, so the toggle is replaced by a note and each query searches your wanted lists **and** the cache at once. Wanted-list matches lead (with their source, printing and price), followed by cache matches labelled "Card cache". No request goes to Scryfall.
+The picker shows all printings, 8 per page, with a set-code / collector-number filter using the CLI's [collector mode](/commands/edit/#collector-number-mode) grammar: `mkm` matches set codes as a substring, a bare `12` also matches collector numbers as a prefix, and `ds 12`, `12 ds`, or `mkm:123` requires both halves. Term order never matters. Typing anywhere in the dialog feeds the filter box without focusing it (tap the box to type on a touch device). **Backspace** erases, and **Esc** clears the query before a second **Esc** closes the picker. Hovering an entry shows the full card art. Choose a printing and finish, then click **Add to Trade**.
 
-**Every right-column selection opens the printing picker.** A wanted list records the printing you'd _like_, not the one being offered, so picking a wanted card never assumes its printing. The picker opens with the printings your wanted lists ask for (across every list, for that card name) floated to the top and badged **Wanted**, and you choose what's actually on the table. The row keeps its wanted-list source and quantity cap whichever printing you take.
+Non-English printings carry the same language badge as trade rows (`2XM:270 · JA`). Confirming a printing that exists **only** in a non-English language pauses on a notice, `This printing is only available in Japanese (ja) — it will be recorded as [ja].`, with **Continue** to accept the language and **Back** to return to the list. Shared trade URLs preserve each row's language.
 
-The picker shows all available printings, paginated 8 at a time, with a set-code / collector-number filter using the same query grammar as the CLI's [collector mode](/commands/edit/#collector-number-mode): `mkm` matches set codes as a substring, a bare `12` also matches collector numbers as a prefix, and `ds 12`, `12 ds` or `mkm:123` requires both halves. Terms are searched independently, so their order never matters. Typing anywhere in the dialog feeds the filter box without focusing it (tap the box to type on a touch device). **Backspace** erases and **Esc** clears the query before a second **Esc** closes the picker. Hovering an entry shows the full card art preview. Choose a printing and finish, then click "Add to Trade" to add the card.
-
-Non-English printings carry the same language badge as trade rows (`2XM:270 · JA`). Confirming a printing that exists **only** in a non-English language pauses on a notice, `This printing is only available in Japanese (ja) — it will be recorded as [ja].`, with a **Continue** button that accepts the language and a **Back** button that returns to the list. Shared trade URLs preserve each row's language, so the other party sees exactly the copies you encoded.
-
-Rows added from a bare card name belong to no list of yours, so they're tagged with the backend that answered the lookup (**Cache** on a hosted site, **Scryfall** on a static one) and are encoded in the trade URL by Scryfall ID.
+Rows added from a bare card name belong to no list of yours. They are tagged with the backend that answered the lookup (**Cache** on a hosted site, **Scryfall** on a static one) and encoded in the trade URL by Scryfall ID.
 
 ## Update Prices
 
-The toolbar's **Update prices** button refetches current prices for the cards currently loaded on the trade page (only those, not your full collection), and updates each row's price and finish in place. A toast confirms how many cards were updated. On a static site it batches requests through Scryfall's `/cards/collection` endpoint (75 IDs per request). On a site backed by a [live API](/public-site/hosted/) it goes through the backend's batch price endpoint instead, which updates its shared card cache server-side.
+The toolbar's **Update prices** button refetches prices for the cards on the trade page (only those) and updates each row's price and finish in place. A toast reports how many cards were updated. On a static site it batches requests through Scryfall's `/cards/collection` endpoint, 75 IDs per request. On a site with a [live API](/public-site/hosted/) it uses the backend's batch price endpoint, which also updates the server's shared card cache.
 
 ## Card Hover Previews
 
-Hovering over a card thumbnail (in the trade list, autocomplete suggestions, or printing picker) shows an enlarged preview of the card art that follows the mouse cursor.
+Hovering a card thumbnail in the trade list, autocomplete suggestions, or printing picker shows an enlarged preview of the card art that follows the cursor.
 
 ## Mobile Layout
 
-On narrow screens (≤768px), the two-column layout collapses to a single-pane view. Tab buttons at the top switch between "My Cards" and "Their Cards". Each pane fills the full screen width, with its own search, sort controls, card list, and price total.
+On narrow screens (≤768px), the two columns collapse into a single pane. Tab buttons at the top switch between **My Cards** and **Their Cards**. Each pane fills the screen width with its own search, sort controls, card list, and price total.

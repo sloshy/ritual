@@ -2,7 +2,7 @@
 title: 'lists'
 ---
 
-List every deck, collection, and wanted list in the workspace. This is the quickest way to see what exists, and the way a script learns the names it can pass to other commands.
+List every deck, collection, and wanted list in the workspace. It is the quickest way to see what exists, and how a script learns the names it can pass to other commands.
 
 ## Usage
 
@@ -37,7 +37,7 @@ collection  main   Main Binder
 wanted      needs  Needs
 ```
 
-Each text row is three aligned columns: the list type, the slug (the file basename, which is what other commands resolve), and the display name (the list's `# Title` heading).
+Each text row has three aligned columns: the list type, the slug (the file basename, which other commands resolve), and the display name (the list's `# Title` heading).
 
 Only decks, as JSON:
 

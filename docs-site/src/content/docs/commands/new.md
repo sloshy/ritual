@@ -19,17 +19,17 @@ ritual new <type> <name...> [options]
 
 ## Options
 
-| Option                  | Description                                                                                                                              | Default     |
-| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `-f, --format <format>` | Deck format (decks only) — see [Formats](#formats) below; `--help` points here, and passing an invalid value lists every accepted format | `commander` |
-| `--output <format>`     | Output format: `text`, `json`, or `ndjson`                                                                                               | `text`      |
-| `--quiet`               | Suppress non-essential output                                                                                                            | `false`     |
+| Option                  | Description                                                                                     | Default     |
+| ----------------------- | ----------------------------------------------------------------------------------------------- | ----------- |
+| `-f, --format <format>` | Deck format (decks only); see [Formats](#formats). An invalid value lists every accepted format | `commander` |
+| `--output <format>`     | Output format: `text`, `json`, or `ndjson`                                                      | `text`      |
+| `--quiet`               | Suppress non-essential output                                                                   | `false`     |
 
-Passing `--format` for a collection or wanted list is a usage error. Omitting `--format` on a deck creates a **Commander** deck.
+Passing `--format` for a collection or wanted list is a usage error. Omitting it on a deck creates a **Commander** deck.
 
 ## Formats
 
-`--format` accepts any of the formats below. The value is normalized before it is written, so `EDH`, `Commander / EDH`, and `commander` all store `format: commander`. An unrecognized format is an error, and the deck file is not created.
+`--format` accepts any of the formats below. The value is normalized before it is written, so `EDH`, `Commander / EDH`, and `commander` all store `format: commander`. An unrecognized format is an error, and no deck file is created.
 
 `commander`, `oathbreaker`, `standard`, `modern`, `pioneer`, `legacy`, `vintage`, `pauper`, `historic`, `alchemy`, `explorer`, `timeless`, `penny-dreadful`, `brawl`, `historic-brawl`, `duel-commander`, `pauper-commander`, `pre-dh`, `pre-modern`, `limited`
 
@@ -64,23 +64,23 @@ The JSON payload is `{ type, slug, name, filePath }`.
 
 ## Output
 
-Creates a new markdown file in the type's directory (`decks/`, `collections/`, or `wanted/`), named as the list is named, plus its `.sha256` content-hash sidecar. Decks start with front matter and an empty `## Main` section. Collections and wanted lists start as a bare `# Name` heading.
+Creates a markdown file in the type's directory (`decks/`, `collections/`, or `wanted/`), named after the list, plus its `.sha256` content-hash file. Decks start with front matter and an empty `## Main` section. Collections and wanted lists start as a bare `# Name` heading.
 
 ## List file names
 
 A list's file is named exactly as you name the list: `ritual new deck "Winota Stax"` writes `decks/Winota Stax.md`. Case, spaces, and punctuation are preserved. The name is not lowercased or hyphenated.
 
-Only the characters that file systems reject are removed: `/ \ : * ? " < > |`, the null byte, and leading, trailing, or repeated dots (which would otherwise hide the file or escape the directory). So `Atraxa: Praetors' Voice` is stored as `decks/Atraxa Praetors' Voice.md`, while the `# Title` heading keeps the colon. A name left with nothing usable (`"???"`) is an error, and no file is written.
+Only characters file systems reject are removed: `/ \ : * ? " < > |`, the null byte, and leading, trailing, or repeated dots. So `Atraxa: Praetors' Voice` is stored as `decks/Atraxa Praetors' Voice.md`, while the `# Title` heading keeps the colon. A name with nothing usable left (`"???"`) is an error, and no file is written.
 
-Because a name is also how you address a list later, `new` refuses a name that would [resolve](/list-resolution/#names-that-would-collide-are-refused-at-creation) to a list of the same type that already exists, not just one that lands on the same file name. Creating `atraxa superfriends` beside an existing `Atraxa Superfriends.md` is refused with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding)`, rather than creating a second deck neither name could reach.
+A name is also how you address a list later, so `new` refuses a name that would [resolve](/list-resolution/#names-that-would-collide-are-refused-at-creation) to an existing list of the same type, not just one that lands on the same file name. Creating `atraxa superfriends` beside an existing `Atraxa Superfriends.md` is refused with `A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding)`.
 
-Decks, collections, and wanted lists are all named this way, by every surface that creates one: the CLI, the editors, imports, and the admin site.
+Every surface that creates a list (the CLI, the editors, imports, and the admin site) names files this way.
 
 ## Deck format
 
-A deck's format lives in its `format:` front matter. It is the same closed set of values everywhere it is used: `ritual new`, the editors, [`import`](/commands/import/#deck-format), the admin site, and the MCP `create_list` tool.
+A deck's format lives in its `format:` front matter. It is the same closed set of values everywhere: `ritual new`, the editors, [`import`](/commands/import/#deck-format), the admin site, and the MCP `create_list` tool.
 
-A deck that declares no format is treated as Commander when it has a `## Commander` section, and as Oathbreaker for a `## Oathbreaker` or `## Signature Spell` section. That inference is written into the file the next time the deck is saved, so an imported or hand-written deck stops being a guess after its first edit.
+A deck that declares no format is treated as Commander when it has a `## Commander` section, and as Oathbreaker when it has a `## Oathbreaker` or `## Signature Spell` section. That inference is written into the file the next time the deck is saved.
 
 ## Exit Codes
 

@@ -10,28 +10,26 @@ Set up the current directory for publishing a Ritual site: a README, a `.gitigno
 ritual init-site [options]
 ```
 
-| Option                                         | Description                                                                                                                                    |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-u, --upgrade`                                | Upgrade tracked workflows to the current version without prompting                                                                             |
-| `-f, --force`                                  | Re-initialize and overwrite all generated files, ignoring the existing site config                                                             |
-| `--ci <system>`                                | CI system for a fresh init: `github-actions` or `manual`                                                                                       |
-| `--deploy <mode>`                              | Deploy mode: `publish-for-me` or `local-build` (github-actions only)                                                                           |
-| `--dist-dir <dir>`                             | Directory containing your locally built site (local-build deploys only)                                                                        |
-| `--change-detection` / `--no-change-detection` | Enable or disable automatic change detection (publish-for-me only — either form is a usage error with `--ci manual` or `--deploy local-build`) |
-| `--currency <currency>`                        | Default price currency: `usd`, `eur`, or `tix`                                                                                                 |
-| `--overwrite-readme` / `--no-overwrite-readme` | Overwrite or keep an existing `README.md` without prompting                                                                                    |
-| `--skills`                                     | Install Ritual agent skills into `.claude/skills` without prompting                                                                            |
-| `--no-skills`                                  | Skip installing Ritual agent skills (no prompt)                                                                                                |
+| Option                                         | Description                                                                                                                    |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `-u, --upgrade`                                | Upgrade tracked workflows to the current version without prompting                                                             |
+| `-f, --force`                                  | Re-initialize and overwrite all generated files, ignoring the existing site config                                             |
+| `--ci <system>`                                | CI system for a fresh init: `github-actions` or `manual`                                                                       |
+| `--deploy <mode>`                              | Deploy mode: `publish-for-me` or `local-build` (github-actions only)                                                           |
+| `--dist-dir <dir>`                             | Directory containing your locally built site (local-build deploys only)                                                        |
+| `--change-detection` / `--no-change-detection` | Enable or disable automatic change detection (publish-for-me only; a usage error with `--ci manual` or `--deploy local-build`) |
+| `--currency <currency>`                        | Default price currency: `usd`, `eur`, or `tix`                                                                                 |
+| `--overwrite-readme` / `--no-overwrite-readme` | Overwrite or keep an existing `README.md` without prompting                                                                    |
+| `--skills`                                     | Install Ritual agent skills into `.claude/skills` without prompting                                                            |
+| `--no-skills`                                  | Skip installing Ritual agent skills (no prompt)                                                                                |
 
-The command prompts you to choose a CI system, then a deployment strategy, then the default price currency (`usd`, `eur`, or `tix`, defaulting to USD and stored as the root-level [`defaultCurrency`](/configuration/#default-currency) key), and generates the appropriate files.
+On a fresh init, the command asks for a CI system, a deployment strategy, and the default price currency, then generates the files. Every prompt has a matching flag, listed with each prompt below. A flag skips its prompt, and invalid values are rejected before anything is written. A flag that does not apply to the chosen CI system or deploy mode is a usage error (for example `--deploy` with `--ci manual`, or `--dist-dir` with `--deploy publish-for-me`).
 
-Every fresh-init prompt has a matching flag, listed with each prompt below. A value provided by a flag skips its prompt, and invalid values are rejected at parse time. Flags that do not apply to the chosen CI system or deploy mode are usage errors (for example `--deploy` with `--ci manual`, or `--dist-dir` with `--deploy publish-for-me`).
-
-The site settings are stored under the `site` key of [`ritual.config.json`](/configuration/). On later runs, `init-site` compares the current Ritual version to the version recorded there. If a newer version is detected, it prompts you to confirm before regenerating any tracked managed files. The fresh-init flags above only apply to a fresh init (or `--force`); passing them on an already-initialized repository is a usage error.
+The site settings are stored under the `site` key of [`ritual.config.json`](/configuration/). On later runs, `init-site` compares the current Ritual version to the version recorded there and offers an [upgrade](#upgrading) when the build is newer. The fresh-init flags apply only to a fresh init (or `--force`); passing them on an already-initialized repository is a usage error.
 
 ## Headless Runs
 
-When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal), any prompt whose flag was not provided is a usage error (exit 2) of the form `Input required: pass --ci <system> (…)`, raised before anything is written. That includes the closing agent-skills question, which needs `--skills` or `--no-skills`. A fully-flagged headless init looks like:
+When prompts are unavailable (see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)), any prompt whose flag was not provided is a usage error (exit 2) of the form `Input required: pass --ci <system> (…)`, raised before anything is written. This includes the closing agent-skills question, which needs `--skills` or `--no-skills`. A fully-flagged headless init:
 
 ```bash
 ritual init-site \
@@ -42,7 +40,7 @@ ritual init-site \
   --no-skills
 ```
 
-The same applies to overwrite decisions. An existing `README.md` needs `--overwrite-readme`, `--no-overwrite-readme`, or `--force`; an existing generated workflow needs `--force`; and a pending version upgrade needs `--upgrade`.
+Overwrite decisions work the same way. An existing `README.md` needs `--overwrite-readme`, `--no-overwrite-readme`, or `--force`; an existing generated workflow needs `--force`; and a pending version upgrade needs `--upgrade`.
 
 ## Prompts
 
@@ -56,9 +54,9 @@ Flag: `--ci <system>`
   Manual / None — No CI integration — build and deploy manually
 ```
 
-**GitHub Actions** (`--ci github-actions`) generates a workflow file in `.github/workflows/` to automate your deployments.
+**GitHub Actions** (`--ci github-actions`) generates a workflow in `.github/workflows/` that deploys for you.
 
-**Manual / None** (`--ci manual`) skips any CI file generation. You build and deploy the site yourself.
+**Manual / None** (`--ci manual`) generates no CI file. You build and deploy the site yourself.
 
 ### Deploy mode (GitHub Actions only)
 
@@ -72,41 +70,41 @@ Flag: `--deploy <mode>`
 
 **Publish for me** (`--deploy publish-for-me`) generates a GitHub Action that:
 
-1. Resolves the Ritual version (or uses the pinned `RITUAL_VERSION` variable) and restores the Ritual binary from cache if the version hasn't changed
-2. Downloads the Ritual binary only when the resolved version is not already cached
-3. Restores the Scryfall card cache from a previous run (using GitHub Actions caching)
-4. Runs `ritual build-site --refresh auto` to build your site
+1. Resolves the Ritual version (or uses the pinned `RITUAL_VERSION` variable) and restores the Ritual binary from cache if the version has not changed
+2. Downloads the Ritual binary only when the resolved version is not cached
+3. Restores the Scryfall card cache from a previous run (GitHub Actions caching)
+4. Runs `ritual build-site --refresh auto`
 5. Deploys the `dist/` directory to GitHub Pages
 
-**Deploy my local build** (`--deploy local-build`) generates a simpler action that deploys a pre-built directory you commit to the repository. Because that directory is committed, it is **not** gitignored. The generated `.gitignore` omits it and appends an explicit `!<distDir>/` un-ignore (so a `dist/` line an earlier init wrote stops covering it), and the generated README tells you to commit it. If some other pattern in your `.gitignore` still covers the directory (a wildcard the un-ignore cannot undo, such as `di*`, `dist/*` or `dist/**`), `init-site` names the offending lines so you can remove or narrow them, rather than leaving you to discover an empty deploy.
+**Deploy my local build** (`--deploy local-build`) generates a simpler action that deploys a pre-built directory you commit to the repository. Because that directory is committed, the generated `.gitignore` does not ignore it and appends an explicit `!<distDir>/` un-ignore, so a `dist/` line from an earlier init stops covering it. The generated README tells you to commit it. If another pattern in your `.gitignore` still covers the directory (a wildcard the un-ignore cannot undo, such as `di*`, `dist/*` or `dist/**`), `init-site` names the offending lines so you can remove or narrow them.
 
 ### Build directory (local build only)
 
 Flag: `--dist-dir <dir>`
 
-If you choose "Deploy my local build", you'll be asked which directory contains the built site:
+With "Deploy my local build", you are asked which directory holds the built site:
 
 ```
 ? Which directory contains your built site? (dist)
 ```
 
-The default is `dist`, which is where [`build-site`](/commands/build-site/) writes its output. Any other directory needs [`--out-dir`](/commands/build-site/), so every generated instruction renders the flag: the README, the "next steps" summary, and the preview command all read `ritual build-site --out-dir <dir>` / `ritual serve --build --out-dir <dir>`.
+The default is `dist`, where [`build-site`](/commands/build-site/) writes its output. Any other directory needs [`--out-dir`](/commands/build-site/), so the README, the "next steps" summary, and the preview command all read `ritual build-site --out-dir <dir>` / `ritual serve --build --out-dir <dir>`.
 
 ### Automatic change detection (publish for me only)
 
 Flags: `--change-detection` / `--no-change-detection`
 
-If you choose "Publish for me", you'll be asked whether to enable automatic change detection:
+With "Publish for me", you are asked whether to enable automatic change detection:
 
 ```
 ? Enable automatic change detection? (commits changelogs when list files change) (y/N)
 ```
 
-When enabled, the generated workflow runs [`detect-changes`](/commands/detect-changes/) before building the site, diffing against `github.event.before` (falling back to `HEAD~1` when that is empty or the all-zeros SHA, as on the first push to a branch). If any deck, collection, or wanted list files were modified in the push, it generates changelog entries and commits them automatically. The site build is skipped for that run, since the new commit will trigger a fresh build with the updated changelogs. If `detect-changes` itself exited nonzero, the step commits and pushes first and then fails, so a partial run never strands the changelogs it did write.
+When enabled, the workflow runs [`detect-changes`](/commands/detect-changes/) before building, diffing against `github.event.before` (or `HEAD~1` when that is empty or the all-zeros SHA, as on the first push to a branch). If any deck, collection, or wanted list files changed in the push, it generates changelog entries and commits them. The site build is skipped for that run, since the new commit triggers a fresh build with the updated changelogs. If `detect-changes` exits nonzero, the step commits and pushes what it wrote and then fails.
 
-This is useful when you edit list files directly (outside the admin UI or CLI) and want changelogs to stay up to date without manual intervention.
+This is useful when you edit list files directly, outside the admin UI or CLI, and want changelogs to stay current.
 
-Detection is **hash-aware**, so it's safe to leave enabled even if you also edit with Ritual locally. Files whose contents still match their `.sha256` sidecar (meaning Ritual itself wrote them and already recorded a changelog) are skipped, and only hand-edited files are processed. See [Hash-aware detection](/commands/detect-changes/#hash-aware-detection) for details.
+Detection is **hash-aware**, so it is safe to leave enabled even if you also edit with Ritual locally. Files whose contents still match their `.sha256` hash file (meaning Ritual wrote them and already recorded a changelog) are skipped; only hand-edited files are processed. See [Hash-aware detection](/commands/detect-changes/#hash-aware-detection).
 
 ### Default currency
 
@@ -119,7 +117,7 @@ Flag: `--currency <currency>`
     TIX - MTGO tickets
 ```
 
-Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key, the currency the [price](/commands/price/) command, editor price displays, and the public site default to. USD is the default, and the currently configured value is preselected. Change it later with `config set defaultCurrency <usd|eur|tix>`. The public site offers EUR or TIX only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardmarket` or `cardhoarder` respectively.
+Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key: the currency the [price](/commands/price/) command, the editor price displays, and the public site default to. USD is the default, and the currently configured value is preselected. Change it later with `config set defaultCurrency <usd|eur|tix>`. The public site offers EUR or TIX only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardmarket` or `cardhoarder` respectively.
 
 ### Agent skills
 
@@ -129,32 +127,34 @@ After the site files are written, `init-site` offers to install the [Ritual agen
 ? Install Ritual agent skills into .claude/skills so coding agents can work with this repository? (Y/n)
 ```
 
-If you keep your decks, collections, and wanted lists in a git repository and work in it with a coding agent (such as Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual in this repository's context. Pass `--skills` or `--no-skills` to make the choice without prompting. A headless run requires one of them, and refuses before writing any file if neither is given. With `--force`, existing skill files are overwritten; otherwise customized skill files are preserved. (During [upgrades](#upgrading), already-installed skills are refreshed automatically, with no `--force` needed.) You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh just the already-installed ones, never adding new skills, with [`ritual skills update`](/commands/skills/#update).
+If you work in this repository with a coding agent (such as Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual here. Pass `--skills` or `--no-skills` to skip the prompt; a headless run requires one of them. With `--force`, existing skill files are overwritten; otherwise customized skill files are kept. During [upgrades](#upgrading), already-installed skills are refreshed automatically without `--force`. You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh only the already-installed ones with [`ritual skills update`](/commands/skills/#update).
 
 ## Generated Files
 
 ### GitHub Actions
 
-| File                                | Description                                                                                                                                                                                                                                                                                       |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                                                                                                                   |
-| `ritual.config.json` (`site` key)   | Stores your settings and the Ritual version used — commit this file                                                                                                                                                                                                                               |
-| `README.md`                         | Basic setup instructions for your site                                                                                                                                                                                                                                                            |
-| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the [`.dist-build-*`/`.dist-old-*` build scratch directories](/commands/build-site/#scratch-directories-beside-the-output), etc. (appended if the file already exists). A local-build deploy omits its built-site directory and un-ignores it instead. |
+| File                                | Description                                                                                                                                                                                              |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                          |
+| `ritual.config.json` (`site` key)   | Your settings and the Ritual version used. Commit this file.                                                                                                                                             |
+| `README.md`                         | Basic setup instructions for your site                                                                                                                                                                   |
+| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the [`.dist-build-*`/`.dist-old-*` build scratch directories](/commands/build-site/#scratch-directories-beside-the-output), etc. Appended if the file exists. |
+
+A local-build deploy leaves its built-site directory out of `.gitignore` and un-ignores it instead.
 
 ### Manual / None
 
-| File                              | Description                                                                           |
-| --------------------------------- | ------------------------------------------------------------------------------------- |
-| `ritual.config.json` (`site` key) | Stores your settings and the Ritual version used — commit this file                   |
-| `README.md`                       | Basic setup instructions for your site                                                |
-| `.gitignore`                      | Entries for `cache/`, `dist/`, `exports/`, etc. (appended if the file already exists) |
+| File                              | Description                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------------- |
+| `ritual.config.json` (`site` key) | Your settings and the Ritual version used. Commit this file.                 |
+| `README.md`                       | Basic setup instructions for your site                                       |
+| `.gitignore`                      | Entries for `cache/`, `dist/`, `exports/`, etc. Appended if the file exists. |
 
-If a generated file already exists, you'll be prompted before overwriting (or it is overwritten without prompting under `--force`). The `README.md` overwrite decision can also be made without a prompt via `--overwrite-readme` / `--no-overwrite-readme`, which take precedence over `--force`. In a headless run, an existing file with no decision flag is a usage error.
+If a generated file already exists, you are prompted before it is overwritten; `--force` overwrites without asking. For `README.md`, `--overwrite-readme` / `--no-overwrite-readme` decide without a prompt and take precedence over `--force`. In a headless run, an existing file with no decision flag is a usage error.
 
 ## Version Tracking and Upgrade
 
-`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. It also seeds the [publish lists](/configuration/#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with the `["*"]` default, "publish everything", which you can later narrow from the admin **Settings** page or with `config set`. Examples:
+`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. It also seeds the [publish lists](/configuration/#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with `["*"]`, "publish everything", which you can narrow later from the admin **Settings** page or with `config set`. Examples:
 
 ```json
 {
@@ -196,13 +196,13 @@ Commit `ritual.config.json` so Ritual knows which version initialized the reposi
 
 ### Upgrading
 
-When you run `ritual init-site` after upgrading to a newer Ritual build, it detects the version change and prompts for confirmation before regenerating tracked managed files:
+When you run `ritual init-site` after upgrading Ritual, it detects the version change and asks before regenerating tracked files:
 
 ```
 Ritual has been upgraded (0.1.0 → 0.2.0). Regenerate tracked managed files? (Y/n)
 ```
 
-If you confirm, migrations run using your saved settings:
+If you confirm, the files are regenerated from your saved settings:
 
 ```
 Upgrading from 0.1.0 to 0.2.0...
@@ -212,23 +212,23 @@ Upgrading from 0.1.0 to 0.2.0...
 ✓ Updated 7 Ritual agent skills in .claude/skills
 ```
 
-An upgrade also **refreshes `.gitignore`**, which is how an existing scaffold picks up entries added by newer Ritual versions. It is the only way to get them short of `--force`, and it matters most for a **local-build** deploy: the `!<distDir>/` un-ignore that keeps your committed built site out of `.gitignore` is appended here, so a scaffold created before that fix stops silently ignoring the directory the deploy workflow publishes.
+An upgrade regenerates every tracked file, so workflows from older versions pick up template changes (a workflow that still runs `build-site --allow-refresh` is rewritten to `--refresh auto`). It also **refreshes `.gitignore`**, which is how an existing scaffold picks up entries added by newer versions; short of `--force`, it is the only way. This matters most for a **local-build** deploy: the `!<distDir>/` un-ignore is appended here, so a scaffold created before that fix stops ignoring the directory the workflow publishes.
 
-Upgrades also **refresh any [agent skills](/commands/skills/) already installed** in `.claude/skills` so they track the new version. Only skills that are already present are rewritten; an upgrade never introduces skills you didn't install. Pass `--no-skills` to leave them untouched, or `--skills` to (re)install the full set.
+Upgrades also **refresh any [agent skills](/commands/skills/) already installed** in `.claude/skills`. Only skills already present are rewritten; an upgrade never adds skills you did not install. Pass `--no-skills` to leave them untouched, or `--skills` to (re)install the full set.
 
-To skip the prompt and upgrade automatically (for example in a script), use `--upgrade`:
+To upgrade without the prompt (for example in a script), use `--upgrade`:
 
 ```bash
 ritual init-site --upgrade
 ```
 
-Running `init-site` when the recorded version already **is** the current one is a friendly no-op. It prints `Already initialized with the current version (x.y.z); nothing to do.` and exits `0`, so an "ensure initialized" setup script can run it unconditionally.
+In a headless run, a pending upgrade without `--upgrade` is a usage error naming the flag.
 
-In a headless run (prompts unavailable), a pending upgrade without `--upgrade` is a usage error naming the flag. Upgrades regenerate every tracked managed file from your saved settings, so workflows generated by older versions pick up template changes. For example, a workflow that still runs `build-site --allow-refresh` is rewritten to use `--refresh auto`.
+Running `init-site` when the recorded version already **is** the current one does nothing. It prints `Already initialized with the current version (x.y.z); nothing to do.` and exits `0`, so an "ensure initialized" script can run it unconditionally.
 
 ### Downgrade warning
 
-If the current Ritual build is older than the version recorded in the `site` config, the command warns you and exits with a failure status without making changes:
+If the current Ritual build is older than the version recorded in the `site` config, the command warns and exits with a failure status without making changes:
 
 ```
 Warning: The current Ritual build (0.1.0) is older than the version last used
@@ -239,7 +239,7 @@ from ritual.config.json if you want to use this older version.
 
 ### `--force`
 
-Use `--force` (or `-f`) to bypass all version checks and re-run the full init, overwriting all generated files, including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
+`--force` (or `-f`) bypasses all version checks and re-runs the full init, overwriting all generated files including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
 
 ```bash
 ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --currency usd --no-skills
@@ -255,14 +255,14 @@ ritual init-site --force --ci github-actions --deploy publish-for-me --no-change
 
 ## Customizing the Ritual Version (GitHub Actions)
 
-When using the "Publish for me" workflow, the action downloads the latest Ritual release by default. To pin a specific version:
+The "Publish for me" workflow downloads the latest Ritual release by default. To pin a version:
 
 1. Go to your repository on GitHub
 2. Navigate to **Settings → Secrets and variables → Actions → Variables**
 3. Create a repository variable named `RITUAL_VERSION`
 4. Set it to the desired release tag (e.g. `v1.0.0`)
 
-The workflow checks this variable on each run and downloads the specified version instead of the latest. The binary is cached between runs using GitHub Actions caching, keyed by version, so if the version hasn't changed since the last run, no download occurs.
+The workflow checks this variable on each run and downloads that version. The binary is cached between runs by version, so an unchanged version means no download.
 
 ## Examples
 

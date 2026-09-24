@@ -3,9 +3,9 @@ title: 'List Files'
 description: The markdown format Ritual reads and writes for decks, collections, and wanted lists.
 ---
 
-Every deck, collection, and wanted list is one markdown file: `decks/<name>.md`, `collections/<name>.md`, or `wanted/<name>.md`. Ritual reads and writes these files, and you can edit them by hand too. This page describes what goes in them.
+Every deck, collection, and wanted list is one markdown file: `decks/<name>.md`, `collections/<name>.md`, or `wanted/<name>.md`. Ritual reads and writes these files, and you can edit them by hand. This page describes what goes in them.
 
-The rule of thumb is **lenient in, canonical out**. The reader accepts several spellings of a card line, and every write re-emits one canonical form, whether it comes from an editor save, a sync, a card command, or [`cleanup`](/commands/cleanup/). Files converge on that form over time.
+The rule is **lenient in, canonical out**. The reader accepts several spellings of a card line. Every write (an editor save, a sync, a card command, or [`cleanup`](/commands/cleanup/)) emits one canonical form, so files converge on it over time.
 
 ## The three list types
 
@@ -63,23 +63,25 @@ labels: [trade]
 
 ## Front matter
 
-An optional YAML block between `---` fences at the top of the file. Each type has its own keys. Any key not listed here is preserved untouched through every save: a deck's block is re-dumped, and a flat list's block round-trips byte for byte.
+An optional YAML block between `---` fences at the top of the file. Each type has its own keys. Any key not listed here survives every save: a deck's block is re-dumped, and a collection's or wanted list's block is kept byte for byte.
 
-| Key                             | Types            | Meaning                                                                                                                                                                                                              |
-| ------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                        | deck             | The [deck format key](/commands/new/#deck-format) (`commander`, `modern`, …). A deck without one is inferred from its sections (a `## Commander` section means Commander) and the value is written on the next save. |
-| `tags`                          | deck             | A list of free-text tags describing **the list** (`aggro`, `budget`) — not its cards. Edited with [`metadata`](/commands/metadata/); shown on the published site.                                                    |
-| `labels`                        | deck, collection | The list's default [card labels](#card-labels), inherited by every line without its own `[labels]` token. A deck accepts `[proxy]` alone; a collection the whole vocabulary. Never on a wanted list.                 |
-| `description`                   | all              | A prose blurb the [built site](/commands/build-site/) prints above the cards.                                                                                                                                        |
-| `image`                         | all              | The list's [cover image](/list-images/) override — a `{card: N}`, `{file: …}` or `{url: …}` mapping.                                                                                                                 |
-| `sourceId`, `sourceUrl`         | deck             | The deck's identity on its [sync source](/commands/deck-sync/).                                                                                                                                                      |
-| `lastSynced`, `sourceUpdatedAt` | deck             | Stamped by `deck-sync`; never hand-edited.                                                                                                                                                                           |
+| Key                             | Types            | Meaning                                                                                                                                      |
+| ------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                        | deck             | The [deck format key](/commands/new/#deck-format) (`commander`, `modern`, …). Missing: inferred from the sections and written on next save.  |
+| `tags`                          | deck             | Free-text tags describing **the list** (`aggro`, `budget`), not its cards. Edited with [`metadata`](/commands/metadata/); shown on the site. |
+| `labels`                        | deck, collection | The list's default [card labels](#card-labels), inherited by every line without its own `[labels]` token. Never on a wanted list.            |
+| `description`                   | all              | A prose blurb the [built site](/commands/build-site/) prints above the cards.                                                                |
+| `image`                         | all              | The list's [cover image](/list-images/): a `{card: N}`, `{file: …}` or `{url: …}` mapping.                                                   |
+| `sourceId`, `sourceUrl`         | deck             | The deck's identity on its [sync source](/commands/deck-sync/).                                                                              |
+| `lastSynced`, `sourceUpdatedAt` | deck             | Stamped by `deck-sync`; never hand-edited.                                                                                                   |
 
-Older files may carry `name:` or `created:`. Neither is a key today: the list's name is its `# Title` heading. Both are stripped from a deck on save, and [`cleanup`](/commands/cleanup/) moves an old `name:` into the H1.
+A deck with no `format` and a `## Commander` section is inferred as Commander.
+
+Older files may carry `name:` or `created:`. Neither is a key today; the list's name is its `# Title` heading. A deck save strips both, and [`cleanup`](/commands/cleanup/) moves an old `name:` into the H1.
 
 ### Default labels and descriptions
 
-A deck or collection may declare **default labels** in its front matter, and every list type may carry a **description**, the blurb the built site prints above the cards:
+A deck or collection can declare **default labels** in its front matter. Every list type can carry a **description**:
 
 ```markdown
 ---
@@ -90,7 +92,10 @@ labels: [sale, trade]
 # Trade Binder
 ```
 
-Every entry without its own `[labels]` override inherits the default. On a collection, `labels:` takes `sale` and `trade` (together or alone), or `keep` or `proxy` (each alone). On a deck it takes `proxy` alone, the one label a deck line carries:
+Every entry without its own `[labels]` token inherits the default. The values a list can carry:
+
+- **Collection:** `sale` and `trade` (together or alone), or `keep` or `proxy` (each alone).
+- **Deck:** `proxy` alone. Every deck line without its own token then counts as a proxy, which marks a whole playtest deck at once.
 
 ```markdown
 ---
@@ -99,67 +104,77 @@ labels: [proxy]
 ---
 ```
 
-Every deck line without its own `[labels]` token then counts as a proxy, which is how you mark a whole playtest deck without touching a single card line. An empty list (or no key) means no default. A value the deck cannot carry is dropped **whole** rather than filtered down: `labels: [sale, proxy]` is a statement about a deck this format cannot make, and keeping half of it would be a different statement. Such a value is also a **parse warning**, exactly like a refused card-line token. The next whole-file save deletes the key, so the warning names it and the whole-file-rewrite gates block until you fix it.
+An empty list, or no key, means no default. On a deck, a value it cannot carry (`labels: [sale, proxy]`) is dropped **whole**, not filtered down to the allowed part. It is also a **parse warning**, like a refused card-line token: the next whole-file save would delete the key, so the warning names it and whole-file writes are blocked until you fix it. On a collection, an unreadable `labels:` value is ignored with an advisory, and the block is kept as written.
 
-Set the default with [`ritual metadata set <list> labels …`](/commands/metadata/) (the surgical, front-matter-only write), the [`edit`](/commands/edit/) session's `🏷️ Edit List Labels` menu action (deferred to the session's next Save, which, like any session save, rewrites the whole file in canonical form), the admin editor's **Labels** button, by hand-editing the file, or via the MCP `set_list_metadata` tool.
+Set the default with:
+
+- [`ritual metadata set <list> labels …`](/commands/metadata/), which writes only the front matter;
+- the [`edit`](/commands/edit/) session's `🏷️ Edit List Labels` action, applied on the session's next Save (which rewrites the whole file in canonical form);
+- the admin editor's **Labels** button;
+- the MCP `set_list_metadata` tool;
+- a hand edit.
 
 How the block survives edits:
 
-- **Card-line saves round-trip the block byte-for-byte**, unknown hand-authored keys included. A block whose YAML cannot be read is carried verbatim with an advisory rather than rejected.
-- **A metadata edit re-dumps the YAML.** [`ritual metadata`](/commands/metadata/), the `edit` session's `🏷️ Edit List Labels` action, the admin **Labels** button, and `set_list_metadata` all rewrite the block: every key and value survives, but comments and quoting style do not.
-- **The `edit` session's action refuses to run when the existing block's YAML cannot be read**, since a merge over keys it cannot see would clobber them. Fix the block by hand; every other session edit still carries it verbatim.
+- **Card-line saves keep the block byte for byte**, including unknown hand-authored keys. A block whose YAML cannot be read is carried verbatim with an advisory.
+- **A metadata edit re-dumps the YAML.** `ritual metadata`, the `edit` session's `🏷️ Edit List Labels` action, the admin **Labels** button, and `set_list_metadata` all rewrite the block. Every key and value survives; comments and quoting style do not.
+- **The `edit` session's action refuses to run when the block's YAML cannot be read**, since it cannot merge over keys it cannot see. Fix the block by hand. Every other session edit still carries it verbatim.
 
-`description:` is written the same way, with [`ritual metadata`](/commands/metadata/), the admin/HTTP route, or `set_list_metadata`, and is the one key **every** list type carries. A wanted list carries `description:` and the cover [`image:`](/list-images/) (which [`set-list-image`](/commands/set-list-image/) writes) and nothing else of its own; any other block on one is preserved. A cover written from outside while an `edit` session is open is dropped by that session's next save, since the session re-emits the block it snapshotted when it opened.
+`description:` is written the same way (`ritual metadata`, the admin/HTTP route, or `set_list_metadata`) and is the one key **every** list type carries. A wanted list's own keys are `description:` and the cover [`image:`](/list-images/), which [`set-list-image`](/commands/set-list-image/) writes; any other block on one is preserved.
+
+A cover written from outside while an `edit` session is open is dropped by that session's next save, because the session re-emits the block it read when it opened. See [the known gap](/list-images/#known-gap-the-cli-edit-session).
 
 ## Title and sections
 
-The first `# Title` line outside any fenced code block names the list, on all three types. It is the display name the sites and pickers show, and what `new` and `rename` write. Commands address a list by its **file name** (see [List Names](/list-resolution/)), which `cleanup` keeps equal to the title. A file with no H1 is named after its file name.
+The first `# Title` line outside any fenced code block names the list, on all three types. The sites and pickers display it, and `new` and `rename` write it. Commands address a list by its **file name** (see [List Names](/list-resolution/)), which `cleanup` keeps equal to the title. A file with no H1 is named after its file name.
 
-`## Section` headings are the only other structural marker. Cards before the first heading belong to an implicit `Main` section. Collections and wanted lists may use sections freely as groupings. In a deck, a section's **role** is decided by an exact match (case-insensitive, trimmed) against this table:
+`## Section` headings are the only other structural marker. Cards before the first heading belong to an implicit `Main` section. Collections and wanted lists use sections as free groupings. In a deck, a section's **role** comes from an exact match (case-insensitive, trimmed) against this table:
 
-| Role          | Section names                                          | Behavior                                                                                                                                        |
-| ------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `commander`   | `Commander`, `Commanders`, `Command Zone`              | The command zone; excluded from the main-deck count, exported as the `Commander` board.                                                         |
-| `companion`   | `Companion`                                            | Exported as the `Companion` board.                                                                                                              |
-| `oathbreaker` | `Oathbreaker`, `Signature Spell`                       | The Oathbreaker command zone.                                                                                                                   |
-| `sideboard`   | `Sideboard`                                            | Exported as the `Sideboard` board; excluded from the main-deck count.                                                                           |
-| `maybeboard`  | `Maybeboard`                                           | An extra: counts toward no total, is left out of every decklist export and the site's `.txt` download, and an **empty** one is dropped on save. |
-| `tokens`      | `Tokens`, `Token`                                      | Same as maybeboard.                                                                                                                             |
-| `main`        | `Main`, `Mainboard`, `Deck` — and **every other name** | Part of the main deck, exported to the `Deck` board.                                                                                            |
+| Role          | Section names                                          | Behavior                                                                                  |
+| ------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| `commander`   | `Commander`, `Commanders`, `Command Zone`              | The command zone; excluded from the main-deck count, exported as the `Commander` board.   |
+| `companion`   | `Companion`                                            | Exported as the `Companion` board.                                                        |
+| `oathbreaker` | `Oathbreaker`, `Signature Spell`                       | The Oathbreaker command zone.                                                             |
+| `sideboard`   | `Sideboard`                                            | Exported as the `Sideboard` board; excluded from the main-deck count.                     |
+| `maybeboard`  | `Maybeboard`                                           | Counts toward no total; left out of every decklist export and the site's `.txt` download. |
+| `tokens`      | `Tokens`, `Token`                                      | Same as maybeboard.                                                                       |
+| `main`        | `Main`, `Mainboard`, `Deck` — and **every other name** | Part of the main deck, exported to the `Deck` board.                                      |
 
 Matching is exact, never by substring or word: `## Token Generators`, `## Commander Damage Notes`, and `## Sideboard (post-board)` are ordinary main-deck sections.
 
 Empty sections are handled by role:
 
-- An empty `## Main` / `## Mainboard` / `## Deck` or `## Sideboard` heading in a deck that has cards elsewhere is kept and written back bare, without a warning.
-- An empty `## Maybeboard` / `## Tokens` heading is the one thing a whole-file rewrite deletes on purpose. It is reported as `Dropped empty section`.
-- Any other empty heading is content a rewrite would lose, so it is reported as a warning and blocks whole-file writes, like an unreadable line does.
+- An empty `## Main` / `## Mainboard` / `## Deck` or `## Sideboard` heading, in a deck that has cards elsewhere, is kept and written back bare, without a warning.
+- An empty `## Maybeboard` / `## Tokens` heading is deleted on purpose by a whole-file rewrite and reported as `Dropped empty section`.
+- Any other empty heading is content a rewrite would lose. It is reported as a warning and blocks whole-file writes, like an unreadable line does.
 
 ## Card lines
 
 ### Canonical form
 
-This is what every writer emits, in this order, with one space between tokens and with defaults omitted:
+Every writer emits this, in this order, with one space between tokens and defaults omitted:
 
 ```
 - [qty] Name (SET:CN) [finish] [cond] [lang] [labels] #tag, tag {note} &N
 ```
 
-| Token      | Spelling                                      | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ---------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `- `       | the bullet                                    | Written on every line of every type.                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `qty`      | an integer, decks only on write               | Decks always write one (`- 1 Sol Ring`). Flat lists never write one — one line per copy.                                                                                                                                                                                                                                                                                                                                                                |
-| `Name`     | the card name, trimmed                        | Free text; tokens are peeled off the right-hand end, so a parenthesized word that is not a `SET:CN` pair (`Very Cryptic Command (Untap)`) stays in the name. A bracket token at the end of the line must be one the grammar knows — `[Alpha]` is `Unrecognized token [Alpha]` and refuses the line.                                                                                                                                                     |
-| `(SET:CN)` | `(LEA:161)`                                   | Set code **uppercase in the file**, lowercase everywhere in memory; the collector number verbatim (`★`, `†`, letters allowed). Always a pair — a set without a collector number is not a printing.                                                                                                                                                                                                                                                      |
-| `[finish]` | `[foil]`, `[etched]`                          | `nonfoil` is the default and is not written.                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `[cond]`   | `[LP]`, `[MP]`, `[HP]`, `[DMG]`               | `NM` is the default and is not written.                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `[lang]`   | `[ja]`, `[zhs]`, …                            | A lowercase [Scryfall language code](#card-language); English is the default and is not written.                                                                                                                                                                                                                                                                                                                                                        |
-| `[labels]` | `[sale]`, `[sale,trade]`, `[keep]`, `[proxy]` | The line's label override. `sale` and `trade` combine; `keep` and `proxy` each stand alone.                                                                                                                                                                                                                                                                                                                                                             |
-| `#tags`    | `#Ramp`, `#Card Draw, Ramp`, `#Binder: Trade` | The card's [tags](#card-tags): one `#`, then the tags **comma-separated** — a tag may hold spaces and keeps its case (`Card Draw`), and cannot contain `#`, `,`, `&`, brackets, braces or parentheses. Written deduplicated in sorted order; a line written with one `#` per tag (`#ramp #staple`) reads too. Allowed on every list type. The `#` is file punctuation only — no UI shows it. Not a label: a `Keep` tag has nothing to do with `[keep]`. |
-| `{note}`   | `{any text}`                                  | A free-text note. Greedy to the **last** `}` on the line, so a note may contain braces; an empty `{}` is dropped.                                                                                                                                                                                                                                                                                                                                       |
-| `&N`       | `&12`                                         | The persistent card ID, always last.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Token      | Spelling                                      | Notes                                                                                                                                                         |
+| ---------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `- `       | the bullet                                    | Written on every line of every type, so the file renders as a list anywhere markdown is rendered.                                                             |
+| `qty`      | an integer, decks only on write               | Decks always write one (`- 1 Sol Ring`). Collections and wanted lists never do: one line per copy.                                                            |
+| `Name`     | the card name, trimmed                        | Free text. Tokens are peeled off the right-hand end, so a parenthesized word that is not a `SET:CN` pair (`Very Cryptic Command (Untap)`) stays in the name.  |
+| `(SET:CN)` | `(LEA:161)`                                   | Set code **uppercase in the file**, lowercase in memory. Collector number verbatim (`★`, `†`, letters allowed). Always a pair; a set alone is not a printing. |
+| `[finish]` | `[foil]`, `[etched]`                          | `nonfoil` is the default and is not written.                                                                                                                  |
+| `[cond]`   | `[LP]`, `[MP]`, `[HP]`, `[DMG]`               | `NM` is the default and is not written.                                                                                                                       |
+| `[lang]`   | `[ja]`, `[zhs]`, …                            | A lowercase [Scryfall language code](#card-language). English is the default and is not written.                                                              |
+| `[labels]` | `[sale]`, `[sale,trade]`, `[keep]`, `[proxy]` | The line's label override. `sale` and `trade` combine; `keep` and `proxy` each stand alone.                                                                   |
+| `#tags`    | `#Ramp`, `#Card Draw, Ramp`, `#Binder: Trade` | The card's [tags](#card-tags): one `#`, then the tags comma-separated. Written deduplicated and sorted.                                                       |
+| `{note}`   | `{any text}`                                  | A free-text note. Runs to the **last** `}` on the line, so a note may contain braces. An empty `{}` is dropped.                                               |
+| `&N`       | `&12`                                         | The persistent card ID, always last.                                                                                                                          |
 
-The `- ` bullet is always written, on all three types, so a list file renders as a list wherever markdown is rendered.
+A line with a `(SET:CN)` is **pinned** to that printing. A line without one is **name-only** and stands for any printing of the card.
+
+A bracket token at the end of the line must be one the grammar knows. `[Alpha]` is `Unrecognized token [Alpha]` and refuses the line.
 
 ### Which tokens each type accepts
 
@@ -180,40 +195,40 @@ The `- ` bullet is always written, on all three types, so a list file renders as
 The parser **refuses** a line, naming the offending token and its column, when it finds:
 
 - an unrecognized bracket token;
-- a token written twice (tags excepted: a line may carry more than one tag token, and a repeated tag simply folds away);
+- a token written twice (tags excepted: a line may carry several tag tokens, and a repeated tag folds away);
 - a malformed tag token: a `#` with nothing after it, or a tag holding a forbidden character such as `#R&D`;
 - a known token stuck inside the name, or written without whitespace around it;
-- a well-formed token the type does not carry. The message says so plainly, such as `[NM] is not a wanted list token — wanted lists never carry a condition.`, rather than reporting a mystery elsewhere on the line.
+- a well-formed token the type does not carry. The message says so plainly: `[NM] is not a wanted list token — wanted lists never carry a condition.`
 
 A collection line with no `(SET:CN)` is refused too (`missing-printing`), since a stored copy is a specific physical card.
 
 One exception: a deck line carrying a label a deck cannot hold (`[keep]`, `[sale,trade]`) keeps the card and drops the labels, with a warning.
 
-A refused line is reported as a **warning** naming the file and line. Because a whole-file rewrite would delete it, it blocks every whole-file write of that file until it is fixed: editor saves, syncs, `cleanup`'s rewrite, and `move` with a deck on either side. Line-preserving commands (`add-card`, `remove-card`, `set-card`, `note`) leave such lines untouched.
+A refused line is reported as a **warning** naming the file and line. A whole-file rewrite would delete it, so it blocks every whole-file write of that file until fixed: editor saves, syncs, `cleanup`'s rewrite, and `move` with a deck on either side. Line-preserving commands (`add-card`, `remove-card`, `set-card`, `note`) leave such lines untouched.
 
 ### Read tolerances
 
 The reader accepts all of the following. The next save rewrites them into the canonical form.
 
-- **Any bracket-token order.** `[NM] [foil]` and `[foil] [NM]` mean the same thing; tokens are recognized by their value, not their position.
-- **Any run of whitespace** between tokens, and around the name (which is trimmed).
-- **The bullet is optional on a deck line.** A deck line is recognized by its leading quantity (`4 Lightning Bolt`, `- 4 Lightning Bolt`). A flat-list line is recognized by its bullet, so a bulletless line in a collection or wanted list is prose, not a card.
+- **Any bracket-token order.** `[NM] [foil]` and `[foil] [NM]` mean the same thing. Tokens are recognized by value, not position.
+- **Any run of whitespace** between tokens and around the name.
+- **The bullet is optional on a deck line.** A deck line is recognized by its leading quantity (`4 Lightning Bolt`, `- 4 Lightning Bolt`). A collection or wanted-list line is recognized by its bullet, so a bulletless line there is prose, not a card.
 - **`Nx` quantities.** `4x Lightning Bolt` reads as four. A run of four or more digits with no `x` is part of the name (`1996 World Champion`).
-- **A quantity on a flat-list line.** `- 4 Lightning Bolt (LEA:161)` in a collection or wanted list reads as four copies and is expanded into four lines on the next save. This is reported as an advisory, never a warning, since nothing is lost. The first copy keeps the line's `&N`; the others are allocated fresh ids.
+- **A quantity on a collection or wanted-list line.** `- 4 Lightning Bolt (LEA:161)` reads as four copies and is expanded into four lines on the next save. This is an advisory, not a warning, since nothing is lost. The first copy keeps the line's `&N`; the others get fresh ids.
 - **The Arena / MTGO export form** `Name (SET) CN`, with a trailing `*F*` / `*E*` finish marker, and **Moxfield's bulk-edit form** `Name (SET) *F* CN`. Both become `(SET:CN)` plus `[foil]` / `[etched]`. A parenthesized set with **no collector number** stays part of the name (`Very Cryptic Command (Untap)` is a real card) and raises an advisory.
-- **Repeated tags, or one `#` per tag.** `#ramp #staple #ramp` reads as the two tags `ramp` and `staple`, and is written back as one token, `#ramp, staple`, deduplicated and sorted. Case is kept: `Ramp` and `ramp` are two tags.
+- **Repeated tags, or one `#` per tag.** `#ramp #staple #ramp` reads as the tags `ramp` and `staple` and is written back as one token, `#ramp, staple`. Case is kept: `Ramp` and `ramp` are two tags.
 - **`//` comment lines** are skipped on read and dropped on write.
 - **`_` in set codes** (`PLST_X`).
 
 ### Card IDs (`&N`)
 
-Every card line ends in a persistent numeric id. Ids are sequential from 1 within each file. An id is stable across every edit that keeps the line, and is released to a reuse pool only when the line is removed outright (decrementing a deck quantity keeps the id). New lines take the smallest free id.
+Every card line ends in a persistent numeric id. Ids are sequential from 1 within each file. An id is stable across every edit that keeps the line. It is released to a reuse pool only when the line is removed outright; decrementing a deck quantity keeps it. New lines take the smallest free id.
 
-**Never hand-author or renumber them.** Commands that write card lines backfill missing ids on startup and stamp them into the file; see [the card-ID backfill](/cli-conventions/#the-card-id-backfill). The ids are an internal handle for change tracking, the admin editors, custom art, and cover images. No UI shows them.
+**Never hand-author or renumber them.** Commands that write card lines, or that rely on every line having an id, fill in missing ids before they run and save them to the file; see [the card-ID backfill](/cli-conventions/#the-card-id-backfill). The ids are an internal handle for change tracking, the admin editors, custom art, and cover images. No UI shows them.
 
 ## Card labels
 
-A card entry can carry **labels**: a bracket token on its line (`[sale,trade]`, `[keep]`, `[proxy]`) declaring what you intend to do with that copy. Which labels a list type carries differs, because the vocabulary describes two different things:
+A card entry can carry **labels**, a bracket token on its line (`[sale,trade]`, `[keep]`, `[proxy]`) declaring what you intend to do with that copy. Each list type carries a different set:
 
 | List type   | Labels it carries                |
 | ----------- | -------------------------------- |
@@ -222,47 +237,55 @@ A card entry can carry **labels**: a bracket token on its line (`[sale,trade]`, 
 | Wanted list | none                             |
 
 - **`sale`** ("For sale") and **`trade`** ("For trade") are the only two that combine, as `[sale,trade]`.
-- **`keep`** ("To keep") and **`proxy`** ("Proxy") are each **exclusive**. Neither combines with any other label, including each other. A token like `[sale,keep]` or `[keep,proxy]` is a parse warning, as is one naming a label the list's type does not carry. The entry is kept and its labels dropped, and the warning blocks whole-file rewrites until it is fixed.
-- **`proxy`** marks a copy that is not a real card, which is why it is the one label a deck carries. Proxied decks are normal, proxied collections are a matter of bookkeeping, and a wanted list is a list of cards you do not have yet. It has [pricing consequences](#proxies-carry-no-price).
+- **`keep`** ("To keep") and **`proxy`** ("Proxy") are each **exclusive**. Neither combines with any other label. `[sale,keep]` or `[keep,proxy]` is a parse warning, as is a label the list's type does not carry. The entry is kept and its labels dropped, and the warning blocks whole-file rewrites until it is fixed.
+- **`proxy`** marks a copy that is not a real card, which is why it is the one label a deck carries. It has [pricing consequences](#proxies-carry-no-price).
 
-A list can also declare a **default** in its front matter (`labels:`), which every entry without its own token inherits. See [Default labels and descriptions](#default-labels-and-descriptions). A card's _effective_ labels are its own token when present, else the list default. An override **replaces** the default; it never merges with it.
+A list can also declare a **default** in its front matter (`labels:`); see [Default labels and descriptions](#default-labels-and-descriptions). A card's _effective_ labels are its own token when present, else the list default. An override **replaces** the default; it never merges with it.
 
-Set an override with [`set-card --label`](/commands/set-card/), the [`edit`](/commands/edit/#card-labels) session's `🏷️ Change Label` action, or, on a collection, the web editors' **Set Label…** menu item. `--label none` (or "Use list default") clears it. Every picker offers only what its list type carries, so on a deck the choice is **Proxy** or "use the list default", and asking for `sale` on a deck is a usage error naming the labels that type supports, never a silent drop. `set-card --label` is also the way to **repair** a line whose token the parser refuses. It replaces the token outright, so it is the one edit that is not blocked by it; every other edit to that line refuses rather than dropping the token silently, including a [`remove-card`](/commands/remove-card/) that would decrement the line's quantity.
+Set an override with:
 
-Labels are part of a deck line's **identity** for merging purposes. Copies added by [`add-card`](/commands/add-card/), by the editors, or by a [`ritual move`](/commands/move/) join an existing line only when its label override matches theirs, so a proxy never disappears into the line holding the real copies, and never confers `[proxy]` on a real card added beside it.
+- [`set-card --label`](/commands/set-card/); `--label none` clears it;
+- the [`edit`](/commands/edit/#card-labels) session's `🏷️ Change Label` action;
+- on a collection, the web editors' **Set Label…** menu item ("Use list default" clears it).
+
+Every picker offers only what its list type carries. On a deck the choice is **Proxy** or the list default, and asking for `sale` on a deck is a usage error naming the supported labels.
+
+`set-card --label` is also how you **repair** a line whose token the parser refuses. It replaces the token outright, so it is the one edit the refusal does not block. Every other edit to that line refuses rather than drop the token silently, including a [`remove-card`](/commands/remove-card/) that would decrement the line's quantity.
+
+Labels are part of a deck line's **identity** for merging. Copies added by [`add-card`](/commands/add-card/), the editors, or [`ritual move`](/commands/move/) join an existing line only when its label override matches theirs. A proxy never merges into the line holding the real copies, and a real card never inherits `[proxy]` from a line it lands beside.
 
 ### Proxies carry no price
 
 A card whose effective labels include `proxy` is not a real card, so Ritual prices it at **zero** everywhere rather than looking a price up:
 
-- [`price`](/commands/price/) reports it at `0` with the unpriced reason `proxy`, shows **PROXY** in its price cell instead of `N/A`, and counts it as a card but **not** as unpriced. A deck of proxies is fully priced at nothing, not a deck of price-lookup failures.
-- The generated site bakes `0` in every currency, leaves proxies out of list totals and out of the missing-price counts, and never asks a buyer for a quote on one.
-- [`sell`](/commands/sell/) drops proxy entries before matching, so they are never quoted, never counted, and never merged into an identical real copy.
+- [`price`](/commands/price/) reports it at `0` with the unpriced reason `proxy`, shows **PROXY** in its price cell instead of `N/A`, and counts it as a card but **not** as unpriced.
+- The generated site records `0` in every currency, leaves proxies out of list totals and missing-price counts, and never asks a buyer for a quote on one.
+- [`sell`](/commands/sell/) drops proxy entries before matching, so they are never quoted, counted, or merged into an identical real copy.
 
-[Custom art](/custom-art/#custom-art-carries-no-price) carries the very same rule on its own. One rule: custom art or proxy means no price, no quotes, no sale. A card with both reports the unpriced reason `custom-art` and shows **CUSTOM**. Custom art wins.
+[Custom art](/custom-art/#custom-art-carries-no-price) follows the same rule. A card with both reports the unpriced reason `custom-art` and shows **CUSTOM**; custom art wins.
 
 ## Card tags
 
-A card entry on **any** list type can carry **tags**: your own words for the card as a copy (`Signed`, `Trade Binder`, `Gift from Dad`), which follow the card wherever it moves. A card's role within one list (what Archidekt calls a category) is a separate, per-list thing, not a tag; see [Categories](#categories-namecategoriesjson) and [`ritual categories`](/commands/categories/). On the line, tags are one `#` token after the labels and before the note, **comma-separated**, as many as you like:
+A card entry on **any** list type can carry **tags**: your own words for the card as a copy (`Signed`, `Trade Binder`, `Gift from Dad`). Tags follow the card wherever it moves. A card's role within one list (what Archidekt calls a category) is a separate, per-list thing; see [Categories](#categories-namecategoriesjson) and [`ritual categories`](/commands/categories/). On the line, tags are one `#` token after the labels and before the note, comma-separated:
 
 ```
 - 1 Sol Ring (LTC:284) [proxy] #Ramp, Staple &2
 - Mox Ruby #Budget, Reserved List {any copy} &3
 ```
 
-Tags are the open-vocabulary counterpart of [labels](#card-labels). A label is an instruction to Ritual drawn from a closed list (`[proxy]` changes pricing). A tag is your own word for the card and means whatever you meant. It drives [grouping, sorting and filtering](/public-site/filtering/#grouping-sorting-and-filtering-by-tags) on the generated site and selects cards for [`export --tags`](/commands/export/#filters). The two are different token kinds on purpose: a `Keep` tag is a perfectly legal tag with no connection to the `[keep]` label.
+A [label](#card-labels) is an instruction to Ritual from a closed list (`[proxy]` changes pricing); a tag means whatever you meant. A `Keep` tag has no connection to the `[keep]` label. Tags drive [grouping, sorting and filtering](/public-site/filtering/#grouping-sorting-and-filtering-by-tags) on the generated site and select cards for [`export --tags`](/commands/export/#filters).
 
-A tag is plain text. Spaces are fine (`Card Draw`) and its case is kept exactly as you wrote it (`Ramp` and `ramp` are two tags), but it cannot contain `#`, `,`, `&`, brackets, braces or parentheses, the line's own punctuation. A line's tags are written deduplicated and sorted. The `#` is file punctuation that marks where the tags start; the editors, the site and the changelog never show it.
+A tag is plain text. Spaces are fine (`Card Draw`) and case is kept (`Ramp` and `ramp` are two tags). A tag cannot contain `#`, `,`, `&`, brackets, braces or parentheses. A line's tags are written deduplicated and sorted. The `#` is file punctuation only; the editors, the site and the changelog never show it.
 
-A deck's front-matter `tags:` key is a different thing entirely. It describes the **deck** (`ritual metadata set <deck> tags edh,budget`, or the [`edit`](/commands/edit/#deck-format) session's `🔖 Edit Deck Tags` row) and never applies to any card. Only the `#tags` token on a card line holds card tags.
+A deck's front-matter `tags:` key describes the **deck** (`ritual metadata set <deck> tags edh,budget`, or the [`edit`](/commands/edit/#deck-format) session's `🔖 Edit Deck Tags` row). It never applies to a card. Only the `#tags` token on a card line holds card tags.
 
-Edit a card's tags with [`set-card --tag` / `--untag`](/commands/set-card/#tag-updates), [`add-card --tag`](/commands/add-card/), or the editors' tag dialogs ([`ritual edit`](/commands/edit/#card-tags), the [admin editors](/admin/editors/#card-tags)). However the set is edited, the change is recorded **one changelog event per tag** that actually changed (`Added tag "Ramp" to "Sol Ring" &2`, `Removed tag "Staple" from "Sol Ring" &2`), never as a whole-set replacement. An add and a remove of the same tag on the same card cancel out, so re-adding a tag you removed earlier in a session leaves no trace in the changelog.
+Edit a card's tags with [`set-card --tag` / `--untag`](/commands/set-card/#tag-updates), [`add-card --tag`](/commands/add-card/), or the editors' tag dialogs ([`ritual edit`](/commands/edit/#card-tags), the [admin editors](/admin/editors/#card-tags)). Every change is recorded as **one changelog event per tag** that actually changed (`Added tag "Ramp" to "Sol Ring" &2`, `Removed tag "Staple" from "Sol Ring" &2`), never as a whole-set replacement. An add and a remove of the same tag on the same card cancel out, so re-adding a tag you removed earlier in a session leaves no changelog trace.
 
-Like labels, tags are part of a deck line's **identity** for merging. Copies added with different tags land on their own line rather than folding into an existing one.
+Like labels, tags are part of a deck line's **identity** for merging. Copies added with different tags land on their own line.
 
 ## Card language
 
-Every card entry has a **language**, written as a lowercase bracket token in canonical position on the line: after the finish and condition, before labels and the note.
+Every card entry has a **language**, written as a lowercase bracket token after the finish and condition and before labels and the note.
 
 ```
 - Mana Crypt (2XM:270) [foil] [ja] [sale,trade] &3
@@ -272,11 +295,13 @@ Every card entry has a **language**, written as a lowercase bracket token in can
 
 The vocabulary is **Scryfall's language codes** (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`), not ISO codes: Chinese is `zhs`/`zht`. The token is **omitted for English**. A bare line always means `en`, whatever the configured default, so a list file stays self-describing.
 
-Adding a card **never prompts** for a language. New cards are stamped with the configured [`defaultLanguage`](/configuration/#default-language) (an [`edit` session](/commands/edit/#the-session-language) can override it for its own adds), and [`set-card --language`](/commands/set-card/) or an editor's language action changes an individual copy afterwards. Under a non-English default, the printing pickers note printings that do not exist in that language. Picking one records it in the language that does exist (English when available), rather than writing a language token Scryfall has no card object for. Language availability is checked against the card cache (which holds every language's objects when `defaultLanguage` is non-English), falling back to a direct Scryfall lookup when the cache cannot vouch for the printing.
+Adding a card **never prompts** for a language. New cards get the configured [`defaultLanguage`](/configuration/#default-language); an [`edit` session](/commands/edit/#the-session-language) can override it for its own adds. Change one copy afterwards with [`set-card --language`](/commands/set-card/) or an editor's language action.
+
+Under a non-English default, the printing pickers mark printings that do not exist in that language. Picking one records the language that does exist (English when available) rather than a language Scryfall has no card object for. Availability is checked against the card cache, which holds every language when `defaultLanguage` is non-English, with a direct Scryfall lookup when the cache cannot answer.
 
 ## Wanted-list card states
 
-Each card on a wanted list exists in one of three states, which determines how pricing works:
+Each card on a wanted list is in one of three states, which decides how it is priced:
 
 | State               | Format                          | Pricing Behavior                              |
 | ------------------- | ------------------------------- | --------------------------------------------- |
@@ -286,7 +311,7 @@ Each card on a wanted list exists in one of three states, which determines how p
 
 ## Fenced code blocks
 
-List files are hand-authored markdown, so a deck, collection, or wanted list may carry a fenced code block: an example line, a template, a snippet of output. **Everything inside a fence is prose.** Card parsing ignores it completely: a card-looking line inside a fence is not a card, a `## Heading` inside a fence is not a section, an `&N` inside a fence is not a card ID, and none of it is reported as an unreadable line.
+A list file may carry a fenced code block: an example line, a template, a snippet of output. **Everything inside a fence is prose.** A card-looking line inside a fence is not a card, a `## Heading` is not a section, an `&N` is not a card ID, and none of it is reported as unreadable.
 
 ````markdown
 # My Binder
@@ -305,15 +330,20 @@ Cards are written like this:
 - Lightning Bolt (LEA:161) &2
 ````
 
-That file holds two cards. The `- Black Lotus (LEA:232) &99` line is an example: it is not counted, not priced, not exported, never offered by a picker, and never the target of `add-card`, `set-card`, `remove-card`, `note`, or `move`. `&99` is not "in use", so a future card may be assigned that ID. The `&N` backfill leaves fenced lines unstamped, and every line-preserving edit leaves the block byte-for-byte as you wrote it.
+That file holds two cards. The `- Black Lotus (LEA:232) &99` line is not counted, priced, exported, offered by a picker, or targeted by `add-card`, `set-card`, `remove-card`, `note`, or `move`. `&99` is not in use, so a future card may take that ID. The `&N` backfill leaves fenced lines unstamped, and every line-preserving edit keeps the block byte for byte.
 
-Both fence styles are recognized: three or more backticks or three or more tildes, indented by up to three spaces, with an optional info string (` ```markdown `). The closing fence uses the same character, is at least as long, and carries nothing after it. Fences do not nest; tildes inside a backtick fence are ordinary content, and vice versa. **An unclosed fence runs to the end of the file** (the CommonMark rule), so a stray ` ``` ` hides every card line below it. If cards go missing from a list, check for an unbalanced fence.
+Fence rules:
 
-Inline code spans (`` `like this` ``) and four-space indented blocks are _not_ treated as code. Only fenced blocks are. A four-space indent is indistinguishable from a nested list item, so an indented block's card lines are read as real cards and its ` ``` ` delimiters as unreadable lines. Use a fenced block whenever a list file needs to hold prose card lines.
+- Three or more backticks or three or more tildes, indented by up to three spaces, with an optional info string (` ```markdown `).
+- The closing fence uses the same character, is at least as long, and carries nothing after it.
+- Fences do not nest. Tildes inside a backtick fence are ordinary content, and vice versa.
+- **An unclosed fence runs to the end of the file** (the CommonMark rule), so a stray ` ``` ` hides every card line below it. If cards go missing from a list, check for an unbalanced fence.
+
+Inline code spans (`` `like this` ``) and four-space indented blocks are _not_ code. A four-space indent looks like a nested list item, so an indented block's card lines are read as real cards and its ` ``` ` delimiters as unreadable lines. Use a fenced block whenever a list file needs prose card lines.
 
 ### Whole-file rewrites
 
-The surfaces that rewrite a whole file from its parsed cards cannot re-emit a fenced block, so they treat one exactly as they treat an unreadable line:
+Surfaces that rewrite a whole file from its parsed cards cannot re-emit a fenced block, so they treat one like an unreadable line:
 
 | Surface                                                                               | Behavior with a fenced block                                                                    |
 | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -324,11 +354,11 @@ The surfaces that rewrite a whole file from its parsed cards cannot re-emit a fe
 | A deck on either side of [`move`](/commands/move/)                                    | Refuses and writes nothing                                                                      |
 | `ritual edit` sessions                                                                | **Warns on load and drops the block on the next save** — check the session output before saving |
 
-The one-shot card commands (`add-card`, `set-card`, `remove-card`, `note`) are line-preserving and work normally, as does a `move` between two collections or wanted lists. The one exception is an **append into an unclosed fence**. Because an unclosed fence runs to end of file, a new card line appended at the end would be prose, so `add-card` and `move` refuse rather than write a line no later parse can see.
+The one-shot card commands (`add-card`, `set-card`, `remove-card`, `note`) preserve lines and work normally, as does a `move` between two collections or wanted lists. The exception is an **append into an unclosed fence**: a card line appended after it would be prose, so `add-card` and `move` refuse rather than write a line no later parse can see.
 
 ## Categories (`<name>.categories.json`)
 
-A **category** is a card's role in **one list**: `Ramp`, `Removal`, `Board Wipes`. It is what Archidekt calls a category and Moxfield a tag. It is the third of Ritual's three ways to say something about a card, and the three are different kinds of thing:
+A **category** is a card's role in **one list**: `Ramp`, `Removal`, `Board Wipes`. Archidekt calls it a category and Moxfield a tag. Ritual has three ways to say something about a card, and they are different kinds of thing:
 
 | Kind         | Belongs to                  | Vocabulary                       | Ordered?                     | Follows a move?                       | Where it lives                   |
 | ------------ | --------------------------- | -------------------------------- | ---------------------------- | ------------------------------------- | -------------------------------- |
@@ -336,9 +366,9 @@ A **category** is a card's role in **one list**: `Ramp`, `Removal`, `Board Wipes
 | **Tag**      | a card line — the _copy_    | open                             | no                           | **always**                            | `#a, b` token on the line        |
 | **Category** | a card **name** in one list | open, per list + config defaults | yes — the first is _primary_ | **never**                             | `<name>.categories.json` sidecar |
 
-Categories are edited with [`set-card --categories`/`--no-categories`](/commands/set-card/#category-updates), the [`ritual categories`](/commands/categories/) subcommands (`list`/`rename`/`order`/`remove`), and the editors' `🗂 Edit Categories` action plus the list menu's `Rename Category…` / `Reorder Categories…` rows ([`ritual edit`](/commands/edit/#card-categories)).
+Edit categories with [`set-card --categories`/`--no-categories`](/commands/set-card/#category-updates), the [`ritual categories`](/commands/categories/) subcommands (`list`/`rename`/`order`/`remove`), or the editors' `🗂 Edit Categories` action and the list menu's `Rename Category…` / `Reorder Categories…` rows ([`ritual edit`](/commands/edit/#card-categories)).
 
-Categories are never written on a card line. They live in a JSON sidecar beside the list:
+Categories are never written on a card line. They live in a JSON file beside the list (a "sidecar"):
 
 ```json
 {
@@ -350,20 +380,20 @@ Categories are never written on a card line. They live in a JSON sidecar beside 
 }
 ```
 
-- **Keyed by card name.** One assignment covers every line of that name in the list, whatever its printing, section or quantity. Lookups fold case and whitespace; the stored key is the name as the card line spells it, including the `A // B` spelling of a double-faced card.
-- **`cards` is ordered per card, and the first entry is the card's primary category.** Reordering is a real edit.
-- **`order` is the display order** of the list's vocabulary. Categories a card uses but `order` does not name are appended when Ritual next writes the file: the [`defaultCategories`](/configuration/#default-categories) config vocabulary first, in its configured order, then the rest alphabetically. The file therefore describes itself.
-- **A category name follows the tag shape rule**: non-empty plain text that cannot contain `#`, `,`, `&`, `*`, double quotes, brackets, braces or parentheses. Case is kept exactly as written; `Ramp` and `ramp` are one category with two spellings.
-- **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning rather than being dropped on read. It is pruned by the list's own save (an editor session, an admin save), by a cross-list [`move`](/commands/move/) that rewrites the list (only when the move could read every card line in it), and by [`ritual cleanup`](/commands/cleanup/). [`ritual categories`](/commands/categories/) reports stale entries and never prunes them, because a read does not write.
-- **A malformed sidecar is refused as a whole.** It is never partially loaded and never silently overwritten, so a list with an unreadable sidecar still saves.
+- **Keyed by card name.** One assignment covers every line of that name in the list, whatever its printing, section or quantity. Lookups fold case and whitespace. The stored key is the name as the card line spells it, including the `A // B` spelling of a double-faced card.
+- **`cards` is ordered per card; the first entry is the primary category.** Reordering is a real edit.
+- **`order` is the display order** of the list's vocabulary. Categories a card uses but `order` does not name are appended when Ritual next writes the file: the [`defaultCategories`](/configuration/#default-categories) config vocabulary first, in its configured order, then the rest alphabetically.
+- **A category name follows the tag shape rule**: non-empty plain text that cannot contain `#`, `,`, `&`, `*`, double quotes, brackets, braces or parentheses. Case is kept; `Ramp` and `ramp` are one category with two spellings.
+- **Stale names are kept, with a warning.** A `cards` key naming a card the list no longer holds loads with a warning. It is pruned by the list's own save (an editor session, an admin save), by a cross-list [`move`](/commands/move/) that rewrites the list (only when the move could read every card line in it), and by [`ritual cleanup`](/commands/cleanup/). [`ritual categories`](/commands/categories/) reports stale entries and never prunes them.
+- **A malformed sidecar is refused as a whole.** It is never partially loaded and never silently overwritten. A list with an unreadable sidecar still saves.
 - **Empty means gone.** A sidecar with no vocabulary and no cards is deleted rather than written as `{}`.
-- **It carries its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history. Hand edits to it are detected by [`detect-changes`](/commands/detect-changes/) and recorded as `Set categories of "Sol Ring" to Ramp, Artifacts` / `Set category order to …` / `Renamed category "Draw" to "Card Draw"` entries in the **list's** `.changes.md`. A sidecar Ritual did not itself last write keeps its stale hash, so the edit is not silently declared recorded.
+- **It has its own `.sha256`.** Unlike `<name>.art.json`, this sidecar is part of the list's recorded history. [`detect-changes`](/commands/detect-changes/) detects hand edits and records them in the **list's** `.changes.md` as `Set categories of "Sol Ring" to Ramp, Artifacts`, `Set category order to …`, or `Renamed category "Draw" to "Card Draw"`. A sidecar Ritual did not itself last write keeps its stale hash, so a hand edit is never silently declared recorded.
 
-The sidecar is what the sites read. The built site bakes it into each list's detail JSON, and the pages offer the [Category groupings, the Category sort and the Categories filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category). The admin and public editors write it through their [Edit Categories… and Manage categories dialogs](/admin/editors/#card-categories). [`ritual export`](/commands/export/#properties)'s `categories`/`primaryCategory` columns read it, and a CSV import's [`categories` column](/commands/import/#value-normalization) writes it.
+The sites read this file. The built site includes it in each list's detail JSON and offers the [Category groupings, sort and filter](/public-site/filtering/#grouping-sorting-and-filtering-by-category). The admin and public editors write it through their [Edit Categories… and Manage categories dialogs](/admin/editors/#card-categories). [`ritual export`](/commands/export/#properties)'s `categories`/`primaryCategory` columns read it, and a CSV import's [`categories` column](/commands/import/#value-normalization) writes it.
 
 ## The `.changes.md` changelog
 
-Every list has an append-only `<name>.changes.md` sidecar recording its card changes. Each entry is a `## <ISO timestamp>` heading, one prose `- ` line per change, and then a fenced `ritual-changes` block holding the same changes as JSON Lines, one event per line in the same order:
+Every list has an append-only `<name>.changes.md` file recording its card changes. Each entry is a `## <ISO timestamp>` heading, one prose `- ` line per change, then a fenced `ritual-changes` block holding the same changes as JSON Lines in the same order:
 
 ````markdown
 # Changelog for Winota Stax
@@ -379,11 +409,21 @@ Every list has an append-only `<name>.changes.md` sidecar recording its card cha
 ```
 ````
 
-- **The block is authoritative.** Ritual reads only the `ritual-changes` block. The prose lines are rendered for people (and translated for display on the sites) and are never parsed.
+- **The block is authoritative.** Ritual reads only the `ritual-changes` block. The prose lines are for people (and translated for display on the sites) and are never parsed.
 - **Hand-written text is preserved.** Prose you add after an entry's block travels with that entry through the [`history`](/commands/history/) editor and is written back verbatim.
-- **It is a data format.** The prose is always English whatever the UI locale, and the file is a git-diffable record. Edit it with `history` or the admin [Change History](/admin/history/) page rather than by hand.
-- **Legacy entries** written before the block existed are never converted. They keep their prose, yield zero events, and are named by an advisory. Nothing in Ritual parses that prose.
+- **It is a data format.** The prose is always English whatever the UI locale, and the file is git-diffable. Edit it with `history` or the admin [Change History](/admin/history/) page rather than by hand.
+- **Legacy entries** written before the block existed are never converted. They keep their prose, yield zero events, and are named by an advisory.
 
 ## What `cleanup` normalizes
 
-[`ritual cleanup`](/commands/cleanup/) is the migration for everything above. One pass rewrites every list in canonical form: bullets on deck lines, canonical token order and spacing, uppercase set codes, defaults omitted, flat-list quantities expanded to one line per copy, a legacy `name:` turned into the `# Title` H1 with `name:` and `created:` dropped (`tags:` and every other key kept), and `&N` on every line. A card line spelled with a repeated face (`Steam Vents // Steam Vents`, Scryfall's name for a reversible printing) is renamed to the card's own name, and its category assignments move with it. It renames each file after its title. It also prunes stale names from the list's `.categories.json` and re-serializes it canonically; `--dry-run` previews both without writing. It never touches a `.changes.md`. It is idempotent: a second run writes nothing.
+[`ritual cleanup`](/commands/cleanup/) is the migration for everything above. One pass rewrites every list in canonical form:
+
+- bullets on deck lines, canonical token order and spacing, uppercase set codes, defaults omitted;
+- flat-list quantities expanded to one line per copy;
+- a legacy `name:` turned into the `# Title` H1, with `name:` and `created:` dropped (`tags:` and every other key kept);
+- `&N` on every line;
+- a card spelled with a repeated face (`Steam Vents // Steam Vents`, Scryfall's name for a reversible printing) renamed to the card's own name, with its category assignments moved along;
+- each file renamed after its title;
+- stale names pruned from the list's `.categories.json`, which is re-serialized canonically.
+
+`--dry-run` previews all of it without writing. `cleanup` never touches a `.changes.md`. It is idempotent: a second run writes nothing.

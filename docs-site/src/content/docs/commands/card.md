@@ -27,14 +27,14 @@ ritual card [name] [options]
 | `--fields <list>`    | Comma-separated fields for `json`/`ndjson` output |
 | `--output <format>`  | Output format (`json`, `ndjson`, or `text`)       |
 
-`card` registers no `--quiet`. Everything it prints is either a card or an error, so there would be nothing for the flag to suppress ([shared convention](/cli-conventions/#scripting)).
+There is no `--quiet`: everything the command prints is either a card or an error ([shared convention](/cli-conventions/#scripting)).
 
 ## Batch output shape
 
-`--stdin` and `--from-file` look up every name in the input. The output shape depends only on the flag you passed, never on how many lines the input happened to hold:
+`--stdin` and `--from-file` look up every name in the input.
 
-- **`--output json`** (the default) emits **one** JSON array of cards for the whole batch, the same contract [`scry`](/commands/scry/) gives a multi-page search. A run where some lookups failed still emits the cards that were found (the failures go to stderr and set the exit code), and a run where all of them failed emits `[]`. A single-name lookup, batch or not, emits a bare card object.
-- **`--output ndjson`** streams one JSON object per card as it arrives. This is the streaming mode for large inputs.
+- **`--output json`** (the default): an input of two or more names emits **one** JSON array for the whole batch, like a multi-page [`scry`](/commands/scry/) search. Cards that were found are still emitted when some lookups fail (failures go to stderr and set the exit code); if all fail, the output is `[]`. A single name, as an argument or a one-line batch, emits a bare card object.
+- **`--output ndjson`** streams one JSON object per card as it arrives. Use this for large inputs.
 - **`--output text`** prints one `Name (SET)` line per card.
 
 ## Examples
