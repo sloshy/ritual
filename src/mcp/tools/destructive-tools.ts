@@ -530,10 +530,10 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       title: 'Refresh card cache',
       description:
         'Refresh the local Scryfall card cache (downloads bulk card data and oracle/art tags; ' +
-        'may take a while). Fails with an error when the download or ingest fails — it no longer ' +
-        'reports success unconditionally. Emits progress notifications when the call supplies a ' +
-        'progressToken, and honours cancellation: the download stops, the previous cache is ' +
-        'left untouched, and the call answers with a tool error saying it was cancelled.',
+        'may take a while). Fails with an error when the download or ingest fails. Emits ' +
+        'progress notifications when the call supplies a progressToken, and honours ' +
+        'cancellation: the download stops, the previous cache is left untouched, and the call ' +
+        'answers with a tool error saying it was cancelled.',
       inputSchema: z.object({}),
       outputSchema: outputSchemaFor<CacheRefreshResult>('refresh_cache'),
       annotations: { destructiveHint: true, openWorldHint: true },
@@ -558,9 +558,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'Download the Card Kingdom pricelist feed (~70 MB) when the cached copy is stale ' +
         '(older than a day) or missing; force redownloads regardless. get_sell_report reads ' +
         'strictly from this cache, so run this first when it errors or looks out of date. ' +
-        'Requires sell mode: with the site.sellMode config off and no --sell-mode flag on ' +
-        'this server, this tool errors "Not found". refresh_cache never refreshes the ' +
-        'buylist — only this tool and `ritual cache preload-all` do.',
+        'Gated like get_sell_report: with site.sellMode off, no "cardkingdom" in priceSources, ' +
+        'and no --sell-mode flag on this server, this tool errors "Not found". refresh_cache ' +
+        'never refreshes the buylist — only this tool and `ritual cache preload-all` do.',
       inputSchema: z.object({
         force: z
           .boolean()

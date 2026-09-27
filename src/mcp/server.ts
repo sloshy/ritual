@@ -64,16 +64,20 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   means English). Adds never prompt for one — the defaultLanguage config key stamps new cards;
   set-language / the language fields change it afterwards. Non-English copies are not quotable
   on the Card Kingdom buylist (its feed is English-only).
-- Network vs local, by name: search_scryfall queries Scryfall; find_cards and autocomplete_card
-  read your lists and your local cache. get_sell_report reads the locally cached Card Kingdom
-  buylist; refresh_buylist is what downloads it.
-- Sell mode is opt-in and off by default. get_sell_report, get_sell_cart, get_buylist_quotes and
-  refresh_buylist error "Not found" unless the workspace set the site.sellMode config key or the
-  server was started with --sell-mode; that is a configuration decision, not a missing feed, so
-  refresh_buylist will not fix it — say so instead of retrying. The same key decides whether
-  build_site bakes buy prices into the published site. get_config is how you tell which of the two
-  turned it on: "config" is the stored configuration, and "overrides" (present only under a session
-  flag) is what this running server is actually operating with, e.g. {"site.sellMode": true}.`
+- Network vs local, by name: search_scryfall always queries Scryfall; find_cards and
+  autocomplete_card read only your lists and your local cache; get_card_details,
+  get_card_printings and get_card_price read the cache but fetch from Scryfall when it lacks the
+  card (get_card_price also when its cached copy is more than a day old). get_sell_report reads
+  the locally cached Card Kingdom buylist; refresh_buylist is what downloads it.
+- The buylist tools are opt-in and off by default. get_sell_report, get_sell_cart,
+  get_buylist_quotes and refresh_buylist error "Not found" unless the workspace set the
+  site.sellMode config key, listed "cardkingdom" in priceSources, or the server was started with
+  --sell-mode; that is a configuration decision, not a missing feed, so refresh_buylist will not
+  fix it — say so instead of retrying. Either setting makes build_site bake the Card Kingdom feed
+  into the published site; site.sellMode alone decides whether the site offers sell mode.
+  get_config shows which one is on: "config" is the stored configuration, and "overrides"
+  (present only under a session flag) is what this running server is actually operating with,
+  e.g. {"site.sellMode": true}.`
 
 /** How a transport wants the server built. */
 export interface McpServerOptions {

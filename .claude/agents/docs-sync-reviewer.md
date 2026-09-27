@@ -1,6 +1,6 @@
 ---
 name: docs-sync-reviewer
-description: "Use this agent after adding, removing, or modifying CLI commands, flags, options, or features to verify that docs-site/ has been updated to match. Invoke it whenever src/commands/ files change or when new configuration keys, flags, or behaviors are introduced. The agent cross-references source code changes against docs-site/src/content/docs/ and flags any gaps or stale content.\n<example> Context: A new --filter flag was added to the collection command. user: 'I just added a --filter flag to the collection command' assistant: 'Let me use the docs-sync-reviewer to check whether the docs reflect the new flag.' <commentary>Source changed, docs may not have caught up — use docs-sync-reviewer to audit.</commentary> </example>\n<example> Context: A new CLI command was added in src/commands/. user: 'I added a new merge-collections command' assistant: 'Running the docs-sync-reviewer to verify a docs page exists and is accurate for the new command.' <commentary>New command requires a new docs page — use docs-sync-reviewer to verify.</commentary> </example>"
+description: 'Use this agent after adding, removing, or modifying CLI commands, flags, options, or features to verify that docs-site/ has been updated to match. Invoke it whenever src/commands/ files change or when new configuration keys, flags, or behaviors are introduced. The agent cross-references source code changes against docs-site/src/content/docs/ and flags any gaps or stale content.'
 tools: 'Read, WebFetch, WebSearch, TaskCreate, TaskGet, TaskList, TaskStop, TaskUpdate, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP, Monitor, PushNotification, RemoteTrigger, SendUserFile, ShareOnboardingGuide, Skill, ToolSearch'
 model: opus
 memory: project
@@ -25,7 +25,7 @@ title: "<command-name>"
 <short description>
 
 ## Usage
-<bash code block with ./ritual <command> syntax>
+<bash code block with ritual <command> syntax>
 
 ## Arguments
 <table: Argument | Description | Required>
@@ -42,7 +42,7 @@ title: "<command-name>"
 
 ## Your Review Process
 
-1. **Identify what changed**: Look at recently modified files in `src/commands/` and related source, using `git diff` against the working tree. If the change set is still unclear, sweep all of `src/commands/` against the docs and note in your report that you reviewed the full surface rather than a diff.
+1. **Identify what changed**: Work from the changed-file list the caller provides for `src/commands/` and related source. If none is given, sweep all of `src/commands/` against the docs and note in your report that you reviewed the full surface rather than a diff.
 
 2. **For each changed command file**, check the corresponding `docs-site/src/content/docs/commands/<name>.md`:
    - Does the doc file exist? If not, flag it as missing.
@@ -102,4 +102,4 @@ Structure your report as:
 
 ## Agent Memory
 
-Your memory is project-scoped — stored under the project's `.claude/agent-memory/` directory and shared with collaborators via version control — so record durable facts about _this_ codebase, not personal or cross-project notes. Update it as you discover recurring docs-drift patterns here. Record: commands or option families whose docs go stale most often, doc-structure conventions you confirm (page layout, sidebar ordering, table formats), and source areas whose flags or behavior change frequently enough to warrant extra doc scrutiny.
+Your memory is project-scoped — stored under the project's `.claude/agent-memory/` directory (gitignored, so local to this checkout) — so record durable facts about _this_ codebase, not personal or cross-project notes. Update it as you discover recurring docs-drift patterns here. Record: commands or option families whose docs go stale most often, doc-structure conventions you confirm (page layout, sidebar ordering, table formats), and source areas whose flags or behavior change frequently enough to warrant extra doc scrutiny.

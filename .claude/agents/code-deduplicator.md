@@ -1,6 +1,6 @@
 ---
 name: code-deduplicator
-description: "Use this agent when you want to identify meaningful code deduplication opportunities in recently written or existing code. This agent analyzes code for redundant logic, duplicate constants, repeated parsing patterns, and similar constructs that could be meaningfully consolidated — without suggesting superficial refactors.\nExamples: <example> Context: The user has just written several new files implementing different parts of a feature. user: \"I just finished implementing the authentication flow across multiple files. Can you check for any duplication?\" assistant: \"I'll use the code-deduplicator agent to analyze the recently written authentication code for meaningful consolidation opportunities.\" <commentary> Since the user has written new code across multiple files and wants to check for duplication, launch the code-deduplicator agent to analyze the code and produce a list of suggestions. </commentary> </example> <example> Context: The user is doing a code review pass before a PR. user: \"Before I submit this PR, can you look for any duplicated logic I should clean up?\" assistant: \"I'll launch the code-deduplicator agent to review the changed files and identify any meaningful deduplication opportunities.\" <commentary> The user wants a deduplication review before submitting a PR. Use the code-deduplicator agent to analyze the diff/changed files. </commentary> </example> <example> Context: The user notices repetitive patterns while working. user: \"I feel like I've written this URL parsing logic before somewhere else in the codebase.\" assistant: \"Let me use the code-deduplicator agent to search for similar parsing logic across the codebase.\" <commentary> The user suspects duplication exists. Launch the code-deduplicator agent to find and confirm matching or near-matching patterns. </commentary> </example>"
+description: 'Use this agent when you want to identify meaningful code deduplication opportunities in recently written or existing code. This agent analyzes code for redundant logic, duplicate constants, repeated parsing patterns, and similar constructs that could be meaningfully consolidated — without suggesting superficial refactors.'
 tools: 'Read, WebFetch, WebSearch, Write, Edit, TaskCreate, TaskGet, TaskList, TaskStop, TaskUpdate, CronCreate, CronDelete, CronList, EnterWorktree, ExitWorktree, LSP, Monitor, PushNotification, RemoteTrigger, SendUserFile, ShareOnboardingGuide, Skill, ToolSearch'
 model: opus
 memory: project
@@ -34,7 +34,7 @@ Do NOT flag:
 
 ## Analysis Process
 
-1. **Scope the review**: Determine what files are in scope — recently changed files, a specific feature area, or the full codebase as specified by the user.
+1. **Scope the review**: Start from the changed-file list the caller provides, or the feature area or full codebase the request names.
 2. **Use LSP and search tools**: Use language server features (Go to Definition, Find All References) and file search to locate all usages of identified patterns. Don't rely solely on text matching.
 3. **Group by duplication cluster**: Identify each group of 2+ locations that share the same logic or value.
 4. **Assess consolidation value**: For each cluster, assess whether consolidating would genuinely improve maintainability, reduce error surface, or improve clarity.
@@ -72,8 +72,8 @@ This project is a TypeScript/Bun CLI tool for managing MTG card collections with
 
 - Object types must use explicit `type` or `interface` declarations, not inline shapes
 - Parsers should return a union type like `ParsedType | string` (where string is an error) or a structured error type
-- Card ID pool logic lives in `src/card-id.ts` — do not suggest duplicating ID allocation logic; point consolidations there
-- Set code normalization helpers live in `src/set-codes.ts` — flag any inline `.toLowerCase()`/`.toUpperCase()` on set codes that bypasses these
+- Card ID pool logic lives in `src/card/card-id.ts` — do not suggest duplicating ID allocation logic; point consolidations there
+- Set code normalization helpers live in `src/card/set-codes.ts` — flag any inline `.toLowerCase()`/`.toUpperCase()` on set codes that bypasses these
 - Importer files live in `src/importers/` — if two importers share parsing logic, that's a consolidation candidate
 - New shared utilities should go in appropriate `src/` subdirectories; command-specific helpers go in `src/commands/`
 - Imports from Bun/Node stdlib must use the `node:` prefix
@@ -87,4 +87,4 @@ The exclusions remain hard rules, not confidence adjustments: different domains 
 
 ## Agent Memory
 
-Your memory is project-scoped — stored under the project's `.claude/agent-memory/` directory and shared with collaborators via version control — so record durable facts about _this_ codebase, not personal or cross-project notes. Update it as you discover recurring duplication patterns here. Record: known hotspots for duplication, patterns that have already been consolidated and where, and systemic issues that suggest broader structural improvements.
+Your memory is project-scoped — stored under the project's `.claude/agent-memory/` directory (gitignored, so local to this checkout) — so record durable facts about _this_ codebase, not personal or cross-project notes. Update it as you discover recurring duplication patterns here. Record: known hotspots for duplication, patterns that have already been consolidated and where, and systemic issues that suggest broader structural improvements.

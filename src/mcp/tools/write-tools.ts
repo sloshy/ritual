@@ -928,9 +928,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'A removal drops the card’s custom art even when a later change in the same batch adds ' +
         'the card back and the new line reuses its &N: re-add art explicitly (set_card_art after ' +
         'this call) if the new copy should have it. ' +
-        'Flagged destructive because a batch CAN remove cards in bulk — the note, label, tag, ' +
-        'category, section, and commander actions are themselves additive; the hint reflects ' +
-        'worst-case capability, not what your batch does.',
+        'Only remove changes drop card lines (and with them custom art and, for a name’s last ' +
+        'copy, its categories); every other action edits a card or the list’s category ' +
+        'metadata in place.',
       inputSchema: z
         .object({
           listType: listTypeSchema,

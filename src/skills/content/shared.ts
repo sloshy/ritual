@@ -60,8 +60,9 @@ export const NO_INPUT_GUARANTEE = wrapProse(
     `or what the prompt asked for when no flag exists (or uses a ` +
     `documented default) instead of hanging or exiting 0 having done nothing. A ` +
     `non-terminal stdin — every agent invocation — is treated exactly the same ` +
-    `way, so the flag is never strictly required. There are no per-command ` +
-    `non-interactive flags.`,
+    `way, so the flag is never strictly required. No command has its own ` +
+    `non-interactive switch; flags such as \`--yes\`, \`--confirm\`, or \`--all\` ` +
+    `supply the answer a prompt would have asked for.`,
 )
 
 /**

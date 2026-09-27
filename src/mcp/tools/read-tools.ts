@@ -493,7 +493,8 @@ export function registerReadTools(server: McpServer): void {
     {
       title: 'Get card details',
       description:
-        'Everything known about one card from the local Scryfall cache: oracle text, type line, ' +
+        'Everything known about one card, read from the local Scryfall cache (falling back to ' +
+        'one Scryfall fetch when the cache lacks the name): oracle text, type line, ' +
         'mana cost and CMC, colors and color identity, keywords, format legalities, Scryfall ' +
         'Tagger oracle/art tags, the faces of a multi-faced card, and how many printings exist. ' +
         'A false `printingsComplete` means the cache holds no printing list for the name, so ' +
@@ -572,7 +573,10 @@ export function registerReadTools(server: McpServer): void {
       title: 'Get card price',
       description:
         'Get a card’s representative printing and cheapest printing per currency. ' +
-        'An unknown card name is an error.',
+        'Reads the local card cache, but fetches from Scryfall (and updates the cache) when the ' +
+        'name is uncached or its cached copy is more than a day old. The name is matched ' +
+        'exactly; an unknown card name is an error (resolve partial names with ' +
+        'autocomplete_card).',
       inputSchema: z.object({ name: z.string().min(1).describe('Exact card name.') }),
       outputSchema: outputSchemaFor<CardPriceResult>('get_card_price'),
       annotations: { readOnlyHint: true, openWorldHint: true },
@@ -604,7 +608,8 @@ export function registerReadTools(server: McpServer): void {
         'cache is empty (run refresh_cache first). source picks the store: tcgplayer ' +
         '(Scryfall USD, default), cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), ' +
         'or cardkingdom (NM retail from the cached Card Kingdom feed — errors when no feed is ' +
-        'downloaded; run refresh_buylist). A source implies its currency, so pass at most one of the two.',
+        'downloaded; run refresh_buylist, which itself needs sell mode or "cardkingdom" in ' +
+        'priceSources). A source implies its currency, so pass at most one of the two.',
       inputSchema: z
         .object({
           listType: listTypeSchema
@@ -673,8 +678,9 @@ export function registerReadTools(server: McpServer): void {
         'quote per Near Mint copy, and their quantity caps. Scope with listType (default: ' +
         'collections) or lists; filter with sets / minPrice. Strictly cache-backed — errors ' +
         'when the card cache is empty (run refresh_cache) or no buylist feed has been ' +
-        'downloaded (run refresh_buylist). Requires sell mode: with the site.sellMode config ' +
-        'off and no --sell-mode flag on this server, this tool errors "Not found".',
+        'downloaded (run refresh_buylist). Requires sell mode or the cardkingdom price source: with ' +
+        'site.sellMode off, no "cardkingdom" in priceSources, and no --sell-mode flag on this ' +
+        'server, this tool errors "Not found".',
       inputSchema: sellScopeSchema,
       outputSchema: outputSchemaFor<SellReportResult>('get_sell_report'),
       annotations: { readOnlyHint: true },
@@ -807,9 +813,9 @@ export function registerReadTools(server: McpServer): void {
         'bulk built it (cardBulkType — default_cards for an English defaultLanguage, all_cards ' +
         'otherwise; bulkTypeStale means the cache and the configured defaultLanguage disagree ' +
         'and a full refresh_cache is needed). ' +
-        'Check empty and priceStale before pricing: an empty or stale cache is exactly what ' +
-        'get_price_report errors on, and refresh_cache is the fix. Diagnostic only — reading ' +
-        'this never refreshes or writes the cache.',
+        'Check empty before pricing (an empty cache is what get_price_report errors on) and ' +
+        'priceStale before trusting the numbers; refresh_cache fixes both. Diagnostic only — ' +
+        'reading this never refreshes or writes the cache.',
       inputSchema: z.object({}),
       outputSchema: outputSchemaFor<CacheStatusResult>('get_cache_status'),
       annotations: { readOnlyHint: true },
@@ -860,8 +866,7 @@ export function registerReadTools(server: McpServer): void {
         'text and md have fixed line formats). With no lists and no cards, every list is exported. ' +
         'By default the rendered export comes back inline and nothing is written to disk; with ' +
         'write: true it instead writes a server-named file under exports/ in the base dir and ' +
-        'returns its path (an existing file is never overwritten). Registered with the read tools ' +
-        'because content mode is the common case; write mode is why it carries no readOnlyHint.',
+        'returns its path (an existing file is never overwritten).',
       inputSchema: z.object({
         lists: z.array(listRefSchema).optional().describe('Lists to export whole.'),
         cards: z
