@@ -59,7 +59,8 @@ whatever the page count — a single-page run and a five-page run produce the sa
 shape, and a run that matched nothing emits \`[]\`. Interactive paging prints each
 page as it arrives instead. \`--output ndjson\` streams one document per card as
 pages arrive, and \`--output text\` prints one \`Name (SET)\` line per card.
-\`scry\` is the only command whose \`--output\` takes a fourth value, \`csv\`.
+\`scry\` also takes \`--output csv\` (Scryfall's server-side CSV); \`sell\` is the
+only other command that does.
 When a non-interactive run stops with results left, one line always goes to
 stderr (\`Fetched X of Y results (page 1); use --pages <n> for more.\`) so a
 capped run is never mistaken for a complete one. A query with no matches exits
