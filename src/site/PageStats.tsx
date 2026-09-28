@@ -1,7 +1,7 @@
 import type { Component, JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPrice } from '../pricing/price-currency'
+import { formatPrice, formatTotalPrice } from '../pricing/price-currency'
 import { BUYLIST_CURRENCY } from '../buylist'
 import { buylistError } from '../list-view/buylist-quotes'
 import { activeUsdSource, pricesEnabled } from '../list-view/price-view'
@@ -35,6 +35,8 @@ type FilteredPriceStatProps = {
    * active but never narrows `filterCards`'s result, so it must not show this stat). */
   filters: CardFiltersControl
   amount: number
+  /** Whether {@link amount} is an estimate (prefixed "Est."). */
+  estimated: boolean
   currency: PriceCurrency
 }
 
@@ -46,7 +48,7 @@ const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => {
       when={pricesEnabled() && props.filters.narrowingCount() > 0}
       label={t('site.stats.filtered')}
     >
-      {formatPrice(props.amount, props.currency)}
+      {formatTotalPrice(props.amount, props.currency, props.estimated)}
     </PageStat>
   )
 }
@@ -107,6 +109,7 @@ type ListPageStatsProps = {
   /** The page's display currency; the buylist stats do not use it. */
   currency: PriceCurrency
   filteredAmount: number
+  filteredEstimated: boolean
   selectedCount: number
   selectedAmount: number
   /** Whether sell mode is on; both buylist stats are hidden otherwise. */
@@ -128,6 +131,7 @@ export const ListPageStats: Component<ListPageStatsProps> = (props) => (
     <FilteredPriceStat
       filters={props.filters}
       amount={props.filteredAmount}
+      estimated={props.filteredEstimated}
       currency={props.currency}
     />
     <SellSummaryStat
@@ -153,6 +157,8 @@ type PageCountAndTotalProps = {
   count: number
   /** The page's total in its display currency. */
   total: number
+  /** Whether {@link total} is an estimate (prefixed "Est."). */
+  estimated: boolean
   currency: PriceCurrency
 }
 
@@ -169,7 +175,7 @@ export const PageCountAndTotal: Component<PageCountAndTotalProps> = (props) => {
       {pricesEnabled()
         ? t('site.stats.cardsAndTotal', {
             count: props.count,
-            amount: formatPrice(props.total, props.currency),
+            amount: formatTotalPrice(props.total, props.currency, props.estimated),
           })
         : t('domain.count.cards', { count: props.count })}
     </>

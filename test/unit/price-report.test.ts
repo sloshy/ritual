@@ -7,6 +7,7 @@ import {
   filterPricedEntries,
   hasActiveFilters,
   isByRuleUnpricedReason,
+  isEstimatedEntry,
   isPricelessEntry,
   isPriceSortField,
   pricelessEntryReason,
@@ -671,13 +672,43 @@ describe('comparePricedEntries', () => {
   })
 })
 
+describe('isEstimatedEntry', () => {
+  test.each<[string, Partial<PricedEntry>, boolean]>([
+    ['an unpinned deck card', { pinned: false, price: 2 }, true],
+    ['an unpinned wanted card', { listType: 'wanted', pinned: false, price: 2 }, true],
+    [
+      'a pinned card with no price',
+      { pinned: true, price: 0, unpricedReason: 'no-price-data' },
+      true,
+    ],
+    ['a pinned, priced card', { pinned: true, price: 2 }, false],
+    [
+      'an unpriced collection card',
+      { listType: 'collection', pinned: true, price: 0, unpricedReason: 'no-price-data' },
+      false,
+    ],
+  ])('%s → %p', (_label, overrides, expected) => {
+    expect(isEstimatedEntry(entry(overrides))).toBe(expected)
+  })
+
+  test.each([...BY_RULE_UNPRICED_REASONS])('an unpinned %s card is an exact zero', (reason) => {
+    expect(isEstimatedEntry(entry({ pinned: false, price: 0, unpricedReason: reason }))).toBe(false)
+  })
+})
+
 describe('sumPricedEntries', () => {
   test('multiplies by quantity and counts unpriced by quantity', () => {
     const totals = sumPricedEntries([
       entry({ price: 2, lowest: 1, quantity: 3 }),
       entry({ price: 0, lowest: 0, quantity: 4 }),
     ])
-    expect(totals).toEqual({ cardCount: 7, total: 6, lowestTotal: 3, unpricedCount: 4 })
+    expect(totals).toEqual({
+      cardCount: 7,
+      total: 6,
+      lowestTotal: 3,
+      unpricedCount: 4,
+      estimatedCount: 7,
+    })
   })
 
   // Driven off the reason list itself, so a third by-rule reason is pinned the
@@ -691,7 +722,13 @@ describe('sumPricedEntries', () => {
         // A real gap in the data still counts, alongside them.
         entry({ price: 0, lowest: 0, quantity: 1, unpricedReason: 'no-price-data' }),
       ])
-      expect(totals).toEqual({ cardCount: 5, total: 2, lowestTotal: 2, unpricedCount: 1 })
+      expect(totals).toEqual({
+        cardCount: 5,
+        total: 2,
+        lowestTotal: 2,
+        unpricedCount: 1,
+        estimatedCount: 2,
+      })
     },
   )
 })

@@ -3,7 +3,13 @@ import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { cardPriceText, cardPricelessReason } from '../list-view/priceless'
-import { type GroupBy, type SortBy, groupTotalPrice } from '../list-view/card-sorting'
+import {
+  type GroupBy,
+  type SortBy,
+  groupTotalPrice,
+  isEstimatedPrice,
+} from '../list-view/card-sorting'
+import { listTypeEstimatesPrices } from '../pricing/price-summary'
 import { CardModal } from '../list-view/CardModal'
 import { PageCountAndTotal } from './PageStats'
 import type { SellModeProps } from '../list-view/sell-mode'
@@ -152,6 +158,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       defaults: COMBINED_DEFAULTS,
     },
     cards: () => props.cards,
+    isEstimatedPrice: (card) => listTypeEstimatesPrices(card.sourceKind) && isEstimatedPrice(card),
     sectionOrder,
     currency: () => props.currency,
     enableSellMode: () => Boolean(props.enableSellMode),
@@ -161,6 +168,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
   })
 
   const totalPrice = createMemo(() => groupTotalPrice(props.cards))
+  const totalEstimated = createMemo(() => page.priceEstimated(props.cards))
   const cardCount = createMemo(() => props.cards.reduce((sum, c) => sum + c.quantity, 0))
 
   const modalMeta = createMemo((): MetaEntry[] | undefined => {
@@ -275,7 +283,12 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
       useScryfallImgUrls={props.useScryfallImgUrls}
       enableTrade={props.enableTrade}
       statsLead={
-        <PageCountAndTotal count={cardCount()} total={totalPrice()} currency={props.currency} />
+        <PageCountAndTotal
+          count={cardCount()}
+          total={totalPrice()}
+          estimated={totalEstimated()}
+          currency={props.currency}
+        />
       }
       headerExtra={props.header}
       beforeCards={
@@ -299,6 +312,7 @@ export const CombinedCardsView: Component<CombinedCardsViewProps> = (props) => {
         <For each={page.cardGroups()}>
           {(group) => (
             <CardSection
+              priceEstimated={page.priceEstimated}
               label={group.key}
               cards={group.cards}
               currency={props.currency}

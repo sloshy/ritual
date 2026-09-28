@@ -277,6 +277,7 @@ import {
   type CardCategory,
 } from '../card/card-categories'
 import type { PriceCurrency } from '../pricing/price-currency'
+import { isPricelessCard } from './priceless'
 import { getCurrencySymbol, getCurrencySuffix } from '../pricing/price-currency'
 
 export { BUYLIST_CURRENCY }
@@ -419,6 +420,21 @@ export function priceGroupSortValue(
 /** Compute the total price for a group of cards */
 export function groupTotalPrice(cards: CardData[]): number {
   return cards.reduce((sum, c) => sum + c.price * c.quantity, 0)
+}
+
+/**
+ * Whether a card's contribution to a total is an estimate: it pins no printing
+ * (so it is priced at a representative one), or the active store lists no price
+ * for its printing. A copy priceless by rule — a proxy, custom art — is an exact
+ * zero, not an estimate.
+ */
+export function isEstimatedPrice(card: CardData): boolean {
+  return !isPricelessCard(card) && (!card.hasPrinting || card.price <= 0)
+}
+
+/** Whether a group's {@link groupTotalPrice} contains any {@link isEstimatedPrice} card. */
+export function groupHasEstimatedPrice(cards: CardData[]): boolean {
+  return cards.some(isEstimatedPrice)
 }
 
 /**

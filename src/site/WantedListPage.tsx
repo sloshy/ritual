@@ -14,7 +14,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { WantedListCardEntry } from '../list/site-data'
 import { pricesEnabled, sitePriceForFinish } from '../list-view/price-view'
-import type { CardData, GroupBy, SortBy } from '../list-view/card-sorting'
+import { type CardData, type GroupBy, type SortBy } from '../list-view/card-sorting'
 import { CardModal } from '../list-view/CardModal'
 import { ListPageShell, type ListPageChangelog, type ListPageExport } from './ListPageShell'
 import type { FlatListPageProps } from './list-page-props'
@@ -450,6 +450,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         <PageCountAndTotal
           count={props.entries.length}
           total={computedTotalPrice()}
+          estimated={page.priceEstimated(allCards())}
           currency={props.currency}
         />
       }
@@ -460,6 +461,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         <For each={page.cardGroups()}>
           {(group) => (
             <CardSection
+              priceEstimated={page.priceEstimated}
               label={group.key}
               cards={group.cards}
               currency={props.currency}

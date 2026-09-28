@@ -163,6 +163,16 @@ function withDeckCardCategories(
   }
 }
 
+/** One currency's running deck totals, summed over the non-extra sections. */
+type DeckPriceTotals = {
+  total: number
+  lowest: number
+  /** Copies with no price in this currency. */
+  missing: number
+  /** Copies priced at a representative printing, or with no price. */
+  estimated: number
+}
+
 /** Build a deck's detail JSON payload and index summary from prefetched card data. */
 export async function buildDeckArtifacts(
   loaded: LoadedDeck,
@@ -461,16 +471,13 @@ export async function buildDeckArtifacts(
   reportListCoverIssue(cover, 'deck', deckData.name, ctx)
   const featuredImage = cover.url
 
-  // Compute deck prices (mainboard + sideboard + commander, not extras)
-  let deckTotalPrice = 0
-  let deckLowestPrice = 0
-  let deckTotalPriceEur = 0
-  let deckLowestPriceEur = 0
-  let deckTotalPriceTix = 0
-  let deckLowestPriceTix = 0
-  let missingPriceCount = 0
-  let missingPriceCountEur = 0
-  let missingPriceCountTix = 0
+  // Compute deck prices (mainboard + sideboard + commander, not extras). Each
+  // line is priced at the printing its tile shows — its own pin, else the
+  // representative — exactly as the deck page reads it, so the index tile and
+  // the page header agree.
+  const priceTotals = new Map<PriceCurrency, DeckPriceTotals>(
+    availableCurrencies.map((cur) => [cur, { total: 0, lowest: 0, missing: 0, estimated: 0 }]),
+  )
   for (const section of deckData.sections) {
     const sLow = section.name.toLowerCase()
     if (sLow.includes('maybeboard') || sLow.includes('token')) continue
@@ -479,32 +486,22 @@ export async function buildDeckArtifacts(
       // price is *missing*, so they leave the totals and the missing counts
       // untouched.
       if (pricesAtNothing(c)) continue
-      if (hasUsd) {
-        const defaultCard = cardData.cards[c.name]
-        const cheapCard = cheapestUsd[c.name]
-        const cardPrice = parseFloat(defaultCard?.prices.usd || '0')
-        deckTotalPrice += cardPrice * c.quantity
-        deckLowestPrice += parseFloat(cheapCard?.prices.usd || '0') * c.quantity
-        if (!defaultCard?.prices.usd) missingPriceCount += c.quantity
-      }
-      if (hasEur) {
-        const defaultCard = cardData.cards[c.name]
-        const cheapCard = cheapestEur[c.name]
-        const cardPrice = defaultCard ? getCardPrice(defaultCard, 'eur') : 0
-        deckTotalPriceEur += cardPrice * c.quantity
-        deckLowestPriceEur += (cheapCard ? getCardPrice(cheapCard, 'eur') : 0) * c.quantity
-        if (cardPrice === 0) missingPriceCountEur += c.quantity
-      }
-      if (hasTix) {
-        const defaultCard = cardData.cards[c.name]
-        const cheapCard = cheapestTix[c.name]
-        const cardPrice = defaultCard ? getCardPrice(defaultCard, 'tix') : 0
-        deckTotalPriceTix += cardPrice * c.quantity
-        deckLowestPriceTix += (cheapCard ? getCardPrice(cheapCard, 'tix') : 0) * c.quantity
-        if (cardPrice === 0) missingPriceCountTix += c.quantity
+      const card = entryCard(c)
+      const pinned = hasSpecificPrinting(c)
+      for (const [cur, totals] of priceTotals) {
+        const cardPrice = card ? getCardPrice(card, cur) : 0
+        const cheapCard = cardData.cheapest[cur]?.[c.name]
+        totals.total += cardPrice * c.quantity
+        totals.lowest += (cheapCard ? getCardPrice(cheapCard, cur) : 0) * c.quantity
+        if (cardPrice === 0) totals.missing += c.quantity
+        // Priced at a representative printing, or at one with no price.
+        if (!pinned || cardPrice === 0) totals.estimated += c.quantity
       }
     }
   }
+  const usdTotals = priceTotals.get('usd')
+  const eurTotals = priceTotals.get('eur')
+  const tixTotals = priceTotals.get('tix')
 
   const summary: DeckSummary = {
     slug,
@@ -516,15 +513,18 @@ export async function buildDeckArtifacts(
     format,
     cardCount,
     lastUpdatedAt,
-    totalPrice: hasUsd ? deckTotalPrice : undefined,
-    lowestPrice: hasUsd ? deckLowestPrice : undefined,
-    totalPriceEur: hasEur ? deckTotalPriceEur : undefined,
-    lowestPriceEur: hasEur ? deckLowestPriceEur : undefined,
-    totalPriceTix: hasTix ? deckTotalPriceTix : undefined,
-    lowestPriceTix: hasTix ? deckLowestPriceTix : undefined,
-    missingPriceCount: hasUsd ? missingPriceCount : undefined,
-    missingPriceCountEur: hasEur ? missingPriceCountEur : undefined,
-    missingPriceCountTix: hasTix ? missingPriceCountTix : undefined,
+    totalPrice: usdTotals?.total,
+    lowestPrice: usdTotals?.lowest,
+    totalPriceEur: eurTotals?.total,
+    lowestPriceEur: eurTotals?.lowest,
+    totalPriceTix: tixTotals?.total,
+    lowestPriceTix: tixTotals?.lowest,
+    missingPriceCount: usdTotals?.missing,
+    missingPriceCountEur: eurTotals?.missing,
+    missingPriceCountTix: tixTotals?.missing,
+    estimatedPriceCount: usdTotals?.estimated,
+    estimatedPriceCountEur: eurTotals?.estimated,
+    estimatedPriceCountTix: tixTotals?.estimated,
   }
 
   return { slug, detail, summary }

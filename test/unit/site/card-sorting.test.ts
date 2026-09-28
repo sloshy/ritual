@@ -6,8 +6,11 @@ import {
   colorIdentityKey,
   colorIdentityName,
   getPriceGroupKey,
+  groupHasEstimatedPrice,
   groupTotalPrice,
+  isEstimatedPrice,
   sortByOptions,
+  type CardData,
   type SortBy,
   type SortLayer,
 } from '../../../src/list-view/card-sorting'
@@ -526,6 +529,28 @@ describe('groupTotalPrice', () => {
 
   test('returns 0 for empty array', () => {
     expect(groupTotalPrice([])).toBe(0)
+  })
+})
+
+describe('isEstimatedPrice', () => {
+  test.each<[string, Partial<CardData>, boolean]>([
+    ['a pinned, priced card', { hasPrinting: true, price: 2 }, false],
+    ['an unpinned card', { hasPrinting: false, price: 2 }, true],
+    ['a pinned card with no price', { hasPrinting: true, price: 0 }, true],
+    ['an unpinned proxy', { hasPrinting: false, price: 0, labels: ['proxy'] }, false],
+    [
+      'a pinned card wearing custom art',
+      { hasPrinting: true, price: 0, hasCustomArt: true },
+      false,
+    ],
+  ])('%s → %p', (_label, overrides, expected) => {
+    expect(isEstimatedPrice(makeCard(overrides))).toBe(expected)
+  })
+
+  test('a group is estimated when any card is', () => {
+    const exact = makeCard({ hasPrinting: true, price: 2 })
+    expect(groupHasEstimatedPrice([exact])).toBe(false)
+    expect(groupHasEstimatedPrice([exact, makeCard({ hasPrinting: false, price: 1 })])).toBe(true)
   })
 })
 

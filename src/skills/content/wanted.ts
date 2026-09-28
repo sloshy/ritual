@@ -174,6 +174,8 @@ ritual price to-buy --source cardkingdom       ${PRICE_SOURCE_COMMENT}
 
 Each wanted list also reports a "lowest" total: name-only entries use the cheapest
 printing, printing-pinned entries the cheapest finish of that printing, and
-fully-specified entries their exact price.
+fully-specified entries their exact price. A total that includes any name-only
+entry, or any entry with no price, reads **"Est."** (\`Total Est. $12.34\`); JSON
+reports those entries as \`estimatedCount\`.
 `,
 }

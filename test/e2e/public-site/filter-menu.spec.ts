@@ -468,13 +468,14 @@ test.describe('Toolbar Filters menu', () => {
   }) => {
     const stats = page.locator('.page-stats')
     // No filter yet: only the base total (and its "all cards" extras note) show.
-    await expect(stats).toContainText('Total: $25.75')
+    // Boring Rock is pinned but has no price, so the totals are estimates.
+    await expect(stats).toContainText('Total: Est. $25.75')
     await expect(stats).not.toContainText('Filtered:')
 
     await openFilterMenu(page)
     await page.locator('#filter-name').fill('green')
     await expectVisibleCards(page, ['Green Elf'])
-    // Green Elf is the only match, priced at $0.50.
+    // Green Elf is the only match: pinned and priced at $0.50, so no estimate.
     await expect(stats).toContainText('Filtered: $0.50')
 
     await page.locator('#filter-name').fill('')

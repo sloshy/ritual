@@ -489,6 +489,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         <PageCountAndTotal
           count={props.entries.length}
           total={computedTotalPrice()}
+          estimated={false}
           currency={props.currency}
         />
       }
@@ -499,6 +500,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         <For each={page.cardGroups()}>
           {(group) => (
             <CardSection
+              priceEstimated={page.priceEstimated}
               label={group.key}
               cards={group.cards}
               currency={props.currency}

@@ -6,7 +6,11 @@ import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/
 import type { PriceCurrency } from '../pricing/price-currency'
 import { pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
-import { getSummaryMissingPriceCount, getSummaryTotalPrice } from '../pricing/price-summary'
+import {
+  getSummaryEstimatedPriceCount,
+  getSummaryMissingPriceCount,
+  getSummaryTotalPrice,
+} from '../pricing/price-summary'
 import { LIST_TYPE_DISPLAY, listTypeTitle, type ListType } from '../list/list-type'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
@@ -23,6 +27,8 @@ interface ListChoice {
   cardCount: number
   total: number
   missing: number
+  /** Whether {@link total} is an estimate (see `getSummaryEstimatedPriceCount`). */
+  estimated: boolean
 }
 
 type CombineSort = 'name' | 'count' | 'type'
@@ -82,6 +88,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
     const add = (
       ref: NamedListRef,
       summary: DeckSummary | CollectionSummary | WantedListSummary,
+      estimated: boolean,
     ) => {
       if (cur && cur.type === ref.type && cur.slug === ref.slug) return
       out.push({
@@ -89,11 +96,21 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
         cardCount: summary.cardCount,
         total: getSummaryTotalPrice(summary, props.currency),
         missing: getSummaryMissingPriceCount(summary, props.currency),
+        estimated,
       })
     }
-    for (const d of props.decks) add({ type: 'deck', slug: d.slug, name: d.name }, d)
-    for (const c of props.collections) add({ type: 'collection', slug: c.slug, name: c.name }, c)
-    for (const w of props.wantedLists) add({ type: 'wanted', slug: w.slug, name: w.name }, w)
+    // Collection summaries carry no estimate (`listTypeEstimatesPrices`).
+    const estimated = (summary: DeckSummary | WantedListSummary): boolean =>
+      getSummaryEstimatedPriceCount(summary, props.currency) > 0
+    for (const d of props.decks) {
+      add({ type: 'deck', slug: d.slug, name: d.name }, d, estimated(d))
+    }
+    for (const c of props.collections) {
+      add({ type: 'collection', slug: c.slug, name: c.name }, c, false)
+    }
+    for (const w of props.wantedLists) {
+      add({ type: 'wanted', slug: w.slug, name: w.name }, w, estimated(w))
+    }
     return out
   })
 
@@ -225,7 +242,12 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
                 </span>
                 <Show when={pricesEnabled()}>
                   <span class="combine-modal-row-price">
-                    {formatPriceWithMissing(choice.total, props.currency, choice.missing)}
+                    {formatPriceWithMissing(
+                      choice.total,
+                      props.currency,
+                      choice.missing,
+                      choice.estimated,
+                    )}
                   </span>
                 </Show>
               </label>

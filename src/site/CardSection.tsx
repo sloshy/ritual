@@ -2,7 +2,7 @@ import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
 import type { CardData } from '../list-view/card-sorting'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPrice } from '../pricing/price-currency'
+import { formatTotalPrice } from '../pricing/price-currency'
 import { groupTotalPrice } from '../list-view/card-sorting'
 import { pricesEnabled } from '../list-view/price-view'
 import { foldCardCategory, primaryCardCategory, type CardCategory } from '../card/card-categories'
@@ -13,6 +13,8 @@ interface CardSectionProps<T extends CardData = CardData> {
   cards: T[]
   currency: PriceCurrency
   renderCard: (card: T, index: number) => JSX.Element
+  /** Whether a total over these cards is an estimate — `useListPage`'s `priceEstimated`. */
+  priceEstimated: (cards: readonly T[]) => boolean
   /**
    * The category this section *is*, under the "Categories (all)" grouping. When
    * given, each tile is wrapped in a `.card-slot` — every tile, so the grid stays
@@ -29,6 +31,7 @@ export function CardSection<T extends CardData = CardData>(
   const t = useT()
   const sectionId = () => props.label.replace(/[^a-zA-Z0-9]/g, '_')
   const sectionTotal = () => groupTotalPrice(props.cards)
+  const sectionEstimated = () => props.priceEstimated(props.cards)
   // Folded on both sides for the same reason the grouper buckets by fold: two
   // spellings of one category are one category.
   const isSecondary = (card: T): boolean =>
@@ -59,7 +62,9 @@ export function CardSection<T extends CardData = CardData>(
             <span class="section-note">{t('site.cardSection.secondaryCountNote')}</span>
           </Show>
           <Show when={pricesEnabled()}>
-            <span class="section-price">{formatPrice(sectionTotal(), props.currency)}</span>
+            <span class="section-price">
+              {formatTotalPrice(sectionTotal(), props.currency, sectionEstimated())}
+            </span>
           </Show>
         </div>
         <div class="binder-grid">

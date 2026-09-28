@@ -24,6 +24,7 @@
  * Both price at 0 by rule and are left out of the unpriced counts.
  */
 
+import { listTypeEstimatesPrices } from './price-summary'
 import * as fs from 'node:fs/promises'
 import { compareData } from '../i18n/collate'
 import { loadCardArt, type CardArtMap } from '../list/card-art'
@@ -217,6 +218,11 @@ export type PriceTotals = {
   lowestTotal: number
   /** Quantity-weighted count of unpriced entries. */
   unpricedCount: number
+  /**
+   * Quantity-weighted count of deck and wanted entries whose price is an
+   * estimate (see {@link isEstimatedEntry}). Any at all prefixes the total "Est.".
+   */
+  estimatedCount: number
 }
 
 export type ListPriceSummary = PriceTotals & {
@@ -623,14 +629,34 @@ function priceEntry(
 }
 
 /**
+ * Whether an entry's price is an estimate: a deck or wanted line that pins no
+ * printing (priced at a representative one), or whose printing has no price.
+ * Collections never estimate — every line pins its printing — and a card
+ * priceless by rule is an exact zero.
+ */
+export function isEstimatedEntry(entry: PricedEntry): boolean {
+  if (!listTypeEstimatesPrices(entry.listType) || isByRuleUnpricedReason(entry.unpricedReason)) {
+    return false
+  }
+  return !entry.pinned || entry.price <= 0
+}
+
+/**
  * Sum totals over any set of priced entries. Proxies and custom-art cards
  * count as cards but never as unpriced ones: "3 unpriced" must mean three cards
  * whose price could not be found, not three the user built out of paper or gave
  * art of their own on purpose.
  */
 export function sumPricedEntries(entries: PricedEntry[]): PriceTotals {
-  const totals: PriceTotals = { cardCount: 0, total: 0, lowestTotal: 0, unpricedCount: 0 }
+  const totals: PriceTotals = {
+    cardCount: 0,
+    total: 0,
+    lowestTotal: 0,
+    unpricedCount: 0,
+    estimatedCount: 0,
+  }
   for (const entry of entries) {
+    if (isEstimatedEntry(entry)) totals.estimatedCount += entry.quantity
     totals.cardCount += entry.quantity
     totals.total += entry.price * entry.quantity
     totals.lowestTotal += entry.lowest * entry.quantity

@@ -15,7 +15,11 @@ import type { CardCandidate } from './quick-switch-candidates'
 import { buildCandidates, cardNameKey, totalQuantityByName } from './quick-switch-candidates'
 import { fetchJson } from '../list-view/useFetchJson'
 import { detailUrl } from '../list-view/api-base'
-import { getSummaryMissingPriceCount, getSummaryTotalPrice } from '../pricing/price-summary'
+import {
+  getSummaryEstimatedPriceCount,
+  getSummaryMissingPriceCount,
+  getSummaryTotalPrice,
+} from '../pricing/price-summary'
 import { getDeckCountLabel } from '../list/deck-format'
 import { listHref } from '../list-view/combined-list'
 import type { MessageKey } from '../i18n/messages/en'
@@ -36,6 +40,8 @@ type ListEntry = {
   labelSuffix?: string
   total: number
   missing: number
+  /** Whether {@link total} is an estimate (see `getSummaryEstimatedPriceCount`). */
+  estimated: boolean
 }
 
 type CommanderEntry = {
@@ -203,6 +209,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         labelSuffix: countLabel.suffix,
         total: getSummaryTotalPrice(d, cur),
         missing: getSummaryMissingPriceCount(d, cur),
+        estimated: getSummaryEstimatedPriceCount(d, cur) > 0,
       })
     }
     for (const c of props.collections() ?? []) {
@@ -215,6 +222,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         label: t('domain.count.cards', { count: c.cardCount }),
         total: getSummaryTotalPrice(c, cur),
         missing: getSummaryMissingPriceCount(c, cur),
+        estimated: false,
       })
     }
     for (const w of props.wantedLists() ?? []) {
@@ -227,6 +235,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         label: t('domain.count.cards', { count: w.cardCount }),
         total: getSummaryTotalPrice(w, cur),
         missing: getSummaryMissingPriceCount(w, cur),
+        estimated: getSummaryEstimatedPriceCount(w, cur) > 0,
       })
     }
     return out
@@ -476,7 +485,12 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                           </span>
                           <Show when={pricesEnabled()}>
                             <span class="quick-switch-row-price">
-                              {formatPriceWithMissing(entry.total, props.currency(), entry.missing)}
+                              {formatPriceWithMissing(
+                                entry.total,
+                                props.currency(),
+                                entry.missing,
+                                entry.estimated,
+                              )}
                             </span>
                           </Show>
                         </div>

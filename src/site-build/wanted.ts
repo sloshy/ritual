@@ -65,6 +65,11 @@ export async function buildWantedArtifacts(
   let missingPriceCount = 0
   let missingPriceCountEur = 0
   let missingPriceCountTix = 0
+  // Entries whose share of the total is an estimate: priced at a representative
+  // printing, or at a printing with no price in that currency.
+  let estimatedPriceCount = 0
+  let estimatedPriceCountEur = 0
+  let estimatedPriceCountTix = 0
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
   /** The featured entry's card id, for the custom art its cover may wear. */
@@ -252,6 +257,10 @@ export async function buildWantedArtifacts(
       missingPriceCount += missingUsd
       missingPriceCountEur += missingEur
       missingPriceCountTix += missingTix
+      const pinned = hasSpecificPrinting(entry)
+      estimatedPriceCount += pinned ? missingUsd : 1
+      estimatedPriceCountEur += pinned ? missingEur : 1
+      estimatedPriceCountTix += pinned ? missingTix : 1
       // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
       // printing when the line pins one, the cheapest/representative otherwise.
       // Under the CK source the tile shows CK's own pick instead, and its price
@@ -352,6 +361,9 @@ export async function buildWantedArtifacts(
     missingPriceCount,
     missingPriceCountEur,
     missingPriceCountTix,
+    estimatedPriceCount,
+    estimatedPriceCountEur,
+    estimatedPriceCountTix,
   }
 
   return { slug, detail, summary }

@@ -130,6 +130,12 @@ export const domainMessages = {
     one: 'At least {price} (missing {count} card)',
     other: 'At least {price} (missing {count} cards)',
   },
+  'domain.price.estimated': 'Est. {price}',
+  'domain.price.estimatedAtLeastMissing': {
+    $plural: 'count',
+    one: 'Est. at least {price} (missing {count} card)',
+    other: 'Est. at least {price} (missing {count} cards)',
+  },
 
   // ── Sync engines ──────────────────────────────────────────────────────
   //

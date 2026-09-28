@@ -174,6 +174,8 @@ describe('GET /api/price/summary', () => {
     expect(body.totals.listCount).toBe(2)
     expect(body.totals.cardCount).toBe(3)
     expect(body.totals.total).toBeCloseTo(7.5)
+    // The deck's unpinned copies are estimates; the pinned collection copy is not.
+    expect(body.totals.estimatedCount).toBe(2)
   })
 
   test('?type= restricts the report to one list type', async () => {

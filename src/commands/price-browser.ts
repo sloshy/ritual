@@ -17,6 +17,7 @@ import { printingFinishes } from '../card/finish-condition'
 import {
   formatPrice,
   formatPriceOrNA,
+  formatTotalPrice,
   getCardPriceForFinish,
   VALID_CURRENCIES,
   type PriceCurrency,
@@ -129,10 +130,15 @@ export function createDefaultBrowserState(): CardBrowserState {
   return { sort: 'name', descending: false, filters: {} }
 }
 
-/** "Total $12.34 · Lowest $10.00 · 2 unpriced" (lowest/unpriced only when they add information). */
+/**
+ * "Total $12.34 · Lowest $10.00 · 2 unpriced" (lowest/unpriced only when they
+ * add information), the total prefixed "Est." when it is an estimate.
+ */
 export function formatTotalsSegment(totals: PriceTotals, currency: PriceCurrency): string {
   const parts: string[] = [
-    t('cli.price.totalsTotal', { price: formatPrice(totals.total, currency) }),
+    t('cli.price.totalsTotal', {
+      price: formatTotalPrice(totals.total, currency, totals.estimatedCount > 0),
+    }),
   ]
   if (totals.lowestTotal !== totals.total) {
     parts.push(t('cli.price.totalsLowest', { price: formatPrice(totals.lowestTotal, currency) }))

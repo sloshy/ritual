@@ -124,6 +124,14 @@ export interface DeckSummary {
   missingPriceCount?: number
   missingPriceCountEur?: number
   missingPriceCountTix?: number
+  /**
+   * Copies whose part of the total is an estimate: they pin no printing, or
+   * their printing has no price in that currency. Any at all prefixes the total
+   * "Est.".
+   */
+  estimatedPriceCount?: number
+  estimatedPriceCountEur?: number
+  estimatedPriceCountTix?: number
 }
 
 export interface DeckDetail {
@@ -320,6 +328,14 @@ export interface WantedListSummary {
   missingPriceCount?: number
   missingPriceCountEur?: number
   missingPriceCountTix?: number
+  /**
+   * Entries whose part of the total is an estimate (one per entry, like the
+   * totals themselves): they pin no printing, or their printing has no price
+   * in that currency. Any at all prefixes the total "Est.".
+   */
+  estimatedPriceCount?: number
+  estimatedPriceCountEur?: number
+  estimatedPriceCountTix?: number
 }
 
 export interface WantedListDetail {

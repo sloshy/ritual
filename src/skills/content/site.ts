@@ -150,6 +150,10 @@ price **0** and left out of the totals and the missing-price counts — the same
 rule the \`proxy\` label carries — and the pages show \`CUSTOM\` (or \`PROXY\`)
 where a price would be, with no buylist quote in sell mode.
 
+A deck or wanted-list total that includes a card with no pinned printing (priced at
+a representative one) or with no price is prefixed **"Est."** on the sites (index
+tiles, page and section totals, the Filtered stat); collections never are.
+
 ### Site language
 
 The three locale flags decide what language the published site speaks. They are

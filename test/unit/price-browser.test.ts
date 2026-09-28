@@ -16,6 +16,7 @@ import {
 import {
   UNRANKED_EDHREC,
   type ListPriceSummary,
+  type PriceTotals,
   type PricedEntry,
   type PriceReport,
 } from '../../src/pricing/price-report'
@@ -50,6 +51,7 @@ function summary(overrides: Partial<ListPriceSummary> = {}): ListPriceSummary {
     total: 250,
     lowestTotal: 200,
     unpricedCount: 0,
+    estimatedCount: 0,
     ...overrides,
   }
 }
@@ -67,22 +69,49 @@ function report(overrides: Partial<PriceReport> = {}): PriceReport {
         total: 250,
         lowestTotal: 200,
         unpricedCount: 0,
+        estimatedCount: 0,
       },
-      { type: 'wanted', listCount: 1, cardCount: 2, total: 5, lowestTotal: 5, unpricedCount: 1 },
+      {
+        type: 'wanted',
+        listCount: 1,
+        cardCount: 2,
+        total: 5,
+        lowestTotal: 5,
+        unpricedCount: 1,
+        estimatedCount: 0,
+      },
     ],
-    totals: { listCount: 2, cardCount: 102, total: 255, lowestTotal: 205, unpricedCount: 1 },
+    totals: {
+      listCount: 2,
+      cardCount: 102,
+      total: 255,
+      lowestTotal: 205,
+      unpricedCount: 1,
+      estimatedCount: 0,
+    },
     ...overrides,
   }
 }
 
 describe('formatTotalsSegment', () => {
+  const totals = (overrides: Partial<PriceTotals>): PriceTotals => ({
+    cardCount: 1,
+    total: 10,
+    lowestTotal: 10,
+    unpricedCount: 0,
+    estimatedCount: 0,
+    ...overrides,
+  })
+
   test('shows lowest only when it differs and unpriced only when positive', () => {
-    expect(
-      formatTotalsSegment({ cardCount: 1, total: 10, lowestTotal: 8, unpricedCount: 2 }, 'usd'),
-    ).toBe('Total $10.00 · Lowest $8.00 · 2 unpriced')
-    expect(
-      formatTotalsSegment({ cardCount: 1, total: 10, lowestTotal: 10, unpricedCount: 0 }, 'usd'),
-    ).toBe('Total $10.00')
+    expect(formatTotalsSegment(totals({ lowestTotal: 8, unpricedCount: 2 }), 'usd')).toBe(
+      'Total $10.00 · Lowest $8.00 · 2 unpriced',
+    )
+    expect(formatTotalsSegment(totals({}), 'usd')).toBe('Total $10.00')
+  })
+
+  test('marks an estimated total', () => {
+    expect(formatTotalsSegment(totals({ estimatedCount: 1 }), 'usd')).toBe('Total Est. $10.00')
   })
 })
 
@@ -107,6 +136,7 @@ describe('formatReportHeaderLines', () => {
           total: 250,
           lowestTotal: 200,
           unpricedCount: 0,
+          estimatedCount: 0,
         },
       ],
     })

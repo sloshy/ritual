@@ -37,7 +37,7 @@ import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { storedLanguage } from '../card/card-language'
 import { ListDescription } from './ListDescription'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPrice } from '../pricing/price-currency'
+import { formatPrice, formatTotalPrice } from '../pricing/price-currency'
 import { pricesEnabled, sitePrice } from '../list-view/price-view'
 import {
   type GroupBy,
@@ -425,6 +425,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     bulkEdit: () => props.bulkEdit,
   })
 
+  const totalEstimated = createMemo(() => page.priceEstimated(mainAndSideboardCards()))
+  const allCardsEstimated = createMemo(
+    () => totalEstimated() || page.priceEstimated(partitioned().extraCards),
+  )
+
   // Modal card data
   const modalCard = createMemo((): ScryfallCard | null => {
     if (!props.modalCardName) return null
@@ -657,7 +662,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       statsLead={
         <>
           <Show when={pricesEnabled()}>
-            {t('site.stats.total', { amount: formatPrice(totalPrice(), props.currency) })}
+            {t('site.stats.total', {
+              amount: formatTotalPrice(totalPrice(), props.currency, totalEstimated()),
+            })}
           </Show>
           <Show
             when={
@@ -669,7 +676,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             <span class="page-stats-label">
               {' '}
               {t('site.deck.allCardsPrice', {
-                amount: formatPrice(totalPrice() + extrasPrice(), props.currency),
+                amount: formatTotalPrice(
+                  totalPrice() + extrasPrice(),
+                  props.currency,
+                  allCardsEstimated(),
+                ),
               })}
             </span>
           </Show>
@@ -747,6 +758,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               {/* Commander section always shown first */}
               <Show when={partitioned().commanderCards.length > 0}>
                 <CardSection
+                  priceEstimated={page.priceEstimated}
                   label={commanderLabel()}
                   cards={partitioned().commanderCards}
                   currency={props.currency}
@@ -758,6 +770,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               <For each={page.cardGroups()}>
                 {(group) => (
                   <CardSection
+                    priceEstimated={page.priceEstimated}
                     label={group.key}
                     cards={group.cards}
                     currency={props.currency}
@@ -769,6 +782,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               {/* Sideboard always shown at bottom, ungrouped */}
               <Show when={page.filteredAlso().length > 0}>
                 <CardSection
+                  priceEstimated={page.priceEstimated}
                   label={sideboardLabel()}
                   cards={page.filteredAlso()}
                   currency={props.currency}
@@ -780,6 +794,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               <For each={extraSections()}>
                 {(s) => (
                   <CardSection
+                    priceEstimated={page.priceEstimated}
                     label={s.name}
                     cards={s.cards}
                     currency={props.currency}
@@ -794,6 +809,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           <For each={nestedCategoryGroups()}>
             {(group) => (
               <CardSection
+                priceEstimated={page.priceEstimated}
                 label={group.key}
                 cards={group.cards}
                 currency={props.currency}

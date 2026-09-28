@@ -225,6 +225,34 @@ describe('buildDeckArtifacts', () => {
     expect(summary.commander).toBeNull()
     expect(summary.featuredCardImage).toBe('https://img/bolt.jpg')
     expect(shipped).toEqual([bolt])
+    // The pinned line prices at its own printing, as the deck page does, and is
+    // exact; only the unpinned Angel is an estimate.
+    expect(summary.totalPrice).toBeCloseTo(400.5)
+    expect(summary.estimatedPriceCount).toBe(1)
+  })
+
+  test('a pinned printing unpriced in one currency is an estimate in that currency only', async () => {
+    const eurless = makeScryfallCard({ ...bolt, prices: { usd: '100.00', tix: '1.50' } })
+    const { ctx } = makeContext({
+      cardData: { ...cardData, printings: { 'Lightning Bolt': [eurless] } },
+    })
+    const pinned: LoadedDeck = {
+      ...deck,
+      data: {
+        ...deck.data,
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [{ name: 'Lightning Bolt', quantity: 2, set: 'lea', collectorNumber: '161' }],
+          },
+        ],
+      },
+    }
+    const { summary } = await buildDeckArtifacts(pinned, ctx)
+
+    expect(summary.estimatedPriceCount).toBe(0)
+    expect(summary.estimatedPriceCountEur).toBe(2)
+    expect(summary.estimatedPriceCountTix).toBe(0)
   })
 
   test('an unresolved commander still names the deck’s commander', async () => {
@@ -270,6 +298,8 @@ describe('buildDeckArtifacts', () => {
     expect(summary.totalPrice).toBeCloseTo(400.5)
     expect(summary.lowestPrice).toBeCloseTo(4.5)
     expect(summary.missingPriceCount).toBe(0)
+    // No line pins a printing, so every counted copy is priced at a representative.
+    expect(summary.estimatedPriceCount).toBe(5)
   })
 
   test('unfetched cards get null map entries and count as missing prices', async () => {
@@ -478,6 +508,8 @@ describe('buildWantedArtifacts', () => {
     expect(detail.entries[1]).toMatchObject({ state: 'printing', price: 0.5 })
     expect(detail.entries[2]).toMatchObject({ state: 'fully-specified', price: 1.2 })
     expect(summary.totalPrice).toBeCloseTo(2.7)
+    // Only the name-only entry is an estimate; both pinned printings are priced.
+    expect(summary.estimatedPriceCount).toBe(1)
     // Name-only entries key the card map by both printing key and name.
     expect(detail.cards['m10:146']).toBe(boltCheap)
     expect(detail.cards['Lightning Bolt']).toBe(boltCheap)
@@ -515,6 +547,8 @@ describe('buildWantedArtifacts', () => {
 
     expect(detail.cards['zzz:1']).toBeNull()
     expect(summary.missingPriceCount).toBe(1)
+    // A pinned printing with no price is an estimate too.
+    expect(summary.estimatedPriceCount).toBe(1)
     expect(warnings[0]).toContain("'Serra Angel' (ZZZ:1)")
   })
 })

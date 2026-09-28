@@ -1,4 +1,14 @@
+import type { ListType } from '../list/list-type'
 import type { PriceCurrency } from './price-currency'
+
+/**
+ * Whether a list of this type ever marks its totals "Est.". Only decks and
+ * wanted lists do: every collection line pins its printing, and a collection
+ * card with no price is reported by the missing-price count alone.
+ */
+export function listTypeEstimatesPrices(type: ListType): boolean {
+  return type !== 'collection'
+}
 
 /** Pick a numeric value from an object based on the active currency. */
 export function getCurrencyValue(
@@ -39,6 +49,18 @@ export function getSummaryMissingPriceCount(
     item.missingPriceCount,
     item.missingPriceCountEur,
     item.missingPriceCountTix,
+    currency,
+  )
+}
+
+export function getSummaryEstimatedPriceCount(
+  item: CurrencyFields<'estimatedPriceCount'>,
+  currency: PriceCurrency,
+): number {
+  return getCurrencyValue(
+    item.estimatedPriceCount,
+    item.estimatedPriceCountEur,
+    item.estimatedPriceCountTix,
     currency,
   )
 }

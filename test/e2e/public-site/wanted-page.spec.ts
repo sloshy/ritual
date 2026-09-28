@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { mockPublicSiteWantedList } from '../helpers/mock-public-site'
 import { switchToListView } from '../helpers/list-ui'
+import { openFilterMenu } from '../helpers/filter-menu'
 
 test.describe('Wanted List Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -54,6 +55,26 @@ test.describe('Wanted List Page', () => {
     await expect(bolt.locator('.list-printing')).toHaveCount(0)
     await expect(solRing.locator('.list-printing')).toHaveText('(C19:221)')
     await expect(solRing.locator('.card-any-printing')).toHaveCount(0)
+  })
+
+  test('a total covering a name-only entry is marked as an estimate', async ({ page }) => {
+    const stats = page.locator('.page-stats')
+    // Lightning Bolt names no printing, so the list total is an estimate.
+    await expect(stats).toContainText('Total: Est. $')
+
+    // Grouped by printing, only the Any Printing section's total is estimated.
+    await page.locator('.toolbar select').first().selectOption('printing')
+    await expect(page.locator('[data-section="Any Printing"] .section-price')).toContainText(
+      'Est. $',
+    )
+    const specificPrice = page.locator('[data-section="Specific Printing"] .section-price')
+    await expect(specificPrice).toContainText('$')
+    await expect(specificPrice).not.toContainText('Est.')
+
+    // Narrowing to a pinned, priced card drops the prefix from the filtered figure.
+    await openFilterMenu(page)
+    await page.locator('#filter-name').fill('sol ring')
+    await expect(stats).toContainText('Filtered: $')
   })
 
   test("an entry with no finish token is priced at the printing's default finish", async ({

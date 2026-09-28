@@ -6,6 +6,7 @@ import { formatPriceWithMissing } from '../pricing/price-currency'
 import { pricesEnabled } from '../list-view/price-view'
 import { getDeckCountLabel } from '../list/deck-format'
 import {
+  getSummaryEstimatedPriceCount,
   getSummaryLowestPrice,
   getSummaryMissingPriceCount,
   getSummaryTotalPrice,
@@ -165,6 +166,7 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
   const total = createMemo(() => getSummaryTotalPrice(props.deck, props.currency))
   const lowest = createMemo(() => getSummaryLowestPrice(props.deck, props.currency))
   const missing = createMemo(() => getSummaryMissingPriceCount(props.deck, props.currency))
+  const estimated = createMemo(() => getSummaryEstimatedPriceCount(props.deck, props.currency) > 0)
   // `getDeckCountLabel` renders through the module-level (non-reactive) `t`, so
   // the locale signal is read here to re-derive the label on a language switch.
   const countLabel = createMemo(() => {
@@ -184,11 +186,13 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
         label={countLabel().primary}
         labelSuffix={countLabel().suffix}
         priceLabel={
-          pricesEnabled() ? formatPriceWithMissing(total(), props.currency, missing()) : undefined
+          pricesEnabled()
+            ? formatPriceWithMissing(total(), props.currency, missing(), estimated())
+            : undefined
         }
         secondaryPriceLabel={
           pricesEnabled() && lowest() > 0
-            ? formatPriceWithMissing(lowest(), props.currency, missing())
+            ? formatPriceWithMissing(lowest(), props.currency, missing(), false)
             : undefined
         }
       />
@@ -196,16 +200,18 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
   )
 }
 
-interface ListCoverLinkProps {
-  item: CollectionSummary | WantedListSummary
-  basePath: 'collection' | 'wanted'
-  currency: PriceCurrency
-}
+type ListCoverLinkProps =
+  | { item: CollectionSummary; basePath: 'collection'; currency: PriceCurrency }
+  | { item: WantedListSummary; basePath: 'wanted'; currency: PriceCurrency }
 
 const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
   const t = useT()
   const total = createMemo(() => getSummaryTotalPrice(props.item, props.currency))
   const missing = createMemo(() => getSummaryMissingPriceCount(props.item, props.currency))
+  const estimated = createMemo(
+    () =>
+      props.basePath === 'wanted' && getSummaryEstimatedPriceCount(props.item, props.currency) > 0,
+  )
   return (
     <a href={`#/${props.basePath}/${props.item.slug}`} class="card-grid-link">
       <CoverCard
@@ -213,7 +219,9 @@ const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
         image={props.item.featuredCardImage || null}
         label={t('domain.count.cards', { count: props.item.cardCount })}
         priceLabel={
-          pricesEnabled() ? formatPriceWithMissing(total(), props.currency, missing()) : undefined
+          pricesEnabled()
+            ? formatPriceWithMissing(total(), props.currency, missing(), estimated())
+            : undefined
         }
       />
     </a>

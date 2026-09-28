@@ -95,6 +95,7 @@ export function ListPageShell(props: ListPageShellProps): JSX.Element {
               filters={page().filters}
               currency={props.currency}
               filteredAmount={page().filteredTotalPrice()}
+              filteredEstimated={page().filteredPriceEstimated()}
               selectedCount={page().selection.count()}
               selectedAmount={page().selection.value(props.currency)}
               sellMode={page().sell.active()}

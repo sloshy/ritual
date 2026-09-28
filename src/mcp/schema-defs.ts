@@ -11,7 +11,7 @@ import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABELS } from '../card/card-labels'
 import { CARD_CATEGORY_SHAPE_CLAUSE } from '../card/card-categories'
 import { CARD_LANGUAGES } from '../card/card-language'
-import { UNPRICED_REASONS } from '../pricing/price-report'
+import { UNPRICED_REASONS, type PriceTotals } from '../pricing/price-report'
 
 // ── Builders ──────────────────────────────────────────────────────────
 
@@ -262,12 +262,16 @@ const PRICE_TOTALS_PROPS = {
   unpricedCount: int(
     'Quantity-weighted count of unpriced entries; proxies and custom-art cards are not counted.',
   ),
-} as const satisfies Properties
+  estimatedCount: int(
+    'Quantity-weighted count of deck and wanted entries whose price is an estimate: the line pins no printing (priced at a representative one) or its printing has no price. Any at all makes `total` an estimate.',
+  ),
+} as const satisfies Properties & Record<keyof PriceTotals, unknown>
 const PRICE_TOTALS_REQUIRED = [
   'cardCount',
   'total',
   'lowestTotal',
   'unpricedCount',
+  'estimatedCount',
 ] as const satisfies readonly (keyof typeof PRICE_TOTALS_PROPS)[]
 
 /**

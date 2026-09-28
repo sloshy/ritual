@@ -450,7 +450,8 @@ ritual price main-binder --source cardkingdom    ${PRICE_SOURCE_COMMENT}
 \`\`\`
 
 Collection entries are priced at their exact printing and finish; totals include a
-quantity-weighted unpriced-card count.
+quantity-weighted unpriced-card count. A collection total is never an estimate
+(\`estimatedCount\` is always 0), since every line pins its printing.
 
 ## Sell to Card Kingdom
 

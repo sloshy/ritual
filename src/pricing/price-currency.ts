@@ -123,16 +123,35 @@ export function formatPriceOrNA(amount: number, currency: PriceCurrency): string
   return formatPrice(amount, currency)
 }
 
+/**
+ * A list total, prefixed "Est." when `estimated` — some card in it pins no
+ * printing, or has no price from the active store (see `isEstimatedPrice`).
+ */
+export function formatTotalPrice(
+  amount: number,
+  currency: PriceCurrency,
+  estimated: boolean,
+): string {
+  const base = formatPrice(amount, currency)
+  return estimated ? t('domain.price.estimated', { price: base }) : base
+}
+
+/**
+ * A list total that may be incomplete: "At least $X (missing N cards)" when
+ * some cards have no price, and {@link formatTotalPrice} otherwise. Either form
+ * is prefixed "Est." when `estimated`.
+ */
 export function formatPriceWithMissing(
   amount: number,
   currency: PriceCurrency,
   missingCount: number,
+  estimated: boolean,
 ): string {
-  const base = formatPrice(amount, currency)
-  if (missingCount > 0) {
-    return t('domain.price.atLeastMissing', { price: base, count: missingCount })
-  }
-  return base
+  if (missingCount <= 0) return formatTotalPrice(amount, currency, estimated)
+  return t(estimated ? 'domain.price.estimatedAtLeastMissing' : 'domain.price.atLeastMissing', {
+    price: formatPrice(amount, currency),
+    count: missingCount,
+  })
 }
 
 /** A printing's base price: its nonfoil quote, or the sole quote in a currency that has one. */

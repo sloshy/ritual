@@ -29,6 +29,7 @@ import type { CardLabelSelection } from '../card/card-labels'
 import {
   CARD_SIZE_WIDTHS,
   groupAndSortCards,
+  isEstimatedPrice,
   groupTotalPrice,
   sortByOptions,
   sortByValuesFor,
@@ -39,6 +40,7 @@ import {
   type SortBy,
   type SortByMessageKey,
 } from '../list-view/card-sorting'
+import { listTypeEstimatesPrices } from '../pricing/price-summary'
 import type { CombinedListRef, NamedListRef } from '../list-view/combined-list'
 import { cartBuyer } from '../list-view/sell-mode'
 import { tagSuggestions } from '../editor/card-tags-edit'
@@ -178,6 +180,12 @@ export type ListPageConfig<G extends GroupBy, C extends CardData> = ListPageScop
   filterSource?: Accessor<C[]>
   /** Cards outside `filterSource` that still count toward the page's totals. */
   valued?: ListPageValuedCards<C>
+  /**
+   * Whether a card makes a total it is in an estimate; defaults to
+   * {@link isEstimatedPrice}, and to never on a list type that does not
+   * estimate (`listTypeEstimatesPrices`). The combined view scopes it per card.
+   */
+  isEstimatedPrice?: (card: C) => boolean
   /** Section names in display order, for section grouping. */
   sectionOrder: Accessor<string[]>
   /**
@@ -265,6 +273,8 @@ export type ListPageChrome = {
   toolbar: ListPageToolbarView
   /** The visible cards' total, plus `pinned` and `alsoFiltered`. */
   filteredTotalPrice: Accessor<number>
+  /** Whether {@link filteredTotalPrice} is an estimate (see `ListPageState.priceEstimated`). */
+  filteredPriceEstimated: Accessor<boolean>
   filteredSellSummary: Accessor<SellValueSummary>
   /** The buyer's cart export, offered beside the ordinary formats in sell mode. */
   cartExportFormats: Accessor<ExtraExportFormat[]>
@@ -286,6 +296,8 @@ export type ListPageState<C extends CardData> = ListPageChrome & {
   cardGroups: Accessor<CardGroup<C>[]>
   /** Apply the page's live filters (and share context) to any card list. */
   filterVisible: <T extends CardData>(cards: T[]) => T[]
+  /** Whether a total over `cards` is an estimate, by the page's `isEstimatedPrice`. */
+  priceEstimated: (cards: readonly C[]) => boolean
 }
 
 export function useListPage<G extends GroupBy, C extends CardData>(
@@ -424,6 +436,12 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     return [...pinned, ...filteredCards(), ...also]
   })
   const filteredTotalPrice = createMemo(() => groupTotalPrice(valuedCards()))
+  const identity = config.identity
+  const estimatedCard =
+    config.isEstimatedPrice ??
+    (identity && !listTypeEstimatesPrices(identity.kind) ? () => false : isEstimatedPrice)
+  const priceEstimated = (cards: readonly C[]): boolean => cards.some(estimatedCard)
+  const filteredPriceEstimated = createMemo(() => priceEstimated(valuedCards()))
 
   // A plain function, not a memo: the summary below skips it entirely while sell
   // mode is off, where a memo would map the whole list on every filter change.
@@ -497,6 +515,8 @@ export function useListPage<G extends GroupBy, C extends CardData>(
     readMenu,
     toolbar: toolbarView,
     filteredTotalPrice,
+    filteredPriceEstimated,
+    priceEstimated,
     filteredSellSummary,
     cartExportFormats,
     untaggedAddedNames,

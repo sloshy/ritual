@@ -1,7 +1,7 @@
 import type { Component, Accessor, JSX } from 'solid-js'
 import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPrice } from '../pricing/price-currency'
+import { formatTotalPrice } from '../pricing/price-currency'
 import { activeUsdSource, pricesEnabled } from '../list-view/price-view'
 import { seedBuylistQuotes } from '../list-view/buylist-quotes'
 import { sellModeActive } from '../list-view/sell-mode'
@@ -14,7 +14,12 @@ import { finishName, rarityName } from '../list-view/printing-display'
 import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
 import { TooltipOverlay } from '../ui/TooltipOverlay'
 import { useTooltip } from '../ui/useTooltip'
-import { CARD_SIZE_WIDTHS, groupTotalPrice } from '../list-view/card-sorting'
+import {
+  CARD_SIZE_WIDTHS,
+  groupHasEstimatedPrice,
+  groupTotalPrice,
+} from '../list-view/card-sorting'
+import { listTypeEstimatesPrices } from '../pricing/price-summary'
 import { addSelectionToTrade } from './useSelectionTrade'
 import type { SelectionState } from '../list-view/useCardSelection'
 import type { MetaEntry } from '../list-view/meta-entry'
@@ -445,7 +450,12 @@ export const FindPage: Component<FindPageProps> = (props) => {
                       </span>
                       <Show when={pricesEnabled()}>
                         <span class="section-price">
-                          {formatPrice(groupTotalPrice(group.cards), props.currency)}
+                          {formatTotalPrice(
+                            groupTotalPrice(group.cards),
+                            props.currency,
+                            listTypeEstimatesPrices(group.kind) &&
+                              groupHasEstimatedPrice(group.cards),
+                          )}
                         </span>
                       </Show>
                     </div>

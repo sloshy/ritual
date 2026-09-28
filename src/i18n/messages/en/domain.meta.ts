@@ -178,6 +178,14 @@ export const domainMeta = {
     description:
       'A list total that is known to be incomplete because some cards have no published price. {price} is an already-formatted money amount; {count} is how many cards were left out.',
   },
+  'domain.price.estimated': {
+    description:
+      'A deck or wanted-list total that is an estimate, because some card in it names no specific printing (it is priced at a representative one) or its printing has no listed price. {price} is an already-formatted money amount. "Est." is the abbreviation of "estimated"; keep it short.',
+  },
+  'domain.price.estimatedAtLeastMissing': {
+    description:
+      'Combines the two previous keys: a total that is both an estimate and known to be incomplete. {price} is an already-formatted money amount; {count} is how many cards had no price at all.',
+  },
 
   'domain.sync.skippedRemovals': {
     description:

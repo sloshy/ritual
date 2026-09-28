@@ -102,7 +102,11 @@ If a refresh only updates some cards (for example, a card Scryfall no longer ret
 
 When a card cannot be priced in the selected currency (a paper-only card has no TIX price, an MTGO-only card has no USD/EUR price), it is left out of price totals. A collapsible warning banner at the top of the deck page lists the cards with missing prices for the active currency, and updates when you switch currencies. [Proxies and custom-art cards](#cards-priced-at-zero) are not "missing": they are priced at zero by rule and never appear in this banner.
 
-On the index page, deck and collection entries with missing prices show **"At least $X.XX (missing N cards)"** instead of the raw total. The "lowest price" variant is hidden when a deck has missing prices.
+On the index page (deck, collection, and wanted-list tiles), and in the Quick Switch and Combine Lists rows, a list with missing prices shows **"At least $X.XX (missing N cards)"** instead of the raw total. A deck tile's lowest price is qualified the same way.
+
+### Estimated totals
+
+A deck or wanted-list total is prefixed **"Est."** when any card in it has no specific price: its line names no printing (so it is priced at the [representative printing](#which-printing-a-card-is-priced-at)), or its printing has no price in the active currency. This applies everywhere such a total appears: the index tiles, the Quick Switch and Combine Lists rows, the page total, the Filtered stat, section totals, and the combined and Find views. A total that is both an estimate and missing prices reads **"Est. at least $X.XX (missing N cards)"** (only where "At least" appears, above). The index tiles and the Quick Switch and Combine Lists rows read figures baked at build time from the Scryfall-backed stores, so under the Card Kingdom view they can differ from the page itself. A deck tile's lowest price is never marked "Est.". Collections never show it, since every collection line pins its printing. [Proxies and custom-art cards](#cards-priced-at-zero) are an exact zero and never make a total an estimate.
 
 ## Cards priced at zero
 
