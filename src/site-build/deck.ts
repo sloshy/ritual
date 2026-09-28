@@ -13,6 +13,7 @@ import { printingKey } from '../card/printing-key'
 import { printingLabel } from '../card/card-line-tail'
 import { getCardPrice } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
+import { scryfallSourceFor, type PriceSource } from '../pricing/price-source'
 import { getErrorMessage } from '../util/errors'
 import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
@@ -28,7 +29,12 @@ import {
   resolveListCover,
   slugifyListName,
 } from './shared'
-import { aliasWrittenCardName, bakedListCategoryFields, cardCategoriesLookup } from './shared'
+import {
+  aliasWrittenCardName,
+  bakedCardKingdomRetail,
+  bakedListCategoryFields,
+  cardCategoriesLookup,
+} from './shared'
 import type {
   BuylistBakeSource,
   CardCategoriesLookup,
@@ -163,7 +169,19 @@ function withDeckCardCategories(
   }
 }
 
-/** One currency's running deck totals, summed over the non-extra sections. */
+/**
+ * How one store prices a deck line: the printing its tile shows, the cheapest
+ * printing the "Lowest Price" toggle swaps in, and that store's price for a
+ * printing at the finish a finish-less deck line displays.
+ */
+type DeckPriceView = {
+  source: PriceSource
+  card: (line: Card) => ScryfallCard | null
+  lowest: (name: string) => ScryfallCard | null
+  price: (card: ScryfallCard) => number
+}
+
+/** One store's running deck totals, summed over the non-extra sections. */
 type DeckPriceTotals = {
   total: number
   lowest: number
@@ -470,12 +488,29 @@ export async function buildDeckArtifacts(
   reportListCoverIssue(cover, 'deck', deckData.name, ctx)
   const featuredImage = cover.url
 
-  // Compute deck prices (mainboard + sideboard + commander, not extras). Each
-  // line is priced at the printing its tile shows — its own pin, else the
-  // representative — exactly as the deck page reads it, so the index tile and
-  // the page header agree.
-  const priceTotals = new Map<PriceCurrency, DeckPriceTotals>(
-    availableCurrencies.map((cur) => [cur, { total: 0, lowest: 0, missing: 0, estimated: 0 }]),
+  // Compute deck prices (mainboard + sideboard + commander, not extras), once
+  // per store the site offers. Each line is priced at the printing its tile
+  // shows under that store — its own pin, else the store's representative —
+  // exactly as the deck page reads it, so the index tile and the page header
+  // agree.
+  const views: DeckPriceView[] = availableCurrencies.map((cur) => ({
+    source: scryfallSourceFor(cur),
+    card: entryCard,
+    lowest: (name) => cardData.cheapest[cur]?.[name] ?? null,
+    price: (card) => getCardPrice(card, cur),
+  }))
+  if (cardKingdomData) {
+    views.push({
+      source: 'cardkingdom',
+      card: (c) =>
+        hasSpecificPrinting(c) ? entryCard(c) : (cardKingdomData.cards[c.name] ?? entryCard(c)),
+      lowest: (name) => cardKingdomData.cheapest[name] ?? cheapestUsd[name] ?? null,
+      // Off the detail's baked quotes: exactly what the Card Kingdom view reads.
+      price: (card) => bakedCardKingdomRetail(detail.buylist, card, undefined),
+    })
+  }
+  const priceTotals = new Map<PriceSource, DeckPriceTotals>(
+    views.map((view) => [view.source, { total: 0, lowest: 0, missing: 0, estimated: 0 }]),
   )
   for (const section of deckData.sections) {
     const sLow = section.name.toLowerCase()
@@ -485,22 +520,24 @@ export async function buildDeckArtifacts(
       // price is *missing*, so they leave the totals and the missing counts
       // untouched.
       if (pricesAtNothing(c)) continue
-      const card = entryCard(c)
       const pinned = hasSpecificPrinting(c)
-      for (const [cur, totals] of priceTotals) {
-        const cardPrice = card ? getCardPrice(card, cur) : 0
-        const cheapCard = cardData.cheapest[cur]?.[c.name]
+      for (const view of views) {
+        const totals = priceTotals.get(view.source)!
+        const card = view.card(c)
+        const cardPrice = card ? view.price(card) : 0
+        const cheapCard = view.lowest(c.name)
         totals.total += cardPrice * c.quantity
-        totals.lowest += (cheapCard ? getCardPrice(cheapCard, cur) : 0) * c.quantity
+        totals.lowest += (cheapCard ? view.price(cheapCard) : 0) * c.quantity
         if (cardPrice === 0) totals.missing += c.quantity
         // Priced at a representative printing, or at one with no price.
         if (!pinned || cardPrice === 0) totals.estimated += c.quantity
       }
     }
   }
-  const usdTotals = priceTotals.get('usd')
-  const eurTotals = priceTotals.get('eur')
-  const tixTotals = priceTotals.get('tix')
+  const usdTotals = priceTotals.get('tcgplayer')
+  const eurTotals = priceTotals.get('cardmarket')
+  const tixTotals = priceTotals.get('cardhoarder')
+  const ckTotals = priceTotals.get('cardkingdom')
 
   const summary: DeckSummary = {
     slug,
@@ -524,6 +561,14 @@ export async function buildDeckArtifacts(
     estimatedPriceCount: usdTotals?.estimated,
     estimatedPriceCountEur: eurTotals?.estimated,
     estimatedPriceCountTix: tixTotals?.estimated,
+    ...(ckTotals
+      ? {
+          totalPriceCardKingdom: ckTotals.total,
+          lowestPriceCardKingdom: ckTotals.lowest,
+          missingPriceCountCardKingdom: ckTotals.missing,
+          estimatedPriceCountCardKingdom: ckTotals.estimated,
+        }
+      : {}),
   }
 
   return { slug, detail, summary }

@@ -661,6 +661,65 @@ export function bakeBuylistQuotes(
 }
 
 /**
+ * Card Kingdom NM retail for a displayed printing, read off a detail's baked
+ * quotes — the map the site's Card Kingdom view reads, keyed by the same
+ * `buylistRequestFor` rule the bake asked with, so a summary figure baked from
+ * it agrees with the page. 0 when the copy is not quotable (non-English), CK
+ * has no product for it, or the detail carries no CK quotes.
+ */
+export function bakedCardKingdomRetail(
+  baked: BakedBuylist | undefined,
+  card: ScryfallCard | null,
+  finish: Finish | undefined,
+  language?: CardLanguage,
+): number {
+  const request = buylistRequestFor(card, finish, language)
+  if (!request) return 0
+  const quote =
+    baked?.cardkingdom?.quotes[quoteKey(request.set, request.collectorNumber, request.finish)]
+  return quote && quote.priceRetail > 0 ? quote.priceRetail : 0
+}
+
+/** One counted line of a flat list, as the Card Kingdom view displays it. */
+export type CardKingdomSummaryLine = {
+  card: ScryfallCard | null
+  finish: Finish | undefined
+  language?: CardLanguage
+  /** Whether the line names its printing; an unpinned line's price is an estimate. */
+  pinned: boolean
+}
+
+/** A flat list's Card Kingdom summary figures (one per entry, like its other totals). */
+export type CardKingdomSummaryFigures = {
+  totalPriceCardKingdom: number
+  missingPriceCountCardKingdom: number
+  estimatedPriceCountCardKingdom: number
+}
+
+/**
+ * Sum a flat list's counted lines at Card Kingdom retail off its baked quotes.
+ * A line CK prices at nothing is missing, and an estimate beside the unpinned
+ * ones (see `isEstimatedPrice`).
+ */
+export function sumCardKingdomLines(
+  baked: BakedBuylist | undefined,
+  lines: readonly CardKingdomSummaryLine[],
+): CardKingdomSummaryFigures {
+  const figures: CardKingdomSummaryFigures = {
+    totalPriceCardKingdom: 0,
+    missingPriceCountCardKingdom: 0,
+    estimatedPriceCountCardKingdom: 0,
+  }
+  for (const line of lines) {
+    const price = bakedCardKingdomRetail(baked, line.card, line.finish, line.language)
+    figures.totalPriceCardKingdom += price
+    if (price === 0) figures.missingPriceCountCardKingdom++
+    if (!line.pinned || price === 0) figures.estimatedPriceCountCardKingdom++
+  }
+  return figures
+}
+
+/**
  * Also key a resolved card under the spelling the text used, when that differs
  * from the cache's canonical name. The page looks a changelog or primer card up
  * by the name as written, and a written `Forest // Forest` now resolves to the

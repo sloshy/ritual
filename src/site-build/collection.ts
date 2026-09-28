@@ -19,8 +19,14 @@ import {
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
+  sumCardKingdomLines,
 } from './shared'
-import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
+import type {
+  BuylistBakeSource,
+  CardKingdomSummaryLine,
+  ListCoverOverrideEntry,
+  LoadedFlatList,
+} from './shared'
 import type { CollectionArtifacts, SiteDetailContext } from './types'
 import { printingKey, printingLanguageKey } from '../card/printing-key'
 import { printingLabel } from '../card/card-line-tail'
@@ -51,6 +57,9 @@ export async function buildCollectionArtifacts(
   let missingPriceCount = 0
   let missingPriceCountEur = 0
   let missingPriceCountTix = 0
+  // Each counted entry, summed at Card Kingdom retail off the baked quotes once
+  // they exist (below).
+  const ckLines: CardKingdomSummaryLine[] = []
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
   /** The featured entry's card id, for the custom art its cover may wear. */
@@ -153,6 +162,7 @@ export async function buildCollectionArtifacts(
       if (price === 0) missingPriceCount++
       if (priceEur === 0) missingPriceCountEur++
       if (priceTix === 0) missingPriceCountTix++
+      ckLines.push({ card, finish: entry.finish, language: entry.language, pinned: true })
     }
 
     if (card && printingPrice > featuredPrice) {
@@ -226,6 +236,22 @@ export async function buildCollectionArtifacts(
   reportListCoverIssue(cover, 'collection', displayName, ctx)
   const featuredImage = cover.url
 
+  // Offered only when the site offers Card Kingdom prices (a USD build with
+  // CK data, as for decks and wanted lists). A collection never estimates.
+  const ck =
+    ctx.availableCurrencies.includes('usd') && ctx.cardData.cardKingdom
+      ? sumCardKingdomLines(detail.buylist, ckLines)
+      : undefined
+  const ckFigures: Pick<
+    CollectionSummary,
+    'totalPriceCardKingdom' | 'missingPriceCountCardKingdom'
+  > = ck
+    ? {
+        totalPriceCardKingdom: ck.totalPriceCardKingdom,
+        missingPriceCountCardKingdom: ck.missingPriceCountCardKingdom,
+      }
+    : {}
+
   const summary: CollectionSummary = {
     slug,
     name: displayName,
@@ -238,6 +264,7 @@ export async function buildCollectionArtifacts(
     missingPriceCount,
     missingPriceCountEur,
     missingPriceCountTix,
+    ...ckFigures,
     labels: loaded.labels,
   }
 

@@ -22,6 +22,7 @@ import {
   DEFAULT_PRICE_SOURCES,
   USD_PRICE_SOURCES,
   isUsdPriceSource,
+  scryfallSourceFor,
   sourcesForCurrency,
   type PriceSource,
   type UsdPriceSource,
@@ -120,6 +121,15 @@ export const activeUsdSource: Accessor<UsdPriceSource> = () => {
 }
 
 /**
+ * The store a currency's prices are read from right now: the active USD
+ * source for USD, and the one Scryfall-backed store for EUR and tix. What the
+ * baked list summaries are read at (`getSummaryTotalPrice` and friends).
+ */
+export function activePriceSource(currency: PriceCurrency): PriceSource {
+  return currency === 'usd' ? activeUsdSource() : scryfallSourceFor(currency)
+}
+
+/**
  * Whether the current USD source is an explicit choice (toolbar, shared URL)
  * rather than sell mode's courtesy default. The URL sync writes the source
  * only when this is true — a courtesy default must not be baked into a shared
@@ -202,9 +212,10 @@ export function maybeRestoreDefaultSource(): void {
  * buyer has no product for still reads 0 — an honest N/A beside the finishes
  * they do stock.
  *
- * Deliberately Scryfall-only surfaces (do not "fix" them onto this helper): the
- * trade board's own valuations, the index page's baked summary totals, and the
- * deck page's lowest-price printing selection (baked per currency).
+ * Surfaces that do not go through this helper: the trade board's own
+ * valuations and the deck page's lowest-price printing selection stay Scryfall
+ * (baked per currency), and the index page's summary totals read figures baked
+ * per store instead (`getSummaryTotalPrice` at {@link activePriceSource}).
  */
 export function sitePriceForFinish(
   card: ScryfallCard,

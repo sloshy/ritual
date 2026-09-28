@@ -1,7 +1,7 @@
 import type { DeckSummary } from '../list/site-data'
 import { compareDisplayBase } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
-import type { PriceCurrency } from '../pricing/price-currency'
+import type { PriceSource } from '../pricing/price-source'
 import { getSummaryLowestPrice, getSummaryTotalPrice } from '../pricing/price-summary'
 import { getDeckFormatLabel } from '../list/deck-format'
 
@@ -99,7 +99,7 @@ function compareSummaries(
   a: SortableSummary,
   b: SortableSummary,
   sort: IndexSort,
-  currency: PriceCurrency,
+  source: PriceSource,
 ): number {
   switch (sort) {
     case 'alpha':
@@ -117,9 +117,9 @@ function compareSummaries(
       return aT < bT ? 1 : -1
     }
     case 'price':
-      return getSummaryTotalPrice(b, currency) - getSummaryTotalPrice(a, currency)
+      return getSummaryTotalPrice(b, source) - getSummaryTotalPrice(a, source)
     case 'lowestPrice':
-      return getSummaryLowestPrice(b, currency) - getSummaryLowestPrice(a, currency)
+      return getSummaryLowestPrice(b, source) - getSummaryLowestPrice(a, source)
     default:
       return assertNever(sort)
   }
@@ -132,11 +132,11 @@ function compareSummaries(
 export function sortSummaries<T extends SortableSummary>(
   items: readonly T[],
   sort: IndexSort,
-  currency: PriceCurrency,
+  source: PriceSource,
   reverse: boolean,
 ): T[] {
   const out = items.slice()
-  out.sort((a, b) => compareSummaries(a, b, sort, currency))
+  out.sort((a, b) => compareSummaries(a, b, sort, source))
   if (reverse) out.reverse()
   return out
 }

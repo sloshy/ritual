@@ -1813,6 +1813,159 @@ describe('Card Kingdom printing selection', () => {
 
     expect(detail.cardsCardKingdom).toEqual({ 'Lightning Bolt': boltCheap })
   })
+
+  /**
+   * The index tiles read the summaries, so a site offering Card Kingdom bakes a
+   * second USD figure set: each line at the printing the CK view shows it at,
+   * priced at CK retail. `quotePrintings` is the "CK prices offered" switch.
+   */
+  describe('summary figures', () => {
+    const ckQuotes = {
+      'm10:146:nonfoil': makeBuylistQuote({ priceRetail: 2, name: 'Lightning Bolt' }),
+      'chp:9:nonfoil': makeBuylistQuote({ priceRetail: 1, name: 'Lightning Bolt' }),
+      'fdn:35:nonfoil': makeBuylistQuote({ priceRetail: 0.75, name: 'Serra Angel' }),
+    }
+
+    test("a deck totals CK's picks at CK retail, beside the untouched Scryfall figures", async () => {
+      const { ctx } = makeContext({
+        cardData: deckCardData,
+        currencies: ['usd'],
+        buylist: stubBuylist(ckQuotes, true).ctx,
+      })
+
+      const { summary } = await buildDeckArtifacts(deck, ctx)
+
+      // 4× Bolt: TCGplayer reads the $100 representative, CK its own $2 pick,
+      // and CK's "lowest" its $1 cheapest.
+      expect(summary.totalPrice).toBeCloseTo(400)
+      expect(summary.totalPriceCardKingdom).toBeCloseTo(8)
+      expect(summary.lowestPriceCardKingdom).toBeCloseTo(4)
+      expect(summary.missingPriceCountCardKingdom).toBe(0)
+      // The line names no printing, so its CK price is an estimate too.
+      expect(summary.estimatedPriceCountCardKingdom).toBe(4)
+    })
+
+    test('a pinned deck line CK does not stock is missing and estimated under CK only', async () => {
+      const pinned: LoadedDeck = {
+        ...deck,
+        data: {
+          name: 'CK Deck',
+          sections: [
+            {
+              name: 'Mainboard',
+              cards: [{ name: 'Lightning Bolt', quantity: 2, set: 'lea', collectorNumber: '161' }],
+            },
+          ],
+        },
+      }
+      const { ctx } = makeContext({
+        cardData: deckCardData,
+        currencies: ['usd'],
+        buylist: stubBuylist(ckQuotes, true).ctx,
+      })
+
+      const { summary } = await buildDeckArtifacts(pinned, ctx)
+
+      expect(summary.estimatedPriceCount).toBe(0)
+      expect(summary.totalPriceCardKingdom).toBe(0)
+      expect(summary.missingPriceCountCardKingdom).toBe(2)
+      expect(summary.estimatedPriceCountCardKingdom).toBe(2)
+    })
+
+    test('a build not offering CK prices bakes no CK figures, even with sell mode quoting', async () => {
+      const { ctx } = makeContext({
+        cardData: { ...deckCardData, cardKingdom: undefined },
+        currencies: ['usd'],
+        buylist: stubBuylist(ckQuotes, false).ctx,
+      })
+
+      const { summary } = await buildDeckArtifacts(deck, ctx)
+
+      expect(JSON.parse(JSON.stringify(summary))).not.toHaveProperty('totalPriceCardKingdom')
+    })
+
+    test("a wanted list reads CK's pick for name-only entries and the pin otherwise", async () => {
+      const { ctx } = makeContext({
+        cardData: {
+          cards: { 'Lightning Bolt': bolt },
+          cheapest: { usd: { 'Lightning Bolt': bolt } },
+          cardKingdom,
+        },
+        printingsByName: {
+          'Lightning Bolt': [bolt, boltCheap, boltCkCheapest],
+          'Serra Angel': [angel],
+        },
+        currencies: ['usd'],
+        buylist: stubBuylist(ckQuotes, true).ctx,
+      })
+      const loaded: LoadedWanted = {
+        displayName: 'Wants',
+        entries: [
+          { name: 'Lightning Bolt', quantity: 1, section: 'Main', cardId: 1 },
+          {
+            name: 'Serra Angel',
+            quantity: 1,
+            set: 'fdn',
+            collectorNumber: '35',
+            section: 'Main',
+            cardId: 2,
+          },
+        ],
+        sectionOrder: ['Main'],
+        warnings: [],
+        changelog: [],
+      }
+
+      const { summary } = await buildWantedArtifacts(loaded, ctx)
+
+      // CK's cheapest Bolt ($1) plus the pinned Angel at CK retail ($0.75).
+      expect(summary.totalPriceCardKingdom).toBeCloseTo(1.75)
+      expect(summary.missingPriceCountCardKingdom).toBe(0)
+      expect(summary.estimatedPriceCountCardKingdom).toBe(1)
+    })
+
+    test('a collection totals its pinned printings at CK retail', async () => {
+      const { ctx } = makeContext({
+        // A collection takes no CK picks, but their presence is what says the
+        // build offers Card Kingdom prices at all.
+        cardData: { cardKingdom: { cards: {}, cheapest: {} } },
+        printingsByName: { 'Lightning Bolt': [bolt, boltCheap], 'Serra Angel': [angel] },
+        currencies: ['usd'],
+        buylist: stubBuylist(ckQuotes, true).ctx,
+      })
+      const loaded: LoadedCollection = {
+        displayName: 'Binder',
+        entries: [
+          {
+            name: 'Lightning Bolt',
+            quantity: 1,
+            set: 'm10',
+            collectorNumber: '146',
+            section: 'Main',
+            cardId: 1,
+          },
+          // CK has no product for the Alpha Bolt.
+          {
+            name: 'Lightning Bolt',
+            quantity: 1,
+            set: 'lea',
+            collectorNumber: '161',
+            section: 'Main',
+            cardId: 2,
+          },
+        ],
+        sectionOrder: ['Main'],
+        warnings: [],
+        changelog: [],
+      }
+
+      const { summary } = await buildCollectionArtifacts(loaded, ctx)
+
+      expect(summary.totalPrice).toBeCloseTo(101)
+      expect(summary.totalPriceCardKingdom).toBeCloseTo(2)
+      expect(summary.missingPriceCountCardKingdom).toBe(1)
+    })
+  })
 })
 
 /**

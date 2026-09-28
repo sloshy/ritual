@@ -127,6 +127,11 @@ export function resolvePriceRequest(
   return { source: SCRYFALL_SOURCES[explicitCurrency], currency: explicitCurrency }
 }
 
+/** The Scryfall-backed store that quotes in a currency. */
+export function scryfallSourceFor(currency: PriceCurrency): PriceSource {
+  return SCRYFALL_SOURCES[currency]
+}
+
 export function isPriceRequestConflict(
   value: PriceRequest | PriceRequestConflict,
 ): value is PriceRequestConflict {

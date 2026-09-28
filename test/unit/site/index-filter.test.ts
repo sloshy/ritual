@@ -60,7 +60,7 @@ describe('sortSummaries (decks)', () => {
   const decks = [charlie, alpha, bravo, stale]
 
   test("'alpha' sorts by name A-Z", () => {
-    expect(sortSummaries(decks, 'alpha', 'usd', false).map((d) => d.slug)).toEqual([
+    expect(sortSummaries(decks, 'alpha', 'tcgplayer', false).map((d) => d.slug)).toEqual([
       'a',
       'b',
       'c',
@@ -69,7 +69,7 @@ describe('sortSummaries (decks)', () => {
   })
 
   test("'recent' sorts newest first, undated last", () => {
-    expect(sortSummaries(decks, 'recent', 'usd', false).map((d) => d.slug)).toEqual([
+    expect(sortSummaries(decks, 'recent', 'tcgplayer', false).map((d) => d.slug)).toEqual([
       'a',
       'c',
       'b',
@@ -78,7 +78,7 @@ describe('sortSummaries (decks)', () => {
   })
 
   test("'price' sorts highest first", () => {
-    expect(sortSummaries(decks, 'price', 'usd', false).map((d) => d.slug)).toEqual([
+    expect(sortSummaries(decks, 'price', 'tcgplayer', false).map((d) => d.slug)).toEqual([
       'a',
       'c',
       'b',
@@ -87,7 +87,7 @@ describe('sortSummaries (decks)', () => {
   })
 
   test("'lowestPrice' sorts highest first", () => {
-    expect(sortSummaries(decks, 'lowestPrice', 'usd', false).map((d) => d.slug)).toEqual([
+    expect(sortSummaries(decks, 'lowestPrice', 'tcgplayer', false).map((d) => d.slug)).toEqual([
       'a',
       'c',
       'b',
@@ -96,13 +96,13 @@ describe('sortSummaries (decks)', () => {
   })
 
   test('reverse flips the result of any sort', () => {
-    expect(sortSummaries(decks, 'alpha', 'usd', true).map((d) => d.slug)).toEqual([
+    expect(sortSummaries(decks, 'alpha', 'tcgplayer', true).map((d) => d.slug)).toEqual([
       'd',
       'c',
       'b',
       'a',
     ])
-    expect(sortSummaries(decks, 'price', 'usd', true).map((d) => d.slug)).toEqual([
+    expect(sortSummaries(decks, 'price', 'tcgplayer', true).map((d) => d.slug)).toEqual([
       'd',
       'b',
       'c',
@@ -112,28 +112,34 @@ describe('sortSummaries (decks)', () => {
 
   test('does not mutate the input array', () => {
     const input = decks.slice()
-    sortSummaries(input, 'alpha', 'usd', true)
+    sortSummaries(input, 'alpha', 'tcgplayer', true)
     expect(input.map((d) => d.slug)).toEqual(['c', 'a', 'b', 'd'])
   })
 
-  test('price sort respects the selected currency', () => {
+  test('price sort respects the selected store', () => {
     const eurFavored = makeDeck({
       slug: 'e1',
       name: 'EurFavored',
       totalPrice: 10,
       totalPriceEur: 500,
+      totalPriceCardKingdom: 900,
     })
     const usdFavored = makeDeck({
       slug: 'u1',
       name: 'UsdFavored',
       totalPrice: 500,
       totalPriceEur: 10,
+      totalPriceCardKingdom: 1,
     })
     expect(
-      sortSummaries([eurFavored, usdFavored], 'price', 'usd', false).map((d) => d.slug),
+      sortSummaries([eurFavored, usdFavored], 'price', 'tcgplayer', false).map((d) => d.slug),
     ).toEqual(['u1', 'e1'])
     expect(
-      sortSummaries([eurFavored, usdFavored], 'price', 'eur', false).map((d) => d.slug),
+      sortSummaries([eurFavored, usdFavored], 'price', 'cardmarket', false).map((d) => d.slug),
+    ).toEqual(['e1', 'u1'])
+    // Card Kingdom is a second USD store with figures of its own.
+    expect(
+      sortSummaries([eurFavored, usdFavored], 'price', 'cardkingdom', false).map((d) => d.slug),
     ).toEqual(['e1', 'u1'])
   })
 })

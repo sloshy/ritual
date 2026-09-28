@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal'
 import { compareDisplay } from '../i18n/collate'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { pricesEnabled } from '../list-view/price-view'
+import { activePriceSource, pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
 import {
   getSummaryEstimatedPriceCount,
@@ -84,6 +84,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
   // Every list except the one currently in view (which is always part of the combination).
   const choices = createMemo<ListChoice[]>(() => {
     const cur = props.current
+    const source = activePriceSource(props.currency)
     const out: ListChoice[] = []
     const add = (
       ref: NamedListRef,
@@ -94,14 +95,14 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
       out.push({
         ref,
         cardCount: summary.cardCount,
-        total: getSummaryTotalPrice(summary, props.currency),
-        missing: getSummaryMissingPriceCount(summary, props.currency),
+        total: getSummaryTotalPrice(summary, source),
+        missing: getSummaryMissingPriceCount(summary, source),
         estimated,
       })
     }
     // Collection summaries carry no estimate (`listTypeEstimatesPrices`).
     const estimated = (summary: DeckSummary | WantedListSummary): boolean =>
-      getSummaryEstimatedPriceCount(summary, props.currency) > 0
+      getSummaryEstimatedPriceCount(summary, source) > 0
     for (const d of props.decks) {
       add({ type: 'deck', slug: d.slug, name: d.name }, d, estimated(d))
     }

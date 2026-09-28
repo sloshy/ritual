@@ -125,6 +125,14 @@ export interface DeckSummary {
   missingPriceCountEur?: number
   missingPriceCountTix?: number
   /**
+   * The Card Kingdom retail figures, beside the Scryfall USD ones above: each
+   * line at the printing the Card Kingdom view shows it at. Present only when
+   * the build offers Card Kingdom prices.
+   */
+  totalPriceCardKingdom?: number
+  lowestPriceCardKingdom?: number
+  missingPriceCountCardKingdom?: number
+  /**
    * Copies whose part of the total is an estimate: they pin no printing, or
    * their printing has no price in that currency. Any at all prefixes the total
    * "Est.".
@@ -132,6 +140,7 @@ export interface DeckSummary {
   estimatedPriceCount?: number
   estimatedPriceCountEur?: number
   estimatedPriceCountTix?: number
+  estimatedPriceCountCardKingdom?: number
 }
 
 export interface DeckDetail {
@@ -242,6 +251,9 @@ export interface CollectionSummary {
   missingPriceCount?: number
   missingPriceCountEur?: number
   missingPriceCountTix?: number
+  /** Card Kingdom retail figures; see {@link DeckSummary.totalPriceCardKingdom}. */
+  totalPriceCardKingdom?: number
+  missingPriceCountCardKingdom?: number
   /** The collection's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
 }
@@ -326,6 +338,9 @@ export interface WantedListSummary {
   missingPriceCount?: number
   missingPriceCountEur?: number
   missingPriceCountTix?: number
+  /** Card Kingdom retail figures; see {@link DeckSummary.totalPriceCardKingdom}. */
+  totalPriceCardKingdom?: number
+  missingPriceCountCardKingdom?: number
   /**
    * Entries whose part of the total is an estimate (one per entry, like the
    * totals themselves): they pin no printing, or their printing has no price
@@ -334,6 +349,7 @@ export interface WantedListSummary {
   estimatedPriceCount?: number
   estimatedPriceCountEur?: number
   estimatedPriceCountTix?: number
+  estimatedPriceCountCardKingdom?: number
 }
 
 export interface WantedListDetail {

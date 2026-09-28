@@ -7,7 +7,7 @@ import type {
   ListDetail,
 } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { pricesEnabled } from '../list-view/price-view'
+import { activePriceSource, pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
 import { resolveCardThumbnailUrl } from '../card/image-sources'
 import { scoreMatch } from './quick-switch-search'
@@ -191,7 +191,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
   }
 
   const listEntries = createMemo<ListEntry[]>(() => {
-    const cur = props.currency()
+    const source = activePriceSource(props.currency())
     // `getDeckCountLabel` and `t('domain.count.cards')` below both render text,
     // so this memo tracks the locale and re-derives every row on a switch.
     locale()
@@ -207,9 +207,9 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         subtitle: d.commander ? t('site.index.commander', { name: d.commander }) : undefined,
         label: countLabel.primary,
         labelSuffix: countLabel.suffix,
-        total: getSummaryTotalPrice(d, cur),
-        missing: getSummaryMissingPriceCount(d, cur),
-        estimated: getSummaryEstimatedPriceCount(d, cur) > 0,
+        total: getSummaryTotalPrice(d, source),
+        missing: getSummaryMissingPriceCount(d, source),
+        estimated: getSummaryEstimatedPriceCount(d, source) > 0,
       })
     }
     for (const c of props.collections() ?? []) {
@@ -220,8 +220,8 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         image: c.featuredCardImage || '',
         name: c.name,
         label: t('domain.count.cards', { count: c.cardCount }),
-        total: getSummaryTotalPrice(c, cur),
-        missing: getSummaryMissingPriceCount(c, cur),
+        total: getSummaryTotalPrice(c, source),
+        missing: getSummaryMissingPriceCount(c, source),
         estimated: false,
       })
     }
@@ -233,9 +233,9 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
         image: w.featuredCardImage || '',
         name: w.name,
         label: t('domain.count.cards', { count: w.cardCount }),
-        total: getSummaryTotalPrice(w, cur),
-        missing: getSummaryMissingPriceCount(w, cur),
-        estimated: getSummaryEstimatedPriceCount(w, cur) > 0,
+        total: getSummaryTotalPrice(w, source),
+        missing: getSummaryMissingPriceCount(w, source),
+        estimated: getSummaryEstimatedPriceCount(w, source) > 0,
       })
     }
     return out

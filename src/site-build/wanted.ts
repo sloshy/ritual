@@ -24,8 +24,14 @@ import {
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
+  sumCardKingdomLines,
 } from './shared'
-import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
+import type {
+  BuylistBakeSource,
+  CardKingdomSummaryLine,
+  ListCoverOverrideEntry,
+  LoadedFlatList,
+} from './shared'
 import type { SiteDetailContext, WantedArtifacts } from './types'
 import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
 import { printingLabel } from '../card/card-line-tail'
@@ -57,6 +63,9 @@ export async function buildWantedArtifacts(
   // every store.
   const cardMapCardKingdom: CardKingdomCards = {}
   const cardKingdomData = hasUsd ? cardData.cardKingdom : undefined
+  // Each counted entry as the Card Kingdom view displays it, summed at CK
+  // retail off the baked quotes once they exist (below).
+  const ckLines: CardKingdomSummaryLine[] = []
   const printingsMap: Record<string, ScryfallCard[]> = {}
   const cardEntries: WantedListCardEntry[] = []
   let totalPrice = 0
@@ -261,6 +270,13 @@ export async function buildWantedArtifacts(
       estimatedPriceCount += pinned ? missingUsd : 1
       estimatedPriceCountEur += pinned ? missingEur : 1
       estimatedPriceCountTix += pinned ? missingTix : 1
+      // The printing the Card Kingdom view shows: the pin, else CK's own pick.
+      ckLines.push({
+        card: pinned ? card : (cardMapCardKingdom[entry.name] ?? card),
+        finish: entry.finish,
+        language: entry.language,
+        pinned,
+      })
       // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
       // printing when the line pins one, the cheapest/representative otherwise.
       // Under the CK source the tile shows CK's own pick instead, and its price
@@ -363,6 +379,9 @@ export async function buildWantedArtifacts(
     estimatedPriceCount,
     estimatedPriceCountEur,
     estimatedPriceCountTix,
+    // Offered only when the site offers Card Kingdom prices (its picks exist
+    // exactly then).
+    ...(cardKingdomData ? sumCardKingdomLines(detail.buylist, ckLines) : {}),
   }
 
   return { slug, detail, summary }
