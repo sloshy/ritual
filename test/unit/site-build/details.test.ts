@@ -57,7 +57,6 @@ function makeContext(options: StubContextOptions = {}): StubContext {
     bannedPrintings: new Set(),
     symbolMap: { '{W}': 'images/symbols/W.svg' },
     useScryfallImgUrls: true,
-    defaultCurrency: 'usd',
     availableCurrencies: options.currencies ?? ['usd', 'eur', 'tix'],
     pricesDate: '2026-07-24T00:00:00.000Z',
     onCardShipped: (card) => {

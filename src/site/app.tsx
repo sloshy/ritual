@@ -135,8 +135,8 @@ function App() {
     })
   }
 
-  // A configured currency with no enabled source behind it (e.g. defaultCurrency
-  // usd with priceSources: ['cardmarket']) settles onto the first currency a
+  // A currency with no enabled source behind it (a site index older than its
+  // price stores, or a store set changed by a live refetch) settles onto the first currency a
   // source can answer for. Keyed to the *offer set* (untracking the choice), so
   // a user currency switch never re-runs it; and no epoch bump — this is a
   // boot-time correction, not a user switching prices out from under filters.

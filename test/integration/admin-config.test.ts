@@ -9,7 +9,7 @@ import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
  */
 type ConfigView = {
   site?: { bannedPrintings?: string[]; sellMode?: boolean }
-  defaultCurrency?: string
+  defaultPriceSource?: string
   priceSources?: string[]
   defaultCategories?: string[]
   defaultLanguage?: string
@@ -77,10 +77,10 @@ describe('PUT /api/config', () => {
         expected: ['sld:123', 'mh2:42'],
       },
       {
-        label: 'defaultCurrency (case normalized)',
-        update: { defaultCurrency: 'EUR' },
-        read: (config) => config.defaultCurrency,
-        expected: 'eur',
+        label: 'defaultPriceSource (case normalized)',
+        update: { defaultPriceSource: 'CardKingdom' },
+        read: (config) => config.defaultPriceSource,
+        expected: 'cardkingdom',
       },
       {
         label: 'defaultLanguage (case normalized)',
@@ -155,7 +155,7 @@ describe('PUT /api/config', () => {
         label: 'malformed bannedPrintings entry',
         update: { site: { bannedPrintings: ['not-a-printing'] } },
       },
-      { label: 'invalid defaultCurrency', update: { defaultCurrency: 'gbp' } },
+      { label: 'invalid defaultPriceSource', update: { defaultPriceSource: 'usd' } },
       { label: 'unknown price store', update: { priceSources: ['ebay'] } },
       { label: 'non-array priceSources', update: { priceSources: 'tcgplayer' } },
       { label: 'malformed defaultCategories entry', update: { defaultCategories: ['a,b'] } },
@@ -229,6 +229,13 @@ describe('PUT /api/config', () => {
     expect((await putConfig({ cacheFeedUrl: '' })).ok).toBe(true)
 
     expect((await readConfig()).cacheFeedUrl).toBeUndefined()
+  })
+
+  test('clears an existing defaultPriceSource with an empty string', async () => {
+    expect((await putConfig({ defaultPriceSource: 'cardmarket' })).ok).toBe(true)
+    expect((await putConfig({ defaultPriceSource: '' })).ok).toBe(true)
+
+    expect((await readConfig()).defaultPriceSource).toBeUndefined()
   })
 })
 

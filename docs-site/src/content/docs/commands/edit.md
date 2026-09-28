@@ -254,7 +254,7 @@ Set codes match on **substring** and collector numbers on **prefix**, or exactly
 
 ### Printing and Finish Prices
 
-Once a card is chosen in [Name Mode](#name-mode-default), the `Select Printing:` list shows each printing's price in your configured [`defaultCurrency`](/configuration/#default-currency), aligned in right-hand columns. (Collector-number entry already identifies one printing, so it goes straight to the finish prompt.)
+Once a card is chosen in [Name Mode](#name-mode-default), the `Select Printing:` list shows each printing's price in the currency of your configured [`defaultPriceSource`](/configuration/#default-price-store), aligned in right-hand columns. (Collector-number entry already identifies one printing, so it goes straight to the finish prompt.)
 
 ```
 ? Select Printing: ›

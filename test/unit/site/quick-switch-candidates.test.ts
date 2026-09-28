@@ -17,7 +17,6 @@ function makeCollectionDetail(
     symbolMap: {},
     useScryfallImgUrls: false,
     totalPrice: 0,
-    defaultCurrency: 'usd',
   }
 }
 
@@ -41,7 +40,6 @@ function makeDeckDetail(
     printings: {},
     symbolMap: {},
     useScryfallImgUrls: false,
-    defaultCurrency: 'usd',
     availableCurrencies: ['usd'],
   }
 }

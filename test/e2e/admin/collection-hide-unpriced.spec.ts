@@ -55,8 +55,8 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await expect(pricedRow.locator('.list-printing')).toHaveText('(TST:10 · NM)')
   })
 
-  test('prices render in the configured default currency', async ({ page }) => {
-    // MOCK_CONFIG carries defaultCurrency: 'eur'; with the config API mocked,
+  test('prices render in the configured default store’s currency', async ({ page }) => {
+    // MOCK_CONFIG carries defaultPriceSource: 'cardmarket' (EUR); with the config API mocked,
     // a fresh editor mount must price the row in euros instead of USD.
     await mockConfigApi(page)
     await page.reload()

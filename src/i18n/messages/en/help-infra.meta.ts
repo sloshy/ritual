@@ -148,8 +148,8 @@ export const helpInfraMeta = {
   'help.initSite.distDir': { description: '`init-site --dist-dir`.' },
   'help.initSite.changeDetection': { description: '`init-site --change-detection`.' },
   'help.initSite.noChangeDetection': { description: '`init-site --no-change-detection`.' },
-  'help.initSite.currency': {
-    description: "`init-site --currency`. 'usd'/'eur'/'tix' are literal currency codes.",
+  'help.initSite.priceSource': {
+    description: '`init-site --price-source`. The quoted store names are literal values.',
   },
   'help.initSite.overwriteReadme': { description: '`init-site --overwrite-readme`.' },
   'help.initSite.noOverwriteReadme': { description: '`init-site --no-overwrite-readme`.' },
@@ -207,11 +207,11 @@ export const helpInfraMeta = {
   'help.price.description': { description: 'Summary of the `price` command.' },
   'help.price.listArg': { description: 'The `[listName]` argument of `price`.' },
   'help.price.prices': {
-    description: '`price --prices`. defaultCurrency is a config key; usd/eur/tix are codes.',
+    description: '`price --prices`. defaultPriceSource is a config key; usd/eur/tix are codes.',
   },
   'help.price.source': {
     description:
-      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom, cardhoarder) are literal values and must not be translated.',
+      'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom, cardhoarder) and the defaultPriceSource config key are literal values and must not be translated.',
   },
   'help.price.name': { description: '`price --name`.' },
   'help.price.set': { description: '`price --set`.' },

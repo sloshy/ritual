@@ -100,7 +100,6 @@ export type SiteDetailContext = {
   /** Live reference — build-time symbol refreshes may add entries mid-build. */
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean
-  defaultCurrency: PriceCurrency
   availableCurrencies: PriceCurrency[]
   pricesDate: string
   /**

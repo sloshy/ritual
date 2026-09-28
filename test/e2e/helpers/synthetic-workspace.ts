@@ -459,7 +459,6 @@ const RITUAL_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   artDir: './art',
-  defaultCurrency: 'usd',
   defaultLanguage: 'en',
   uiLocale: localeTag('en'),
   cacheLockTimeoutSeconds: 300,

@@ -823,16 +823,16 @@ export const adminMessages = {
   'admin.settings.artDirPlaceholder': 'e.g. ./art',
   'admin.settings.artDirHint':
     'Local images a card can use in place of its printing. Files are referenced by their path inside this folder.',
-  'admin.settings.defaultCurrency': 'Default Price Currency',
-  'admin.settings.currencyUsd': 'USD (TCGplayer)',
-  'admin.settings.currencyEur': 'EUR (Cardmarket)',
+  'admin.settings.defaultPriceSource': 'Default Price Store',
+  'admin.settings.defaultPriceSourceAuto': 'Automatic (first enabled store)',
+  'admin.settings.defaultPriceSourceHint':
+    'The store prices are read from by default — on the sites, in the editors, and in the price command. Its currency follows from it. The sites open on it only when it is enabled below; otherwise they open on the first enabled store.',
   'admin.settings.priceSources': 'Price Stores',
   'admin.settings.priceSourcesHint':
     'Which stores the sites offer prices from. USD views can switch between TCGplayer and Card Kingdom; EUR always uses Cardmarket, and MTGO tix always uses Cardhoarder. The sites offer only the currencies an enabled store quotes in. Unchecking all of them hides prices on the sites entirely. Enabling Card Kingdom downloads its ~70 MB pricelist feed on builds and cache refreshes, like sell mode.',
   'admin.settings.defaultCategories': 'Default Categories',
   'admin.settings.defaultCategoriesHint':
     'Suggested categories offered when editing a card, and the default heading order for a list that declares none. Separate them with commas; spaces are part of a name.',
-  'admin.settings.currencyTix': 'TIX (Cardhoarder)',
   'admin.settings.defaultLanguage': 'Default Language',
   'admin.settings.languageOption': '{name} ({code})',
   'admin.settings.defaultLanguageHint':

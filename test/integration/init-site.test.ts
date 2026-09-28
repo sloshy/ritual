@@ -19,7 +19,8 @@ type SiteConfigFile = {
     distDir?: string
     detectChanges?: boolean
   }
-  defaultCurrency?: string
+  defaultPriceSource?: string
+  priceSources?: string[]
 }
 
 async function readConfig(dir: string): Promise<SiteConfigFile> {
@@ -39,8 +40,8 @@ describe('init-site CLI (Integration)', () => {
           '--deploy',
           'publish-for-me',
           '--change-detection',
-          '--currency',
-          'eur',
+          '--price-source',
+          'cardmarket',
           '--no-skills',
         ],
         dir,
@@ -65,7 +66,9 @@ describe('init-site CLI (Integration)', () => {
         distDir: 'dist',
         detectChanges: true,
       })
-      expect(config.defaultCurrency).toBe('eur')
+      expect(config.defaultPriceSource).toBe('cardmarket')
+      // Choosing a store the sites did not offer enables it.
+      expect(config.priceSources).toEqual(['tcgplayer', 'cardmarket'])
 
       expect(await Bun.file(path.join(dir, 'README.md')).exists()).toBeTrue()
       const gitignore = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
@@ -86,8 +89,8 @@ describe('init-site CLI (Integration)', () => {
           'local-build',
           '--dist-dir',
           'public',
-          '--currency',
-          'usd',
+          '--price-source',
+          'tcgplayer',
           '--no-skills',
         ],
         dir,
@@ -116,8 +119,8 @@ describe('init-site CLI (Integration)', () => {
           'local-build',
           '--dist-dir',
           'dist',
-          '--currency',
-          'usd',
+          '--price-source',
+          'tcgplayer',
           '--no-skills',
         ],
         dir,
@@ -150,8 +153,8 @@ describe('init-site CLI (Integration)', () => {
           'local-build',
           '--dist-dir',
           'out',
-          '--currency',
-          'usd',
+          '--price-source',
+          'tcgplayer',
           '--no-skills',
         ],
         dir,
@@ -182,8 +185,8 @@ describe('init-site CLI (Integration)', () => {
           '--dist-dir',
           'dist',
           '--no-change-detection',
-          '--currency',
-          'usd',
+          '--price-source',
+          'tcgplayer',
           '--no-skills',
         ],
         dir,
@@ -198,7 +201,7 @@ describe('init-site CLI (Integration)', () => {
   test('re-running an up-to-date init is a friendly no-op, not an error', async () => {
     await withTempDir(async (dir) => {
       const init = await runCli(
-        ['init-site', '--ci', 'manual', '--currency', 'usd', '--no-skills'],
+        ['init-site', '--ci', 'manual', '--price-source', 'tcgplayer', '--no-skills'],
         dir,
       )
       expect(init.exitCode).toBe(0)
@@ -211,10 +214,10 @@ describe('init-site CLI (Integration)', () => {
     })
   })
 
-  test('a headless manual init needs only --ci and --currency', async () => {
+  test('a headless manual init needs only --ci and --price-source', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(
-        ['init-site', '--ci', 'manual', '--currency', 'usd', '--no-skills'],
+        ['init-site', '--ci', 'manual', '--price-source', 'tcgplayer', '--no-skills'],
         dir,
       )
 
@@ -226,10 +229,10 @@ describe('init-site CLI (Integration)', () => {
   })
 
   test.each([
-    ['missing --ci', ['init-site', '--currency', 'usd', '--no-skills'], '--ci'],
+    ['missing --ci', ['init-site', '--price-source', 'tcgplayer', '--no-skills'], '--ci'],
     [
       'missing --deploy',
-      ['init-site', '--ci', 'github-actions', '--currency', 'usd', '--no-skills'],
+      ['init-site', '--ci', 'github-actions', '--price-source', 'tcgplayer', '--no-skills'],
       '--deploy',
     ],
     [
@@ -240,8 +243,8 @@ describe('init-site CLI (Integration)', () => {
         'github-actions',
         '--deploy',
         'local-build',
-        '--currency',
-        'usd',
+        '--price-source',
+        'tcgplayer',
         '--no-skills',
       ],
       '--dist-dir',
@@ -254,19 +257,23 @@ describe('init-site CLI (Integration)', () => {
         'github-actions',
         '--deploy',
         'publish-for-me',
-        '--currency',
-        'usd',
+        '--price-source',
+        'tcgplayer',
         '--no-skills',
       ],
       '--change-detection',
     ],
-    ['missing --currency', ['init-site', '--ci', 'manual', '--no-skills'], '--currency'],
+    ['missing --price-source', ['init-site', '--ci', 'manual', '--no-skills'], '--price-source'],
     // The skills question is asked last, after the files are written, so its
     // missing flag is refused up front like the others — nothing is written.
-    ['missing --skills', ['init-site', '--ci', 'manual', '--currency', 'usd'], '--skills'],
+    [
+      'missing --skills',
+      ['init-site', '--ci', 'manual', '--price-source', 'tcgplayer'],
+      '--skills',
+    ],
     [
       'missing --skills on --force',
-      ['init-site', '--force', '--ci', 'manual', '--currency', 'usd'],
+      ['init-site', '--force', '--ci', 'manual', '--price-source', 'tcgplayer'],
       '--skills',
     ],
   ])('a headless init with a %s is a usage error naming the flag', async (_name, args, flag) => {
@@ -302,8 +309,8 @@ describe('init-site CLI (Integration)', () => {
           'manual',
           '--deploy',
           'publish-for-me',
-          '--currency',
-          'usd',
+          '--price-source',
+          'tcgplayer',
           '--no-skills',
         ],
         dir,
@@ -319,7 +326,7 @@ describe('init-site CLI (Integration)', () => {
       await fs.writeFile(path.join(dir, 'README.md'), 'my own readme\n')
 
       const result = await runCli(
-        ['init-site', '--ci', 'manual', '--currency', 'usd', '--no-skills'],
+        ['init-site', '--ci', 'manual', '--price-source', 'tcgplayer', '--no-skills'],
         dir,
       )
 
@@ -338,8 +345,8 @@ describe('init-site CLI (Integration)', () => {
           'init-site',
           '--ci',
           'manual',
-          '--currency',
-          'usd',
+          '--price-source',
+          'tcgplayer',
           '--no-overwrite-readme',
           '--no-skills',
         ],
@@ -357,7 +364,7 @@ describe('init-site CLI (Integration)', () => {
       await fs.writeFile(path.join(dir, 'README.md'), 'my own readme\n')
 
       const result = await runCli(
-        ['init-site', '--force', '--ci', 'manual', '--currency', 'usd', '--no-skills'],
+        ['init-site', '--force', '--ci', 'manual', '--price-source', 'tcgplayer', '--no-skills'],
         dir,
       )
 
@@ -370,7 +377,7 @@ describe('init-site CLI (Integration)', () => {
   test('config flags on an already-initialized repository are a usage error', async () => {
     await withTempDir(async (dir) => {
       const init = await runCli(
-        ['init-site', '--ci', 'manual', '--currency', 'usd', '--no-skills'],
+        ['init-site', '--ci', 'manual', '--price-source', 'tcgplayer', '--no-skills'],
         dir,
       )
       expect(init.exitCode).toBe(0)

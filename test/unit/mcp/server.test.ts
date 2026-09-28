@@ -117,7 +117,7 @@ type JsonSchemaNode = {
 }
 
 type ConfigView = {
-  defaultCurrency?: string
+  defaultPriceSource?: string
   site?: { sellMode?: boolean }
 }
 
@@ -1841,12 +1841,12 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // test/integration/admin-config.test.ts); this pins only the MCP wiring —
     // the tool reaches the handler and the change is visible through get_config.
     const updated = await callTool(client, 'update_config', {
-      config: { defaultCurrency: 'EUR' },
+      config: { defaultPriceSource: 'CardMarket' },
     })
     expect(updated.isError).toBeFalsy()
 
     const got = toolData<ConfigResultView>(await callTool(client, 'get_config', {}))
-    expect(got.config.defaultCurrency).toBe('eur')
+    expect(got.config.defaultPriceSource).toBe('cardmarket')
 
     const rejected = await callTool(client, 'update_config', { config: { bogusKey: true } })
     expect(rejected.isError).toBe(true)
@@ -1878,7 +1878,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     setSiteSellModeOverride(true)
     try {
       const written = toolData<ConfigResultView>(
-        await callTool(client, 'update_config', { config: { defaultCurrency: 'usd' } }),
+        await callTool(client, 'update_config', { config: { defaultPriceSource: 'tcgplayer' } }),
       )
       expect(written).not.toHaveProperty('overrides')
     } finally {

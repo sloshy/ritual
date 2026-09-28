@@ -240,11 +240,12 @@ export function priceIntro(options: PriceIntroOptions): string {
 }
 
 /** The `--prices` example comment shared by every price example block. */
-export const PRICE_CURRENCY_COMMENT = '# usd | eur | tix (defaults to config defaultCurrency)'
+export const PRICE_CURRENCY_COMMENT =
+  '# usd | eur | tix (defaults to the currency of config defaultPriceSource)'
 
 /** The `--source` example comment shared by every price example block. */
 export const PRICE_SOURCE_COMMENT =
-  '# tcgplayer (Scryfall USD) | cardmarket (Scryfall EUR) | cardhoarder (Scryfall tix) | cardkingdom (CK NM retail; needs the CK feed)'
+  '# tcgplayer (Scryfall USD) | cardmarket (Scryfall EUR) | cardhoarder (Scryfall tix) | cardkingdom (CK NM retail; needs the CK feed); default: config defaultPriceSource'
 
 /**
  * The `--only <additions|removals>` change filter, described once for both sync

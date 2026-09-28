@@ -9,7 +9,6 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncConfig,
-  parseDefaultCurrency,
   parseDefaultLanguage,
   parseSearchDebounceMs,
   parseSiteConfig,
@@ -21,7 +20,7 @@ import {
   type SessionOverrides,
 } from '../../config/ritual-config'
 import { parseExportPresets } from '../../export/presets'
-import { parsePriceSources } from '../../pricing/price-source'
+import { parseDefaultPriceSource, parsePriceSources } from '../../pricing/price-source'
 import { parseDefaultCategories } from '../../card/card-categories'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
@@ -58,7 +57,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     collectionsDir: true,
     wantedDir: true,
     artDir: true,
-    defaultCurrency: true,
+    defaultPriceSource: true,
     priceSources: true,
     defaultCategories: true,
     defaultLanguage: true,
@@ -90,7 +89,6 @@ const DIRECTORY_CONFIG_KEYS = ['decksDir', 'collectionsDir', 'wantedDir', 'artDi
  * not one of them: its empty-string-clears rule needs its own branch.
  */
 type ParsedConfigKey =
-  | 'defaultCurrency'
   | 'defaultLanguage'
   | 'uiLocale'
   | 'cacheLockTimeoutSeconds'
@@ -166,7 +164,6 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     // refuse a bad value here rather than persisting one the loader would
     // silently reset to the default.
     const scalarError =
-      applyParsedUpdate(raw, updates, 'defaultCurrency', parseDefaultCurrency) ??
       applyParsedUpdate(raw, updates, 'defaultLanguage', parseDefaultLanguage) ??
       applyParsedUpdate(raw, updates, 'uiLocale', parseUiLocale) ??
       applyParsedUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
@@ -176,6 +173,18 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategories)
     if (scalarError !== null) {
       return badRequest(scalarError)
+    }
+
+    // An empty string clears the default store (the first enabled store then
+    // applies); like `cacheFeedUrl` below, the key is removed from the merged
+    // config, not just from the update.
+    let clearDefaultPriceSource = false
+    if (raw.defaultPriceSource !== undefined) {
+      const parsed =
+        raw.defaultPriceSource === '' ? undefined : parseDefaultPriceSource(raw.defaultPriceSource)
+      if (isConfigParseError(parsed)) return badRequest(parsed.error)
+      if (parsed === undefined) clearDefaultPriceSource = true
+      else updates.defaultPriceSource = parsed
     }
 
     // An empty string clears the override (falls back to the built-in default);
@@ -259,6 +268,9 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     }
     if (clearCacheFeedUrl) {
       delete merged.cacheFeedUrl
+    }
+    if (clearDefaultPriceSource) {
+      delete merged.defaultPriceSource
     }
     await saveRitualConfig(merged)
     await refreshRitualConfig()

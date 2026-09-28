@@ -7,6 +7,7 @@ import type {
   SiteIndex,
 } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
+import { sourceCurrency } from '../pricing/price-source'
 import { setSearchDebounceMs } from '../config/search-debounce'
 import { setDefaultCategories } from '../config/default-categories'
 import { setDefaultLanguage } from '../editor/default-language'
@@ -18,7 +19,7 @@ import {
   setApiBase,
 } from '../list-view/api-base'
 import { setBuylistQuotesOnline } from '../list-view/buylist-quotes'
-import { setEnabledPriceSources } from '../list-view/price-view'
+import { setDefaultPriceSource, setEnabledPriceSources } from '../list-view/price-view'
 import { isAbortError } from '../util/errors'
 import {
   currentLocale,
@@ -120,8 +121,9 @@ export function useSiteData(): UseSiteDataResult {
       setCollectionList(data.collections ?? [])
       setWantedListList(data.wantedLists ?? [])
       setUseScryfallImgUrls(data.useScryfallImgUrls)
-      if (data.defaultCurrency && !currencyApplied) {
-        setCurrency(data.defaultCurrency)
+      if (!currencyApplied) {
+        setCurrency(sourceCurrency(data.defaultPriceSource))
+        setDefaultPriceSource(data.defaultPriceSource)
         currencyApplied = true
       }
       if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)

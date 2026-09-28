@@ -2,7 +2,11 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
-import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../pricing/price-source'
+import {
+  VALID_PRICE_SOURCES,
+  isPriceRequestConflict,
+  resolvePriceRequest,
+} from '../../pricing/price-source'
 import { outputSchemaFor, runTool } from '../result'
 import {
   cardTagSchema,
@@ -605,8 +609,8 @@ export function registerReadTools(server: McpServer): void {
         'Price lists from the local card cache. With listType + slug, one list’s summary plus ' +
         'its priced card entries; with listType alone, per-list totals across every list of ' +
         'that type; with neither, per-list totals across every list. Errors when the card ' +
-        'cache is empty (run refresh_cache first). source picks the store: tcgplayer ' +
-        '(Scryfall USD, default), cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), ' +
+        'cache is empty (run refresh_cache first). source picks the store (default: the ' +
+        'configured defaultPriceSource): tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), ' +
         'or cardkingdom (NM retail from the cached Card Kingdom feed — errors when no feed is ' +
         'downloaded; run refresh_buylist, which itself needs sell mode or "cardkingdom" in ' +
         'priceSources). A source implies its currency, so pass at most one of the two.',
@@ -618,7 +622,9 @@ export function registerReadTools(server: McpServer): void {
           slug: slugField.optional(),
           currency: currencySchema
             .optional()
-            .describe('Pricing currency; defaults to the configured defaultCurrency.'),
+            .describe(
+              'Pricing currency. Omit both currency and source to price from the configured defaultPriceSource.',
+            ),
           source: z
             .enum(VALID_PRICE_SOURCES)
             .optional()
@@ -634,8 +640,10 @@ export function registerReadTools(server: McpServer): void {
             })
           }
           if (val.source !== undefined) {
-            const resolved = resolveSourceCurrency(val.source, val.currency)
-            if (!resolved.ok) {
+            // The default store is irrelevant to the conflict check: only an
+            // explicit source can disagree with an explicit currency.
+            const resolved = resolvePriceRequest(val.source, val.currency, val.source)
+            if (isPriceRequestConflict(resolved)) {
               ctx.addIssue({
                 code: 'custom',
                 message: `source '${resolved.source}' prices in ${resolved.implied}; omit currency or make it match.`,

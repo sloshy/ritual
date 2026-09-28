@@ -2,6 +2,7 @@ import { VALID_CURRENCIES, type PriceCurrencies, type PriceCurrency } from './pr
 // Type-only, so the value-level import cycle (ritual-config parses this
 // module's config key) never materializes at runtime.
 import type { ConfigParseError } from '../config/ritual-config'
+import type { MessageKey } from '../i18n/messages/en'
 
 /**
  * The stores card prices can be read from. Each source quotes in exactly one
@@ -19,6 +20,18 @@ import type { ConfigParseError } from '../config/ritual-config'
  * message catalog.
  */
 export type PriceSource = 'tcgplayer' | 'cardmarket' | 'cardkingdom' | 'cardhoarder'
+
+/**
+ * The store display names, as catalog keys — one table for every store
+ * picker (the sites' header, the admin Settings, `init-site`), so a renamed
+ * key cannot strand one of them on a dead entry.
+ */
+export const PRICE_SOURCE_LABELS = {
+  tcgplayer: 'site.priceSource.tcgplayer',
+  cardmarket: 'site.priceSource.cardmarket',
+  cardkingdom: 'site.priceSource.cardkingdom',
+  cardhoarder: 'site.priceSource.cardhoarder',
+} as const satisfies Record<PriceSource, MessageKey>
 
 export const VALID_PRICE_SOURCES = [
   'tcgplayer',
@@ -46,25 +59,78 @@ export const USD_PRICE_SOURCES = [
 /** A store that quotes in USD. */
 export type UsdPriceSource = (typeof USD_PRICE_SOURCES)[number]
 
-/**
- * Resolve a `--source`-style choice against an explicitly supplied currency.
- * A source implies its currency; only an *explicit* conflicting currency is a
- * conflict — an omitted one silently follows the source. The rule lives here
- * once so the CLI flag, the admin query param, and the MCP input cannot drift
- * on the subtle half (explicit-only); each surface words its own error.
- */
-export type SourceCurrencyResolution =
-  { ok: true; currency: PriceCurrency } | { ok: false; source: PriceSource; implied: PriceCurrency }
+export function isUsdPriceSource(source: PriceSource): source is UsdPriceSource {
+  return (USD_PRICE_SOURCES as readonly PriceSource[]).includes(source)
+}
 
-export function resolveSourceCurrency(
-  source: PriceSource,
+/** The store a deployment prices from when neither config nor a request names one. */
+export const DEFAULT_PRICE_SOURCE = 'tcgplayer' satisfies PriceSource
+
+/**
+ * The Scryfall-backed store for each currency — what a request that names only
+ * a currency reads, unless the configured default already quotes in it.
+ */
+const SCRYFALL_SOURCES = {
+  usd: 'tcgplayer',
+  eur: 'cardmarket',
+  tix: 'cardhoarder',
+} as const satisfies Record<PriceCurrency, PriceSource>
+
+/**
+ * The store a workspace prices from by default: the configured
+ * `defaultPriceSource`, else the first enabled store, else TCGplayer. Used as
+ * is by the CLI, the admin API, and MCP, which are not gated on `priceSources`;
+ * the sites narrow it further to what they offer ({@link resolveSiteCurrencies}).
+ */
+export function resolveDefaultPriceSource(
+  configured: PriceSource | undefined,
+  enabled: readonly PriceSource[],
+): PriceSource {
+  return configured ?? enabled[0] ?? DEFAULT_PRICE_SOURCE
+}
+
+/** A price request resolved to the store it reads and the currency that store quotes in. */
+export type PriceRequest = { source: PriceSource; currency: PriceCurrency }
+
+/** An explicit source whose currency disagrees with an explicit currency. */
+export type PriceRequestConflict = {
+  error: 'source-currency-conflict'
+  source: PriceSource
+  implied: PriceCurrency
+}
+
+/**
+ * Resolve a price request's store from an explicit source, an explicit
+ * currency, and the configured default. A source implies its currency, and
+ * only an *explicit* conflicting currency is a conflict. A currency alone reads
+ * the default store when that store quotes in it (so `--prices usd` under a
+ * Card Kingdom default stays Card Kingdom), else that currency's Scryfall
+ * store. Neither reads the default. The rule lives here once so the CLI flags,
+ * the admin query params, and the MCP input cannot drift; each surface words
+ * its own error.
+ */
+export function resolvePriceRequest(
+  explicitSource: PriceSource | undefined,
   explicitCurrency: PriceCurrency | undefined,
-): SourceCurrencyResolution {
-  const implied = sourceCurrency(source)
-  if (explicitCurrency !== undefined && explicitCurrency !== implied) {
-    return { ok: false, source, implied }
+  defaultSource: PriceSource,
+): PriceRequest | PriceRequestConflict {
+  if (explicitSource !== undefined) {
+    const implied = sourceCurrency(explicitSource)
+    if (explicitCurrency !== undefined && explicitCurrency !== implied) {
+      return { error: 'source-currency-conflict', source: explicitSource, implied }
+    }
+    return { source: explicitSource, currency: implied }
   }
-  return { ok: true, currency: implied }
+  if (explicitCurrency === undefined || explicitCurrency === sourceCurrency(defaultSource)) {
+    return { source: defaultSource, currency: sourceCurrency(defaultSource) }
+  }
+  return { source: SCRYFALL_SOURCES[explicitCurrency], currency: explicitCurrency }
+}
+
+export function isPriceRequestConflict(
+  value: PriceRequest | PriceRequestConflict,
+): value is PriceRequestConflict {
+  return 'error' in value
 }
 
 /** The one currency a source quotes in. */
@@ -94,11 +160,14 @@ export function sourcesForCurrency(
   )
 }
 
-/** The currencies a site built or served under a config offers, and the one it opens in. */
+/** The currencies a site built or served under a config offers, and the store it opens in. */
 export type SiteCurrencies = {
   available: PriceCurrencies
-  /** The configured default when it is available, else the first available currency. */
-  defaultCurrency: PriceCurrency
+  /**
+   * The configured default store when it is enabled and its currency offered,
+   * else the first enabled store quoting in the first offered currency.
+   */
+  defaultSource: PriceSource
 }
 
 /** An explicit `--currencies` list naming no currency an enabled store quotes in. */
@@ -113,41 +182,49 @@ export type SiteCurrenciesError = {
  * enabled. An explicit `--currencies` list narrows (and orders) that set but
  * never adds a currency with no store behind it; one that keeps nothing is an
  * error. With no stores at all the site shows no prices, but still bakes one
- * currency (the explicit list's, else the configured default) so its data
- * stays well-formed.
+ * currency (the explicit list's, else the default store's) so its data stays
+ * well-formed.
  */
 export function resolveSiteCurrencies(
   sources: readonly PriceSource[],
-  configured: PriceCurrency,
+  configured: PriceSource,
 ): SiteCurrencies
 export function resolveSiteCurrencies(
   sources: readonly PriceSource[],
-  configured: PriceCurrency,
+  configured: PriceSource,
   explicit: PriceCurrencies | undefined,
 ): SiteCurrencies | SiteCurrenciesError
 export function resolveSiteCurrencies(
   sources: readonly PriceSource[],
-  configured: PriceCurrency,
+  configured: PriceSource,
   explicit?: PriceCurrencies,
 ): SiteCurrencies | SiteCurrenciesError {
+  const configuredCurrency = sourceCurrency(configured)
   const backed = VALID_CURRENCIES.filter(
     (currency) => sourcesForCurrency(currency, sources).length > 0,
   )
   const candidates =
     backed.length === 0
-      ? (explicit ?? [configured])
+      ? (explicit ?? [configuredCurrency])
       : explicit
         ? explicit.filter((currency) => backed.includes(currency))
         : backed
   const [first, ...rest] = candidates
   if (first === undefined) {
     // Only reachable with an explicit list: `backed` is non-empty here.
-    return { error: 'no-store-for-currencies', requested: explicit ?? [configured] }
+    return { error: 'no-store-for-currencies', requested: explicit ?? [configuredCurrency] }
   }
   const available: PriceCurrencies = [first, ...rest]
+  const offersConfigured = available.includes(configuredCurrency)
+  if (offersConfigured && (sources.includes(configured) || backed.length === 0)) {
+    return { available, defaultSource: configured }
+  }
+  // The configured store is off (or its currency is not offered): open in the
+  // first offered currency, at its first enabled store — or its Scryfall store
+  // when no store is enabled at all.
   return {
     available,
-    defaultCurrency: available.includes(configured) ? configured : first,
+    defaultSource: sourcesForCurrency(first, sources)[0] ?? SCRYFALL_SOURCES[first],
   }
 }
 
@@ -155,6 +232,24 @@ export function isSiteCurrenciesError(
   value: SiteCurrencies | SiteCurrenciesError,
 ): value is SiteCurrenciesError {
   return 'error' in value
+}
+
+/**
+ * Parse the `defaultPriceSource` config value. Absent stays absent (the first
+ * enabled store is the default); the value is lowercased, and an unknown store
+ * name is a parse error.
+ */
+export function parseDefaultPriceSource(
+  value: unknown,
+): PriceSource | undefined | ConfigParseError {
+  if (value === undefined) return undefined
+  if (typeof value === 'string') {
+    const lower = value.trim().toLowerCase()
+    if (isPriceSource(lower)) return lower
+  }
+  return {
+    error: `"defaultPriceSource" must be one of: ${VALID_PRICE_SOURCES.join(', ')}`,
+  }
 }
 
 /**

@@ -173,7 +173,6 @@ export const MOCK_WANTED_LIST_DETAIL = {
   symbolMap: {},
   useScryfallImgUrls: true,
   totalPrice: 220.0,
-  defaultCurrency: 'usd',
 } satisfies WantedListDetail
 
 export const MOCK_COLLECTION_CARD_PRICED = makeMockScryfallCard({
@@ -241,5 +240,4 @@ export const MOCK_COLLECTION_DETAIL = {
   symbolMap: {},
   useScryfallImgUrls: false,
   totalPrice: 3.5,
-  defaultCurrency: 'usd',
 } satisfies CollectionDetail

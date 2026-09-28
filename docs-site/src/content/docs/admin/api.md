@@ -694,11 +694,11 @@ Price every deck, collection, and wanted list from the local card cache and retu
 
 **Query Parameters:**
 
-| Parameter  | Description                                                                                                                                                | Required |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                                                         | No       |
-| `currency` | `usd`, `eur`, or `tix` (default: the configured `defaultCurrency`)                                                                                         | No       |
-| `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed) | No       |
+| Parameter  | Description                                                                                                                                                                                                         | Required |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                                                                                                                  | No       |
+| `currency` | `usd`, `eur`, or `tix` (default: the currency of the configured `defaultPriceSource`)                                                                                                                               | No       |
+| `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed). With neither param, the configured `defaultPriceSource` | No       |
 
 An unknown `type`, `currency`, or `source` returns `400`. A `source` implies its currency (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), so a conflicting explicit `currency` is a `400` too.
 
@@ -2841,7 +2841,6 @@ Returns the current application configuration.
     "decksDir": "./decks",
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
-    "defaultCurrency": "usd",
     "priceSources": ["tcgplayer"],
     "defaultLanguage": "en",
     "uiLocale": "en",
@@ -2896,7 +2895,7 @@ Every key in the request body is validated **before** the merge is persisted; a 
 - Unknown keys inside `admin` are rejected (`Unknown admin config key "x"`), matching `config set admin.<field>`.
 - When `admin` or `site` is present, its fields are validated field by field with the config loader's rules, and any malformed field rejects the whole update.
 - `collectionSync` replaces wholesale like `site` rather than merging like `admin`. Its fields are validated (`pullTarget` must be a non-empty list name) and any absent field takes its default, so a partial object round-trips to a complete one. A malformed value rejects the whole update.
-- `defaultCurrency`, `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated as [`config set`](/commands/config/) validates them.
+- `defaultPriceSource` (an empty string clears it), `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, and `searchDebounceMs` are validated as [`config set`](/commands/config/) validates them.
 - `cacheFeedUrl` has one extra rule: sending it as an **empty string** clears a previously-set override (falling back to the built-in default). Omitting the field leaves the current value untouched.
 
 **Request body:**
@@ -2919,7 +2918,6 @@ Every key in the request body is validated **before** the merge is persisted; a 
     "decksDir": "./decks",
     "collectionsDir": "./collections",
     "wantedDir": "./wanted",
-    "defaultCurrency": "usd",
     "priceSources": ["tcgplayer"],
     "defaultLanguage": "en",
     "uiLocale": "en",

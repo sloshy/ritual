@@ -15,7 +15,6 @@ Ritual uses these values when there is no config file. A first write puts them o
   "collectionsDir": "./collections",
   "wantedDir": "./wanted",
   "artDir": "./art",
-  "defaultCurrency": "usd",
   "priceSources": ["tcgplayer"],
   "defaultCategories": [
     "Ramp",
@@ -72,20 +71,19 @@ Paths are relative to the base directory. With `--base-dir ~/mtg` and `"decksDir
 
 Ritual never creates `artDir`. It reads the directory only when a list references [custom art](/custom-art/); a missing directory means the workspace has none. A card's `file` reference is relative to this directory, so moving the directory or changing `artDir` never breaks a reference.
 
-## Default currency
+## Default price store
 
-| Field             | Default | Description                                                     |
-| ----------------- | ------- | --------------------------------------------------------------- |
-| `defaultCurrency` | `usd`   | The currency price displays default to: `usd`, `eur`, or `tix`. |
+| Field                | Default                        | Description                                                                                            |
+| -------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `defaultPriceSource` | the first `priceSources` entry | The store prices are read from by default: `tcgplayer`, `cardkingdom`, `cardmarket`, or `cardhoarder`. |
 
-This key sets the starting currency for:
+The store decides the currency too (`tcgplayer` and `cardkingdom` are USD, `cardmarket` is EUR, `cardhoarder` is MTGO tix). Leave the key unset to use the first enabled [price store](#price-stores-pricesources), or TCGplayer when none is enabled. It sets the starting point for:
 
-- the [price](/commands/price/) command
-- the CLI editor's [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards
-- the [admin site](/commands/admin/)'s editor and move-cards price displays
-- the public site's initial currency, when an enabled [price store](#price-stores-pricesources) quotes in it. Otherwise the site opens in the first offered currency.
+- the [price](/commands/price/) command, and the admin price API and MCP `get_price_report`, when neither a store nor a currency is given. A currency alone keeps this store when it quotes in that currency (so `--prices usd` under a `cardkingdom` default still prices from Card Kingdom), and otherwise reads that currency's Scryfall store.
+- the CLI editor's [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards. These read Scryfall prices in the store's currency.
+- the public and admin sites' initial price store. The sites can only open on a store listed in `priceSources`; otherwise they open on the first enabled store.
 
-[init-site](/commands/init-site/) prompts for it. Change it later with `config set defaultCurrency eur`.
+[init-site](/commands/init-site/) prompts for it and enables the chosen store. Change it later with `config set defaultPriceSource cardkingdom`, or clear it with `config unset defaultPriceSource`.
 
 ## Price stores (`priceSources`)
 

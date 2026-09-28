@@ -1,6 +1,7 @@
-import { createSignal, type Accessor } from 'solid-js'
+import { batch, createSignal, type Accessor } from 'solid-js'
 import { DEFAULT_CURRENCY, type PriceCurrency } from '../../../pricing/price-currency'
-import { setEnabledPriceSources } from '../../../list-view/price-view'
+import { setDefaultPriceSource, setEnabledPriceSources } from '../../../list-view/price-view'
+import { resolveDefaultPriceSource, sourceCurrency } from '../../../pricing/price-source'
 import { fetchRitualConfig } from '../config-api'
 
 // Module-level so every admin page shares one value and a fetch kicked off by
@@ -21,8 +22,12 @@ const [defaultCurrency, setDefaultCurrency] = createSignal<PriceCurrency>(DEFAUL
 export function useDefaultCurrency(): Accessor<PriceCurrency> {
   void fetchRitualConfig().then((config) => {
     if (config) {
-      setDefaultCurrency(config.defaultCurrency)
-      setEnabledPriceSources(config.priceSources)
+      const source = resolveDefaultPriceSource(config.defaultPriceSource, config.priceSources)
+      batch(() => {
+        setDefaultCurrency(sourceCurrency(source))
+        setEnabledPriceSources(config.priceSources)
+        setDefaultPriceSource(source)
+      })
     }
   })
   return defaultCurrency

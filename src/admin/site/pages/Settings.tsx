@@ -10,9 +10,16 @@ import type {
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../config/search-debounce'
 import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card/card-language'
-import type { PriceCurrency } from '../../../pricing/price-currency'
-import { VALID_PRICE_SOURCES } from '../../../pricing/price-source'
-import { PRICE_SOURCE_LABELS, setEnabledPriceSources } from '../../../list-view/price-view'
+import {
+  VALID_PRICE_SOURCES,
+  isPriceSource,
+  resolveDefaultPriceSource,
+} from '../../../pricing/price-source'
+import {
+  PRICE_SOURCE_LABELS,
+  setDefaultPriceSource,
+  setEnabledPriceSources,
+} from '../../../list-view/price-view'
 import { formatCardCategories, parseCardCategoriesInput } from '../../../card/card-categories'
 import { setDefaultCategories } from '../../../config/default-categories'
 import {
@@ -120,7 +127,9 @@ export function Settings(): JSX.Element {
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(saved),
+          // An empty string is how the route clears the default store; an
+          // absent key would leave the stored one in place.
+          body: JSON.stringify({ ...saved, defaultPriceSource: saved.defaultPriceSource ?? '' }),
         },
         apiMessage('admin.settings.saveFailed'),
       )
@@ -133,6 +142,9 @@ export function Settings(): JSX.Element {
         // seeded at page mount, so a save must push the new list for already-
         // mounted editors to update their source selector and price reads.
         setEnabledPriceSources(saved.priceSources)
+        setDefaultPriceSource(
+          resolveDefaultPriceSource(saved.defaultPriceSource, saved.priceSources),
+        )
         // Same again for the category vocabulary: `useAdminConfigDefaults` primes
         // the module signal once per page mount, so without this push an
         // already-open editor keeps offering the stale suggestions.
@@ -287,19 +299,27 @@ export function Settings(): JSX.Element {
             <p class="form-hint">{t('admin.settings.artDirHint')}</p>
           </div>
           <div>
-            <label class="form-label">{t('admin.settings.defaultCurrency')}</label>
+            <label class="form-label">{t('admin.settings.defaultPriceSource')}</label>
             <select
               class="form-input"
-              name="defaultCurrency"
-              value={config()!.defaultCurrency}
-              onChange={(e) =>
-                updateField('defaultCurrency', e.currentTarget.value as PriceCurrency)
-              }
+              name="defaultPriceSource"
+              onChange={(e) => {
+                const raw = e.currentTarget.value
+                updateField('defaultPriceSource', isPriceSource(raw) ? raw : undefined)
+              }}
             >
-              <option value="usd">{t('admin.settings.currencyUsd')}</option>
-              <option value="eur">{t('admin.settings.currencyEur')}</option>
-              <option value="tix">{t('admin.settings.currencyTix')}</option>
+              <option value="" selected={config()!.defaultPriceSource === undefined}>
+                {t('admin.settings.defaultPriceSourceAuto')}
+              </option>
+              <For each={VALID_PRICE_SOURCES}>
+                {(source) => (
+                  <option value={source} selected={config()!.defaultPriceSource === source}>
+                    {t(PRICE_SOURCE_LABELS[source])}
+                  </option>
+                )}
+              </For>
             </select>
+            <p class="form-hint">{t('admin.settings.defaultPriceSourceHint')}</p>
           </div>
           <div>
             <label class="form-label">{t('admin.settings.priceSources')}</label>

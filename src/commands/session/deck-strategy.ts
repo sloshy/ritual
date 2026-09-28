@@ -65,7 +65,7 @@ import {
 import { trackAdd, trackAnotherCopy, trackEdit } from '../../changes/session-changelog'
 import { splitCommaTokens } from '../../config/config-fields'
 import { formatSpecificPrintingPrice } from '../../pricing/price-currency'
-import { getDefaultCurrency } from '../../config/ritual-config'
+import { getDefaultPriceCurrency } from '../../config/ritual-config'
 
 export type DeckStrategyArgs = {
   deckFile: string
@@ -408,7 +408,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       }
       await addToDeck(ctx, cardName, printingTuple, section)
       console.log(
-        formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultCurrency()),
+        formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultPriceCurrency()),
       )
     },
 

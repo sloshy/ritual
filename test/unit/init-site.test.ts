@@ -3,7 +3,7 @@ import yaml from 'js-yaml'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
-  defaultCurrencyChoices,
+  defaultPriceSourceChoices,
   generatePublishForMeWorkflow,
   generateLocalBuildWorkflow,
   generateWorkflow,
@@ -461,19 +461,23 @@ describe('updateGitignore', () => {
   })
 })
 
-describe('defaultCurrencyChoices', () => {
-  test('offers every currency with USD first and marks the current one', () => {
-    const choices = defaultCurrencyChoices('usd')
-    expect(choices.map((c) => c.value)).toEqual(['usd', 'eur', 'tix'])
-    expect(choices[0]!.title).toBe('USD (current)')
-    expect(choices[0]!.description).toContain('TCGplayer')
-    expect(choices[1]!.title).toBe('EUR')
-    expect(choices[1]!.description).toContain('Cardmarket')
+describe('defaultPriceSourceChoices', () => {
+  test('offers every store in canonical order, naming its currency, and marks the current one', () => {
+    const choices = defaultPriceSourceChoices('tcgplayer')
+    expect(choices.map((c) => c.value)).toEqual([
+      'tcgplayer',
+      'cardmarket',
+      'cardkingdom',
+      'cardhoarder',
+    ])
+    expect(choices[0]!.title).toBe('TCGplayer (current)')
+    expect(choices[0]!.description).toContain('USD')
+    expect(choices[1]!.description).toContain('EUR')
   })
 
-  test('marks a non-default configured currency', () => {
-    const choices = defaultCurrencyChoices('tix')
-    expect(choices[2]!.title).toBe('TIX (current)')
-    expect(choices[0]!.title).toBe('USD')
+  test('marks a non-default configured store', () => {
+    const choices = defaultPriceSourceChoices('cardkingdom')
+    expect(choices[2]!.title).toBe('Card Kingdom (current)')
+    expect(choices[0]!.title).toBe('TCGplayer')
   })
 })

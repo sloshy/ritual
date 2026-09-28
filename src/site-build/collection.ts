@@ -208,7 +208,6 @@ export async function buildCollectionArtifacts(
     symbolMap: ctx.symbolMap,
     useScryfallImgUrls: ctx.useScryfallImgUrls,
     totalPrice,
-    defaultCurrency: ctx.defaultCurrency,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
     ...categoryFields,

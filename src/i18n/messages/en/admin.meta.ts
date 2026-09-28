@@ -1357,14 +1357,16 @@ export const adminMeta = {
     description:
       'Explains the custom-art folder: images placed there can replace a card’s printing image, and a card refers to one by its path relative to this folder.',
   },
-  'admin.settings.defaultCurrency': {
-    description: 'Field label: which currency prices are shown in.',
+  'admin.settings.defaultPriceSource': {
+    description:
+      'Field label: which price store (TCGplayer, Card Kingdom, Cardmarket, Cardhoarder) prices are read from by default.',
   },
-  'admin.settings.currencyUsd': {
-    description: 'Currency option: US dollars, priced from TCGplayer (a marketplace name).',
+  'admin.settings.defaultPriceSourceAuto': {
+    description:
+      'Option in the default-store dropdown: no store is configured, so the first store enabled in the Price Stores list below is used.',
   },
-  'admin.settings.currencyEur': {
-    description: 'Currency option: euros, priced from Cardmarket (a marketplace name).',
+  'admin.settings.defaultPriceSourceHint': {
+    description: 'Help text under the default price store dropdown.',
   },
   'admin.settings.priceSources': {
     description:
@@ -1381,10 +1383,6 @@ export const adminMeta = {
   'admin.settings.defaultCategoriesHint': {
     description:
       'Hint under the Default Categories field explaining what the vocabulary is used for and that commas separate names.',
-  },
-  'admin.settings.currencyTix': {
-    description:
-      'Currency option: Magic Online event tickets, the currency of MTGO, priced by the Cardhoarder store (a brand name — usually left untranslated).',
   },
   'admin.settings.defaultLanguage': {
     description:

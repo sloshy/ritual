@@ -10,9 +10,14 @@ import type {
   PriceSummaryPayload,
   ReportPriceSource,
 } from '../../pricing/price-report'
-import { VALID_PRICE_SOURCES, resolveSourceCurrency } from '../../pricing/price-source'
+import {
+  VALID_PRICE_SOURCES,
+  isPriceRequestConflict,
+  resolvePriceRequest,
+  type PriceSource,
+} from '../../pricing/price-source'
 import { loadAndBuildPriceReport } from '../../pricing/price-runtime'
-import { getDefaultCurrency } from '../../config/ritual-config'
+import { getDefaultPriceSource } from '../../config/ritual-config'
 import { listLocationForSlug } from './list-info'
 import { parseListTarget } from './target'
 import { apiError, badRequest } from '../../api/http'
@@ -39,11 +44,20 @@ export type PriceListDetailResponse = PriceListDetailPayload & {
   warnings: string[]
 }
 
-/** Resolve `?currency=` (absent → the configured default); 400 on an unknown value. */
-function parseCurrencyParam(url: URL): PriceCurrency | Response {
+/** Parse `?currency=` when present; 400 on an unknown value. */
+function parseCurrencyParam(url: URL): PriceCurrency | undefined | Response {
   const raw = url.searchParams.get('currency')
-  if (!raw) return getDefaultCurrency()
+  if (!raw) return undefined
   const parsed = parseEnumField(raw, VALID_CURRENCIES, 'currency')
+  if (!parsed.ok) return badRequest(parsed.message)
+  return parsed.value
+}
+
+/** Parse `?source=` when present; 400 on an unknown store. */
+function parseSourceParam(url: URL): PriceSource | undefined | Response {
+  const raw = url.searchParams.get('source')
+  if (!raw) return undefined
+  const parsed = parseEnumField(raw, VALID_PRICE_SOURCES, 'source')
   if (!parsed.ok) return badRequest(parsed.message)
   return parsed.value
 }
@@ -57,28 +71,24 @@ type PriceView = {
 }
 
 /**
- * Resolve `?currency=` and `?source=` together, mirroring the CLI's rules: a
- * source names its own currency (tcgplayer/cardkingdom → usd, cardmarket →
- * eur, cardhoarder → tix), an explicit conflicting currency is a 400, and
- * `cardkingdom` prices from the cached buyer feed — strictly cache-backed, like
- * every other server read; a missing feed is refused with the refresh advice
- * rather than silently answered with Scryfall prices.
+ * Resolve `?currency=` and `?source=` together with the configured default
+ * store, by the CLI's rules (`resolvePriceRequest`): a source names its own
+ * currency, an explicit conflicting currency is a 400, and neither reads
+ * `defaultPriceSource`. `cardkingdom` prices from the cached buyer feed —
+ * strictly cache-backed, like every other server read; a missing feed is
+ * refused with the refresh advice rather than silently answered with Scryfall
+ * prices.
  */
 async function parsePriceViewParams(url: URL): Promise<PriceView | Response> {
   const currency = parseCurrencyParam(url)
   if (currency instanceof Response) return currency
-  const rawSource = url.searchParams.get('source')
-  if (!rawSource) return { currency }
-  const parsed = parseEnumField(rawSource, VALID_PRICE_SOURCES, 'source')
-  if (!parsed.ok) return badRequest(parsed.message)
-  const resolved = resolveSourceCurrency(
-    parsed.value,
-    url.searchParams.get('currency') ? currency : undefined,
-  )
-  if (!resolved.ok) {
+  const source = parseSourceParam(url)
+  if (source instanceof Response) return source
+  const resolved = resolvePriceRequest(source, currency, getDefaultPriceSource())
+  if (isPriceRequestConflict(resolved)) {
     return badRequest(`source '${resolved.source}' prices in ${resolved.implied}, not ${currency}`)
   }
-  if (parsed.value !== 'cardkingdom') return { currency: resolved.currency }
+  if (resolved.source !== 'cardkingdom') return { currency: resolved.currency }
   const feed = await getCardKingdomFeed()
   if (!feed) return apiError(missingFeedApiAdvice(), 503)
   return {
@@ -91,7 +101,7 @@ async function parsePriceViewParams(url: URL): Promise<PriceView | Response> {
 /**
  * GET /api/price/summary — per-list price totals across every list, optionally
  * restricted with `?type=` and priced in `?currency=` (default: the configured
- * defaultCurrency). Mirrors the CLI's `price --summary --output json` payload.
+ * defaultPriceSource). Mirrors the CLI's `price --summary --output json` payload.
  */
 export async function handlePriceSummary(req: Request): Promise<Response> {
   try {

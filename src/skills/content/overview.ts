@@ -458,7 +458,9 @@ ritual login status               # stored login + whether its session still aut
                                   #   exit 0 usable, 1 expired (re-login), 3 nothing stored
 ritual login logout               # remove the stored Archidekt session
 ritual config set <prop> <value>  # set a config value (dot notation for nested keys)
-ritual config set defaultCurrency eur  # currency price commands/displays default to (usd | eur | tix)
+ritual config set defaultPriceSource cardkingdom  # store price commands/displays default to
+                                  #   (tcgplayer | cardkingdom | cardmarket | cardhoarder; its
+                                  #   currency follows). Unset = first priceSources entry
 ritual config set priceSources tcgplayer cardkingdom  # stores the sites offer prices from
                                   #   (tcgplayer = Scryfall USD, cardmarket = Scryfall EUR,
                                   #   cardkingdom = CK NM retail, cardhoarder = MTGO tix); sites

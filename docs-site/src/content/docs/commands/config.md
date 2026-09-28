@@ -28,7 +28,7 @@ Each key is described in full on the [Configuration](/configuration/) page. This
 | `collectionsDir`          | `string`   | `./collections`      |
 | `wantedDir`               | `string`   | `./wanted`           |
 | `artDir`                  | `string`   | `./art`              |
-| `defaultCurrency`         | `string`   | `usd`                |
+| `defaultPriceSource`      | `string`   | first `priceSources` |
 | `priceSources`            | `string[]` | `["tcgplayer"]`      |
 | `defaultCategories`       | `string[]` | the 14 shipped names |
 | `defaultLanguage`         | `string`   | `en`                 |
@@ -39,7 +39,7 @@ Each key is described in full on the [Configuration](/configuration/) page. This
 | `searchDebounceMs`        | `number`   | `500`                |
 
 - `artDir`: where [custom card art](/custom-art/) images live. Never created; a missing directory means no local art.
-- `defaultCurrency`: `usd`, `eur`, or `tix`.
+- `defaultPriceSource`: `tcgplayer`, `cardkingdom`, `cardmarket`, or `cardhoarder` (lowercased; a currency code is rejected). Unset means the first `priceSources` entry. See [Default price store](/configuration/#default-price-store).
 - `priceSources`: any of `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardkingdom` (Card Kingdom NM retail), `cardhoarder` (Scryfall MTGO tix). Values are lowercased and deduped; unknown store names are rejected. Works with `--add`/`--remove`. Removing every entry hides all price UI on the sites. Enabling `cardkingdom` makes builds and servers download the Card Kingdom feed, like [`site.sellMode`](/configuration/#offering-sell-mode-sellmode) does. See [Price stores](/configuration/#price-stores-pricesources).
 - `defaultCategories`: the global category vocabulary suggested wherever a category is typed. Works with `--add`/`--remove`; each name must follow the category shape rule. See [Default categories](/configuration/#default-categories).
 - `defaultLanguage`: a Scryfall language code (`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph`), not ISO. Aliases (`jp`, `Japanese`, …) are accepted and the canonical code is stored. An unknown value is rejected with the list of all 17 codes. **A non-English value switches card-cache downloads, including the cache feed, to Scryfall's much larger `all_cards` bulk file.** See [Default language](/configuration/#default-language).

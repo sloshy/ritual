@@ -2,13 +2,15 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from './base-dir'
 import { CardCommandError, ExitCode, getErrorMessage, hasErrorCode } from '../util/errors'
+import type { PriceCurrency } from '../pricing/price-currency'
 import {
-  DEFAULT_CURRENCY,
-  isPriceCurrency,
-  VALID_CURRENCIES,
-  type PriceCurrency,
-} from '../pricing/price-currency'
-import { DEFAULT_PRICE_SOURCES, parsePriceSources, type PriceSource } from '../pricing/price-source'
+  DEFAULT_PRICE_SOURCES,
+  parseDefaultPriceSource,
+  parsePriceSources,
+  resolveDefaultPriceSource,
+  sourceCurrency,
+  type PriceSource,
+} from '../pricing/price-source'
 import {
   type CardCategory,
   DEFAULT_CARD_CATEGORIES,
@@ -137,11 +139,13 @@ export interface RitualConfig {
    */
   artDir: string
   /**
-   * The currency every price-touching surface defaults to (the `price` command,
-   * editor price displays, and the public site's initial currency). Always
-   * present, defaulting to `usd`.
+   * The store every price-touching surface defaults to (the `price` command,
+   * the admin price API and MCP, editor price displays, and the sites' initial
+   * price view); its currency follows from it. Absent means the first enabled
+   * store in {@link priceSources}, else `tcgplayer` — read it through
+   * {@link getDefaultPriceSource}, never directly.
    */
-  defaultCurrency: PriceCurrency
+  defaultPriceSource?: PriceSource
   /**
    * The stores whose prices the sites offer: `tcgplayer` (Scryfall USD, the
    * default), `cardmarket` (Scryfall EUR), `cardkingdom` (Card Kingdom NM
@@ -249,7 +253,6 @@ const DEFAULT_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   artDir: './art',
-  defaultCurrency: DEFAULT_CURRENCY,
   priceSources: [...DEFAULT_PRICE_SOURCES],
   defaultCategories: [...DEFAULT_CARD_CATEGORIES],
   defaultLanguage: DEFAULT_CARD_LANGUAGE,
@@ -708,19 +711,6 @@ export function parseCollectionSyncConfig(value: unknown): CollectionSyncConfig 
 }
 
 /**
- * Parse the `defaultCurrency` config value. Absent falls back to `usd`; an
- * unrecognized value is reported as a parse error for the caller to surface.
- */
-export function parseDefaultCurrency(value: unknown): PriceCurrency | ConfigParseError {
-  if (value === undefined) return DEFAULT_CURRENCY
-  if (typeof value === 'string') {
-    const lower = value.toLowerCase()
-    if (isPriceCurrency(lower)) return lower
-  }
-  return { error: `"defaultCurrency" must be one of: ${VALID_CURRENCIES.join(', ')}` }
-}
-
-/**
  * Parse the `defaultLanguage` config value. Absent falls back to `en`; an
  * unrecognized value is reported as a parse error for the caller to surface.
  * Only the canonical Scryfall codes are accepted here — aliases like `jp` are
@@ -887,10 +877,10 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
     artDir: parsed.artDir ?? DEFAULT_CONFIG.artDir,
-    defaultCurrency: parseOrWarn(
-      parseDefaultCurrency(parsed.defaultCurrency),
-      'defaultCurrency',
-      DEFAULT_CURRENCY,
+    defaultPriceSource: parseOrWarn(
+      parseDefaultPriceSource(parsed.defaultPriceSource),
+      'defaultPriceSource',
+      undefined,
     ),
     priceSources: parseOrWarn(parsePriceSources(parsed.priceSources), 'priceSources', [
       ...DEFAULT_PRICE_SOURCES,
@@ -1081,9 +1071,22 @@ export function getArtDir(config: RitualConfig = getRitualConfig()): string {
   return resolveDir(config.artDir)
 }
 
-/** The configured default price currency (`usd` unless overridden). */
-export function getDefaultCurrency(config: RitualConfig = getRitualConfig()): PriceCurrency {
-  return config.defaultCurrency
+/**
+ * The store prices are read from by default: `defaultPriceSource` when set,
+ * else the first enabled store, else `tcgplayer`. The sites narrow it further
+ * to a store they offer (`resolveSiteCurrencies`).
+ */
+export function getDefaultPriceSource(config: RitualConfig = getRitualConfig()): PriceSource {
+  return resolveDefaultPriceSource(config.defaultPriceSource, config.priceSources)
+}
+
+/**
+ * The currency of {@link getDefaultPriceSource}, for the surfaces that price
+ * from Scryfall alone (the editors' add-card price lines) and so need only
+ * the currency.
+ */
+export function getDefaultPriceCurrency(config: RitualConfig = getRitualConfig()): PriceCurrency {
+  return sourceCurrency(getDefaultPriceSource(config))
 }
 
 /**

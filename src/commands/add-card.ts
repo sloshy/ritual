@@ -88,7 +88,7 @@ import { ExitCode, CardCommandError, localizedCommandError } from '../util/error
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import {
   getCollectionsDir,
-  getDefaultCurrency,
+  getDefaultPriceCurrency,
   getDefaultLanguage,
   getWantedDir,
 } from '../config/ritual-config'
@@ -706,7 +706,7 @@ async function addToCollection(
     options.dryRun ?? false,
   )
   info(
-    formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultCurrency()),
+    formatSpecificPrintingPrice(printing, finishAndCondition.finish, getDefaultPriceCurrency()),
     scripting,
   )
 }
@@ -877,7 +877,7 @@ async function addToWanted(
     scripting,
     options.dryRun ?? false,
   )
-  info(formatSpecificPrintingPrice(printing, finish, getDefaultCurrency()), scripting)
+  info(formatSpecificPrintingPrice(printing, finish, getDefaultPriceCurrency()), scripting)
 }
 
 /**
@@ -959,7 +959,7 @@ function emitSuccess(
 /** Text-mode price hint for a name-only wanted add: the cheapest printing. */
 async function printCheapestPrinting(cardName: string, scripting: ScriptingOptions): Promise<void> {
   if (scripting.output !== 'text' || scripting.quiet) return
-  const currency = getDefaultCurrency()
+  const currency = getDefaultPriceCurrency()
   const allPrintings = await getCardPrintings(cardName)
   console.log(formatCheapestPrintingDisplay(findCheapestPrinting(allPrintings, currency), currency))
 }

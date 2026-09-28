@@ -9,7 +9,7 @@ import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { fetchSymbology } from '../scryfall'
 import {
   getBannedPrintings,
-  getDefaultCurrency,
+  getDefaultPriceSource,
   getDefaultLanguage,
   getDefaultCategories,
   getPriceSources,
@@ -71,7 +71,7 @@ export type LiveSiteDataOptions = {
 
 /** The currencies a live payload offers: exactly what the enabled price stores quote in. */
 function liveCurrencies(config: RitualConfig): SiteCurrencies {
-  return resolveSiteCurrencies(getPriceSources(config), getDefaultCurrency(config))
+  return resolveSiteCurrencies(getPriceSources(config), getDefaultPriceSource(config))
 }
 
 type ListStamp = {
@@ -226,7 +226,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
 
   function configStampFor(config: RitualConfig, buylistRetrievedAt: number | null): string {
     return JSON.stringify({
-      defaultCurrency: getDefaultCurrency(config),
+      defaultPriceSource: getDefaultPriceSource(config),
       bannedPrintings: [...getBannedPrintings(config)].sort(),
       searchDebounceMs: getSearchDebounceMs(config),
       defaultLanguage: getDefaultLanguage(config),
@@ -262,7 +262,6 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
       bannedPrintings,
       symbolMap: await getSymbolMap(),
       useScryfallImgUrls: true,
-      defaultCurrency: currencies.defaultCurrency,
       availableCurrencies: currencies.available,
       pricesDate,
       // Baked exactly as `build-site` bakes them, so sell mode reads one shape
@@ -366,7 +365,7 @@ export function createLiveSiteData(options: LiveSiteDataOptions = {}): LiveSiteD
         collections,
         wantedLists,
         useScryfallImgUrls: true,
-        defaultCurrency: currencies.defaultCurrency,
+        defaultPriceSource: currencies.defaultSource,
         availableCurrencies: currencies.available,
         pricesDate,
         uiLocale: getUiLocale(config),

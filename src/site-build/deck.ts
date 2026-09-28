@@ -179,7 +179,7 @@ export async function buildDeckArtifacts(
   ctx: SiteDetailContext,
 ): Promise<DeckArtifacts> {
   const { data: deckData, changelog, fileMtime } = loaded
-  const { cardData, availableCurrencies, useScryfallImgUrls, defaultCurrency } = ctx
+  const { cardData, availableCurrencies, useScryfallImgUrls } = ctx
   // Resolved once and used twice: it decides what a card's art bakes to, and —
   // because a copy wearing custom art is no longer the printing a price would be
   // for — whether the card is priced at all. Those are deliberately two answers
@@ -426,7 +426,6 @@ export async function buildDeckArtifacts(
       : {}),
     symbolMap: ctx.symbolMap,
     useScryfallImgUrls,
-    defaultCurrency,
     availableCurrencies,
     missingCards: deckMissingCards,
     pricesDate: ctx.pricesDate,

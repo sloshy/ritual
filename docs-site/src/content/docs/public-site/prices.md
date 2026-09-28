@@ -23,7 +23,7 @@ Switching currency:
 - Re-runs the "Lowest Price" toggle for the active currency and [price store](#which-printing-a-card-is-priced-at), updating images to match
 - Relabels price bracket groups with the new currency symbol
 
-The site opens in the configured [`defaultCurrency`](/configuration/#default-currency) when that currency is offered, otherwise in the first offered currency.
+The site opens on the configured [`defaultPriceSource`](/configuration/#default-price-store) when it offers that store, otherwise on the first store it offers.
 
 A disclaimer below the header shows when prices were retrieved: "Prices accurate as of &lt;date&gt;". Prices are fetched from Scryfall at build time.
 

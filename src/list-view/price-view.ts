@@ -18,34 +18,27 @@ import { batch, createSignal, type Accessor } from 'solid-js'
 import { displayFinish, type Finish } from '../card/finish-condition'
 import { getCardPrice, getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
 import {
+  DEFAULT_PRICE_SOURCE,
   DEFAULT_PRICE_SOURCES,
   USD_PRICE_SOURCES,
+  isUsdPriceSource,
   sourcesForCurrency,
   type PriceSource,
   type UsdPriceSource,
 } from '../pricing/price-source'
-import type { MessageKey } from '../i18n/messages/en'
 import { isNonEnglishCard, quoteFor } from './buylist-quotes'
 import type { ScryfallCard } from '../scryfall/types'
 
 // Re-exported so the site modules keep one import home for the choice axis.
 export type { UsdPriceSource } from '../pricing/price-source'
-
-/**
- * The store display names, as catalog keys — one table for the toolbar's
- * source selector and the admin Settings checkboxes, so a renamed key cannot
- * strand one of them on a dead entry.
- */
-export const PRICE_SOURCE_LABELS = {
-  tcgplayer: 'site.priceSource.tcgplayer',
-  cardmarket: 'site.priceSource.cardmarket',
-  cardkingdom: 'site.priceSource.cardkingdom',
-  cardhoarder: 'site.priceSource.cardhoarder',
-} as const satisfies Record<PriceSource, MessageKey>
+export { PRICE_SOURCE_LABELS } from '../pricing/price-source'
 
 const [enabled, setEnabled] = createSignal<readonly PriceSource[]>([...DEFAULT_PRICE_SOURCES])
 
 const [usdSource, setUsdSource] = createSignal<UsdPriceSource>('tcgplayer')
+
+/** The deployment's configured default store (`defaultPriceSource`), seeded like {@link enabled}. */
+const [defaultSource, setDefaultSource] = createSignal<PriceSource>(DEFAULT_PRICE_SOURCE)
 
 /**
  * Whether the user (or a shared URL) explicitly picked a USD source this
@@ -78,7 +71,22 @@ export function pricesEnabled(): boolean {
  * Kingdom rather than silently pricing from a store it never enabled.
  */
 function defaultUsdSource(): UsdPriceSource {
+  const configured = defaultSource()
+  if (isUsdPriceSource(configured) && enabled().includes(configured)) return configured
   return usdSourceChoices()[0] ?? 'tcgplayer'
+}
+
+/**
+ * Seed the deployment's default store (`index.json`'s `defaultPriceSource` on
+ * the public site, `/api/config` on the admin). A USD default also becomes the
+ * USD view until the user picks one, so a Card Kingdom default opens on Card
+ * Kingdom even with TCGplayer enabled; the caller sets the currency.
+ */
+export function setDefaultPriceSource(source: PriceSource): void {
+  batch(() => {
+    setDefaultSource(source)
+    if (!userPickedSource() && isUsdPriceSource(source)) setUsdSource(source)
+  })
 }
 
 /** Element-wise equality; the seed runs on every live index refetch. */
@@ -99,11 +107,9 @@ export function setEnabledPriceSources(sources: readonly PriceSource[] | undefin
   const next = sources ? [...sources] : [...DEFAULT_PRICE_SOURCES]
   batch(() => {
     if (!sameSources(next, enabled())) setEnabled(next)
-    // Resolved against `next` directly rather than re-reading the signal just
-    // written, which is only sound because `batch` exposes pending writes.
-    if (!next.includes(usdSource())) {
-      setUsdSource(USD_PRICE_SOURCES.find((source) => next.includes(source)) ?? 'tcgplayer')
-    }
+    // `defaultUsdSource` reads the list just written, which is sound because
+    // `batch` exposes pending writes.
+    if (!next.includes(usdSource())) setUsdSource(defaultUsdSource())
   })
 }
 

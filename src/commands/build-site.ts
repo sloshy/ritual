@@ -27,7 +27,7 @@ import {
   getBannedPrintings,
   getCollectionsDir,
   getDecksDir,
-  getDefaultCurrency,
+  getDefaultPriceSource,
   getPriceSources,
   getRitualConfig,
   getSiteApiBaseUrl,
@@ -37,12 +37,12 @@ import {
 } from '../config/ritual-config'
 import { siteBuylistContext } from '../cardkingdom'
 import type { SiteDetailContext } from '../site-build/types'
+import { parseCurrenciesFlag, type PriceCurrencies } from '../pricing/price-currency'
 import {
-  parseCurrenciesFlag,
-  type PriceCurrencies,
-  type PriceCurrency,
-} from '../pricing/price-currency'
-import { isSiteCurrenciesError, resolveSiteCurrencies } from '../pricing/price-source'
+  isSiteCurrenciesError,
+  resolveSiteCurrencies,
+  type PriceSource,
+} from '../pricing/price-source'
 import type {
   CollectionSummary,
   DeckSummary,
@@ -148,8 +148,8 @@ export function selectionFlagNames(
 /** The settings a build runs under once every flag has been validated. */
 type BuildSettings = {
   availableCurrencies: PriceCurrencies
-  /** The currency the site opens in: the configured default when built, else the first built. */
-  defaultCurrency: PriceCurrency
+  /** The store the site opens in (see `SiteCurrencies.defaultSource`). */
+  defaultPriceSource: PriceSource
   customThemes: CustomTheme[]
   /** Either a built-in `ThemeName` or a custom name from `--theme-file`. */
   initialThemeName: string
@@ -177,7 +177,11 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
     return refuse(getErrorMessage(e), ExitCode.UsageError)
   }
   const priceSources = getPriceSources()
-  const currencies = resolveSiteCurrencies(priceSources, getDefaultCurrency(), explicitCurrencies)
+  const currencies = resolveSiteCurrencies(
+    priceSources,
+    getDefaultPriceSource(),
+    explicitCurrencies,
+  )
   if (isSiteCurrenciesError(currencies)) {
     return refuse(
       t('cli.buildSite.currenciesWithoutStore', {
@@ -187,7 +191,7 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
       ExitCode.UsageError,
     )
   }
-  const { available: availableCurrencies, defaultCurrency } = currencies
+  const { available: availableCurrencies, defaultSource: defaultPriceSource } = currencies
 
   const customThemes = await loadCustomThemes(options.themeFile ?? [])
   if (typeof customThemes === 'string') return refuse(customThemes, ExitCode.RuntimeError)
@@ -226,7 +230,7 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
   if (!outDir.ok) return refuse(outDir.error, ExitCode.UsageError)
   return {
     availableCurrencies,
-    defaultCurrency,
+    defaultPriceSource,
     customThemes,
     initialThemeName,
     localePlan,
@@ -323,7 +327,7 @@ type BakeWithheld = { published: false; reason: 'no-price-data' | 'named-source-
  */
 async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult> {
   const { options, settings, sources, spa, policy } = input
-  const { availableCurrencies, defaultCurrency, localePlan } = settings
+  const { availableCurrencies, defaultPriceSource, localePlan } = settings
   const { skipped, skipSource, categories } = sources
   const cacheImages = options.cacheImages === true
   const useScryfallImgUrls = !cacheImages
@@ -383,7 +387,6 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
     bannedPrintings: getBannedPrintings(),
     symbolMap,
     useScryfallImgUrls,
-    defaultCurrency,
     availableCurrencies,
     pricesDate,
     // Absent when sell mode is off or no feed could be had: every detail then
@@ -430,7 +433,7 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
     collections,
     wantedLists,
     useScryfallImgUrls,
-    defaultCurrency,
+    defaultPriceSource,
     availableCurrencies,
     pricesDate,
     uiLocale: localePlan.locale,

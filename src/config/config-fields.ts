@@ -9,7 +9,6 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncPullTarget,
-  parseDefaultCurrency,
   parseSiteApiBaseUrl,
   parseUiLocale,
   type AdminConfig,
@@ -19,7 +18,7 @@ import {
   type SiteSelectionConfig,
 } from './ritual-config'
 import { invalidLanguageMessage, normalizeLanguageValue } from '../card/card-language'
-import { parsePriceSources } from '../pricing/price-source'
+import { parseDefaultPriceSource, parsePriceSources } from '../pricing/price-source'
 import { parseDefaultCategories } from '../card/card-categories'
 import { getAtPath } from '../util/object'
 
@@ -151,7 +150,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   collectionsDir: 'string',
   wantedDir: 'string',
   artDir: 'string',
-  defaultCurrency: 'string',
+  defaultPriceSource: 'string',
   priceSources: 'string[]',
   defaultCategories: 'string[]',
   defaultLanguage: 'string',
@@ -437,14 +436,15 @@ export function applyConfigSet(
   }
 
   // fieldType === 'string'
-  // defaultCurrency is a constrained string; validate and normalize to lowercase.
+  // defaultPriceSource is a constrained string; validate and normalize to lowercase.
   let newValue = rawValue
-  if (property === 'defaultCurrency') {
-    const parsed = parseDefaultCurrency(rawValue)
+  if (property === 'defaultPriceSource') {
+    const parsed = parseDefaultPriceSource(rawValue)
     if (isConfigParseError(parsed)) {
       return parsed
     }
-    newValue = parsed
+    // A string always parses to a store or an error, never to absent.
+    if (parsed !== undefined) newValue = parsed
   }
   // defaultLanguage is a constrained string; accept the common aliases
   // (`jp`→`ja`, `sp`→`es`, full names like "Japanese") as a set-time

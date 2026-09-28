@@ -92,7 +92,7 @@ export const MOCK_CONFIG = {
   collectionsDir: './collections',
   wantedDir: './wanted',
   artDir: './art',
-  defaultCurrency: 'eur',
+  defaultPriceSource: 'cardmarket',
   defaultLanguage: 'en',
   uiLocale: localeTag('en'),
   cacheLockTimeoutSeconds: 300,

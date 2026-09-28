@@ -34,7 +34,7 @@ export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
     decks: [],
     collections: [],
     useScryfallImgUrls: false,
-    defaultCurrency: 'usd',
+    defaultPriceSource: 'tcgplayer',
     availableCurrencies: ['usd'],
     searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
     defaultLanguage: 'en',
@@ -103,7 +103,6 @@ export function makeDeckDetail(overrides: Partial<DeckDetail> = {}): DeckDetail 
     printings: {},
     symbolMap: {},
     useScryfallImgUrls: false,
-    defaultCurrency: 'usd',
     availableCurrencies: ['usd'],
     missingCards: { usd: [], eur: [], tix: [] },
     ...overrides,
@@ -120,7 +119,6 @@ export function makeCollectionDetail(overrides: Partial<CollectionDetail> = {}):
     symbolMap: {},
     useScryfallImgUrls: false,
     totalPrice: 0,
-    defaultCurrency: 'usd',
     ...overrides,
   }
 }
@@ -135,7 +133,6 @@ export function makeWantedDetail(overrides: Partial<WantedListDetail> = {}): Wan
     symbolMap: {},
     useScryfallImgUrls: false,
     totalPrice: 0,
-    defaultCurrency: 'usd',
     ...overrides,
   }
 }

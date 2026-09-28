@@ -155,7 +155,7 @@ Without a pin, a run where prompts are unavailable succeeds only when the card h
 
 ### Printing and Finish Prices
 
-The interactive printing picker shows each printing's price in your configured [`defaultCurrency`](/configuration/#default-currency), in one right-hand column per finish (nonfoil first, then foil/etched, with non-nonfoil amounts labelled like `$14.93 foil`). A blank cell means the printing doesn't come in that finish; `N/A` means the card cache has no price for it in that currency. The finish prompt then prices each finish beside its label. See [`edit`](/commands/edit/#printing-and-finish-prices) for examples.
+The interactive printing picker shows each printing's price in the currency of your configured [`defaultPriceSource`](/configuration/#default-price-store), in one right-hand column per finish (nonfoil first, then foil/etched, with non-nonfoil amounts labelled like `$14.93 foil`). A blank cell means the printing doesn't come in that finish; `N/A` means the card cache has no price for it in that currency. The finish prompt then prices each finish beside its label. See [`edit`](/commands/edit/#printing-and-finish-prices) for examples.
 
 ### Finish and Condition
 

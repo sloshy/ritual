@@ -3,7 +3,8 @@ import { cardCache } from '../cache'
 import { detailBuylistContext, ensureCardKingdomFeed, loadEnsuredFeed } from '../cardkingdom'
 import {
   VALID_PRICE_SOURCES,
-  resolveSourceCurrency,
+  isPriceRequestConflict,
+  resolvePriceRequest,
   type PriceSource,
 } from '../pricing/price-source'
 import { t } from '../i18n/t'
@@ -26,7 +27,7 @@ import {
 import { loadAndBuildPriceReport, type LoadedPriceReport } from '../pricing/price-runtime'
 import type { CardKingdomPricing } from '../pricing/price-report'
 import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
-import { getDefaultCurrency } from '../config/ritual-config'
+import { getDefaultPriceSource } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
 import {
   addRefreshOption,
@@ -283,39 +284,36 @@ export function registerPriceCommand(program: Command): void {
     // so `--output json` stays parseable, and drop them under `--quiet`.
     installScriptingLogger(scriptingOptions)
     await runCommandAction(scriptingOptions, async () => {
-      let currency = parseCurrencyFlagOrError(
-        options.prices,
-        emitError,
-        scriptingOptions,
-        ExitCode.UsageError,
-        getDefaultCurrency(),
-      )
-      if (!currency) return
+      let explicitCurrency: PriceCurrency | undefined
+      if (options.prices !== undefined) {
+        const parsed = parseCurrencyFlagOrError(
+          options.prices,
+          emitError,
+          scriptingOptions,
+          ExitCode.UsageError,
+        )
+        if (!parsed) return
+        explicitCurrency = parsed
+      }
 
       // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
       // → eur, cardhoarder → tix). An explicit --prices that disagrees is a
-      // usage error rather than a silent override; an omitted one simply
-      // follows the source.
-      const source = options.source
-      if (source) {
-        const resolved = resolveSourceCurrency(
-          source,
-          options.prices !== undefined ? currency : undefined,
+      // usage error rather than a silent override; neither flag reads the
+      // configured defaultPriceSource.
+      const request = resolvePriceRequest(options.source, explicitCurrency, getDefaultPriceSource())
+      if (isPriceRequestConflict(request)) {
+        emitError(
+          'usage_error',
+          t('cli.price.sourceCurrencyConflict', {
+            source: request.source,
+            currency: request.implied.toUpperCase(),
+          }),
+          scriptingOptions,
         )
-        if (!resolved.ok) {
-          emitError(
-            'usage_error',
-            t('cli.price.sourceCurrencyConflict', {
-              source,
-              currency: resolved.implied.toUpperCase(),
-            }),
-            scriptingOptions,
-          )
-          process.exitCode = ExitCode.UsageError
-          return
-        }
-        currency = resolved.currency
+        process.exitCode = ExitCode.UsageError
+        return
       }
+      const { source, currency } = request
 
       const type = resolveListTypeFlag(options, scriptingOptions)
       if (type === 'conflict') return

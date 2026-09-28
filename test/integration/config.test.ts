@@ -102,7 +102,7 @@ describe('config CLI (Integration)', () => {
 
   test('list --output json emits the effective config object', async () => {
     await withTempDir(async (dir) => {
-      const set = await runCli(['config', 'set', 'defaultCurrency', 'eur'], dir)
+      const set = await runCli(['config', 'set', 'defaultPriceSource', 'cardmarket'], dir)
       expect(set.exitCode).toBe(0)
 
       const result = await runCli(['config', 'list', '--output', 'json'], dir)
@@ -114,12 +114,12 @@ describe('config CLI (Integration)', () => {
       // override to report.)
       const config = JSON.parse(result.stdout) as {
         decksDir: string
-        defaultCurrency: string
+        defaultPriceSource: string
         cacheSource: string
         admin: { rateLimitEnabled: boolean }
       }
       expect(config.decksDir).toBe('./decks')
-      expect(config.defaultCurrency).toBe('eur')
+      expect(config.defaultPriceSource).toBe('cardmarket')
       expect(config.cacheSource).toBe('scryfall')
       expect(config.admin.rateLimitEnabled).toBe(true)
     })

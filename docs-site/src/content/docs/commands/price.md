@@ -24,22 +24,22 @@ The name is matched across all three list types; see [List Names](/list-resoluti
 
 ## Options
 
-| Option                 | Description                                                                                                                   |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`               | Only decks (also disambiguates list names)                                                                                    |
-| `--collection`         | Only collections (also disambiguates list names)                                                                              |
-| `--wanted`             | Only wanted lists (also disambiguates list names)                                                                             |
-| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the configured [`defaultCurrency`](/configuration/#default-currency))        |
-| `--source <store>`     | Price store: `tcgplayer` (default), `cardmarket`, `cardhoarder`, or `cardkingdom`; see [Price stores](#price-stores---source) |
-| `--name <terms>`       | Print cards whose name contains every space-separated term                                                                    |
-| `--set <code>`         | Print cards from this set code                                                                                                |
-| `--collector <number>` | Print cards with this collector number                                                                                        |
-| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                                |
-| `--descending`         | Reverse the sort direction                                                                                                    |
-| `--summary`            | Print the price summary instead of opening the browser                                                                        |
-| `--refresh <mode>`     | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Price Freshness](#price-freshness)            |
-| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                   |
-| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                    |
+| Option                 | Description                                                                                                                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--deck`               | Only decks (also disambiguates list names)                                                                                                                                                                |
+| `--collection`         | Only collections (also disambiguates list names)                                                                                                                                                          |
+| `--wanted`             | Only wanted lists (also disambiguates list names)                                                                                                                                                         |
+| `--prices <currency>`  | Price currency: `usd`, `eur`, or `tix` (default: the currency of the configured [`defaultPriceSource`](/configuration/#default-price-store))                                                              |
+| `--source <store>`     | Price store: `tcgplayer`, `cardmarket`, `cardhoarder`, or `cardkingdom` (default: the configured [`defaultPriceSource`](/configuration/#default-price-store)); see [Price stores](#price-stores---source) |
+| `--name <terms>`       | Print cards whose name contains every space-separated term                                                                                                                                                |
+| `--set <code>`         | Print cards from this set code                                                                                                                                                                            |
+| `--collector <number>` | Print cards with this collector number                                                                                                                                                                    |
+| `--sort <field>`       | Sort cards by `name`, `price`, `lowest`, `set`, `cmc`, `edhrec`, or `quantity`                                                                                                                            |
+| `--descending`         | Reverse the sort direction                                                                                                                                                                                |
+| `--summary`            | Print the price summary instead of opening the browser                                                                                                                                                    |
+| `--refresh <mode>`     | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Price Freshness](#price-freshness)                                                                                        |
+| `--output <format>`    | Output format (`text`, `json`, or `ndjson`)                                                                                                                                                               |
+| `--quiet`              | Suppress progress lines and the price disclaimer; never the payload or the parser warnings                                                                                                                |
 
 ## The Interactive Browser
 

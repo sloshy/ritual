@@ -29,7 +29,7 @@ import {
   formatCheapestPrintingDisplay,
   formatSpecificPrintingPrice,
 } from '../../pricing/price-currency'
-import { getDefaultCurrency } from '../../config/ritual-config'
+import { getDefaultPriceCurrency } from '../../config/ritual-config'
 import { t } from '../../i18n/t'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../../changes/session-changelog'
 import type { FlatListFrontMatter } from '../../list/flat-list-front-matter'
@@ -383,12 +383,14 @@ export async function applyFlatListCardEntry<E extends FlatListEntry>(
     )
     if (price.kind === 'cheapest') {
       const printings = await getCardPrintings(cardName)
-      const currency = getDefaultCurrency()
+      const currency = getDefaultPriceCurrency()
       console.log(
         formatCheapestPrintingDisplay(findCheapestPrinting(printings, currency), currency),
       )
     } else {
-      console.log(formatSpecificPrintingPrice(price.printing, options.finish, getDefaultCurrency()))
+      console.log(
+        formatSpecificPrintingPrice(price.printing, options.finish, getDefaultPriceCurrency()),
+      )
     }
   }
   ctx.lastAddedCount = 1

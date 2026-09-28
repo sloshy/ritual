@@ -18,12 +18,12 @@ ritual init-site [options]
 | `--deploy <mode>`                              | Deploy mode: `publish-for-me` or `local-build` (github-actions only)                                                           |
 | `--dist-dir <dir>`                             | Directory containing your locally built site (local-build deploys only)                                                        |
 | `--change-detection` / `--no-change-detection` | Enable or disable automatic change detection (publish-for-me only; a usage error with `--ci manual` or `--deploy local-build`) |
-| `--currency <currency>`                        | Default price currency: `usd`, `eur`, or `tix`                                                                                 |
+| `--price-source <store>`                       | Default price store: `tcgplayer`, `cardkingdom`, `cardmarket`, or `cardhoarder`                                                |
 | `--overwrite-readme` / `--no-overwrite-readme` | Overwrite or keep an existing `README.md` without prompting                                                                    |
 | `--skills`                                     | Install Ritual agent skills into `.claude/skills` without prompting                                                            |
 | `--no-skills`                                  | Skip installing Ritual agent skills (no prompt)                                                                                |
 
-On a fresh init, the command asks for a CI system, a deployment strategy, and the default price currency, then generates the files. Every prompt has a matching flag, listed with each prompt below. A flag skips its prompt, and invalid values are rejected before anything is written. A flag that does not apply to the chosen CI system or deploy mode is a usage error (for example `--deploy` with `--ci manual`, or `--dist-dir` with `--deploy publish-for-me`).
+On a fresh init, the command asks for a CI system, a deployment strategy, and the default price store, then generates the files. Every prompt has a matching flag, listed with each prompt below. A flag skips its prompt, and invalid values are rejected before anything is written. A flag that does not apply to the chosen CI system or deploy mode is a usage error (for example `--deploy` with `--ci manual`, or `--dist-dir` with `--deploy publish-for-me`).
 
 The site settings are stored under the `site` key of [`ritual.config.json`](/configuration/). On later runs, `init-site` compares the current Ritual version to the version recorded there and offers an [upgrade](#upgrading) when the build is newer. The fresh-init flags apply only to a fresh init (or `--force`); passing them on an already-initialized repository is a usage error.
 
@@ -36,7 +36,7 @@ ritual init-site \
   --ci github-actions \
   --deploy publish-for-me \
   --change-detection \
-  --currency usd \
+  --price-source tcgplayer \
   --no-skills
 ```
 
@@ -106,18 +106,19 @@ This is useful when you edit list files directly, outside the admin UI or CLI, a
 
 Detection is **hash-aware**, so it is safe to leave enabled even if you also edit with Ritual locally. Files whose contents still match their `.sha256` hash file (meaning Ritual wrote them and already recorded a changelog) are skipped; only hand-edited files are processed. See [Hash-aware detection](/commands/detect-changes/#hash-aware-detection).
 
-### Default currency
+### Default price store
 
-Flag: `--currency <currency>`
+Flag: `--price-source <store>`
 
 ```
-? Default price currency?
-❯   USD (current) - US Dollars (TCGplayer)
-    EUR - Euros (Cardmarket)
-    TIX - MTGO tickets
+? Default price store?
+❯   TCGplayer (current) - Prices in USD
+    Cardmarket - Prices in EUR
+    Card Kingdom - Prices in USD
+    Cardhoarder - Prices in TIX
 ```
 
-Sets the root-level [`defaultCurrency`](/configuration/#default-currency) key: the currency the [price](/commands/price/) command, the editor price displays, and the public site default to. USD is the default, and the currently configured value is preselected. Change it later with `config set defaultCurrency <usd|eur|tix>`. The public site offers EUR or TIX only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardmarket` or `cardhoarder` respectively.
+Sets the root-level [`defaultPriceSource`](/configuration/#default-price-store) key: the store (and so the currency) the [price](/commands/price/) command, the editor price displays, and the sites default to. The store currently in effect is preselected. A store missing from [`priceSources`](/configuration/#price-stores-pricesources) is added to it, since the sites can only open on a store they offer. Change it later with `config set defaultPriceSource <store>`.
 
 ### Agent skills
 
@@ -242,7 +243,7 @@ from ritual.config.json if you want to use this older version.
 `--force` (or `-f`) bypasses all version checks and re-runs the full init, overwriting all generated files including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
 
 ```bash
-ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --currency usd --no-skills
+ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --price-source tcgplayer --no-skills
 ```
 
 ## Exit Codes

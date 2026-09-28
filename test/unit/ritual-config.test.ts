@@ -24,10 +24,11 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncConfig,
-  parseDefaultCurrency,
   parseDefaultLanguage,
   cardKingdomPricesEnabled,
   getPriceSources,
+  getDefaultPriceCurrency,
+  getDefaultPriceSource,
   getDefaultCategories,
   getSessionOverrides,
   getSiteApiBaseUrl,
@@ -46,7 +47,7 @@ import {
 import { defaultSiteSelection } from '../../src/config/list-selection'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { localeTag } from '../../src/i18n/locale-tag'
-import type { PriceSource } from '../../src/pricing/price-source'
+import { parseDefaultPriceSource, type PriceSource } from '../../src/pricing/price-source'
 
 let testDir: string
 let configPath: string
@@ -90,7 +91,7 @@ describe('ritual config', () => {
     expect(config.collectionsDir).toBe('./collections')
     expect(config.wantedDir).toBe('./wanted')
     expect(config.artDir).toBe('./art')
-    expect(config.defaultCurrency).toBe('usd')
+    expect(config.defaultPriceSource).toBeUndefined()
     expect(config.admin.gitEnabled).toBe(false)
     expect(config.admin.gitAutoCommit).toBe(false)
     expect(config.admin.gitAutoPush).toBe(false)
@@ -133,7 +134,7 @@ describe('ritual config', () => {
       collectionsDir: './my-collections',
       wantedDir: './my-wanted',
       artDir: './my-art',
-      defaultCurrency: 'eur',
+      defaultPriceSource: 'cardkingdom',
       priceSources: ['tcgplayer', 'cardkingdom'],
       defaultCategories: ['Ramp', 'Card Draw'],
       defaultLanguage: 'ja',
@@ -190,10 +191,11 @@ describe('ritual config', () => {
     expect(config.admin.rateLimitMaxAttempts).toBe(5)
   })
 
-  test('defaultCurrency, cacheLockTimeoutSeconds, cacheSource, and searchDebounceMs default when absent', async () => {
+  test('defaultPriceSource, cacheLockTimeoutSeconds, cacheSource, and searchDebounceMs default when absent', async () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
     const config = await loadRitualConfig()
-    expect(config.defaultCurrency).toBe('usd')
+    expect(config.defaultPriceSource).toBeUndefined()
+    expect(getDefaultPriceSource(config)).toBe('tcgplayer')
     expect(config.defaultLanguage).toBe('en')
     expect(config.cacheLockTimeoutSeconds).toBe(300)
     expect(config.cacheSource).toBe('scryfall')
@@ -267,16 +269,24 @@ describe('ritual config', () => {
     },
   )
 
-  test('defaultCurrency loads a valid value, normalizing case', async () => {
-    await fs.writeFile(configPath, JSON.stringify({ defaultCurrency: 'EUR' }))
+  test('defaultPriceSource loads a valid value, normalizing case', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ defaultPriceSource: 'CardKingdom' }))
     const config = await loadRitualConfig()
-    expect(config.defaultCurrency).toBe('eur')
+    expect(config.defaultPriceSource).toBe('cardkingdom')
+    expect(getDefaultPriceCurrency(config)).toBe('usd')
   })
 
-  test.each([['"gbp"'], ['5']])('defaultCurrency falls back to usd when %s', async (raw) => {
-    await fs.writeFile(configPath, `{ "defaultCurrency": ${raw} }`)
+  test.each([['"usd"'], ['5']])('defaultPriceSource is dropped when %s', async (raw) => {
+    await fs.writeFile(configPath, `{ "defaultPriceSource": ${raw} }`)
     const config = await loadRitualConfig()
-    expect(config.defaultCurrency).toBe('usd')
+    expect(config.defaultPriceSource).toBeUndefined()
+  })
+
+  test('an absent defaultPriceSource follows the first enabled store', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ priceSources: ['cardmarket'] }))
+    const config = await loadRitualConfig()
+    expect(getDefaultPriceSource(config)).toBe('cardmarket')
+    expect(getDefaultPriceCurrency(config)).toBe('eur')
   })
 
   test('cacheLockTimeoutSeconds loads a valid value', async () => {
@@ -997,9 +1007,9 @@ describe('config parser error shape', () => {
     expect(isConfigParseError({ set: 'sld', collectorNumber: '123', key: 'sld:123' })).toBeFalse()
   })
 
-  test('parseDefaultCurrency returns the currency or a shared-shape error', () => {
-    expect(parseDefaultCurrency('EUR')).toBe('eur')
-    expectParseError(parseDefaultCurrency('gbp'), 'defaultCurrency')
+  test('parseDefaultPriceSource returns the store or a shared-shape error', () => {
+    expect(parseDefaultPriceSource('TCGplayer')).toBe('tcgplayer')
+    expectParseError(parseDefaultPriceSource('usd'), 'defaultPriceSource')
   })
 
   test('parseDefaultLanguage returns the language or a shared-shape error', () => {

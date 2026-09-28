@@ -459,25 +459,19 @@ describe('applyConfigSet — cacheLockTimeoutSeconds', () => {
   })
 })
 
-describe('applyConfigSet — defaultCurrency', () => {
-  test('sets a valid currency', () => {
-    const result = applyConfigSet(base, 'defaultCurrency', ['eur'], 'replace')
+describe('applyConfigSet — defaultPriceSource', () => {
+  test('sets a valid store, normalized to lowercase', () => {
+    const result = applyConfigSet(base, 'defaultPriceSource', ['CardKingdom'], 'replace')
     if ('error' in result) throw new Error(result.error)
-    expect(result.newValue).toBe('eur')
-    expect(result.updatedConfig.defaultCurrency).toBe('eur')
+    expect(result.newValue).toBe('cardkingdom')
+    expect(result.updatedConfig.defaultPriceSource).toBe('cardkingdom')
   })
 
-  test('normalizes the currency to lowercase', () => {
-    const result = applyConfigSet(base, 'defaultCurrency', ['TIX'], 'replace')
-    if ('error' in result) throw new Error(result.error)
-    expect(result.newValue).toBe('tix')
-  })
-
-  test('rejects an unknown currency', () => {
-    const result = applyConfigSet(base, 'defaultCurrency', ['gbp'], 'replace')
+  test('rejects a currency code or unknown store', () => {
+    const result = applyConfigSet(base, 'defaultPriceSource', ['usd'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('usd, eur, tix')
+      expect(result.error).toContain('tcgplayer, cardmarket, cardkingdom, cardhoarder')
     }
   })
 })

@@ -161,7 +161,6 @@ export interface DeckDetail {
   lowestPriceCardsCardKingdom?: CardKingdomCards
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean
-  defaultCurrency: PriceCurrency
   availableCurrencies: PriceCurrency[]
   missingCards?: Partial<Record<PriceCurrency, string[]>>
   pricesDate?: string
@@ -270,7 +269,6 @@ export interface CollectionDetail {
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean
   totalPrice: number
-  defaultCurrency: PriceCurrency
   pricesDate?: string
   changelog?: ChangelogPage[]
   /**
@@ -359,7 +357,6 @@ export interface WantedListDetail {
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean
   totalPrice: number
-  defaultCurrency: PriceCurrency
   pricesDate?: string
   changelog?: ChangelogPage[]
   /**
@@ -384,7 +381,11 @@ export interface SiteIndex {
   collections: CollectionSummary[]
   wantedLists?: WantedListSummary[]
   useScryfallImgUrls: boolean
-  defaultCurrency: PriceCurrency
+  /**
+   * The store the site opens in (its currency follows): the configured
+   * `defaultPriceSource` when the site offers it, else the first offered store.
+   */
+  defaultPriceSource: PriceSource
   availableCurrencies: PriceCurrency[]
   pricesDate?: string
   /** The configured add-card search debounce (ms), baked in at build time. */

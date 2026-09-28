@@ -86,7 +86,7 @@ describe('config file materialization (Integration)', () => {
 
   test('config set materializes the file', async () => {
     await withTempDir(async (dir) => {
-      const result = await runCli(['config', 'set', 'defaultCurrency', 'eur'], dir)
+      const result = await runCli(['config', 'set', 'defaultPriceSource', 'cardmarket'], dir)
 
       expect(result.exitCode).toBe(0)
       expect(await fs.readdir(dir)).toEqual(['ritual.config.json'])
@@ -96,7 +96,7 @@ describe('config file materialization (Integration)', () => {
   test('a malformed config file fails the command and is left untouched', async () => {
     await withTempDir(async (dir) => {
       const configPath = path.join(dir, 'ritual.config.json')
-      const original = '{\n  "decksDir": "./my-decks",\n  "defaultCurrency": "eur",\n'
+      const original = '{\n  "decksDir": "./my-decks",\n  "defaultPriceSource": "cardmarket",\n'
       await fs.writeFile(configPath, original)
 
       const result = await runCli(['lists'], dir)
@@ -114,10 +114,10 @@ describe('config file materialization (Integration)', () => {
   test('a write command fails on a malformed config file without rewriting it', async () => {
     await withTempDir(async (dir) => {
       const configPath = path.join(dir, 'ritual.config.json')
-      const original = '{ "defaultCurrency": "eur" '
+      const original = '{ "defaultPriceSource": "cardmarket" '
       await fs.writeFile(configPath, original)
 
-      const result = await runCli(['config', 'set', 'defaultCurrency', 'usd'], dir)
+      const result = await runCli(['config', 'set', 'defaultPriceSource', 'tcgplayer'], dir)
 
       expect(result.exitCode).toBe(ExitCode.RuntimeError)
       expect(await fs.readFile(configPath, 'utf-8')).toBe(original)

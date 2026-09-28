@@ -47,8 +47,8 @@ test.describe('Settings Page', () => {
     await expect(
       main.locator('input[name="collectionsDir"], input[placeholder*="collection" i]').first(),
     ).toHaveValue(MOCK_CONFIG.collectionsDir)
-    await expect(main.locator('select[name="defaultCurrency"]')).toHaveValue(
-      MOCK_CONFIG.defaultCurrency,
+    await expect(main.locator('select[name="defaultPriceSource"]')).toHaveValue(
+      MOCK_CONFIG.defaultPriceSource,
     )
     await expect(main.locator('input[name="cacheLockTimeoutSeconds"]')).toHaveValue(
       String(MOCK_CONFIG.cacheLockTimeoutSeconds),

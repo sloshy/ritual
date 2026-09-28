@@ -9,20 +9,25 @@ import type {
   SiteDeployConfig,
 } from '../config/ritual-config'
 import {
+  getDefaultPriceSource,
   getSiteDeployConfig,
   getSiteSelectionConfig,
   loadRitualConfig,
   refreshRitualConfig,
   saveRitualConfig,
 } from '../config/ritual-config'
-import { VALID_CURRENCIES, type PriceCurrency } from '../pricing/price-currency'
+import {
+  PRICE_SOURCE_LABELS,
+  VALID_PRICE_SOURCES,
+  sourceCurrency,
+  type PriceSource,
+} from '../pricing/price-source'
 import type { ActiveManagedFile, ManagedFile, Migration } from '../list/managed-files'
 import { computeMigrations, isActiveManagedFile } from '../list/managed-files'
 import { compareVersions } from '../config/semver'
 import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
 import { promptsUnavailable, requireInteractive } from '../util/no-input'
-import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import { version as ritualVersion } from '../config/version'
 import { SKILLS } from '../skills/catalog'
@@ -440,7 +445,7 @@ export type InitSiteCommandOptions = {
   deploy?: DeployMode
   distDir?: string
   changeDetection?: boolean
-  currency?: PriceCurrency
+  priceSource?: PriceSource
   overwriteReadme?: boolean
 }
 
@@ -466,9 +471,13 @@ export function parseDistDirFlag(value: string): string {
   return trimmed
 }
 
-/** Commander argParser for `--currency`: one of the supported price currencies. */
-export function parseCurrencyFlag(value: string): PriceCurrency {
-  return parseEnumFlag(value.trim(), VALID_CURRENCIES, t('cli.initSite.fieldCurrency'))
+/** Commander argParser for `--price-source`: one of the supported price stores. */
+export function parsePriceSourceFlag(value: string): PriceSource {
+  return parseEnumFlag(
+    value.trim().toLowerCase(),
+    VALID_PRICE_SOURCES,
+    t('cli.initSite.fieldPriceSource'),
+  )
 }
 
 /**
@@ -664,7 +673,7 @@ export function registerInitSiteCommand(program: Command): void {
     .option('--dist-dir <dir>', t('help.initSite.distDir'), parseDistDirFlag)
     .option('--change-detection', t('help.initSite.changeDetection'))
     .option('--no-change-detection', t('help.initSite.noChangeDetection'))
-    .option('--currency <currency>', t('help.initSite.currency'), parseCurrencyFlag)
+    .option('--price-source <store>', t('help.initSite.priceSource'), parsePriceSourceFlag)
     .option('--overwrite-readme', t('help.initSite.overwriteReadme'))
     .option('--no-overwrite-readme', t('help.initSite.noOverwriteReadme'))
     .option('--skills', t('help.initSite.skills'))
@@ -704,7 +713,7 @@ function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
     options.deploy !== undefined ||
     options.distDir !== undefined ||
     options.changeDetection !== undefined ||
-    options.currency !== undefined ||
+    options.priceSource !== undefined ||
     options.overwriteReadme !== undefined
   )
 }
@@ -717,15 +726,15 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       process.exitCode = ExitCode.UsageError
       return
     }
-    const defaultCurrency = await resolveDefaultCurrency(options)
-    if (!defaultCurrency) {
+    const priceSource = await resolveDefaultPriceSource(options)
+    if (!priceSource) {
       console.error(t('cli.initSite.cancelled'))
       process.exitCode = ExitCode.UsageError
       return
     }
     requireSkillsDecision(options)
     await writeInitFiles(config, { force: true, overwriteReadme: options.overwriteReadme })
-    if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
+    if (!(await persistSiteConfig({ ...config, version: ritualVersion }, priceSource))) {
       process.exitCode = ExitCode.RuntimeError
       return
     }
@@ -819,15 +828,15 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
     process.exitCode = ExitCode.UsageError
     return
   }
-  const defaultCurrency = await resolveDefaultCurrency(options)
-  if (!defaultCurrency) {
+  const priceSource = await resolveDefaultPriceSource(options)
+  if (!priceSource) {
     console.error(t('cli.initSite.cancelled'))
     process.exitCode = ExitCode.UsageError
     return
   }
   requireSkillsDecision(options)
   await writeInitFiles(config, { force: false, overwriteReadme: options.overwriteReadme })
-  if (!(await persistSiteConfig({ ...config, version: ritualVersion }, defaultCurrency))) {
+  if (!(await persistSiteConfig({ ...config, version: ritualVersion }, priceSource))) {
     process.exitCode = ExitCode.RuntimeError
     return
   }
@@ -838,7 +847,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
 /** Write the site deploy config; on failure, print the error and return false. */
 async function persistSiteConfig(
   deploy: SiteDeployConfig,
-  defaultCurrency?: PriceCurrency,
+  priceSource?: PriceSource,
 ): Promise<boolean> {
   try {
     const config = await loadRitualConfig()
@@ -846,7 +855,16 @@ async function persistSiteConfig(
     // defaults) so writing the init-site-managed deployment config never clobbers
     // them.
     config.site = { ...getSiteSelectionConfig(config.site), ...deploy }
-    if (defaultCurrency !== undefined) config.defaultCurrency = defaultCurrency
+    if (priceSource !== undefined) {
+      config.defaultPriceSource = priceSource
+      // The site can only open on a store it offers, so choosing one enables
+      // it (in canonical order, as the Settings checkboxes keep it).
+      if (!config.priceSources.includes(priceSource)) {
+        config.priceSources = VALID_PRICE_SOURCES.filter(
+          (source) => source === priceSource || config.priceSources.includes(source),
+        )
+      }
+    }
     await saveRitualConfig(config)
     await refreshRitualConfig()
     return true
@@ -860,50 +878,47 @@ async function persistSiteConfig(
   }
 }
 
-/** Currency choices for the init-site prompt, USD first so it is the default. */
-export function defaultCurrencyChoices(current: PriceCurrency): Choice[] {
-  const descriptions = {
-    usd: 'cli.initSite.currencyUsd',
-    eur: 'cli.initSite.currencyEur',
-    tix: 'cli.initSite.currencyTix',
-  } as const satisfies Record<PriceCurrency, MessageKey>
-  return VALID_CURRENCIES.map((currency): Choice => {
-    const code = currency.toUpperCase()
+/** Store choices for the init-site prompt, in canonical order with the current one marked. */
+export function defaultPriceSourceChoices(current: PriceSource): Choice[] {
+  return VALID_PRICE_SOURCES.map((source): Choice => {
+    const name = t(PRICE_SOURCE_LABELS[source])
     return {
-      title: currency === current ? t('cli.initSite.currencyCurrent', { currency: code }) : code,
-      description: t(descriptions[currency]),
-      value: currency,
+      title: source === current ? t('cli.initSite.priceSourceCurrent', { store: name }) : name,
+      description: t('cli.initSite.priceSourceCurrency', {
+        currency: sourceCurrency(source).toUpperCase(),
+      }),
+      value: source,
     }
   })
 }
 
 /**
- * Resolve the default price currency: the `--currency` flag when given,
+ * Resolve the default price store: the `--price-source` flag when given,
  * otherwise the interactive prompt. When prompts are unavailable and the flag
- * is unset, a usage error naming `--currency` is raised.
+ * is unset, a usage error naming `--price-source` is raised.
  */
-async function resolveDefaultCurrency(
+async function resolveDefaultPriceSource(
   options: InitSiteCommandOptions,
-): Promise<PriceCurrency | null> {
-  if (options.currency !== undefined) return options.currency
-  requireInteractive('--currency <currency>')
-  return promptDefaultCurrency()
+): Promise<PriceSource | null> {
+  if (options.priceSource !== undefined) return options.priceSource
+  requireInteractive('--price-source <store>')
+  return promptDefaultPriceSource()
 }
 
 /**
- * Ask which currency price-touching surfaces should default to. Defaults to
- * the currently configured value (USD out of the box). Returns null when the
+ * Ask which store price-touching surfaces should default to. Defaults to the
+ * store currently in effect (TCGplayer out of the box). Returns null when the
  * prompt is cancelled.
  */
-async function promptDefaultCurrency(): Promise<PriceCurrency | null> {
-  const current = (await loadRitualConfig()).defaultCurrency
-  const currency = await ask<PriceCurrency>({
+async function promptDefaultPriceSource(): Promise<PriceSource | null> {
+  const current = getDefaultPriceSource(await loadRitualConfig())
+  const source = await ask<PriceSource>({
     type: 'select',
-    message: t('cli.initSite.promptCurrency'),
-    choices: defaultCurrencyChoices(current),
-    initial: Math.max(0, VALID_CURRENCIES.indexOf(current)),
+    message: t('cli.initSite.promptPriceSource'),
+    choices: defaultPriceSourceChoices(current),
+    initial: Math.max(0, VALID_PRICE_SOURCES.indexOf(current)),
   })
-  return currency ?? null
+  return source ?? null
 }
 
 /**

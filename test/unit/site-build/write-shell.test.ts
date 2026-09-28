@@ -20,7 +20,7 @@ function parts(wantedLists: WantedListSummary[]): SiteIndexParts {
     collections: [],
     wantedLists,
     useScryfallImgUrls: true,
-    defaultCurrency: 'usd',
+    defaultPriceSource: 'tcgplayer',
     availableCurrencies: ['usd'],
     uiLocale: localeTag('en'),
     availableLocales: [localeTag('en')],

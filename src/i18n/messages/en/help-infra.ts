@@ -150,7 +150,8 @@ export const helpInfraMessages = {
   'help.initSite.changeDetection':
     'Enable automatic change detection in the generated workflow (publish-for-me only)',
   'help.initSite.noChangeDetection': 'Disable automatic change detection (no prompt)',
-  'help.initSite.currency': "Default price currency: 'usd', 'eur', or 'tix'",
+  'help.initSite.priceSource':
+    "Default price store (its currency follows): 'tcgplayer', 'cardkingdom', 'cardmarket', or 'cardhoarder'",
   'help.initSite.overwriteReadme': 'Overwrite an existing README.md without prompting',
   'help.initSite.noOverwriteReadme': 'Keep an existing README.md as-is (no prompt)',
   'help.initSite.skills': 'Install Ritual agent skills into .claude/skills without prompting',
@@ -211,9 +212,10 @@ export const helpInfraMessages = {
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': 'Browse prices of every deck, collection, and wanted list',
   'help.price.listArg': 'Open (or print) a single list instead of all lists',
-  'help.price.prices': 'Price currency: usd, eur, or tix (default: the configured defaultCurrency)',
+  'help.price.prices':
+    'Price currency: usd, eur, or tix (default: the currency of the configured defaultPriceSource)',
   'help.price.source':
-    'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix)',
+    'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix). Default: the configured defaultPriceSource',
   'help.price.name': 'Print cards whose name contains every term',
   'help.price.set': 'Print cards from this set code',
   'help.price.collector': 'Print cards with this collector number',

@@ -55,7 +55,7 @@ import {
   type PriceColumnChoice,
   type PriceCurrency,
 } from '../../pricing/price-currency'
-import { getDefaultCurrency, getDefaultLanguage } from '../../config/ritual-config'
+import { getDefaultPriceCurrency, getDefaultLanguage } from '../../config/ritual-config'
 import { requireInteractive, type PromptSubjectKey } from '../../util/no-input'
 import { printingLabel } from '../../card/card-line-tail'
 
@@ -346,7 +346,7 @@ export type PrintingResolution =
  */
 export function printingChoices(
   printings: ScryfallCard[],
-  currency: PriceCurrency = getDefaultCurrency(),
+  currency: PriceCurrency = getDefaultPriceCurrency(),
   defaultLanguage: CardLanguage = getDefaultLanguage(),
 ): PriceColumnChoice<ScryfallCard>[] {
   const distinct = dedupePrintingsByKey(printings)
@@ -406,7 +406,7 @@ export function finishRows(
 export function finishChoices<T>(
   items: readonly FinishChoiceItem<T>[],
   printing: ScryfallCard | undefined,
-  currency: PriceCurrency = getDefaultCurrency(),
+  currency: PriceCurrency = getDefaultPriceCurrency(),
 ): PriceColumnChoice<T>[] {
   return formatPriceColumn(
     items.map((item) => ({
@@ -523,7 +523,7 @@ export async function resolveCardPrinting(
   while (true) {
     let selectedPrinting = distinct[0]!
     if (distinct.length > 1) {
-      const choices = printingChoices(printings, getDefaultCurrency(), preferredLanguage)
+      const choices = printingChoices(printings, getDefaultPriceCurrency(), preferredLanguage)
 
       // The picker resolves to one of {@link printingChoices}' card values.
       const picked = await ask<ScryfallCard>({

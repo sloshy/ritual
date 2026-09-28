@@ -370,8 +370,8 @@ export const cliInfraMeta = {
   'cli.initSite.fieldDeployMode': {
     description: 'The noun naming the --deploy value inside an "Invalid <field> …" error.',
   },
-  'cli.initSite.fieldCurrency': {
-    description: 'The noun naming the --currency value inside an "Invalid <field> …" error.',
+  'cli.initSite.fieldPriceSource': {
+    description: 'The noun naming the --price-source value inside an "Invalid <field> …" error.',
   },
   'cli.initSite.distDirRequired': { description: '--dist-dir was given an empty value.' },
   'cli.initSite.promptOverwrite': {
@@ -380,18 +380,16 @@ export const cliInfraMeta = {
   'cli.initSite.promptSkills': {
     description: 'Confirm prompt: install the Ritual agent skills into this repository?',
   },
-  'cli.initSite.promptCurrency': { description: 'Select prompt: the default price currency.' },
-  'cli.initSite.currencyUsd': {
-    description: 'Hint under the USD choice. TCGplayer is the price source.',
+  'cli.initSite.promptPriceSource': {
+    description:
+      'Select prompt: which price store (TCGplayer, Card Kingdom, Cardmarket, Cardhoarder) prices are read from by default.',
   },
-  'cli.initSite.currencyEur': {
-    description: 'Hint under the EUR choice. Cardmarket is the price source.',
+  'cli.initSite.priceSourceCurrency': {
+    description:
+      'Hint under each store choice naming the currency it prices in. {currency} is a code such as USD, EUR or TIX.',
   },
-  'cli.initSite.currencyTix': {
-    description: 'Hint under the TIX choice. MTGO tickets are Magic Online’s currency.',
-  },
-  'cli.initSite.currencyCurrent': {
-    description: 'Marks the currently configured currency in the picker. {currency} is a code.',
+  'cli.initSite.priceSourceCurrent': {
+    description: 'Marks the store currently in effect in the picker. {store} is a store name.',
   },
   'cli.initSite.promptCi': { description: 'Select prompt: which CI system to generate for.' },
   'cli.initSite.ciGithubActions': { description: 'Choice title: GitHub Actions. A product name.' },

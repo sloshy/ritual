@@ -25,14 +25,15 @@ naming the flag:
 
 \`\`\`bash
 ritual init-site --ci github-actions --deploy publish-for-me \\
-  --change-detection --currency usd --no-skills
-ritual init-site --ci manual --currency usd --no-skills
+  --change-detection --price-source tcgplayer --no-skills
+ritual init-site --ci manual --price-source tcgplayer --no-skills
 \`\`\`
 
 Flags: \`--ci github-actions|manual\`, \`--deploy publish-for-me|local-build\`
 (github-actions only), \`--dist-dir <dir>\` (local-build only),
 \`--change-detection\`/\`--no-change-detection\` (publish-for-me only),
-\`--currency usd|eur|tix\`, and \`--skills\`/\`--no-skills\` (install the Ritual agent
+\`--price-source tcgplayer|cardkingdom|cardmarket|cardhoarder\` (the default
+price store; it is added to \`priceSources\` when missing), and \`--skills\`/\`--no-skills\` (install the Ritual agent
 skills). Flags that do not apply to the chosen CI system or deploy mode are usage
 errors — including either form of \`--change-detection\` outside
 \`--deploy publish-for-me\`. An existing \`README.md\` additionally needs
