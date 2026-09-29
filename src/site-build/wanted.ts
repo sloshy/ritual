@@ -3,7 +3,7 @@ import { parseWantedListFile } from '../list/wanted-file'
 import type { WantedListEntry } from '../list/wanted-file'
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { displayLanguage, scryfallCardLanguage } from '../card/card-language'
-import { defaultPrintingFinish } from '../card/finish-condition'
+import { displayFinish } from '../card/finish-condition'
 import { getCardPrice, getCardPriceForFinish } from '../pricing/price-currency'
 import { isListImageCardRef } from '../list/list-image'
 import type { ScryfallCard } from '../scryfall/types'
@@ -25,15 +25,16 @@ import {
   resolveListCover,
   siteCardKingdomData,
   slugifyListName,
-  sumCardKingdomLines,
 } from './shared'
-import type {
-  BuylistBakeSource,
-  CardKingdomSummaryLine,
-  ListCoverOverrideEntry,
-  LoadedFlatList,
-} from './shared'
+import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
 import type { SiteDetailContext, WantedArtifacts } from './types'
+import {
+  flatListStores,
+  sumStorePrices,
+  summaryPriceFields,
+  type CheapestByCurrency,
+  type FlatSummaryLine,
+} from './summary-prices'
 import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
 import { printingLabel } from '../card/card-line-tail'
 
@@ -51,8 +52,6 @@ export async function buildWantedArtifacts(
   const { displayName, entries, sectionOrder, changelog, fileMtime } = loaded
   const { cardData, availableCurrencies } = ctx
   const hasUsd = availableCurrencies.includes('usd')
-  const hasEur = availableCurrencies.includes('eur')
-  const hasTix = availableCurrencies.includes('tix')
   const cheapestUsdMap = cardData.cheapest.usd ?? {}
   const cheapestEurMap = cardData.cheapest.eur ?? {}
   const cheapestTixMap = cardData.cheapest.tix ?? {}
@@ -64,22 +63,11 @@ export async function buildWantedArtifacts(
   // every store.
   const cardMapCardKingdom: CardKingdomCards = {}
   const cardKingdomData = siteCardKingdomData(ctx)
-  // Each counted entry as the Card Kingdom view displays it, summed at CK
-  // retail off the baked quotes once they exist (below).
-  const ckLines: CardKingdomSummaryLine[] = []
+  // Each counted entry, summed per store once the buylist quotes are baked
+  // (below), so Card Kingdom prices from the very quotes the page reads.
+  const summaryLines: FlatSummaryLine[] = []
   const printingsMap: Record<string, ScryfallCard[]> = {}
   const cardEntries: WantedListCardEntry[] = []
-  let totalPrice = 0
-  let totalPriceEur = 0
-  let totalPriceTix = 0
-  let missingPriceCount = 0
-  let missingPriceCountEur = 0
-  let missingPriceCountTix = 0
-  // Entries whose share of the total is an estimate: priced at a representative
-  // printing, or at a printing with no price in that currency.
-  let estimatedPriceCount = 0
-  let estimatedPriceCountEur = 0
-  let estimatedPriceCountTix = 0
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
   /** The featured entry's card id, for the custom art its cover may wear. */
@@ -118,17 +106,12 @@ export async function buildWantedArtifacts(
     }
     const printings = printingsMap[entry.name]!
 
+    // The entry's own USD price, baked onto it for the page; the summary's
+    // per-store figures are summed from `summaryLines` instead.
     let price = 0
-    let priceEur = 0
-    let priceTix = 0
     let card: ScryfallCard | null = null
-    // Counted per entry and folded into the list's totals below, because a copy
-    // wearing custom art is not a card whose price is *missing* — it is a card
-    // that has no price to look up. The pricing branches below are unchanged;
-    // whether their answer counts is decided in one place.
-    let missingUsd = 0
-    let missingEur = 0
-    let missingTix = 0
+    /** The per-currency cheapest printings a name-only entry is priced at; pinned entries have none. */
+    let cheapest: CheapestByCurrency | undefined
 
     // Branch on the guard rather than on `state`: it narrows `entry.set` and
     // `entry.collectorNumber` to `string`, which the `state` ladder cannot.
@@ -149,25 +132,8 @@ export async function buildWantedArtifacts(
         const ckCard = cardKingdomData?.cheapest[entry.name] ?? cardKingdomData?.cards[entry.name]
         if (ckCard) cardMapCardKingdom[entry.name] = ckCard
 
-        if (hasUsd) {
-          const c = cheapUsd ?? card
-          price = parseFloat(c.prices.usd || '0')
-          if (price === 0) missingUsd++
-        }
-        if (hasEur) {
-          const c = cheapEur ?? card
-          priceEur = getCardPrice(c, 'eur')
-          if (priceEur === 0) missingEur++
-        }
-        if (hasTix) {
-          const c = cheapTix ?? card
-          priceTix = getCardPrice(c, 'tix')
-          if (priceTix === 0) missingTix++
-        }
-      } else {
-        missingUsd++
-        missingEur++
-        missingTix++
+        cheapest = { usd: cheapUsd, eur: cheapEur, tix: cheapTix }
+        if (hasUsd) price = getCardPrice(cheapUsd ?? card, 'usd')
       }
     } else {
       // State 2 or 3: find exact printing
@@ -204,44 +170,18 @@ export async function buildWantedArtifacts(
           }
         }
 
-        if (entry.finish) {
-          if (hasUsd) {
-            price = getCardPriceForFinish(exactPrinting, entry.finish, 'usd')
-            if (price === 0) missingUsd++
-          }
-          if (hasEur) {
-            priceEur = getCardPriceForFinish(exactPrinting, entry.finish, 'eur')
-            if (priceEur === 0) missingEur++
-          }
-          if (hasTix) {
-            priceTix = getCardPriceForFinish(exactPrinting, entry.finish, 'tix')
-            if (priceTix === 0) missingTix++
-          }
-        } else {
-          // State 2: the printing's default finish (nonfoil when it offers one).
-          const defaultFinish = defaultPrintingFinish(exactPrinting)
-
-          if (hasUsd) {
-            price = getCardPriceForFinish(exactPrinting, defaultFinish, 'usd')
-            if (price === 0) missingUsd++
-          }
-          if (hasEur) {
-            priceEur = getCardPriceForFinish(exactPrinting, defaultFinish, 'eur')
-            if (priceEur === 0) missingEur++
-          }
-          if (hasTix) {
-            priceTix = getCardPriceForFinish(exactPrinting, defaultFinish, 'tix')
-            if (priceTix === 0) missingTix++
-          }
+        if (hasUsd) {
+          price = getCardPriceForFinish(
+            exactPrinting,
+            displayFinish(exactPrinting, entry.finish),
+            'usd',
+          )
         }
       } else {
         ctx.warn?.(
           `  ⚠️  Could not find printing for '${entry.name}' (${printingLabel(entry.set, entry.collectorNumber)})`,
         )
         cardMap[cardKey] = null
-        missingUsd++
-        missingEur++
-        missingTix++
       }
     }
 
@@ -261,22 +201,17 @@ export async function buildWantedArtifacts(
     const printingPrice = price
     if (priceless) {
       price = 0
-      priceEur = 0
-      priceTix = 0
     } else {
-      missingPriceCount += missingUsd
-      missingPriceCountEur += missingEur
-      missingPriceCountTix += missingTix
       const pinned = hasSpecificPrinting(entry)
-      estimatedPriceCount += pinned ? missingUsd : 1
-      estimatedPriceCountEur += pinned ? missingEur : 1
-      estimatedPriceCountTix += pinned ? missingTix : 1
-      // The printing the Card Kingdom view shows: the pin, else CK's own pick.
-      ckLines.push({
-        card: pinned ? card : (cardMapCardKingdom[entry.name] ?? card),
+      summaryLines.push({
+        quantity: 1,
+        pinned,
+        card,
+        ...(cheapest ? { cheapest } : {}),
         finish: entry.finish,
         language: entry.language,
-        pinned,
+        // The printing the Card Kingdom view shows: the pin, else CK's own pick.
+        ckCard: pinned ? card : (cardMapCardKingdom[entry.name] ?? card),
       })
       // `card` is what `resolveWantedCardEntry` will hand the tile: the exact
       // printing when the line pins one, the cheapest/representative otherwise.
@@ -290,10 +225,6 @@ export async function buildWantedArtifacts(
         }
       }
     }
-
-    totalPrice += price
-    totalPriceEur += priceEur
-    totalPriceTix += priceTix
 
     if (card && printingPrice > featuredPrice) {
       featuredPrice = printingPrice
@@ -346,7 +277,7 @@ export async function buildWantedArtifacts(
     printings: printingsMap,
     symbolMap: ctx.symbolMap,
     useScryfallImgUrls: ctx.useScryfallImgUrls,
-    totalPrice,
+    totalPrice: cardEntries.reduce((sum, entry) => sum + entry.price, 0),
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,
     ...categoryFields,
@@ -371,18 +302,14 @@ export async function buildWantedArtifacts(
     featuredCardImage: featuredImage,
     cardCount: entries.length,
     lastUpdatedAt: changelog[0]?.timestamp ?? fileMtime,
-    totalPrice,
-    totalPriceEur,
-    totalPriceTix,
-    missingPriceCount,
-    missingPriceCountEur,
-    missingPriceCountTix,
-    estimatedPriceCount,
-    estimatedPriceCountEur,
-    estimatedPriceCountTix,
-    // Offered only when the site offers Card Kingdom prices (its picks exist
-    // exactly then).
-    ...(cardKingdomData ? sumCardKingdomLines(detail.buylist, ckLines) : {}),
+    ...summaryPriceFields(
+      sumStorePrices(
+        summaryLines,
+        // Card Kingdom only when the site offers it (its picks exist exactly then).
+        flatListStores(availableCurrencies, detail.buylist, cardKingdomData !== undefined),
+      ),
+      ['total', 'missing', 'estimated'],
+    ),
   }
 
   return { slug, detail, summary }

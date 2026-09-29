@@ -20,15 +20,15 @@ import {
   resolveListCover,
   siteCardKingdomData,
   slugifyListName,
-  sumCardKingdomLines,
 } from './shared'
-import type {
-  BuylistBakeSource,
-  CardKingdomSummaryLine,
-  ListCoverOverrideEntry,
-  LoadedFlatList,
-} from './shared'
+import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
 import type { CollectionArtifacts, SiteDetailContext } from './types'
+import {
+  flatListStores,
+  sumStorePrices,
+  summaryPriceFields,
+  type FlatSummaryLine,
+} from './summary-prices'
 import { printingKey, printingLanguageKey } from '../card/printing-key'
 import { printingLabel } from '../card/card-line-tail'
 
@@ -52,15 +52,11 @@ export async function buildCollectionArtifacts(
   const cardMap: Record<string, ScryfallCard | null> = {}
   const printingsMap: Record<string, ScryfallCard[]> = {}
   const cardEntries: CollectionCardEntry[] = []
+  /** The detail's own USD total; the summary sums `summaryLines` per store instead. */
   let totalPrice = 0
-  let totalPriceEur = 0
-  let totalPriceTix = 0
-  let missingPriceCount = 0
-  let missingPriceCountEur = 0
-  let missingPriceCountTix = 0
-  // Each counted entry, summed at Card Kingdom retail off the baked quotes once
-  // they exist (below).
-  const ckLines: CardKingdomSummaryLine[] = []
+  // Each counted entry, summed per store once the buylist quotes are baked
+  // (below), so Card Kingdom prices from the very quotes the page reads.
+  const summaryLines: FlatSummaryLine[] = []
   let featured: ScryfallCard | null = null
   let featuredPrice = -1
   /** The featured entry's card id, for the custom art its cover may wear. */
@@ -154,16 +150,18 @@ export async function buildCollectionArtifacts(
     // commander takes the cover whatever it is worth.
     const printingPrice = card ? getCardPriceForFinish(card, finish, 'usd') : 0
     const price = priceless ? 0 : printingPrice
-    const priceEur = card && !priceless ? getCardPriceForFinish(card, finish, 'eur') : 0
-    const priceTix = card && !priceless ? getCardPriceForFinish(card, finish, 'tix') : 0
     totalPrice += price
-    totalPriceEur += priceEur
-    totalPriceTix += priceTix
+    // A proxy or a custom-art copy is not a card whose price is *missing*, so
+    // it is left out of the summary's figures entirely.
     if (!priceless) {
-      if (price === 0) missingPriceCount++
-      if (priceEur === 0) missingPriceCountEur++
-      if (priceTix === 0) missingPriceCountTix++
-      ckLines.push({ card, finish: entry.finish, language: entry.language, pinned: true })
+      summaryLines.push({
+        quantity: 1,
+        pinned: true,
+        card,
+        finish: entry.finish,
+        language: entry.language,
+        ckCard: card,
+      })
     }
 
     if (card && printingPrice > featuredPrice) {
@@ -237,32 +235,25 @@ export async function buildCollectionArtifacts(
   reportListCoverIssue(cover, 'collection', displayName, ctx)
   const featuredImage = cover.url
 
-  // Offered only when the site offers Card Kingdom prices, as for decks and
-  // wanted lists. A collection never estimates.
-  const ck = siteCardKingdomData(ctx) ? sumCardKingdomLines(detail.buylist, ckLines) : undefined
-  const ckFigures: Pick<
-    CollectionSummary,
-    'totalPriceCardKingdom' | 'missingPriceCountCardKingdom'
-  > = ck
-    ? {
-        totalPriceCardKingdom: ck.totalPriceCardKingdom,
-        missingPriceCountCardKingdom: ck.missingPriceCountCardKingdom,
-      }
-    : {}
-
   const summary: CollectionSummary = {
     slug,
     name: displayName,
     featuredCardImage: featuredImage,
     cardCount: entries.length,
     lastUpdatedAt: changelog[0]?.timestamp ?? fileMtime,
-    totalPrice,
-    totalPriceEur,
-    totalPriceTix,
-    missingPriceCount,
-    missingPriceCountEur,
-    missingPriceCountTix,
-    ...ckFigures,
+    // Card Kingdom only when the site offers it, as for decks and wanted lists.
+    // A collection never estimates: every line pins its printing.
+    ...summaryPriceFields(
+      sumStorePrices(
+        summaryLines,
+        flatListStores(
+          ctx.availableCurrencies,
+          detail.buylist,
+          siteCardKingdomData(ctx) !== undefined,
+        ),
+      ),
+      ['total', 'missing'],
+    ),
     labels: loaded.labels,
   }
 

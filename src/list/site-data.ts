@@ -242,10 +242,6 @@ export interface CollectionSummary extends CollectionPriceFields {
    * latest changelog page timestamp, falling back to the source file's mtime.
    */
   lastUpdatedAt?: string
-  /** Always baked, even for a currency no store offers (then 0). */
-  totalPrice: number
-  totalPriceEur: number
-  totalPriceTix: number
   /** The collection's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
 }
@@ -324,10 +320,6 @@ export interface WantedListSummary extends WantedPriceFields {
    * latest changelog page timestamp, falling back to the source file's mtime.
    */
   lastUpdatedAt?: string
-  /** Always baked, even for a currency no store offers (then 0). */
-  totalPrice: number
-  totalPriceEur: number
-  totalPriceTix: number
 }
 
 export interface WantedListDetail {

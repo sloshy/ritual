@@ -29,14 +29,21 @@ export type PriceViewFields<Base extends string> = {
   [K in `${Base}${SourceFieldSuffix}`]?: number
 }
 
+/** The summary field one base metric is baked under for a store (`totalPriceEur`, …). */
+export function summaryPriceField<Base extends string>(
+  base: Base,
+  source: PriceSource,
+): `${Base}${SourceFieldSuffix}` {
+  return `${base}${SOURCE_FIELD_SUFFIX[source]}`
+}
+
 /** One base metric read at a store; 0 when the summary carries no figure for it. */
 function summaryValue<Base extends string>(
   item: PriceViewFields<Base>,
   base: Base,
   source: PriceSource,
 ): number {
-  const key: `${Base}${SourceFieldSuffix}` = `${base}${SOURCE_FIELD_SUFFIX[source]}`
-  return item[key] ?? 0
+  return item[summaryPriceField(base, source)] ?? 0
 }
 
 export function getSummaryTotalPrice(
