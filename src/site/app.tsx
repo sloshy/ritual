@@ -1,6 +1,5 @@
 import { render } from 'solid-js/web'
 import {
-  batch,
   createSignal,
   createEffect,
   createMemo,
@@ -15,7 +14,7 @@ import {
   type JSX,
 } from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from '../list/site-data'
-import type { PriceCurrency } from '../pricing/price-currency'
+import type { PriceSource } from '../pricing/price-source'
 import { formatDateTime } from '../ui/format'
 import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
@@ -50,7 +49,6 @@ import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { routeIdentity, useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { apiActive, apiDegraded, detailUrl } from '../list-view/api-base'
-import { notifyCurrencyChanged } from '../list-view/currency-epoch'
 import { offeredCurrencies } from '../list-view/price-view'
 import { useFetchJson } from '../list-view/useFetchJson'
 import { tradeToast } from './useTradeState'
@@ -83,7 +81,8 @@ import { syncFaviconToTheme } from './useFavicon'
 import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
 import { MobileTabBar } from './MobileTabBar'
-import { CurrencySelector, EditModeButton, ThemeHeaderControls } from './HeaderControls'
+import { EditModeButton, ThemeHeaderControls } from './HeaderControls'
+import { PriceStoreSelect, pickPriceStore } from '../list-view/PriceStoreSelect'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { NAV_DESTINATIONS, type NavActiveState } from './nav-destinations'
 import { createI18nStore, I18nProvider, useI18n } from '../ui/i18n'
@@ -126,14 +125,9 @@ function App() {
   // the session, not a transient dialog.
   const [headerUtilityOpen, setHeaderUtilityOpen] = createSignal(false)
 
-  // Batched so the currency and the epoch counter that invalidates cached
-  // prices land together, rather than as two separate notifications.
-  const changeCurrency = (next: PriceCurrency) => {
-    batch(() => {
-      setCurrency(next)
-      notifyCurrencyChanged()
-    })
-  }
+  // The header's store picker: one store names the currency and, for USD,
+  // the USD source; `pickPriceStore` batches both with the currency epoch.
+  const changePriceStore = (next: PriceSource) => pickPriceStore(next, setCurrency)
 
   // A currency with no enabled source behind it (a site index older than its
   // price stores, or a store set changed by a live refetch) settles onto the first currency a
@@ -526,10 +520,10 @@ function App() {
           {/* Desktop keeps these inline; the phone layout moves them into the
               collapsible utility row below. */}
           <Show when={!mobileLayout()}>
-            <CurrencySelector
+            <PriceStoreSelect
               currency={currency()}
               available={availableCurrencies()}
-              onChange={changeCurrency}
+              onChange={changePriceStore}
             />
             <LanguageSwitcher
               locale={uiLocale()}
@@ -579,10 +573,10 @@ function App() {
             the main row, so reopening the row is always one tap away. */}
         <Show when={mobileLayout() && headerUtilityOpen()}>
           <div class="site-header-utility">
-            <CurrencySelector
+            <PriceStoreSelect
               currency={currency()}
               available={availableCurrencies()}
-              onChange={changeCurrency}
+              onChange={changePriceStore}
             />
             <LanguageSwitcher
               locale={uiLocale()}

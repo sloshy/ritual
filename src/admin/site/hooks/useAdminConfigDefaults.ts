@@ -13,7 +13,7 @@ import { setSearchDebounceMs } from '../../../config/search-debounce'
  * navigation. Built-in defaults stay in effect while loading or when the fetch
  * fails — a list's own vocabulary always comes before the configured one.
  *
- * The two accessor-returning siblings (`useDefaultCurrency`, `useDefaultLanguage`)
+ * The two accessor-returning siblings (`usePriceView`, `useDefaultLanguage`)
  * keep their own hooks: they return a value the caller renders.
  */
 export function useAdminConfigDefaults(): void {

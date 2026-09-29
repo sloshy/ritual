@@ -25,7 +25,7 @@ import { CollectionEditorBody } from '../../../site/editor/CollectionEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
 import { createAdminSwapSourceProvider } from '../swap-sources'
-import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { usePriceView } from '../hooks/usePriceView'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
 import { sellModeEnabled } from '../sell-enabled'
@@ -54,7 +54,7 @@ type CollectionDataResponse = {
 export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('collection', 'admin')
   const lists = useAdminLists()
-  const defaultCurrency = useDefaultCurrency()
+  const { currency: priceCurrency } = usePriceView()
   // The list's default labels, seeded from each load and updated by the Labels
   // modal's save (front matter is not part of the card-change pipeline).
   const [listLabels, setListLabels] = createSignal<CardLabel[] | undefined>(undefined)
@@ -74,7 +74,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
   const buildConfig = (
     cardActions: EntryCardDataActions,
   ): ListEditorConfig<CollectionCardEntry[]> => ({
-    currency: defaultCurrency,
+    currency: priceCurrency,
     fetchList: () => fetchAdminJson('/api/collections'),
     extractListItems: (r) => (r as CollectionListResponse).collections ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/collection/${slug}`, signal),

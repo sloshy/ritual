@@ -112,7 +112,7 @@ The static [public site's editor](/public-site/editing/) is the exception. It qu
 
 Choose a printing from the grid, which shows set, collector number, and price. In the Deck and Wanted List Editors you can also choose **No specific printing**.
 
-Prices follow the selected [price store](/public-site/prices/). The step has its own **Prices** selector (the same one as the list toolbar, shown when both USD stores are enabled). Each printing lists its alternate finishes under its main price, and the finish prices on the next step follow the same store. Card Kingdom quotes for printings no list carries are fetched as the grid opens, so a printing the search just found is priced like any other.
+Prices follow the selected [price store](/public-site/prices/). The step has its own USD-store selector (the same choice as the header's **Prices** dropdown, shown when both USD stores are enabled). Each printing lists its alternate finishes under its main price, and the finish prices on the next step follow the same store. Card Kingdom quotes for printings no list carries are fetched as the grid opens, so a printing the search just found is priced like any other.
 
 Keyboard: **←**/**→** move to the previous/next printing, **↑**/**↓** move a whole row (the row width follows the grid's column count). Moving past the current page turns the page. **Enter** selects the highlighted printing.
 

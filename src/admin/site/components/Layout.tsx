@@ -1,5 +1,6 @@
 import type { JSX, ParentComponent } from 'solid-js'
-import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { pickAdminPriceStore, usePriceView } from '../hooks/usePriceView'
+import { PriceStoreSelect } from '../../../list-view/PriceStoreSelect'
 import { useDefaultLanguage } from '../hooks/useDefaultLanguage'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 import { useT, useTKey } from '../../../ui/i18n'
@@ -104,9 +105,9 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   const t = useT()
   const tKey = useTKey()
   const [menuOpen, setMenuOpen] = createSignal(false)
-  // The navbar selection surfaces show prices, so they must use the workspace's
-  // configured currency rather than assuming USD.
-  const defaultCurrency = useDefaultCurrency()
+  // The header's store picker and the navbar selection surfaces share the
+  // admin's one price view, seeded from the configured default store.
+  const priceView = usePriceView()
   // Deliberately wired here rather than per page: Layout is the logged-in shell
   // (`/api/config` requires auth, so the app root would fetch too early), it
   // mounts before any editor page, and the editors' shared add/printing dialogs
@@ -228,6 +229,11 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         <div class="admin-header-actions">
           {/* Beside the other header controls, exactly as on the public site.
               Hides itself when this build ships a single locale. */}
+          <PriceStoreSelect
+            currency={priceView.currency()}
+            available={priceView.available()}
+            onChange={pickAdminPriceStore}
+          />
           <LanguageSwitcher
             locale={uiLocale()}
             available={availableLocales()}
@@ -235,7 +241,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           />
           <SelectionMenu
             selection={allSelections}
-            currency={defaultCurrency()}
+            currency={priceView.currency()}
             label={t('admin.layout.allSelected')}
             clearLabel={t('admin.layout.clearSelections')}
             buttonClass="selection-menu-btn--navbar"
@@ -304,7 +310,11 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           {props.children}
         </main>
       </div>
-      <SelectionModal selection={allSelections} currency={defaultCurrency()} bulk={bulkActions} />
+      <SelectionModal
+        selection={allSelections}
+        currency={priceView.currency()}
+        bulk={bulkActions}
+      />
       {/* `!== null` rather than a truthiness test: a zero count is a real state. */}
       <Show when={removeConfirm() !== null}>
         <ConfirmDialog

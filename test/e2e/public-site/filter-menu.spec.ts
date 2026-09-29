@@ -397,7 +397,7 @@ test.describe('Toolbar Filters menu', () => {
     await expectVisibleCards(page, ['White Knight'])
 
     // Changing the active currency invalidates the (currency-specific) threshold.
-    await page.locator('.currency-select').selectOption('eur')
+    await page.locator('#price-store').selectOption('cardmarket')
 
     await expect(page.locator('.filter-menu-badge')).not.toBeVisible()
     await expectVisibleCards(page, FILTER_DECK_CARDS)

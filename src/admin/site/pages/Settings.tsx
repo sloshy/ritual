@@ -10,16 +10,9 @@ import type {
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../config/search-debounce'
 import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card/card-language'
-import {
-  VALID_PRICE_SOURCES,
-  isPriceSource,
-  resolveDefaultPriceSource,
-} from '../../../pricing/price-source'
-import {
-  PRICE_SOURCE_LABELS,
-  setDefaultPriceSource,
-  setEnabledPriceSources,
-} from '../../../list-view/price-view'
+import { VALID_PRICE_SOURCES, isPriceSource } from '../../../pricing/price-source'
+import { PRICE_SOURCE_LABELS } from '../../../list-view/price-view'
+import { applyPriceConfig } from '../hooks/usePriceView'
 import { formatCardCategories, parseCardCategoriesInput } from '../../../card/card-categories'
 import { setDefaultCategories } from '../../../config/default-categories'
 import {
@@ -141,10 +134,7 @@ export function Settings(): JSX.Element {
         // Same again for the price stores: the shared price-view store is
         // seeded at page mount, so a save must push the new list for already-
         // mounted editors to update their source selector and price reads.
-        setEnabledPriceSources(saved.priceSources)
-        setDefaultPriceSource(
-          resolveDefaultPriceSource(saved.defaultPriceSource, saved.priceSources),
-        )
+        applyPriceConfig(saved.defaultPriceSource, saved.priceSources)
         // Same again for the category vocabulary: `useAdminConfigDefaults` primes
         // the module signal once per page mount, so without this push an
         // already-open editor keeps offering the stale suggestions.

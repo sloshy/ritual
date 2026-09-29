@@ -5,7 +5,7 @@ description: Currencies, price stores, per-page price updates, and cards the sit
 
 Every card on the site carries a price, and every list a total. Prices are written into the site at build time, in up to three currencies and from up to four **stores**.
 
-Two controls share the label **Prices**. The header's dropdown picks the **currency**. The list toolbar's selector picks the **store** behind USD prices. This page calls the first the currency selector and the second the Prices selector.
+The header's **Prices** dropdown picks the **store** every price comes from, everywhere on the site: list pages, the index tiles, Quick Switch, and Combine Lists. A store names its currency, so this one control also switches currency.
 
 ## Currencies
 
@@ -13,9 +13,9 @@ A site offers exactly the currencies its enabled [price stores](#price-stores) q
 
 The `--currencies` flag on [`build-site`](/commands/build-site/) can narrow that set for one build. It never adds a currency with no enabled store behind it, and a value naming only such currencies is refused. Under `serve --api` the flag is refused outright, since the live server always offers the configured stores' currencies.
 
-When more than one currency is offered, the site header shows the currency selector. With a single currency, or an empty `priceSources`, it is hidden.
+The header's Prices dropdown lists each enabled store of an offered currency by name, with the USD stores (TCGplayer, Card Kingdom) together. With a single store, or an empty `priceSources`, it is hidden.
 
-Switching currency:
+Switching to a store in another currency:
 
 - Updates every displayed price
 - Recalculates deck and section totals
@@ -38,13 +38,13 @@ Prices on the public and admin sites come from the stores declared by the [`pric
 | `cardkingdom` | USD      | Card Kingdom's Near Mint **retail** price, from the same feed [sell mode](/public-site/sell/) uses. |
 | `cardhoarder` | TIX      | Scryfall's MTGO tix price (Cardhoarder).                                                            |
 
-### The Prices selector
+### The Prices dropdown
 
-When **both** USD stores are enabled, every list page's toolbar gets a **Prices** selector that switches the USD view between TCGplayer and Card Kingdom retail. Switching re-prices every card, total, sort, and grouping on the page and clears the price filter, just as a currency switch does.
+Picking a store in the header re-prices every card, total, sort, and grouping on the page and clears the price filter. The index tiles, Quick Switch, and Combine Lists rows follow it too: the build bakes each list's totals for every store it offers, Card Kingdom included. The [admin site](/admin/dashboard/) has the same dropdown in its header, opening on the same configured store.
 
-The choice is part of the [shareable view URL](/public-site/filtering/#sharing-a-configured-view) as `prices=cardkingdom` or `prices=tcgplayer`. Only an _explicit_ choice is written: the untouched default stays out of the URL, and so does the Card Kingdom default that sell mode applies (`sell=1` reproduces it). An explicit TCGplayer pick inside sell mode is written, so a shared link can show "offer versus market price". The choice survives navigation for the session.
+The USD store choice (TCGplayer or Card Kingdom) is part of the [shareable view URL](/public-site/filtering/#sharing-a-configured-view) as `prices=cardkingdom` or `prices=tcgplayer`. Only an _explicit_ choice is written: the untouched default stays out of the URL, and so does the Card Kingdom default that sell mode applies (`sell=1` reproduces it). An explicit TCGplayer pick inside sell mode is written, so a shared link can show "offer versus market price". The choice survives navigation for the session.
 
-The same selector appears inside the dialogs that show one card's printings: the card modal's **Other Printings** grid, the trade/edit printing picker, and the add-card dialog's printing step. It is one choice, not a second one: switching it in a dialog switches the page behind it, and vice versa. Each printing there is priced under the selected store. A printing sold in more than one finish lists its **alternate finishes underneath** its main price. The grid's price sort follows the selected store too.
+When both USD stores are enabled, a USD-store selector also appears inside the dialogs that show one card's printings: the card modal's **Other Printings** grid, the trade/edit printing picker, and the add-card dialog's printing step. It is the same choice as the header's: switching it in a dialog switches the page behind it, and vice versa. Each printing there is priced under the selected store. A printing sold in more than one finish lists its **alternate finishes underneath** its main price. The grid's price sort follows the selected store too.
 
 ### Card Kingdom prices never fall back
 

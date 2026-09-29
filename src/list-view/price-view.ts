@@ -130,7 +130,7 @@ export function activePriceSource(currency: PriceCurrency): PriceSource {
 }
 
 /**
- * Whether the current USD source is an explicit choice (toolbar, shared URL)
+ * Whether the current USD source is an explicit choice (the header's store picker, a dialog's selector, a shared URL)
  * rather than sell mode's courtesy default. The URL sync writes the source
  * only when this is true — a courtesy default must not be baked into a shared
  * link and then promoted to an explicit pick when the link is opened.
@@ -158,7 +158,17 @@ export function offeredCurrencies(available: readonly PriceCurrency[]): PriceCur
 }
 
 /**
- * Whether the toolbar offers a source choice at all: only USD has one, and
+ * The stores the header's picker offers: every enabled store quoting in one of
+ * the deployment's offered currencies, grouped by currency in canonical order
+ * (so the two USD stores sit together).
+ */
+export function offeredPriceSources(available: readonly PriceCurrency[]): PriceSource[] {
+  const current = enabled()
+  return offeredCurrencies(available).flatMap((currency) => sourcesForCurrency(currency, current))
+}
+
+/**
+ * Whether a dialog offers a USD-source choice at all: only USD has one, and
  * only when more than one USD store is enabled.
  */
 export function offersUsdSourceChoice(currency: PriceCurrency): boolean {
@@ -166,7 +176,7 @@ export function offersUsdSourceChoice(currency: PriceCurrency): boolean {
 }
 
 /**
- * Pick a USD source. `explicit` marks a deliberate choice (the toolbar
+ * Pick a USD source. `explicit` marks a deliberate choice (the header
  * selector, a shared URL's param) that sell mode's courtesy default must not
  * override; the caller owns the epoch bump for a user click, exactly like the
  * currency selector.

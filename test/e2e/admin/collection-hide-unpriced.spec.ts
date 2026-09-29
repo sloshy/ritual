@@ -55,7 +55,9 @@ test.describe('Collection Editor – Hide Unpriced', () => {
     await expect(pricedRow.locator('.list-printing')).toHaveText('(TST:10 · NM)')
   })
 
-  test('prices render in the configured default store’s currency', async ({ page }) => {
+  test('prices open on the configured default store and follow the header picker', async ({
+    page,
+  }) => {
     // MOCK_CONFIG carries defaultPriceSource: 'cardmarket' (EUR); with the config API mocked,
     // a fresh editor mount must price the row in euros instead of USD.
     await mockConfigApi(page)
@@ -73,6 +75,12 @@ test.describe('Collection Editor – Hide Unpriced', () => {
       .locator('.card-list')
       .filter({ has: page.getByText('Priced Card', { exact: true }) })
     await expect(pricedRow.locator('.list-price')).toHaveText('€2.75')
+
+    // The header's store picker re-prices the open editor in place.
+    const picker = page.locator('#price-store')
+    await expect(picker).toHaveValue('cardmarket')
+    await picker.selectOption('tcgplayer')
+    await expect(pricedRow.locator('.list-price')).toHaveText('$3.50')
   })
 
   test('disabling Hide Unpriced restores unpriced cards', async ({ page }) => {

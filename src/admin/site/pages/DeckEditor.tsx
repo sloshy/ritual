@@ -24,7 +24,7 @@ import { useDeckEditController, DeckEditorBody } from '../../../site/editor/Deck
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
 import { createAdminSwapSourceProvider } from '../swap-sources'
-import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { usePriceView } from '../hooks/usePriceView'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
 import { ListLabelsModal } from '../components/ListLabelsModal'
@@ -59,7 +59,7 @@ type DeckDataResponse = {
 export function DeckEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('deck', 'admin')
   const lists = useAdminLists()
-  const defaultCurrency = useDefaultCurrency()
+  const { currency: priceCurrency } = usePriceView()
   const cardArt = useCardArt('deck')
   // The deck's default card labels, seeded from each load and updated by the
   // Labels modal's save (front matter is not part of the card-change pipeline).
@@ -84,7 +84,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
   const [imageOpen, setImageOpen] = createSignal(false)
 
   const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
-    currency: defaultCurrency,
+    currency: priceCurrency,
     fetchList: () => fetchAdminJson('/api/decks'),
     extractListItems: (r) => (r as DeckListResponse).decks ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/deck/${slug}`, signal),

@@ -20,7 +20,6 @@ import { BottomSheet } from '../ui/BottomSheet'
 import { selectionModeActive, toggleSelectionMode } from './selection-mode'
 import type { SellModeControl } from '../list-view/sell-mode'
 import { buylistLoading } from '../list-view/buylist-quotes'
-import { PriceSourceSelect } from '../list-view/PriceSourceSelect'
 import { pricesEnabled } from '../list-view/price-view'
 import { BUYERS, buyerName, parseBuyerId, type BuyerId } from '../buylist'
 import type { MessageKey } from '../i18n/messages/en'
@@ -341,20 +340,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
     </Show>
   )
 
-  // The price-source selector: which store the page's USD prices come from. The
-  // same control the card modal and the printing pickers render — one shared
-  // component over one module-level signal, so switching it anywhere switches
-  // it everywhere.
-  const sourceControls = (
-    <PriceSourceSelect
-      currency={props.currency}
-      id="price-source"
-      groupClass="toolbar-group"
-      labelClass="toolbar-label"
-      selectClass="toolbar-select"
-    />
-  )
-
   // With prices hidden (`priceSources: []`), the price grouping and sort make
   // no sense — every value would be 0 — so their options disappear with the
   // rest of the price UI. The buylist (sell mode) options are money the buyer
@@ -523,7 +508,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
                 {t('site.toolbar.sortSheet')} <span aria-hidden="true">▾</span>
               </button>
               {selectModeToggle()}
-              {sourceControls}
               {sellControls}
               {filterMenu}
               {props.selectionMenu}
@@ -589,7 +573,6 @@ export const Toolbar: Component<ToolbarProps> = (props) => {
           {reverseGroupsToggle()}
           {extraToggleButtons()}
           {selectModeToggle()}
-          {sourceControls}
           {sellControls}
           {filterMenu}
           {props.selectionMenu}

@@ -17,7 +17,7 @@ import { applyWantedChangePrinting, wantedPrintingOf } from '../../../editor/wan
 import { WantedEditorBody } from '../../../site/editor/WantedEditorBody'
 import { adminSearch, fetchAdminJson, fetchCardPrice } from '../editor-backend'
 import { useAdminLists, listInfosToNamedRefs, moveTargetsExcluding } from '../move-targets'
-import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { usePriceView } from '../hooks/usePriceView'
 import { type EditorSlugProps, useSlugSync } from '../hooks/useSlugSync'
 import { useCardArt } from '../hooks/useCardArt'
 import { ListImageModal } from '../components/ListImageModal'
@@ -48,7 +48,7 @@ type WantedListDataResponse = {
 export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const defaults = useEditorDefaults('wanted', 'admin')
   const lists = useAdminLists()
-  const defaultCurrency = useDefaultCurrency()
+  const { currency: priceCurrency } = usePriceView()
   const cardArt = useCardArt('wanted')
   const [ckCards, setCkCards] = createSignal<CardKingdomCards | undefined>(undefined)
   // The list's cover image, seeded from each load and updated by the Cover
@@ -67,7 +67,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
   const buildConfig = (
     cardActions: EntryCardDataActions,
   ): ListEditorConfig<WantedListCardEntry[]> => ({
-    currency: defaultCurrency,
+    currency: priceCurrency,
     fetchList: () => fetchAdminJson('/api/wanted'),
     extractListItems: (r) => (r as WantedListListResponse).wantedLists ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/wanted/${slug}`, signal),

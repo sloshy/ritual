@@ -100,9 +100,9 @@ Use any combination of four store names. The stores also decide which **currenci
 | `cardkingdom` | Card Kingdom's Near Mint **retail** price | Read from the daily pricelist feed [sell mode](/public-site/sell/) also uses. Enabling it makes builds and servers download and refresh that ~70&nbsp;MB feed, like `site.sellMode` does, and opens the same buylist API routes. |
 | `cardhoarder` | Scryfall's MTGO tix price (Cardhoarder)   | Already in the card cache. Enable it to offer TIX on the sites.                                                                                                                                                                  |
 
-With both USD stores enabled, list pages gain a **Prices** source selector; see [Prices on the site](/public-site/prices/).
+The sites' header **Prices** dropdown offers each enabled store, and switches the whole site (index tiles included) to it; see [Prices on the site](/public-site/prices/).
 
-An **empty array** (`config set priceSources --remove tcgplayer`) hides every price surface on the sites: per-card prices, totals, the price sort/filter/grouping, and the currency selector. The CLI [`price`](/commands/price/) command (which has its own `--source` flag) and sell mode are unaffected.
+An **empty array** (`config set priceSources --remove tcgplayer`) hides every price surface on the sites: per-card prices, totals, the price sort/filter/grouping, and the header's store picker. The CLI [`price`](/commands/price/) command (which has its own `--source` flag) and sell mode are unaffected.
 
 ```bash
 ritual config set priceSources tcgplayer cardkingdom

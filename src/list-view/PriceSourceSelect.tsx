@@ -1,12 +1,12 @@
 /**
- * The price-source selector: which store the USD prices in view come from.
+ * The in-dialog price-source selector: which store the USD prices in view come
+ * from, offered inside the card modal's other-printings grid and the printing
+ * pickers (the header's `PriceStoreSelect` is the page-level control).
  *
- * One component rather than one control per surface, because the choice is one
- * module-level signal (`price-view`'s `usdSource`): the list toolbar, the card
- * modal's other-printings grid and the printing pickers all render this, and
- * switching it in any of them switches it in all of them — which is exactly the
- * "the picker follows the page" behaviour a second, local copy of the state
- * would break.
+ * One component rather than one control per dialog, because the choice is one
+ * module-level signal (`price-view`'s `usdSource`): switching it in a dialog
+ * switches the header and the page too — which is exactly the "the picker
+ * follows the page" behaviour a second, local copy of the state would break.
  *
  * Renders nothing unless there is a real choice to make ({@link
  * offersUsdSourceChoice}: the USD view with more than one USD store enabled),
@@ -14,7 +14,7 @@
  *
  * Switching bumps the currency epoch exactly as a currency switch does: every
  * price on the page just changed, so price filters pinned to the old figures
- * must be cleared whether the change came from the toolbar or from a dialog.
+ * must be cleared whether the change came from the header or from a dialog.
  */
 
 import { For, Show, type Component } from 'solid-js'
@@ -31,11 +31,10 @@ import {
 
 /**
  * The mounted instances, enumerated so a duplicate id is a compile error rather
- * than two controls sharing a `<label for>`. The toolbar's and a dialog's are on
- * the page at the same time.
+ * than two controls sharing a `<label for>`.
  */
 export type PriceSourceSelectId =
-  'price-source' | 'card-modal-price-source' | 'trade-picker-price-source' | 'add-card-price-source'
+  'card-modal-price-source' | 'trade-picker-price-source' | 'add-card-price-source'
 
 export type PriceSourceSelectProps = {
   /** The currency in view; the control hides itself outside USD. */

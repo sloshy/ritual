@@ -114,7 +114,7 @@ export const MOCK_CONFIG = {
     userAgentDenyList: [],
   },
   collectionSync: { pullTarget: 'Inbox' },
-  priceSources: ['tcgplayer'],
+  priceSources: ['tcgplayer', 'cardmarket'],
   defaultCategories: ['Ramp', 'Draw', 'Removal'],
 } satisfies RitualConfig
 

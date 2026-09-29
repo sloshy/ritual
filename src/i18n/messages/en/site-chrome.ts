@@ -31,9 +31,6 @@ export const siteChromeMessages = {
 
   // ── Header utility controls ───────────────────────────────────────────
   'site.header.pricesLabel': 'Prices:',
-  'site.header.currencyUsd': 'USD ($)',
-  'site.header.currencyEur': 'EUR (€)',
-  'site.header.currencyTix': 'TIX',
   'site.header.editModeEdit': 'Edit',
   'site.header.editModeDone': 'Done',
   'site.header.editModeLeave': 'Leave edit mode',

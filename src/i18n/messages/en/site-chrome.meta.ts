@@ -16,9 +16,6 @@ const CHIP_MAX_LEN = 18
  */
 const MODE_MAX_LEN = 10
 
-const CURRENCY_CONTEXT =
-  "A row of the public site header's currency picker, choosing which of the prices baked into the site are shown. The three-letter code is an ISO 4217 currency and never translates; the symbol in parentheses may follow local convention."
-
 const EDIT_MODE_CONTEXT =
   "Tooltip on the public site's edit-mode button. Edit mode is local-only: changes are held in the browser and exported as a change file, never written to the server."
 
@@ -59,13 +56,8 @@ export const siteChromeMeta = {
   // ── Header utility controls ───────────────────────────────────────────
   'site.header.pricesLabel': {
     description:
-      "Label beside the header control that picks which currency prices are shown in. Includes its trailing colon so the spacing convention is the translator's to set (French, for instance, wants a space before it).",
+      "Label beside the header control that picks which store (and so which currency) prices are shown from. Includes its trailing colon so the spacing convention is the translator's to set (French, for instance, wants a space before it).",
     maxLen: CHIP_MAX_LEN,
-  },
-  'site.header.currencyUsd': { description: CURRENCY_CONTEXT },
-  'site.header.currencyEur': { description: CURRENCY_CONTEXT },
-  'site.header.currencyTix': {
-    description: `${CURRENCY_CONTEXT} "TIX" is Magic Online event tickets, an in-game currency with no ISO code and no symbol.`,
   },
   'site.header.editModeEdit': {
     description: 'Header button that turns on local edit mode. Verb, imperative.',

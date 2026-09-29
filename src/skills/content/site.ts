@@ -334,12 +334,14 @@ Kingdom's NM retail price, read off the same baked buylist quotes sell mode uses
 also decide the site's **currencies**: a build or server offers exactly the currencies an
 enabled store quotes in (so tix appears only with \`cardhoarder\`). \`build-site --currencies\`
 can only narrow that set (a list naming no store-backed currency exits 2, and \`serve --api\`
-refuses the flag), and the header's currency selector appears only when more than one is
-offered. With more than one USD store enabled, list pages
-grow a **Prices** selector (USD views only; EUR is always Cardmarket) whose choice is
-shareable in the view URL (\`prices=cardkingdom\`); switching it clears price filters like a
-currency switch. The same selector appears in the card modal's **Other Printings** grid and
-in the printing pickers (trade/edit, and the add-card dialog's printing step) — one shared
+refuses the flag). The header's **Prices** dropdown (on the public and admin sites alike)
+picks the **store** — and so the currency — every price comes from, across list pages, the
+index tiles, Quick Switch and Combine Lists (the build bakes each list's totals per store,
+Card Kingdom included); it appears only when more than one store is offered, and opens on
+the configured \`defaultPriceSource\` when offered. A USD-store pick is shareable in the view
+URL (\`prices=cardkingdom\`); switching stores clears price filters. With both USD stores
+enabled, a USD-store selector also appears in the card modal's **Other Printings** grid and
+in the printing pickers (trade/edit, and the add-card dialog's printing step) — the same
 choice, so switching it in a dialog switches the page behind it. Each printing there is
 priced under the selected store, with its alternate finishes listed underneath, and the
 grid's price sort follows the store too. Under the Card Kingdom view a printing CK does not sell shows no price —
@@ -358,7 +360,7 @@ entering sell mode defaults the store to Card Kingdom, turning sell mode on can 
 which printing a name-only card shows — and therefore its buylist offer and the Buylist
 total. An **empty** \`priceSources\` array hides every
 price surface on the sites — per-card prices, totals, price sort/filter/grouping, and the
-currency selector — while \`ritual price\` and sell mode are unaffected:
+header's store picker — while \`ritual price\` and sell mode are unaffected:
 
 \`\`\`bash
 ritual config set priceSources tcgplayer cardkingdom   # offer both USD stores

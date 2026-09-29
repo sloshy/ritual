@@ -1230,6 +1230,10 @@ function makeSellBinderIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
         name: 'Sell Binder',
         cardCount: 3,
         totalPrice: 60.0,
+        // The Card Kingdom figures the build bakes beside the Scryfall ones:
+        // the binder's baked CK retail (8 + 18), the unlisted card missing.
+        totalPriceCardKingdom: 26.0,
+        missingPriceCountCardKingdom: 1,
       }),
     ],
     ...overrides,

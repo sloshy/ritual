@@ -2,7 +2,7 @@ import { type JSX, Show, Switch, Match, For, createSignal, createMemo, onCleanup
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useT, useTKey } from '../../../ui/i18n'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
-import { useDefaultCurrency } from '../hooks/useDefaultCurrency'
+import { usePriceView } from '../hooks/usePriceView'
 import { useAdminConfigDefaults } from '../hooks/useAdminConfigDefaults'
 import type { CardPrintingOptions } from '../../../changes/change-event'
 import type { CardContextInfo } from '../../../list-view/card-context'
@@ -51,7 +51,7 @@ type MoveFlow = {
 export function MoveCards(): JSX.Element {
   const t = useT()
   const tKey = useTKey()
-  const defaultCurrency = useDefaultCurrency()
+  const { currency: priceCurrency } = usePriceView()
   useAdminConfigDefaults()
   const session = useMoveSession()
   // One conversion for the three list views' share filters, so the array keeps
@@ -342,7 +342,7 @@ export function MoveCards(): JSX.Element {
                 modalCardName={modalKey()}
                 onOpenModal={setModalKey}
                 onCloseModal={closeModal}
-                currency={defaultCurrency()}
+                currency={priceCurrency()}
                 onCardMove={handleCardMove}
                 shareLists={shareLists()}
               />
@@ -364,7 +364,7 @@ export function MoveCards(): JSX.Element {
                 modalCardKey={modalKey()}
                 onOpenModal={setModalKey}
                 onCloseModal={closeModal}
-                currency={defaultCurrency()}
+                currency={priceCurrency()}
                 onCardMove={handleCardMove}
                 shareLists={shareLists()}
               />
@@ -386,7 +386,7 @@ export function MoveCards(): JSX.Element {
                 modalCardKey={modalKey()}
                 onOpenModal={setModalKey}
                 onCloseModal={closeModal}
-                currency={defaultCurrency()}
+                currency={priceCurrency()}
                 onCardMove={handleCardMove}
                 shareLists={shareLists()}
               />

@@ -7,7 +7,7 @@
  * the interface. A Japanese interface listing English printings is a valid,
  * expected combination.
  *
- * Module-level signals, like `useDefaultCurrency`: every page shares one value,
+ * Module-level signals, like `usePriceView`: every page shares one value,
  * and the header's switcher relabels the whole app.
  */
 

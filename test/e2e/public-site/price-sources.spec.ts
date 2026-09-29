@@ -7,12 +7,12 @@ import { gotoList } from '../helpers/list-ui'
 import type { SiteIndex } from '../../../src/list/site-data'
 
 /**
- * The price-source selector on the public site: with both USD stores enabled
- * (`priceSources: ["tcgplayer", "cardkingdom"]`) a **Prices** toolbar select
- * appears, switching it re-prices the page from the baked Card Kingdom retail
- * quotes (with honest N/A for printings CK does not sell), and the choice
- * rides in the shareable URL. With `priceSources: []` every price surface
- * disappears.
+ * The header's price-store picker on the public site: with both USD stores
+ * enabled (`priceSources: ["tcgplayer", "cardkingdom"]`) the **Prices** select
+ * offers each store, switching it re-prices the page from the baked Card Kingdom
+ * retail quotes (with honest N/A for printings CK does not sell), and the USD
+ * choice rides in the shareable URL. With `priceSources: []` every price
+ * surface disappears.
  *
  * The store logic itself is pinned in test/unit/site/price-view.test.ts —
  * this spec covers the state transitions the UI performs with it. The mocked
@@ -20,7 +20,7 @@ import type { SiteIndex } from '../../../src/list/site-data'
  * $10) and the unlisted card no quote at all (Scryfall $30).
  */
 
-const SOURCE_SELECT = '#price-source'
+const SOURCE_SELECT = '#price-store'
 
 async function gotoSellBinder(page: Page): Promise<void> {
   await gotoList(page, '#/collection/sell-binder')
@@ -36,7 +36,7 @@ function row(page: Page, name: string) {
   return page.locator('.card-list', { hasText: name })
 }
 
-test.describe('price-source selector', () => {
+test.describe('header price-store picker', () => {
   test('switching to Card Kingdom re-prices from baked retail and updates the URL', async ({
     page,
   }) => {
@@ -71,6 +71,27 @@ test.describe('price-source selector', () => {
     await expect.poll(() => page.evaluate(() => window.location.hash)).toContain('prices=tcgplayer')
   })
 
+  test('the index tiles follow the picked store, and the pick survives navigation', async ({
+    page,
+  }) => {
+    await mockPublicSiteCollectionForPriceSources(page)
+    await page.goto('#/collections')
+    const tile = page
+      .locator('.card-grid-link', { hasText: 'Sell Binder' })
+      .locator('.cover-prices')
+    await expect(tile).toHaveText('$60.00')
+
+    // The index reads the build's per-store summary figures, so the tile
+    // re-prices at Card Kingdom without opening the list.
+    await page.locator(SOURCE_SELECT).selectOption('cardkingdom')
+    await expect(tile).toHaveText('At least $26.00 (missing 1 card)')
+
+    // One store for the whole app: the list page opens on it.
+    await page.locator('.card-grid-link', { hasText: 'Sell Binder' }).click()
+    await expect(page.locator(SOURCE_SELECT)).toHaveValue('cardkingdom')
+    await expect(page.locator('.page-stats')).toContainText('$26.00')
+  })
+
   test('a shared URL restores the Card Kingdom view', async ({ page }) => {
     await mockPublicSiteCollectionForPriceSources(page)
     await gotoList(page, '#/collection/sell-binder?prices=cardkingdom')
@@ -79,19 +100,19 @@ test.describe('price-source selector', () => {
     await expect(row(page, 'Bought Card').locator('.list-price')).toHaveText('$8.00')
   })
 
-  test('with a single store there is no selector', async ({ page }) => {
+  test('with a single store there is no picker', async ({ page }) => {
     await mockPublicSiteCollectionForPriceSources(page, { priceSources: ['tcgplayer'] })
     await gotoSellBinder(page)
     await expect(page.locator('.toolbar')).toBeVisible()
     await expect(page.locator(SOURCE_SELECT)).toHaveCount(0)
   })
 
-  test('the currency selector offers only store-backed currencies, and hides with one', async ({
+  test('the picker offers each enabled store of an offered currency, and hides with one', async ({
     page,
   }) => {
-    const currencySelect = page.locator('.currency-select')
+    const storeSelect = page.locator(SOURCE_SELECT)
     const optionValues = () =>
-      currencySelect
+      storeSelect
         .locator('option')
         .evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))
     const offer = async (priceSources: SiteIndex['priceSources']): Promise<void> => {
@@ -103,17 +124,18 @@ test.describe('price-source selector', () => {
       await page.reload()
     }
 
-    // Tix is offered with Cardhoarder and dropped without it.
+    // Tix is offered with Cardhoarder and dropped without it; the two USD
+    // stores sit together, ahead of the other currencies.
     await offer(['tcgplayer', 'cardhoarder'])
-    await expect.poll(optionValues).toEqual(['usd', 'tix'])
-    await offer(['tcgplayer', 'cardmarket'])
-    await expect.poll(optionValues).toEqual(['usd', 'eur'])
+    await expect.poll(optionValues).toEqual(['tcgplayer', 'cardhoarder'])
+    await offer(['tcgplayer', 'cardmarket', 'cardkingdom'])
+    await expect.poll(optionValues).toEqual(['tcgplayer', 'cardkingdom', 'cardmarket'])
 
     // USD alone: nothing to choose, so no selector, while prices still render.
     await offer(['tcgplayer'])
     await switchToListView(page)
     await expect(row(page, 'Bought Card').locator('.list-price')).toHaveText('$10.00')
-    await expect(currencySelect).toHaveCount(0)
+    await expect(storeSelect).toHaveCount(0)
   })
 
   test('an empty priceSources hides every price surface', async ({ page }) => {
@@ -121,10 +143,10 @@ test.describe('price-source selector', () => {
     await gotoSellBinder(page)
     await switchToListView(page)
 
-    // Cards render, but without prices; totals and the currency selector are gone.
+    // Cards render, but without prices; totals and the store picker are gone.
     await expect(page.locator('.card-list').first()).toBeVisible()
     await expect(page.locator('.list-price')).toHaveCount(0)
-    await expect(page.locator('.currency-selector')).toHaveCount(0)
+    await expect(page.locator('.price-store-selector')).toHaveCount(0)
     // Visible first, so the money assertion cannot pass vacuously on a page
     // that failed to render its stats line at all.
     await expect(page.locator('.page-stats')).toBeVisible()
@@ -200,7 +222,7 @@ test.describe('per-store representative printings', () => {
     await expect(tile('DFN:4').locator('.printing-price-alt')).toHaveText('$15.00 (foil)')
     await expect(tile('TST:1').locator('.printing-price-main')).toHaveText('N/A')
 
-    // One store, one signal: the page's own selector moved with it.
+    // One store, one signal: the header's picker moved with it.
     await page.locator('.modal-close').click()
     await expect(page.locator(SOURCE_SELECT)).toHaveValue('cardkingdom')
 

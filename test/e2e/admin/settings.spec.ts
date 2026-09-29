@@ -171,8 +171,8 @@ test.describe('Settings Page', () => {
     page,
   }) => {
     const main = page.locator('main')
-    // The fixture stores ['tcgplayer']; enabling Card Kingdom must persist
-    // both, in canonical order regardless of click order.
+    // The fixture stores ['tcgplayer', 'cardmarket']; enabling Card Kingdom
+    // must persist all three, in canonical order regardless of click order.
     await main.locator('input[name="priceSource-cardkingdom"]').check()
 
     const requestPromise = page.waitForRequest(
@@ -181,7 +181,7 @@ test.describe('Settings Page', () => {
     await main.locator('button:has-text("Save")').click()
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
-    expect(body.priceSources).toEqual(['tcgplayer', 'cardkingdom'])
+    expect(body.priceSources).toEqual(['tcgplayer', 'cardmarket', 'cardkingdom'])
   })
 
   test('editing Default Categories persists defaultCategories as a comma-separated vocabulary', async ({

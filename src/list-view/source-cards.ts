@@ -18,7 +18,7 @@
  * — a reader who chose Card Kingdom and then switched to EUR is looking at
  * Cardmarket prices, with no source selector even on screen to undo a CK
  * printing pick with. Every function reads {@link activeUsdSource}, so a memo
- * calling one re-runs when the reader flips the toolbar's source selector.
+ * calling one re-runs when the reader flips the header's store picker.
  */
 
 import type { PriceCurrency } from '../pricing/price-currency'

@@ -419,12 +419,39 @@
   border-color: var(--accent);
 }
 
+/* ===== Header selects =====
+   The compact labelled dropdowns in both sites' headers: the price-store picker
+   (src/list-view/PriceStoreSelect.tsx) and the language switcher. Shared here
+   because the admin header renders both too. */
+.currency-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.currency-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.currency-select {
+  background-color: var(--bg-panel);
+  color: var(--text-body);
+  border-radius: 0.25rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--border);
+  outline: none;
+  font-size: 0.75rem;
+
+  &:focus {
+    border-color: var(--border-focus);
+  }
+}
+
 /* ===== Price source select =====
-   The shared price-store dropdown rendered by src/site/PriceSourceSelect.tsx.
-   One control over one module-level signal, so it appears on the list toolbar,
-   in the card modal's other-printings grid and in the printing pickers. The
-   toolbar passes its own `toolbar-*` classes on top of these, which is why the
-   base rules stay layout-only where the toolbar has an opinion. */
+   The in-dialog USD-source dropdown rendered by src/list-view/PriceSourceSelect.tsx:
+   one control over one module-level signal, in the card modal's other-printings
+   grid and in the printing pickers. */
 .price-source-control {
   display: flex;
   align-items: center;
