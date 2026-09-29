@@ -11,44 +11,27 @@
 
 import { For, Show, batch, createMemo, type Component } from 'solid-js'
 import { useT } from '../ui/i18n'
-import type { PriceCurrency } from '../pricing/price-currency'
-import {
-  PRICE_SOURCE_LABELS,
-  isPriceSource,
-  isUsdPriceSource,
-  sourceCurrency,
-  type PriceSource,
-} from '../pricing/price-source'
+import { PRICE_SOURCE_LABELS, isPriceSource, type PriceSource } from '../pricing/price-source'
 import { notifyCurrencyChanged } from './currency-epoch'
-import { activePriceSource, offeredPriceSources, selectUsdSource } from './price-view'
+import { activeStore, offeredPriceSources, selectStore } from './price-view'
 
 /**
- * Switch the whole app to a store: its currency, and for a USD store the USD
- * source (an explicit pick, which sell mode's courtesy default never
- * overrides). Batched with the currency epoch so price filters pinned to the
- * old figures clear in the same pass, exactly as a currency switch did.
+ * Switch the whole app to a store (and so to its currency) as an explicit
+ * pick, which neither a config re-seed nor sell mode's courtesy default
+ * overrides. Batched with the currency epoch so price filters pinned to the
+ * old figures clear in the same pass.
  */
-export function pickPriceStore(
-  source: PriceSource,
-  setCurrency: (currency: PriceCurrency) => void,
-): void {
+export function pickPriceStore(source: PriceSource): void {
   batch(() => {
-    if (isUsdPriceSource(source)) selectUsdSource(source)
-    setCurrency(sourceCurrency(source))
+    selectStore(source)
     notifyCurrencyChanged()
   })
 }
 
-export type PriceStoreSelectProps = {
-  /** The currency in view; with the active USD source it names the selected store. */
-  currency: PriceCurrency
-  onChange: (source: PriceSource) => void
-}
-
-export const PriceStoreSelect: Component<PriceStoreSelectProps> = (props) => {
+export const PriceStoreSelect: Component = () => {
   const t = useT()
   const offered = createMemo(() => offeredPriceSources())
-  const selected = (): PriceSource => activePriceSource(props.currency)
+  const selected = activeStore
   return (
     <Show when={offered().length > 1}>
       <div class="currency-selector price-store-selector">
@@ -63,7 +46,7 @@ export const PriceStoreSelect: Component<PriceStoreSelectProps> = (props) => {
             // The options below are the only values this can produce, but go
             // through the guard rather than asserting the union onto a string.
             const next = e.currentTarget.value
-            if (isPriceSource(next) && next !== selected()) props.onChange(next)
+            if (isPriceSource(next) && next !== selected()) pickPriceStore(next)
           }}
         >
           {/* `selected` markers, not just the select's `value` binding: the

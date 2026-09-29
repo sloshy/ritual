@@ -498,7 +498,9 @@ export async function buildDeckArtifacts(
       priceOf(cardData.cheapest[cur]?.[line.entry.name], (card) => getCardPrice(card, cur)),
   }))
   if (cardKingdomData) {
-    // Off the detail's baked quotes: exactly what the Card Kingdom view reads.
+    // Off the detail's baked quotes, at the printing's display finish: exactly
+    // what the Card Kingdom view reads — the deck page prices every line
+    // finish-blind (`sitePrice`), so a `[foil]` token does not move it here.
     const ckRetail = (card: ScryfallCard) => bakedCardKingdomRetail(detail.buylist, card, undefined)
     stores.push({
       source: 'cardkingdom',

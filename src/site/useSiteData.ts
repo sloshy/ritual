@@ -1,5 +1,5 @@
 import { batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
-import type { Accessor, Setter } from 'solid-js'
+import type { Accessor } from 'solid-js'
 import type {
   DeckSummary,
   CollectionSummary,
@@ -7,7 +7,6 @@ import type {
   SiteIndex,
 } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { sourceCurrency } from '../pricing/price-source'
 import { setSearchDebounceMs } from '../config/search-debounce'
 import { setDefaultCategories } from '../config/default-categories'
 import { setDefaultLanguage } from '../editor/default-language'
@@ -19,7 +18,7 @@ import {
   setApiBase,
 } from '../list-view/api-base'
 import { setBuylistQuotesOnline } from '../list-view/buylist-quotes'
-import { setDefaultPriceSource, setEnabledPriceSources } from '../list-view/price-view'
+import { activeCurrency, seedPriceView } from '../list-view/price-view'
 import { isAbortError } from '../util/errors'
 import {
   currentLocale,
@@ -40,7 +39,6 @@ export type UseSiteDataResult = {
   wantedListList: Accessor<WantedListSummary[] | null>
   useScryfallImgUrls: Accessor<boolean>
   currency: Accessor<PriceCurrency>
-  setCurrency: Setter<PriceCurrency>
   pricesDate: Accessor<string | null>
   /**
    * Whether sell mode is offered: the site was built with `site.sellMode` on.
@@ -93,15 +91,11 @@ export function useSiteData(): UseSiteDataResult {
   const [collectionList, setCollectionList] = createSignal<CollectionSummary[] | null>(null)
   const [wantedListList, setWantedListList] = createSignal<WantedListSummary[] | null>(null)
   const [useScryfallImgUrls, setUseScryfallImgUrls] = createSignal(true)
-  const [currency, setCurrency] = createSignal<PriceCurrency>('usd')
   const [pricesDate, setPricesDate] = createSignal<string | null>(null)
   const [sellModeConfigured, setSellModeConfigured] = createSignal(false)
   const [uiLocale, setUiLocale] = createSignal<LocaleTag>(currentLocale())
   const [availableLocales, setAvailableLocales] = createSignal<LocaleTag[]>([DEFAULT_LOCALE])
 
-  // The configured default currency is applied once; live refetches must not
-  // clobber a currency the user has since picked.
-  let currencyApplied = false
   // Same for the language: the index carries the site's baked default, and a
   // refetch must not undo a switch the user made since.
   let localeApplied = false
@@ -115,10 +109,6 @@ export function useSiteData(): UseSiteDataResult {
       setCollectionList(data.collections ?? [])
       setWantedListList(data.wantedLists ?? [])
       setUseScryfallImgUrls(data.useScryfallImgUrls)
-      if (!currencyApplied) {
-        setCurrency(sourceCurrency(data.defaultPriceSource))
-        currencyApplied = true
-      }
       if (data.pricesDate) setPricesDate(data.pricesDate)
       if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
       if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
@@ -131,12 +121,9 @@ export function useSiteData(): UseSiteDataResult {
       }
       // Absent on sites built before sell mode existed, which reads as off.
       setSellModeConfigured(data.sellMode === true)
-      // Absent on sites built before price sources existed, which reads as the
-      // default (TCGplayer only). An explicit empty array hides all price UI.
-      setEnabledPriceSources(data.priceSources)
-      // After the enabled list, like the admin's seed: the default is resolved
-      // against the stores just written.
-      setDefaultPriceSource(data.defaultPriceSource)
+      // The stores and the one to open on; the currency in view follows the
+      // store (a pick outlives every refetch). An empty list hides all price UI.
+      seedPriceView({ stores: data.priceSources, defaultSource: data.defaultPriceSource })
     })
   }
 
@@ -261,8 +248,7 @@ export function useSiteData(): UseSiteDataResult {
     collectionList,
     wantedListList,
     useScryfallImgUrls,
-    currency,
-    setCurrency,
+    currency: activeCurrency,
     pricesDate,
     // The configured flag alone: each list's detail carries its own baked
     // quotes, so sell mode needs no backend to answer for them.

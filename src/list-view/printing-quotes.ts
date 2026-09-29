@@ -24,7 +24,7 @@
 import { createEffect, untrack, type Accessor } from 'solid-js'
 import { buylistQuotesOnline, buylistRequestFor, requestBuylistQuotes } from './buylist-quotes'
 import { printingFinishPairs } from '../card/card-printing'
-import { activeUsdSource } from './price-view'
+import { activeStore } from './price-view'
 import type { BuylistQuoteRequest } from '../buylist'
 import type { ScryfallCard } from '../scryfall/types'
 
@@ -54,7 +54,7 @@ export function printingQuoteRequests(printings: readonly ScryfallCard[]): Buyli
  */
 export function usePrintingQuotes(printings: Accessor<readonly ScryfallCard[]>): void {
   createEffect(() => {
-    if (activeUsdSource() !== 'cardkingdom' || !buylistQuotesOnline()) return
+    if (activeStore() !== 'cardkingdom' || !buylistQuotesOnline()) return
     const requests = printingQuoteRequests(printings())
     if (requests.length === 0) return
     // Untracked: `requestBuylistQuotes` reads the quote map synchronously before

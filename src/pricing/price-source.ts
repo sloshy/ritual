@@ -234,22 +234,6 @@ export function withCardKingdomFeed(siteStores: SiteStores, hasFeed: boolean): S
   )
 }
 
-/**
- * The currency a price view should settle on when the offered stores change
- * under it: the current one while some offered store still prices in it, else
- * the default store's (when offered), else the first offered store's. Both
- * sites apply it, so they recover the same way.
- */
-export function settleCurrency(
-  current: PriceCurrency,
-  stores: readonly PriceSource[],
-  defaultSource: PriceSource,
-): PriceCurrency {
-  if (stores.some((source) => sourceCurrency(source) === current)) return current
-  const fallback = stores.includes(defaultSource) ? defaultSource : stores[0]
-  return fallback === undefined ? current : sourceCurrency(fallback)
-}
-
 export function isSiteStoresError(value: SiteStores | SiteStoresError): value is SiteStoresError {
   return 'error' in value
 }

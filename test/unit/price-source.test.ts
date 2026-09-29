@@ -9,7 +9,6 @@ import {
   withPriceSource,
   resolveSiteStores,
   isSiteStoresError,
-  settleCurrency,
   withCardKingdomFeed,
   sourceCurrency,
   sourcesForCurrency,
@@ -147,21 +146,6 @@ describe('withCardKingdomFeed', () => {
   test('a Card Kingdom-only site without a feed offers no store at all', () => {
     const ckOnly = resolveSiteStores(['cardkingdom'], undefined)
     expect(withCardKingdomFeed(ckOnly, false).stores).toEqual([])
-  })
-})
-
-describe('settleCurrency', () => {
-  test('keeps a currency some offered store still prices in', () => {
-    expect(settleCurrency('eur', ['tcgplayer', 'cardmarket'], 'tcgplayer')).toBe('eur')
-  })
-
-  test("falls to the default store's currency, else the first offered store's", () => {
-    expect(settleCurrency('tix', ['tcgplayer', 'cardmarket'], 'cardmarket')).toBe('eur')
-    expect(settleCurrency('tix', ['tcgplayer', 'cardmarket'], 'cardhoarder')).toBe('usd')
-  })
-
-  test('with nothing offered, the current currency stands', () => {
-    expect(settleCurrency('eur', [], 'tcgplayer')).toBe('eur')
   })
 })
 

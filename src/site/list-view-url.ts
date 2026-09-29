@@ -20,7 +20,7 @@ import {
   parseShareListParam,
 } from './card-filters'
 import { BUYERS, type BuyerId } from '../buylist'
-import { USD_PRICE_SOURCES, type UsdPriceSource } from '../pricing/price-source'
+import { VALID_PRICE_SOURCES, type PriceSource } from '../pricing/price-source'
 import {
   COLOR_MATCH_MODES,
   FILTER_MATCH_MODES,
@@ -61,11 +61,12 @@ export type ListViewState = {
   /** Which buyer sell mode quotes against; only written while sell mode is on. */
   buyer: BuyerId
   /**
-   * Which store USD prices are read from, when that is an *explicit* choice.
-   * Absent means "nothing shareable" (the default view, or sell mode's
-   * courtesy default, which `sell=1` reproduces by itself) and writes nothing.
+   * Which store prices are read from (and so their currency), when that is an
+   * *explicit* choice. Absent means "nothing shareable" (the default view, or
+   * sell mode's courtesy default, which `sell=1` reproduces by itself) and
+   * writes nothing.
    */
-  priceSource?: UsdPriceSource
+  priceSource?: PriceSource
   filters: CardFilters
 }
 
@@ -79,7 +80,7 @@ export type ListViewOverrides = {
   priceGroupStrategy?: PriceGroupStrategy
   sellMode?: boolean
   buyer?: BuyerId
-  priceSource?: UsdPriceSource
+  priceSource?: PriceSource
   filters?: Partial<CardFilters>
 }
 
@@ -467,7 +468,7 @@ export function parseListViewParams(params: URLSearchParams): ListViewOverrides 
   if (get(KEYS.sellMode) === '1') overrides.sellMode = true
   const buyer = oneOf(get(KEYS.buyer), BUYERS)
   if (buyer) overrides.buyer = buyer
-  const priceSource = oneOf(get(KEYS.priceSource), USD_PRICE_SOURCES)
+  const priceSource = oneOf(get(KEYS.priceSource), VALID_PRICE_SOURCES)
   if (priceSource) overrides.priceSource = priceSource
 
   const filters: Partial<CardFilters> = {}

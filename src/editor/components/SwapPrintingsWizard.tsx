@@ -17,7 +17,7 @@ import { displayFinish } from '../../card/finish-condition'
 import { getCardImageUrl } from '../../card/card-image'
 import { enabledScopeRefs } from '../../list-view/find-scope'
 import type { ListRefKey, NamedListRef } from '../../list-view/combined-list'
-import { activeUsdSource, sitePriceForFinish } from '../../list-view/price-view'
+import { activeStore, sitePriceForFinish } from '../../list-view/price-view'
 import { buylistLoading } from '../../list-view/buylist-quotes'
 import { usePrintingQuotes } from '../../list-view/printing-quotes'
 import { isCardSideways } from '../../card/image-sources'
@@ -244,7 +244,7 @@ export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Elemen
    * snapshotted before they land would flag every card unpriced. The Mode
    * step's Next (the only place auto plans are built) waits for them.
    */
-  const quotesSettling = (): boolean => activeUsdSource() === 'cardkingdom' && buylistLoading()
+  const quotesSettling = (): boolean => activeStore() === 'cardkingdom' && buylistLoading()
 
   const planFor = (key: string): CardSwapPlan | undefined => {
     const existing = plans().get(key)

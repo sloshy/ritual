@@ -11,6 +11,8 @@ type Line = PricedLine & { usd: number; eur: number }
 const lines: Line[] = [
   { quantity: 2, pinned: true, usd: 3, eur: 0 },
   { quantity: 1, pinned: false, usd: 5, eur: 4 },
+  // Unpinned *and* unpriced: one estimated copy, not two.
+  { quantity: 1, pinned: false, usd: 0, eur: 0 },
 ]
 
 const stores: StoreLinePricing<Line>[] = [
@@ -21,9 +23,9 @@ const stores: StoreLinePricing<Line>[] = [
 describe('sumStorePrices', () => {
   test('sums quantity-weighted totals, missing and estimated copies per store', () => {
     const totals = sumStorePrices(lines, stores)
-    expect(totals.get('tcgplayer')).toEqual({ total: 11, lowest: 5.5, missing: 0, estimated: 1 })
+    expect(totals.get('tcgplayer')).toEqual({ total: 11, lowest: 5.5, missing: 1, estimated: 2 })
     // No EUR price for the pinned pair: missing, and so an estimate too.
-    expect(totals.get('cardmarket')).toEqual({ total: 4, lowest: 0, missing: 2, estimated: 3 })
+    expect(totals.get('cardmarket')).toEqual({ total: 4, lowest: 0, missing: 3, estimated: 4 })
   })
 })
 
@@ -32,9 +34,9 @@ describe('summaryPriceFields', () => {
     const fields = summaryPriceFields(sumStorePrices(lines, stores), ['total', 'missing'])
     expect(fields).toEqual({
       totalPrice: 11,
-      missingPriceCount: 0,
+      missingPriceCount: 1,
       totalPriceEur: 4,
-      missingPriceCountEur: 2,
+      missingPriceCountEur: 3,
     })
   })
 })

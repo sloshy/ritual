@@ -20,11 +20,7 @@ import {
   seedBuylistQuotes,
 } from '../list-view/buylist-quotes'
 import type { BakedBuylist } from '../list/site-data'
-import {
-  activeUsdSource,
-  maybeDefaultSellSource,
-  maybeRestoreDefaultSource,
-} from '../list-view/price-view'
+import { activeStore } from '../list-view/price-view'
 import { useT } from '../ui/i18n'
 import { isPricelessCard } from '../list-view/priceless'
 import type { CardData, SortBy, SortLayer } from '../list-view/card-sorting'
@@ -237,23 +233,9 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
     // Likewise for the baked payload, so a detail that arrives (or is refetched
     // from a live backend) while sell mode is already on re-seeds the store.
     const baked = bakedQuotes()
-    if (!active() && activeUsdSource() !== 'cardkingdom') return
+    if (!active() && activeStore() !== 'cardkingdom') return
     loadQuotes(buyer, baked)
   })
-
-  // Entering sell mode defaults the USD price view to Card Kingdom retail
-  // (when that source is enabled), so the offer sits beside what CK charges;
-  // leaving restores the default. Both yield to an explicit source choice —
-  // see `maybeDefaultSellSource` — so switching the view to TCGplayer to
-  // compare against the market price sticks. Deliberately no currency-epoch
-  // bump here: a shared `sell=1&price=…` link authored under the courtesy
-  // default must restore its price filter, not have this very effect clear it.
-  createEffect(
-    on(active, (isActive, wasActive) => {
-      if (isActive && wasActive !== true) maybeDefaultSellSource()
-      else if (!isActive && wasActive === true) maybeRestoreDefaultSource()
-    }),
-  )
 
   const summary = createSellSummary(active, input.selected)
 

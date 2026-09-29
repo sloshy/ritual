@@ -2,7 +2,7 @@ import type { Component, Accessor, JSX } from 'solid-js'
 import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { formatTotalPrice } from '../pricing/price-currency'
-import { activeUsdSource, pricesEnabled } from '../list-view/price-view'
+import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { seedBuylistQuotes } from '../list-view/buylist-quotes'
 import { sellModeActive } from '../list-view/sell-mode'
 import { cardPriceText, cardPricelessReason } from '../list-view/priceless'
@@ -89,7 +89,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
   // it loads its list details directly rather than through a list page's
   // sell-mode hook. Idempotent: `seedBuylistQuotes` skips what the store holds.
   createEffect(() => {
-    if (activeUsdSource() !== 'cardkingdom' && !sellModeActive()) return
+    if (activeStore() !== 'cardkingdom' && !sellModeActive()) return
     const baked = mergeBakedBuylists(loaded())
     // seedBuylistQuotes untracks its own writes.
     if (baked) seedBuylistQuotes(baked)

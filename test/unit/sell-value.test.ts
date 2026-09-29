@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
+  activeCurrency,
   resetPriceView,
-  selectUsdSource,
-  setEnabledPriceSources,
+  seedPriceView,
+  selectStore,
 } from '../../src/list-view/price-view'
 import type { BuylistQuoteRequest, BuylistQuotesResponse } from '../../src/buylist'
 import {
@@ -299,12 +300,15 @@ describe('buylistFieldsFor', () => {
       { key: 'dsk:1:nonfoil', productId: 10, priceBuy: 2, qtyBuying: 3, priceRetail: 8 },
     ])
     setSellModeActive(true)
-    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
+    seedPriceView({ stores: ['tcgplayer', 'cardkingdom'], defaultSource: 'tcgplayer' })
 
-    // TCGplayer view: offer vs Scryfall's $6.00.
+    // Sell mode's courtesy default reads Card Kingdom: offer vs CK's $8.00.
+    expect(buylistFieldsFor(printing, 'nonfoil', undefined, {}).buylistSpread).toBe(-6)
+    // An explicit TCGplayer view: offer vs Scryfall's $6.00.
+    selectStore('tcgplayer')
     expect(buylistFieldsFor(printing, 'nonfoil', undefined, {}).buylistSpread).toBe(-4)
     // Card Kingdom view: offer vs CK's own $8.00 retail — apples to apples.
-    selectUsdSource('cardkingdom')
+    selectStore('cardkingdom')
     expect(buylistFieldsFor(printing, 'nonfoil', undefined, {}).buylistSpread).toBe(-6)
   })
 
@@ -388,7 +392,10 @@ describe('buylistFieldsFor', () => {
 describe('buylistFieldsFor spread', () => {
   test('is the offer minus USD retail, never the page’s display currency', async () => {
     await seedQuotes([{ key: 'dsk:3:nonfoil', productId: 12, priceBuy: 4, qtyBuying: 1 }])
+    // A EUR view: sell mode leaves its store and currency alone.
+    seedPriceView({ stores: ['tcgplayer', 'cardmarket'], defaultSource: 'cardmarket' })
     setSellModeActive(true)
+    expect(activeCurrency()).toBe('eur')
     const priced = makeScryfallCard({
       id: 'sf-3',
       set: 'dsk',

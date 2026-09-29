@@ -515,6 +515,28 @@ describe('buildWantedArtifacts', () => {
     expect(detail.cards['fdn:35']).toBe(angel)
   })
 
+  test("a name-only entry's figure in each currency reads that currency's cheapest printing", async () => {
+    const { ctx } = makeContext({
+      cardData: {
+        cards: { 'Lightning Bolt': bolt },
+        // USD's cheapest is the M10 Bolt, EUR's the Alpha one.
+        cheapest: { usd: { 'Lightning Bolt': boltCheap }, eur: { 'Lightning Bolt': bolt } },
+      },
+      printingsByName: { 'Lightning Bolt': [bolt, boltCheap] },
+      currencies: ['usd', 'eur'],
+    })
+    const nameOnly: LoadedWanted = {
+      ...loaded,
+      entries: [{ name: 'Lightning Bolt', quantity: 1, section: 'Main', cardId: 1 }],
+    }
+    const { summary } = await buildWantedArtifacts(nameOnly, ctx)
+
+    expect(summary.totalPrice).toBeCloseTo(1)
+    expect(summary.totalPriceEur).toBeCloseTo(90)
+    // A currency the build does not offer writes no figure at all.
+    expect(summary).not.toHaveProperty('totalPriceTix')
+  })
+
   test('bakes the front-matter description like a collection does', async () => {
     const { ctx } = makeContext({ printingsByName: { 'Lightning Bolt': [bolt] } })
     const { detail } = await buildWantedArtifacts(

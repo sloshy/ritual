@@ -4,7 +4,7 @@ import { Modal } from '../ui/Modal'
 import { compareDisplay } from '../i18n/collate'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { activePriceSource, pricesEnabled } from '../list-view/price-view'
+import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
 import {
   getSummaryEstimatedPriceCount,
@@ -84,7 +84,7 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
   // Every list except the one currently in view (which is always part of the combination).
   const choices = createMemo<ListChoice[]>(() => {
     const cur = props.current
-    const source = activePriceSource(props.currency)
+    const source = activeStore()
     const out: ListChoice[] = []
     const add = (
       ref: NamedListRef,

@@ -7,7 +7,7 @@ import type {
   ListDetail,
 } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { activePriceSource, pricesEnabled } from '../list-view/price-view'
+import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { formatPriceWithMissing } from '../pricing/price-currency'
 import { resolveCardThumbnailUrl } from '../card/image-sources'
 import { scoreMatch } from './quick-switch-search'
@@ -191,7 +191,7 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
   }
 
   const listEntries = createMemo<ListEntry[]>(() => {
-    const source = activePriceSource(props.currency())
+    const source = activeStore()
     // `getDeckCountLabel` and `t('domain.count.cards')` below both render text,
     // so this memo tracks the locale and re-derives every row on a switch.
     locale()

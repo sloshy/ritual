@@ -103,9 +103,9 @@ export type SiteDetailContext = {
   availableCurrencies: PriceCurrency[]
   pricesDate: string
   /**
-   * Buylist quoting for this build/request. Present only when sell mode is on
-   * *and* a buyer feed is loaded; absent means the detail ships no `buylist`
-   * field at all.
+   * Buylist quoting for this build/request. Present whenever a buyer feed is
+   * loaded (sell mode, or the Card Kingdom price store); absent means the
+   * detail ships no `buylist` field at all.
    */
   buylist?: DetailBuylistContext
   /**

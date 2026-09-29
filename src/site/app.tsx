@@ -10,11 +10,9 @@ import {
   Show,
   Switch,
   Match,
-  untrack,
   type JSX,
 } from 'solid-js'
 import type { DeckDetail, CollectionDetail, WantedListDetail } from '../list/site-data'
-import { settleCurrency, type PriceSource } from '../pricing/price-source'
 import { formatDateTime } from '../ui/format'
 import { IndexPage } from './IndexPage'
 import { DeckPage } from './DeckPage'
@@ -49,7 +47,6 @@ import { QuickSwitch, useQuickSwitchShortcut } from './QuickSwitch'
 import { routeIdentity, useRouting } from './useRouting'
 import { useSiteData } from './useSiteData'
 import { apiActive, apiDegraded, detailUrl } from '../list-view/api-base'
-import { configuredPriceSource, offeredPriceSources } from '../list-view/price-view'
 import { useFetchJson } from '../list-view/useFetchJson'
 import { tradeToast } from './useTradeState'
 import { SelectionMenu } from './SelectionMenu'
@@ -82,7 +79,7 @@ import { FlameIcon } from './FlameIcon'
 import { ThemeEditor } from './ThemeEditor'
 import { MobileTabBar } from './MobileTabBar'
 import { EditModeButton, ThemeHeaderControls } from './HeaderControls'
-import { PriceStoreSelect, pickPriceStore } from '../list-view/PriceStoreSelect'
+import { PriceStoreSelect } from '../list-view/PriceStoreSelect'
 import { LanguageSwitcher } from './LanguageSwitcher'
 import { NAV_DESTINATIONS, type NavActiveState } from './nav-destinations'
 import { createI18nStore, I18nProvider, useI18n } from '../ui/i18n'
@@ -104,7 +101,6 @@ function App() {
     wantedListList,
     useScryfallImgUrls,
     currency,
-    setCurrency,
     pricesDate,
     sellMode: sellModeAvailable,
     uiLocale,
@@ -123,22 +119,6 @@ function App() {
   // theme. Deliberately not reset on navigation — it's a display preference for
   // the session, not a transient dialog.
   const [headerUtilityOpen, setHeaderUtilityOpen] = createSignal(false)
-
-  // The header's store picker: one store names the currency and, for USD,
-  // the USD source; `pickPriceStore` batches both with the currency epoch.
-  const changePriceStore = (next: PriceSource) => pickPriceStore(next, setCurrency)
-
-  // A currency no offered store prices in (a store set changed by a live
-  // refetch) settles by `settleCurrency`, the rule the admin applies too. Keyed
-  // to the *offer set* (untracking the choice), so a store switch never re-runs
-  // it; and no epoch bump — this is a correction, not a user switching prices
-  // out from under filters.
-  createEffect(
-    on(
-      () => offeredPriceSources(),
-      (offered) => setCurrency(settleCurrency(untrack(currency), offered, configuredPriceSource())),
-    ),
-  )
 
   // Switching the UI language loads the target dictionary before it takes
   // effect, so the switch is fire-and-forget from the control's point of view:
@@ -516,7 +496,7 @@ function App() {
           {/* Desktop keeps these inline; the phone layout moves them into the
               collapsible utility row below. */}
           <Show when={!mobileLayout()}>
-            <PriceStoreSelect currency={currency()} onChange={changePriceStore} />
+            <PriceStoreSelect />
             <LanguageSwitcher
               locale={uiLocale()}
               available={availableLocales()}
@@ -565,7 +545,7 @@ function App() {
             the main row, so reopening the row is always one tap away. */}
         <Show when={mobileLayout() && headerUtilityOpen()}>
           <div class="site-header-utility">
-            <PriceStoreSelect currency={currency()} onChange={changePriceStore} />
+            <PriceStoreSelect />
             <LanguageSwitcher
               locale={uiLocale()}
               available={availableLocales()}

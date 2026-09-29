@@ -93,6 +93,24 @@ test.describe('header price-store picker', () => {
     await expect(page.locator('.page-stats')).toContainText('$26.00')
   })
 
+  test('a shared link to a non-USD store opens the recipient in that store’s currency', async ({
+    page,
+  }) => {
+    await mockPublicSiteCollectionForPriceSources(page, {
+      priceSources: ['tcgplayer', 'cardmarket'],
+    })
+    await gotoList(page, '#/collection/sell-binder?prices=cardmarket')
+    await expect(page.locator(SOURCE_SELECT)).toHaveValue('cardmarket')
+    await switchToListView(page)
+    // Cardmarket's own EUR figures, not the dollar amounts.
+    await expect(row(page, 'Bought Card').locator('.list-price')).toHaveText('€7.00')
+    await expect(page.locator('.page-stats')).toContainText('€42.00')
+    // The pick is explicit, so it stays in the link.
+    await expect
+      .poll(() => page.evaluate(() => window.location.hash))
+      .toContain('prices=cardmarket')
+  })
+
   test('a shared URL restores the Card Kingdom view', async ({ page }) => {
     await mockPublicSiteCollectionForPriceSources(page)
     await gotoList(page, '#/collection/sell-binder?prices=cardkingdom')

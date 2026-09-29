@@ -4,7 +4,7 @@ import type { PriceCurrency } from '../pricing/price-currency'
 import { formatPrice, formatTotalPrice } from '../pricing/price-currency'
 import { BUYLIST_CURRENCY } from '../buylist'
 import { buylistError } from '../list-view/buylist-quotes'
-import { activeUsdSource, pricesEnabled } from '../list-view/price-view'
+import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { isEmptySellSummary, sellShortfallNote, type SellValueSummary } from './sell-value'
 import type { CardFiltersControl } from './useCardFilters'
 import { useT } from '../ui/i18n'
@@ -197,7 +197,7 @@ type SellModeNoticeProps = {
 export const SellModeNotice: Component<SellModeNoticeProps> = (props) => {
   const t = useT()
   return (
-    <Show when={props.sellMode || activeUsdSource() === 'cardkingdom' ? buylistError() : null}>
+    <Show when={props.sellMode || activeStore() === 'cardkingdom' ? buylistError() : null}>
       {(reason) => (
         <p class="page-stats-warning" role="status">
           {t('site.stats.buylistUnavailable', { reason: reason() })}

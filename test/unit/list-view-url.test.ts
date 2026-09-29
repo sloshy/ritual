@@ -839,12 +839,11 @@ describe('price source parameter', () => {
     expect(encode(defaultState({ priceSource: 'tcgplayer' })).get('prices')).toBe('tcgplayer')
   })
 
-  test('a non-USD store is ignored: only the USD axis is shareable', () => {
-    // Cardmarket is a real store, just not a USD choice — EUR is always
-    // Cardmarket, so there is nothing for the param to say.
-    expect(
-      parseListViewParams(new URLSearchParams('prices=cardmarket')).priceSource,
-    ).toBeUndefined()
+  test('any store is shareable, and carries its currency with it; an unknown one is not', () => {
+    // A link to a Cardmarket view opens the recipient in EUR.
+    expect(parseListViewParams(new URLSearchParams('prices=cardmarket')).priceSource).toBe(
+      'cardmarket',
+    )
     expect(parseListViewParams(new URLSearchParams('prices=ebay')).priceSource).toBeUndefined()
   })
 })

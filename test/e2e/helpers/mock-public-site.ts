@@ -1135,13 +1135,20 @@ export async function mockPublicSiteCollectionWithUndeployedArt(page: Page): Pro
 // ===== Sell mode (Card Kingdom buylist) =====
 
 /** One synthetic printing per sell-mode entry, keyed by a unique set:cn. */
-function makeSellCard(name: string, collectorNumber: string, usd: string): ScryfallCard {
+function makeSellCard(
+  name: string,
+  collectorNumber: string,
+  usd: string,
+  eur: string,
+): ScryfallCard {
   return makeMockScryfallCard({
     id: `sell-${collectorNumber}`,
     name,
     cmc: 2,
     type_line: 'Artifact',
-    prices: { usd },
+    // EUR figures unlike the USD ones, so a EUR view is told apart from a €
+    // sign printed on dollar amounts.
+    prices: { usd, eur },
     set: 'tst',
     collector_number: collectorNumber,
   })
@@ -1207,9 +1214,9 @@ const MOCK_SELL_BINDER_DETAIL = makeCollectionDetail({
     makeSellEntry('Unlisted Card', '3', 2, 30),
   ],
   cards: {
-    'tst:1': makeSellCard('Bought Card', '1', '10.00'),
-    'tst:2': makeSellCard('Paused Card', '2', '20.00'),
-    'tst:3': makeSellCard('Unlisted Card', '3', '30.00'),
+    'tst:1': makeSellCard('Bought Card', '1', '10.00', '7.00'),
+    'tst:2': makeSellCard('Paused Card', '2', '20.00', '14.00'),
+    'tst:3': makeSellCard('Unlisted Card', '3', '30.00', '21.00'),
   },
   totalPrice: 60.0,
   // The offers a `--sell-mode` build bakes into the list itself. This is the

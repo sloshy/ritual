@@ -4,7 +4,7 @@
  * pickers (the header's `PriceStoreSelect` is the page-level control).
  *
  * One component rather than one control per dialog, because the choice is one
- * module-level signal (`price-view`'s `usdSource`): switching it in a dialog
+ * module-level pick (`price-view`'s `selectStore`, an explicit store pick): switching it in a dialog
  * switches the header and the page too — which is exactly the "the picker
  * follows the page" behaviour a second, local copy of the state would break.
  *
@@ -20,14 +20,9 @@
 import { For, Show, type Component } from 'solid-js'
 import { useT } from '../ui/i18n'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { notifyCurrencyChanged } from './currency-epoch'
+import { pickPriceStore } from './PriceStoreSelect'
 import { PRICE_SOURCE_LABELS } from '../pricing/price-source'
-import {
-  activeUsdSource,
-  offersUsdSourceChoice,
-  selectUsdSource,
-  usdSourceChoices,
-} from './price-view'
+import { activeUsdSource, offersUsdSourceChoice, usdSourceChoices } from './price-view'
 
 /**
  * The mounted instances, enumerated so a duplicate id is a compile error rather
@@ -68,8 +63,7 @@ export const PriceSourceSelect: Component<PriceSourceSelectProps> = (props) => {
             const raw = e.currentTarget.value
             const choice = usdSourceChoices().find((source) => source === raw)
             if (!choice || choice === activeUsdSource()) return
-            selectUsdSource(choice)
-            notifyCurrencyChanged()
+            pickPriceStore(choice)
           }}
         >
           <For each={usdSourceChoices()}>

@@ -4,12 +4,7 @@ import type { GroupBy, SortBy } from '../list-view/card-sorting'
 import { SELL_MODE_FILTER_KEYS, type CardFilters } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
 import type { ListRefKey } from '../list-view/combined-list'
-import {
-  activeUsdSource,
-  pricesEnabled,
-  selectUsdSource,
-  usdSourceIsExplicit,
-} from '../list-view/price-view'
+import { activeStore, pricesEnabled, selectStore, storeIsExplicit } from '../list-view/price-view'
 import type { UseToolbarStateResult } from './useToolbarState'
 import {
   type ListViewDefaults,
@@ -174,10 +169,11 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       if (o.sellMode) toolbar.setSellMode(true)
       if (o.buyer) toolbar.setBuyer(o.buyer)
     }
-    // A URL's source is an explicit choice — it wins over sell mode's courtesy
-    // default. `activeUsdSource` falls back to TCGplayer on deployments where
-    // the named store is not enabled, so applying it blind is safe.
-    if (o.priceSource) selectUsdSource(o.priceSource)
+    // A URL's store is an explicit choice — the viewer sees the link's store,
+    // and so its currency, over their default and sell mode's courtesy
+    // default. `activeStore` settles a store this deployment does not offer
+    // onto one it does, so applying it blind is safe.
+    if (o.priceSource) selectStore(o.priceSource)
     if (o.filters) {
       if (o.filters.labels) {
         const kept = offeredLabels(o.filters.labels, config.availableLabels)
@@ -238,7 +234,7 @@ export function useListViewUrlSync<G extends GroupBy>(config: UseListViewUrlSync
       // here would promote it to an explicit pick when the link is opened.
       // The flag is a signal, so the first pick re-runs this effect even when
       // the source value itself did not change.
-      ...(usdSourceIsExplicit() ? { priceSource: activeUsdSource() } : {}),
+      ...(storeIsExplicit() ? { priceSource: activeStore() } : {}),
       filters: { ...filters.filters },
     }
     syncStateToUrl(state, defaults)

@@ -1,5 +1,5 @@
 import type { JSX, ParentComponent } from 'solid-js'
-import { pickAdminPriceStore, usePriceView } from '../hooks/usePriceView'
+import { usePriceView } from '../hooks/usePriceView'
 import { PriceStoreSelect } from '../../../list-view/PriceStoreSelect'
 import { useDefaultLanguage } from '../hooks/useDefaultLanguage'
 import { createMemo, createSignal, For, Show } from 'solid-js'
@@ -230,7 +230,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           {/* Beside the other header controls, exactly as on the public site.
               Each hides itself when there is nothing to choose: a single
               offered store, or a build shipping a single locale. */}
-          <PriceStoreSelect currency={priceView.currency()} onChange={pickAdminPriceStore} />
+          <PriceStoreSelect />
           <LanguageSwitcher
             locale={uiLocale()}
             available={availableLocales()}

@@ -338,16 +338,17 @@ enabled store exits 2, and \`serve --api\` refuses the flag). The header's **Pri
 picks the **store** — and so the currency — every price comes from, across list pages, the
 index tiles, Quick Switch and Combine Lists (the build bakes each list's totals per store,
 Card Kingdom included); it appears only when more than one store is offered, and opens on
-the configured \`defaultPriceSource\` when offered. A USD-store pick is shareable in the view
-URL (\`prices=cardkingdom\`); switching stores clears price filters. With both USD stores
+the configured \`defaultPriceSource\` when offered. A store pick is shareable in the view URL
+(\`prices=cardmarket\` opens the recipient on Cardmarket, in EUR); switching stores clears
+price filters. With both USD stores
 enabled, a USD-store selector also appears in the card modal's **Other Printings** grid and
 in the printing pickers (trade/edit, and the add-card dialog's printing step) — the same
 choice, so switching it in a dialog switches the page behind it. Each printing there is
 priced under the selected store, with its alternate finishes listed underneath, and the
 grid's price sort follows the store too. Under the Card Kingdom view a printing CK does not sell shows no price —
 there is deliberately no TCGplayer fallback — and the sell-mode spread compares CK's offer
-against the *selected* store's price (entering sell mode defaults the view to Card Kingdom
-retail unless the user picked a source).
+against the *selected* store's price (entering sell mode switches a USD view to Card Kingdom
+retail unless the user picked a store; a EUR or tix view keeps its store).
 
 Each store also **picks its own printing** for a card line that names none: the
 representative printing, and the cheapest one behind the "Lowest Price" toggle, are chosen

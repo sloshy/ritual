@@ -6,11 +6,7 @@ import {
   printingSortPrice,
 } from '../../../src/list-view/printing-prices'
 import { printingQuoteRequests } from '../../../src/list-view/printing-quotes'
-import {
-  resetPriceView,
-  selectUsdSource,
-  setEnabledPriceSources,
-} from '../../../src/list-view/price-view'
+import { resetPriceView, seedPriceView, selectStore } from '../../../src/list-view/price-view'
 import { t } from '../../../src/i18n/t'
 import { makeBuylistQuote, makeScryfallCard } from '../../test-utils'
 
@@ -84,8 +80,8 @@ describe('printingFinishPrices', () => {
     // rules — no TCGplayer fallback for an unquoted finish, EUR untouched by the
     // USD source — are pinned in price-view.test.ts. The unquoted foil below is
     // asserted for the *row*: a finish the store cannot price still gets one.
-    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
-    selectUsdSource('cardkingdom')
+    seedPriceView({ stores: ['tcgplayer', 'cardkingdom'], defaultSource: 'tcgplayer' })
+    selectStore('cardkingdom')
     seedRetail({ 'tst:7:nonfoil': 3.5 })
     expect(printingFinishPrices(dual, 'usd')).toEqual([
       { finish: 'nonfoil', price: 3.5 },
@@ -110,8 +106,8 @@ describe('printingSortPrice', () => {
   })
 
   test('follows the selected source, so a grid sorts by the money it displays', () => {
-    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
-    selectUsdSource('cardkingdom')
+    seedPriceView({ stores: ['tcgplayer', 'cardkingdom'], defaultSource: 'tcgplayer' })
+    selectStore('cardkingdom')
     seedRetail({ 'tst:7:nonfoil': 3.5 })
     expect(printingSortPrice(dual, 'usd')).toBe(3.5)
     // A printing the store has no product for sorts as unpriced, not as its

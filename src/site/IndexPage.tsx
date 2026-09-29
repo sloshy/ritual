@@ -3,7 +3,7 @@ import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { formatPriceWithMissing } from '../pricing/price-currency'
-import { activePriceSource, pricesEnabled } from '../list-view/price-view'
+import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { getDeckCountLabel } from '../list/deck-format'
 import {
   getSummaryEstimatedPriceCount,
@@ -163,18 +163,10 @@ interface DeckCoverLinkProps {
 
 const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
   const { t, locale } = useI18n()
-  const total = createMemo(() =>
-    getSummaryTotalPrice(props.deck, activePriceSource(props.currency)),
-  )
-  const lowest = createMemo(() =>
-    getSummaryLowestPrice(props.deck, activePriceSource(props.currency)),
-  )
-  const missing = createMemo(() =>
-    getSummaryMissingPriceCount(props.deck, activePriceSource(props.currency)),
-  )
-  const estimated = createMemo(
-    () => getSummaryEstimatedPriceCount(props.deck, activePriceSource(props.currency)) > 0,
-  )
+  const total = createMemo(() => getSummaryTotalPrice(props.deck, activeStore()))
+  const lowest = createMemo(() => getSummaryLowestPrice(props.deck, activeStore()))
+  const missing = createMemo(() => getSummaryMissingPriceCount(props.deck, activeStore()))
+  const estimated = createMemo(() => getSummaryEstimatedPriceCount(props.deck, activeStore()) > 0)
   // `getDeckCountLabel` renders through the module-level (non-reactive) `t`, so
   // the locale signal is read here to re-derive the label on a language switch.
   const countLabel = createMemo(() => {
@@ -214,16 +206,11 @@ type ListCoverLinkProps =
 
 const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
   const t = useT()
-  const total = createMemo(() =>
-    getSummaryTotalPrice(props.item, activePriceSource(props.currency)),
-  )
-  const missing = createMemo(() =>
-    getSummaryMissingPriceCount(props.item, activePriceSource(props.currency)),
-  )
+  const total = createMemo(() => getSummaryTotalPrice(props.item, activeStore()))
+  const missing = createMemo(() => getSummaryMissingPriceCount(props.item, activeStore()))
   const estimated = createMemo(
     () =>
-      props.basePath === 'wanted' &&
-      getSummaryEstimatedPriceCount(props.item, activePriceSource(props.currency)) > 0,
+      props.basePath === 'wanted' && getSummaryEstimatedPriceCount(props.item, activeStore()) > 0,
   )
   return (
     <a href={`#/${props.basePath}/${props.item.slug}`} class="card-grid-link">
@@ -248,7 +235,7 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
   const [deckGroup, setDeckGroup] = createSignal<IndexGroup>(DEFAULT_INDEX_GROUP)
   const [deckReverse, setDeckReverse] = createSignal(false)
   const sortedDecks = createMemo(() =>
-    sortSummaries(props.decks, deckSort(), activePriceSource(props.currency), deckReverse()),
+    sortSummaries(props.decks, deckSort(), activeStore(), deckReverse()),
   )
   const deckGroups = createMemo(() =>
     deckGroup() === 'format' ? groupDecksByFormat(sortedDecks()) : [],
@@ -258,23 +245,13 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
   const [collectionSort, setCollectionSort] = createSignal<IndexSort>(DEFAULT_INDEX_SORT)
   const [collectionReverse, setCollectionReverse] = createSignal(false)
   const sortedCollections = createMemo(() =>
-    sortSummaries(
-      props.collections,
-      collectionSort(),
-      activePriceSource(props.currency),
-      collectionReverse(),
-    ),
+    sortSummaries(props.collections, collectionSort(), activeStore(), collectionReverse()),
   )
 
   const [wantedSort, setWantedSort] = createSignal<IndexSort>(DEFAULT_INDEX_SORT)
   const [wantedReverse, setWantedReverse] = createSignal(false)
   const sortedWanted = createMemo(() =>
-    sortSummaries(
-      props.wantedLists,
-      wantedSort(),
-      activePriceSource(props.currency),
-      wantedReverse(),
-    ),
+    sortSummaries(props.wantedLists, wantedSort(), activeStore(), wantedReverse()),
   )
 
   return (
