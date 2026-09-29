@@ -44,6 +44,19 @@ describe('normalizeNote', () => {
   test('rejects NUL', () => {
     expect(normalizeNote('a\x00b').ok).toBe(false)
   })
+
+  // Notes refuse every control character, C1 included, and the Unicode
+  // separators. The line terminators matter most: a note reaches changelog
+  // events, which the decoder refuses on read when a string spans lines, so an
+  // accepted one would be silently dropped from history.
+  test.each([
+    ['NEL', 'a\u0085b'],
+    ['C1 CSI', 'a\u009bb'],
+    ['line separator', 'a\u2028b'],
+    ['paragraph separator', 'a\u2029b'],
+  ])('rejects a %s', (_label, note) => {
+    expect(normalizeNote(note).ok).toBe(false)
+  })
 })
 
 describe('noteOrUndefined', () => {

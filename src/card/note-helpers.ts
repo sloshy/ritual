@@ -6,15 +6,9 @@
  * coerce empty strings to `undefined` via {@link noteOrUndefined} before storage.
  */
 
-export type NoteValidationResult = { ok: true; note: string } | { ok: false; error: string }
+import { hasControlOrSeparator } from '../util/single-line'
 
-/**
- * Notes are single-line text. Reject any character in the C0 range (0x00–0x1F)
- * or DEL (0x7F) — that catches newlines, tabs, carriage returns, NULs, escape
- * sequences, etc. Quotes and other printable punctuation are allowed.
- */
-// eslint-disable-next-line no-control-regex -- control chars are exactly what this regex is meant to detect.
-const CONTROL_CHARS_RE = /[\x00-\x1f\x7f]/
+export type NoteValidationResult = { ok: true; note: string } | { ok: false; error: string }
 
 /**
  * Trim whitespace and validate a user-supplied note. Returns the cleaned text
@@ -25,7 +19,10 @@ const CONTROL_CHARS_RE = /[\x00-\x1f\x7f]/
  */
 export function normalizeNote(raw: string): NoteValidationResult {
   const trimmed = raw.trim()
-  if (CONTROL_CHARS_RE.test(trimmed)) {
+  // Notes are single-line text: any control character (newline, tab, NUL, an
+  // escape sequence, NEL) or Unicode line separator is refused. Quotes and other
+  // printable punctuation are allowed.
+  if (hasControlOrSeparator(trimmed)) {
     return {
       ok: false,
       error:

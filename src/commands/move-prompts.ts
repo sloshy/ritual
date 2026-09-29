@@ -14,6 +14,7 @@ import { ask, suggestByTitleTerms } from '../cli/prompts'
 import { deckSectionChoices } from './move-choices'
 import type { PhysicalCard } from '../list/move-staging'
 import type { ListEntry } from '../list/list-info'
+import { hasLineBreak } from '../util/single-line'
 
 /**
  * Ask which list a move targets. The caller decides what to offer (the
@@ -105,7 +106,7 @@ async function promptNewSection(names: readonly string[]): Promise<SectionSelect
 
   const existing = names.find((section) => section.toLowerCase() === name.toLowerCase())
   if (existing !== undefined) return { kind: 'section', section: existing }
-  if (/^#|[\r\n]/.test(name)) {
+  if (name.startsWith('#') || hasLineBreak(name)) {
     console.log(t('cli.move.sectionNameInvalid', { name }))
     return { kind: 'cancelled' }
   }

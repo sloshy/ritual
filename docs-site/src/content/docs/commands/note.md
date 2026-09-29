@@ -134,7 +134,7 @@ In a deck, copies of the same printing share one line and one `&N` ID (`4 Lightn
 
 ### Note Validation
 
-Notes are single-line text. Surrounding whitespace is trimmed, and control characters (newlines, tabs, NUL, DEL, escape sequences) are rejected. Quotes and other printable punctuation are allowed. The admin UI applies the same validation. An empty or whitespace-only `--note` is rejected; clearing is only ever done with `--clear`.
+Notes are single-line text. Surrounding whitespace is trimmed, and control characters (newlines, tabs, NUL, DEL, escape sequences, NEL) and the Unicode line and paragraph separators (U+2028, U+2029) are rejected. Quotes and other printable punctuation are allowed. The admin UI applies the same validation. An empty or whitespace-only `--note` is rejected; clearing is only ever done with `--clear`.
 
 ### Change Tracking
 

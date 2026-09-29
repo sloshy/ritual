@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test'
-import { findLineBreak, hasLineBreak, singleLineText } from '../../src/util/single-line'
+import {
+  findLineBreak,
+  hasControlOrSeparator,
+  hasLineBreak,
+  singleLineText,
+} from '../../src/util/single-line'
 
 describe('singleLineText', () => {
   test.each([
@@ -51,6 +56,14 @@ describe('hasLineBreak', () => {
   })
 })
 
+describe('hasControlOrSeparator', () => {
+  test('refuses a tab and a line separator, and passes plain text', () => {
+    expect(hasControlOrSeparator('a\tb')).toBe(true)
+    expect(hasControlOrSeparator('a\u2028b')).toBe(true)
+    expect(hasControlOrSeparator('Sol Ring — "foo"')).toBe(false)
+  })
+})
+
 describe('findLineBreak', () => {
   test('names the path of a broken string, however deep', () => {
     const body = {
@@ -61,6 +74,14 @@ describe('findLineBreak', () => {
     }
     expect(findLineBreak(body, 'body')).toBe('body.changes[1].to.name')
     expect(findLineBreak(['Main', 'Maybe\nboard'], 'sectionOrder')).toBe('sectionOrder[1]')
+  })
+
+  test('quotes a key that is not an identifier, so the path stays one line', () => {
+    expect(findLineBreak({ 'with space': 'x\ny' }, 'r')).toBe('r["with space"]')
+  })
+
+  test('refuses a key holding a line break even when its value is clean', () => {
+    expect(findLineBreak({ 'odd\nkey': 1 }, 'r')).toBe('r["odd\\nkey"]')
   })
 
   test('reports the first offender in document order', () => {

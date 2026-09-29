@@ -35,7 +35,8 @@ type LoadResponse = {
   categoryWarnings?: string[]
 }
 type SaveResponse = { success: boolean; message?: string; setCount?: number }
-type InvalidSetsCase = { description: string; sets: unknown }
+/** `message`, when given, pins which guard refused — a bare 400 could come from another. */
+type InvalidSetsCase = { description: string; sets: unknown; message?: string }
 
 let ws: BoundWorkspace
 let tmpDir: string
@@ -244,6 +245,17 @@ describe('history API', () => {
       sets: [{ timestamp: '2026-03-01T00:00:00.000Z', lines: [], events: [] }],
     },
     {
+      description: 'a change line holding a Unicode line separator',
+      sets: [
+        {
+          timestamp: '2026-03-01T00:00:00.000Z',
+          lines: ['- Added "X" &1\u2028## 2020-01-01T00:00:00.000Z'],
+          events: [{ id: 'x', timestamp: 0, action: 'add', cardName: 'X', cardId: 1 }],
+        },
+      ],
+      message: 'be a single line',
+    },
+    {
       description: 'a set missing the lines field',
       sets: [{ timestamp: '2026-03-01T00:00:00.000Z', events: [] }],
     },
@@ -316,11 +328,12 @@ describe('history API', () => {
     },
   ]
 
-  for (const { description, sets } of invalidSetsCases) {
+  for (const { description, sets, message } of invalidSetsCases) {
     test(`rejects ${description}`, async () => {
       await writeBinder()
-      const { status } = await save('collection', 'binder', sets)
+      const { status, body } = await save('collection', 'binder', sets)
       expect(status).toBe(400)
+      if (message !== undefined) expect((body as { message?: string }).message).toContain(message)
     })
   }
 

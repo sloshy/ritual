@@ -24,6 +24,7 @@ import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 import { createFenceTracker } from '../../list/markdown-fence'
+import { hasLineBreak } from '../../util/single-line'
 
 export type HistoryLoadResponse = {
   success: true
@@ -46,11 +47,6 @@ type RawSaveBody = { sets?: unknown }
 
 /** Untrusted change-set item, validated before narrowing to `ChangeSet`. */
 type RawChangeSet = { timestamp?: unknown; lines?: unknown; events?: unknown; trailing?: unknown }
-
-/** An embedded line break would smuggle extra lines past the per-line checks. */
-function hasLineBreak(value: string): boolean {
-  return /[\r\n]/.test(value)
-}
 
 /**
  * GET /api/history/:type/:slug — the list's parsed change sets (newest first) plus
