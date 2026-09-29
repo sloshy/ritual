@@ -128,6 +128,7 @@ export default [
                 'src/scryfall/card-utils',
                 'src/pricing/price-currency',
                 'src/pricing/price-source',
+                'src/pricing/price-summary',
                 'src/pricing/price-data',
                 'src/cache/constants',
                 'src/importers/text-file',

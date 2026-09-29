@@ -73,8 +73,8 @@ type PriceView = {
 /**
  * Resolve `?currency=` and `?source=` together with the configured default
  * store, by the CLI's rules (`resolvePriceRequest`): a source names its own
- * currency, an explicit conflicting currency is a 400, and neither reads
- * `defaultPriceSource`. `cardkingdom` prices from the cached buyer feed —
+ * currency, an explicit conflicting currency is a 400, and with neither param
+ * (or a currency the default store quotes in) `defaultPriceSource` applies. `cardkingdom` prices from the cached buyer feed —
  * strictly cache-backed, like every other server read; a missing feed is
  * refused with the refresh advice rather than silently answered with Scryfall
  * prices.

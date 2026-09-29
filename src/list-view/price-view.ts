@@ -14,7 +14,7 @@
  * store models exactly the one axis that exists: {@link usdPriceSource}.
  */
 
-import { batch, createSignal, type Accessor } from 'solid-js'
+import { batch, createSignal, untrack, type Accessor } from 'solid-js'
 import { displayFinish, type Finish } from '../card/finish-condition'
 import { getCardPrice, getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
 import {
@@ -32,7 +32,6 @@ import type { ScryfallCard } from '../scryfall/types'
 
 // Re-exported so the site modules keep one import home for the choice axis.
 export type { UsdPriceSource } from '../pricing/price-source'
-export { PRICE_SOURCE_LABELS } from '../pricing/price-source'
 
 const [enabled, setEnabled] = createSignal<readonly PriceSource[]>([...DEFAULT_PRICE_SOURCES])
 
@@ -57,7 +56,7 @@ export const enabledPriceSources: Accessor<readonly PriceSource[]> = enabled
 /**
  * Whether the site displays prices at all. False when the `priceSources`
  * config key is an explicit empty array — every price surface (per-card
- * prices, totals, price sort/filter/grouping, the currency selector) hides
+ * prices, totals, price sort/filter/grouping, the header's store picker) hides
  * itself on this one answer.
  */
 export function pricesEnabled(): boolean {
@@ -85,8 +84,12 @@ function defaultUsdSource(): UsdPriceSource {
  */
 export function setDefaultPriceSource(source: PriceSource): void {
   batch(() => {
+    // Only a *changed* default moves the view: the admin re-seeds on every page
+    // mount, and an unchanged re-seed must not undo sell mode's courtesy Card
+    // Kingdom default (which runs as the page mounts) behind the user's back.
+    const changed = untrack(defaultSource) !== source
     setDefaultSource(source)
-    if (!userPickedSource() && isUsdPriceSource(source)) setUsdSource(source)
+    if (changed && !userPickedSource() && isUsdPriceSource(source)) setUsdSource(source)
   })
 }
 
@@ -179,7 +182,7 @@ export function offersUsdSourceChoice(currency: PriceCurrency): boolean {
  * Pick a USD source. `explicit` marks a deliberate choice (the header
  * selector, a shared URL's param) that sell mode's courtesy default must not
  * override; the caller owns the epoch bump for a user click, exactly like the
- * currency selector.
+ * header's store picker.
  */
 export function selectUsdSource(source: UsdPriceSource, explicit = true): void {
   batch(() => {
@@ -278,6 +281,7 @@ export function resetPriceView(): void {
   batch(() => {
     setEnabled([...DEFAULT_PRICE_SOURCES])
     setUsdSource('tcgplayer')
+    setDefaultSource(DEFAULT_PRICE_SOURCE)
     setUserPickedSource(false)
   })
 }

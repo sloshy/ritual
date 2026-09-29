@@ -3,11 +3,13 @@ import { isConfigParseError } from '../../src/config/ritual-config'
 import {
   DEFAULT_PRICE_SOURCES,
   isPriceRequestConflict,
+  priceRequestConflicts,
   isPriceSource,
   parseDefaultPriceSource,
   parsePriceSources,
   resolveDefaultPriceSource,
   resolvePriceRequest,
+  withPriceSource,
   resolveSiteCurrencies,
   isSiteCurrenciesError,
   sourceCurrency,
@@ -123,6 +125,26 @@ describe('resolveSiteCurrencies', () => {
     expect(isSiteCurrenciesError(result)).toBeTrue()
   })
 
+  test('an absent default reads the first priceSources entry', () => {
+    expect(resolveSiteCurrencies(['cardmarket', 'tcgplayer'], undefined)).toEqual({
+      available: ['usd', 'eur'],
+      // The list's first entry, not the first offered currency's store.
+      defaultSource: 'cardmarket',
+    })
+  })
+
+  test("an explicit list dropping the default's currency opens on the first listed one", () => {
+    expect(resolveSiteCurrencies(['tcgplayer', 'cardmarket'], 'tcgplayer', ['eur'])).toEqual({
+      available: ['eur'],
+      defaultSource: 'cardmarket',
+    })
+    // With no stores at all, the listed currency's Scryfall store stands in.
+    expect(resolveSiteCurrencies([], 'tcgplayer', ['eur'])).toEqual({
+      available: ['eur'],
+      defaultSource: 'cardmarket',
+    })
+  })
+
   test('no stores still bakes the configured default', () => {
     expect(resolveSiteCurrencies([], 'cardmarket')).toEqual({
       available: ['eur'],
@@ -187,6 +209,28 @@ describe('resolvePriceRequest', () => {
       implied: 'eur',
     })
     expect(isPriceRequestConflict(result)).toBeTrue()
+  })
+})
+
+describe('priceRequestConflicts', () => {
+  test('only an explicit, disagreeing currency conflicts', () => {
+    expect(priceRequestConflicts('cardkingdom', 'eur')).toBeTrue()
+    expect(priceRequestConflicts('cardkingdom', 'usd')).toBeFalse()
+    expect(priceRequestConflicts('cardkingdom', undefined)).toBeFalse()
+  })
+})
+
+describe('withPriceSource', () => {
+  test('enabling inserts in canonical order, not at the end', () => {
+    expect(withPriceSource(['cardkingdom'], 'cardmarket', true)).toEqual([
+      'cardmarket',
+      'cardkingdom',
+    ])
+    expect(withPriceSource(['tcgplayer'], 'tcgplayer', true)).toEqual(['tcgplayer'])
+  })
+
+  test('disabling removes only that store', () => {
+    expect(withPriceSource(['tcgplayer', 'cardmarket'], 'tcgplayer', false)).toEqual(['cardmarket'])
   })
 })
 

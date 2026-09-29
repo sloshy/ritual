@@ -1817,7 +1817,8 @@ describe('Card Kingdom printing selection', () => {
   /**
    * The index tiles read the summaries, so a site offering Card Kingdom bakes a
    * second USD figure set: each line at the printing the CK view shows it at,
-   * priced at CK retail. `quotePrintings` is the "CK prices offered" switch.
+   * priced at CK retail. The gate is the build's CK data in a USD build
+   * (`siteCardKingdomData`), present exactly when the site offers CK prices.
    */
   describe('summary figures', () => {
     const ckQuotes = {
@@ -1872,16 +1873,41 @@ describe('Card Kingdom printing selection', () => {
       expect(summary.estimatedPriceCountCardKingdom).toBe(2)
     })
 
-    test('a build not offering CK prices bakes no CK figures, even with sell mode quoting', async () => {
+    test.each([
+      ['no CK data, even with every printing quoted', undefined, ['usd'] as const],
+      ['a build without USD, even with CK data', cardKingdom, ['eur'] as const],
+    ])('%s: no list type bakes CK figures', async (_label, ckData, currencies) => {
       const { ctx } = makeContext({
-        cardData: { ...deckCardData, cardKingdom: undefined },
-        currencies: ['usd'],
-        buylist: stubBuylist(ckQuotes, false).ctx,
+        cardData: { ...deckCardData, cardKingdom: ckData },
+        printingsByName: { 'Lightning Bolt': [bolt, boltCheap], 'Serra Angel': [angel] },
+        currencies: [...currencies],
+        buylist: stubBuylist(ckQuotes, true).ctx,
       })
+      const pinnedBolt = {
+        name: 'Lightning Bolt',
+        quantity: 1,
+        set: 'm10',
+        collectorNumber: '146',
+        section: 'Main',
+        cardId: 1,
+      }
+      const flat = { sectionOrder: ['Main'], warnings: [], changelog: [] }
 
-      const { summary } = await buildDeckArtifacts(deck, ctx)
+      const summaries = [
+        (await buildDeckArtifacts(deck, ctx)).summary,
+        (await buildWantedArtifacts({ displayName: 'Wants', entries: [pinnedBolt], ...flat }, ctx))
+          .summary,
+        (
+          await buildCollectionArtifacts(
+            { displayName: 'Binder', entries: [pinnedBolt], ...flat },
+            ctx,
+          )
+        ).summary,
+      ]
 
-      expect(JSON.parse(JSON.stringify(summary))).not.toHaveProperty('totalPriceCardKingdom')
+      for (const summary of summaries) {
+        expect(JSON.parse(JSON.stringify(summary))).not.toHaveProperty('totalPriceCardKingdom')
+      }
     })
 
     test("a wanted list reads CK's pick for name-only entries and the pin otherwise", async () => {
@@ -1964,6 +1990,8 @@ describe('Card Kingdom printing selection', () => {
       expect(summary.totalPrice).toBeCloseTo(101)
       expect(summary.totalPriceCardKingdom).toBeCloseTo(2)
       expect(summary.missingPriceCountCardKingdom).toBe(1)
+      // Every collection line pins its printing: no estimate count is baked.
+      expect(summary).not.toHaveProperty('estimatedPriceCountCardKingdom')
     })
   })
 })

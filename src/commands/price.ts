@@ -2,7 +2,6 @@ import { Command } from 'commander'
 import { cardCache } from '../cache'
 import { detailBuylistContext, ensureCardKingdomFeed, loadEnsuredFeed } from '../cardkingdom'
 import {
-  VALID_PRICE_SOURCES,
   isPriceRequestConflict,
   resolvePriceRequest,
   type PriceSource,
@@ -36,6 +35,7 @@ import {
   addListScopeFlags,
   resolveListTypeFlag,
   parseEnumFlag,
+  parsePriceSourceFlag,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
 import { isNoInput } from '../util/no-input'
@@ -77,10 +77,6 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
 
 function parseSortFlag(value: string): PriceSortField {
   return parseEnumFlag(value, PRICE_SORT_FIELDS, t('cli.price.fieldSort'))
-}
-
-function parseSourceFlag(value: string): PriceSource {
-  return parseEnumFlag(value.toLowerCase(), VALID_PRICE_SOURCES, t('cli.price.fieldSource'))
 }
 
 /** The terminal facts the interactive-browser gate depends on. */
@@ -264,7 +260,7 @@ export function registerPriceCommand(program: Command): void {
           .argument('[listName]', t('help.price.listArg')),
       )
         .option('--prices <currency>', t('help.price.prices'))
-        .option('--source <store>', t('help.price.source'), parseSourceFlag)
+        .option('--source <store>', t('help.price.source'), parsePriceSourceFlag)
         .option('--name <terms>', t('help.price.name'))
         .option('--set <code>', t('help.price.set'))
         .option('--collector <number>', t('help.price.collector'))
@@ -298,8 +294,8 @@ export function registerPriceCommand(program: Command): void {
 
       // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
       // → eur, cardhoarder → tix). An explicit --prices that disagrees is a
-      // usage error rather than a silent override; neither flag reads the
-      // configured defaultPriceSource.
+      // usage error rather than a silent override. With neither flag, or a
+      // --prices matching its currency, the configured defaultPriceSource applies.
       const request = resolvePriceRequest(options.source, explicitCurrency, getDefaultPriceSource())
       if (isPriceRequestConflict(request)) {
         emitError(

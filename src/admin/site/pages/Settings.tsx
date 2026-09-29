@@ -10,8 +10,12 @@ import type {
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../../../cache/constants'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../config/search-debounce'
 import { CARD_LANGUAGES, isCardLanguage, languageDisplayName } from '../../../card/card-language'
-import { VALID_PRICE_SOURCES, isPriceSource } from '../../../pricing/price-source'
-import { PRICE_SOURCE_LABELS } from '../../../list-view/price-view'
+import {
+  PRICE_SOURCE_LABELS,
+  VALID_PRICE_SOURCES,
+  isPriceSource,
+  withPriceSource,
+} from '../../../pricing/price-source'
 import { applyPriceConfig } from '../hooks/usePriceView'
 import { formatCardCategories, parseCardCategoriesInput } from '../../../card/card-categories'
 import { setDefaultCategories } from '../../../config/default-categories'
@@ -133,7 +137,7 @@ export function Settings(): JSX.Element {
         applyDefaultLanguage(saved.defaultLanguage)
         // Same again for the price stores: the shared price-view store is
         // seeded at page mount, so a save must push the new list for already-
-        // mounted editors to update their source selector and price reads.
+        // mounted editors to update their store picker and price reads.
         applyPriceConfig(saved.defaultPriceSource, saved.priceSources)
         // Same again for the category vocabulary: `useAdminConfigDefaults` primes
         // the module signal once per page mount, so without this push an
@@ -320,17 +324,12 @@ export function Settings(): JSX.Element {
                     type="checkbox"
                     name={`priceSource-${source}`}
                     checked={config()!.priceSources.includes(source)}
-                    onChange={(e) => {
-                      // Keep canonical order rather than click order, so the
-                      // persisted array is stable however the boxes are toggled.
-                      const current = new Set(config()!.priceSources)
-                      if (e.currentTarget.checked) current.add(source)
-                      else current.delete(source)
+                    onChange={(e) =>
                       updateField(
                         'priceSources',
-                        VALID_PRICE_SOURCES.filter((s) => current.has(s)),
+                        withPriceSource(config()!.priceSources, source, e.currentTarget.checked),
                       )
-                    }}
+                    }
                   />
                   {t(PRICE_SOURCE_LABELS[source])}
                 </label>

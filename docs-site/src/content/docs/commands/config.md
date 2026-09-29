@@ -151,7 +151,7 @@ $ ritual config get admin.ipAllowList --output json
 ["192.168.1.0/24"]
 ```
 
-Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.
+Optional keys that have never been set exit with `not_found` (code `3`): `cacheFeedUrl`, `defaultPriceSource` (its effective value, the first `priceSources` entry, is applied when prices are read, not reported by `get`), `exportPresets`, `site.bannedPrintings`, `site.apiBaseUrl`, `site.sellMode`, and the `site.*` selection lists before a `site` object exists. An unknown property is a usage error (code `2`) that lists the available keys.
 
 ## config list
 

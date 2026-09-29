@@ -36,6 +36,7 @@ import {
   type CardLanguage,
 } from '../card/card-language'
 import type { ListType } from '../list/list-type'
+import { VALID_PRICE_SOURCES, type PriceSource } from '../pricing/price-source'
 import { listTypeFromFlags, type ListTypeFlags } from '../list/resolve-list'
 import { fail } from './action'
 import {
@@ -63,6 +64,11 @@ export function parseEnumFlag<T extends string>(
   const parsed = parseEnumField(value, values, label)
   if (!parsed.ok) throw new InvalidArgumentError(parsed.message)
   return parsed.value
+}
+
+/** Commander argParser for a price-store flag (`price --source`, `init-site --price-source`). */
+export function parsePriceSourceFlag(value: string): PriceSource {
+  return parseEnumFlag(value.trim(), VALID_PRICE_SOURCES, t('errors.enum.fieldPriceSource'))
 }
 
 /** Commander argParser for port options: reject non-numeric and out-of-range values at parse time. */

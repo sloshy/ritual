@@ -105,7 +105,7 @@ export type PriceRequestConflict = {
  * only an *explicit* conflicting currency is a conflict. A currency alone reads
  * the default store when that store quotes in it (so `--prices usd` under a
  * Card Kingdom default stays Card Kingdom), else that currency's Scryfall
- * store. Neither reads the default. The rule lives here once so the CLI flags,
+ * store. Neither flag reads the default store. The rule lives here once so the CLI flags,
  * the admin query params, and the MCP input cannot drift; each surface words
  * its own error.
  */
@@ -116,7 +116,7 @@ export function resolvePriceRequest(
 ): PriceRequest | PriceRequestConflict {
   if (explicitSource !== undefined) {
     const implied = sourceCurrency(explicitSource)
-    if (explicitCurrency !== undefined && explicitCurrency !== implied) {
+    if (priceRequestConflicts(explicitSource, explicitCurrency)) {
       return { error: 'source-currency-conflict', source: explicitSource, implied }
     }
     return { source: explicitSource, currency: implied }
@@ -130,6 +130,33 @@ export function resolvePriceRequest(
 /** The Scryfall-backed store that quotes in a currency. */
 export function scryfallSourceFor(currency: PriceCurrency): PriceSource {
   return SCRYFALL_SOURCES[currency]
+}
+
+/**
+ * Whether an explicit source and an explicit currency disagree — the conflict
+ * half of {@link resolvePriceRequest}, for an input schema that validates
+ * before any default is known.
+ */
+export function priceRequestConflicts(
+  source: PriceSource,
+  currency: PriceCurrency | undefined,
+): boolean {
+  return currency !== undefined && currency !== sourceCurrency(source)
+}
+
+/**
+ * A store list with `source` switched on or off, kept in canonical order
+ * rather than toggle order so the persisted array is stable however it was
+ * edited (the admin Settings checkboxes, `init-site --price-source`).
+ */
+export function withPriceSource(
+  sources: readonly PriceSource[],
+  source: PriceSource,
+  enabled: boolean,
+): PriceSource[] {
+  return VALID_PRICE_SOURCES.filter((candidate) =>
+    candidate === source ? enabled : sources.includes(candidate),
+  )
 }
 
 export function isPriceRequestConflict(
@@ -188,22 +215,24 @@ export type SiteCurrenciesError = {
  * never adds a currency with no store behind it; one that keeps nothing is an
  * error. With no stores at all the site shows no prices, but still bakes one
  * currency (the explicit list's, else the default store's) so its data stays
- * well-formed.
+ * well-formed. `configured` is the raw `defaultPriceSource` (absent reads as
+ * {@link resolveDefaultPriceSource} does).
  */
 export function resolveSiteCurrencies(
   sources: readonly PriceSource[],
-  configured: PriceSource,
+  configuredSource: PriceSource | undefined,
 ): SiteCurrencies
 export function resolveSiteCurrencies(
   sources: readonly PriceSource[],
-  configured: PriceSource,
+  configuredSource: PriceSource | undefined,
   explicit: PriceCurrencies | undefined,
 ): SiteCurrencies | SiteCurrenciesError
 export function resolveSiteCurrencies(
   sources: readonly PriceSource[],
-  configured: PriceSource,
+  configuredSource: PriceSource | undefined,
   explicit?: PriceCurrencies,
 ): SiteCurrencies | SiteCurrenciesError {
+  const configured = resolveDefaultPriceSource(configuredSource, sources)
   const configuredCurrency = sourceCurrency(configured)
   const backed = VALID_CURRENCIES.filter(
     (currency) => sourcesForCurrency(currency, sources).length > 0,

@@ -4,8 +4,8 @@ import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
 import {
   VALID_PRICE_SOURCES,
-  isPriceRequestConflict,
-  resolvePriceRequest,
+  priceRequestConflicts,
+  sourceCurrency,
 } from '../../pricing/price-source'
 import { outputSchemaFor, runTool } from '../result'
 import {
@@ -639,16 +639,11 @@ export function registerReadTools(server: McpServer): void {
               message: 'slug requires listType (omit both for the all-lists summary).',
             })
           }
-          if (val.source !== undefined) {
-            // The default store is irrelevant to the conflict check: only an
-            // explicit source can disagree with an explicit currency.
-            const resolved = resolvePriceRequest(val.source, val.currency, val.source)
-            if (isPriceRequestConflict(resolved)) {
-              ctx.addIssue({
-                code: 'custom',
-                message: `source '${resolved.source}' prices in ${resolved.implied}; omit currency or make it match.`,
-              })
-            }
+          if (val.source !== undefined && priceRequestConflicts(val.source, val.currency)) {
+            ctx.addIssue({
+              code: 'custom',
+              message: `source '${val.source}' prices in ${sourceCurrency(val.source)}; omit currency or make it match.`,
+            })
           }
         }),
       outputSchema: outputSchemaFor<PriceReportResult>('get_price_report'),

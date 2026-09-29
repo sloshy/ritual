@@ -100,7 +100,7 @@ export const FindPrintingsModal: Component<FindPrintingsModalProps> = (props) =>
 
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded() ?? []))
 
-  // Rebuilt reactively so prices follow the currency selector and an
+  // Rebuilt reactively so prices follow the header's store picker and an
   // in-session "Update Prices" (sessionCacheVersion).
   const allCards = createMemo(() => {
     sessionCacheVersion()

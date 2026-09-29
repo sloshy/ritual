@@ -10,6 +10,7 @@ export const errorMessages = {
   'errors.input.required': 'Input required: {subject} ({reason}).',
   'errors.enum.invalid': "Invalid {field} '{value}'. Use one of: {choices}.",
   'errors.enum.type': '{field} must be one of: {choices}.',
+  'errors.enum.fieldPriceSource': 'price store',
   'errors.label.exclusive': "'{label}' cannot be combined with other labels.",
   'errors.skills.unknown': {
     $plural: 'count',

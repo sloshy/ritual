@@ -2612,7 +2612,7 @@ export async function mockPublicSiteForQuickSwitch(page: Page): Promise<void> {
 // formats (Modern first alphabetically, then Commander) so format grouping has
 // exact expected sections.
 const MOCK_SITE_INDEX_MULTI_LISTS: SiteIndex = makeSiteIndex({
-  // Two currencies, so the header's currency selector (hidden when there is
+  // Two currencies, so the header's store picker (hidden when there is
   // nothing to choose between) renders for the header-layout tests.
   availableCurrencies: ['usd', 'eur'],
   decks: [

@@ -32,6 +32,12 @@ const workflowRelPath = path.join('.github', 'workflows', 'deploy-site.yml')
 describe('init-site CLI (Integration)', () => {
   test('a fully-flagged headless publish-for-me init writes every file without prompting', async () => {
     await withTempDir(async (dir) => {
+      // A store list that does not already hold the chosen store, and whose
+      // one entry sorts *after* it — so appending and canonical insertion differ.
+      await fs.writeFile(
+        path.join(dir, 'ritual.config.json'),
+        JSON.stringify({ priceSources: ['cardkingdom'] }),
+      )
       const result = await runCli(
         [
           'init-site',
@@ -67,8 +73,8 @@ describe('init-site CLI (Integration)', () => {
         detectChanges: true,
       })
       expect(config.defaultPriceSource).toBe('cardmarket')
-      // Choosing a store the sites did not offer enables it.
-      expect(config.priceSources).toEqual(['tcgplayer', 'cardmarket'])
+      // Choosing a store the sites did not offer enables it, in canonical order.
+      expect(config.priceSources).toEqual(['cardmarket', 'cardkingdom'])
 
       expect(await Bun.file(path.join(dir, 'README.md')).exists()).toBeTrue()
       const gitignore = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
@@ -222,7 +228,10 @@ describe('init-site CLI (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(0)
-      expect((await readConfig(dir)).site).toMatchObject({ ciSystem: 'manual' })
+      const config = await readConfig(dir)
+      expect(config.site).toMatchObject({ ciSystem: 'manual' })
+      // An already-enabled store leaves the list as it was.
+      expect(config.priceSources).toEqual(['tcgplayer'])
       expect(await Bun.file(path.join(dir, 'README.md')).exists()).toBeTrue()
       expect(await Bun.file(path.join(dir, workflowRelPath)).exists()).toBeFalse()
     })

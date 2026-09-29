@@ -8,6 +8,7 @@ import type { CardTag } from '../card/card-tags'
 import type { CardCategory, CardCategoriesOverlay } from '../card/card-categories'
 import type { CardCategoriesJson } from './card-categories-sidecar'
 import type { ListImageRef } from './list-image'
+import type { PriceViewFields } from '../pricing/price-summary'
 import type { CardLanguage } from '../card/card-language'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { PriceSource } from '../pricing/price-source'
@@ -98,7 +99,30 @@ export interface BakedDeckData extends Omit<DeckData, 'sections'> {
   sections: BakedDeckSection[]
 }
 
-export interface DeckSummary {
+/**
+ * A summary's per-store price figures, one field per store for each metric
+ * (`totalPrice`, `totalPriceEur`, `totalPriceTix`, `totalPriceCardKingdom`, …),
+ * declared from the same table the readers (`getSummaryTotalPrice` and
+ * friends) key on, so a renamed field cannot silently read as 0. A store's
+ * figures are present only when the build offers it:
+ *
+ * - `lowestPrice` — decks only: every line at its cheapest printing.
+ * - `missingPriceCount` — copies with no price from that store.
+ * - `estimatedPriceCount` — decks and wanted lists: copies whose part of the
+ *   total is an estimate (they pin no printing, or have no price). Any at all
+ *   prefixes the total "Est.".
+ */
+type DeckPriceFields = PriceViewFields<
+  'totalPrice' | 'lowestPrice' | 'missingPriceCount' | 'estimatedPriceCount'
+>
+
+/** A flat list's per-store figures; see {@link DeckPriceFields}. */
+type WantedPriceFields = PriceViewFields<'totalPrice' | 'missingPriceCount' | 'estimatedPriceCount'>
+
+/** A collection's per-store figures; collections never estimate. */
+type CollectionPriceFields = PriceViewFields<'totalPrice' | 'missingPriceCount'>
+
+export interface DeckSummary extends DeckPriceFields {
   slug: string
   name: string
   featuredCardImage: string
@@ -115,32 +139,6 @@ export interface DeckSummary {
    * changelog page timestamp, falling back to the deck file's mtime.
    */
   lastUpdatedAt?: string
-  totalPrice?: number
-  lowestPrice?: number
-  totalPriceEur?: number
-  lowestPriceEur?: number
-  totalPriceTix?: number
-  lowestPriceTix?: number
-  missingPriceCount?: number
-  missingPriceCountEur?: number
-  missingPriceCountTix?: number
-  /**
-   * The Card Kingdom retail figures, beside the Scryfall USD ones above: each
-   * line at the printing the Card Kingdom view shows it at. Present only when
-   * the build offers Card Kingdom prices.
-   */
-  totalPriceCardKingdom?: number
-  lowestPriceCardKingdom?: number
-  missingPriceCountCardKingdom?: number
-  /**
-   * Copies whose part of the total is an estimate: they pin no printing, or
-   * their printing has no price in that currency. Any at all prefixes the total
-   * "Est.".
-   */
-  estimatedPriceCount?: number
-  estimatedPriceCountEur?: number
-  estimatedPriceCountTix?: number
-  estimatedPriceCountCardKingdom?: number
 }
 
 export interface DeckDetail {
@@ -234,7 +232,7 @@ export interface CollectionCardEntry extends CardCategoriesOverlay {
   cardId?: number
 }
 
-export interface CollectionSummary {
+export interface CollectionSummary extends CollectionPriceFields {
   slug: string
   name: string
   featuredCardImage: string
@@ -245,15 +243,10 @@ export interface CollectionSummary {
    * latest changelog page timestamp, falling back to the source file's mtime.
    */
   lastUpdatedAt?: string
+  /** Always baked, even for a currency no store offers (then 0). */
   totalPrice: number
   totalPriceEur: number
   totalPriceTix: number
-  missingPriceCount?: number
-  missingPriceCountEur?: number
-  missingPriceCountTix?: number
-  /** Card Kingdom retail figures; see {@link DeckSummary.totalPriceCardKingdom}. */
-  totalPriceCardKingdom?: number
-  missingPriceCountCardKingdom?: number
   /** The collection's default card labels from its front matter, when declared. */
   labels?: CardLabel[]
 }
@@ -321,7 +314,7 @@ export interface WantedListCardEntry extends CardCategoriesOverlay {
   cardId?: number
 }
 
-export interface WantedListSummary {
+export interface WantedListSummary extends WantedPriceFields {
   slug: string
   name: string
   featuredCardImage: string
@@ -332,24 +325,10 @@ export interface WantedListSummary {
    * latest changelog page timestamp, falling back to the source file's mtime.
    */
   lastUpdatedAt?: string
+  /** Always baked, even for a currency no store offers (then 0). */
   totalPrice: number
   totalPriceEur: number
   totalPriceTix: number
-  missingPriceCount?: number
-  missingPriceCountEur?: number
-  missingPriceCountTix?: number
-  /** Card Kingdom retail figures; see {@link DeckSummary.totalPriceCardKingdom}. */
-  totalPriceCardKingdom?: number
-  missingPriceCountCardKingdom?: number
-  /**
-   * Entries whose part of the total is an estimate (one per entry, like the
-   * totals themselves): they pin no printing, or their printing has no price
-   * in that currency. Any at all prefixes the total "Est.".
-   */
-  estimatedPriceCount?: number
-  estimatedPriceCountEur?: number
-  estimatedPriceCountTix?: number
-  estimatedPriceCountCardKingdom?: number
 }
 
 export interface WantedListDetail {

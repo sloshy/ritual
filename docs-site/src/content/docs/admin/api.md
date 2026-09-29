@@ -697,12 +697,12 @@ Price every deck, collection, and wanted list from the local card cache and retu
 | Parameter  | Description                                                                                                                                                                                                         | Required |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                                                                                                                  | No       |
-| `currency` | `usd`, `eur`, or `tix` (default: the currency of the configured `defaultPriceSource`)                                                                                                                               | No       |
+| `currency` | `usd`, `eur`, or `tix`. Alone, it keeps the configured `defaultPriceSource` when that store quotes in it, otherwise reads that currency's Scryfall store                                                            | No       |
 | `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed). With neither param, the configured `defaultPriceSource` | No       |
 
 An unknown `type`, `currency`, or `source` returns `400`. A `source` implies its currency (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), so a conflicting explicit `currency` is a `400` too.
 
-`source=cardkingdom` reads the cached [buylist feed](/commands/sell/). With a feed cached, the response carries `"source": "cardkingdom"` beside `"currency": "usd"`, and printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is **not** gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
+When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, the response carries `"source": "cardkingdom"` beside `"currency": "usd"`, and printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is **not** gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
 
 `mode` discriminates the two price bodies: `"summary"` here, `"list"` on [Price List](#price-list).
 

@@ -98,7 +98,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
   const symbolMap = createMemo(() => mergeSymbolMaps(loaded()))
 
   // Every card across every loaded list, rebuilt reactively so prices follow the
-  // currency selector and in-session "Update Prices". Deliberately unfiltered by
+  // header's store picker and in-session "Update Prices". Deliberately unfiltered by
   // the scope: earlier results must survive a list being excluded afterwards.
   const allCards = createMemo<CombinedCardData[]>(() => {
     sessionCacheVersion()
@@ -159,7 +159,7 @@ export const FindPage: Component<FindPageProps> = (props) => {
     try {
       await ensureLoaded(refs)
       // Read the reactive build (rebuilt by `allCards` once `loaded` is set) rather
-      // than rebuilding here — keeps prices following the currency selector.
+      // than rebuilding here — keeps prices following the header's store picker.
       // Only cards from lists in the snapshotted scope are searchable.
       const scope = new Set(refs.map(listRefKey))
       const cards = allCards().filter((c) =>

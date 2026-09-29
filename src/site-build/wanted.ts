@@ -23,6 +23,7 @@ import {
   loadFlatListSource,
   reportListCoverIssue,
   resolveListCover,
+  siteCardKingdomData,
   slugifyListName,
   sumCardKingdomLines,
 } from './shared'
@@ -62,7 +63,7 @@ export async function buildWantedArtifacts(
   // on purpose: a line that names its printing displays that printing under
   // every store.
   const cardMapCardKingdom: CardKingdomCards = {}
-  const cardKingdomData = hasUsd ? cardData.cardKingdom : undefined
+  const cardKingdomData = siteCardKingdomData(ctx)
   // Each counted entry as the Card Kingdom view displays it, summed at CK
   // retail off the baked quotes once they exist (below).
   const ckLines: CardKingdomSummaryLine[] = []

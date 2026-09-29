@@ -71,7 +71,7 @@ A build with no feed ships the site without Card Kingdom prices (every card show
 
 ### Turning prices off entirely
 
-An empty `priceSources` array hides every price surface on both sites: per-card prices, page and section totals, the price sort, filter, and grouping, the card modal's price rows, the **Update Prices** button, and the currency selector. Sell mode (buylist prices) and the CLI [`price`](/commands/price/) command are unaffected.
+An empty `priceSources` array hides every price surface on both sites: per-card prices, page and section totals, the price sort, filter, and grouping, the card modal's price rows, the **Update Prices** button, and the header's **Prices** dropdown. Sell mode (buylist prices) and the CLI [`price`](/commands/price/) command are unaffected.
 
 ```bash
 ritual config set priceSources --remove tcgplayer   # from the default, leaves []

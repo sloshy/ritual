@@ -123,7 +123,6 @@ export function useSiteData(): UseSiteDataResult {
       setUseScryfallImgUrls(data.useScryfallImgUrls)
       if (!currencyApplied) {
         setCurrency(sourceCurrency(data.defaultPriceSource))
-        setDefaultPriceSource(data.defaultPriceSource)
         currencyApplied = true
       }
       if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)
@@ -142,6 +141,9 @@ export function useSiteData(): UseSiteDataResult {
       // Absent on sites built before price sources existed, which reads as the
       // default (TCGplayer only). An explicit empty array hides all price UI.
       setEnabledPriceSources(data.priceSources)
+      // After the enabled list, like the admin's seed: the default is resolved
+      // against the stores just written.
+      setDefaultPriceSource(data.defaultPriceSource)
     })
   }
 

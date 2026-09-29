@@ -78,7 +78,7 @@ Build with specific wanted lists:
 ritual build-site --wanted-lists "High Priority" "Trade Targets"
 ```
 
-Without `--currencies`, the site offers the currencies its enabled [price stores](/configuration/#price-stores-pricesources) quote in: USD for `tcgplayer` and `cardkingdom`, EUR for `cardmarket`, TIX for `cardhoarder`. The default `["tcgplayer"]` builds a USD-only site. `--currencies` narrows and reorders that set for one build; the first listed currency is the default. A currency with no enabled store behind it is dropped, and a list that keeps none is refused with exit code `2`. To offer TIX, add `cardhoarder` to `priceSources`.
+Without `--currencies`, the site offers the currencies its enabled [price stores](/configuration/#price-stores-pricesources) quote in: USD for `tcgplayer` and `cardkingdom`, EUR for `cardmarket`, TIX for `cardhoarder`. The default `["tcgplayer"]` builds a USD-only site. `--currencies` narrows and reorders that set (and the header's store dropdown) for one build. The site opens on the configured [`defaultPriceSource`](/configuration/#default-price-store) when this build offers it, otherwise on the first listed currency's first enabled store. A currency with no enabled store behind it is dropped, and a list that keeps none is refused with exit code `2`. To offer TIX, add `cardhoarder` to `priceSources`.
 
 Build with EUR only:
 
@@ -233,7 +233,7 @@ The build writes a single-page application into `dist/` (or `--out-dir`):
 
 - `index.html`: the app shell
 - `app.js`: the bundled app with client-side routing
-- `index.json`: the list index, plus the build's config: [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, the [`priceSources`](/configuration/#price-stores-pricesources) store list, the [`defaultCategories`](/configuration/#default-categories) vocabulary for the editors' category suggestions, and `uiLocale` and `availableLocales` from [the locale flags](#localized-builds)
+- `index.json`: the list index, plus the build's config: [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, the [`priceSources`](/configuration/#price-stores-pricesources) store list, the [`defaultPriceSource`](/configuration/#default-price-store) the site opens on (or the first offered store), the [`defaultCategories`](/configuration/#default-categories) vocabulary for the editors' category suggestions, and `uiLocale` and `availableLocales` from [the locale flags](#localized-builds)
 - `boot.js`: a small bootstrap that applies the stored theme and sets `<html lang>`/`dir` before first paint
 - `locales/{tag}.json`: one message dictionary per published locale, fetched when a visitor switches language
 - `decks/{slug}.json`, `collections/{slug}.json`, `wanted/{slug}.json`: full list data with pricing, loaded on demand

@@ -34,6 +34,7 @@ import {
   bakedCardKingdomRetail,
   bakedListCategoryFields,
   cardCategoriesLookup,
+  siteCardKingdomData,
 } from './shared'
 import type {
   BuylistBakeSource,
@@ -223,7 +224,7 @@ export async function buildDeckArtifacts(
   const cheapestTix = cardData.cheapest.tix ?? {}
   // Only USD has a store choice, so CK's picks ride along with the USD maps and
   // are dropped entirely when the site is not building USD at all.
-  const cardKingdomData = hasUsd ? cardData.cardKingdom : undefined
+  const cardKingdomData = siteCardKingdomData(ctx)
 
   /**
    * The printing a deck line stands for: its own when it pins one, the by-name

@@ -55,7 +55,7 @@ Selecting a list opens a card browser over it. **🔎 Search all cards** opens t
 - Menu items change the sort field and direction, and set persistent set-code, collector-number, and (in the global search) list-type filters.
 - Selecting a card shows its printing, unit and line price, cheapest printing, mana value, and EDHREC rank. It can also list every printing with per-finish prices.
 
-**🔄 Refresh prices** redownloads the card database (which carries the prices) and rebuilds the report. **💱 Change currency** re-prices everything in `usd`, `eur`, or `tix`. A browser launched with `--source cardkingdom` keeps that store for its USD views: `eur` and `tix` read Scryfall, and switching back to `usd` reads Card Kingdom retail again (the header reads `USD (Card Kingdom retail)`).
+**🔄 Refresh prices** redownloads the card database (which carries the prices) and rebuilds the report. **💱 Change currency** re-prices everything in `usd`, `eur`, or `tix`. A browser pricing from Card Kingdom (`--source cardkingdom`, or a `cardkingdom` default) keeps that store for its USD views: `eur` and `tix` read Scryfall, and switching back to `usd` reads Card Kingdom retail again (the header reads `USD (Card Kingdom retail)`).
 
 ## Price stores (`--source`)
 
@@ -63,14 +63,14 @@ A source names the store prices come from, and so also its currency:
 
 | Store         | Currency | Prices                                                                         |
 | ------------- | -------- | ------------------------------------------------------------------------------ |
-| `tcgplayer`   | USD      | Scryfall USD market price. The default.                                        |
+| `tcgplayer`   | USD      | Scryfall USD market price. The default when `defaultPriceSource` is unset.     |
 | `cardmarket`  | EUR      | Scryfall EUR price.                                                            |
 | `cardhoarder` | TIX      | Scryfall MTGO tix price.                                                       |
 | `cardkingdom` | USD      | Card Kingdom Near Mint retail, from the cached [buylist feed](/commands/sell/) |
 
-`--source cardmarket` means the same as `--prices eur`, and `--source cardhoarder` the same as `--prices tix`. A `--prices` value that disagrees with the source is a usage error.
+With neither flag, `price` reads the configured [`defaultPriceSource`](/configuration/#default-price-store). `--prices` alone keeps that store when it quotes in the requested currency (so `--prices usd` under a `cardkingdom` default still prices from Card Kingdom), and otherwise reads that currency's Scryfall store: `--prices eur` is Cardmarket and `--prices tix` Cardhoarder. A `--prices` value that disagrees with `--source` is a usage error.
 
-Under `--source cardkingdom`:
+When the store is Card Kingdom (`--source cardkingdom`, or a `cardkingdom` default):
 
 - Entries match Card Kingdom products by Scryfall ID, with the same SKU fallback the sell report uses.
 - The feed follows this run's `--refresh` policy, like the card cache. With no feed cached and bulk downloads disallowed, the command errors instead of falling back to Scryfall.
@@ -96,7 +96,7 @@ Prompts never fire when they cannot be answered. Under `--no-input` / `RITUAL_NO
 ## How Cards Are Priced
 
 - An entry pinned to a specific printing (set + collector number) is priced at that exact printing, at its own finish when recorded, otherwise the printing's default finish. Collection entries are always pinned.
-- An unpinned entry is priced at a representative recent printing, the same pick the public site uses. Such printings are marked `*` in card listings. The pick uses the _active store's_ prices: under `--source cardkingdom` it is the newest printing Card Kingdom sells. A card CK carries no printing of keeps the Scryfall pick and reports unpriced.
+- An unpinned entry is priced at a representative recent printing, the same pick the public site uses. Such printings are marked `*` in card listings. The pick uses the _active store's_ prices: under Card Kingdom it is the newest printing Card Kingdom sells. A card CK carries no printing of keeps the Scryfall pick and reports unpriced.
 - Every deck and wanted-list entry also carries a **lowest** price, the cheapest acceptable copy:
   - Deck entries and name-only wanted entries: the cheapest printing+finish overall.
   - A wanted entry pinned to a printing without a finish: that printing's cheapest finish.
@@ -133,4 +133,4 @@ ritual price --summary --output json
 ritual price --wanted --set otc --output ndjson
 ```
 
-Prices reflect NM (Near Mint) values: Scryfall market prices, or Card Kingdom's NM retail under `--source cardkingdom`.
+Prices reflect NM (Near Mint) values: Scryfall market prices, or Card Kingdom's NM retail when that is the store.

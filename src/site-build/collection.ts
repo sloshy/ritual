@@ -18,6 +18,7 @@ import {
   loadFlatListSource,
   reportListCoverIssue,
   resolveListCover,
+  siteCardKingdomData,
   slugifyListName,
   sumCardKingdomLines,
 } from './shared'
@@ -236,12 +237,9 @@ export async function buildCollectionArtifacts(
   reportListCoverIssue(cover, 'collection', displayName, ctx)
   const featuredImage = cover.url
 
-  // Offered only when the site offers Card Kingdom prices (a USD build with
-  // CK data, as for decks and wanted lists). A collection never estimates.
-  const ck =
-    ctx.availableCurrencies.includes('usd') && ctx.cardData.cardKingdom
-      ? sumCardKingdomLines(detail.buylist, ckLines)
-      : undefined
+  // Offered only when the site offers Card Kingdom prices, as for decks and
+  // wanted lists. A collection never estimates.
+  const ck = siteCardKingdomData(ctx) ? sumCardKingdomLines(detail.buylist, ckLines) : undefined
   const ckFigures: Pick<
     CollectionSummary,
     'totalPriceCardKingdom' | 'missingPriceCountCardKingdom'

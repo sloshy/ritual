@@ -16,7 +16,7 @@ While edit mode is on, the tab bar steps aside for the editor's bottom action ba
 
 ### Display options
 
-Phones show only the logo and quick switch in the header. The **price currency**, the **Edit** toggle, the **Theme** menu, and, on a site [built with more than one locale](/commands/build-site/#localized-builds), the **interface language** switcher move into a second row behind the **⚙** button at the top right. Tap to open it, tap again to collapse. The row stays as you left it as you navigate. Desktop keeps these controls inline.
+Phones show only the logo and quick switch in the header. The **Prices** store dropdown, the **Edit** toggle, the **Theme** menu, and, on a site [built with more than one locale](/commands/build-site/#localized-builds), the **interface language** switcher move into a second row behind the **⚙** button at the top right. Tap to open it, tap again to collapse. The row stays as you left it as you navigate. Desktop keeps these controls inline.
 
 **Done** appears in the slot **Edit** occupied, so leaving edit mode works where entering it did. The ⚙ button never leaves the header, so a collapsed row is always one tap away.
 

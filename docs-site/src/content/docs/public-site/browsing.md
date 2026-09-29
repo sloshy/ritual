@@ -94,7 +94,7 @@ Clicking any card on a deck or collection page opens the card detail modal. It s
 - Card name, type line, mana cost, and oracle text
 - Price, set, rarity, and other metadata
 - A **View on Scryfall** link
-- An **Other Printings** button that opens a paginated binder-style grid (8 per page) of every known printing, each linking to Scryfall. The default order is release date, newest first. A dropdown switches the sort to release date, set name, or price, with a toggle to reverse it. Every printing is priced under the selected [price store](/public-site/prices/), with its alternate finishes listed underneath, and the grid has its own **Prices** selector, the same one the toolbar has. The price sort follows the selected store too.
+- An **Other Printings** button that opens a paginated binder-style grid (8 per page) of every known printing, each linking to Scryfall. The default order is release date, newest first. A dropdown switches the sort to release date, set name, or price, with a toggle to reverse it. Every printing is priced under the selected [price store](/public-site/prices/), with its alternate finishes listed underneath, and, when both USD stores are enabled, the grid has its own USD-store selector, the same choice as the header's **Prices** dropdown. The price sort follows the selected store too.
 
 A card with [custom art](/custom-art/) shows that image on its tile in every view (including the list view's hover preview) and as the modal's main picture. Only the front face is replaced. A double-faced card still flips to its real back, and the **Other Printings** grid keeps real thumbnails.
 

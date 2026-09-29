@@ -1,16 +1,20 @@
-import { batch, createSignal, type Accessor } from 'solid-js'
+import { batch, createSignal, untrack, type Accessor } from 'solid-js'
 import {
   DEFAULT_CURRENCY,
   VALID_CURRENCIES,
   type PriceCurrency,
 } from '../../../pricing/price-currency'
 import {
-  resolveDefaultPriceSource,
   resolveSiteCurrencies,
   sourceCurrency,
   type PriceSource,
 } from '../../../pricing/price-source'
-import { setDefaultPriceSource, setEnabledPriceSources } from '../../../list-view/price-view'
+import {
+  activePriceSource,
+  offeredPriceSources,
+  setDefaultPriceSource,
+  setEnabledPriceSources,
+} from '../../../list-view/price-view'
 import { pickPriceStore } from '../../../list-view/PriceStoreSelect'
 import { fetchRitualConfig } from '../config-api'
 
@@ -43,15 +47,18 @@ export function applyPriceConfig(
   defaultPriceSource: PriceSource | undefined,
   priceSources: readonly PriceSource[],
 ): void {
-  const resolved = resolveSiteCurrencies(
-    priceSources,
-    resolveDefaultPriceSource(defaultPriceSource, priceSources),
-  )
+  const resolved = resolveSiteCurrencies(priceSources, defaultPriceSource)
   batch(() => {
     setEnabledPriceSources(priceSources)
     setAvailable(resolved.available)
     setDefaultPriceSource(resolved.defaultSource)
-    if (!pickedFromHeader) setCurrency(sourceCurrency(resolved.defaultSource))
+    // A header pick stands across re-seeds — unless a Settings save just took
+    // its store away, which would strand the picker on a store it no longer
+    // lists (the public site settles the same way in `app.tsx`).
+    const offered = offeredPriceSources(resolved.available)
+    if (!pickedFromHeader || !offered.includes(activePriceSource(untrack(currency)))) {
+      setCurrency(sourceCurrency(resolved.defaultSource))
+    }
   })
 }
 

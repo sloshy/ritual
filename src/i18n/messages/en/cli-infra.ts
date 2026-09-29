@@ -234,7 +234,6 @@ export const cliInfraMessages = {
   'cli.initSite.cancelled': 'Cancelled.',
   'cli.initSite.fieldCiSystem': 'CI system',
   'cli.initSite.fieldDeployMode': 'deploy mode',
-  'cli.initSite.fieldPriceSource': 'price store',
   'cli.initSite.distDirRequired': 'Expected a directory path for --dist-dir.',
   'cli.initSite.promptOverwrite': '{path} already exists. Overwrite?',
   'cli.initSite.promptSkills':
@@ -265,7 +264,7 @@ export const cliInfraMessages = {
   'cli.initSite.fileExists':
     '{path} already exists and prompts are unavailable; pass --force to overwrite generated files.',
   'cli.initSite.alreadyInitializedFlags':
-    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --currency, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
+    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --price-source, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
   'cli.initSite.manualOnlyFlags':
     '--deploy, --dist-dir, and --change-detection only apply with --ci github-actions.',
   'cli.initSite.changeDetectionScope':
@@ -343,7 +342,6 @@ export const cliInfraMessages = {
   'cli.price.disclaimer':
     '⚠️  Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition can significantly decrease actual value.',
   'cli.price.fieldSort': 'sort field',
-  'cli.price.fieldSource': 'price source',
   'cli.price.sourceCurrencyConflict':
     '--source {source} prices in {currency}; drop the conflicting --prices flag or change it to match.',
   'cli.price.currencyCardKingdom': 'USD (Card Kingdom retail)',

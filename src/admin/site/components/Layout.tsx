@@ -228,7 +228,8 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
         </span>
         <div class="admin-header-actions">
           {/* Beside the other header controls, exactly as on the public site.
-              Hides itself when this build ships a single locale. */}
+              Each hides itself when there is nothing to choose: a single
+              offered store, or a build shipping a single locale. */}
           <PriceStoreSelect
             currency={priceView.currency()}
             available={priceView.available()}

@@ -391,7 +391,7 @@ The toolbar also has the [quick filter](/public-site/filtering/#quick-filter): s
 
 ### Prices in the editors
 
-The editors follow the [`priceSources`](/configuration/#price-stores-pricesources) config. With both USD stores enabled the toolbar has the same **Prices** store selector as the public site; with an empty list, price displays hide entirely. The public site reads prices stored in its built list data, but the editors quote **live** against the admin's own API, so a card added mid-edit is priced immediately.
+The editors follow the [`priceSources`](/configuration/#price-stores-pricesources) config. The admin header has the same **Prices** store dropdown as the public site (shown when more than one store is enabled), opening on the configured [`defaultPriceSource`](/configuration/#default-price-store); with an empty list, price displays hide entirely. The public site reads prices stored in its built list data, but the editors quote **live** against the admin's own API, so a card added mid-edit is priced immediately.
 
 ### Sell mode in the editors
 

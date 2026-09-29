@@ -16,6 +16,11 @@ export const errorsMeta = {
     description:
       'Rejection of a non-string value for a fixed-choice field (an HTTP body sending a number where an enum was expected). {field} is the field name and {choices} a comma-joined list; both are English identifiers.',
   },
+  'errors.enum.fieldPriceSource': {
+    description:
+      'The noun naming a price-store flag value (`price --source`, `init-site --price-source`) inside an "Invalid <field> …" error.',
+  },
+
   'errors.label.exclusive': {
     description:
       'Rejection of an illegal card-label combination. {label} is the exclusive label the user asked for (the untranslated token `keep` or `proxy`), which stands alone and cannot be paired with any other label. Keep the quotes around it.',

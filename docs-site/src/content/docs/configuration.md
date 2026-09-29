@@ -81,9 +81,9 @@ The store decides the currency too (`tcgplayer` and `cardkingdom` are USD, `card
 
 - the [price](/commands/price/) command, and the admin price API and MCP `get_price_report`, when neither a store nor a currency is given. A currency alone keeps this store when it quotes in that currency (so `--prices usd` under a `cardkingdom` default still prices from Card Kingdom), and otherwise reads that currency's Scryfall store.
 - the CLI editor's [printing and finish picker price columns](/commands/edit/#printing-and-finish-prices) and the price lines shown when adding or editing cards. These read Scryfall prices in the store's currency.
-- the public and admin sites' initial price store. The sites can only open on a store listed in `priceSources`; otherwise they open on the first enabled store.
+- the public and admin sites' initial price store. The sites can only open on a store listed in `priceSources`; otherwise they open on the first store in the header's dropdown (the first enabled store of the first offered currency).
 
-[init-site](/commands/init-site/) prompts for it and enables the chosen store. Change it later with `config set defaultPriceSource cardkingdom`, or clear it with `config unset defaultPriceSource`.
+[init-site](/commands/init-site/) prompts for it and enables the chosen store. Change it later with `config set defaultPriceSource cardkingdom`, or clear it with `config unset defaultPriceSource`. Unlike `init-site`, `config set` and the admin Settings page do not add the store to `priceSources`, so enable it there too if the sites should open on it.
 
 ## Price stores (`priceSources`)
 

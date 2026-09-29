@@ -183,8 +183,13 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       const parsed =
         raw.defaultPriceSource === '' ? undefined : parseDefaultPriceSource(raw.defaultPriceSource)
       if (isConfigParseError(parsed)) return badRequest(parsed.error)
-      if (parsed === undefined) clearDefaultPriceSource = true
-      else updates.defaultPriceSource = parsed
+      if (parsed === undefined) {
+        // `updates` aliases the raw body; never leave a `''` typed as a store.
+        clearDefaultPriceSource = true
+        delete updates.defaultPriceSource
+      } else {
+        updates.defaultPriceSource = parsed
+      }
     }
 
     // An empty string clears the override (falls back to the built-in default);

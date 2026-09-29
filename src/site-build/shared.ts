@@ -42,7 +42,7 @@ import type { ListType } from '../list/list-type'
 import type { CardLabel } from '../card/card-labels'
 import type { FlatListEntry, ParsedFlatListFile } from '../list/flat-list-read'
 import { parseTitleFromContent } from '../list/section-format'
-import type { SiteDetailContext } from './types'
+import type { CardKingdomCardData, SiteDetailContext } from './types'
 
 /**
  * Why a list file could not be read, as the `Failed to load <kind> '<name>':`
@@ -658,6 +658,16 @@ export function bakeBuylistQuotes(
       feedRetrievedAt: buylist.feedRetrievedAt,
     },
   }
+}
+
+/**
+ * The build's Card Kingdom picks when this site offers Card Kingdom prices: a
+ * USD build carrying CK data (present exactly when `cardkingdom` is an enabled
+ * store and a feed was loaded). The one gate for every CK-specific bake — the
+ * picks, and the summaries' CK figures.
+ */
+export function siteCardKingdomData(ctx: SiteDetailContext): CardKingdomCardData | undefined {
+  return ctx.availableCurrencies.includes('usd') ? ctx.cardData.cardKingdom : undefined
 }
 
 /**

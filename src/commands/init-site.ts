@@ -20,6 +20,7 @@ import {
   PRICE_SOURCE_LABELS,
   VALID_PRICE_SOURCES,
   sourceCurrency,
+  withPriceSource,
   type PriceSource,
 } from '../pricing/price-source'
 import type { ActiveManagedFile, ManagedFile, Migration } from '../list/managed-files'
@@ -37,7 +38,7 @@ import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { TEXT_ONLY } from '../cli/output'
 import type { Choice } from 'prompts'
-import { parseEnumFlag } from '../cli/options'
+import { parseEnumFlag, parsePriceSourceFlag } from '../cli/options'
 import { ask } from '../cli/prompts'
 
 /**
@@ -471,15 +472,6 @@ export function parseDistDirFlag(value: string): string {
   return trimmed
 }
 
-/** Commander argParser for `--price-source`: one of the supported price stores. */
-export function parsePriceSourceFlag(value: string): PriceSource {
-  return parseEnumFlag(
-    value.trim().toLowerCase(),
-    VALID_PRICE_SOURCES,
-    t('cli.initSite.fieldPriceSource'),
-  )
-}
-
 /**
  * Install Ritual agent skills into the repository's `.claude/skills` so coding
  * agents working in the repo can drive Ritual. The decision is taken from the
@@ -726,7 +718,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       process.exitCode = ExitCode.UsageError
       return
     }
-    const priceSource = await resolveDefaultPriceSource(options)
+    const priceSource = await resolveInitPriceSource(options)
     if (!priceSource) {
       console.error(t('cli.initSite.cancelled'))
       process.exitCode = ExitCode.UsageError
@@ -828,7 +820,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
     process.exitCode = ExitCode.UsageError
     return
   }
-  const priceSource = await resolveDefaultPriceSource(options)
+  const priceSource = await resolveInitPriceSource(options)
   if (!priceSource) {
     console.error(t('cli.initSite.cancelled'))
     process.exitCode = ExitCode.UsageError
@@ -857,13 +849,8 @@ async function persistSiteConfig(
     config.site = { ...getSiteSelectionConfig(config.site), ...deploy }
     if (priceSource !== undefined) {
       config.defaultPriceSource = priceSource
-      // The site can only open on a store it offers, so choosing one enables
-      // it (in canonical order, as the Settings checkboxes keep it).
-      if (!config.priceSources.includes(priceSource)) {
-        config.priceSources = VALID_PRICE_SOURCES.filter(
-          (source) => source === priceSource || config.priceSources.includes(source),
-        )
-      }
+      // The site can only open on a store it offers, so choosing one enables it.
+      config.priceSources = withPriceSource(config.priceSources, priceSource, true)
     }
     await saveRitualConfig(config)
     await refreshRitualConfig()
@@ -897,7 +884,7 @@ export function defaultPriceSourceChoices(current: PriceSource): Choice[] {
  * otherwise the interactive prompt. When prompts are unavailable and the flag
  * is unset, a usage error naming `--price-source` is raised.
  */
-async function resolveDefaultPriceSource(
+async function resolveInitPriceSource(
   options: InitSiteCommandOptions,
 ): Promise<PriceSource | null> {
   if (options.priceSource !== undefined) return options.priceSource

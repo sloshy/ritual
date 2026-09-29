@@ -370,9 +370,6 @@ export const cliInfraMeta = {
   'cli.initSite.fieldDeployMode': {
     description: 'The noun naming the --deploy value inside an "Invalid <field> …" error.',
   },
-  'cli.initSite.fieldPriceSource': {
-    description: 'The noun naming the --price-source value inside an "Invalid <field> …" error.',
-  },
   'cli.initSite.distDirRequired': { description: '--dist-dir was given an empty value.' },
   'cli.initSite.promptOverwrite': {
     description: 'Confirm prompt before overwriting a generated file. {path} is repo-relative.',
@@ -550,9 +547,6 @@ export const cliInfraMeta = {
   },
   'cli.price.fieldSort': {
     description: 'The noun naming the --sort value inside an "Invalid <field> …" error.',
-  },
-  'cli.price.fieldSource': {
-    description: 'The noun naming the --source value inside an "Invalid <field> …" error.',
   },
   'cli.price.sourceCurrencyConflict': {
     description:

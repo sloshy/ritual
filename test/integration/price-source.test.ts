@@ -87,6 +87,24 @@ describe('price --source (Integration)', () => {
     expect(tix.source).toBeUndefined()
   })
 
+  test('with no flag, the configured defaultPriceSource picks the store', async () => {
+    await fs.writeFile(
+      path.join(dir, 'ritual.config.json'),
+      JSON.stringify({ defaultPriceSource: 'cardkingdom' }),
+    )
+    const byDefault = await summary([])
+    expect(byDefault.source).toBe('cardkingdom')
+    expect(byDefault.totals.total).toBeCloseTo(3.49)
+
+    // A currency alone keeps the default store when it quotes in it…
+    const usd = await summary(['--prices', 'usd'])
+    expect(usd.source).toBe('cardkingdom')
+    // …and otherwise reads that currency's Scryfall store.
+    const eur = await summary(['--prices', 'eur'])
+    expect(eur.source).toBeUndefined()
+    expect(eur.totals.total).toBeCloseTo(1.1)
+  })
+
   test('a conflicting --prices is a usage error', async () => {
     const result = await runCli(
       ['price', '--summary', '--source', 'cardkingdom', '--prices', 'eur', '--refresh', 'never'],
@@ -111,6 +129,6 @@ describe('price --source (Integration)', () => {
   test('an unknown store is rejected at parse time', async () => {
     const result = await runCli(['price', '--source', 'ebay'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(2)
-    expect(result.stderr.toLowerCase()).toContain('price source')
+    expect(result.stderr.toLowerCase()).toContain('price store')
   })
 })

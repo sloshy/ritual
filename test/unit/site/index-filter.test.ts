@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import type { DeckSummary } from '../../../src/list/site-data'
+import type { PriceSource } from '../../../src/pricing/price-source'
 import {
   groupDecksByFormat,
   LIST_SORT_OPTIONS,
@@ -9,24 +10,9 @@ import {
 } from '../../../src/site/index-filter'
 
 function makeDeck(partial: Partial<DeckSummary> & { slug: string; name: string }): DeckSummary {
-  return {
-    slug: partial.slug,
-    name: partial.name,
-    featuredCardImage: '',
-    commander: null,
-    format: partial.format ?? null,
-    cardCount: partial.cardCount ?? 60,
-    lastUpdatedAt: partial.lastUpdatedAt,
-    totalPrice: partial.totalPrice,
-    lowestPrice: partial.lowestPrice,
-    totalPriceEur: partial.totalPriceEur,
-    lowestPriceEur: partial.lowestPriceEur,
-    totalPriceTix: partial.totalPriceTix,
-    lowestPriceTix: partial.lowestPriceTix,
-    missingPriceCount: partial.missingPriceCount,
-    missingPriceCountEur: partial.missingPriceCountEur,
-    missingPriceCountTix: partial.missingPriceCountTix,
-  }
+  // Spread, not a field-by-field copy: a copy silently drops any price field it
+  // forgets to list, and a sort over two zeros proves nothing.
+  return { featuredCardImage: '', commander: null, format: null, cardCount: 60, ...partial }
 }
 
 describe('sortSummaries (decks)', () => {
@@ -122,25 +108,33 @@ describe('sortSummaries (decks)', () => {
       name: 'EurFavored',
       totalPrice: 10,
       totalPriceEur: 500,
-      totalPriceCardKingdom: 900,
+      lowestPrice: 5,
     })
     const usdFavored = makeDeck({
       slug: 'u1',
       name: 'UsdFavored',
       totalPrice: 500,
       totalPriceEur: 10,
-      totalPriceCardKingdom: 1,
     })
-    expect(
-      sortSummaries([eurFavored, usdFavored], 'price', 'tcgplayer', false).map((d) => d.slug),
-    ).toEqual(['u1', 'e1'])
-    expect(
-      sortSummaries([eurFavored, usdFavored], 'price', 'cardmarket', false).map((d) => d.slug),
-    ).toEqual(['e1', 'u1'])
-    // Card Kingdom is a second USD store with figures of its own.
-    expect(
-      sortSummaries([eurFavored, usdFavored], 'price', 'cardkingdom', false).map((d) => d.slug),
-    ).toEqual(['e1', 'u1'])
+    // Cheapest under both Scryfall stores, dearest at Card Kingdom — an order
+    // neither the input nor another store's sort produces.
+    const ckFavored = makeDeck({
+      slug: 'k1',
+      name: 'CkFavored',
+      totalPrice: 1,
+      totalPriceEur: 1,
+      totalPriceCardKingdom: 999,
+      lowestPrice: 1,
+      lowestPriceCardKingdom: 50,
+    })
+    const decks = [eurFavored, usdFavored, ckFavored]
+    const order = (sort: 'price' | 'lowestPrice', source: PriceSource): string[] =>
+      sortSummaries(decks, sort, source, false).map((d) => d.slug)
+    expect(order('price', 'tcgplayer')).toEqual(['u1', 'e1', 'k1'])
+    expect(order('price', 'cardmarket')).toEqual(['e1', 'u1', 'k1'])
+    expect(order('price', 'cardkingdom')[0]).toBe('k1')
+    expect(order('lowestPrice', 'cardkingdom')[0]).toBe('k1')
+    expect(order('lowestPrice', 'tcgplayer')[0]).toBe('e1')
   })
 })
 

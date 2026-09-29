@@ -1,15 +1,18 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { resetBuylistQuotes, seedBuylistQuotes } from '../../../src/list-view/buylist-quotes'
 import {
+  activePriceSource,
   activeUsdSource,
   currencyHasSource,
   maybeDefaultSellSource,
   maybeRestoreDefaultSource,
   offeredCurrencies,
+  offeredPriceSources,
   offersUsdSourceChoice,
   pricesEnabled,
   resetPriceView,
   selectUsdSource,
+  setDefaultPriceSource,
   setEnabledPriceSources,
   sitePrice,
   sitePriceForFinish,
@@ -109,6 +112,58 @@ describe('activeUsdSource', () => {
     setEnabledPriceSources(['tcgplayer'])
     maybeDefaultSellSource()
     expect(activeUsdSource()).toBe('tcgplayer')
+  })
+})
+
+describe('the configured default store', () => {
+  test('a USD default opens the USD view on it, even with TCGplayer enabled', () => {
+    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
+    setDefaultPriceSource('cardkingdom')
+    expect(activeUsdSource()).toBe('cardkingdom')
+    // Leaving sell mode restores the configured default, not TCGplayer.
+    maybeRestoreDefaultSource()
+    expect(activeUsdSource()).toBe('cardkingdom')
+  })
+
+  test("an unchanged re-seed leaves sell mode's courtesy default alone", () => {
+    // The admin re-seeds on every page mount, after sell mode's page-mount
+    // default has already switched the view to Card Kingdom.
+    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
+    setDefaultPriceSource('tcgplayer')
+    maybeDefaultSellSource()
+    setDefaultPriceSource('tcgplayer')
+    expect(activeUsdSource()).toBe('cardkingdom')
+  })
+
+  test('a changed default applies, but never over an explicit pick', () => {
+    setEnabledPriceSources(['tcgplayer', 'cardkingdom'])
+    setDefaultPriceSource('cardkingdom')
+    expect(activeUsdSource()).toBe('cardkingdom')
+    selectUsdSource('tcgplayer')
+    setDefaultPriceSource('tcgplayer')
+    setDefaultPriceSource('cardkingdom')
+    expect(activeUsdSource()).toBe('tcgplayer')
+  })
+})
+
+describe('the header store picker', () => {
+  test('offers each enabled store of an offered currency, USD stores together', () => {
+    setEnabledPriceSources(['tcgplayer', 'cardmarket', 'cardkingdom'])
+    expect(offeredPriceSources(['usd', 'eur', 'tix'])).toEqual([
+      'tcgplayer',
+      'cardkingdom',
+      'cardmarket',
+    ])
+    // A currency the site does not offer takes its stores with it.
+    expect(offeredPriceSources(['eur'])).toEqual(['cardmarket'])
+  })
+
+  test('the active store is the USD source for USD, else the currency’s one store', () => {
+    setEnabledPriceSources(['tcgplayer', 'cardkingdom', 'cardmarket'])
+    selectUsdSource('cardkingdom')
+    expect(activePriceSource('usd')).toBe('cardkingdom')
+    expect(activePriceSource('eur')).toBe('cardmarket')
+    expect(activePriceSource('tix')).toBe('cardhoarder')
   })
 })
 
