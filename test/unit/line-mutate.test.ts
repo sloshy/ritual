@@ -426,6 +426,16 @@ describe('applyDeckAddToContent', () => {
     expect(content).toContain('1 Pyroblast &3\n\n## Maybeboard')
   })
 
+  test('a --section with a line break lands under one folded heading, and a repeat add finds it', () => {
+    const placement = { section: 'Maybe\nboard ' }
+    const first = applyDeckAddToContent(mainboardDeck, { name: 'Brainstorm' }, 1, placement)
+    const second = applyDeckAddToContent(first.content, { name: 'Ponder' }, 1, placement)
+    expect(second.outcome.section).toBe('Maybe board')
+    expect(second.content.split('\n').filter((line) => line.startsWith('## Maybe'))).toEqual([
+      '## Maybe board',
+    ])
+  })
+
   test('--commander creates the Commander section in front of the others', () => {
     const { content, outcome } = applyDeckAddToContent(
       mainboardDeck,

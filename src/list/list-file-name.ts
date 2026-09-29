@@ -13,6 +13,7 @@
  */
 
 import { normalizeForSearch } from '../card/term-match'
+import { singleLineText } from './heading'
 
 /**
  * The characters a file name may not contain: reserved on Windows
@@ -42,7 +43,9 @@ export function stripFileNameIllegalChars(name: string): string {
  * `.md`.
  */
 export function sanitizeListFileName(name: string): string | null {
-  const safeName = stripFileNameIllegalChars(name.trim())
+  // Folded first, so a name with a line break names its file exactly as its
+  // `# Title` heading reads (see `heading.ts`) — and no file name carries one.
+  const safeName = stripFileNameIllegalChars(singleLineText(name).trim())
     // `..` would be a path traversal; leading/trailing dots are hidden files or
     // are silently trimmed by Windows.
     .replace(/\.{2,}/g, '.')

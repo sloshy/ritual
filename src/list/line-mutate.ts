@@ -60,6 +60,7 @@ import type { ListType } from './list-type'
 import type { CardMutationChange } from './list-mutate'
 import type { EntryRef } from './entry-ref'
 import { loadDefaultCategories } from '../config/ritual-config'
+import { headingName, sectionHeading } from './heading'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -280,7 +281,7 @@ export function applyTargetedChangesToContent(
         requireDeck(type, change.action)
         lines = moveTargetLine(lines, entry, {
           kind: 'named-section',
-          section: change.section,
+          section: headingName(change.section),
         })
         break
       case 'set-commander':
@@ -657,7 +658,7 @@ function moveTargetLine(lines: string[], target: EntryRef, destination: MoveDest
     const firstHeading = remainingHeadings[0]!.index
     return [
       ...without.slice(0, firstHeading),
-      `## ${sectionName}`,
+      sectionHeading(sectionName),
       cardLine,
       '',
       ...without.slice(firstHeading),
@@ -670,7 +671,7 @@ function moveTargetLine(lines: string[], target: EntryRef, destination: MoveDest
   while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
     trimmedEnd.pop()
   }
-  return [...trimmedEnd, '', `## ${sectionName}`, cardLine, '']
+  return [...trimmedEnd, '', sectionHeading(sectionName), cardLine, '']
 }
 
 // ── Deck adds ─────────────────────────────────────────────────────────────────
@@ -746,7 +747,7 @@ export function applyDeckAddToContent(
     lines = insertDeckCardLine(
       lines,
       canonicalCardLine('deck', { ...card, quantity, cardId }),
-      placement.section,
+      placement.section === undefined ? undefined : headingName(placement.section),
     )
   }
 
@@ -934,5 +935,5 @@ function insertDeckCardLine(lines: string[], cardLine: string, section?: string)
   while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
     trimmedEnd.pop()
   }
-  return [...trimmedEnd, '', `## ${section ?? DEFAULT_SECTION}`, cardLine, '']
+  return [...trimmedEnd, '', sectionHeading(section ?? DEFAULT_SECTION), cardLine, '']
 }

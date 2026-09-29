@@ -9,6 +9,7 @@ import {
   renderDialectText,
   type SectionedDialectCard,
 } from '../export/dialects'
+import { sectionHeading, titleHeading } from './heading'
 
 /**
  * Format a single deck card line in the canonical markdown format, e.g.
@@ -46,11 +47,11 @@ export function serializeCardLine(card: Card): string {
  */
 export function deckToMarkdown(deck: DeckData): string {
   const blocks = deck.sections.map((section) => {
-    const header = `## ${section.name}`
+    const header = sectionHeading(section.name)
     const cardLines = section.cards.map(serializeCardLine)
     return [header, ...cardLines].join('\n')
   })
-  return [`# ${deck.name}`, ...blocks].join('\n\n').replace(/\n*$/, '\n')
+  return [titleHeading(deck.name), ...blocks].join('\n\n').replace(/\n*$/, '\n')
 }
 
 /**

@@ -9,6 +9,7 @@ import { listNameCollision } from './list-lifecycle'
 import type { ListType } from './list-type'
 import { dirForType } from './resolve-list'
 import { CardCommandError, ExitCode } from '../util/errors'
+import { titleHeading } from './heading'
 
 /**
  * Ensure `fileName` exists in `dir`, creating it (and the directory) with
@@ -74,10 +75,10 @@ export async function ensureDeckFile(name: string, format: DeckFormatKey): Promi
  * markdown heading when missing. Returns the resolved file path.
  */
 export async function ensureCollectionFile(collectionName: string): Promise<string> {
-  return ensureNamedListFile('collection', collectionName, `# ${collectionName}\n\n`)
+  return ensureNamedListFile('collection', collectionName, `${titleHeading(collectionName)}\n\n`)
 }
 
 /** Ensure a wanted-list file exists for `name`, creating it with a markdown heading when missing. */
 export async function ensureWantedListFile(name: string): Promise<string> {
-  return ensureNamedListFile('wanted', name, `# ${name}\n\n`)
+  return ensureNamedListFile('wanted', name, `${titleHeading(name)}\n\n`)
 }

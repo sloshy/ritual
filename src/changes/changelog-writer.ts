@@ -8,6 +8,7 @@ import {
   type ChangeSet,
 } from './changelog-blocks'
 import { createFenceTracker } from '../list/markdown-fence'
+import { singleLineText } from '../list/heading'
 
 /** Options controlling how {@link appendChangelog} writes a block. */
 export type AppendChangelogOptions = {
@@ -105,7 +106,7 @@ export async function appendChangelog(
     }
   }
 
-  const baseContent = existingContent ?? `# Changelog for ${entityName}\n`
+  const baseContent = existingContent ?? `# Changelog for ${singleLineText(entityName)}\n`
   await fs.writeFile(changelogPath, baseContent + serializeChangeSet(fresh))
   return changelogPath
 }

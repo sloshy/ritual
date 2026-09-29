@@ -29,6 +29,7 @@ import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-fil
 import { parseTitleFromContent } from './section-format'
 import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { capitalize } from '../util/strings'
+import { singleLineText, titleHeading } from './heading'
 
 /** Structured failure of a lifecycle operation. */
 export type ListLifecycleError =
@@ -219,7 +220,7 @@ export async function createList(
   name: string,
   format?: string,
 ): Promise<CreateListResult> {
-  const trimmedName = name.trim()
+  const trimmedName = singleLineText(name).trim()
 
   let content: string
   if (type === 'deck') {
@@ -230,7 +231,7 @@ export async function createList(
     }
     content = newDeckMarkdown(trimmedName, parsedFormat)
   } else {
-    content = `# ${trimmedName}\n\n`
+    content = `${titleHeading(trimmedName)}\n\n`
   }
 
   const slug = sanitizeListFileName(trimmedName)
@@ -276,7 +277,7 @@ export async function renameList(
   newName: string,
   options: RenameListOptions = {},
 ): Promise<RenameListResult> {
-  const trimmedName = newName.trim()
+  const trimmedName = singleLineText(newName).trim()
   const newSlug = sanitizeListFileName(trimmedName)
   if (newSlug === null) {
     return { kind: 'invalid-name', message: unusableFileNameMessage(trimmedName) }
@@ -419,11 +420,11 @@ function replaceFirstH1(content: string, newTitle: string): string {
   for (let i = start; i < lines.length; i++) {
     const line = lines[i]
     if (!fenced[i] && line !== undefined && line.startsWith('# ')) {
-      lines[i] = `# ${newTitle}`
+      lines[i] = titleHeading(newTitle)
       return lines.join('\n')
     }
   }
-  if (start === 0) return `# ${newTitle}\n\n${content}`
-  lines.splice(start, 0, '', `# ${newTitle}`)
+  if (start === 0) return `${titleHeading(newTitle)}\n\n${content}`
+  lines.splice(start, 0, '', titleHeading(newTitle))
   return lines.join('\n')
 }

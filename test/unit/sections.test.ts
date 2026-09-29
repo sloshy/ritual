@@ -137,6 +137,24 @@ describe('serializeSectionedList round-trip', () => {
     expect(out).toContain('(C21:167)')
   })
 
+  test('a line break in the title or a section name cannot inject lines into the file', () => {
+    const evil = 'Rares\n- Mox Pearl (LEA:262) &98'
+    const folded = 'Rares - Mox Pearl (LEA:262) &98'
+    const { entries } = parseCollectionFile(`# C\n\n## Rares\n- Sol Ring (C21:167) &1\n`)
+    const out = serializeSectionedList(
+      'C\n- Black Lotus (LEA:232) &99',
+      entries.map((entry) => ({ ...entry, section: evil })),
+      [evil],
+      collectionLine,
+    )
+    const reparsed = parseCollectionFile(out)
+    expect(parseTitleFromContent(out)).toBe('C - Black Lotus (LEA:232) &99')
+    expect(reparsed.sectionOrder).toEqual([folded])
+    expect(reparsed.entries.map((e) => [e.name, e.section, e.cardId])).toEqual([
+      ['Sol Ring', folded, 1],
+    ])
+  })
+
   test('emits a bare header for empty sections in the order', () => {
     const out = serializeSectionedList<CollectionEntry>('C', [], ['Wishlist'], collectionLine)
     expect(out).toContain('## Wishlist')

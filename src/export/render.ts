@@ -16,6 +16,7 @@ import {
   archidektModifier,
 } from '../importers/archidekt-collection'
 import type { ExportEntry } from './entries'
+import { sectionHeading, titleHeading } from '../list/heading'
 
 /**
  * Every property a card entry can export, in the canonical display order used
@@ -433,9 +434,9 @@ export function renderMarkdownExport(entries: ExportEntry[]): string {
       else sections.set(entry.section, [markdownLine(entry)])
     }
     const sectionBlocks = [...sections.entries()].map(
-      ([section, lines]) => `## ${section}\n${lines.join('\n')}`,
+      ([section, lines]) => `${sectionHeading(section)}\n${lines.join('\n')}`,
     )
-    return `# ${group.listName}\n\n${sectionBlocks.join('\n\n')}`
+    return `${titleHeading(group.listName)}\n\n${sectionBlocks.join('\n\n')}`
   })
   return listBlocks.join('\n\n')
 }

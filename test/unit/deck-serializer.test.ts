@@ -331,6 +331,25 @@ describe('deck title round trip', () => {
     expect(result).toContain('# Fresh')
   })
 
+  test('a line break in the title or a section name cannot inject lines into the file', () => {
+    const deck: DeckData = {
+      name: 'Burn\n1 Black Lotus &99',
+      sections: [
+        {
+          name: 'Main\n## Sideboard\n4 Mox Pearl &98',
+          cards: [{ quantity: 4, name: 'Lightning Bolt', cardId: 1 }],
+        },
+      ],
+    }
+    const parsed = parseDeckText(serializeDeckToMarkdown(deck, {}), 'fallback')
+    expect(parsed.warnings).toEqual([])
+    expect(parsed.deck.name).toBe('Burn 1 Black Lotus &99')
+    expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Main ## Sideboard 4 Mox Pearl &98'])
+    expect(parsed.deck.sections.flatMap((s) => s.cards).map((c) => [c.name, c.cardId])).toEqual([
+      ['Lightning Bolt', 1],
+    ])
+  })
+
   test('newDeckFrontMatter carries only the format and an empty tag list', () => {
     expect(newDeckFrontMatter('commander')).toEqual({ format: 'commander', tags: [] })
   })

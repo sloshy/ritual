@@ -8,6 +8,7 @@
  */
 
 import { createFenceTracker, frontMatterBodyStart } from './markdown-fence'
+import { sectionHeading, titleHeading } from './heading'
 
 /** Matches any ATX heading, capturing its `#` run and its text. */
 const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/
@@ -142,9 +143,9 @@ export function serializeSectionedList<E extends Sectioned>(
       .filter((entry) => entry.section === section)
       .map(formatLine)
       .join('')
-    return `## ${section}\n${body}`
+    return `${sectionHeading(section)}\n${body}`
   })
   // Always end with exactly one trailing newline, regardless of whether the final block had
   // entries (each `formatLine` is newline-terminated) or the list was empty.
-  return `# ${title}\n\n${blocks.join('\n')}`.replace(/\n*$/, '\n')
+  return `${titleHeading(title)}\n\n${blocks.join('\n')}`.replace(/\n*$/, '\n')
 }

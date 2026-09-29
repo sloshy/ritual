@@ -17,6 +17,7 @@ import { listDescriptionOrUndefined } from './list-description'
 import { writeListFrontMatter, type ListFrontMatterWrite } from './front-matter-write'
 import { isListImageRefError, parseListImage, type ListImageRef } from './list-image'
 import { serializeCardLine } from './deck-text'
+import { sectionHeading, titleHeading } from './heading'
 
 // Re-exported from `deck-text` (a browser-safe, type-only module) so existing
 // importers of `deck-file` keep working while the public site reuses the pure
@@ -112,12 +113,12 @@ export function serializeDeckToMarkdown(deck: DeckData, frontMatter: DeckFrontMa
   const sectionBlocks = idedDeck.sections
     .filter((section) => !isDroppedEmptySection(section))
     .map((section) => {
-      const header = `## ${section.name}`
+      const header = sectionHeading(section.name)
       const cardLines = section.cards.map(serializeCardLine)
       return [header, ...cardLines].join('\n')
     })
 
-  const content = '\n' + [`# ${idedDeck.name}`, ...sectionBlocks].join('\n\n') + '\n'
+  const content = '\n' + [titleHeading(idedDeck.name), ...sectionBlocks].join('\n\n') + '\n'
   return matter.stringify(content, canonicalFrontMatter(deck, frontMatter))
 }
 

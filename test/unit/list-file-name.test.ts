@@ -20,7 +20,11 @@ describe('sanitizeListFileName', () => {
     expect(sanitizeListFileName("Atraxa: Praetors' Voice")).toBe("Atraxa Praetors' Voice")
     expect(sanitizeListFileName('Burn/Sligh')).toBe('BurnSligh')
     expect(sanitizeListFileName('What? <Now> | "Really"*')).toBe('What Now  Really')
-    expect(sanitizeListFileName('null\x00byte')).toBe('nullbyte')
+    expect(sanitizeListFileName('null\x00byte')).toBe('null byte')
+  })
+
+  test('folds a line break the way the list\u2019s `# Title` heading does', () => {
+    expect(sanitizeListFileName('Burn\n1 Black Lotus &99\r\n')).toBe('Burn 1 Black Lotus &99')
   })
 
   test('trims surrounding whitespace', () => {
