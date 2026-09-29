@@ -13,7 +13,7 @@
  */
 
 import { normalizeForSearch } from '../card/term-match'
-import { singleLineText } from './heading'
+import { singleLineText } from '../util/single-line'
 
 /**
  * The characters a file name may not contain: reserved on Windows

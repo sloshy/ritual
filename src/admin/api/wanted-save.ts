@@ -21,6 +21,7 @@ import {
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
+  refuseLineBreaks,
   normalizeRequestTags,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -59,6 +60,10 @@ export async function handleWantedListSave(req: Request): Promise<Response> {
 
     const noteError = normalizeRequestNotes(changes, entries)
     if (noteError) return noteError
+
+    // After the notes are trimmed: a pasted trailing newline is not a line break.
+    const lineBreakError = refuseLineBreaks({ changes, entries, sectionOrder })
+    if (lineBreakError) return lineBreakError
 
     // A wanted list carries no labels (`LIST_TYPE_LABELS.wanted`), so a
     // `set-label` change, a labelled `add`/`remove`, or an entry `labels` field

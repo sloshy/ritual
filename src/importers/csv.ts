@@ -10,6 +10,7 @@ import {
 } from '../card/card-categories'
 import { canonicalSectionName, sectionRole } from '../list/deck-format'
 import type { ListType } from '../list/list-type'
+import { hasLineBreak } from '../util/single-line'
 
 /**
  * CSV import support: a validating CSV parser plus the column-mapping and
@@ -617,6 +618,11 @@ export function convertCsvRows(
 
     const set = cellAt(mapping.set).toLowerCase()
     const collectorNumber = cellAt(mapping.collectorNumber)
+    // A quoted CSV cell may legally span lines, but a card line may not: the
+    // rest of the cell would be written as forged lines of its own.
+    if ([name, set, collectorNumber].some(hasLineBreak)) {
+      problems.push('Line break inside the card name, set code, or collector number')
+    }
     if (listType === 'collection') {
       if (set === '') problems.push('Missing set code (required for collections)')
       if (collectorNumber === '') {

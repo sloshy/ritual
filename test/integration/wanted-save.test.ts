@@ -245,3 +245,19 @@ describe('POST /api/wanted/:slug/save — labels', () => {
     expect(await fs.exists(changelogPath())).toBe(false)
   })
 })
+
+describe('POST /api/wanted/:slug/save — line breaks', () => {
+  // `sectionOrder` is not card data, yet it becomes `## Section` lines: the
+  // route must walk it too. The walk itself is pinned in single-line.test.ts.
+  test('a section order entry carrying a forged line is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save({
+      changes: [],
+      entries: SEEDED,
+      sectionOrder: ['Main\n- Black Lotus (LEA:232) &9'],
+    })
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as { message: string }).message).toContain('sectionOrder[0]')
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+})

@@ -1572,6 +1572,10 @@ export const adminMeta = {
     description:
       "Warning in an editor save's response when the list's (or a move destination's) <list>.art.json custom-art sidecar could not be read, so the &N ids the save freed or renumbered could not be re-filed. {reason} is untranslated engine prose naming the file and the parse failure. A warning, never a failure: the card lines were written correctly.",
   },
+  'admin.api.save.lineBreak': {
+    description:
+      'Refusal (HTTP 400) when a list save or move request carries a string with a line break (newline, carriage return, or Unicode line separator) in its card data, which would otherwise write extra lines into the list file. {field} is the untranslated JSON path of the offending value, e.g. changes[2].cardName.',
+  },
   'admin.api.save.categoriesUnreconciled': {
     description:
       "Warning in an editor save's response when the list's <list>.categories.json sidecar could not be read or written, so the save's category assignments were not recorded. {reason} is untranslated engine prose naming the file and the failure. A warning, never a failure: the card lines were written correctly.",

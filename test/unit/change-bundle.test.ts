@@ -269,6 +269,11 @@ describe('parseChangeBundle validation', () => {
       'Move #1 names half a printing',
     ],
     [
+      'a move whose card name spans lines',
+      { ...bundle([]), moves: [{ ...move('m', 1, DECK, BINDER), cardName: 'Bolt\n- Lotus &9' }] },
+      'A line break in "moves[0].cardName"',
+    ],
+    [
       'a move carrying a malformed tag',
       { ...bundle([]), moves: [move('m', 1, DECK, BINDER, { tags: ['a,b'] })] },
       'Move #1 Invalid tag "a,b"',

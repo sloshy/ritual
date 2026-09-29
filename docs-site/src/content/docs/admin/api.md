@@ -1069,6 +1069,10 @@ Every move is validated in memory before anything is written. A missing list, a 
 
 All three save routes parse the file on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck). A line the parser cannot read, or a [fenced code block](/list-format/#fenced-code-blocks), is content the re-serializing write would delete, releasing any `&N` ids it held back into the reuse pool. The message names the file and each entry. Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field. MCP mutations surface the same refusal as a tool error.
 
+### Line breaks
+
+Card names, printings, sections, and list names are written into single-line card lines, headings, and changelog entries, so none of them may contain a line break (newline, carriage return, vertical tab, form feed, NEL, or U+2028/U+2029). The three save routes check every string in their card data (`changes`, a deck's `name` and `sections`, a wanted list's `entries`, and `sectionOrder`), and [Move Selected Cards](#move-selected-cards) and `POST /api/move/commit` check their `moves`. A line break anywhere in those is a `400` with `messageKey: admin.api.save.lineBreak` naming the JSON path, such as `changes[2].cardName`. Nothing is written. A deck's `description` and primer are not checked: both are multi-line by design. [Import changes](#import-changes) refuses a bundle carrying one the same way. MCP mutations surface the refusal as a tool error.
+
 ### Language validation
 
 All three save routes validate every [language](/list-format/#card-language) a request carries:

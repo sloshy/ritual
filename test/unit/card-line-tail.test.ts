@@ -93,6 +93,15 @@ describe('formatCanonicalCardLine', () => {
   })
 })
 
+describe('formatCanonicalCardLine line-break backstop', () => {
+  test.each([
+    ['name', { name: 'Sol Ring\n- 1 Black Lotus &3' }],
+    ['collector number', { name: 'Sol Ring', printing: { set: 'c21', collectorNumber: '1\r2' } }],
+  ])('refuses a %s that spans lines', (_label, fields) => {
+    expect(() => formatCanonicalCardLine('deck', fields)).toThrow('cannot hold a line break')
+  })
+})
+
 describe('round trip', () => {
   // Typed as `LineTokens`, the parser's own output shape, so the round trip is
   // an identity assertion rather than a structural coincidence.

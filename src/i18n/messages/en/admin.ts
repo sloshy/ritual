@@ -952,6 +952,8 @@ export const adminMessages = {
   'admin.api.save.saved': 'Saved {count} changes to {name}',
   'admin.api.save.artUnreconciled':
     "The list's custom art was left as it is — it could not be read: {reason}",
+  'admin.api.save.lineBreak':
+    'The request field "{field}" contains a line break; card names, printings, sections, and list names must be single-line text.',
   'admin.api.save.categoriesUnreconciled':
     'The card lines were saved, but the categories sidecar could not be updated: {reason}',
   'admin.api.load.categoriesUnreadable':

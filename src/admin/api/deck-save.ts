@@ -21,6 +21,7 @@ import {
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
+  refuseLineBreaks,
   normalizeRequestTags,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -63,6 +64,16 @@ export async function handleDeckSave(req: Request): Promise<Response> {
     const allDeckCards = deck.sections.flatMap((s) => s.cards)
     const noteError = normalizeRequestNotes(changes, allDeckCards)
     if (noteError) return noteError
+
+    // After the notes are trimmed (a pasted trailing newline is not a line
+    // break), and over the deck's card data only: `description` and `primer`
+    // ride the loaded deck back and are multi-line by design.
+    const lineBreakError = refuseLineBreaks({
+      changes,
+      'deck.name': deck.name,
+      'deck.sections': deck.sections,
+    })
+    if (lineBreakError) return lineBreakError
 
     // The request's deck cards are serialized directly, so their labels, tags
     // and languages are validated alongside the changes' — a deck line carries

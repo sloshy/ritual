@@ -446,6 +446,19 @@ describe('convertCsvRows', () => {
     ])
   })
 
+  test('fails a row whose quoted name spans lines, instead of writing forged lines', () => {
+    const mapping = parseColumnsSpec('name=1', 'wanted') as ColumnMapping
+    const { entries, failures } = convertCsvRows(
+      [row(['Sol Ring\n- Black Lotus (LEA:232) &9'], 2)],
+      mapping,
+      'wanted',
+    )
+    expect(entries).toEqual([])
+    expect(failures.map((failure) => failure.reason)).toEqual([
+      'Line break inside the card name, set code, or collector number',
+    ])
+  })
+
   test('allows name-only rows for decks and wanted lists', () => {
     const mapping = parseColumnsSpec('name=1', 'wanted') as ColumnMapping
     const { entries, failures } = convertCsvRows([row(['Lightning Bolt'], 1)], mapping, 'wanted')

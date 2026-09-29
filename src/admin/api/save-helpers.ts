@@ -44,6 +44,7 @@ import type { DroppedNote } from '../../list/move-staging'
 import type { SaveEffect } from '../../changes/save-effects'
 import { t } from '../../i18n/t'
 import { apiMessage } from '../../api/result'
+import { findLineBreak } from '../../util/single-line'
 import type { ListSaveResponse } from './list-save'
 import type { MovesOutcome } from '../../list/move-prepare'
 
@@ -139,6 +140,28 @@ export function refuseUnreadableBaseline(
   const lines = unreadableLines(parsed)
   if (lines.length === 0) return null
   return apiError(unreadableContentMessage(filePath, lines, 'saving'), 400)
+}
+
+/**
+ * Refuse a request whose card data holds a line break.
+ *
+ * Every string in these parts — card names, set codes, collector numbers,
+ * sections, list names — is written into a card line, a heading, or a changelog
+ * prose line, and every one of those is a single line. The body is cast
+ * unvalidated, so a name like `"Sol Ring\n- 1 Black Lotus &3"` would otherwise
+ * write a forged card line. Refused rather than folded: a card name is the
+ * card's identity, and folding it would quietly write a different one.
+ *
+ * `parts` maps each request field name to its value, so the refusal names the
+ * offending path (`changes[2].cardName`). Pass only the card-data parts: front
+ * matter (a deck's multi-line `description:`) has its own grammar.
+ */
+export function refuseLineBreaks(parts: Record<string, unknown>): Response | null {
+  for (const [name, value] of Object.entries(parts)) {
+    const field = findLineBreak(value, name)
+    if (field !== null) return badRequest(apiMessage('admin.api.save.lineBreak', { field }))
+  }
+  return null
 }
 
 /**

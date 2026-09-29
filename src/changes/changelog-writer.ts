@@ -8,7 +8,7 @@ import {
   type ChangeSet,
 } from './changelog-blocks'
 import { createFenceTracker } from '../list/markdown-fence'
-import { singleLineText } from '../list/heading'
+import { singleLineText } from '../util/single-line'
 
 /** Options controlling how {@link appendChangelog} writes a block. */
 export type AppendChangelogOptions = {

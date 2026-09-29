@@ -21,7 +21,7 @@ import { refuseUnknownCardNames } from './card-name-check'
 import { apiMessage, type ApiMessage } from '../../api/result'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import { tIn } from '../../i18n/t'
-import { autoCommitAndPush } from './save-helpers'
+import { autoCommitAndPush, refuseLineBreaks } from './save-helpers'
 import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { MAX_LIST_BODY_SIZE } from '../validation'
 
@@ -169,6 +169,8 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
       }
     }
     const body = raw as MoveCommitRequest
+    const lineBreakError = refuseLineBreaks({ moves: body.moves })
+    if (lineBreakError) return lineBreakError
 
     const lists = await loadAllLists()
     const { cards: physical, warnings } = await loadPhysicalCards(lists)
@@ -431,6 +433,8 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
       }
     }
     const body = raw as SelectedMoveRequest
+    const lineBreakError = refuseLineBreaks({ moves: body.moves })
+    if (lineBreakError) return lineBreakError
 
     const lists = await loadAllLists()
     const { cards: physical, warnings } = await loadPhysicalCards(lists)

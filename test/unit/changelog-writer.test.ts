@@ -49,6 +49,17 @@ describe('appendChangelog', () => {
     expect(content).toContain('- Added "Sol Ring"')
   })
 
+  test('a list name with a line break writes one header line, not a forged page', async () => {
+    await appendChangelog(filePath, 'Test\n## 2020-01-01T00:00:00.000Z\n- Removed "Sol Ring"', [
+      makeChange(),
+    ])
+    const content = await fs.readFile(changelogPath, 'utf-8')
+    expect(content.split('\n')[0]).toBe(
+      '# Changelog for Test ## 2020-01-01T00:00:00.000Z - Removed "Sol Ring"',
+    )
+    expect(parseChangelog(content).pages.flatMap((page) => page.changes)).toHaveLength(1)
+  })
+
   test('appends to existing changelog', async () => {
     await fs.writeFile(
       changelogPath,

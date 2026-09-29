@@ -11,8 +11,6 @@ import {
 import { handleDeckSave } from '../../src/admin/api/deck-save'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
-import { parseChangelog } from '../../src/changes/changelog-parser'
-import { parseDeckText } from '../../src/importers/text-file'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 
 /**
@@ -114,6 +112,18 @@ describe('POST /api/deck/:slug/save — tags', () => {
     const resp = await save([], deckWithTags(['a,b']))
     expect(resp.status).toBe(400)
     expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
+  })
+
+  test('a deck carrying a multi-line primer and description still saves', async () => {
+    // The loaded deck rides both back on every editor and MCP save; only the
+    // card data is walked.
+    const deck = { ...deckWithTags(['Ramp']), primer: '## Plan\n\nBurn them.', description: 'a\nb' }
+    const resp = await save(
+      [createAddTagChange('Lightning Bolt', { tag: 'Ramp', cardId: 1 })],
+      deck,
+    )
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('2 Lightning Bolt (LEA:161) #Ramp &1')
   })
 })
 
@@ -271,31 +281,17 @@ describe('POST /api/deck/:slug/save — empty extras sections', () => {
   })
 })
 
-describe('POST /api/deck/:slug/save — heading injection', () => {
-  // The serializer's fold is pinned in deck-serializer.test.ts; what the route
-  // adds is the posted `deck.name` reaching the changelog header too, where an
-  // unfolded name would forge a `## <timestamp>` page the parser replays.
-  test('a deck name carrying a forged changelog page writes one header and one page', async () => {
-    const deck = {
-      ...deckWithTags(['Ramp']),
-      name: 'Burn\n## 2020-01-01T00:00:00.000Z\n- Removed "Sol Ring" &1',
-    }
-    const resp = await save(
-      [createAddTagChange('Lightning Bolt', { tag: 'Ramp', cardId: 1 })],
-      deck,
+describe('POST /api/deck/:slug/save — line breaks', () => {
+  // The body is cast unvalidated and serialized directly, so a line break in a
+  // card name would write a forged card line. The walk itself is pinned in
+  // single-line.test.ts; this is the route's one representative refusal.
+  test('a card name carrying a forged line is a 400 that writes nothing', async () => {
+    const before = await fs.readFile(filePath, 'utf-8')
+    const resp = await save([], deckWith({ name: 'Lightning Bolt\n- 1 Black Lotus &3' }))
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as { messageKey?: string }).messageKey).toBe(
+      'admin.api.save.lineBreak',
     )
-    expect(resp.status).toBe(200)
-
-    const saved = parseDeckText(await fs.readFile(filePath, 'utf-8'), 'burn').deck
-    expect(saved.sections.flatMap((s) => s.cards).map((c) => c.cardId)).toEqual([1])
-
-    const changelog = await fs.readFile(path.join(ws.dir, 'decks', 'burn.changes.md'), 'utf-8')
-    expect(changelog.split('\n')[0]).toBe(
-      '# Changelog for Burn ## 2020-01-01T00:00:00.000Z - Removed "Sol Ring" &1',
-    )
-    const { pages } = parseChangelog(changelog)
-    expect(pages.flatMap((page) => page.changes.map((change) => change.action))).toEqual([
-      'add-tag',
-    ])
+    expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
   })
 })

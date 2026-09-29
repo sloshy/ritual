@@ -17,6 +17,7 @@ import {
 import { sameListName } from '../list/list-file-name'
 import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
+import { findLineBreak } from '../util/single-line'
 
 /** The `format` marker every change bundle carries — what tells it from unrelated JSON. */
 export const CHANGE_BUNDLE_FORMAT = 'ritual-change-bundle'
@@ -691,6 +692,10 @@ export function parseChangeBundle(text: string): ChangeBundle | string {
     if (typeof list === 'string') return list
     lists.push(list)
   }
+  // Moves are validated here rather than through `decodeChangeEvent` (which
+  // refuses line breaks for every list's changes), so they get the same check.
+  const brokenMove = findLineBreak(obj.moves, 'moves')
+  if (brokenMove !== null) return `A line break in "${brokenMove}".`
   const moves = validateMoves(obj.moves)
   if (typeof moves === 'string') return moves
   return {

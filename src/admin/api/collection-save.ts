@@ -27,6 +27,7 @@ import {
   normalizeRequestLanguages,
   normalizeRequestReplacements,
   normalizeRequestNotes,
+  refuseLineBreaks,
   normalizeRequestTags,
   refuseUnreadableBaseline,
   type ListSaveTail,
@@ -64,6 +65,10 @@ export async function handleCollectionSave(req: Request): Promise<Response> {
 
     const noteError = normalizeRequestNotes(changes, [])
     if (noteError) return noteError
+
+    // After the notes are trimmed: a pasted trailing newline is not a line break.
+    const lineBreakError = refuseLineBreaks({ changes, sectionOrder })
+    if (lineBreakError) return lineBreakError
 
     const labelError = normalizeRequestLabels(changes, 'collection')
     if (labelError) return labelError

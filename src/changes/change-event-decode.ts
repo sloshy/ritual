@@ -25,6 +25,7 @@ import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
 import type { ChangeAction, ChangeEvent, ListRef, MoveReplacement } from './change-event'
 import { CATEGORY_ACTIONS, CHANGE_ACTIONS } from './change-event'
+import { findLineBreak } from '../util/single-line'
 
 // ── Validation ────────────────────────────────────────────────────────
 
@@ -246,6 +247,11 @@ export function decodeChangeEvent(
   // card-bearing action — the card it names.
   if (typeof obj.id !== 'string') return `${where}is missing its "id".`
   if (typeof obj.timestamp !== 'number') return `${where}is missing its "timestamp".`
+  // Every string an event carries lands in a card line or a changelog prose
+  // line, both line-oriented: a break inside one (a card name, a section, a
+  // list name) would write forged lines, so it is refused, never folded.
+  const broken = findLineBreak(obj, 'change')
+  if (broken !== null) return `${where}has a line break in "${broken}".`
   if (obj.cardName !== undefined && typeof obj.cardName !== 'string') {
     return `${where}has an invalid "cardName".`
   }

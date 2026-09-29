@@ -29,7 +29,8 @@ import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-fil
 import { parseTitleFromContent } from './section-format'
 import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { capitalize } from '../util/strings'
-import { singleLineText, titleHeading } from './heading'
+import { titleHeading } from './heading'
+import { singleLineText } from '../util/single-line'
 
 /** Structured failure of a lifecycle operation. */
 export type ListLifecycleError =

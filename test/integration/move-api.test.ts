@@ -284,6 +284,29 @@ describe('move API', () => {
     expect(await fs.readFile(srcPath, 'utf-8')).toBe(before)
   })
 
+  test('rejects a move item whose printing override holds a line break', async () => {
+    const req = new Request('http://localhost/api/move/commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        moves: [
+          {
+            cardKey: 'collection:src:1:0',
+            toType: 'collection',
+            toSlug: 'dst',
+            set: 'lea',
+            collectorNumber: '161\n- Black Lotus (LEA:232) &9',
+          },
+        ],
+      }),
+    })
+    const resp = await handleMoveCommit(req)
+    expect(resp.status).toBe(400)
+    const body = (await resp.json()) as { messageKey?: string; message: string }
+    expect(body.messageKey).toBe('admin.api.save.lineBreak')
+    expect(body.message).toContain('moves[0].collectorNumber')
+  })
+
   test('rejects a request whose moves field is not an array', async () => {
     const req = new Request('http://localhost/api/move/commit', {
       method: 'POST',

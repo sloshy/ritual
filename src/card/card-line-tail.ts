@@ -21,6 +21,7 @@ import { formatCardTagsToken, type CardTag } from './card-tags'
 import { languageToken, type CardLanguage } from './card-language'
 import type { ConditionUpdate, Finish } from './finish-condition'
 import type { ListType } from '../list/list-type'
+import { hasLineBreak } from '../util/single-line'
 
 /**
  * The `SET:CN` display form of a printing — set code uppercased, collector
@@ -140,6 +141,16 @@ export function formatCanonicalCardLine(
   fields: FlatCardLineFields,
 ): string
 export function formatCanonicalCardLine(type: ListType, fields: DeckCardLineFields): string {
+  // The backstop behind every boundary that refuses a line-broken card field
+  // (the save routes, the change decoder, CSV rows): a name, set, or collector
+  // number spanning lines would write a forged card line with its own `&N`, so
+  // no caller — an importer, a sync, a future route — may reach the file with
+  // one. Refused, never folded: the name is the card's identity.
+  const texts = [fields.name, fields.printing?.set, fields.printing?.collectorNumber]
+  const broken = texts.find((text) => text !== undefined && hasLineBreak(text))
+  if (broken !== undefined) {
+    throw new Error(`A card line cannot hold a line break: ${JSON.stringify(broken)}`)
+  }
   const head = type === 'deck' ? `- ${fields.quantity ?? 1} ${fields.name}` : `- ${fields.name}`
   return head + formatTokenTail(fields)
 }
