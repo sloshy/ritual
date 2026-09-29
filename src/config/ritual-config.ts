@@ -150,10 +150,11 @@ export interface RitualConfig {
    * The stores whose prices the sites offer: `tcgplayer` (Scryfall USD, the
    * default), `cardmarket` (Scryfall EUR), `cardkingdom` (Card Kingdom NM
    * retail from the buylist pricelist feed), and `cardhoarder` (Scryfall MTGO
-   * tix). The sites offer exactly the currencies these stores quote in, so tix
-   * is opt-in. Always present, defaulting to
+   * tix). Each store has one currency, and the sites offer exactly their
+   * stores' currencies, so tix is opt-in. Always present, defaulting to
    * `['tcgplayer']`. An explicit empty array means the sites display no prices
-   * at all; the CLI `price` command and sell mode are unaffected by it.
+   * at all; sell mode is unaffected, and the CLI `price` command only reads the
+   * first entry as its default store when `defaultPriceSource` is unset.
    * Enabling `cardkingdom` makes builds and servers download/refresh the Card
    * Kingdom feed exactly as `site.sellMode` does.
    */
@@ -303,7 +304,7 @@ function isStringArray(value: unknown): value is string[] {
 /**
  * The error branch shared by every config parser: a structured `{ error }`
  * object rather than a bare string. Several parsers succeed with a string
- * (currencies, URLs), so a `T | string` union would not be discriminable —
+ * (store names, URLs), so a `T | string` union would not be discriminable —
  * every parser returns this shape instead, and every consumer branches via
  * {@link isConfigParseError}.
  */
@@ -1074,7 +1075,7 @@ export function getArtDir(config: RitualConfig = getRitualConfig()): string {
 /**
  * The store prices are read from by default: `defaultPriceSource` when set,
  * else the first enabled store, else `tcgplayer`. The sites narrow it further
- * to a store they offer (`resolveSiteCurrencies`).
+ * to a store they offer (`resolveSiteStores`).
  */
 export function getDefaultPriceSource(config: RitualConfig = getRitualConfig()): PriceSource {
   return resolveDefaultPriceSource(config.defaultPriceSource, config.priceSources)

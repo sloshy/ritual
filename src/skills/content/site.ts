@@ -123,7 +123,7 @@ ritual build-site                                          # build the configure
 ritual build-site --decks "Winota Stax" "Mono-Red Aggro"   # specific decks
 ritual build-site --collections "Main Binder"              # specific collections
 ritual build-site --wanted-lists "To Buy"                  # specific wanted lists
-ritual build-site --currencies usd,eur             # narrow the currencies (default: every priceSources currency; never adds one)
+ritual build-site --price-sources tcgplayer,cardmarket  # narrow the stores offered (default: every priceSources store; never adds one)
 ritual build-site --theme izzet                    # initial theme baked into the HTML
 ritual build-site --theme-file my-theme.json       # load custom theme JSON files (their names become selectable)
 ritual build-site --locale de-AT                   # UI locale baked into the site (html lang/dir, opening language)
@@ -286,7 +286,7 @@ or loopback bind, the \`--host\` value otherwise, and it prints only after the
 port is bound: a port already in use is also exit 1
 (\`Failed to start the server on <host>:<port>: ...\`) with no startup line.
 
-Build flags (\`--theme\`, \`--currencies\`, ...) only apply together with \`--build\`;
+Build flags (\`--theme\`, \`--price-sources\`, ...) only apply together with \`--build\`;
 passing one without it is a usage error. \`--refresh\`, \`--out-dir\` and
 \`--sell-mode\` are the exceptions: \`--out-dir\` names the directory to serve
 whether or not a build runs, while \`--refresh\` (\`--api\` startup cache warming)
@@ -331,10 +331,10 @@ The **stores the site prices cards from** come from the \`priceSources\` config 
 (default \`["tcgplayer"]\`): \`tcgplayer\` is Scryfall's USD market price, \`cardmarket\`
 Scryfall's EUR trend price, \`cardhoarder\` Scryfall's MTGO tix price, and \`cardkingdom\` Card
 Kingdom's NM retail price, read off the same baked buylist quotes sell mode uses. The stores
-also decide the site's **currencies**: a build or server offers exactly the currencies an
-enabled store quotes in (so tix appears only with \`cardhoarder\`). \`build-site --currencies\`
-can only narrow that set (a list naming no store-backed currency exits 2, and \`serve --api\`
-refuses the flag). The header's **Prices** dropdown (on the public and admin sites alike)
+also decide the site's **currencies** — each store has exactly one (Card Kingdom is USD
+only), and a currency is never chosen on its own, so tix appears only with \`cardhoarder\`.
+\`build-site --price-sources\` can only narrow the stores for one build (a list naming no
+enabled store exits 2, and \`serve --api\` refuses the flag). The header's **Prices** dropdown (on the public and admin sites alike)
 picks the **store** — and so the currency — every price comes from, across list pages, the
 index tiles, Quick Switch and Combine Lists (the build bakes each list's totals per store,
 Card Kingdom included); it appears only when more than one store is offered, and opens on

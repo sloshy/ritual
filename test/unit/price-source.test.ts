@@ -2,16 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import { isConfigParseError } from '../../src/config/ritual-config'
 import {
   DEFAULT_PRICE_SOURCES,
-  isPriceRequestConflict,
-  priceRequestConflicts,
   isPriceSource,
   parseDefaultPriceSource,
   parsePriceSources,
   resolveDefaultPriceSource,
-  resolvePriceRequest,
   withPriceSource,
-  resolveSiteCurrencies,
-  isSiteCurrenciesError,
+  resolveSiteStores,
+  isSiteStoresError,
+  settleCurrency,
+  withCardKingdomFeed,
   sourceCurrency,
   sourcesForCurrency,
   VALID_PRICE_SOURCES,
@@ -77,79 +76,92 @@ describe('sourcesForCurrency', () => {
   })
 })
 
-describe('resolveSiteCurrencies', () => {
-  test('offers only the currencies the enabled stores quote in — no tix unless opted in', () => {
-    expect(resolveSiteCurrencies(['tcgplayer', 'cardkingdom'], 'tcgplayer')).toEqual({
-      available: ['usd'],
-      defaultSource: 'tcgplayer',
+describe('resolveSiteStores', () => {
+  test('offers the enabled stores in header order, with their currencies derived', () => {
+    expect(resolveSiteStores(['cardhoarder', 'cardmarket', 'tcgplayer'], 'cardmarket')).toEqual({
+      stores: ['tcgplayer', 'cardmarket', 'cardhoarder'],
+      currencies: ['usd', 'eur', 'tix'],
+      defaultSource: 'cardmarket',
     })
-    expect(resolveSiteCurrencies(['cardhoarder', 'cardmarket', 'tcgplayer'], 'cardmarket')).toEqual(
-      { available: ['usd', 'eur', 'tix'], defaultSource: 'cardmarket' },
-    )
-  })
-
-  test('opens on an enabled non-first USD store when it is the configured default', () => {
-    expect(resolveSiteCurrencies(['tcgplayer', 'cardkingdom'], 'cardkingdom')).toEqual({
-      available: ['usd'],
+    // Card Kingdom is USD's second store, grouped beside TCGplayer.
+    expect(resolveSiteStores(['tcgplayer', 'cardmarket', 'cardkingdom'], 'cardkingdom')).toEqual({
+      stores: ['tcgplayer', 'cardkingdom', 'cardmarket'],
+      currencies: ['usd', 'eur'],
       defaultSource: 'cardkingdom',
     })
   })
 
-  test('a configured store that is not enabled falls back to the first offered store', () => {
-    expect(resolveSiteCurrencies(['cardmarket'], 'tcgplayer')).toEqual({
-      available: ['eur'],
-      defaultSource: 'cardmarket',
-    })
-    // Same currency, but the store itself is off: the enabled USD store wins.
-    expect(resolveSiteCurrencies(['tcgplayer'], 'cardkingdom')).toEqual({
-      available: ['usd'],
-      defaultSource: 'tcgplayer',
-    })
-  })
-
-  test('an explicit list narrows and orders the store-backed set, never adding to it', () => {
-    const all = ['tcgplayer', 'cardmarket', 'cardhoarder'] as const
-    expect(resolveSiteCurrencies([...all], 'tcgplayer', ['tix', 'eur'])).toEqual({
-      available: ['tix', 'eur'],
-      defaultSource: 'cardhoarder',
-    })
-    expect(resolveSiteCurrencies(['tcgplayer'], 'tcgplayer', ['tix', 'usd'])).toEqual({
-      available: ['usd'],
-      defaultSource: 'tcgplayer',
-    })
-  })
-
-  test('an explicit list with no store behind any of it is an error', () => {
-    const result = resolveSiteCurrencies(['tcgplayer'], 'tcgplayer', ['tix'])
-    expect(result).toEqual({ error: 'no-store-for-currencies', requested: ['tix'] })
-    expect(isSiteCurrenciesError(result)).toBeTrue()
+  test('a configured store the site does not offer falls back to the first offered one', () => {
+    expect(resolveSiteStores(['cardmarket'], 'tcgplayer').defaultSource).toBe('cardmarket')
+    expect(resolveSiteStores(['tcgplayer'], 'cardkingdom').defaultSource).toBe('tcgplayer')
   })
 
   test('an absent default reads the first priceSources entry', () => {
-    expect(resolveSiteCurrencies(['cardmarket', 'tcgplayer'], undefined)).toEqual({
-      available: ['usd', 'eur'],
-      // The list's first entry, not the first offered currency's store.
+    expect(resolveSiteStores(['cardmarket', 'tcgplayer'], undefined).defaultSource).toBe(
+      'cardmarket',
+    )
+  })
+
+  test('an explicit list only narrows, and the default follows it', () => {
+    const narrowed = resolveSiteStores(['tcgplayer', 'cardmarket'], 'tcgplayer', [
+      'cardmarket',
+      'cardhoarder',
+    ])
+    expect(narrowed).toEqual({
+      stores: ['cardmarket'],
+      currencies: ['eur'],
       defaultSource: 'cardmarket',
     })
   })
 
-  test("an explicit list dropping the default's currency opens on the first listed one", () => {
-    expect(resolveSiteCurrencies(['tcgplayer', 'cardmarket'], 'tcgplayer', ['eur'])).toEqual({
-      available: ['eur'],
-      defaultSource: 'cardmarket',
-    })
-    // With no stores at all, the listed currency's Scryfall store stands in.
-    expect(resolveSiteCurrencies([], 'tcgplayer', ['eur'])).toEqual({
-      available: ['eur'],
+  test('an explicit list keeping no enabled store is an error', () => {
+    const result = resolveSiteStores(['tcgplayer'], 'tcgplayer', ['cardhoarder'])
+    expect(result).toEqual({ error: 'stores-not-enabled', requested: ['cardhoarder'] })
+    expect(isSiteStoresError(result)).toBeTrue()
+  })
+
+  test("no stores still bakes the default store's currency", () => {
+    expect(resolveSiteStores([], 'cardmarket')).toEqual({
+      stores: [],
+      currencies: ['eur'],
       defaultSource: 'cardmarket',
     })
   })
+})
 
-  test('no stores still bakes the configured default', () => {
-    expect(resolveSiteCurrencies([], 'cardmarket')).toEqual({
-      available: ['eur'],
-      defaultSource: 'cardmarket',
+describe('withCardKingdomFeed', () => {
+  const offered = resolveSiteStores(['tcgplayer', 'cardkingdom'], 'cardkingdom')
+
+  test('a Card Kingdom store with a feed stays offered', () => {
+    expect(withCardKingdomFeed(offered, true)).toBe(offered)
+  })
+
+  test('without a feed it is dropped, and a CK default falls to the next store', () => {
+    expect(withCardKingdomFeed(offered, false)).toEqual({
+      stores: ['tcgplayer'],
+      currencies: ['usd'],
+      defaultSource: 'tcgplayer',
     })
+  })
+
+  test('a Card Kingdom-only site without a feed offers no store at all', () => {
+    const ckOnly = resolveSiteStores(['cardkingdom'], undefined)
+    expect(withCardKingdomFeed(ckOnly, false).stores).toEqual([])
+  })
+})
+
+describe('settleCurrency', () => {
+  test('keeps a currency some offered store still prices in', () => {
+    expect(settleCurrency('eur', ['tcgplayer', 'cardmarket'], 'tcgplayer')).toBe('eur')
+  })
+
+  test("falls to the default store's currency, else the first offered store's", () => {
+    expect(settleCurrency('tix', ['tcgplayer', 'cardmarket'], 'cardmarket')).toBe('eur')
+    expect(settleCurrency('tix', ['tcgplayer', 'cardmarket'], 'cardhoarder')).toBe('usd')
+  })
+
+  test('with nothing offered, the current currency stands', () => {
+    expect(settleCurrency('eur', [], 'tcgplayer')).toBe('eur')
   })
 })
 
@@ -161,62 +173,6 @@ describe('resolveDefaultPriceSource', () => {
   test('absent reads the first enabled store, else tcgplayer', () => {
     expect(resolveDefaultPriceSource(undefined, ['cardmarket', 'cardhoarder'])).toBe('cardmarket')
     expect(resolveDefaultPriceSource(undefined, [])).toBe('tcgplayer')
-  })
-})
-
-describe('resolvePriceRequest', () => {
-  test('neither source nor currency reads the default store', () => {
-    expect(resolvePriceRequest(undefined, undefined, 'cardkingdom')).toEqual({
-      source: 'cardkingdom',
-      currency: 'usd',
-    })
-  })
-
-  test('a currency the default store quotes in keeps the default store', () => {
-    expect(resolvePriceRequest(undefined, 'usd', 'cardkingdom')).toEqual({
-      source: 'cardkingdom',
-      currency: 'usd',
-    })
-  })
-
-  test("any other currency reads that currency's Scryfall store", () => {
-    expect(resolvePriceRequest(undefined, 'eur', 'cardkingdom')).toEqual({
-      source: 'cardmarket',
-      currency: 'eur',
-    })
-    expect(resolvePriceRequest(undefined, 'usd', 'cardhoarder')).toEqual({
-      source: 'tcgplayer',
-      currency: 'usd',
-    })
-  })
-
-  test('an explicit source implies its currency and overrides the default', () => {
-    expect(resolvePriceRequest('cardhoarder', undefined, 'tcgplayer')).toEqual({
-      source: 'cardhoarder',
-      currency: 'tix',
-    })
-    expect(resolvePriceRequest('cardkingdom', 'usd', 'cardmarket')).toEqual({
-      source: 'cardkingdom',
-      currency: 'usd',
-    })
-  })
-
-  test('an explicit currency that disagrees with an explicit source is a conflict', () => {
-    const result = resolvePriceRequest('cardmarket', 'usd', 'tcgplayer')
-    expect(result).toEqual({
-      error: 'source-currency-conflict',
-      source: 'cardmarket',
-      implied: 'eur',
-    })
-    expect(isPriceRequestConflict(result)).toBeTrue()
-  })
-})
-
-describe('priceRequestConflicts', () => {
-  test('only an explicit, disagreeing currency conflicts', () => {
-    expect(priceRequestConflicts('cardkingdom', 'eur')).toBeTrue()
-    expect(priceRequestConflicts('cardkingdom', 'usd')).toBeFalse()
-    expect(priceRequestConflicts('cardkingdom', undefined)).toBeFalse()
   })
 })
 

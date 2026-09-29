@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import prompts from 'prompts'
 import {
   buildCardBrowserChoices,
   buildMainMenuChoices,
@@ -8,6 +9,8 @@ import {
   formatListChoiceTitle,
   formatPrintingPriceLines,
   formatReportHeaderLines,
+  runPriceBrowser,
+  storeChoices,
   formatTotalsSegment,
   visibleBrowserEntries,
   type CardBrowserSelection,
@@ -21,7 +24,8 @@ import {
   type PriceReport,
 } from '../../src/pricing/price-report'
 import type { ScryfallCard } from '../../src/scryfall/types'
-import { makeScryfallCard } from '../test-utils'
+import { makeScryfallCard, stubTty } from '../test-utils'
+import { captureConsole } from '../helpers/capture'
 
 function entry(overrides: Partial<PricedEntry> = {}): PricedEntry {
   return {
@@ -58,6 +62,7 @@ function summary(overrides: Partial<ListPriceSummary> = {}): ListPriceSummary {
 
 function report(overrides: Partial<PriceReport> = {}): PriceReport {
   return {
+    source: 'tcgplayer',
     currency: 'usd',
     lists: [summary(), summary({ type: 'wanted', name: 'Wanted', total: 5, lowestTotal: 5 })],
     entries: [],
@@ -115,13 +120,31 @@ describe('formatTotalsSegment', () => {
   })
 })
 
+describe('storeChoices', () => {
+  test('lists every store with its currency, marking the current one', () => {
+    const choices = storeChoices('cardkingdom')
+    expect(choices.map((c) => c.value)).toEqual([
+      'tcgplayer',
+      'cardmarket',
+      'cardkingdom',
+      'cardhoarder',
+    ])
+    expect(choices[2]).toMatchObject({ title: 'Card Kingdom (current)', description: 'USD' })
+    expect(choices[1]).toMatchObject({ title: 'Cardmarket', description: 'EUR' })
+  })
+})
+
 describe('formatReportHeaderLines', () => {
   test('shows cache age, per-type totals, and a grand total across types', () => {
     const now = Date.parse('2026-07-02T12:00:00Z')
-    const lines = formatReportHeaderLines(report(), now - 3 * 60 * 60 * 1000, now)
+    const lines = formatReportHeaderLines(
+      report({ source: 'cardmarket', currency: 'eur' }),
+      now - 3 * 60 * 60 * 1000,
+      now,
+    )
     expect(lines[0]).toContain('Prices last updated:')
     expect(lines[0]).toContain('(3 hours ago)')
-    expect(lines[0]).toContain('Currency: USD')
+    expect(lines[0]).toContain('Store: Cardmarket (EUR)')
     expect(lines.some((line) => line.includes('Decks (1)'))).toBe(true)
     expect(lines.some((line) => line.includes('All lists (2)'))).toBe(true)
   })
@@ -161,7 +184,7 @@ describe('buildMainMenuChoices', () => {
     expect(choices.slice(2).map((choice) => choice.value as PriceMainSelection)).toEqual([
       { kind: 'search' },
       { kind: 'refresh' },
-      { kind: 'currency' },
+      { kind: 'store' },
       { kind: 'exit' },
     ])
   })
@@ -361,5 +384,57 @@ describe('formatPrintingPriceLines', () => {
     expect(formatPrintingPriceLines([printing], 'usd')).toEqual([
       '  SLD:1 (Secret Lair Drop) — $1.00 nonfoil',
     ])
+  })
+})
+
+describe('runPriceBrowser store switching', () => {
+  // `ask` refuses to prompt without a terminal; the answers below are injected.
+  stubTty({ stdin: true })
+
+  /** The main screen's header lines, one block per render, from captured output. */
+  const storeHeaders = (lines: readonly string[]): string[] =>
+    lines.filter((line) => line.includes('Store:'))
+
+  test('a store that cannot be priced keeps the current report; one that can replaces it', async () => {
+    const asked: string[] = []
+    const rebuilds: (PriceReport | string)[] = [
+      'No Card Kingdom buylist is cached.',
+      report({ source: 'cardkingdom', currency: 'usd' }),
+    ]
+    prompts.inject([
+      { kind: 'store' } satisfies PriceMainSelection,
+      'cardkingdom',
+      { kind: 'store' } satisfies PriceMainSelection,
+      'cardkingdom',
+      { kind: 'refresh' } satisfies PriceMainSelection,
+      { kind: 'exit' } satisfies PriceMainSelection,
+    ])
+
+    const { lines } = await captureConsole(['log', 'error'], () =>
+      runPriceBrowser({
+        built: { report: report(), printingsByName: new Map() },
+        lastRefreshedAt: null,
+        rebuild: (source) => {
+          asked.push(source)
+          const next = rebuilds.shift() ?? report({ source: 'cardkingdom', currency: 'usd' })
+          return Promise.resolve(
+            typeof next === 'string' ? next : { report: next, printingsByName: new Map() },
+          )
+        },
+        refreshPrices: () => Promise.resolve(),
+        getLastRefreshedAt: () => Promise.resolve(null),
+      }),
+    )
+
+    // Two switches to Card Kingdom, then a refresh that rebuilds at the store
+    // now in force rather than the one the browser opened on.
+    expect(asked).toEqual(['cardkingdom', 'cardkingdom', 'cardkingdom'])
+    expect(lines.error).toEqual(['No Card Kingdom buylist is cached.'])
+    const headers = storeHeaders(lines.log)
+    expect(headers[0]).toContain('Store: TCGplayer (USD)')
+    // The failed switch left TCGplayer on screen…
+    expect(headers[1]).toContain('Store: TCGplayer (USD)')
+    // …and the one that succeeded swapped the report.
+    expect(headers[2]).toContain('Store: Card Kingdom (USD)')
   })
 })

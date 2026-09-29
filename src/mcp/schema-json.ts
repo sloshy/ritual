@@ -49,7 +49,7 @@ import { VALID_CURRENCIES } from '../pricing/price-currency'
 import { DIFF_BY_MODES } from '../changes/list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
 import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../pricing/sell-report'
-import { REPORT_PRICE_SOURCES } from '../pricing/price-report'
+import { VALID_PRICE_SOURCES } from '../pricing/price-source'
 import { SYNC_DIRECTIONS } from '../sync/common'
 import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
@@ -284,16 +284,19 @@ export const GET_CARD_PRICE_OUTPUT: JsonSchemaType = withDefs(
  * verbatim copies of every description were the drift risk.
  */
 const PRICE_REPORT_COMMON_PROPS = {
-  currency: enumOf(VALID_CURRENCIES),
-  source: enumOf(
-    REPORT_PRICE_SOURCES,
-    'Present when prices are Card Kingdom NM retail (source=cardkingdom) rather than Scryfall.',
-  ),
+  source: enumOf(VALID_PRICE_SOURCES, 'The store every price comes from.'),
+  currency: enumOf(VALID_CURRENCIES, 'The store’s one currency.'),
   lastRefreshedAt: nullable(int(), 'Epoch ms of the last cache refresh.'),
   warnings: arr(str()),
 } as const satisfies Properties
 
-const PRICE_REPORT_COMMON_REQUIRED = ['mode', 'currency', 'lastRefreshedAt', 'warnings'] as const
+const PRICE_REPORT_COMMON_REQUIRED = [
+  'mode',
+  'source',
+  'currency',
+  'lastRefreshedAt',
+  'warnings',
+] as const
 
 export const GET_PRICE_REPORT_OUTPUT: JsonSchemaType = withDefs(
   {

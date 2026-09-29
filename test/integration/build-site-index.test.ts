@@ -41,15 +41,15 @@ describe('build-site index baking (Integration)', () => {
     const index = JSON.parse(raw) as SiteIndex
     expect(index.apiBaseUrl).toBe('https://ritual-api.example.com')
     expect(index.decks.length).toBeGreaterThan(0)
-    // The synthetic workspace enables tcgplayer + cardmarket: no cardhoarder, no tix.
-    expect(index.availableCurrencies).toEqual(['usd', 'eur'])
+    // The synthetic workspace enables tcgplayer + cardmarket, and the index offers exactly those.
+    expect(index.priceSources).toEqual(['tcgplayer', 'cardmarket'])
   }, 120_000)
 
-  test('--currencies naming only store-less currencies is refused before building', async () => {
+  test('--price-sources naming only stores priceSources does not enable is refused before building', async () => {
     await fs.rm(path.join(ws.dir, 'dist'), { recursive: true, force: true })
-    expect(await captureExitCode(() => runBuildSite({ refresh: 'never', currencies: 'tix' }))).toBe(
-      2,
-    )
+    expect(
+      await captureExitCode(() => runBuildSite({ refresh: 'never', priceSources: 'cardhoarder' })),
+    ).toBe(2)
     expect(await Bun.file(path.join(ws.dir, 'dist', 'index.json')).exists()).toBeFalse()
   })
 })

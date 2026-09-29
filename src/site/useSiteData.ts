@@ -41,7 +41,6 @@ export type UseSiteDataResult = {
   useScryfallImgUrls: Accessor<boolean>
   currency: Accessor<PriceCurrency>
   setCurrency: Setter<PriceCurrency>
-  availableCurrencies: Accessor<PriceCurrency[]>
   pricesDate: Accessor<string | null>
   /**
    * Whether sell mode is offered: the site was built with `site.sellMode` on.
@@ -95,11 +94,6 @@ export function useSiteData(): UseSiteDataResult {
   const [wantedListList, setWantedListList] = createSignal<WantedListSummary[] | null>(null)
   const [useScryfallImgUrls, setUseScryfallImgUrls] = createSignal(true)
   const [currency, setCurrency] = createSignal<PriceCurrency>('usd')
-  const [availableCurrencies, setAvailableCurrencies] = createSignal<PriceCurrency[]>([
-    'usd',
-    'eur',
-    'tix',
-  ])
   const [pricesDate, setPricesDate] = createSignal<string | null>(null)
   const [sellModeConfigured, setSellModeConfigured] = createSignal(false)
   const [uiLocale, setUiLocale] = createSignal<LocaleTag>(currentLocale())
@@ -125,7 +119,6 @@ export function useSiteData(): UseSiteDataResult {
         setCurrency(sourceCurrency(data.defaultPriceSource))
         currencyApplied = true
       }
-      if (data.availableCurrencies) setAvailableCurrencies(data.availableCurrencies)
       if (data.pricesDate) setPricesDate(data.pricesDate)
       if (typeof data.searchDebounceMs === 'number') setSearchDebounceMs(data.searchDebounceMs)
       if (data.defaultLanguage) setDefaultLanguage(data.defaultLanguage)
@@ -270,7 +263,6 @@ export function useSiteData(): UseSiteDataResult {
     useScryfallImgUrls,
     currency,
     setCurrency,
-    availableCurrencies,
     pricesDate,
     // The configured flag alone: each list's detail carries its own baked
     // quotes, so sell mode needs no backend to answer for them.

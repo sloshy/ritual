@@ -56,7 +56,7 @@ import {
   cardKingdomRetail,
   findCheapestCardKingdomPrinting,
 } from '../cardkingdom/retail'
-import type { PriceSource } from './price-source'
+import { sourceCurrency, type PriceSource } from './price-source'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { comparePrintings, computeRepresentativePrints, getCardGames } from '../scryfall'
 import { parseWantedListFile } from '../list/wanted-file'
@@ -240,19 +240,23 @@ export type PriceReportTotals = PriceTotals & {
 }
 
 /**
- * The non-Scryfall stores a report can be priced from. One const so the report
- * type, its three payload shapes, and the MCP output schema all widen together
- * when a second store arrives; an absent `source` means Scryfall (the currency
- * alone says which store that is). A `cardkingdom` report is always in `usd`.
+ * The store a report is priced at. Every store but Card Kingdom reads
+ * Scryfall's copy of its prices; Card Kingdom carries the retail lookup its
+ * feed provides, so a CK report cannot be asked for without one.
  */
-export const REPORT_PRICE_SOURCES = ['cardkingdom'] as const satisfies readonly PriceSource[]
+export type ReportPricing = ScryfallReportPricing | CardKingdomReportPricing
 
-export type ReportPriceSource = (typeof REPORT_PRICE_SOURCES)[number]
+/** A report priced at a store whose prices ride in the card cache (Scryfall's copies). */
+export type ScryfallReportPricing = { source: Exclude<PriceSource, 'cardkingdom'> }
+
+/** A Card Kingdom report, carrying the retail lookup its feed provides. */
+export type CardKingdomReportPricing = { source: 'cardkingdom'; cardKingdom: CardKingdomPricing }
 
 export type PriceReport = {
+  /** The store every price in the report comes from. */
+  source: PriceSource
+  /** The store's one currency (see `sourceCurrency`), for formatting. */
   currency: PriceCurrency
-  /** Present when prices came from Card Kingdom's NM retail feed instead of Scryfall. */
-  source?: ReportPriceSource
   lists: ListPriceSummary[]
   entries: PricedEntry[]
   /** Totals per list type, in canonical type order; types with no lists are omitted. */
@@ -261,17 +265,15 @@ export type PriceReport = {
 }
 
 export type BuildPriceReportOptions = {
-  currency: PriceCurrency
+  /**
+   * The store to price at. Under Card Kingdom a printing CK has no product for
+   * (or a non-English entry, which their English-only feed can never quote) is
+   * honestly unpriced; there is no Scryfall fallback.
+   */
+  pricing: ReportPricing
   lookup: CardPrintingsLookup
   /** `set:collectorNumber` keys excluded from representative-printing selection. */
   bannedPrintings?: ReadonlySet<string>
-  /**
-   * Price from Card Kingdom's NM retail feed instead of Scryfall. USD only —
-   * the caller enforces `currency: 'usd'` before building. A printing CK has
-   * no product for (or a non-English entry, which their English-only feed can
-   * never quote) is honestly unpriced; there is no Scryfall fallback.
-   */
-  cardKingdom?: CardKingdomPricing
 }
 
 /**
@@ -282,6 +284,11 @@ export type BuildPriceReportOptions = {
  */
 export type CardKingdomPricing = {
   quote: PrintingQuoteFn
+}
+
+/** The Card Kingdom retail lookup a report prices through, when it is a CK report. */
+function reportCardKingdom(pricing: ReportPricing): CardKingdomPricing | undefined {
+  return pricing.source === 'cardkingdom' ? pricing.cardKingdom : undefined
 }
 
 /** A built report plus the printings fetched to build it (for detail views). */
@@ -295,9 +302,9 @@ export type BuiltPriceReport = {
  * `--output json` mode and the admin price API.
  */
 export type PriceSummaryPayload = {
+  /** The store the prices come from; `currency` is its one currency. */
+  source: PriceSource
   currency: PriceCurrency
-  /** Present when prices are Card Kingdom NM retail rather than Scryfall. */
-  source?: ReportPriceSource
   lastRefreshedAt: number | null
   lists: ListPriceSummary[]
   typeTotals: ListTypeTotals[]
@@ -311,9 +318,9 @@ export type PriceSummaryPayload = {
  * `--output json` mode and the admin price API.
  */
 export type PriceListDetailPayload = {
+  /** The store the prices come from; `currency` is its one currency. */
+  source: PriceSource
   currency: PriceCurrency
-  /** Present when prices are Card Kingdom NM retail rather than Scryfall. */
-  source?: ReportPriceSource
   list: ListPriceSummary | undefined
   cards: PricedEntry[]
   /** List parse warnings (prefixed with the list name) — lines pricing could not read. */
@@ -322,9 +329,9 @@ export type PriceListDetailPayload = {
 
 /** The JSON contract of the CLI's card-search view (`--output json`). */
 export type PriceCardSearchPayload = {
+  /** The store the prices come from; `currency` is its one currency. */
+  source: PriceSource
   currency: PriceCurrency
-  /** Present when prices are Card Kingdom NM retail rather than Scryfall. */
-  source?: ReportPriceSource
   filters: PriceEntryFilters
   cards: PricedEntry[]
   totals: PriceTotals
@@ -486,9 +493,11 @@ async function resolveNamePricing(
   // Under CK pricing both picks are made over CK's catalog with CK's prices:
   // the printing a name-only line is priced at must be one CK actually sells,
   // or the entry reads as unpriced for want of a printing nobody asked for.
-  const ckPrints = options.cardKingdom
+  const cardKingdom = reportCardKingdom(options.pricing)
+  const currency = sourceCurrency(options.pricing.source)
+  const ckPrints = cardKingdom
     ? cardKingdomPrints(
-        options.cardKingdom.quote,
+        cardKingdom.quote,
         newestFirst,
         printings,
         options.bannedPrintings ?? new Set(),
@@ -497,7 +506,7 @@ async function resolveNamePricing(
   const repPrints = computeRepresentativePrints(
     newestFirst,
     printings,
-    [options.currency],
+    [currency],
     options.bannedPrintings,
   )
   const pricing: NamePricing = {
@@ -506,10 +515,10 @@ async function resolveNamePricing(
     // A CK report falls back to the Scryfall pick only when CK carries no
     // printing of the card at all — the entry is then unpriced, but still shows
     // the printing's name, type and cost.
-    representative: ckPrints?.representative ?? repPrints[options.currency]?.representative ?? null,
+    representative: ckPrints?.representative ?? repPrints[currency]?.representative ?? null,
     // Under CK pricing the cheapest acceptable copy is the cheapest printing
     // CK actually sells, quoted through the same matcher as everything else.
-    cheapest: ckPrints ? ckPrints.cheapest : findCheapestPrinting(printings, options.currency),
+    cheapest: ckPrints ? ckPrints.cheapest : findCheapestPrinting(printings, currency),
   }
   cache.set(name, pricing)
   return pricing
@@ -676,6 +685,8 @@ export async function buildPriceReport(
   inputs: PriceListInput[],
   options: BuildPriceReportOptions,
 ): Promise<BuiltPriceReport> {
+  const currency = sourceCurrency(options.pricing.source)
+  const cardKingdom = reportCardKingdom(options.pricing)
   const pricingByName = new Map<string, NamePricing>()
   const entries: PricedEntry[] = []
   const lists: ListPriceSummary[] = []
@@ -684,9 +695,7 @@ export async function buildPriceReport(
     const listEntries: PricedEntry[] = []
     for (const [fileOrder, entry] of input.entries.entries()) {
       const pricing = await resolveNamePricing(entry.name, options, pricingByName)
-      listEntries.push(
-        priceEntry(input, entry, fileOrder, pricing, options.currency, options.cardKingdom),
-      )
+      listEntries.push(priceEntry(input, entry, fileOrder, pricing, currency, cardKingdom))
     }
     entries.push(...listEntries)
     lists.push({ type: input.type, name: input.name, ...sumPricedEntries(listEntries) })
@@ -704,8 +713,8 @@ export async function buildPriceReport(
   }
 
   const report: PriceReport = {
-    currency: options.currency,
-    ...(options.cardKingdom ? { source: 'cardkingdom' as const } : {}),
+    source: options.pricing.source,
+    currency,
     lists,
     entries,
     typeTotals,

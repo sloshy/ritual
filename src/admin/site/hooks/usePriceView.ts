@@ -1,27 +1,18 @@
 import { batch, createSignal, untrack, type Accessor } from 'solid-js'
+import { DEFAULT_CURRENCY, type PriceCurrency } from '../../../pricing/price-currency'
 import {
-  DEFAULT_CURRENCY,
-  VALID_CURRENCIES,
-  type PriceCurrency,
-} from '../../../pricing/price-currency'
-import {
-  resolveSiteCurrencies,
+  resolveSiteStores,
+  settleCurrency,
   sourceCurrency,
   type PriceSource,
 } from '../../../pricing/price-source'
-import {
-  activePriceSource,
-  offeredPriceSources,
-  setDefaultPriceSource,
-  setEnabledPriceSources,
-} from '../../../list-view/price-view'
+import { setDefaultPriceSource, setEnabledPriceSources } from '../../../list-view/price-view'
 import { pickPriceStore } from '../../../list-view/PriceStoreSelect'
 import { fetchRitualConfig } from '../config-api'
 
 // Module-level so every admin page shares one view and a fetch kicked off by
 // one page updates the others. Starts at USD until the config arrives.
 const [currency, setCurrency] = createSignal<PriceCurrency>(DEFAULT_CURRENCY)
-const [available, setAvailable] = createSignal<readonly PriceCurrency[]>(VALID_CURRENCIES)
 
 /**
  * Whether the user picked a store from the header this session. The config's
@@ -31,34 +22,33 @@ const [available, setAvailable] = createSignal<readonly PriceCurrency[]>(VALID_C
  */
 let pickedFromHeader = false
 
-/** The admin's price view: the currency in force and the currencies it offers. */
+/** The admin's price view: the currency of the store in force. */
 export type AdminPriceView = {
   currency: Accessor<PriceCurrency>
-  available: Accessor<readonly PriceCurrency[]>
 }
 
 /**
  * Seed the price view from the config's `defaultPriceSource` and
  * `priceSources` — the admin counterpart of the public site reading them off
- * `index.json`, resolved by the same rule (`resolveSiteCurrencies`), so the
+ * `index.json`, resolved by the same rule (`resolveSiteStores`), so the
  * admin opens on the store the sites open on. Settings calls it after a save.
  */
 export function applyPriceConfig(
   defaultPriceSource: PriceSource | undefined,
   priceSources: readonly PriceSource[],
 ): void {
-  const resolved = resolveSiteCurrencies(priceSources, defaultPriceSource)
+  const resolved = resolveSiteStores(priceSources, defaultPriceSource)
   batch(() => {
     setEnabledPriceSources(priceSources)
-    setAvailable(resolved.available)
     setDefaultPriceSource(resolved.defaultSource)
-    // A header pick stands across re-seeds — unless a Settings save just took
-    // its store away, which would strand the picker on a store it no longer
-    // lists (the public site settles the same way in `app.tsx`).
-    const offered = offeredPriceSources(resolved.available)
-    if (!pickedFromHeader || !offered.includes(activePriceSource(untrack(currency)))) {
-      setCurrency(sourceCurrency(resolved.defaultSource))
-    }
+    // Until the header is used, the default store's currency applies. A
+    // header pick stands across re-seeds unless a Settings save took its
+    // currency away; then it settles exactly as the public site does.
+    setCurrency(
+      pickedFromHeader
+        ? settleCurrency(untrack(currency), resolved.stores, resolved.defaultSource)
+        : sourceCurrency(resolved.defaultSource),
+    )
   })
 }
 
@@ -78,5 +68,5 @@ export function usePriceView(): AdminPriceView {
   void fetchRitualConfig().then((config) => {
     if (config) applyPriceConfig(config.defaultPriceSource, config.priceSources)
   })
-  return { currency, available }
+  return { currency }
 }

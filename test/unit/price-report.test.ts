@@ -51,7 +51,7 @@ async function priceSingle(
   printings: Record<string, ScryfallCard[]>,
 ): Promise<PricedEntry> {
   const { report } = await buildPriceReport([listInput], {
-    currency: 'usd',
+    pricing: { source: 'tcgplayer' },
     lookup: lookupFor(printings),
   })
   expect(report.entries).toHaveLength(1)
@@ -284,7 +284,7 @@ describe('buildPriceReport pricing rules', () => {
           ],
         }),
       ],
-      { currency: 'usd', lookup },
+      { pricing: { source: 'tcgplayer' }, lookup },
     )
     expect(calls).toEqual(['Shared Card'])
   })
@@ -455,7 +455,7 @@ describe('buildPriceReport aggregation', () => {
           entries: [{ name: 'Priced', quantity: 1, section: 'Main' }],
         }),
       ],
-      { currency: 'usd', lookup: lookupFor(printings) },
+      { pricing: { source: 'tcgplayer' }, lookup: lookupFor(printings) },
     )
 
     const deckSummary = report.lists.find((list) => list.name === 'My Deck')!
@@ -467,6 +467,27 @@ describe('buildPriceReport aggregation', () => {
     expect(report.totals.listCount).toBe(2)
     expect(report.totals.total).toBe(8)
     expect(report.totals.unpricedCount).toBe(2)
+  })
+  test("a Cardmarket report prices every entry in that store's one currency, EUR", async () => {
+    const { report } = await buildPriceReport(
+      [
+        input({
+          type: 'collection',
+          entries: [
+            { name: 'Card', quantity: 2, set: 'aaa', collectorNumber: '1', section: 'Main' },
+          ],
+        }),
+      ],
+      {
+        pricing: { source: 'cardmarket' },
+        lookup: lookupFor({
+          Card: [makeCard({ name: 'Card', collector_number: '1' }, { usd: '9.00', eur: '1.50' })],
+        }),
+      },
+    )
+    expect(report.source).toBe('cardmarket')
+    expect(report.currency).toBe('eur')
+    expect(report.totals.total).toBe(3)
   })
 })
 

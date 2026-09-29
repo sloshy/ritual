@@ -62,7 +62,7 @@ async function mockBilingualSite(
     '**/index.json',
     makeSiteIndex({
       decks: [makeDeckSummary({ slug: DECK_SLUG, name: 'Test Filter Deck', cardCount: 6 })],
-      availableCurrencies: ['usd', 'eur'],
+      priceSources: ['tcgplayer', 'cardmarket'],
       availableLocales: available,
     }),
   )

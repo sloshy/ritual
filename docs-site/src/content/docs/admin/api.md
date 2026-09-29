@@ -694,15 +694,14 @@ Price every deck, collection, and wanted list from the local card cache and retu
 
 **Query Parameters:**
 
-| Parameter  | Description                                                                                                                                                                                                         | Required |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `type`     | Only price `deck`, `collection`, or `wanted` lists                                                                                                                                                                  | No       |
-| `currency` | `usd`, `eur`, or `tix`. Alone, it keeps the configured `defaultPriceSource` when that store quotes in it, otherwise reads that currency's Scryfall store                                                            | No       |
-| `source`   | `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed). With neither param, the configured `defaultPriceSource` | No       |
+| Parameter | Description                                                                                                                                                                                                                                  | Required |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `type`    | Only price `deck`, `collection`, or `wanted` lists                                                                                                                                                                                           | No       |
+| `source`  | The store, which sets the currency: `tcgplayer` (Scryfall USD), `cardmarket` (Scryfall EUR), `cardhoarder` (Scryfall MTGO tix), or `cardkingdom` (Card Kingdom NM retail from the cached feed). Default: the configured `defaultPriceSource` | No       |
 
-An unknown `type`, `currency`, or `source` returns `400`. A `source` implies its currency (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), so a conflicting explicit `currency` is a `400` too.
+An unknown `type` or `source` returns `400`. There is no currency parameter: each store has one (`tcgplayer`/`cardkingdom` → `usd`, `cardmarket` → `eur`, `cardhoarder` → `tix`), and every response names both its `source` and its `currency`.
 
-When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, the response carries `"source": "cardkingdom"` beside `"currency": "usd"`, and printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is **not** gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
+When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configured default), the route reads the cached [buylist feed](/commands/sell/). With a feed cached, printings Card Kingdom does not sell are reported unpriced. With no feed downloaded it returns `503` with the refresh advice rather than falling back to Scryfall. The parameter is **not** gated on the [`priceSources`](/configuration/#price-stores-pricesources) config key; it needs only a cached feed.
 
 `mode` discriminates the two price bodies: `"summary"` here, `"list"` on [Price List](#price-list).
 
@@ -714,6 +713,7 @@ When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configure
 {
   "success": true,
   "mode": "summary",
+  "source": "tcgplayer",
   "currency": "usd",
   "lastRefreshedAt": 1752600000000,
   "lists": [
@@ -756,7 +756,7 @@ When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configure
 GET /api/price/:type/:slug
 ```
 
-Price a single list and return its summary plus every priced card entry in file order — the same payload as the CLI's single-list `price <name> --output json`. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, as on the load routes. Takes the same `currency` and `source` query parameters as [Price Summary](#price-summary), with the same `503` when the card cache is empty (or when `source=cardkingdom` finds no cached feed). An unknown slug returns `404`.
+Price a single list and return its summary plus every priced card entry in file order — the same payload as the CLI's single-list `price <name> --output json`. `:type` is `deck`, `collection`, or `wanted`; `:slug` is the list's file basename, as on the load routes. Takes the same `source` query parameter as [Price Summary](#price-summary), with the same `503` when the card cache is empty (or when `source=cardkingdom` finds no cached feed). An unknown slug returns `404`.
 
 **Response:**
 
@@ -764,6 +764,7 @@ Price a single list and return its summary plus every priced card entry in file 
 {
   "success": true,
   "mode": "list",
+  "source": "tcgplayer",
   "currency": "usd",
   "lastRefreshedAt": 1752600000000,
   "list": {

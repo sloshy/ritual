@@ -31,17 +31,20 @@ import {
   getPriceSources,
   getRitualConfig,
   getSiteApiBaseUrl,
+  getSiteSellMode,
   getSiteSelectionConfig,
   getUiLocale,
   getWantedDir,
 } from '../config/ritual-config'
 import { siteBuylistContext } from '../cardkingdom'
 import type { SiteDetailContext } from '../site-build/types'
-import { parseCurrenciesFlag, type PriceCurrencies } from '../pricing/price-currency'
 import {
-  isSiteCurrenciesError,
-  resolveSiteCurrencies,
+  isSiteStoresError,
+  withCardKingdomFeed,
+  VALID_PRICE_SOURCES,
+  resolveSiteStores,
   type PriceSource,
+  type SiteStores,
 } from '../pricing/price-source'
 import type {
   CollectionSummary,
@@ -50,7 +53,8 @@ import type {
   WantedListSummary,
 } from '../list/site-data'
 import type { ListType } from '../list/list-type'
-import { getErrorMessage, ExitCode, type ExitCodeValue } from '../util/errors'
+import { ExitCode, type ExitCodeValue } from '../util/errors'
+import { parseEnumField } from '../util/parse-enum'
 import { emptyCacheAdvice } from '../cache/freshness'
 import { isThemeName, resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
 import type { RefreshMode, RefreshPolicy } from '../cache/refresh'
@@ -101,7 +105,7 @@ export interface BuildSiteOptions {
   decks?: string[] | boolean
   collections?: string[] | boolean
   wantedLists?: string[] | boolean
-  currencies?: string
+  priceSources?: string
   refresh?: RefreshMode
   theme?: string
   themeFile?: string[]
@@ -147,9 +151,8 @@ export function selectionFlagNames(
 
 /** The settings a build runs under once every flag has been validated. */
 type BuildSettings = {
-  availableCurrencies: PriceCurrencies
-  /** The store the site opens in (see `SiteCurrencies.defaultSource`). */
-  defaultPriceSource: PriceSource
+  /** The stores this build offers, their currencies, and the one it opens on. */
+  siteStores: SiteStores
   customThemes: CustomTheme[]
   /** Either a built-in `ThemeName` or a custom name from `--theme-file`. */
   initialThemeName: string
@@ -165,33 +168,36 @@ function refuse(message: string, code: ExitCodeValue): undefined {
 }
 
 /**
- * Validate the currency, theme, locale and output-directory flags, in that
+ * Validate the price-store, theme, locale and output-directory flags, in that
  * order. Prints the first problem, sets the exit code, and returns undefined
  * so the caller can stop before anything is read or written.
  */
 async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSettings | undefined> {
-  let explicitCurrencies: PriceCurrencies | undefined
-  try {
-    explicitCurrencies = parseCurrenciesFlag(options.currencies)
-  } catch (e) {
-    return refuse(getErrorMessage(e), ExitCode.UsageError)
+  let explicitStores: PriceSource[] | undefined
+  if (options.priceSources !== undefined) {
+    explicitStores = []
+    for (const raw of options.priceSources.split(',')) {
+      if (raw.trim() === '') continue
+      const parsed = parseEnumField(
+        raw.trim(),
+        VALID_PRICE_SOURCES,
+        t('errors.enum.fieldPriceSource'),
+      )
+      if (!parsed.ok) return refuse(parsed.message, ExitCode.UsageError)
+      if (!explicitStores.includes(parsed.value)) explicitStores.push(parsed.value)
+    }
   }
   const priceSources = getPriceSources()
-  const currencies = resolveSiteCurrencies(
-    priceSources,
-    getDefaultPriceSource(),
-    explicitCurrencies,
-  )
-  if (isSiteCurrenciesError(currencies)) {
+  const siteStores = resolveSiteStores(priceSources, getDefaultPriceSource(), explicitStores)
+  if (isSiteStoresError(siteStores)) {
     return refuse(
-      t('cli.buildSite.currenciesWithoutStore', {
-        currencies: currencies.requested.join(','),
+      t('cli.buildSite.storesNotEnabled', {
+        stores: siteStores.requested.join(','),
         sources: priceSources.join(', '),
       }),
       ExitCode.UsageError,
     )
   }
-  const { available: availableCurrencies, defaultSource: defaultPriceSource } = currencies
 
   const customThemes = await loadCustomThemes(options.themeFile ?? [])
   if (typeof customThemes === 'string') return refuse(customThemes, ExitCode.RuntimeError)
@@ -229,8 +235,7 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
   const outDir = resolveOutDir(options.outDir)
   if (!outDir.ok) return refuse(outDir.error, ExitCode.UsageError)
   return {
-    availableCurrencies,
-    defaultPriceSource,
+    siteStores,
     customThemes,
     initialThemeName,
     localePlan,
@@ -327,7 +332,7 @@ type BakeWithheld = { published: false; reason: 'no-price-data' | 'named-source-
  */
 async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult> {
   const { options, settings, sources, spa, policy } = input
-  const { availableCurrencies, defaultPriceSource, localePlan } = settings
+  const { localePlan } = settings
   const { skipped, skipSource, categories } = sources
   const cacheImages = options.cacheImages === true
   const useScryfallImgUrls = !cacheImages
@@ -352,14 +357,22 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
     policy,
     verbose: options.verbose === true,
   })
-  const buylist = siteBuylistContext(await loadBakedFeed(policy))
+  // The feed is wanted for sell mode, or for a Card Kingdom store this build
+  // offers — not merely one the config enables but `--price-sources` dropped.
+  const offersCardKingdom = settings.siteStores.stores.includes('cardkingdom')
+  const feed = await loadBakedFeed(policy, getSiteSellMode() || offersCardKingdom)
+  const buylist = siteBuylistContext(feed, offersCardKingdom)
+  // No feed, no Card Kingdom prices: the store is not offered at all rather
+  // than offered reading N/A on every card.
+  const siteStores = withCardKingdomFeed(settings.siteStores, feed !== undefined)
+  const availableCurrencies = siteStores.currencies
 
   console.log(t('cli.buildSite.fetchingData'))
   const { cardData, latestPriceTimestamp } = await fetchBuildCards({
     uniqueCards,
     policy,
     availableCurrencies,
-    // Card Kingdom's own printing picks, only when the site offers CK prices.
+    // Card Kingdom's own printing picks, only when this build offers CK prices.
     ckQuote: buylist?.quotePrintings ? buylist.quote : null,
     cacheImages,
     imagesDir,
@@ -433,8 +446,8 @@ async function bakeSite(input: BakeInput, buildDir: string): Promise<BakeResult>
     collections,
     wantedLists,
     useScryfallImgUrls,
-    defaultPriceSource,
-    availableCurrencies,
+    defaultPriceSource: siteStores.defaultSource,
+    priceSources: siteStores.stores,
     pricesDate,
     uiLocale: localePlan.locale,
     availableLocales: localePlan.emitted.map((entry) => entry.tag),
@@ -538,7 +551,7 @@ export function applyBuildSiteOptions(command: Command): Command {
     .option('--decks [names...]', t('help.buildSite.decks'))
     .option('--collections [names...]', t('help.buildSite.collections'))
     .option('--wanted-lists [names...]', t('help.buildSite.wantedLists'))
-    .option('--currencies <list>', t('help.buildSite.currencies'))
+    .option('--price-sources <list>', t('help.buildSite.priceSources'))
     .option(
       '--theme <name>',
       t('help.buildSite.theme', { themes: themeNames.join(', ') }),

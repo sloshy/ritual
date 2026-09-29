@@ -37,11 +37,14 @@ describe('serve command (Integration)', () => {
     })
   })
 
-  test('--currencies under --api is refused: the live server derives them from config', async () => {
+  test('--price-sources under --api is refused: the live server reads them from config', async () => {
     await withWorkspace(async (dir) => {
-      const result = await runCli(['serve', '--api', '--build', '--currencies', 'usd'], dir)
+      const result = await runCli(
+        ['serve', '--api', '--build', '--price-sources', 'tcgplayer'],
+        dir,
+      )
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('priceSources')
+      expect(result.stderr).toContain('--price-sources has no effect under --api')
       expect(result.stdout).not.toContain('Building site...')
     })
   })

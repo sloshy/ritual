@@ -23,7 +23,7 @@ import { cardHasTags } from '../cache/status'
 import { ensureCardKingdomFeed, loadEnsuredFeed, type LoadedCardKingdomFeed } from '../cardkingdom'
 import { cardKingdomDisplayPrints, type CardKingdomDisplayPrints } from '../cardkingdom/retail'
 import type { PrintingQuoteFn } from '../cardkingdom/quote'
-import { getBannedPrintings, wantsCardKingdomFeed } from '../config/ritual-config'
+import { getBannedPrintings } from '../config/ritual-config'
 import { t } from '../i18n/t'
 import { VALID_CURRENCIES, type PriceCurrency } from '../pricing/price-currency'
 import { getErrorMessage } from '../util/errors'
@@ -126,8 +126,9 @@ export async function prepareCardCache(
  */
 export async function loadBakedFeed(
   policy: RefreshPolicy,
+  wanted: boolean,
 ): Promise<LoadedCardKingdomFeed | undefined> {
-  if (!wantsCardKingdomFeed()) return undefined
+  if (!wanted) return undefined
   const feed = await ensureCardKingdomFeed(policy)
   if (typeof feed === 'string') {
     console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))

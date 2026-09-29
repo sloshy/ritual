@@ -3,7 +3,6 @@ import {
   csvImportSection,
   DIFF_BY_MODES,
   interactiveEditIntro,
-  PRICE_CURRENCY_COMMENT,
   PRICE_SOURCE_COMMENT,
   priceIntro,
   REFRESH_SESSION,
@@ -445,7 +444,6 @@ ritual price --collection --summary            # every collection's totals
 ritual price main-binder --no-input            # one collection's cards + totals
 ritual price main-binder --output json --quiet
 ritual price main-binder --sort price --descending --no-input
-ritual price main-binder --prices eur          ${PRICE_CURRENCY_COMMENT}
 ritual price main-binder --source cardkingdom    ${PRICE_SOURCE_COMMENT}
 \`\`\`
 

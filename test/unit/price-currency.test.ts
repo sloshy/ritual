@@ -1,7 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import {
   isPriceCurrency,
-  parsePriceCurrencyFlag,
   formatFinishPriceCell,
   formatPrice,
   formatPriceColumn,
@@ -15,7 +14,6 @@ import {
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
   isFinishPricelessInCurrency,
-  parseCurrenciesFlag,
 } from '../../src/pricing/price-currency'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
@@ -31,39 +29,6 @@ describe('isPriceCurrency', () => {
     expect(isPriceCurrency('tix')).toBe(true)
     expect(isPriceCurrency('gbp')).toBe(false)
     expect(isPriceCurrency('')).toBe(false)
-  })
-})
-
-describe('parsePriceCurrencyFlag', () => {
-  test('defaults to usd when undefined', () => {
-    expect(parsePriceCurrencyFlag(undefined)).toBe('usd')
-  })
-
-  test('uses the given fallback when undefined or empty', () => {
-    expect(parsePriceCurrencyFlag(undefined, 'eur')).toBe('eur')
-    expect(parsePriceCurrencyFlag('', 'tix')).toBe('tix')
-    expect(parsePriceCurrencyFlag('usd', 'eur')).toBe('usd')
-  })
-
-  test('parses case-insensitively', () => {
-    expect(parsePriceCurrencyFlag('USD')).toBe('usd')
-    expect(parsePriceCurrencyFlag('usd')).toBe('usd')
-    expect(parsePriceCurrencyFlag('Usd')).toBe('usd')
-    expect(parsePriceCurrencyFlag('EUR')).toBe('eur')
-    expect(parsePriceCurrencyFlag('eur')).toBe('eur')
-    expect(parsePriceCurrencyFlag('Eur')).toBe('eur')
-    expect(parsePriceCurrencyFlag('TIX')).toBe('tix')
-    expect(parsePriceCurrencyFlag('tix')).toBe('tix')
-    expect(parsePriceCurrencyFlag('Tix')).toBe('tix')
-  })
-
-  test('trims whitespace', () => {
-    expect(parsePriceCurrencyFlag('  eur  ')).toBe('eur')
-  })
-
-  test('throws on invalid input', () => {
-    expect(() => parsePriceCurrencyFlag('gbp')).toThrow(/Invalid price currency/)
-    expect(() => parsePriceCurrencyFlag('jpy')).toThrow(/Invalid price currency/)
   })
 })
 
@@ -226,38 +191,6 @@ describe('isCurrencyAvailableForCard', () => {
     expect(isCurrencyAvailableForCard(['paper', 'mtgo'], 'usd')).toBe(true)
     expect(isCurrencyAvailableForCard(['paper', 'mtgo'], 'eur')).toBe(true)
     expect(isCurrencyAvailableForCard(['paper', 'mtgo'], 'tix')).toBe(true)
-  })
-})
-
-describe('parseCurrenciesFlag', () => {
-  test('absent and empty are undefined, leaving the set to the price stores', () => {
-    expect(parseCurrenciesFlag(undefined)).toBeUndefined()
-    expect(parseCurrenciesFlag('')).toBeUndefined()
-    expect(parseCurrenciesFlag(' , ')).toBeUndefined()
-  })
-
-  test('parses single currency', () => {
-    expect(parseCurrenciesFlag('eur')).toEqual(['eur'])
-  })
-
-  test('parses comma-separated currencies', () => {
-    expect(parseCurrenciesFlag('usd,eur')).toEqual(['usd', 'eur'])
-  })
-
-  test('deduplicates currencies', () => {
-    expect(parseCurrenciesFlag('usd,usd,eur')).toEqual(['usd', 'eur'])
-  })
-
-  test('is case insensitive', () => {
-    expect(parseCurrenciesFlag('USD,EUR')).toEqual(['usd', 'eur'])
-  })
-
-  test('trims whitespace', () => {
-    expect(parseCurrenciesFlag(' usd , tix ')).toEqual(['usd', 'tix'])
-  })
-
-  test('throws for invalid currency', () => {
-    expect(() => parseCurrenciesFlag('usd,gbp')).toThrow(/Invalid currency 'gbp'/)
   })
 })
 

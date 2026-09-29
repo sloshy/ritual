@@ -48,8 +48,8 @@ export function isPriceSource(value: string): value is PriceSource {
 }
 
 /**
- * The USD stores, in canonical (selector) order — the one axis a user can
- * switch between; EUR is always Cardmarket and tix always Cardhoarder.
+ * The USD stores, in canonical order — the only currency with more than one
+ * store; EUR is always Cardmarket and tix always Cardhoarder.
  */
 export const USD_PRICE_SOURCES = [
   'tcgplayer',
@@ -67,8 +67,8 @@ export function isUsdPriceSource(source: PriceSource): source is UsdPriceSource 
 export const DEFAULT_PRICE_SOURCE = 'tcgplayer' satisfies PriceSource
 
 /**
- * The Scryfall-backed store for each currency — what a request that names only
- * a currency reads, unless the configured default already quotes in it.
+ * The Scryfall-backed store for each currency: the one store for EUR and tix,
+ * and TCGplayer for USD (Card Kingdom being USD's second store).
  */
 const SCRYFALL_SOURCES = {
   usd: 'tcgplayer',
@@ -80,7 +80,7 @@ const SCRYFALL_SOURCES = {
  * The store a workspace prices from by default: the configured
  * `defaultPriceSource`, else the first enabled store, else TCGplayer. Used as
  * is by the CLI, the admin API, and MCP, which are not gated on `priceSources`;
- * the sites narrow it further to what they offer ({@link resolveSiteCurrencies}).
+ * the sites narrow it further to what they offer ({@link resolveSiteStores}).
  */
 export function resolveDefaultPriceSource(
   configured: PriceSource | undefined,
@@ -89,59 +89,9 @@ export function resolveDefaultPriceSource(
   return configured ?? enabled[0] ?? DEFAULT_PRICE_SOURCE
 }
 
-/** A price request resolved to the store it reads and the currency that store quotes in. */
-export type PriceRequest = { source: PriceSource; currency: PriceCurrency }
-
-/** An explicit source whose currency disagrees with an explicit currency. */
-export type PriceRequestConflict = {
-  error: 'source-currency-conflict'
-  source: PriceSource
-  implied: PriceCurrency
-}
-
-/**
- * Resolve a price request's store from an explicit source, an explicit
- * currency, and the configured default. A source implies its currency, and
- * only an *explicit* conflicting currency is a conflict. A currency alone reads
- * the default store when that store quotes in it (so `--prices usd` under a
- * Card Kingdom default stays Card Kingdom), else that currency's Scryfall
- * store. Neither flag reads the default store. The rule lives here once so the CLI flags,
- * the admin query params, and the MCP input cannot drift; each surface words
- * its own error.
- */
-export function resolvePriceRequest(
-  explicitSource: PriceSource | undefined,
-  explicitCurrency: PriceCurrency | undefined,
-  defaultSource: PriceSource,
-): PriceRequest | PriceRequestConflict {
-  if (explicitSource !== undefined) {
-    const implied = sourceCurrency(explicitSource)
-    if (priceRequestConflicts(explicitSource, explicitCurrency)) {
-      return { error: 'source-currency-conflict', source: explicitSource, implied }
-    }
-    return { source: explicitSource, currency: implied }
-  }
-  if (explicitCurrency === undefined || explicitCurrency === sourceCurrency(defaultSource)) {
-    return { source: defaultSource, currency: sourceCurrency(defaultSource) }
-  }
-  return { source: SCRYFALL_SOURCES[explicitCurrency], currency: explicitCurrency }
-}
-
 /** The Scryfall-backed store that quotes in a currency. */
 export function scryfallSourceFor(currency: PriceCurrency): PriceSource {
   return SCRYFALL_SOURCES[currency]
-}
-
-/**
- * Whether an explicit source and an explicit currency disagree — the conflict
- * half of {@link resolvePriceRequest}, for an input schema that validates
- * before any default is known.
- */
-export function priceRequestConflicts(
-  source: PriceSource,
-  currency: PriceCurrency | undefined,
-): boolean {
-  return currency !== undefined && currency !== sourceCurrency(source)
 }
 
 /**
@@ -157,12 +107,6 @@ export function withPriceSource(
   return VALID_PRICE_SOURCES.filter((candidate) =>
     candidate === source ? enabled : sources.includes(candidate),
   )
-}
-
-export function isPriceRequestConflict(
-  value: PriceRequest | PriceRequestConflict,
-): value is PriceRequestConflict {
-  return 'error' in value
 }
 
 /** The one currency a source quotes in. */
@@ -192,79 +136,121 @@ export function sourcesForCurrency(
   )
 }
 
-/** The currencies a site built or served under a config offers, and the store it opens in. */
-export type SiteCurrencies = {
-  available: PriceCurrencies
+/** The stores a site built or served under a config offers, and the one it opens on. */
+export type SiteStores = {
   /**
-   * The configured default store when it is enabled and its currency offered,
-   * else the first enabled store quoting in the first offered currency.
+   * The offered stores in the header's order: grouped by currency (USD, EUR,
+   * tix), so the two USD stores sit together.
+   */
+  stores: PriceSource[]
+  /**
+   * The offered stores' currencies, in canonical order — derived from the
+   * stores, never chosen, and the set the build bakes prices in. With no store
+   * at all the site shows no prices, but still bakes the default store's
+   * currency so its data stays well-formed.
+   */
+  currencies: PriceCurrencies
+  /**
+   * The configured default store when the site offers it, else the first
+   * offered store (else the configured default, when nothing is offered).
    */
   defaultSource: PriceSource
 }
 
-/** An explicit `--currencies` list naming no currency an enabled store quotes in. */
-export type SiteCurrenciesError = {
-  error: 'no-store-for-currencies'
-  requested: PriceCurrencies
+/** A `--price-sources` list naming no store `priceSources` enables. */
+export type SiteStoresError = {
+  error: 'stores-not-enabled'
+  requested: PriceSource[]
 }
 
 /**
- * Resolve a site's currencies: exactly the ones the enabled stores quote in,
- * in canonical currency order, so tix appears only when `cardhoarder` is
- * enabled. An explicit `--currencies` list narrows (and orders) that set but
- * never adds a currency with no store behind it; one that keeps nothing is an
- * error. With no stores at all the site shows no prices, but still bakes one
- * currency (the explicit list's, else the default store's) so its data stays
- * well-formed. `configured` is the raw `defaultPriceSource` (absent reads as
- * {@link resolveDefaultPriceSource} does).
+ * Resolve a site's stores: the enabled `priceSources`, narrowed by an explicit
+ * `--price-sources` list for one build. The list only narrows — it never adds
+ * a store the config does not enable (that store's feed would not have been
+ * loaded) — and one that keeps nothing is an error. `configuredSource` is the
+ * raw `defaultPriceSource` (absent reads as {@link resolveDefaultPriceSource}
+ * does).
  */
-export function resolveSiteCurrencies(
-  sources: readonly PriceSource[],
+export function resolveSiteStores(
+  enabled: readonly PriceSource[],
   configuredSource: PriceSource | undefined,
-): SiteCurrencies
-export function resolveSiteCurrencies(
-  sources: readonly PriceSource[],
+): SiteStores
+export function resolveSiteStores(
+  enabled: readonly PriceSource[],
   configuredSource: PriceSource | undefined,
-  explicit: PriceCurrencies | undefined,
-): SiteCurrencies | SiteCurrenciesError
-export function resolveSiteCurrencies(
-  sources: readonly PriceSource[],
+  explicit: readonly PriceSource[] | undefined,
+): SiteStores | SiteStoresError
+export function resolveSiteStores(
+  enabled: readonly PriceSource[],
   configuredSource: PriceSource | undefined,
-  explicit?: PriceCurrencies,
-): SiteCurrencies | SiteCurrenciesError {
-  const configured = resolveDefaultPriceSource(configuredSource, sources)
-  const configuredCurrency = sourceCurrency(configured)
-  const backed = VALID_CURRENCIES.filter(
-    (currency) => sourcesForCurrency(currency, sources).length > 0,
+  explicit?: readonly PriceSource[],
+): SiteStores | SiteStoresError {
+  const kept = explicit ? enabled.filter((source) => explicit.includes(source)) : enabled
+  if (explicit && kept.length === 0) {
+    return { error: 'stores-not-enabled', requested: [...explicit] }
+  }
+  return siteStoresOf(kept, resolveDefaultPriceSource(configuredSource, enabled))
+}
+
+/**
+ * Stores in the header picker's order: grouped by currency (USD, EUR, tix) so
+ * the two USD stores sit together. The one ordering both the build and the
+ * client apply.
+ */
+export function orderedPriceSources(sources: readonly PriceSource[]): PriceSource[] {
+  return VALID_CURRENCIES.flatMap((currency) => sourcesForCurrency(currency, sources))
+}
+
+/** The currencies a set of stores prices in, in canonical order — derived, never chosen. */
+export function storeCurrencies(sources: readonly PriceSource[]): PriceCurrency[] {
+  return VALID_CURRENCIES.filter((currency) =>
+    sources.some((source) => sourceCurrency(source) === currency),
   )
-  const candidates =
-    backed.length === 0
-      ? (explicit ?? [configuredCurrency])
-      : explicit
-        ? explicit.filter((currency) => backed.includes(currency))
-        : backed
-  const [first, ...rest] = candidates
-  if (first === undefined) {
-    // Only reachable with an explicit list: `backed` is non-empty here.
-    return { error: 'no-store-for-currencies', requested: explicit ?? [configuredCurrency] }
-  }
-  const available: PriceCurrencies = [first, ...rest]
-  const offersConfigured = available.includes(configuredCurrency)
-  if (offersConfigured && (sources.includes(configured) || backed.length === 0)) {
-    return { available, defaultSource: configured }
-  }
-  // The configured store is off (or its currency is not offered): open in the
-  // first offered currency, at its first enabled store — or its Scryfall store
-  // when no store is enabled at all.
+}
+
+/** {@link SiteStores} for a final store list and the store the site should open on. */
+function siteStoresOf(kept: readonly PriceSource[], configured: PriceSource): SiteStores {
+  const stores = orderedPriceSources(kept)
+  const defaultSource = stores.includes(configured) ? configured : (stores[0] ?? configured)
+  const [first, ...rest] = storeCurrencies(stores)
   return {
-    available,
-    defaultSource: sourcesForCurrency(first, sources)[0] ?? SCRYFALL_SOURCES[first],
+    stores,
+    currencies: first === undefined ? [sourceCurrency(defaultSource)] : [first, ...rest],
+    defaultSource,
   }
 }
 
-export function isSiteCurrenciesError(
-  value: SiteCurrencies | SiteCurrenciesError,
-): value is SiteCurrenciesError {
+/**
+ * Drop Card Kingdom from a site's stores when there is no feed to price it
+ * from: offered anyway, it would read N/A on every card, and a site whose only
+ * store it is would show no money with no picker to escape by. The Scryfall
+ * stores never need this — their prices ride in the card cache.
+ */
+export function withCardKingdomFeed(siteStores: SiteStores, hasFeed: boolean): SiteStores {
+  if (hasFeed || !siteStores.stores.includes('cardkingdom')) return siteStores
+  return siteStoresOf(
+    siteStores.stores.filter((source) => source !== 'cardkingdom'),
+    siteStores.defaultSource,
+  )
+}
+
+/**
+ * The currency a price view should settle on when the offered stores change
+ * under it: the current one while some offered store still prices in it, else
+ * the default store's (when offered), else the first offered store's. Both
+ * sites apply it, so they recover the same way.
+ */
+export function settleCurrency(
+  current: PriceCurrency,
+  stores: readonly PriceSource[],
+  defaultSource: PriceSource,
+): PriceCurrency {
+  if (stores.some((source) => sourceCurrency(source) === current)) return current
+  const fallback = stores.includes(defaultSource) ? defaultSource : stores[0]
+  return fallback === undefined ? current : sourceCurrency(fallback)
+}
+
+export function isSiteStoresError(value: SiteStores | SiteStoresError): value is SiteStoresError {
   return 'error' in value
 }
 

@@ -1,5 +1,4 @@
 import type { ScryfallCard } from '../scryfall/types'
-import { type ErrorCode, getErrorMessage, type ExitCodeValue } from '../util/errors'
 import {
   type Finish,
   displayFinish,
@@ -20,18 +19,6 @@ export type { CheapestPrintingResult }
 export type PriceCurrency = 'usd' | 'eur' | 'tix'
 
 export const DEFAULT_CURRENCY: PriceCurrency = 'usd'
-
-export function parsePriceCurrencyFlag(
-  input: string | undefined,
-  fallback: PriceCurrency = DEFAULT_CURRENCY,
-): PriceCurrency {
-  if (!input) return fallback
-  const lower = input.toLowerCase().trim()
-  if (lower === 'eur') return 'eur'
-  if (lower === 'tix') return 'tix'
-  if (lower === 'usd') return 'usd'
-  throw new Error(`Invalid price currency '${input}'. Must be one of: usd, eur, tix`)
-}
 
 export function getCurrencySymbol(currency: PriceCurrency): string {
   switch (currency) {
@@ -336,52 +323,7 @@ export function isCurrencyAvailableForCard(games: string[], currency: PriceCurre
   return games.includes('paper')
 }
 
-/**
- * Parse the --prices flag with standardized error handling for CLI commands.
- * An absent flag resolves to `fallback` (the configured default currency).
- * Returns the parsed currency on success, or null if validation failed (after emitting error).
- */
-export function parseCurrencyFlagOrError<T>(
-  input: string | undefined,
-  emitError: (code: ErrorCode, message: string, options: T) => void,
-  scriptingOptions: T,
-  exitCode: ExitCodeValue,
-  fallback: PriceCurrency = DEFAULT_CURRENCY,
-): PriceCurrency | null {
-  try {
-    return parsePriceCurrencyFlag(input, fallback)
-  } catch (e) {
-    const message = getErrorMessage(e)
-    emitError('usage_error', message, scriptingOptions)
-    process.exitCode = exitCode
-    return null
-  }
-}
-
-/**
- * Parse a comma-separated currencies string (e.g., "usd,eur") into PriceCurrency[].
- * Absent or blank (no currency named at all) is `undefined`: the caller derives
- * the set from the enabled price stores (see `resolveSiteCurrencies`).
- */
-export function parseCurrenciesFlag(input: string | undefined): PriceCurrencies | undefined {
-  const parts = (input ?? '')
-    .split(',')
-    .map((s) => s.trim().toLowerCase())
-    .filter((s) => s.length > 0)
-  const result: PriceCurrency[] = []
-  for (const part of parts) {
-    if (!isPriceCurrency(part)) {
-      throw new Error(
-        `Invalid currency '${part}' in currencies list. Must be comma-separated values of: ${VALID_CURRENCIES.join(', ')}`,
-      )
-    }
-    if (!result.includes(part)) result.push(part)
-  }
-  const [first, ...rest] = result
-  return first === undefined ? undefined : [first, ...rest]
-}
-
-/** A parsed `--currencies` list: never empty, so the first one is always a valid default. */
+/** A non-empty currency list: a site always bakes at least one currency. */
 export type PriceCurrencies = [PriceCurrency, ...PriceCurrency[]]
 
 /**

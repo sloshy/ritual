@@ -218,4 +218,38 @@ describe('build-site buylist baking (Integration)', () => {
     // displayed printings alone.)
     expect(Object.keys(deck.buylist?.cardkingdom?.quotes ?? {})).toContain('lea:161:foil')
   })
+
+  // The config still enables Card Kingdom here (the case above set it).
+  test('--price-sources narrowing Card Kingdom out drops its feed, picks and quotes', async () => {
+    // An earlier case's `--sell-mode` would want the feed on its own.
+    clearSiteSellModeOverride()
+    await runBuildSite({ refresh: 'never', priceSources: 'tcgplayer' })
+
+    const index = JSON.parse(
+      await fs.readFile(path.join(ws.dir, 'dist', 'index.json'), 'utf-8'),
+    ) as SiteIndex
+    expect(index.priceSources).toEqual(['tcgplayer'])
+    const deck = JSON.parse(
+      await fs.readFile(path.join(ws.dir, 'dist', 'decks', 'emberwild-aggro.json'), 'utf-8'),
+    ) as Record<string, unknown>
+    // Sell mode is off, so with CK narrowed out nothing wants the feed at all.
+    expect(deck).not.toHaveProperty('cardsCardKingdom')
+    expect(deck).not.toHaveProperty('buylist')
+  })
+
+  test('an enabled Card Kingdom store with no feed is not offered', async () => {
+    await fs.rm(path.join(ws.dir, 'cache', 'cardkingdom.json'), { force: true })
+    invalidateCardKingdomIndex()
+    try {
+      await runBuildSite({ refresh: 'never' })
+      const index = JSON.parse(
+        await fs.readFile(path.join(ws.dir, 'dist', 'index.json'), 'utf-8'),
+      ) as SiteIndex
+      // Offered anyway, it would read N/A on every card.
+      expect(index.priceSources).toEqual(['tcgplayer'])
+      expect(index.defaultPriceSource).toBe('tcgplayer')
+    } finally {
+      await seedFeed()
+    }
+  })
 })

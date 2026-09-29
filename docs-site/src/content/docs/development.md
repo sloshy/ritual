@@ -52,7 +52,7 @@ Extra arguments are forwarded to the underlying command:
 
 ```bash
 bun run dev admin --port 9090 --theme boros
-bun run dev serve --decks "Atraxa Superfriends" --currencies usd
+bun run dev serve --decks "Atraxa Superfriends" --price-sources tcgplayer
 ```
 
 If `--base-dir <path>` is passed for `serve`, the watcher uses that base directory's data folders.

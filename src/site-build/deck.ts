@@ -445,7 +445,6 @@ export async function buildDeckArtifacts(
       : {}),
     symbolMap: ctx.symbolMap,
     useScryfallImgUrls,
-    availableCurrencies,
     missingCards: deckMissingCards,
     pricesDate: ctx.pricesDate,
     changelog: changelog.length > 0 ? changelog : undefined,

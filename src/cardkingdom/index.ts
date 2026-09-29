@@ -20,7 +20,7 @@ export {
   type ParsedCardKingdomCacheFile,
 } from './cache'
 export { CARDKINGDOM_PRICELIST_URL, fetchCardKingdomFeed } from './client'
-export { detailBuylistContext, siteBuylistContext } from './bake'
+export { cardKingdomReportPricing, detailBuylistContext, siteBuylistContext } from './bake'
 export {
   NO_FEED_LEAD,
   ensureCardKingdomFeed,

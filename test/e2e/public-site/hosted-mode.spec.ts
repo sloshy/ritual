@@ -60,7 +60,6 @@ function hostedDeckDetail(): DeckDetail {
     printings: { 'Test Creature': [CREATURE] },
     symbolMap: {},
     useScryfallImgUrls: false,
-    availableCurrencies: ['usd'],
   }
 }
 

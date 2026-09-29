@@ -42,14 +42,12 @@ export function pickPriceStore(
 export type PriceStoreSelectProps = {
   /** The currency in view; with the active USD source it names the selected store. */
   currency: PriceCurrency
-  /** The currencies the deployment offers; only stores quoting in them are listed. */
-  available: readonly PriceCurrency[]
   onChange: (source: PriceSource) => void
 }
 
 export const PriceStoreSelect: Component<PriceStoreSelectProps> = (props) => {
   const t = useT()
-  const offered = createMemo(() => offeredPriceSources(props.available))
+  const offered = createMemo(() => offeredPriceSources())
   const selected = (): PriceSource => activePriceSource(props.currency)
   return (
     <Show when={offered().length > 1}>

@@ -9,9 +9,9 @@ The header's **Prices** dropdown picks the **store** every price comes from, eve
 
 ## Currencies
 
-A site offers exactly the currencies its enabled [price stores](#price-stores) quote in: USD (TCGplayer or Card Kingdom retail), EUR (Cardmarket), and TIX (MTGO, via Cardhoarder). The default `priceSources: ["tcgplayer"]` offers USD only. TIX appears only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardhoarder`.
+A currency is never picked on its own: every [price store](#price-stores) has exactly one (TCGplayer and Card Kingdom are USD, Cardmarket is EUR, Cardhoarder is TIX), and a site offers exactly its stores' currencies. The default `priceSources: ["tcgplayer"]` offers USD only; TIX appears only when [`priceSources`](/configuration/#price-stores-pricesources) includes `cardhoarder`.
 
-The `--currencies` flag on [`build-site`](/commands/build-site/) can narrow that set for one build. It never adds a currency with no enabled store behind it, and a value naming only such currencies is refused. Under `serve --api` the flag is refused outright, since the live server always offers the configured stores' currencies.
+The `--price-sources` flag on [`build-site`](/commands/build-site/) can narrow the stores for one build. It never adds a store `priceSources` does not enable, and a value naming only such stores is refused. Under `serve --api` the flag is refused outright, since the live server always offers the configured stores.
 
 The header's Prices dropdown lists each enabled store of an offered currency by name, with the USD stores (TCGplayer, Card Kingdom) together. With a single store, or an empty `priceSources`, it is hidden.
 

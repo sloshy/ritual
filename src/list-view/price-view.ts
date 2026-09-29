@@ -22,7 +22,9 @@ import {
   DEFAULT_PRICE_SOURCES,
   USD_PRICE_SOURCES,
   isUsdPriceSource,
+  orderedPriceSources,
   scryfallSourceFor,
+  storeCurrencies,
   sourcesForCurrency,
   type PriceSource,
   type UsdPriceSource,
@@ -155,20 +157,18 @@ export function currencyHasSource(currency: PriceCurrency): boolean {
   return sourcesForCurrency(currency, enabled()).length > 0
 }
 
-/** The site's available currencies narrowed to the ones a source can answer for. */
-export function offeredCurrencies(available: readonly PriceCurrency[]): PriceCurrency[] {
-  return available.filter(currencyHasSource)
+/** The currencies the enabled stores price in, in canonical order — derived, never chosen. */
+export function offeredCurrencies(): PriceCurrency[] {
+  return storeCurrencies(enabled())
 }
 
-/**
- * The stores the header's picker offers: every enabled store quoting in one of
- * the deployment's offered currencies, grouped by currency in canonical order
- * (so the two USD stores sit together).
- */
-export function offeredPriceSources(available: readonly PriceCurrency[]): PriceSource[] {
-  const current = enabled()
-  return offeredCurrencies(available).flatMap((currency) => sourcesForCurrency(currency, current))
+/** The stores the header's picker offers: every enabled store, in picker order. */
+export function offeredPriceSources(): PriceSource[] {
+  return orderedPriceSources(enabled())
 }
+
+/** The deployment's configured default store, as seeded by {@link setDefaultPriceSource}. */
+export const configuredPriceSource: Accessor<PriceSource> = defaultSource
 
 /**
  * Whether a dialog offers a USD-source choice at all: only USD has one, and

@@ -13,7 +13,7 @@ ritual serve           # serve the built site at http://localhost:3000
 ritual serve --build   # both in one step
 ```
 
-[`build-site`](/commands/build-site/) documents the build options: which lists to publish, themes, currencies, languages, and how the card cache is refreshed. [`serve`](/commands/serve/) previews the result and can also run the site against a live backend. [`init-site`](/commands/init-site/) can set up a GitHub Actions workflow that builds and publishes the site for you.
+[`build-site`](/commands/build-site/) documents the build options: which lists to publish, themes, price stores, languages, and how the card cache is refreshed. [`serve`](/commands/serve/) previews the result and can also run the site against a live backend. [`init-site`](/commands/init-site/) can set up a GitHub Actions workflow that builds and publishes the site for you.
 
 ## What's on the Site
 

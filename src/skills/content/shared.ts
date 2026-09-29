@@ -223,12 +223,13 @@ export type PriceIntroOptions = {
 export function priceIntro(options: PriceIntroOptions): string {
   return wrapProse(
     `The unified \`price\` command covers all list types; scope it with ` +
-      `\`${options.scopeFlag}\` or a name. \`--source\` picks the store — ` +
-      `\`tcgplayer\` (Scryfall USD, the default), \`cardmarket\` (Scryfall EUR), ` +
+      `\`${options.scopeFlag}\` or a name. \`--source\` picks the store, and the ` +
+      `store sets the currency (default: config \`defaultPriceSource\`) — ` +
+      `\`tcgplayer\` (Scryfall USD), \`cardmarket\` (Scryfall EUR), ` +
       `\`cardhoarder\` (Scryfall MTGO tix), or ` +
       `\`cardkingdom\` (NM retail from the cached Card Kingdom feed; errors when no ` +
-      `feed is downloaded — a bulk-allowing \`--refresh\` downloads it). A source ` +
-      `implies its currency, so don't pass a conflicting \`--prices\`. Each store ` +
+      `feed is downloaded — a bulk-allowing \`--refresh\` downloads it). There is ` +
+      `no currency flag: to see EUR, pick \`cardmarket\`. Each store ` +
       `also picks its own printing for an entry that names none: under ` +
       `\`cardkingdom\` that is the newest printing CK actually sells, so an unpinned ` +
       `entry reads unpriced only when CK carries no printing of the card at all (a ` +
@@ -238,10 +239,6 @@ export function priceIntro(options: PriceIntroOptions): string {
       `\`--no-input\` flag:`,
   )
 }
-
-/** The `--prices` example comment shared by every price example block. */
-export const PRICE_CURRENCY_COMMENT =
-  '# usd | eur | tix (defaults to the currency of config defaultPriceSource)'
 
 /** The `--source` example comment shared by every price example block. */
 export const PRICE_SOURCE_COMMENT =

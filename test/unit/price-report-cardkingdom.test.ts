@@ -41,7 +41,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           { name: 'Test Card', quantity: 2, set: 'aaa', collectorNumber: '1', section: 'Main' },
         ]),
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }), cardKingdom: ck },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        lookup: lookupFor({ 'Test Card': [bolt] }),
+      },
     )
     expect(report.source).toBe('cardkingdom')
     expect(report.entries[0]!.price).toBe(4.5)
@@ -58,7 +61,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           { name: 'Test Card', quantity: 1, set: 'aaa', collectorNumber: '1', section: 'Main' },
         ]),
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }), cardKingdom: ckFor({}) },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ckFor({}) },
+        lookup: lookupFor({ 'Test Card': [bolt] }),
+      },
     )
     expect(report.entries[0]!.price).toBe(0)
     expect(report.entries[0]!.unpricedReason).toBe('no-price-data')
@@ -78,7 +84,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           { name: 'Test Card', quantity: 1, set: 'aaa', collectorNumber: '1', section: 'Main' },
         ]),
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }), cardKingdom: zero },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: zero },
+        lookup: lookupFor({ 'Test Card': [bolt] }),
+      },
     )
     expect(report.entries[0]!.price).toBe(0)
     expect(report.entries[0]!.unpricedReason).toBe('no-price-data')
@@ -99,9 +108,8 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
         ]),
       ],
       {
-        currency: 'usd',
+        pricing: { source: 'cardkingdom', cardKingdom: ckFor({ 'aaa:1:nonfoil': 4.5 }) },
         lookup: lookupFor({ 'Test Card': [bolt] }),
-        cardKingdom: ckFor({ 'aaa:1:nonfoil': 4.5 }),
       },
     )
     expect(report.entries[0]!.price).toBe(0)
@@ -123,7 +131,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           },
         ]),
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }), cardKingdom: ck },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        lookup: lookupFor({ 'Test Card': [bolt] }),
+      },
     )
     // The cheapest-printing scan asks language-neutrally first; the entry's
     // own quote must carry the token so the matcher can refuse it.
@@ -148,7 +159,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
         },
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt, other] }), cardKingdom: ck },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        lookup: lookupFor({ 'Test Card': [bolt, other] }),
+      },
     )
     // Scryfall's 5¢ printing is irrelevant: CK's cheapest offering is the foil at $3.25.
     expect(report.entries[0]!.lowest).toBe(3.25)
@@ -183,7 +197,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
         },
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [newer, older] }), cardKingdom: ck },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        lookup: lookupFor({ 'Test Card': [newer, older] }),
+      },
     )
     expect(report.entries[0]!.set).toBe('ddd')
     expect(report.entries[0]!.price).toBe(7.25)
@@ -218,7 +235,10 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           entries: [{ name: 'Test Card', quantity: 1, section: 'Mainboard' }],
         },
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [older, newer] }), cardKingdom: ck },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        lookup: lookupFor({ 'Test Card': [older, newer] }),
+      },
     )
     expect(report.entries[0]!.price).toBe(0)
     expect(report.entries[0]!.set).toBe('ccc')
@@ -239,22 +259,26 @@ describe('buildPriceReport with Card Kingdom pricing', () => {
           ],
         },
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }), cardKingdom: ck },
+      {
+        pricing: { source: 'cardkingdom', cardKingdom: ck },
+        lookup: lookupFor({ 'Test Card': [bolt] }),
+      },
     )
     expect(report.entries[0]!.price).toBe(4.5)
     expect(report.entries[0]!.lowest).toBe(2.75)
   })
 
-  test('a plain Scryfall report is unchanged and carries no source', async () => {
+  test('a TCGplayer report reads Scryfall USD and names its store', async () => {
     const { report } = await buildPriceReport(
       [
         collectionInput([
           { name: 'Test Card', quantity: 1, set: 'aaa', collectorNumber: '1', section: 'Main' },
         ]),
       ],
-      { currency: 'usd', lookup: lookupFor({ 'Test Card': [bolt] }) },
+      { pricing: { source: 'tcgplayer' }, lookup: lookupFor({ 'Test Card': [bolt] }) },
     )
-    expect(report.source).toBeUndefined()
+    expect(report.source).toBe('tcgplayer')
+    expect(report.currency).toBe('usd')
     expect(report.entries[0]!.price).toBe(9.99)
   })
 })

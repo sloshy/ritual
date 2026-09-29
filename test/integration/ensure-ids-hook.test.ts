@@ -123,11 +123,11 @@ describe('card-ID backfill preAction hook (Integration)', () => {
 
   test('`serve --build` backfills before the build runs', async () => {
     await withIdlessDeck(async (deckPath, dir) => {
-      // An invalid --currencies value fails the build fast (before any
+      // An invalid --price-sources value fails the build fast (before any
       // network or serving), so the process exits with the backfill on disk.
-      const build = await runCli(['serve', '--build', '--currencies', 'bogus'], dir)
+      const build = await runCli(['serve', '--build', '--price-sources', 'bogus'], dir)
       expect(build.exitCode).toBe(ExitCode.UsageError)
-      expect(build.stderr).toContain("Invalid currency 'bogus'")
+      expect(build.stderr).toContain("'bogus'")
       expect(await fs.readFile(deckPath, 'utf-8')).toBe(backfilledDeck)
     })
   })

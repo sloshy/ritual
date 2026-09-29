@@ -113,8 +113,9 @@ export const helpInfraMeta = {
   'help.buildSite.wantedLists': {
     description: '`build-site --wanted-lists`. site.includeWantedLists is a config key.',
   },
-  'help.buildSite.currencies': {
-    description: '`build-site --currencies`. usd/eur/tix and priceSources are literal tokens.',
+  'help.buildSite.priceSources': {
+    description:
+      '`build-site --price-sources`. The store names and priceSources are literal tokens and must not be translated.',
   },
   'help.buildSite.theme': {
     description: '`build-site --theme`. {themes} is the comma-separated list of built-in themes.',
@@ -206,9 +207,6 @@ export const helpInfraMeta = {
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': { description: 'Summary of the `price` command.' },
   'help.price.listArg': { description: 'The `[listName]` argument of `price`.' },
-  'help.price.prices': {
-    description: '`price --prices`. defaultPriceSource is a config key; usd/eur/tix are codes.',
-  },
   'help.price.source': {
     description:
       'Help text for the --source flag choosing which store prices come from. The store tokens (tcgplayer, cardmarket, cardkingdom, cardhoarder) and the defaultPriceSource config key are literal values and must not be translated.',

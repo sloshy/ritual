@@ -168,7 +168,6 @@ export interface DeckDetail {
   lowestPriceCardsCardKingdom?: CardKingdomCards
   symbolMap: Record<string, string>
   useScryfallImgUrls: boolean
-  availableCurrencies: PriceCurrency[]
   missingCards?: Partial<Record<PriceCurrency, string[]>>
   pricesDate?: string
   changelog?: ChangelogPage[]
@@ -381,7 +380,6 @@ export interface SiteIndex {
    * `defaultPriceSource` when the site offers it, else the first offered store.
    */
   defaultPriceSource: PriceSource
-  availableCurrencies: PriceCurrency[]
   pricesDate?: string
   /** The configured add-card search debounce (ms), baked in at build time. */
   searchDebounceMs: number
@@ -416,13 +414,13 @@ export interface SiteIndex {
    */
   sellMode?: boolean
   /**
-   * The stores this site offers prices from, baked from the `priceSources`
-   * config key. An empty array means the site displays no prices at all
-   * (per-card prices, totals, price sort/filter/grouping, and the currency
-   * selector are all hidden). Absent on sites built before the feature
-   * existed, which reads as the default `['tcgplayer']`.
+   * The stores this site offers prices from, in the header picker's order: the
+   * `priceSources` config key, narrowed by `build-site --price-sources`. The
+   * site's currencies are exactly these stores' currencies. An empty array
+   * means the site displays no prices at all (per-card prices, totals, price
+   * sort/filter/grouping, and the header's store picker are all hidden).
    */
-  priceSources?: readonly PriceSource[]
+  priceSources: readonly PriceSource[]
   /**
    * The configured `defaultCategories` vocabulary, baked from config like
    * {@link searchDebounceMs}. Seeds the category dialogs' one-click

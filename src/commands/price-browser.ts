@@ -2,7 +2,7 @@
  * The interactive browser behind the unified `price` command. The main screen
  * shows every list with its totals (plus per-type and grand totals and the
  * price-cache age); from there the user can drill into a single list, search
- * every list at once, refresh prices, or switch currency.
+ * every list at once, refresh prices, or switch store (and with it, currency).
  *
  * Following the card-session convention, the prompt loops are thin shells over
  * exported pure functions (header/choice/detail formatters and the suggest
@@ -19,7 +19,6 @@ import {
   formatPriceOrNA,
   formatTotalPrice,
   getCardPriceForFinish,
-  VALID_CURRENCIES,
   type PriceCurrency,
 } from '../pricing/price-currency'
 import {
@@ -48,6 +47,12 @@ import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
 import { dateTimeFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
 import { printingLabel } from '../card/card-line-tail'
+import {
+  PRICE_SOURCE_LABELS,
+  VALID_PRICE_SOURCES,
+  sourceCurrency,
+  type PriceSource,
+} from '../pricing/price-source'
 
 /**
  * Message keys for the price browser's sort fields — keys rather than rendered
@@ -116,7 +121,7 @@ export type PriceMainSelection =
   | { kind: 'open'; type: ListType; name: string }
   | { kind: 'search' }
   | { kind: 'refresh' }
-  | { kind: 'currency' }
+  | { kind: 'store' }
   | { kind: 'exit' }
 
 /** Sort + filter state of a card browser screen; mutated as the user adjusts it. */
@@ -183,10 +188,8 @@ export function formatReportHeaderLines(
   const lines: string[] = [
     t('cli.price.headerUpdated', {
       updated,
-      currency:
-        report.source === 'cardkingdom'
-          ? t('cli.price.currencyCardKingdom')
-          : report.currency.toUpperCase(),
+      store: t(PRICE_SOURCE_LABELS[report.source]),
+      currency: report.currency.toUpperCase(),
     }),
     '',
   ]
@@ -241,8 +244,8 @@ export function buildMainMenuChoices(report: PriceReport): Choice[] {
     { title: t('cli.price.menuSearch'), value: { kind: 'search' } satisfies PriceMainSelection },
     { title: t('cli.price.menuRefresh'), value: { kind: 'refresh' } satisfies PriceMainSelection },
     {
-      title: t('cli.price.menuCurrency'),
-      value: { kind: 'currency' } satisfies PriceMainSelection,
+      title: t('cli.price.menuStore'),
+      value: { kind: 'store' } satisfies PriceMainSelection,
     },
     { title: t('cli.price.menuExit'), value: { kind: 'exit' } satisfies PriceMainSelection },
   ]
@@ -424,10 +427,12 @@ export type PriceListRef = Omit<ListLocation, 'filePath'>
 /** Everything the browser needs from the command that launches it. */
 export type PriceBrowserDeps = {
   built: BuiltPriceReport
-  currency: PriceCurrency
   lastRefreshedAt: number | null
-  /** Rebuild the report (rereading lists) in the given currency. */
-  rebuild: (currency: PriceCurrency) => Promise<BuiltPriceReport>
+  /**
+   * Rebuild the report (rereading lists) at the given store, or the reason it
+   * cannot be priced there (Card Kingdom with no feed to read).
+   */
+  rebuild: (source: PriceSource) => Promise<BuiltPriceReport | string>
   /** Redownload the bulk card cache (which carries prices). */
   refreshPrices: () => Promise<void>
   getLastRefreshedAt: () => Promise<number | null>
@@ -583,24 +588,30 @@ async function runCardBrowser(
   }
 }
 
-async function promptCurrencyChange(current: PriceCurrency): Promise<PriceCurrency | undefined> {
-  return ask<PriceCurrency>({
+/** The store switcher's rows: every store, its currency beside it, the current one marked. */
+export function storeChoices(current: PriceSource): Choice[] {
+  return VALID_PRICE_SOURCES.map((source): Choice => {
+    const name = t(PRICE_SOURCE_LABELS[source])
+    return {
+      title: source === current ? t('cli.price.storeRowCurrent', { store: name }) : name,
+      description: sourceCurrency(source).toUpperCase(),
+      value: source,
+    }
+  })
+}
+
+async function promptStoreChange(current: PriceSource): Promise<PriceSource | undefined> {
+  return ask<PriceSource>({
     type: 'select',
-    message: t('cli.price.promptCurrency'),
-    choices: VALID_CURRENCIES.map((currency): Choice => {
-      const code = currency.toUpperCase()
-      return {
-        title: currency === current ? t('cli.price.currencyRowCurrent', { currency: code }) : code,
-        value: currency,
-      }
-    }),
+    message: t('cli.price.promptStore'),
+    choices: storeChoices(current),
+    initial: Math.max(0, VALID_PRICE_SOURCES.indexOf(current)),
   })
 }
 
 /** Run the interactive price browser until the user exits. */
 export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
   let built = deps.built
-  let currency = deps.currency
   let lastRefreshedAt = deps.lastRefreshedAt
 
   const openList = async (type: ListType, name: string): Promise<void> => {
@@ -608,10 +619,16 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
       (entry) => entry.listType === type && entry.listName === name,
     )
     const icon = LIST_TYPE_DISPLAY[type].icon
-    await runCardBrowser(`${icon} ${name}`, listEntries, currency, built.printingsByName, {
-      showSource: false,
-      withTypeFilter: false,
-    })
+    await runCardBrowser(
+      `${icon} ${name}`,
+      listEntries,
+      built.report.currency,
+      built.printingsByName,
+      {
+        showSource: false,
+        withTypeFilter: false,
+      },
+    )
   }
 
   if (deps.openList) {
@@ -636,7 +653,7 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
         await runCardBrowser(
           t('cli.price.allCardsHeading'),
           built.report.entries,
-          currency,
+          built.report.currency,
           built.printingsByName,
           {
             showSource: true,
@@ -644,17 +661,23 @@ export async function runPriceBrowser(deps: PriceBrowserDeps): Promise<void> {
           },
         )
         break
-      case 'refresh':
+      case 'refresh': {
         console.log(t('cli.price.refreshing'))
         await deps.refreshPrices()
         lastRefreshedAt = await deps.getLastRefreshedAt()
-        built = await deps.rebuild(currency)
+        const rebuilt = await deps.rebuild(built.report.source)
+        if (typeof rebuilt === 'string') console.error(rebuilt)
+        else built = rebuilt
         break
-      case 'currency': {
-        const next = await promptCurrencyChange(currency)
-        if (next && next !== currency) {
-          currency = next
-          built = await deps.rebuild(currency)
+      }
+      case 'store': {
+        const next = await promptStoreChange(built.report.source)
+        if (next && next !== built.report.source) {
+          const rebuilt = await deps.rebuild(next)
+          // A store that cannot be priced (Card Kingdom with no feed) keeps the
+          // current report on screen.
+          if (typeof rebuilt === 'string') console.error(rebuilt)
+          else built = rebuilt
         }
         break
       }

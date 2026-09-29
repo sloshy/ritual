@@ -2,6 +2,7 @@ import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../../src/cache'
+import { refreshRitualConfig } from '../../../src/config/ritual-config'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import {
   handlePriceList,
@@ -81,24 +82,20 @@ describe('GET /api/price/summary — ?source=', () => {
     expect(binder?.total).toBeCloseTo(6.25)
   })
 
-  test('source=cardmarket is Scryfall EUR with no source stamp', async () => {
+  test('source=cardmarket is Scryfall EUR, and the payload names the store', async () => {
     await writeLists()
     await seedCache()
     const resp = await handlePriceSummary(summaryRequest('?source=cardmarket'))
     expect(resp.status).toBe(200)
     const body = (await resp.json()) as PriceSummaryResponse
     expect(body.currency).toBe('eur')
-    expect(body.source).toBeUndefined()
+    expect(body.source).toBe('cardmarket')
   })
 
-  test('an unknown source is a 400, and so is a conflicting currency', async () => {
+  test('an unknown source is a 400', async () => {
     await writeLists()
     const unknown = await handlePriceSummary(summaryRequest('?source=ebay'))
     expect(unknown.status).toBe(400)
-    const conflict = await handlePriceSummary(summaryRequest('?source=cardkingdom&currency=eur'))
-    expect(conflict.status).toBe(400)
-    const conflictBody = (await conflict.json()) as ApiErrorResponse
-    expect(conflictBody.message).toContain('usd')
   })
 
   test('source=cardkingdom with no cached feed is a 503 with the refresh remedy', async () => {
@@ -140,10 +137,18 @@ describe('GET /api/price/summary', () => {
     expect(((await resp.json()) as ApiErrorResponse).success).toBe(false)
   })
 
-  test('returns 400 for an invalid currency', async () => {
-    const resp = await handlePriceSummary(summaryRequest('?currency=gbp'))
-    expect(resp.status).toBe(400)
-    expect(((await resp.json()) as ApiErrorResponse).success).toBe(false)
+  test('with no ?source=, the configured defaultPriceSource sets the store', async () => {
+    await writeLists()
+    await seedCache()
+    await fs.writeFile(
+      path.join(ws.dir, 'ritual.config.json'),
+      JSON.stringify({ defaultPriceSource: 'cardmarket' }),
+    )
+    await refreshRitualConfig()
+    const resp = await handlePriceSummary(summaryRequest())
+    const body = (await resp.json()) as PriceSummaryResponse
+    expect(body.source).toBe('cardmarket')
+    expect(body.currency).toBe('eur')
   })
 
   test('prices every list with per-type and grand totals', async () => {
@@ -213,14 +218,15 @@ describe('GET /api/price/:type/:slug', () => {
     expect(((await resp.json()) as ApiErrorResponse).message).toContain('cache is empty')
   })
 
-  test('prices a single list in the requested currency', async () => {
+  test("prices a single list at the requested store, in that store's currency", async () => {
     await writeLists()
     await seedCache()
 
-    const resp = await handlePriceList(listRequest('collection', 'binder', '?currency=EUR'))
+    const resp = await handlePriceList(listRequest('collection', 'binder', '?source=CardMarket'))
     expect(resp.status).toBe(200)
     const body = (await resp.json()) as PriceListDetailResponse
     expect(body.success).toBe(true)
+    expect(body.source).toBe('cardmarket')
     expect(body.currency).toBe('eur')
     expect(typeof body.lastRefreshedAt).toBe('number')
     expect(body.warnings).toEqual([])

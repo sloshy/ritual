@@ -54,17 +54,17 @@ describe('enabled sources and offered currencies', () => {
   test('an empty array disables prices entirely, tix included', () => {
     setEnabledPriceSources([])
     expect(pricesEnabled()).toBe(false)
-    expect(offeredCurrencies(['usd', 'eur', 'tix'])).toEqual([])
+    expect(offeredCurrencies()).toEqual([])
   })
 
-  test('a currency is offered only when an enabled source quotes it', () => {
+  test("the currencies offered are exactly the enabled stores' currencies", () => {
     setEnabledPriceSources(['cardmarket'])
     expect(currencyHasSource('usd')).toBe(false)
     expect(currencyHasSource('eur')).toBe(true)
     expect(currencyHasSource('tix')).toBe(false)
-    expect(offeredCurrencies(['usd', 'eur', 'tix'])).toEqual(['eur'])
+    expect(offeredCurrencies()).toEqual(['eur'])
     setEnabledPriceSources(['tcgplayer', 'cardhoarder'])
-    expect(offeredCurrencies(['usd', 'eur', 'tix'])).toEqual(['usd', 'tix'])
+    expect(offeredCurrencies()).toEqual(['usd', 'tix'])
   })
 
   test('the source choice exists only for USD with both stores enabled', () => {
@@ -147,15 +147,9 @@ describe('the configured default store', () => {
 })
 
 describe('the header store picker', () => {
-  test('offers each enabled store of an offered currency, USD stores together', () => {
-    setEnabledPriceSources(['tcgplayer', 'cardmarket', 'cardkingdom'])
-    expect(offeredPriceSources(['usd', 'eur', 'tix'])).toEqual([
-      'tcgplayer',
-      'cardkingdom',
-      'cardmarket',
-    ])
-    // A currency the site does not offer takes its stores with it.
-    expect(offeredPriceSources(['eur'])).toEqual(['cardmarket'])
+  test('offers each enabled store, grouped by currency so the USD stores sit together', () => {
+    setEnabledPriceSources(['cardmarket', 'tcgplayer', 'cardkingdom'])
+    expect(offeredPriceSources()).toEqual(['tcgplayer', 'cardkingdom', 'cardmarket'])
   })
 
   test('the active store is the USD source for USD, else the currency’s one store', () => {

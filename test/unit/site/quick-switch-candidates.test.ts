@@ -40,7 +40,6 @@ function makeDeckDetail(
     printings: {},
     symbolMap: {},
     useScryfallImgUrls: false,
-    availableCurrencies: ['usd'],
   }
 }
 

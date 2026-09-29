@@ -8,7 +8,6 @@ import { t } from '../i18n/t'
 import {
   getDefaultCategories,
   getDefaultLanguage,
-  getPriceSources,
   getSearchDebounceMs,
   getSiteSellMode,
 } from '../config/ritual-config'
@@ -26,12 +25,7 @@ import type { SiteSpaAssets } from './assets'
  */
 export type SiteIndexParts = Omit<
   SiteIndex,
-  | 'wantedLists'
-  | 'searchDebounceMs'
-  | 'defaultLanguage'
-  | 'sellMode'
-  | 'priceSources'
-  | 'defaultCategories'
+  'wantedLists' | 'searchDebounceMs' | 'defaultLanguage' | 'sellMode' | 'defaultCategories'
 > & { wantedLists: NonNullable<SiteIndex['wantedLists']> }
 
 /** Assemble `index.json` from its parts and the (given or current) config. */
@@ -42,7 +36,6 @@ export function buildSiteIndex(parts: SiteIndexParts, config?: RitualConfig): Si
     searchDebounceMs: getSearchDebounceMs(config),
     defaultLanguage: getDefaultLanguage(config),
     sellMode: getSiteSellMode(config),
-    priceSources: getPriceSources(config),
     defaultCategories: getDefaultCategories(config),
   }
 }

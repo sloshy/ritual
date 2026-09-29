@@ -47,6 +47,7 @@ test.describe('header price-store picker', () => {
     // TCGplayer (default): Scryfall prices, no URL param.
     await expect(row(page, 'Bought Card').locator('.list-price')).toHaveText('$10.00')
     await expect(row(page, 'Unlisted Card').locator('.list-price')).toHaveText('$30.00')
+    expect(await page.evaluate(() => window.location.hash)).not.toContain('prices=')
 
     const select = page.locator(SOURCE_SELECT)
     await expect(select).toBeVisible()
@@ -107,28 +108,23 @@ test.describe('header price-store picker', () => {
     await expect(page.locator(SOURCE_SELECT)).toHaveCount(0)
   })
 
-  test('the picker offers each enabled store of an offered currency, and hides with one', async ({
-    page,
-  }) => {
+  test('the picker offers each store the site offers, and hides with one', async ({ page }) => {
     const storeSelect = page.locator(SOURCE_SELECT)
     const optionValues = () =>
       storeSelect
         .locator('option')
         .evaluateAll((options) => options.map((o) => (o as HTMLOptionElement).value))
     const offer = async (priceSources: SiteIndex['priceSources']): Promise<void> => {
-      await mockPublicSiteCollectionForPriceSources(page, {
-        priceSources,
-        availableCurrencies: ['usd', 'eur', 'tix'],
-      })
+      await mockPublicSiteCollectionForPriceSources(page, { priceSources })
       await gotoSellBinder(page)
       await page.reload()
     }
 
-    // Tix is offered with Cardhoarder and dropped without it; the two USD
-    // stores sit together, ahead of the other currencies.
+    // Each store brings its currency; the two USD stores sit together, ahead
+    // of the other currencies, whatever order the list names them in.
     await offer(['tcgplayer', 'cardhoarder'])
     await expect.poll(optionValues).toEqual(['tcgplayer', 'cardhoarder'])
-    await offer(['tcgplayer', 'cardmarket', 'cardkingdom'])
+    await offer(['cardmarket', 'tcgplayer', 'cardkingdom'])
     await expect.poll(optionValues).toEqual(['tcgplayer', 'cardkingdom', 'cardmarket'])
 
     // USD alone: nothing to choose, so no selector, while prices still render.

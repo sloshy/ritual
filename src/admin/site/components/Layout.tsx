@@ -230,11 +230,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           {/* Beside the other header controls, exactly as on the public site.
               Each hides itself when there is nothing to choose: a single
               offered store, or a build shipping a single locale. */}
-          <PriceStoreSelect
-            currency={priceView.currency()}
-            available={priceView.available()}
-            onChange={pickAdminPriceStore}
-          />
+          <PriceStoreSelect currency={priceView.currency()} onChange={pickAdminPriceStore} />
           <LanguageSwitcher
             locale={uiLocale()}
             available={availableLocales()}

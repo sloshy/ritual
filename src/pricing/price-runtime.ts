@@ -1,11 +1,10 @@
 import type { CardPrintingsLookup } from '../card/card-printing'
 import type { ListType } from '../list/list-type'
-import type { PriceCurrency } from './price-currency'
 import {
   buildPriceReport,
   loadPriceListInputs,
   type BuiltPriceReport,
-  type CardKingdomPricing,
+  type ReportPricing,
 } from './price-report'
 import type { ListLocation } from '../list/resolve-list'
 import { getBannedPrintings } from '../config/ritual-config'
@@ -27,8 +26,6 @@ export type PriceReportOptions = {
    * request timeout per name and still writes the cache).
    */
   refresh?: RefreshMode
-  /** Price from Card Kingdom NM retail instead of Scryfall (`--source cardkingdom`). */
-  cardKingdom?: CardKingdomPricing
 }
 
 /**
@@ -51,15 +48,14 @@ export function priceLookupFor(refresh: RefreshMode | undefined): CardPrintingsL
 export async function loadAndBuildPriceReport(
   type: ListType | undefined,
   locations: ListLocation[] | undefined,
-  currency: PriceCurrency,
+  pricing: ReportPricing,
   options?: PriceReportOptions,
 ): Promise<LoadedPriceReport> {
   const loaded = await loadPriceListInputs(type, locations)
   const built = await buildPriceReport(loaded.inputs, {
-    currency,
+    pricing,
     lookup: priceLookupFor(options?.refresh),
     bannedPrintings: getBannedPrintings(),
-    ...(options?.cardKingdom ? { cardKingdom: options.cardKingdom } : {}),
   })
   return { built, warnings: loaded.warnings }
 }

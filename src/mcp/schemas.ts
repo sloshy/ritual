@@ -15,7 +15,6 @@ import {
 import { CARD_TAG_SHAPE_CLAUSE, isCardTagShaped, normalizeCardTag } from '../card/card-tags'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { isListType } from '../list/list-type'
-import { VALID_CURRENCIES } from '../pricing/price-currency'
 import type { ListImageRef } from '../list/list-image'
 
 /**
@@ -25,8 +24,6 @@ import type { ListImageRef } from '../list/list-image'
  */
 
 export const listTypeSchema = z.enum(['deck', 'collection', 'wanted'])
-/** Derived from the canonical currency list, so the tool schema cannot drift from it. */
-export const currencySchema = z.enum(VALID_CURRENCIES)
 export const finishSchema = z.enum(VALID_FINISHES)
 export const conditionSchema = z.enum(VALID_CONDITIONS)
 /**

@@ -53,9 +53,9 @@ export const cliMeta = {
     description:
       'Which pages of Scryfall results were fetched, spliced into a truncation notice. The singular form names page 1 alone; the plural is an inclusive range starting at 1.',
   },
-  'cli.serve.currenciesUnderApi': {
+  'cli.serve.priceSourcesUnderApi': {
     description:
-      'Usage error: `serve --api --build --currencies` was given, but the live server derives its currencies from config. `--currencies`, `--api` and `priceSources` are literal and must not be translated.',
+      'Usage error: `serve --api --build --price-sources` was given, but the live server takes its stores from config. `--price-sources`, `--api` and `priceSources` are literal and must not be translated.',
   },
   'cli.serve.buildFlagsIgnored': {
     description:

@@ -21,7 +21,7 @@ ritual build-site [options]
 | `--decks [names...]`            | Decks (display name or file base name) or deck URLs to include. Default: the `site.includeDecks` config selection. The flag with no names is a usage error.                                                                                                                                               |
 | `--collections [names...]`      | Collections (display name or file base name) to include. Default: the `site.includeCollections` config selection. The flag with no names is a usage error.                                                                                                                                                |
 | `--wanted-lists [names...]`     | Wanted lists (display name or file base name) to include. Default: the `site.includeWantedLists` config selection. The flag with no names is a usage error.                                                                                                                                               |
-| `--currencies <list>`           | Comma-separated currencies to offer: `usd`, `eur`, `tix`. Default: the currencies of the enabled [`priceSources`](/configuration/#price-stores-pricesources). Narrows that set, never adds to it.                                                                                                         |
+| `--price-sources <list>`        | Comma-separated price stores to offer: `tcgplayer`, `cardmarket`, `cardkingdom`, `cardhoarder`. Default: every enabled [`priceSources`](/configuration/#price-stores-pricesources) store. Narrows that list, never adds to it; each store brings its one currency.                                        |
 | `--refresh <mode>`              | Card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`. See [Card Cache Refresh](#card-cache-refresh).                                                                                                                                                                                 |
 | `--theme <name>`                | Initial theme for first-time visitors: a built-in name or a custom name from `--theme-file`. Default: `default`.                                                                                                                                                                                          |
 | `--theme-file <path...>`        | Load custom theme JSON files. Each is added to the theme list under its declared `name`.                                                                                                                                                                                                                  |
@@ -78,18 +78,12 @@ Build with specific wanted lists:
 ritual build-site --wanted-lists "High Priority" "Trade Targets"
 ```
 
-Without `--currencies`, the site offers the currencies its enabled [price stores](/configuration/#price-stores-pricesources) quote in: USD for `tcgplayer` and `cardkingdom`, EUR for `cardmarket`, TIX for `cardhoarder`. The default `["tcgplayer"]` builds a USD-only site. `--currencies` narrows and reorders that set (and the header's store dropdown) for one build. The site opens on the configured [`defaultPriceSource`](/configuration/#default-price-store) when this build offers it, otherwise on the first listed currency's first enabled store. A currency with no enabled store behind it is dropped, and a list that keeps none is refused with exit code `2`. To offer TIX, add `cardhoarder` to `priceSources`.
+Without `--price-sources`, the site offers every enabled [price store](/configuration/#price-stores-pricesources). A currency is never chosen on its own: each store has exactly one (USD for `tcgplayer` and `cardkingdom`, EUR for `cardmarket`, TIX for `cardhoarder`), and the site offers its stores' currencies. The default `["tcgplayer"]` builds a USD-only site. `--price-sources` narrows the stores for one build. A store `priceSources` does not enable is dropped (its data, such as the Card Kingdom feed, was never loaded), and a list that keeps none is refused with exit code `2`. The site opens on the configured [`defaultPriceSource`](/configuration/#default-price-store) when this build offers it, otherwise on the first store in the header's dropdown.
 
-Build with EUR only:
-
-```bash
-ritual build-site --currencies eur
-```
-
-Build with USD and EUR, USD first:
+Build a Cardmarket-only (EUR) site from a config that also enables TCGplayer:
 
 ```bash
-ritual build-site --currencies "usd,eur"
+ritual build-site --price-sources cardmarket
 ```
 
 ## Choosing which lists to build
@@ -206,7 +200,7 @@ ritual build-site --locales all                   # every dictionary this build 
 ritual build-site --locale-file ./de-AT.json --locales en de-AT
 ```
 
-`--locales` tags are **space-separated**, like `--decks` and `--theme-file`. (`--currencies` is the one comma-separated flag.) English is always published whether or not you list it.
+`--locales` tags are **space-separated**, like `--decks` and `--theme-file`. (`--price-sources` is the one comma-separated flag.) English is always published whether or not you list it.
 
 `--locale-file` lets a released binary publish a language it was never built with. Hand it a validated dictionary and that locale becomes selectable like a built-in one.
 
@@ -233,7 +227,7 @@ The build writes a single-page application into `dist/` (or `--out-dir`):
 
 - `index.html`: the app shell
 - `app.js`: the bundled app with client-side routing
-- `index.json`: the list index, plus the build's config: [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, the [`priceSources`](/configuration/#price-stores-pricesources) store list, the [`defaultPriceSource`](/configuration/#default-price-store) the site opens on (or the first offered store), the [`defaultCategories`](/configuration/#default-categories) vocabulary for the editors' category suggestions, and `uiLocale` and `availableLocales` from [the locale flags](#localized-builds)
+- `index.json`: the list index, plus the build's config: [`site.apiBaseUrl`](/configuration/#pointing-a-static-build-at-a-live-backend-apibaseurl) when a [live backend](/public-site/hosted/) is configured, whether [sell mode](#sell-mode---sell-mode) is offered, the price stores this build offers (the enabled [`priceSources`](/configuration/#price-stores-pricesources), narrowed by `--price-sources`), the [`defaultPriceSource`](/configuration/#default-price-store) the site opens on (or the first offered store), the [`defaultCategories`](/configuration/#default-categories) vocabulary for the editors' category suggestions, and `uiLocale` and `availableLocales` from [the locale flags](#localized-builds)
 - `boot.js`: a small bootstrap that applies the stored theme and sets `<html lang>`/`dir` before first paint
 - `locales/{tag}.json`: one message dictionary per published locale, fetched when a visitor switches language
 - `decks/{slug}.json`, `collections/{slug}.json`, `wanted/{slug}.json`: full list data with pricing, loaded on demand
@@ -383,7 +377,7 @@ When sell mode is on, or [`priceSources`](/configuration/#price-stores-pricesour
 2. **Picks Card Kingdom's own printings** when `priceSources` includes `cardkingdom`. A card line with no printing gets a representative and a cheapest printing chosen from Card Kingdom's catalog at Card Kingdom's prices, stored beside the Scryfall picks so the site can switch stores without a rebuild. See [Which printing a card is priced at](/public-site/prices/#which-printing-a-card-is-priced-at).
 3. **Writes the buy prices into each list's JSON.** Every printing a list displays is quoted from the feed, so the published site offers sell mode with **no backend**. A static host on a CDN offers it exactly as a [live one](/public-site/hosted/) does. Non-English copies are never quoted; Card Kingdom's feed is English-only.
 
-   With `priceSources` including `cardkingdom`, every printing each list carries is quoted at every finish, so the card modal's other-printings grid and the [printing pickers](/public-site/prices/#the-prices-selector) can price printings no tile displays. A sell-mode-only build quotes the displayed printings alone.
+   With `priceSources` including `cardkingdom`, every printing each list carries is quoted at every finish, so the card modal's other-printings grid and the [printing pickers](/public-site/prices/#the-prices-dropdown) can price printings no tile displays. A sell-mode-only build quotes the displayed printings alone.
 
 The build reports what it used:
 

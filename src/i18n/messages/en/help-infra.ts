@@ -118,8 +118,8 @@ export const helpInfraMessages = {
     'Collection names to build (default: the site.includeCollections config selection)',
   'help.buildSite.wantedLists':
     'Wanted list names to build (default: the site.includeWantedLists config selection)',
-  'help.buildSite.currencies':
-    'Comma-separated currencies to include: usd, eur, tix (default: the currencies of the enabled priceSources, which this can only narrow; first is default)',
+  'help.buildSite.priceSources':
+    'Comma-separated price stores to offer: tcgplayer, cardmarket, cardkingdom, cardhoarder (default: every enabled priceSources store; this can only narrow them). Each store brings its own currency',
   'help.buildSite.theme':
     'Initial theme baked into the generated HTML ({themes}, or a custom theme name loaded via --theme-file)',
   'help.buildSite.themeFile':
@@ -212,10 +212,8 @@ export const helpInfraMessages = {
   // ── price ─────────────────────────────────────────────────────────────
   'help.price.description': 'Browse prices of every deck, collection, and wanted list',
   'help.price.listArg': 'Open (or print) a single list instead of all lists',
-  'help.price.prices':
-    'Price currency: usd, eur, or tix (default: the currency of the configured defaultPriceSource)',
   'help.price.source':
-    'Price store: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix). Default: the configured defaultPriceSource',
+    'Price store, which sets the currency: tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardkingdom (NM retail from the Card Kingdom feed), or cardhoarder (Scryfall MTGO tix). Default: the configured defaultPriceSource',
   'help.price.name': 'Print cards whose name contains every term',
   'help.price.set': 'Print cards from this set code',
   'help.price.collector': 'Print cards with this collector number',

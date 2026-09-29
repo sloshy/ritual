@@ -28,22 +28,21 @@ import {
 
 // ===== index.json builders =====
 
-/** An index.json payload; array and currency fields default to the common single-currency shape. */
+/** An index.json payload; the array fields default to empty and the stores to TCGplayer alone. */
 export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
   return {
     decks: [],
     collections: [],
     useScryfallImgUrls: false,
     defaultPriceSource: 'tcgplayer',
-    availableCurrencies: ['usd'],
     searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
     defaultLanguage: 'en',
     uiLocale: DEFAULT_LOCALE,
     availableLocales: [DEFAULT_LOCALE],
-    // Cardmarket rides along by default so fixtures that offer EUR keep the
-    // currency selectable — a currency is only offered when an enabled store
-    // quotes it. Tests about the store list itself pass their own value.
-    priceSources: ['tcgplayer', 'cardmarket'],
+    // One store by default, so the header's picker (hidden with nothing to
+    // choose) stays out of the way. Fixtures that need a second store pass
+    // their own list.
+    priceSources: ['tcgplayer'],
     ...overrides,
   }
 }
@@ -103,7 +102,6 @@ export function makeDeckDetail(overrides: Partial<DeckDetail> = {}): DeckDetail 
     printings: {},
     symbolMap: {},
     useScryfallImgUrls: false,
-    availableCurrencies: ['usd'],
     missingCards: { usd: [], eur: [], tix: [] },
     ...overrides,
   }
@@ -1259,10 +1257,9 @@ async function stubBuylistApiUnreachable(page: Page, watch?: BuylistApiWatch): P
 // `sellMode: true` is the capability flag the build stamps.
 const MOCK_SITE_INDEX_FOR_SELL = makeSellBinderIndex({ sellMode: true })
 
-/** Index knobs for the price-source mocks: the enabled stores and the baked currencies. */
+/** Index knobs for the price-source mocks: the stores the site offers. */
 export type PriceSourceMockOptions = {
   priceSources?: SiteIndex['priceSources']
-  availableCurrencies?: SiteIndex['availableCurrencies']
 }
 
 /**
@@ -1279,7 +1276,6 @@ export async function mockPublicSiteCollectionForPriceSources(
 ): Promise<void> {
   const index = makeSellBinderIndex({
     priceSources: options.priceSources ?? ['tcgplayer', 'cardkingdom'],
-    ...(options.availableCurrencies ? { availableCurrencies: options.availableCurrencies } : {}),
   })
   await fulfillJson(page, '**/index.json', index)
   await fulfillJson(page, '**/collections/sell-binder.json', MOCK_SELL_BINDER_DETAIL)
@@ -1428,7 +1424,6 @@ export async function mockPublicSiteDeckForPriceSources(
     makeSiteIndex({
       decks: [makeDeckSummary({ slug: 'split-pick-deck', name: 'Split Pick Deck', cardCount: 1 })],
       priceSources: options.priceSources ?? ['tcgplayer', 'cardkingdom'],
-      ...(options.availableCurrencies ? { availableCurrencies: options.availableCurrencies } : {}),
     }),
   )
   await fulfillJson(page, '**/decks/split-pick-deck.json', MOCK_DECK_FOR_PRICE_SOURCES)
@@ -1629,7 +1624,6 @@ const MOCK_FILTER_DECK = makeDeckDetail({
   },
   cards: Object.fromEntries(MOCK_FILTER_CARDS.map((card) => [card.name, card])),
   printings: Object.fromEntries(MOCK_FILTER_CARDS.map((card) => [card.name, [card]])),
-  availableCurrencies: ['usd', 'eur'],
 })
 
 const MOCK_SITE_INDEX_WITH_FILTER_DECK = makeSiteIndex({
@@ -1640,7 +1634,7 @@ const MOCK_SITE_INDEX_WITH_FILTER_DECK = makeSiteIndex({
       cardCount: MOCK_FILTER_CARDS.length,
     }),
   ],
-  availableCurrencies: ['usd', 'eur'],
+  priceSources: ['tcgplayer', 'cardmarket'],
 })
 
 /**
@@ -1997,7 +1991,6 @@ export async function mockPublicSiteDeckForCopiesModes(page: Page): Promise<void
       decks: [
         makeDeckSummary({ slug: 'test-copies-deck', name: 'Test Copies Deck', cardCount: 2 }),
       ],
-      availableCurrencies: ['usd'],
     }),
   )
   await fulfillJson(page, '**/decks/test-copies-deck.json', MOCK_COPIES_DECK)
@@ -2612,9 +2605,9 @@ export async function mockPublicSiteForQuickSwitch(page: Page): Promise<void> {
 // formats (Modern first alphabetically, then Commander) so format grouping has
 // exact expected sections.
 const MOCK_SITE_INDEX_MULTI_LISTS: SiteIndex = makeSiteIndex({
-  // Two currencies, so the header's store picker (hidden when there is
-  // nothing to choose between) renders for the header-layout tests.
-  availableCurrencies: ['usd', 'eur'],
+  // Two stores, so the header's store picker (hidden when there is nothing
+  // to choose between) renders for the header-layout tests.
+  priceSources: ['tcgplayer', 'cardmarket'],
   decks: [
     makeDeckSummary({
       slug: 'aggro-alpha',

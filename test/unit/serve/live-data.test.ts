@@ -60,7 +60,7 @@ describe('createLiveSiteData', () => {
     const index = JSON.parse(result.body) as SiteIndex
 
     expect(index.apiBaseUrl).toBe('')
-    expect(index.availableCurrencies).toEqual(['usd', 'eur'])
+    expect(index.priceSources).toEqual(['tcgplayer', 'cardmarket'])
     expect(index.useScryfallImgUrls).toBeTrue()
     expect(index.decks.map((d) => d.slug).sort()).toEqual([
       'emberwild-aggro',
@@ -84,8 +84,9 @@ describe('createLiveSiteData', () => {
     expect(detail.cards['Lightning Bolt']?.name).toBe('Lightning Bolt')
     expect(detail.cards['Lightning Bolt']?.prices.usd).toBeTruthy()
     expect(detail.useScryfallImgUrls).toBeTrue()
-    // The workspace enables tcgplayer + cardmarket: no cardhoarder, so no tix.
-    expect(detail.availableCurrencies).toEqual(['usd', 'eur'])
+    // The workspace enables tcgplayer + cardmarket: EUR is baked, tix is not.
+    expect(detail.lowestPriceCardsEur).toBeDefined()
+    expect(detail.lowestPriceCardsTix).toBeUndefined()
 
     expect(await live.getDetail('deck', 'no-such-deck')).toBeNull()
     expect(await live.getDetail('collection', 'emberwild-aggro')).toBeNull()
@@ -200,11 +201,15 @@ describe('createLiveSiteData', () => {
     expect(indexAfter.etag).not.toBe(indexBefore.etag)
   })
 
-  test("offers exactly the enabled stores' currencies, re-read per request", async () => {
+  test('offers exactly the enabled stores, re-read per request', async () => {
     const live = createLiveSiteData()
-    await patchConfig({ priceSources: ['tcgplayer', 'cardhoarder'] })
-    const index = JSON.parse((await live.getIndex()).body) as SiteIndex
-    expect(index.availableCurrencies).toEqual(['usd', 'tix'])
+    const before = JSON.parse((await live.getIndex()).body) as SiteIndex
+    expect(before.priceSources).toEqual(['tcgplayer', 'cardmarket'])
+
+    await patchConfig({ priceSources: ['cardhoarder', 'tcgplayer'] })
+    const after = JSON.parse((await live.getIndex()).body) as SiteIndex
+    // In the header's order: USD stores before tix.
+    expect(after.priceSources).toEqual(['tcgplayer', 'cardhoarder'])
   })
 
   test('bakes a local art reference as the path the /art route serves', async () => {

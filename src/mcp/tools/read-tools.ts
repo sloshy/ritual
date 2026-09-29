@@ -2,15 +2,10 @@ import type { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
-import {
-  VALID_PRICE_SOURCES,
-  priceRequestConflicts,
-  sourceCurrency,
-} from '../../pricing/price-source'
+import { VALID_PRICE_SOURCES } from '../../pricing/price-source'
 import { outputSchemaFor, runTool } from '../result'
 import {
   cardTagSchema,
-  currencySchema,
   finishSchema,
   languageSchema,
   listRefSchema,
@@ -609,27 +604,22 @@ export function registerReadTools(server: McpServer): void {
         'Price lists from the local card cache. With listType + slug, one list’s summary plus ' +
         'its priced card entries; with listType alone, per-list totals across every list of ' +
         'that type; with neither, per-list totals across every list. Errors when the card ' +
-        'cache is empty (run refresh_cache first). source picks the store (default: the ' +
-        'configured defaultPriceSource): tcgplayer (Scryfall USD), cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), ' +
-        'or cardkingdom (NM retail from the cached Card Kingdom feed — errors when no feed is ' +
-        'downloaded; run refresh_buylist, which itself needs sell mode or "cardkingdom" in ' +
-        'priceSources). A source implies its currency, so pass at most one of the two.',
+        'cache is empty (run refresh_cache first). source picks the store, and the store sets ' +
+        'the currency (default: the configured defaultPriceSource): tcgplayer (Scryfall USD), ' +
+        'cardmarket (Scryfall EUR), cardhoarder (Scryfall MTGO tix), or cardkingdom (USD NM ' +
+        'retail from the cached Card Kingdom feed — errors when no feed is downloaded; run ' +
+        'refresh_buylist, which itself needs sell mode or "cardkingdom" in priceSources).',
       inputSchema: z
         .object({
           listType: listTypeSchema
             .optional()
             .describe('Restrict to one list type (alone) or name one list (with slug).'),
           slug: slugField.optional(),
-          currency: currencySchema
-            .optional()
-            .describe(
-              'Pricing currency. Omit both currency and source to price from the configured defaultPriceSource.',
-            ),
           source: z
             .enum(VALID_PRICE_SOURCES)
             .optional()
             .describe(
-              'Price store; implies its currency (tcgplayer/cardkingdom: usd, cardmarket: eur, cardhoarder: tix).',
+              'Price store, which sets the currency (tcgplayer/cardkingdom: usd, cardmarket: eur, cardhoarder: tix). Default: the configured defaultPriceSource.',
             ),
         })
         .superRefine((val, ctx) => {
@@ -639,21 +629,14 @@ export function registerReadTools(server: McpServer): void {
               message: 'slug requires listType (omit both for the all-lists summary).',
             })
           }
-          if (val.source !== undefined && priceRequestConflicts(val.source, val.currency)) {
-            ctx.addIssue({
-              code: 'custom',
-              message: `source '${val.source}' prices in ${sourceCurrency(val.source)}; omit currency or make it match.`,
-            })
-          }
         }),
       outputSchema: outputSchemaFor<PriceReportResult>('get_price_report'),
       annotations: { readOnlyHint: true },
     },
-    async ({ listType, slug, currency, source }) =>
+    async ({ listType, slug, source }) =>
       runTool(async (): Promise<PriceReportResult> => {
         if (listType !== undefined && slug !== undefined) {
           const params = new URLSearchParams()
-          if (currency !== undefined) params.set('currency', currency)
           if (source !== undefined) params.set('source', source)
           const query = params.size > 0 ? `?${params}` : ''
           const detail = await callApiData<PriceListDetailResponse>(
@@ -664,7 +647,6 @@ export function registerReadTools(server: McpServer): void {
         }
         const params = new URLSearchParams()
         if (listType !== undefined) params.set('type', listType)
-        if (currency !== undefined) params.set('currency', currency)
         if (source !== undefined) params.set('source', source)
         const query = params.size > 0 ? `?${params}` : ''
         const summary = await callApiData<PriceSummaryResponse>('GET', `/api/price/summary${query}`)

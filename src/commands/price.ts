@@ -1,14 +1,10 @@
 import { Command } from 'commander'
 import { cardCache } from '../cache'
-import { detailBuylistContext, ensureCardKingdomFeed, loadEnsuredFeed } from '../cardkingdom'
-import {
-  isPriceRequestConflict,
-  resolvePriceRequest,
-  type PriceSource,
-} from '../pricing/price-source'
+import { cardKingdomReportPricing, ensureCardKingdomFeed, loadEnsuredFeed } from '../cardkingdom'
+import type { PriceSource } from '../pricing/price-source'
 import { t } from '../i18n/t'
 import { emptyCacheAdvice, ensureFreshPriceData } from '../cache/freshness'
-import { parseCurrencyFlagOrError, type PriceCurrency } from '../pricing/price-currency'
+import type { PriceCurrency } from '../pricing/price-currency'
 import {
   filterPricedEntries,
   hasActiveFilters,
@@ -22,9 +18,10 @@ import {
   type PriceListDetailPayload,
   type PriceSortField,
   type PriceSummaryPayload,
+  type CardKingdomReportPricing,
+  type ReportPricing,
 } from '../pricing/price-report'
 import { loadAndBuildPriceReport, type LoadedPriceReport } from '../pricing/price-runtime'
-import type { CardKingdomPricing } from '../pricing/price-report'
 import { isResolveListError, resolveList, type ListLocation } from '../list/resolve-list'
 import { getDefaultPriceSource } from '../config/ritual-config'
 import { refreshCardCache } from '../cache/refresh-source'
@@ -64,7 +61,6 @@ type PriceCommandOptions = Partial<ScriptingOptions> & {
   deck?: boolean
   collection?: boolean
   wanted?: boolean
-  prices?: string
   source?: PriceSource
   name?: string
   set?: string
@@ -123,8 +119,8 @@ function emitSummary(
   const { report } = built
   if (scriptingOptions.output === 'json') {
     const payload: PriceSummaryPayload = {
+      source: report.source,
       currency: report.currency,
-      ...(report.source ? { source: report.source } : {}),
       lastRefreshedAt,
       lists: report.lists,
       typeTotals: report.typeTotals,
@@ -170,8 +166,8 @@ function emitListDetail(
 
   if (scriptingOptions.output === 'json') {
     const payload: PriceListDetailPayload = {
+      source: built.report.source,
       currency,
-      ...(built.report.source ? { source: built.report.source } : {}),
       list: summary,
       cards: entries,
       warnings,
@@ -222,8 +218,8 @@ function emitCardSearch(
 
   if (scriptingOptions.output === 'json') {
     const payload: PriceCardSearchPayload = {
+      source: built.report.source,
       currency,
-      ...(built.report.source ? { source: built.report.source } : {}),
       filters,
       cards: matches,
       totals,
@@ -259,7 +255,6 @@ export function registerPriceCommand(program: Command): void {
           .description(t('help.price.description'))
           .argument('[listName]', t('help.price.listArg')),
       )
-        .option('--prices <currency>', t('help.price.prices'))
         .option('--source <store>', t('help.price.source'), parsePriceSourceFlag)
         .option('--name <terms>', t('help.price.name'))
         .option('--set <code>', t('help.price.set'))
@@ -280,36 +275,9 @@ export function registerPriceCommand(program: Command): void {
     // so `--output json` stays parseable, and drop them under `--quiet`.
     installScriptingLogger(scriptingOptions)
     await runCommandAction(scriptingOptions, async () => {
-      let explicitCurrency: PriceCurrency | undefined
-      if (options.prices !== undefined) {
-        const parsed = parseCurrencyFlagOrError(
-          options.prices,
-          emitError,
-          scriptingOptions,
-          ExitCode.UsageError,
-        )
-        if (!parsed) return
-        explicitCurrency = parsed
-      }
-
-      // A source names its own currency (tcgplayer/cardkingdom → usd, cardmarket
-      // → eur, cardhoarder → tix). An explicit --prices that disagrees is a
-      // usage error rather than a silent override. With neither flag, or a
-      // --prices matching its currency, the configured defaultPriceSource applies.
-      const request = resolvePriceRequest(options.source, explicitCurrency, getDefaultPriceSource())
-      if (isPriceRequestConflict(request)) {
-        emitError(
-          'usage_error',
-          t('cli.price.sourceCurrencyConflict', {
-            source: request.source,
-            currency: request.implied.toUpperCase(),
-          }),
-          scriptingOptions,
-        )
-        process.exitCode = ExitCode.UsageError
-        return
-      }
-      const { source, currency } = request
+      // A store names its own currency, so the store is the one choice: the
+      // flag's, else the configured defaultPriceSource.
+      const source = options.source ?? getDefaultPriceSource()
 
       const type = resolveListTypeFlag(options, scriptingOptions)
       if (type === 'conflict') return
@@ -363,29 +331,26 @@ export function registerPriceCommand(program: Command): void {
       // Card Kingdom retail prices come from the buylist pricelist feed, under
       // this run's --refresh policy exactly like the card cache above. No feed,
       // no report: falling back to Scryfall would silently answer with a
-      // different store's prices.
-      let cardKingdom: CardKingdomPricing | undefined
-      if (source === 'cardkingdom') {
+      // different store's prices. Loaded once, on first use — the browser's
+      // store switcher can ask for it mid-session.
+      let cardKingdom: CardKingdomReportPricing | undefined
+      const pricingFor = async (store: PriceSource): Promise<ReportPricing | string> => {
+        if (store !== 'cardkingdom') return { source: store }
+        if (cardKingdom) return cardKingdom
         const feed = await ensureCardKingdomFeed(refreshPolicy)
-        if (typeof feed === 'string') {
-          emitError('runtime_error', feed, scriptingOptions)
-          process.exitCode = ExitCode.RuntimeError
-          return
-        }
-        const loaded = await loadEnsuredFeed(feed)
-        cardKingdom = { quote: detailBuylistContext(loaded).quote }
+        if (typeof feed === 'string') return feed
+        cardKingdom = cardKingdomReportPricing(await loadEnsuredFeed(feed))
+        return cardKingdom
       }
 
       const buildScoped = async (
-        reportCurrency: PriceCurrency,
+        store: PriceSource,
         locations?: ListLocation[],
-      ): Promise<LoadedPriceReport> => {
-        const result = await loadAndBuildPriceReport(type, locations, reportCurrency, {
+      ): Promise<LoadedPriceReport | string> => {
+        const pricing = await pricingFor(store)
+        if (typeof pricing === 'string') return pricing
+        const result = await loadAndBuildPriceReport(type, locations, pricing, {
           refresh: refreshMode,
-          // The interactive browser's currency switcher passes other
-          // currencies through here; the CK feed only quotes USD, so any other
-          // currency reads Scryfall and switching back to USD reads CK again.
-          ...(cardKingdom && reportCurrency === 'usd' ? { cardKingdom } : {}),
         })
         // A skipped card line means the totals exclude cards. That is data
         // loss, so it always reaches stderr — in every output mode and under
@@ -401,14 +366,23 @@ export function registerPriceCommand(program: Command): void {
       if (!scriptingOptions.quiet && scriptingOptions.output === 'text') {
         emitOutput(t('cli.price.calculating'), scriptingOptions)
       }
-      const { built, warnings } = await buildScoped(currency, scope)
+      const loadedReport = await buildScoped(source, scope)
+      if (typeof loadedReport === 'string') {
+        emitError('runtime_error', loadedReport, scriptingOptions)
+        process.exitCode = ExitCode.RuntimeError
+        return
+      }
+      const { built, warnings } = loadedReport
+      const currency = built.report.currency
 
       if (interactive) {
         await runPriceBrowser({
           built,
-          currency,
           lastRefreshedAt: freshness.lastRefreshedAt,
-          rebuild: (nextCurrency) => buildScoped(nextCurrency).then((result) => result.built),
+          rebuild: async (store) => {
+            const result = await buildScoped(store)
+            return typeof result === 'string' ? result : result.built
+          },
           refreshPrices: refreshCardCache,
           getLastRefreshedAt: () => cardCache.getLastRefreshedAt(),
           openList,

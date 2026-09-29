@@ -95,9 +95,9 @@ export function registerServeCommand(program: Command): void {
     }
 
     // The live server answers index.json and every list itself, from config, so
-    // a `--currencies` override baked by the build would never reach a browser.
-    if (options.api === true && command.getOptionValueSource('currencies') === 'cli') {
-      console.error(t('cli.serve.currenciesUnderApi'))
+    // a `--price-sources` override baked by the build would never reach a browser.
+    if (options.api === true && command.getOptionValueSource('priceSources') === 'cli') {
+      console.error(t('cli.serve.priceSourcesUnderApi'))
       process.exitCode = ExitCode.UsageError
       return
     }

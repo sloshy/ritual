@@ -226,9 +226,9 @@ export const cliInfraMeta = {
     description:
       'Warning: the baked-in locale has no dictionary, so the site renders English under a non-English html lang.',
   },
-  'cli.buildSite.currenciesWithoutStore': {
+  'cli.buildSite.storesNotEnabled': {
     description:
-      'Usage error: every currency given to `build-site --currencies` lacks an enabled price store. {currencies} is the comma-joined currency codes, {sources} the enabled store tokens; both, `--currencies`, `priceSources`, `tix` and the quoted command are literal and must not be translated.',
+      'Usage error: no store given to `build-site --price-sources` is enabled in priceSources. {stores} is the comma-joined store tokens asked for, {sources} the enabled ones; both, `--price-sources`, `priceSources` and the quoted command are literal and must not be translated.',
   },
   'cli.buildSite.selectionFlagEmpty': {
     description: 'A --decks/--collections/--wanted-lists flag was given with no names.',
@@ -548,14 +548,6 @@ export const cliInfraMeta = {
   'cli.price.fieldSort': {
     description: 'The noun naming the --sort value inside an "Invalid <field> …" error.',
   },
-  'cli.price.sourceCurrencyConflict': {
-    description:
-      'Usage error when --source and --prices disagree. {source} is the store token (e.g. cardkingdom), {currency} the currency code the store prices in (e.g. USD).',
-  },
-  'cli.price.currencyCardKingdom': {
-    description:
-      "Replaces the plain currency code in the price report header when prices come from Card Kingdom's retail feed rather than Scryfall.",
-  },
   'cli.price.pricingList': {
     description:
       'Announces which single list is being priced. {suffix} is an ellipsis for the non-interactive run and empty otherwise.',
@@ -579,7 +571,8 @@ export const cliInfraMeta = {
   },
   'cli.price.totalsUnpriced': { description: 'How many entries have no price at all.' },
   'cli.price.headerUpdated': {
-    description: 'Top line of the browser: price age and active currency.',
+    description:
+      'Top line of the browser: price age, the store prices come from ({store}, a store name such as TCGplayer or Card Kingdom), and its currency ({currency}, an upper-case code).',
   },
   'cli.price.updatedUnknown': { description: 'The price cache carries no refresh timestamp.' },
   'cli.price.updatedAt': {
@@ -592,7 +585,10 @@ export const cliInfraMeta = {
   'cli.price.listRow': { description: 'One list’s row in the browser’s main menu.' },
   'cli.price.menuSearch': { description: 'Main menu action: search every list’s cards.' },
   'cli.price.menuRefresh': { description: 'Main menu action: redownload prices.' },
-  'cli.price.menuCurrency': { description: 'Main menu action: switch currency.' },
+  'cli.price.menuStore': {
+    description:
+      'Main menu action: switch the store prices come from (which also sets the currency).',
+  },
   'cli.price.menuExit': { description: 'Main menu action: leave the browser.' },
   'cli.price.menuBack': { description: 'Return to the previous screen.' },
   'cli.price.controlSort': { description: 'The sort control row of a card browser screen.' },
@@ -671,9 +667,9 @@ export const cliInfraMeta = {
     description: 'One list-type row of the filter when it is the active one.',
   },
   'cli.price.promptBrowser': { description: 'Autocomplete prompt of a card browser screen.' },
-  'cli.price.promptCurrency': { description: 'Select prompt of the currency picker.' },
-  'cli.price.currencyRowCurrent': {
-    description: 'Marks the active currency in the picker. {currency} is an upper-case code.',
+  'cli.price.promptStore': { description: 'Select prompt of the price-store picker.' },
+  'cli.price.storeRowCurrent': {
+    description: 'Marks the active store in the picker. {store} is a store name.',
   },
   'cli.price.allPrintings': {
     description: 'Card detail action: list every printing with its price.',

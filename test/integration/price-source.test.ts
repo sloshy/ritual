@@ -72,10 +72,10 @@ describe('price --source (Integration)', () => {
     expect(payload.totals.total).toBeCloseTo(3.49)
   })
 
-  test('--source cardmarket is Scryfall EUR; --source tcgplayer is the default USD', async () => {
+  test('each store brings its currency, and the payload names the store', async () => {
     const eur = await summary(['--source', 'cardmarket'])
     expect(eur.currency).toBe('eur')
-    expect(eur.source).toBeUndefined()
+    expect(eur.source).toBe('cardmarket')
     expect(eur.totals.total).toBeCloseTo(1.1)
 
     const usd = await summary(['--source', 'tcgplayer'])
@@ -84,7 +84,7 @@ describe('price --source (Integration)', () => {
 
     const tix = await summary(['--source', 'cardhoarder'])
     expect(tix.currency).toBe('tix')
-    expect(tix.source).toBeUndefined()
+    expect(tix.source).toBe('cardhoarder')
   })
 
   test('with no flag, the configured defaultPriceSource picks the store', async () => {
@@ -94,25 +94,14 @@ describe('price --source (Integration)', () => {
     )
     const byDefault = await summary([])
     expect(byDefault.source).toBe('cardkingdom')
+    expect(byDefault.currency).toBe('usd')
     expect(byDefault.totals.total).toBeCloseTo(3.49)
-
-    // A currency alone keeps the default store when it quotes in it…
-    const usd = await summary(['--prices', 'usd'])
-    expect(usd.source).toBe('cardkingdom')
-    // …and otherwise reads that currency's Scryfall store.
-    const eur = await summary(['--prices', 'eur'])
-    expect(eur.source).toBeUndefined()
-    expect(eur.totals.total).toBeCloseTo(1.1)
   })
 
-  test('a conflicting --prices is a usage error', async () => {
-    const result = await runCli(
-      ['price', '--summary', '--source', 'cardkingdom', '--prices', 'eur', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
+  test('there is no currency flag to choose a currency apart from a store', async () => {
+    const result = await runCli(['price', '--summary', '--prices', 'eur'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain('cardkingdom')
+    expect(result.stderr).toContain("unknown option '--prices'")
   })
 
   test('--source cardkingdom with no cached feed is a runtime error, not a Scryfall fallback', async () => {

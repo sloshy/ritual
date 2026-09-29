@@ -9,9 +9,9 @@
  */
 
 import { DEFAULT_BUYER, type BuyerId } from '../buylist'
-import { cardKingdomPricesEnabled, type RitualConfig } from '../config/ritual-config'
 import type { DetailBuylistContext } from '../site-build/types'
 import type { LoadedCardKingdomFeed } from './memo'
+import type { CardKingdomReportPricing } from '../pricing/price-report'
 import { quoteForPrinting } from './quote'
 
 /** What varies between one detail-quoting context and another. */
@@ -48,17 +48,25 @@ export function detailBuylistContext(
 }
 
 /**
+ * A price report priced at Card Kingdom retail off a loaded feed — the one way
+ * the CLI and the admin price API build it, through the same single-printing
+ * seam the site bake quotes with.
+ */
+export function cardKingdomReportPricing(feed: LoadedCardKingdomFeed): CardKingdomReportPricing {
+  return { source: 'cardkingdom', cardKingdom: { quote: detailBuylistContext(feed).quote } }
+}
+
+/**
  * The context a site (built or live-served) bakes list quotes with: null when
- * there is no feed. Under the `cardkingdom` price source the alternate
- * printings are quoted too, and `quotePrintings` is then also the signal that
- * CK gets to pick the printings a name-only line displays — one gate for both,
- * so the site never picks a CK printing it does not quote, or vice versa.
+ * there is no feed. When the site offers the `cardkingdom` store (the config's
+ * stores, narrowed by `build-site --price-sources`) the alternate printings
+ * are quoted too, and `quotePrintings` is then also the signal that CK gets to
+ * pick the printings a name-only line displays — one gate for both, so the
+ * site never picks a CK printing it does not quote, or vice versa.
  */
 export function siteBuylistContext(
   feed: LoadedCardKingdomFeed | null | undefined,
-  config?: RitualConfig,
+  offersCardKingdom: boolean,
 ): DetailBuylistContext | null {
-  return feed
-    ? detailBuylistContext(feed, { quotePrintings: cardKingdomPricesEnabled(config) })
-    : null
+  return feed ? detailBuylistContext(feed, { quotePrintings: offersCardKingdom }) : null
 }

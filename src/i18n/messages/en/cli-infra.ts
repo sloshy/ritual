@@ -142,8 +142,8 @@ export const cliInfraMessages = {
     "--locales names '{tag}', which this build has no dictionary for. Load one with --locale-file <path>, or bake it in with RITUAL_BUNDLED_LOCALES.",
   'cli.buildSite.bakedLocaleUndictionaried':
     '⚠️  No dictionary for the baked locale \'{tag}\'; the site will render English text under <html lang="{tag}">. Load one with --locale-file <path>.',
-  'cli.buildSite.currenciesWithoutStore':
-    '--currencies {currencies} names no currency an enabled price store quotes in (priceSources: {sources}). Add a store for it, e.g. `ritual config set priceSources --add cardhoarder` for tix.',
+  'cli.buildSite.storesNotEnabled':
+    '--price-sources {stores} names no store priceSources enables (priceSources: {sources}). Enable it first, e.g. `ritual config set priceSources --add cardhoarder`.',
   'cli.buildSite.selectionFlagEmpty': '{flag} requires at least one name.',
 
   // ── build-site: list kinds ────────────────────────────────────────────
@@ -342,9 +342,6 @@ export const cliInfraMessages = {
   'cli.price.disclaimer':
     '⚠️  Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition can significantly decrease actual value.',
   'cli.price.fieldSort': 'sort field',
-  'cli.price.sourceCurrencyConflict':
-    '--source {source} prices in {currency}; drop the conflicting --prices flag or change it to match.',
-  'cli.price.currencyCardKingdom': 'USD (Card Kingdom retail)',
   'cli.price.pricingList': {
     $select: 'type',
     deck: 'Pricing deck "{name}"{suffix}',
@@ -360,7 +357,7 @@ export const cliInfraMessages = {
   'cli.price.totalsTotal': 'Total {price}',
   'cli.price.totalsLowest': 'Lowest {price}',
   'cli.price.totalsUnpriced': '{count} unpriced',
-  'cli.price.headerUpdated': '💰 Prices last updated: {updated} · Currency: {currency}',
+  'cli.price.headerUpdated': '💰 Prices last updated: {updated} · Store: {store} ({currency})',
   'cli.price.updatedUnknown': 'unknown',
   'cli.price.updatedAt': '{timestamp} ({age} ago)',
   'cli.price.headerTypeTotals': '{icon} {title} ({count}) — {totals}',
@@ -368,7 +365,7 @@ export const cliInfraMessages = {
   'cli.price.listRow': '{icon} {name} — {totals} · {count} cards',
   'cli.price.menuSearch': '🔎 Search all cards',
   'cli.price.menuRefresh': '🔄 Refresh prices',
-  'cli.price.menuCurrency': '💱 Change currency',
+  'cli.price.menuStore': '🏪 Change store',
   'cli.price.menuExit': '🚪 Exit',
   'cli.price.menuBack': '← Back',
   'cli.price.controlSort': '↕️ Sort: {field} ({direction})',
@@ -405,8 +402,8 @@ export const cliInfraMessages = {
   'cli.price.typeFilterAllCurrent': 'All list types (current)',
   'cli.price.typeFilterRowCurrent': '{icon} {title} (current)',
   'cli.price.promptBrowser': 'Type to filter by name, set, or collector number',
-  'cli.price.promptCurrency': 'Price currency',
-  'cli.price.currencyRowCurrent': '{currency} (current)',
+  'cli.price.promptStore': 'Price store',
+  'cli.price.storeRowCurrent': '{store} (current)',
   'cli.price.allPrintings': '📜 All printings & prices ({count})',
   'cli.price.promptSetFilter': 'Set code (empty for all)',
   'cli.price.promptCollectorFilter': 'Collector number (empty for all)',
