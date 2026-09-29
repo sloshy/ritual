@@ -1,5 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import {
+  cardNamesById,
+  deckCardNamesById,
   assignDeckCardIds,
   assignEntryIds,
   assignMissingEntryIds,
@@ -578,5 +580,33 @@ describe('repackSessionIds', () => {
     const { remap, releasedId } = repackSessionIds([], [])
     expect(releasedId).toBe(-1)
     expect(remap.size).toBe(0)
+  })
+})
+
+describe('cardNamesById', () => {
+  test('maps each id to its line name, skipping lines without one, first line winning', () => {
+    const names = cardNamesById([
+      { name: 'Sol Ring', cardId: 5 },
+      { name: 'Island' },
+      { name: 'Counterspell', cardId: 5 },
+      { name: 'Brainstorm', cardId: 2 },
+    ])
+    expect([...names]).toEqual([
+      [5, 'Sol Ring'],
+      [2, 'Brainstorm'],
+    ])
+  })
+
+  test('walks every deck section in order', () => {
+    const deck = {
+      sections: [
+        { cards: [{ name: 'Sol Ring', cardId: 1 }] },
+        { cards: [{ name: 'Island', cardId: 3 }] },
+      ],
+    }
+    expect([...deckCardNamesById(deck)]).toEqual([
+      [1, 'Sol Ring'],
+      [3, 'Island'],
+    ])
   })
 })

@@ -118,10 +118,14 @@ export type AddCardExtras = {
 export type CopyModel = 'quantity' | 'per-entry'
 
 /**
- * The editor config a list page supplies. The copy model is not part of it: it
- * follows from the data shape, so the deck / flat-list controller fills it in.
+ * The editor config a list page supplies. The copy model and the id→name map
+ * are not part of it: they follow from the data shape, so the deck / flat-list
+ * controller fills them in.
  */
-export type ListEditorConfig<TData> = Omit<EditorConfig<TData>, 'copyModel'>
+export type ListEditorConfig<TData> = Omit<
+  EditorConfig<TData>,
+  'copyModel' | 'getOriginalCardNames'
+>
 
 export type EditorConfig<TData> = {
   /** See {@link CopyModel}. Supplied by the deck / flat-list controller. */
@@ -236,8 +240,12 @@ export type EditorConfig<TData> = {
     cardId?: number,
   ) => CardLanguage | undefined
 
-  /** Extract all card IDs from data (for pool reset on discard) */
-  getOriginalIds: (original: TData) => number[]
+  /**
+   * The card name on every line, keyed by its `&N` — the keys seed the id pool,
+   * and the names let an import keep an exported id only where it still names
+   * the same card. Supplied by the deck / flat-list controller.
+   */
+  getOriginalCardNames: (original: TData) => ReadonlyMap<number, string>
 
   /**
    * Derive the section order directly from the data, when sections live in the data itself

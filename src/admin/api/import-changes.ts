@@ -12,9 +12,10 @@ import {
 import { isPathWithinDir } from '../../util/path-validation'
 import {
   allocateId,
+  cardNamesById,
   collectDeckCardIds,
-  collectExistingIds,
   createIdPool,
+  deckCardNamesById,
 } from '../../card/card-id'
 import {
   type ChangeBundle,
@@ -146,33 +147,16 @@ async function call<T>(
  */
 function retarget(
   changes: ChangeEvent[],
-  currentIds: number[],
-  findIdByName: (name: string) => number | undefined,
+  currentNames: ReadonlyMap<number, string>,
   state: RetargetState,
 ): RetargetResult {
-  const pool = createIdPool(currentIds)
+  const pool = createIdPool([...currentNames.keys()])
   return retargetImportedChanges({
     changes,
-    currentIds: new Set(currentIds),
+    currentNames,
     allocateId: () => allocateId(pool),
-    findIdByName,
     state,
   })
-}
-
-function findDeckCardIdByName(deck: DeckData, name: string): number | undefined {
-  for (const section of deck.sections) {
-    for (const card of section.cards) {
-      if (card.name === name && card.cardId !== undefined) return card.cardId
-    }
-  }
-  return undefined
-}
-
-type NamedEntry = { name: string; cardId?: number }
-
-function findEntryIdByName(entries: readonly NamedEntry[], name: string): number | undefined {
-  return entries.find((e) => e.name === name && e.cardId !== undefined)?.cardId
 }
 
 type ApplyOutcome = {
@@ -282,12 +266,7 @@ async function applyToDeck(
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { deck, frontMatter, contentHash } = loaded.data
 
-  const { retargeted, conflicts } = retarget(
-    changes,
-    collectDeckCardIds(deck),
-    (name) => findDeckCardIdByName(deck, name),
-    state,
-  )
+  const { retargeted, conflicts } = retarget(changes, deckCardNamesById(deck), state)
   if (retargeted.length === 0) return { retargeted, conflicts }
 
   const split = splitApplicable(deck, retargeted, applyChangeToDeck)
@@ -320,12 +299,7 @@ async function applyToCollection(
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
   const { entries, sectionOrder, contentHash } = loaded.data
 
-  const { retargeted, conflicts } = retarget(
-    changes,
-    collectExistingIds(entries),
-    (name) => findEntryIdByName(entries, name),
-    state,
-  )
+  const { retargeted, conflicts } = retarget(changes, cardNamesById(entries), state)
   if (retargeted.length === 0) return { retargeted, conflicts }
 
   // The collection save endpoint replays the changes against the file itself
@@ -364,12 +338,7 @@ async function applyToWanted(
   const { contentHash, sectionOrder } = loaded.data
   const entries = toWantedCardEntries(loaded.data.entries)
 
-  const { retargeted, conflicts } = retarget(
-    changes,
-    collectExistingIds(entries),
-    (name) => findEntryIdByName(entries, name),
-    state,
-  )
+  const { retargeted, conflicts } = retarget(changes, cardNamesById(entries), state)
   if (retargeted.length === 0) return { retargeted, conflicts }
 
   // The wanted save endpoint serializes the entries it receives, so the changes

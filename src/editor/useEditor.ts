@@ -747,12 +747,12 @@ export function useEditor<TData, TCardEntry = unknown>(
     const d = data()
     if (!orig || !d) return { loaded: 0, conflicts: [] }
     // Re-target against the on-disk baseline, allocating fresh IDs for adds.
-    pool.resetPool(config.getOriginalIds(orig))
+    const currentNames = config.getOriginalCardNames(orig)
+    pool.resetPool([...currentNames.keys()])
     const { retargeted, conflicts } = retargetImportedChanges({
       changes: imported,
-      currentIds: new Set(config.getOriginalIds(orig)),
+      currentNames,
       allocateId: () => pool.allocate(),
-      findIdByName: (name) => config.findCardId(orig, name),
     })
     changes.loadChanges(retargeted)
     const replayed = replayAndDrop(orig, retargeted)
@@ -784,7 +784,7 @@ export function useEditor<TData, TCardEntry = unknown>(
     replayAndDrop(orig, restored)
     // Mark every ID the restored changes reference as in use, so later adds in this
     // resumed session don't reallocate one of them.
-    pool.resetPool(usedIdsAfterRestore(config.getOriginalIds(orig), restored))
+    pool.resetPool(usedIdsAfterRestore([...config.getOriginalCardNames(orig).keys()], restored))
   }
 
   /**
@@ -806,7 +806,7 @@ export function useEditor<TData, TCardEntry = unknown>(
   const handleDiscard = () => {
     changes.discardAll()
     if (original) {
-      pool.resetPool(config.getOriginalIds(original))
+      pool.resetPool([...config.getOriginalCardNames(original).keys()])
     }
     dialogs.closeDiscard()
     const pending = pendingNav()

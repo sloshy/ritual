@@ -141,8 +141,6 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     findOriginalFinish: (entries, cardName, cardId) =>
       findEntryByIdOrName(entries, cardName, cardId)?.finish ?? 'nonfoil',
     findCardId: (entries, cardName) => entries.find((e) => e.name === cardName)?.cardId,
-    getOriginalIds: (entries) =>
-      entries.map((e) => e.cardId).filter((id): id is number => id !== undefined),
 
     cardCountsBySection: countsBySection,
     cardSectionOf: sectionOfTarget,

@@ -16,7 +16,6 @@ import {
   applyDeckChangePrinting,
   findDeckFinish,
   findDeckCardId,
-  getDeckCardIds,
   deckCountsBySection,
   findDeckCardSection,
 } from '../../../editor/deck-config'
@@ -161,7 +160,6 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     // the pristine copy of it.
     findOriginalFinish: findDeckFinish,
     findCardId: findDeckCardId,
-    getOriginalIds: getDeckCardIds,
 
     sectionsOf: (deck) => deck.sections.map((s) => s.name),
     cardCountsBySection: deckCountsBySection,

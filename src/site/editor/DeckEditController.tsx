@@ -47,6 +47,7 @@ import type { SwapPrintingsWizardProps } from '../../editor/components/SwapPrint
 import { createSwapController, type SwapController } from '../../editor/swap-controller'
 import { deckSwapMergeTargetId, deckSwapTargets } from '../../editor/swap-targets'
 import { withDeckArt, type CardArtRefs } from '../../editor/card-art-view'
+import { deckCardNamesById } from '../../card/card-id'
 
 /** Deck context-menu state plus whether the targeted card is currently a commander. */
 export type DeckContextMenuState = ContextMenuState & { isInCommanderSection: boolean }
@@ -116,6 +117,7 @@ export function useDeckEditController(
       findOriginalLanguage: findDeckCardLanguage,
       ...buildConfig(cardActions),
       copyModel: 'quantity',
+      getOriginalCardNames: deckCardNamesById,
       // Follows from the data shape, like the copy model: a deck folds a repeat
       // of the same printing into the existing entry, so per-line metadata an
       // add carries has to be aimed at that entry's `&N`.

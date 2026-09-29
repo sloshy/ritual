@@ -37,6 +37,7 @@ import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
 import { entityListType } from './entity'
 import { createSwapController, type SwapController } from './swap-controller'
 import { flatSwapTargets } from './swap-targets'
+import { cardNamesById } from '../card/card-id'
 
 /** Minimal flat-list entry shape the shared controller and context menu rely on. */
 export type FlatEntry = {
@@ -136,6 +137,7 @@ export function useFlatListEditController<E extends FlatEntry>(
         findEntryByIdOrName(entries, cardName, cardId)?.language,
       ...pageConfig,
       copyModel: 'per-entry',
+      getOriginalCardNames: cardNamesById,
     },
     params.initialSlug,
   )

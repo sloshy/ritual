@@ -66,12 +66,14 @@ export function createRetargetState(): RetargetState {
 
 type RetargetParams = {
   changes: ChangeEvent[]
-  /** Card IDs present in the current list before importing. */
-  currentIds: Set<number>
+  /**
+   * The card name on each line of the current list before importing, keyed by
+   * its `&N`. An exported id is kept only where it still names the same card:
+   * ids are recycled, so the line holding it now may be a different card.
+   */
+  currentNames: ReadonlyMap<number, string>
   /** Allocate a fresh card ID from the editor's pool (for `add` changes). */
   allocateId: () => number
-  /** Resolve a card name to its current ID in the list, if present. */
-  findIdByName: (name: string) => number | undefined
   /** Carried across batches of the same list; a fresh state when omitted. */
   state?: RetargetState
 }
@@ -92,6 +94,12 @@ const UNTARGETED_ACTIONS = new Set<ChangeAction>([
   ...CATEGORY_ACTIONS,
 ])
 
+/** The first `&N` (in file order) whose line holds `cardName`. */
+function firstIdNamed(names: ReadonlyMap<number, string>, cardName: string): number | undefined {
+  for (const [id, name] of names) if (name === cardName) return id
+  return undefined
+}
+
 const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
   ({ ...change, cardId }) as ChangeEvent
 
@@ -105,8 +113,9 @@ const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
  *   second add/move-to naming an exported id already allocated here reuses
  *   that id: the exporting editor put those copies on one line (a deck merges
  *   same-tuple copies), so they share the line here too.
- * - other card changes keep their ID when it still exists, otherwise fall back to
- *   matching by card name — first against a card this same import added (a
+ * - other card changes keep their ID when it still names the same card (a
+ *   removed card's id is recycled, so the line holding it may be another card
+ *   entirely), otherwise fall back to matching by card name — first against a card this same import added (a
  *   bundle move recorded on its source side carries no destination id, so a
  *   follow-up edit on the copy it brought in can only be found this way), then
  *   against the list as loaded;
@@ -120,7 +129,7 @@ const withCardId = (change: ChangeEvent, cardId: number): ChangeEvent =>
  * Pure and deterministic given the same inputs, so it is unit-tested directly.
  */
 export function retargetImportedChanges(params: RetargetParams): RetargetResult {
-  const { changes, currentIds, allocateId, findIdByName } = params
+  const { changes, currentNames, allocateId } = params
   const { idMap, addedByName } = params.state ?? createRetargetState()
   const retargeted: ChangeEvent[] = []
   const conflicts: ImportConflict[] = []
@@ -134,12 +143,14 @@ export function retargetImportedChanges(params: RetargetParams): RetargetResult 
       // Remap a reference to a card added earlier in this same import.
       const mapped = idMap.get(exportedId)
       if (mapped !== undefined) return mapped
-      // The exported ID still exists in the current list — keep it.
-      if (currentIds.has(exportedId)) return exportedId
+      // The exported ID still names this card in the current list — keep it.
+      // A recycled id on another card falls through to the name lookup.
+      if (currentNames.get(exportedId) === cardName) return exportedId
     }
     // Fall back to resolving by card name — a copy this import just added
-    // first, since an unresolved exported id most plausibly named it.
-    return addedByName.get(cardName) ?? findIdByName(cardName)
+    // first, since an unresolved exported id most plausibly named it, then the
+    // first line of that name in the list as loaded.
+    return addedByName.get(cardName) ?? firstIdNamed(currentNames, cardName)
   }
 
   for (const change of changes) {

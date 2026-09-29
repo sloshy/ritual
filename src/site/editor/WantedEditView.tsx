@@ -80,8 +80,6 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
     findOriginalFinish: (entries, cardName, cardId) =>
       findEntryByIdOrName(entries, cardName, cardId)?.finish ?? 'nonfoil',
     findCardId: (entries, cardName) => entries.find((e) => e.name === cardName)?.cardId,
-    getOriginalIds: (entries) =>
-      entries.map((e) => e.cardId).filter((id): id is number => id !== undefined),
 
     cardCountsBySection: countsBySection,
     cardSectionOf: sectionOfTarget,

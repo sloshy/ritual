@@ -211,8 +211,8 @@ export function clonePool(pool: CardIdPool): CardIdPool {
 
 export type EntryWithCardId = { cardId?: number }
 /** One section's cards, as the id sweeps see them. */
-type SectionWithCardIds = { cards: readonly EntryWithCardId[] }
-type DeckWithCardIds = { sections: readonly SectionWithCardIds[] }
+type SectionOf<T extends EntryWithCardId> = { cards: readonly T[] }
+type DeckOf<T extends EntryWithCardId> = { sections: readonly SectionOf<T>[] }
 
 /** Pull `cardId` numbers off a flat list of entries, dropping anything that's missing one. */
 export function collectExistingIds(items: readonly EntryWithCardId[]): number[] {
@@ -224,7 +224,7 @@ export function collectExistingIds(items: readonly EntryWithCardId[]): number[] 
 }
 
 /** Like {@link collectExistingIds} but walks a deck's nested `sections[].cards[]`. */
-export function collectDeckCardIds(deck: DeckWithCardIds): number[] {
+export function collectDeckCardIds(deck: DeckOf<EntryWithCardId>): number[] {
   const ids: number[] = []
   for (const section of deck.sections) {
     for (const card of section.cards) {
@@ -232,6 +232,29 @@ export function collectDeckCardIds(deck: DeckWithCardIds): number[] {
     }
   }
   return ids
+}
+
+/** An entry carrying both its card name and (maybe) its `&N`. */
+export type NamedEntryWithCardId = EntryWithCardId & { name: string }
+
+/**
+ * Map each line's `&N` to the card name on that line, in file order. IDs are
+ * recycled, so an id alone does not say which card it names today — a caller
+ * holding an id from elsewhere (an exported change) checks the name here before
+ * trusting it.
+ */
+export function cardNamesById(items: Iterable<NamedEntryWithCardId>): Map<number, string> {
+  const names = new Map<number, string>()
+  for (const item of items) {
+    // First wins on a repeated `&N`, as the engines' id targeting does.
+    if (item.cardId !== undefined && !names.has(item.cardId)) names.set(item.cardId, item.name)
+  }
+  return names
+}
+
+/** Like {@link cardNamesById} but walks a deck's nested `sections[].cards[]`. */
+export function deckCardNamesById(deck: DeckOf<NamedEntryWithCardId>): Map<number, string> {
+  return cardNamesById(deck.sections.flatMap((section) => section.cards))
 }
 
 /**

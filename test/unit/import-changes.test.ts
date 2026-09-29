@@ -27,9 +27,8 @@ describe('retargetImportedChanges', () => {
           collectorNumber: '263',
         },
       ],
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Sol Ring']]),
       allocateId: allocator(2),
-      findIdByName: () => undefined,
       state,
     })
     expect(first.retargeted).toMatchObject([{ cardId: 2 }])
@@ -45,11 +44,13 @@ describe('retargetImportedChanges', () => {
           cardId: 7,
         },
       ],
-      currentIds: new Set([1, 2]),
-      allocateId: allocator(3),
       // The freshly loaded list holds two Sol Rings now; the name fallback
-      // would be a coin toss — the id map is what says which one.
-      findIdByName: () => 1,
+      // would pick &1 — the carried state is what says which one.
+      currentNames: new Map([
+        [1, 'Sol Ring'],
+        [2, 'Sol Ring'],
+      ]),
+      allocateId: allocator(3),
       state,
     })
     expect(second.conflicts).toHaveLength(0)
@@ -69,9 +70,8 @@ describe('retargetImportedChanges', () => {
     })
     const { retargeted } = retargetImportedChanges({
       changes: [moveTo('a'), moveTo('b')],
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Sol Ring']]),
       allocateId: allocator(2),
-      findIdByName: () => undefined,
     })
     expect(retargeted).toMatchObject([{ cardId: 2 }, { cardId: 2 }])
   })
@@ -105,9 +105,8 @@ describe('retargetImportedChanges', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Sol Ring']]),
       allocateId: allocator(2),
-      findIdByName: () => 1,
     })
     // The source-line hint and the destination section ride through the re-target untouched.
     expect(retargeted[0]).toMatchObject({
@@ -133,9 +132,12 @@ describe('retargetImportedChanges', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([1, 2, 3]),
+      currentNames: new Map([
+        [1, 'Island'],
+        [2, 'Forest'],
+        [3, 'Swamp'],
+      ]),
       allocateId: allocator(4),
-      findIdByName: () => undefined,
     })
     expect(conflicts).toHaveLength(0)
     // The add got fresh ID 4, and the follow-up set-finish was remapped to it.
@@ -167,9 +169,8 @@ describe('retargetImportedChanges', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([7]),
+      currentNames: new Map([[7, 'Sol Ring']]),
       allocateId: allocator(20),
-      findIdByName: () => 7,
     })
     expect(conflicts).toHaveLength(0)
     expect(retargeted[0]).toMatchObject({ action: 'move-to', cardId: 20 })
@@ -177,18 +178,59 @@ describe('retargetImportedChanges', () => {
     expect(retargeted[1]).toMatchObject({ action: 'set-note', cardId: 20 })
   })
 
-  it('keeps a target ID that still exists in the current list', () => {
+  it('keeps a target ID that still names the same card', () => {
     const changes: ChangeEvent[] = [
       { id: '1', timestamp: 1, action: 'remove', cardName: 'Llanowar Elves', cardId: 7 },
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([7]),
+      // A same-named line sits earlier, so only the kept id can answer 7.
+      currentNames: new Map([
+        [3, 'Llanowar Elves'],
+        [7, 'Llanowar Elves'],
+      ]),
       allocateId: allocator(10),
-      findIdByName: () => 999,
     })
     expect(conflicts).toHaveLength(0)
     expect(retargeted[0]).toMatchObject({ cardId: 7 })
+  })
+
+  it('does not trust an exported ID that was recycled onto another card', () => {
+    // Llanowar Elves was &7 when the bundle was exported; it has since been
+    // removed and &7 reused by Counterspell. The edit must follow the name.
+    const changes: ChangeEvent[] = [
+      { id: '1', timestamp: 1, action: 'remove', cardName: 'Llanowar Elves', cardId: 7 },
+    ]
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes,
+      currentNames: new Map([
+        [7, 'Counterspell'],
+        [8, 'Llanowar Elves'],
+      ]),
+      allocateId: allocator(10),
+    })
+    expect(conflicts).toHaveLength(0)
+    expect(retargeted[0]).toMatchObject({ cardId: 8 })
+  })
+
+  it('reports a conflict when a recycled ID is the only match', () => {
+    const changes: ChangeEvent[] = [
+      {
+        id: '1',
+        timestamp: 1,
+        action: 'set-note',
+        cardName: 'Llanowar Elves',
+        cardId: 7,
+        note: 'x',
+      },
+    ]
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes,
+      currentNames: new Map([[7, 'Counterspell']]),
+      allocateId: allocator(10),
+    })
+    expect(retargeted).toHaveLength(0)
+    expect(conflicts).toMatchObject([{ reason: 'target-not-found' }])
   })
 
   it('falls back to matching by name when the exported ID is gone', () => {
@@ -197,9 +239,11 @@ describe('retargetImportedChanges', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([1, 2]),
+      currentNames: new Map([
+        [1, 'Island'],
+        [2, 'Brainstorm'],
+      ]),
       allocateId: allocator(10),
-      findIdByName: (name) => (name === 'Brainstorm' ? 2 : undefined),
     })
     expect(conflicts).toHaveLength(0)
     expect(retargeted[0]).toMatchObject({ cardId: 2 })
@@ -211,9 +255,11 @@ describe('retargetImportedChanges', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([1, 2]),
+      currentNames: new Map([
+        [1, 'Island'],
+        [2, 'Forest'],
+      ]),
       allocateId: allocator(10),
-      findIdByName: () => undefined,
     })
     expect(retargeted).toHaveLength(0)
     expect(conflicts).toHaveLength(1)
@@ -227,9 +273,8 @@ describe('retargetImportedChanges', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set(),
+      currentNames: new Map(),
       allocateId: allocator(1),
-      findIdByName: () => undefined,
     })
     expect(conflicts).toHaveLength(0)
     expect(retargeted).toEqual(changes)
@@ -252,9 +297,8 @@ describe('retargetImportedChanges — pinning move-to', () => {
   it('resolves the pinned line like an edit and keeps the copy on it when it converts in place', () => {
     const { retargeted, conflicts } = retargetImportedChanges({
       changes: [pinning(4, 4)],
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Lightning Bolt']]),
       allocateId: allocator(2),
-      findIdByName: (name) => (name === 'Lightning Bolt' ? 1 : undefined),
     })
     expect(conflicts).toHaveLength(0)
     expect(retargeted[0]).toMatchObject({ cardId: 1, replacesCardId: 1 })
@@ -263,19 +307,31 @@ describe('retargetImportedChanges — pinning move-to', () => {
   it('a split copy takes a fresh id while the pinned line resolves by its exported id', () => {
     const { retargeted } = retargetImportedChanges({
       changes: [pinning(9, 4)],
-      currentIds: new Set([4]),
+      currentNames: new Map([[4, 'Lightning Bolt']]),
       allocateId: allocator(10),
-      findIdByName: () => undefined,
     })
     expect(retargeted[0]).toMatchObject({ cardId: 10, replacesCardId: 4 })
   })
 
-  it('an unresolvable pinned line is a conflict', () => {
+  it('a split copy whose pinned id was recycled pins the same-named line instead', () => {
+    // &4 now holds Island, so converting it would pin another card's line.
+    const { retargeted, conflicts } = retargetImportedChanges({
+      changes: [pinning(9, 4)],
+      currentNames: new Map([
+        [1, 'Lightning Bolt'],
+        [4, 'Island'],
+      ]),
+      allocateId: allocator(5),
+    })
+    expect(conflicts).toHaveLength(0)
+    expect(retargeted[0]).toMatchObject({ cardId: 5, replacesCardId: 1 })
+  })
+
+  it('an unresolvable pinned line is a conflict, even when its id was recycled', () => {
     const { retargeted, conflicts } = retargetImportedChanges({
       changes: [pinning(4, 4)],
-      currentIds: new Set([1]),
+      currentNames: new Map([[4, 'Island']]),
       allocateId: allocator(2),
-      findIdByName: () => undefined,
     })
     expect(retargeted).toHaveLength(0)
     expect(conflicts).toMatchObject([{ reason: 'target-not-found' }])
@@ -291,9 +347,8 @@ describe('retargetImportedChanges — pinning move-to', () => {
     }
     const { retargeted, conflicts } = retargetImportedChanges({
       changes: [change],
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Sol Ring']]),
       allocateId: allocator(2),
-      findIdByName: () => 1,
     })
     expect(retargeted[0]).toBe(change)
     // `toEqual` ignores undefined-valued keys, so assert the key is truly absent.
@@ -311,9 +366,8 @@ describe('retargetImportedChanges — pinning move-to', () => {
     }
     const { retargeted, conflicts } = retargetImportedChanges({
       changes: [change],
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Sol Ring']]),
       allocateId: allocator(2),
-      findIdByName: () => undefined,
     })
     expect(retargeted).toEqual([change])
     expect(conflicts).toEqual([])
@@ -335,9 +389,8 @@ describe('retargetImportedChanges — pinning move-to', () => {
     ]
     const { retargeted, conflicts } = retargetImportedChanges({
       changes,
-      currentIds: new Set([1]),
+      currentNames: new Map([[1, 'Sol Ring']]),
       allocateId: allocator(2),
-      findIdByName: () => undefined,
     })
     expect(retargeted).toEqual(changes)
     expect(conflicts).toEqual([])

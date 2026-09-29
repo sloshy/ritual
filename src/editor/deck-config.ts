@@ -195,17 +195,6 @@ export function findDeckCardIdInSection(
   return undefined
 }
 
-/** Extract all card IDs from a deck. */
-export function getDeckCardIds(deck: DeckData): number[] {
-  const ids: number[] = []
-  for (const section of deck.sections) {
-    for (const card of section.cards) {
-      if (card.cardId !== undefined) ids.push(card.cardId)
-    }
-  }
-  return ids
-}
-
 /** Number of distinct card lines per section, for the section manager. */
 export function deckCountsBySection(deck: DeckData): Record<string, number> {
   const counts: Record<string, number> = {}
