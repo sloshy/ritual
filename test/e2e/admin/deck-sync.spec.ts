@@ -165,6 +165,7 @@ test.describe('Sync Decks Page', () => {
           dryRun: false,
           force: false,
           syncPrintings: false,
+          syncCategories: false,
           ignoreUnreadableLines: false,
         },
       ])

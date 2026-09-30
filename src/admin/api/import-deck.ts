@@ -1,6 +1,7 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
 import type { CardCategoryEntry } from '../../list/card-categories-record'
+import { importCategoryAdvisories } from '../../importers/import-categories'
 import { saveDeck } from '../../importers/save-list'
 import { autoCommitAndPush } from './save-helpers'
 import { badRequest, readJsonObjectBody } from '../../api/http'
@@ -109,6 +110,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     let deckData: DeckData
     /** The source's categories; only a URL import from a service that has them sets it. */
     let categories: CardCategoryEntry[] | undefined
+    let refusedCategories: string[] | undefined
     let warnings: string[] = []
     let advisories: string[] = []
 
@@ -119,6 +121,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       if (typeof result === 'string') return badRequest(result)
       deckData = request.syncPrintings ? result.deck : stripDeckPrintings(result.deck)
       categories = result.categories
+      refusedCategories = result.refusedCategories
     } else {
       const content = request.content.trim()
       if (!content) return badRequest('content is required')
@@ -149,6 +152,11 @@ export function handleImportDeck(req: Request): Promise<Response> {
     // Only a resolver can cancel, and this call injects none; still, the
     // outcome is honoured rather than assumed so the contract cannot drift.
     if (outcome.status === 'cancelled') return badRequest('Import cancelled')
+    // A URL import's category notes join the advisories: news, not loss.
+    advisories = [
+      ...advisories,
+      ...importCategoryAdvisories(refusedCategories, outcome.categoryError),
+    ]
 
     // The file the save actually wrote: an overwrite of a folded twin or an
     // id-matched deck lands on the existing file, not the import's own slug.
@@ -167,7 +175,11 @@ export function handleImportDeck(req: Request): Promise<Response> {
     // Advisories are not loss, but they mean a line was probably misread, so the
     // UI's one-line message mentions them too rather than only the API clients.
     const advisoryNote =
-      advisories.length > 0 ? ` — ${advisories.length} line(s) may not have been understood` : ''
+      advisories.length === 0
+        ? ''
+        : request.mode === 'url'
+          ? ` — ${advisories.length} note(s) about its categories`
+          : ` — ${advisories.length} line(s) may not have been understood`
     const resp: ImportDeckResponse = {
       success: true,
       message: `Successfully imported '${outcome.name}'${skippedNote}${advisoryNote}`,

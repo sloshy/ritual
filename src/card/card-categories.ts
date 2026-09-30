@@ -175,6 +175,31 @@ export function normalizeCardCategories(categories: readonly string[]): CardCate
   return result
 }
 
+/** A lenient parse of raw category names: the canonical list, and the names refused. */
+export type LenientCardCategories = {
+  /** Canonical, deduplicated case-insensitively, in input order — the first is primary. */
+  categories: CardCategory[]
+  /** The names the shape rule refused, exactly as given, in input order. */
+  refused: string[]
+}
+
+/**
+ * Parse category names from another tool (an Archidekt relation, a Moxfield tag
+ * list, a CSV cell) **leniently**: a name the rule refuses is set aside rather
+ * than failing the rest, since an import should keep every category it can.
+ * {@link parseCardCategoriesValue} is the strict counterpart.
+ */
+export function parseCardCategoryNames(raw: readonly string[]): LenientCardCategories {
+  const categories: CardCategory[] = []
+  const refused: string[] = []
+  for (const name of raw) {
+    const parsed = parseCardCategory(name)
+    if (parsed.ok) categories.push(parsed.category)
+    else refused.push(name)
+  }
+  return { categories: normalizeCardCategories(categories), refused }
+}
+
 /**
  * Parse a category list from structured data — an HTTP body field, a
  * change-bundle payload, a `ritual-changes` block line, a sidecar value. Must be

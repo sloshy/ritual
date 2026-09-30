@@ -4,8 +4,7 @@ import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../ca
 import { normalizedTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import {
   CARD_CATEGORY_SEPARATOR,
-  normalizeCardCategories,
-  parseCardCategory,
+  parseCardCategoryNames,
   type CardCategory,
 } from '../card/card-categories'
 import { canonicalSectionName, sectionRole } from '../list/deck-format'
@@ -458,8 +457,7 @@ type RoutedCategoryCell = {
  * categories either way. An empty cell means no categories.
  */
 function normalizeCategories(rawValue: string, listType: ListType): RoutedCategoryCell {
-  const categories: CardCategory[] = []
-  const refused: string[] = []
+  const names: string[] = []
   let section: string | undefined
   let routedFrom: string | undefined
   for (const part of rawValue.split(CARD_CATEGORY_SEPARATOR)) {
@@ -473,11 +471,9 @@ function normalizeCategories(rawValue: string, listType: ListType): RoutedCatego
       }
       continue
     }
-    const parsed = parseCardCategory(raw)
-    if (parsed.ok) categories.push(parsed.category)
-    else refused.push(raw)
+    names.push(raw)
   }
-  return { section, routedFrom, categories: normalizeCardCategories(categories), refused }
+  return { section, routedFrom, ...parseCardCategoryNames(names) }
 }
 
 /**

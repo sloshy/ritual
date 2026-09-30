@@ -342,7 +342,9 @@ function unwritableCategoriesWarning(cards: readonly SectionedDialectCard[]): st
   return [
     `Categories not written as Moxfield tags: ${skipped.join(', ')}. ` +
       'Moxfield’s bulk-edit format documents only single-word tags, so a category ' +
-      'holding a space (or starting with "!") has no spelling it is known to read.',
+      'holding a space (or starting with "!") has no spelling it is known to read, and ' +
+      'one holding a character a Ritual tag cannot ("#", "&", brackets and the like) ' +
+      'would not import back.',
   ]
 }
 

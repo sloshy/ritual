@@ -173,7 +173,7 @@ Details the table leaves out:
 - `get_buylist_quotes`: prices an arbitrary set of cards without building a whole sell report; printings with no product are absent from the result. Cache-backed, so run `refresh_buylist` first. Needs [sell mode](#sell-tools-need-sell-mode).
 - `get_history`: `events` come from the entry's `ritual-changes` block (empty for a legacy entry). Hand-written text preserved after a set is in its `trailing` array; echo it back on `rewrite_history` or it is deleted. When the categories sidecar could not be read, `defaultEvents` names no categories and `categoryWarnings` says why (absent otherwise).
 - `get_config`: the config includes `defaultLanguage` (the card language) and `uiLocale` (the [interface language](/configuration/#interface-language)), two different settings.
-- `export_cards`: takes filters (name, set, finish, conditions, labels, tags), saved or built-in `preset`s, and column selection for `csv`/`json`. The columns include `categories` (comma-joined, primary first) and `primaryCategory`; both are dropped by the `text` and `md` formats. A `dialect` (`ritual`, `archidekt`, `arena`, `moxfield`) spells `csv`/`json` values and picks the `text` decklist form; `arena`/`moxfield` omit maybeboard and token cards and name them in `warnings`.
+- `export_cards`: takes filters (name, set, finish, conditions, labels, tags), saved or built-in `preset`s, and column selection for `csv`/`json`. The columns include `categories` (comma-joined, primary first) and `primaryCategory`; both are dropped by the `md` format and by every `text` dialect except `moxfield`, which writes a card's categories as `#tag` tokens. A `dialect` (`ritual`, `archidekt`, `arena`, `moxfield`) spells `csv`/`json` values and picks the `text` decklist form; `arena`/`moxfield` omit maybeboard and token cards and name them in `warnings`, and `moxfield` also names the categories it could not write as tags.
 
 #### The `get_list` result
 
@@ -336,7 +336,7 @@ Tags are not labels: `keep` as a tag carries none of the `keep` label's meaning,
 
 - **Keyed by card name, never `&N`.** One assignment covers every line of that name in the list, whatever its printing, section or quantity; matching folds case and whitespace.
 - **Ordered, first is primary**, the one the site groups by.
-- A name is plain text in the owner's own casing (`Ramp`, `Card Draw`) and can never contain `#`, `,`, `&`, `*`, double quotes, brackets, braces or parentheses. Anything else (`#Ramp`, ` Ramp`, `a,b`) is refused by the **input schema** before anything is loaded.
+- A name is plain text in the owner's own casing (`Ramp`, `Card Draw`, `Tokens & Extras`) and can never contain a comma or a control character, and must be canonical (no surrounding or doubled spaces). Anything else (` Ramp`, `a,b`) is refused by the **input schema** before anything is loaded.
 
 `get_list`'s cards view reports them twice: the list's own `categories` (`{ "order": [...], "cards": { "Sol Ring": ["Ramp", "Artifacts"] } }`) beside the entries, and each returned card's own resolved `categories`, primary first. **Absent means none at both levels**, never an empty array. Read the per-card field rather than joining `cards` yourself, since the name fold is Ritual's. `categories` always describes the whole list, never just the returned page; each card's own `categories` covers only the cards in the body.
 

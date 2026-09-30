@@ -46,7 +46,7 @@ The run streams over server-sent events, so each deck updates as it is processed
 
 Under each deck are the same lines the CLI prints:
 
-- The change summary: `Changes: +2 added, -1 removed, ~0 quantity changed` on a pull, `Changes: +2 to add, -1 to remove, ~0 quantity changes` on a push. With printing sync on, each gains a `, 3 printings changed` / `, 3 printings to change` clause.
+- The change summary: `Changes: +2 added, -1 removed, ~0 quantity changed` on a pull, `Changes: +2 to add, -1 to remove, ~0 quantity changes` on a push. With printing sync on, each gains a `, 3 printings changed` / `, 3 printings to change` clause, and with category sync on a `, 3 cards' categories changed` / `, 3 cards' categories to change` one. A category-sync push from a deck with no local categories also logs that it left Archidekt's categories alone.
 - What the change filter left out (`Skipped 3 removals (applying additions only).`).
 - Any format change.
 - With printing sync **off**, a warning for each card whose printings the two sides cannot square up (`Printings not synced for "Lightning Bolt": … Re-run with --sync-printings to reconcile them.`).

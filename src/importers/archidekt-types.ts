@@ -143,8 +143,12 @@ export interface ArchidektRawCardEntry {
   id: number // Deck-card relation ID (deckRelationId for modifyCards)
   quantity: number
   modifier: ArchidektCardModifier
-  /** Category names; `null` on a relation filed under no category (seen on old decks). */
-  categories: string[] | null
+  /**
+   * Category names — or, on an old payload, ids into the deck's `categories`
+   * (resolve with {@link archidektEntryCategoryNames}). `null` on a relation
+   * filed under no category.
+   */
+  categories: (number | string)[] | null
   companion: boolean
   flippedDefault: boolean
   label: string // "name,hexcolor" — default ",#656565"
@@ -340,17 +344,43 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
 /**
  * A deck entry's category names. Archidekt sends names, but older payloads sent
- * ids into the deck's `categories` array; an id the array does not define is
- * kept as its digits rather than dropped.
+ * numeric ids into the deck's `categories` array. A numeric id the array does
+ * not define names nothing, so it is dropped rather than becoming a category
+ * spelled as its digits.
  */
 export function archidektEntryCategoryNames(
   categories: readonly (number | string)[] | null | undefined,
   definitions: readonly ArchidektCategory[] | null | undefined,
 ): string[] {
-  const nameById = new Map((definitions ?? []).map((cat) => [cat.id.toString(), cat.name]))
-  return (categories ?? []).map(
-    (category) => nameById.get(category.toString()) ?? category.toString(),
+  const nameById = new Map((definitions ?? []).map((cat) => [cat.id, cat.name]))
+  return (categories ?? []).flatMap((category) =>
+    typeof category === 'number' ? (nameById.get(category) ?? []) : [category],
   )
+}
+
+/** The card half of an entry, as the categories parser reads it off either payload. */
+type ArchidektCategorizedCard = {
+  name?: string
+  oracleCard?: ArchidektCategorizedOracle
+}
+
+/** The oracle block of {@link ArchidektCategorizedCard}. */
+type ArchidektCategorizedOracle = { name?: string }
+
+/** A deck entry as the categories parser reads it — the parsed or the raw payload's. */
+type ArchidektCategorizedDeckEntry = {
+  card?: ArchidektCategorizedCard
+  categories?: readonly (number | string)[] | null
+}
+
+/**
+ * What the categories parser needs of a deck payload. Structural, so the URL
+ * import's {@link ArchidektDeckResponse} and deck-sync's
+ * {@link ArchidektRawDeckResponse} both go through the one parser.
+ */
+export type ArchidektCategorizedDeck = {
+  categories?: readonly ArchidektCategory[] | null
+  cards?: readonly ArchidektCategorizedDeckEntry[]
 }
 
 /**
@@ -359,7 +389,9 @@ export function archidektEntryCategoryNames(
  * The URL import writes these; `deck-sync` reads the same answer off the raw
  * payload.
  */
-export function parseArchidektDeckCategories(json: ArchidektDeckResponse): ArchidektDeckCategories {
+export function parseArchidektDeckCategories(
+  json: ArchidektCategorizedDeck,
+): ArchidektDeckCategories {
   const entries: ArchidektCategorizedEntry[] = []
   for (const entry of json.cards ?? []) {
     const cardName = entry.card?.oracleCard?.name || entry.card?.name

@@ -49,6 +49,7 @@ describe('skill catalog invariants', () => {
   test.each([
     ['ritual-decks', 'MTG Arena/MTGO export dialect'],
     ['ritual-decks', '*F*'],
+    ['ritual-decks', '--sync-categories'],
     ['ritual-decks', 'no collector number'],
     ['ritual-decks', 'advisories'],
     ['ritual-decks', '--moxfield-user-agent'],

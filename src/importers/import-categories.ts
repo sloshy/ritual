@@ -1,20 +1,18 @@
 /**
  * @fileoverview Card categories a deck service states, as a URL import reads
  * them: Moxfield's per-card tags (`authorTags`) mapped onto Ritual categories,
- * and the one warning for names Ritual cannot store. Archidekt's side, which
+ * and the advisories an import reports about them. Archidekt's side, which
  * must first tell boards from roles, is `./archidekt-categories.ts`.
  */
 
 import {
-  foldCardCategory,
+  CARD_CATEGORY_SHAPE_CLAUSE,
   foldCategoryCardName,
-  parseCardCategory,
-  type CardCategory,
+  parseCardCategoryNames,
 } from '../card/card-categories'
+import { deckCardNames } from '../list/card-names'
 import type { CardCategoryEntry } from '../list/card-categories-record'
 import type { DeckSection } from '../list/deck'
-import { t } from '../i18n/t'
-import { getLogger } from '../util/logger'
 
 /** A deck's categories as an import reads them, and the names Ritual refused. */
 export type ImportedCategories = {
@@ -41,39 +39,39 @@ export function moxfieldDeckCategories(
 
   const cards: CardCategoryEntry[] = []
   const refused: string[] = []
-  const seenNames = new Set<string>()
-  for (const section of sections) {
-    for (const card of section.cards) {
-      const key = foldCategoryCardName(card.name)
-      if (seenNames.has(key)) continue
-      seenNames.add(key)
-      const categories: CardCategory[] = []
-      const held = new Set<string>()
-      for (const tag of tagsByName.get(key) ?? []) {
-        if (typeof tag !== 'string') continue
-        const parsed = parseCardCategory(tag)
-        if (!parsed.ok) {
-          if (!refused.includes(tag)) refused.push(tag)
-          continue
-        }
-        const fold = foldCardCategory(parsed.category)
-        if (held.has(fold)) continue
-        held.add(fold)
-        categories.push(parsed.category)
-      }
-      if (categories.length > 0) cards.push({ name: card.name, categories })
-    }
+  for (const name of deckCardNames({ sections })) {
+    const tags = (tagsByName.get(foldCategoryCardName(name)) ?? []).filter(
+      (tag): tag is string => typeof tag === 'string',
+    )
+    const parsed = parseCardCategoryNames(tags)
+    for (const tag of parsed.refused) if (!refused.includes(tag)) refused.push(tag)
+    if (parsed.categories.length > 0) cards.push({ name, categories: parsed.categories })
   }
   return { cards, refused }
 }
 
-/** Warn about category names an import skipped because Ritual cannot store them. */
-export function warnRefusedCategories(refused: readonly string[]): void {
-  if (refused.length === 0) return
-  getLogger().warn(
-    t('cli.import.categoriesRefused', {
-      count: refused.length,
-      names: refused.map((name) => JSON.stringify(name)).join(', '),
-    }),
-  )
+/**
+ * The advisories a deck import's categories produced: the source's category
+ * names Ritual refused, and a categories file that could not be written. Not
+ * loss of cards — the deck imported — so they ride the non-fatal `advisories`
+ * channel every import surface already reports. English by contract, like the
+ * CSV importer's category notices.
+ */
+export function importCategoryAdvisories(
+  refused: readonly string[] | undefined,
+  categoryError: string | undefined,
+): string[] {
+  const advisories: string[] = []
+  if (refused !== undefined && refused.length > 0) {
+    advisories.push(
+      `Skipped categories Ritual cannot store (${CARD_CATEGORY_SHAPE_CLAUSE}): ` +
+        refused.map((name) => JSON.stringify(name)).join(', '),
+    )
+  }
+  if (categoryError !== undefined) {
+    advisories.push(
+      `The deck was imported, but its categories could not be saved: ${categoryError}`,
+    )
+  }
+  return advisories
 }

@@ -52,8 +52,8 @@ import { buildUploadPlan, type LocalCategoriesOf } from './upload-plan'
 import type { ChangeEvent } from '../changes/change-event'
 import { commitCategoryChanges, type CardCategoriesRecord } from '../list/card-categories-sidecar'
 import { getDecksDir, loadDefaultCategories } from '../config/ritual-config'
+import { deckCardNameSet } from '../list/card-names'
 import {
-  deckCardNameSet,
   loadDeckCategories,
   localCategoriesFor,
   pullCategoryChanges,
@@ -267,17 +267,14 @@ async function readRemoteUpdatedAt(
 /** The report fields the printing pass adds to a deck's results. */
 type PrintingResultFields = Pick<DeckSyncDeckResult, 'printingsChanged' | 'printingsUnaligned'>
 
+/** The report field the category pass adds to a deck's results. */
+type CategoryResultFields = Pick<DeckSyncDeckResult, 'categoriesChanged'>
+
 /** The report fields the printing and category passes add to a deck's results. */
-type ResultFields = Pick<
-  DeckSyncDeckResult,
-  'printingsChanged' | 'printingsUnaligned' | 'categoriesChanged'
->
+type ResultFields = PrintingResultFields & CategoryResultFields
 
 /** What this deck's results say about categories: a count, only when the run synced them. */
-function categoryResultFields(
-  flow: SyncFlow,
-  changed: number,
-): Pick<DeckSyncDeckResult, 'categoriesChanged'> {
+function categoryResultFields(flow: SyncFlow, changed: number): CategoryResultFields {
   return flow.syncCategories ? { categoriesChanged: changed } : {}
 }
 
@@ -430,7 +427,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
         ? `, ${t('domain.count.printings', { count: diff.printingUpdates.length })} changed`
         : ''
     const categoryClause = flow.syncCategories
-      ? `, ${categoryChanges.length} card categories changed`
+      ? `, ${t('domain.count.cardCategories', { count: categoryChanges.length })} changed`
       : ''
     const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${printingClause}${categoryClause}`
     if (!isDiffEmpty(diff) || categoryChanges.length > 0) {
@@ -706,7 +703,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
         ? `, ${t('domain.count.printings', { count: diff.printingUpdates.length })} to change`
         : ''
     const categoryClause = flow.syncCategories
-      ? `, ${plan.categoriesChanged.length} card categories to change`
+      ? `, ${t('domain.count.cardCategories', { count: plan.categoriesChanged.length })} to change`
       : ''
     emit({
       kind: 'log',

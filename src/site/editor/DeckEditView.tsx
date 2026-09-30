@@ -126,11 +126,9 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           filename: `${safeFilename(deckName())}.txt`,
           build: () => {
             const d = ctrl.editor.data()
-            return d
-              ? deckToExportText(d, (name) =>
-                  cardCategoriesOf(ctrl.editor.categoriesRecord(), name),
-                )
-              : ''
+            if (!d) return ''
+            const record = ctrl.editor.categoriesRecord()
+            return deckToExportText(d, (name) => cardCategoriesOf(record, name))
           },
         },
       ]}

@@ -1,7 +1,7 @@
 import { MoxfieldClient, type MoxfieldFinish } from './moxfield-client'
 import type { Card } from '../card/card'
 import type { DeckSection, ImportedDeck } from '../list/deck'
-import { moxfieldDeckCategories, warnRefusedCategories } from './import-categories'
+import { moxfieldDeckCategories } from './import-categories'
 import type { Finish } from '../card/finish-condition'
 import { parseDeckFormat } from '../list/deck-format'
 import { getLogger } from '../util/logger'
@@ -90,7 +90,6 @@ export async function fetchMoxfieldDeck(
     }
 
     const categories = moxfieldDeckCategories(deck.authorTags, sections)
-    warnRefusedCategories(categories.refused)
     return {
       deck: {
         name: deck.name,
@@ -105,6 +104,7 @@ export async function fetchMoxfieldDeck(
       },
       // Moxfield's tags are what Ritual calls categories: a card's role in the deck.
       categories: categories.cards,
+      refusedCategories: categories.refused,
     }
   } catch (error) {
     getLogger().error('Moxfield Lib Error:', error)

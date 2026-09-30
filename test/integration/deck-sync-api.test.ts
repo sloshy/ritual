@@ -319,6 +319,34 @@ describe('deck-sync API', () => {
     expect(deck).toContain('1 Sol Ring (C21:240) [foil] &1')
   })
 
+  test('syncCategories reaches the engine and each deck reports categoriesChanged', async () => {
+    await signIn()
+    const remote: ArchidektDeckResponse = {
+      name: 'Linked Deck',
+      deckFormat: 3,
+      categories: [
+        { id: 1, name: 'Main' },
+        { id: 2, name: 'Ramp', includedInDeck: true },
+      ],
+      cards: [
+        {
+          quantity: 1,
+          card: { name: 'Sol Ring', oracleCard: { name: 'Sol Ring' } },
+          categories: [2],
+        },
+      ],
+    }
+    stubFetch({ [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(remote) })
+
+    const unflagged = await runReport({ direction: 'pull', decks: ['linked'] })
+    expect(unflagged.decks[0]).not.toHaveProperty('categoriesChanged')
+
+    const report = await runReport({ direction: 'pull', decks: ['linked'], syncCategories: true })
+    expect(report.decks[0]).toMatchObject({ status: 'synced', categoriesChanged: 1 })
+    const sidecar = await fs.readFile(path.join(tmpDir, 'decks', 'linked.categories.json'), 'utf-8')
+    expect(JSON.parse(sidecar)).toMatchObject({ cards: { 'Sol Ring': ['Ramp'] } })
+  })
+
   test('printings the run cannot square up are reported as printingsUnaligned', async () => {
     // The structured half of the advisory — what MCP and scripted callers read,
     // where the CLI reads the log line. The remote splits its two copies across

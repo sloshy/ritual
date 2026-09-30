@@ -11,7 +11,6 @@ import {
   parseArchidektDeckCategories,
   parseArchidektDeckResponse,
 } from '../importers/archidekt-types'
-import { warnRefusedCategories } from '../importers/import-categories'
 import {
   ARCHIDEKT_BULK_BATCH_SIZE,
   ARCHIDEKT_CSV_CHUNK_SIZE,
@@ -485,8 +484,11 @@ export class ArchidektClient {
     const response = await this.fetchDeckResponse(deckId, token)
     const json = (await response.json()) as ArchidektDeckResponse
     const categories = parseArchidektDeckCategories(json)
-    warnRefusedCategories(categories.refused)
-    return { deck: parseArchidektDeckResponse(json, deckId), categories: categories.cards }
+    return {
+      deck: parseArchidektDeckResponse(json, deckId),
+      categories: categories.cards,
+      refusedCategories: categories.refused,
+    }
   }
 
   async fetchDeckRaw(deckId: string, token?: string): Promise<ArchidektRawDeckResponse> {

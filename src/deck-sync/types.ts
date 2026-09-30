@@ -132,7 +132,8 @@ export type DeckSyncOptions = {
    * categories that name a board are never categories in Ritual: they decide
    * the card's section, with or without this option. A push from a deck with
    * no local categories at all leaves Archidekt's alone, so a first push
-   * cannot wipe them.
+   * cannot wipe them. The `only` filter does not apply to category changes,
+   * which neither add nor remove cards.
    */
   syncCategories?: boolean
   onEvent?: DeckSyncEventHandler

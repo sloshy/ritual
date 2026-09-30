@@ -239,8 +239,8 @@ list, plus the vocabulary's display order:
 - **Ordered per card, first is primary** — the one the site groups by. \`order\` is the
   vocabulary's display order; names a card uses but \`order\` does not list are appended on
   the next Ritual write (the configured \`defaultCategories\` first, then the rest).
-- **A name follows the tag shape rule** (plain text; no \`#\`, \`,\`, \`&\`, \`*\`, double
-  quotes, brackets, braces or parentheses; case kept).
+- **A name is any non-empty plain text without a comma or a control character** (looser
+  than the tag rule, since a category is never written on the card line; case kept).
 - **It carries its own \`.sha256\` and is part of the list's recorded history** — unlike
   \`<name>.art.json\`, which records nothing. Edits appear in the list's \`.changes.md\` as
   \`Set categories of "Sol Ring" to Ramp, Artifacts\`, \`Renamed category "Draw" to "Card Draw"\`
@@ -469,7 +469,7 @@ ritual config set priceSources tcgplayer cardkingdom  # stores the sites offer p
                                   #   builds/servers download the ~70 MB CK feed like sell mode
 ritual config set defaultCategories Ramp Draw Removal  # global category vocabulary: what new
                                   #   lists suggest and the order categories are listed in
-                                  #   (--add/--remove edit it; a name follows the tag shape rule)
+                                  #   (--add/--remove edit it; no commas or control characters)
 ritual config set defaultLanguage ja   # language stamped on newly added cards (Scryfall codes;
                                   #   aliases like jp/Japanese normalize). Non-en switches cache
                                   #   downloads to Scryfall's much larger all-cards bulk

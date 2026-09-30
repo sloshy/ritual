@@ -9,7 +9,7 @@
 
 import { foldCategoryCardName } from '../card/card-categories'
 import { loadListEntries } from './entry-load'
-import type { DeckData } from './deck'
+import type { DeckSection } from './deck'
 import type { ListType } from './list-type'
 
 /** The names a list holds, and whether the read that produced them was lossless. */
@@ -50,12 +50,32 @@ export async function listCardNameSet(type: ListType, filePath: string): Promise
   }
 }
 
+/** The part of a deck the name questions read: its sections, never mutated. */
+export type DeckSections = { readonly sections: readonly DeckSection[] }
+
+/**
+ * Every card name an in-memory deck holds, once per folded name, in deck order,
+ * each in the spelling of its first line — the names a categories sidecar may
+ * key.
+ */
+export function deckCardNames(deck: DeckSections): string[] {
+  const seen = new Set<string>()
+  const names: string[] = []
+  for (const section of deck.sections) {
+    for (const card of section.cards) {
+      const key = foldCategoryCardName(card.name)
+      if (seen.has(key)) continue
+      seen.add(key)
+      names.push(card.name)
+    }
+  }
+  return names
+}
+
 /**
  * The card names an in-memory deck holds, across every section. Always complete:
  * a parsed deck model has no unread lines left in it.
  */
-export function deckCardNameSet(deck: DeckData): Set<string> {
-  return foldedCardNameSet(
-    deck.sections.flatMap((section) => section.cards.map((card) => card.name)),
-  )
+export function deckCardNameSet(deck: DeckSections): Set<string> {
+  return foldedCardNameSet(deckCardNames(deck))
 }

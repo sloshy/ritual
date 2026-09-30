@@ -17,6 +17,7 @@ import {
   resolveImportSourceUrl,
   stripDeckPrintings,
 } from '../importers/url-dispatch'
+import { importCategoryAdvisories } from '../importers/import-categories'
 import { applyCsvImport, type CsvImportMode } from '../importers/csv-apply'
 import {
   CSV_FIELDS,
@@ -854,15 +855,22 @@ export function registerImportCommand(program: Command): void {
           ...saveOptions,
           categories: result.categories,
         })
+        // What the source's categories came to — names Ritual refused, a
+        // categories file that could not be written — is news, never loss.
+        const advisories =
+          outcome.status === 'saved'
+            ? importCategoryAdvisories(result.refusedCategories, outcome.categoryError)
+            : []
         emitImportSummary(
           source,
           'deck',
           outcome,
           saveOptions.dryRun === true,
           scripting,
-          undefined,
+          { warnings: [], advisories },
           keepPrintings,
         )
+        if (scripting.output === 'text') reportAdvisories(advisories)
         return
       }
 

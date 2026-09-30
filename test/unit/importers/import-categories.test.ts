@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
-import { moxfieldDeckCategories } from '../../../src/importers/import-categories'
+import {
+  importCategoryAdvisories,
+  moxfieldDeckCategories,
+} from '../../../src/importers/import-categories'
 import type { DeckSection } from '../../../src/list/deck'
 
 const SECTIONS: DeckSection[] = [
@@ -44,5 +47,15 @@ describe('moxfieldDeckCategories', () => {
 
   test('a deck with no tags maps to no categories', () => {
     expect(moxfieldDeckCategories(undefined, SECTIONS)).toEqual({ cards: [], refused: [] })
+  })
+})
+
+describe('importCategoryAdvisories', () => {
+  test('names the refused categories and a failed write; nothing when there is neither', () => {
+    expect(importCategoryAdvisories(undefined, undefined)).toEqual([])
+    expect(importCategoryAdvisories([], undefined)).toEqual([])
+    const [refused, failed] = importCategoryAdvisories(['a,b'], 'EACCES')
+    expect(refused).toContain('"a,b"')
+    expect(failed).toContain('EACCES')
   })
 })

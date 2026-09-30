@@ -32,6 +32,7 @@ import { runInteractiveLogin } from './login'
 import { stripDeckPrintings } from '../importers/url-dispatch'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
+import { importCategoryAdvisories } from '../importers/import-categories'
 
 type ImportAccountOptions = {
   all?: boolean
@@ -55,6 +56,11 @@ type DeckImportResult = {
   filePath?: string
   /** Why the deck failed or was skipped; absent on success. */
   error?: string
+  /**
+   * Non-fatal notes about the deck's categories (names Ritual refused, a
+   * categories file that could not be written); absent when there are none.
+   */
+  advisories?: string[]
 }
 
 /** Structured `--output json`/`ndjson` payload for a whole `import-account` run. */
@@ -295,13 +301,21 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
               })
               continue
             }
+            const advisories = importCategoryAdvisories(
+              fetched.refusedCategories,
+              outcome.categoryError,
+            )
             results.push({
               id: deck.id,
               name: deck.name,
               status: dryRun ? 'planned' : 'imported',
               action: outcome.action,
               filePath: outcome.filePath,
+              ...(advisories.length > 0 ? { advisories } : {}),
             })
+            for (const message of advisories) {
+              getLogger().warn(t('cli.import.advisory', { message }))
+            }
             info(
               `  - ${t('cli.importAccount.deckDone', {
                 state: dryRun ? 'planned' : 'saved',

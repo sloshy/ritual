@@ -123,6 +123,8 @@ describe('moxfield category tags', () => {
     expect(moxfieldTagToken('Board Wipes')).toBeUndefined()
     // `#!` is Moxfield's global-tag marker.
     expect(moxfieldTagToken('!Staple')).toBeUndefined()
+    // A token Ritual's own reader would refuse, losing the whole line on re-import.
+    expect(moxfieldTagToken('Tokens&Extras')).toBeUndefined()
     const cards = [
       { quantity: 1, name: 'Wrath of God', categories: ['Board Wipes', 'Removal', '!Staple'] },
       { quantity: 1, name: 'Damnation', categories: ['Board Wipes'] },

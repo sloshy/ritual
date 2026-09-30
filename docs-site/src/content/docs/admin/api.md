@@ -2526,10 +2526,10 @@ Output:
 
 - `format` is `csv` (default), `json`, `text` (a plain-text decklist, quantities aggregated), or `md` (canonical list markdown without `&N` ids) — see [export formats](/commands/export/#formats).
 - `columns`, `header`, and `quoteAll` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination).
-- `dialect` is the output vocabulary, ignored for `md` — see [dialects](/commands/export/#dialects). For `csv`/`json` it spells finish and condition: `ritual` (the default; `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`). For `text` it picks the decklist form: `arena` and `moxfield` write bare board markers over `1 Name (SET) CN` lines (moxfield splices `*F*`/`*E*` between the set and the collector number) and omit maybeboard/token cards, naming them in the response's `warnings`.
+- `dialect` is the output vocabulary, ignored for `md` — see [dialects](/commands/export/#dialects). For `csv`/`json` it spells finish and condition: `ritual` (the default; `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`). For `text` it picks the decklist form: `arena` and `moxfield` write bare board markers over `1 Name (SET) CN` lines (moxfield splices `*F*`/`*E*` between the set and the collector number, and closes each line with the card's categories as `#tag` tokens) and omit maybeboard/token cards, naming them in the response's `warnings`.
 - An unknown `dialect` or `preset` is a `400`.
 - A selected `scryfallId` column is resolved from the local Scryfall cache.
-- The `categories` column exports the card name's [categories](/commands/categories/) in that list, comma-joined primary first, and `primaryCategory` just the first of them. Both are empty for an uncategorized card, and the `text`/`md` formats drop them.
+- The `categories` column exports the card name's [categories](/commands/categories/) in that list, comma-joined primary first, and `primaryCategory` just the first of them. Both are empty for an uncategorized card. The `md` format and every `text` dialect but `moxfield` drop them; `moxfield` text writes them as `#tag` tokens.
 
 **Response:** the body is discriminated by `mode`.
 
@@ -2569,6 +2569,7 @@ The file lands under an `exports/` directory in the base dir, which [`init-site`
 - list parse warnings;
 - `cards` terms that matched nothing;
 - one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (with per-section counts);
+- one entry naming the categories a `text` export in the `moxfield` dialect could not write as tags (a space, a leading `!`, or a character a Ritual tag cannot hold);
 - one entry per list whose [categories sidecar](/list-format/#categories-namecategoriesjson) could not be read (that list exports with empty category cells);
 - when the `scryfallId` column is selected, one entry per printing the local Scryfall cache does not hold (that cell renders empty).
 
@@ -2645,8 +2646,10 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 ```
 
 - `warnings` lists text lines the parser skipped — content that was **not** imported (always empty for URL imports).
-- `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops.
+- `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. On a URL import it carries notes about the source's [categories](/commands/import/#categories-from-a-url-import): names Ritual refused, or a categories file that could not be written.
 - When either array is non-empty, `message` notes the count.
+
+A URL import from Archidekt or Moxfield also writes the deck's `<deck>.categories.json` (and its `.sha256`), replacing the file a replaced deck had; with git auto-commit enabled, the categories and primer files are committed with the deck.
 
 Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO/Moxfield exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers, and a `*F*`/`*E*` finish marker either trailing or between the set and the collector number).
 

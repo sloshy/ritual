@@ -36,6 +36,7 @@ import {
   type CommitCategoryChangesResult,
 } from '../list/card-categories-sidecar'
 import { loadDefaultCategories } from '../config/ritual-config'
+import { deckCardNames, deckCardNameSet } from '../list/card-names'
 
 /**
  * An existing list an import would replace, and how it was matched. Only a
@@ -98,8 +99,10 @@ type SaveTarget = { filePath: string; name: string; action: SaveListAction }
  * A completed save. `writtenFiles` holds the files it wrote **besides** the list
  * file and its `.sha256` — the primer and categories sidecars — for the caller's
  * auto-commit set, as `CsvImportSuccess.writtenFiles` does. Empty on a dry run.
+ * `categoryError` says why the categories file could not be written; the list
+ * itself was, so it is news for the caller's advisories, not a failure.
  */
-type SavedList = { status: 'saved'; writtenFiles: string[] } & SaveTarget
+type SavedList = { status: 'saved'; writtenFiles: string[]; categoryError?: string } & SaveTarget
 
 /** Result of {@link saveDeck} / {@link saveFlatList}: where the list went, or a prompt cancel. */
 export type SaveListOutcome = SavedList | { status: 'cancelled' }
@@ -379,7 +382,7 @@ export async function saveDeck(
     const committed = await commitImportedDeckCategories(filePath, deckData, categories)
     outcome.writtenFiles.push(...committed.writtenFiles)
     if (committed.error !== undefined) {
-      getLogger().warn(t('cli.import.categoriesFailed', { reason: committed.error }))
+      outcome.categoryError = committed.error
     } else if (categories.length > 0) {
       saveInfo(
         resolvedOptions,
@@ -410,19 +413,14 @@ async function commitImportedDeckCategories(
   const byName = new Map(
     categories.map((entry) => [foldCategoryCardName(entry.name), entry.categories]),
   )
-  const names = new Map<string, string>()
-  for (const section of deck.sections) {
-    for (const card of section.cards) {
-      const key = foldCategoryCardName(card.name)
-      if (!names.has(key)) names.set(key, card.name)
-    }
-  }
   const changes = [
     createSetCategoryOrderChange([]),
-    ...[...names].map(([key, name]) => createSetCategoriesChange(name, byName.get(key) ?? [])),
+    ...deckCardNames(deck).map((name) =>
+      createSetCategoriesChange(name, byName.get(foldCategoryCardName(name)) ?? []),
+    ),
   ]
   return commitCategoryChanges(filePath, changes, {
-    knownCardNames: new Set(names.keys()),
+    knownCardNames: deckCardNameSet(deck),
     defaultCategories: await loadDefaultCategories(),
   })
 }

@@ -6,24 +6,24 @@
  */
 
 import {
+  CARD_CATEGORY_SHAPE_CLAUSE,
   foldCategoryCardName,
   sameCardCategories,
   type CardCategory,
 } from '../card/card-categories'
 import { createSetCategoriesChange, type SetCategoriesChange } from '../changes/change-event'
+import type { ArchidektDeckCategories } from '../importers/archidekt-categories'
 import {
-  collectArchidektCategories,
-  indexArchidektCategories,
-  type ArchidektDeckCategories,
-} from '../importers/archidekt-categories'
-import type { ArchidektRawDeckResponse } from '../importers/archidekt-types'
+  parseArchidektDeckCategories,
+  type ArchidektRawDeckResponse,
+} from '../importers/archidekt-types'
 import {
   cardCategoriesOf,
   loadCardCategories,
   type CardCategoriesRecord,
 } from '../list/card-categories-sidecar'
 import type { DeckData } from '../list/deck'
-import { foldedCardNameSet } from '../list/card-names'
+import { deckCardNames, deckCardNameSet } from '../list/card-names'
 import type { LocalCategoriesOf } from './upload-plan'
 
 /**
@@ -36,42 +36,22 @@ export async function loadDeckCategories(filePath: string): Promise<CardCategori
   return loaded.ok ? loaded.categories : loaded.message
 }
 
-/** The remote deck's role categories per card, read off the raw payload a sync fetched. */
+/**
+ * The remote deck's role categories per card, read off the raw payload a sync
+ * fetched through the same parser the URL import uses — so a legacy payload's
+ * numeric category ids resolve to names here too.
+ */
 export function remoteDeckCategories(raw: ArchidektRawDeckResponse): ArchidektDeckCategories {
-  return collectArchidektCategories(
-    raw.cards.map((entry) => ({
-      cardName: entry.card.oracleCard.name,
-      categories: entry.categories,
-    })),
-    indexArchidektCategories(raw.categories),
-  )
-}
-
-/** Every card name the deck holds, once per folded name, in the deck's own spelling. */
-export function deckCardNames(deck: DeckData): string[] {
-  const seen = new Set<string>()
-  const names: string[] = []
-  for (const section of deck.sections) {
-    for (const card of section.cards) {
-      const key = foldCategoryCardName(card.name)
-      if (seen.has(key)) continue
-      seen.add(key)
-      names.push(card.name)
-    }
-  }
-  return names
-}
-
-/** The deck's card names folded into the sidecar's key space — a pull's prune set. */
-export function deckCardNameSet(deck: DeckData): Set<string> {
-  return foldedCardNameSet(deckCardNames(deck))
+  return parseArchidektDeckCategories(raw)
 }
 
 /**
  * The `set-categories` events that make the local sidecar hold the remote
- * deck's categories for every card the (post-pull) deck holds — a card the
- * remote files under no role category is cleared. Entries for cards the deck
- * no longer holds are the prune's business, not an event's.
+ * deck's categories for every card both the (post-pull) deck and Archidekt
+ * hold — a card the remote files under no role category is cleared. A local
+ * card Archidekt does not hold at all (a removal `--only additions` kept) is
+ * left alone, and entries for cards the deck no longer holds are the prune's
+ * business, not an event's.
  */
 export function pullCategoryChanges(
   local: CardCategoriesRecord,
@@ -83,6 +63,7 @@ export function pullCategoryChanges(
   )
   const changes: SetCategoriesChange[] = []
   for (const name of deckCardNames(deck)) {
+    if (!remote.held.has(foldCategoryCardName(name))) continue
     const next = remoteByName.get(foldCategoryCardName(name))
     if (sameCardCategories(cardCategoriesOf(local, name), next)) continue
     changes.push(createSetCategoriesChange(name, next ?? []))
@@ -107,5 +88,5 @@ export function localCategoriesFor(
 
 /** The log line for Archidekt category names Ritual's name rule refused. */
 export function refusedCategoriesMessage(refused: readonly string[]): string {
-  return `Skipped ${refused.length === 1 ? 'an Archidekt category' : `${refused.length} Archidekt categories`} Ritual cannot store (a control character in the name): ${refused.map((name) => JSON.stringify(name)).join(', ')}`
+  return `Skipped ${refused.length === 1 ? 'an Archidekt category' : `${refused.length} Archidekt categories`} Ritual cannot store (${CARD_CATEGORY_SHAPE_CLAUSE}): ${refused.map((name) => JSON.stringify(name)).join(', ')}`
 }

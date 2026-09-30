@@ -69,6 +69,20 @@ describe('Moxfield Importer', () => {
     expect(categories).toEqual([{ name: 'Sol Ring', categories: ['Ramp', 'Mana Rock'] }])
   })
 
+  test('a deck with no tags still speaks for categories, and refused tags are returned', async () => {
+    // `[]` rather than `undefined`: an import from Moxfield replaces a replaced
+    // deck's categories, which `saveDeck` reads off the difference.
+    const untagged = await fetchMoxfieldDeck('12345', new MoxfieldClient(makeMockHttpClient()))
+    expect(untagged.categories).toEqual([])
+    const refused = await fetchMoxfieldDeck(
+      '12345',
+      new MoxfieldClient(
+        makeMockHttpClient({ ...deckResponse, authorTags: { 'Sol Ring': ['Ra\u0001mp'] } }),
+      ),
+    )
+    expect(refused.refusedCategories).toEqual(['Ra\u0001mp'])
+  })
+
   test('fetches and parses deck with primer via separate endpoint', async () => {
     const client = new MoxfieldClient(makeMockHttpClient())
     const { deck } = await fetchMoxfieldDeck('12345', client)

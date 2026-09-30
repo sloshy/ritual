@@ -8,7 +8,7 @@ import type { ArchidektClient } from '../clients/ArchidektClient'
 import type { Card } from '../card/card'
 import type { DeckSection } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
-import { archidektEntryPrinting } from '../importers/archidekt-types'
+import { archidektEntryCategoryNames, archidektEntryPrinting } from '../importers/archidekt-types'
 import type {
   ArchidektCardModifier,
   ArchidektRawDeckResponse,
@@ -85,7 +85,8 @@ export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardInd
       cardid: entry.card.id,
       modifier: entry.modifier,
       quantity: entry.quantity,
-      categories: entry.categories ?? [],
+      // `modifyCards/v2/` takes names, so an old payload's ids are resolved here.
+      categories: archidektEntryCategoryNames(entry.categories, rawDeck.categories),
       touched: false,
     }
     const existing = index.get(name)
@@ -263,12 +264,13 @@ function addCategories(
 }
 
 /**
- * Where a newly added relation should sit when the push syncs categories. The
- * local categories replace the role categories a sibling relation would lend,
- * keeping only the sibling's board. A card the local file leaves uncategorized
- * gets {@link addCategories}' answer: a card new to Archidekt has no remote
- * categories to preserve, and an uncategorized local card has not said where it
- * goes, so Archidekt's own default is the better home than none at all.
+ * Where a newly added relation should sit when the push syncs categories. A
+ * card the deck already holds takes its sibling's board and the local
+ * categories, exactly as the category pass leaves its other relations — so an
+ * uncategorized card is uncategorized on every relation. Only a card new to
+ * Archidekt that the local file leaves uncategorized falls back to
+ * Archidekt's own default: it has no remote categories to preserve and has not
+ * said where it goes, and the default is a better home than none at all.
  */
 function syncedAddCategories(
   siblings: RawCardIndexEntry | undefined,
@@ -276,7 +278,7 @@ function syncedAddCategories(
   categoryIndex: ArchidektCategoryIndex,
   local: readonly CardCategory[],
 ): string[] {
-  if (local.length === 0) return addCategories(siblings, defaultCategory)
+  if (siblings === undefined && local.length === 0) return addCategories(undefined, defaultCategory)
   return composeArchidektCategories(siblings?.relations[0].categories, categoryIndex, local)
 }
 

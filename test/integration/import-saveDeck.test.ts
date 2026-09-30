@@ -312,6 +312,7 @@ describe('saveDeck (Integration)', () => {
         await saveDeck(sampleDeck, dir, {
           categories: [{ name: 'Sol Ring', categories: ['Ramp'] }],
         })
+        expect(await Bun.file(categoriesPath(dir)).exists()).toBe(true)
         await saveDeck(sampleDeck, dir, { forceOverwrite: true, categories: [] })
         expect(await Bun.file(categoriesPath(dir)).exists()).toBe(false)
       })

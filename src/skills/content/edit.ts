@@ -178,9 +178,8 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
   a move**. The value is comma-separated and **the first entry is the card's primary
   category** (\`--categories "Ramp, Artifacts"\`); repeating the flag appends, because
   order is meaning. It is a whole-list replacement, not a per-category delta: an
-  empty value is a usage error and \`--no-categories\` is the clear. Names follow the
-  tag shape rule (plain text, no \`#\`, \`,\`, \`&\`, \`*\`, quotes, brackets, braces or
-  parentheses; case and spaces kept). The assignment is written to
+  empty value is a usage error and \`--no-categories\` is the clear. Names are plain
+  text without a comma or a control character (case and spaces kept). The assignment is written to
   \`<list>.categories.json\` plus its \`.sha256\` — both reported in the run's
   \`writtenFiles\` — and recorded as \`Set categories of "Sol Ring" to Ramp, Artifacts\`
   (or \`Cleared categories of "Sol Ring"\`). Categories are the third kind, distinct
@@ -517,7 +516,7 @@ warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
 \`language\` (Scryfall language code; blank for English), \`labels\`
 (effective labels, comma-joined), \`tags\` (the card's tags, comma-joined, no \`#\`),
 \`categories\` (the card name's categories in that list, comma-joined, primary
-first — empty for an uncategorized card; text/md exports drop them),
+first — empty for an uncategorized card; md and every text dialect but moxfield drop them),
 \`primaryCategory\` (just the first of them), \`note\`,
 \`section\`, \`listName\`, \`listType\`. Columns apply to
 csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\`
@@ -538,7 +537,8 @@ splicing its \`*F*\`/\`*E*\` finish marker between the set and the collector
 number (\`1 Name (SET) *F* CN\`), where Moxfield's bulk-edit grammar puts it,
 and closing each line with the card's categories as Moxfield tags
 (\`#Ramp #Artifacts\`, primary first). Moxfield documents only single-word tags,
-so a category with a space (or a leading \`!\`) is left out and warned about;
+so a category with a space, a leading \`!\`, or a character a Ritual tag cannot hold
+(\`#\`, \`&\`, brackets…) is left out and warned about;
 \`ritual import\` reads those \`#\` tokens back as per-copy tags, not
 categories (a Moxfield *URL* import is the path that brings tags in as
 categories).

@@ -149,6 +149,9 @@ export const domainMeta = {
   'domain.count.printings': {
     description: `${COUNT_CONTEXT} Card printings (a specific set/collector-number/finish of a card), e.g. in a deck sync's "2 printings changed".`,
   },
+  'domain.count.cardCategories': {
+    description: `${COUNT_CONTEXT} Cards whose categories (a card's role in the deck, e.g. Ramp) a deck sync changes, e.g. "3 cards' categories changed".`,
+  },
   'domain.count.collectionLists': {
     description: `${COUNT_CONTEXT} Markdown files holding part of the user's card collection.`,
   },

@@ -146,7 +146,7 @@ Archidekt's categories and Moxfield's tags are what Ritual calls [categories](/c
 - **Moxfield** tags carry no board meaning, so every tag on a card the deck holds becomes a category.
 - **MTGGoldfish** has no categories, and its imports leave the categories file alone.
 - **An overwrite replaces the categories file.** Importing over an existing deck from Archidekt or Moxfield leaves exactly the source's categories; a card the source leaves untagged loses any it had.
-- A category name Ritual cannot store (one holding a control character) is skipped with a warning. In practice this does not happen.
+- A category name Ritual cannot store (one holding a comma or a control character) is skipped and reported as an advisory (on stderr, and in the JSON `advisories` array). So is a categories file that could not be written; the deck itself still imports.
 
 `--dry-run` reports the categories file it would write without writing it. [`import-account`](/commands/import-account/), the admin Import Deck page, and the MCP `import_deck` tool import categories the same way.
 

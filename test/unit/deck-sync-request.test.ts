@@ -28,13 +28,15 @@ describe('parseDeckSyncBody', () => {
     } satisfies DeckSyncRequest)
   })
 
-  test('keeps the requested decks, trimmed, and both flags', () => {
+  test('keeps the requested decks, trimmed, and every flag', () => {
     expect(
       parseDeckSyncBody({
         direction: 'push',
         decks: ['  Winota Stax ', '', '  '],
         dryRun: true,
         ignoreUnreadableLines: true,
+        syncPrintings: true,
+        syncCategories: true,
       }),
     ).toEqual({
       direction: 'push',
@@ -42,8 +44,8 @@ describe('parseDeckSyncBody', () => {
       dryRun: true,
       ignoreUnreadableLines: true,
       force: false,
-      syncPrintings: false,
-      syncCategories: false,
+      syncPrintings: true,
+      syncCategories: true,
     } satisfies DeckSyncRequest)
   })
 
@@ -205,7 +207,13 @@ describe('parseDeckSyncQuery', () => {
 
   // These flags decide whether files are rewritten and what a push overwrites,
   // so an unreadable value is an error rather than a silent "no".
-  const booleanFlags = ['dryRun', 'ignoreUnreadableLines', 'force', 'syncPrintings'] as const
+  const booleanFlags = [
+    'dryRun',
+    'ignoreUnreadableLines',
+    'force',
+    'syncPrintings',
+    'syncCategories',
+  ] as const
   for (const flag of booleanFlags) {
     test(`rejects a ${flag} value it cannot read rather than running for real`, () => {
       expect(parseDeckSyncQuery(new URLSearchParams(`direction=pull&${flag}=1`))).toBe(

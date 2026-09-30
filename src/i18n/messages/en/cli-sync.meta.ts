@@ -152,14 +152,6 @@ export const cliSyncMeta = {
     description:
       "Confirmation that a deck import wrote the source's card categories (a card's role in the deck, e.g. Ramp) to the categories file at {path}. {count} is the number of cards with categories.",
   },
-  'cli.import.categoriesRefused': {
-    description:
-      "Warning during a deck import from Archidekt or Moxfield: some card category names (a card's role in the deck) break Ritual's name rule and were skipped. {names} is the quoted list of those names, verbatim.",
-  },
-  'cli.import.categoriesFailed': {
-    description:
-      'Warning after a deck import succeeded but its categories file could not be written; {reason} is the English cause.',
-  },
   'cli.import.dryRunOverwriteList': {
     description:
       'Dry-run preview of a collection/wanted import that would replace an existing file. {label} is the list type as prose.',

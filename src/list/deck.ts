@@ -77,4 +77,9 @@ export interface DeckData {
 export type ImportedDeck = {
   deck: DeckData
   categories?: CardCategoryEntry[]
+  /**
+   * Category names the source uses that Ritual's name rule refused, so they
+   * were left out of {@link categories}. For the caller's advisories.
+   */
+  refusedCategories?: string[]
 }

@@ -23,10 +23,12 @@
  */
 
 import {
-  foldCardCategory,
   foldCategoryCardName,
+  normalizeCardCategories,
   parseCardCategory,
+  parseCardCategoryNames,
   type CardCategory,
+  type LenientCardCategories,
 } from '../card/card-categories'
 import type { CardCategoryEntry } from '../list/card-categories-record'
 import {
@@ -104,33 +106,14 @@ export function archidektEntrySection(
   return canonicalSectionName(role)
 }
 
-/** A relation's role categories, and the ones Ritual's name rule refused. */
-export type ArchidektRoleCategories = {
-  categories: CardCategory[]
-  refused: string[]
-}
-
 /** The role categories among a relation's categories, canonical and in relation order. */
 export function archidektRoleCategories(
   categoryNames: readonly string[] | null | undefined,
   index: ArchidektCategoryIndex,
-): ArchidektRoleCategories {
-  const categories: CardCategory[] = []
-  const refused: string[] = []
-  const seen = new Set<string>()
-  for (const name of categoryNames ?? []) {
-    if (archidektCategoryBoard(name, index) !== undefined) continue
-    const parsed = parseCardCategory(name)
-    if (!parsed.ok) {
-      refused.push(name)
-      continue
-    }
-    const key = foldCardCategory(parsed.category)
-    if (seen.has(key)) continue
-    seen.add(key)
-    categories.push(parsed.category)
-  }
-  return { categories, refused }
+): LenientCardCategories {
+  return parseCardCategoryNames(
+    (categoryNames ?? []).filter((name) => archidektCategoryBoard(name, index) === undefined),
+  )
 }
 
 /** One Archidekt relation as the category collector reads it. */
@@ -145,6 +128,12 @@ export type ArchidektDeckCategories = {
   cards: CardCategoryEntry[]
   /** Category names Ritual's name rule refused, deduplicated, in first-seen order. */
   refused: string[]
+  /**
+   * Every card name the deck holds, folded — categorized or not. A pull speaks
+   * only for these: a local card Archidekt does not hold (a removal an
+   * `--only additions` run kept) has no remote categories to adopt.
+   */
+  held: Set<string>
 }
 
 /**
@@ -157,41 +146,54 @@ export function collectArchidektCategories(
   index: ArchidektCategoryIndex,
 ): ArchidektDeckCategories {
   const byName = new Map<string, CardCategoryEntry>()
-  const refused: string[] = []
+  const refused = new Set<string>()
+  const held = new Set<string>()
   for (const entry of entries) {
-    const role = archidektRoleCategories(entry.categories, index)
-    for (const name of role.refused) if (!refused.includes(name)) refused.push(name)
-    if (role.categories.length === 0) continue
     const key = foldCategoryCardName(entry.cardName)
+    held.add(key)
+    const role = archidektRoleCategories(entry.categories, index)
+    for (const name of role.refused) refused.add(name)
+    if (role.categories.length === 0) continue
     const existing = byName.get(key)
     if (existing === undefined) {
       byName.set(key, { name: entry.cardName, categories: role.categories })
       continue
     }
-    const held = new Set(existing.categories.map(foldCardCategory))
-    for (const category of role.categories) {
-      if (!held.has(foldCardCategory(category))) existing.categories.push(category)
-    }
+    existing.categories = normalizeCardCategories([...existing.categories, ...role.categories])
   }
-  return { cards: [...byName.values()], refused }
+  return { cards: [...byName.values()], refused: [...refused], held }
 }
 
 /**
- * The categories a push sends for one relation: the board categories it holds
- * on Archidekt today, then the local role categories. Never holds a null —
- * `modifyCards/v2/` rejects the whole batch over one.
+ * The categories a push sends for one relation: what the local file cannot
+ * speak for, kept as Archidekt has it, then the local role categories. Never
+ * holds a null — `modifyCards/v2/` rejects the whole batch over one.
+ *
+ * Kept from the remote: its **board** categories (a push never moves a card
+ * between boards) and any role category Ritual's name rule refused on the
+ * pull, which the local file therefore never held and must not be read as
+ * having dropped. Skipped from the local list: a category Archidekt would read
+ * as a board (`Sideboard`, or one the deck excludes from its count), since
+ * sending it would move the card — a pull never produces one, so it can only
+ * have come from another source.
+ *
+ * Comparison is exact and order-sensitive ({@link sameArchidektCategories}),
+ * so a relation that lists a board after a role is rewritten once with its
+ * boards first; after that it is stable.
  */
 export function composeArchidektCategories(
   remote: readonly string[] | null | undefined,
   index: ArchidektCategoryIndex,
   local: readonly CardCategory[],
 ): string[] {
-  const boards = (remote ?? []).filter((name) => archidektCategoryBoard(name, index) !== undefined)
-  const seen = new Set(boards.map(categoryKey))
-  const result = [...boards]
+  const kept = (remote ?? []).filter(
+    (name) => archidektCategoryBoard(name, index) !== undefined || !parseCardCategory(name).ok,
+  )
+  const seen = new Set(kept.map(categoryKey))
+  const result = [...kept]
   for (const category of local) {
     const key = categoryKey(category)
-    if (seen.has(key)) continue
+    if (seen.has(key) || archidektCategoryBoard(category, index) !== undefined) continue
     seen.add(key)
     result.push(category)
   }

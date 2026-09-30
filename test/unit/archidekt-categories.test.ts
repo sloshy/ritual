@@ -29,7 +29,8 @@ const INDEX = indexArchidektCategories(DEFINITIONS)
 
 describe('archidektCategoryBoard', () => {
   test('a section alias is a board, whatever its flags', () => {
-    expect(archidektCategoryBoard('Commander', INDEX)).toBe('commander')
+    const unflagged = indexArchidektCategories([{ id: 1, name: 'Commander', isPremier: false }])
+    expect(archidektCategoryBoard('Commander', unflagged)).toBe('commander')
     expect(archidektCategoryBoard('Sideboard', INDEX)).toBe('sideboard')
     expect(archidektCategoryBoard('maybeboard', indexArchidektCategories([]))).toBe('maybeboard')
     expect(archidektCategoryBoard('Mainboard', INDEX)).toBe('main')
@@ -84,7 +85,7 @@ describe('collectArchidektCategories', () => {
       [
         { cardName: 'Sol Ring', categories: ['Ramp', 'Artifacts'] },
         { cardName: 'Island', categories: ['Land'] },
-        { cardName: 'sol ring', categories: ['Artifacts', 'Staples'] },
+        { cardName: 'sol ring', categories: ['artifacts', 'Staples'] },
         { cardName: 'Winota, Joiner of Forces', categories: ['Commander'] },
       ],
       INDEX,
@@ -96,7 +97,26 @@ describe('collectArchidektCategories', () => {
   })
 })
 
+describe('collectArchidektCategories refusals', () => {
+  test('a name refused on several relations is reported once', () => {
+    const collected = collectArchidektCategories(
+      [
+        { cardName: 'Sol Ring', categories: ['Bad\u0001Name'] },
+        { cardName: 'Island', categories: ['Bad\u0001Name'] },
+      ],
+      INDEX,
+    )
+    expect(collected.refused).toEqual(['Bad\u0001Name'])
+  })
+})
+
 describe('composeArchidektCategories', () => {
+  test('keeps a remote name Ritual refused, and never sends a board as a role', () => {
+    expect(
+      composeArchidektCategories(['Draw, Cantrips', 'Ramp'], INDEX, ['Sideboard', 'Artifacts']),
+    ).toEqual(['Draw, Cantrips', 'Artifacts'])
+  })
+
   test('keeps the relation’s boards and replaces its roles with the local ones', () => {
     expect(composeArchidektCategories(['Commander', 'Ramp'], INDEX, ['Draw', 'Ramp'])).toEqual([
       'Commander',
@@ -126,8 +146,14 @@ describe('parseArchidektDeckResponse / parseArchidektDeckCategories', () => {
         quantity: 1,
         categories: ['Ramp'],
       },
-      // An old payload names categories by id.
+      // An old payload names categories by id — a board, a role, and one the deck
+      // does not define, which names nothing.
       { card: { name: 'Goblin', oracleCard: { name: 'Goblin' } }, quantity: 1, categories: [2] },
+      {
+        card: { name: 'Signet', oracleCard: { name: 'Signet' } },
+        quantity: 1,
+        categories: [5, 99],
+      },
       {
         card: { name: 'Mountain', oracleCard: { name: 'Mountain' } },
         quantity: 5,
@@ -142,15 +168,19 @@ describe('parseArchidektDeckResponse / parseArchidektDeckCategories', () => {
       parsed.sections.map((section) => [section.name, section.cards.map((c) => c.name)]),
     ).toEqual([
       ['Commander', ['Winota']],
-      ['Main', ['Sol Ring', 'Mountain']],
+      ['Main', ['Sol Ring', 'Signet', 'Mountain']],
       ['Maybeboard', ['Goblin']],
     ])
   })
 
   test('categories hold only the roles', () => {
     expect(parseArchidektDeckCategories(deck)).toEqual({
-      cards: [{ name: 'Sol Ring', categories: ['Ramp'] }],
+      cards: [
+        { name: 'Sol Ring', categories: ['Ramp'] },
+        { name: 'Signet', categories: ['Ramp'] },
+      ],
       refused: [],
+      held: new Set(['winota', 'sol ring', 'goblin', 'signet', 'mountain']),
     })
   })
 })

@@ -98,7 +98,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains anything other than a clean sync.
 - Decks that could not be resolved, or that are not sourced from Archidekt, appear as `failed`. A deck with an Archidekt `sourceUrl` but no `sourceId` is `skipped` in an all-decks run and `failed` when you name it explicitly.
 - Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names).
-- Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the cards whose categories the run changed, or would change on a dry run.
+- Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the number of cards whose categories the run changed, or would change on a dry run.
 - `unreadable` lists any deck whose file holds lines the parser could not read, with those lines. See [Unreadable Lines](#unreadable-lines).
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-decks) and the MCP `sync_decks` tool set it when a client cancels between decks.
 
@@ -260,7 +260,7 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
 
 ### What Is Compared
 
-Sync compares **card names** and **quantities**. Pulls also respect the **board** a card lives in (Main, Commander, Sideboard, Maybeboard), so cards land in the right section locally. Archidekt files boards as categories; see [Boards and categories](#boards-and-categories) for which ones count as boards.
+Sync compares **card names** and **quantities**. Pulls also respect the **board** a card lives in (Main, Commander, Sideboard, Maybeboard, and the other reserved sections), so cards land in the right section locally. Archidekt files boards as categories; see [Boards and categories](#boards-and-categories) for which ones count as boards.
 
 Pulls adopt the deck's format from Archidekt. Pushes do not send the local format back.
 
@@ -274,7 +274,7 @@ Not written by default:
 
 Printings are still _read_ without the flag: enough to land a quantity change on the line that holds that printing, and to report a difference the run will not act on. See [Without the flag](#without-the-flag).
 
-> **Note on pushes:** pushes ignore board placement. The Archidekt batch API cannot target a specific remote board/category, so moving a card between boards locally is not pushed (it would otherwise re-add the card to the default mainboard on Archidekt). Board-aware behavior applies to `pull` only.
+> **Note on pushes:** pushes ignore board placement by design. A push keeps each Archidekt entry's board categories exactly as they are, so moving a card between boards locally is not pushed. Board-aware behavior applies to `pull` only.
 
 ### Front Matter
 
@@ -341,7 +341,7 @@ A **category** is a card's role in one deck (`Ramp`, `Removal`, `Board Wipes`). 
 - **Pull**: every card the deck holds after the pull gets exactly the categories Archidekt files it under, in Archidekt's order, the first being primary. A card with no role category on Archidekt loses its local ones. The categories of cards the pull removed are pruned. Each card whose categories changed is recorded in the changelog (`Set categories of "Sol Ring" to Ramp, Artifact`). A pull that changes only categories leaves every card line exactly as written and updates only the front matter's sync stamps.
 - **Push**: every Archidekt card the local deck also holds gets the local categories, keeping any board category it has (`Commander`, `Sideboard`, …): a push never moves a card between boards. A local card with no categories has its Archidekt roles cleared. A card new to Archidekt goes into its local categories, or Archidekt's default category when the local file gives it none.
 
-Each deck's summary line gets a clause: `…, 3 card categories changed` on a pull, `…, 3 card categories to change` on a push. A deck whose only difference is its categories still syncs.
+Each deck's summary line gets a clause: `…, 3 cards' categories changed` on a pull, `…, 3 cards' categories to change` on a push. A deck whose only difference is its categories still syncs.
 
 The rules:
 
@@ -349,7 +349,9 @@ The rules:
 - **An unreadable categories file fails the deck** before anything is written or sent.
 - **`--only` does not filter category changes.** Changing a card's categories neither adds nor removes it.
 - **Card names are the key.** Archidekt holds a card once per printing; when those entries disagree, a pull takes the union in entry order. A push gives every entry of the card the same categories.
-- **Names Ritual cannot store are skipped with a warning.** Anything goes except a comma or a control character, so in practice this never happens.
+- **Names Ritual cannot store are skipped with a warning.** Anything goes except a comma or a control character, so in practice this rarely happens. A push leaves such a category on Archidekt as it is, since the local file never held it.
+- **A local category named like a board is not pushed.** Sending `Sideboard` as a category would move the card on Archidekt, so a push leaves it out.
+- **A pull speaks only for cards Archidekt holds.** A local card the remote deck lacks (one an `--only additions` pull kept) keeps its categories.
 
 ### Boards and categories
 

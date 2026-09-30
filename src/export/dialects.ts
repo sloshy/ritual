@@ -1,5 +1,6 @@
 import type { Condition, Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
+import { isCardTagShaped } from '../card/card-tags'
 import { aggregateQuantities, variantKey } from '../card/card-line'
 import {
   isCommanderSection,
@@ -149,11 +150,14 @@ const MOXFIELD_FINISH_MARKERS: Partial<Record<Finish, string>> = {
  * the grammar cannot spell it. Moxfield documents only single-word tags
  * (`#tag1 #!globaltag1`), so a category holding whitespace has no known
  * spelling — `#Card Draw` would read as tag `Card` plus stray text — and one
- * starting with `!` would read as a *global* tag. Such categories are left
- * out rather than guessed at; see {@link unwritableMoxfieldCategories}.
+ * starting with `!` would read as a *global* tag. A category must also have
+ * Ritual's own tag shape, since `ritual import` reads the token back as a tag
+ * and refuses the whole line over one it cannot parse (`#Tokens&Extras`).
+ * Such categories are left out rather than guessed at; see
+ * {@link unwritableMoxfieldCategories}.
  */
 export function moxfieldTagToken(category: string): string | undefined {
-  return /^[^\s#!][^\s#]*$/.test(category) ? `#${category}` : undefined
+  return /^[^\s!]\S*$/.test(category) && isCardTagShaped(category) ? `#${category}` : undefined
 }
 
 /**

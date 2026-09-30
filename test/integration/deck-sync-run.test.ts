@@ -1111,17 +1111,24 @@ describe('deck-sync custom art (Integration)', () => {
 describe('deck-sync --sync-categories (Integration)', () => {
   const UPDATED_AT = '2026-08-01T00:00:00.000Z'
   const synced = { sourceUpdatedAt: UPDATED_AT }
+  const deckPath = (): string => path.join(dir, 'decks', 'winota-stax.md')
   const sidecarPath = (): string => path.join(dir, 'decks', 'winota-stax.categories.json')
+  const changelogPath = (): string => path.join(dir, 'decks', 'winota-stax.changes.md')
   const readSidecar = async (): Promise<unknown> =>
     JSON.parse(await fs.readFile(sidecarPath(), 'utf-8')) as unknown
+  const writeSidecar = async (cards: Record<string, string[]>): Promise<void> =>
+    fs.writeFile(sidecarPath(), JSON.stringify({ order: [], cards }))
 
   /**
-   * A remote Sol Ring filed under `categories`, beside the deck's own category
-   * definitions — the flags are what make `Commander` a board and `Artifact` a
-   * role.
+   * A remote Sol Ring filed under `categories`, plus `extraCards`, beside the
+   * deck's own category definitions — the flags are what make `Commander` a
+   * board and `Artifact` a role.
    */
-  function categorizedRoutes(categories: string[]): Record<string, StubRoute> {
-    const deck = remoteDeck(UPDATED_AT) as { cards: { categories: string[] }[] }
+  function categorizedRoutes(
+    categories: string[],
+    extraCards: unknown[] = [],
+  ): Record<string, StubRoute> {
+    const deck = remoteDeck(UPDATED_AT, {}, extraCards) as { cards: { categories: string[] }[] }
     deck.cards[0]!.categories = categories
     return {
       ...pushRoutes(UPDATED_AT),
@@ -1145,31 +1152,82 @@ describe('deck-sync --sync-categories (Integration)', () => {
     expect(await Bun.file(sidecarPath()).exists()).toBe(false)
   })
 
-  test('a pull with the flag writes the remote roles and leaves the card lines alone', async () => {
-    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
-    const before = await readDeck()
+  test('a categories-only pull writes the remote roles and leaves the card lines as written', async () => {
+    // A bulletless line is read but never written: a full re-serialize would add
+    // the `- `, so an unchanged body proves only the front matter was stamped.
+    const body = '# Winota Stax\n\n## Main\n1 Sol Ring &1\n'
+    await fs.mkdir(path.dirname(deckPath()), { recursive: true })
+    await fs.writeFile(
+      deckPath(),
+      `---\nsourceId: '${DECK_ID}'\nsourceUrl: 'https://archidekt.com/decks/${DECK_ID}'\n` +
+        `sourceUpdatedAt: '${UPDATED_AT}'\n---\n\n${body}`,
+    )
     stubFetch(categorizedRoutes(['Ramp', 'Artifact']))
 
     expect(await runDeckSync(['pull', '--sync-categories'])).toBe(0)
 
-    expect(logged()).toContain('1 card categories changed')
+    expect(logged()).toContain("1 card's categories changed")
     expect(await readSidecar()).toEqual({
       order: ['Ramp', 'Artifact'],
       cards: { 'Sol Ring': ['Ramp', 'Artifact'] },
     })
-    // Only the categories moved, so only the front matter's stamp changed.
-    const body = (text: string): string => text.slice(text.indexOf('# Winota Stax'))
-    expect(body(await readDeck())).toBe(body(before))
-    const changelog = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
+    expect(await readDeck()).toEndWith(`\n${body}`)
+    const changelog = await fs.readFile(changelogPath(), 'utf-8')
     expect(changelog).toContain('Set categories of "Sol Ring" to Ramp, Artifact')
+  })
+
+  test('a dry-run pull reports the category changes and writes nothing', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    const before = await readDeck()
+    stubFetch(categorizedRoutes(['Ramp']))
+
+    expect(await runDeckSync(['pull', '--sync-categories', '--dry-run'])).toBe(0)
+
+    expect(logged()).toContain("1 card's categories changed")
+    expect(await Bun.file(sidecarPath()).exists()).toBe(false)
+    expect(await Bun.file(changelogPath()).exists()).toBe(false)
+    expect(await readDeck()).toBe(before)
+  })
+
+  test('a pull prunes the categories of the cards it removed', async () => {
+    await writeLinkedDeck(
+      [
+        { quantity: 1, name: 'Sol Ring', cardId: 1 },
+        { quantity: 1, name: 'Cavern-Hoard Dragon', cardId: 2 },
+      ],
+      synced,
+    )
+    await writeSidecar({ 'Sol Ring': ['Ramp'], 'Cavern-Hoard Dragon': ['Finishers'] })
+    stubFetch(categorizedRoutes(['Ramp']))
+
+    expect(await runDeckSync(['pull', '--sync-categories'])).toBe(0)
+
+    expect(await readDeck()).not.toContain('Cavern-Hoard Dragon')
+    expect(await readSidecar()).toMatchObject({ cards: { 'Sol Ring': ['Ramp'] } })
+    expect(JSON.stringify(await readSidecar())).not.toContain('Cavern-Hoard Dragon')
+  })
+
+  test('a pull that keeps a card Archidekt lacks leaves its categories alone', async () => {
+    await writeLinkedDeck(
+      [
+        { quantity: 1, name: 'Sol Ring', cardId: 1 },
+        { quantity: 1, name: 'Cavern-Hoard Dragon', cardId: 2 },
+      ],
+      synced,
+    )
+    await writeSidecar({ 'Sol Ring': ['Ramp'], 'Cavern-Hoard Dragon': ['Finishers'] })
+    stubFetch(categorizedRoutes(['Ramp']))
+
+    expect(await runDeckSync(['pull', '--sync-categories', '--only', 'additions'])).toBe(0)
+
+    expect(await readSidecar()).toMatchObject({
+      cards: { 'Sol Ring': ['Ramp'], 'Cavern-Hoard Dragon': ['Finishers'] },
+    })
   })
 
   test('a push sends the local roles and keeps the remote board category', async () => {
     await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
-    await fs.writeFile(
-      sidecarPath(),
-      JSON.stringify({ order: ['Draw'], cards: { 'Sol Ring': ['Draw'] } }),
-    )
+    await writeSidecar({ 'Sol Ring': ['Draw'] })
     stubFetch(categorizedRoutes(['Commander', 'Ramp']))
 
     expect(await runDeckSync(['push', '--sync-categories'])).toBe(0)
@@ -1177,7 +1235,26 @@ describe('deck-sync --sync-categories (Integration)', () => {
     expect(pushedEntries()).toMatchObject([
       { action: 'modify', deckRelationId: 11, categories: ['Commander', 'Draw'] },
     ])
-    expect(logged()).toContain('1 card categories to change')
+    expect(logged()).toContain("1 card's categories to change")
+  })
+
+  test('a push leaves the categories of a card the local deck lacks alone', async () => {
+    // `--only additions` skips the removal, so Lightning Bolt stays on Archidekt;
+    // the local file says nothing about it, so its categories are not touched.
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    await writeSidecar({ 'Sol Ring': ['Draw'] })
+    const bolt = remoteEntry(12, 'Lightning Bolt', 1, {
+      set: 'lea',
+      collectorNumber: '161',
+      cardId: 502,
+    }) as { categories: string[] }
+    bolt.categories = ['Removal']
+    stubFetch(categorizedRoutes(['Ramp'], [bolt]))
+
+    expect(await runDeckSync(['push', '--sync-categories', '--only', 'additions'])).toBe(0)
+
+    expect(pushedEntries()).toMatchObject([{ deckRelationId: 11, categories: ['Draw'] }])
+    expect(pushedEntries()).toHaveLength(1)
   })
 
   test('a push from a deck with no local categories leaves Archidekt’s alone', async () => {
@@ -1189,4 +1266,21 @@ describe('deck-sync --sync-categories (Integration)', () => {
     expect(logged()).toContain('The local deck has no categories')
     expect(pushedToArchidekt()).toBe(false)
   })
+
+  test.each(['pull', 'push'])(
+    'a %s with an unreadable categories file fails the deck before writing or sending',
+    async (direction) => {
+      await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+      await fs.writeFile(sidecarPath(), '{ not json')
+      const before = await readDeck()
+      stubFetch(categorizedRoutes(['Ramp']))
+
+      expect(await runDeckSync([direction, '--sync-categories'])).toBe(1)
+
+      expect(logged()).toContain('Could not read the categories file')
+      expect(await readDeck()).toBe(before)
+      expect(await fs.readFile(sidecarPath(), 'utf-8')).toBe('{ not json')
+      expect(pushedToArchidekt()).toBe(false)
+    },
+  )
 })
