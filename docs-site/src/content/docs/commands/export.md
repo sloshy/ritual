@@ -103,6 +103,8 @@ In the default `ritual` dialect (and in `archidekt`, which has no plain-text for
 
 In the `arena` and `moxfield` dialects: bare board markers over `{quantity} {Name} ({SET}) {Collector Number}` lines, the form those sites import. Sections map to boards (`Commander`, `Companion`, `Sideboard`, everything else `Deck`), except maybeboard and token sections, which are [left out entirely](#maybeboard-and-token-sections). Aggregation is per board. `moxfield` puts its `*F*` / `*E*` finish marker **between the set and the collector number**, following [Moxfield's bulk-edit grammar](https://moxfield.com/help) (`{quantity} {Name} ({SET}) *F* {Collector Number}`).
 
+`moxfield` also writes each card's [categories](/commands/categories/) as Moxfield **tags** at the end of the line, primary first: `1 Sol Ring (C21) 263 #Ramp #Artifacts`. Moxfield's grammar documents only single-word tags, so a category with a space in it (`Board Wipes`), or one starting with `!` (Moxfield's global-tag marker), is left out, and the export warns naming each one. Importing the file back with [`ritual import`](/commands/import/) reads those `#` tokens as Ritual's per-copy [tags](/list-format/#card-tags), not categories: pasted text cannot tell the two apart. To bring a Moxfield deck's tags in as categories, import it by URL; see [Categories from a URL import](/commands/import/#categories-from-a-url-import).
+
 ```text
 Commander
 1 Atraxa, Praetors' Voice (CMR) 523
@@ -169,12 +171,12 @@ Notes on values:
 
 A dialect decides how an export is spelled, so it can be fed straight into another tool's importer. `csv`/`json` take their **values** from it, `text` takes its **line and board form**, and `md` takes nothing (`--dialect` with `--format md` is a usage error).
 
-| Dialect            | `csv` / `json` values                                                                                                       | `text` lines                                                       |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `ritual` (default) | `finish` as `nonfoil` / `foil` / `etched` (blank when the line marks none); `condition` as `NM`…`DMG` (blank when unmarked) | One flat list of `1 Sol Ring (C21:263)` lines                      |
-| `archidekt`        | `finish` as `Normal` / `Foil` / `Etched` under a **`Variant`** header; `condition` as `NM` / `LP` / `MP` / `HP` / `D`       | Same as `ritual` — Archidekt's lane is the CSV preset              |
-| `arena`            | Same as `ritual`                                                                                                            | Board markers over `1 Sol Ring (C21) 263` lines, no finish marker  |
-| `moxfield`         | Same as `ritual`                                                                                                            | The `arena` form with `*F*` / `*E*` between the set and the number |
+| Dialect            | `csv` / `json` values                                                                                                       | `text` lines                                                                                        |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `ritual` (default) | `finish` as `nonfoil` / `foil` / `etched` (blank when the line marks none); `condition` as `NM`…`DMG` (blank when unmarked) | One flat list of `1 Sol Ring (C21:263)` lines                                                       |
+| `archidekt`        | `finish` as `Normal` / `Foil` / `Etched` under a **`Variant`** header; `condition` as `NM` / `LP` / `MP` / `HP` / `D`       | Same as `ritual` — Archidekt's lane is the CSV preset                                               |
+| `arena`            | Same as `ritual`                                                                                                            | Board markers over `1 Sol Ring (C21) 263` lines, no finish marker                                   |
+| `moxfield`         | Same as `ritual`                                                                                                            | The `arena` form with `*F*` / `*E*` between the set and the number, and categories as `#tag` tokens |
 
 Column keys, the JSON schema, and every property not named above are identical in every dialect.
 

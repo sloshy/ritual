@@ -5,6 +5,7 @@ import {
   aggregateDialectCards,
   isDecklistSection,
   renderDialectText,
+  unwritableMoxfieldCategories,
   type SectionedDialectCard,
 } from './dialects'
 import { storedLanguage } from '../card/card-language'
@@ -331,6 +332,21 @@ function omittedExtrasWarning(entries: readonly ExportEntry[]): string[] {
 }
 
 /**
+ * The warning for categories a `moxfield` decklist could not write as tags.
+ * English by construction, like its sibling above: this module sits inside the
+ * persistence fence.
+ */
+function unwritableCategoriesWarning(cards: readonly SectionedDialectCard[]): string[] {
+  const skipped = unwritableMoxfieldCategories(cards)
+  if (skipped.length === 0) return []
+  return [
+    `Categories not written as Moxfield tags: ${skipped.join(', ')}. ` +
+      'Moxfield’s bulk-edit format documents only single-word tags, so a category ' +
+      'holding a space (or starting with "!") has no spelling it is known to read.',
+  ]
+}
+
+/**
  * Render entries as a plain-text decklist, in the dialect's line form.
  *
  * Either way, identical variants are aggregated first: one line per distinct
@@ -389,10 +405,16 @@ export function renderTextExport(
     finish: entry.finish,
     condition: entry.condition,
     language: entry.language,
+    categories: entry.categories,
   }))
   return {
     content: renderDialectText(aggregateDialectCards(cards), textDialect),
-    warnings: omittedExtrasWarning(entries),
+    warnings: [
+      ...omittedExtrasWarning(entries),
+      ...(textDialect === 'moxfield'
+        ? unwritableCategoriesWarning(cards.filter((card) => isDecklistSection(card.section)))
+        : []),
+    ],
   }
 }
 

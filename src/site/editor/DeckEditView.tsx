@@ -18,6 +18,7 @@ import {
 } from '../../editor/deck-config'
 import { useDeckEditController, DeckEditorBody } from './DeckEditController'
 import { deckToExportText } from '../../list/deck-text'
+import { cardCategoriesOf } from '../../list/card-categories-record'
 import { DeckPage } from '../DeckPage'
 import { siteSearch } from './site-search'
 import { createPublicSwapSourceProvider } from './swap-sources'
@@ -125,7 +126,11 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
           filename: `${safeFilename(deckName())}.txt`,
           build: () => {
             const d = ctrl.editor.data()
-            return d ? deckToExportText(d) : ''
+            return d
+              ? deckToExportText(d, (name) =>
+                  cardCategoriesOf(ctrl.editor.categoriesRecord(), name),
+                )
+              : ''
           },
         },
       ]}

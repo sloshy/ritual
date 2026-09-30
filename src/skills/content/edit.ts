@@ -535,7 +535,13 @@ here and render as \`ritual\`. For \`--format text\` it picks the decklist form:
 \`arena\` and \`moxfield\` write bare \`Commander\`/\`Deck\`/\`Sideboard\` board markers
 over \`1 Name (SET) CN\` lines — the form those sites import — with moxfield
 splicing its \`*F*\`/\`*E*\` finish marker between the set and the collector
-number (\`1 Name (SET) *F* CN\`), where Moxfield's bulk-edit grammar puts it.
+number (\`1 Name (SET) *F* CN\`), where Moxfield's bulk-edit grammar puts it,
+and closing each line with the card's categories as Moxfield tags
+(\`#Ramp #Artifacts\`, primary first). Moxfield documents only single-word tags,
+so a category with a space (or a leading \`!\`) is left out and warned about;
+\`ritual import\` reads those \`#\` tokens back as per-copy tags, not
+categories (a Moxfield *URL* import is the path that brings tags in as
+categories).
 Those two are decklists, so maybeboard and token sections are left out and the
 omitted count and sections are warned about on stderr (\`--quiet\` does not
 silence it). \`ritual\` and \`archidekt\` write one flat \`1 Name (SET:CN)\` list

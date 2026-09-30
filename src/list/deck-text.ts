@@ -84,8 +84,17 @@ export function deckToMarkdown(deck: DeckData): string {
  * warnings channel: the CLI warns because the user may have *named* a maybeboard
  * card in a `--card` selection, whereas a deck download is the whole deck by
  * definition and the page already shows extras behind their own control.
+ *
+ * `categoriesOf` supplies each card's categories, which Moxfield's dialect
+ * writes as its `#tag` tokens (single-word categories only; see
+ * `moxfieldTagToken`). The categories live in a sidecar the deck data does not
+ * carry, so each page hands in its own lookup — the baked record on a read
+ * page, the session's live one in an editor.
  */
-export function deckToExportText(deck: DeckData): string {
+export function deckToExportText(
+  deck: DeckData,
+  categoriesOf?: (cardName: string) => readonly string[] | undefined,
+): string {
   const cards = deck.sections.flatMap((section) =>
     section.cards.map((card): SectionedDialectCard => ({
       section: section.name,
@@ -96,6 +105,7 @@ export function deckToExportText(deck: DeckData): string {
       finish: card.finish,
       condition: card.condition,
       language: card.language,
+      categories: categoriesOf?.(card.name),
     })),
   )
   return renderDialectText(aggregateDialectCards(cards), 'moxfield')

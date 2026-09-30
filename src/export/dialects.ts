@@ -46,7 +46,11 @@ import {
  *   export written here is a file Moxfield's importer takes verbatim. Ritual's
  *   own tokenizer reads the same form back (`MOXFIELD_PRINTING_RE` in
  *   `src/card/card-line-grammar.ts`), so a moxfield export round-trips through
- *   `ritual import`.
+ *   `ritual import`. A card's **categories** — what Moxfield calls tags — ride
+ *   along as that grammar's trailing `#tag` tokens (see
+ *   {@link moxfieldTagToken}); Ritual's importer reads those back as its own
+ *   per-copy tags, not categories, since a pasted `#` cannot be told apart
+ *   from a Ritual tag.
  */
 export type TextDialect = 'arena' | 'moxfield'
 
@@ -108,6 +112,11 @@ export type DialectCard = {
   collectorNumber?: string
   /** Written only by `moxfield`, and only when it is not `nonfoil`. */
   finish?: Finish
+  /**
+   * The card's categories, primary first. Written only by `moxfield`, as its
+   * `#tag` tokens — and only the ones {@link moxfieldTagToken} can spell.
+   */
+  categories?: readonly string[]
 }
 
 /**
@@ -136,6 +145,35 @@ const MOXFIELD_FINISH_MARKERS: Partial<Record<Finish, string>> = {
 }
 
 /**
+ * A category as a Moxfield bulk-edit tag token (`#Ramp`), or `undefined` when
+ * the grammar cannot spell it. Moxfield documents only single-word tags
+ * (`#tag1 #!globaltag1`), so a category holding whitespace has no known
+ * spelling — `#Card Draw` would read as tag `Card` plus stray text — and one
+ * starting with `!` would read as a *global* tag. Such categories are left
+ * out rather than guessed at; see {@link unwritableMoxfieldCategories}.
+ */
+export function moxfieldTagToken(category: string): string | undefined {
+  return /^[^\s#!][^\s#]*$/.test(category) ? `#${category}` : undefined
+}
+
+/**
+ * The categories a `moxfield` decklist of these cards leaves out because
+ * {@link moxfieldTagToken} cannot spell them, deduplicated, in first-seen
+ * order — for the caller's warning.
+ */
+export function unwritableMoxfieldCategories(cards: readonly DialectCard[]): string[] {
+  const skipped: string[] = []
+  for (const card of cards) {
+    for (const category of card.categories ?? []) {
+      if (moxfieldTagToken(category) === undefined && !skipped.includes(category)) {
+        skipped.push(category)
+      }
+    }
+  }
+  return skipped
+}
+
+/**
  * One dialect card line: `2 Lightning Bolt (2XM) 157`, or, in the `moxfield`
  * dialect with a finish to declare, `2 Lightning Bolt (2XM) *F* 157` — the
  * marker sits **between** the set and the collector number, which is where
@@ -147,13 +185,22 @@ const MOXFIELD_FINISH_MARKERS: Partial<Record<Finish, string>> = {
  * would be read back as part of the card's name. A finish on a card with no
  * printing therefore writes no marker either: `1 Sol Ring *F*` names no set for
  * the marker to sit inside, and Moxfield's grammar has no slot for it.
+ *
+ * In the `moxfield` dialect the card's categories close the line as `#tag`
+ * tokens, primary first — the last slot of Moxfield's grammar:
+ * `1 Sol Ring (C21) 263 #Ramp #Artifacts`.
  */
 export function formatDialectCardLine(card: DialectCard, dialect: TextDialect): string {
-  if (!card.set || !card.collectorNumber) return `${card.quantity} ${card.name}`
+  const tags =
+    dialect === 'moxfield'
+      ? (card.categories ?? []).flatMap((category) => moxfieldTagToken(category) ?? [])
+      : []
+  const tagSuffix = tags.length > 0 ? ` ${tags.join(' ')}` : ''
+  if (!card.set || !card.collectorNumber) return `${card.quantity} ${card.name}${tagSuffix}`
   const marker =
     dialect === 'moxfield' && card.finish ? MOXFIELD_FINISH_MARKERS[card.finish] : undefined
   const printing = `(${card.set.toUpperCase()})${marker ? ` ${marker}` : ''} ${card.collectorNumber}`
-  return `${card.quantity} ${card.name} ${printing}`
+  return `${card.quantity} ${card.name} ${printing}${tagSuffix}`
 }
 
 /**
@@ -200,6 +247,7 @@ function groupByBoard(cards: readonly BoardedDialectCard[]): DialectBoardGroup[]
       set: card.set,
       collectorNumber: card.collectorNumber,
       finish: card.finish,
+      categories: card.categories,
     }
     const existing = boards.get(board)
     if (existing) existing.push(line)

@@ -6,6 +6,22 @@ import { deckToExportText, deckToMarkdown, serializeCardLine } from '../../src/l
 const deck = (sections: DeckData['sections']): DeckData => ({ name: 'Test Deck', sections })
 
 describe('deckToExportText', () => {
+  it('writes the categories the caller looks up as Moxfield tags', () => {
+    const text = deckToExportText(
+      deck([
+        {
+          name: 'Main',
+          cards: [
+            { quantity: 1, name: 'Sol Ring' },
+            { quantity: 2, name: 'Island' },
+          ],
+        },
+      ]),
+      (name) => (name === 'Sol Ring' ? ['Ramp'] : undefined),
+    )
+    expect(text).toBe('Deck\n1 Sol Ring #Ramp\n2 Island')
+  })
+
   it('renders the commander board first, then the deck board, with printings', () => {
     const text = deckToExportText(
       deck([

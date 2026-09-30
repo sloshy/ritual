@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import {
   mockPublicSiteCollection,
+  mockPublicSiteDeckWithCategories,
   mockPublicSiteDeckWithSideboard,
   mockPublicSiteWantedList,
 } from '../helpers/mock-public-site'
@@ -48,6 +49,22 @@ test.describe('Page-header export menu', () => {
     await expect(
       page.locator('.export-menu-control button', { hasText: 'Download' }),
     ).toContainText('Download')
+  })
+
+  test('a deck download carries the baked categories as Moxfield tags', async ({ page }) => {
+    await mockPublicSiteDeckWithCategories(page)
+    await page.goto('#/deck/category-deck')
+    await page.waitForSelector('.card-item')
+
+    await openFormat(page, 'Download')
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.locator('.selection-menu-panel button', { hasText: 'Text (.txt)' }).click(),
+    ])
+    // The page hands the renderer its categories lookup; the tag form itself is
+    // pinned in export-dialects.test.ts.
+    const content = readFileSync(await download.path(), 'utf-8')
+    expect(content).toContain('2 Ramp Rock (TST) 1 #Ramp\n1 Plain Card (TST) 4\n')
   })
 
   test('downloads a collection as CSV with the canonical header and rows', async ({ page }) => {

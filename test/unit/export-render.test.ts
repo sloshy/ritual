@@ -230,6 +230,17 @@ describe('renderTextExport', () => {
     )
   })
 
+  test('moxfield writes categories as tags and warns about the ones it cannot spell', () => {
+    const { content, warnings } = renderTextExport(
+      [entry({ name: 'Wrath of God', finish: undefined, categories: ['Removal', 'Board Wipes'] })],
+      'moxfield',
+    )
+    expect(content).toBe('Deck\n1 Wrath of God (LEA) 161 #Removal')
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('not written as Moxfield tags: Board Wipes.')
+    expect(renderTextExport([entry({ categories: ['Board Wipes'] })], 'arena').warnings).toEqual([])
+  })
+
   // Two copies in different boards are two lines, exactly as they are two lines
   // in the deck they came from — the board is part of the aggregation key.
   test('aggregation is per board', () => {

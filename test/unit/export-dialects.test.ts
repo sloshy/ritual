@@ -5,7 +5,9 @@ import {
   dialectBoard,
   isDecklistSection,
   formatDialectCardLine,
+  moxfieldTagToken,
   renderDialectText,
+  unwritableMoxfieldCategories,
   type DialectBoard,
   type DialectCard,
   type SectionedDialectCard,
@@ -92,6 +94,41 @@ describe('formatDialectCardLine', () => {
         'moxfield',
       ),
     ).toBe('1 Sol Ring')
+  })
+})
+
+describe('moxfield category tags', () => {
+  test('moxfield closes the line with the categories as tags, primary first', () => {
+    const line = {
+      quantity: 1,
+      name: 'Sol Ring',
+      set: 'c21',
+      collectorNumber: '263',
+      finish: 'foil' as const,
+      categories: ['Ramp', 'Artifacts'],
+    }
+    expect(formatDialectCardLine(line, 'moxfield')).toBe(
+      '1 Sol Ring (C21) *F* 263 #Ramp #Artifacts',
+    )
+    // A printing-less line still has the grammar's trailing tag slot.
+    expect(
+      formatDialectCardLine({ quantity: 1, name: 'Island', categories: ['Land'] }, 'moxfield'),
+    ).toBe('1 Island #Land')
+    // Arena has no tags.
+    expect(formatDialectCardLine(line, 'arena')).toBe('1 Sol Ring (C21) 263')
+  })
+
+  test('a category Moxfield has no known spelling for is left out, and reported', () => {
+    expect(moxfieldTagToken('Ramp')).toBe('#Ramp')
+    expect(moxfieldTagToken('Board Wipes')).toBeUndefined()
+    // `#!` is Moxfield's global-tag marker.
+    expect(moxfieldTagToken('!Staple')).toBeUndefined()
+    const cards = [
+      { quantity: 1, name: 'Wrath of God', categories: ['Board Wipes', 'Removal', '!Staple'] },
+      { quantity: 1, name: 'Damnation', categories: ['Board Wipes'] },
+    ]
+    expect(formatDialectCardLine(cards[0]!, 'moxfield')).toBe('1 Wrath of God #Removal')
+    expect(unwritableMoxfieldCategories(cards)).toEqual(['Board Wipes', '!Staple'])
   })
 })
 

@@ -468,7 +468,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const serializeDeck = (format: ExportFormat): string => {
     switch (format) {
       case 'txt':
-        return deckToExportText(props.deck)
+        return deckToExportText(props.deck, categoriesFor)
       case 'md':
         return deckToMarkdown(props.deck)
       case 'csv':
