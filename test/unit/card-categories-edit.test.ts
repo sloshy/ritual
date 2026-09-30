@@ -32,7 +32,7 @@ describe('categoryRenameError', () => {
   })
 
   test('refuses a malformed name with the shared shape explanation', () => {
-    expect(categoryRenameError(['Ramp'], 'Ra#mp')).toContain('#')
+    expect(categoryRenameError(['Ramp'], 'Ra\u0001mp')).toContain('control character')
   })
 
   test('refuses a case-insensitive duplicate of another category', () => {

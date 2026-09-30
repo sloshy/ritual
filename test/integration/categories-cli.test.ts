@@ -170,7 +170,7 @@ describe('ritual categories (Integration)', () => {
 
   test('a malformed category name is a usage error', async () => {
     const result = await runCli(
-      ['categories', 'rename', 'binder', '--collection', 'R&D', 'X', '--output', 'json'],
+      ['categories', 'rename', 'binder', '--collection', 'Draw,Ramp', 'X', '--output', 'json'],
       dir,
     )
     expect(result.exitCode).toBe(2)

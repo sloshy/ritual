@@ -569,7 +569,7 @@ export const cliCardsMessages = {
   'cli.categories.unknown': 'No category named "{category}" in {list}.',
   'cli.categories.orderEmpty': 'categories order takes one or more categories separated by commas.',
   'cli.categories.nameInvalid':
-    '{reason} A category is plain text without "#", ",", "&", "*", quotes, brackets, braces or parentheses.',
+    '{reason} A category is plain text without commas or control characters.',
   'cli.categories.sidecarUnreadable': "The list's categories sidecar could not be read: {reason}",
   'cli.categories.menuRename': 'Rename Category…',
   'cli.categories.menuReorder': 'Reorder Categories…',

@@ -20,35 +20,33 @@ import {
 import { isConfigParseError } from '../../src/config/ritual-config'
 
 describe('isCardCategoryShaped / invalidCardCategoryMessage', () => {
-  test('accepts ordinary category names, including punctuation the card line does not use', () => {
-    for (const value of ['Ramp', 'Board Wipes', 'Draw/Filter', 'Ramp: fast', "Ryan's Picks"]) {
+  test("accepts any text without a comma, including the card line's own punctuation", () => {
+    for (const value of [
+      'Ramp',
+      'Board Wipes',
+      'Draw/Filter',
+      "Ryan's Picks",
+      // Archidekt's default extras category: `&` is fine off the card line.
+      'Tokens & Extras',
+      '#Ramp',
+      '[x] (y) {z}',
+      'say "hi"',
+      'a*b',
+    ]) {
       expect(isCardCategoryShaped(value)).toBe(true)
     }
   })
 
-  test('refuses empty text and every character the card line reserves', () => {
-    for (const value of [
-      '',
-      '   ',
-      'a,b',
-      'R&D',
-      '#Ramp',
-      '[x]',
-      '(x)',
-      '{x}',
-      'say "hi"',
-      'a*b',
-    ]) {
+  test('refuses empty text, a comma, and control characters', () => {
+    for (const value of ['', '   ', 'a,b', 'a\u0001b', 'a\nb', 'a\tb']) {
       expect(isCardCategoryShaped(value)).toBe(false)
     }
-    // A control character, written as an escape so the source stays plain text.
-    expect(isCardCategoryShaped('a\u0001b')).toBe(false)
   })
 
   test('the refusal names the raw input and states the shape rule', () => {
     const message = invalidCardCategoryMessage('a,b')
     expect(message).toStartWith('Invalid category "a,b":')
-    expect(message).toEndWith('braces or parentheses.')
+    expect(message).toEndWith('cannot contain a comma or a control character.')
   })
 })
 
@@ -59,10 +57,8 @@ describe('parseCardCategory / normalizeCardCategory', () => {
     expect(parsed).toEqual({ ok: true, category: 'card Draw' })
   })
 
-  test('a leading # is refused rather than stripped — categories have no sigil', () => {
-    const parsed = parseCardCategory('#Ramp')
-    expect(parsed.ok).toBe(false)
-    if (!parsed.ok) expect(parsed.message).toContain('#Ramp')
+  test('a leading # is kept rather than stripped — categories have no sigil', () => {
+    expect(parseCardCategory('#Ramp')).toEqual({ ok: true, category: '#Ramp' })
   })
 })
 
@@ -120,7 +116,7 @@ describe('parseCardCategoriesInput', () => {
   })
 
   test('a malformed part refuses the whole input', () => {
-    expect(parseCardCategoriesInput('Ramp, R&D').ok).toBe(false)
+    expect(parseCardCategoriesInput('Ramp, R\u0001D').ok).toBe(false)
   })
 })
 

@@ -19,11 +19,14 @@
  * `<list>.categories.json` sidecar, keyed by card name, so one assignment covers
  * every line of that name whatever its printing, section or quantity.
  *
- * **Shape**: shared with tags on purpose — one grammar to learn — minus the
- * sigil, since a category has no file token. Any non-empty text without the card
- * line's own punctuation (`#`, `,`, `&`, `*`, the bracket pairs), a double quote
- * (the changelog prose quotes a category) or a control character. Surrounding
- * whitespace is trimmed, inner runs fold to one space, and **case is kept**.
+ * **Shape**: looser than a tag's on purpose. A tag is written on the card line,
+ * so it cannot hold the line's own punctuation; a category never touches the
+ * line — it lives in a JSON sidecar and in JSON-lines changelog blocks — so the
+ * only characters it refuses are the comma (the separator everywhere a person
+ * types a list) and control characters (a line break would forge changelog
+ * prose). That keeps names like Archidekt's default `Tokens & Extras` lossless
+ * through a sync. Surrounding whitespace is trimmed, inner runs fold to one
+ * space, and **case is kept**.
  *
  * **Canonical form of a set**: normalized, deduplicated case-insensitively
  * keeping the first spelling, and **order preserved** — unlike tags, which sort,
@@ -52,11 +55,10 @@ export type CardCategory = string
 export const CARD_CATEGORY_SEPARATOR = ','
 
 /**
- * The characters a category can never hold. Shared with the tag rule by design
- * decision — the comma is the separator everywhere a person types a list, so it
- * can never be part of a name.
+ * The characters a category can never hold: the comma, which separates
+ * categories everywhere a person types a list, and control characters.
  */
-const CARD_CATEGORY_FORBIDDEN_RE = /[#,&*"[\]{}()\p{Cc}]/u
+const CARD_CATEGORY_FORBIDDEN_RE = /[,\p{Cc}]/u
 
 /**
  * The shape rule as a sentence fragment, shared by every surface that refuses a
@@ -64,7 +66,7 @@ const CARD_CATEGORY_FORBIDDEN_RE = /[#,&*"[\]{}()\p{Cc}]/u
  * states a data-format rule.
  */
 export const CARD_CATEGORY_SHAPE_CLAUSE =
-  "a category is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses"
+  'a category is non-empty plain text that cannot contain a comma or a control character'
 
 /**
  * The categories a fresh install suggests and orders by — the global vocabulary
@@ -145,8 +147,8 @@ export function foldCardCategory(category: string): string {
 
 /**
  * Parse one category as a person types it. Unlike a tag, a leading `#` is
- * **not** tolerated: categories have no sigil, so a `#` is simply a forbidden
- * character.
+ * **not** stripped: categories have no sigil, so `#Ramp` is a category spelled
+ * with a `#`.
  */
 export function parseCardCategory(raw: string): CardCategoryResult {
   const body = raw.trim()

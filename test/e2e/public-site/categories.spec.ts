@@ -302,7 +302,7 @@ test.describe('Public editor — Edit Categories…', () => {
 
   test('an invalid category is explained and blocks Save', async ({ page }) => {
     const dialog = await openEditCategories(page, tile(page, 'ramp rock'))
-    await dialog.locator('#categories-prompt-input').fill('Ramp, #bad')
+    await dialog.locator('#categories-prompt-input').fill('Ramp, b\u0001ad')
     await expect(dialog.locator('.form-error')).toContainText('Invalid category')
     await expect(dialog.getByRole('button', { name: 'Save' })).toBeDisabled()
   })

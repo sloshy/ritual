@@ -581,7 +581,7 @@ describe('convertCsvRows', () => {
     // forbids; losing the card over one would defeat the whole feature.
     test('a refused value is dropped and warned about, and the card still imports', () => {
       const { entries, failures, warnings } = convert(
-        ['Sol Ring', 'Ramp (Rocks), Draw'],
+        ['Sol Ring', 'Ramp\tRocks, Draw'],
         'name=1,categories=2',
         'deck',
       )
@@ -591,18 +591,18 @@ describe('convertCsvRows', () => {
         {
           lineNumber: 7,
           cardName: 'Sol Ring',
-          value: 'Ramp (Rocks)',
-          reason: 'ignored category "Ramp (Rocks)"',
+          value: 'Ramp\tRocks',
+          reason: 'ignored category "Ramp\\tRocks"',
         },
       ])
       expect(warnings.map(formatCsvRowWarning)).toEqual([
-        'Line 7: ignored category "Ramp (Rocks)" on "Sol Ring"',
+        'Line 7: ignored category "Ramp\\tRocks" on "Sol Ring"',
       ])
     })
 
     test('a cell whose only value is refused still imports the card, with no categories', () => {
       const { entries, failures, warnings } = convert(
-        ['Sol Ring', 'Draw & Filter'],
+        ['Sol Ring', 'Draw\tFilter'],
         'name=1,categories=2',
         'deck',
       )
@@ -679,7 +679,7 @@ describe('convertCsvRows', () => {
     // — and on a nameless row the message would name an empty card.
     test('a row that fails for another reason produces no category warning', () => {
       const { entries, failures, warnings } = convert(
-        ['', 'Ramp (Rocks)'],
+        ['', 'Ramp\tRocks'],
         'name=1,categories=2',
         'deck',
       )

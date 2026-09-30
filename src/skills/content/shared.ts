@@ -348,7 +348,7 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
       `cell that is not tag-shaped fails that row; a categories cell (header ` +
       `\`category\` or \`categories\`) holds the card's categories comma-separated ` +
       `as \`Ramp, Artifacts\`, first is primary — a value that is not ` +
-      `category-shaped (\`Ramp (Rocks)\`) is ignored with a warning and the card ` +
+      `category-shaped (one holding a control character such as a tab) is ignored with a warning and the card ` +
       `still imports — the refusal prints on stderr and rides the \`--output json\` ` +
       `payload's \`advisories\` array, and never changes the exit code; and on a ` +
       `deck a value naming a board (\`Sideboard\`, ` +

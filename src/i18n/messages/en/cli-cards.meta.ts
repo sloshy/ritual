@@ -928,7 +928,7 @@ export const cliCardsMeta = {
   },
   'cli.categories.nameInvalid': {
     description:
-      "Usage refusal for a malformed category name given to the categories command. {reason} is the vocabulary parser's own sentence; the punctuation list is file grammar and never translates.",
+      "Usage refusal for a malformed category name given to the categories command. {reason} is the vocabulary parser's own sentence; the named characters are data-format vocabulary.",
   },
   'cli.categories.sidecarUnreadable': {
     description:

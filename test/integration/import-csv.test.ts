@@ -328,12 +328,12 @@ describe('admin import-csv handler (Integration)', () => {
     const { status, data } = await importCsv({
       listType: 'collection',
       name: 'Binder',
-      content: 'Name,Set,Collector Number,Categories\nSol Ring,c19,221,Ramp (Rocks)',
+      content: 'Name,Set,Collector Number,Categories\nSol Ring,c19,221,Ramp\tRocks',
       columns: 'name=1,set=2,collector-number=3,categories=4',
     })
     expect(status).toBe(200)
     expect(data.failedCount).toBe(0)
     expect(data.cardCount).toBe(1)
-    expect(data.warnings).toContain('Line 2: ignored category "Ramp (Rocks)" on "Sol Ring"')
+    expect(data.warnings).toContain('Line 2: ignored category "Ramp\\tRocks" on "Sol Ring"')
   })
 })

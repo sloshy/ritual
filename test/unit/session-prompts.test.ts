@@ -259,7 +259,7 @@ describe('promptCategoriesEdit', () => {
   })
 
   test('a refused name re-offers the typed text and the second answer wins', async () => {
-    prompts.inject(['Ra#mp', 'Ramp'])
+    prompts.inject(['Ra\u0001mp', 'Ramp'])
     expect(await promptCategoriesEdit([], [])).toEqual(['Ramp'])
   })
 })

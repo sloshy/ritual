@@ -211,8 +211,10 @@ test.describe('Settings Page', () => {
 
     // A refused draft stays in the field, is explained, and is not committed —
     // the save still carries the last vocabulary that parsed.
-    await field.pressSequentially(' #bad')
-    await expect(field).toHaveValue('Ramp, #bad')
+    // A control character is the one thing a comma-split name can still hold
+    // that the rule refuses; `fill` because a key press cannot type one.
+    await field.fill('Ramp, b\u0001ad')
+    await expect(field).toHaveValue('Ramp, b\u0001ad')
     await expect(main.locator('.form-error')).toContainText('Invalid category')
 
     const secondRequest = page.waitForRequest(

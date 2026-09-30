@@ -56,8 +56,8 @@ describe('scanCardCategoryInput', () => {
   })
 
   test('a refused token is dropped and the rest still commit', () => {
-    expect(scanCardCategoryInput('Ra#mp, ').tags).toEqual([])
-    expect(scanCardCategoryInput('Ramp, #bad, Draw,').tags).toEqual(['Ramp', 'Draw'])
+    expect(scanCardCategoryInput('Ra\u0001mp, ').tags).toEqual([])
+    expect(scanCardCategoryInput('Ramp, b\u0001ad, Draw,').tags).toEqual(['Ramp', 'Draw'])
   })
 
   test('committed names are deduped by fold', () => {
@@ -75,10 +75,10 @@ describe('parseCardCategoryFilterInput', () => {
   })
 
   test('a malformed draft adds nothing rather than committing a bad name', () => {
-    expect(parseCardCategoryFilterInput('Ra#mp')).toEqual([])
+    expect(parseCardCategoryFilterInput('Ra\u0001mp')).toEqual([])
   })
 
   test('one refused entry does not discard the well-formed ones', () => {
-    expect(parseCardCategoryFilterInput('Ramp, #bad, Draw')).toEqual(['Ramp', 'Draw'])
+    expect(parseCardCategoryFilterInput('Ramp, b\u0001ad, Draw')).toEqual(['Ramp', 'Draw'])
   })
 })

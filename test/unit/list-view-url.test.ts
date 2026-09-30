@@ -520,9 +520,9 @@ describe('category filter parameters', () => {
   })
 
   test('a token the category grammar refuses is dropped, the rest apply', () => {
-    const parsed = parseListViewParams(new URLSearchParams('cats=%23bad,Ramp'))
+    const parsed = parseListViewParams(new URLSearchParams('cats=b%01ad,Ramp'))
     expect(parsed.filters?.cardCategories).toEqual(['Ramp'])
-    expect(parseListViewParams(new URLSearchParams('cats=%23bad')).filters).toBeUndefined()
+    expect(parseListViewParams(new URLSearchParams('cats=b%01ad')).filters).toBeUndefined()
   })
 
   test('the category keys count as list-view parameters', () => {

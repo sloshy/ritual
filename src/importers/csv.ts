@@ -439,10 +439,10 @@ type RoutedCategoryCell = {
   /** The remaining categories, canonical, in cell order — the first is primary. */
   categories: CardCategory[]
   /**
-   * Values the category grammar refused, exactly as written. Reported, never
-   * fatal: an Archidekt Category column routinely holds names the shape rule
-   * forbids (`Ramp (Rocks)`, `Draw & Filter`), and dropping the card over one
-   * would lose exactly the rows this feature exists to read.
+   * Values the category grammar refused (a control character — the only thing
+   * left for it to refuse once the cell is split on commas), exactly as
+   * written. Reported, never fatal: dropping the card over one stray tab would
+   * lose a row the import could otherwise read.
    */
   refused: string[]
 }

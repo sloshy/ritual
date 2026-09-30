@@ -55,7 +55,7 @@ test.describe('Import CSV Page', () => {
   test('a Category header maps to the categories field, not the section', async ({ page }) => {
     let captured: ImportCsvPayload | undefined
     await mockImportCsvApi(page, (b) => (captured = b as ImportCsvPayload), undefined, [
-      'Line 2: ignored category "Ramp (Rocks)" on "Sol Ring"',
+      'Line 2: ignored category "Ramp\\tRocks" on "Sol Ring"',
     ])
     const main = page.locator('main')
 
@@ -75,7 +75,7 @@ test.describe('Import CSV Page', () => {
     // The whole spec, so a stray `section=4` cannot ride along unnoticed.
     expect(captured?.columns).toBe('name=1,set=2,collector-number=3,categories=4')
     // A non-fatal notice is news the user must see, not something the page drops.
-    await expect(main.locator('.alert-warning')).toContainText('ignored category "Ramp (Rocks)"')
+    await expect(main.locator('.alert-warning')).toContainText('ignored category "Ramp\\tRocks"')
   })
 
   test('append mode lists existing collections and sends mode=append', async ({ page }) => {

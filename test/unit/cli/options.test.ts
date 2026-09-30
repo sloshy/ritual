@@ -149,8 +149,8 @@ describe('categoriesFlagParser', () => {
   })
 
   test('a malformed name is refused, naming the flag', () => {
-    expect(() => parse('Ra#mp')).toThrow(InvalidArgumentError)
-    expect(() => parse('Ra#mp')).toThrow(/--categories/)
+    expect(() => parse('Ra\u0001mp')).toThrow(InvalidArgumentError)
+    expect(() => parse('Ra\u0001mp')).toThrow(/--categories/)
   })
 
   test('an empty value is refused here, not read as a clear', () => {

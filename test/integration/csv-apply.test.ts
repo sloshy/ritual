@@ -475,7 +475,7 @@ describe('applyCsvImport', () => {
 
     test('a refused category value still writes the card line and no sidecar entry', async () => {
       const { entries, warnings } = prepareEntries(
-        'Sol Ring,c19,221,Ramp (Rocks)',
+        'Sol Ring,c19,221,Ramp\tRocks',
         'name=1,set=2,collector-number=3,categories=4',
         'collection',
       )

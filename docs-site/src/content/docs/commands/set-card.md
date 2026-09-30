@@ -184,7 +184,7 @@ The line is rewritten with its tags in canonical order (`- Sol Ring (C21:240) #C
 
 `--categories` sets the card's [categories](/commands/categories/) in this list, on **every** list type, and `--no-categories` clears them. A category is neither a tag nor a label. It belongs to the card's **name** in **this one list**: the assignment covers every line of that name whatever its printing, section or quantity, it is never written on the card line, and it does **not** follow the card when it moves to another list.
 
-The value is one or more categories **separated by commas**. Spaces and case are part of a name, so `--categories "Board Wipes, Ramp"` is two categories. The **first one is the card's primary category**, which the site groups by. A name cannot contain `#`, `,`, `&`, `*`, quotes, brackets, braces or parentheses; one that does is rejected at parse time (exit `2`). Repeating the flag appends (`--categories Ramp --categories Draw` is `--categories "Ramp, Draw"`), because order matters.
+The value is one or more categories **separated by commas**. Spaces and case are part of a name, so `--categories "Board Wipes, Ramp"` is two categories. The **first one is the card's primary category**, which the site groups by. A name cannot contain a comma or a control character; one that does is rejected at parse time (exit `2`). Repeating the flag appends (`--categories Ramp --categories Draw` is `--categories "Ramp, Draw"`), because order matters.
 
 Unlike `--tag`, the flag is a **whole-list replacement**: whatever the card had is replaced by what you pass. An empty value (`--categories ""`) is a usage error, not a clear; `--no-categories` is the clear. If both flags appear on one command line, the last one wins.
 

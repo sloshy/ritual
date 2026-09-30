@@ -250,7 +250,7 @@ describe('import CSV scripted path (Integration)', () => {
   test('a refused category value is warned about and the card still imports', async () => {
     await withWorkspace(async (dir) => {
       const source = path.join(dir, 'deck.csv')
-      await fs.writeFile(source, 'Sol Ring,Ramp (Rocks)\n')
+      await fs.writeFile(source, 'Sol Ring,Ramp\tRocks\n')
 
       const result = await runCli(
         [
@@ -268,7 +268,7 @@ describe('import CSV scripted path (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(ExitCode.Success)
-      expect(result.stderr).toContain('ignored category "Ramp (Rocks)"')
+      expect(result.stderr).toContain('ignored category "Ramp\\tRocks"')
       const list = await fs.readFile(path.join(dir, 'wanted', 'Wants.md'), 'utf-8')
       expect(list).toContain('Sol Ring')
 
@@ -292,7 +292,7 @@ describe('import CSV scripted path (Integration)', () => {
         dir,
       )
       const payload = JSON.parse(json.stdout) as { advisories: string[]; failed: number }
-      expect(payload.advisories).toEqual(['Line 1: ignored category "Ramp (Rocks)" on "Sol Ring"'])
+      expect(payload.advisories).toEqual(['Line 1: ignored category "Ramp\\tRocks" on "Sol Ring"'])
       expect(payload.failed).toBe(0)
     })
   })

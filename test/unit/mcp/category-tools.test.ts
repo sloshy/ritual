@@ -166,10 +166,10 @@ describe('card categories over MCP', () => {
   })
 
   test('the schemas refuse anything that is not a canonical category', async () => {
-    // The tag sigil, surrounding whitespace, and the separator a person types
-    // between two names — the three ways a category typed as prose differs from
-    // its stored form.
-    for (const category of ['#Ramp', ' Ramp', 'a,b']) {
+    // Surrounding whitespace, a doubled space, and the separator a person types
+    // between two names — the ways a category typed as prose differs from its
+    // stored form.
+    for (const category of [' Ramp', 'Board  Wipes', 'a,b']) {
       expectSchemaRejection(
         await applyToShoebox(client, {
           action: 'set-categories',
