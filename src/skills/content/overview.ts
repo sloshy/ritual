@@ -35,6 +35,18 @@ workspace if it contains \`decks/\`, \`collections/\`, or \`wanted/\` folders, o
 - \`ritual.config.json\` — configuration (optional: reading config never creates
   it, so a workspace only has one once \`config set\`/\`unset\`, \`init-site\`, the
   admin Settings page, or the MCP \`update_config\` tool writes it)
+- \`cache/\` — downloaded data, never hand-edited (rebuild it with
+  \`ritual cache preload-all\`): \`cache.json\` is the Scryfall card cache (\`cards\` keyed by
+  card name, each holding that name's printings as Scryfall card objects: set and collector
+  number, EDHREC rank, TCGplayer (USD) and Cardmarket (EUR) market prices per finish,
+  legalities), \`cardkingdom.json\` is Card Kingdom's buylist feed, and \`tags.json\` holds
+  Scryfall Tagger tags.
+  These are **internal formats** that change without notice, and \`cache.json\` can run to
+  hundreds of MB — **do not parse them**. Every value in them reaches you through a command:
+  \`export --columns ...,scryfallId,edhrecRank\` (per line), \`price --output json\`
+  (\`price\`, \`edhrecRank\`, \`typeLine\`, \`cmc\` per entry), and \`sell --output json\`
+  (CK's \`priceBuy\` beside \`tcgplayerPrice\`, \`offerRatio\`, \`edhrecRank\`, \`ownedCopies\`
+  and each entry's \`cardIds\`; see the **ritual-collections** skill)
 
 A list is addressed by its **name** = the file basename without \`.md\`
 (e.g. \`decks/Winota Stax.md\` → \`Winota Stax\`). A name typed **exactly** as the file
