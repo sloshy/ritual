@@ -2049,6 +2049,7 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 | `only`                  | `additions` or `removals` — apply just one side of each deck's diff, relative to the sync destination (see [Change Filter](/commands/deck-sync/#change-filter)). Omitted applies every change; any other value returns `400`. | No       |
 | `force`                 | Push a deck whose remote copy changed since its recorded sync, overwriting those remote changes (default `false`). Must be a boolean or `400`. A pull ignores it.                                                             | No       |
 | `syncPrintings`         | Also sync each card's exact printing — set, collector number, and foil/etched finish (default `false`). Must be a boolean or `400`. See [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).                 | No       |
+| `syncCategories`        | Also sync each card's categories — its role in the deck (default `false`). Must be a boolean or `400`. See [Category Sync](/commands/deck-sync/#category-sync---sync-categories).                                             | No       |
 
 **Divergence guard.** A `push` refuses any deck whose Archidekt `updatedAt` is newer than the `sourceUpdatedAt` its last sync recorded, so remote edits are never silently reverted. Such a deck is reported `failed` with `Remote deck changed since last sync (…) — pull first, or pass --force to overwrite remote changes.`, and the rest of the run continues. A `pull` of that deck records the new baseline (even when it finds no card changes), after which the push succeeds; `force: true` overrides the guard. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push).
 
@@ -2097,6 +2098,7 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 `success` reports whether the run could be performed, **not** whether every deck synced. A run with per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so read each deck's `status` and `reason`. Other report fields:
 
 - Each deck carries `printingsChanged` (a count) when the request set `syncPrintings`, or `printingsUnaligned` (the card names whose printings the two sides disagree about) when it did not.
+- Each deck carries `categoriesChanged` (a count of cards) when the request set `syncCategories`.
 - `report.unreadable` lists any deck whose file holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the stream can still show what a retry with `ignoreUnreadableLines` would delete.
 - `report.cancelled` is `true` when an in-process caller cancelled the run (the MCP `sync_decks` tool, on a client's `notifications/cancelled`). Cancellation is honoured **between decks only**: the deck in flight finishes, every deck the run never reached is reported `skipped` with the reason `cancelled before it started`, and the summary ends on a `cancelled with N decks not started` clause. The response is still `200` with the report. HTTP callers cannot cancel a run: closing the stream leaves it running to completion.
 
@@ -2113,7 +2115,7 @@ The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSo
 - `direction` is required.
 - `deck` repeats once per deck; omit it entirely to sync all.
 - `only` takes `additions` or `removals`; omit it to apply every change.
-- `dryRun` / `ignoreUnreadableLines` / `force` / `syncPrintings` take `true` or `false`. Any other value is rejected, so a flag that decides whether files are written can never be misread as "no".
+- `dryRun` / `ignoreUnreadableLines` / `force` / `syncPrintings` / `syncCategories` take `true` or `false`. Any other value is rejected, so a flag that decides whether files are written can never be misread as "no".
 
 Three event types are emitted:
 

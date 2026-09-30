@@ -38,6 +38,7 @@ export type DeckSyncCommandOptions = {
   only?: SyncChangeFilter
   force?: boolean
   syncPrintings?: boolean
+  syncCategories?: boolean
 } & Partial<ScriptingOptions>
 
 /** `deck-sync link` options: a dry run plus the scripting flags. */
@@ -279,6 +280,7 @@ async function runSync(
     only: options.only,
     force: options.force === true,
     syncPrintings: options.syncPrintings === true,
+    syncCategories: options.syncCategories === true,
     onEvent: createSyncEventRenderer({ subject: 'deck', direction, logger, indent }),
     confirmUnreadable: (unreadable) =>
       confirmUnreadableDecks(unreadable, options.yes === true, scripting, logger),
@@ -325,6 +327,7 @@ export function registerDeckSyncCommand(program: Command): void {
       command.option('--force', t('help.deckSync.force'), false)
     }
     command.option('--sync-printings', t('help.deckSync.syncPrintings'), false)
+    command.option('--sync-categories', t('help.deckSync.syncCategories'), false)
     command.action(async (decks: string[], options: DeckSyncCommandOptions) => {
       await runSync(direction, decks, options)
     })

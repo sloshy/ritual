@@ -1152,6 +1152,10 @@ export const adminMeta = {
     description:
       'Tick box making the run also sync each card\'s exact printing. "Printing" is a specific edition of a card; "finish" is its foil/etched treatment.',
   },
+  'admin.deckSync.syncCategories': {
+    description:
+      'Tick box making the run also sync each card\'s categories. A "category" is the role a card plays in one deck (what Archidekt calls a category); the examples are category names and may be translated.',
+  },
   'admin.deckSync.dryRun': {
     description: 'Tick box making the run report what it would do without changing anything.',
   },

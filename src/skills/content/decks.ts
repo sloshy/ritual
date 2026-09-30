@@ -15,7 +15,7 @@ import {
 export const decksSkill: RitualSkill = {
   name: 'ritual-decks',
   description:
-    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes to Archidekt, extract a deck primer, mark deck cards as proxies, or price a deck.',
+    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes (including card categories) to Archidekt, extract a deck primer, mark deck cards as proxies, or price a deck.',
   body: `# Managing decks with Ritual
 
 Decks live in \`decks/<name>.md\`. See the **ritual** skill for the file format and
@@ -285,6 +285,7 @@ ritual deck-sync pull --only additions       # add cards locally, never remove a
 ritual deck-sync push --only removals        # push removals only, add nothing remotely
 ritual deck-sync push "Winota Stax" --force  # overwrite remote edits made since the last sync
 ritual deck-sync push --sync-printings       # also sync each card's exact printing + finish
+ritual deck-sync pull --sync-categories      # also sync each card's categories (its role: Ramp, Draw…)
 ritual deck-sync status --output json        # what is linked, and when each last synced
 ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456  # link an existing remote deck
 \`\`\`
@@ -393,10 +394,32 @@ exist for that printing on Archidekt or the deck is reported failed; \`--only\`
 does not filter printing updates (they neither add nor remove cards). Condition
 and language tokens are never synced — Archidekt deck entries carry neither.
 
+### Category sync
+
+A card's **categories** are its role in one deck (\`Ramp\`, \`Removal\`) —
+Archidekt's categories, kept in \`<deck>.categories.json\` (see the
+**ritual-edit** skill). By default a sync leaves them alone.
+\`--sync-categories\` (on \`pull\` and \`push\`) also syncs them: a pull makes
+every card the deck holds carry exactly Archidekt's categories, in Archidekt's
+order (first = primary; changelogged as \`set-categories\` events, and a
+categories-only pull leaves the card lines untouched), and a push makes every
+Archidekt entry of a card the local deck holds carry the local categories,
+keeping any board category it has. A push from a deck with **no local
+categories at all** leaves Archidekt's alone — pull with the flag first. An
+unreadable categories file fails the deck; \`--only\` does not filter category
+changes. Each deck's structured result carries \`categoriesChanged\`.
+
+Archidekt files boards as categories too, and with or without the flag a
+category is a **board** (it sets the card's section, never a category) when its
+name is a reserved section name (\`Commander\`, \`Sideboard\`, \`Maybeboard\`, …,
+matched exactly), when the deck marks it premier (→ Commander), or when the deck
+excludes it from the count (Archidekt's "Tokens & Extras" → Maybeboard). \`Tokens\`
+counted in the deck is a category (token makers), not the Tokens board.
+
 The same sync runs from the admin site's **Sync Decks** page (deck toggles,
-direction, change filter, printing sync, live per-deck progress, and each
-deck's last-synced time) and from the MCP \`sync_decks\` tool (same \`only\` and
-\`syncPrintings\` fields).
+direction, change filter, printing and category sync, live per-deck progress,
+and each deck's last-synced time) and from the MCP \`sync_decks\` tool (same
+\`only\`, \`syncPrintings\` and \`syncCategories\` fields).
 
 ## Primer
 

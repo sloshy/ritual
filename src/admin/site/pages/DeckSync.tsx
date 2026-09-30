@@ -71,6 +71,7 @@ export function DeckSync(): JSX.Element {
   const [changeFilter, setChangeFilter] = createSignal<ChangeFilterChoice>('all')
   const [dryRun, setDryRun] = createSignal(false)
   const [syncPrintings, setSyncPrintings] = createSignal(false)
+  const [syncCategories, setSyncCategories] = createSignal(false)
   const [selected, setSelected] = createSignal<string[]>([])
 
   const [phase, setPhase] = createSignal<SyncRunPhase>('idle')
@@ -195,6 +196,7 @@ export function DeckSync(): JSX.Element {
     // page can already perform.
     force: false,
     syncPrintings: syncPrintings(),
+    syncCategories: syncCategories(),
   })
 
   /** Sync without progress streaming, used when `EventSource` cannot connect. */
@@ -240,6 +242,7 @@ export function DeckSync(): JSX.Element {
     if (request.only) params.set('only', request.only)
     if (request.dryRun) params.set('dryRun', 'true')
     if (request.syncPrintings) params.set('syncPrintings', 'true')
+    if (request.syncCategories) params.set('syncCategories', 'true')
     if (request.ignoreUnreadableLines) params.set('ignoreUnreadableLines', 'true')
     return `/api/deck-sync/stream?${params.toString()}`
   }
@@ -386,6 +389,13 @@ export function DeckSync(): JSX.Element {
               labelKey="admin.deckSync.syncPrintings"
               value={syncPrintings()}
               onChange={setSyncPrintings}
+              disabled={running()}
+            />
+            <SyncToggle
+              class="sync-categories"
+              labelKey="admin.deckSync.syncCategories"
+              value={syncCategories()}
+              onChange={setSyncCategories}
               disabled={running()}
             />
             <SyncToggle

@@ -41,6 +41,12 @@ export type DeckSyncDeckResult = {
    * reconciles them instead.
    */
   printingsUnaligned?: string[]
+  /**
+   * Cards whose categories the run changed — in the local categories file on a
+   * pull, on Archidekt on a push (or would have, on a dry run). Present only
+   * when the run synced categories.
+   */
+  categoriesChanged?: number
 }
 
 /** The report a run produces: per-deck results plus the failure count. */
@@ -116,6 +122,19 @@ export type DeckSyncOptions = {
    * does not apply to printing updates, which neither add nor remove cards.
    */
   syncPrintings?: boolean
+  /**
+   * Also sync each card's categories — its role in the deck (`Ramp`,
+   * `Removal`), what Archidekt calls a category (the CLI's
+   * `--sync-categories`). Off by default. A pull makes the local
+   * `<deck>.categories.json` hold Archidekt's categories for every card; a
+   * push makes each Archidekt card hold the local file's, keeping whichever
+   * board categories (Commander, Sideboard, …) it already has. Archidekt
+   * categories that name a board are never categories in Ritual: they decide
+   * the card's section, with or without this option. A push from a deck with
+   * no local categories at all leaves Archidekt's alone, so a first push
+   * cannot wipe them.
+   */
+  syncCategories?: boolean
   onEvent?: DeckSyncEventHandler
   /**
    * Confirm syncing decks whose files carry unreadable lines. Omitted, such
@@ -181,6 +200,8 @@ export type SyncFlow = {
   force: boolean
   /** Also sync each card's exact printing and finish. */
   syncPrintings: boolean
+  /** Also sync each card's categories. */
+  syncCategories: boolean
   emit: DeckSyncEventHandler
   /** See {@link DeckSyncOptions.signal}. */
   signal: AbortSignal | undefined

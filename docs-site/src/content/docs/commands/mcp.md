@@ -442,9 +442,11 @@ Details the table leaves out:
 - `direction` (`pull` | `push`).
 - An optional `decks` array (slugs or names; omit to sync every Archidekt-linked deck).
 - An optional [`only`](/commands/deck-sync/#change-filter) (`additions` | `removals`), applying just one side of each deck's diff relative to the sync destination.
-- Optional `dryRun` / `ignoreUnreadableLines` / `force` / [`syncPrintings`](/commands/deck-sync/#printing-sync---sync-printings) flags.
+- Optional `dryRun` / `ignoreUnreadableLines` / `force` / [`syncPrintings`](/commands/deck-sync/#printing-sync---sync-printings) / [`syncCategories`](/commands/deck-sync/#category-sync---sync-categories) flags.
 
 Under `syncPrintings`, a card held at several printings at once is reconciled printing by printing (copies added, removed, or re-pinned), a local line naming no printing pushes nothing, and a stated finish the printing does not offer on Archidekt fails that deck. Each deck's report entry carries `printingsChanged`. Without the flag, printings are left alone and a deck whose two sides disagree about them carries `printingsUnaligned`.
+
+Under `syncCategories`, a pull makes the local categories file hold Archidekt's categories for every card and a push makes each Archidekt card hold the local ones, keeping its board categories. A push from a deck with no local categories leaves Archidekt's alone. Each deck's report entry carries `categoriesChanged`.
 
 It needs an Archidekt login stored by `ritual login archidekt` or the admin site; check `get_sync_status`'s `decks.archidekt.loginRequired` first. A run that completes reports `success` even when individual decks failed; read `report.failedCount` and each deck's `status`/`reason`.
 

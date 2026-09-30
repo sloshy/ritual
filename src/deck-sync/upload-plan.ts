@@ -21,6 +21,13 @@ import { distributeQuantity, holdingsAt, samePrintingRef, type DeckPrintingRef }
 import { printingSuffix } from '../card/card-line'
 import { hasSpecificPrinting } from '../card/card-printing'
 import { archidektModifier } from '../importers/archidekt-collection'
+import type { CardCategory } from '../card/card-categories'
+import {
+  composeArchidektCategories,
+  indexArchidektCategories,
+  sameArchidektCategories,
+  type ArchidektCategoryIndex,
+} from '../importers/archidekt-categories'
 
 // ── Archidekt raw response helpers ────────────────────────────────────
 
@@ -43,6 +50,8 @@ export type PlannedRelation = {
   cardid: number
   modifier: ArchidektCardModifier
   quantity: number
+  /** The Archidekt categories to send — never null, which fails the whole batch. */
+  categories: string[]
   /** Whether anything above was changed from what Archidekt already records. */
   touched: boolean
 }
@@ -76,6 +85,7 @@ export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardInd
       cardid: entry.card.id,
       modifier: entry.modifier,
       quantity: entry.quantity,
+      categories: entry.categories ?? [],
       touched: false,
     }
     const existing = index.get(name)
@@ -102,7 +112,21 @@ function selectRelations(
 export type UploadPlan = {
   entries: ModifyCardEntry[]
   errors: string[]
+  /**
+   * Cards already on Archidekt whose role categories the plan rewrites, by their
+   * Archidekt name. Always empty unless the plan was given local categories.
+   */
+  categoriesChanged: string[]
 }
+
+/**
+ * A card's local categories, primary first — what a push with
+ * `--sync-categories` makes Archidekt hold. Empty for a card the local file
+ * holds but leaves uncategorized; `undefined` for a card it does not hold at
+ * all (a removal an `--only additions` run skipped), whose Archidekt
+ * categories the push must leave alone.
+ */
+export type LocalCategoriesOf = (cardName: string) => readonly CardCategory[] | undefined
 
 const DEFAULT_LABEL = ',#656565'
 
@@ -233,9 +257,27 @@ function addCategories(
   siblings: RawCardIndexEntry | undefined,
   defaultCategory: string | null | undefined,
 ): string[] {
-  const existing = siblings?.relations.find((relation) => relation.raw.categories.length > 0)
-  if (existing) return existing.raw.categories
+  const existing = siblings?.relations.find((relation) => relation.categories.length > 0)
+  if (existing) return existing.categories
   return defaultCategory ? [defaultCategory] : []
+}
+
+/**
+ * Where a newly added relation should sit when the push syncs categories. The
+ * local categories replace the role categories a sibling relation would lend,
+ * keeping only the sibling's board. A card the local file leaves uncategorized
+ * gets {@link addCategories}' answer: a card new to Archidekt has no remote
+ * categories to preserve, and an uncategorized local card has not said where it
+ * goes, so Archidekt's own default is the better home than none at all.
+ */
+function syncedAddCategories(
+  siblings: RawCardIndexEntry | undefined,
+  defaultCategory: string | null | undefined,
+  categoryIndex: ArchidektCategoryIndex,
+  local: readonly CardCategory[],
+): string[] {
+  if (local.length === 0) return addCategories(siblings, defaultCategory)
+  return composeArchidektCategories(siblings?.relations[0].categories, categoryIndex, local)
 }
 
 /**
@@ -259,11 +301,14 @@ export async function buildUploadPlan(
   rawDeck: ArchidektRawDeckResponse,
   client: ArchidektClient,
   token: string,
+  localCategoriesOf?: LocalCategoriesOf,
 ): Promise<UploadPlan> {
   // Built here rather than taken as a parameter: planning *moves* these
   // relations, so the state must be this plan's own.
   const rawIndex = buildRawCardIndex(rawDeck)
+  const categoryIndex = indexArchidektCategories(rawDeck.categories)
   const errors: string[] = []
+  const categoriesChanged: string[] = []
 
   /** The relations of a diff entry's card, or the reason there are none to act on. */
   const relationsFor = (
@@ -337,6 +382,27 @@ export async function buildUploadPlan(
     relations.forEach((relation, index) => setQuantity(relation, quantities[index]!))
   }
 
+  // Categories: every surviving relation's role categories become the local
+  // file's, keeping the board categories it holds on Archidekt. A relation the
+  // passes above zeroed out is left alone — it is being removed.
+  if (localCategoriesOf !== undefined) {
+    for (const indexed of rawIndex.values()) {
+      const name = indexed.relations[0].raw.card.oracleCard.name
+      const local = localCategoriesOf(name)
+      if (local === undefined) continue
+      let changed = false
+      for (const relation of indexed.relations) {
+        if (relation.quantity === 0) continue
+        const next = composeArchidektCategories(relation.categories, categoryIndex, local)
+        if (sameArchidektCategories(next, relation.categories)) continue
+        relation.categories = next
+        relation.touched = true
+        changed = true
+      }
+      if (changed) categoriesChanged.push(name)
+    }
+  }
+
   // Add new cards: resolve the Archidekt card edition ID via search. Under a
   // printing-keyed diff every entry names exactly one printing, so the pin is
   // whatever that entry holds — including nothing, for a bare local line, which
@@ -366,10 +432,15 @@ export async function buildUploadPlan(
     }
     adds.push({
       cardid: result.id,
-      categories: addCategories(
-        rawIndex.get(card.name.toLowerCase()),
-        result.oracleCard.defaultCategory,
-      ),
+      categories:
+        localCategoriesOf === undefined
+          ? addCategories(rawIndex.get(card.name.toLowerCase()), result.oracleCard.defaultCategory)
+          : syncedAddCategories(
+              rawIndex.get(card.name.toLowerCase()),
+              result.oracleCard.defaultCategory,
+              categoryIndex,
+              localCategoriesOf(card.name) ?? [],
+            ),
       quantity: card.totalQuantity,
       modifier,
     })
@@ -384,7 +455,7 @@ export async function buildUploadPlan(
         action: relation.quantity === 0 ? 'remove' : 'modify',
         cardid: relation.cardid,
         customCardId: null,
-        categories: relation.raw.categories,
+        categories: relation.categories,
         patchId: nextPatchId(),
         modifications: {
           ...modificationsFromRaw(relation.raw, relation.quantity),
@@ -412,7 +483,7 @@ export async function buildUploadPlan(
     })
   }
 
-  return { entries, errors }
+  return { entries, errors, categoriesChanged }
 }
 
 function findLocalCard(sections: DeckSection[], cardName: string): Card | undefined {

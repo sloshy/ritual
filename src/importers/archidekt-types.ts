@@ -6,10 +6,22 @@ import { t } from '../i18n/t'
 import { getDeckFormatLabel, parseDeckFormat, type DeckFormatKey } from '../list/deck-format'
 import { resolvePrinting } from '../card/card-line'
 import { getLogger } from '../util/logger'
+import {
+  archidektEntrySection,
+  collectArchidektCategories,
+  indexArchidektCategories,
+  type ArchidektCategorizedEntry,
+  type ArchidektDeckCategories,
+} from './archidekt-categories'
 
 export interface ArchidektCategory {
   id: number
   name: string
+  /** The command-zone category (`Commander`). */
+  isPremier?: boolean
+  /** False for a category whose cards are outside the deck — Sideboard, Maybeboard, extras. */
+  includedInDeck?: boolean
+  includedInPrice?: boolean
 }
 
 /**
@@ -31,7 +43,12 @@ export interface ArchidektCardEntry {
   quantity?: number
   /** Finish of this deck entry: `Normal`, `Foil`, or `Etched`. */
   modifier?: ArchidektCardModifier
-  categories?: number[] // Array of category IDs
+  /**
+   * The relation's categories. Archidekt sends names today; older payloads sent
+   * ids into the deck's `categories` array, which {@link archidektEntryCategoryNames}
+   * still resolves. `null` on a relation filed under no category at all.
+   */
+  categories?: (number | string)[] | null
 }
 
 export interface ArchidektDeckResponse {
@@ -126,7 +143,8 @@ export interface ArchidektRawCardEntry {
   id: number // Deck-card relation ID (deckRelationId for modifyCards)
   quantity: number
   modifier: ArchidektCardModifier
-  categories: string[]
+  /** Category names; `null` on a relation filed under no category (seen on old decks). */
+  categories: string[] | null
   companion: boolean
   flippedDefault: boolean
   label: string // "name,hexcolor" — default ",#656565"
@@ -246,16 +264,10 @@ export function archidektEntryPrinting(
  * single line; different printings stay separate lines.
  */
 export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: string): DeckData {
-  // Categories map: ID -> Name
-  const categoryIdMap = new Map<string, string>()
-  if (json.categories) {
-    for (const cat of json.categories) {
-      categoryIdMap.set(cat.id.toString(), cat.name)
-    }
-  }
+  const categoryIndex = indexArchidektCategories(json.categories)
 
-  // Group by Section Name
-  // Common Archidekt categories: "Commander", "Sideboard", "Maybeboard", "Mainboard" (default)
+  // Group by Section Name. The board a card sits on comes from its Archidekt
+  // categories through the one rule `archidektEntrySection` states.
   const sectionsMap = new Map<string, Map<string, Card>>()
 
   /** Entries carrying no resolvable card name; reported rather than dropped in silence. */
@@ -271,32 +283,10 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
         continue
       }
 
-      let sectionName = 'Main'
-
-      if (entry.categories && entry.categories.length > 0) {
-        const categoryNames: string[] = []
-        for (const catId of entry.categories) {
-          const name = categoryIdMap.get(catId.toString()) || catId.toString()
-          categoryNames.push(name)
-        }
-
-        if (categoryNames.some((c) => c.toLowerCase().includes('commander'))) {
-          sectionName = 'Commander'
-        } else if (categoryNames.some((c) => c.toLowerCase().includes('sideboard'))) {
-          sectionName = 'Sideboard'
-        } else if (categoryNames.some((c) => c.toLowerCase().includes('maybeboard'))) {
-          sectionName = 'Maybeboard'
-        } else {
-          if (
-            categoryNames.some(
-              (c) =>
-                !['Land', 'Creature', 'Instant', 'Sorcery', 'Artifact', 'Enchantment'].includes(c),
-            )
-          ) {
-            sectionName = 'Main'
-          }
-        }
-      }
+      const sectionName = archidektEntrySection(
+        archidektEntryCategoryNames(entry.categories, json.categories),
+        categoryIndex,
+      )
 
       const { set, collectorNumber, finish } = archidektEntryPrinting(entry.card, entry.modifier)
 
@@ -346,6 +336,40 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
     description: parseArchidektDescription(json.description),
     sections,
   }
+}
+
+/**
+ * A deck entry's category names. Archidekt sends names, but older payloads sent
+ * ids into the deck's `categories` array; an id the array does not define is
+ * kept as its digits rather than dropped.
+ */
+export function archidektEntryCategoryNames(
+  categories: readonly (number | string)[] | null | undefined,
+  definitions: readonly ArchidektCategory[] | null | undefined,
+): string[] {
+  const nameById = new Map((definitions ?? []).map((cat) => [cat.id.toString(), cat.name]))
+  return (categories ?? []).map(
+    (category) => nameById.get(category.toString()) ?? category.toString(),
+  )
+}
+
+/**
+ * Every card's role categories in an Archidekt deck — the categories that are
+ * not boards — keyed by card name as Ritual's categories sidecar stores them.
+ * The URL import writes these; `deck-sync` reads the same answer off the raw
+ * payload.
+ */
+export function parseArchidektDeckCategories(json: ArchidektDeckResponse): ArchidektDeckCategories {
+  const entries: ArchidektCategorizedEntry[] = []
+  for (const entry of json.cards ?? []) {
+    const cardName = entry.card?.oracleCard?.name || entry.card?.name
+    if (!cardName) continue
+    entries.push({
+      cardName,
+      categories: archidektEntryCategoryNames(entry.categories, json.categories),
+    })
+  }
+  return collectArchidektCategories(entries, indexArchidektCategories(json.categories))
 }
 
 /** Parse an Archidekt rich-text (Quill delta) description into plain text. */

@@ -56,6 +56,8 @@ export const helpSyncMessages = {
     'Overwrite a remote deck that changed since its last sync (see deck-sync status)',
   'help.deckSync.syncPrintings':
     "Also sync each card's exact printing (set, collector number, and foil/etched finish)",
+  'help.deckSync.syncCategories':
+    "Also sync each card's categories (its role in the deck, such as Ramp or Removal)",
   'help.deckSync.link': 'Link a local deck to a deck that already exists on Archidekt',
   'help.deckSync.linkDeck': 'Deck name to link',
   'help.deckSync.linkUrl': 'Archidekt deck URL, e.g. https://archidekt.com/decks/123456',

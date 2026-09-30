@@ -253,6 +253,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       'force',
       'ignoreUnreadableLines',
       'only',
+      'syncCategories',
       'syncPrintings',
     ])
     expect(schemaOf('sync_decks').required).toEqual(['direction'])
@@ -1336,7 +1337,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(firstText(noLogin)).toContain('Not signed into Archidekt')
   })
 
-  test('sync_decks accepts ignoreUnreadableLines, only, and syncPrintings', async () => {
+  test('sync_decks accepts ignoreUnreadableLines, only, syncPrintings and syncCategories', async () => {
     // The handler ignores keys it does not know, so this cannot prove the
     // fields survive the trip — the `Partial<DeckSyncRequest>` typing on the
     // tool's body is that guard. What this pins is that well-typed flags pass
@@ -1346,6 +1347,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       ignoreUnreadableLines: true,
       only: 'additions',
       syncPrintings: true,
+      syncCategories: true,
     })
     expect(result.isError).toBe(true)
     expect(firstText(result)).toContain('Not signed into Archidekt')

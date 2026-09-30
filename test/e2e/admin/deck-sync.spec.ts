@@ -108,8 +108,9 @@ test.describe('Sync Decks Page', () => {
 
     const url = await runAndReadStreamUrl(page)
     expect(url).toContain('only=additions')
-    // Off by default: an untouched printing-sync box must not reach the URL.
+    // Off by default: untouched sync boxes must not reach the URL.
     expect(url).not.toContain('syncPrintings')
+    expect(url).not.toContain('syncCategories')
   })
 
   test('deselecting every deck disables syncing', async ({ page }) => {
@@ -137,11 +138,13 @@ test.describe('Sync Decks Page', () => {
     await page.locator('.sync-dry-run input[type="checkbox"]').check()
     await expect(syncButton(page)).toHaveText('Preview all decks')
     await page.locator('.sync-printings input[type="checkbox"]').check()
+    await page.locator('.sync-categories input[type="checkbox"]').check()
 
     const url = await runAndReadStreamUrl(page)
     expect(url).toContain('direction=push')
     expect(url).toContain('dryRun=true')
     expect(url).toContain('syncPrintings=true')
+    expect(url).toContain('syncCategories=true')
   })
 
   test('a stream that never connects falls back to a plain request', async ({ page }) => {

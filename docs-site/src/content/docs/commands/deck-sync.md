@@ -9,8 +9,8 @@ The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page a
 ## Usage
 
 ```bash
-ritual deck-sync pull [decks...] [--sync-printings]
-ritual deck-sync push [decks...] [--force] [--sync-printings]
+ritual deck-sync pull [decks...] [--sync-printings] [--sync-categories]
+ritual deck-sync push [decks...] [--force] [--sync-printings] [--sync-categories]
 ritual deck-sync link <deck> <url>
 ritual deck-sync status
 ```
@@ -43,6 +43,7 @@ Names resolve within decks only, following the usual [list name rules](/list-res
 | `--only <changes>`  | Apply only `additions` or `removals` (relative to the sync destination)          | all changes |
 | `--force`           | **push only** — overwrite a remote deck that changed since its last sync         | `false`     |
 | `--sync-printings`  | Also sync each card's exact printing (set, collector number, foil/etched finish) | `false`     |
+| `--sync-categories` | Also sync each card's [categories](#category-sync---sync-categories) (its role)  | `false`     |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`                                       | `text`      |
 | `--quiet`           | Suppress non-essential output                                                    | `false`     |
 
@@ -97,6 +98,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains anything other than a clean sync.
 - Decks that could not be resolved, or that are not sourced from Archidekt, appear as `failed`. A deck with an Archidekt `sourceUrl` but no `sourceId` is `skipped` in an all-decks run and `failed` when you name it explicitly.
 - Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names).
+- Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the cards whose categories the run changed, or would change on a dry run.
 - `unreadable` lists any deck whose file holds lines the parser could not read, with those lines. See [Unreadable Lines](#unreadable-lines).
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-decks) and the MCP `sync_decks` tool set it when a client cancels between decks.
 
@@ -258,7 +260,7 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
 
 ### What Is Compared
 
-Sync compares **card names** and **quantities**. Pulls also respect the **board** a card lives in (Main, Commander, Sideboard, Maybeboard), so cards land in the right section locally.
+Sync compares **card names** and **quantities**. Pulls also respect the **board** a card lives in (Main, Commander, Sideboard, Maybeboard), so cards land in the right section locally. Archidekt files boards as categories; see [Boards and categories](#boards-and-categories) for which ones count as boards.
 
 Pulls adopt the deck's format from Archidekt. Pushes do not send the local format back.
 
@@ -266,7 +268,8 @@ Not written by default:
 
 - Specific printings (set code, collector number): synced with [`--sync-printings`](#printing-sync---sync-printings)
 - Card finish (foil, etched): synced with [`--sync-printings`](#printing-sync---sync-printings)
-- Labels and categories (beyond mapping to a board)
+- Categories (beyond mapping to a board): synced with [`--sync-categories`](#category-sync---sync-categories)
+- Labels and tags
 - Card condition and language
 
 Printings are still _read_ without the flag: enough to land a quantity change on the line that holds that printing, and to report a difference the run will not act on. See [Without the flag](#without-the-flag).
@@ -331,6 +334,35 @@ Those card names are reported as `printingsUnaligned` in the structured report (
 
 The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a checkbox ("Also sync each card's exact printing…"), and the MCP `sync_decks` tool takes it as a `syncPrintings` field.
 
+## Category Sync (`--sync-categories`)
+
+A **category** is a card's role in one deck (`Ramp`, `Removal`, `Board Wipes`). Archidekt calls it a category too; Ritual keeps it in the deck's [`<deck>.categories.json`](/list-format/#categories-namecategoriesjson). By default a sync leaves categories alone. `--sync-categories` (valid on `pull` and `push`) syncs them too:
+
+- **Pull**: every card the deck holds after the pull gets exactly the categories Archidekt files it under, in Archidekt's order, the first being primary. A card with no role category on Archidekt loses its local ones. The categories of cards the pull removed are pruned. Each card whose categories changed is recorded in the changelog (`Set categories of "Sol Ring" to Ramp, Artifact`). A pull that changes only categories leaves every card line exactly as written and updates only the front matter's sync stamps.
+- **Push**: every Archidekt card the local deck also holds gets the local categories, keeping any board category it has (`Commander`, `Sideboard`, …): a push never moves a card between boards. A local card with no categories has its Archidekt roles cleared. A card new to Archidekt goes into its local categories, or Archidekt's default category when the local file gives it none.
+
+Each deck's summary line gets a clause: `…, 3 card categories changed` on a pull, `…, 3 card categories to change` on a push. A deck whose only difference is its categories still syncs.
+
+The rules:
+
+- **A first push cannot wipe Archidekt.** A push from a deck with no local categories at all leaves Archidekt's categories as they are and says so. Pull with `--sync-categories` first to bring them down.
+- **An unreadable categories file fails the deck** before anything is written or sent.
+- **`--only` does not filter category changes.** Changing a card's categories neither adds nor removes it.
+- **Card names are the key.** Archidekt holds a card once per printing; when those entries disagree, a pull takes the union in entry order. A push gives every entry of the card the same categories.
+- **Names Ritual cannot store are skipped with a warning.** Anything goes except a comma or a control character, so in practice this never happens.
+
+### Boards and categories
+
+Archidekt uses categories for boards too. With or without the flag, a category counts as a **board**, and decides the card's section instead of becoming a Ritual category, when:
+
+- its name is a section name Ritual reserves (`Commander`, `Sideboard`, `Maybeboard`, `Companion`, `Oathbreaker`, `Main`/`Mainboard`; see [sections](/list-format/#title-and-sections)), matched exactly, not as a substring;
+- the deck marks it as the command zone (a _premier_ category) → `Commander`;
+- the deck excludes it from the card count (Archidekt's _Tokens & Extras_, or any category not "included in deck") → `Maybeboard`.
+
+`Tokens` is the exception: Archidekt decks commonly use it for token _makers_, so it is a category unless the deck excludes it from the count, in which case it is the `Tokens` board.
+
+The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a checkbox ("Also sync each card's categories…"), and the MCP `sync_decks` tool takes it as a `syncCategories` field.
+
 ## Exit Codes
 
 | Code | Meaning                                                                                                                                              |
@@ -376,6 +408,13 @@ Sync in a script, accepting the loss of any lines Ritual cannot read:
 
 ```bash
 ritual deck-sync pull --yes --no-input
+```
+
+Bring Archidekt's categories down, then push local category edits back:
+
+```bash
+ritual deck-sync pull "Winota Stax" --sync-categories
+ritual deck-sync push "Winota Stax" --sync-categories
 ```
 
 Script a pull and inspect per-deck results:

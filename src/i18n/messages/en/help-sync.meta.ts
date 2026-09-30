@@ -52,6 +52,10 @@ export const helpSyncMeta = {
     description:
       '`deck-sync pull/push --sync-printings`. "Printing" is a specific edition of a card; "finish" is its foil/etched treatment.',
   },
+  'help.deckSync.syncCategories': {
+    description:
+      '`deck-sync pull/push --sync-categories`. A "category" is the role a card plays in one deck (what Archidekt calls a category and Moxfield a tag); the examples are category names and may be translated.',
+  },
   'help.deckSync.link': { description: 'Summary of `deck-sync link`.' },
   'help.deckSync.linkDeck': { description: 'The `<deck>` argument of `deck-sync link`.' },
   'help.deckSync.linkUrl': {

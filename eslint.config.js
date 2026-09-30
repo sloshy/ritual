@@ -133,6 +133,7 @@ export default [
                 'src/cache/constants',
                 'src/importers/text-file',
                 'src/importers/archidekt-types',
+                'src/importers/archidekt-categories',
                 'src/importers/archidekt-collection',
                 'src/importers/csv',
               ],

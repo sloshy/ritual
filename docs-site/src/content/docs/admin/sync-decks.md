@@ -16,13 +16,14 @@ If the token stops working mid-run, the run reports the failure and the login fo
 
 ## Choosing what to sync
 
-| Control            | Effect                                                                                                                                                                     |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Direction**      | `Pull` (Archidekt → local) or `Push` (local → Archidekt). The text below the control says what the selected direction writes.                                              |
-| **Changes**        | `All changes`, `Additions only`, or `Removals only` — the CLI's [`--only`](/commands/deck-sync/#change-filter). Skipped changes are still reported per deck.               |
-| **Decks**          | One row per Archidekt-linked deck, all selected by default. **All decks** toggles every row and also syncs any deck linked after the page loaded.                          |
-| **Preview only**   | Runs as a dry run. Both directions still fetch the remote deck, but nothing is written locally and nothing is sent to Archidekt.                                           |
-| **Sync printings** | Also sync each card's set, collector number, and foil/etched finish — the CLI's [`--sync-printings`](/commands/deck-sync/#printing-sync---sync-printings). Off by default. |
+| Control             | Effect                                                                                                                                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Direction**       | `Pull` (Archidekt → local) or `Push` (local → Archidekt). The text below the control says what the selected direction writes.                                                             |
+| **Changes**         | `All changes`, `Additions only`, or `Removals only` — the CLI's [`--only`](/commands/deck-sync/#change-filter). Skipped changes are still reported per deck.                              |
+| **Decks**           | One row per Archidekt-linked deck, all selected by default. **All decks** toggles every row and also syncs any deck linked after the page loaded.                                         |
+| **Preview only**    | Runs as a dry run. Both directions still fetch the remote deck, but nothing is written locally and nothing is sent to Archidekt.                                                          |
+| **Sync printings**  | Also sync each card's set, collector number, and foil/etched finish — the CLI's [`--sync-printings`](/commands/deck-sync/#printing-sync---sync-printings). Off by default.                |
+| **Sync categories** | Also sync each card's [categories](/commands/categories/) (its role in the deck) — the CLI's [`--sync-categories`](/commands/deck-sync/#category-sync---sync-categories). Off by default. |
 
 With no deck selected, the sync button is disabled.
 
@@ -69,6 +70,8 @@ The same as the CLI, since it is the same engine:
 - A **push** sends local card changes to Archidekt (ignoring board placement) and stamps `lastSynced`, **only for decks that pushed cleanly**.
 - With **Sync printings** ticked, a pull also rewrites local printings and finishes to what Archidekt records (as `set-printing` changelog entries), and a push moves the remote entries to the local file's printing and finish. A card held at several printings is reconciled printing by printing, adding and removing copies as needed. See [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).
 - With it **unticked**, printings are never added or removed. A card's new total is spread over the lines (or Archidekt entries) it already occupies, and a card whose printings the two sides cannot square up is reported and left alone. See [Without the flag](/commands/deck-sync/#without-the-flag).
+
+- With **Sync categories** ticked, a pull makes the deck's categories file hold Archidekt's categories for every card (as `set-categories` changelog entries), and a push makes each Archidekt card hold the local categories, keeping its board. A push from a deck with no local categories leaves Archidekt's alone. See [Category Sync](/commands/deck-sync/#category-sync---sync-categories).
 
 See [What Is Compared](/commands/deck-sync/#what-is-compared) for the full rules.
 

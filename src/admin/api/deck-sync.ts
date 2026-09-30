@@ -81,6 +81,11 @@ export type DeckSyncRequest = SyncRequestCore & {
    * Off by default; the CLI spells this `--sync-printings`.
    */
   syncPrintings: boolean
+  /**
+   * Also sync each card's categories — its role in the deck. Off by default;
+   * the CLI spells this `--sync-categories`.
+   */
+  syncCategories: boolean
 }
 
 /** `POST /api/deck-sync`: the run's outcome — see {@link SyncRunResponse}. */
@@ -109,12 +114,16 @@ export function parseDeckSyncBody(value: unknown): DeckSyncRequest | string {
   if (value.syncPrintings !== undefined && typeof value.syncPrintings !== 'boolean') {
     return 'syncPrintings must be a boolean'
   }
+  if (value.syncCategories !== undefined && typeof value.syncCategories !== 'boolean') {
+    return 'syncCategories must be a boolean'
+  }
 
   return {
     ...core,
     decks,
     force: value.force === true,
     syncPrintings: value.syncPrintings === true,
+    syncCategories: value.syncCategories === true,
   }
 }
 
@@ -127,6 +136,7 @@ const BOOLEAN_FLAGS = {
   ignoreUnreadableLines: true,
   force: true,
   syncPrintings: true,
+  syncCategories: true,
 } as const satisfies Record<BooleanFieldsOf<DeckSyncRequest>, true>
 
 /**
@@ -234,6 +244,7 @@ async function performSync(
     only: request.only,
     force: request.force,
     syncPrintings: request.syncPrintings,
+    syncCategories: request.syncCategories,
     onEvent,
     signal,
     // Nobody to prompt over HTTP: the request either carries the caller's "yes"

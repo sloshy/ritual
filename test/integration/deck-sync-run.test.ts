@@ -1107,3 +1107,86 @@ describe('deck-sync custom art (Integration)', () => {
     expect(art.ok && [...art.art.entries()]).toEqual([[1, { file: 'proxies/ring.png' }]])
   })
 })
+
+describe('deck-sync --sync-categories (Integration)', () => {
+  const UPDATED_AT = '2026-08-01T00:00:00.000Z'
+  const synced = { sourceUpdatedAt: UPDATED_AT }
+  const sidecarPath = (): string => path.join(dir, 'decks', 'winota-stax.categories.json')
+  const readSidecar = async (): Promise<unknown> =>
+    JSON.parse(await fs.readFile(sidecarPath(), 'utf-8')) as unknown
+
+  /**
+   * A remote Sol Ring filed under `categories`, beside the deck's own category
+   * definitions — the flags are what make `Commander` a board and `Artifact` a
+   * role.
+   */
+  function categorizedRoutes(categories: string[]): Record<string, StubRoute> {
+    const deck = remoteDeck(UPDATED_AT) as { cards: { categories: string[] }[] }
+    deck.cards[0]!.categories = categories
+    return {
+      ...pushRoutes(UPDATED_AT),
+      [DECK_URL]: () =>
+        Response.json({
+          ...deck,
+          categories: [
+            { id: 1, name: 'Commander', isPremier: true, includedInDeck: true },
+            { id: 2, name: 'Artifact', isPremier: false, includedInDeck: true },
+            { id: 3, name: 'Ramp', isPremier: false, includedInDeck: true },
+          ],
+        }),
+    }
+  }
+
+  test('a pull without the flag writes no categories file', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    stubFetch(categorizedRoutes(['Ramp', 'Artifact']))
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+    expect(await Bun.file(sidecarPath()).exists()).toBe(false)
+  })
+
+  test('a pull with the flag writes the remote roles and leaves the card lines alone', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    const before = await readDeck()
+    stubFetch(categorizedRoutes(['Ramp', 'Artifact']))
+
+    expect(await runDeckSync(['pull', '--sync-categories'])).toBe(0)
+
+    expect(logged()).toContain('1 card categories changed')
+    expect(await readSidecar()).toEqual({
+      order: ['Ramp', 'Artifact'],
+      cards: { 'Sol Ring': ['Ramp', 'Artifact'] },
+    })
+    // Only the categories moved, so only the front matter's stamp changed.
+    const body = (text: string): string => text.slice(text.indexOf('# Winota Stax'))
+    expect(body(await readDeck())).toBe(body(before))
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
+    expect(changelog).toContain('Set categories of "Sol Ring" to Ramp, Artifact')
+  })
+
+  test('a push sends the local roles and keeps the remote board category', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    await fs.writeFile(
+      sidecarPath(),
+      JSON.stringify({ order: ['Draw'], cards: { 'Sol Ring': ['Draw'] } }),
+    )
+    stubFetch(categorizedRoutes(['Commander', 'Ramp']))
+
+    expect(await runDeckSync(['push', '--sync-categories'])).toBe(0)
+
+    expect(pushedEntries()).toMatchObject([
+      { action: 'modify', deckRelationId: 11, categories: ['Commander', 'Draw'] },
+    ])
+    expect(logged()).toContain('1 card categories to change')
+  })
+
+  test('a push from a deck with no local categories leaves Archidekt’s alone', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    stubFetch(categorizedRoutes(['Ramp']))
+
+    expect(await runDeckSync(['push', '--sync-categories'])).toBe(0)
+
+    expect(logged()).toContain('The local deck has no categories')
+    expect(pushedToArchidekt()).toBe(false)
+  })
+})

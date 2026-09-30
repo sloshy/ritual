@@ -39,7 +39,6 @@ import { assignMissingDeckCardIds, collectDeckCardIds } from '../card/card-id'
 import { reconcileListRefs } from '../list/list-refs'
 import { checkDeckDivergence, describeDivergence } from './divergence'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
-import { getDecksDir } from '../config/ritual-config'
 import type {
   DeckSyncDeckResult,
   DeckSyncEventHandler,
@@ -49,7 +48,18 @@ import type {
   SyncOutcome,
   SyncFlow,
 } from './types'
-import { buildUploadPlan } from './upload-plan'
+import { buildUploadPlan, type LocalCategoriesOf } from './upload-plan'
+import type { ChangeEvent } from '../changes/change-event'
+import { commitCategoryChanges, type CardCategoriesRecord } from '../list/card-categories-sidecar'
+import { getDecksDir, loadDefaultCategories } from '../config/ritual-config'
+import {
+  deckCardNameSet,
+  loadDeckCategories,
+  localCategoriesFor,
+  pullCategoryChanges,
+  refusedCategoriesMessage,
+  remoteDeckCategories,
+} from './categories'
 import { resolveTargetDecks } from './targets'
 
 export { listSyncableDecks } from './targets'
@@ -168,6 +178,7 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
     only: options.only,
     force: options.force ?? false,
     syncPrintings: options.syncPrintings ?? false,
+    syncCategories: options.syncCategories ?? false,
     emit,
     signal: options.signal,
   }
@@ -256,6 +267,20 @@ async function readRemoteUpdatedAt(
 /** The report fields the printing pass adds to a deck's results. */
 type PrintingResultFields = Pick<DeckSyncDeckResult, 'printingsChanged' | 'printingsUnaligned'>
 
+/** The report fields the printing and category passes add to a deck's results. */
+type ResultFields = Pick<
+  DeckSyncDeckResult,
+  'printingsChanged' | 'printingsUnaligned' | 'categoriesChanged'
+>
+
+/** What this deck's results say about categories: a count, only when the run synced them. */
+function categoryResultFields(
+  flow: SyncFlow,
+  changed: number,
+): Pick<DeckSyncDeckResult, 'categoriesChanged'> {
+  return flow.syncCategories ? { categoriesChanged: changed } : {}
+}
+
 /**
  * What this deck's results say about printings. The two fields are mutually
  * exclusive by construction: a run syncing printings reconciles them and
@@ -299,6 +324,10 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
   const { client, token, dryRun, only, emit } = flow
   const results: DeckSyncDeckResult[] = []
   const writtenFiles: string[] = []
+  /** Stage a path once — a deck file can be touched by the save and the cover reconcile. */
+  const stage = (paths: readonly string[]): void => {
+    for (const file of paths) if (!writtenFiles.includes(file)) writtenFiles.push(file)
+  }
 
   for (const [index, target] of targets.entries()) {
     if (flow.signal?.aborted)
@@ -306,18 +335,32 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     const name = target.deck.name
     emit({ kind: 'item-start', item: name, index, total: targets.length })
 
+    // Read before anything is written: a sidecar Ritual cannot parse fails the
+    // deck whole rather than letting its cards sync and its categories not.
+    let localCategories: CardCategoriesRecord | undefined
+    if (flow.syncCategories) {
+      const loaded = await loadDeckCategories(target.filePath)
+      if (typeof loaded === 'string') {
+        failDeck(results, emit, name, `Could not read the categories file: ${loaded}`)
+        continue
+      }
+      localCategories = loaded
+    }
+
     // Fetched with its raw payload: the pull records the remote's `updatedAt` as
-    // the divergence baseline a later push compares against.
+    // the divergence baseline a later push compares against, and reads the
+    // categories off it.
     let remoteDeck: DeckData
-    let remoteUpdatedAt: string | undefined
+    let remoteRaw: ArchidektRawDeckResponse
     try {
       const fetched = await client.fetchDeckWithRaw(target.sourceId, token)
       remoteDeck = fetched.deck
-      remoteUpdatedAt = fetched.raw.updatedAt
+      remoteRaw = fetched.raw
     } catch (error: unknown) {
       failDeck(results, emit, name, getErrorMessage(error))
       continue
     }
+    const remoteUpdatedAt = remoteRaw.updatedAt
 
     // The filter narrows the diff before anything acts on it, so "no changes"
     // means "nothing left to apply" — with the skipped side reported either way.
@@ -332,12 +375,43 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       emit({ kind: 'log', level: 'info', item: name, message: skippedMessage })
     }
     emitPrintingMismatches(flow, name, diff.unaligned)
-    // Spread into every result this deck produces, so structured consumers see
-    // what the printing pass did without reading the log.
-    const printingReport = printingResultFields(flow, diff)
     const formatSync = syncDeckFormat(target.deck, target.frontMatter.format, remoteDeck)
+    const cardsChanged = !isDiffEmpty(diff) || formatSync.changed
 
-    if (isDiffEmpty(diff) && !formatSync.changed) {
+    // Apply changes to local sections. Printings move first: a quantity change
+    // for re-pinned copies is keyed by the printing they end up on, so the lines
+    // must already carry it. Pure, so the categories below can be diffed
+    // against the deck the pull *will* write even on a dry run.
+    const pulledSections = applyDownloadDiff(
+      applyPrintingUpdates(target.deck.sections, diff.printingUpdates),
+      diff,
+    )
+
+    const remoteCategories = flow.syncCategories ? remoteDeckCategories(remoteRaw) : undefined
+    if (remoteCategories !== undefined && remoteCategories.refused.length > 0) {
+      emit({
+        kind: 'log',
+        level: 'warn',
+        item: name,
+        message: refusedCategoriesMessage(remoteCategories.refused),
+      })
+    }
+    const categoryChanges =
+      localCategories !== undefined && remoteCategories !== undefined
+        ? pullCategoryChanges(localCategories, remoteCategories, {
+            ...target.deck,
+            sections: pulledSections,
+          })
+        : []
+
+    // Spread into every result this deck produces, so structured consumers see
+    // what the printing and category passes did without reading the log.
+    const report: ResultFields = {
+      ...printingResultFields(flow, diff),
+      ...categoryResultFields(flow, categoryChanges.length),
+    }
+
+    if (!cardsChanged && categoryChanges.length === 0) {
       emit({ kind: 'log', level: 'info', item: name, message: 'No changes detected.' })
       // The sync still happened, so its stamp is still recorded. Skipping this
       // is what used to lock a deck out of `push`: a remote edit that touches no
@@ -345,9 +419,9 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       // Archidekt's `updatedAt` without giving a pull anything to apply, and the
       // divergence guard's documented remedy — pull first — could never clear it.
       if (!dryRun && target.frontMatter.sourceUpdatedAt !== remoteUpdatedAt) {
-        writtenFiles.push(...(await stampSyncedFrontMatter(target, remoteUpdatedAt)))
+        stage(await stampSyncedFrontMatter(target, remoteUpdatedAt))
       }
-      finish(results, emit, { name, status: 'synced', reason: 'no changes', ...printingReport })
+      finish(results, emit, { name, status: 'synced', reason: 'no changes', ...report })
       continue
     }
 
@@ -355,8 +429,11 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       diff.printingUpdates.length > 0
         ? `, ${t('domain.count.printings', { count: diff.printingUpdates.length })} changed`
         : ''
-    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${printingClause}`
-    if (!isDiffEmpty(diff)) {
+    const categoryClause = flow.syncCategories
+      ? `, ${categoryChanges.length} card categories changed`
+      : ''
+    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${printingClause}${categoryClause}`
+    if (!isDiffEmpty(diff) || categoryChanges.length > 0) {
       emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${changeSummary}` })
     }
     if (formatSync.changed && formatSync.format) {
@@ -375,70 +452,91 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
         name,
         status: 'synced',
         reason: `dry-run: ${changeSummary}`,
-        ...printingReport,
+        ...report,
       })
       continue
     }
 
-    // Apply changes to local sections, assigning IDs to any newly added cards so
-    // they are persisted with a stable `&N` rather than being backfilled later.
-    // Printings move first: a quantity change for re-pinned copies is keyed by
-    // the printing they end up on, so the lines must already carry it.
-    const updatedSections = applyDownloadDiff(
-      applyPrintingUpdates(target.deck.sections, diff.printingUpdates),
-      diff,
-    )
-    // Read before the ids are assigned: a card the pull removed frees its `&N`,
-    // and the assigner hands free ids straight to the cards the same pull added,
-    // so comparing against the *finished* deck would miss exactly the lines
-    // whose art would otherwise resurface on a different card.
-    const survivingIds = new Set(collectDeckCardIds({ sections: updatedSections }))
-    const removedCardIds = collectDeckCardIds(target.deck).filter((id) => !survivingIds.has(id))
+    let updatedDeck: DeckData = target.deck
+    const changes: ChangeEvent[] = []
+    if (cardsChanged) {
+      // Read before the ids are assigned: a card the pull removed frees its `&N`,
+      // and the assigner hands free ids straight to the cards the same pull added,
+      // so comparing against the *finished* deck would miss exactly the lines
+      // whose art would otherwise resurface on a different card.
+      const survivingIds = new Set(collectDeckCardIds({ sections: pulledSections }))
+      const removedCardIds = collectDeckCardIds(target.deck).filter((id) => !survivingIds.has(id))
 
-    const updatedDeck: DeckData = assignMissingDeckCardIds({
-      ...target.deck,
-      format: formatSync.format ?? undefined,
-      sections: updatedSections,
-    })
+      // Newly added cards get IDs now so they are persisted with a stable `&N`
+      // rather than being backfilled later.
+      updatedDeck = assignMissingDeckCardIds({
+        ...target.deck,
+        format: formatSync.format ?? undefined,
+        sections: pulledSections,
+      })
 
-    // Write updated deck with lastSynced, THEN record the changelog — the same
-    // ordering `finishListSave` converged the three save routes on, for the same
-    // reason: neither order is atomic, and a crash between the two leaves either
-    // a phantom history entry for an edit the file never received or a correct
-    // file with a gap in its audit trail. `ritual history`, the change-bundle
-    // export, and the editors' undo all *act on* changelog entries, so a phantom
-    // propagates while a gap does not.
-    writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, updatedDeck, remoteUpdatedAt)))
+      // Write updated deck with lastSynced, THEN record the changelog — the same
+      // ordering `finishListSave` converged the three save routes on, for the same
+      // reason: neither order is atomic, and a crash between the two leaves either
+      // a phantom history entry for an edit the file never received or a correct
+      // file with a gap in its audit trail. `ritual history`, the change-bundle
+      // export, and the editors' undo all *act on* changelog entries, so a phantom
+      // propagates while a gap does not.
+      stage(await saveDeckWithSyncTimestamp(target, updatedDeck, remoteUpdatedAt))
 
-    // The deck's custom art and its cover image are filed under its card lines'
-    // `&N`, so a pull that dropped lines must drop them with those lines. Only
-    // pulls need this: a push writes the local deck back unchanged apart from
-    // its sync stamp.
-    // A cover rewrite touches the deck file a second time, so its paths are
-    // deduplicated against the save's — staging the same path twice would make
-    // the auto-commit's `git add` list lie about what changed.
-    const refs = await reconcileListRefs(target.filePath, { removed: removedCardIds })
-    for (const file of refs.writtenFiles) {
-      if (!writtenFiles.includes(file)) writtenFiles.push(file)
+      // The deck's custom art and its cover image are filed under its card lines'
+      // `&N`, so a pull that dropped lines must drop them with those lines. Only
+      // pulls need this: a push writes the local deck back unchanged apart from
+      // its sync stamp.
+      const refs = await reconcileListRefs(target.filePath, { removed: removedCardIds })
+      stage(refs.writtenFiles)
+
+      // Changes are stamped with their card ID. Added and quantity-changed cards
+      // resolve against the post-sync deck; removed cards (no longer present)
+      // resolve against the pre-sync deck. Printing updates rewrite every line
+      // of a card, so they resolve to one event per rewritten line.
+      const resolveCardId = buildCardIdResolver(updatedDeck.sections, target.deck.sections)
+      changes.push(
+        ...diffToChangeEvents(diff, resolveCardId),
+        ...printingUpdatesToChangeEvents(
+          diff.printingUpdates,
+          buildCardIdsResolver(updatedDeck.sections),
+        ),
+      )
+    } else {
+      // Only the categories moved: the card lines are left exactly as written,
+      // and the sync is recorded in the front matter alone.
+      stage(await stampSyncedFrontMatter(target, remoteUpdatedAt))
     }
 
-    // Changes are stamped with their card ID. Added and quantity-changed cards
-    // resolve against the post-sync deck; removed cards (no longer present)
-    // resolve against the pre-sync deck. Printing updates rewrite every line
-    // of a card, so they resolve to one event per rewritten line.
-    const resolveCardId = buildCardIdResolver(updatedDeck.sections, target.deck.sections)
-    const changes = [
-      ...diffToChangeEvents(diff, resolveCardId),
-      ...printingUpdatesToChangeEvents(
-        diff.printingUpdates,
-        buildCardIdsResolver(updatedDeck.sections),
-      ),
-    ]
+    // The categories file follows the deck file, and its events are recorded
+    // only once it is written. A categories sync also prunes the entries of
+    // cards the pull removed, as the deck's own save would.
+    let categoryError: string | undefined
+    if (flow.syncCategories) {
+      const committed = await commitCategoryChanges(target.filePath, categoryChanges, {
+        knownCardNames: deckCardNameSet(updatedDeck),
+        defaultCategories: await loadDefaultCategories(),
+      })
+      stage(committed.writtenFiles)
+      if (committed.error === undefined) changes.push(...categoryChanges)
+      else categoryError = committed.error
+    }
+
     if (changes.length > 0) {
-      writtenFiles.push(await appendChangelog(target.filePath, target.deck.name, changes))
+      stage([await appendChangelog(target.filePath, target.deck.name, changes)])
+    }
+    if (categoryError !== undefined) {
+      failDeck(
+        results,
+        emit,
+        name,
+        `Synced the cards, but could not write the categories file: ${categoryError}`,
+      )
+      continue
     }
     emit({ kind: 'log', level: 'info', item: name, message: 'Saved.' })
-    finish(results, emit, { name, status: 'synced', ...printingReport })
+    finish(results, emit, { name, status: 'synced', ...report })
   }
 
   return { decks: results, writtenFiles, cancelled: false }
@@ -482,6 +580,30 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       emit({ kind: 'log', level: 'warn', item: name, message: `Skipping: ${reason}` })
       finish(results, emit, { name, status: 'skipped', reason })
       continue
+    }
+
+    // Read before anything is sent, for the same reason the pull does. A deck
+    // with no local categories at all has nothing to say about Archidekt's: its
+    // categories are left alone rather than wiped by a first push.
+    let localCategoriesOf: LocalCategoriesOf | undefined
+    if (flow.syncCategories) {
+      const loaded = await loadDeckCategories(target.filePath)
+      if (typeof loaded === 'string') {
+        failDeck(results, emit, name, `Could not read the categories file: ${loaded}`)
+        continue
+      }
+      if (loaded.cards.size === 0) {
+        emit({
+          kind: 'log',
+          level: 'warn',
+          item: name,
+          message:
+            'The local deck has no categories, so its Archidekt categories are left as they are. ' +
+            'Pull with --sync-categories first to bring them down.',
+        })
+      } else {
+        localCategoriesOf = localCategoriesFor(loaded, target.deck)
+      }
     }
 
     // One fetch, read both ways: the raw payload for the upload plan's card ids
@@ -546,9 +668,36 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     emitPrintingMismatches(flow, name, diff.unaligned)
     const printingReport = printingResultFields(flow, diff)
 
-    if (isDiffEmpty(diff)) {
+    // Without categories to compare, an empty card diff is the whole answer. With
+    // them, only the plan can say whether any card's categories differ.
+    if (isDiffEmpty(diff) && localCategoriesOf === undefined) {
       emit({ kind: 'log', level: 'info', item: name, message: 'No changes to upload.' })
-      finish(results, emit, { name, status: 'synced', reason: 'no changes', ...printingReport })
+      finish(results, emit, {
+        name,
+        status: 'synced',
+        reason: 'no changes',
+        ...printingReport,
+        ...categoryResultFields(flow, 0),
+      })
+      continue
+    }
+
+    const plan = await buildUploadPlan(
+      diff,
+      target.deck.sections,
+      rawDeck,
+      client,
+      token,
+      localCategoriesOf,
+    )
+    const report: ResultFields = {
+      ...printingReport,
+      ...categoryResultFields(flow, plan.categoriesChanged.length),
+    }
+
+    if (isDiffEmpty(diff) && plan.categoriesChanged.length === 0) {
+      emit({ kind: 'log', level: 'info', item: name, message: 'No changes to upload.' })
+      finish(results, emit, { name, status: 'synced', reason: 'no changes', ...report })
       continue
     }
 
@@ -556,14 +705,15 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       diff.printingUpdates.length > 0
         ? `, ${t('domain.count.printings', { count: diff.printingUpdates.length })} to change`
         : ''
+    const categoryClause = flow.syncCategories
+      ? `, ${plan.categoriesChanged.length} card categories to change`
+      : ''
     emit({
       kind: 'log',
       level: 'info',
       item: name,
-      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${printingClause}`,
+      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${printingClause}${categoryClause}`,
     })
-
-    const plan = await buildUploadPlan(diff, target.deck.sections, rawDeck, client, token)
 
     // Plan errors are partial failures: some cards could not be turned into
     // upload entries, so the deck did not fully sync even if the rest pushes.
@@ -583,12 +733,12 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
         results,
         emit,
         deckFailed
-          ? { name, status: 'failed', reason: plan.errors.join('; '), ...printingReport }
+          ? { name, status: 'failed', reason: plan.errors.join('; '), ...report }
           : {
               name,
               status: 'synced',
               reason: `dry-run: would push ${plan.entries.length} card changes`,
-              ...printingReport,
+              ...report,
             },
       )
       continue
@@ -618,7 +768,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
         name,
         status: 'failed',
         reason: plan.errors.join('; '),
-        ...printingReport,
+        ...report,
       })
       continue
     }
@@ -638,7 +788,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     writtenFiles.push(...(await saveDeckWithSyncTimestamp(target, target.deck, pushedUpdatedAt)))
     emit({ kind: 'log', level: 'info', item: name, message: 'Updated lastSynced.' })
 
-    finish(results, emit, { name, status: 'synced', ...printingReport })
+    finish(results, emit, { name, status: 'synced', ...report })
   }
 
   return { decks: results, writtenFiles, cancelled: false }

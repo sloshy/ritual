@@ -314,12 +314,34 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
               'disagree between the two sides carries printingsUnaligned instead and its ' +
               'printings are left alone.',
           ),
+        syncCategories: z
+          .boolean()
+          .optional()
+          .describe(
+            'Also sync each card’s categories — its role in the deck, such as Ramp or ' +
+              'Removal (the CLI’s --sync-categories). Off by default. A pull makes the local ' +
+              'categories file hold Archidekt’s categories for every card; a push makes each ' +
+              'Archidekt card hold the local ones, keeping its board categories (Commander, ' +
+              'Sideboard, Maybeboard). Archidekt categories that name a board always decide the ' +
+              'card’s section and are never categories. A push from a deck with no local ' +
+              'categories leaves Archidekt’s alone. Each deck’s report entry then carries ' +
+              'categoriesChanged.',
+          ),
       }),
       outputSchema: outputSchemaFor<DeckSyncResult>('sync_decks'),
       annotations: { destructiveHint: true, openWorldHint: true },
     },
     async (
-      { direction, decks, dryRun, ignoreUnreadableLines, only, force, syncPrintings },
+      {
+        direction,
+        decks,
+        dryRun,
+        ignoreUnreadableLines,
+        only,
+        force,
+        syncPrintings,
+        syncCategories,
+      },
       ctx,
     ) => {
       // Typed against the endpoint's own contract, so a field renamed on either
@@ -334,6 +356,7 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         only,
         force,
         syncPrintings,
+        syncCategories,
       }
       return runTool(async (): Promise<DeckSyncResult> => {
         const data = await callApiData<SyncRunSuccess<DeckSyncRunResponse>>(

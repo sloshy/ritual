@@ -24,6 +24,7 @@ describe('parseDeckSyncBody', () => {
       ignoreUnreadableLines: false,
       force: false,
       syncPrintings: false,
+      syncCategories: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -42,6 +43,7 @@ describe('parseDeckSyncBody', () => {
       ignoreUnreadableLines: true,
       force: false,
       syncPrintings: false,
+      syncCategories: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -53,6 +55,7 @@ describe('parseDeckSyncBody', () => {
       ignoreUnreadableLines: false,
       force: false,
       syncPrintings: false,
+      syncCategories: false,
     } satisfies DeckSyncRequest)
   })
 
@@ -64,6 +67,7 @@ describe('parseDeckSyncBody', () => {
       ignoreUnreadableLines: false,
       force: false,
       syncPrintings: false,
+      syncCategories: false,
       only: 'additions',
     } satisfies DeckSyncRequest)
   })
@@ -123,6 +127,11 @@ describe('parseDeckSyncBody', () => {
       expected: 'syncPrintings must be a boolean',
     },
     {
+      label: 'a non-boolean syncCategories',
+      body: { direction: 'push', syncCategories: 'yes' },
+      expected: 'syncCategories must be a boolean',
+    },
+    {
       label: 'an unknown change filter',
       body: { direction: 'pull', only: 'adds' },
       expected: "Invalid only 'adds'. Use one of: additions, removals.",
@@ -144,7 +153,7 @@ describe('parseDeckSyncBody', () => {
 describe('parseDeckSyncQuery', () => {
   test('reads repeated deck params and every flag', () => {
     const params = new URLSearchParams(
-      'direction=push&deck=one&deck=two&dryRun=true&ignoreUnreadableLines=true&force=true&syncPrintings=true',
+      'direction=push&deck=one&deck=two&dryRun=true&ignoreUnreadableLines=true&force=true&syncPrintings=true&syncCategories=true',
     )
     expect(parseDeckSyncQuery(params)).toEqual({
       direction: 'push',
@@ -153,6 +162,7 @@ describe('parseDeckSyncQuery', () => {
       ignoreUnreadableLines: true,
       force: true,
       syncPrintings: true,
+      syncCategories: true,
     } satisfies DeckSyncRequest)
   })
 
@@ -164,6 +174,7 @@ describe('parseDeckSyncQuery', () => {
       ignoreUnreadableLines: false,
       force: false,
       syncPrintings: false,
+      syncCategories: false,
       only: 'removals',
     } satisfies DeckSyncRequest)
   })
@@ -182,6 +193,7 @@ describe('parseDeckSyncQuery', () => {
       ignoreUnreadableLines: false,
       force: false,
       syncPrintings: false,
+      syncCategories: false,
     } satisfies DeckSyncRequest)
   })
 
