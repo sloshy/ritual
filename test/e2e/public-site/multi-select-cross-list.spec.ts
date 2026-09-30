@@ -223,8 +223,10 @@ test.describe('Cross-list multi-select', () => {
   test('in edit mode the dialog groups actions by row and acts on the chosen scope', async ({
     page,
   }) => {
-    // Narrow enough that the old single action row overflowed the panel.
-    await page.setViewportSize({ width: 640, height: 800 })
+    // Narrow enough that the old single action row overflowed the panel. Tall
+    // enough that a whole tile fits between the wrapped sticky edit header and
+    // the editor action dock, so its select checkbox is clickable.
+    await page.setViewportSize({ width: 640, height: 1000 })
     await enterEditMode(page, '#/deck/ms-a')
     await selectAcrossDecks(page, 'ms-b')
 
