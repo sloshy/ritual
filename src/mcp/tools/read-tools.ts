@@ -189,6 +189,14 @@ const sellScopeSchema = z.object({
     .min(0)
     .optional()
     .describe('Only offers of at least this much per copy (USD).'),
+  minRatio: z
+    .number()
+    .min(0)
+    .optional()
+    .describe(
+      'Only offers worth at least this fraction of the TCGplayer market price (offerRatio; ' +
+        '0.8 = 80%). Entries with no cached market price are dropped.',
+    ),
 })
 
 type SellScopeInput = z.infer<typeof sellScopeSchema>
@@ -203,6 +211,7 @@ function sellScopeQuery(scope: SellScopeInput): string {
   }
   if (scope.sets !== undefined && scope.sets.length > 0) params.set('sets', scope.sets.join(','))
   if (scope.minPrice !== undefined) params.set('min', String(scope.minPrice))
+  if (scope.minRatio !== undefined) params.set('minRatio', String(scope.minRatio))
   return params.size > 0 ? `?${params}` : ''
 }
 

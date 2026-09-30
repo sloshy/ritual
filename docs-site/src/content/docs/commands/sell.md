@@ -26,18 +26,19 @@ Names resolve as for every list-taking command; see [List Names](/list-resolutio
 
 ## Options
 
-| Option              | Description                                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `--deck`            | Only decks (also disambiguates list names)                                                                                        |
-| `--collection`      | Only collections (also disambiguates list names)                                                                                  |
-| `--wanted`          | Only wanted lists (also disambiguates list names)                                                                                 |
-| `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): the set of the entry's own printing, or of the quoted printing |
-| `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                          |
-| `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (otherwise they are only counted)              |
-| `--out <file>`      | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory                  |
-| `--refresh <mode>`  | Buylist + card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Feed Freshness](#feed-freshness)        |
-| `--output <format>` | Output format: `text`, `json`, `ndjson`, or `csv`                                                                                 |
-| `--quiet`           | Suppress progress lines and the disclaimer; never the payload or parser warnings                                                  |
+| Option              | Description                                                                                                                           |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `--deck`            | Only decks (also disambiguates list names)                                                                                            |
+| `--collection`      | Only collections (also disambiguates list names)                                                                                      |
+| `--wanted`          | Only wanted lists (also disambiguates list names)                                                                                     |
+| `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): the set of the entry's own printing, or of the quoted printing     |
+| `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                              |
+| `--min-ratio <r>`   | Only offers worth at least this fraction of the card's TCGplayer market price (`0.8` = 80%); see [Offer vs. Market](#offer-vs-market) |
+| `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (otherwise they are only counted)                  |
+| `--out <file>`      | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory                      |
+| `--refresh <mode>`  | Buylist + card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Feed Freshness](#feed-freshness)            |
+| `--output <format>` | Output format: `text`, `json`, `ndjson`, or `csv`                                                                                     |
+| `--quiet`           | Suppress progress lines and the disclaimer; never the payload or parser warnings                                                      |
 
 ## How Cards Are Matched
 
@@ -56,7 +57,28 @@ Each entry lands in one of three states:
 
 **[Proxies](/list-format/#card-labels) and [custom-art](/custom-art/) cards never enter the report.** An entry whose effective labels include `proxy`, or that the list's `.art.json` file gives custom art, is dropped before matching. It is not quoted, counted, or reported as a no-match: there is nothing to sell. The drop happens before aggregation, so such a copy never merges into an identical real one and gets offered to the buyer.
 
-Identical lines (same name, printing, finish, condition, and language, within a section) are aggregated first, so a playset spelled as four collection lines reports as one entry with quantity 4. Entries matching the same CK product share one buy-quantity budget, so several lists holding the same card never sum past CK's cap.
+Identical lines (same name, printing, finish, condition, language, and tags, within a section) are aggregated first, so a playset spelled as four collection lines reports as one entry with quantity 4. Entries matching the same CK product share one buy-quantity budget, so several lists holding the same card never sum past CK's cap.
+
+## Offer vs. Market
+
+Card Kingdom's own retail price (`priceRetail`) runs high, so it is a poor yardstick for whether an offer is good. Each matched entry also carries the quoted printing's **TCGplayer market price** (`tcgplayerPrice`, USD), read from the local card cache's Scryfall prices at the quoted product's finish, so a foil offer is weighed against the foil market. `offerRatio` is `priceBuy ÷ tcgplayerPrice` to three places: `0.8` means CK pays 80% of market. The text report closes each buying line with the same comparison (`· 63% of TCGplayer $2.40`).
+
+Both fields are absent when the cache has no price for that printing, or when the CK product could not be tied to a cached printing (an unpinned entry matched only by CK's name index). `--min-ratio` drops such entries along with every offer below the ratio:
+
+```bash
+# Offers at 70% of market or better, as a sell cart
+ritual sell --min-ratio 0.7 --output csv --out good-offers.csv
+```
+
+Market prices are as fresh as your card cache; refresh it (`ritual cache preload-all`) for today's numbers.
+
+## Entry Fields
+
+Beyond the match and quote, every entry in the `json`/`ndjson` output carries fields for acting on the result:
+
+- **`cardIds`**: the [`&N` ids](/list-format/#card-ids-n) of the list lines behind the entry, in file order. Aggregation folds identical lines into one entry, so a collection's four one-copy lines give four ids, while a deck's `4 Card` line gives one. Pass one to [`set-card --card-id`](/commands/set-card/) (for example to tag the copy, `--tag "CK Batch"`), [`move`](/commands/move/), or [`remove-card`](/commands/remove-card/) to act on exactly that copy after the sale. A line with no id yet contributes none; any editing command assigns them.
+- **`tags`**: the lines' [tags](/list-format/#card-tags). Identically tagged lines aggregate together, so every line behind `cardIds` carries exactly these tags.
+- **`edhrecRank`**: the card's [EDHREC](https://edhrec.com) rank (1 = the most-played Commander card), from the card cache. Absent when EDHREC has not ranked it.
 
 Buy prices are Card Kingdom's **cash** quotes for **Near Mint** copies. Played conditions are graded down on receipt, store credit usually pays more, and quotes change daily. The report is a planning tool, not an offer.
 

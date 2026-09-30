@@ -229,6 +229,10 @@ export const helpInfraMeta = {
   },
   'help.sell.sets': { description: '`sell --sets`.' },
   'help.sell.min': { description: '`sell --min`.' },
+  'help.sell.minRatio': {
+    description:
+      '`sell --min-ratio`. The ratio is the buylist offer divided by the TCGplayer market price; 0.8 means the offer is 80% of market. TCGplayer is a store name.',
+  },
   'help.sell.all': { description: '`sell --all`. CK is Card Kingdom.' },
   'help.sell.out': { description: "`sell --out`. '-' is the literal stdout marker." },
   'help.sell.refresh': {

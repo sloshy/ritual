@@ -465,11 +465,19 @@ any type (\`deck:\`/\`collection:\`/\`wanted:\` prefixes disambiguate).
 ritual sell --refresh auto --output json        # everything CK buys from your collections
 ritual sell main-binder --all --no-input        # one list, including skipped entries
 ritual sell --sets dsk,fdn --min 0.50           # only these sets, offers ≥ $0.50/copy
+ritual sell --min-ratio 0.7 --output json       # offers worth ≥ 70% of TCGplayer market
 ritual sell --output csv --out to-sell.csv      # CK sell-cart CSV (upload at cardkingdom.com/static/csvImport)
 \`\`\`
 
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
+Beside CK's \`priceBuy\` (and their high-running \`priceRetail\`), a matched entry carries
+\`tcgplayerPrice\` — the quoted printing's TCGplayer market price at the quoted finish, from
+the card cache — and \`offerRatio\` = \`priceBuy / tcgplayerPrice\` (0.8 = CK pays 80% of
+market); both are absent when the cache has no price for that printing. \`--min-ratio\`
+filters on it. Every entry also carries \`cardIds\` (the \`&N\` ids of the lines it aggregates —
+one per line, so feed them to \`set-card\`/\`move\`/\`remove-card --card-id\` to act on exactly
+those copies), the lines' \`tags\`, and the card's \`edhrecRank\` (absent when unranked).
 Quotes are cash for NM copies — played conditions grade down, store credit pays more.
 Non-English entries (a \`[ja]\`-style language token) are **never quoted**: CK's feed is
 English-only, so they report \`no-match\` with reason \`non-english\` rather than silently

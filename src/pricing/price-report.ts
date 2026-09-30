@@ -69,6 +69,7 @@ import { matchesAllTerms } from '../card/term-match'
 import type { DeckData } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
+import { normalizedTags, type CardTag } from '../card/card-tags'
 
 /**
  * A card line from any list, flattened to the fields the report engines need.
@@ -102,6 +103,17 @@ export type PriceListEntry = {
    * the copy in hand is no longer the printing a quote would be for.
    */
   hasCustomArt?: boolean
+  /**
+   * The line's `&N` id, when it has one yet. Pricing ignores it; it rides
+   * along for the sell report, whose entries point back at the exact lines
+   * they quote so a caller can tag, move or remove them afterwards.
+   */
+  cardId?: number
+  /**
+   * The line's tags, canonical; absent when it has none. Pricing ignores
+   * them; the sell report scopes by them (`--tags`) and reports them.
+   */
+  tags?: readonly CardTag[]
   section: string
 }
 
@@ -372,6 +384,8 @@ export function deckPriceEntries(
         language: card.language,
         labels: labelsOrUndefined(card.labels, listLabels),
         hasCustomArt: customArtFlag(art, card.cardId),
+        cardId: card.cardId,
+        tags: normalizedTags(card.tags),
         section: section.name,
       })
     }
@@ -449,6 +463,8 @@ export async function loadPriceListInputs(
           language: entry.language,
           labels: labelsOrUndefined(entry.labels, parsed.labels),
           hasCustomArt: customArtFlag(art, entry.cardId),
+          cardId: entry.cardId,
+          tags: normalizedTags(entry.tags),
           section: entry.section,
         })),
       })
@@ -467,6 +483,8 @@ export async function loadPriceListInputs(
         finish: entry.finish,
         language: entry.language,
         hasCustomArt: customArtFlag(art, entry.cardId),
+        cardId: entry.cardId,
+        tags: normalizedTags(entry.tags),
         section: entry.section,
       })),
     })

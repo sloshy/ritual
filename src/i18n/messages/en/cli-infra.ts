@@ -421,7 +421,9 @@ export const cliInfraMessages = {
   'cli.sell.quantityCapped': '×{sellable} of {quantity}',
   'cli.sell.quantity': '×{quantity}',
   'cli.sell.lineValue': ' = {value}',
-  'cli.sell.buyingLine': '{price} {quantity}{value}  {name}{annotation} · {product} · max {max}',
+  'cli.sell.buyingLine':
+    '{price} {quantity}{value}  {name}{annotation} · {product} · max {max}{market}',
+  'cli.sell.marketTail': ' · {percent} of TCGplayer {market}',
   'cli.sell.noMatch': 'no match ({reason})',
   'cli.sell.notBuying': 'not buying ({product})',
   'cli.sell.unsoldLine': '{name}{annotation} ×{quantity} — {label}',

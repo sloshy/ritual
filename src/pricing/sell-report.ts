@@ -41,8 +41,15 @@ import {
   type SellMatchVia,
 } from '../buylist'
 import { displayLanguage } from '../card/card-language'
-import { aggregateQuantities, variantKey } from '../card/card-line'
-import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from '../card/card-printing'
+import { variantKey } from '../card/card-line'
+import {
+  edhrecRankOf,
+  findPrinting,
+  hasSpecificPrinting,
+  type CardPrintingsLookup,
+} from '../card/card-printing'
+import { formatCardTags, type CardTag } from '../card/card-tags'
+import { getCardPriceForFinish } from './price-currency'
 import {
   chooseMatch,
   matchPrinting,
@@ -65,16 +72,21 @@ import type { ListLocation } from '../list/resolve-list'
 import type { ScryfallCard } from '../scryfall/types'
 
 /**
- * A card line flattened for matching — the price report's input shape, whose
- * loader this engine shares (`condition` rides along there for exactly this).
+ * A card entry ready for matching: the price report's line shape, whose loader
+ * this engine shares (`condition`, `cardId` and `tags` ride along there for
+ * exactly this), with identical lines aggregated — so the one `cardId` becomes
+ * every aggregated line's id.
  */
-export type SellListEntry = PriceListEntry
+export type SellListEntry = Omit<PriceListEntry, 'cardId'> & {
+  /** The `&N` ids of the lines this entry aggregates, in file order. */
+  cardIds: number[]
+}
 
 /** One list's entries, ready for matching. */
-export type SellListInput = PriceListInput
+export type SellListInput = Omit<PriceListInput, 'entries'> & { entries: SellListEntry[] }
 
-/** Lists loaded from disk plus any parser warnings. */
-export type LoadedSellInputs = LoadedPriceInputs
+/** Lists loaded from disk, aggregated for matching, plus any parser warnings. */
+export type LoadedSellInputs = Omit<LoadedPriceInputs, 'inputs'> & { inputs: SellListInput[] }
 
 export const SELL_ENTRY_STATUSES = ['buying', 'not-buying', 'no-match'] as const
 export type SellEntryStatus = (typeof SELL_ENTRY_STATUSES)[number]
@@ -110,6 +122,16 @@ export type SellEntryBase = {
   condition?: Condition
   /** Whether set/collectorNumber came from the list entry itself. */
   pinned: boolean
+  /**
+   * The `&N` ids of the list lines behind this entry, in file order — one per
+   * line, so a collection's four one-copy lines give four ids and a deck's
+   * `4 Card` line gives one. Lines not yet given an id contribute none.
+   */
+  cardIds: number[]
+  /** The lines' tags, canonical; absent when they have none. */
+  tags?: CardTag[]
+  /** The card's EDHREC rank (lower is more popular); absent when unranked or uncached. */
+  edhrecRank?: number
   /** Copies CK would take from this entry: capped by the product's remaining budget; 0 unless buying. */
   sellableQuantity: number
   /** priceBuy × sellableQuantity. */
@@ -137,6 +159,19 @@ export type SellEntryMatch = {
   priceRetail: number
   /** Copies CK is currently buying of this product (their cap, not ours). */
   qtyBuying: number
+  /**
+   * The quoted printing's TCGplayer market price (USD) at the quoted finish,
+   * from the card cache's Scryfall prices — a market yardstick for the offer,
+   * which CK's own retail price is not. Absent when the cache has no price
+   * for that printing, or the product could not be tied to a cached printing.
+   */
+  tcgplayerPrice?: number
+  /**
+   * `priceBuy / tcgplayerPrice`, rounded to three places: how the offer
+   * compares with the market (0.8 = CK pays 80% of market). Present exactly
+   * when {@link tcgplayerPrice} is.
+   */
+  offerRatio?: number
 }
 
 /** An entry CK's catalog matched: an active offer, or a paused one. */
@@ -242,17 +277,24 @@ export async function loadSellListInputs(
 
 /**
  * Collapse identical variants (name + printing + finish + condition +
- * language, within a section) into one entry with a summed quantity, in
- * first-seen order — collection files spell four copies as four `quantity: 1`
- * lines.
+ * language + tags, within a section) into one entry with a summed quantity
+ * and every line's `&N` id, in first-seen order — collection files spell four
+ * copies as four `quantity: 1` lines. Tags are part of the identity so an
+ * entry's `tags` are true of every line behind its `cardIds`.
  */
-export function aggregateSellEntries(entries: SellListEntry[]): SellListEntry[] {
-  return aggregateQuantities(
-    entries,
-    (entry) =>
-      `${entry.section}|${variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition, entry.language)}`,
-    (entry) => entry.quantity,
-  ).map(({ entry, quantity }) => ({ ...entry, quantity }))
+export function aggregateSellEntries(entries: readonly PriceListEntry[]): SellListEntry[] {
+  const groups = new Map<string, SellListEntry>()
+  for (const { cardId, ...entry } of entries) {
+    const key = `${entry.section}|${variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition, entry.language)}|${formatCardTags(entry.tags ?? [])}`
+    const group = groups.get(key)
+    if (group) {
+      group.quantity += entry.quantity
+      if (cardId !== undefined) group.cardIds.push(cardId)
+    } else {
+      groups.set(key, { ...entry, cardIds: cardId === undefined ? [] : [cardId] })
+    }
+  }
+  return [...groups.values()]
 }
 
 /** The outcome of the candidate search for one entry, before status is judged. */
@@ -341,6 +383,55 @@ function matchUnpinnedEntry(
   }
 }
 
+/** The cached printing a pinned entry names, language-aware like every pin lookup. */
+function exactPrinting(
+  entry: SellListEntry,
+  printings: readonly ScryfallCard[],
+): ScryfallCard | undefined {
+  return findPrinting([...printings], entry.set, entry.collectorNumber, entry.language)
+}
+
+/**
+ * The cached printing a matched CK product quotes: the one its Scryfall id
+ * names, else — for a pinned entry matched through the sku fallback — the
+ * entry's own printing. `undefined` when neither ties the product to the cache
+ * (an unpinned entry matched only by name).
+ */
+function quotedPrinting(
+  entry: SellListEntry,
+  product: CardKingdomProduct,
+  printings: readonly ScryfallCard[],
+): ScryfallCard | undefined {
+  const byId =
+    product.scryfallId === ''
+      ? undefined
+      : printings.find((printing) => printing.id === product.scryfallId)
+  if (byId) return byId
+  return hasSpecificPrinting(entry) ? exactPrinting(entry, printings) : undefined
+}
+
+/** The market-price fields of a matched entry (see {@link SellEntryMatch.tcgplayerPrice}). */
+type SellMarketFields = Pick<SellEntryMatch, 'tcgplayerPrice' | 'offerRatio'>
+
+/**
+ * The quoted printing's TCGplayer market price at the product's own finish
+ * (a foil offer is weighed against the foil market), and the offer's ratio to
+ * it. Scryfall's `usd` prices are TCGplayer's market prices; a zero or missing
+ * one is no price at all, so both fields are then absent.
+ */
+function marketFields(
+  product: CardKingdomProduct,
+  printing: ScryfallCard | undefined,
+): SellMarketFields {
+  if (!printing) return {}
+  const tcgplayerPrice = getCardPriceForFinish(printing, product.finish, 'usd')
+  if (tcgplayerPrice <= 0) return {}
+  return {
+    tcgplayerPrice,
+    offerRatio: Math.round((product.priceBuy / tcgplayerPrice) * 1000) / 1000,
+  }
+}
+
 /**
  * Remaining buy capacity per CK product id across the whole report, so entries
  * sharing a product draw down one budget instead of each getting the full cap.
@@ -389,6 +480,9 @@ function matchEntry(
     finish: match.finish ?? entry.finish,
     condition: entry.condition,
     pinned,
+    cardIds: entry.cardIds,
+    tags: entry.tags === undefined ? undefined : [...entry.tags],
+    edhrecRank: edhrecRankOf(printings, pinned ? exactPrinting(entry, printings) : undefined),
     sellableQuantity: 0,
     value: 0,
     fileOrder,
@@ -399,6 +493,7 @@ function matchEntry(
   }
 
   const { product } = match
+  const market = marketFields(product, quotedPrinting(entry, product, printings))
   const buying = productIsBuying(product)
   let sellableQuantity = 0
   if (buying) {
@@ -421,6 +516,7 @@ function matchEntry(
     priceBuy: product.priceBuy,
     priceRetail: product.priceRetail,
     qtyBuying: product.qtyBuying,
+    ...market,
     sellableQuantity,
     value: roundCents(product.priceBuy * sellableQuantity),
   }
@@ -515,20 +611,40 @@ export type SellEntryFilters = {
    * `minPrice` — including 0 — drops unmatched entries, which have no quote.
    */
   minPrice?: number
+  /**
+   * Keep matched entries whose {@link SellEntryMatch.offerRatio} (offer ÷
+   * TCGplayer market) is at least this much. Entries without a ratio —
+   * unmatched, or with no cached market price — are dropped.
+   */
+  minRatio?: number
 }
 
-/** Parse a minimum-price value; returns the error message for a bad one. */
-export function parseMinPrice(raw: string): number | string {
-  const parsed = Number.parseFloat(raw)
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return `Invalid minimum price '${raw}' (expected a non-negative number)`
+/** Parse a non-negative number, or the error message naming what it was for. */
+function parseNonNegative(raw: string, what: string): number | string {
+  const parsed = Number(raw.trim())
+  if (raw.trim() === '' || !Number.isFinite(parsed) || parsed < 0) {
+    return `Invalid ${what} '${raw}' (expected a non-negative number)`
   }
   return parsed
 }
 
+/** Parse a minimum-price value; returns the error message for a bad one. */
+export function parseMinPrice(raw: string): number | string {
+  return parseNonNegative(raw, 'minimum price')
+}
+
+/** Parse a minimum offer-to-market ratio (`0.8` = 80% of market); an error message for a bad one. */
+export function parseMinRatio(raw: string): number | string {
+  return parseNonNegative(raw, 'minimum ratio')
+}
+
 /** Whether any filter field is set (a blank filter keeps everything). */
 export function hasActiveSellFilters(filters: SellEntryFilters): boolean {
-  return Boolean((filters.sets && filters.sets.length > 0) || filters.minPrice !== undefined)
+  return Boolean(
+    (filters.sets && filters.sets.length > 0) ||
+    filters.minPrice !== undefined ||
+    filters.minRatio !== undefined,
+  )
 }
 
 export function filterSellEntries(
@@ -543,6 +659,10 @@ export function filterSellEntries(
     if (filters.minPrice !== undefined) {
       if (entry.status === 'no-match') return false
       if (entry.priceBuy < filters.minPrice) return false
+    }
+    if (filters.minRatio !== undefined) {
+      if (entry.status === 'no-match' || entry.offerRatio === undefined) return false
+      if (entry.offerRatio < filters.minRatio) return false
     }
     return true
   })

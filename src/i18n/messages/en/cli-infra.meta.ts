@@ -703,7 +703,11 @@ export const cliInfraMeta = {
   },
   'cli.sell.buyingLine': {
     description:
-      'One entry the buylist is buying. {annotation} is a printing annotation such as " (NEO:234) [foil]" and is never translated.',
+      'One entry the buylist is buying. {annotation} is a printing annotation such as " (NEO:234) [foil]" and is never translated. {market} is the optional cli.sell.marketTail segment, or empty.',
+  },
+  'cli.sell.marketTail': {
+    description:
+      'Optional tail of a buying line comparing the buylist offer with the market: {percent} is the offer as a percentage of the card\'s TCGplayer market price (already formatted, e.g. "62%"), {market} that market price (e.g. "$4.10"). Starts with a separator and a space. TCGplayer is a store name.',
   },
   'cli.sell.noMatch': { description: 'Status of an entry the buylist has no product for.' },
   'cli.sell.notBuying': { description: 'Status of a matched entry the buylist is not buying.' },

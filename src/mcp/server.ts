@@ -68,7 +68,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   autocomplete_card read only your lists and your local cache; get_card_details,
   get_card_printings and get_card_price read the cache but fetch from Scryfall when it lacks the
   card (get_card_price also when its cached copy is more than a day old). get_sell_report reads
-  the locally cached Card Kingdom buylist; refresh_buylist is what downloads it.
+  the locally cached Card Kingdom buylist; refresh_buylist is what downloads it. Its entries
+  carry the cardIds (&N) of the lines each one aggregates, so a follow-up edit can target
+  exactly the copies being sold, and tcgplayerPrice / offerRatio to weigh CK's offer against
+  the market (CK's own priceRetail runs high).
 - The buylist tools are opt-in and off by default. get_sell_report, get_sell_cart,
   get_buylist_quotes and refresh_buylist error "Not found" unless the workspace set the
   site.sellMode config key, listed "cardkingdom" in priceSources, or the server was started with

@@ -27,6 +27,7 @@ function entry(overrides: Partial<Omit<BuyingSellEntry, 'status'>> = {}): Buying
     collectorNumber: '294',
     finish: 'nonfoil',
     pinned: true,
+    cardIds: [1],
     status: 'buying',
     matchVia: 'scryfall-id',
     ckProductId: 10,
@@ -71,6 +72,12 @@ describe('sell text formatting', () => {
     )
   })
 
+  test('a line with a cached market price closes with the offer’s share of it', () => {
+    expect(formatBuyingEntryLine(entry({ tcgplayerPrice: 2.4, offerRatio: 0.625 }))).toBe(
+      '$1.50 ×1  Arahbo (FDN:294) · Foundations Variants (0294 - Borderless) · max 25 · 63% of TCGplayer $2.40',
+    )
+  })
+
   test('a capped line shows how many of the owned copies CK takes', () => {
     const line = formatBuyingEntryLine(
       entry({
@@ -108,6 +115,7 @@ describe('sell text formatting', () => {
       set: 'fdn',
       collectorNumber: '294',
       pinned: true,
+      cardIds: [1],
       status: 'no-match',
       noMatchReason: 'printing-not-found',
       sellableQuantity: 0,

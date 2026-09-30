@@ -32,6 +32,11 @@ import { stubFetch } from '../../helpers/stub-fetch'
 async function seedSellFixture(session: McpTestSession): Promise<void> {
   const printings = (await cardCache.get('Sol Ring')) ?? []
   const printing = printings[0]!
+  // A market price for the quoted printing, so an offerRatio exists to filter on.
+  await cardCache.set('Sol Ring', [
+    { ...printing, prices: { ...printing.prices, usd: '8.00' } },
+    ...printings.slice(1),
+  ])
   await fs.writeFile(
     path.join(session.env.dir, 'collections', 'shoebox.md'),
     `# Shoebox\n\n- Sol Ring (${printing.set.toUpperCase()}:${printing.collector_number}) &1\n`,
@@ -82,7 +87,7 @@ describe('sell MCP tools', () => {
     }
   })
 
-  test('get_sell_report rejects a bad listType and a negative minPrice', async () => {
+  test('get_sell_report rejects a bad listType and a negative minPrice or minRatio', async () => {
     expectSchemaRejection(
       await client.callTool({ name: 'get_sell_report', arguments: { listType: 'binder' } }),
       'listType',
@@ -90,6 +95,10 @@ describe('sell MCP tools', () => {
     expectSchemaRejection(
       await client.callTool({ name: 'get_sell_report', arguments: { minPrice: -1 } }),
       'minPrice',
+    )
+    expectSchemaRejection(
+      await client.callTool({ name: 'get_sell_report', arguments: { minRatio: -0.5 } }),
+      'minRatio',
     )
   })
 
@@ -102,21 +111,22 @@ describe('sell MCP tools', () => {
 
   test('get_sell_report matches a seeded collection against a seeded feed', async () => {
     await seedSellFixture(session)
-    // The lists + minPrice inputs pin the tool's query-string translation —
-    // wiring that exists nowhere else — not the filtering semantics.
+    // The lists + minPrice + minRatio inputs pin the tool's query-string
+    // translation — wiring that exists nowhere else — not the filtering semantics.
     const result = await client.callTool({
       name: 'get_sell_report',
       arguments: {
         lists: [{ listType: 'collection', slug: 'shoebox' }],
         minPrice: 1,
+        minRatio: 0.5,
       },
     })
     const data = toolData<{
       entries: { name: string; status: string; priceBuy?: number }[]
       totals: { sellableCount: number; totalValue: number }
-      filters: { minPrice?: number }
+      filters: { minPrice?: number; minRatio?: number }
     }>(result)
-    expect(data.filters.minPrice).toBe(1)
+    expect(data.filters).toEqual({ minPrice: 1, minRatio: 0.5 })
     expect(data.entries).toHaveLength(1)
     expect(data.entries[0]).toMatchObject({ name: 'Sol Ring', status: 'buying', priceBuy: 4 })
     expect(data.totals.sellableCount).toBe(1)

@@ -830,12 +830,13 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) â€
 
 ### Parameters
 
-| Parameter | Description                                                                                     | Required |
-| --------- | ----------------------------------------------------------------------------------------------- | -------- |
-| `type`    | Match every `deck`, `collection`, or `wanted` list (default: every collection)                  | No       |
-| `lists`   | Comma-separated `type:slug` refs to match exactly these lists (overrides `type`); unknown â†’ 404 | No       |
-| `sets`    | Comma-separated set codes to filter to                                                          | No       |
-| `min`     | Minimum per-copy offer (USD)                                                                    | No       |
+| Parameter  | Description                                                                                     | Required |
+| ---------- | ----------------------------------------------------------------------------------------------- | -------- |
+| `type`     | Match every `deck`, `collection`, or `wanted` list (default: every collection)                  | No       |
+| `lists`    | Comma-separated `type:slug` refs to match exactly these lists (overrides `type`); unknown â†’ 404 | No       |
+| `sets`     | Comma-separated set codes to filter to                                                          | No       |
+| `min`      | Minimum per-copy offer (USD)                                                                    | No       |
+| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop     | No       |
 
 **Response:**
 
@@ -868,6 +869,8 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) â€
       "finish": "nonfoil",
       "condition": "NM",
       "pinned": true,
+      "cardIds": [14],
+      "edhrecRank": 812,
       "status": "buying",
       "matchVia": "scryfall-id",
       "ckProductId": 316734,
@@ -880,6 +883,8 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) â€
       "priceBuy": 1.5,
       "priceRetail": 3.49,
       "qtyBuying": 25,
+      "tcgplayerPrice": 2.1,
+      "offerRatio": 0.714,
       "sellableQuantity": 1,
       "value": 1.5,
       "fileOrder": 1
@@ -903,6 +908,8 @@ Entry fields:
 - `matchVia` names the join key that located the product (`scryfall-id`, `sku`, or `name`). `ambiguous` is set when several products matched; the quote is the best-paying one.
 - An entry with `pinned: false` (an unpinned deck/wanted line) is quoted at the best-paying printing, whose set/collector/`ckFinish` it reports.
 - `sellableQuantity` draws from a per-product budget of CK's `qtyBuying`, so entries sharing a product never sum past the cap. `value` prices only those copies.
+- `cardIds` are the `&N` ids of the list lines aggregated into the entry, in file order (one per line; lines with no id yet contribute none). `tags` are those lines' tags; identically tagged lines aggregate together. `edhrecRank` is the card's EDHREC rank from the card cache, absent when unranked.
+- `tcgplayerPrice` is the quoted printing's TCGplayer market price (USD, from the card cache's Scryfall prices) at the quoted finish, and `offerRatio` is `priceBuy Ã· tcgplayerPrice` to three places. Both are absent when the cache has no price for that printing or the product is not tied to a cached printing.
 
 ## Sell Cart
 
@@ -910,7 +917,7 @@ Entry fields:
 GET /api/sell/cart
 ```
 
-The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?lists=`/`?sets=`/`?min=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
+The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
 
 **Response:**
 

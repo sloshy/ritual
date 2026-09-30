@@ -12,6 +12,7 @@ import {
   applySellFilters,
   buildSellCartCsv,
   parseMinPrice,
+  parseMinRatio,
   type SellEntryFilters,
   type SellReportPayload,
   type SellReportView,
@@ -77,7 +78,22 @@ type SellQuery = {
   filters: SellEntryFilters
 }
 
-/** Parse the shared `?type=`/`?lists=`/`?sets=`/`?min=` params; a Response on refusal. */
+/** A number query param through an engine parser: absent, the value, or a 400. */
+function numberParam(
+  url: URL,
+  name: string,
+  parse: (raw: string) => number | string,
+): number | undefined | Response {
+  const raw = url.searchParams.get(name)
+  if (raw === null || raw === '') return undefined
+  const parsed = parse(raw)
+  return typeof parsed === 'string' ? badRequest(parsed) : parsed
+}
+
+/**
+ * Parse the shared `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=` params;
+ * a Response on refusal.
+ */
 async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   const rawType = url.searchParams.get('type')
   let type: ListType | undefined
@@ -87,18 +103,15 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   }
   const locations = await parseListsParam(url)
   if (locations instanceof Response) return locations
-  const rawMin = url.searchParams.get('min')
-  let minPrice: number | undefined
-  if (rawMin !== null && rawMin !== '') {
-    const parsed = parseMinPrice(rawMin)
-    if (typeof parsed === 'string') return badRequest(parsed)
-    minPrice = parsed
-  }
+  const minPrice = numberParam(url, 'min', parseMinPrice)
+  if (minPrice instanceof Response) return minPrice
+  const minRatio = numberParam(url, 'minRatio', parseMinRatio)
+  if (minRatio instanceof Response) return minRatio
   const rawSets = url.searchParams.get('sets')
   return {
     type,
     locations,
-    filters: { sets: rawSets ? parseSetCodesInput(rawSets) : undefined, minPrice },
+    filters: { sets: rawSets ? parseSetCodesInput(rawSets) : undefined, minPrice, minRatio },
   }
 }
 

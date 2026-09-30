@@ -230,6 +230,8 @@ export const helpInfraMessages = {
     'Lists to check (any type; deck:/collection:/wanted: prefixes work). Default: every collection',
   'help.sell.sets': 'Only cards from these set codes (comma-separated)',
   'help.sell.min': 'Only offers of at least this much per copy',
+  'help.sell.minRatio':
+    "Only offers worth at least this fraction of the card's TCGplayer market price (0.8 = 80%)",
   'help.sell.all': 'Also list entries CK is not buying (text output)',
   'help.sell.out': "Write the output to a file instead of stdout ('-' for stdout)",
   'help.sell.refresh':

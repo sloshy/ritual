@@ -32,6 +32,7 @@ const SEED_CARDS: Record<string, ScryfallCard[]> = {
       set: 'c21',
       collector_number: '263',
       finishes: ['nonfoil', 'foil'],
+      prices: { usd: '2.40', usd_foil: '10.00' },
     }),
   ],
   'Lightning Bolt': [
@@ -120,6 +121,11 @@ describe('sell CLI (Integration)', () => {
       value: 2.4,
       ckSku: 'C21-263',
       ckFinish: 'nonfoil',
+      // Both aggregated lines point back at their own &N, and the offer is
+      // weighed against the cached market price.
+      cardIds: [1, 2],
+      tcgplayerPrice: 2.4,
+      offerRatio: 0.5,
     })
     // CK only takes 1 of the foil.
     const foil = payload.entries.find((e) => e.finish === 'foil')
@@ -158,6 +164,22 @@ describe('sell CLI (Integration)', () => {
     expect(payload.entries.map((e) => e.name).sort()).toEqual(['Lightning Bolt', 'Sol Ring'])
     expect(payload.totals.totalValue).toBe(2)
     expect(payload.filters.minPrice).toBe(1.5)
+  })
+
+  test('--min-ratio filters on the offer-to-market ratio; a bad ratio is a usage error', async () => {
+    const result = await runCli(
+      ['sell', '--min-ratio', '0.4', '--output', 'json', '--refresh', 'never'],
+      dir,
+      OFFLINE_ENV,
+    )
+    const payload = JSON.parse(result.stdout) as SellReportPayload
+    // The nonfoil offer is half of market; the foil's $2 of $10 is a fifth,
+    // and the Bolt has no market price — both drop.
+    expect(payload.filters.minRatio).toBe(0.4)
+    expect(payload.entries.map((e) => e.cardIds)).toEqual([[1, 2]])
+
+    const bad = await runCli(['sell', '--min-ratio', 'half'], dir, OFFLINE_ENV)
+    expect(bad.exitCode).toBe(2)
   })
 
   test('--sets normalizes its codes and filters to them', async () => {

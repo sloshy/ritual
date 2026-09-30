@@ -23,6 +23,7 @@ import {
   buildSellCartCsv,
   isBuyingEntry,
   parseMinPrice,
+  parseMinRatio,
   type BuyingSellEntry,
   type SellEntryFilters,
   type SellListSummary,
@@ -50,6 +51,8 @@ import { failWithError, listArgumentConflictError, runCommandAction } from '../c
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
+import { numberFormat } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 
 /** The footer every text report ends with, unless `--quiet` drops it. */
 export function sellDisclaimer(): string {
@@ -63,15 +66,31 @@ type SellCommandOptions = Partial<Omit<ScriptingOptions, 'output'>> & {
   wanted?: boolean
   sets?: string[]
   min?: number
+  minRatio?: number
   all?: boolean
   out?: string
   refresh: RefreshMode
 }
 
-function parseMinPriceFlag(value: string): number {
-  const parsed = parseMinPrice(value)
-  if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
-  return parsed
+/** Adapt an engine number parser (value or error message) to a commander flag parser. */
+function numberFlag(parse: (raw: string) => number | string): (value: string) => number {
+  return (value) => {
+    const parsed = parse(value)
+    if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
+    return parsed
+  }
+}
+
+/**
+ * The market comparison closing a buying line — ` · 62% of TCGplayer $4.10` —
+ * or nothing when the quoted printing has no cached market price.
+ */
+function marketSegment(entry: BuyingSellEntry): string {
+  if (entry.tcgplayerPrice === undefined || entry.offerRatio === undefined) return ''
+  return t('cli.sell.marketTail', {
+    percent: numberFormat(currentLocale(), { style: 'percent' }).format(entry.offerRatio),
+    market: formatPrice(entry.tcgplayerPrice, 'usd'),
+  })
 }
 
 /**
@@ -109,6 +128,7 @@ export function formatBuyingEntryLine(entry: BuyingSellEntry): string {
     annotation: formatPrintingAnnotation(entry),
     product: ckProductSegment(entry),
     max: entry.qtyBuying,
+    market: marketSegment(entry),
   })
 }
 
@@ -223,7 +243,8 @@ export function registerSellCommand(program: Command): void {
             .argument('[list...]', t('help.sell.listArg')),
         )
           .option('--sets <codes>', t('help.sell.sets'), (value) => parseSetCodesInput(value))
-          .option('--min <price>', t('help.sell.min'), parseMinPriceFlag)
+          .option('--min <price>', t('help.sell.min'), numberFlag(parseMinPrice))
+          .option('--min-ratio <ratio>', t('help.sell.minRatio'), numberFlag(parseMinRatio))
           .option('--all', t('help.sell.all'))
           .option('--out <file>', t('help.sell.out')),
         CSV_OUTPUT_FORMATS,
@@ -294,7 +315,11 @@ export function registerSellCommand(program: Command): void {
         { essential: true },
       )
 
-      const filters: SellEntryFilters = { sets: options.sets, minPrice: options.min }
+      const filters: SellEntryFilters = {
+        sets: options.sets,
+        minPrice: options.min,
+        minRatio: options.minRatio,
+      }
       const view = applySellFilters(report, filters)
 
       const outPath = resolveOutPath(options.out)

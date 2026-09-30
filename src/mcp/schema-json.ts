@@ -361,6 +361,13 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
     finish: FINISH,
     condition: CONDITION,
     pinned: bool('Whether set/collectorNumber came from the list entry itself.'),
+    cardIds: arr(
+      int(),
+      'The &N ids of the list lines behind this entry, in file order (one per line; lines ' +
+        'without an id yet contribute none). Pass them to set-card/move/remove-card tools.',
+    ),
+    tags: arr(str(), 'The lines’ tags, canonical.'),
+    edhrecRank: int('The card’s EDHREC rank (lower is more popular); absent when unranked.'),
     status: enumOf(SELL_ENTRY_STATUSES),
     noMatchReason: enumOf(SELL_NO_MATCH_REASONS),
     matchVia: enumOf(SELL_MATCH_VIAS, 'Which join key located the CK product.'),
@@ -378,6 +385,14 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
     priceBuy: num('CK’s buylist cash quote per Near Mint copy (USD).'),
     priceRetail: num('CK’s retail price (USD), for reference.'),
     qtyBuying: int('Copies CK is currently buying of this product.'),
+    tcgplayerPrice: num(
+      'The quoted printing’s TCGplayer market price (USD) at the quoted finish, from the card ' +
+        'cache; absent when uncached or unpriced.',
+    ),
+    offerRatio: num(
+      'priceBuy ÷ tcgplayerPrice, three decimals (0.8 = CK pays 80% of market); present exactly ' +
+        'when tcgplayerPrice is.',
+    ),
     sellableQuantity: int(
       'Copies CK would take, drawn from a per-product budget; 0 unless buying.',
     ),
@@ -391,6 +406,7 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
     'name',
     'quantity',
     'pinned',
+    'cardIds',
     'status',
     'sellableQuantity',
     'value',
@@ -405,6 +421,7 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
     filters: obj({
       sets: arr(str(), 'Set codes the entries were filtered to.'),
       minPrice: num('Minimum per-copy offer the entries were filtered to.'),
+      minRatio: num('Minimum offer-to-market ratio the entries were filtered to.'),
     }),
     lists: arr(
       obj({ type: LIST_TYPE, name: str(), ...SELL_TOTALS_PROPS }, [

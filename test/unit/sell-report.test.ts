@@ -12,6 +12,7 @@ import {
   buildSellCartCsv,
   buildSellReport,
   parseMinPrice,
+  parseMinRatio,
   sumSellEntries,
   type BuildSellReportOptions,
   type MatchedSellEntry,
@@ -19,6 +20,7 @@ import {
   type SellListInput,
   type SellReportEntry,
 } from '../../src/pricing/sell-report'
+import type { PriceListEntry } from '../../src/pricing/price-report'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 
@@ -155,6 +157,7 @@ function input(entries: Partial<SellListEntry>[]): SellListInput[] {
         name: 'Arahbo',
         quantity: 1,
         section: 'Main',
+        cardIds: [],
         ...entry,
       })),
     },
@@ -211,7 +214,14 @@ describe('buildSellReport matching', () => {
         type: 'collection',
         name: 'Binder',
         entries: [
-          { name: 'Arahbo', quantity: 1, set: 'fdn', collectorNumber: '2', section: 'Main' },
+          {
+            name: 'Arahbo',
+            quantity: 1,
+            set: 'fdn',
+            collectorNumber: '2',
+            section: 'Main',
+            cardIds: [],
+          },
           {
             name: 'Arahbo',
             quantity: 1,
@@ -219,6 +229,7 @@ describe('buildSellReport matching', () => {
             collectorNumber: '2',
             condition: 'LP',
             section: 'Main',
+            cardIds: [],
           },
         ],
       },
@@ -226,7 +237,14 @@ describe('buildSellReport matching', () => {
         type: 'collection',
         name: 'Shoebox',
         entries: [
-          { name: 'Arahbo', quantity: 3, set: 'fdn', collectorNumber: '2', section: 'Main' },
+          {
+            name: 'Arahbo',
+            quantity: 3,
+            set: 'fdn',
+            collectorNumber: '2',
+            section: 'Main',
+            cardIds: [],
+          },
         ],
       },
     ]
@@ -316,7 +334,7 @@ describe('buildSellReport matching', () => {
         {
           type: 'wanted',
           name: 'Wish',
-          entries: [{ name: 'Paused', quantity: 1, section: 'Main' }],
+          entries: [{ name: 'Paused', quantity: 1, section: 'Main', cardIds: [] }],
         },
       ],
       { ...options(), lookup: async () => [] },
@@ -378,7 +396,7 @@ describe('chooseProduct', () => {
 
 describe('aggregateSellEntries', () => {
   test('collapses identical variants and keeps distinct ones apart', () => {
-    const line: SellListEntry = {
+    const line: PriceListEntry = {
       name: 'Arahbo',
       quantity: 1,
       set: 'fdn',
@@ -391,8 +409,123 @@ describe('aggregateSellEntries', () => {
       { ...line, finish: 'foil' },
       { ...line, condition: 'LP' },
       { ...line, section: 'Binder Two' },
+      { ...line, tags: ['CK Batch'] },
     ])
-    expect(aggregated.map((entry) => entry.quantity)).toEqual([2, 1, 1, 1])
+    expect(aggregated.map((entry) => entry.quantity)).toEqual([2, 1, 1, 1, 1])
+  })
+
+  test('gathers every aggregated line’s id in file order, skipping lines without one', () => {
+    const line: PriceListEntry = { name: 'Arahbo', quantity: 1, section: 'Main' }
+    const aggregated = aggregateSellEntries([
+      { ...line, cardId: 4 },
+      { ...line },
+      { ...line, cardId: 2 },
+    ])
+    expect(aggregated).toEqual([{ ...line, quantity: 3, cardIds: [4, 2] }])
+  })
+})
+
+describe('entry enrichment', () => {
+  // The same catalogue, with market prices and an EDHREC rank on the cached
+  // printings: fdn:294 is $3 nonfoil / $5 foil, hbt:17 (sku-linked) is $10.
+  const priced: Record<string, ScryfallCard[]> = {
+    ...PRINTINGS,
+    Arahbo: (PRINTINGS.Arahbo ?? []).map((card) =>
+      card.collector_number === '294'
+        ? { ...card, edhrec_rank: 812, prices: { ...card.prices, usd: '3.00', usd_foil: '5.00' } }
+        : card,
+    ),
+    'Skuuronn, Unlinked': (PRINTINGS['Skuuronn, Unlinked'] ?? []).map((card) => ({
+      ...card,
+      prices: { ...card.prices, usd: '10.00' },
+    })),
+  }
+  const pricedOptions = (): BuildSellReportOptions => ({
+    ...options(),
+    lookup: async (name) => priced[name] ?? [],
+  })
+
+  test('weighs the offer against the market price at the quoted finish', async () => {
+    const report = await buildSellReport(
+      input([
+        { set: 'fdn', collectorNumber: '294' },
+        { set: 'fdn', collectorNumber: '294', finish: 'foil' },
+      ]),
+      pricedOptions(),
+    )
+    const [nonfoil, foil] = report.entries.map(expectMatched)
+    // $1.50 of $3.00, and the foil offer $3.50 of the $5.00 foil market.
+    expect(nonfoil).toMatchObject({ tcgplayerPrice: 3, offerRatio: 0.5, edhrecRank: 812 })
+    expect(foil).toMatchObject({ tcgplayerPrice: 5, offerRatio: 0.7 })
+  })
+
+  test('a pinned sku-fallback match is priced from the entry’s own printing', async () => {
+    const report = await buildSellReport(
+      input([{ name: 'Skuuronn, Unlinked', set: 'hbt', collectorNumber: '17' }]),
+      pricedOptions(),
+    )
+    expect(expectMatched(report.entries[0])).toMatchObject({
+      matchVia: 'sku',
+      tcgplayerPrice: 10,
+      offerRatio: 0.9,
+    })
+  })
+
+  test('no market price leaves both market fields absent', async () => {
+    // fdn:2 has no cached usd price; a name-only match has no cached printing.
+    const report = await buildSellReport(
+      [
+        ...input([{ set: 'fdn', collectorNumber: '2' }]),
+        {
+          type: 'wanted',
+          name: 'Wish',
+          entries: [{ name: 'Paused', quantity: 1, section: 'Main', cardIds: [] }],
+        },
+      ],
+      {
+        ...pricedOptions(),
+        lookup: async (name) => (name === 'Paused' ? [] : (priced[name] ?? [])),
+      },
+    )
+    for (const entry of report.entries.map(expectMatched)) {
+      expect(entry.tcgplayerPrice).toBeUndefined()
+      expect(entry.offerRatio).toBeUndefined()
+    }
+    // fdn:2 carries no rank of its own, but the card's other printing does.
+    expect(report.entries[0]?.edhrecRank).toBe(812)
+  })
+
+  test('an entry reports its lines’ ids and tags', async () => {
+    const report = await buildSellReport(
+      input([{ set: 'fdn', collectorNumber: '294', quantity: 2, cardIds: [3, 7], tags: ['CK'] }]),
+      pricedOptions(),
+    )
+    expect(report.entries[0]).toMatchObject({ cardIds: [3, 7], tags: ['CK'] })
+  })
+
+  test('minRatio keeps offers at or above the ratio and drops unratioed entries', async () => {
+    const report = await buildSellReport(
+      input([
+        { set: 'fdn', collectorNumber: '294' },
+        { name: 'Skuuronn, Unlinked', set: 'hbt', collectorNumber: '17' },
+        { set: 'fdn', collectorNumber: '2' },
+        { name: 'Unknown Card' },
+      ]),
+      pricedOptions(),
+    )
+    const view = applySellFilters(report, { minRatio: 0.5 })
+    expect(view.entries.map((entry) => expectMatched(entry).offerRatio)).toEqual([0.5, 0.9])
+    expect(applySellFilters(report, { minRatio: 0.6 }).entries).toHaveLength(1)
+  })
+})
+
+describe('parseMinRatio', () => {
+  test('accepts non-negative numbers and rejects the rest', () => {
+    expect(parseMinRatio('0.8')).toBe(0.8)
+    expect(parseMinRatio('-0.1')).toBe(
+      "Invalid minimum ratio '-0.1' (expected a non-negative number)",
+    )
+    expect(parseMinRatio('80%')).toContain('Invalid minimum ratio')
   })
 })
 
