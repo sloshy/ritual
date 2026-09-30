@@ -9,9 +9,9 @@ import {
   hasActiveExportFilters,
   parseConditionFilterValues,
   parseLabelFilterValues,
-  parseTagFilterInput,
   type ExportFilters,
 } from '../export/entries'
+import { parseTagFilterInput } from '../card/card-tags'
 import {
   EXPORT_DIALECTS,
   parseColumnsFlag,

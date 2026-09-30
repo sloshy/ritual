@@ -462,6 +462,52 @@ describe('entry enrichment', () => {
     expect(foil).toMatchObject({ tcgplayerPrice: 5, offerRatio: 0.7 })
   })
 
+  test('an unpinned entry is weighed against the market of the product it was quoted at', async () => {
+    // Quoted at the best-paying product — the $3.50 foil — so the yardstick is
+    // the $5 foil market, not the printing's $3 nonfoil price.
+    const report = await buildSellReport(input([{}]), pricedOptions())
+    expect(expectMatched(report.entries[0])).toMatchObject({
+      pinned: false,
+      set: 'fdn',
+      collectorNumber: '294',
+      ckFinish: 'foil',
+      tcgplayerPrice: 5,
+      offerRatio: 0.7,
+    })
+  })
+
+  test('the ratio is rounded to three places, and a zero market price is no price', async () => {
+    const report = await buildSellReport(
+      input([
+        { set: 'fdn', collectorNumber: '2' },
+        { name: 'Paused', set: 'tst', collectorNumber: '5' },
+      ]),
+      {
+        ...pricedOptions(),
+        lookup: async (name) => {
+          if (name === 'Arahbo') {
+            // $0.60 offer against a $1.80 market.
+            return (priced.Arahbo ?? []).map((card) => ({
+              ...card,
+              prices: {
+                ...card.prices,
+                usd: card.collector_number === '2' ? '1.80' : card.prices.usd,
+              },
+            }))
+          }
+          return (PRINTINGS[name] ?? []).map((card) => ({
+            ...card,
+            prices: { ...card.prices, usd: '0.00' },
+          }))
+        },
+      },
+    )
+    const [third, zero] = report.entries.map(expectMatched)
+    expect(third?.offerRatio).toBe(0.333)
+    expect(zero?.tcgplayerPrice).toBeUndefined()
+    expect(zero?.offerRatio).toBeUndefined()
+  })
+
   test('a pinned sku-fallback match is priced from the entry’s own printing', async () => {
     const report = await buildSellReport(
       input([{ name: 'Skuuronn, Unlinked', set: 'hbt', collectorNumber: '17' }]),
@@ -523,7 +569,11 @@ describe('entry enrichment', () => {
 })
 
 describe('owned copies', () => {
-  const line = (name: string, quantity: number, extra: Partial<PriceListEntry> = {}) => ({
+  const line = (
+    name: string,
+    quantity: number,
+    extra: Partial<PriceListEntry> = {},
+  ): PriceListEntry => ({
     name,
     quantity,
     section: 'Main',
@@ -583,6 +633,11 @@ describe('owned copies', () => {
     expect(parseMinOwned('4')).toBe(4)
     expect(parseMinOwned('2.5')).toBe("Invalid minimum owned count '2.5' (expected a whole number)")
     expect(parseMinOwned('-1')).toContain('Invalid minimum owned count')
+    // Only digits: a spelling Number() merely tolerates is refused.
+    expect(parseMinOwned('0x10')).toContain('Invalid minimum owned count')
+    expect(parseMinOwned('1e2')).toContain('Invalid minimum owned count')
+    expect(parseMinOwned('  ')).toContain('Invalid minimum owned count')
+    expect(parseMinOwned(' 3 ')).toBe(3)
   })
 })
 
@@ -593,6 +648,8 @@ describe('parseMinRatio', () => {
       "Invalid minimum ratio '-0.1' (expected a non-negative number)",
     )
     expect(parseMinRatio('80%')).toContain('Invalid minimum ratio')
+    expect(parseMinRatio('')).toContain('Invalid minimum ratio')
+    expect(parseMinRatio('1e-1')).toContain('Invalid minimum ratio')
   })
 })
 

@@ -71,7 +71,7 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   the locally cached Card Kingdom buylist; refresh_buylist is what downloads it. Its entries
   carry the cardIds (&N) of the lines each one aggregates, so a follow-up edit can target
   exactly the copies being sold, ownedCopies (collection / deck counts of the card by name
-  across every list) for spotting duplicates, and tcgplayerPrice / offerRatio to weigh CK's
+  across every collection and deck) for spotting duplicates, and tcgplayerPrice / offerRatio to weigh CK's
   offer against the market (CK's own priceRetail runs high). To sell a hand-picked batch, tag
   those copies (apply_changes "add-tag") and pass the tag as get_sell_cart's tags: the tag scope
   applies before CK's buy limits are shared out, so the cart covers exactly the batch.

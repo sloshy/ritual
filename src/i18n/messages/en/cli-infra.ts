@@ -423,6 +423,7 @@ export const cliInfraMessages = {
   'cli.sell.lineValue': ' = {value}',
   'cli.sell.buyingLine':
     '{price} {quantity}{value}  {name}{annotation} · {product} · max {max}{market}',
+  'cli.sell.tagsTail': ' · tags: {tags}',
   'cli.sell.marketTail': ' · {percent} of TCGplayer {market}',
   'cli.sell.noMatch': 'no match ({reason})',
   'cli.sell.notBuying': 'not buying ({product})',

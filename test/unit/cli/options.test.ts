@@ -7,6 +7,7 @@ import {
   categoriesFlagParser,
   parseEnumFlag,
   parseRefreshFlag,
+  parsedFlag,
 } from '../../../src/cli/options'
 import { CSV_OUTPUT_FORMATS, OUTPUT_FORMATS } from '../../../src/cli/output'
 import { parseCardCategoriesInput } from '../../../src/card/card-categories'
@@ -27,6 +28,14 @@ describe('parseEnumFlag', () => {
     expect(() => parseEnumFlag('sideways', ['push', 'pull'], 'direction')).toThrow(
       "Invalid direction 'sideways'. Use one of: push, pull.",
     )
+  })
+})
+
+describe('parsedFlag', () => {
+  test('passes a parsed value through and turns an error message into a commander refusal', () => {
+    const parse = parsedFlag((raw) => (raw === 'ok' ? 1 : `Bad value '${raw}'`))
+    expect(parse('ok')).toBe(1)
+    expect(() => parse('no')).toThrow(new InvalidArgumentError("Bad value 'no'"))
   })
 })
 

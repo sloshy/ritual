@@ -39,7 +39,7 @@ export async function loadAndBuildSellReport(
   feed: LoadedCardKingdomFeed,
   options?: SellReportOptions,
 ): Promise<LoadedSellReport> {
-  const loaded = await loadSellListInputs(type, locations, options?.tags)
+  const loaded = await loadSellListInputs({ type, locations, tags: options?.tags })
   const report = await buildSellReport(loaded.inputs, {
     lookup: priceLookupFor(options?.refresh),
     index: feed.index,

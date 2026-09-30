@@ -20,8 +20,7 @@ import {
 } from '../../pricing/sell-report'
 import { loadAndBuildSellReport } from '../../pricing/sell-runtime'
 import { parseSetCodesInput } from '../../card/set-codes'
-import type { CardTag } from '../../card/card-tags'
-import { parseTagFilterInput } from '../../export/entries'
+import { parseTagFilterInput } from '../../card/card-tags'
 import { listLocationForSlug } from './list-info'
 import { apiError, badRequest } from '../../api/http'
 import { requireBuylistFeed } from '../../api/buylist'
@@ -81,14 +80,17 @@ type SellQuery = {
   filters: SellEntryFilters
 }
 
-/** A number query param through an engine parser: absent, the value, or a 400. */
-function numberParam(
+/**
+ * A query param through an engine parser: `undefined` when absent or blank,
+ * the parsed value, or a 400 carrying the parser's message.
+ */
+function queryParam<T>(
   url: URL,
   name: string,
-  parse: (raw: string) => number | string,
-): number | undefined | Response {
+  parse: (raw: string) => T | string,
+): T | undefined | Response {
   const raw = url.searchParams.get(name)
-  if (raw === null || raw === '') return undefined
+  if (raw === null || raw.trim() === '') return undefined
   const parsed = parse(raw)
   return typeof parsed === 'string' ? badRequest(parsed) : parsed
 }
@@ -106,19 +108,14 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   }
   const locations = await parseListsParam(url)
   if (locations instanceof Response) return locations
-  const minPrice = numberParam(url, 'min', parseMinPrice)
+  const minPrice = queryParam(url, 'min', parseMinPrice)
   if (minPrice instanceof Response) return minPrice
-  const minRatio = numberParam(url, 'minRatio', parseMinRatio)
+  const minRatio = queryParam(url, 'minRatio', parseMinRatio)
   if (minRatio instanceof Response) return minRatio
-  const minOwned = numberParam(url, 'minOwned', parseMinOwned)
+  const minOwned = queryParam(url, 'minOwned', parseMinOwned)
   if (minOwned instanceof Response) return minOwned
-  const rawTags = url.searchParams.get('tags')
-  let tags: CardTag[] | undefined
-  if (rawTags !== null) {
-    const parsed = parseTagFilterInput(rawTags)
-    if (typeof parsed === 'string') return badRequest(parsed)
-    tags = parsed
-  }
+  const tags = queryParam(url, 'tags', parseTagFilterInput)
+  if (tags instanceof Response) return tags
   const rawSets = url.searchParams.get('sets')
   return {
     type,
@@ -161,8 +158,11 @@ async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response
 /**
  * GET /api/sell/report — every listed card matched against the cached Card
  * Kingdom buylist. Scope with `?type=` (default: collections) or
- * `?lists=type:slug,...`; filter with `?sets=` (comma-separated codes) and
- * `?min=` (minimum per-copy offer). Strictly cache-backed: the card cache and
+ * `?lists=type:slug,...`, narrowed before matching to lines carrying one of
+ * `?tags=`; filter with `?sets=` (comma-separated codes), `?min=` (minimum
+ * per-copy offer), `?minRatio=` (offer ÷ TCGplayer market) and `?minOwned=`
+ * (total copies owned). A blank param is absent; a malformed one is a 400.
+ * Strictly cache-backed: the card cache and
  * a downloaded feed are prerequisites (503 otherwise), and no download is ever
  * triggered here — that is POST /api/sell/refresh's job.
  */

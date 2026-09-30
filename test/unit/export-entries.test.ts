@@ -8,8 +8,6 @@ import {
   loadExportEntries,
   parseConditionFilterValues,
   parseLabelFilterValues,
-  parseTagFilterInput,
-  parseTagFilterValues,
   type ExportEntry,
   type ExportFilters,
 } from '../../src/export/entries'
@@ -326,37 +324,6 @@ describe('labels filter', () => {
       expect(loaded[0]!.labels).toEqual(['keep'])
       expect(loaded[1]!.labels).toEqual(['sale'])
     })
-  })
-})
-
-describe('parseTagFilterValues', () => {
-  test('canonicalizes, dedupes and sorts', () => {
-    expect(parseTagFilterValues([' Ramp ', 'Ramp', 'draw'])).toEqual(['draw', 'Ramp'])
-  })
-
-  test('refuses a malformed tag, an empty list, and a non-string with an error string', () => {
-    expect(parseTagFilterValues(['a#b'])).toContain('Invalid tag "a#b"')
-    expect(parseTagFilterValues([])).toBe('No tags given.')
-    expect(parseTagFilterValues([1])).toBe('tags must be an array of tags.')
-  })
-
-  test('a shape refusal names the field the caller passes, non-array included', () => {
-    expect(parseTagFilterValues([1], 'filters.tags')).toBe('filters.tags must be an array of tags.')
-    expect(parseTagFilterValues('ramp', 'filters.tags')).toBe(
-      'filters.tags must be an array of tags.',
-    )
-  })
-})
-
-describe('parseTagFilterInput', () => {
-  test('reads a typed comma-separated list with the tag grammar', () => {
-    expect(parseTagFilterInput(' Ramp ,Ramp, Card Draw')).toEqual(['Card Draw', 'Ramp'])
-  })
-
-  test('refuses a malformed tag and an input naming no tag with an error string', () => {
-    expect(parseTagFilterInput('a#b')).toContain('Invalid tag "a#b"')
-    expect(parseTagFilterInput('')).toBe('No tags given.')
-    expect(parseTagFilterInput(' , ')).toBe('No tags given.')
   })
 })
 

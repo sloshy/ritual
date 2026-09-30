@@ -14,6 +14,9 @@ import {
   withCardTag,
   withCardTags,
   withoutCardTag,
+  hasAnyCardTag,
+  parseTagFilterInput,
+  parseTagFilterValues,
 } from '../../src/card/card-tags'
 
 /**
@@ -198,5 +201,45 @@ describe('cardTagsDelta', () => {
   test('an unchanged set — in any order — is an empty delta', () => {
     expect(cardTagsDelta(['b', 'a'], ['a', 'b'])).toEqual({ added: [], removed: [] })
     expect(cardTagsDelta(undefined, [])).toEqual({ added: [], removed: [] })
+  })
+})
+
+describe('parseTagFilterValues', () => {
+  test('canonicalizes, dedupes and sorts', () => {
+    expect(parseTagFilterValues([' Ramp ', 'Ramp', 'draw'])).toEqual(['draw', 'Ramp'])
+  })
+
+  test('refuses a malformed tag, an empty list, and a non-string with an error string', () => {
+    expect(parseTagFilterValues(['a#b'])).toContain('Invalid tag "a#b"')
+    expect(parseTagFilterValues([])).toBe('No tags given.')
+    expect(parseTagFilterValues([1])).toBe('tags must be an array of tags.')
+  })
+
+  test('a shape refusal names the field the caller passes, non-array included', () => {
+    expect(parseTagFilterValues([1], 'filters.tags')).toBe('filters.tags must be an array of tags.')
+    expect(parseTagFilterValues('ramp', 'filters.tags')).toBe(
+      'filters.tags must be an array of tags.',
+    )
+  })
+})
+
+describe('parseTagFilterInput', () => {
+  test('reads a typed comma-separated list with the tag grammar', () => {
+    expect(parseTagFilterInput(' Ramp ,Ramp, Card Draw')).toEqual(['Card Draw', 'Ramp'])
+  })
+
+  test('refuses a malformed tag and an input naming no tag with an error string', () => {
+    expect(parseTagFilterInput('a#b')).toContain('Invalid tag "a#b"')
+    expect(parseTagFilterInput('')).toBe('No tags given.')
+    expect(parseTagFilterInput(' , ')).toBe('No tags given.')
+  })
+})
+
+describe('hasAnyCardTag', () => {
+  test('matches exactly and case-sensitively; absent tags and an empty selection match nothing', () => {
+    expect(hasAnyCardTag(['Ramp', 'Card Draw'], ['Card Draw'])).toBe(true)
+    expect(hasAnyCardTag(['Ramp'], ['ramp'])).toBe(false)
+    expect(hasAnyCardTag(undefined, ['Ramp'])).toBe(false)
+    expect(hasAnyCardTag(['Ramp'], [])).toBe(false)
   })
 })

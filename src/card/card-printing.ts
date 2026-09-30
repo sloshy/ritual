@@ -34,7 +34,7 @@ type SpecificPrinting = { set: string; collectorNumber: string }
 
 /**
  * Resolves a card name to every cached printing of it. Satisfied in production
- * by `getCardPrintings`; tests pass a map-backed stub. Declared here rather than
+ * by `getCardPrintings` or its cache-only `getCachedCardPrintings`; tests pass a map-backed stub. Declared here rather than
  * beside either consumer so the collection sync and the export engine share one
  * seam instead of two structurally identical ones.
  */
@@ -159,6 +159,25 @@ export function findPrinting(
 }
 
 /**
+ * Wrap a printings lookup so each distinct name (case-insensitively) is looked
+ * up once per wrapper: a report or export repeats names often — several copies,
+ * printings, lists — and each lookup is a cache read. The promise itself is
+ * memoized, so concurrent callers share one read.
+ */
+export function memoizePrintingsLookup(lookup: CardPrintingsLookup): CardPrintingsLookup {
+  const printingsByName = new Map<string, Promise<ScryfallCard[]>>()
+  return (name) => {
+    const key = name.toLowerCase()
+    let printings = printingsByName.get(key)
+    if (!printings) {
+      printings = lookup(name)
+      printingsByName.set(key, printings)
+    }
+    return printings
+  }
+}
+
+/**
  * The rank the card cache stores for a card EDHREC has not ranked: Scryfall
  * omits the field, and the cache fills the gap with this sentinel so an
  * unranked card sorts after every ranked one.
@@ -168,15 +187,11 @@ export const UNRANKED_EDHREC = 999999
 /**
  * A card's EDHREC rank (lower is more popular), or `undefined` when EDHREC
  * has not ranked it or the cache holds no printing of it. The rank belongs to
- * the card, not the printing, so any ranked printing answers; `preferred` (a
- * line's pinned printing) is asked first only because it is the object the
- * caller already holds.
+ * the card, not the printing, so the first ranked printing answers — which
+ * also skips an unranked object folded into the group (a reversible printing).
  */
-export function edhrecRankOf(
-  printings: readonly ScryfallCard[],
-  preferred?: ScryfallCard,
-): number | undefined {
-  for (const card of preferred ? [preferred, ...printings] : printings) {
+export function edhrecRankOf(printings: readonly ScryfallCard[]): number | undefined {
+  for (const card of printings) {
     const rank = card.edhrec_rank
     if (rank !== undefined && rank > 0 && rank < UNRANKED_EDHREC) return rank
   }

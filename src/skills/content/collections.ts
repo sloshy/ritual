@@ -487,7 +487,7 @@ the card cache — and \`offerRatio\` = \`priceBuy / tcgplayerPrice\` (0.8 = CK 
 market); both are absent when the cache has no price for that printing. \`--min-ratio\`
 filters on it. Every entry also carries \`cardIds\` (the \`&N\` ids of the lines it aggregates —
 one per line, so feed them to \`set-card\`/\`move\`/\`remove-card --card-id\` to act on exactly
-those copies), the lines' \`tags\`, the card's \`edhrecRank\` (absent when unranked), and
+those copies; a hand-added line has none until the next editing command or \`cleanup\` assigns it), the lines' \`tags\`, the card's \`edhrecRank\` (absent when unranked or uncached), and
 \`ownedCopies\` — \`{collection, deck}\` copies of the card by name across every printing in
 ALL your collections and decks, whatever the scope (proxies and deck maybeboard/token sections
 excluded). \`--min-owned N\` filters on their sum, so finding duplicates to sell needs no

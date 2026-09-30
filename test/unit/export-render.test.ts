@@ -147,6 +147,16 @@ describe('renderJsonExport', () => {
       { isFoil: false },
     ])
   })
+
+  test('edhrecRank renders as a JSON number and is omitted when unresolved', () => {
+    const json = JSON.parse(
+      renderJsonExport(
+        [entry({ edhrecRank: 12 }), entry({ fileOrder: 1 })],
+        ['name', 'edhrecRank'],
+      ),
+    )
+    expect(json).toEqual([{ name: 'Lightning Bolt', edhrecRank: 12 }, { name: 'Lightning Bolt' }])
+  })
 })
 
 describe('renderTextExport', () => {
@@ -554,13 +564,6 @@ describe('renderCsvExport', () => {
         'Lightning Bolt,',
     )
   })
-})
-
-test('edhrecRank renders as a JSON number and is omitted when unresolved', () => {
-  const json = JSON.parse(
-    renderJsonExport([entry({ edhrecRank: 12 }), entry({ fileOrder: 1 })], ['name', 'edhrecRank']),
-  )
-  expect(json).toEqual([{ name: 'Lightning Bolt', edhrecRank: 12 }, { name: 'Lightning Bolt' }])
 })
 
 describe('the archidekt dialect', () => {

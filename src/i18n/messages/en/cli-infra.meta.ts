@@ -705,6 +705,10 @@ export const cliInfraMeta = {
     description:
       'One entry the buylist is buying. {annotation} is a printing annotation such as " (NEO:234) [foil]" and is never translated. {market} is the optional cli.sell.marketTail segment, or empty.',
   },
+  'cli.sell.tagsTail': {
+    description:
+      "Optional segment after a card in a sell report line, listing the user's own card tags. {tags} is the tags joined by commas, exactly as the user wrote them (never translated). Starts with a separator and a space.",
+  },
   'cli.sell.marketTail': {
     description:
       'Optional tail of a buying line comparing the buylist offer with the market: {percent} is the offer as a percentage of the card\'s TCGplayer market price (already formatted, e.g. "62%"), {market} that market price (e.g. "$4.10"). Starts with a separator and a space. TCGplayer is a store name.',

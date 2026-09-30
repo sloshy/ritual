@@ -46,9 +46,12 @@ import {
   edhrecRankOf,
   findPrinting,
   hasSpecificPrinting,
+  memoizePrintingsLookup,
   type CardPrintingsLookup,
 } from '../card/card-printing'
-import { formatCardTags, type CardTag } from '../card/card-tags'
+import { formatCardTags, hasAnyCardTag, type CardTag } from '../card/card-tags'
+import type { CardLanguage } from '../card/card-language'
+import { parseNonNegativeDecimal, parseNonNegativeInteger } from '../util/parse-number'
 import { isProxy } from '../card/card-labels'
 import { getCardPriceForFinish } from './price-currency'
 import {
@@ -86,6 +89,17 @@ export type SellListEntry = Omit<PriceListEntry, 'cardId'> & {
 /** One list's entries, ready for matching. */
 export type SellListInput = Omit<PriceListInput, 'entries'> & { entries: SellListEntry[] }
 
+/**
+ * Which lines a sell report reads: every list of `type` (or exactly
+ * `locations`), narrowed to the lines carrying one of `tags` when given — an
+ * empty `tags` narrows nothing, as an empty tag filter does everywhere.
+ */
+export type SellInputScope = {
+  type?: ListType
+  locations?: ListLocation[]
+  tags?: readonly CardTag[]
+}
+
 /** Lists loaded from disk, aggregated for matching, plus any parser warnings. */
 export type LoadedSellInputs = Omit<LoadedPriceInputs, 'inputs'> & { inputs: SellListInput[] }
 
@@ -121,6 +135,8 @@ export type SellEntryBase = {
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
+  /** The lines' language token, when present (absent means `en`). A non-`en` entry is never quoted. */
+  language?: CardLanguage
   /** Whether set/collectorNumber came from the list entry itself. */
   pinned: boolean
   /**
@@ -162,20 +178,29 @@ export type SellEntryMatch = {
   priceRetail: number
   /** Copies CK is currently buying of this product (their cap, not ours). */
   qtyBuying: number
-  /**
-   * The quoted printing's TCGplayer market price (USD) at the quoted finish,
-   * from the card cache's Scryfall prices — a market yardstick for the offer,
-   * which CK's own retail price is not. Absent when the cache has no price
-   * for that printing, or the product could not be tied to a cached printing.
-   */
-  tcgplayerPrice?: number
-  /**
-   * `priceBuy / tcgplayerPrice`, rounded to three places: how the offer
-   * compares with the market (0.8 = CK pays 80% of market). Present exactly
-   * when {@link tcgplayerPrice} is.
-   */
-  offerRatio?: number
-}
+} & SellMarketFields
+
+/**
+ * How a matched entry's offer compares with the market — both fields or
+ * neither. Absent when the cache has no price for the quoted printing, or the
+ * product could not be tied to a cached printing.
+ */
+export type SellMarketFields =
+  | {
+      /**
+       * The quoted printing's TCGplayer market price (USD) at the quoted
+       * finish, from the card cache's Scryfall prices — a market yardstick for
+       * the offer, which CK's own retail price is not.
+       */
+      tcgplayerPrice: number
+      /**
+       * `priceBuy / tcgplayerPrice`, rounded to three places: how the offer
+       * compares with the market (0.8 = CK pays 80% of market). The
+       * `minRatio` filter compares this rounded value — the one reported.
+       */
+      offerRatio: number
+    }
+  | { tcgplayerPrice?: never; offerRatio?: never }
 
 /** An entry CK's catalog matched: an active offer, or a paused one. */
 export type MatchedSellEntry = SellEntryBase & {
@@ -323,31 +348,22 @@ export type SellReportPayload = {
  * identical real one (the variant key is printing + finish + condition +
  * language, not labels or art) and offer CK a card that does not exist.
  */
-export async function loadSellListInputs(
-  type?: ListType,
-  locations?: ListLocation[],
-  tags?: readonly CardTag[],
-): Promise<LoadedSellInputs> {
+export async function loadSellListInputs(scope: SellInputScope): Promise<LoadedSellInputs> {
+  const { type, locations, tags } = scope
   const { inputs, warnings } = await loadPriceListInputs(type, locations)
   return {
     inputs: inputs.map((input): SellListInput => ({
       ...input,
       entries: aggregateSellEntries(
         input.entries.filter(
-          (entry) => !isPricelessEntry(entry) && (tags === undefined || hasAnyTag(entry, tags)),
+          (entry) =>
+            !isPricelessEntry(entry) &&
+            (tags === undefined || tags.length === 0 || hasAnyCardTag(entry.tags, tags)),
         ),
       ),
     })),
     warnings,
   }
-}
-
-/**
- * Whether a line carries at least one of `tags` — exactly and case-sensitively,
- * the rule every tag filter follows. An empty `tags` selects nothing.
- */
-function hasAnyTag(entry: Pick<PriceListEntry, 'tags'>, tags: readonly CardTag[]): boolean {
-  return tags.some((tag) => entry.tags?.includes(tag) === true)
 }
 
 /**
@@ -360,7 +376,7 @@ function hasAnyTag(entry: Pick<PriceListEntry, 'tags'>, tags: readonly CardTag[]
 export function aggregateSellEntries(entries: readonly PriceListEntry[]): SellListEntry[] {
   const groups = new Map<string, SellListEntry>()
   for (const { cardId, ...entry } of entries) {
-    const key = `${entry.section}|${variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition, entry.language)}|${formatCardTags(entry.tags ?? [])}`
+    const key = `${entry.section}|${variantKey(entry.name, entry.set, entry.collectorNumber, entry.finish, entry.condition, entry.language)}|${formatCardTags(entry.tags)}`
     const group = groups.get(key)
     if (group) {
       group.quantity += entry.quantity
@@ -485,9 +501,6 @@ function quotedPrinting(
   return hasSpecificPrinting(entry) ? exactPrinting(entry, printings) : undefined
 }
 
-/** The market-price fields of a matched entry (see {@link SellEntryMatch.tcgplayerPrice}). */
-type SellMarketFields = Pick<SellEntryMatch, 'tcgplayerPrice' | 'offerRatio'>
-
 /**
  * The quoted printing's TCGplayer market price at the product's own finish
  * (a foil offer is weighed against the foil market), and the offer's ratio to
@@ -531,17 +544,19 @@ function matchEntry(
         ? matchPinnedEntry(entry, printings, options.index)
         : matchUnpinnedEntry(entry, printings, options.index)
 
-  // The printing shown: the entry's own pin, else — when the quote came through
-  // a Scryfall id — the quoted printing, so unpinned matches still say which
-  // copy the price is for (and participate in set filters).
+  // The one cached printing the quote is for: both the printing shown and the
+  // market price come from it, so they can never describe different copies.
+  const quoted =
+    match.kind === 'matched' ? quotedPrinting(entry, match.product, printings) : undefined
+
+  // The printing shown: the entry's own pin, else the quoted printing, so
+  // unpinned matches still say which copy the price is for (and participate in
+  // set filters).
   let set = entry.set
   let collectorNumber = entry.collectorNumber
-  if (!pinned && match.kind === 'matched' && match.product.scryfallId !== '') {
-    const quoted = printings.find((printing) => printing.id === match.product.scryfallId)
-    if (quoted) {
-      set = quoted.set.toLowerCase()
-      collectorNumber = quoted.collector_number
-    }
+  if (!pinned && quoted) {
+    set = quoted.set.toLowerCase()
+    collectorNumber = quoted.collector_number
   }
 
   const base: SellEntryBase = {
@@ -554,10 +569,11 @@ function matchEntry(
     collectorNumber,
     finish: match.finish ?? entry.finish,
     condition: entry.condition,
+    language: entry.language,
     pinned,
     cardIds: entry.cardIds,
     tags: entry.tags === undefined ? undefined : [...entry.tags],
-    edhrecRank: edhrecRankOf(printings, pinned ? exactPrinting(entry, printings) : undefined),
+    edhrecRank: edhrecRankOf(printings),
     ownedCopies: ownedCopiesOf(options.owned, entry.name),
     sellableQuantity: 0,
     value: 0,
@@ -569,7 +585,7 @@ function matchEntry(
   }
 
   const { product } = match
-  const market = marketFields(product, quotedPrinting(entry, product, printings))
+  const market = marketFields(product, quoted)
   const buying = productIsBuying(product)
   let sellableQuantity = 0
   if (buying) {
@@ -646,23 +662,20 @@ export function summarizeSellEntries(
 
 /**
  * Match every entry of every input list against the buylist. Each unique card
- * name is looked up once; lookups are cache-backed in production.
+ * name (case-insensitively) is looked up once; lookups are cache-backed in
+ * production.
  */
 export async function buildSellReport(
   inputs: SellListInput[],
   options: BuildSellReportOptions,
 ): Promise<SellReport> {
-  const printingsByName = new Map<string, ScryfallCard[]>()
+  const lookup = memoizePrintingsLookup(options.lookup)
   const budgets: ProductBudgets = new Map()
   const entries: SellReportEntry[] = []
 
   for (const input of inputs) {
     for (const [fileOrder, entry] of input.entries.entries()) {
-      let printings = printingsByName.get(entry.name)
-      if (!printings) {
-        printings = await options.lookup(entry.name)
-        printingsByName.set(entry.name, printings)
-      }
+      const printings = await lookup(entry.name)
       entries.push(matchEntry(input, entry, fileOrder, printings, options, budgets))
     }
   }
@@ -710,13 +723,9 @@ export type SellEntryFilters = {
   minOwned?: number
 }
 
-/** Parse a non-negative number, or the error message naming what it was for. */
+/** A plain non-negative decimal (see `parseNonNegativeDecimal`), or the error naming what it was for. */
 function parseNonNegative(raw: string, what: string): number | string {
-  const parsed = Number(raw.trim())
-  if (raw.trim() === '' || !Number.isFinite(parsed) || parsed < 0) {
-    return `Invalid ${what} '${raw}' (expected a non-negative number)`
-  }
-  return parsed
+  return parseNonNegativeDecimal(raw) ?? `Invalid ${what} '${raw}' (expected a non-negative number)`
 }
 
 /** Parse a minimum-price value; returns the error message for a bad one. */
@@ -724,13 +733,12 @@ export function parseMinPrice(raw: string): number | string {
   return parseNonNegative(raw, 'minimum price')
 }
 
-/** Parse a minimum owned-copies count (a non-negative integer); an error message for a bad one. */
+/** Parse a minimum owned-copies count (a whole number, `0` or more); an error message for a bad one. */
 export function parseMinOwned(raw: string): number | string {
-  const parsed = parseNonNegative(raw, 'minimum owned count')
-  if (typeof parsed === 'number' && !Number.isInteger(parsed)) {
-    return `Invalid minimum owned count '${raw}' (expected a whole number)`
-  }
-  return parsed
+  return (
+    parseNonNegativeInteger(raw.trim()) ??
+    `Invalid minimum owned count '${raw}' (expected a whole number)`
+  )
 }
 
 /** Parse a minimum offer-to-market ratio (`0.8` = 80% of market); an error message for a bad one. */
@@ -756,7 +764,7 @@ export function filterSellEntries(
   const sets = filters.sets
   const tags = filters.tags
   return entries.filter((entry) => {
-    if (tags && tags.length > 0 && !hasAnyTag(entry, tags)) return false
+    if (tags && tags.length > 0 && !hasAnyCardTag(entry.tags, tags)) return false
     if (sets && sets.length > 0 && !(entry.set && sets.includes(entry.set))) {
       return false
     }

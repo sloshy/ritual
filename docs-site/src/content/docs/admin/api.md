@@ -840,6 +840,8 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) โ€
 | `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                      | No       |
 | `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                   | No       |
 
+A blank parameter (`?min=`) reads as absent. A malformed one is a `400` carrying the parser's message: a tag that breaks the [tag shape rule](/list-format/#card-tags), a `min`/`minRatio` that is not a plain non-negative decimal (`1.5`, not `1e1` or `-1`), or a `minOwned` that is not a whole number (`Invalid minimum owned count '2.5' (expected a whole number)`).
+
 **Response:**
 
 ```json
@@ -911,7 +913,7 @@ Entry fields:
 - `matchVia` names the join key that located the product (`scryfall-id`, `sku`, or `name`). `ambiguous` is set when several products matched; the quote is the best-paying one.
 - An entry with `pinned: false` (an unpinned deck/wanted line) is quoted at the best-paying printing, whose set/collector/`ckFinish` it reports.
 - `sellableQuantity` draws from a per-product budget of CK's `qtyBuying`, so entries sharing a product never sum past the cap. `value` prices only those copies.
-- `cardIds` are the `&N` ids of the list lines aggregated into the entry, in file order (one per line; lines with no id yet contribute none). `tags` are those lines' tags; identically tagged lines aggregate together. `edhrecRank` is the card's EDHREC rank from the card cache, absent when unranked. `ownedCopies` counts the card's copies by name, across every printing, in all collections and all decks regardless of the report's scope (proxies and deck extras sections excluded).
+- `cardIds` are the `&N` ids of the list lines aggregated into the entry, in file order (one per line; lines with no id yet contribute none). `tags` are those lines' tags; identically tagged lines aggregate together. `edhrecRank` is the card's EDHREC rank from the card cache, absent when unranked or uncached. `language` is the lines' language token (absent for English); a non-English entry is never quoted. `ownedCopies` counts the card's copies by name, across every printing, in all collections and all decks regardless of the report's scope (proxies and deck extras sections excluded).
 - `tcgplayerPrice` is the quoted printing's TCGplayer market price (USD, from the card cache's Scryfall prices) at the quoted finish, and `offerRatio` is `priceBuy รท tcgplayerPrice` to three places. Both are absent when the cache has no price for that printing or the product is not tied to a cached printing.
 
 ## Sell Cart

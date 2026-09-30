@@ -28,6 +28,19 @@ export function parseNonNegativeInteger(raw: string): number | undefined {
 }
 
 /**
+ * Parse a non-negative decimal written plainly: digits, optionally a point and
+ * more digits (`0`, `1.5`, `0.25`), surrounding whitespace ignored. No sign, no
+ * exponent, no hex, no bare leading or trailing point — the spellings a person
+ * types for a price or a ratio, and nothing `Number()` merely tolerates.
+ * Returns `undefined` for anything else.
+ */
+export function parseNonNegativeDecimal(raw: string): number | undefined {
+  const trimmed = raw.trim()
+  if (!/^\d+(?:\.\d+)?$/.test(trimmed)) return undefined
+  return Number(trimmed)
+}
+
+/**
  * The one refusal wording for a malformed `limit` query parameter, shared by
  * every route that takes one. `limit` means the same thing on all of them, so a
  * client that learns the rule from one refusal has learned it everywhere.

@@ -3,9 +3,9 @@ import {
   edhrecRankOf,
   findPrinting,
   hasSpecificPrinting,
+  memoizePrintingsLookup,
   type CardPrintingsLookup,
 } from '../card/card-printing'
-import type { ScryfallCard } from '../scryfall/types'
 import type { ExportEntry } from './entries'
 import type { ExportProperty } from './render'
 
@@ -26,29 +26,31 @@ export type CacheColumnResolution = {
   warnings: string[]
 }
 
-/** The columns answered from the Scryfall cache rather than the list file. */
-const CACHE_COLUMNS = ['scryfallId', 'edhrecRank'] as const satisfies readonly ExportProperty[]
+/** Fills one cache-answered column in on a set of entries. */
+type CacheColumnResolver = (
+  entries: readonly ExportEntry[],
+  lookup: CardPrintingsLookup,
+) => Promise<CacheColumnResolution>
+
+/**
+ * The columns answered from the Scryfall cache rather than the list file, each
+ * with its resolver — one table, so a column cannot be declared cache-answered
+ * without something filling it in.
+ */
+const CACHE_COLUMN_RESOLVERS = {
+  scryfallId: resolveExportScryfallIds,
+  edhrecRank: resolveExportEdhrecRanks,
+} as const satisfies Partial<Record<ExportProperty, CacheColumnResolver>>
+
+type CacheColumn = keyof typeof CACHE_COLUMN_RESOLVERS
+
+function isCacheColumn(column: ExportProperty): column is CacheColumn {
+  return Object.hasOwn(CACHE_COLUMN_RESOLVERS, column)
+}
 
 /** Whether a column selection needs the Scryfall cache consulted at all. */
 export function columnsNeedCardCache(columns: readonly ExportProperty[]): boolean {
-  return CACHE_COLUMNS.some((column) => columns.includes(column))
-}
-
-/**
- * One lookup per distinct name per run: an export repeats names often (several
- * copies, several printings, several lists), and the lookup is a cache read.
- */
-function memoizedLookup(lookup: CardPrintingsLookup): CardPrintingsLookup {
-  const printingsByName = new Map<string, Promise<ScryfallCard[]>>()
-  return (name) => {
-    const memoKey = name.toLowerCase()
-    let printings = printingsByName.get(memoKey)
-    if (!printings) {
-      printings = lookup(name)
-      printingsByName.set(memoKey, printings)
-    }
-    return printings
-  }
+  return columns.some(isCacheColumn)
 }
 
 /** Warnings collected so far, and the sink that keeps only the first per key. */
@@ -73,26 +75,21 @@ function warningCollector(): WarningCollector {
 
 /**
  * Fill in every cache-answered column the selection asks for, returning fresh
- * entries. The one entry point {@link renderExport} calls, so a column added to
- * {@link CACHE_COLUMNS} cannot be selected without being resolved.
+ * entries, with one lookup per distinct name across all of them. The one entry
+ * point `renderExport` calls.
  */
 export async function resolveExportCacheColumns(
   entries: readonly ExportEntry[],
   columns: readonly ExportProperty[],
   lookup: CardPrintingsLookup,
 ): Promise<CacheColumnResolution> {
-  const memoized = memoizedLookup(lookup)
+  const memoized = memoizePrintingsLookup(lookup)
   let resolved: readonly ExportEntry[] = entries
   const warnings: string[] = []
-  if (columns.includes('scryfallId')) {
-    const ids = await resolveExportScryfallIds(resolved, memoized)
-    resolved = ids.entries
-    warnings.push(...ids.warnings)
-  }
-  if (columns.includes('edhrecRank')) {
-    const ranks = await resolveExportEdhrecRanks(resolved, memoized)
-    resolved = ranks.entries
-    warnings.push(...ranks.warnings)
+  for (const column of columns.filter(isCacheColumn)) {
+    const resolution = await CACHE_COLUMN_RESOLVERS[column](resolved, memoized)
+    resolved = resolution.entries
+    warnings.push(...resolution.warnings)
   }
   return { entries: [...resolved], warnings }
 }
@@ -113,7 +110,7 @@ export async function resolveExportScryfallIds(
   lookup: CardPrintingsLookup,
 ): Promise<CacheColumnResolution> {
   const { warnings, warn } = warningCollector()
-  const printingsFor = memoizedLookup(lookup)
+  const printingsFor = memoizePrintingsLookup(lookup)
 
   const resolved: ExportEntry[] = []
   for (const entry of entries) {
@@ -161,7 +158,7 @@ export async function resolveExportEdhrecRanks(
   lookup: CardPrintingsLookup,
 ): Promise<CacheColumnResolution> {
   const { warnings, warn } = warningCollector()
-  const printingsFor = memoizedLookup(lookup)
+  const printingsFor = memoizePrintingsLookup(lookup)
 
   const resolved: ExportEntry[] = []
   for (const entry of entries) {
@@ -174,8 +171,7 @@ export async function resolveExportEdhrecRanks(
       resolved.push(entry)
       continue
     }
-    const pinned = findPrinting(printings, entry.set, entry.collectorNumber)
-    const edhrecRank = edhrecRankOf(printings, pinned)
+    const edhrecRank = edhrecRankOf(printings)
     resolved.push(edhrecRank === undefined ? entry : { ...entry, edhrecRank })
   }
 

@@ -504,6 +504,18 @@ describe('deckPriceEntries', () => {
     expect(entries.map((entry) => entry.name)).toEqual(['A', 'B', 'C'])
   })
 
+  test('carries the line’s &N id and canonical tags — one id for a many-copy line', () => {
+    const entries = deckPriceEntries({
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 4, name: 'A', cardId: 7, tags: ['Ramp', 'Card Draw'] }],
+        },
+      ],
+    })
+    expect(entries[0]).toMatchObject({ quantity: 4, cardId: 7, tags: ['Card Draw', 'Ramp'] })
+  })
+
   test('lowercases pinned set codes', () => {
     const entries = deckPriceEntries({
       sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'A', set: 'NEO' }] }],

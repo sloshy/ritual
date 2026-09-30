@@ -37,6 +37,7 @@ import {
 import {
   findPrinting,
   hasSpecificPrinting,
+  edhrecRankOf,
   UNRANKED_EDHREC,
   type CardPrintingsLookup,
 } from '../card/card-printing'
@@ -576,7 +577,9 @@ function priceEntry(
     price: 0,
     lowest: 0,
     cmc: metaCard?.cmc ?? 0,
-    edhrecRank: metaCard?.edhrec_rank ?? UNRANKED_EDHREC,
+    // The rank is the card's, not the printing's — the same rule sell and
+    // export read it by, so a folded reversible printing cannot hide it.
+    edhrecRank: edhrecRankOf(pricing.printings) ?? UNRANKED_EDHREC,
     typeLine: metaCard?.type_line ?? '',
     fileOrder,
   }

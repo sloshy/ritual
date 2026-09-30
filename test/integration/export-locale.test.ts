@@ -49,6 +49,9 @@ const ENTRIES: ExportEntry[] = [
     // the primary) and not only their header labels.
     categories: ['Ramp', 'Artifacts'],
     note: 'trade bait',
+    // Grouping-sized, so a locale-aware number format would show in the cell
+    // (the resolver keeps a preset value when the cache holds no printing).
+    edhrecRank: 12345,
     fileOrder: 0,
   },
 ]

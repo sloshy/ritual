@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { parsePositiveInteger } from '../../src/util/parse-number'
+import { parseNonNegativeDecimal, parsePositiveInteger } from '../../src/util/parse-number'
 
 /**
  * The one positive-integer rule every surface shares: `--card-id`, `--limit`,
@@ -33,5 +33,31 @@ describe('parsePositiveInteger', () => {
     ['Infinity', 'Infinity'],
   ])('rejects %s', (_label, raw) => {
     expect(parsePositiveInteger(raw)).toBeUndefined()
+  })
+})
+
+describe('parseNonNegativeDecimal', () => {
+  test('accepts plain decimals, trimmed', () => {
+    expect(parseNonNegativeDecimal('0')).toBe(0)
+    expect(parseNonNegativeDecimal(' 1.5 ')).toBe(1.5)
+    expect(parseNonNegativeDecimal('0.25')).toBe(0.25)
+  })
+
+  test('refuses what Number() merely tolerates', () => {
+    for (const raw of [
+      '',
+      ' ',
+      '-1',
+      '+1',
+      '1e3',
+      '0x10',
+      '.5',
+      '5.',
+      '1,5',
+      'Infinity',
+      '1.5abc',
+    ]) {
+      expect(parseNonNegativeDecimal(raw)).toBeUndefined()
+    }
   })
 })

@@ -3,9 +3,9 @@ import {
   buildExportSelection,
   parseConditionFilterValues,
   parseLabelFilterValues,
-  parseTagFilterValues,
   type ExportFilters,
 } from '../../export/entries'
+import { parseTagFilterValues } from '../../card/card-tags'
 import { renderExport } from '../../export/output'
 import { getCachedCardPrintings } from '../../scryfall'
 import {

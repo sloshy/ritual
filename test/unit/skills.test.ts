@@ -98,6 +98,11 @@ describe('skill catalog invariants', () => {
     ['ritual-edit', '🔖 Edit Tags'],
     ['ritual-decks', 'The front-matter `tags:` key'],
     ['ritual-decks', '`🔖 Edit Deck Tags`'],
+    // Sell: the one rule an agent cannot infer — the tag scope applies before
+    // CK's buy caps are shared out — and the fields that replace cache parsing.
+    ['ritual-collections', 'narrows which lines are matched at all'],
+    ['ritual-collections', '`ownedCopies`'],
+    ['ritual', '**do not parse them**'],
     ['ritual-wanted', 'Wanted entries carry no labels, but they do carry **tags**'],
   ])('the %s skill documents %p', (skillName, phrase) => {
     const skill = SKILLS.find((s) => s.name === skillName)

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import { artSidecarPath, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 import { loadPriceListInputs, type PriceListInput } from '../../src/pricing/price-report'
-import { loadSellListInputs } from '../../src/pricing/sell-report'
+import { loadSellListInputs, type SellListInput } from '../../src/pricing/sell-report'
 import type { ListLocation } from '../../src/list/resolve-list'
 import {
   bindWorkspace,
@@ -56,7 +56,10 @@ afterEach(async () => {
   await ws.dispose()
 })
 
-function entriesOf(inputs: PriceListInput[], name: string): PriceListInput['entries'] {
+function entriesOf<I extends PriceListInput | SellListInput>(
+  inputs: I[],
+  name: string,
+): I['entries'] {
   return inputs.find((input) => input.name === name)!.entries
 }
 
@@ -121,7 +124,7 @@ describe('loadPriceListInputs custom art', () => {
 
 describe('loadSellListInputs proxy exclusion', () => {
   test('drops proxy entries without merging them into an identical real copy', async () => {
-    const { inputs } = await loadSellListInputs(undefined, locations)
+    const { inputs } = await loadSellListInputs({ locations })
     // The two Sol Rings are the same printing, finish, and condition — only the
     // label differs, and the variant key does not carry labels, so a proxy left
     // in would be aggregated into the real copy's quantity.
@@ -132,7 +135,7 @@ describe('loadSellListInputs proxy exclusion', () => {
   })
 
   test('a deck whose default label is proxy contributes nothing to sell', async () => {
-    const { inputs } = await loadSellListInputs(undefined, locations)
+    const { inputs } = await loadSellListInputs({ locations })
     expect(entriesOf(inputs, 'burn')).toEqual([])
   })
 
@@ -141,9 +144,35 @@ describe('loadSellListInputs proxy exclusion', () => {
     // must drop it and leave the *other* Sol Ring (the proxy) dropped too, so
     // the binder is down to the one card that is still sellable.
     await saveCardArt(collectionFile, new Map<number, CardArtRef>([[1, { file: 'sol-ring.png' }]]))
-    const { inputs } = await loadSellListInputs(undefined, locations)
+    const { inputs } = await loadSellListInputs({ locations })
     expect(entriesOf(inputs, 'binder').map((entry) => [entry.name, entry.quantity])).toEqual([
       ['Mox Ruby', 1],
     ])
+  })
+})
+
+describe('loadSellListInputs tag scope', () => {
+  test('keeps only lines carrying a scoped tag, each entry pointing at its own lines', async () => {
+    const shoebox = await writeCollectionFile(ws.dir, 'shoebox', {
+      entries: [
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 },
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 2, tags: ['CK'] },
+        { name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 3, tags: ['CK'] },
+      ],
+    })
+    const scope: ListLocation[] = [{ type: 'collection', name: 'shoebox', filePath: shoebox }]
+
+    const tagged = await loadSellListInputs({ locations: scope, tags: ['CK'] })
+    expect(
+      entriesOf(tagged.inputs, 'shoebox').map((entry) => [
+        entry.quantity,
+        entry.cardIds,
+        entry.tags,
+      ]),
+    ).toEqual([[2, [2, 3], ['CK']]])
+
+    // An empty scope narrows nothing — the same meaning an empty filter has.
+    const all = await loadSellListInputs({ locations: scope, tags: [] })
+    expect(entriesOf(all.inputs, 'shoebox').map((entry) => entry.cardIds)).toEqual([[1], [2, 3]])
   })
 })

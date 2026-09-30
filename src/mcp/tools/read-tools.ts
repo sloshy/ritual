@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { callApi, callApiData } from '../dispatch'
 import { loadProjectedList, type ListProjection } from '../projection'
 import { VALID_PRICE_SOURCES } from '../../pricing/price-source'
+import { formatCardTags } from '../../card/card-tags'
 import { outputSchemaFor, runTool } from '../result'
 import {
   cardTagSchema,
@@ -230,7 +231,7 @@ function sellScopeQuery(scope: SellScopeInput): string {
   } else if (scope.listType !== undefined) {
     params.set('type', scope.listType)
   }
-  if (scope.tags !== undefined) params.set('tags', scope.tags.join(', '))
+  if (scope.tags !== undefined) params.set('tags', formatCardTags(scope.tags))
   if (scope.sets !== undefined && scope.sets.length > 0) params.set('sets', scope.sets.join(','))
   if (scope.minPrice !== undefined) params.set('min', String(scope.minPrice))
   if (scope.minRatio !== undefined) params.set('minRatio', String(scope.minRatio))
@@ -693,7 +694,11 @@ export function registerReadTools(server: McpServer): void {
       description:
         'Match cards against the cached Card Kingdom buylist: what CK is buying, the cash ' +
         'quote per Near Mint copy, and their quantity caps. Scope with listType (default: ' +
-        'collections) or lists; filter with sets / minPrice. Strictly cache-backed — errors ' +
+        'collections) or lists, and narrow to cards carrying one of tags (applied before ' +
+        'matching, so CK’s buy caps go to those cards); filter with sets / minPrice / minRatio ' +
+        '(offer ÷ TCGplayer market) / minOwned (total copies owned). Entries carry the cardIds ' +
+        '(&N) of their lines for follow-up edits, ownedCopies, edhrecRank and ' +
+        'tcgplayerPrice / offerRatio. Strictly cache-backed — errors ' +
         'when the card cache is empty (run refresh_cache) or no buylist feed has been ' +
         'downloaded (run refresh_buylist). Requires sell mode or the cardkingdom price source: with ' +
         'site.sellMode off, no "cardkingdom" in priceSources, and no --sell-mode flag on this ' +

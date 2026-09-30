@@ -66,6 +66,19 @@ export function parseEnumFlag<T extends string>(
   return parsed.value
 }
 
+/**
+ * Adapt an engine parser — the value, or an error message — into a commander
+ * argParser, so a flag refuses exactly what the engine's parser refuses, with
+ * the engine's own wording (exit `2` via commander's invalid-argument path).
+ */
+export function parsedFlag<T>(parse: (raw: string) => T | string): (value: string) => T {
+  return (value) => {
+    const parsed = parse(value)
+    if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
+    return parsed
+  }
+}
+
 /** Commander argParser for a price-store flag (`price --source`, `init-site --price-source`). */
 export function parsePriceSourceFlag(value: string): PriceSource {
   return parseEnumFlag(value.trim(), VALID_PRICE_SOURCES, t('errors.enum.fieldPriceSource'))

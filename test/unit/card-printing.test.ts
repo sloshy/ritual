@@ -4,8 +4,11 @@ import {
   finishMatchesPrinting,
   dedupePrintingsByKey,
   findPrinting,
+  edhrecRankOf,
   hasSpecificPrinting,
+  memoizePrintingsLookup,
   printingLanguages,
+  UNRANKED_EDHREC,
   printingsAreComplete,
   resolvePrintingCard,
 } from '../../src/card/card-printing'
@@ -241,5 +244,30 @@ describe('resolvePrintingCard', () => {
         collectorNumber: '42',
       }),
     ).toBeNull()
+  })
+})
+
+describe('memoizePrintingsLookup', () => {
+  test('looks each name up once, case-insensitively, sharing one read between concurrent calls', async () => {
+    const asked: string[] = []
+    const memoized = memoizePrintingsLookup((name) => {
+      asked.push(name)
+      return Promise.resolve([LEA])
+    })
+    const [first, second] = await Promise.all([
+      memoized('Lightning Bolt'),
+      memoized('lightning bolt'),
+    ])
+    expect(first).toBe(second)
+    expect(asked).toEqual(['Lightning Bolt'])
+  })
+})
+
+describe('edhrecRankOf', () => {
+  test('takes the first ranked printing, skipping the unranked sentinel; undefined when none is ranked', () => {
+    const unranked = { ...LEA, edhrec_rank: UNRANKED_EDHREC }
+    expect(edhrecRankOf([unranked, { ...M10, edhrec_rank: 42 }])).toBe(42)
+    expect(edhrecRankOf([unranked, LEA])).toBeUndefined()
+    expect(edhrecRankOf([])).toBeUndefined()
   })
 })

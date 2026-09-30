@@ -1,4 +1,4 @@
-import { Command, InvalidArgumentError } from 'commander'
+import { Command } from 'commander'
 import { ensureCardCachePresent, emptyCacheAdvice } from '../cache/freshness'
 import { adoptCardKingdomFeed, ensureCardKingdomFeed } from '../cardkingdom'
 import { formatPrintingAnnotation } from '../changes/change-event'
@@ -10,6 +10,7 @@ import {
   addOutputOption,
   addQuietOption,
   addListScopeFlags,
+  parsedFlag,
   resolveListTypeFlag,
 } from '../cli/options'
 import type { RefreshMode } from '../cache/refresh'
@@ -35,8 +36,7 @@ import {
 } from '../pricing/sell-report'
 import { loadAndBuildSellReport } from '../pricing/sell-runtime'
 import { parseSetCodesInput } from '../card/set-codes'
-import type { CardTag } from '../card/card-tags'
-import { parseTagFilterInput } from '../export/entries'
+import { formatCardTags, parseTagFilterInput, type CardTag } from '../card/card-tags'
 import { formatDuration } from '../util/duration'
 import {
   CSV_OUTPUT_FORMATS,
@@ -77,20 +77,13 @@ type SellCommandOptions = Partial<Omit<ScriptingOptions, 'output'>> & {
   refresh: RefreshMode
 }
 
-/** Adapt an engine number parser (value or error message) to a commander flag parser. */
-function numberFlag(parse: (raw: string) => number | string): (value: string) => number {
-  return (value) => {
-    const parsed = parse(value)
-    if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
-    return parsed
-  }
-}
-
-/** `--tags`: the export filter's grammar (comma-separated, exact tags). */
-function parseTagsFlag(value: string): CardTag[] {
-  const parsed = parseTagFilterInput(value)
-  if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
-  return parsed
+/**
+ * The lines' tags after the card, ` · tags: CK Batch` — or nothing. Tagged and
+ * untagged copies are separate entries, so without it they would read as two
+ * identical lines. Bare tags, never the `#` the card line writes.
+ */
+function tagsSegment(entry: SellReportEntry): string {
+  return entry.tags?.length ? t('cli.sell.tagsTail', { tags: formatCardTags(entry.tags) }) : ''
 }
 
 /**
@@ -137,7 +130,7 @@ export function formatBuyingEntryLine(entry: BuyingSellEntry): string {
     quantity,
     value,
     name: entry.name,
-    annotation: formatPrintingAnnotation(entry),
+    annotation: formatPrintingAnnotation(entry) + tagsSegment(entry),
     product: ckProductSegment(entry),
     max: entry.qtyBuying,
     market: marketSegment(entry),
@@ -152,7 +145,7 @@ export function formatUnsoldEntryLine(entry: SellReportEntry): string {
       : t('cli.sell.notBuying', { product: ckProductSegment(entry) })
   return t('cli.sell.unsoldLine', {
     name: entry.name,
-    annotation: formatPrintingAnnotation(entry),
+    annotation: formatPrintingAnnotation(entry) + tagsSegment(entry),
     quantity: entry.quantity,
     label,
   })
@@ -255,10 +248,10 @@ export function registerSellCommand(program: Command): void {
             .argument('[list...]', t('help.sell.listArg')),
         )
           .option('--sets <codes>', t('help.sell.sets'), (value) => parseSetCodesInput(value))
-          .option('--min <price>', t('help.sell.min'), numberFlag(parseMinPrice))
-          .option('--min-ratio <ratio>', t('help.sell.minRatio'), numberFlag(parseMinRatio))
-          .option('--min-owned <count>', t('help.sell.minOwned'), numberFlag(parseMinOwned))
-          .option('--tags <list>', t('help.sell.tags'), parseTagsFlag)
+          .option('--min <price>', t('help.sell.min'), parsedFlag(parseMinPrice))
+          .option('--min-ratio <ratio>', t('help.sell.minRatio'), parsedFlag(parseMinRatio))
+          .option('--min-owned <count>', t('help.sell.minOwned'), parsedFlag(parseMinOwned))
+          .option('--tags <list>', t('help.sell.tags'), parsedFlag(parseTagFilterInput))
           .option('--all', t('help.sell.all'))
           .option('--out <file>', t('help.sell.out')),
         CSV_OUTPUT_FORMATS,

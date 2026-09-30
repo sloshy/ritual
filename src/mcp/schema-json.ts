@@ -48,7 +48,12 @@ import { CARD_BULK_TYPES } from '../scryfall/bulk-manifest'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import { DIFF_BY_MODES } from '../changes/list-diff'
 import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
-import { SELL_ENTRY_STATUSES, SELL_NO_MATCH_REASONS } from '../pricing/sell-report'
+import {
+  SELL_ENTRY_STATUSES,
+  SELL_NO_MATCH_REASONS,
+  type SellEntryBase,
+  type SellEntryMatch,
+} from '../pricing/sell-report'
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
 import { SYNC_DIRECTIONS } from '../sync/common'
 import { TOOL_ERROR_CODES } from './error-codes'
@@ -349,82 +354,94 @@ const SELL_TOTALS_REQUIRED = [
   'noMatchCount',
 ] as const
 
-const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
-  {
-    listType: LIST_TYPE,
-    listName: str(),
-    section: str(),
-    name: str(),
-    quantity: int('Copies the list holds (identical variants aggregated).'),
-    set: str('Set code (lowercase): the entry’s pin, else the quoted printing’s.'),
-    collectorNumber: str(),
-    finish: FINISH,
-    condition: CONDITION,
-    pinned: bool('Whether set/collectorNumber came from the list entry itself.'),
-    cardIds: arr(
-      int(),
-      'The &N ids of the list lines behind this entry, in file order (one per line; lines ' +
-        'without an id yet contribute none). Pass them to set-card/move/remove-card tools.',
-    ),
-    tags: arr(str(), 'The lines’ tags, canonical.'),
-    edhrecRank: int('The card’s EDHREC rank (lower is more popular); absent when unranked.'),
-    // Copies of this card, by name, held in all your lists — not just the report's scope.
-    ownedCopies: obj(
-      {
-        collection: int(
-          'Real copies of the card, by name, across every collection (any printing; proxies ' +
-            'excluded), whatever the report’s scope.',
-        ),
-        deck: int('Copies across every deck (any printing; extras sections and proxies excluded).'),
-      },
-      ['collection', 'deck'],
-    ),
-    status: enumOf(SELL_ENTRY_STATUSES),
-    noMatchReason: enumOf(SELL_NO_MATCH_REASONS),
-    matchVia: enumOf(SELL_MATCH_VIAS, 'Which join key located the CK product.'),
-    ambiguous: bool('Multiple CK products matched; the quote is from the best-paying one.'),
-    ckProductId: int(),
-    ckSku: str(),
-    ckName: str('CK’s own card title (can differ from Scryfall’s).'),
-    ckEdition: str('CK’s edition display name.'),
-    ckVariation: str('CK’s variant note for the matched product, when they publish one.'),
-    ckUrl: str('CK product page URL.'),
-    ckFinish: enumOf(
-      VALID_FINISHES,
-      'The matched product’s finish — differs from finish on unpinned entries.',
-    ),
-    priceBuy: num('CK’s buylist cash quote per Near Mint copy (USD).'),
-    priceRetail: num('CK’s retail price (USD), for reference.'),
-    qtyBuying: int('Copies CK is currently buying of this product.'),
-    tcgplayerPrice: num(
-      'The quoted printing’s TCGplayer market price (USD) at the quoted finish, from the card ' +
-        'cache; absent when uncached or unpriced.',
-    ),
-    offerRatio: num(
-      'priceBuy ÷ tcgplayerPrice, three decimals (0.8 = CK pays 80% of market); present exactly ' +
-        'when tcgplayerPrice is.',
-    ),
-    sellableQuantity: int(
-      'Copies CK would take, drawn from a per-product budget; 0 unless buying.',
-    ),
-    value: num('priceBuy × sellableQuantity.'),
-    fileOrder: int(),
-  },
-  [
-    'listType',
-    'listName',
-    'section',
-    'name',
-    'quantity',
-    'pinned',
-    'cardIds',
-    'ownedCopies',
-    'status',
-    'sellableQuantity',
-    'value',
-    'fileOrder',
-  ],
-)
+/** Every key a sell entry can carry, across its status arms — the schema must name each. */
+type SellEntryKey = keyof SellEntryBase | keyof SellEntryMatch | 'status' | 'noMatchReason'
+
+/**
+ * The entry properties, checked against the engine's entry type: a field added
+ * to `SellEntryBase` or `SellEntryMatch` is a compile error here until the
+ * schema describes it.
+ */
+const SELL_ENTRY_PROPS = {
+  listType: LIST_TYPE,
+  listName: str(),
+  section: str(),
+  name: str(),
+  quantity: int('Copies the list holds (identical variants aggregated).'),
+  set: str('Set code (lowercase): the entry’s pin, else the quoted printing’s.'),
+  collectorNumber: str(),
+  finish: FINISH,
+  condition: CONDITION,
+  language: enumOf(
+    CARD_LANGUAGES,
+    'The lines’ language token; absent means English. A non-English entry is never quoted ' +
+      '(noMatchReason "non-english").',
+  ),
+  pinned: bool('Whether set/collectorNumber came from the list entry itself.'),
+  cardIds: arr(
+    int(),
+    'The &N ids of the list lines behind this entry, in file order (one per line; lines ' +
+      'without an id yet contribute none). Pass them to set-card/move/remove-card tools.',
+  ),
+  tags: arr(str(), 'The lines’ tags, canonical.'),
+  edhrecRank: int(
+    'The card’s EDHREC rank (lower is more popular); absent when unranked or uncached.',
+  ),
+  // Copies of this card, by name, held in all your lists — not just the report's scope.
+  ownedCopies: obj(
+    {
+      collection: int(
+        'Real copies of the card, by name, across every collection (any printing; proxies ' +
+          'excluded), whatever the report’s scope.',
+      ),
+      deck: int('Copies across every deck (any printing; extras sections and proxies excluded).'),
+    },
+    ['collection', 'deck'],
+  ),
+  status: enumOf(SELL_ENTRY_STATUSES),
+  noMatchReason: enumOf(SELL_NO_MATCH_REASONS),
+  matchVia: enumOf(SELL_MATCH_VIAS, 'Which join key located the CK product.'),
+  ambiguous: bool('Multiple CK products matched; the quote is from the best-paying one.'),
+  ckProductId: int(),
+  ckSku: str(),
+  ckName: str('CK’s own card title (can differ from Scryfall’s).'),
+  ckEdition: str('CK’s edition display name.'),
+  ckVariation: str('CK’s variant note for the matched product, when they publish one.'),
+  ckUrl: str('CK product page URL.'),
+  ckFinish: enumOf(
+    VALID_FINISHES,
+    'The matched product’s finish — differs from finish on unpinned entries.',
+  ),
+  priceBuy: num('CK’s buylist cash quote per Near Mint copy (USD).'),
+  priceRetail: num('CK’s retail price (USD), for reference.'),
+  qtyBuying: int('Copies CK is currently buying of this product.'),
+  tcgplayerPrice: num(
+    'The quoted printing’s TCGplayer market price (USD) at the quoted finish, from the card ' +
+      'cache; absent when uncached or unpriced.',
+  ),
+  offerRatio: num(
+    'priceBuy ÷ tcgplayerPrice, three decimals (0.8 = CK pays 80% of market); present exactly ' +
+      'when tcgplayerPrice is.',
+  ),
+  sellableQuantity: int('Copies CK would take, drawn from a per-product budget; 0 unless buying.'),
+  value: num('priceBuy × sellableQuantity.'),
+  fileOrder: int(),
+} as const satisfies Record<SellEntryKey, JsonSchemaType>
+
+const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(SELL_ENTRY_PROPS, [
+  'listType',
+  'listName',
+  'section',
+  'name',
+  'quantity',
+  'pinned',
+  'cardIds',
+  'ownedCopies',
+  'status',
+  'sellableQuantity',
+  'value',
+  'fileOrder',
+])
 
 export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
   {

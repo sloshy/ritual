@@ -108,6 +108,10 @@ describe('sell MCP tools', () => {
       await client.callTool({ name: 'get_sell_report', arguments: { tags: ['#CK'] } }),
       'tags',
     )
+    expectSchemaRejection(
+      await client.callTool({ name: 'get_sell_report', arguments: { tags: [] } }),
+      'tags',
+    )
   })
 
   test('get_sell_report errors with the missing-feed remedy when no feed exists', async () => {
@@ -125,7 +129,8 @@ describe('sell MCP tools', () => {
       name: 'get_sell_report',
       arguments: {
         lists: [{ listType: 'collection', slug: 'shoebox' }],
-        tags: ['CK'],
+        // Two tags pin the list encoding the query string carries them in.
+        tags: ['CK', 'Card Draw'],
         minPrice: 1,
         minRatio: 0.5,
         minOwned: 1,
@@ -136,7 +141,13 @@ describe('sell MCP tools', () => {
       totals: { sellableCount: number; totalValue: number }
       filters: { tags?: string[]; minPrice?: number; minRatio?: number; minOwned?: number }
     }>(result)
-    expect(data.filters).toEqual({ tags: ['CK'], minPrice: 1, minRatio: 0.5, minOwned: 1 })
+    expect(data.filters).toEqual({
+      // Canonical (sorted) order, as every tag set is reported.
+      tags: ['Card Draw', 'CK'],
+      minPrice: 1,
+      minRatio: 0.5,
+      minOwned: 1,
+    })
     expect(data.entries).toHaveLength(1)
     expect(data.entries[0]).toMatchObject({ name: 'Sol Ring', status: 'buying', priceBuy: 4 })
     expect(data.totals.sellableCount).toBe(1)

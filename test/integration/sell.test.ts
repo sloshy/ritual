@@ -86,6 +86,20 @@ async function writeFeedCache(dir: string): Promise<void> {
 
 let dir: string
 
+/**
+ * `ritual sell <args> --output json --refresh never`, asserting a clean exit —
+ * a report parsed from a failing run would test nothing.
+ */
+async function sellJson(...args: string[]): Promise<SellReportPayload> {
+  const result = await runCli(
+    ['sell', ...args, '--output', 'json', '--refresh', 'never'],
+    dir,
+    OFFLINE_ENV,
+  )
+  expect(result.exitCode).toBe(0)
+  return JSON.parse(result.stdout) as SellReportPayload
+}
+
 beforeEach(async () => {
   dir = await createWorkspace()
   await seedCardCache(dir, SEED_CARDS)
@@ -106,13 +120,7 @@ afterEach(async () => {
 
 describe('sell CLI (Integration)', () => {
   test('reports the collection against the cached feed as JSON', async () => {
-    const result = await runCli(
-      ['sell', '--output', 'json', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
-    expect(result.exitCode).toBe(0)
-    const payload = JSON.parse(result.stdout) as SellReportPayload
+    const payload = await sellJson()
     expect(payload.feedCreatedAt).toBe('2026-08-04 06:06:09')
 
     // Two aggregated nonfoil copies, one foil copy, one not-buying Bolt.
@@ -157,12 +165,7 @@ describe('sell CLI (Integration)', () => {
   })
 
   test('--min filters offers and recomputes totals', async () => {
-    const result = await runCli(
-      ['sell', '--min', '1.5', '--output', 'json', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
-    const payload = JSON.parse(result.stdout) as SellReportPayload
+    const payload = await sellJson('--min', '1.5')
     // The $1.20 nonfoil offer drops; the $2.00 foil stays, and so does the
     // not-buying Bolt — --min filters the quote, not the status.
     expect(payload.entries).toHaveLength(2)
@@ -172,12 +175,7 @@ describe('sell CLI (Integration)', () => {
   })
 
   test('--min-ratio filters on the offer-to-market ratio; a bad ratio is a usage error', async () => {
-    const result = await runCli(
-      ['sell', '--min-ratio', '0.4', '--output', 'json', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
-    const payload = JSON.parse(result.stdout) as SellReportPayload
+    const payload = await sellJson('--min-ratio', '0.4')
     // The nonfoil offer is half of market; the foil's $2 of $10 is a fifth,
     // and the Bolt has no market price — both drop.
     expect(payload.filters.minRatio).toBe(0.4)
@@ -195,12 +193,7 @@ describe('sell CLI (Integration)', () => {
         { name: 'Maybeboard', cards: [{ quantity: 4, name: 'Lightning Bolt', cardId: 2 }] },
       ],
     })
-    const result = await runCli(
-      ['sell', 'binder', '--min-owned', '4', '--output', 'json', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
-    const payload = JSON.parse(result.stdout) as SellReportPayload
+    const payload = await sellJson('binder', '--min-owned', '4')
     // Three Sol Rings in the binder (the nonfoil and foil entries both count
     // every copy of the name) plus the deck's one; the maybeboard Bolts are
     // not owned, so the binder's single Bolt drops.
@@ -227,12 +220,7 @@ describe('sell CLI (Integration)', () => {
         },
       ],
     })
-    const json = await runCli(
-      ['sell', 'shoebox', '--tags', 'CK Batch', '--output', 'json', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
-    const payload = JSON.parse(json.stdout) as SellReportPayload
+    const payload = await sellJson('shoebox', '--tags', 'CK Batch')
     expect(payload.filters.tags).toEqual(['CK Batch'])
     expect(payload.entries.map((e) => [e.cardIds, e.sellableQuantity])).toEqual([[[2], 1]])
 
@@ -242,15 +230,15 @@ describe('sell CLI (Integration)', () => {
       OFFLINE_ENV,
     )
     expect(csv.stdout).toBe('Sol Ring,Commander 2021,true,1\n')
+
+    // A tag no line carries is an empty report, not an error.
+    const none = await sellJson('shoebox', '--tags', 'Nope')
+    expect(none.entries).toEqual([])
+    expect(none.totals.cardCount).toBe(0)
   })
 
   test('--sets normalizes its codes and filters to them', async () => {
-    const result = await runCli(
-      ['sell', '--sets', 'C21', '--output', 'json', '--refresh', 'never'],
-      dir,
-      OFFLINE_ENV,
-    )
-    const payload = JSON.parse(result.stdout) as SellReportPayload
+    const payload = await sellJson('--sets', 'C21')
     expect(payload.filters.sets).toEqual(['c21'])
     expect(payload.entries).toHaveLength(2)
     expect(payload.entries.every((e) => e.set === 'c21')).toBe(true)

@@ -12,11 +12,15 @@ import { csvScriptingOptions } from '../../../src/cli/output'
 import type {
   BuyingSellEntry,
   SellListSummary,
+  SellMarketFields,
   SellReportEntry,
   SellReportTotals,
 } from '../../../src/pricing/sell-report'
 
-function entry(overrides: Partial<Omit<BuyingSellEntry, 'status'>> = {}): BuyingSellEntry {
+/** Entry fields a test may override; the market pair goes in `market`, both or neither. */
+type EntryOverrides = Partial<Omit<BuyingSellEntry, 'status' | 'tcgplayerPrice' | 'offerRatio'>>
+
+function entry(overrides: EntryOverrides = {}, market: SellMarketFields = {}): BuyingSellEntry {
   return {
     listType: 'collection',
     listName: 'Binder',
@@ -44,6 +48,7 @@ function entry(overrides: Partial<Omit<BuyingSellEntry, 'status'>> = {}): Buying
     value: 1.5,
     fileOrder: 0,
     ...overrides,
+    ...market,
   }
 }
 
@@ -74,8 +79,14 @@ describe('sell text formatting', () => {
   })
 
   test('a line with a cached market price closes with the offer’s share of it', () => {
-    expect(formatBuyingEntryLine(entry({ tcgplayerPrice: 2.4, offerRatio: 0.625 }))).toBe(
+    expect(formatBuyingEntryLine(entry({}, { tcgplayerPrice: 2.4, offerRatio: 0.625 }))).toBe(
       '$1.50 ×1  Arahbo (FDN:294) · Foundations Variants (0294 - Borderless) · max 25 · 63% of TCGplayer $2.40',
+    )
+  })
+
+  test('a tagged entry names its tags, so it reads apart from an untagged twin', () => {
+    expect(formatBuyingEntryLine(entry({ tags: ['CK Batch', 'Signed'] }))).toBe(
+      '$1.50 ×1  Arahbo (FDN:294) · tags: CK Batch, Signed · Foundations Variants (0294 - Borderless) · max 25',
     )
   })
 

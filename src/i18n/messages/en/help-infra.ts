@@ -231,7 +231,7 @@ export const helpInfraMessages = {
   'help.sell.sets': 'Only cards from these set codes (comma-separated)',
   'help.sell.min': 'Only offers of at least this much per copy',
   'help.sell.tags':
-    'Only cards carrying one of these tags (comma-separated, exact); CK buy limits go to these cards first',
+    'Only cards carrying one of these tags (comma-separated, exact); scopes matching, so CK buy limits go to these cards',
   'help.sell.minOwned':
     'Only cards you own at least this many copies of, across every collection and deck and every printing',
   'help.sell.minRatio':

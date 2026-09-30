@@ -201,5 +201,13 @@ describe('resolveExportCacheColumns', () => {
     expect(asked.asked).toEqual(['Lightning Bolt'])
     expect(rankOnly.entries[0]?.scryfallId).toBeUndefined()
     expect(rankOnly.entries[0]?.edhrecRank).toBe(7)
+
+    const idOnly = await resolveExportCacheColumns(
+      [entry()],
+      ['scryfallId'],
+      lookup([makeScryfallCard({ ...bolt, edhrec_rank: 7 })]).lookup,
+    )
+    expect(idOnly.entries[0]?.scryfallId).toBe(bolt.id)
+    expect(idOnly.entries[0]?.edhrecRank).toBeUndefined()
   })
 })

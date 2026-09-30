@@ -15,13 +15,19 @@ import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-uti
  * in test/unit/sell-report.test.ts; tool wiring in test/unit/mcp/sell-tools.test.ts.
  */
 
-async function seedFeed(dir: string, scryfallId: string): Promise<void> {
+async function seedFeed(dir: string, scryfallId: string, qtyBuying = 10): Promise<void> {
   await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
   await fs.writeFile(
     path.join(dir, 'cache', 'cardkingdom.json'),
     JSON.stringify(
       makeCardKingdomCacheFile([
-        makeCardKingdomProduct({ scryfallId, name: 'Sol Ring', edition: 'Alpha', priceBuy: 4 }),
+        makeCardKingdomProduct({
+          scryfallId,
+          name: 'Sol Ring',
+          edition: 'Alpha',
+          priceBuy: 4,
+          qtyBuying,
+        }),
       ]),
     ),
   )
@@ -56,7 +62,27 @@ describe('admin sell handlers', () => {
     expect((await report('?min=-1')).status).toBe(400)
     expect((await report('?minRatio=half')).status).toBe(400)
     expect((await report('?minOwned=1.5')).status).toBe(400)
-    expect((await report('?tags=')).status).toBe(400)
+    expect((await report('?tags=a%23b')).status).toBe(400)
+  })
+
+  test('a blank param is absent, like an omitted one', async () => {
+    const response = await report('?tags=&min=&minRatio=&minOwned=')
+    expect(response.status).toBe(200)
+    expect(((await response.json()) as SellReportResponse).filters).toEqual({})
+  })
+
+  test('?tags= scopes matching, so the buy cap goes to the tagged copy', async () => {
+    // CK takes one copy; the untagged copy comes first in the file and would
+    // spend the cap if tags only trimmed the finished report.
+    const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
+    const pin = `${printing.set.toUpperCase()}:${printing.collector_number}`
+    await fs.writeFile(
+      path.join(env.dir, 'collections', 'shoebox.md'),
+      `# Shoebox\n\n- Sol Ring (${pin}) &1\n- Sol Ring (${pin}) #CK &2\n`,
+    )
+    await seedFeed(env.dir, printing.id, 1)
+    const body = (await (await report('?tags=CK')).json()) as SellReportResponse
+    expect(body.entries.map((entry) => [entry.cardIds, entry.sellableQuantity])).toEqual([[[2], 1]])
   })
 
   test('404s an unknown list reference', async () => {
