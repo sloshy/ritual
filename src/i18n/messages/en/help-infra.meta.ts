@@ -229,6 +229,10 @@ export const helpInfraMeta = {
   },
   'help.sell.sets': { description: '`sell --sets`.' },
   'help.sell.min': { description: '`sell --min`.' },
+  'help.sell.minOwned': {
+    description:
+      '`sell --min-owned`. Counts every copy of the card by name (any printing) in all collections and decks, not only the lists being checked.',
+  },
   'help.sell.minRatio': {
     description:
       '`sell --min-ratio`. The ratio is the buylist offer divided by the TCGplayer market price; 0.8 means the offer is 80% of market. TCGplayer is a store name.',

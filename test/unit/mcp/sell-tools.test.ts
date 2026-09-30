@@ -87,7 +87,7 @@ describe('sell MCP tools', () => {
     }
   })
 
-  test('get_sell_report rejects a bad listType and a negative minPrice or minRatio', async () => {
+  test('get_sell_report rejects a bad listType and a negative minPrice or minRatio, or a fractional minOwned', async () => {
     expectSchemaRejection(
       await client.callTool({ name: 'get_sell_report', arguments: { listType: 'binder' } }),
       'listType',
@@ -100,6 +100,10 @@ describe('sell MCP tools', () => {
       await client.callTool({ name: 'get_sell_report', arguments: { minRatio: -0.5 } }),
       'minRatio',
     )
+    expectSchemaRejection(
+      await client.callTool({ name: 'get_sell_report', arguments: { minOwned: 1.5 } }),
+      'minOwned',
+    )
   })
 
   test('get_sell_report errors with the missing-feed remedy when no feed exists', async () => {
@@ -111,22 +115,23 @@ describe('sell MCP tools', () => {
 
   test('get_sell_report matches a seeded collection against a seeded feed', async () => {
     await seedSellFixture(session)
-    // The lists + minPrice + minRatio inputs pin the tool's query-string
-    // translation — wiring that exists nowhere else — not the filtering semantics.
+    // The lists + min* inputs pin the tool's query-string translation — wiring
+    // that exists nowhere else — not the filtering semantics.
     const result = await client.callTool({
       name: 'get_sell_report',
       arguments: {
         lists: [{ listType: 'collection', slug: 'shoebox' }],
         minPrice: 1,
         minRatio: 0.5,
+        minOwned: 1,
       },
     })
     const data = toolData<{
       entries: { name: string; status: string; priceBuy?: number }[]
       totals: { sellableCount: number; totalValue: number }
-      filters: { minPrice?: number; minRatio?: number }
+      filters: { minPrice?: number; minRatio?: number; minOwned?: number }
     }>(result)
-    expect(data.filters).toEqual({ minPrice: 1, minRatio: 0.5 })
+    expect(data.filters).toEqual({ minPrice: 1, minRatio: 0.5, minOwned: 1 })
     expect(data.entries).toHaveLength(1)
     expect(data.entries[0]).toMatchObject({ name: 'Sol Ring', status: 'buying', priceBuy: 4 })
     expect(data.totals.sellableCount).toBe(1)

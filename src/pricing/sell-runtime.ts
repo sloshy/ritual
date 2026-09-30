@@ -3,7 +3,14 @@ import type { ListType } from '../list/list-type'
 import { priceLookupFor } from './price-runtime'
 import type { ListLocation } from '../list/resolve-list'
 import type { RefreshMode } from '../cache/refresh'
-import { buildSellReport, loadSellListInputs, type SellReport } from './sell-report'
+import { loadPriceListInputs } from './price-report'
+import {
+  buildSellReport,
+  countOwnedCopies,
+  loadSellListInputs,
+  type OwnedCopiesIndex,
+  type SellReport,
+} from './sell-report'
 
 /** A sell report built from disk plus the list parsers' warnings. */
 export type LoadedSellReport = {
@@ -35,6 +42,18 @@ export async function loadAndBuildSellReport(
     index: feed.index,
     feed: feed.file.feed,
     feedRetrievedAt: feed.file.retrievedAt,
+    owned: await loadOwnedCopies(),
   })
   return { report, warnings: loaded.warnings }
+}
+
+/**
+ * Owned copies over every collection and deck, whatever the report's scope —
+ * "how many do I have" is a question about all your lists. The lists' parse
+ * warnings are dropped here: the in-scope lists report theirs through the
+ * report itself, and an out-of-scope list's unreadable line only undercounts.
+ */
+async function loadOwnedCopies(): Promise<OwnedCopiesIndex> {
+  const { inputs } = await loadPriceListInputs()
+  return countOwnedCopies(inputs)
 }

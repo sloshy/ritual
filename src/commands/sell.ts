@@ -22,6 +22,7 @@ import {
   applySellFilters,
   buildSellCartCsv,
   isBuyingEntry,
+  parseMinOwned,
   parseMinPrice,
   parseMinRatio,
   type BuyingSellEntry,
@@ -67,6 +68,7 @@ type SellCommandOptions = Partial<Omit<ScriptingOptions, 'output'>> & {
   sets?: string[]
   min?: number
   minRatio?: number
+  minOwned?: number
   all?: boolean
   out?: string
   refresh: RefreshMode
@@ -245,6 +247,7 @@ export function registerSellCommand(program: Command): void {
           .option('--sets <codes>', t('help.sell.sets'), (value) => parseSetCodesInput(value))
           .option('--min <price>', t('help.sell.min'), numberFlag(parseMinPrice))
           .option('--min-ratio <ratio>', t('help.sell.minRatio'), numberFlag(parseMinRatio))
+          .option('--min-owned <count>', t('help.sell.minOwned'), numberFlag(parseMinOwned))
           .option('--all', t('help.sell.all'))
           .option('--out <file>', t('help.sell.out')),
         CSV_OUTPUT_FORMATS,
@@ -319,6 +322,7 @@ export function registerSellCommand(program: Command): void {
         sets: options.sets,
         minPrice: options.min,
         minRatio: options.minRatio,
+        minOwned: options.minOwned,
       }
       const view = applySellFilters(report, filters)
 

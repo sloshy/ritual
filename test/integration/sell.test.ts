@@ -12,7 +12,12 @@ import { makeCardKingdomProduct, makeScryfallCard } from '../test-utils'
 import { runCli } from './helpers/cli'
 import { seedCardCache, seedCardKingdomFeed } from './helpers/seed'
 import { OFFLINE_ENV } from './helpers/offline-env'
-import { createWorkspace, removeWorkspace, writeCollectionFile } from '../helpers/workspace'
+import {
+  createWorkspace,
+  removeWorkspace,
+  writeCollectionFile,
+  writeDeckFile,
+} from '../helpers/workspace'
 
 /** The `--output json` error envelope, as a script parses it. */
 type ErrorEnvelopeJson = { error: { messageKey?: string } }
@@ -180,6 +185,30 @@ describe('sell CLI (Integration)', () => {
 
     const bad = await runCli(['sell', '--min-ratio', 'half'], dir, OFFLINE_ENV)
     expect(bad.exitCode).toBe(2)
+  })
+
+  test('ownedCopies counts every list, and --min-owned filters on the total', async () => {
+    await writeDeckFile(dir, 'artifacts', {
+      name: 'Artifacts',
+      sections: [
+        { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
+        { name: 'Maybeboard', cards: [{ quantity: 4, name: 'Lightning Bolt', cardId: 2 }] },
+      ],
+    })
+    const result = await runCli(
+      ['sell', 'binder', '--min-owned', '4', '--output', 'json', '--refresh', 'never'],
+      dir,
+      OFFLINE_ENV,
+    )
+    const payload = JSON.parse(result.stdout) as SellReportPayload
+    // Three Sol Rings in the binder (the nonfoil and foil entries both count
+    // every copy of the name) plus the deck's one; the maybeboard Bolts are
+    // not owned, so the binder's single Bolt drops.
+    expect(payload.filters.minOwned).toBe(4)
+    expect(payload.entries.map((e) => [e.name, e.ownedCopies])).toEqual([
+      ['Sol Ring', { collection: 3, deck: 1 }],
+      ['Sol Ring', { collection: 3, deck: 1 }],
+    ])
   })
 
   test('--sets normalizes its codes and filters to them', async () => {

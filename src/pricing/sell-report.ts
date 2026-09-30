@@ -49,6 +49,7 @@ import {
   type CardPrintingsLookup,
 } from '../card/card-printing'
 import { formatCardTags, type CardTag } from '../card/card-tags'
+import { isProxy } from '../card/card-labels'
 import { getCardPriceForFinish } from './price-currency'
 import {
   chooseMatch,
@@ -132,6 +133,8 @@ export type SellEntryBase = {
   tags?: CardTag[]
   /** The card's EDHREC rank (lower is more popular); absent when unranked or uncached. */
   edhrecRank?: number
+  /** Copies of this card, by name and across every printing, held in all your lists. */
+  ownedCopies: OwnedCopies
   /** Copies CK would take from this entry: capped by the product's remaining budget; 0 unless buying. */
   sellableQuantity: number
   /** priceBuy × sellableQuantity. */
@@ -232,6 +235,63 @@ export type BuildSellReportOptions = {
   index: CardKingdomIndex
   feed: CardKingdomFeed
   feedRetrievedAt: number
+  /** Copies owned per card name, over every list — not just the report's scope. */
+  owned: OwnedCopiesIndex
+}
+
+/**
+ * How many copies of a card you own, by name and across every printing: the
+ * real copies in all your collections, and in all your decks. The two are
+ * kept apart because whether a deck's cards are *also* in a collection is a
+ * workflow choice Ritual cannot see — some users track a deck's cards in a
+ * binder too, others move them out.
+ *
+ * Proxies are not copies and never count; nor do a deck's extras sections
+ * (maybeboard, tokens), which name cards under consideration rather than cards
+ * held. Wanted lists are, by definition, cards you do not own.
+ */
+export type OwnedCopies = {
+  collection: number
+  deck: number
+}
+
+/** {@link OwnedCopies} per card name, keyed by the lowercased name. */
+export type OwnedCopiesIndex = ReadonlyMap<string, OwnedCopies>
+
+/** The owned-copies key for a card name. */
+function ownedKey(name: string): string {
+  return name.toLowerCase()
+}
+
+/**
+ * Count owned copies per card name over loaded list inputs (see
+ * {@link OwnedCopies} for what counts). The inputs are the shared loader's, so
+ * deck extras are already excluded and labels already resolved.
+ */
+export function countOwnedCopies(inputs: readonly PriceListInput[]): OwnedCopiesIndex {
+  const owned = new Map<string, OwnedCopies>()
+  for (const input of inputs) {
+    if (input.type === 'wanted') continue
+    for (const entry of input.entries) {
+      if (isProxy(entry.labels)) continue
+      const key = ownedKey(entry.name)
+      const counts = owned.get(key) ?? { collection: 0, deck: 0 }
+      counts[input.type] += entry.quantity
+      owned.set(key, counts)
+    }
+  }
+  return owned
+}
+
+/** The copies owned of a card name; zeros when none are held. */
+export function ownedCopiesOf(owned: OwnedCopiesIndex, name: string): OwnedCopies {
+  const counts = owned.get(ownedKey(name))
+  return counts ? { ...counts } : { collection: 0, deck: 0 }
+}
+
+/** All owned copies of a card — the quantity `--min-owned` compares against. */
+export function totalOwnedCopies(owned: OwnedCopies): number {
+  return owned.collection + owned.deck
 }
 
 /**
@@ -483,6 +543,7 @@ function matchEntry(
     cardIds: entry.cardIds,
     tags: entry.tags === undefined ? undefined : [...entry.tags],
     edhrecRank: edhrecRankOf(printings, pinned ? exactPrinting(entry, printings) : undefined),
+    ownedCopies: ownedCopiesOf(options.owned, entry.name),
     sellableQuantity: 0,
     value: 0,
     fileOrder,
@@ -617,6 +678,11 @@ export type SellEntryFilters = {
    * unmatched, or with no cached market price — are dropped.
    */
   minRatio?: number
+  /**
+   * Keep entries for cards of which you own at least this many copies in
+   * total ({@link totalOwnedCopies}: collections plus decks, every printing).
+   */
+  minOwned?: number
 }
 
 /** Parse a non-negative number, or the error message naming what it was for. */
@@ -633,6 +699,15 @@ export function parseMinPrice(raw: string): number | string {
   return parseNonNegative(raw, 'minimum price')
 }
 
+/** Parse a minimum owned-copies count (a non-negative integer); an error message for a bad one. */
+export function parseMinOwned(raw: string): number | string {
+  const parsed = parseNonNegative(raw, 'minimum owned count')
+  if (typeof parsed === 'number' && !Number.isInteger(parsed)) {
+    return `Invalid minimum owned count '${raw}' (expected a whole number)`
+  }
+  return parsed
+}
+
 /** Parse a minimum offer-to-market ratio (`0.8` = 80% of market); an error message for a bad one. */
 export function parseMinRatio(raw: string): number | string {
   return parseNonNegative(raw, 'minimum ratio')
@@ -643,7 +718,8 @@ export function hasActiveSellFilters(filters: SellEntryFilters): boolean {
   return Boolean(
     (filters.sets && filters.sets.length > 0) ||
     filters.minPrice !== undefined ||
-    filters.minRatio !== undefined,
+    filters.minRatio !== undefined ||
+    filters.minOwned !== undefined,
   )
 }
 
@@ -663,6 +739,9 @@ export function filterSellEntries(
     if (filters.minRatio !== undefined) {
       if (entry.status === 'no-match' || entry.offerRatio === undefined) return false
       if (entry.offerRatio < filters.minRatio) return false
+    }
+    if (filters.minOwned !== undefined && totalOwnedCopies(entry.ownedCopies) < filters.minOwned) {
+      return false
     }
     return true
   })

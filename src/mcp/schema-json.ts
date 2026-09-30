@@ -368,6 +368,17 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
     ),
     tags: arr(str(), 'The lines’ tags, canonical.'),
     edhrecRank: int('The card’s EDHREC rank (lower is more popular); absent when unranked.'),
+    // Copies of this card, by name, held in all your lists — not just the report's scope.
+    ownedCopies: obj(
+      {
+        collection: int(
+          'Real copies of the card, by name, across every collection (any printing; proxies ' +
+            'excluded), whatever the report’s scope.',
+        ),
+        deck: int('Copies across every deck (any printing; extras sections and proxies excluded).'),
+      },
+      ['collection', 'deck'],
+    ),
     status: enumOf(SELL_ENTRY_STATUSES),
     noMatchReason: enumOf(SELL_NO_MATCH_REASONS),
     matchVia: enumOf(SELL_MATCH_VIAS, 'Which join key located the CK product.'),
@@ -407,6 +418,7 @@ const SELL_ENTRY_SCHEMA: JsonSchemaType = obj(
     'quantity',
     'pinned',
     'cardIds',
+    'ownedCopies',
     'status',
     'sellableQuantity',
     'value',
@@ -422,6 +434,7 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
       sets: arr(str(), 'Set codes the entries were filtered to.'),
       minPrice: num('Minimum per-copy offer the entries were filtered to.'),
       minRatio: num('Minimum offer-to-market ratio the entries were filtered to.'),
+      minOwned: int('Minimum total owned copies the entries were filtered to.'),
     }),
     lists: arr(
       obj({ type: LIST_TYPE, name: str(), ...SELL_TOTALS_PROPS }, [

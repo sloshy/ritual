@@ -11,6 +11,8 @@ import {
   applySellFilters,
   buildSellCartCsv,
   buildSellReport,
+  countOwnedCopies,
+  parseMinOwned,
   parseMinPrice,
   parseMinRatio,
   sumSellEntries,
@@ -145,6 +147,7 @@ function options(): BuildSellReportOptions {
     index: buildCardKingdomIndex(PRODUCTS),
     feed: FEED,
     feedRetrievedAt: 123,
+    owned: new Map(),
   }
 }
 
@@ -516,6 +519,70 @@ describe('entry enrichment', () => {
     const view = applySellFilters(report, { minRatio: 0.5 })
     expect(view.entries.map((entry) => expectMatched(entry).offerRatio)).toEqual([0.5, 0.9])
     expect(applySellFilters(report, { minRatio: 0.6 }).entries).toHaveLength(1)
+  })
+})
+
+describe('owned copies', () => {
+  const line = (name: string, quantity: number, extra: Partial<PriceListEntry> = {}) => ({
+    name,
+    quantity,
+    section: 'Main',
+    ...extra,
+  })
+
+  test('counts real copies by name across printings, collections apart from decks', () => {
+    const owned = countOwnedCopies([
+      {
+        type: 'collection',
+        name: 'Binder',
+        entries: [
+          line('Arahbo', 1, { set: 'fdn', collectorNumber: '294' }),
+          line('arahbo', 1, { set: 'fdn', collectorNumber: '2' }),
+          line('Arahbo', 1, { labels: ['proxy'] }),
+        ],
+      },
+      { type: 'deck', name: 'Cats', entries: [line('Arahbo', 2)] },
+      { type: 'wanted', name: 'Wish', entries: [line('Arahbo', 4)] },
+    ])
+    // The proxy and the wanted copies are not owned; case does not split names.
+    expect(owned.get('arahbo')).toEqual({ collection: 2, deck: 2 })
+  })
+
+  test('every entry reports its card’s owned copies, zeros for none', async () => {
+    const report = await buildSellReport(
+      input([{ set: 'fdn', collectorNumber: '294' }, { name: 'Paused' }]),
+      {
+        ...options(),
+        owned: new Map([['arahbo', { collection: 3, deck: 1 }]]),
+      },
+    )
+    expect(report.entries.map((entry) => entry.ownedCopies)).toEqual([
+      { collection: 3, deck: 1 },
+      { collection: 0, deck: 0 },
+    ])
+  })
+
+  test('minOwned keeps cards owned at least that many times in total', async () => {
+    const report = await buildSellReport(
+      input([{ set: 'fdn', collectorNumber: '294' }, { name: 'Paused' }]),
+      {
+        ...options(),
+        owned: new Map([
+          ['arahbo', { collection: 3, deck: 1 }],
+          ['paused', { collection: 3, deck: 0 }],
+        ]),
+      },
+    )
+    expect(applySellFilters(report, { minOwned: 4 }).entries.map((entry) => entry.name)).toEqual([
+      'Arahbo',
+    ])
+    expect(applySellFilters(report, { minOwned: 3 }).entries).toHaveLength(2)
+  })
+
+  test('parseMinOwned takes whole non-negative numbers only', () => {
+    expect(parseMinOwned('4')).toBe(4)
+    expect(parseMinOwned('2.5')).toBe("Invalid minimum owned count '2.5' (expected a whole number)")
+    expect(parseMinOwned('-1')).toContain('Invalid minimum owned count')
   })
 })
 

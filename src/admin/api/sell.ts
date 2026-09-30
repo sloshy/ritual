@@ -11,6 +11,7 @@ import type { BuylistFeedStamp, SellCartCsv } from '../../buylist'
 import {
   applySellFilters,
   buildSellCartCsv,
+  parseMinOwned,
   parseMinPrice,
   parseMinRatio,
   type SellEntryFilters,
@@ -91,8 +92,8 @@ function numberParam(
 }
 
 /**
- * Parse the shared `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=` params;
- * a Response on refusal.
+ * Parse the shared `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=`
+ * params; a Response on refusal.
  */
 async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   const rawType = url.searchParams.get('type')
@@ -107,11 +108,18 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   if (minPrice instanceof Response) return minPrice
   const minRatio = numberParam(url, 'minRatio', parseMinRatio)
   if (minRatio instanceof Response) return minRatio
+  const minOwned = numberParam(url, 'minOwned', parseMinOwned)
+  if (minOwned instanceof Response) return minOwned
   const rawSets = url.searchParams.get('sets')
   return {
     type,
     locations,
-    filters: { sets: rawSets ? parseSetCodesInput(rawSets) : undefined, minPrice, minRatio },
+    filters: {
+      sets: rawSets ? parseSetCodesInput(rawSets) : undefined,
+      minPrice,
+      minRatio,
+      minOwned,
+    },
   }
 }
 
@@ -175,7 +183,7 @@ export async function handleSellReport(req: Request): Promise<Response> {
 /**
  * GET /api/sell/cart — the entries CK is buying, rendered as their header-less sell-cart
  * CSV import format (CK's own listing titles — variant note included — and
- * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=` scope
+ * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
  * as the report. The capability behind the CLI's `sell --output csv`; carries
  * the title/card counts against CK's upload caps alongside the CSV itself.
  */

@@ -197,6 +197,18 @@ const sellScopeSchema = z.object({
       'Only offers worth at least this fraction of the TCGplayer market price (offerRatio; ' +
         '0.8 = 80%). Entries with no cached market price are dropped.',
     ),
+  minOwned: z
+    .number()
+    .int()
+    .min(0)
+    // A bound no real collection reaches, so the advertised schema shows a
+    // readable number instead of MAX_SAFE_INTEGER.
+    .max(100_000)
+    .optional()
+    .describe(
+      'Only cards you own at least this many copies of in total (ownedCopies.collection + ' +
+        'ownedCopies.deck: every collection and deck, every printing, whatever the scope).',
+    ),
 })
 
 type SellScopeInput = z.infer<typeof sellScopeSchema>
@@ -212,6 +224,7 @@ function sellScopeQuery(scope: SellScopeInput): string {
   if (scope.sets !== undefined && scope.sets.length > 0) params.set('sets', scope.sets.join(','))
   if (scope.minPrice !== undefined) params.set('min', String(scope.minPrice))
   if (scope.minRatio !== undefined) params.set('minRatio', String(scope.minRatio))
+  if (scope.minOwned !== undefined) params.set('minOwned', String(scope.minOwned))
   return params.size > 0 ? `?${params}` : ''
 }
 
