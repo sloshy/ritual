@@ -2528,7 +2528,7 @@ Output:
 - `columns`, `header`, and `quoteAll` shape `csv`/`json` output only and are ignored for `text`/`md` (unlike the CLI, the route does not reject the combination).
 - `dialect` is the output vocabulary, ignored for `md` — see [dialects](/commands/export/#dialects). For `csv`/`json` it spells finish and condition: `ritual` (the default; `nonfoil`/`foil`/`etched`, `NM`…`DMG`) or `archidekt` (`Normal`/`Foil`/`Etched` under a `Variant` header, and `NM|LP|MP|HP|D`). For `text` it picks the decklist form: `arena` and `moxfield` write bare board markers over `1 Name (SET) CN` lines (moxfield splices `*F*`/`*E*` between the set and the collector number, and closes each line with the card's categories as `#tag` tokens) and omit maybeboard/token cards, naming them in the response's `warnings`.
 - An unknown `dialect` or `preset` is a `400`.
-- A selected `scryfallId` column is resolved from the local Scryfall cache.
+- Selected `scryfallId` and `edhrecRank` columns are resolved from the local Scryfall cache.
 - The `categories` column exports the card name's [categories](/commands/categories/) in that list, comma-joined primary first, and `primaryCategory` just the first of them. Both are empty for an uncategorized card. The `md` format and every `text` dialect but `moxfield` drop them; `moxfield` text writes them as `#tag` tokens.
 
 **Response:** the body is discriminated by `mode`.
@@ -2571,7 +2571,8 @@ The file lands under an `exports/` directory in the base dir, which [`init-site`
 - one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (with per-section counts);
 - one entry naming the categories a `text` export in the `moxfield` dialect could not write as tags (a space, a leading `!`, or a character a Ritual tag cannot hold);
 - one entry per list whose [categories sidecar](/list-format/#categories-namecategoriesjson) could not be read (that list exports with empty category cells);
-- when the `scryfallId` column is selected, one entry per printing the local Scryfall cache does not hold (that cell renders empty).
+- when the `scryfallId` column is selected, one entry per printing the local Scryfall cache does not hold (that cell renders empty);
+- when the `edhrecRank` column is selected, one entry per card name the local Scryfall cache does not hold (an unranked card is not warned about — its cell is simply empty).
 
 The response is `400` for an unknown list, preset, column, dialect, or filter value.
 

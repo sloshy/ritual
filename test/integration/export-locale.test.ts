@@ -85,7 +85,7 @@ describe('CSV exports are locale-invariant', () => {
     // Spot-check the header explicitly: a silent empty diff would pass the
     // equality above if both sides broke the same way.
     expect(english.split('\n')[0]).toBe(
-      'Name,Quantity,Set,Collector Number,Edition,Scryfall ID,Finish,Is Foil,Condition,Language,Labels,Tags,Categories,Primary Category,Note,Section,List,List Type',
+      'Name,Quantity,Set,Collector Number,Edition,Scryfall ID,EDHREC Rank,Finish,Is Foil,Condition,Language,Labels,Tags,Categories,Primary Category,Note,Section,List,List Type',
     )
   })
 

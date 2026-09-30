@@ -30,6 +30,7 @@ export type ExportHintMessageKey = Extract<MessageKey, `domain.exportHint.${stri
 export const EXPORT_PROPERTY_HINTS: Partial<Record<ExportProperty, ExportHintMessageKey>> = {
   edition: 'domain.exportHint.edition',
   scryfallId: 'domain.exportHint.scryfallId',
+  edhrecRank: 'domain.exportHint.edhrecRank',
   isFoil: 'domain.exportHint.isFoil',
   language: 'domain.exportHint.language',
   labels: 'domain.exportHint.labels',

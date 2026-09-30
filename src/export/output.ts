@@ -7,7 +7,7 @@ import {
   renderTextExport,
   type RenderedText,
 } from './render'
-import { columnsNeedScryfallIds, resolveExportScryfallIds } from './scryfall-id'
+import { columnsNeedCardCache, resolveExportCacheColumns } from './cache-columns'
 import { exportFormatUsesColumns, type ExportPreset, type ResolvedExportSettings } from './presets'
 import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
 
@@ -21,16 +21,16 @@ import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
  * A rendered export plus anything the caller should tell the user about it —
  * the same shape one renderer returns, since this is that shape at a later
  * stage (a `text` dialect's omitted-extras notice, plus any warning the
- * Scryfall-id resolution added). Aliased rather than redeclared so the two
+ * cache-column resolution added). Aliased rather than redeclared so the two
  * cannot drift into structural twins that only agree by luck.
  */
 export type RenderedExport = RenderedText
 
 export type RenderExportOptions = {
   /**
-   * Resolves a card's printings for the `scryfallId` column. Callers pass the
-   * Scryfall cache (`getCardPrintings`); this module sits below `src/scryfall`
-   * and does not reach it itself.
+   * Resolves a card's printings for the cache-answered columns (`scryfallId`,
+   * `edhrecRank`). Callers pass the Scryfall cache (`getCardPrintings`); this
+   * module sits below `src/scryfall` and does not reach it itself.
    */
   lookupPrintings: CardPrintingsLookup
 }
@@ -38,11 +38,11 @@ export type RenderExportOptions = {
 /**
  * Render the assembled entries to their final string in the resolved format.
  *
- * Async because one column — `scryfallId` — is not in the list files and has to
- * be resolved against the local Scryfall cache. That resolution happens here,
- * the one place every surface renders through, so no caller can forget it; the
- * cache is consulted only when the selected columns need an id AND the format
- * actually reads columns (text/md lines are fixed).
+ * Async because two columns — `scryfallId` and `edhrecRank` — are not in the
+ * list files and have to be resolved against the local Scryfall cache. That
+ * resolution happens here, the one place every surface renders through, so no
+ * caller can forget it; the cache is consulted only when the selected columns
+ * need it AND the format actually reads columns (text/md lines are fixed).
  */
 export async function renderExport(
   entries: ExportEntry[],
@@ -51,8 +51,12 @@ export async function renderExport(
 ): Promise<RenderedExport> {
   let rendered = entries
   const warnings: string[] = []
-  if (exportFormatUsesColumns(settings.format) && columnsNeedScryfallIds(settings.columns)) {
-    const resolution = await resolveExportScryfallIds(entries, options.lookupPrintings)
+  if (exportFormatUsesColumns(settings.format) && columnsNeedCardCache(settings.columns)) {
+    const resolution = await resolveExportCacheColumns(
+      entries,
+      settings.columns,
+      options.lookupPrintings,
+    )
     rendered = resolution.entries
     warnings.push(...resolution.warnings)
   }

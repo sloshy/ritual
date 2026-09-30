@@ -12,12 +12,11 @@ import {
   isPriceSortField,
   pricelessEntryReason,
   sumPricedEntries,
-  UNRANKED_EDHREC,
   type PriceListInput,
   type PricedEntry,
 } from '../../src/pricing/price-report'
 import type { CardArtMap } from '../../src/list/card-art'
-import type { CardPrintingsLookup } from '../../src/card/card-printing'
+import { UNRANKED_EDHREC, type CardPrintingsLookup } from '../../src/card/card-printing'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
 

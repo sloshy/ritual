@@ -44,15 +44,21 @@ function post(body: unknown): Promise<ExportCall> {
 }
 
 describe('handleExport', () => {
-  test('the scryfallId column is resolved through the cache lookup the route wires in', async () => {
-    await seedCardCache(ws.dir, { 'Lightning Bolt': [makePrintingIn('lea', '161')] })
+  test('the cache columns are resolved through the cache lookup the route wires in', async () => {
+    await seedCardCache(ws.dir, {
+      'Lightning Bolt': [{ ...makePrintingIn('lea', '161'), edhrec_rank: 57 }],
+    })
     const { status, body } = await post({
       lists: [{ type: 'collection', name: 'binder' }],
-      columns: ['name', 'scryfallId'],
+      columns: ['name', 'scryfallId', 'edhrecRank'],
     })
     expect(status).toBe(200)
     if (!('content' in body)) throw new Error('expected content mode')
-    expect(body.content).toContain('lea-161')
+    expect(body.content).toContain('Lightning Bolt,lea-161,57')
+    // Sol Ring is not cached: its cells are empty and its absence is reported.
+    expect(body.warnings).toContain(
+      'No EDHREC rank for Sol Ring: the card is not in the Scryfall cache.',
+    )
   })
 
   // The only surface where a text dialect's omitted-extras warning can be

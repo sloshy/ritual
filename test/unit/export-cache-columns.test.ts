@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import type { CardPrintingsLookup } from '../../src/card/card-printing'
+import { UNRANKED_EDHREC, type CardPrintingsLookup } from '../../src/card/card-printing'
 import type { ExportEntry } from '../../src/export/entries'
-import { columnsNeedScryfallIds, resolveExportScryfallIds } from '../../src/export/scryfall-id'
+import {
+  columnsNeedCardCache,
+  resolveExportCacheColumns,
+  resolveExportEdhrecRanks,
+  resolveExportScryfallIds,
+} from '../../src/export/cache-columns'
 import { makeScryfallCard } from '../test-utils'
 
 function entry(overrides: Partial<ExportEntry> = {}): ExportEntry {
@@ -40,10 +45,11 @@ const bolt = makeScryfallCard({
   collector_number: '161',
 })
 
-describe('columnsNeedScryfallIds', () => {
-  test('is true only when the id column is selected', () => {
-    expect(columnsNeedScryfallIds(['name', 'scryfallId'])).toBe(true)
-    expect(columnsNeedScryfallIds(['name', 'set', 'edition'])).toBe(false)
+describe('columnsNeedCardCache', () => {
+  test('is true only when a cache-answered column is selected', () => {
+    expect(columnsNeedCardCache(['name', 'scryfallId'])).toBe(true)
+    expect(columnsNeedCardCache(['name', 'edhrecRank'])).toBe(true)
+    expect(columnsNeedCardCache(['name', 'set', 'edition'])).toBe(false)
   })
 })
 
@@ -129,5 +135,71 @@ describe('resolveExportScryfallIds', () => {
     )
 
     expect(asked.asked).toEqual(['Lightning Bolt'])
+  })
+})
+
+describe('resolveExportEdhrecRanks', () => {
+  const ranked = makeScryfallCard({ ...bolt, edhrec_rank: 42 })
+
+  test('fills in the rank for pinned and unpinned entries alike', async () => {
+    const { entries, warnings } = await resolveExportEdhrecRanks(
+      [entry(), entry({ set: undefined, collectorNumber: undefined, fileOrder: 1 })],
+      lookup([ranked]).lookup,
+    )
+
+    expect(entries.map((e) => e.edhrecRank)).toEqual([42, 42])
+    expect(warnings).toEqual([])
+  })
+
+  test("falls back to another printing's rank when the pinned one has none", async () => {
+    const unrankedPin = makeScryfallCard({ ...bolt, id: 'pin', collector_number: '162' })
+    const { entries } = await resolveExportEdhrecRanks(
+      [entry({ collectorNumber: '162' })],
+      lookup([unrankedPin, ranked]).lookup,
+    )
+
+    expect(entries[0]?.edhrecRank).toBe(42)
+  })
+
+  test("the cache's unranked sentinel leaves the cell empty without a warning", async () => {
+    const { entries, warnings } = await resolveExportEdhrecRanks(
+      [entry()],
+      lookup([makeScryfallCard({ ...bolt, edhrec_rank: UNRANKED_EDHREC })]).lookup,
+    )
+
+    expect(entries[0]?.edhrecRank).toBeUndefined()
+    expect(warnings).toEqual([])
+  })
+
+  test('an uncached card warns once per name', async () => {
+    const { warnings } = await resolveExportEdhrecRanks(
+      [entry(), entry({ collectorNumber: '162', fileOrder: 1 })],
+      lookup([]).lookup,
+    )
+
+    expect(warnings).toEqual([
+      'No EDHREC rank for Lightning Bolt: the card is not in the Scryfall cache.',
+    ])
+  })
+})
+
+describe('resolveExportCacheColumns', () => {
+  test('resolves only the selected cache columns, sharing one lookup per name', async () => {
+    const asked = lookup([makeScryfallCard({ ...bolt, edhrec_rank: 7 })])
+    const both = await resolveExportCacheColumns(
+      [entry(), entry({ fileOrder: 1 })],
+      ['name', 'scryfallId', 'edhrecRank'],
+      asked.lookup,
+    )
+    const rankOnly = await resolveExportCacheColumns(
+      [entry()],
+      ['edhrecRank'],
+      lookup([makeScryfallCard({ ...bolt, edhrec_rank: 7 })]).lookup,
+    )
+
+    expect(both.entries[0]).toMatchObject({ scryfallId: bolt.id, edhrecRank: 7 })
+    expect(asked.asked).toEqual(['Lightning Bolt'])
+    expect(rankOnly.entries[0]?.scryfallId).toBeUndefined()
+    expect(rankOnly.entries[0]?.edhrecRank).toBe(7)
   })
 })

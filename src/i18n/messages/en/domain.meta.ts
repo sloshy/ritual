@@ -387,6 +387,9 @@ export const domainMeta = {
   'domain.exportHint.scryfallId': {
     description: `${EXPORT_HINT_CONTEXT} The "Scryfall ID" column, whose value is looked up in the locally cached card database rather than stored in the list file.`,
   },
+  'domain.exportHint.edhrecRank': {
+    description: `${EXPORT_HINT_CONTEXT} The "EDHREC rank" column: the card's popularity rank on EDHREC, a Commander deck-building site (rank 1 is the most-played card). Like the Scryfall ID, it is looked up in the locally cached card database.`,
+  },
   'domain.exportHint.isFoil': {
     description: `${EXPORT_HINT_CONTEXT} The "is foil" column, a true/false flag that covers both foil and etched-foil cards.`,
   },

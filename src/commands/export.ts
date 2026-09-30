@@ -29,7 +29,7 @@ import {
   type ExportPreset,
 } from '../export/presets'
 import { renderExport, saveExportPreset } from '../export/output'
-import { getCardPrintings } from '../scryfall'
+import { getCachedCardPrintings } from '../scryfall'
 import {
   isListArgumentsFailure,
   listLocations,
@@ -342,7 +342,7 @@ async function runFlagExport(
   }
 
   const rendered = await renderExport(selection.entries, settings, {
-    lookupPrintings: getCardPrintings,
+    lookupPrintings: getCachedCardPrintings,
   })
   emitWarnings(
     rendered.warnings.map((warning) => `⚠️  ${warning}`),

@@ -908,6 +908,8 @@ export function registerReadTools(server: McpServer): void {
           .describe(
             'Columns to export, in output order. scryfallId is resolved from the local ' +
               'Scryfall cache; an uncached printing exports an empty cell and a warning. ' +
+              'edhrecRank (lower is more popular) is also read from the cache, by card name, ' +
+              'so unpinned lines get one too; an unranked card exports an empty cell. ' +
               "categories is the card name's categories in that list, comma-joined primary " +
               'first, and primaryCategory is just the first; both are empty for an ' +
               'uncategorized card and are dropped by the text and md formats.',

@@ -21,6 +21,7 @@ import {
   getCardPriceForFinish,
   type PriceCurrency,
 } from '../pricing/price-currency'
+import { UNRANKED_EDHREC } from '../card/card-printing'
 import {
   comparePricedEntries,
   filterPricedEntries,
@@ -28,7 +29,6 @@ import {
   isPriceSortField,
   PRICE_SORT_FIELDS,
   sumPricedEntries,
-  UNRANKED_EDHREC,
   type BuiltPriceReport,
   type ListPriceSummary,
   type PriceEntryFilters,

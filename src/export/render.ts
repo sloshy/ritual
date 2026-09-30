@@ -31,6 +31,7 @@ export const EXPORT_PROPERTIES = [
   'collectorNumber',
   'edition',
   'scryfallId',
+  'edhrecRank',
   'finish',
   'isFoil',
   'condition',
@@ -59,6 +60,7 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
   collectorNumber: 'Collector Number',
   edition: 'Edition',
   scryfallId: 'Scryfall ID',
+  edhrecRank: 'EDHREC Rank',
   finish: 'Finish',
   isFoil: 'Is Foil',
   condition: 'Condition',
@@ -221,6 +223,8 @@ function propertyValue(
       return editionValue(entry, false)
     case 'scryfallId':
       return entry.scryfallId
+    case 'edhrecRank':
+      return entry.edhrecRank
     case 'finish':
       // An unmarked line means nonfoil; only a foreign dialect spells that out
       // (Ritual's own output keeps "unmarked" and "nonfoil" distinguishable).

@@ -16,8 +16,8 @@ import {
   type CardBrowserSelection,
   type PriceMainSelection,
 } from '../../src/commands/price-browser'
+import { UNRANKED_EDHREC } from '../../src/card/card-printing'
 import {
-  UNRANKED_EDHREC,
   type ListPriceSummary,
   type PriceTotals,
   type PricedEntry,

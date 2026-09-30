@@ -159,6 +159,31 @@ export function findPrinting(
 }
 
 /**
+ * The rank the card cache stores for a card EDHREC has not ranked: Scryfall
+ * omits the field, and the cache fills the gap with this sentinel so an
+ * unranked card sorts after every ranked one.
+ */
+export const UNRANKED_EDHREC = 999999
+
+/**
+ * A card's EDHREC rank (lower is more popular), or `undefined` when EDHREC
+ * has not ranked it or the cache holds no printing of it. The rank belongs to
+ * the card, not the printing, so any ranked printing answers; `preferred` (a
+ * line's pinned printing) is asked first only because it is the object the
+ * caller already holds.
+ */
+export function edhrecRankOf(
+  printings: readonly ScryfallCard[],
+  preferred?: ScryfallCard,
+): number | undefined {
+  for (const card of preferred ? [preferred, ...printings] : printings) {
+    const rank = card.edhrec_rank
+    if (rank !== undefined && rank > 0 && rank < UNRANKED_EDHREC) return rank
+  }
+  return undefined
+}
+
+/**
  * Resolve a pinned line's card object from the two places a list's card data
  * holds it: the per-name printings first ({@link findPrinting},
  * language-aware), then the printing-keyed `cards` map — exactly, never the

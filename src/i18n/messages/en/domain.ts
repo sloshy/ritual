@@ -273,6 +273,7 @@ export const domainMessages = {
   // *choosing* columns, and the format picker's rows, are localized.
   'domain.exportHint.edition': 'set + collector number',
   'domain.exportHint.scryfallId': 'resolved from the local Scryfall cache',
+  'domain.exportHint.edhrecRank': 'lower is more popular; from the local Scryfall cache',
   'domain.exportHint.isFoil': 'true when foil or etched',
   'domain.exportHint.language': 'Scryfall language code; blank for English',
   'domain.exportHint.labels': "effective labels — the card's override or its list default",

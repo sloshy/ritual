@@ -87,6 +87,12 @@ type ExportEntryFields = {
    * `resolveExportScryfallIds`, and only when the selected columns need it.
    */
   scryfallId?: string
+  /**
+   * The card's EDHREC rank (lower is more popular). Like {@link scryfallId},
+   * resolved from the Scryfall cache — by `resolveExportEdhrecRanks`, only when
+   * the selected columns need it — and absent for a card EDHREC has not ranked.
+   */
+  edhrecRank?: number
 }
 
 export type LoadedExportEntries = { entries: ExportEntry[]; warnings: string[] }

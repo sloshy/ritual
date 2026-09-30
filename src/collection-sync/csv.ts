@@ -24,7 +24,7 @@ import type { CardPrintingsLookup } from '../card/card-printing'
 import type { ExportEntry } from '../export/entries'
 import { ARCHIDEKT_EXPORT_SETTINGS } from '../export/presets'
 import { exportPropertyLabel, renderCsvExport, type ExportProperty } from '../export/render'
-import { resolveExportScryfallIds } from '../export/scryfall-id'
+import { resolveExportScryfallIds } from '../export/cache-columns'
 import {
   archidektCsvCondition,
   archidektCsvLanguage,

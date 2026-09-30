@@ -26,7 +26,7 @@ import {
 import { cardLabelName, CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card/card-labels'
 import { formatCardTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import { renderExport, saveExportPreset } from '../export/output'
-import { getCardPrintings } from '../scryfall'
+import { getCachedCardPrintings } from '../scryfall'
 import {
   EXPORT_FORMAT_EXTENSIONS,
   EXPORT_FORMATS,
@@ -741,7 +741,7 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
   if (!target || !target.trim()) return false
   const resolved = path.resolve(target.trim())
   const rendered = await renderExport(entries, state.settings, {
-    lookupPrintings: getCardPrintings,
+    lookupPrintings: getCachedCardPrintings,
   })
   for (const warning of rendered.warnings) console.warn(`⚠️  ${warning}`)
   await fs.mkdir(path.dirname(resolved), { recursive: true })

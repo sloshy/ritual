@@ -512,7 +512,9 @@ Available columns:
 \`name\`, \`quantity\`, \`set\`, \`collectorNumber\`, \`edition\` (set + collector
 number as \`SET:number\`), \`scryfallId\` (the printing's Scryfall UUID, resolved
 from the local Scryfall cache — an uncached printing exports an empty cell plus a
-warning), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
+warning), \`edhrecRank\` (the card's EDHREC rank, lower is more popular — also from
+the cache, by name, so unpinned lines get one; empty when EDHREC has not ranked
+it), \`finish\`, \`isFoil\` (true when foil or etched), \`condition\`,
 \`language\` (Scryfall language code; blank for English), \`labels\`
 (effective labels, comma-joined), \`tags\` (the card's tags, comma-joined, no \`#\`),
 \`categories\` (the card name's categories in that list, comma-joined, primary

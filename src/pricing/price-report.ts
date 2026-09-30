@@ -34,7 +34,12 @@ import {
   PRICELESS_REASONS,
   type CardLabel,
 } from '../card/card-labels'
-import { findPrinting, hasSpecificPrinting, type CardPrintingsLookup } from '../card/card-printing'
+import {
+  findPrinting,
+  hasSpecificPrinting,
+  UNRANKED_EDHREC,
+  type CardPrintingsLookup,
+} from '../card/card-printing'
 import { parseCollectionFile } from '../list/collection-file'
 import { parseDeckFrontMatter } from '../list/deck-file'
 import { displayFinish, type Condition, type Finish } from '../card/finish-condition'
@@ -64,9 +69,6 @@ import { matchesAllTerms } from '../card/term-match'
 import type { DeckData } from '../list/deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardLanguage } from '../card/card-language'
-
-/** When a card has no EDHREC rank, it sorts after every ranked card. */
-export const UNRANKED_EDHREC = 999999
 
 /**
  * A card line from any list, flattened to the fields the report engines need.

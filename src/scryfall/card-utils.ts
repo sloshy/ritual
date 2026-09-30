@@ -1,6 +1,7 @@
 import type { ScryfallCard } from './types'
 import { compareData, compareDataNumeric } from '../i18n/collate'
 import { scryfallCardLanguage } from '../card/card-language'
+import { UNRANKED_EDHREC } from '../card/card-printing'
 
 export type CardNameFilter = {
   sets?: string[]
@@ -194,7 +195,7 @@ export function mapScryfallCard(item: ScryfallCard): ScryfallCard {
     name: foldRepeatedFaceNames(item.name),
     layout: item.layout,
     cmc: item.cmc || sameCard?.cmc || 0,
-    edhrec_rank: item.edhrec_rank || 999999,
+    edhrec_rank: item.edhrec_rank || UNRANKED_EDHREC,
     mana_cost: item.mana_cost ?? sameCard?.mana_cost,
     type_line: item.type_line ?? sameCard?.type_line,
     oracle_text: item.oracle_text ?? sameCard?.oracle_text,
