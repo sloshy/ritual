@@ -641,6 +641,19 @@ describe('applySellFilters', () => {
     expect(view.totals.noMatchCount).toBe(0)
   })
 
+  test('tags keep only entries carrying one of them, exactly', async () => {
+    const built = await buildSellReport(
+      input([
+        { set: 'fdn', collectorNumber: '294', tags: ['CK Batch'] },
+        { set: 'fdn', collectorNumber: '2', tags: ['ck batch'] },
+        { set: 'fdn', collectorNumber: '2' },
+      ]),
+      options(),
+    )
+    const view = applySellFilters(built, { tags: ['CK Batch'] })
+    expect(view.entries.map((entry) => entry.collectorNumber)).toEqual(['294'])
+  })
+
   test('a blank filter returns the report’s own view', async () => {
     const built = await report()
     const view = applySellFilters(built, {})

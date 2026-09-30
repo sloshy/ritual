@@ -26,20 +26,21 @@ Names resolve as for every list-taking command; see [List Names](/list-resolutio
 
 ## Options
 
-| Option              | Description                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `--deck`            | Only decks (also disambiguates list names)                                                                                                 |
-| `--collection`      | Only collections (also disambiguates list names)                                                                                           |
-| `--wanted`          | Only wanted lists (also disambiguates list names)                                                                                          |
-| `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): the set of the entry's own printing, or of the quoted printing          |
-| `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                                   |
-| `--min-owned <n>`   | Only cards you own at least `n` copies of in total, across every collection and deck and every printing; see [Entry Fields](#entry-fields) |
-| `--min-ratio <r>`   | Only offers worth at least this fraction of the card's TCGplayer market price (`0.8` = 80%); see [Offer vs. Market](#offer-vs-market)      |
-| `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (otherwise they are only counted)                       |
-| `--out <file>`      | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory                           |
-| `--refresh <mode>`  | Buylist + card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Feed Freshness](#feed-freshness)                 |
-| `--output <format>` | Output format: `text`, `json`, `ndjson`, or `csv`                                                                                          |
-| `--quiet`           | Suppress progress lines and the disclaimer; never the payload or parser warnings                                                           |
+| Option              | Description                                                                                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--deck`            | Only decks (also disambiguates list names)                                                                                                                                                                                           |
+| `--collection`      | Only collections (also disambiguates list names)                                                                                                                                                                                     |
+| `--wanted`          | Only wanted lists (also disambiguates list names)                                                                                                                                                                                    |
+| `--tags <list>`     | Only cards carrying one of these [tags](/list-format/#card-tags) (comma-separated, exact and case-sensitive); scopes matching, so CK's buy limits go to these cards. See [Selling a Hand-Picked Batch](#selling-a-hand-picked-batch) |
+| `--sets <codes>`    | Only cards from these set codes (comma-separated, e.g. `dsk,fdn`): the set of the entry's own printing, or of the quoted printing                                                                                                    |
+| `--min <price>`     | Only offers of at least this much per copy (e.g. `0.50`)                                                                                                                                                                             |
+| `--min-owned <n>`   | Only cards you own at least `n` copies of in total, across every collection and deck and every printing; see [Entry Fields](#entry-fields)                                                                                           |
+| `--min-ratio <r>`   | Only offers worth at least this fraction of the card's TCGplayer market price (`0.8` = 80%); see [Offer vs. Market](#offer-vs-market)                                                                                                |
+| `--all`             | Also itemize entries CK is **not** buying and unmatched entries in the text report (otherwise they are only counted)                                                                                                                 |
+| `--out <file>`      | Write the output to a file instead of stdout (`-` for stdout); relative paths resolve against the base directory                                                                                                                     |
+| `--refresh <mode>`  | Buylist + card cache refresh policy: `ask` (default), `auto`, `no-bulk`, or `never`; see [Feed Freshness](#feed-freshness)                                                                                                           |
+| `--output <format>` | Output format: `text`, `json`, `ndjson`, or `csv`                                                                                                                                                                                    |
+| `--quiet`           | Suppress progress lines and the disclaimer; never the payload or parser warnings                                                                                                                                                     |
 
 ## How Cards Are Matched
 
@@ -117,6 +118,21 @@ With nothing to sell the payload is empty. Upload the file on their CSV import p
 - The format cannot express etched foils. Etched-quoted entries export as foil, with a warning to adjust the cart by hand.
 
 The same rendering is available as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
+
+### Selling a Hand-Picked Batch
+
+To build a cart from cards you chose one by one, [tag](/list-format/#card-tags) them, then scope the report to the tag:
+
+```bash
+# Tag the chosen copies (card ids come from `sell --output json`'s cardIds)
+ritual set-card "Red Binder" --card-id 14 --tag "CK Batch"
+ritual set-card "Red Binder" --card-id 27 --tag "CK Batch"
+
+# The sell cart for exactly those copies
+ritual sell --tags "CK Batch" --output csv --out ck-batch.csv
+```
+
+`--tags` differs from the other filters: it narrows **which lines are matched at all**, before copies are aggregated and CK's buy quantity is shared out. Their cap is a budget drawn down in file order, so an untagged copy of the same card earlier in the file would otherwise use it up first, and the cart could come out short of the batch you picked. The other filters (`--sets`, `--min`, `--min-ratio`, `--min-owned`) trim the finished report.
 
 ## Non-Interactive Output
 

@@ -470,6 +470,15 @@ ritual sell --min-owned 4 --output json         # duplicates: cards you own 4+ c
 ritual sell --output csv --out to-sell.csv      # CK sell-cart CSV (upload at cardkingdom.com/static/csvImport)
 \`\`\`
 
+To sell a hand-picked batch, tag the chosen copies (by the \`cardIds\` a JSON report gave you),
+then scope the cart to the tag. \`--tags\` narrows which lines are matched at all — before CK's
+buy caps are shared out — so an untagged copy of the same card cannot use up the cap first:
+
+\`\`\`bash
+ritual set-card main-binder --card-id 14 --tag "CK Batch" --no-input
+ritual sell --tags "CK Batch" --output csv --out ck-batch.csv
+\`\`\`
+
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
 Beside CK's \`priceBuy\` (and their high-running \`priceRetail\`), a matched entry carries

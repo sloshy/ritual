@@ -229,6 +229,10 @@ export const helpInfraMeta = {
   },
   'help.sell.sets': { description: '`sell --sets`.' },
   'help.sell.min': { description: '`sell --min`.' },
+  'help.sell.tags': {
+    description:
+      '`sell --tags`. Tags are free-form labels the user puts on individual cards; the value is a comma-separated list. CK is Card Kingdom; "buy limits" are how many copies of a card it will buy.',
+  },
   'help.sell.minOwned': {
     description:
       '`sell --min-owned`. Counts every copy of the card by name (any printing) in all collections and decks, not only the lists being checked.',

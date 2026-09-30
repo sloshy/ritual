@@ -35,6 +35,8 @@ import {
 } from '../pricing/sell-report'
 import { loadAndBuildSellReport } from '../pricing/sell-runtime'
 import { parseSetCodesInput } from '../card/set-codes'
+import type { CardTag } from '../card/card-tags'
+import { parseTagFilterInput } from '../export/entries'
 import { formatDuration } from '../util/duration'
 import {
   CSV_OUTPUT_FORMATS,
@@ -69,6 +71,7 @@ type SellCommandOptions = Partial<Omit<ScriptingOptions, 'output'>> & {
   min?: number
   minRatio?: number
   minOwned?: number
+  tags?: CardTag[]
   all?: boolean
   out?: string
   refresh: RefreshMode
@@ -81,6 +84,13 @@ function numberFlag(parse: (raw: string) => number | string): (value: string) =>
     if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
     return parsed
   }
+}
+
+/** `--tags`: the export filter's grammar (comma-separated, exact tags). */
+function parseTagsFlag(value: string): CardTag[] {
+  const parsed = parseTagFilterInput(value)
+  if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
+  return parsed
 }
 
 /**
@@ -248,6 +258,7 @@ export function registerSellCommand(program: Command): void {
           .option('--min <price>', t('help.sell.min'), numberFlag(parseMinPrice))
           .option('--min-ratio <ratio>', t('help.sell.minRatio'), numberFlag(parseMinRatio))
           .option('--min-owned <count>', t('help.sell.minOwned'), numberFlag(parseMinOwned))
+          .option('--tags <list>', t('help.sell.tags'), parseTagsFlag)
           .option('--all', t('help.sell.all'))
           .option('--out <file>', t('help.sell.out')),
         CSV_OUTPUT_FORMATS,
@@ -308,7 +319,7 @@ export function registerSellCommand(program: Command): void {
         locations ? undefined : scopeType,
         locations,
         await adoptCardKingdomFeed(feed),
-        { refresh: refreshMode },
+        { refresh: refreshMode, tags: options.tags },
       )
       // A skipped card line means the report excludes cards: essential, so it
       // survives --quiet and structured output.
@@ -319,6 +330,7 @@ export function registerSellCommand(program: Command): void {
       )
 
       const filters: SellEntryFilters = {
+        tags: options.tags,
         sets: options.sets,
         minPrice: options.min,
         minRatio: options.minRatio,

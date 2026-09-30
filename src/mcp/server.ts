@@ -72,7 +72,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   carry the cardIds (&N) of the lines each one aggregates, so a follow-up edit can target
   exactly the copies being sold, ownedCopies (collection / deck counts of the card by name
   across every list) for spotting duplicates, and tcgplayerPrice / offerRatio to weigh CK's
-  offer against the market (CK's own priceRetail runs high).
+  offer against the market (CK's own priceRetail runs high). To sell a hand-picked batch, tag
+  those copies (apply_changes "add-tag") and pass the tag as get_sell_cart's tags: the tag scope
+  applies before CK's buy limits are shared out, so the cart covers exactly the batch.
 - The buylist tools are opt-in and off by default. get_sell_report, get_sell_cart,
   get_buylist_quotes and refresh_buylist error "Not found" unless the workspace set the
   site.sellMode config key, listed "cardkingdom" in priceSources, or the server was started with

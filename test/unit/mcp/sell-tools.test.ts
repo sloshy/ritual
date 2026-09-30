@@ -39,7 +39,7 @@ async function seedSellFixture(session: McpTestSession): Promise<void> {
   ])
   await fs.writeFile(
     path.join(session.env.dir, 'collections', 'shoebox.md'),
-    `# Shoebox\n\n- Sol Ring (${printing.set.toUpperCase()}:${printing.collector_number}) &1\n`,
+    `# Shoebox\n\n- Sol Ring (${printing.set.toUpperCase()}:${printing.collector_number}) #CK &1\n`,
   )
   await fs.mkdir(path.join(session.env.dir, 'cache'), { recursive: true })
   await fs.writeFile(
@@ -87,7 +87,7 @@ describe('sell MCP tools', () => {
     }
   })
 
-  test('get_sell_report rejects a bad listType and a negative minPrice or minRatio, or a fractional minOwned', async () => {
+  test('get_sell_report rejects a bad listType and a negative minPrice or minRatio, a fractional minOwned, or a non-canonical tag', async () => {
     expectSchemaRejection(
       await client.callTool({ name: 'get_sell_report', arguments: { listType: 'binder' } }),
       'listType',
@@ -103,6 +103,10 @@ describe('sell MCP tools', () => {
     expectSchemaRejection(
       await client.callTool({ name: 'get_sell_report', arguments: { minOwned: 1.5 } }),
       'minOwned',
+    )
+    expectSchemaRejection(
+      await client.callTool({ name: 'get_sell_report', arguments: { tags: ['#CK'] } }),
+      'tags',
     )
   })
 
@@ -121,6 +125,7 @@ describe('sell MCP tools', () => {
       name: 'get_sell_report',
       arguments: {
         lists: [{ listType: 'collection', slug: 'shoebox' }],
+        tags: ['CK'],
         minPrice: 1,
         minRatio: 0.5,
         minOwned: 1,
@@ -129,9 +134,9 @@ describe('sell MCP tools', () => {
     const data = toolData<{
       entries: { name: string; status: string; priceBuy?: number }[]
       totals: { sellableCount: number; totalValue: number }
-      filters: { minPrice?: number; minRatio?: number; minOwned?: number }
+      filters: { tags?: string[]; minPrice?: number; minRatio?: number; minOwned?: number }
     }>(result)
-    expect(data.filters).toEqual({ minPrice: 1, minRatio: 0.5, minOwned: 1 })
+    expect(data.filters).toEqual({ tags: ['CK'], minPrice: 1, minRatio: 0.5, minOwned: 1 })
     expect(data.entries).toHaveLength(1)
     expect(data.entries[0]).toMatchObject({ name: 'Sol Ring', status: 'buying', priceBuy: 4 })
     expect(data.totals.sellableCount).toBe(1)

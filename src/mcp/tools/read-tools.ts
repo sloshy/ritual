@@ -183,6 +183,15 @@ const sellScopeSchema = z.object({
     .array(listSlugRefSchema)
     .optional()
     .describe('Match exactly these lists instead of a whole type.'),
+  tags: z
+    .array(cardTagSchema)
+    .min(1)
+    .optional()
+    .describe(
+      'Only cards carrying one of these tags (exact, case-sensitive). Scopes the report before ' +
+        'matching, so CK’s buy limits go to these cards: tag a hand-picked batch with ' +
+        'apply_changes, then get_sell_cart with tags builds its sell cart.',
+    ),
   sets: z.array(setCodeField).optional().describe('Only cards from these set codes.'),
   minPrice: z
     .number()
@@ -221,6 +230,7 @@ function sellScopeQuery(scope: SellScopeInput): string {
   } else if (scope.listType !== undefined) {
     params.set('type', scope.listType)
   }
+  if (scope.tags !== undefined) params.set('tags', scope.tags.join(', '))
   if (scope.sets !== undefined && scope.sets.length > 0) params.set('sets', scope.sets.join(','))
   if (scope.minPrice !== undefined) params.set('min', String(scope.minPrice))
   if (scope.minRatio !== undefined) params.set('minRatio', String(scope.minRatio))

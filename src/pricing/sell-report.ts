@@ -311,7 +311,9 @@ export type SellReportPayload = {
 }
 
 /**
- * Load every list of the given type (or the given locations) into sell inputs
+ * Load every list of the given type (or the given locations) into sell inputs,
+ * keeping only the lines carrying one of `tags` when given (see
+ * {@link SellEntryFilters.tags} for why the tag scope applies here),
  * through the shared list loader (deck extras excluded, sideboards included,
  * set codes lowercased — the price report's rules). Collection files hold one
  * line per physical copy, so identical variants are aggregated per list.
@@ -324,15 +326,28 @@ export type SellReportPayload = {
 export async function loadSellListInputs(
   type?: ListType,
   locations?: ListLocation[],
+  tags?: readonly CardTag[],
 ): Promise<LoadedSellInputs> {
   const { inputs, warnings } = await loadPriceListInputs(type, locations)
   return {
     inputs: inputs.map((input): SellListInput => ({
       ...input,
-      entries: aggregateSellEntries(input.entries.filter((entry) => !isPricelessEntry(entry))),
+      entries: aggregateSellEntries(
+        input.entries.filter(
+          (entry) => !isPricelessEntry(entry) && (tags === undefined || hasAnyTag(entry, tags)),
+        ),
+      ),
     })),
     warnings,
   }
+}
+
+/**
+ * Whether a line carries at least one of `tags` — exactly and case-sensitively,
+ * the rule every tag filter follows. An empty `tags` selects nothing.
+ */
+function hasAnyTag(entry: Pick<PriceListEntry, 'tags'>, tags: readonly CardTag[]): boolean {
+  return tags.some((tag) => entry.tags?.includes(tag) === true)
 }
 
 /**
@@ -663,6 +678,16 @@ export async function buildSellReport(
 /** Filters applied to sell entries before display or export. */
 export type SellEntryFilters = {
   /**
+   * Keep only lines carrying one of these tags (exact, case-sensitive — the
+   * rule every tag filter follows). Unlike the other filters this one scopes
+   * the report *before* matching (pass it to {@link loadSellListInputs}): CK's
+   * per-product buy cap is a budget the matched entries draw down in file
+   * order, so a hand-picked, tagged batch must not have it spent first by an
+   * untagged copy of the same card. {@link filterSellEntries} honors it too,
+   * so any report view agrees.
+   */
+  tags?: CardTag[]
+  /**
    * Keep entries from these set codes (lowercase, like every internal set
    * code): the entry's pin, or the quoted printing's set for unpinned matches.
    */
@@ -716,6 +741,7 @@ export function parseMinRatio(raw: string): number | string {
 /** Whether any filter field is set (a blank filter keeps everything). */
 export function hasActiveSellFilters(filters: SellEntryFilters): boolean {
   return Boolean(
+    (filters.tags && filters.tags.length > 0) ||
     (filters.sets && filters.sets.length > 0) ||
     filters.minPrice !== undefined ||
     filters.minRatio !== undefined ||
@@ -728,7 +754,9 @@ export function filterSellEntries(
   filters: SellEntryFilters,
 ): SellReportEntry[] {
   const sets = filters.sets
+  const tags = filters.tags
   return entries.filter((entry) => {
+    if (tags && tags.length > 0 && !hasAnyTag(entry, tags)) return false
     if (sets && sets.length > 0 && !(entry.set && sets.includes(entry.set))) {
       return false
     }

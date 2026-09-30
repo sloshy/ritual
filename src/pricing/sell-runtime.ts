@@ -3,6 +3,7 @@ import type { ListType } from '../list/list-type'
 import { priceLookupFor } from './price-runtime'
 import type { ListLocation } from '../list/resolve-list'
 import type { RefreshMode } from '../cache/refresh'
+import type { CardTag } from '../card/card-tags'
 import { loadPriceListInputs } from './price-report'
 import {
   buildSellReport,
@@ -22,6 +23,8 @@ export type LoadedSellReport = {
 export type SellReportOptions = {
   /** Under `never` the report uses a cache-only printings lookup. */
   refresh?: RefreshMode
+  /** Match only lines carrying one of these tags (see `SellEntryFilters.tags`). */
+  tags?: readonly CardTag[]
 }
 
 /**
@@ -36,7 +39,7 @@ export async function loadAndBuildSellReport(
   feed: LoadedCardKingdomFeed,
   options?: SellReportOptions,
 ): Promise<LoadedSellReport> {
-  const loaded = await loadSellListInputs(type, locations)
+  const loaded = await loadSellListInputs(type, locations, options?.tags)
   const report = await buildSellReport(loaded.inputs, {
     lookup: priceLookupFor(options?.refresh),
     index: feed.index,

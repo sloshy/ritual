@@ -20,6 +20,8 @@ import {
 } from '../../pricing/sell-report'
 import { loadAndBuildSellReport } from '../../pricing/sell-runtime'
 import { parseSetCodesInput } from '../../card/set-codes'
+import type { CardTag } from '../../card/card-tags'
+import { parseTagFilterInput } from '../../export/entries'
 import { listLocationForSlug } from './list-info'
 import { apiError, badRequest } from '../../api/http'
 import { requireBuylistFeed } from '../../api/buylist'
@@ -92,8 +94,8 @@ function numberParam(
 }
 
 /**
- * Parse the shared `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=`
- * params; a Response on refusal.
+ * Parse the shared `?type=`/`?lists=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/
+ * `?minOwned=` params; a Response on refusal.
  */
 async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   const rawType = url.searchParams.get('type')
@@ -110,11 +112,19 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   if (minRatio instanceof Response) return minRatio
   const minOwned = numberParam(url, 'minOwned', parseMinOwned)
   if (minOwned instanceof Response) return minOwned
+  const rawTags = url.searchParams.get('tags')
+  let tags: CardTag[] | undefined
+  if (rawTags !== null) {
+    const parsed = parseTagFilterInput(rawTags)
+    if (typeof parsed === 'string') return badRequest(parsed)
+    tags = parsed
+  }
   const rawSets = url.searchParams.get('sets')
   return {
     type,
     locations,
     filters: {
+      tags,
       sets: rawSets ? parseSetCodesInput(rawSets) : undefined,
       minPrice,
       minRatio,
@@ -143,7 +153,7 @@ async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response
     feed,
     // Cache-only lookup: a server handler must not fire per-card Scryfall
     // fetches for names the cache does not hold.
-    { refresh: 'never' },
+    { refresh: 'never', tags: query.filters.tags },
   )
   return { view: applySellFilters(report, query.filters), feed, warnings }
 }
@@ -183,7 +193,7 @@ export async function handleSellReport(req: Request): Promise<Response> {
 /**
  * GET /api/sell/cart — the entries CK is buying, rendered as their header-less sell-cart
  * CSV import format (CK's own listing titles — variant note included — and
- * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
+ * edition spellings, quantities capped at their buy limits), over the same `?type=`/`?lists=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` scope
  * as the report. The capability behind the CLI's `sell --output csv`; carries
  * the title/card counts against CK's upload caps alongside the CSV itself.
  */

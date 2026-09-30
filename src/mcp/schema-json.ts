@@ -431,6 +431,7 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
     feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
     feedRetrievedAt: int('Epoch ms when the feed was downloaded.'),
     filters: obj({
+      tags: arr(str(), 'Tags the report was scoped to (lines carrying any of them).'),
       sets: arr(str(), 'Set codes the entries were filtered to.'),
       minPrice: num('Minimum per-copy offer the entries were filtered to.'),
       minRatio: num('Minimum offer-to-market ratio the entries were filtered to.'),

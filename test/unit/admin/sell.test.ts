@@ -48,7 +48,7 @@ describe('admin sell handlers', () => {
     await env.cleanup()
   })
 
-  test('rejects a bad type, a malformed or empty lists ref, and a bad min, minRatio or minOwned', async () => {
+  test('rejects a bad type, a malformed or empty lists ref, and a bad min, minRatio, minOwned or tags', async () => {
     expect((await report('?type=binder')).status).toBe(400)
     expect((await report('?lists=nonsense')).status).toBe(400)
     expect((await report('?lists=,,')).status).toBe(400)
@@ -56,6 +56,7 @@ describe('admin sell handlers', () => {
     expect((await report('?min=-1')).status).toBe(400)
     expect((await report('?minRatio=half')).status).toBe(400)
     expect((await report('?minOwned=1.5')).status).toBe(400)
+    expect((await report('?tags=')).status).toBe(400)
   })
 
   test('404s an unknown list reference', async () => {

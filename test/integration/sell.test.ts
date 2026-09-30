@@ -211,6 +211,39 @@ describe('sell CLI (Integration)', () => {
     ])
   })
 
+  test('--tags scopes matching, so CK’s buy cap goes to the tagged copy', async () => {
+    // CK takes one foil Sol Ring. The untagged foil comes first in the file, so
+    // without the scope it would draw the budget down before the tagged copy.
+    await writeCollectionFile(dir, 'shoebox', {
+      entries: [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', finish: 'foil', cardId: 1 },
+        {
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          finish: 'foil',
+          cardId: 2,
+          tags: ['CK Batch'],
+        },
+      ],
+    })
+    const json = await runCli(
+      ['sell', 'shoebox', '--tags', 'CK Batch', '--output', 'json', '--refresh', 'never'],
+      dir,
+      OFFLINE_ENV,
+    )
+    const payload = JSON.parse(json.stdout) as SellReportPayload
+    expect(payload.filters.tags).toEqual(['CK Batch'])
+    expect(payload.entries.map((e) => [e.cardIds, e.sellableQuantity])).toEqual([[[2], 1]])
+
+    const csv = await runCli(
+      ['sell', 'shoebox', '--tags', 'CK Batch', '--output', 'csv', '--refresh', 'never'],
+      dir,
+      OFFLINE_ENV,
+    )
+    expect(csv.stdout).toBe('Sol Ring,Commander 2021,true,1\n')
+  })
+
   test('--sets normalizes its codes and filters to them', async () => {
     const result = await runCli(
       ['sell', '--sets', 'C21', '--output', 'json', '--refresh', 'never'],

@@ -830,14 +830,15 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) �
 
 ### Parameters
 
-| Parameter  | Description                                                                                     | Required |
-| ---------- | ----------------------------------------------------------------------------------------------- | -------- |
-| `type`     | Match every `deck`, `collection`, or `wanted` list (default: every collection)                  | No       |
-| `lists`    | Comma-separated `type:slug` refs to match exactly these lists (overrides `type`); unknown → 404 | No       |
-| `sets`     | Comma-separated set codes to filter to                                                          | No       |
-| `min`      | Minimum per-copy offer (USD)                                                                    | No       |
-| `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)        | No       |
-| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop     | No       |
+| Parameter  | Description                                                                                                   | Required |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | -------- |
+| `type`     | Match every `deck`, `collection`, or `wanted` list (default: every collection)                                | No       |
+| `lists`    | Comma-separated `type:slug` refs to match exactly these lists (overrides `type`); unknown → 404               | No       |
+| `tags`     | Comma-separated card tags (exact); scopes matching to lines carrying one, before CK's buy caps are shared out | No       |
+| `sets`     | Comma-separated set codes to filter to                                                                        | No       |
+| `min`      | Minimum per-copy offer (USD)                                                                                  | No       |
+| `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                      | No       |
+| `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                   | No       |
 
 **Response:**
 
@@ -919,7 +920,7 @@ Entry fields:
 GET /api/sell/cart
 ```
 
-The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?lists=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
+The entries CK is buying, rendered in their [sell-cart CSV import format](/commands/sell/#sell-cart-csv-export): `card name, edition, foil, quantity`, no header row, CK's own listing titles with variant note, quantities capped at their buy limits. Takes the same `?type=`/`?lists=`/`?tags=`/`?sets=`/`?min=`/`?minRatio=`/`?minOwned=` parameters and `503` prerequisites as [Sell Report](#sell-report). Backs the CLI's `sell --output csv`.
 
 **Response:**
 
