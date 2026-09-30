@@ -25,17 +25,20 @@ naming the flag:
 
 \`\`\`bash
 ritual init-site --ci github-actions --deploy publish-for-me \\
-  --change-detection --price-source tcgplayer --no-skills
+  --change-detection --no-prerelease --price-source tcgplayer --no-skills
 ritual init-site --ci manual --price-source tcgplayer --no-skills
 \`\`\`
 
 Flags: \`--ci github-actions|manual\`, \`--deploy publish-for-me|local-build\`
 (github-actions only), \`--dist-dir <dir>\` (local-build only),
 \`--change-detection\`/\`--no-change-detection\` (publish-for-me only),
+\`--prerelease\`/\`--no-prerelease\` (publish-for-me only; the workflow downloads the
+newest release including prereleases instead of the latest stable one — the
+\`RITUAL_VERSION\` repository variable, a tag, \`latest\`, or \`prerelease\`, overrides it),
 \`--price-source tcgplayer|cardkingdom|cardmarket|cardhoarder\` (the default
 price store; it is added to \`priceSources\` when missing), and \`--skills\`/\`--no-skills\` (install the Ritual agent
 skills). Flags that do not apply to the chosen CI system or deploy mode are usage
-errors — including either form of \`--change-detection\` outside
+errors — including either form of \`--change-detection\` or \`--prerelease\` outside
 \`--deploy publish-for-me\`. An existing \`README.md\` additionally needs
 \`--overwrite-readme\`, \`--no-overwrite-readme\`, or \`--force\`; a pending version
 upgrade needs \`--upgrade\`.

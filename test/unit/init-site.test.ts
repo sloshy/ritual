@@ -83,12 +83,44 @@ describe('generatePublishForMeWorkflow', () => {
   })
 })
 
+describe('the Get Ritual version step', () => {
+  const versionStep = (prerelease: boolean): string => {
+    const workflow = parseWorkflow(
+      generatePublishForMeWorkflow({
+        ciSystem: 'github-actions',
+        deployMode: 'publish-for-me',
+        distDir: 'dist',
+        detectChanges: false,
+        prerelease,
+      }),
+    )
+    return findStep(getJob(workflow, 'build-and-deploy').steps, 'Get Ritual version')?.run ?? ''
+  }
+
+  test.each([
+    [false, 'latest'],
+    [true, 'prerelease'],
+  ])('prerelease: %p defaults an unset RITUAL_VERSION to %s', (prerelease, fallback) => {
+    expect(versionStep(prerelease)).toContain(`VERSION="\${RITUAL_VERSION:-${fallback}}"`)
+  })
+
+  test('resolves both channel names, so the repository variable can switch them', () => {
+    const run = versionStep(false)
+    // `releases/latest` skips prereleases; the list endpoint includes them.
+    expect(run).toContain('if [ "$VERSION" = "latest" ]; then')
+    expect(run).toContain('/releases/latest')
+    expect(run).toContain('elif [ "$VERSION" = "prerelease" ]; then')
+    expect(run).toContain('/releases?per_page=1')
+  })
+})
+
 describe('generatePublishForMeWorkflow with detectChanges', () => {
   const config = {
     ciSystem: 'github-actions' as const,
     deployMode: 'publish-for-me' as const,
     distDir: 'dist',
     detectChanges: true,
+    prerelease: false,
   }
   const workflow = parseWorkflow(generatePublishForMeWorkflow(config))
   const job = getJob(workflow, 'build-and-deploy')
@@ -193,6 +225,7 @@ describe('generateWorkflow', () => {
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: false,
+        prerelease: false,
       }),
     )
     expect(Object.keys(workflow.jobs)).toEqual(['build-and-deploy'])
@@ -205,6 +238,7 @@ describe('generateWorkflow', () => {
         deployMode: 'local-build',
         distDir: 'public',
         detectChanges: false,
+        prerelease: false,
       }),
     )
     expect(Object.keys(workflow.jobs)).toEqual(['deploy'])
@@ -217,6 +251,7 @@ describe('generateReadme', () => {
     deployMode: 'publish-for-me',
     distDir: 'dist',
     detectChanges: false,
+    prerelease: false,
   } as const
 
   test('publish-for-me mode documents the automated workflow without manual build steps', () => {
@@ -232,6 +267,15 @@ describe('generateReadme', () => {
     expect(readme).not.toContain('Commit the built')
     // distDir is not interpolated into the README in this mode.
     expect(readme).not.toContain('should-not-appear')
+  })
+
+  test.each([
+    [false, 'the latest stable Ritual release', 'prereleases included'],
+    [true, 'the newest Ritual release, prereleases included', 'latest stable Ritual release'],
+  ])('prerelease: %p names the default release channel', (prerelease, present, absent) => {
+    const readme = generateReadme({ ...baseConfig, prerelease })
+    expect(readme).toContain(present)
+    expect(readme).not.toContain(absent)
   })
 
   test('local-build mode includes build instructions with the specified dist directory', () => {
@@ -309,6 +353,7 @@ describe('generateGitignoreEntries', () => {
       deployMode: 'publish-for-me',
       distDir: 'dist',
       detectChanges: false,
+      prerelease: false,
     } as const
     expect(lines(config)).toContain('dist/')
     expect(lines(config).some((l) => l.startsWith('!'))).toBe(false)
@@ -321,6 +366,7 @@ describe('generateGitignoreEntries', () => {
       deployMode: 'local-build',
       distDir: 'dist',
       detectChanges: false,
+      prerelease: false,
     } as const
     expect(lines(config)).not.toContain('dist/')
     // An earlier init only ever appended, so the un-ignore un-does a stale line.
@@ -336,6 +382,7 @@ describe('generateGitignoreEntries', () => {
       deployMode: 'local-build',
       distDir: 'out',
       detectChanges: false,
+      prerelease: false,
     } as const
     expect(lines(config)).toContain('dist/')
     expect(lines(config)).toContain('!out/')

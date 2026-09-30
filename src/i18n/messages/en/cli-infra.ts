@@ -257,6 +257,8 @@ export const cliInfraMessages = {
   'cli.initSite.promptDistDir': 'Which directory contains your built site?',
   'cli.initSite.promptChangeDetection':
     'Enable automatic change detection? (commits changelogs when list files change)',
+  'cli.initSite.promptPrerelease':
+    'Download prerelease versions of Ritual in the workflow? (the newest release, prereleases included)',
   'cli.initSite.promptUpgrade':
     'Ritual has been upgraded ({from} → {to}). Regenerate tracked managed files?',
   'cli.initSite.readmeExists':
@@ -264,11 +266,13 @@ export const cliInfraMessages = {
   'cli.initSite.fileExists':
     '{path} already exists and prompts are unavailable; pass --force to overwrite generated files.',
   'cli.initSite.alreadyInitializedFlags':
-    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --price-source, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
+    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --prerelease, --price-source, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
   'cli.initSite.manualOnlyFlags':
-    '--deploy, --dist-dir, and --change-detection only apply with --ci github-actions.',
+    '--deploy, --dist-dir, --change-detection, and --prerelease only apply with --ci github-actions.',
   'cli.initSite.changeDetectionScope':
     '--change-detection/--no-change-detection only applies with --deploy publish-for-me.',
+  'cli.initSite.prereleaseScope':
+    '--prerelease/--no-prerelease only applies with --deploy publish-for-me.',
   'cli.initSite.distDirScope': '--dist-dir only applies with --deploy local-build.',
   'cli.initSite.upgradeRequired':
     'Ritual has been upgraded ({from} → {to}) and prompts are unavailable; pass --upgrade to regenerate tracked managed files.',
@@ -301,7 +305,7 @@ export const cliInfraMessages = {
   'cli.initSite.stepPushLocal': '  5. Push to main to trigger a deploy',
   'cli.initSite.stepPush': '  4. Push to main to trigger a deploy',
   'cli.initSite.pinVersionTip':
-    'Tip: Pin a specific Ritual version by setting a RITUAL_VERSION repository variable.',
+    'Tip: Pin a specific Ritual version, or switch between "latest" and "prerelease", by setting a RITUAL_VERSION repository variable.',
 
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': '✓ {name} → {path}',

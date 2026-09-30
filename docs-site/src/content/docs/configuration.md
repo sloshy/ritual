@@ -287,7 +287,7 @@ The remaining `admin` keys secure the server. The [`config` property table](/com
 
 The `site` key holds public-site settings in three groups:
 
-- **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`). `ritual init-site` manages them, and they exist only after you run it. Don't edit them by hand.
+- **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`, `prerelease`). `ritual init-site` manages them, and they exist only after you run it. Don't edit them by hand.
 - **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) decide which lists `build-site` publishes. Set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
 - **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)), `apiBaseUrl`, and `sellMode`, described below.
 
@@ -301,6 +301,7 @@ The `site` key holds public-site settings in three groups:
     "deployMode": "publish-for-me",
     "distDir": "dist",
     "detectChanges": false,
+    "prerelease": false,
     "includeDecks": ["*"],
     "includeCollections": ["Red Binder", "ECL"],
     "includeWantedLists": ["*"],
@@ -319,6 +320,7 @@ The `site` key holds public-site settings in three groups:
 | `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                         |
 | `distDir`            | —       | The directory containing your built site (github-actions only).                                  |
 | `detectChanges`      | —       | Whether the workflow runs `detect-changes` (github-actions only).                                |
+| `prerelease`         | `false` | Whether the workflow downloads the newest release including prereleases (github-actions only).   |
 | `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                                  |
 | `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                                        |
 | `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                                       |

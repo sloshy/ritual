@@ -30,6 +30,7 @@ import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
 import { promptsUnavailable, requireInteractive } from '../util/no-input'
 import { t } from '../i18n/t'
+import type { MessageKey } from '../i18n/messages/en'
 import { version as ritualVersion } from '../config/version'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
@@ -128,9 +129,13 @@ jobs:
       - name: Get Ritual version
         id: ritual-version
         run: |
-          VERSION="\${RITUAL_VERSION:-latest}"
+          VERSION="\${RITUAL_VERSION:-${config?.prerelease === true ? 'prerelease' : 'latest'}}"
           if [ "$VERSION" = "latest" ]; then
             VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+          elif [ "$VERSION" = "prerelease" ]; then
+            # The unauthenticated releases API omits drafts and lists newest first.
+            VERSION=$(curl -s "https://api.github.com/repos/sloshy/ritual/releases?per_page=1" \\
               | grep '"tag_name"' | head -1 | cut -d'"' -f4)
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -311,9 +316,15 @@ persisted between runs so subsequent builds are fast.
 
 ### Customizing the Ritual version
 
-By default the action downloads the latest Ritual release. To pin a specific
-version, create a GitHub Actions repository variable called \`RITUAL_VERSION\`
-set to the release tag (e.g. \`v1.0.0\`).`
+${
+  config.prerelease
+    ? 'By default the action downloads the newest Ritual release, prereleases included.'
+    : 'By default the action downloads the latest stable Ritual release.'
+} To choose
+a different version, create a GitHub Actions repository variable called
+\`RITUAL_VERSION\` set to a release tag (e.g. \`v1.0.0\`), \`latest\` for the
+latest stable release, or \`prerelease\` for the newest release including
+prereleases.`
       : `## Building
 
 Install [Ritual](https://github.com/sloshy/ritual) and run:
@@ -446,6 +457,7 @@ export type InitSiteCommandOptions = {
   deploy?: DeployMode
   distDir?: string
   changeDetection?: boolean
+  prerelease?: boolean
   priceSource?: PriceSource
   overwriteReadme?: boolean
 }
@@ -665,6 +677,8 @@ export function registerInitSiteCommand(program: Command): void {
     .option('--dist-dir <dir>', t('help.initSite.distDir'), parseDistDirFlag)
     .option('--change-detection', t('help.initSite.changeDetection'))
     .option('--no-change-detection', t('help.initSite.noChangeDetection'))
+    .option('--prerelease', t('help.initSite.prerelease'))
+    .option('--no-prerelease', t('help.initSite.noPrerelease'))
     .option('--price-source <store>', t('help.initSite.priceSource'), parsePriceSourceFlag)
     .option('--overwrite-readme', t('help.initSite.overwriteReadme'))
     .option('--no-overwrite-readme', t('help.initSite.noOverwriteReadme'))
@@ -705,6 +719,7 @@ function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
     options.deploy !== undefined ||
     options.distDir !== undefined ||
     options.changeDetection !== undefined ||
+    options.prerelease !== undefined ||
     options.priceSource !== undefined ||
     options.overwriteReadme !== undefined
   )
@@ -946,7 +961,8 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
     if (
       options.deploy !== undefined ||
       options.distDir !== undefined ||
-      options.changeDetection !== undefined
+      options.changeDetection !== undefined ||
+      options.prerelease !== undefined
     ) {
       throw localizedCommandError(
         'usage_error',
@@ -995,6 +1011,15 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
         'cli.initSite.changeDetectionScope',
       )
     }
+    // The local-build workflow never downloads Ritual, so there is no release
+    // to choose.
+    if (options.prerelease !== undefined) {
+      throw localizedCommandError(
+        'usage_error',
+        ExitCode.UsageError,
+        'cli.initSite.prereleaseScope',
+      )
+    }
 
     let distDir = options.distDir
     if (distDir === undefined) {
@@ -1014,7 +1039,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
       distDir = typed.trim()
     }
 
-    return { ciSystem, deployMode, distDir, detectChanges: false }
+    return { ciSystem, deployMode, distDir, detectChanges: false, prerelease: false }
   }
 
   // publish-for-me
@@ -1022,24 +1047,41 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.initSite.distDirScope')
   }
 
-  let detectChanges = options.changeDetection
-  if (detectChanges === undefined) {
-    requireInteractive('--change-detection/--no-change-detection')
-    const answer = await ask<boolean>({
-      type: 'confirm',
-      message: t('cli.initSite.promptChangeDetection'),
-      initial: false,
-    })
+  const detectChanges = await resolveConfirmFlag(
+    options.changeDetection,
+    '--change-detection/--no-change-detection',
+    'cli.initSite.promptChangeDetection',
+  )
+  if (detectChanges === null) return null
 
-    if (answer === undefined) {
-      console.error(t('cli.initSite.cancelled'))
-      return null
-    }
+  const prerelease = await resolveConfirmFlag(
+    options.prerelease,
+    '--prerelease/--no-prerelease',
+    'cli.initSite.promptPrerelease',
+  )
+  if (prerelease === null) return null
 
-    detectChanges = answer
+  return { ciSystem, deployMode, distDir: 'dist', detectChanges, prerelease }
+}
+
+/**
+ * Resolve a yes/no setting from its flag pair, else a default-no confirm
+ * prompt. When prompts are unavailable and the flag is unset, a usage error
+ * names `flags`. Returns null when the prompt is cancelled.
+ */
+async function resolveConfirmFlag(
+  value: boolean | undefined,
+  flags: string,
+  message: MessageKey,
+): Promise<boolean | null> {
+  if (value !== undefined) return value
+  requireInteractive(flags)
+  const answer = await ask<boolean>({ type: 'confirm', message: t(message), initial: false })
+  if (answer === undefined) {
+    console.error(t('cli.initSite.cancelled'))
+    return null
   }
-
-  return { ciSystem, deployMode, distDir: 'dist', detectChanges }
+  return answer
 }
 
 async function writeInitFiles(config: InitSiteConfig, opts: WriteInitFilesOptions): Promise<void> {

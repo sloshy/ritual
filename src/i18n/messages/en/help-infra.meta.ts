@@ -149,6 +149,8 @@ export const helpInfraMeta = {
   'help.initSite.distDir': { description: '`init-site --dist-dir`.' },
   'help.initSite.changeDetection': { description: '`init-site --change-detection`.' },
   'help.initSite.noChangeDetection': { description: '`init-site --no-change-detection`.' },
+  'help.initSite.prerelease': { description: '`init-site --prerelease`.' },
+  'help.initSite.noPrerelease': { description: '`init-site --no-prerelease`.' },
   'help.initSite.priceSource': {
     description: '`init-site --price-source`. The quoted store names are literal values.',
   },

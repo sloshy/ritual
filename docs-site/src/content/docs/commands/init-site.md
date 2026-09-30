@@ -18,6 +18,7 @@ ritual init-site [options]
 | `--deploy <mode>`                              | Deploy mode: `publish-for-me` or `local-build` (github-actions only)                                                           |
 | `--dist-dir <dir>`                             | Directory containing your locally built site (local-build deploys only)                                                        |
 | `--change-detection` / `--no-change-detection` | Enable or disable automatic change detection (publish-for-me only; a usage error with `--ci manual` or `--deploy local-build`) |
+| `--prerelease` / `--no-prerelease`             | Have the workflow download the newest release including prereleases, or the latest stable release (publish-for-me only)        |
 | `--price-source <store>`                       | Default price store: `tcgplayer`, `cardkingdom`, `cardmarket`, or `cardhoarder`                                                |
 | `--overwrite-readme` / `--no-overwrite-readme` | Overwrite or keep an existing `README.md` without prompting                                                                    |
 | `--skills`                                     | Install Ritual agent skills into `.claude/skills` without prompting                                                            |
@@ -36,6 +37,7 @@ ritual init-site \
   --ci github-actions \
   --deploy publish-for-me \
   --change-detection \
+  --no-prerelease \
   --price-source tcgplayer \
   --no-skills
 ```
@@ -70,7 +72,7 @@ Flag: `--deploy <mode>`
 
 **Publish for me** (`--deploy publish-for-me`) generates a GitHub Action that:
 
-1. Resolves the Ritual version (or uses the pinned `RITUAL_VERSION` variable) and restores the Ritual binary from cache if the version has not changed
+1. Resolves the Ritual version (the latest stable release, or the newest prerelease with [prerelease downloads](#prerelease-versions-publish-for-me-only) enabled, unless the `RITUAL_VERSION` variable says otherwise) and restores the Ritual binary from cache if the version has not changed
 2. Downloads the Ritual binary only when the resolved version is not cached
 3. Restores the Scryfall card cache from a previous run (GitHub Actions caching)
 4. Runs `ritual build-site --refresh auto`
@@ -105,6 +107,18 @@ When enabled, the workflow runs [`detect-changes`](/commands/detect-changes/) be
 This is useful when you edit list files directly, outside the admin UI or CLI, and want changelogs to stay current.
 
 Detection is **hash-aware**, so it is safe to leave enabled even if you also edit with Ritual locally. Files whose contents still match their `.sha256` hash file (meaning Ritual wrote them and already recorded a changelog) are skipped; only hand-edited files are processed. See [Hash-aware detection](/commands/detect-changes/#hash-aware-detection).
+
+### Prerelease versions (publish for me only)
+
+Flags: `--prerelease` / `--no-prerelease`
+
+With "Publish for me", you are also asked which Ritual releases the workflow downloads:
+
+```
+? Download prerelease versions of Ritual in the workflow? (the newest release, prereleases included) (y/N)
+```
+
+By default (no), the workflow downloads the latest **stable** release. Answer yes (`--prerelease`) to download the newest release **including prereleases**, the same choice the [installer's `--prerelease` option](/#installation) makes. The choice is stored as `prerelease` in the `site` block and becomes the workflow's default; the [`RITUAL_VERSION` repository variable](#customizing-the-ritual-version-github-actions) overrides it. To change the stored choice later, re-run with `--force` and the other flag. Both flags are usage errors with `--ci manual` or `--deploy local-build`, since those workflows never download Ritual.
 
 ### Default price store
 
@@ -165,6 +179,7 @@ If a generated file already exists, you are prompted before it is overwritten; `
     "deployMode": "publish-for-me",
     "distDir": "dist",
     "detectChanges": false,
+    "prerelease": false,
     "includeDecks": ["*"],
     "includeCollections": ["*"],
     "includeWantedLists": ["*"]
@@ -179,7 +194,8 @@ If a generated file already exists, you are prompted before it is overwritten; `
     "ciSystem": "github-actions",
     "deployMode": "publish-for-me",
     "distDir": "dist",
-    "detectChanges": true
+    "detectChanges": true,
+    "prerelease": true
   }
 }
 ```
@@ -243,7 +259,7 @@ from ritual.config.json if you want to use this older version.
 `--force` (or `-f`) bypasses all version checks and re-runs the full init, overwriting all generated files including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
 
 ```bash
-ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --price-source tcgplayer --no-skills
+ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --no-prerelease --price-source tcgplayer --no-skills
 ```
 
 ## Exit Codes
@@ -256,14 +272,14 @@ ritual init-site --force --ci github-actions --deploy publish-for-me --no-change
 
 ## Customizing the Ritual Version (GitHub Actions)
 
-The "Publish for me" workflow downloads the latest Ritual release by default. To pin a version:
+The "Publish for me" workflow downloads the latest stable Ritual release by default, or the newest release including prereleases when initialized with [`--prerelease`](#prerelease-versions-publish-for-me-only). To choose a different version without re-running `init-site`:
 
 1. Go to your repository on GitHub
 2. Navigate to **Settings → Secrets and variables → Actions → Variables**
 3. Create a repository variable named `RITUAL_VERSION`
-4. Set it to the desired release tag (e.g. `v1.0.0`)
+4. Set it to a release tag to pin that version (e.g. `v1.0.0`), `latest` for the latest stable release, or `prerelease` for the newest release including prereleases
 
-The workflow checks this variable on each run and downloads that version. The binary is cached between runs by version, so an unchanged version means no download.
+The workflow checks this variable on each run and downloads that version, overriding the `prerelease` setting. The binary is cached between runs by version, so an unchanged version means no download.
 
 ## Examples
 

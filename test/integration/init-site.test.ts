@@ -18,6 +18,7 @@ type SiteConfigFile = {
     deployMode?: string
     distDir?: string
     detectChanges?: boolean
+    prerelease?: boolean
   }
   defaultPriceSource?: string
   priceSources?: string[]
@@ -46,6 +47,7 @@ describe('init-site CLI (Integration)', () => {
           '--deploy',
           'publish-for-me',
           '--change-detection',
+          '--prerelease',
           '--price-source',
           'cardmarket',
           '--no-skills',
@@ -58,6 +60,7 @@ describe('init-site CLI (Integration)', () => {
       const workflow = await fs.readFile(path.join(dir, workflowRelPath), 'utf-8')
       expect(workflow).toContain('./ritual build-site --refresh auto')
       expect(workflow).not.toContain('--allow-refresh')
+      expect(workflow).toContain('VERSION="${RITUAL_VERSION:-prerelease}"')
       // The exact invocation, not the substring: 'detect-changes' also appears
       // as the step id and in the has-changes guard, so it cannot tell the
       // current command from the retired `git-detect-changes`.
@@ -71,6 +74,7 @@ describe('init-site CLI (Integration)', () => {
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: true,
+        prerelease: true,
       })
       expect(config.defaultPriceSource).toBe('cardmarket')
       // Choosing a store the sites did not offer enables it, in canonical order.
@@ -179,7 +183,14 @@ describe('init-site CLI (Integration)', () => {
     })
   })
 
-  test('--no-change-detection is rejected with --deploy local-build, like --ci manual', async () => {
+  // Either form of each publish-for-me-only flag is refused: a silently
+  // ignored `--no-…` is the bug these scope checks exist to prevent.
+  test.each([
+    ['--change-detection', '--change-detection/--no-change-detection'],
+    ['--no-change-detection', '--change-detection/--no-change-detection'],
+    ['--prerelease', '--prerelease/--no-prerelease'],
+    ['--no-prerelease', '--prerelease/--no-prerelease'],
+  ])('%s is rejected with --deploy local-build', async (flag, message) => {
     await withTempDir(async (dir) => {
       const result = await runCli(
         [
@@ -190,7 +201,7 @@ describe('init-site CLI (Integration)', () => {
           'local-build',
           '--dist-dir',
           'dist',
-          '--no-change-detection',
+          flag,
           '--price-source',
           'tcgplayer',
           '--no-skills',
@@ -199,7 +210,7 @@ describe('init-site CLI (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('--change-detection/--no-change-detection')
+      expect(result.stderr).toContain(message)
       expect(result.stderr).toContain('publish-for-me')
     })
   })
@@ -266,11 +277,27 @@ describe('init-site CLI (Integration)', () => {
         'github-actions',
         '--deploy',
         'publish-for-me',
+        '--no-prerelease',
         '--price-source',
         'tcgplayer',
         '--no-skills',
       ],
       '--change-detection',
+    ],
+    [
+      'missing --prerelease',
+      [
+        'init-site',
+        '--ci',
+        'github-actions',
+        '--deploy',
+        'publish-for-me',
+        '--no-change-detection',
+        '--price-source',
+        'tcgplayer',
+        '--no-skills',
+      ],
+      '--prerelease',
     ],
     ['missing --price-source', ['init-site', '--ci', 'manual', '--no-skills'], '--price-source'],
     // The skills question is asked last, after the files are written, so its
@@ -309,26 +336,20 @@ describe('init-site CLI (Integration)', () => {
     })
   })
 
-  test('GitHub Actions flags are rejected with --ci manual', async () => {
-    await withTempDir(async (dir) => {
-      const result = await runCli(
-        [
-          'init-site',
-          '--ci',
-          'manual',
-          '--deploy',
-          'publish-for-me',
-          '--price-source',
-          'tcgplayer',
-          '--no-skills',
-        ],
-        dir,
-      )
+  test.each([[['--deploy', 'publish-for-me']], [['--prerelease']]])(
+    'GitHub Actions flag %p is rejected with --ci manual',
+    async (flag) => {
+      await withTempDir(async (dir) => {
+        const result = await runCli(
+          ['init-site', '--ci', 'manual', ...flag, '--price-source', 'tcgplayer', '--no-skills'],
+          dir,
+        )
 
-      expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('--ci github-actions')
-    })
-  })
+        expect(result.exitCode).toBe(2)
+        expect(result.stderr).toContain('--ci github-actions')
+      })
+    },
+  )
 
   test('an existing README without a decision flag is a headless usage error', async () => {
     await withTempDir(async (dir) => {

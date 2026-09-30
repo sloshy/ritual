@@ -10,6 +10,7 @@ const config: InitSiteConfig = {
   deployMode: 'publish-for-me',
   distDir: 'dist',
   detectChanges: false,
+  prerelease: false,
 }
 
 const manualConfig: InitSiteConfig = { ciSystem: 'manual' }
@@ -68,6 +69,7 @@ describe('computeMigrations', () => {
       deployMode: 'local-build',
       distDir: 'public',
       detectChanges: false,
+      prerelease: false,
     }
     const file: ActiveManagedFile = {
       ciSystem: 'github-actions',
@@ -170,6 +172,7 @@ describe('computeMigrations', () => {
           deployMode: 'local-build',
           distDir: 'dist',
           detectChanges: false,
+          prerelease: false,
         } satisfies InitSiteConfig,
       ],
     ] as const)(

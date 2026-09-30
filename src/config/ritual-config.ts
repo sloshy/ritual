@@ -44,6 +44,12 @@ export type GitHubActionsSiteConfig = {
   deployMode: DeployMode
   distDir: string
   detectChanges: boolean
+  /**
+   * Whether the publish-for-me workflow downloads the newest Ritual release
+   * including prereleases, rather than the latest stable one. Always false for
+   * local-build deploys, which never download Ritual.
+   */
+  prerelease: boolean
 }
 
 export type ManualSiteConfig = {
@@ -68,6 +74,8 @@ export type SiteConfig = SiteSelectionConfig & {
   deployMode?: DeployMode
   distDir?: string
   detectChanges?: boolean
+  /** Read as false when absent (stable releases only). */
+  prerelease?: boolean
   /**
    * Printings barred from being auto-selected as a card's default (representative)
    * printing, as canonical `set:collectorNumber` keys (set code lowercased, e.g.
@@ -454,7 +462,8 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     obj.ciSystem !== undefined ||
     obj.deployMode !== undefined ||
     obj.distDir !== undefined ||
-    obj.detectChanges !== undefined
+    obj.detectChanges !== undefined ||
+    obj.prerelease !== undefined
 
   if (!hasDeploy) {
     return { ...selection, ...banned, ...api, ...sell }
@@ -480,6 +489,9 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     if (typeof obj.detectChanges !== 'boolean') {
       return { error: 'site config: "detectChanges" must be a boolean' }
     }
+    if (obj.prerelease !== undefined && typeof obj.prerelease !== 'boolean') {
+      return { error: 'site config: "prerelease" must be a boolean' }
+    }
     return {
       ...selection,
       ...banned,
@@ -490,6 +502,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
       deployMode: obj.deployMode,
       distDir: obj.distDir,
       detectChanges: obj.detectChanges,
+      ...(obj.prerelease !== undefined ? { prerelease: obj.prerelease } : {}),
     }
   }
 
@@ -535,6 +548,8 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
       deployMode: site.deployMode,
       distDir: site.distDir,
       detectChanges: site.detectChanges,
+      // Only publish-for-me downloads Ritual, so the flag is meaningless elsewhere.
+      prerelease: site.deployMode === 'publish-for-me' && site.prerelease === true,
     }
   }
   return { version: site.version, ciSystem: 'manual' }

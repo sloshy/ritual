@@ -150,6 +150,9 @@ export const helpInfraMessages = {
   'help.initSite.changeDetection':
     'Enable automatic change detection in the generated workflow (publish-for-me only)',
   'help.initSite.noChangeDetection': 'Disable automatic change detection (no prompt)',
+  'help.initSite.prerelease':
+    'Have the generated workflow download the newest Ritual release, prereleases included (publish-for-me only)',
+  'help.initSite.noPrerelease': 'Have the workflow download the latest stable release (no prompt)',
   'help.initSite.priceSource':
     "Default price store (its currency follows): 'tcgplayer', 'cardkingdom', 'cardmarket', or 'cardhoarder'",
   'help.initSite.overwriteReadme': 'Overwrite an existing README.md without prompting',

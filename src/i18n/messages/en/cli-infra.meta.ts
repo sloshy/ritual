@@ -402,6 +402,10 @@ export const cliInfraMeta = {
   'cli.initSite.promptChangeDetection': {
     description: 'Confirm prompt: add the changelog-committing step to the workflow?',
   },
+  'cli.initSite.promptPrerelease': {
+    description:
+      'Confirm prompt: should the generated workflow download the newest Ritual release including prereleases, instead of the latest stable release?',
+  },
   'cli.initSite.promptUpgrade': {
     description: 'Confirm prompt after a Ritual upgrade. {from}/{to} are version numbers.',
   },
@@ -419,6 +423,9 @@ export const cliInfraMeta = {
   },
   'cli.initSite.changeDetectionScope': {
     description: '--change-detection was combined with a deploy mode that has no such step.',
+  },
+  'cli.initSite.prereleaseScope': {
+    description: '--prerelease was combined with a deploy mode that never downloads Ritual.',
   },
   'cli.initSite.distDirScope': {
     description: '--dist-dir was combined with a deploy mode that does not build locally.',
@@ -472,7 +479,8 @@ export const cliInfraMeta = {
   'cli.initSite.stepPushLocal': { description: 'Checklist step 5 for a local-build deploy.' },
   'cli.initSite.stepPush': { description: 'Checklist step 4 for a publish-for-me deploy.' },
   'cli.initSite.pinVersionTip': {
-    description: 'Closing tip. RITUAL_VERSION is a GitHub Actions variable name.',
+    description:
+      'Closing tip. RITUAL_VERSION is a GitHub Actions variable name; "latest" and "prerelease" are literal values it accepts and must not be translated.',
   },
 
   // ── skills ────────────────────────────────────────────────────────────
