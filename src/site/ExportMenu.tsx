@@ -1,7 +1,6 @@
 import type { Component } from 'solid-js'
 import { For, Show, createSignal, onCleanup } from 'solid-js'
-import { AdaptiveMenu } from '../ui/AdaptiveMenu'
-import { useAnchoredToggle } from '../ui/useAnchoredToggle'
+import { MenuButton } from '../ui/MenuButton'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
 import { downloadTextFile } from './editor/download'
@@ -185,48 +184,22 @@ type ExportButtonProps = {
 }
 
 /** A single export trigger button with its anchored format dropdown. */
-const ExportButton: Component<ExportButtonProps> = (props) => {
-  const toggle = useAnchoredToggle()
-
-  const pick = (entry: MenuEntry) => {
-    props.onPick(entry)
-    toggle.close()
-  }
-
-  return (
-    <div class="export-menu-control">
-      <button
-        type="button"
-        ref={toggle.setButtonRef}
-        class="btn btn-secondary"
-        aria-haspopup="true"
-        aria-expanded={toggle.open()}
-        onClick={toggle.toggleOpen}
-      >
-        {props.label}
-        <span aria-hidden="true">{toggle.open() ? ' ▴' : ' ▾'}</span>
-      </button>
-      <AdaptiveMenu
-        toggle={toggle}
-        width={PANEL_WIDTH}
-        panelClass="selection-menu-panel"
-        title={props.menuTitle}
-        role="menu"
-        aria-label={props.menuTitle}
-      >
-        <For each={props.entries}>
-          {(entry) => (
-            <button
-              type="button"
-              role="menuitem"
-              class="selection-menu-item"
-              onClick={() => pick(entry)}
-            >
-              {entry.label}
-            </button>
-          )}
-        </For>
-      </AdaptiveMenu>
-    </div>
-  )
-}
+const ExportButton: Component<ExportButtonProps> = (props) => (
+  <div class="export-menu-control">
+    <MenuButton
+      items={props.entries.map((entry) => ({
+        label: entry.label,
+        onSelect: () => props.onPick(entry),
+      }))}
+      buttonClass="btn btn-secondary"
+      trigger={(open) => (
+        <>
+          {props.label}
+          <span aria-hidden="true">{open ? ' ▴' : ' ▾'}</span>
+        </>
+      )}
+      title={props.menuTitle}
+      width={PANEL_WIDTH}
+    />
+  </div>
+)

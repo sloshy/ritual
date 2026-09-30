@@ -86,6 +86,7 @@ import { createI18nStore, I18nProvider, useI18n } from '../ui/i18n'
 import { registerSiteMessages } from '../i18n/register/site'
 import type { LocaleTag } from '../i18n/types'
 import { useMobileLayout } from '../ui/useMediaQuery'
+import { useHideOnScroll } from './useHideOnScroll'
 
 // The English catalog is registered per surface, not imported by the runtime
 // (plan §4.2): this is what keeps the CLI's `cli.*` / `help.*` inventory —
@@ -433,21 +434,76 @@ function App() {
   const showTabBar = () => mobileLayout() && !editMode()
 
   let headerRef: HTMLElement | undefined
+  const [headerHeight, setHeaderHeight] = createSignal(0)
   onMount(() => {
     if (!headerRef) return
     const el = headerRef
-    const update = () => {
-      document.documentElement.style.setProperty('--site-header-h', `${el.offsetHeight}px`)
-    }
-    update()
-    const ro = new ResizeObserver(update)
+    setHeaderHeight(el.offsetHeight)
+    const ro = new ResizeObserver(() => setHeaderHeight(el.offsetHeight))
     ro.observe(el)
     onCleanup(() => ro.disconnect())
   })
+  // Phones hide the header on scroll-down and bring it back on scroll-up, so it
+  // never eats the small viewport while reading. An open popover anchored to a
+  // header button (the utility row's toggle aside) keeps it in place.
+  const headerHidden = useHideOnScroll({
+    enabled: mobileLayout,
+    headerHeight,
+    pinned: () =>
+      headerRef?.querySelector('[aria-expanded="true"]:not(.header-utility-toggle)') != null,
+  })
+  // The sticky toolbar, its stuck sentinel, and the toast stack all sit under
+  // the header via this var, so a hidden header hands them its space.
+  createEffect(() => {
+    const height = headerHidden() ? 0 : headerHeight()
+    document.documentElement.style.setProperty('--site-header-h', `${height}px`)
+  })
+
+  // The editor's control row. Desktop keeps it in the sticky header; the phone
+  // layout renders it in the page flow instead, so it scrolls away and only the
+  // header's top row stays pinned.
+  const editRow = () => (
+    <Show
+      when={editChrome.current()}
+      fallback={
+        <Show when={editMode()}>
+          <div class="site-header-edit-row">
+            <div class="edit-banner" role="status">
+              <div class="edit-banner-label">
+                <span class="edit-banner-icon" aria-hidden="true">
+                  ✎
+                </span>
+                <span class="edit-mode-hint">{t('site.app.editModeHint')}</span>
+              </div>
+              <div class="edit-banner-controls">
+                <button
+                  type="button"
+                  class="btn btn-export"
+                  onClick={() => setOffListExportOpen(true)}
+                >
+                  {t('site.app.export')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Show>
+      }
+    >
+      {(chrome) => (
+        <div class="site-header-edit-row">
+          <EditControlsRow chrome={chrome()} />
+        </div>
+      )}
+    </Show>
+  )
 
   return (
     <div class="site-app app-padding" classList={{ 'has-tabbar': showTabBar() }}>
-      <header ref={headerRef} class="site-header">
+      <header
+        ref={headerRef}
+        class="site-header"
+        classList={{ 'site-header--hidden': headerHidden() }}
+      >
         <div class="site-header-main">
           <a href="#/" class="site-logo">
             <FlameIcon class="site-logo-icon" />
@@ -560,39 +616,9 @@ function App() {
           </div>
         </Show>
 
-        <Show
-          when={editChrome.current()}
-          fallback={
-            <Show when={editMode()}>
-              <div class="site-header-edit-row">
-                <div class="edit-banner" role="status">
-                  <div class="edit-banner-label">
-                    <span class="edit-banner-icon" aria-hidden="true">
-                      ✎
-                    </span>
-                    <span class="edit-mode-hint">{t('site.app.editModeHint')}</span>
-                  </div>
-                  <div class="edit-banner-controls">
-                    <button
-                      type="button"
-                      class="btn btn-export"
-                      onClick={() => setOffListExportOpen(true)}
-                    >
-                      {t('site.app.export')}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </Show>
-          }
-        >
-          {(chrome) => (
-            <div class="site-header-edit-row">
-              <EditControlsRow chrome={chrome()} />
-            </div>
-          )}
-        </Show>
+        <Show when={!mobileLayout()}>{editRow()}</Show>
       </header>
+      <Show when={mobileLayout()}>{editRow()}</Show>
 
       <Show when={pricesDate()}>
         <div class="prices-date">

@@ -43,6 +43,10 @@ export const siteEditorMeta = {
       'Edit-bar button opening the batch Swap Printings wizard for the whole list being edited. The ellipsis marks that a dialog follows.',
     maxLen: 20,
   },
+  'site.editor.moreActions': {
+    description:
+      'Screen-reader name and tooltip of the "⋯" button that, on phone-width screens, gathers the edit bar\'s actions (Swap Printings, Discard, Load Changes, Export) into one menu; also that menu\'s title.',
+  },
   'site.editor.exitTitle': {
     description:
       'Title of the confirmation shown when leaving edit mode with unsaved edits — including edits to other lists made earlier in the same visit.',

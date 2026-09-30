@@ -1,6 +1,19 @@
-import { type Component, For, Show } from 'solid-js'
+import { type Component, For, Show, createMemo } from 'solid-js'
 import { useT, useTSegments } from '../../ui/i18n'
+import { MenuButton, type MenuButtonItem } from '../../ui/MenuButton'
+import { useMobileLayout } from '../../ui/useMediaQuery'
 import type { EditChrome } from './edit-chrome'
+
+/** The row's actions, in visual order. */
+type EditRowAction = 'swap-printings' | 'discard' | 'load-changes' | 'export'
+
+/** A row action: always named, since its id picks the inline button's class. */
+type EditRowItem = MenuButtonItem<EditRowAction> & { action: EditRowAction }
+
+/** An action's inline button class: Export is the row's primary action. */
+function inlineClass(action: EditRowAction): string {
+  return action === 'export' ? 'btn btn-export' : `btn btn-secondary btn-${action}`
+}
 
 type EditControlsRowProps = {
   chrome: EditChrome
@@ -8,13 +21,55 @@ type EditControlsRowProps = {
 
 /**
  * The editor control row shown as a second row of the navbar while editing a list.
- * Hosts the "local copy" notice, the Original/Edited toggle, Discard, Export, and
- * Load Changes. Exit lives in the navbar's top-right Edit/Done toggle, not here.
+ * Hosts the "local copy" notice, the Original/Edited toggle, Swap Printings, Discard,
+ * Load Changes, and Export — the last four behind a "⋯" menu in the phone layout.
+ * Exit lives in the navbar's top-right Edit/Done toggle, not here.
  */
 export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
   const t = useT()
   const tSegments = useTSegments()
   const count = () => props.chrome.changeCount()
+  // The phone layout keeps the row short: the notice and the view toggle stay
+  // inline, and the actions move into a "⋯" menu.
+  const compact = useMobileLayout()
+  // Built once: the fields that change are getters, so neither the inline
+  // buttons nor the menu rows remount (and lose focus) on every edit.
+  const swapPrintings: EditRowItem = {
+    action: 'swap-printings',
+    get label() {
+      return t('site.editor.swapPrintings')
+    },
+    onSelect: () => props.chrome.onSwapPrintings?.(),
+  }
+  const always: EditRowItem[] = [
+    {
+      action: 'discard',
+      get label() {
+        return t('site.editor.discard')
+      },
+      onSelect: () => props.chrome.onDiscard(),
+      get disabled() {
+        return count() === 0
+      },
+    },
+    {
+      action: 'load-changes',
+      get label() {
+        return t('site.editor.loadChanges')
+      },
+      onSelect: () => props.chrome.onLoadChanges(),
+    },
+    {
+      action: 'export',
+      get label() {
+        return t('site.editor.export')
+      },
+      onSelect: () => props.chrome.onExport(),
+    },
+  ]
+  const actions = createMemo(() =>
+    props.chrome.onSwapPrintings ? [swapPrintings, ...always] : always,
+  )
   // The stressed phrase is a parameter, not hard-coded markup, so a translator
   // can put it anywhere in the sentence (plan §4.6).
   const notice = () =>
@@ -57,31 +112,31 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
           </button>
         </div>
 
-        <Show when={props.chrome.onSwapPrintings}>
-          {(swapPrintings) => (
-            <button
-              type="button"
-              class="btn btn-secondary btn-swap-printings"
-              onClick={() => swapPrintings()()}
-            >
-              {t('site.editor.swapPrintings')}
-            </button>
-          )}
-        </Show>
-        <button
-          type="button"
-          class="btn btn-secondary"
-          disabled={count() === 0}
-          onClick={props.chrome.onDiscard}
+        <Show
+          when={compact()}
+          fallback={
+            <For each={actions()}>
+              {(action) => (
+                <button
+                  type="button"
+                  class={inlineClass(action.action)}
+                  disabled={action.disabled}
+                  onClick={action.onSelect}
+                >
+                  {action.label}
+                </button>
+              )}
+            </For>
+          }
         >
-          {t('site.editor.discard')}
-        </button>
-        <button type="button" class="btn btn-secondary" onClick={props.chrome.onLoadChanges}>
-          {t('site.editor.loadChanges')}
-        </button>
-        <button type="button" class="btn btn-export" onClick={props.chrome.onExport}>
-          {t('site.editor.export')}
-        </button>
+          <MenuButton
+            items={actions()}
+            buttonClass="btn btn-secondary edit-banner-more"
+            trigger={() => <span aria-hidden="true">⋯</span>}
+            title={t('site.editor.moreActions')}
+            ariaLabel={t('site.editor.moreActions')}
+          />
+        </Show>
       </div>
     </div>
   )

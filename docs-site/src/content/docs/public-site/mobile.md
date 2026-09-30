@@ -12,7 +12,11 @@ The public site adapts to phones and touch devices automatically. There is nothi
 
 On phone-width screens a **bottom tab bar** replaces the header's nav links, with the same six destinations: Decks, Collections, Wanted, [All](/public-site/combined-view/), Trade, and Find. The current section is highlighted, and the quick-switch button (⌕) sits centered in the header for jumping to any list.
 
-While edit mode is on, the tab bar steps aside for the editor's bottom action bar (Add Card, Sections, Changes, Undo). Use quick switch to move between lists mid-edit, or tap **Done** to leave edit mode and get the tabs back.
+While edit mode is on, the tab bar steps aside for the editor's bottom action bar (see [Editing on touch](#editing-on-touch)). Use quick switch to move between lists mid-edit, or tap **Done** to leave edit mode and get the tabs back.
+
+### The header while scrolling
+
+On phone-width screens the header slides away as you scroll down the page and comes back as soon as you scroll up, so it doesn't take up screen space while you browse a list. While it's hidden, the list's toolbar moves up to the top of the screen. At the top of the page the header is always shown.
 
 ### Display options
 
@@ -53,3 +57,8 @@ The **Add to Trade** corner bookmark is also omitted on touch devices. Add a car
 ## Editing on touch
 
 Everything in the [in-browser editor](/public-site/editing/) works by touch. The per-card **+ / − / ⋯** controls that desktop reveals on hover are always visible on card tiles while editing, sized for fingers, and the editor's action bar sits along the bottom edge within thumb reach.
+
+On phone-width screens both editor bars stay to a single row:
+
+- The **bottom action bar** keeps **Add Card**, **Changes**, and **Undo**. Its **⋯** button opens a menu with **Add Card Defaults**, **Sections**, **Categories**, and the **Keyboard shortcuts** list.
+- The **edit row** (the "local copy" notice with the **Original / Edited** toggle) sits at the top of the page instead of in the header, so it scrolls away with the list. Its **⋯** button holds **Swap Printings…**, **Discard**, **Load Changes…**, and **Export…**.

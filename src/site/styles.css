@@ -35,6 +35,20 @@ body {
   gap: 0;
 }
 
+/* Hide-on-scroll (phone layout; see useHideOnScroll): the header slides out
+   above the viewport, and the sticky toolbar rides up into its place because
+   --site-header-h drops to 0 at the same moment (hence `top` in its
+   transition). */
+.site-header--hidden {
+  transform: translateY(calc(-100% - var(--theme-editor-h, 0px)));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .site-header {
+    transition: transform 200ms ease;
+  }
+}
+
 .site-header-main {
   position: relative;
   display: flex;
@@ -473,6 +487,15 @@ body {
     display: none;
   }
 
+  /* Out of the sticky header (see app.tsx), the edit row sits in the page flow
+     above the list, where the header's margin already separates it. */
+  .site-app > .site-header-edit-row {
+    margin-top: -0.75rem;
+    margin-bottom: 1rem;
+    padding-top: 0;
+    border-top: none;
+  }
+
   /* Quick switch is absolutely centered and out of flow, so one auto margin on
      the logo packs every remaining control against the right edge — whether or
      not the selection menu and Done button happen to be present. */
@@ -616,7 +639,8 @@ body {
   transition:
     padding 120ms ease,
     border-radius 120ms ease,
-    margin 120ms ease;
+    margin 120ms ease,
+    top 200ms ease;
 }
 
 .primary-toolbar.is-stuck {

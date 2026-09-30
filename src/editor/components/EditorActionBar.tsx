@@ -4,6 +4,8 @@ import { swapNeighbour } from '../../util/array'
 import type { ManagerRow, SectionInfo } from '../editor-config'
 import { EditorDefaultsForm } from './EditorDefaultsForm'
 import { Modal } from '../../ui/Modal'
+import { MenuButton, type MenuButtonItem } from '../../ui/MenuButton'
+import { useMobileLayout } from '../../ui/useMediaQuery'
 import { useT } from '../../ui/i18n'
 
 type EditorActionBarProps = {
@@ -61,6 +63,16 @@ type EditorActionBarProps = {
   barRef?: (el: HTMLDivElement | undefined) => void
 }
 
+/** The dock's secondary actions; each also names its inline `btn-<action>` button class. */
+type SecondaryAction =
+  'sections' | 'categories' | 'labels' | 'cover-image' | 'import' | 'swap-printings'
+
+/** Every action the phone layout's "⋯" menu can hold. */
+type DockAction = SecondaryAction | 'defaults' | 'shortcuts'
+
+/** A secondary action: always named, since its id picks the inline button's class. */
+type DockItem = MenuButtonItem<SecondaryAction> & { action: SecondaryAction }
+
 /** One row of the Manage-categories modal — the shared manager-row model. */
 export type CategoryManagerRow = ManagerRow
 
@@ -92,6 +104,58 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
   // Condition is tracked for every list kind except wanted lists; derive it
   // from the defaults discriminant rather than threading a separate prop.
   const showCondition = () => props.defaults.kind !== 'wanted'
+
+  // The phone layout keeps the bar to one row: the everyday actions stay
+  // inline and the rest move into a "⋯" menu.
+  const compact = useMobileLayout()
+  const toggleDefaults = () => setDefaultsOpen((v) => !v)
+  // The inline button leads with an open/closed caret; a menu row has no use for one.
+  const defaultsLabel = (caret: boolean) => (
+    <>
+      <Show when={caret}>
+        <span class="btn-defaults-caret">{defaultsOpen() ? '▾' : '▴'}</span>
+      </Show>
+      {t('ui.editor.addCardDefaults')}
+      <Show when={props.defaults.hasActive()}>
+        <span class="btn-defaults-dot" aria-label={t('ui.editor.defaultsActive')} />
+      </Show>
+    </>
+  )
+  // The secondary actions that share one button style inline, in visual order.
+  // Inline, each renders as a `btn-<action>` button.
+  const secondaryActions = (): DockItem[] => {
+    const actions: DockItem[] = [
+      {
+        action: 'sections',
+        label: t('ui.editor.sections'),
+        onSelect: () => setSectionsOpen(true),
+      },
+      {
+        action: 'categories',
+        label: t('ui.editor.categories'),
+        onSelect: () => setCategoriesOpen(true),
+      },
+    ]
+    const optional = [
+      ['labels', 'ui.editor.labels', props.onEditLabels],
+      ['cover-image', 'ui.editor.coverImage', props.onEditImage],
+      ['import', 'ui.editor.import', props.onImport],
+      ['swap-printings', 'ui.editor.swapPrintings', props.onSwapPrintings],
+    ] as const
+    for (const [action, label, onSelect] of optional) {
+      if (onSelect) actions.push({ action, label: t(label), onSelect })
+    }
+    return actions
+  }
+  const overflowActions = (): MenuButtonItem<DockAction>[] => [
+    { action: 'defaults', label: defaultsLabel(false), onSelect: toggleDefaults },
+    ...secondaryActions(),
+    {
+      action: 'shortcuts',
+      label: t('ui.editor.shortcutsLabel'),
+      onSelect: props.onShowShortcuts,
+    },
+  ]
 
   const trimmedName = () => newSectionName().trim()
   // The existing section whose name matches the draft case-insensitively (its canonical casing),
@@ -159,43 +223,22 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
         >
           {t('ui.editor.addCard')}
         </button>
-        <button
-          type="button"
-          class="btn-defaults"
-          aria-expanded={defaultsOpen()}
-          onClick={() => setDefaultsOpen((v) => !v)}
-        >
-          <span class="btn-defaults-caret">{defaultsOpen() ? '▾' : '▴'}</span>
-          {t('ui.editor.addCardDefaults')}
-          <Show when={props.defaults.hasActive()}>
-            <span class="btn-defaults-dot" aria-label={t('ui.editor.defaultsActive')} />
-          </Show>
-        </button>
-        <button type="button" class="btn-sections" onClick={() => setSectionsOpen(true)}>
-          {t('ui.editor.sections')}
-        </button>
-        <button type="button" class="btn-categories" onClick={() => setCategoriesOpen(true)}>
-          {t('ui.editor.categories')}
-        </button>
-        <Show when={props.onEditLabels}>
-          <button type="button" class="btn-labels" onClick={() => props.onEditLabels!()}>
-            {t('ui.editor.labels')}
+        <Show when={!compact()}>
+          <button
+            type="button"
+            class="btn-defaults"
+            aria-expanded={defaultsOpen()}
+            onClick={toggleDefaults}
+          >
+            {defaultsLabel(true)}
           </button>
-        </Show>
-        <Show when={props.onEditImage}>
-          <button type="button" class="btn-cover-image" onClick={() => props.onEditImage!()}>
-            {t('ui.editor.coverImage')}
-          </button>
-        </Show>
-        <Show when={props.onImport}>
-          <button type="button" class="btn-import" onClick={() => props.onImport!()}>
-            {t('ui.editor.import')}
-          </button>
-        </Show>
-        <Show when={props.onSwapPrintings}>
-          <button type="button" class="btn-swap-printings" onClick={() => props.onSwapPrintings!()}>
-            {t('ui.editor.swapPrintings')}
-          </button>
+          <For each={secondaryActions()}>
+            {(action) => (
+              <button type="button" class={`btn-${action.action}`} onClick={action.onSelect}>
+                {action.label}
+              </button>
+            )}
+          </For>
         </Show>
         <button type="button" class="btn-changes" onClick={props.onShowChanges}>
           {t('ui.editor.changes')}
@@ -226,15 +269,28 @@ export const EditorActionBar: Component<EditorActionBarProps> = (props) => {
             {t('ui.editor.discardChanges')}
           </button>
         </Show>
-        <button
-          type="button"
-          class="btn-shortcuts"
-          title={t('ui.editor.shortcutsTitle')}
-          aria-label={t('ui.editor.shortcutsLabel')}
-          onClick={props.onShowShortcuts}
+        <Show
+          when={compact()}
+          fallback={
+            <button
+              type="button"
+              class="btn-shortcuts"
+              title={t('ui.editor.shortcutsTitle')}
+              aria-label={t('ui.editor.shortcutsLabel')}
+              onClick={props.onShowShortcuts}
+            >
+              ?
+            </button>
+          }
         >
-          ?
-        </button>
+          <MenuButton
+            items={overflowActions()}
+            buttonClass="btn-editor-more"
+            trigger={() => <span aria-hidden="true">⋯</span>}
+            title={t('ui.editor.moreActions')}
+            ariaLabel={t('ui.editor.moreActions')}
+          />
+        </Show>
       </div>
 
       <Modal

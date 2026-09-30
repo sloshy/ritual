@@ -197,7 +197,11 @@ export const uiMeta = {
   },
   'ui.editor.shortcutsLabel': {
     description:
-      'Screen-reader name of the "?" button that opens the keyboard shortcuts reference.',
+      'Screen-reader name of the "?" button that opens the keyboard shortcuts reference, and the visible label of that action in the phone layout\'s "⋯" menu.',
+  },
+  'ui.editor.moreActions': {
+    description:
+      'Screen-reader name and tooltip of the "⋯" button that, on phone-width screens, gathers the editor bottom bar\'s less-used actions (Sections, Categories, add-card defaults, …) into one menu; also that menu\'s title.',
   },
   'ui.editor.manageSections': {
     description: "Title of the dialog for adding, renaming and deleting a list's sections.",

@@ -146,6 +146,7 @@ export const uiMessages = {
   'ui.editor.discardChanges': 'Discard Changes',
   'ui.editor.shortcutsTitle': 'Keyboard shortcuts (?)',
   'ui.editor.shortcutsLabel': 'Keyboard shortcuts',
+  'ui.editor.moreActions': 'More editor actions',
 
   // ── Section management ────────────────────────────────────────────────
   'ui.editor.manageSections': 'Manage Sections',

@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Page } from '@playwright/test'
 import { enterEditMode, gotoList, openHeaderUtility } from '../helpers/list-ui'
 import {
   mockPublicSiteCombinedLists,
@@ -391,6 +391,90 @@ test.describe('Touch editing', () => {
     await page.locator('.btn-edit', { hasText: 'Done' }).click()
     await page.locator('.confirm-dialog-actions .btn-danger').click()
     await expect(page.locator('.edit-banner')).toHaveCount(0)
+  })
+
+  test('the dock keeps the everyday actions inline and the rest behind ⋯', async ({ page }) => {
+    const bar = page.locator('.editor-action-bar')
+    await expect(bar.locator('.btn-add')).toBeVisible()
+    await expect(bar.locator('.btn-changes')).toBeVisible()
+    await expect(bar.locator('.btn-undo')).toBeVisible()
+    await expect(bar.locator('.btn-sections')).toHaveCount(0)
+
+    await bar.locator('.btn-editor-more').click()
+    await expect(page.locator('.selection-menu-item')).toHaveText([
+      'Add Card Defaults',
+      'Sections',
+      'Categories',
+      'Keyboard shortcuts',
+    ])
+    await page.locator('.selection-menu-item[data-action="defaults"]').click()
+    await expect(page.locator('.editor-action-defaults')).toBeVisible()
+    await expect(page.locator('.selection-menu-item')).toHaveCount(0)
+
+    await bar.locator('.btn-editor-more').click()
+    await page.locator('.selection-menu-item[data-action="categories"]').click()
+    await expect(page.locator('.category-manager')).toBeVisible()
+  })
+
+  test('the edit row lives outside the sticky header, its actions behind ⋯', async ({ page }) => {
+    await expect(page.locator('.site-header .edit-banner')).toHaveCount(0)
+    await expect(page.locator('.edit-banner .btn-export')).toHaveCount(0)
+
+    // Discard is disabled until there is something to discard.
+    const discard = page.locator('.selection-menu-item[data-action="discard"]')
+    await page.locator('.edit-banner-more').click()
+    await expect(discard).toHaveAttribute('aria-disabled', 'true')
+    await page.keyboard.press('Escape')
+    await page.locator('.card-item').first().locator('.edit-btn-increment').click()
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+    await page.locator('.edit-banner-more').click()
+    await expect(discard).not.toHaveAttribute('aria-disabled')
+
+    await page.locator('.selection-menu-item[data-action="export"]').click()
+    await expect(page.locator('.export-panel')).toBeVisible()
+  })
+})
+
+test.describe('Header on scroll', () => {
+  test.beforeEach(async ({ page }) => {
+    // Short enough that the deck scrolls well past the header.
+    await page.setViewportSize({ width: 390, height: 480 })
+    await mockPublicSiteDeckWithMultipleSections(page)
+    await gotoList(page, '#/deck/test-multi-section-deck')
+  })
+
+  const scrollY = (page: Page) => page.evaluate(() => window.scrollY)
+  const scrollToBottom = (page: Page) =>
+    page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+
+  test('hides on scroll-down, returns on scroll-up, and the toolbar takes its place', async ({
+    page,
+  }) => {
+    const header = page.locator('.site-header')
+    const toolbarTop = async () => (await page.locator('.toolbar').boundingBox())!.y
+
+    await scrollToBottom(page)
+    await expect(header).toHaveClass(/site-header--hidden/)
+    await expect(header).not.toBeInViewport()
+    // Stuck at the very top — not merely scrolled off it.
+    await expect.poll(async () => Math.abs(await toolbarTop())).toBeLessThan(4)
+
+    await page.evaluate(() => window.scrollBy(0, -40))
+    await expect(header).not.toHaveClass(/site-header--hidden/)
+    const headerHeight = (await header.boundingBox())!.height
+    // Still far down the page, so this was the scroll-up rule, not the near-top one.
+    expect(await scrollY(page)).toBeGreaterThan(headerHeight)
+    await expect.poll(toolbarTop).toBeGreaterThan(headerHeight - 4)
+  })
+
+  test('stays put while a popover anchored in it is open', async ({ page }) => {
+    await openHeaderUtility(page)
+    await page.locator('.theme-customize-btn').click()
+    await expect(page.locator('.theme-customize-btn')).toHaveAttribute('aria-expanded', 'true')
+
+    await scrollToBottom(page)
+    await expect.poll(() => scrollY(page)).toBeGreaterThan(200)
+    await expect(page.locator('.site-header')).not.toHaveClass(/site-header--hidden/)
   })
 })
 

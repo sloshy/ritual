@@ -9,7 +9,7 @@ Edits are **ephemeral**. Nothing is saved to a server, and nothing persists unle
 
 ## Edited vs. published
 
-While editing, the navbar gains a second row to show you are viewing a local copy. It has an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode.
+While editing, the navbar gains a second row to show you are viewing a local copy. It has an **Original / Edited** toggle to switch between your changes and the published version, and a **Discard** button to drop them. Press **Done** (the same navbar toggle) to leave edit mode. On phone-width screens both editor bars are condensed behind **⋯** menus; see [Editing on touch](/public-site/mobile/#editing-on-touch).
 
 ## What the editor can do
 

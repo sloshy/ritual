@@ -35,7 +35,8 @@
   transition:
     padding 120ms ease,
     border-radius 120ms ease,
-    margin 120ms ease;
+    margin 120ms ease,
+    top 200ms ease;
 }
 
 .toolbar.is-stuck {

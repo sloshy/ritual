@@ -680,6 +680,19 @@
   gap: 12px;
 }
 
+/* The phone layout's single-row bar (the rest sits behind "⋯"): tighter
+   spacing so Add Card, Changes, Undo and ⋯ fit a 360px-wide screen (keep in
+   sync with MOBILE_LAYOUT_QUERY in src/ui/useMediaQuery.ts). */
+@media (max-width: 767px) {
+  .editor-action-bar {
+    gap: 8px;
+  }
+
+  .editor-action-bar > button {
+    padding-inline: 12px;
+  }
+}
+
 .btn-add {
   background: var(--btn-add);
   color: var(--btn-on-color-text);
@@ -729,10 +742,19 @@
   background: var(--accent);
 }
 
-/* Sections, labels and the cover image share the defaults button styling. */
+/* In the phone layout's "⋯" menu the dot trails the label of a block-level row. */
+.selection-menu-item .btn-defaults-dot {
+  display: inline-block;
+  margin-left: 8px;
+}
+
+/* Sections, categories, labels, the cover image and the phone layout's "⋯"
+   menu share the defaults button styling. */
 .btn-sections,
+.btn-categories,
 .btn-labels,
-.btn-cover-image {
+.btn-cover-image,
+.btn-editor-more {
   background: var(--btn-bg);
   color: var(--btn-text);
   border: 1px solid var(--border);
@@ -748,8 +770,10 @@
 }
 
 .btn-sections:hover,
+.btn-categories:hover,
 .btn-labels:hover,
-.btn-cover-image:hover {
+.btn-cover-image:hover,
+.btn-editor-more:hover {
   background: var(--btn-hover);
 }
 
