@@ -443,7 +443,10 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'text was not imported; `advisories` reports content that was read but is worth a ' +
         'word (a line that looked off, or an empty Maybeboard/Tokens section the write drops). ' +
         'A URL import must state `syncPrintings` — the CLI asks the user interactively, and ' +
-        'this call is that decision, so ask the user when their intent is unclear. A name/ID ' +
+        'this call is that decision, so ask the user when their intent is unclear. A URL ' +
+        'import from Archidekt or Moxfield also writes each card’s categories (its role in ' +
+        'the deck: Archidekt categories that are not boards, Moxfield tags) to the deck’s ' +
+        'categories file, replacing any a replaced deck had. A name/ID ' +
         'conflict without `overwrite`, or a deck name with no characters usable in a file ' +
         'name, fails with `code: "invalid-request"`.',
       inputSchema: z.object({

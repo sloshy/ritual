@@ -842,15 +842,18 @@ export function registerImportCommand(program: Command): void {
         // the user is asked (and --no-input keeps them, saying so).
         const keepPrintings = await resolveImportPrintings({
           flag: syncPrintingsFlag,
-          deckStatesPrintings: deckStatesPrintings(result),
+          deckStatesPrintings: deckStatesPrintings(result.deck),
           scripting,
         })
         if (keepPrintings === undefined) {
           fail(scripting, 'usage_error', 'cli.import.cancelled')
           return
         }
-        const deckToSave = keepPrintings ? result : stripDeckPrintings(result)
-        const outcome = await saveDeck(deckToSave, getDecksDir(), saveOptions)
+        const deckToSave = keepPrintings ? result.deck : stripDeckPrintings(result.deck)
+        const outcome = await saveDeck(deckToSave, getDecksDir(), {
+          ...saveOptions,
+          categories: result.categories,
+        })
         emitImportSummary(
           source,
           'deck',

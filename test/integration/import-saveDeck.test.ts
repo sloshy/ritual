@@ -284,4 +284,59 @@ describe('saveDeck (Integration)', () => {
       expect(primerContent).toContain('This is a great deck.')
     })
   })
+
+  describe('categories', () => {
+    const categoriesPath = (dir: string): string =>
+      deckPath(dir, sampleDeck.name).replace(/\.md$/, '.categories.json')
+    const readCategories = async (dir: string): Promise<unknown> =>
+      JSON.parse(await fs.readFile(categoriesPath(dir), 'utf-8')) as unknown
+
+    test('writes the source’s categories beside the deck and reports the files', async () => {
+      await withTempDir(async (dir) => {
+        const outcome = await saveDeck(sampleDeck, dir, {
+          categories: [{ name: 'Sol Ring', categories: ['Ramp', 'Mana Rock'] }],
+        })
+
+        expect((await readCategories(dir)) as { cards: unknown }).toMatchObject({
+          cards: { 'Sol Ring': ['Ramp', 'Mana Rock'] },
+        })
+        expect(outcome.status === 'saved' && outcome.writtenFiles).toEqual([
+          categoriesPath(dir),
+          `${categoriesPath(dir)}.sha256`,
+        ])
+      })
+    })
+
+    test('an overwrite from a source with none clears the replaced deck’s categories', async () => {
+      await withTempDir(async (dir) => {
+        await saveDeck(sampleDeck, dir, {
+          categories: [{ name: 'Sol Ring', categories: ['Ramp'] }],
+        })
+        await saveDeck(sampleDeck, dir, { forceOverwrite: true, categories: [] })
+        expect(await Bun.file(categoriesPath(dir)).exists()).toBe(false)
+      })
+    })
+
+    test('a source with no notion of categories leaves the file alone', async () => {
+      await withTempDir(async (dir) => {
+        await saveDeck(sampleDeck, dir, {
+          categories: [{ name: 'Sol Ring', categories: ['Ramp'] }],
+        })
+        await saveDeck(sampleDeck, dir, { forceOverwrite: true })
+        expect((await readCategories(dir)) as { cards: unknown }).toMatchObject({
+          cards: { 'Sol Ring': ['Ramp'] },
+        })
+      })
+    })
+
+    test('a dry run writes no categories file', async () => {
+      await withTempDir(async (dir) => {
+        await saveDeck(sampleDeck, dir, {
+          dryRun: true,
+          categories: [{ name: 'Sol Ring', categories: ['Ramp'] }],
+        })
+        expect(await fs.readdir(dir)).toEqual([])
+      })
+    })
+  })
 })

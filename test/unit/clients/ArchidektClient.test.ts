@@ -109,7 +109,7 @@ describe('ArchidektClient', () => {
       )
     })
     const client = new ArchidektClient({ fetch: mockFetch })
-    const deck = await client.fetchDeck('1')
+    const { deck } = await client.fetchImportedDeck('1')
     const main = deck.sections.find((s) => s.name === 'Main')
     expect(main).toBeDefined()
     expect(main?.cards).toEqual([{ name: 'Card A', quantity: 1 }])
@@ -146,7 +146,7 @@ describe('ArchidektClient', () => {
     })
 
     const client = new ArchidektClient({ fetch: mockFetch })
-    const deck = await client.fetchDeck('12345', 'mytoken')
+    const { deck, categories } = await client.fetchImportedDeck('12345', 'mytoken')
 
     expect(deck.name).toBe('Test Deck')
     expect(deck.sourceId).toBe('12345')
@@ -163,6 +163,8 @@ describe('ArchidektClient', () => {
     expect(main?.cards).toHaveLength(1)
     expect(main?.cards[0]?.name).toBe('Forest')
     expect(main?.cards[0]?.quantity).toBe(10)
+    // `Commander` is a board, so only the role category reaches the import.
+    expect(categories).toEqual([{ name: 'Forest', categories: ['Land'] }])
   })
 
   test('should parse a response with no categories and no cards', () => {
@@ -303,13 +305,13 @@ describe('ArchidektClient', () => {
     }
   })
 
-  test('should throw error when fetchDeck fails', async () => {
+  test('should throw error when fetchImportedDeck fails', async () => {
     const mockFetch = mock(
       async () => new Response('Not Found', { status: 404, statusText: 'Not Found' }),
     )
     const client = new ArchidektClient({ fetch: mockFetch })
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.fetchDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
+    await expect(client.fetchImportedDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
   })
 })
 

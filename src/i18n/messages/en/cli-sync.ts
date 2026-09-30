@@ -57,6 +57,24 @@ export const cliSyncMessages = {
   'cli.import.dryRunSavePrimer': '[dry-run] Would save primer to: {path}',
   'cli.import.savedDeck': 'Successfully imported deck to: {path}',
   'cli.import.savedPrimer': 'Successfully saved primer to: {path}',
+  'cli.import.dryRunSaveCategories': {
+    $plural: 'count',
+    one: '[dry-run] Would save categories for {count} card to: {path}',
+    other: '[dry-run] Would save categories for {count} cards to: {path}',
+  },
+  'cli.import.savedCategories': {
+    $plural: 'count',
+    one: 'Saved categories for {count} card to: {path}',
+    other: 'Saved categories for {count} cards to: {path}',
+  },
+  'cli.import.categoriesRefused': {
+    $plural: 'count',
+    one: 'Skipped a category Ritual cannot store (it holds a comma or a control character): {names}',
+    other:
+      'Skipped {count} categories Ritual cannot store (they hold a comma or a control character): {names}',
+  },
+  'cli.import.categoriesFailed':
+    'The deck was imported, but its categories could not be saved: {reason}',
   'cli.import.dryRunOverwriteList': '[dry-run] Would overwrite {label}: {path}',
   'cli.import.dryRunSaveList': '[dry-run] Would save {label} to: {path}',
   'cli.import.savedList': 'Successfully imported {label} to: {path}',

@@ -202,7 +202,7 @@ export async function collectSiteLists(input: CollectListsInput): Promise<Collec
     }
     await collectDeck(
       { basename: url, displayName: url },
-      deckList({ data: result, changelog: [], warnings: [], fileMtime: undefined }),
+      deckList({ data: result.deck, changelog: [], warnings: [], fileMtime: undefined }),
     )
   }
   for (const load of await loadCategory(deck)) {

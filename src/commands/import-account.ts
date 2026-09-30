@@ -276,14 +276,15 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         for (const deck of selectedDecks) {
           info(t('cli.importAccount.processingDeck', { name: deck.name, id: deck.id }))
           try {
-            const fetched = await client.fetchDeck(deck.id.toString(), token)
-            const deckData = keepPrintings ? fetched : stripDeckPrintings(fetched)
+            const fetched = await client.fetchImportedDeck(deck.id.toString(), token)
+            const deckData = keepPrintings ? fetched.deck : stripDeckPrintings(fetched.deck)
             const outcome = await saveDeck(deckData, getDecksDir(), {
               forceOverwrite: options.overwrite === true,
               assumeYes: options.yes === true,
               dryRun,
               quiet: scripting.quiet,
               resolveConflict: cliConflictResolver,
+              categories: fetched.categories,
             })
             if (outcome.status === 'cancelled') {
               results.push({

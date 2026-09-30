@@ -61,9 +61,17 @@ describe('Moxfield Importer', () => {
     resetLogger()
   })
 
+  test('returns the deck’s tags as categories', async () => {
+    const client = new MoxfieldClient(
+      makeMockHttpClient({ ...deckResponse, authorTags: { 'Sol Ring': ['Ramp', 'Mana Rock'] } }),
+    )
+    const { categories } = await fetchMoxfieldDeck('12345', client)
+    expect(categories).toEqual([{ name: 'Sol Ring', categories: ['Ramp', 'Mana Rock'] }])
+  })
+
   test('fetches and parses deck with primer via separate endpoint', async () => {
     const client = new MoxfieldClient(makeMockHttpClient())
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.name).toBe('Moxfield Deck')
     expect(deck.sourceId).toBe('12345')
@@ -112,7 +120,7 @@ describe('Moxfield Importer', () => {
       },
     }
     const client = new MoxfieldClient(makeMockHttpClient(withPrintings))
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     // Set codes lowercase internally; the serializer uppercases them on output.
     expect(deck.sections[0]?.cards).toEqual([
@@ -150,7 +158,7 @@ describe('Moxfield Importer', () => {
       },
     }
     const client = new MoxfieldClient(makeMockHttpClient(halfPrintings))
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.sections[0]?.cards).toEqual([
       {
@@ -167,14 +175,14 @@ describe('Moxfield Importer', () => {
     const client = new MoxfieldClient(
       makeMockHttpClient({ ...deckResponse, format: 'duelCommander' }),
     )
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.format).toBe('duel-commander')
   })
 
   test('leaves the format unset for a format Ritual does not model', async () => {
     const client = new MoxfieldClient(makeMockHttpClient({ ...deckResponse, format: 'none' }))
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.format).toBeUndefined()
   })
@@ -182,7 +190,7 @@ describe('Moxfield Importer', () => {
   test('falls back to inline deck.primer when primer endpoint returns 404', async () => {
     const deckWithInlinePrimer = { ...deckResponse, primer: 'Inline primer' }
     const client = new MoxfieldClient(makeMockHttpClient(deckWithInlinePrimer, null))
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.primer).toBe('Inline primer')
   })
@@ -207,7 +215,7 @@ describe('Moxfield Importer', () => {
 
   test('primer is undefined when primer endpoint returns 404 and no inline primer', async () => {
     const client = new MoxfieldClient(makeMockHttpClient(deckResponse, null))
-    const deck = await fetchMoxfieldDeck('12345', client)
+    const { deck } = await fetchMoxfieldDeck('12345', client)
 
     expect(deck.primer).toBeUndefined()
   })

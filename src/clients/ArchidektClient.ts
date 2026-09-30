@@ -1,6 +1,6 @@
 import { defaultHttpClient } from '../util/http'
 import type { HttpClient } from '../util/interfaces'
-import type { DeckData } from '../list/deck'
+import type { DeckData, ImportedDeck } from '../list/deck'
 import { throwHttpError } from '../util/errors'
 import {
   type ArchidektDeckResponse,
@@ -8,8 +8,10 @@ import {
   type ArchidektRawDeckResponse,
   type ArchidektCardSearchResult,
   type ModifyCardEntry,
+  parseArchidektDeckCategories,
   parseArchidektDeckResponse,
 } from '../importers/archidekt-types'
+import { warnRefusedCategories } from '../importers/import-categories'
 import {
   ARCHIDEKT_BULK_BATCH_SIZE,
   ARCHIDEKT_CSV_CHUNK_SIZE,
@@ -478,10 +480,13 @@ export class ArchidektClient {
     )
   }
 
-  async fetchDeck(deckId: string, token?: string): Promise<DeckData> {
+  /** The parsed deck and its role categories, for an import. See {@link ImportedDeck}. */
+  async fetchImportedDeck(deckId: string, token?: string): Promise<ImportedDeck> {
     const response = await this.fetchDeckResponse(deckId, token)
     const json = (await response.json()) as ArchidektDeckResponse
-    return parseArchidektDeckResponse(json, deckId)
+    const categories = parseArchidektDeckCategories(json)
+    warnRefusedCategories(categories.refused)
+    return { deck: parseArchidektDeckResponse(json, deckId), categories: categories.cards }
   }
 
   async fetchDeckRaw(deckId: string, token?: string): Promise<ArchidektRawDeckResponse> {

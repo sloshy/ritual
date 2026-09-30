@@ -1,5 +1,6 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
+import type { CardCategoryEntry } from '../../list/card-categories-record'
 import { saveDeck } from '../../importers/save-list'
 import { autoCommitAndPush } from './save-helpers'
 import { badRequest, readJsonObjectBody } from '../../api/http'
@@ -106,6 +107,8 @@ export function handleImportDeck(req: Request): Promise<Response> {
     const overwrite = request.overwrite ?? false
 
     let deckData: DeckData
+    /** The source's categories; only a URL import from a service that has them sets it. */
+    let categories: CardCategoryEntry[] | undefined
     let warnings: string[] = []
     let advisories: string[] = []
 
@@ -114,7 +117,8 @@ export function handleImportDeck(req: Request): Promise<Response> {
       if (!url) return badRequest('url is required')
       const result = await fetchDeckFromUrl(url)
       if (typeof result === 'string') return badRequest(result)
-      deckData = request.syncPrintings ? result : stripDeckPrintings(result)
+      deckData = request.syncPrintings ? result.deck : stripDeckPrintings(result.deck)
+      categories = result.categories
     } else {
       const content = request.content.trim()
       if (!content) return badRequest('content is required')
@@ -140,6 +144,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     const outcome = await saveDeck(deckData, decksDir, {
       forceOverwrite: overwrite,
       assumeYes: overwrite,
+      categories,
     })
     // Only a resolver can cancel, and this call injects none; still, the
     // outcome is honoured rather than assumed so the contract cannot drift.
@@ -147,7 +152,11 @@ export function handleImportDeck(req: Request): Promise<Response> {
 
     // The file the save actually wrote: an overwrite of a folded twin or an
     // id-matched deck lands on the existing file, not the import's own slug.
-    await autoCommitAndPush(decksDir, [outcome.filePath], `Import deck: ${outcome.name}`)
+    await autoCommitAndPush(
+      decksDir,
+      [outcome.filePath, ...outcome.writtenFiles],
+      `Import deck: ${outcome.name}`,
+    )
 
     // The admin UI surfaces only `message`, so a lossy text import says so
     // there too; API clients get the individual lines in `warnings`.

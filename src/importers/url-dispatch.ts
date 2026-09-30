@@ -4,7 +4,7 @@ import { fetchMoxfieldDeck } from './moxfield-lib'
 import { aggregateQuantities } from '../card/card-line'
 import { displayLanguage } from '../card/card-language'
 import type { Card } from '../card/card'
-import type { DeckData, DeckSection } from '../list/deck'
+import type { DeckData, DeckSection, ImportedDeck } from '../list/deck'
 
 /**
  * Whether any card in the deck states a printing or finish — what a URL import
@@ -170,14 +170,15 @@ export type FetchDeckFromUrlOptions = {
 /**
  * Fetch a deck from a supported URL (Archidekt, Moxfield, MTGGoldfish).
  *
- * Returns the parsed {@link DeckData} on success, or a string error message for
+ * Returns the parsed deck and the categories the service states for it (see
+ * {@link ImportedDeck}) on success, or a string error message for
  * recoverable problems (unsupported URL, missing Moxfield user-agent). Network
  * or parse failures from the underlying clients are thrown.
  */
 export async function fetchDeckFromUrl(
   url: string,
   options: FetchDeckFromUrlOptions = {},
-): Promise<DeckData | string> {
+): Promise<ImportedDeck | string> {
   const match = matchDeckUrl(url)
   if (!match) {
     return 'URL not supported. Use Archidekt, Moxfield, or MTGGoldfish URLs.'
@@ -186,7 +187,7 @@ export async function fetchDeckFromUrl(
   switch (match.service) {
     case 'archidekt':
       options.onProgress?.(`Fetching deck ID ${match.deckId} from Archidekt...`)
-      return new ArchidektClient().fetchDeck(match.deckId)
+      return new ArchidektClient().fetchImportedDeck(match.deckId)
     case 'moxfield': {
       const userAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
       if (!userAgent) {
@@ -197,6 +198,7 @@ export async function fetchDeckFromUrl(
     }
     case 'mtggoldfish':
       options.onProgress?.('Fetching deck from MTGGoldfish...')
-      return fetchMtgGoldfishDeck(match.url)
+      // MTGGoldfish has no notion of categories, so an import leaves them alone.
+      return { deck: await fetchMtgGoldfishDeck(match.url) }
   }
 }

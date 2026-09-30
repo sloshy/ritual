@@ -4,7 +4,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { registerImportAccountCommand } from '../../src/commands/import-account'
 import type { ArchidektClient, ArchidektDeckSimple } from '../../src/clients/ArchidektClient'
-import type { DeckData } from '../../src/list/deck'
+import type { DeckData, ImportedDeck } from '../../src/list/deck'
 import { ExitCode } from '../../src/util/errors'
 import { setNoInputOverride } from '../../src/util/no-input'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
@@ -33,10 +33,10 @@ function fakeClient(options: FakeClientOptions): ArchidektClient {
   const client = {
     fetchPublicDecks: async (): Promise<ArchidektDeckSimple[]> => options.decks,
     fetchOwnDecks: async (): Promise<ArchidektDeckSimple[]> => options.decks,
-    fetchDeck: async (deckId: string): Promise<DeckData> => {
+    fetchImportedDeck: async (deckId: string): Promise<ImportedDeck> => {
       const deck = options.decksById?.[deckId]
       if (deck === undefined) throw new Error(`Deck ${deckId} is private`)
-      return deck
+      return { deck, categories: [] }
     },
   }
   return client as unknown as ArchidektClient

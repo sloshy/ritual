@@ -138,6 +138,20 @@ The JSON payload records the decision as `syncPrintings` on URL imports.
 
 When printings are kept, the line is written as `1 Sol Ring (C19:221)`, plus `[foil]` or `[etched]` when the source says so, exactly as the source states it. Nothing is verified against Scryfall, the same trust level as a CSV import. Cards of the same printing in one section merge into a single line; different printings of the same card stay separate lines. MTGGoldfish pages carry no printing data, so those imports are name-only.
 
+## Categories from a URL import
+
+Archidekt's categories and Moxfield's tags are what Ritual calls [categories](/commands/categories/): a card's role in the deck (`Ramp`, `Removal`). A URL import from either service writes them to the new deck's [`<deck>.categories.json`](/list-format/#categories-namecategoriesjson), in the source's order, the first being primary. No flag or prompt is involved.
+
+- **Archidekt** files boards as categories too. A category that names a board (`Commander`, `Sideboard`, `Maybeboard`, …), that the deck marks as the command zone, or that the deck excludes from its count (_Tokens & Extras_) decides the card's section and is not imported as a category. See [Boards and categories](/commands/deck-sync/#boards-and-categories) for the exact rule.
+- **Moxfield** tags carry no board meaning, so every tag on a card the deck holds becomes a category.
+- **MTGGoldfish** has no categories, and its imports leave the categories file alone.
+- **An overwrite replaces the categories file.** Importing over an existing deck from Archidekt or Moxfield leaves exactly the source's categories; a card the source leaves untagged loses any it had.
+- A category name Ritual cannot store (one holding a control character) is skipped with a warning. In practice this does not happen.
+
+`--dry-run` reports the categories file it would write without writing it. [`import-account`](/commands/import-account/), the admin Import Deck page, and the MCP `import_deck` tool import categories the same way.
+
+To keep a deck's categories in step with Archidekt after the import, use [`deck-sync --sync-categories`](/commands/deck-sync/#category-sync---sync-categories).
+
 ## Dry Runs
 
 `-n, --dry-run` previews an import. The source is fetched or read, every card is resolved and validated, and the summary reports exactly what would be written, but **nothing on disk changes**. A dry run does not even create the `decks/`, `collections/`, or `wanted/` directory it would have written into.

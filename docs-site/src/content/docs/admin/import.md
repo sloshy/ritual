@@ -19,6 +19,8 @@ Options:
 - **Overwrite existing deck if it exists**: replace a deck of the same name instead of failing on conflict.
 - **Import the exact printings…** (URL only, ticked by default): untick it to import bare card names. See [Printings from a URL import](/commands/import/#printings-from-a-url-import).
 
+A URL import from Archidekt or Moxfield also brings each card's categories (Archidekt categories, Moxfield tags). See [Categories from a URL import](/commands/import/#categories-from-a-url-import).
+
 ## Import CSV
 
 Import cards from a CSV export (Moxfield, Deckbox, ManaBox, and others) into a deck, collection, or wanted list. Upload a file or paste CSV text.

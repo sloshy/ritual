@@ -27,6 +27,15 @@ import { listTypeLabel, type ListType } from '../list/list-type'
 import { CardCommandError, ExitCode, hasErrorCode, localizedCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
+import { foldCategoryCardName } from '../card/card-categories'
+import { createSetCategoriesChange, createSetCategoryOrderChange } from '../changes/change-event'
+import {
+  categoriesSidecarPath,
+  commitCategoryChanges,
+  type CardCategoryEntry,
+  type CommitCategoryChangesResult,
+} from '../list/card-categories-sidecar'
+import { loadDefaultCategories } from '../config/ritual-config'
 
 /**
  * An existing list an import would replace, and how it was matched. Only a
@@ -66,10 +75,18 @@ export interface SaveListOptions {
    * interactive resolver (`cliConflictResolver` in `src/cli/import-prompts.ts`).
    */
   resolveConflict?: ConflictResolver
+  /**
+   * The source's card categories, for a deck import from a service that has
+   * them (Archidekt categories, Moxfield tags). Present — even empty — means
+   * the source *speaks* for categories: the saved deck's categories file holds
+   * exactly these, clearing any the replaced deck had. Absent means the source
+   * has no notion of them, and the categories file is left alone.
+   */
+  categories?: readonly CardCategoryEntry[]
 }
 
-type ResolvedSaveOptions = Required<Omit<SaveListOptions, 'resolveConflict'>> &
-  Pick<SaveListOptions, 'resolveConflict'>
+type ResolvedSaveOptions = Required<Omit<SaveListOptions, 'resolveConflict' | 'categories'>> &
+  Pick<SaveListOptions, 'resolveConflict' | 'categories'>
 
 /** What saving the imported list did — or would do, under `--dry-run`. */
 export type SaveListAction = 'created' | 'overwritten' | 'renamed'
@@ -77,8 +94,15 @@ export type SaveListAction = 'created' | 'overwritten' | 'renamed'
 /** Where a save lands once any conflict is settled. */
 type SaveTarget = { filePath: string; name: string; action: SaveListAction }
 
+/**
+ * A completed save. `writtenFiles` holds the files it wrote **besides** the list
+ * file and its `.sha256` — the primer and categories sidecars — for the caller's
+ * auto-commit set, as `CsvImportSuccess.writtenFiles` does. Empty on a dry run.
+ */
+type SavedList = { status: 'saved'; writtenFiles: string[] } & SaveTarget
+
 /** Result of {@link saveDeck} / {@link saveFlatList}: where the list went, or a prompt cancel. */
-export type SaveListOutcome = ({ status: 'saved' } & SaveTarget) | { status: 'cancelled' }
+export type SaveListOutcome = SavedList | { status: 'cancelled' }
 
 function normalizeSaveListOptions(options?: SaveListOptions): ResolvedSaveOptions {
   return {
@@ -87,6 +111,7 @@ function normalizeSaveListOptions(options?: SaveListOptions): ResolvedSaveOption
     dryRun: options?.dryRun ?? false,
     quiet: options?.quiet ?? false,
     resolveConflict: options?.resolveConflict,
+    categories: options?.categories,
   }
 }
 
@@ -302,7 +327,14 @@ export async function saveDeck(
   const primerPath = filePath.replace(/\.md$/, '.primer.md')
   const primerMarkdown = deckData.primer ? parseMoxfieldPrimer(deckData.primer).markdown : undefined
 
-  const outcome: SaveListOutcome = { status: 'saved', filePath, name: deckData.name, action }
+  const outcome: SavedList = {
+    status: 'saved',
+    filePath,
+    name: deckData.name,
+    action,
+    writtenFiles: [],
+  }
+  const categories = resolvedOptions.categories
 
   if (resolvedOptions.dryRun) {
     // A preview of a destructive import must show the destruction: the
@@ -317,6 +349,15 @@ export async function saveDeck(
     if (primerMarkdown) {
       saveInfo(resolvedOptions, t('cli.import.dryRunSavePrimer', { path: primerPath }))
     }
+    if (categories !== undefined && categories.length > 0) {
+      saveInfo(
+        resolvedOptions,
+        t('cli.import.dryRunSaveCategories', {
+          count: categories.length,
+          path: categoriesSidecarPath(filePath),
+        }),
+      )
+    }
     return outcome
   }
 
@@ -330,10 +371,60 @@ export async function saveDeck(
 
   if (primerMarkdown) {
     await Bun.write(primerPath, primerMarkdown + '\n')
+    outcome.writtenFiles.push(primerPath)
     saveInfo(resolvedOptions, t('cli.import.savedPrimer', { path: primerPath }))
   }
 
+  if (categories !== undefined) {
+    const committed = await commitImportedDeckCategories(filePath, deckData, categories)
+    outcome.writtenFiles.push(...committed.writtenFiles)
+    if (committed.error !== undefined) {
+      getLogger().warn(t('cli.import.categoriesFailed', { reason: committed.error }))
+    } else if (categories.length > 0) {
+      saveInfo(
+        resolvedOptions,
+        t('cli.import.savedCategories', {
+          count: categories.length,
+          path: categoriesSidecarPath(filePath),
+        }),
+      )
+    }
+  }
+
   return outcome
+}
+
+/**
+ * Make an imported deck's categories file hold exactly the source's
+ * categories: the replaced deck's declared order is cleared (the next write
+ * re-derives one from the categories in use), one `set-categories` per card the
+ * deck holds (empty clears what a replaced deck had), and the entries of cards
+ * it no longer holds are pruned. Runs after the deck file is written, so a
+ * failure is reported, never thrown.
+ */
+async function commitImportedDeckCategories(
+  filePath: string,
+  deck: DeckData,
+  categories: readonly CardCategoryEntry[],
+): Promise<CommitCategoryChangesResult> {
+  const byName = new Map(
+    categories.map((entry) => [foldCategoryCardName(entry.name), entry.categories]),
+  )
+  const names = new Map<string, string>()
+  for (const section of deck.sections) {
+    for (const card of section.cards) {
+      const key = foldCategoryCardName(card.name)
+      if (!names.has(key)) names.set(key, card.name)
+    }
+  }
+  const changes = [
+    createSetCategoryOrderChange([]),
+    ...[...names].map(([key, name]) => createSetCategoriesChange(name, byName.get(key) ?? [])),
+  ]
+  return commitCategoryChanges(filePath, changes, {
+    knownCardNames: new Set(names.keys()),
+    defaultCategories: await loadDefaultCategories(),
+  })
 }
 
 /** Flatten parsed deck-style sections into flat-list entries, one per card line. */
@@ -419,7 +510,7 @@ export async function saveFlatList(
         ? t('cli.import.dryRunOverwriteList', { label, path: target.filePath })
         : t('cli.import.dryRunSaveList', { label, path: target.filePath }),
     )
-    return { status: 'saved', filePath: target.filePath, name, action }
+    return { status: 'saved', filePath: target.filePath, name, action, writtenFiles: [] }
   }
 
   // The settled path is handed down so an overwrite replaces the file the
@@ -430,5 +521,11 @@ export async function saveFlatList(
   }
 
   saveInfo(resolvedOptions, t('cli.import.savedList', { label, path: result.filePath }))
-  return { status: 'saved', filePath: result.filePath, name, action }
+  return {
+    status: 'saved',
+    filePath: result.filePath,
+    name,
+    action,
+    writtenFiles: result.writtenFiles,
+  }
 }

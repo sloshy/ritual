@@ -124,3 +124,4 @@ ritual import-account johndoe --all --no-input --output json --quiet
 - All selected decks are imported sequentially.
 - Cancelling the selection prompt exits `2` with `Cancelled.` on stderr, matching [import](/commands/import/) and [import-changes](/commands/import-changes/), so a script can tell a cancelled run from a successful one.
 - Deck lines keep the printing (set, collector number, and foil/etched finish) Archidekt states for each card unless the run declined them. See [Printings from a URL import](/commands/import/#printings-from-a-url-import).
+- Each deck's Archidekt categories are written to its categories file, boards excepted. See [Categories from a URL import](/commands/import/#categories-from-a-url-import).

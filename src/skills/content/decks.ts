@@ -216,6 +216,14 @@ data, so those imports never ask. Both flags are URL-only — on a CSV or
 text-file source they are a usage error (exit 2), since a file's printings are
 its own data.
 
+A URL import from Archidekt or Moxfield also writes each card's categories (its
+role in the deck — Archidekt categories, Moxfield tags) to
+\`<deck>.categories.json\`, first = primary, with no flag or prompt. Archidekt
+categories that are boards (Commander, Sideboard, Maybeboard, a premier
+category, or one excluded from the deck count) set the card's section instead.
+An overwrite replaces the categories file; MTGGoldfish imports leave it alone.
+\`import-account\` does the same per deck.
+
 Text imports read Ritual's own format and the MTG Arena/MTGO export dialect —
 \`4 Lightning Bolt (M10) 146\` lines plus bare \`Deck\`/\`Sideboard\`/\`Commander\`/
 \`Companion\`/\`About\` markers, a \`*F*\`/\`*E*\` foil marker either trailing or

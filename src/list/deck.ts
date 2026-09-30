@@ -1,4 +1,5 @@
 import type { Card } from '../card/card'
+import type { CardCategoryEntry } from './card-categories-record'
 
 /**
  * The canonical deck formats. This is the *only* vocabulary a deck's `format`
@@ -63,4 +64,17 @@ export interface DeckData {
   description?: string
   primer?: string
   sections: DeckSection[]
+}
+
+/**
+ * A deck fetched from a deck service, beside the card categories the service
+ * states for it — Archidekt's categories, Moxfield's tags. `categories` is
+ * absent for a service with no such notion (MTGGoldfish), which is not the
+ * same as a deck that uses none (`[]`): only the first leaves an existing
+ * categories file alone. Kept off {@link DeckData} on purpose — categories are
+ * a sidecar, not part of the card lines.
+ */
+export type ImportedDeck = {
+  deck: DeckData
+  categories?: CardCategoryEntry[]
 }

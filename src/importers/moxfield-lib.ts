@@ -1,6 +1,7 @@
 import { MoxfieldClient, type MoxfieldFinish } from './moxfield-client'
 import type { Card } from '../card/card'
-import type { DeckData, DeckSection } from '../list/deck'
+import type { DeckSection, ImportedDeck } from '../list/deck'
+import { moxfieldDeckCategories, warnRefusedCategories } from './import-categories'
 import type { Finish } from '../card/finish-condition'
 import { parseDeckFormat } from '../list/deck-format'
 import { getLogger } from '../util/logger'
@@ -25,7 +26,7 @@ function moxfieldFinish(finish: MoxfieldFinish | undefined): Finish | undefined 
 export async function fetchMoxfieldDeck(
   deckId: string,
   client: MoxfieldClient = new MoxfieldClient(),
-): Promise<DeckData> {
+): Promise<ImportedDeck> {
   try {
     const deck = await client.fetchDeck(deckId)
 
@@ -88,16 +89,22 @@ export async function fetchMoxfieldDeck(
       primer = primerResponse.content
     }
 
+    const categories = moxfieldDeckCategories(deck.authorTags, sections)
+    warnRefusedCategories(categories.refused)
     return {
-      name: deck.name,
-      // Moxfield reports a format slug (`commander`, `duelCommander`, ...); an
-      // unmodelled one (`custom`, `none`) resolves to null and is left unset.
-      format: parseDeckFormat(deck.format) ?? undefined,
-      sourceId: deckId,
-      sourceUrl: `https://moxfield.com/decks/${deckId}`,
-      description: deck.description || undefined,
-      primer,
-      sections,
+      deck: {
+        name: deck.name,
+        // Moxfield reports a format slug (`commander`, `duelCommander`, ...); an
+        // unmodelled one (`custom`, `none`) resolves to null and is left unset.
+        format: parseDeckFormat(deck.format) ?? undefined,
+        sourceId: deckId,
+        sourceUrl: `https://moxfield.com/decks/${deckId}`,
+        description: deck.description || undefined,
+        primer,
+        sections,
+      },
+      // Moxfield's tags are what Ritual calls categories: a card's role in the deck.
+      categories: categories.cards,
     }
   } catch (error) {
     getLogger().error('Moxfield Lib Error:', error)

@@ -41,6 +41,11 @@ export type MoxfieldDeckResponse = {
   /** Primer content if included inline in the deck response. */
   primer?: string
   boards: Record<string, MoxfieldBoard>
+  /**
+   * The author's tags per card name, in the author's order — Ritual's card
+   * categories. Served on the public deck response; absent on a deck with none.
+   */
+  authorTags?: Record<string, string[]> | null
 }
 
 export type MoxfieldPrimerResponse = {
