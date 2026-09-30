@@ -226,6 +226,34 @@ Every card line ends in a persistent numeric id. Ids are sequential from 1 withi
 
 **Never hand-author or renumber them.** Commands that write card lines, or that rely on every line having an id, fill in missing ids before they run and save them to the file; see [the card-ID backfill](/cli-conventions/#the-card-id-backfill). The ids are an internal handle for change tracking, the admin editors, custom art, and cover images. No UI shows them.
 
+## Labels, tags, and categories
+
+Ritual has three ways to say something about a card. They look alike, since each is a short word attached to a card, but they are different kinds of thing, and each answers a different question:
+
+- A **label** tells Ritual what to _do_ with a copy: sell it, trade it, keep it, or price it as a proxy. `[sale]`, `[proxy]`.
+- A **tag** describes the physical _copy_: something true of that card whichever list it sits in. `#Signed`, `#Trade Binder`.
+- A **category** describes the card's _role in one list_: why it is in this deck. `Ramp`, `Board Wipes`.
+
+|                           | [Label](#card-labels)                        | [Tag](#card-tags)              | [Category](#categories-namecategoriesjson)                                    |
+| ------------------------- | -------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| Belongs to                | one card line (`&N`)                         | one card line: the copy        | a card **name** in one list, covering every line of that name                 |
+| Vocabulary                | closed: `sale`, `trade`, `keep`, `proxy`     | open: any text                 | open: any text, with [suggested defaults](/configuration/#default-categories) |
+| List types                | collections (all four), decks (`proxy` only) | all three                      | all three                                                                     |
+| Several per card?         | `sale` + `trade` only                        | yes, unordered                 | yes, **ordered**: the first is the card's _primary_ category                  |
+| Moved to another list     | kept as far as the destination type allows   | **always** kept                | **never** kept: a role belongs to the list                                    |
+| Stored                    | `[…]` token on the card line                 | `#a, b` token on the card line | `<name>.categories.json` beside the list                                      |
+| Changes Ritual's behavior | yes: pricing, sell/trade filters             | no                             | no                                                                            |
+| Other sites' name         | —                                            | —                              | Archidekt **categories**, Moxfield **tags**                                   |
+
+Some consequences:
+
+- **Moxfield's "tags" are Ritual's categories, not Ritual's tags.** A [Moxfield URL import](/commands/import/#categories-from-a-url-import) brings them in as categories, and [`export --dialect moxfield`](/commands/export/#dialects) writes categories out as Moxfield tags. Ritual's own tags have no counterpart on either site.
+- **Archidekt's categories are Ritual's categories, except the ones that are boards.** Archidekt uses categories for `Commander`, `Sideboard`, and `Maybeboard` too; Ritual reads those as [sections](#title-and-sections). See [Boards and categories](/commands/deck-sync/#boards-and-categories). [`deck-sync --sync-categories`](/commands/deck-sync/#category-sync---sync-categories) keeps the rest in step.
+- **A `Keep` tag is not the `[keep]` label,** and a `Ramp` tag is not the `Ramp` category. The names are free text; only the kind decides what Ritual does with them.
+- **A deck's front-matter `tags:` key is about the deck**, not its cards (`aggro`, `budget`); see [Front matter](#front-matter).
+
+Which one to use: if Ritual should _act_ on it, it is a label. If it would still be true after you moved the card to another list, it is a tag. If it only makes sense inside this list, it is a category.
+
 ## Card labels
 
 A card entry can carry **labels**, a bracket token on its line (`[sale,trade]`, `[keep]`, `[proxy]`) declaring what you intend to do with that copy. Each list type carries a different set:
@@ -266,7 +294,7 @@ A card whose effective labels include `proxy` is not a real card, so Ritual pric
 
 ## Card tags
 
-A card entry on **any** list type can carry **tags**: your own words for the card as a copy (`Signed`, `Trade Binder`, `Gift from Dad`). Tags follow the card wherever it moves. A card's role within one list (what Archidekt calls a category) is a separate, per-list thing; see [Categories](#categories-namecategoriesjson) and [`ritual categories`](/commands/categories/). On the line, tags are one `#` token after the labels and before the note, comma-separated:
+A card entry on **any** list type can carry **tags**: your own words for the card as a copy (`Signed`, `Trade Binder`, `Gift from Dad`). Tags follow the card wherever it moves. A card's role within one list (what Archidekt calls a category and Moxfield a _tag_) is a separate, per-list thing; see [Labels, tags, and categories](#labels-tags-and-categories). On the line, tags are one `#` token after the labels and before the note, comma-separated:
 
 ```
 - 1 Sol Ring (LTC:284) [proxy] #Ramp, Staple &2
@@ -358,13 +386,7 @@ The one-shot card commands (`add-card`, `set-card`, `remove-card`, `note`) prese
 
 ## Categories (`<name>.categories.json`)
 
-A **category** is a card's role in **one list**: `Ramp`, `Removal`, `Board Wipes`. Archidekt calls it a category and Moxfield a tag. Ritual has three ways to say something about a card, and they are different kinds of thing:
-
-| Kind         | Belongs to                  | Vocabulary                       | Ordered?                     | Follows a move?                       | Where it lives                   |
-| ------------ | --------------------------- | -------------------------------- | ---------------------------- | ------------------------------------- | -------------------------------- |
-| **Label**    | a card line (`&N`)          | closed (`sale trade keep proxy`) | no                           | as far as the destination type allows | `[…]` token on the line          |
-| **Tag**      | a card line — the _copy_    | open                             | no                           | **always**                            | `#a, b` token on the line        |
-| **Category** | a card **name** in one list | open, per list + config defaults | yes — the first is _primary_ | **never**                             | `<name>.categories.json` sidecar |
+A **category** is a card's role in **one list**: `Ramp`, `Removal`, `Board Wipes`. Archidekt calls it a category and Moxfield a tag. For how it differs from a label and a tag, see [Labels, tags, and categories](#labels-tags-and-categories).
 
 Edit categories with [`set-card --categories`/`--no-categories`](/commands/set-card/#category-updates), the [`ritual categories`](/commands/categories/) subcommands (`list`/`rename`/`order`/`remove`), or the editors' `🗂 Edit Categories` action and the list menu's `Rename Category…` / `Reorder Categories…` rows ([`ritual edit`](/commands/edit/#card-categories)).
 

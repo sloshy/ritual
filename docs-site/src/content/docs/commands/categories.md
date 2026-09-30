@@ -3,7 +3,7 @@ title: 'categories'
 description: Inspect and edit a list's card categories.
 ---
 
-Inspect and edit a list's **card categories**: a card's role in that one list, such as `Ramp`, `Removal`, or `Board Wipes`. It is what Archidekt calls a category and Moxfield a tag.
+Inspect and edit a list's **card categories**: a card's role in that one list, such as `Ramp`, `Removal`, or `Board Wipes`. It is what Archidekt calls a category and Moxfield a tag. Categories are not Ritual's [tags](/list-format/#card-tags) or [labels](/list-format/#card-labels); see [Labels, tags, and categories](/list-format/#labels-tags-and-categories) for how the three differ.
 
 A category belongs to a card **name**, not to a card line. One assignment covers every line of that name in the list, whatever its printing, section, or quantity. It is never written on the line, and it **never follows a move**. A card's categories are ordered, and the **first one is its primary category**, which is what the site groups by. Categories are stored in a `<list>.categories.json` file beside the list; see [Categories in the list format](/list-format/#categories-namecategoriesjson).
 
