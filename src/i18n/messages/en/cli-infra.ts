@@ -257,20 +257,16 @@ export const cliInfraMessages = {
   'cli.initSite.promptDistDir': 'Which directory contains your built site?',
   'cli.initSite.promptChangeDetection':
     'Enable automatic change detection? (commits changelogs when list files change)',
-  'cli.initSite.promptPrerelease':
-    'Download prerelease versions of Ritual in the workflow? (the newest release, prereleases included)',
   'cli.initSite.readmeExists':
     'README.md already exists and prompts are unavailable; pass --overwrite-readme or --no-overwrite-readme.',
   'cli.initSite.fileExists':
     '{path} already exists and prompts are unavailable; pass --force to overwrite generated files.',
   'cli.initSite.alreadyInitializedFlags':
-    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --prerelease, --price-source, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
+    'This repository is already initialized; --ci, --deploy, --dist-dir, --change-detection, --price-source, and --overwrite-readme only apply to a fresh init. Use --force to re-initialize with new settings.',
   'cli.initSite.manualOnlyFlags':
-    '--deploy, --dist-dir, --change-detection, and --prerelease only apply with --ci github-actions.',
+    '--deploy, --dist-dir, and --change-detection only apply with --ci github-actions.',
   'cli.initSite.changeDetectionScope':
     '--change-detection/--no-change-detection only applies with --deploy publish-for-me.',
-  'cli.initSite.prereleaseScope':
-    '--prerelease/--no-prerelease only applies with --deploy publish-for-me.',
   'cli.initSite.distDirScope': '--dist-dir only applies with --deploy local-build.',
   'cli.initSite.alreadyCurrent': 'Already initialized and up to date; nothing to do.',
   'cli.initSite.configWriteFailed': 'Error: Failed to write ritual.config.json: {reason}',
@@ -292,7 +288,7 @@ export const cliInfraMessages = {
   'cli.initSite.stepPushLocal': '  5. Push to main to trigger a deploy',
   'cli.initSite.stepPush': '  4. Push to main to trigger a deploy',
   'cli.initSite.pinVersionTip':
-    'Tip: Pin a specific Ritual version, or switch between "latest" and "prerelease", by setting a RITUAL_VERSION repository variable.',
+    'Tip: The workflow builds with the Ritual release pinned in ritual.config.json (managed.version). Run `ritual migrate` with a newer release and commit to move it, or set a RITUAL_VERSION repository variable to override it.',
 
   // ── migrate ───────────────────────────────────────────────────────────
   'cli.migrate.noConfig': 'No ritual.config.json in this directory; nothing to migrate.',
@@ -303,6 +299,8 @@ export const cliInfraMessages = {
   'cli.migrate.migrationHeading': 'Migration {id}: {description}',
   'cli.migrate.migration.dropSiteVersion':
     'Remove site.version from ritual.config.json (the managed block replaces it)',
+  'cli.migrate.migration.dropSitePrerelease':
+    'Remove site.prerelease from ritual.config.json (the deploy workflow now downloads the release pinned in managed.version)',
   'cli.migrate.opConfigSet': '  set {path} = {value} in ritual.config.json',
   'cli.migrate.opConfigDelete': '  remove {path} from ritual.config.json',
   'cli.migrate.opWrite': '  write {path}',
@@ -314,6 +312,8 @@ export const cliInfraMessages = {
   'cli.migrate.refreshRemoveSkill': '  remove agent skill {name} (no longer shipped)',
   'cli.migrate.refreshRecordOnly':
     '  record that the generated files are current (nothing to rewrite)',
+  'cli.migrate.pinBump': 'Pin CI to Ritual {version} (was {previous})',
+  'cli.migrate.pinBumpNew': 'Pin CI to Ritual {version} (no release pinned yet)',
   'cli.migrate.dryRunDone': 'Dry run: nothing was written.',
   'cli.migrate.confirm': 'Apply these updates?',
   'cli.migrate.cancelled': 'Cancelled; nothing was written.',
@@ -321,9 +321,12 @@ export const cliInfraMessages = {
   'cli.migrate.wrote': '✓ Wrote {path}',
   'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
   'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',
+  'cli.migrate.pinned': '✓ Pinned CI to Ritual {version}',
   'cli.migrate.done': '✓ Workspace is up to date.',
   'cli.migrate.devBuild':
-    'Warning: {version} is a development build, so managed.version was left unchanged. A CI build pinned to that release will not know the migrations just applied.',
+    'Warning: {version} is a development build, so managed.version was left unchanged. CI keeps building with the pinned release {pinned}, which does not know the migrations just applied. Run `ritual migrate` with a Ritual release build and commit to move the pin.',
+  'cli.migrate.devBuildNoPin':
+    'Warning: {version} is a development build, so it did not pin a release in managed.version. With no pin, CI builds with the newest Ritual release (the latest stable one, or the newest prerelease when there is none), which may not know the migrations just applied. Run `ritual migrate` with a Ritual release build and commit to pin one.',
   'cli.migrate.ahead':
     'This workspace was last updated by a newer Ritual ({version}). Install Ritual {version} or newer and try again.',
   'cli.migrate.aheadNoVersion':

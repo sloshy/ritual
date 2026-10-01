@@ -2,7 +2,7 @@
 title: 'migrate'
 ---
 
-Bring a workspace up to date after upgrading Ritual. `migrate` applies the one-time **migrations** a newer Ritual needs (config keys removed or renamed, files moved) and **refreshes the files Ritual generates** for a site set up with [`init-site`](/commands/init-site/): the deploy workflow, the `.gitignore` entries, and the installed [agent skills](/commands/skills/).
+Bring a workspace up to date after upgrading Ritual. `migrate` applies the one-time **migrations** a newer Ritual needs (config keys removed or renamed, files moved), **refreshes the files Ritual generates** for a site set up with [`init-site`](/commands/init-site/) (the deploy workflow, the `.gitignore` entries, and the installed [agent skills](/commands/skills/)), and, on a release build, moves the [CI pin](#the-ci-pin) to the running release.
 
 ## Usage
 
@@ -26,6 +26,7 @@ Refresh generated files:
   write .github/workflows/deploy-site.yml
   add dist/, .dist-build-* to .gitignore
   overwrite agent skill ritual-site
+Pin CI to Ritual 0.3.0 (was 0.2.0)
 ? Apply these updates? (Y/n)
 ```
 
@@ -46,6 +47,7 @@ Each migration is a numbered, one-time change. `migrate` records the highest one
 | Migration | What it does                                                                                        |
 | --------- | --------------------------------------------------------------------------------------------------- |
 | 1         | Removes `site.version`. The `managed` block replaced it as the record of what set up the workspace. |
+| 2         | Removes `site.prerelease`. The deploy workflow now downloads the [pinned release](#the-ci-pin).     |
 
 The counter is written after each migration that changed something, so a run that fails part-way resumes at the failed migration next time.
 
@@ -61,6 +63,12 @@ For a workspace set up with `init-site`, `migrate` compares a hash of what this 
 
 Skills you never installed stay uninstalled, and skill folders Ritual did not write are left alone.
 
+### The CI pin
+
+`managed.version` is the release a ["Publish for me"](/commands/init-site/#the-pinned-ritual-release-github-actions) workflow downloads. For such a workspace, running a release **newer than the pin** (or a release when there is no pin yet) is pending work on its own, even when no migration or generated file changed: the plan shows `Pin CI to Ritual <new> (was <old>)` (or `(no release pinned yet)`), `--check` exits `4`, and applying only updates `managed.version`. Commit `ritual.config.json` afterwards, and CI builds with the new release from the next push.
+
+Other workspaces (local-build, manual, or no `init-site`) run no Ritual in CI, so a newer release is not reported as pending for them. Their pin is still updated whenever `migrate` runs for another reason. A development build never moves the pin (see [Development builds](#development-builds)).
+
 ## A workspace from a newer Ritual
 
 A newer Ritual may already have updated the workspace: `managed.migration` is higher than any migration this build knows, or, on a release build, `managed.version` names a newer release than the one running. `migrate` refuses (exit `1`) rather than move the workspace backwards, and names the release to install when one was recorded:
@@ -73,7 +81,7 @@ This workspace was last updated by a newer Ritual (0.3.0). Install Ritual 0.3.0 
 
 ## Development builds
 
-Only a release build (one built by Ritual's release workflow, exactly at a release tag) records itself as `managed.version`. Any other build, including a local or Docker build, can apply migrations but leaves `managed.version` unchanged, and warns that a CI build pinned to that release will not know those migrations.
+Only a release build (one built by Ritual's release workflow, exactly at a release tag) records itself as `managed.version`. Any other build, including a local or Docker build, can apply migrations but leaves `managed.version` unchanged. When it applies a migration, it warns that CI keeps building with the pinned release, which does not know those migrations (or, when there is no pin, with the newest release: the latest stable one, or the newest prerelease while no stable release exists). Run `migrate` again with a release build and commit to move the pin.
 
 ## Not an MCP tool
 

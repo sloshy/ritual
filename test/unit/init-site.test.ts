@@ -9,6 +9,7 @@ import {
   servePreviewCommand,
 } from '../../src/commands/init-site'
 import {
+  downloadsPinnedRelease,
   generatePublishForMeWorkflow,
   generateLocalBuildWorkflow,
   generateWorkflow,
@@ -85,33 +86,67 @@ describe('generatePublishForMeWorkflow', () => {
 })
 
 describe('the Get Ritual version step', () => {
-  const versionStep = (prerelease: boolean): string => {
-    const workflow = parseWorkflow(
-      generatePublishForMeWorkflow({
-        ciSystem: 'github-actions',
-        deployMode: 'publish-for-me',
-        distDir: 'dist',
-        detectChanges: false,
-        prerelease,
-      }),
-    )
-    return findStep(getJob(workflow, 'build-and-deploy').steps, 'Get Ritual version')?.run ?? ''
-  }
+  const steps = getJob(parseWorkflow(generatePublishForMeWorkflow()), 'build-and-deploy').steps
+  const step = findStep(steps, 'Get Ritual version')
+  const run = step?.run ?? ''
 
-  test.each([
-    [false, 'latest'],
-    [true, 'prerelease'],
-  ])('prerelease: %p defaults an unset RITUAL_VERSION to %s', (prerelease, fallback) => {
-    expect(versionStep(prerelease)).toContain(`VERSION="\${RITUAL_VERSION:-${fallback}}"`)
+  test('the RITUAL_VERSION repository variable wins over the pin', () => {
+    expect(step?.env?.RITUAL_VERSION).toBe('${{ vars.RITUAL_VERSION }}')
+    expect(run).toMatch(/^VERSION="\$RITUAL_VERSION"\n/)
   })
 
-  test('resolves both channel names, so the repository variable can switch them', () => {
-    const run = versionStep(false)
-    // `releases/latest` skips prereleases; the list endpoint includes them.
-    expect(run).toContain('if [ "$VERSION" = "latest" ]; then')
-    expect(run).toContain('/releases/latest')
-    expect(run).toContain('elif [ "$VERSION" = "prerelease" ]; then')
-    expect(run).toContain('/releases?per_page=1')
+  test('otherwise reads the pin from managed.version with jq', () => {
+    // `// empty` turns an absent or null pin into an empty string, not "null".
+    expect(run).toMatch(
+      /if \[ -z "\$VERSION" \]; then\s+VERSION=\$\(jq -r '\.managed\.version \/\/ empty' ritual\.config\.json\)/,
+    )
+  })
+
+  test('adds the v prefix release tags carry, to every source, without doubling it', () => {
+    expect(run).toContain('v*) ;;')
+    expect(run).toContain('*) VERSION="v$VERSION" ;;')
+    expect(run.indexOf('case "$VERSION"')).toBeGreaterThan(run.indexOf('/releases?per_page=1'))
+  })
+
+  test('without a pin, tries the latest stable release, then the newest release', () => {
+    const stable = run.indexOf('/releases/latest')
+    const newest = run.indexOf('/releases?per_page=1')
+    expect(stable).toBeGreaterThan(run.indexOf('jq -r'))
+    expect(newest).toBeGreaterThan(stable)
+    // The newest-release lookup runs only when no stable release resolved.
+    expect(run.slice(stable, newest)).toMatch(
+      /if \[ -z "\$VERSION" \]; then\s+VERSION=\$\(curl -s "[^"\n]*$/,
+    )
+  })
+
+  test('warns with the tag it picked, only once one resolved', () => {
+    expect(run).toMatch(
+      /if \[ -n "\$VERSION" \]; then\s+echo "::warning::This workspace has no pinned Ritual release.*so \$VERSION \(the newest release\) is used.*ritual migrate/,
+    )
+    expect(run.indexOf('::warning::')).toBeGreaterThan(run.indexOf('/releases?per_page=1'))
+  })
+
+  test('fails the step when no release resolves at all', () => {
+    expect(run).toMatch(/::error::.*\n\s*exit 1/)
+  })
+
+  test('the binary cache is keyed by the resolved version', () => {
+    expect(step?.id).toBe('ritual-version')
+    expect(findStep(steps, 'Cache Ritual binary')?.with?.key).toBe(
+      'ritual-binary-${{ steps.ritual-version.outputs.version }}-linux-x86_64',
+    )
+  })
+})
+
+describe('downloadsPinnedRelease', () => {
+  const github = { ciSystem: 'github-actions', distDir: 'dist', detectChanges: false } as const
+  test.each([
+    ['publish-for-me', { ...github, deployMode: 'publish-for-me' } as const, true],
+    ['local-build', { ...github, deployMode: 'local-build' } as const, false],
+    ['manual', { ciSystem: 'manual' } as const, false],
+    ['no deploy config', null, false],
+  ])('%s → %p', (_label, config, expected) => {
+    expect(downloadsPinnedRelease(config)).toBe(expected)
   })
 })
 
@@ -121,7 +156,6 @@ describe('generatePublishForMeWorkflow with detectChanges', () => {
     deployMode: 'publish-for-me' as const,
     distDir: 'dist',
     detectChanges: true,
-    prerelease: false,
   }
   const workflow = parseWorkflow(generatePublishForMeWorkflow(config))
   const job = getJob(workflow, 'build-and-deploy')
@@ -226,7 +260,6 @@ describe('generateWorkflow', () => {
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: false,
-        prerelease: false,
       }),
     )
     expect(Object.keys(workflow.jobs)).toEqual(['build-and-deploy'])
@@ -239,7 +272,6 @@ describe('generateWorkflow', () => {
         deployMode: 'local-build',
         distDir: 'public',
         detectChanges: false,
-        prerelease: false,
       }),
     )
     expect(Object.keys(workflow.jobs)).toEqual(['deploy'])
@@ -252,7 +284,6 @@ describe('generateReadme', () => {
     deployMode: 'publish-for-me',
     distDir: 'dist',
     detectChanges: false,
-    prerelease: false,
   } as const
 
   test('publish-for-me mode documents the automated workflow without manual build steps', () => {
@@ -270,13 +301,10 @@ describe('generateReadme', () => {
     expect(readme).not.toContain('should-not-appear')
   })
 
-  test.each([
-    [false, 'the latest stable Ritual release', 'prereleases included'],
-    [true, 'the newest Ritual release, prereleases included', 'latest stable Ritual release'],
-  ])('prerelease: %p names the default release channel', (prerelease, present, absent) => {
-    const readme = generateReadme({ ...baseConfig, prerelease })
-    expect(readme).toContain(present)
-    expect(readme).not.toContain(absent)
+  test('publish-for-me mode says the workflow downloads the pinned release', () => {
+    const readme = generateReadme(baseConfig)
+    expect(readme).toContain('(`managed.version`)')
+    expect(readme).toContain('`ritual migrate`')
   })
 
   test('local-build mode includes build instructions with the specified dist directory', () => {
@@ -286,6 +314,8 @@ describe('generateReadme', () => {
     expect(readme).toContain('Commit the built')
     expect(readme).toContain('written to `public`')
     expect(readme).toContain('`public` directory')
+    // A local build downloads no Ritual in CI, so there is no pin to explain.
+    expect(readme).not.toContain('managed.version')
   })
 
   test('manual mode includes build instructions without GitHub Pages setup', () => {
@@ -354,7 +384,6 @@ describe('generateGitignoreEntries', () => {
       deployMode: 'publish-for-me',
       distDir: 'dist',
       detectChanges: false,
-      prerelease: false,
     } as const
     expect(lines(config)).toContain('dist/')
     expect(lines(config).some((l) => l.startsWith('!'))).toBe(false)
@@ -367,7 +396,6 @@ describe('generateGitignoreEntries', () => {
       deployMode: 'local-build',
       distDir: 'dist',
       detectChanges: false,
-      prerelease: false,
     } as const
     expect(lines(config)).not.toContain('dist/')
     // An earlier init only ever appended, so the un-ignore un-does a stale line.
@@ -383,7 +411,6 @@ describe('generateGitignoreEntries', () => {
       deployMode: 'local-build',
       distDir: 'out',
       detectChanges: false,
-      prerelease: false,
     } as const
     expect(lines(config)).toContain('dist/')
     expect(lines(config)).toContain('!out/')

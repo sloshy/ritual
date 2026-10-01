@@ -561,7 +561,6 @@ describe('parseSiteConfig', () => {
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: false,
-        prerelease: true,
       },
     ],
     [
@@ -680,17 +679,6 @@ describe('parseSiteConfig', () => {
       detectChanges: 'yes',
     })
     expectParseError(result, '"detectChanges"')
-  })
-
-  test('returns error when prerelease is the wrong type for github-actions', () => {
-    const result = parseSiteConfig({
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-      detectChanges: false,
-      prerelease: 'yes',
-    })
-    expectParseError(result, '"prerelease"')
   })
 
   test.each([
@@ -1151,21 +1139,7 @@ describe('getSiteDeployConfig', () => {
       deployMode: 'publish-for-me',
       distDir: 'dist',
       detectChanges: false,
-      prerelease: false,
     })
-  })
-
-  test('carries a persisted prerelease choice through', () => {
-    expect(
-      getSiteDeployConfig({
-        ...selectionBase,
-        ciSystem: 'github-actions',
-        deployMode: 'publish-for-me',
-        distDir: 'dist',
-        detectChanges: false,
-        prerelease: true,
-      }),
-    ).toMatchObject({ prerelease: true })
   })
 
   test('reconstructs the manual deployment config', () => {

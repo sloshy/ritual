@@ -1,7 +1,13 @@
 import { Command, InvalidArgumentError } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type { CISystem, DeployMode, InitSiteConfig, RitualConfig } from '../config/ritual-config'
+import type {
+  CISystem,
+  DeployMode,
+  InitSiteConfig,
+  ManagedConfig,
+  RitualConfig,
+} from '../config/ritual-config'
 import {
   getDefaultPriceSource,
   getSiteDeployConfig,
@@ -19,6 +25,7 @@ import {
 } from '../pricing/price-source'
 import {
   committedDistDir,
+  downloadsPinnedRelease,
   refreshGitignore,
   renderManagedFiles,
   type GitignoreRefreshResult,
@@ -156,17 +163,13 @@ The action downloads Ritual, fetches the latest card data from Scryfall, builds
 your site, and deploys it. Both the Ritual binary and Scryfall cache are
 persisted between runs so subsequent builds are fast.
 
-### Customizing the Ritual version
+### Ritual version
 
-${
-  config.prerelease
-    ? 'By default the action downloads the newest Ritual release, prereleases included.'
-    : 'By default the action downloads the latest stable Ritual release.'
-} To choose
-a different version, create a GitHub Actions repository variable called
-\`RITUAL_VERSION\` set to a release tag (e.g. \`v1.0.0\`), \`latest\` for the
-latest stable release, or \`prerelease\` for the newest release including
-prereleases.`
+The action downloads the Ritual release pinned in \`ritual.config.json\`
+(\`managed.version\`). The pin moves only when you run \`ritual migrate\` with a
+newer Ritual release and commit the result. To override it, create a GitHub
+Actions repository variable called \`RITUAL_VERSION\` set to a release tag
+(e.g. \`v1.0.0\`).`
       : `## Building
 
 Install [Ritual](https://github.com/sloshy/ritual) and run:
@@ -219,7 +222,6 @@ export type InitSiteCommandOptions = {
   deploy?: DeployMode
   distDir?: string
   changeDetection?: boolean
-  prerelease?: boolean
   priceSource?: PriceSource
   overwriteReadme?: boolean
 }
@@ -343,8 +345,6 @@ export function registerInitSiteCommand(program: Command): void {
     .option('--dist-dir <dir>', t('help.initSite.distDir'), parseDistDirFlag)
     .option('--change-detection', t('help.initSite.changeDetection'))
     .option('--no-change-detection', t('help.initSite.noChangeDetection'))
-    .option('--prerelease', t('help.initSite.prerelease'))
-    .option('--no-prerelease', t('help.initSite.noPrerelease'))
     .option('--price-source <store>', t('help.initSite.priceSource'), parsePriceSourceFlag)
     .option('--overwrite-readme', t('help.initSite.overwriteReadme'))
     .option('--no-overwrite-readme', t('help.initSite.noOverwriteReadme'))
@@ -371,7 +371,6 @@ function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
     options.deploy !== undefined ||
     options.distDir !== undefined ||
     options.changeDetection !== undefined ||
-    options.prerelease !== undefined ||
     options.priceSource !== undefined ||
     options.overwriteReadme !== undefined
   )
@@ -498,7 +497,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
  * only when every managed file was actually written — a workflow the user
  * kept leaves it unset, so `ritual migrate` offers the refresh.
  */
-function freshManagedStamp(config: RitualConfig, managedWritten: boolean): RitualConfig['managed'] {
+function freshManagedStamp(config: RitualConfig, managedWritten: boolean): ManagedConfig {
   const output = managedWritten ? computeManagedOutput(config) : null
   return buildManagedStamp({
     migration: latestMigrationId(),
@@ -621,8 +620,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
     if (
       options.deploy !== undefined ||
       options.distDir !== undefined ||
-      options.changeDetection !== undefined ||
-      options.prerelease !== undefined
+      options.changeDetection !== undefined
     ) {
       throw localizedCommandError(
         'usage_error',
@@ -671,15 +669,6 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
         'cli.initSite.changeDetectionScope',
       )
     }
-    // The local-build workflow never downloads Ritual, so there is no release
-    // to choose.
-    if (options.prerelease !== undefined) {
-      throw localizedCommandError(
-        'usage_error',
-        ExitCode.UsageError,
-        'cli.initSite.prereleaseScope',
-      )
-    }
 
     let distDir = options.distDir
     if (distDir === undefined) {
@@ -699,7 +688,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
       distDir = typed.trim()
     }
 
-    return { ciSystem, deployMode, distDir, detectChanges: false, prerelease: false }
+    return { ciSystem, deployMode, distDir, detectChanges: false }
   }
 
   // publish-for-me
@@ -714,14 +703,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
   )
   if (detectChanges === null) return null
 
-  const prerelease = await resolveConfirmFlag(
-    options.prerelease,
-    '--prerelease/--no-prerelease',
-    'cli.initSite.promptPrerelease',
-  )
-  if (prerelease === null) return null
-
-  return { ciSystem, deployMode, distDir: 'dist', detectChanges, prerelease }
+  return { ciSystem, deployMode, distDir: 'dist', detectChanges }
 }
 
 /**
@@ -836,7 +818,7 @@ function printNextSteps(config: InitSiteConfig): void {
       console.log(t('cli.initSite.stepPush'))
     }
 
-    if (config.deployMode === 'publish-for-me') {
+    if (downloadsPinnedRelease(config)) {
       console.log()
       console.log(t('cli.initSite.pinVersionTip'))
     }

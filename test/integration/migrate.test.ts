@@ -20,6 +20,7 @@ type MigratedConfig = { site?: Record<string, unknown>; managed?: ManagedConfig 
 const OLD_CONFIG = JSON.stringify({
   site: {
     version: '0.0.1',
+    prerelease: false,
     ciSystem: 'github-actions',
     deployMode: 'publish-for-me',
     distDir: 'dist',
@@ -43,6 +44,8 @@ describe('migrate CLI (Integration)', () => {
       expect(dryRun.exitCode).toBe(0)
       expect(dryRun.stdout).toContain('Migration 1')
       expect(dryRun.stdout).toContain('remove site.version')
+      expect(dryRun.stdout).toContain('Migration 2')
+      expect(dryRun.stdout).toContain('remove site.prerelease')
       expect(dryRun.stdout).toContain(`write ${WORKFLOW}`)
 
       const headless = await runCli(['migrate'], dir)
@@ -53,10 +56,17 @@ describe('migrate CLI (Integration)', () => {
 
       const applied = await runCli(['migrate', '--yes'], dir)
       expect(applied.exitCode).toBe(0)
+      // The spawned CLI is a dev build and the workspace has no pin, so CI
+      // would fall back to the latest stable release.
+      expect(applied.stderr).toContain('did not pin a release')
       const config = JSON.parse(
         await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8'),
       ) as MigratedConfig
       expect(config.site?.version).toBeUndefined()
+      expect(config.site?.prerelease).toBeUndefined()
+      const workflow = await fs.readFile(path.join(dir, WORKFLOW), 'utf-8')
+      expect(workflow).not.toContain('--allow-refresh')
+      expect(workflow).toContain(`jq -r '.managed.version // empty' ritual.config.json`)
       expect(config.managed?.migration).toBe(latestMigrationId())
 
       const recheck = await runCli(['migrate', '--check'], dir)
@@ -102,7 +112,6 @@ describe('migrate CLI (Integration)', () => {
           '--deploy',
           'publish-for-me',
           '--no-change-detection',
-          '--no-prerelease',
           '--price-source',
           'tcgplayer',
           '--no-skills',

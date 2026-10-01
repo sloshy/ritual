@@ -24,20 +24,17 @@ naming the flag:
 
 \`\`\`bash
 ritual init-site --ci github-actions --deploy publish-for-me \\
-  --change-detection --no-prerelease --price-source tcgplayer --no-skills
+  --change-detection --price-source tcgplayer --no-skills
 ritual init-site --ci manual --price-source tcgplayer --no-skills
 \`\`\`
 
 Flags: \`--ci github-actions|manual\`, \`--deploy publish-for-me|local-build\`
 (github-actions only), \`--dist-dir <dir>\` (local-build only),
 \`--change-detection\`/\`--no-change-detection\` (publish-for-me only),
-\`--prerelease\`/\`--no-prerelease\` (publish-for-me only; the workflow downloads the
-newest release including prereleases instead of the latest stable one — the
-\`RITUAL_VERSION\` repository variable, a tag, \`latest\`, or \`prerelease\`, overrides it),
 \`--price-source tcgplayer|cardkingdom|cardmarket|cardhoarder\` (the default
 price store; it is added to \`priceSources\` when missing), and \`--skills\`/\`--no-skills\` (install the Ritual agent
 skills). Flags that do not apply to the chosen CI system or deploy mode are usage
-errors — including either form of \`--change-detection\` or \`--prerelease\` outside
+errors — including either form of \`--change-detection\` outside
 \`--deploy publish-for-me\`. An existing \`README.md\` additionally needs
 \`--overwrite-readme\`, \`--no-overwrite-readme\`, or \`--force\`.
 
@@ -69,6 +66,19 @@ run is a usage error (exit 2). A workspace migrated by a newer Ritual than the o
 running is refused (exit 1) with the release to install. Ritual records its
 bookkeeping in the \`managed\` block of \`ritual.config.json\` (\`version\`,
 \`migration\`, \`output\`); never edit it, and \`config set\` refuses to.
+
+**The CI pin.** The publish-for-me workflow downloads exactly the release in
+\`managed.version\` (a \`RITUAL_VERSION\` repository variable set to a tag such as
+\`v1.0.0\` overrides it). Only a Ritual **release** build writes the pin; a dev
+build leaves it alone and warns that CI keeps running the pinned release, which
+does not know any migrations the dev build just applied. CI therefore moves to a
+newer Ritual only when the user runs \`ritual migrate\` with that newer release and
+commits \`ritual.config.json\`. For a publish-for-me workspace, a release newer
+than the pin (or no pin at all) is itself pending work — \`--check\` exits 4 and
+the plan shows \`Pin CI to Ritual <version>\` — even when nothing else changed. A
+workspace with no pin builds with the latest stable release (or the newest
+prerelease while no stable release exists), and the CI run logs a warning
+naming the release it picked.
 
 With \`--deploy local-build\` the built site is **committed**, so the generated
 \`.gitignore\` does not ignore it (it appends \`!<distDir>/\`) and every generated

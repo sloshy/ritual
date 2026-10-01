@@ -17,7 +17,6 @@ ritual init-site [options]
 | `--deploy <mode>`                              | Deploy mode: `publish-for-me` or `local-build` (github-actions only)                                                           |
 | `--dist-dir <dir>`                             | Directory containing your locally built site (local-build deploys only)                                                        |
 | `--change-detection` / `--no-change-detection` | Enable or disable automatic change detection (publish-for-me only; a usage error with `--ci manual` or `--deploy local-build`) |
-| `--prerelease` / `--no-prerelease`             | Have the workflow download the newest release including prereleases, or the latest stable release (publish-for-me only)        |
 | `--price-source <store>`                       | Default price store: `tcgplayer`, `cardkingdom`, `cardmarket`, or `cardhoarder`                                                |
 | `--overwrite-readme` / `--no-overwrite-readme` | Overwrite or keep an existing `README.md` without prompting                                                                    |
 | `--skills`                                     | Install Ritual agent skills into `.claude/skills` without prompting                                                            |
@@ -36,7 +35,6 @@ ritual init-site \
   --ci github-actions \
   --deploy publish-for-me \
   --change-detection \
-  --no-prerelease \
   --price-source tcgplayer \
   --no-skills
 ```
@@ -71,7 +69,7 @@ Flag: `--deploy <mode>`
 
 **Publish for me** (`--deploy publish-for-me`) generates a GitHub Action that:
 
-1. Resolves the Ritual version (the latest stable release, or the newest prerelease with [prerelease downloads](#prerelease-versions-publish-for-me-only) enabled, unless the `RITUAL_VERSION` variable says otherwise) and restores the Ritual binary from cache if the version has not changed
+1. Resolves the Ritual version — the release [pinned in `ritual.config.json`](#the-pinned-ritual-release-github-actions), unless the `RITUAL_VERSION` variable says otherwise — and restores the Ritual binary from cache if the version has not changed
 2. Downloads the Ritual binary only when the resolved version is not cached
 3. Restores the Scryfall card cache from a previous run (GitHub Actions caching)
 4. Runs `ritual build-site --refresh auto`
@@ -106,18 +104,6 @@ When enabled, the workflow runs [`detect-changes`](/commands/detect-changes/) be
 This is useful when you edit list files directly, outside the admin UI or CLI, and want changelogs to stay current.
 
 Detection is **hash-aware**, so it is safe to leave enabled even if you also edit with Ritual locally. Files whose contents still match their `.sha256` hash file (meaning Ritual wrote them and already recorded a changelog) are skipped; only hand-edited files are processed. See [Hash-aware detection](/commands/detect-changes/#hash-aware-detection).
-
-### Prerelease versions (publish for me only)
-
-Flags: `--prerelease` / `--no-prerelease`
-
-With "Publish for me", you are also asked which Ritual releases the workflow downloads:
-
-```
-? Download prerelease versions of Ritual in the workflow? (the newest release, prereleases included) (y/N)
-```
-
-By default (no), the workflow downloads the latest **stable** release. Answer yes (`--prerelease`) to download the newest release **including prereleases**, the same choice the [installer's `--prerelease` option](/#installation) makes. The choice is stored as `prerelease` in the `site` block and becomes the workflow's default; the [`RITUAL_VERSION` repository variable](#customizing-the-ritual-version-github-actions) overrides it. To change the stored choice later, re-run with `--force` and the other flag, or edit `prerelease` in the `site` block and run [`ritual migrate`](/commands/migrate/) to regenerate the workflow. Both flags are usage errors with `--ci manual` or `--deploy local-build`, since those workflows never download Ritual.
 
 ### Default price store
 
@@ -177,7 +163,6 @@ If a generated file already exists, you are prompted before it is overwritten; `
     "deployMode": "publish-for-me",
     "distDir": "dist",
     "detectChanges": false,
-    "prerelease": false,
     "includeDecks": ["*"],
     "includeCollections": ["*"],
     "includeWantedLists": ["*"]
@@ -193,11 +178,11 @@ If a generated file already exists, you are prompted before it is overwritten; `
 }
 ```
 
-It also stamps the [`managed` block](/configuration/#ritual-bookkeeping-managed-key): the latest migration this Ritual knows (a fresh workspace needs none of them), a hash of the files it just generated, and, on a release build, the Ritual version. Commit `ritual.config.json` along with the generated files.
+It also stamps the [`managed` block](/configuration/#ritual-bookkeeping-managed-key): the latest migration this Ritual knows (a fresh workspace needs none of them), a hash of the files it just generated, and, on a release build, the Ritual version — the [CI pin](#the-pinned-ritual-release-github-actions). Commit `ritual.config.json` along with the generated files.
 
 ### After upgrading Ritual
 
-Re-running `init-site` on an initialized repository never changes it. It prints `Already initialized and up to date; nothing to do.` when nothing is pending, or tells you to run [`ritual migrate`](/commands/migrate/) when the new Ritual has migrations or regenerated files for the workspace. Either way it exits `0`, so an "ensure initialized" script can run it unconditionally. A workspace a newer Ritual already updated, or whose config cannot be made valid, is refused with exit `1` and the same message `ritual migrate` gives.
+Re-running `init-site` on an initialized repository never changes it. It prints `Already initialized and up to date; nothing to do.` when nothing is pending, or tells you to run [`ritual migrate`](/commands/migrate/) when the new Ritual has migrations or regenerated files for the workspace, or, for a "Publish for me" workspace, is a newer release than the [CI pin](#the-pinned-ritual-release-github-actions). Either way it exits `0`, so an "ensure initialized" script can run it unconditionally. A workspace a newer Ritual already updated, or whose config cannot be made valid, is refused with exit `1` and the same message `ritual migrate` gives.
 
 A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it applies any pending migrations before writing its files. If you keep an existing workflow at the overwrite prompt, the generated-files hash is left unrecorded, so `ritual migrate` later offers to regenerate it.
 
@@ -208,7 +193,7 @@ A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it 
 `--force` (or `-f`) ignores the existing site settings and re-runs the full init, overwriting all generated files including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
 
 ```bash
-ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --no-prerelease --price-source tcgplayer --no-skills
+ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --price-source tcgplayer --no-skills
 ```
 
 ## Exit Codes
@@ -219,16 +204,24 @@ ritual init-site --force --ci github-actions --deploy publish-for-me --no-change
 | `1`  | Failed to write `ritual.config.json`, or the workspace was updated by a newer Ritual or its config cannot be made valid (see [`migrate`](/commands/migrate/))                            |
 | `2`  | A prompt was cancelled or declined, a flag was invalid or contradictory (including fresh-init flags on an already-initialized repository), or a headless run was missing a required flag |
 
-## Customizing the Ritual Version (GitHub Actions)
+## The Pinned Ritual Release (GitHub Actions)
 
-The "Publish for me" workflow downloads the latest stable Ritual release by default, or the newest release including prereleases when initialized with [`--prerelease`](#prerelease-versions-publish-for-me-only). To choose a different version without re-running `init-site`:
+The "Publish for me" workflow builds with exactly one Ritual release: the one recorded as `managed.version` in `ritual.config.json` (read with `jq`). Release tags carry a `v` prefix (`v1.2.0`) and the pin does not (`1.2.0`), so the workflow adds it. The binary is cached between runs by version, so an unchanged pin means no download.
+
+Only a Ritual **release** build writes the pin, when it runs `init-site` or [`ritual migrate`](/commands/migrate/). CI therefore never jumps to a newer Ritual by itself. To move it forward, install the newer release, run `ritual migrate` (a newer release than the pin [counts as pending work](/commands/migrate/#the-ci-pin) for this deploy mode), and commit `ritual.config.json`. A development build never writes the pin, and warns when it applies migrations that the pinned release does not know.
+
+A workspace with no pin (one only ever set up by development builds) builds with the latest stable release, or, while Ritual has only prereleases, with the newest release (prereleases included). Each run logs a GitHub Actions warning naming the release it picked. If no release can be resolved at all, the step fails.
+
+### Overriding the pin
+
+To build with a different release without touching the pin:
 
 1. Go to your repository on GitHub
 2. Navigate to **Settings → Secrets and variables → Actions → Variables**
 3. Create a repository variable named `RITUAL_VERSION`
-4. Set it to a release tag to pin that version (e.g. `v1.0.0`), `latest` for the latest stable release, or `prerelease` for the newest release including prereleases
+4. Set it to a release tag, such as `v1.0.0` (a missing `v` is added)
 
-The workflow checks this variable on each run and downloads that version, overriding the `prerelease` setting. The binary is cached between runs by version, so an unchanged version means no download.
+The workflow checks this variable on each run, and when it is set, downloads that release instead of the pinned one. Delete the variable to go back to the pin.
 
 ## Examples
 

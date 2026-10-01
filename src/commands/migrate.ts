@@ -3,7 +3,6 @@ import { runCommandAction } from '../cli/action'
 import { addDryRunOption, type DryRunOptions } from '../cli/options'
 import { TEXT_ONLY } from '../cli/output'
 import { ask } from '../cli/prompts'
-import { version as ritualVersion } from '../config/version'
 import { t } from '../i18n/t'
 import {
   refreshChangesFiles,
@@ -17,6 +16,7 @@ import {
   refusalError,
   type MigrationPlan,
   type MigrationResult,
+  type PinBump,
 } from '../migrate/runner'
 import type { MigrationOp } from '../migrate/types'
 import { ExitCode } from '../util/errors'
@@ -83,6 +83,14 @@ function printPlan(plan: MigrationPlan): void {
     for (const op of ops) console.log(formatOp(op))
   }
   if (plan.refresh !== null) printRefreshPlan(plan.refresh)
+  if (plan.pinBump !== null) console.log(formatPinBump(plan.pinBump))
+}
+
+/** The plan line for a pin bump. */
+function formatPinBump(pinBump: PinBump): string {
+  return pinBump.from === undefined
+    ? t('cli.migrate.pinBumpNew', { version: pinBump.to })
+    : t('cli.migrate.pinBump', { version: pinBump.to, previous: pinBump.from })
 }
 
 function printRefreshResult(refresh: ManagedRefreshResult): void {
@@ -99,11 +107,18 @@ function printResult(plan: MigrationPlan, result: MigrationResult): void {
     )
   }
   if (result.refresh !== null) printRefreshResult(result.refresh)
+  if (plan.pinBump !== null) console.log(t('cli.migrate.pinned', { version: plan.pinBump.to }))
   console.log(t('cli.migrate.done'))
   // Only a release build records itself as `managed.version`, so a dev build
   // that changed the workspace's shape leaves the pin behind those changes.
-  if (!plan.release && result.applied.length > 0) {
-    console.warn(t('cli.migrate.devBuild', { version: ritualVersion }))
+  if (!plan.build.release && result.applied.length > 0) {
+    const pinned = plan.managed.version
+    const version = plan.build.version
+    console.warn(
+      pinned === undefined
+        ? t('cli.migrate.devBuildNoPin', { version })
+        : t('cli.migrate.devBuild', { version, pinned }),
+    )
   }
 }
 

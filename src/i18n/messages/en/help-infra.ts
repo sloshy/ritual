@@ -149,9 +149,6 @@ export const helpInfraMessages = {
   'help.initSite.changeDetection':
     'Enable automatic change detection in the generated workflow (publish-for-me only)',
   'help.initSite.noChangeDetection': 'Disable automatic change detection (no prompt)',
-  'help.initSite.prerelease':
-    'Have the generated workflow download the newest Ritual release, prereleases included (publish-for-me only)',
-  'help.initSite.noPrerelease': 'Have the workflow download the latest stable release (no prompt)',
   'help.initSite.priceSource':
     "Default price store (its currency follows): 'tcgplayer', 'cardkingdom', 'cardmarket', or 'cardhoarder'",
   'help.initSite.overwriteReadme': 'Overwrite an existing README.md without prompting',
@@ -161,7 +158,7 @@ export const helpInfraMessages = {
 
   // ── migrate ───────────────────────────────────────────────────────────
   'help.migrate.description':
-    'Bring this workspace up to date: apply pending migrations and refresh generated files',
+    'Bring this workspace up to date: apply pending migrations, refresh generated files, and move the CI release pin',
   'help.migrate.yes': 'Apply without asking for confirmation',
   'help.migrate.dryRun': 'Print what would change and write nothing',
   'help.migrate.check': 'Write nothing; exit 4 when updates are pending, 0 when up to date',

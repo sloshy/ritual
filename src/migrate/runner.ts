@@ -13,12 +13,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  getSiteDeployConfig,
   isMigrationCounter,
   isConfigParseError,
   parseRitualConfig,
   readRawRitualConfig,
   refreshRitualConfig,
   writeRawRitualConfig,
+  type InitSiteConfig,
   type ManagedConfig,
 } from '../config/ritual-config'
 import { deleteAtPath, setAtPath } from '../config/config-fields'
@@ -36,7 +38,7 @@ import {
   type ManagedRefreshPlan,
   type ManagedRefreshResult,
 } from './managed-output'
-import { writeWorkspaceFile } from './managed-files'
+import { downloadsPinnedRelease, writeWorkspaceFile } from './managed-files'
 import { MIGRATIONS, latestMigrationId } from './migrations'
 import {
   isFileOp,
@@ -71,6 +73,18 @@ export type PendingMigration = {
   ops: MigrationOp[]
 }
 
+/**
+ * A pin bump: the running release is newer than the workspace's pin, so
+ * applying moves `managed.version` (what the publish-for-me workflow
+ * downloads) forward.
+ */
+export type PinBump = {
+  /** The release the pin moves to — the running build. */
+  to: string
+  /** The release pinned now; absent when the workspace has no pin yet. */
+  from?: string
+}
+
 /** Everything `migrate` would do, computed without writing. */
 export type MigrationPlan = {
   kind: 'plan'
@@ -82,10 +96,16 @@ export type MigrationPlan = {
   migrations: PendingMigration[]
   /** The managed-output refresh, or null when none is due. */
   refresh: ManagedRefreshPlan | null
+  /**
+   * The pin bump, or null when none is due. Only publish-for-me workspaces
+   * have one: theirs is the only CI that downloads the pinned release. Other
+   * workspaces still get the pin stamped whenever `migrate` does run.
+   */
+  pinBump: PinBump | null
   /** The `managed` block stamped once everything is applied. */
   managed: ManagedConfig
-  /** Whether this build records its version in {@link managed}. */
-  release: boolean
+  /** The build that planned it; only a release records its version in {@link managed}. */
+  build: BuildIdentity
 }
 
 /** There is no `ritual.config.json`, so there is nothing to migrate. */
@@ -110,7 +130,7 @@ export type PlanOutcome = MigrationPlan | NoConfigOutcome | AheadOutcome | Inval
 
 /** Whether applying the plan would change anything. */
 export function hasPendingWork(plan: MigrationPlan): boolean {
-  return plan.refresh !== null || plan.migrations.some((pending) => pending.ops.length > 0)
+  return plan.refresh !== null || plan.pinBump !== null || hasPendingMigrations(plan)
 }
 
 /** Whether any pending migration still has ops to run. */
@@ -172,6 +192,22 @@ export function buildManagedStamp(input: ManagedStampInput): ManagedConfig {
   if (version !== undefined) managed.version = version
   if (input.output !== undefined) managed.output = input.output
   return managed
+}
+
+/**
+ * The pin bump a release build owes a publish-for-me workspace whose pin is
+ * older than the build (or absent), or null. A dev build never pins, and other
+ * deploys run no Ritual in CI, so neither is ever owed one. A release older
+ * than the pin never reaches here — the planner refuses it as `ahead`.
+ */
+export function planPinBump(
+  deploy: InitSiteConfig | null,
+  build: BuildIdentity,
+  pinned: string | undefined,
+): PinBump | null {
+  if (!build.release || !downloadsPinnedRelease(deploy)) return null
+  if (pinned === undefined) return { to: build.version }
+  return compareVersions(build.version, pinned) > 0 ? { to: build.version, from: pinned } : null
 }
 
 /** Replace the raw config's `managed` block. */
@@ -252,8 +288,9 @@ export async function planMigration(options: MigrateOptions = {}): Promise<PlanO
     recorded,
     migrations: pending,
     refresh,
+    pinBump: planPinBump(getSiteDeployConfig(parsed.site), build, recorded.version),
     managed,
-    release: build.release,
+    build,
   }
 }
 

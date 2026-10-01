@@ -57,6 +57,48 @@ const DETECT_AND_COMMIT_STEP = `
 `
 
 /**
+ * Resolve the Ritual release the publish-for-me workflow downloads: the
+ * `RITUAL_VERSION` repository variable when set, else the workspace's pin
+ * (`managed.version`, which `ritual migrate` records from a release build).
+ * The pin is stored without the `v` that release tags carry, so a missing
+ * prefix is added to either source. A workspace only ever migrated by dev
+ * builds has no pin; it falls back to the latest stable release, else (while
+ * only prereleases exist) the newest non-draft release, with a warning naming
+ * the tag picked, and fails only when neither resolves.
+ */
+const RITUAL_VERSION_STEP = `      - name: Get Ritual version
+        id: ritual-version
+        run: |
+          VERSION="$RITUAL_VERSION"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(jq -r '.managed.version // empty' ritual.config.json)
+          fi
+          if [ -z "$VERSION" ]; then
+            # No pin: the latest stable release, else (while only prereleases
+            # exist) the newest release — the API omits drafts, newest first.
+            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+            if [ -z "$VERSION" ]; then
+              VERSION=$(curl -s "https://api.github.com/repos/sloshy/ritual/releases?per_page=1" \\
+                | grep '"tag_name"' | head -1 | cut -d'"' -f4)
+            fi
+            if [ -n "$VERSION" ]; then
+              echo "::warning::This workspace has no pinned Ritual release (managed.version in ritual.config.json), so $VERSION (the newest release) is used. Run 'ritual migrate' with a Ritual release build and commit ritual.config.json to pin one."
+            fi
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not resolve a Ritual release to download. Pin one with 'ritual migrate' or set the RITUAL_VERSION repository variable."
+            exit 1
+          fi
+          case "$VERSION" in
+            v*) ;;
+            *) VERSION="v$VERSION" ;;
+          esac
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+        env:
+          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}`
+
+/**
  * The trailing Setup Pages / Upload artifact / Deploy steps shared by every
  * generated workflow. `guard` is an `if:` line prefix stamped on each step
  * (`''` for none).
@@ -104,21 +146,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7${detectChanges ? FULL_HISTORY_CHECKOUT : ''}
 
-      - name: Get Ritual version
-        id: ritual-version
-        run: |
-          VERSION="\${RITUAL_VERSION:-${config?.prerelease === true ? 'prerelease' : 'latest'}}"
-          if [ "$VERSION" = "latest" ]; then
-            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
-              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          elif [ "$VERSION" = "prerelease" ]; then
-            # The unauthenticated releases API omits drafts and lists newest first.
-            VERSION=$(curl -s "https://api.github.com/repos/sloshy/ritual/releases?per_page=1" \\
-              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        env:
-          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
+${RITUAL_VERSION_STEP}
 
       - name: Cache Ritual binary
         id: ritual-cache
@@ -131,7 +159,7 @@ jobs:
         if: steps.ritual-cache.outputs.cache-hit != 'true'
         run: |
           VERSION="\${{ steps.ritual-version.outputs.version }}"
-          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
+          curl -fsSL -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
           chmod +x ritual
 ${detectChanges ? DETECT_AND_COMMIT_STEP : ''}
       - name: Generate card manifest${guard}
@@ -184,6 +212,14 @@ export function generateWorkflow(config: GitHubActionsSiteConfig): string {
     return generatePublishForMeWorkflow(config)
   }
   return generateLocalBuildWorkflow(config.distDir)
+}
+
+/**
+ * Whether a deploy's CI downloads Ritual — and so builds with the release
+ * pinned in `managed.version`. Only a publish-for-me workflow runs Ritual.
+ */
+export function downloadsPinnedRelease(config: InitSiteConfig | null | undefined): boolean {
+  return config?.ciSystem === 'github-actions' && config.deployMode === 'publish-for-me'
 }
 
 /**

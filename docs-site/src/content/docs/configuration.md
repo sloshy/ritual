@@ -287,7 +287,7 @@ The remaining `admin` keys secure the server. The [`config` property table](/com
 
 The `site` key holds public-site settings in three groups:
 
-- **Deployment settings** (`ciSystem`, `deployMode`, `distDir`, `detectChanges`, `prerelease`). `ritual init-site` writes them, and they exist only after you run it. You may change them by hand; run [`ritual migrate`](/commands/migrate/) afterwards so the generated deploy workflow follows (for example, after setting `detectChanges`).
+- **Deployment settings** (`ciSystem`, `deployMode`, `distDir`, `detectChanges`). `ritual init-site` writes them, and they exist only after you run it. You may change them by hand; run [`ritual migrate`](/commands/migrate/) afterwards so the generated deploy workflow follows (for example, after setting `detectChanges`).
 - **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) decide which lists `build-site` publishes. Set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
 - **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)), `apiBaseUrl`, and `sellMode`, described below.
 
@@ -300,7 +300,6 @@ The `site` key holds public-site settings in three groups:
     "deployMode": "publish-for-me",
     "distDir": "dist",
     "detectChanges": false,
-    "prerelease": false,
     "includeDecks": ["*"],
     "includeCollections": ["Red Binder", "ECL"],
     "includeWantedLists": ["*"],
@@ -318,7 +317,6 @@ The `site` key holds public-site settings in three groups:
 | `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                         |
 | `distDir`            | —       | The directory containing your built site (github-actions only).                                  |
 | `detectChanges`      | —       | Whether the workflow runs `detect-changes` (github-actions only).                                |
-| `prerelease`         | `false` | Whether the workflow downloads the newest release including prereleases (github-actions only).   |
 | `includeDecks`       | `["*"]` | Which decks `build-site` publishes (see below).                                                  |
 | `includeCollections` | `["*"]` | Which collections `build-site` publishes.                                                        |
 | `includeWantedLists` | `["*"]` | Which wanted lists `build-site` publishes.                                                       |
@@ -385,17 +383,17 @@ The `managed` key belongs to Ritual. [`init-site`](/commands/init-site/) stamps 
 {
   "managed": {
     "version": "0.2.0",
-    "migration": 1,
+    "migration": 2,
     "output": "sha256:…"
   }
 }
 ```
 
-| Field       | Description                                                                                                                                      |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `version`   | The Ritual **release** that last brought the workspace up to date. Development builds never write it.                                            |
-| `migration` | The highest [numbered migration](/commands/migrate/#numbered-migrations) applied. Absent means `0`.                                              |
-| `output`    | A hash of the files Ritual generated for this workspace (workflow, `.gitignore` entries, agent skills). A different hash means a refresh is due. |
+| Field       | Description                                                                                                                                                                                                                                                                                                                                                                      |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`   | The Ritual **release** that last brought the workspace up to date, and the release a "Publish for me" workflow downloads ([the CI pin](/commands/init-site/#the-pinned-ritual-release-github-actions)). Development builds never write it. Without a pin, the workflow uses the latest stable release (or the newest prerelease while none exists) and logs a warning naming it. |
+| `migration` | The highest [numbered migration](/commands/migrate/#numbered-migrations) applied. Absent means `0`.                                                                                                                                                                                                                                                                              |
+| `output`    | A hash of the files Ritual generated for this workspace (workflow, `.gitignore` entries, agent skills). A different hash means a refresh is due.                                                                                                                                                                                                                                 |
 
 ## Editing the file
 

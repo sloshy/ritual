@@ -12,7 +12,12 @@ import {
 import { computeManagedOutput, refreshChangesFiles } from '../../src/migrate/managed-output'
 import { latestMigrationId, MIGRATIONS } from '../../src/migrate/migrations'
 import type { Migration, MigrationContext, MigrationOp } from '../../src/migrate/types'
-import { getDefaultRitualConfig, type RitualConfig } from '../../src/config/ritual-config'
+import {
+  getDefaultRitualConfig,
+  type GitHubActionsSiteConfig,
+  type ManagedConfig,
+  type RitualConfig,
+} from '../../src/config/ritual-config'
 import { renderSkillFile, SKILLS } from '../../src/skills/catalog'
 import { skillFilePath } from '../../src/skills/install'
 import type { RitualSkill } from '../../src/skills/types'
@@ -27,7 +32,7 @@ const PUBLISH_SITE = {
   deployMode: 'publish-for-me',
   distDir: 'dist',
   detectChanges: false,
-}
+} as const satisfies GitHubActionsSiteConfig
 
 const WORKFLOW = '.github/workflows/deploy-site.yml'
 
@@ -95,6 +100,7 @@ describe('migration 1: drop site.version', () => {
     const pending = await plan()
     expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
       [1, [{ type: 'config-delete', path: ['site', 'version'] }]],
+      [2, []],
     ])
     expect(hasPendingWork(pending)).toBeTrue()
 
@@ -112,10 +118,93 @@ describe('migration 1: drop site.version', () => {
   test('an already-satisfied migration plans zero ops even with the counter at 0', async () => {
     await workspace({ site: { includeDecks: ['*'] } })
     const pending = await plan()
-    expect(pending.migrations.map((m) => m.ops)).toEqual([[]])
+    expect(pending.migrations.map((m) => m.ops)).toEqual([[], []])
     // No deploy config means nothing is managed, so there is nothing to do.
     expect(pending.refresh).toBeNull()
     expect(hasPendingWork(pending)).toBeFalse()
+  })
+})
+
+describe('migration 2: drop site.prerelease', () => {
+  test.each([true, false, null])(
+    'plans the delete when the key is present, whatever its value (%p)',
+    async (prerelease) => {
+      await workspace({ site: { ...PUBLISH_SITE, prerelease }, managed: { migration: 1 } })
+      const pending = await plan()
+      expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
+        [2, [{ type: 'config-delete', path: ['site', 'prerelease'] }]],
+      ])
+    },
+  )
+
+  test('plans nothing for a site block without the key', async () => {
+    await workspace({ site: PUBLISH_SITE, managed: { migration: 1 } })
+    expect((await plan()).migrations.map((m) => [m.migration.id, m.ops])).toEqual([[2, []]])
+  })
+})
+
+describe('pin bump', () => {
+  const LOCAL_SITE = {
+    ...PUBLISH_SITE,
+    deployMode: 'local-build',
+  } as const satisfies GitHubActionsSiteConfig
+  const release = (version: string): BuildIdentity => ({ version, release: true })
+
+  /** A workspace current in every respect except, possibly, its pin. */
+  async function currentWorkspace(
+    site: Record<string, unknown>,
+    version: string | undefined,
+  ): Promise<string> {
+    const managed = {
+      migration: latestMigrationId(),
+      output: outputHash(site),
+      ...(version === undefined ? {} : { version }),
+    }
+    return workspace({ site, managed })
+  }
+
+  test.each([
+    ['a newer release than the pin', '1.0.0', release('1.1.0'), { to: '1.1.0', from: '1.0.0' }],
+    ['a release and no pin yet', undefined, release('1.1.0'), { to: '1.1.0' }],
+    [
+      'a prerelease of the next version',
+      '1.0.0',
+      release('1.1.0-rc1'),
+      { to: '1.1.0-rc1', from: '1.0.0' },
+    ],
+    ['the pinned release itself', '1.1.0', release('1.1.0'), null],
+    ['a dev build', '1.0.0', DEV_BUILD, null],
+  ])('publish-for-me with %s', async (_label, pinned, build, expected) => {
+    await currentWorkspace(PUBLISH_SITE, pinned)
+    const pending = await plan({ build })
+    expect(pending.pinBump).toEqual(expected)
+    expect(hasPendingWork(pending)).toBe(expected !== null)
+  })
+
+  test.each([
+    ['local-build', LOCAL_SITE],
+    ['manual', { ciSystem: 'manual' }],
+    ['no deploy config', { includeDecks: ['*'] }],
+  ])('is never pending for a %s workspace, yet the pin is stamped on a run', async (_l, site) => {
+    await currentWorkspace(site, '1.0.0')
+    const pending = await plan({ build: release('1.1.0') })
+    expect(pending.pinBump).toBeNull()
+    expect(hasPendingWork(pending)).toBeFalse()
+    expect(pending.managed.version).toBe('1.1.0')
+  })
+
+  test('applying a bump-only plan stamps just managed.version', async () => {
+    const dir = await currentWorkspace(PUBLISH_SITE, '1.0.0')
+    const before = await readConfig(dir)
+
+    const result = await applyMigration(await plan({ build: release('1.1.0') }))
+
+    expect(result).toEqual({ applied: [], refresh: null })
+    expect(await readConfig(dir)).toEqual({
+      ...before,
+      managed: { ...(before.managed as ManagedConfig), version: '1.1.0' },
+    })
+    expect(hasPendingWork(await plan({ build: release('1.1.0') }))).toBeFalse()
   })
 })
 
@@ -158,7 +247,9 @@ describe('planMigration', () => {
     await workspace({ site: { ...PUBLISH_SITE, version: '0.1.0' }, managed })
     const pending = await plan()
     // The counter reads as 0 or better, so migration 1 is still planned by state.
-    expect(pending.migrations.map((m) => m.migration.id)).toEqual([1])
+    expect(pending.migrations.filter((m) => m.ops.length > 0).map((m) => m.migration.id)).toEqual([
+      1,
+    ])
     expect(pending.managed).toEqual({
       migration: latestMigrationId(),
       output: outputHash(PUBLISH_SITE),

@@ -402,10 +402,6 @@ export const cliInfraMeta = {
   'cli.initSite.promptChangeDetection': {
     description: 'Confirm prompt: add the changelog-committing step to the workflow?',
   },
-  'cli.initSite.promptPrerelease': {
-    description:
-      'Confirm prompt: should the generated workflow download the newest Ritual release including prereleases, instead of the latest stable release?',
-  },
   'cli.initSite.readmeExists': {
     description: 'README.md exists, prompts are unavailable, and no explicit decision was given.',
   },
@@ -420,9 +416,6 @@ export const cliInfraMeta = {
   },
   'cli.initSite.changeDetectionScope': {
     description: '--change-detection was combined with a deploy mode that has no such step.',
-  },
-  'cli.initSite.prereleaseScope': {
-    description: '--prerelease was combined with a deploy mode that never downloads Ritual.',
   },
   'cli.initSite.distDirScope': {
     description: '--dist-dir was combined with a deploy mode that does not build locally.',
@@ -460,7 +453,7 @@ export const cliInfraMeta = {
   'cli.initSite.stepPush': { description: 'Checklist step 4 for a publish-for-me deploy.' },
   'cli.initSite.pinVersionTip': {
     description:
-      'Closing tip. RITUAL_VERSION is a GitHub Actions variable name; "latest" and "prerelease" are literal values it accepts and must not be translated.',
+      'Closing tip after a publish-for-me init. "ritual.config.json", "managed.version" and RITUAL_VERSION (a GitHub Actions variable name) are literal and must not be translated, nor the backticked command.',
   },
 
   // ── migrate ───────────────────────────────────────────────────────────
@@ -485,6 +478,10 @@ export const cliInfraMeta = {
   'cli.migrate.migration.dropSiteVersion': {
     description:
       'What migration 1 does. "site.version", "ritual.config.json" and "managed" are literal config names and must not be translated.',
+  },
+  'cli.migrate.migration.dropSitePrerelease': {
+    description:
+      'What migration 2 does. "site.prerelease", "ritual.config.json" and "managed.version" are literal config names and must not be translated.',
   },
   'cli.migrate.opConfigSet': {
     description:
@@ -521,6 +518,14 @@ export const cliInfraMeta = {
     description:
       'Plan line (indented): an installed agent skill {name} that Ritual no longer ships is deleted.',
   },
+  'cli.migrate.pinBump': {
+    description:
+      'Plan line: the CI pin (the Ritual release the deploy workflow downloads) moves from release {previous} to the running release {version}.',
+  },
+  'cli.migrate.pinBumpNew': {
+    description:
+      'Plan line: the workspace has no CI pin yet; it will be pinned to the running release {version}.',
+  },
   'cli.migrate.dryRunDone': {
     description: 'Closing line of `migrate --dry-run`, after the plan.',
   },
@@ -535,10 +540,17 @@ export const cliInfraMeta = {
   'cli.migrate.skillRemoved': {
     description: 'An installed agent skill {name} that Ritual no longer ships was deleted.',
   },
+  'cli.migrate.pinned': {
+    description: 'The CI pin was moved to release {version} (the running Ritual).',
+  },
   'cli.migrate.done': { description: 'Closing line after `ritual migrate` applied everything.' },
   'cli.migrate.devBuild': {
     description:
-      'Warning after a development build applied migrations. {version} is the running version; "managed.version" is a literal config key.',
+      'Warning after a development build applied migrations. {version} is the running version; {pinned} is the release CI keeps downloading. "managed.version" is a literal config key; the backticked command is literal.',
+  },
+  'cli.migrate.devBuildNoPin': {
+    description:
+      'The same warning when the workspace has no pinned release, so CI falls back to the newest release (latest stable, else newest prerelease). {version} is the running version; "managed.version" and the backticked command are literal.',
   },
   'cli.migrate.ahead': {
     description:

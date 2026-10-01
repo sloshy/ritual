@@ -17,7 +17,6 @@ type SiteConfigFile = {
     deployMode?: string
     distDir?: string
     detectChanges?: boolean
-    prerelease?: boolean
   }
   defaultPriceSource?: string
   priceSources?: string[]
@@ -47,7 +46,6 @@ describe('init-site CLI (Integration)', () => {
           '--deploy',
           'publish-for-me',
           '--change-detection',
-          '--prerelease',
           '--price-source',
           'cardmarket',
           '--no-skills',
@@ -60,7 +58,8 @@ describe('init-site CLI (Integration)', () => {
       const workflow = await fs.readFile(path.join(dir, workflowRelPath), 'utf-8')
       expect(workflow).toContain('./ritual build-site --refresh auto')
       expect(workflow).not.toContain('--allow-refresh')
-      expect(workflow).toContain('VERSION="${RITUAL_VERSION:-prerelease}"')
+      // CI downloads the release pinned in the config, not "whatever is newest".
+      expect(workflow).toContain(`jq -r '.managed.version // empty' ritual.config.json`)
       // The exact invocation, not the substring: 'detect-changes' also appears
       // as the step id and in the has-changes guard, so it cannot tell the
       // current command from the retired `git-detect-changes`.
@@ -73,7 +72,6 @@ describe('init-site CLI (Integration)', () => {
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: true,
-        prerelease: true,
       })
       // A fresh init is current by construction: every migration applied and
       // the output just generated recorded.
@@ -191,8 +189,6 @@ describe('init-site CLI (Integration)', () => {
   test.each([
     ['--change-detection', '--change-detection/--no-change-detection'],
     ['--no-change-detection', '--change-detection/--no-change-detection'],
-    ['--prerelease', '--prerelease/--no-prerelease'],
-    ['--no-prerelease', '--prerelease/--no-prerelease'],
   ])('%s is rejected with --deploy local-build', async (flag, message) => {
     await withTempDir(async (dir) => {
       const result = await runCli(
@@ -281,27 +277,11 @@ describe('init-site CLI (Integration)', () => {
         'github-actions',
         '--deploy',
         'publish-for-me',
-        '--no-prerelease',
         '--price-source',
         'tcgplayer',
         '--no-skills',
       ],
       '--change-detection',
-    ],
-    [
-      'missing --prerelease',
-      [
-        'init-site',
-        '--ci',
-        'github-actions',
-        '--deploy',
-        'publish-for-me',
-        '--no-change-detection',
-        '--price-source',
-        'tcgplayer',
-        '--no-skills',
-      ],
-      '--prerelease',
     ],
     ['missing --price-source', ['init-site', '--ci', 'manual', '--no-skills'], '--price-source'],
     // The skills question is asked last, after the files are written, so its
@@ -340,7 +320,7 @@ describe('init-site CLI (Integration)', () => {
     })
   })
 
-  test.each([[['--deploy', 'publish-for-me']], [['--prerelease']]])(
+  test.each([[['--deploy', 'publish-for-me']], [['--change-detection']]])(
     'GitHub Actions flag %p is rejected with --ci manual',
     async (flag) => {
       await withTempDir(async (dir) => {
