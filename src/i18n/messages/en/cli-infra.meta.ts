@@ -169,6 +169,10 @@ export const cliInfraMeta = {
   },
   'cli.admin.preparing': { description: '`admin` is bundling assets before listening.' },
   'cli.admin.ready': { description: 'The admin assets are written; the server is about to start.' },
+  'cli.admin.setupRequired': {
+    description:
+      'Printed at startup while no admin account exists. {url} is the setup link carrying the one-time setup token; the account can only be created through it (or the `ritual admin setup` command, kept verbatim).',
+  },
   'cli.admin.teardownFailed': {
     description:
       'One of the listeners refused to close on shutdown. {label} names it; the reason follows on the same line.',

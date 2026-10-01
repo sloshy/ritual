@@ -80,14 +80,15 @@ Returns server health, whether first-time setup is needed, and which optional ca
 POST /api/setup
 ```
 
-No authentication is required. Only works when no admin user exists; returns `409 Conflict` otherwise.
+No session is required. Instead the request carries the one-time setup token `ritual admin` printed when it started (see [First-Time Setup](/commands/admin/#first-time-setup)). A missing or wrong token returns `403 Forbidden`. Only works when no admin user exists; returns `409 Conflict` otherwise.
 
 **Request body:**
 
 ```json
 {
   "username": "admin",
-  "password": "mypassword"
+  "password": "mypassword",
+  "setupToken": "Qm9yb3NDaGFybUJvbHQxMjM0"
 }
 ```
 

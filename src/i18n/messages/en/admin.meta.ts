@@ -258,6 +258,17 @@ export const adminMeta = {
     description:
       'Hint under the password field on the first-run screen. {count} is the minimum length.',
   },
+  'admin.auth.setupToken': {
+    description:
+      'Field label on the first-run screen for the one-time secret the server printed to its terminal, which proves the person creating the account controls the server.',
+  },
+  'admin.auth.setupTokenHint': {
+    description:
+      'Hint under the setup token field explaining where to find it. `ritual admin` is a command name and stays verbatim.',
+  },
+  'admin.auth.setupTokenRequired': {
+    description: 'Error when the first-run form is submitted with the setup token field empty.',
+  },
   'admin.auth.credentialsRequired': {
     description: 'Validation error when the sign-in form is submitted with an empty field.',
   },
@@ -1564,6 +1575,10 @@ export const adminMeta = {
   'admin.settings.bannedPrintingsPlaceholder': { description: 'Example banned printing.' },
 
   // ── admin.api.* ───────────────────────────────────────────────────────
+  'admin.api.setup.tokenInvalid': {
+    description:
+      'Refusal when the first-run account form was submitted without the one-time setup token the server printed, or with a wrong one. `ritual admin` and `ritual admin setup` are command names and stay verbatim.',
+  },
   'admin.api.list.created': {
     description:
       'Success alert after a list is created, one branch per list type. {name} is the title the user typed. Translate each branch as a whole sentence — do not assemble it from a verb plus a noun.',

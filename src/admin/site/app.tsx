@@ -1,6 +1,7 @@
 import { Dynamic, render } from 'solid-js/web'
 import {
   type Component,
+  batch,
   createEffect,
   createMemo,
   createSignal,
@@ -110,11 +111,16 @@ function App() {
       setSetupRequired(true)
       return
     }
-    setSetupRequired(data.setupRequired)
-    setTotpEnabled(data.totpEnabled)
-    // Whether this server offers sell mode at all; its sell/buylist routes
-    // 404 otherwise, so every sell surface in the UI hides itself on this.
-    setSellModeEnabled(data.sellMode)
+    // Batched: the login form mounts as soon as `setupRequired` flips, and it
+    // seeds its TOTP field from `totpEnabled` at mount, so the two must land
+    // together or a TOTP-enabled server shows the form without the code field.
+    batch(() => {
+      setSetupRequired(data.setupRequired)
+      setTotpEnabled(data.totpEnabled)
+      // Whether this server offers sell mode at all; its sell/buylist routes
+      // 404 otherwise, so every sell surface in the UI hides itself on this.
+      setSellModeEnabled(data.sellMode)
+    })
 
     // Check if we have an active session by probing an authenticated endpoint.
     // A probe that cannot reach the server means "no session", not "no account":

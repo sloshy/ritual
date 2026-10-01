@@ -5,6 +5,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createSyntheticWorkspace } from './synthetic-workspace'
 import { killProcess, writeE2eState } from './workspace'
+import { E2E_SETUP_TOKEN } from './auth-helper'
+import { SETUP_TOKEN_ENV } from '../../../src/admin/setup-token'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -111,7 +113,7 @@ async function globalSetup(): Promise<void> {
       cwd: repoRoot,
       stdio: ['pipe', 'pipe', 'inherit'],
       detached: true,
-      env: { ...process.env, PATH: process.env.PATH },
+      env: { ...process.env, PATH: process.env.PATH, [SETUP_TOKEN_ENV]: E2E_SETUP_TOKEN },
     },
   )
   adminProc.unref()

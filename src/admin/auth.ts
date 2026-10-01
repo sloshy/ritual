@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
-import { timingSafeEqual } from 'node:crypto'
 import path from 'node:path'
 import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
+import { secretsEqual } from '../util/secret-compare'
 import { MIN_PASSWORD_LENGTH } from './validation'
 
 interface AdminCredentials {
@@ -71,10 +71,7 @@ export async function verifyAdminUser(username: string, password: string): Promi
   try {
     const credentials = await readCredentials()
 
-    const usernameBuffer = Buffer.from(username)
-    const storedBuffer = Buffer.from(credentials.username)
-    const usernameMatch =
-      usernameBuffer.length === storedBuffer.length && timingSafeEqual(usernameBuffer, storedBuffer)
+    const usernameMatch = secretsEqual(username, credentials.username)
 
     // Always run password verify to prevent timing side-channel leaks
     const passwordMatch = await Bun.password.verify(password, credentials.passwordHash)

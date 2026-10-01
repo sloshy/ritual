@@ -32,3 +32,10 @@ export const MAX_PASSWORD_LENGTH = 128
 
 /** Minimum length for a password field. */
 export const MIN_PASSWORD_LENGTH = 8
+
+/**
+ * The query parameter `ritual admin`'s printed setup URL carries the one-time
+ * setup token in (`src/admin/setup-token.ts`). Here rather than beside the
+ * token so the setup form can read it without bundling `node:crypto`.
+ */
+export const SETUP_TOKEN_PARAM = 'setupToken'

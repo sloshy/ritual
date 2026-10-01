@@ -18,11 +18,12 @@ These options work on every command. Each has an environment variable that does 
 
 A few environment variables have no flag:
 
-| Environment variable     | Description                                                                                                    |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `RITUAL_NO_UPDATE_CHECK` | Never look up or announce newer Ritual releases (the [update notice](/commands/self-update/#update-notice))    |
-| `RITUAL_STATE_DIR`       | Where Ritual keeps its small per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate)           |
-| `CI`                     | Marks a CI run: no offer to migrate and no update notice. `CI=false` (or another off spelling) counts as unset |
+| Environment variable       | Description                                                                                                                         |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `RITUAL_NO_UPDATE_CHECK`   | Never look up or announce newer Ritual releases (the [update notice](/commands/self-update/#update-notice))                         |
+| `RITUAL_STATE_DIR`         | Where Ritual keeps its small per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate)                                |
+| `RITUAL_ADMIN_SETUP_TOKEN` | Pins the one-time token `ritual admin` requires to create the first account ([First-Time Setup](/commands/admin/#first-time-setup)) |
+| `CI`                       | Marks a CI run: no offer to migrate and no update notice. `CI=false` (or another off spelling) counts as unset                      |
 
 `RITUAL_NO_UPDATE_CHECK` and `CI` read `0`, `false`, `no`, and `off` (any casing) as unset, like [`RITUAL_NO_INPUT`](#--no-input).
 

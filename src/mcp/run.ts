@@ -17,6 +17,7 @@ import {
 import { isLoopbackHost } from './host'
 import { buildMcpServer } from './server'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
+import { secretsEqual } from '../util/secret-compare'
 
 /**
  * Run the MCP server over stdio (the default transport for local agent clients).
@@ -98,7 +99,7 @@ function rpcErrorResponse(
 function isAuthorized(request: Request, auth: McpHttpAuth): boolean {
   switch (auth.kind) {
     case 'bearer':
-      return request.headers.get('authorization') === `Bearer ${auth.token}`
+      return secretsEqual(request.headers.get('authorization') ?? '', `Bearer ${auth.token}`)
     case 'none':
       return true
   }

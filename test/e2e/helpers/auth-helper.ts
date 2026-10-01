@@ -6,8 +6,15 @@ const ADMIN_URL = 'http://localhost:8456'
 const TEST_USER = 'testadmin'
 const TEST_PASS = 'testpass123'
 
+/**
+ * The setup token the e2e admin server is started with (`global-setup.ts` pins
+ * it through `RITUAL_ADMIN_SETUP_TOKEN`), so specs can create the first account
+ * without reading the server's terminal.
+ */
+export const E2E_SETUP_TOKEN = 'e2e-setup-token'
+
 /** Shape of the admin server's `/api/status` response the helpers rely on. */
-type AdminStatusResponse = { setupRequired: boolean }
+export type AdminStatusResponse = { setupRequired: boolean }
 
 /**
  * Saved Playwright storage state for an authenticated admin session.
@@ -57,16 +64,17 @@ export async function loginAsAdmin(page: Page): Promise<void> {
   if (await dashboard.isVisible()) return
 
   if (await setupForm.isVisible()) {
-    await page.fill('input[type="text"]', TEST_USER)
-    await page.fill('input[type="password"]', TEST_PASS)
+    await page.fill('#auth-username', TEST_USER)
+    await page.fill('#auth-password', TEST_PASS)
+    await page.fill('#setup-token', E2E_SETUP_TOKEN)
     await page.click('button[type="submit"]')
     await dashboard.waitFor({ timeout: 10_000 })
     return
   }
 
   // Login via form
-  await page.fill('input[type="text"]', TEST_USER)
-  await page.fill('input[type="password"]', TEST_PASS)
+  await page.fill('#auth-username', TEST_USER)
+  await page.fill('#auth-password', TEST_PASS)
   await page.click('button[type="submit"]')
   await dashboard.waitFor({ timeout: 10_000 })
 }
@@ -81,9 +89,12 @@ export async function setupAdminViaApi(baseURL: string): Promise<void> {
     const status = (await statusResp.json()) as AdminStatusResponse
 
     if (status.setupRequired) {
-      await ctx.post('/api/setup', {
-        data: { username: TEST_USER, password: TEST_PASS },
+      const setup = await ctx.post('/api/setup', {
+        data: { username: TEST_USER, password: TEST_PASS, setupToken: E2E_SETUP_TOKEN },
       })
+      // Fail here rather than as a timeout waiting for a dashboard that never comes.
+      if (!setup.ok())
+        throw new Error(`Admin setup failed: ${setup.status()} ${await setup.text()}`)
     }
   } finally {
     await ctx.dispose()

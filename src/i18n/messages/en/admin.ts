@@ -61,6 +61,10 @@ export const adminMessages = {
   'admin.auth.password': 'Password',
   'admin.auth.totpCode': 'Two-Factor Code',
   'admin.auth.passwordHint': 'Password must be at least {count} characters.',
+  'admin.auth.setupToken': 'Setup Token',
+  'admin.auth.setupTokenHint':
+    'Printed in the terminal where `ritual admin` started. Opening the link it printed fills this in.',
+  'admin.auth.setupTokenRequired': 'Enter the setup token',
   'admin.auth.credentialsRequired': 'Username and password are required',
   'admin.auth.passwordTooShort': 'Password must be at least {count} characters',
   'admin.auth.totpRequired': 'Two-factor authentication code required',
@@ -926,6 +930,10 @@ export const adminMessages = {
   // at the handler (that is what `message` carries, unchanged, for MCP and
   // curl) and re-rendered in the reader's locale from `messageKey` +
   // `messageParams` by `useApiAction`. See plan §7.7.
+
+  // ── First-run setup ───────────────────────────────────────────────────
+  'admin.api.setup.tokenInvalid':
+    'That setup token is not right. Use the setup link `ritual admin` printed when it started, or run `ritual admin setup`.',
 
   // ── List lifecycle ────────────────────────────────────────────────────
   //

@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
-import { loginAsAdmin, ADMIN_STORAGE_STATE } from '../helpers/auth-helper'
+import {
+  loginAsAdmin,
+  ADMIN_STORAGE_STATE,
+  E2E_SETUP_TOKEN,
+  type AdminStatusResponse,
+} from '../helpers/auth-helper'
+import { SETUP_TOKEN_PARAM } from '../../../src/admin/validation'
 import { getAdminAuthFile } from '../helpers/workspace'
 
 const ADMIN_URL = 'http://localhost:8456'
@@ -16,7 +22,7 @@ async function ensureSetupRequired(): Promise<void> {
       fs.unlinkSync(authFile)
     }
     const resp = await fetch(`${ADMIN_URL}/api/status`)
-    const data = (await resp.json()) as { setupRequired: boolean }
+    const data = (await resp.json()) as AdminStatusResponse
     if (data.setupRequired) return
     await new Promise((r) => setTimeout(r, 100))
   }
@@ -38,11 +44,32 @@ test.describe('Auth Setup', () => {
     await expect(title.locator('svg[aria-label="Ritual logo"]')).toBeVisible()
   })
 
-  test('successful setup transitions to dashboard', async ({ page }) => {
+  test('setup without the right token is refused and creates no account', async ({ page }) => {
     await page.goto(ADMIN_URL)
     await page.waitForSelector('text=Create your admin account')
-    await page.fill('input[type="text"]', 'testadmin')
-    await page.fill('input[type="password"]', 'testpass123')
+    await page.fill('#auth-username', 'testadmin')
+    await page.fill('#auth-password', 'testpass123')
+
+    await page.click('button[type="submit"]')
+    await expect(page.locator('.alert-error')).toContainText('Enter the setup token')
+
+    await page.fill('#setup-token', 'not-the-token')
+    await page.click('button[type="submit"]')
+    await expect(page.locator('.alert-error')).toContainText('setup token is not right')
+    // Still the setup form: no account was made.
+    await expect(page.locator('text=Create your admin account')).toBeVisible()
+  })
+
+  test('the printed setup link fills the token in and setup reaches the dashboard', async ({
+    page,
+  }) => {
+    await page.goto(`${ADMIN_URL}/?${SETUP_TOKEN_PARAM}=${E2E_SETUP_TOKEN}`)
+    await page.waitForSelector('text=Create your admin account')
+    await expect(page.locator('#setup-token')).toHaveValue(E2E_SETUP_TOKEN)
+    // The token is taken out of the address bar once read.
+    expect(new URL(page.url()).searchParams.has(SETUP_TOKEN_PARAM)).toBe(false)
+    await page.fill('#auth-username', 'testadmin')
+    await page.fill('#auth-password', 'testpass123')
     await page.click('button[type="submit"]')
     // Should transition to dashboard with sidebar
     await expect(page.locator('.admin-sidebar')).toBeVisible({ timeout: 10_000 })

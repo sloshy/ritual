@@ -83,14 +83,25 @@ The standalone [`ritual mcp`](/commands/mcp/) command is still the way to run MC
 
 ## First-Time Setup
 
-Open the displayed URL in your browser. You are prompted to create an admin account:
+While no admin account exists, `ritual admin` prints a setup link when it starts:
+
+```
+No admin account yet. Create it at:
+  http://localhost:8080/?setupToken=Qm9yb3NDaGFybUJvbHQxMjM0
+(or run `ritual admin setup` in this workspace)
+```
+
+Open that link to create the account:
 
 - **Username**: any username
 - **Password**: 8–128 characters
+- **Setup token**: filled in from the link. If you open the plain URL instead, paste the token from the terminal.
 
-Credentials are hashed with bcrypt and stored in `.logins/admin-auth.json`. Later visits sign in with these credentials via HTTP Basic Auth.
+The account can only be created with that token. Because the admin binds every interface (`0.0.0.0`) by default, anyone on your network can reach a fresh server, and without the token the first person to open it would own it. The token is printed only to the terminal that started the server (in Docker, to `docker logs`). A new one is drawn on every start, and once an account exists the setup form is gone. To pin the token, for example to create the account from a provisioning script, set `RITUAL_ADMIN_SETUP_TOKEN`.
 
-You can also create the account ahead of time from the terminal with `ritual admin setup`. See [Account Recovery](#account-recovery).
+Credentials are hashed with bcrypt and stored in `.logins/admin-auth.json`. Later visits sign in with these credentials and get a session cookie.
+
+You can also create the account ahead of time from the terminal with `ritual admin setup`, which needs no token. See [Account Recovery](#account-recovery).
 
 ## Account Recovery
 
@@ -158,7 +169,7 @@ This clears **both** an active TOTP secret and a stuck `pending:` enrollment, su
 2. Restart the admin server.
 3. Sign in with username + password, then re-enroll TOTP from Settings → Two-Factor Authentication if desired.
 
-**Lost everything**: delete `.logins/admin-auth.json` and run `ritual admin setup` (or open the browser for first-time setup) to start fresh.
+**Lost everything**: delete `.logins/admin-auth.json` and run `ritual admin setup` (or restart `ritual admin` and open the setup link it prints) to start fresh.
 
 :::caution
 Browser sessions are held **in memory inside the running admin server**. Changing credentials on disk does not invalidate them. After any credential recovery, **restart the admin server** so stale sessions are dropped and logins are checked against the new credentials.

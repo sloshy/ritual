@@ -610,8 +610,12 @@ ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN"
 ritual admin --mcp --mcp-token "$RITUAL_MCP_TOKEN" --mcp-port 9100
 \`\`\`
 
+**First run:** while no account exists, \`ritual admin\` prints a setup link
+carrying a one-time token; the browser setup form refuses to create the account
+without it (\`RITUAL_ADMIN_SETUP_TOKEN\` pins the token for scripted setup).
+
 **Account setup and recovery** (headless — no server started): \`ritual admin setup\`
-creates the admin account ahead of the first browser visit (\`--username\` is
+creates the admin account ahead of the first browser visit, no token needed (\`--username\` is
 required, even on a terminal), \`ritual admin reset-password\` resets a lost
 password (\`--username <name>\` also replaces the username; the TOTP enrollment is
 preserved), and \`ritual admin disable-totp\` clears TOTP two-factor auth when the

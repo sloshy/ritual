@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process'
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import type { RitualConfig } from '../config/ritual-config'
 import { getBaseDir } from '../config/base-dir'
@@ -8,7 +8,7 @@ export function isGitRepo(dir: string): boolean {
     // GIT_DIR and GIT_WORK_TREE must be cleared so the check is relative to
     // `dir` and not inherited from an ambient git environment (e.g. a commit hook).
     const { GIT_DIR: _gitDir, GIT_WORK_TREE: _gitWorkTree, ...env } = process.env
-    execSync('git rev-parse --is-inside-work-tree', {
+    execFileSync('git', ['rev-parse', '--is-inside-work-tree'], {
       cwd: dir,
       stdio: ['pipe', 'pipe', 'pipe'],
       encoding: 'utf8',
@@ -20,18 +20,28 @@ export function isGitRepo(dir: string): boolean {
   }
 }
 
+/**
+ * Stage `files` and commit them with `message`.
+ *
+ * Every git call passes its arguments as an argv array, never through a shell:
+ * the message carries user-chosen list names (`Create deck: <name>`), and a
+ * shell would expand `$(...)` or backticks in them.
+ */
 export function commitFiles(files: string[], message: string, cwd?: string): void {
   const workDir = cwd ?? getBaseDir()
   const relativePaths = files.map((f) => path.relative(workDir, f))
 
-  for (const file of relativePaths) {
-    execSync(`git add ${JSON.stringify(file)}`, {
+  if (relativePaths.length > 0) {
+    // `--` ends option parsing, so a path that starts with `-` is still a path.
+    execFileSync('git', ['add', '--', ...relativePaths], {
       cwd: workDir,
       stdio: ['pipe', 'pipe', 'pipe'],
     })
   }
 
-  execSync(`git commit -m ${JSON.stringify(message)}`, {
+  // The pathspec keeps the commit to these files: anything else the user had
+  // staged stays staged rather than riding along in an admin auto-commit.
+  execFileSync('git', ['commit', '-m', message, '--', ...relativePaths], {
     cwd: workDir,
     stdio: ['pipe', 'pipe', 'pipe'],
   })
@@ -39,7 +49,7 @@ export function commitFiles(files: string[], message: string, cwd?: string): voi
 
 export function pushChanges(cwd?: string): void {
   const workDir = cwd ?? getBaseDir()
-  execSync('git push', {
+  execFileSync('git', ['push'], {
     cwd: workDir,
     stdio: ['pipe', 'pipe', 'pipe'],
   })

@@ -3,6 +3,7 @@ import path from 'node:path'
 import fs from 'node:fs/promises'
 import prompts from 'prompts'
 import { startAdminServer } from '../admin/server'
+import { setupUrl } from '../admin/setup-token'
 import {
   adminUserExists,
   createAdminUser,
@@ -229,6 +230,12 @@ export function registerAdminCommand(program: Command): void {
       console.log(t('cli.admin.ready'))
 
       const adminServer = await startAdminServer({ port, host, distDir: adminDistDir })
+
+      // A fresh workspace answers setup only to the holder of this token, which
+      // is printed here and nowhere else; see `src/admin/setup-token.ts`.
+      if (!(await adminUserExists())) {
+        console.log(t('cli.admin.setupRequired', { url: setupUrl(host, adminServer.port) }))
+      }
 
       // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
       const mcpServer = embeddedMcp

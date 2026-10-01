@@ -1,8 +1,9 @@
 import type { Component } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
 import { FlameIcon } from '../../../site/FlameIcon'
-import { useT } from '../../../ui/i18n'
-import { MIN_PASSWORD_LENGTH } from '../../validation'
+import { useT, useTDynamic } from '../../../ui/i18n'
+import { renderApiMessage, type ApiResult } from '../../../api/result'
+import { MIN_PASSWORD_LENGTH, SETUP_TOKEN_PARAM } from '../../validation'
 
 interface AuthGuardSetupProps {
   onSetupComplete: () => void
@@ -22,13 +23,31 @@ type AuthGuardProps = AuthGuardSetupProps | AuthGuardLoginProps
 
 type LoginErrorResponse = { totpRequired?: boolean; message?: string }
 type RateLimitResponse = { retryAfterSeconds?: number }
-type SetupResponse = { success: boolean; message: string }
+/**
+ * The setup token from the link `ritual admin` printed, removed from the address
+ * bar once read so it does not linger in history or get shared with a
+ * screenshot of the URL.
+ */
+function takeSetupTokenFromUrl(): string {
+  const url = new URL(window.location.href)
+  const token = url.searchParams.get(SETUP_TOKEN_PARAM) ?? ''
+  if (token) {
+    url.searchParams.delete(SETUP_TOKEN_PARAM)
+    window.history.replaceState(window.history.state, '', url.toString())
+  }
+  return token
+}
 
 export const AuthGuard: Component<AuthGuardProps> = (props) => {
   const t = useT()
+  const tDynamic = useTDynamic()
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [totpCode, setTotpCode] = createSignal('')
+  // Taken in either mode, so the link opened after an account exists does not
+  // leave the (now useless) token sitting in the address bar either.
+  const urlSetupToken = takeSetupTokenFromUrl()
+  const [setupToken, setSetupToken] = createSignal(props.isLogin ? '' : urlSetupToken)
   const [showTotp, setShowTotp] = createSignal(props.totpEnabled === true)
   const [error, setError] = createSignal<string | null>(null)
   const [loading, setLoading] = createSignal(false)
@@ -39,6 +58,11 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
 
     if (!username() || !password()) {
       setError(t('admin.auth.credentialsRequired'))
+      return
+    }
+
+    if (!props.isLogin && !setupToken().trim()) {
+      setError(t('admin.auth.setupTokenRequired'))
       return
     }
 
@@ -94,10 +118,16 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
         const resp = await fetch('/api/setup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: username(), password: password() }),
+          body: JSON.stringify({
+            username: username(),
+            password: password(),
+            setupToken: setupToken().trim(),
+          }),
           credentials: 'same-origin',
         })
-        const data = (await resp.json()) as SetupResponse
+        // Keyed by the server (a wrong token), so it renders in the UI locale.
+        // A 403 from the IP/User-Agent lists is plain text and lands in `catch`.
+        const data = (await resp.json()) as ApiResult
         if (data.success) {
           // After setup, log in to create a session
           const loginResp = await fetch('/api/login', {
@@ -112,7 +142,7 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
             setError(t('admin.auth.setupLoginFailed'))
           }
         } else {
-          setError(data.message)
+          setError(renderApiMessage(tDynamic, data))
         }
       }
     } catch {
@@ -133,32 +163,73 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           {props.isLogin ? t('admin.auth.signInSubtitle') : t('admin.auth.createSubtitle')}
         </p>
         <Show when={error()}>
-          <div class="alert alert-error">{error()}</div>
+          <div class="alert alert-error" role="alert">
+            {error()}
+          </div>
         </Show>
         <form onSubmit={(e) => void handleSubmit(e)}>
           <div class="form-group">
-            <label class="form-label">{t('admin.auth.username')}</label>
+            <label class="form-label" for="auth-username">
+              {t('admin.auth.username')}
+            </label>
             <input
+              id="auth-username"
               type="text"
               class="form-input"
               value={username()}
               onInput={(e) => setUsername(e.currentTarget.value)}
+              autocomplete="username"
               autofocus
             />
           </div>
           <div class="form-group">
-            <label class="form-label">{t('admin.auth.password')}</label>
+            <label class="form-label" for="auth-password">
+              {t('admin.auth.password')}
+            </label>
             <input
+              id="auth-password"
               type="password"
               class="form-input"
               value={password()}
               onInput={(e) => setPassword(e.currentTarget.value)}
+              autocomplete={props.isLogin ? 'current-password' : 'new-password'}
+              aria-describedby={props.isLogin ? undefined : 'auth-password-hint'}
             />
+            <Show when={!props.isLogin}>
+              <p id="auth-password-hint" class="form-hint auth-hint">
+                {t('admin.auth.passwordHint', { count: MIN_PASSWORD_LENGTH })}
+              </p>
+            </Show>
           </div>
+          <Show when={!props.isLogin}>
+            <div class="form-group">
+              <label class="form-label" for="setup-token">
+                {t('admin.auth.setupToken')}
+              </label>
+              <input
+                id="setup-token"
+                type="text"
+                class="form-input"
+                value={setupToken()}
+                onInput={(e) => setSetupToken(e.currentTarget.value)}
+                aria-describedby="setup-token-hint"
+                autocomplete="off"
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck={false}
+              />
+              <p id="setup-token-hint" class="form-hint">
+                {t('admin.auth.setupTokenHint')}
+              </p>
+            </div>
+          </Show>
           <Show when={showTotp()}>
             <div class="form-group">
-              <label class="form-label">{t('admin.auth.totpCode')}</label>
+              <label class="form-label" for="auth-totp">
+                {t('admin.auth.totpCode')}
+              </label>
               <input
+                id="auth-totp"
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
@@ -170,11 +241,6 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
                 autocomplete="one-time-code"
               />
             </div>
-          </Show>
-          <Show when={!props.isLogin}>
-            <p class="form-hint auth-hint">
-              {t('admin.auth.passwordHint', { count: MIN_PASSWORD_LENGTH })}
-            </p>
           </Show>
           <button type="submit" class="btn btn-primary btn-full" disabled={loading()}>
             {loading()
