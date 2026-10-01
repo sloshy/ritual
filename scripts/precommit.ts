@@ -32,7 +32,12 @@
  * incremental (`"incremental": true` in tsconfig, dependency-graph aware so it
  * is safe everywhere), and lint uses `--concurrency auto` (multithreaded) plus
  * `--cache` in the local-loop modes.
+ *
+ * Stall guard: a check with `stallTimeoutMs` runs in its own process group; a
+ * run that outlives the limit has the whole group killed and is retried once.
  */
+
+import type { Subprocess } from 'bun'
 
 type Mode = 'staged' | 'full' | 'test'
 
@@ -43,6 +48,9 @@ type Check = {
   needsBuild: boolean
   // Extra environment for the child, merged over this process's own.
   env?: Record<string, string>
+  // A run still going after this long is stalled: its whole process group is
+  // killed and the check retried once.
+  stallTimeoutMs?: number
 }
 
 type CheckResult = {
@@ -50,7 +58,17 @@ type CheckResult = {
   ok: boolean
   durationMs: number
   output: string
+  // Shown beside the check's summary line (e.g. that a stalled run was retried).
+  note?: string
 }
+
+/** A run of a check's command that ended on its own. */
+type ExitedAttempt = { kind: 'exited'; exitCode: number; output: string }
+
+/** A run killed for outliving its check's `stallTimeoutMs`. */
+type StalledAttempt = { kind: 'stalled'; limitMs: number; output: string }
+
+type Attempt = ExitedAttempt | StalledAttempt
 
 type Plan = {
   runBuild: boolean
@@ -96,6 +114,11 @@ const UNIT_TEST_CHECK: Check = {
   cmd: ['bun', 'test', 'test/unit', '--parallel'],
   needsBuild: false,
   env: { RITUAL_I18N_STRICT: '1' },
+  // The suite takes well under 15s. Bun 1.4.2's `spawnSync` can spin a
+  // `--parallel` worker forever (see `test/preload.ts`), and a spinning worker
+  // never trips the per-test timeout — so a hang would otherwise stall the
+  // commit (or the agent session running it) indefinitely.
+  stallTimeoutMs: 60_000,
 }
 
 async function getStagedFiles(): Promise<string[]> {
@@ -185,25 +208,91 @@ async function planChecks(mode: Mode): Promise<Plan> {
   }
 }
 
-async function runCheck(check: Check): Promise<CheckResult> {
-  const start = performance.now()
+/**
+ * Stall-guarded checks still running. Each runs detached (its own session), so
+ * a terminal Ctrl-C or hangup no longer reaches it on its own — the signal
+ * handlers below forward the kill. A SIGKILL of this script cannot be
+ * forwarded: a guarded check outlives it, and so would a hung worker.
+ */
+const runningGuarded = new Set<Subprocess>()
+
+/** SIGKILL a guarded check's whole process group, falling back to the child alone. */
+function killGroup(proc: Subprocess): void {
+  try {
+    process.kill(-proc.pid, 'SIGKILL')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ESRCH') return // group already gone
+    proc.kill('SIGKILL')
+  }
+}
+
+for (const [signal, code] of [
+  ['SIGHUP', 129],
+  ['SIGINT', 130],
+  ['SIGTERM', 143],
+] as const) {
+  process.on(signal, () => {
+    for (const proc of runningGuarded) killGroup(proc)
+    process.exit(code)
+  })
+}
+
+async function runAttempt(check: Check): Promise<Attempt> {
+  const limitMs = check.stallTimeoutMs
   const proc = Bun.spawn(check.cmd, {
     stdout: 'pipe',
     stderr: 'pipe',
     // Bun.spawn replaces the environment wholesale when `env` is given, so the
     // parent's own variables are spread back in first.
     env: check.env === undefined ? undefined : { ...process.env, ...check.env },
+    // A stall kill must reach the whole tree: `bun test` workers outlive a
+    // killed coordinator, so the check gets its own process group to kill.
+    detached: limitMs !== undefined,
   })
-  const [stdout, stderr, exitCode] = await Promise.all([
-    new Response(proc.stdout).text(),
-    new Response(proc.stderr).text(),
-    proc.exited,
-  ])
+  let stalled = false
+  const timer =
+    limitMs === undefined
+      ? undefined
+      : setTimeout(() => {
+          stalled = true
+          killGroup(proc)
+        }, limitMs)
+  if (limitMs !== undefined) runningGuarded.add(proc)
+  try {
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
+    const output = stdout + stderr
+    return stalled && limitMs !== undefined
+      ? { kind: 'stalled', limitMs, output }
+      : { kind: 'exited', exitCode, output }
+  } finally {
+    clearTimeout(timer)
+    runningGuarded.delete(proc)
+  }
+}
+
+/** The last few lines of a stalled run — which test files were still in flight. */
+function stallTail(attempt: StalledAttempt): string {
+  const tail = attempt.output.trimEnd().split('\n').slice(-5).join('\n  ')
+  return `(first run stalled past ${formatSeconds(attempt.limitMs)}; retried. Its last output:\n  ${tail})`
+}
+
+async function runCheck(check: Check): Promise<CheckResult> {
+  const start = performance.now()
+  const first = await runAttempt(check)
+  const attempt = first.kind === 'stalled' ? await runAttempt(check) : first
   return {
     name: check.name,
-    ok: exitCode === 0,
+    ok: attempt.kind === 'exited' && attempt.exitCode === 0,
     durationMs: performance.now() - start,
-    output: stdout + stderr,
+    output:
+      attempt.kind === 'stalled'
+        ? `Stalled past ${formatSeconds(attempt.limitMs)} twice; killed both runs. Output of the second:\n${attempt.output}`
+        : attempt.output,
+    note: first.kind === 'stalled' ? stallTail(first) : undefined,
   }
 }
 
@@ -213,7 +302,8 @@ function formatSeconds(ms: number): string {
 
 function printResult(result: CheckResult): void {
   const mark = result.ok ? '✓' : '✗'
-  console.log(`${mark} ${result.name.padEnd(12)} ${formatSeconds(result.durationMs)}`)
+  const note = result.note === undefined ? '' : ` ${result.note}`
+  console.log(`${mark} ${result.name.padEnd(12)} ${formatSeconds(result.durationMs)}${note}`)
 }
 
 async function main(): Promise<void> {

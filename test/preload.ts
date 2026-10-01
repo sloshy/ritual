@@ -20,6 +20,23 @@ import { registerCliMessages } from '../src/i18n/register/cli'
 process.env.RITUAL_ARCHIDEKT_MIN_INTERVAL_MS = '0'
 
 /**
+ * Pin the from-source version (`src/config/version.ts`) so no suite spawns
+ * `git describe`. Under `--parallel`, workers run with `--isolate`, which
+ * re-evaluates that module for every test file that reaches it (nearly all of
+ * them, via `src/util/http.ts`): a couple of hundred `execSync` calls per run.
+ *
+ * Bun 1.4.2's `spawnSync` occasionally loses the child's exit there: the
+ * isolated spawn-sync loop's `num_polls` drops to 0 while the child's pidfd is
+ * still registered, so `us_loop_run_bun_tick` returns without polling and the
+ * wait loop spins at 100% CPU forever (no syscalls, a zombie `sh` child, and
+ * per-test timeouts can't fire). That was the intermittent `bun run test` hang.
+ * Avoid synchronous child processes in code that unit tests reach — including
+ * this file's own imports, which evaluate before this assignment. CLIs spawned
+ * from source inherit it (compiled builds ignore it: `GIT_VERSION` wins).
+ */
+process.env.RITUAL_DEV_VERSION_REF = 'test'
+
+/**
  * Point the per-user state file (`src/util/user-state.ts`) at a throwaway
  * directory, so no suite reads or writes the real one under the home
  * directory. Spawned CLIs inherit it; suites that test the file itself set

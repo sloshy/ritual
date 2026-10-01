@@ -33,6 +33,14 @@ function resolveVersion(): string {
   if (typeof GIT_VERSION !== 'undefined') {
     return normalizeVersion(GIT_VERSION)
   }
+  // A from-source run may name its `git describe` ref instead of spawning git
+  // for it. `test/preload.ts` sets this: every isolated test file re-evaluates
+  // this module, and Bun 1.4.2's `spawnSync` can spin forever inside a
+  // `bun test --parallel` worker (see the preload for the evidence).
+  const devRef = process.env.RITUAL_DEV_VERSION_REF?.trim()
+  if (devRef) {
+    return normalizeVersion(devRef)
+  }
   try {
     const ref = execSync('git describe --tags --always', {
       encoding: 'utf8',
