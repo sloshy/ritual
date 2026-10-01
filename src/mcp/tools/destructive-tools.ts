@@ -227,7 +227,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
         'flag overrides (get_config reports these under overrides) persists the value but does ' +
         'not change what this running server operates with — e.g. under --sell-mode, sell mode ' +
-        'stays on whatever site.sellMode you store.',
+        'stays on whatever site.sellMode you store. The "managed" block is Ritual bookkeeping: ' +
+        'accepted so a full config read by get_config can be sent back, but ignored — ' +
+        'workspace migration is the `ritual migrate` CLI command, not an MCP tool.',
       inputSchema: z.object({
         config: z.record(z.string(), z.unknown()).describe('Partial RitualConfig object to merge.'),
       }),

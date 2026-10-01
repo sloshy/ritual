@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { normalizeVersion } from '../../src/config/version'
+import { isReleaseVersion, normalizeVersion } from '../../src/config/version'
 
 describe('normalizeVersion', () => {
   describe('exact tags', () => {
@@ -38,5 +38,21 @@ describe('normalizeVersion', () => {
     test('bare hash gets 0.0.0-dev prefix', () => {
       expect(normalizeVersion('abc1234')).toBe('0.0.0-dev.abc1234')
     })
+  })
+})
+
+describe('isReleaseVersion', () => {
+  test('a release-workflow build exactly at a tag is a release', () => {
+    expect(isReleaseVersion(true, '1.2.3')).toBeTrue()
+    expect(isReleaseVersion(true, '1.2.3-rc2')).toBeTrue()
+  })
+
+  test.each([
+    ['not a release-workflow build', false, '1.2.3'],
+    ['commits past a tag', true, '1.2.3-dev.abcdef'],
+    ['an untagged fallback', true, '0.0.0-dev.abcdef'],
+    ['an unknown version', true, '0.0.0-unknown'],
+  ] as const)('%s is not a release', (_label, compiled, normalized) => {
+    expect(isReleaseVersion(compiled, normalized)).toBeFalse()
   })
 })

@@ -139,7 +139,6 @@ export const helpInfraMeta = {
   // ── init-site ─────────────────────────────────────────────────────────
   'help.initSite.description': { description: 'Summary of the `init-site` command.' },
   'help.initSite.force': { description: '`init-site --force`.' },
-  'help.initSite.upgrade': { description: '`init-site --upgrade`.' },
   'help.initSite.ci': {
     description: "`init-site --ci`. 'github-actions'/'manual' are literal flag values.",
   },
@@ -158,6 +157,12 @@ export const helpInfraMeta = {
   'help.initSite.noOverwriteReadme': { description: '`init-site --no-overwrite-readme`.' },
   'help.initSite.skills': { description: '`init-site --skills`.' },
   'help.initSite.noSkills': { description: '`init-site --no-skills`.' },
+
+  // ── migrate ───────────────────────────────────────────────────────────
+  'help.migrate.description': { description: 'Summary of the `migrate` command.' },
+  'help.migrate.yes': { description: '`migrate --yes`.' },
+  'help.migrate.dryRun': { description: '`migrate --dry-run`.' },
+  'help.migrate.check': { description: '`migrate --check`: the exit codes are literal.' },
 
   // ── admin ─────────────────────────────────────────────────────────────
   'help.admin.description': { description: 'Summary of the `admin` command.' },

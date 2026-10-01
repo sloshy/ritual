@@ -4,7 +4,7 @@ import { moxfieldUserAgentNote, REFRESH_COMMANDS, wrapProse } from './shared'
 export const siteSkill: RitualSkill = {
   name: 'ritual-site',
   description:
-    'Build, serve, and administer the Ritual website, wire up the CI publishing pipeline, and run the MCP server. Use when the user wants to generate the static site, preview it locally, set up publishing or CI (cache keys, changelog change detection for hand edits), verify or stamp list-file .sha256 sidecars to see which lists were hand-edited since Ritual last wrote them, open the web admin for editing lists, or expose Ritual to AI agents over MCP.',
+    'Build, serve, and administer the Ritual website, wire up the CI publishing pipeline, and run the MCP server. Use when the user wants to generate the static site, preview it locally, set up publishing or CI (cache keys, changelog change detection for hand edits), verify or stamp list-file .sha256 sidecars to see which lists were hand-edited since Ritual last wrote them, open the web admin for editing lists, expose Ritual to AI agents over MCP, or bring a workspace up to date after upgrading Ritual (ritual migrate).',
   body: `# Building and serving a Ritual site
 
 Ritual publishes your decks, collections, and wanted lists as a static website, and
@@ -15,7 +15,6 @@ offers a web admin for editing and an MCP server for AI agents.
 \`\`\`bash
 ritual init-site                 # scaffold the CI workflow + gitignore for publishing
 ritual init-site --force         # regenerate all managed files
-ritual init-site --upgrade       # upgrade tracked workflows + .gitignore to this version
 \`\`\`
 
 Run bare in a terminal, \`init-site\` walks through its choices interactively. When
@@ -40,12 +39,36 @@ price store; it is added to \`priceSources\` when missing), and \`--skills\`/\`-
 skills). Flags that do not apply to the chosen CI system or deploy mode are usage
 errors — including either form of \`--change-detection\` or \`--prerelease\` outside
 \`--deploy publish-for-me\`. An existing \`README.md\` additionally needs
-\`--overwrite-readme\`, \`--no-overwrite-readme\`, or \`--force\`; a pending version
-upgrade needs \`--upgrade\`.
+\`--overwrite-readme\`, \`--no-overwrite-readme\`, or \`--force\`.
 
-Re-running \`init-site\` on a repository already initialized with the current
-version is a no-op that exits **0** (\`Already initialized ...; nothing to do.\`),
-so it is safe in an idempotent setup script.
+Re-running \`init-site\` on an initialized repository never changes it and exits
+**0**: it prints \`Already initialized and up to date; nothing to do.\`, or, when a
+newer Ritual has updates for the workspace, tells you to run \`ritual migrate\` —
+so it is safe in an idempotent setup script. The exception: a workspace a newer
+Ritual already updated (or whose config cannot be made valid) is refused with
+exit **1**, exactly as \`ritual migrate\` refuses it.
+
+## Bringing a workspace up to date (\`ritual migrate\`)
+
+After Ritual is upgraded, a workspace may need one-time migrations (config keys
+renamed or removed, files moved) and a refresh of the files Ritual generates (the
+deploy workflow, \`.gitignore\` entries, and every installed Ritual agent skill,
+which is overwritten). \`ritual migrate\` does both:
+
+\`\`\`bash
+ritual migrate --check     # exit 4 when updates are pending, 0 when current; writes nothing
+ritual migrate --dry-run   # print the plan; writes nothing, exits 0
+ritual migrate --yes       # apply without the confirmation prompt
+\`\`\`
+
+Always run \`--check\` or \`--dry-run\` first and show the user the plan.
+**Always ask before applying** — migrate rewrites \`ritual.config.json\` and
+generated files.
+Headless (\`--no-input\` or no terminal), applying needs \`--yes\`; without it the
+run is a usage error (exit 2). A workspace migrated by a newer Ritual than the one
+running is refused (exit 1) with the release to install. Ritual records its
+bookkeeping in the \`managed\` block of \`ritual.config.json\` (\`version\`,
+\`migration\`, \`output\`); never edit it, and \`config set\` refuses to.
 
 With \`--deploy local-build\` the built site is **committed**, so the generated
 \`.gitignore\` does not ignore it (it appends \`!<distDir>/\`) and every generated

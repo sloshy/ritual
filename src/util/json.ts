@@ -10,6 +10,12 @@
  * read. Arrays and `null` are objects to `typeof` but not to any caller of this,
  * so both are excluded.
  */
+/** Any value JSON can represent. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | JsonObject
+
+/** A JSON object. */
+export type JsonObject = { [key: string]: JsonValue }
+
 /** Narrows `unknown` to `string[]` — `Array.isArray` alone only yields `any[]`. */
 export function isStringArray(value: unknown): value is string[] {
   return Array.isArray(value) && value.every((item) => typeof item === 'string')

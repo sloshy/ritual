@@ -69,6 +69,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     admin: true,
     collectionSync: true,
     site: true,
+    managed: true,
     exportPresets: true,
   } satisfies KnownConfigKeyMap),
 )
@@ -261,6 +262,11 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       }
       updates.exportPresets = parsed
     }
+
+    // `managed` is Ritual's own bookkeeping (written only by `init-site` and
+    // `migrate`). It is accepted so a client can round-trip the whole config
+    // it read, but never taken from the body: the stored block always wins.
+    delete updates.managed
 
     const current = await loadRitualConfig()
     // `admin` is nested, so a partial update must merge into it rather than

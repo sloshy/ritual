@@ -93,7 +93,7 @@ The nested `site` keys, the [public-site publish lists](/commands/build-site/#ch
 - `site.apiBaseUrl`: points a statically deployed site at a separately hosted [`serve --api`](/commands/serve/#live-api-mode---api) backend. An `http(s)` URL (stored without a trailing slash), or the empty string for a same-origin reverse proxy. See [Hosting with a live backend](/public-site/hosted/).
 - `site.sellMode`: whether the sites, admin included, offer [sell mode](/public-site/sell/). Off by default because it makes every build and cache refresh download Card Kingdom's ~70 MB buylist. `--sell-mode` on [`build-site`](/commands/build-site/#sell-mode---sell-mode), [`serve`](/commands/serve/), [`admin`](/commands/admin/), or [`mcp`](/commands/mcp/#sell-tools-need-sell-mode) opts in for one run without a config write; `config get site.sellMode` still reports the stored value, and exits `3` (`not_found`) when the key was never set. The admin [Settings](/admin/dashboard/#settings) page's **Offer sell mode** checkbox writes this key; unticking it is a `config unset site.sellMode`, not a stored `false`. See [Offering sell mode](/configuration/#offering-sell-mode-sellmode).
 
-The rest of the `site` key (the deployment settings) belongs to `ritual init-site` and cannot be set or unset here. `exportPresets` belongs to [`ritual export --save-preset`](/commands/export/); `config get exportPresets` reads it, but it cannot be written here.
+The rest of the `site` key (the deployment settings) belongs to `ritual init-site` and cannot be set or unset here. Neither can the [`managed` key](/configuration/#ritual-bookkeeping-managed-key), which `init-site` and [`migrate`](/commands/migrate/) maintain. `exportPresets` belongs to [`ritual export --save-preset`](/commands/export/); `config get exportPresets` reads it, but it cannot be written here.
 
 ## config set
 
@@ -194,12 +194,12 @@ ritual config unset site.includeDecks    # back to ["*"] (publish everything)
 
 ## Exit Codes
 
-| Code | Meaning                                                                                         |
-| ---- | ----------------------------------------------------------------------------------------------- |
-| `0`  | Success (including idempotent `unset` of an already-default key)                                |
-| `1`  | Runtime error (including a `ritual.config.json` that is not valid JSON)                         |
-| `2`  | Usage error (unknown property, invalid value, `--add`/`--remove` misuse, init-site-managed key) |
-| `3`  | Not found (`get` on an optional key that is not set)                                            |
+| Code | Meaning                                                                                                      |
+| ---- | ------------------------------------------------------------------------------------------------------------ |
+| `0`  | Success (including idempotent `unset` of an already-default key)                                             |
+| `1`  | Runtime error (including a `ritual.config.json` that is not valid JSON)                                      |
+| `2`  | Usage error (unknown property, invalid value, `--add`/`--remove` misuse, init-site-managed or `managed` key) |
+| `3`  | Not found (`get` on an optional key that is not set)                                                         |
 
 ## Notes
 

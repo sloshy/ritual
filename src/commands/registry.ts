@@ -40,6 +40,7 @@ import { registerMoveCommand } from './move'
 import { registerHistoryCommand } from './history'
 import { registerExportCommand } from './export'
 import { registerCleanupCommand } from './cleanup'
+import { registerMigrateCommand } from './migrate'
 import { registerConfigCommand } from './config'
 import { registerMetadataCommand } from './metadata'
 import { registerCategoriesCommand } from './categories'
@@ -116,6 +117,7 @@ export const COMMAND_GROUPS = [
     titleKey: 'help.group.utilities',
     commands: [
       registerCleanupCommand,
+      registerMigrateCommand,
       registerDetectChangesCommand,
       registerListAllCardsCommand,
       registerConfigCommand,

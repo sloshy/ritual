@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleGetConfig, handleUpdateConfig } from '../../src/admin/api/config'
 import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
-import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
 
 /**
  * The subset of the effective config these tests read back. Deliberately
@@ -20,6 +20,7 @@ type ConfigView = {
   exportPresets?: Record<string, { format?: string }>
   admin?: { gitEnabled?: boolean; rateLimitEnabled?: boolean; rateLimitMaxAttempts?: number }
   collectionSync?: { pullTarget?: string }
+  managed?: { migration?: number; output?: string }
 }
 
 type AcceptedConfigUpdate = {
@@ -66,6 +67,18 @@ describe('PUT /api/config', () => {
   })
   afterEach(async () => {
     await workspace.dispose()
+  })
+
+  test('accepts a round-tripped managed block but never takes it from the body', async () => {
+    await writeConfig(workspace.dir, { managed: { migration: 1, output: 'sha256:a' } })
+
+    // The Settings page PUTs back the whole config it read, managed included.
+    const response = await putConfig({ managed: { migration: 99 }, searchDebounceMs: 250 })
+
+    expect(response.ok).toBe(true)
+    const config = await readConfig()
+    expect(config.searchDebounceMs).toBe(250)
+    expect(config.managed).toEqual({ migration: 1, output: 'sha256:a' })
   })
 
   test('accepts valid values and returns them normalized', async () => {

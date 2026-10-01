@@ -141,7 +141,6 @@ export const helpInfraMessages = {
   'help.initSite.description': 'Initialize the current directory for publishing a Ritual site',
   'help.initSite.force':
     'Re-initialize and overwrite all generated files, ignoring the existing site config',
-  'help.initSite.upgrade': 'Upgrade tracked workflows to the current version without prompting',
   'help.initSite.ci': "CI system for a fresh init: 'github-actions' or 'manual'",
   'help.initSite.deploy':
     "Deploy mode for a fresh init: 'publish-for-me' or 'local-build' (github-actions only)",
@@ -159,6 +158,13 @@ export const helpInfraMessages = {
   'help.initSite.noOverwriteReadme': 'Keep an existing README.md as-is (no prompt)',
   'help.initSite.skills': 'Install Ritual agent skills into .claude/skills without prompting',
   'help.initSite.noSkills': 'Skip installing Ritual agent skills (no prompt)',
+
+  // ── migrate ───────────────────────────────────────────────────────────
+  'help.migrate.description':
+    'Bring this workspace up to date: apply pending migrations and refresh generated files',
+  'help.migrate.yes': 'Apply without asking for confirmation',
+  'help.migrate.dryRun': 'Print what would change and write nothing',
+  'help.migrate.check': 'Write nothing; exit 4 when updates are pending, 0 when up to date',
 
   // ── admin ─────────────────────────────────────────────────────────────
   'help.admin.description': 'Start the web admin interface',

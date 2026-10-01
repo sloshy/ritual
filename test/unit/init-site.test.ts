@@ -4,17 +4,18 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   defaultPriceSourceChoices,
+  generateReadme,
+  buildSiteCommand,
+  servePreviewCommand,
+} from '../../src/commands/init-site'
+import {
   generatePublishForMeWorkflow,
   generateLocalBuildWorkflow,
   generateWorkflow,
-  generateReadme,
   generateGitignoreEntries,
   gitignoreEntriesCovering,
-  classifyInitRerun,
-  buildSiteCommand,
-  servePreviewCommand,
   updateGitignore,
-} from '../../src/commands/init-site'
+} from '../../src/migrate/managed-files'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
 type WorkflowStep = {
@@ -435,17 +436,6 @@ describe('command rendering', () => {
   test('any other directory renders the flag that actually writes there', () => {
     expect(buildSiteCommand('out')).toBe('ritual build-site --out-dir out')
     expect(servePreviewCommand('out')).toBe('ritual serve --build --out-dir out')
-  })
-})
-
-describe('classifyInitRerun', () => {
-  test('the same version is a no-op, not an error', () => {
-    expect(classifyInitRerun('1.2.3', '1.2.3')).toBe('current')
-  })
-
-  test('a newer build upgrades and an older one is a downgrade', () => {
-    expect(classifyInitRerun('1.3.0', '1.2.3')).toBe('upgrade')
-    expect(classifyInitRerun('1.2.0', '1.2.3')).toBe('downgrade')
   })
 })
 

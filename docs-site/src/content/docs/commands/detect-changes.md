@@ -313,7 +313,7 @@ Because detection is [hash-aware](#hash-aware-detection), pushes made with Ritua
 
 > **Note:** The generated `.gitignore` excludes the downloaded `/ritual` binary so the workflow's `git add` never tries to commit it. If your workflow predates this entry, add `/ritual` to your `.gitignore`. Otherwise the auto-commit step can fail trying to push the ~100 MB binary.
 
-You can also enable it later by setting `"detectChanges": true` under the `site` key in `ritual.config.json` and re-running `ritual init-site --upgrade`.
+You can also enable it later by setting `"detectChanges": true` under the `site` key in `ritual.config.json` and running [`ritual migrate`](/commands/migrate/). The changed setting changes the workflow Ritual generates, so `migrate` rewrites it.
 
 ## Examples
 

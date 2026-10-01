@@ -45,6 +45,7 @@ jobs:
         run: sh scripts/build.sh
         env:
           GIT_VERSION: ${{ github.event.release.tag_name }}
+          RITUAL_RELEASE: 'true'
           BUILD_TARGET: ${{ matrix.target }}
           BUILD_OUTFILE: ${{ matrix.asset_name }}
 

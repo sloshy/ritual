@@ -123,7 +123,7 @@ export type SkillsWriteSummaryOptions = {
 /**
  * Print the status-count summary shared by every consumer of the skill write
  * engines: the `skills install` and `skills update` actions here, plus
- * init-site's `maybeInstallSkills` and `refreshSkillsOnUpgrade`. The counts
+ * init-site's `maybeInstallSkills`. The counts
  * object is keyed by the full {@link SkillInstallStatus} union, so adding a
  * status without accounting for it here is a compile error rather than a
  * silently dropped summary line.

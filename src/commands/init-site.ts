@@ -1,13 +1,7 @@
 import { Command, InvalidArgumentError } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import type {
-  CISystem,
-  DeployMode,
-  GitHubActionsSiteConfig,
-  InitSiteConfig,
-  SiteDeployConfig,
-} from '../config/ritual-config'
+import type { CISystem, DeployMode, InitSiteConfig, RitualConfig } from '../config/ritual-config'
 import {
   getDefaultPriceSource,
   getSiteDeployConfig,
@@ -23,17 +17,31 @@ import {
   withPriceSource,
   type PriceSource,
 } from '../pricing/price-source'
-import type { ActiveManagedFile, ManagedFile, Migration } from '../list/managed-files'
-import { computeMigrations, isActiveManagedFile } from '../list/managed-files'
-import { compareVersions } from '../config/semver'
+import {
+  committedDistDir,
+  refreshGitignore,
+  renderManagedFiles,
+  type GitignoreRefreshResult,
+} from '../migrate/managed-files'
+import { computeManagedOutput } from '../migrate/managed-output'
+import { latestMigrationId } from '../migrate/migrations'
+import {
+  applyMigration,
+  buildManagedStamp,
+  hasPendingMigrations,
+  hasPendingWork,
+  planMigration,
+  refusalError,
+  RUNNING_BUILD,
+  type MigrationPlan,
+} from '../migrate/runner'
 import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
 import { promptsUnavailable, requireInteractive } from '../util/no-input'
 import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
-import { version as ritualVersion } from '../config/version'
 import { SKILLS } from '../skills/catalog'
-import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../skills/install'
+import { installSkills, resolveSkillsDir } from '../skills/install'
 import { printSkillsWriteSummary } from './skills'
 import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
@@ -41,172 +49,6 @@ import { TEXT_ONLY } from '../cli/output'
 import type { Choice } from 'prompts'
 import { parseEnumFlag, parsePriceSourceFlag } from '../cli/options'
 import { ask } from '../cli/prompts'
-
-/**
- * The `if:` guard stamped on every build/deploy step of the detect-changes
- * variant — when change detection pushes a new commit, that push re-triggers
- * the workflow, so the current run skips the build.
- */
-const DETECT_CHANGES_GUARD = `\n        if: steps.detect-changes.outputs.has-changes != 'true'`
-
-/** `with:` block appended to the checkout step so `detect-changes` can diff history. */
-const FULL_HISTORY_CHECKOUT = `\n        with:\n          fetch-depth: 0`
-
-/** Step inserted between "Download Ritual" and "Generate card manifest" in the detect-changes variant. */
-const DETECT_AND_COMMIT_STEP = `
-      - name: Detect and commit changes
-        id: detect-changes
-        run: |
-          BEFORE="\${{ github.event.before }}"
-          if [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ]; then
-            BEFORE="HEAD~1"
-          fi
-          # A per-file problem (e.g. a list file missing from the tree) exits
-          # nonzero after the other files' changelogs are already written, so
-          # capture the status and still commit — then fail the step at the end.
-          DETECT_STATUS=0
-          ./ritual detect-changes "$BEFORE" || DETECT_STATUS=$?
-          if [ -n "$(git status --porcelain)" ]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            SHORT_SHA=$(git rev-parse --short HEAD)
-            git add -A
-            git commit -m "Generated changes from commit $SHORT_SHA"
-            git push
-            echo "has-changes=true" >> "$GITHUB_OUTPUT"
-          fi
-          exit $DETECT_STATUS
-`
-
-/**
- * The trailing Setup Pages / Upload artifact / Deploy steps shared by every
- * generated workflow. `guard` is an `if:` line prefix stamped on each step
- * (`''` for none).
- */
-function generateDeploySteps(distDir: string, guard: string): string {
-  return `      - name: Setup Pages${guard}
-        uses: actions/configure-pages@v6
-
-      - name: Upload artifact${guard}
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: ${distDir}
-
-      - name: Deploy to GitHub Pages${guard}
-        id: deployment
-        uses: actions/deploy-pages@v5
-`
-}
-
-export function generatePublishForMeWorkflow(config?: GitHubActionsSiteConfig): string {
-  const detectChanges = config?.detectChanges === true
-  const guard = detectChanges ? DETECT_CHANGES_GUARD : ''
-  return `name: Build and Deploy Ritual Site
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: ${detectChanges ? 'write' : 'read'}
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v7${detectChanges ? FULL_HISTORY_CHECKOUT : ''}
-
-      - name: Get Ritual version
-        id: ritual-version
-        run: |
-          VERSION="\${RITUAL_VERSION:-${config?.prerelease === true ? 'prerelease' : 'latest'}}"
-          if [ "$VERSION" = "latest" ]; then
-            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
-              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          elif [ "$VERSION" = "prerelease" ]; then
-            # The unauthenticated releases API omits drafts and lists newest first.
-            VERSION=$(curl -s "https://api.github.com/repos/sloshy/ritual/releases?per_page=1" \\
-              | grep '"tag_name"' | head -1 | cut -d'"' -f4)
-          fi
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-        env:
-          RITUAL_VERSION: \${{ vars.RITUAL_VERSION }}
-
-      - name: Cache Ritual binary
-        id: ritual-cache
-        uses: actions/cache@v5
-        with:
-          path: ritual
-          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
-
-      - name: Download Ritual
-        if: steps.ritual-cache.outputs.cache-hit != 'true'
-        run: |
-          VERSION="\${{ steps.ritual-version.outputs.version }}"
-          curl -L -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
-          chmod +x ritual
-${detectChanges ? DETECT_AND_COMMIT_STEP : ''}
-      - name: Generate card manifest${guard}
-        run: ./ritual list-all-cards --out all-cards.md
-
-      - name: Restore Scryfall cache${guard}
-        uses: actions/cache@v5
-        with:
-          path: cache/
-          key: ritual-cache-\${{ hashFiles('all-cards.md') }}
-          restore-keys: ritual-cache-
-
-      - name: Build site${guard}
-        run: ./ritual build-site --refresh auto
-
-${generateDeploySteps('dist', guard)}`
-}
-
-export function generateLocalBuildWorkflow(distDir: string): string {
-  return `name: Deploy Ritual Site
-
-on:
-  push:
-    branches: [main]
-  workflow_dispatch:
-
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
-
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: \${{ steps.deployment.outputs.page_url }}
-    steps:
-      - uses: actions/checkout@v7
-
-${generateDeploySteps(distDir, '')}`
-}
-
-export function generateWorkflow(config: GitHubActionsSiteConfig): string {
-  if (config.deployMode === 'publish-for-me') {
-    return generatePublishForMeWorkflow(config)
-  }
-  return generateLocalBuildWorkflow(config.distDir)
-}
 
 /**
  * The build command the scaffolding tells the user to run.
@@ -358,85 +200,6 @@ Make sure GitHub Pages is enabled in your repository settings:
 `
 }
 
-/**
- * The built-site directory the scaffolding commits rather than ignores, or null
- * when nothing is committed. Only a local-build deploy publishes a directory the
- * user builds and checks in.
- */
-export function committedDistDir(config?: InitSiteConfig): string | null {
-  if (config === undefined || config.ciSystem !== 'github-actions') return null
-  return config.deployMode === 'local-build' ? config.distDir : null
-}
-
-/**
- * The `.gitignore` entries the scaffolding maintains.
- *
- * A local-build deploy **commits** its built site — the workflow uploads the
- * checked-in directory — so that directory must not be ignored. The default
- * `dist/` line is dropped when it is the committed directory, and an explicit
- * un-ignore is appended so a `dist/` line an earlier init already wrote (this
- * file is only ever appended to) stops covering it.
- *
- * `.dist-build-*`/`.dist-old-*` are the scratch directories every build writes
- * beside its output (see `src/site-build/publish.ts`); an interrupted build leaves one
- * behind for hours. They matter most under a local-build deploy, where `dist/`
- * is deliberately committed and they would otherwise be the one thing a
- * `git add -A` swept in.
- */
-export function generateGitignoreEntries(config?: InitSiteConfig): string {
-  const committed = committedDistDir(config)
-  const generated = [
-    'cache/',
-    'dist/',
-    'exports/',
-    '.admin-dist/',
-    '.logins/',
-    'all-cards.md',
-    '.dist-build-*',
-    '.dist-old-*',
-  ]
-    .filter((entry) => entry !== `${committed}/`)
-    .join('\n')
-  const unignore =
-    committed === null
-      ? ''
-      : `# The built site is committed so the deploy workflow can publish it\n!${committed}/\n`
-  return `# Ritual files
-${generated}
-# Ritual binary downloaded by the deploy workflow
-/ritual
-${unignore}`
-}
-
-/**
- * Existing `.gitignore` lines that would keep the committed built-site directory
- * out of the repository. The appended `!<dir>/` un-ignore handles the plain
- * cases; anything else (a `*`-style pattern, a nested path) is reported so the
- * user can fix it rather than discovering it in a failed deploy.
- *
- * A pattern is tested against a **file inside** the directory as well as against
- * the directory itself, because that is the case the un-ignore cannot undo:
- * `dist/**` and `dist/*` never match the string `dist`, so matching only the
- * bare name stayed silent about exactly the lines that keep every built file
- * ignored and deploy an empty site.
- */
-export function gitignoreEntriesCovering(existing: string, distDir: string): string[] {
-  const direct = new Set([distDir, `${distDir}/`, `/${distDir}`, `/${distDir}/`])
-  // A representative built file. Any name works — the patterns that matter
-  // (`dist/*`, `dist/**`, `di*`) are about the path shape, not the file name.
-  const inside = `${distDir}/index.html`
-  return existing
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith('#') && !line.startsWith('!'))
-    .filter((line) => !direct.has(line))
-    .filter((line) => {
-      const pattern = line.replace(/\/$/, '')
-      const glob = new Bun.Glob(pattern)
-      return glob.match(distDir) || glob.match(inside)
-    })
-}
-
 async function promptOverwrite(filePath: string): Promise<boolean> {
   const relativePath = path.relative(getBaseDir(), filePath)
   const overwrite = await ask<boolean>({
@@ -451,7 +214,6 @@ type ForceOption = { force: boolean }
 
 export type InitSiteCommandOptions = {
   force?: boolean
-  upgrade?: boolean
   skills?: boolean
   ci?: CISystem
   deploy?: DeployMode
@@ -521,34 +283,6 @@ export async function maybeInstallSkills(
   })
 }
 
-/**
- * Keep already-installed skills current during an upgrade, following the same
- * rules as `ritual skills update`: only the skills already present in
- * `.claude/skills` are refreshed (no prompting, and skills the user never
- * installed stay absent), and user-edited skill files are skipped rather than
- * clobbered. `--no-skills` opts out entirely; `--skills` forces a full
- * (re)install of every skill, matching the flag's meaning on a fresh init.
- */
-export async function refreshSkillsOnUpgrade(options: InitSiteCommandOptions): Promise<void> {
-  if (options.skills === false) return
-
-  const skillsDir = resolveSkillsDir({})
-  const relativeDir = path.relative(getBaseDir(), skillsDir)
-  const results =
-    options.skills === true
-      ? await installSkills(SKILLS, skillsDir, { force: true })
-      : await refreshInstalledSkills(SKILLS, skillsDir, { force: false })
-
-  // A never-installed skill staying absent is the upgrade path's contract, not
-  // something to report — so `reportAbsent` stays off here.
-  printSkillsWriteSummary(results, {
-    verb: 'updatedIn',
-    dir: relativeDir,
-    noun: 'agentSkill',
-    forceHint: t('cli.skills.forceHintUpdate'),
-  })
-}
-
 async function writeFileWithOverwritePrompt(
   filePath: string,
   content: string,
@@ -599,79 +333,11 @@ async function writeReadme(
   return 'written'
 }
 
-export async function updateGitignore(
-  entries: string,
-): Promise<'created' | 'updated' | 'unchanged'> {
-  const gitignorePath = path.join(getBaseDir(), '.gitignore')
-  const linesToAdd = entries
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0)
-
-  let existing = ''
-  if (await fileExists(gitignorePath)) {
-    existing = await fs.readFile(gitignorePath, 'utf-8')
-  }
-
-  const existingLines = new Set(
-    existing
-      .split('\n')
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0),
-  )
-  const newLines = linesToAdd.filter((l) => !existingLines.has(l))
-
-  if (newLines.length === 0) return 'unchanged'
-
-  const suffix = newLines.join('\n') + '\n'
-  if (existing.length === 0) {
-    await fs.writeFile(gitignorePath, suffix, 'utf-8')
-    return 'created'
-  }
-
-  const separator = existing.endsWith('\n') ? '' : '\n'
-  await fs.writeFile(gitignorePath, existing + separator + suffix, 'utf-8')
-  return 'updated'
-}
-
-// Registry of all files ever managed by `ritual init-site`.
-// Active files are regenerated on version upgrade for matching CI systems.
-// Historical files are deleted (or have their old path cleaned up on rename) during migration.
-export const MANAGED_FILES: ManagedFile[] = [
-  {
-    ciSystem: 'github-actions',
-    paths: [{ path: '.github/workflows/deploy-site.yml' }],
-    generate: (config: InitSiteConfig): string => {
-      if (config.ciSystem !== 'github-actions') throw new Error('invariant: wrong ciSystem')
-      return generateWorkflow(config)
-    },
-  } satisfies ActiveManagedFile,
-]
-
-async function applyMigrations(migrations: Migration[]): Promise<void> {
-  for (const migration of migrations) {
-    const fullPath = path.join(getBaseDir(), migration.path)
-    if (migration.type === 'write') {
-      await fs.mkdir(path.dirname(fullPath), { recursive: true })
-      await fs.writeFile(fullPath, migration.content, 'utf-8')
-      console.log(t('cli.initSite.migrationUpdated', { path: migration.path }))
-    } else {
-      try {
-        await fs.rm(fullPath)
-        console.log(t('cli.initSite.migrationRemoved', { path: migration.path }))
-      } catch {
-        // File may not exist — that's fine
-      }
-    }
-  }
-}
-
 export function registerInitSiteCommand(program: Command): void {
   program
     .command('init-site')
     .description(t('help.initSite.description'))
     .option('-f, --force', t('help.initSite.force'))
-    .option('-u, --upgrade', t('help.initSite.upgrade'))
     .option('--ci <system>', t('help.initSite.ci'), parseCISystemFlag)
     .option('--deploy <mode>', t('help.initSite.deploy'), parseDeployModeFlag)
     .option('--dist-dir <dir>', t('help.initSite.distDir'), parseDistDirFlag)
@@ -687,20 +353,6 @@ export function registerInitSiteCommand(program: Command): void {
     .action(async (options: InitSiteCommandOptions) => {
       await runCommandAction(TEXT_ONLY, () => runInitSite(options))
     })
-}
-
-/** What re-running `init-site` in an already-initialized repository means. */
-export type InitRerun = 'current' | 'upgrade' | 'downgrade'
-
-/**
- * Classify a re-run against the version that last initialized the repository:
- * the same version is a no-op, a newer build regenerates managed files, and an
- * older build refuses rather than downgrading generated output.
- */
-export function classifyInitRerun(currentVersion: string, initializedWith: string): InitRerun {
-  const cmp = compareVersions(currentVersion, initializedWith)
-  if (cmp === 0) return 'current'
-  return cmp > 0 ? 'upgrade' : 'downgrade'
 }
 
 /**
@@ -725,9 +377,32 @@ function freshInitFlagsGiven(options: InitSiteCommandOptions): boolean {
   )
 }
 
+/**
+ * Plan the workspace's pending migrations before an init writes anything, and
+ * refuse a workspace this build cannot migrate (a newer Ritual updated it, or
+ * its config cannot be made valid). Null when there is no config file yet.
+ */
+async function planInitMigrations(): Promise<MigrationPlan | null> {
+  const outcome = await planMigration()
+  if (outcome.kind === 'ahead' || outcome.kind === 'invalid') throw refusalError(outcome)
+  return outcome.kind === 'plan' ? outcome : null
+}
+
+/**
+ * Apply the planned migrations' ops before the init writes its own files, so
+ * the migration counter it stamps never claims ops that did not run. No
+ * refresh: the init regenerates every managed file itself.
+ */
+async function applyInitMigrations(plan: MigrationPlan | null): Promise<void> {
+  if (plan !== null && hasPendingMigrations(plan)) {
+    await applyMigration({ ...plan, refresh: null })
+  }
+}
+
 async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
   // --force: ignore saved state, resolve config fresh, overwrite everything
   if (options.force) {
+    const migrations = await planInitMigrations()
     const config = await resolveConfig(options)
     if (!config) {
       process.exitCode = ExitCode.UsageError
@@ -740,8 +415,12 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       return
     }
     requireSkillsDecision(options)
-    await writeInitFiles(config, { force: true, overwriteReadme: options.overwriteReadme })
-    if (!(await persistSiteConfig({ ...config, version: ritualVersion }, priceSource))) {
+    await applyInitMigrations(migrations)
+    const managedWritten = await writeInitFiles(config, {
+      force: true,
+      overwriteReadme: options.overwriteReadme,
+    })
+    if (!(await persistSiteConfig(config, priceSource, managedWritten))) {
       process.exitCode = ExitCode.RuntimeError
       return
     }
@@ -761,75 +440,32 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
       )
     }
 
-    const rerun = classifyInitRerun(ritualVersion, loaded.version)
-
-    if (rerun === 'current') {
-      // The success state, not a usage error: `init-site` is safe to run from a
-      // setup script that just wants the repository initialized.
-      console.log(t('cli.initSite.alreadyCurrent', { version: ritualVersion }))
-      return
-    }
-
-    if (rerun === 'downgrade') {
-      console.warn(
-        t('cli.initSite.downgrade', {
-          current: ritualVersion,
-          initialized: loaded.version,
-        }),
-      )
-      console.warn(t('cli.initSite.downgradeAdvice'))
-      process.exitCode = ExitCode.RuntimeError
-      return
-    }
-
-    // Newer build (`rerun === 'upgrade'`): prompt unless --upgrade was passed
-    if (!options.upgrade) {
-      if (promptsUnavailable()) {
-        throw localizedCommandError(
-          'usage_error',
-          ExitCode.UsageError,
-          'cli.initSite.upgradeRequired',
-          { from: loaded.version, to: ritualVersion },
+    // Bringing an initialized workspace up to date is `ritual migrate`'s job;
+    // a re-run only reports whether one is due. Either way this is a success,
+    // not a usage error: `init-site` is safe to run from a setup script that
+    // just wants the repository initialized. A workspace `migrate` would refuse
+    // is refused here the same way.
+    const outcome = await planMigration()
+    switch (outcome.kind) {
+      case 'ahead':
+      case 'invalid':
+        throw refusalError(outcome)
+      case 'plan':
+        console.log(
+          t(hasPendingWork(outcome) ? 'cli.migrate.pending' : 'cli.initSite.alreadyCurrent'),
         )
-      }
-      const confirm = await ask<boolean>({
-        type: 'confirm',
-        message: t('cli.initSite.promptUpgrade', {
-          from: loaded.version,
-          to: ritualVersion,
-        }),
-        initial: true,
-      })
-      if (!confirm) {
-        console.error(t('cli.initSite.cancelled'))
-        process.exitCode = ExitCode.UsageError
         return
-      }
+      case 'no-config':
+        console.log(t('cli.initSite.alreadyCurrent'))
+        return
+      default:
+        outcome satisfies never
     }
-
-    console.log(t('cli.initSite.upgrading', { from: loaded.version, to: ritualVersion }))
-    const { version: _version, ...config } = loaded
-    const migrations = computeMigrations(loaded.version, ritualVersion, MANAGED_FILES, config)
-    await applyMigrations(migrations)
-
-    // Keep .gitignore in sync with the current template. This is idempotent
-    // (only missing entries are added), so upgrades pick up new exclusions
-    // such as the downloaded /ritual binary.
-    await writeGitignore(config)
-
-    const updatedSite: SiteDeployConfig = { ...config, version: ritualVersion }
-    if (!(await persistSiteConfig(updatedSite))) {
-      process.exitCode = ExitCode.RuntimeError
-      return
-    }
-    console.log(t('cli.initSite.configUpdated', { version: ritualVersion }))
-
-    // Refresh any already-installed agent skills so they track the new version.
-    await refreshSkillsOnUpgrade(options)
     return
   }
 
   // Fresh init (no site config yet)
+  const migrations = await planInitMigrations()
   const config = await resolveConfig(options)
   if (!config) {
     process.exitCode = ExitCode.UsageError
@@ -842,8 +478,12 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
     return
   }
   requireSkillsDecision(options)
-  await writeInitFiles(config, { force: false, overwriteReadme: options.overwriteReadme })
-  if (!(await persistSiteConfig({ ...config, version: ritualVersion }, priceSource))) {
+  await applyInitMigrations(migrations)
+  const managedWritten = await writeInitFiles(config, {
+    force: false,
+    overwriteReadme: options.overwriteReadme,
+  })
+  if (!(await persistSiteConfig(config, priceSource, managedWritten))) {
     process.exitCode = ExitCode.RuntimeError
     return
   }
@@ -851,10 +491,31 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
   printNextSteps(config)
 }
 
-/** Write the site deploy config; on failure, print the error and return false. */
+/**
+ * The `managed` stamp for a freshly initialized workspace: every migration
+ * this build knows counts as applied (pending ones ran first, and the files
+ * were just generated in their current shape). The output hash is recorded
+ * only when every managed file was actually written — a workflow the user
+ * kept leaves it unset, so `ritual migrate` offers the refresh.
+ */
+function freshManagedStamp(config: RitualConfig, managedWritten: boolean): RitualConfig['managed'] {
+  const output = managedWritten ? computeManagedOutput(config) : null
+  return buildManagedStamp({
+    migration: latestMigrationId(),
+    build: RUNNING_BUILD,
+    recordedVersion: config.managed?.version,
+    output: output?.hash,
+  })
+}
+
+/**
+ * Write the site deploy config and the `managed` stamp; on failure, print the
+ * error and return false.
+ */
 async function persistSiteConfig(
-  deploy: SiteDeployConfig,
-  priceSource?: PriceSource,
+  deploy: InitSiteConfig,
+  priceSource: PriceSource,
+  managedWritten: boolean,
 ): Promise<boolean> {
   try {
     const config = await loadRitualConfig()
@@ -862,11 +523,10 @@ async function persistSiteConfig(
     // defaults) so writing the init-site-managed deployment config never clobbers
     // them.
     config.site = { ...getSiteSelectionConfig(config.site), ...deploy }
-    if (priceSource !== undefined) {
-      config.defaultPriceSource = priceSource
-      // The site can only open on a store it offers, so choosing one enables it.
-      config.priceSources = withPriceSource(config.priceSources, priceSource, true)
-    }
+    config.defaultPriceSource = priceSource
+    // The site can only open on a store it offers, so choosing one enables it.
+    config.priceSources = withPriceSource(config.priceSources, priceSource, true)
+    config.managed = freshManagedStamp(config, managedWritten)
     await saveRitualConfig(config)
     await refreshRitualConfig()
     return true
@@ -1084,21 +744,25 @@ async function resolveConfirmFlag(
   return answer
 }
 
-async function writeInitFiles(config: InitSiteConfig, opts: WriteInitFilesOptions): Promise<void> {
-  // Write managed files filtered to the selected CI system
-  for (const file of MANAGED_FILES) {
-    if (!isActiveManagedFile(file)) continue
-    if (file.ciSystem !== config.ciSystem) continue
-    const currentRecord = file.paths.find((r) => r.until === undefined)
-    if (!currentRecord) continue
-    const filePath = path.join(getBaseDir(), currentRecord.path)
-    const result = await writeFileWithOverwritePrompt(filePath, file.generate(config), {
+/**
+ * Write the generated files. Returns whether every managed file was written
+ * (false when the user kept an existing one at the overwrite prompt).
+ */
+async function writeInitFiles(
+  config: InitSiteConfig,
+  opts: WriteInitFilesOptions,
+): Promise<boolean> {
+  let managedWritten = true
+  for (const file of renderManagedFiles(config)) {
+    const filePath = path.join(getBaseDir(), file.path)
+    const result = await writeFileWithOverwritePrompt(filePath, file.content, {
       force: opts.force,
     })
+    if (result === 'skipped') managedWritten = false
     console.log(
       result === 'written'
-        ? t('cli.initSite.created', { path: currentRecord.path })
-        : t('cli.initSite.skipped', { path: currentRecord.path }),
+        ? t('cli.initSite.created', { path: file.path })
+        : t('cli.initSite.skipped', { path: file.path }),
     )
   }
 
@@ -1112,43 +776,35 @@ async function writeInitFiles(config: InitSiteConfig, opts: WriteInitFilesOption
       : t('cli.initSite.skipped', { path: 'README.md' }),
   )
 
-  // Update .gitignore
-  await writeGitignore(config, { reportUnchanged: true })
+  printGitignoreRefresh(await refreshGitignore(config), { reportUnchanged: true })
+  return managedWritten
 }
 
-/** How `writeGitignore` reports a `.gitignore` that already had every entry. */
-type WriteGitignoreOptions = { reportUnchanged?: boolean }
+/** How {@link printGitignoreRefresh} reports a `.gitignore` that already had every entry. */
+export type GitignoreReportOptions = { reportUnchanged: boolean }
 
 /**
- * Bring `.gitignore` up to the current template and report what happened. When
- * the deploy mode commits the built site, an existing pattern that still covers
- * that directory is called out — the appended `!<dir>/` un-ignore cannot undo a
- * wildcard, and a swallowed ignore surfaces as an empty deploy.
+ * Report a `.gitignore` refresh (shared with `migrate`). When the deploy mode
+ * commits the built site, an existing pattern that still covers that directory
+ * is called out — the appended `!<dir>/` un-ignore cannot undo a wildcard, and
+ * a swallowed ignore surfaces as an empty deploy.
  */
-async function writeGitignore(
-  config: InitSiteConfig,
-  options: WriteGitignoreOptions = {},
-): Promise<void> {
-  const gitignorePath = path.join(getBaseDir(), '.gitignore')
-  const before = (await fileExists(gitignorePath)) ? await fs.readFile(gitignorePath, 'utf-8') : ''
-
-  const result = await updateGitignore(generateGitignoreEntries(config))
-  if (result === 'created') {
+export function printGitignoreRefresh(
+  result: GitignoreRefreshResult,
+  options: GitignoreReportOptions,
+): void {
+  if (result.update === 'created') {
     console.log(t('cli.initSite.gitignoreCreated'))
-  } else if (result === 'updated') {
+  } else if (result.update === 'updated') {
     console.log(t('cli.initSite.gitignoreUpdated'))
-  } else if (options.reportUnchanged === true) {
+  } else if (options.reportUnchanged) {
     console.log(t('cli.initSite.gitignoreUnchanged'))
   }
-
-  const committed = committedDistDir(config)
-  if (committed === null) return
-  const covering = gitignoreEntriesCovering(before, committed)
-  if (covering.length > 0) {
+  if (result.committedDir !== null && result.covering.length > 0) {
     console.warn(
       t('cli.initSite.gitignoreStillIgnores', {
-        dir: committed,
-        patterns: covering.join(', '),
+        dir: result.committedDir,
+        patterns: result.covering.join(', '),
       }),
     )
   }

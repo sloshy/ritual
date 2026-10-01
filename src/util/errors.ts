@@ -58,6 +58,12 @@ export const ExitCode = {
   RuntimeError: 1,
   UsageError: 2,
   NotFound: 3,
+  /**
+   * Nothing failed, but work is waiting: `migrate --check` found pending
+   * workspace updates. Distinct from a runtime error so a script can tell
+   * "out of date" from "broken".
+   */
+  UpdatesPending: 4,
 } as const
 
 export type ExitCodeValue = (typeof ExitCode)[keyof typeof ExitCode]

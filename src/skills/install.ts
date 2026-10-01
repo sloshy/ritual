@@ -22,6 +22,11 @@ export function resolveSkillsDir(options: ResolveSkillsDirOptions): string {
   return path.join(base, '.claude', 'skills')
 }
 
+/** Where skill `name` lives under `skillsDir`: `<skillsDir>/<name>/SKILL.md`. */
+export function skillFilePath(skillsDir: string, name: string): string {
+  return path.join(skillsDir, name, 'SKILL.md')
+}
+
 /**
  * Outcome of writing (or deciding not to write) one skill:
  *
@@ -111,7 +116,7 @@ export async function installSkill(
   skillsDir: string,
   options: SkillWriteOptions,
 ): Promise<SkillInstallResult> {
-  const filePath = path.join(skillsDir, skill.name, 'SKILL.md')
+  const filePath = skillFilePath(skillsDir, skill.name)
   if (!options.force) {
     const installed = await inspectInstalledSkill(filePath)
     if (installed.kind === 'user-edited') {
@@ -155,7 +160,7 @@ export async function refreshInstalledSkills(
 ): Promise<SkillInstallResult[]> {
   const results: SkillInstallResult[] = []
   for (const skill of skills) {
-    const filePath = path.join(skillsDir, skill.name, 'SKILL.md')
+    const filePath = skillFilePath(skillsDir, skill.name)
     if (await fileExists(filePath)) {
       results.push(await installSkill(skill, skillsDir, options))
     } else {
@@ -163,4 +168,54 @@ export async function refreshInstalledSkills(
     }
   }
   return results
+}
+
+/**
+ * Whether a `SKILL.md` was written by Ritual: it carries the `ritual-version`
+ * marker every rendered skill has, edited or not.
+ */
+function hasRitualMarker(content: string): boolean {
+  try {
+    return typeof matter(content).data['ritual-version'] === 'string'
+  } catch {
+    return false
+  }
+}
+
+/**
+ * The names of every Ritual-written skill folder in `skillsDir`, catalog or
+ * not — how a refresh finds skills a newer catalog no longer ships. Folders
+ * without a Ritual-marked `SKILL.md` (the user's own skills) are never listed.
+ */
+export async function findInstalledRitualSkills(skillsDir: string): Promise<string[]> {
+  let entries: string[]
+  try {
+    entries = await fs.readdir(skillsDir)
+  } catch {
+    return []
+  }
+  const names: string[] = []
+  for (const name of entries) {
+    let content: string
+    try {
+      content = await fs.readFile(skillFilePath(skillsDir, name), 'utf-8')
+    } catch {
+      continue
+    }
+    if (hasRitualMarker(content)) names.push(name)
+  }
+  return names
+}
+
+/**
+ * Remove one installed skill: its `SKILL.md`, then its folder when nothing
+ * else is left in it.
+ */
+export async function removeInstalledSkill(skillsDir: string, name: string): Promise<void> {
+  await fs.rm(skillFilePath(skillsDir, name), { force: true })
+  try {
+    await fs.rmdir(path.join(skillsDir, name))
+  } catch {
+    // Not empty (the user keeps other files there) — leave the folder.
+  }
 }

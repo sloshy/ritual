@@ -56,11 +56,26 @@ export type ManualSiteConfig = {
   ciSystem: 'manual'
 }
 
-/** Deployment config without a Ritual version — used during interactive `init-site` prompts. */
+/** The deployment settings `init-site` resolves and persists under `site`. */
 export type InitSiteConfig = GitHubActionsSiteConfig | ManualSiteConfig
 
-/** Deployment config persisted on disk, including the Ritual version that initialized it. */
-export type SiteDeployConfig = InitSiteConfig & { version: string }
+/**
+ * The Ritual-owned `managed` block: which workspace migrations have run and
+ * which managed output (deploy workflow, `.gitignore` entries, installed
+ * skills) was last generated. Written only by `init-site` and `migrate` —
+ * never by `config set`.
+ */
+export type ManagedConfig = {
+  /**
+   * The release that last brought this workspace up to date. Only a release
+   * build writes it; dev builds leave it alone.
+   */
+  version?: string
+  /** The highest numbered migration applied. An absent value reads as 0. */
+  migration: number
+  /** `sha256:` hash of the managed output last generated for this config. */
+  output?: string
+}
 
 /**
  * The persisted `site` object. The selection settings ({@link SiteSelectionConfig})
@@ -69,7 +84,6 @@ export type SiteDeployConfig = InitSiteConfig & { version: string }
  * reconstruct the discriminated deployment config with {@link getSiteDeployConfig}.
  */
 export type SiteConfig = SiteSelectionConfig & {
-  version?: string
   ciSystem?: CISystem
   deployMode?: DeployMode
   distDir?: string
@@ -226,6 +240,11 @@ export interface RitualConfig {
   /** Present only when `ritual init-site` has been run; managed exclusively by that command. */
   site?: SiteConfig
   /**
+   * Ritual's own bookkeeping ({@link ManagedConfig}); present once `init-site`
+   * or `migrate` has stamped it.
+   */
+  managed?: ManagedConfig
+  /**
    * Named `ritual export` output-shape presets (format, columns, CSV toggles),
    * managed via `ritual export --save-preset` or the interactive wizard.
    * Present only when at least one preset has been saved.
@@ -269,7 +288,7 @@ const DEFAULT_CONFIG = {
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
-} satisfies Omit<RitualConfig, 'admin' | 'collectionSync' | 'site' | 'cacheFeedUrl'>
+} satisfies Omit<RitualConfig, 'admin' | 'collectionSync' | 'site' | 'managed' | 'cacheFeedUrl'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
 
@@ -317,6 +336,14 @@ function isStringArray(value: unknown): value is string[] {
  * {@link isConfigParseError}.
  */
 export type ConfigParseError = { error: string }
+
+/** `ritual.config.json` as parsed JSON, before (or without) validation. */
+export type RawConfig = Record<string, unknown>
+
+/** Whether a value is a valid `managed.migration` counter: a non-negative integer. */
+export function isMigrationCounter(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+}
 
 /** True when a config parser result is the {@link ConfigParseError} branch. */
 export function isConfigParseError(value: unknown): value is ConfigParseError {
@@ -458,7 +485,6 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   // so a site object carrying just selection settings (set via `config set` or the
   // admin UI before init-site has run) is still valid.
   const hasDeploy =
-    obj.version !== undefined ||
     obj.ciSystem !== undefined ||
     obj.deployMode !== undefined ||
     obj.distDir !== undefined ||
@@ -469,12 +495,6 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     return { ...selection, ...banned, ...api, ...sell }
   }
 
-  if (typeof obj.version !== 'string') {
-    return { error: 'site config: "version" must be a string' }
-  }
-  if (!isValidSemver(obj.version)) {
-    return { error: 'site config: "version" is not a valid semver string' }
-  }
   if (obj.ciSystem !== 'github-actions' && obj.ciSystem !== 'manual') {
     return { error: 'site config: "ciSystem" must be "github-actions" or "manual"' }
   }
@@ -497,7 +517,6 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
       ...banned,
       ...api,
       ...sell,
-      version: obj.version,
       ciSystem: obj.ciSystem,
       deployMode: obj.deployMode,
       distDir: obj.distDir,
@@ -506,7 +525,33 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
     }
   }
 
-  return { ...selection, ...banned, ...api, ...sell, version: obj.version, ciSystem: obj.ciSystem }
+  return { ...selection, ...banned, ...api, ...sell, ciSystem: obj.ciSystem }
+}
+
+/**
+ * Parse the Ritual-owned `managed` block. An absent `migration` reads as 0 —
+ * a workspace no migration has touched yet.
+ */
+export function parseManagedConfig(value: unknown): ManagedConfig | ConfigParseError {
+  if (!isRecord(value)) return { error: 'managed config must be a JSON object' }
+  const migration = value.migration ?? 0
+  if (!isMigrationCounter(migration)) {
+    return { error: 'managed config: "migration" must be a non-negative integer' }
+  }
+  const managed: ManagedConfig = { migration }
+  if (value.version !== undefined) {
+    if (typeof value.version !== 'string' || !isValidSemver(value.version)) {
+      return { error: 'managed config: "version" must be a semver string' }
+    }
+    managed.version = value.version
+  }
+  if (value.output !== undefined) {
+    if (typeof value.output !== 'string' || !value.output.startsWith('sha256:')) {
+      return { error: 'managed config: "output" must be a "sha256:" hash string' }
+    }
+    managed.output = value.output
+  }
+  return managed
 }
 
 /**
@@ -530,8 +575,8 @@ export function getSiteSelectionConfig(site: SiteConfig | undefined): SiteSelect
  * Reconstruct the discriminated deployment config from a persisted `site`
  * object, or `null` when `init-site` has not run (no deployment settings).
  */
-export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployConfig | null {
-  if (!site || site.version === undefined || site.ciSystem === undefined) {
+export function getSiteDeployConfig(site: SiteConfig | undefined): InitSiteConfig | null {
+  if (!site || site.ciSystem === undefined) {
     return null
   }
   if (site.ciSystem === 'github-actions') {
@@ -543,7 +588,6 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
       return null
     }
     return {
-      version: site.version,
       ciSystem: 'github-actions',
       deployMode: site.deployMode,
       distDir: site.distDir,
@@ -552,7 +596,7 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
       prerelease: site.deployMode === 'publish-for-me' && site.prerelease === true,
     }
   }
-  return { version: site.version, ciSystem: 'manual' }
+  return { ciSystem: 'manual' }
 }
 
 /**
@@ -563,11 +607,18 @@ export function getSiteDeployConfig(site: SiteConfig | undefined): SiteDeployCon
  */
 type ParsedConfig = Omit<
   Partial<RitualConfig>,
-  'admin' | 'collectionSync' | 'site' | 'exportPresets' | 'priceSources' | 'defaultCategories'
+  | 'admin'
+  | 'collectionSync'
+  | 'site'
+  | 'managed'
+  | 'exportPresets'
+  | 'priceSources'
+  | 'defaultCategories'
 > & {
   admin?: unknown
   collectionSync?: unknown
   site?: unknown
+  managed?: unknown
   exportPresets?: unknown
   /** Untrusted until {@link parsePriceSources} has run. */
   priceSources?: unknown
@@ -756,7 +807,7 @@ export function parseDefaultLanguage(value: unknown): CardLanguage | ConfigParse
  *
  * The message names no config key: it is shared verbatim by the `--locale`
  * flag's argParser and by `RITUAL_LOCALE`, and the config load path prefixes the
- * field label itself (see {@link parseOrWarn}).
+ * field label itself (see {@link warnAndDefault}).
  */
 export function parseUiLocale(value: unknown): LocaleTag | ConfigParseError {
   if (value === undefined) return DEFAULT_LOCALE
@@ -865,11 +916,18 @@ export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
 }
 
 /**
- * Collapse a parser result to its value, or warn and return `fallback` when it
- * is the error branch. The load path never fails on a bad field — it logs and
+ * How {@link applyDefaults} collapses one field's parser result: the value, or —
+ * for the error branch — whatever the policy decides. The lenient load path
+ * ({@link warnAndDefault}) warns and falls back; the strict parser
+ * ({@link parseRitualConfig}) records the error instead.
+ */
+type FieldPolicy = <T>(parsed: T | ConfigParseError, fieldLabel: string, fallback: T) => T
+
+/**
+ * The load path's policy: it never fails on a bad field — it logs and
  * continues with the field's default.
  */
-function parseOrWarn<T>(parsed: T | ConfigParseError, fieldLabel: string, fallback: T): T {
+const warnAndDefault: FieldPolicy = (parsed, fieldLabel, fallback) => {
   if (isConfigParseError(parsed)) {
     console.warn(`ritual.config.json: ignoring invalid ${fieldLabel} — ${parsed.error}`)
     return fallback
@@ -877,56 +935,58 @@ function parseOrWarn<T>(parsed: T | ConfigParseError, fieldLabel: string, fallba
   return parsed
 }
 
-function applyDefaults(parsed: ParsedConfig): RitualConfig {
+/** `parseExportPresets` reports its error as a bare string; lift it to the shared shape. */
+function parseExportPresetsField(value: unknown): Record<string, ExportPreset> | ConfigParseError {
+  const presets = parseExportPresets(value)
+  return typeof presets === 'string' ? { error: presets } : presets
+}
+
+function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
   // Absence means "use the built-in default", so cacheFeedUrl only parses when
   // present; a malformed value falls back to absent.
   const cacheFeedUrl =
     parsed.cacheFeedUrl !== undefined
-      ? parseOrWarn<string | undefined>(
-          parseCacheFeedUrl(parsed.cacheFeedUrl),
-          'cacheFeedUrl',
-          undefined,
-        )
+      ? field<string | undefined>(parseCacheFeedUrl(parsed.cacheFeedUrl), 'cacheFeedUrl', undefined)
       : undefined
   const merged: RitualConfig = {
     decksDir: parsed.decksDir ?? DEFAULT_CONFIG.decksDir,
     collectionsDir: parsed.collectionsDir ?? DEFAULT_CONFIG.collectionsDir,
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
     artDir: parsed.artDir ?? DEFAULT_CONFIG.artDir,
-    defaultPriceSource: parseOrWarn(
+    defaultPriceSource: field(
       parseDefaultPriceSource(parsed.defaultPriceSource),
       'defaultPriceSource',
       undefined,
     ),
-    priceSources: parseOrWarn(parsePriceSources(parsed.priceSources), 'priceSources', [
+    priceSources: field(parsePriceSources(parsed.priceSources), 'priceSources', [
       ...DEFAULT_PRICE_SOURCES,
     ]),
-    defaultCategories: parseOrWarn(
+    defaultCategories: field(
       parseDefaultCategories(parsed.defaultCategories),
       'defaultCategories',
       [...DEFAULT_CARD_CATEGORIES],
     ),
-    defaultLanguage: parseOrWarn(
+    defaultLanguage: field(
       parseDefaultLanguage(parsed.defaultLanguage),
       'defaultLanguage',
       DEFAULT_CARD_LANGUAGE,
     ),
-    uiLocale: parseOrWarn(parseUiLocale(parsed.uiLocale), 'uiLocale', DEFAULT_LOCALE),
-    cacheLockTimeoutSeconds: parseOrWarn(
+    uiLocale: field(parseUiLocale(parsed.uiLocale), 'uiLocale', DEFAULT_LOCALE),
+    cacheLockTimeoutSeconds: field(
       parseCacheLockTimeoutSeconds(parsed.cacheLockTimeoutSeconds),
       'cacheLockTimeoutSeconds',
       DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
     ),
-    cacheSource: parseOrWarn(parseCacheSource(parsed.cacheSource), 'cacheSource', 'scryfall'),
-    searchDebounceMs: parseOrWarn(
+    cacheSource: field(parseCacheSource(parsed.cacheSource), 'cacheSource', 'scryfall'),
+    searchDebounceMs: field(
       parseSearchDebounceMs(parsed.searchDebounceMs),
       'searchDebounceMs',
       DEFAULT_SEARCH_DEBOUNCE_MS,
     ),
-    admin: parseOrWarn(parseAdminConfig(parsed.admin), 'admin config', { ...DEFAULT_ADMIN_CONFIG }),
+    admin: field(parseAdminConfig(parsed.admin), 'admin config', { ...DEFAULT_ADMIN_CONFIG }),
     // Defaulted unconditionally rather than only when the key is present, so a
     // config file written before this section existed still yields the default.
-    collectionSync: parseOrWarn(
+    collectionSync: field(
       parseCollectionSyncConfig(parsed.collectionSync),
       'collectionSync config',
       { ...DEFAULT_COLLECTION_SYNC_CONFIG },
@@ -936,22 +996,48 @@ function applyDefaults(parsed: ParsedConfig): RitualConfig {
     merged.cacheFeedUrl = cacheFeedUrl
   }
   if (parsed.site !== undefined) {
-    const site = parseSiteConfig(parsed.site)
-    if (isConfigParseError(site)) {
-      console.warn(`ritual.config.json: ignoring invalid site config — ${site.error}`)
-    } else {
-      merged.site = site
-    }
+    const site = field<SiteConfig | undefined>(
+      parseSiteConfig(parsed.site),
+      'site config',
+      undefined,
+    )
+    if (site !== undefined) merged.site = site
+  }
+  if (parsed.managed !== undefined) {
+    const managed = field<ManagedConfig | undefined>(
+      parseManagedConfig(parsed.managed),
+      'managed config',
+      undefined,
+    )
+    if (managed !== undefined) merged.managed = managed
   }
   if (parsed.exportPresets !== undefined) {
-    const exportPresets = parseExportPresets(parsed.exportPresets)
-    if (typeof exportPresets !== 'string') {
-      merged.exportPresets = exportPresets
-    } else {
-      console.warn(`ritual.config.json: ignoring invalid exportPresets — ${exportPresets}`)
-    }
+    const exportPresets = field<Record<string, ExportPreset> | undefined>(
+      parseExportPresetsField(parsed.exportPresets),
+      'exportPresets',
+      undefined,
+    )
+    if (exportPresets !== undefined) merged.exportPresets = exportPresets
   }
   return merged
+}
+
+/**
+ * Strictly parse a raw `ritual.config.json` object: the same defaulting as the
+ * load path, but the first malformed field is an error rather than a warning.
+ * `ritual migrate` validates a migrated config with this before writing it.
+ */
+export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseError {
+  const errors: ConfigParseError[] = []
+  const recordError: FieldPolicy = (parsed, fieldLabel, fallback) => {
+    if (isConfigParseError(parsed)) {
+      errors.push({ error: `${fieldLabel}: ${parsed.error}` })
+      return fallback
+    }
+    return parsed
+  }
+  const config = applyDefaults(raw, recordError)
+  return errors[0] ?? config
 }
 
 /**
@@ -976,11 +1062,13 @@ export class RitualConfigParseError extends CardCommandError {
 }
 
 /**
- * Read ritual.config.json, or `null` when the file does not exist. Only absence
- * is benign: a malformed file raises {@link RitualConfigParseError} and any
- * other read failure propagates as-is.
+ * Read ritual.config.json as a parsed but unvalidated JSON object, or `null`
+ * when the file does not exist. A file that is not a JSON object raises
+ * {@link RitualConfigParseError}. `ritual migrate` works on this view, because
+ * the strict parser would reject exactly the removed or retyped keys a
+ * migration exists to fix.
  */
-async function readConfigFromDisk(): Promise<LoadedRitualConfig | null> {
+export async function readRawRitualConfig(): Promise<RawConfig | null> {
   const configPath = getRitualConfigPath()
   let content: string
   try {
@@ -998,11 +1086,31 @@ async function readConfigFromDisk(): Promise<LoadedRitualConfig | null> {
   if (!isRecord(parsed)) {
     throw new RitualConfigParseError(configPath, 'the file must contain a JSON object')
   }
+  return parsed
+}
+
+/**
+ * Write a raw config object verbatim — keys this build does not know are kept.
+ * The migration runner's writer; everything else saves a typed
+ * {@link RitualConfig}.
+ */
+export async function writeRawRitualConfig(raw: RawConfig): Promise<void> {
+  await fs.writeFile(getRitualConfigPath(), JSON.stringify(raw, null, 2) + '\n', 'utf-8')
+}
+
+/**
+ * Read ritual.config.json, or `null` when the file does not exist. Only absence
+ * is benign: a malformed file raises {@link RitualConfigParseError} and any
+ * other read failure propagates as-is.
+ */
+async function readConfigFromDisk(): Promise<LoadedRitualConfig | null> {
+  const parsed = await readRawRitualConfig()
+  if (parsed === null) return null
   // Nothing in the file has been validated yet — `applyDefaults` is what reads
   // and checks the fields — so the declared-key probe goes through the same
   // untrusted view rather than a type that claims more than is known.
   return {
-    config: applyDefaults(parsed),
+    config: applyDefaults(parsed, warnAndDefault),
     defaultLanguageDeclared: parsed.defaultLanguage !== undefined,
   }
 }
@@ -1017,7 +1125,7 @@ export async function loadRitualConfig(): Promise<RitualConfig> {
 }
 
 async function writeRitualConfigFile(config: Partial<RitualConfig>): Promise<void> {
-  await fs.writeFile(getRitualConfigPath(), JSON.stringify(config, null, 2) + '\n', 'utf-8')
+  await writeRawRitualConfig({ ...config })
 }
 
 export async function saveRitualConfig(config: RitualConfig): Promise<void> {

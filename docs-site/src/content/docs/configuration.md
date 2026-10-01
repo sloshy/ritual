@@ -287,7 +287,7 @@ The remaining `admin` keys secure the server. The [`config` property table](/com
 
 The `site` key holds public-site settings in three groups:
 
-- **Deployment settings** (`version`, `ciSystem`, `deployMode`, `distDir`, `detectChanges`, `prerelease`). `ritual init-site` manages them, and they exist only after you run it. Don't edit them by hand.
+- **Deployment settings** (`ciSystem`, `deployMode`, `distDir`, `detectChanges`, `prerelease`). `ritual init-site` writes them, and they exist only after you run it. You may change them by hand; run [`ritual migrate`](/commands/migrate/) afterwards so the generated deploy workflow follows (for example, after setting `detectChanges`).
 - **Publish lists** (`includeDecks`, `includeCollections`, `includeWantedLists` and their `exclude*` counterparts) decide which lists `build-site` publishes. Set them from the admin **Settings** page, the per-list visibility toggles on the admin **Manage Lists** page, with [`config set`](/commands/config/), or by hand.
 - **Other user settings**: `bannedPrintings` (see [`config`](/commands/config/#properties)), `apiBaseUrl`, and `sellMode`, described below.
 
@@ -296,7 +296,6 @@ The `site` key holds public-site settings in three groups:
   "decksDir": "./decks",
   "...": "...",
   "site": {
-    "version": "1.2.3",
     "ciSystem": "github-actions",
     "deployMode": "publish-for-me",
     "distDir": "dist",
@@ -315,7 +314,6 @@ The `site` key holds public-site settings in three groups:
 
 | Field                | Default | Description                                                                                      |
 | -------------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `version`            | —       | The Ritual version that initialized the site. Drives workflow upgrades.                          |
 | `ciSystem`           | —       | `github-actions` or `manual`.                                                                    |
 | `deployMode`         | —       | `publish-for-me` or `local-build` (github-actions only).                                         |
 | `distDir`            | —       | The directory containing your built site (github-actions only).                                  |
@@ -379,11 +377,31 @@ Each category also has an `exclude*` list. Any display name in it is dropped eve
 
 The `build-site` flags `--decks`, `--collections`, and `--wanted-lists` override these settings for one run. They accept display names or file base names, case- and accent-insensitive. A name they cannot resolve **fails the build** rather than warning. See [When a list will not build](/commands/build-site/#when-a-list-will-not-build).
 
+## Ritual bookkeeping (`managed` key)
+
+The `managed` key belongs to Ritual. [`init-site`](/commands/init-site/) stamps it and [`migrate`](/commands/migrate/) keeps it current. Don't edit it: `config set` and `config unset` refuse it, and a `PUT /api/config` body's copy is ignored.
+
+```json
+{
+  "managed": {
+    "version": "0.2.0",
+    "migration": 1,
+    "output": "sha256:…"
+  }
+}
+```
+
+| Field       | Description                                                                                                                                      |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `version`   | The Ritual **release** that last brought the workspace up to date. Development builds never write it.                                            |
+| `migration` | The highest [numbered migration](/commands/migrate/#numbered-migrations) applied. Absent means `0`.                                              |
+| `output`    | A hash of the files Ritual generated for this workspace (workflow, `.gitignore` entries, agent skills). A different hash means a refresh is due. |
+
 ## Editing the file
 
 Edit `ritual.config.json` by hand, with [`config set`](/commands/config/), or from the admin **Settings** page. If the file does not exist, create it by hand (a `{}` document is valid and means "all defaults") or let `config set` write the first one. Saving from the admin UI also refreshes the in-memory config, so later admin or CLI commands pick up the change immediately.
 
-`ritual init-site` owns the deployment portion of the `site` key. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config set`.
+`ritual init-site` writes the deployment portion of the `site` key, and `config set` refuses it; edit it by hand and then run [`ritual migrate`](/commands/migrate/) to regenerate the workflow. The publish lists (`site.includeDecks`, `site.includeCollections`, `site.includeWantedLists` and their `site.exclude*` counterparts) are user settings you can edit from the admin **Settings** page, the **Manage Lists** visibility toggles, or with `config set`.
 
 A field missing from the file takes its default.
 
@@ -391,14 +409,15 @@ A field missing from the file takes its default.
 
 Invalid values are rejected where they are entered. [`config set`](/commands/config/) refuses them with an error. Saving from the admin **Settings** page (`PUT /api/config`) rejects the whole update, including unknown top-level keys and wrong-typed fields, before anything is persisted.
 
-Values edited into the file by hand are validated when the config loads. A malformed field (or an invalid `admin` or `site` object) is ignored with a warning, and its default applies for that run. Fix the file to clear the warning. A file whose **JSON itself** is broken fails the command outright; see [Malformed files are a hard error](#malformed-files-are-a-hard-error).
+Values edited into the file by hand are validated when the config loads. A malformed field (or an invalid `admin`, `site`, or `managed` object) is ignored with a warning, and its default applies for that run. Fix the file to clear the warning. A file whose **JSON itself** is broken fails the command outright; see [Malformed files are a hard error](#malformed-files-are-a-hard-error).
 
 ## When the file is created
 
 Reading the config never creates it. The file appears only when something **writes** a setting:
 
 - [`ritual config set`](/commands/config/) (or `config unset`)
-- [`ritual init-site`](/commands/init-site/), which records the `site` key
+- [`ritual init-site`](/commands/init-site/), which records the `site` key and the `managed` block
+- [`ritual migrate`](/commands/migrate/), which updates the `managed` block
 - the admin server's **Settings** page or the MCP `update_config` tool (both `PUT /api/config`), and other admin writes such as the **Manage Lists** visibility toggles
 - [`ritual export --save-preset`](/commands/export/#presets)
 

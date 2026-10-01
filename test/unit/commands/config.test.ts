@@ -46,6 +46,12 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     }
   })
 
+  test.each(['managed', 'managed.migration'])('blocks the Ritual-owned "%s" path', (property) => {
+    const result = applyConfigSet(base, property, ['3'], 'replace')
+    expect('error' in result).toBeTrue()
+    if ('error' in result) expect(result.error).toContain('ritual migrate')
+  })
+
   test('returns error when no values are provided', () => {
     const result = applyConfigSet(base, 'decksDir', [], 'replace')
     expect('error' in result).toBeTrue()
@@ -90,7 +96,6 @@ describe('applyConfigSet — site selection lists', () => {
     const withSite: typeof base = {
       ...base,
       site: {
-        version: '1.0.0',
         ciSystem: 'manual',
         includeDecks: ['*'],
         includeCollections: ['*'],
@@ -104,7 +109,6 @@ describe('applyConfigSet — site selection lists', () => {
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
       expect(result.updatedConfig.site?.includeDecks).toEqual(['Atraxa'])
-      expect(result.updatedConfig.site?.version).toBe('1.0.0')
       expect(result.updatedConfig.site?.ciSystem).toBe('manual')
     }
   })
@@ -712,6 +716,12 @@ describe('applyConfigUnset', () => {
     const outcome = applyConfigUnset(base, 'cacheFeedUrl')
     if ('error' in outcome) throw new Error(outcome.error)
     expect(outcome.updatedConfig).toEqual(base)
+  })
+
+  test.each(['managed', 'managed.output'])('blocks the Ritual-owned "%s" path', (property) => {
+    const outcome = applyConfigUnset(base, property)
+    expect('error' in outcome).toBeTrue()
+    if ('error' in outcome) expect(outcome.error).toContain('ritual migrate')
   })
 
   test('blocks the site deployment keys', () => {

@@ -12,7 +12,6 @@ ritual init-site [options]
 
 | Option                                         | Description                                                                                                                    |
 | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `-u, --upgrade`                                | Upgrade tracked workflows to the current version without prompting                                                             |
 | `-f, --force`                                  | Re-initialize and overwrite all generated files, ignoring the existing site config                                             |
 | `--ci <system>`                                | CI system for a fresh init: `github-actions` or `manual`                                                                       |
 | `--deploy <mode>`                              | Deploy mode: `publish-for-me` or `local-build` (github-actions only)                                                           |
@@ -26,7 +25,7 @@ ritual init-site [options]
 
 On a fresh init, the command asks for a CI system, a deployment strategy, and the default price store, then generates the files. Every prompt has a matching flag, listed with each prompt below. A flag skips its prompt, and invalid values are rejected before anything is written. A flag that does not apply to the chosen CI system or deploy mode is a usage error (for example `--deploy` with `--ci manual`, or `--dist-dir` with `--deploy publish-for-me`).
 
-The site settings are stored under the `site` key of [`ritual.config.json`](/configuration/). On later runs, `init-site` compares the current Ritual version to the version recorded there and offers an [upgrade](#upgrading) when the build is newer. The fresh-init flags apply only to a fresh init (or `--force`); passing them on an already-initialized repository is a usage error.
+The site settings are stored under the `site` key of [`ritual.config.json`](/configuration/). On later runs, `init-site` changes nothing: it reports whether the workspace is current or needs [`ritual migrate`](#after-upgrading-ritual). The fresh-init flags apply only to a fresh init (or `--force`); passing them on an already-initialized repository is a usage error.
 
 ## Headless Runs
 
@@ -42,7 +41,7 @@ ritual init-site \
   --no-skills
 ```
 
-Overwrite decisions work the same way. An existing `README.md` needs `--overwrite-readme`, `--no-overwrite-readme`, or `--force`; an existing generated workflow needs `--force`; and a pending version upgrade needs `--upgrade`.
+Overwrite decisions work the same way. An existing `README.md` needs `--overwrite-readme`, `--no-overwrite-readme`, or `--force`; and an existing generated workflow needs `--force`.
 
 ## Prompts
 
@@ -118,7 +117,7 @@ With "Publish for me", you are also asked which Ritual releases the workflow dow
 ? Download prerelease versions of Ritual in the workflow? (the newest release, prereleases included) (y/N)
 ```
 
-By default (no), the workflow downloads the latest **stable** release. Answer yes (`--prerelease`) to download the newest release **including prereleases**, the same choice the [installer's `--prerelease` option](/#installation) makes. The choice is stored as `prerelease` in the `site` block and becomes the workflow's default; the [`RITUAL_VERSION` repository variable](#customizing-the-ritual-version-github-actions) overrides it. To change the stored choice later, re-run with `--force` and the other flag. Both flags are usage errors with `--ci manual` or `--deploy local-build`, since those workflows never download Ritual.
+By default (no), the workflow downloads the latest **stable** release. Answer yes (`--prerelease`) to download the newest release **including prereleases**, the same choice the [installer's `--prerelease` option](/#installation) makes. The choice is stored as `prerelease` in the `site` block and becomes the workflow's default; the [`RITUAL_VERSION` repository variable](#customizing-the-ritual-version-github-actions) overrides it. To change the stored choice later, re-run with `--force` and the other flag, or edit `prerelease` in the `site` block and run [`ritual migrate`](/commands/migrate/) to regenerate the workflow. Both flags are usage errors with `--ci manual` or `--deploy local-build`, since those workflows never download Ritual.
 
 ### Default price store
 
@@ -142,7 +141,7 @@ After the site files are written, `init-site` offers to install the [Ritual agen
 ? Install Ritual agent skills into .claude/skills so coding agents can work with this repository? (Y/n)
 ```
 
-If you work in this repository with a coding agent (such as Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual here. Pass `--skills` or `--no-skills` to skip the prompt; a headless run requires one of them. With `--force`, existing skill files are overwritten; otherwise customized skill files are kept. During [upgrades](#upgrading), already-installed skills are refreshed automatically without `--force`. You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh only the already-installed ones with [`ritual skills update`](/commands/skills/#update).
+If you work in this repository with a coding agent (such as Claude Code), answering yes writes the skill files into `.claude/skills/` so the agent can drive Ritual here. Pass `--skills` or `--no-skills` to skip the prompt; a headless run requires one of them. With `--force`, existing skill files are overwritten; otherwise customized skill files are kept. After you upgrade Ritual, [`ritual migrate`](/commands/migrate/) refreshes the installed skills. You can also install or refresh them at any time with [`ritual skills install`](/commands/skills/), or refresh only the already-installed ones with [`ritual skills update`](/commands/skills/#update).
 
 ## Generated Files
 
@@ -151,7 +150,7 @@ If you work in this repository with a coding agent (such as Claude Code), answer
 | File                                | Description                                                                                                                                                                                              |
 | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                          |
-| `ritual.config.json` (`site` key)   | Your settings and the Ritual version used. Commit this file.                                                                                                                                             |
+| `ritual.config.json`                | Your settings (`site` key) and Ritual's bookkeeping (`managed` key). Commit this file.                                                                                                                   |
 | `README.md`                         | Basic setup instructions for your site                                                                                                                                                                   |
 | `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the [`.dist-build-*`/`.dist-old-*` build scratch directories](/commands/build-site/#scratch-directories-beside-the-output), etc. Appended if the file exists. |
 
@@ -159,22 +158,21 @@ A local-build deploy leaves its built-site directory out of `.gitignore` and un-
 
 ### Manual / None
 
-| File                              | Description                                                                  |
-| --------------------------------- | ---------------------------------------------------------------------------- |
-| `ritual.config.json` (`site` key) | Your settings and the Ritual version used. Commit this file.                 |
-| `README.md`                       | Basic setup instructions for your site                                       |
-| `.gitignore`                      | Entries for `cache/`, `dist/`, `exports/`, etc. Appended if the file exists. |
+| File                 | Description                                                                  |
+| -------------------- | ---------------------------------------------------------------------------- |
+| `ritual.config.json` | Your settings (`site`) and Ritual's bookkeeping (`managed`). Commit it.      |
+| `README.md`          | Basic setup instructions for your site                                       |
+| `.gitignore`         | Entries for `cache/`, `dist/`, `exports/`, etc. Appended if the file exists. |
 
 If a generated file already exists, you are prompted before it is overwritten; `--force` overwrites without asking. For `README.md`, `--overwrite-readme` / `--no-overwrite-readme` decide without a prompt and take precedence over `--force`. In a headless run, an existing file with no decision flag is a usage error.
 
-## Version Tracking and Upgrade
+## Site Settings and Upgrades
 
-`init-site` writes a `site` block into `ritual.config.json` recording your CI system, settings, and the current Ritual version. It also seeds the [publish lists](/configuration/#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with `["*"]`, "publish everything", which you can narrow later from the admin **Settings** page or with `config set`. Examples:
+`init-site` writes a `site` block into `ritual.config.json` recording your CI system and settings. It also seeds the [publish lists](/configuration/#choosing-which-lists-to-publish) (`includeDecks`, `includeCollections`, `includeWantedLists`) with `["*"]`, "publish everything", which you can narrow later from the admin **Settings** page or with `config set`. Examples:
 
 ```json
 {
   "site": {
-    "version": "0.1.0",
     "ciSystem": "github-actions",
     "deployMode": "publish-for-me",
     "distDir": "dist",
@@ -190,73 +188,24 @@ If a generated file already exists, you are prompted before it is overwritten; `
 ```json
 {
   "site": {
-    "version": "0.1.0",
-    "ciSystem": "github-actions",
-    "deployMode": "publish-for-me",
-    "distDir": "dist",
-    "detectChanges": true,
-    "prerelease": true
-  }
-}
-```
-
-```json
-{
-  "site": {
-    "version": "0.1.0",
     "ciSystem": "manual"
   }
 }
 ```
 
-Commit `ritual.config.json` so Ritual knows which version initialized the repository.
+It also stamps the [`managed` block](/configuration/#ritual-bookkeeping-managed-key): the latest migration this Ritual knows (a fresh workspace needs none of them), a hash of the files it just generated, and, on a release build, the Ritual version. Commit `ritual.config.json` along with the generated files.
 
-### Upgrading
+### After upgrading Ritual
 
-When you run `ritual init-site` after upgrading Ritual, it detects the version change and asks before regenerating tracked files:
+Re-running `init-site` on an initialized repository never changes it. It prints `Already initialized and up to date; nothing to do.` when nothing is pending, or tells you to run [`ritual migrate`](/commands/migrate/) when the new Ritual has migrations or regenerated files for the workspace. Either way it exits `0`, so an "ensure initialized" script can run it unconditionally. A workspace a newer Ritual already updated, or whose config cannot be made valid, is refused with exit `1` and the same message `ritual migrate` gives.
 
-```
-Ritual has been upgraded (0.1.0 → 0.2.0). Regenerate tracked managed files? (Y/n)
-```
+A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it applies any pending migrations before writing its files. If you keep an existing workflow at the overwrite prompt, the generated-files hash is left unrecorded, so `ritual migrate` later offers to regenerate it.
 
-If you confirm, the files are regenerated from your saved settings:
-
-```
-Upgrading from 0.1.0 to 0.2.0...
-↻ Updated .github/workflows/deploy-site.yml
-✓ Updated .gitignore
-✓ ritual.config.json site section updated to 0.2.0
-✓ Updated 7 Ritual agent skills in .claude/skills
-```
-
-An upgrade regenerates every tracked file, so workflows from older versions pick up template changes (a workflow that still runs `build-site --allow-refresh` is rewritten to `--refresh auto`). It also **refreshes `.gitignore`**, which is how an existing scaffold picks up entries added by newer versions; short of `--force`, it is the only way. This matters most for a **local-build** deploy: the `!<distDir>/` un-ignore is appended here, so a scaffold created before that fix stops ignoring the directory the workflow publishes.
-
-Upgrades also **refresh any [agent skills](/commands/skills/) already installed** in `.claude/skills`. Only skills already present are rewritten; an upgrade never adds skills you did not install. Pass `--no-skills` to leave them untouched, or `--skills` to (re)install the full set.
-
-To upgrade without the prompt (for example in a script), use `--upgrade`:
-
-```bash
-ritual init-site --upgrade
-```
-
-In a headless run, a pending upgrade without `--upgrade` is a usage error naming the flag.
-
-Running `init-site` when the recorded version already **is** the current one does nothing. It prints `Already initialized with the current version (x.y.z); nothing to do.` and exits `0`, so an "ensure initialized" script can run it unconditionally.
-
-### Downgrade warning
-
-If the current Ritual build is older than the version recorded in the `site` config, the command warns and exits with a failure status without making changes:
-
-```
-Warning: The current Ritual build (0.1.0) is older than the version last used
-to initialize this repository (0.2.0).
-Use --force to re-initialize with current settings, or remove the "site" key
-from ritual.config.json if you want to use this older version.
-```
+`ritual migrate` is what brings the workspace up to date: it rewrites the workflow from your saved settings (so older workflows pick up template changes), appends `.gitignore` entries added by newer versions (for a **local-build** deploy, this is how an older scaffold gets the `!<distDir>/` un-ignore), and refreshes installed [agent skills](/commands/skills/). Preview it with `ritual migrate --dry-run`.
 
 ### `--force`
 
-`--force` (or `-f`) bypasses all version checks and re-runs the full init, overwriting all generated files including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
+`--force` (or `-f`) ignores the existing site settings and re-runs the full init, overwriting all generated files including an existing `README.md` (pass `--no-overwrite-readme` to keep it). The fresh-init flags work here too, so a fully-flagged `--force` run never prompts:
 
 ```bash
 ritual init-site --force --ci github-actions --deploy publish-for-me --no-change-detection --no-prerelease --price-source tcgplayer --no-skills
@@ -266,8 +215,8 @@ ritual init-site --force --ci github-actions --deploy publish-for-me --no-change
 
 | Code | Meaning                                                                                                                                                                                  |
 | ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Files generated, the upgrade was applied, or the repository was already initialized with the current version (nothing to do)                                                             |
-| `1`  | Failed to write `ritual.config.json`, or the current build is older than the version that initialized the repository                                                                     |
+| `0`  | Files generated, or the repository was already initialized (whether or not `ritual migrate` has updates for it)                                                                          |
+| `1`  | Failed to write `ritual.config.json`, or the workspace was updated by a newer Ritual or its config cannot be made valid (see [`migrate`](/commands/migrate/))                            |
 | `2`  | A prompt was cancelled or declined, a flag was invalid or contradictory (including fresh-init flags on an already-initialized repository), or a headless run was missing a required flag |
 
 ## Customizing the Ritual Version (GitHub Actions)

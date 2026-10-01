@@ -70,6 +70,7 @@ describe('buildProgram', () => {
       'skills',
       'cache',
       'cleanup',
+      'migrate',
       'detect-changes',
       'list-all-cards',
       'config',

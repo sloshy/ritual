@@ -401,7 +401,7 @@ still cleaned — that exits 1 in **every** mode, including \`--dry-run\`. Under
 - **ritual-wanted** — manage and price wanted lists
 - **ritual-edit** — card edits across any list: one-shot non-interactive commands (\`add-card\`, \`remove-card\`, \`set-card\`, \`note\`, scripted \`move\`), the unified interactive editor, and card exports (CSV, JSON, plain text, Markdown)
 - **ritual-cards** — look up cards and run Scryfall searches
-- **ritual-site** — build, serve, and administer the published site, the CI publishing pipeline, and the MCP server
+- **ritual-site** — build, serve, and administer the published site, the CI publishing pipeline, the MCP server, and bringing a workspace up to date after upgrading Ritual (\`ritual migrate\`)
 
 ## Global options (work on every command)
 
@@ -429,7 +429,8 @@ ${asBullet(NO_INPUT_GUARANTEE)}
 
 Exit codes are uniform across commands: **1** runtime error, **2** usage error,
 **3** not found. A missing resource — a list, file, or sidecar that is simply
-not there — is always **3**, never 1.
+not there — is always **3**, never 1. **4** means updates are pending, and only
+\`ritual migrate --check\` uses it.
 
 ## Scripting conventions (uniform across commands)
 
@@ -489,6 +490,8 @@ ritual config set searchDebounceMs 250 # web editors' add-card search debounce i
 ritual config set artDir ./art    # directory custom card art is referenced from (default ./art)
 ritual config set uiLocale de-AT  # language Ritual's own interface text speaks (BCP-47 tag).
                                   #   NOT defaultLanguage: that one picks card printings
+ritual migrate --dry-run          # after upgrading Ritual: preview pending workspace updates
+                                  #   (ask the user before \`ritual migrate --yes\` applies them)
 ritual config get <prop>          # read one value (exit 3 when unset)
 ritual config list                # print the full effective config (defaults marked)
 ritual config unset <prop>        # revert a value to its default

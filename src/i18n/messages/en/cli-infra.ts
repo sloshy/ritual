@@ -259,8 +259,6 @@ export const cliInfraMessages = {
     'Enable automatic change detection? (commits changelogs when list files change)',
   'cli.initSite.promptPrerelease':
     'Download prerelease versions of Ritual in the workflow? (the newest release, prereleases included)',
-  'cli.initSite.promptUpgrade':
-    'Ritual has been upgraded ({from} → {to}). Regenerate tracked managed files?',
   'cli.initSite.readmeExists':
     'README.md already exists and prompts are unavailable; pass --overwrite-readme or --no-overwrite-readme.',
   'cli.initSite.fileExists':
@@ -274,19 +272,8 @@ export const cliInfraMessages = {
   'cli.initSite.prereleaseScope':
     '--prerelease/--no-prerelease only applies with --deploy publish-for-me.',
   'cli.initSite.distDirScope': '--dist-dir only applies with --deploy local-build.',
-  'cli.initSite.upgradeRequired':
-    'Ritual has been upgraded ({from} → {to}) and prompts are unavailable; pass --upgrade to regenerate tracked managed files.',
-  'cli.initSite.alreadyCurrent':
-    'Already initialized with the current version ({version}); nothing to do.',
-  'cli.initSite.downgrade':
-    'Warning: The current Ritual build ({current}) is older than the version last used to initialize this repository ({initialized}).',
-  'cli.initSite.downgradeAdvice':
-    'Use --force to re-initialize with current settings, or remove the "site" key from ritual.config.json if you want to use this older version.',
-  'cli.initSite.upgrading': 'Upgrading from {from} to {to}...',
-  'cli.initSite.configUpdated': '✓ ritual.config.json site section updated to {version}',
+  'cli.initSite.alreadyCurrent': 'Already initialized and up to date; nothing to do.',
   'cli.initSite.configWriteFailed': 'Error: Failed to write ritual.config.json: {reason}',
-  'cli.initSite.migrationUpdated': '↻ Updated {path}',
-  'cli.initSite.migrationRemoved': '✕ Removed {path}',
   'cli.initSite.created': '✓ Created {path}',
   'cli.initSite.skipped': '⊘ Skipped {path}',
   'cli.initSite.gitignoreCreated': '✓ Created .gitignore',
@@ -307,6 +294,45 @@ export const cliInfraMessages = {
   'cli.initSite.pinVersionTip':
     'Tip: Pin a specific Ritual version, or switch between "latest" and "prerelease", by setting a RITUAL_VERSION repository variable.',
 
+  // ── migrate ───────────────────────────────────────────────────────────
+  'cli.migrate.noConfig': 'No ritual.config.json in this directory; nothing to migrate.',
+  'cli.migrate.upToDate': 'This workspace is already up to date; nothing to do.',
+  'cli.migrate.pending':
+    'This workspace has pending updates. Run `ritual migrate` to review and apply them.',
+  'cli.migrate.planHeading': 'Pending workspace updates:',
+  'cli.migrate.migrationHeading': 'Migration {id}: {description}',
+  'cli.migrate.migration.dropSiteVersion':
+    'Remove site.version from ritual.config.json (the managed block replaces it)',
+  'cli.migrate.opConfigSet': '  set {path} = {value} in ritual.config.json',
+  'cli.migrate.opConfigDelete': '  remove {path} from ritual.config.json',
+  'cli.migrate.opWrite': '  write {path}',
+  'cli.migrate.opDelete': '  delete {path}',
+  'cli.migrate.opRename': '  move {from} → {to}',
+  'cli.migrate.refreshHeading': 'Refresh generated files:',
+  'cli.migrate.refreshGitignore': '  add {entries} to .gitignore',
+  'cli.migrate.refreshSkill': '  overwrite agent skill {name}',
+  'cli.migrate.refreshRemoveSkill': '  remove agent skill {name} (no longer shipped)',
+  'cli.migrate.refreshRecordOnly':
+    '  record that the generated files are current (nothing to rewrite)',
+  'cli.migrate.dryRunDone': 'Dry run: nothing was written.',
+  'cli.migrate.confirm': 'Apply these updates?',
+  'cli.migrate.cancelled': 'Cancelled; nothing was written.',
+  'cli.migrate.applied': '✓ Applied migration {id}: {description}',
+  'cli.migrate.wrote': '✓ Wrote {path}',
+  'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
+  'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',
+  'cli.migrate.done': '✓ Workspace is up to date.',
+  'cli.migrate.devBuild':
+    'Warning: {version} is a development build, so managed.version was left unchanged. A CI build pinned to that release will not know the migrations just applied.',
+  'cli.migrate.ahead':
+    'This workspace was last updated by a newer Ritual ({version}). Install Ritual {version} or newer and try again.',
+  'cli.migrate.aheadNoVersion':
+    'This workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Install a newer Ritual and try again.',
+  'cli.migrate.changedSincePlan':
+    'ritual.config.json changed while migrate was running; nothing was written. Run `ritual migrate` again.',
+  'cli.migrate.invalid':
+    'ritual.config.json would still be invalid after migrating ({error}); nothing was written. Fix the file and run `ritual migrate` again.',
+
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': '✓ {name} → {path}',
   'cli.skills.resultUpToDate': '• {name} already up to date',
@@ -314,7 +340,6 @@ export const cliInfraMessages = {
   'cli.skills.resultAbsent': '• {name} not installed (skipped)',
   'cli.skills.forceHintRerun': 're-run with --force to overwrite them with the current version',
   'cli.skills.forceHintInit': 'use --force to overwrite them',
-  'cli.skills.forceHintUpdate': 'run `ritual skills update --force` to overwrite them',
 
   // ── mcp ───────────────────────────────────────────────────────────────
   //

@@ -248,6 +248,21 @@ function siteDeployGuardError(verb: 'set' | 'unset'): string {
   )
 }
 
+/**
+ * True when `property` targets the Ritual-owned `managed` block, which only
+ * `init-site` and `migrate` write.
+ */
+function isManagedPath(property: string): boolean {
+  return property === 'managed' || property.startsWith('managed.')
+}
+
+function managedGuardError(verb: 'set' | 'unset'): string {
+  return (
+    `The "managed" property is owned by Ritual and cannot be ${verb} with "config ${verb}"; ` +
+    '"ritual init-site" and "ritual migrate" keep it up to date.'
+  )
+}
+
 export function setAtPath(
   obj: Record<string, unknown>,
   path: string[],
@@ -305,6 +320,9 @@ export function applyConfigSet(
   // public-site selection lists may be set here.
   if (isSiteDeployManagedPath(property)) {
     return { error: siteDeployGuardError('set') }
+  }
+  if (isManagedPath(property)) {
+    return { error: managedGuardError('set') }
   }
 
   const fieldType =
@@ -601,6 +619,9 @@ export function applyConfigUnset(config: RitualConfig, property: string): Config
   // Same guard as applyConfigSet: init-site owns the site deployment keys.
   if (isSiteDeployManagedPath(property)) {
     return { error: siteDeployGuardError('unset') }
+  }
+  if (isManagedPath(property)) {
+    return { error: managedGuardError('unset') }
   }
 
   const fieldType =

@@ -406,9 +406,6 @@ export const cliInfraMeta = {
     description:
       'Confirm prompt: should the generated workflow download the newest Ritual release including prereleases, instead of the latest stable release?',
   },
-  'cli.initSite.promptUpgrade': {
-    description: 'Confirm prompt after a Ritual upgrade. {from}/{to} are version numbers.',
-  },
   'cli.initSite.readmeExists': {
     description: 'README.md exists, prompts are unavailable, and no explicit decision was given.',
   },
@@ -430,28 +427,11 @@ export const cliInfraMeta = {
   'cli.initSite.distDirScope': {
     description: '--dist-dir was combined with a deploy mode that does not build locally.',
   },
-  'cli.initSite.upgradeRequired': {
-    description: 'An upgrade needs confirmation and prompts are unavailable.',
-  },
   'cli.initSite.alreadyCurrent': {
     description:
-      'Re-running init-site on an already-current repository. This is a success, not an error.',
-  },
-  'cli.initSite.downgrade': {
-    description: 'The running build is older than the one that initialized the repository.',
-  },
-  'cli.initSite.downgradeAdvice': {
-    description: 'How to recover from a downgrade. "site" is a literal config key.',
-  },
-  'cli.initSite.upgrading': { description: 'Regenerating managed files for a newer Ritual.' },
-  'cli.initSite.configUpdated': {
-    description: 'The site section of ritual.config.json was stamped with the new version.',
+      'Re-running init-site on an initialized repository with no pending `ritual migrate` work. This is a success, not an error.',
   },
   'cli.initSite.configWriteFailed': { description: 'ritual.config.json could not be written.' },
-  'cli.initSite.migrationUpdated': { description: 'A managed file was regenerated.' },
-  'cli.initSite.migrationRemoved': {
-    description: 'A managed file this version no longer uses was deleted.',
-  },
   'cli.initSite.created': { description: 'A generated file was written.' },
   'cli.initSite.skipped': { description: 'A generated file was left as the user had it.' },
   'cli.initSite.gitignoreCreated': { description: '.gitignore did not exist and was written.' },
@@ -483,6 +463,100 @@ export const cliInfraMeta = {
       'Closing tip. RITUAL_VERSION is a GitHub Actions variable name; "latest" and "prerelease" are literal values it accepts and must not be translated.',
   },
 
+  // ── migrate ───────────────────────────────────────────────────────────
+  'cli.migrate.noConfig': {
+    description:
+      '`ritual migrate` ran where there is no ritual.config.json (the file name is literal). A success.',
+  },
+  'cli.migrate.upToDate': {
+    description: '`ritual migrate`: no migrations or file refreshes are pending. A success.',
+  },
+  'cli.migrate.pending': {
+    description:
+      'Shown by `migrate --check` and by re-running `init-site` when the workspace needs `ritual migrate` (a literal command).',
+  },
+  'cli.migrate.planHeading': {
+    description: 'Heading above the list of changes `ritual migrate` is about to make.',
+  },
+  'cli.migrate.migrationHeading': {
+    description:
+      'One numbered migration in the plan. {id} is its number; {description} is one of the cli.migrate.migration.* messages.',
+  },
+  'cli.migrate.migration.dropSiteVersion': {
+    description:
+      'What migration 1 does. "site.version", "ritual.config.json" and "managed" are literal config names and must not be translated.',
+  },
+  'cli.migrate.opConfigSet': {
+    description:
+      'Plan line (indented): a config key will be set. {path} is a dotted key path, {value} its JSON value.',
+  },
+  'cli.migrate.opConfigDelete': {
+    description: 'Plan line (indented): a config key will be removed. {path} is a dotted key path.',
+  },
+  'cli.migrate.opWrite': {
+    description: 'Plan line (indented): a workspace file will be written. {path} is relative.',
+  },
+  'cli.migrate.opDelete': {
+    description: 'Plan line (indented): a workspace file will be deleted. {path} is relative.',
+  },
+  'cli.migrate.opRename': {
+    description: 'Plan line (indented): a workspace file will be moved from {from} to {to}.',
+  },
+  'cli.migrate.refreshHeading': {
+    description:
+      'Heading above the generated files (deploy workflow, .gitignore entries, agent skills) a refresh rewrites.',
+  },
+  'cli.migrate.refreshGitignore': {
+    description:
+      'Plan line (indented): {entries} is a comma-separated list of .gitignore patterns to append.',
+  },
+  'cli.migrate.refreshSkill': {
+    description: 'Plan line (indented): an installed agent skill {name} is rewritten.',
+  },
+  'cli.migrate.refreshRecordOnly': {
+    description:
+      'Plan line (indented): the generated files already match; only their hash is recorded in ritual.config.json.',
+  },
+  'cli.migrate.refreshRemoveSkill': {
+    description:
+      'Plan line (indented): an installed agent skill {name} that Ritual no longer ships is deleted.',
+  },
+  'cli.migrate.dryRunDone': {
+    description: 'Closing line of `migrate --dry-run`, after the plan.',
+  },
+  'cli.migrate.confirm': { description: 'Yes/no prompt before `ritual migrate` applies its plan.' },
+  'cli.migrate.cancelled': { description: 'The user declined the `ritual migrate` prompt.' },
+  'cli.migrate.applied': {
+    description:
+      'A numbered migration was applied. {id} is its number; {description} is one of the cli.migrate.migration.* messages.',
+  },
+  'cli.migrate.wrote': { description: 'A generated file was rewritten. {path} is relative.' },
+  'cli.migrate.skillUpdated': { description: 'An installed agent skill {name} was rewritten.' },
+  'cli.migrate.skillRemoved': {
+    description: 'An installed agent skill {name} that Ritual no longer ships was deleted.',
+  },
+  'cli.migrate.done': { description: 'Closing line after `ritual migrate` applied everything.' },
+  'cli.migrate.devBuild': {
+    description:
+      'Warning after a development build applied migrations. {version} is the running version; "managed.version" is a literal config key.',
+  },
+  'cli.migrate.ahead': {
+    description:
+      'Refusal: a newer Ritual release last updated the workspace. {version} is that release (appears twice).',
+  },
+  'cli.migrate.aheadNoVersion': {
+    description:
+      'The same refusal when no release was recorded. {applied}/{latest} are migration numbers.',
+  },
+  'cli.migrate.changedSincePlan': {
+    description:
+      'Refusal: the config file changed between planning and applying. "ritual.config.json" and the backticked command are literal.',
+  },
+  'cli.migrate.invalid': {
+    description:
+      'Refusal: the migrated config still fails validation. {error} is the English validation message; "ritual.config.json" and the backticked command are literal.',
+  },
+
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': { description: 'One skill file was installed or refreshed.' },
   'cli.skills.resultUpToDate': {
@@ -500,10 +574,6 @@ export const cliInfraMeta = {
   },
   'cli.skills.forceHintInit': {
     description: 'The same hint phrased for a fresh `init-site`, whose flag is --force.',
-  },
-  'cli.skills.forceHintUpdate': {
-    description:
-      'The same hint phrased for an `init-site` upgrade, which defers to `skills update`.',
   },
 
   // ── mcp ───────────────────────────────────────────────────────────────

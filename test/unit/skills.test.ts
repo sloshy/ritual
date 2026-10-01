@@ -155,6 +155,8 @@ describe('skill bodies name only tools that exist', () => {
     'price-deck',
     'price-collection',
     'price-wanted-list',
+    // `migrate` replaced init-site's in-place upgrade.
+    'init-site --upgrade',
   ]
 
   test('no skill mentions a retired CLI command', () => {
@@ -165,6 +167,13 @@ describe('skill bodies name only tools that exist', () => {
           .toEqual({ skill: skill.name, retired, found: false })
       }
     }
+  })
+
+  test('the site skill teaches previewing migrate before applying it', () => {
+    const site = SKILLS.find((skill) => skill.name === 'ritual-site')
+    expect(site?.body).toContain('ritual migrate --check')
+    expect(site?.body).toContain('ritual migrate --dry-run')
+    expect(site?.body).toContain('Always ask before applying')
   })
 
   test('no skill mentions a retired tool name', () => {

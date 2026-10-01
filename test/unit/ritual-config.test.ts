@@ -25,6 +25,8 @@ import {
   parseCacheSource,
   parseCollectionSyncConfig,
   parseDefaultLanguage,
+  parseManagedConfig,
+  parseRitualConfig,
   cardKingdomPricesEnabled,
   getPriceSources,
   getDefaultPriceCurrency,
@@ -160,7 +162,6 @@ describe('ritual config', () => {
       },
       collectionSync: { pullTarget: 'Binder' },
       site: {
-        version: '1.0.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
@@ -172,6 +173,7 @@ describe('ritual config', () => {
         excludeCollections: [],
         excludeWantedLists: [],
       },
+      managed: { version: '1.2.0', migration: 1, output: 'sha256:abc' },
     }
     await saveRitualConfig(config)
 
@@ -438,14 +440,12 @@ describe('ritual config', () => {
       configPath,
       JSON.stringify({
         site: {
-          version: '1.0.0',
           ciSystem: 'manual',
         },
       }),
     )
     const loaded = await loadRitualConfig()
     expect(loaded.site).toEqual({
-      version: '1.0.0',
       ciSystem: 'manual',
       includeDecks: ['*'],
       includeCollections: ['*'],
@@ -461,7 +461,7 @@ describe('ritual config', () => {
       configPath,
       JSON.stringify({
         admin: { gitEnabled: true },
-        site: { ciSystem: 'github-actions' }, // missing version, deployMode, etc
+        site: { ciSystem: 'github-actions' }, // missing deployMode, distDir, etc
       }),
     )
     const loaded = await loadRitualConfig()
@@ -557,7 +557,6 @@ describe('parseSiteConfig', () => {
     [
       'github-actions/publish-for-me',
       {
-        version: '0.1.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
@@ -568,14 +567,13 @@ describe('parseSiteConfig', () => {
     [
       'github-actions/local-build',
       {
-        version: '0.2.0-beta1',
         ciSystem: 'github-actions',
         deployMode: 'local-build',
         distDir: 'public',
         detectChanges: false,
       },
     ],
-    ['manual', { version: '1.0.0', ciSystem: 'manual' }],
+    ['manual', { ciSystem: 'manual' }],
   ] as const)('parses valid %s config', (_label, input) => {
     expect(parseSiteConfig(input)).toEqual({ ...defaultSelection, ...input } as SiteConfig)
   })
@@ -598,13 +596,11 @@ describe('parseSiteConfig', () => {
 
   test('preserves explicit selection lists alongside deployment settings', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'manual',
       includeDecks: ['Atraxa'],
       includeCollections: [],
     })
     expect(result).toEqual({
-      version: '1.0.0',
       ciSystem: 'manual',
       includeDecks: ['Atraxa'],
       includeCollections: [],
@@ -642,28 +638,8 @@ describe('parseSiteConfig', () => {
     expect(isConfigParseError(parseSiteConfig(42))).toBeTrue()
   })
 
-  test('returns a parse error when version is not valid semver', () => {
-    const result = parseSiteConfig({
-      version: 'latest',
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-    })
-    expectParseError(result, '"version"')
-  })
-
-  test('returns a parse error when version is missing', () => {
-    const result = parseSiteConfig({
-      ciSystem: 'github-actions',
-      deployMode: 'publish-for-me',
-      distDir: 'dist',
-    })
-    expectParseError(result, '"version"')
-  })
-
   test('returns a parse error when ciSystem is invalid', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'gitlab',
     })
     expectParseError(result, '"ciSystem"')
@@ -671,7 +647,6 @@ describe('parseSiteConfig', () => {
 
   test('returns a parse error when deployMode is invalid for github-actions', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'invalid',
       distDir: 'dist',
@@ -681,7 +656,6 @@ describe('parseSiteConfig', () => {
 
   test('returns error when distDir is missing for github-actions', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       detectChanges: false,
@@ -691,7 +665,6 @@ describe('parseSiteConfig', () => {
 
   test('returns error when detectChanges is missing for github-actions', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
@@ -701,7 +674,6 @@ describe('parseSiteConfig', () => {
 
   test('returns error when detectChanges is the wrong type for github-actions', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
@@ -712,7 +684,6 @@ describe('parseSiteConfig', () => {
 
   test('returns error when prerelease is the wrong type for github-actions', () => {
     const result = parseSiteConfig({
-      version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
@@ -726,14 +697,13 @@ describe('parseSiteConfig', () => {
     [
       'github-actions',
       {
-        version: '1.0.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: false,
       },
     ],
-    ['manual', { version: '1.0.0', ciSystem: 'manual' }],
+    ['manual', { ciSystem: 'manual' }],
   ] as const)('ignores extra unknown fields for %s config', (_label, input) => {
     const result = parseSiteConfig({ ...input, unknown: 'field' })
     expect(result).toEqual({ ...defaultSelection, ...input } as SiteConfig)
@@ -775,11 +745,10 @@ describe('parseSiteConfig', () => {
   test('carries sellMode through the deployment branches too', () => {
     // Four return sites build the parsed object; dropping the key in one of them
     // would silently disable sell mode for init-site-configured workspaces only.
-    const manual = parseSiteConfig({ version: '1.2.3', ciSystem: 'manual', sellMode: false })
+    const manual = parseSiteConfig({ ciSystem: 'manual', sellMode: false })
     expect(manual).toMatchObject({ sellMode: false, ciSystem: 'manual' })
 
     const actions = parseSiteConfig({
-      version: '1.2.3',
       ciSystem: 'github-actions',
       deployMode: 'local-build',
       distDir: 'dist',
@@ -1059,6 +1028,57 @@ describe('config parser error shape', () => {
   })
 })
 
+describe('parseManagedConfig', () => {
+  test('parses a full block', () => {
+    expect(parseManagedConfig({ version: '1.2.0', migration: 3, output: 'sha256:ff' })).toEqual({
+      version: '1.2.0',
+      migration: 3,
+      output: 'sha256:ff',
+    })
+  })
+
+  test('an absent migration counter reads as 0', () => {
+    expect(parseManagedConfig({})).toEqual({ migration: 0 })
+  })
+
+  test.each([
+    ['a non-object', 'nope', 'managed config'],
+    ['a fractional migration', { migration: 1.5 }, '"migration"'],
+    ['a negative migration', { migration: -1 }, '"migration"'],
+    ['a non-semver version', { migration: 1, version: 'latest' }, '"version"'],
+    ['an unprefixed output hash', { migration: 1, output: 'abc' }, '"output"'],
+  ] as const)('rejects %s', (_label, input, fragment) => {
+    expectParseError(parseManagedConfig(input), fragment)
+  })
+})
+
+describe('parseRitualConfig', () => {
+  test('applies the same defaults as the load path', () => {
+    expect(parseRitualConfig({})).toEqual(getDefaultRitualConfig())
+  })
+
+  test.each([
+    ['defaultPriceSource', 'usd'],
+    ['priceSources', ['ebay']],
+    ['defaultCategories', 'Ramp'],
+    ['defaultLanguage', 'jp'],
+    ['uiLocale', ''],
+    ['cacheLockTimeoutSeconds', 0],
+    ['cacheSource', 'torrent'],
+    ['searchDebounceMs', -1],
+    ['cacheFeedUrl', 'ftp://feed.example/feed.json'],
+    ['admin', 'on'],
+    ['collectionSync', { pullTarget: '' }],
+    ['site', { ciSystem: 'gitlab' }],
+    ['managed', { migration: 'one' }],
+    ['exportPresets', { bad: { format: 'xml' } }],
+  ] as const)('a malformed %s is an error naming it, not a warning', (key, value) => {
+    const result = parseRitualConfig({ [key]: value })
+    expect(isConfigParseError(result)).toBeTrue()
+    if (isConfigParseError(result)) expect(result.error.startsWith(key)).toBeTrue()
+  })
+})
+
 describe('getBannedPrintings', () => {
   test('returns the configured keys as a set', () => {
     const config = { ...getDefaultRitualConfig(), site: { bannedPrintings: ['sld:123'] } }
@@ -1121,14 +1141,12 @@ describe('getSiteDeployConfig', () => {
     expect(
       getSiteDeployConfig({
         ...selectionBase,
-        version: '1.0.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: false,
       }),
     ).toEqual({
-      version: '1.0.0',
       ciSystem: 'github-actions',
       deployMode: 'publish-for-me',
       distDir: 'dist',
@@ -1141,7 +1159,6 @@ describe('getSiteDeployConfig', () => {
     expect(
       getSiteDeployConfig({
         ...selectionBase,
-        version: '1.0.0',
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
@@ -1155,9 +1172,8 @@ describe('getSiteDeployConfig', () => {
     expect(
       getSiteDeployConfig({
         ...selectionBase,
-        version: '2.1.0',
         ciSystem: 'manual',
       }),
-    ).toEqual({ version: '2.1.0', ciSystem: 'manual' })
+    ).toEqual({ ciSystem: 'manual' })
   })
 })

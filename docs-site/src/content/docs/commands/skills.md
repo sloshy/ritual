@@ -129,15 +129,15 @@ ritual skills list --output json
 
 ## The skills
 
-| Skill                | Covers                                                                                                                                                                                                                |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ritual`             | Overview, workspace layout, file format, global options (including `--locale`), the `ritual locale` command and its `--detect` probe, and setup.                                                                      |
-| `ritual-decks`       | Create, import, sync, and price decks.                                                                                                                                                                                |
-| `ritual-collections` | Manage collections, sync them with Archidekt, price them, and check them against Card Kingdom's buylist.                                                                                                              |
-| `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                                                                        |
-| `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor.                                           |
-| `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                                                                    |
-| `ritual-site`        | Build, serve, and administer the site (including its `--locale` / `--locales` / `--locale-file` language flags), wire up the CI publishing pipeline (cache keys, changelog change detection), and run the MCP server. |
+| Skill                | Covers                                                                                                                                                                                                                                                                                        |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ritual`             | Overview, workspace layout, file format, global options (including `--locale`), the `ritual locale` command and its `--detect` probe, and setup.                                                                                                                                              |
+| `ritual-decks`       | Create, import, sync, and price decks.                                                                                                                                                                                                                                                        |
+| `ritual-collections` | Manage collections, sync them with Archidekt, price them, and check them against Card Kingdom's buylist.                                                                                                                                                                                      |
+| `ritual-wanted`      | Manage and price wanted lists.                                                                                                                                                                                                                                                                |
+| `ritual-edit`        | Card edits across any list: non-interactive commands, applying exported change bundles, card exports (CSV, JSON, plain text, Markdown), and the unified interactive editor.                                                                                                                   |
+| `ritual-cards`       | Card lookup and Scryfall searches.                                                                                                                                                                                                                                                            |
+| `ritual-site`        | Build, serve, and administer the site (including its `--locale` / `--locales` / `--locale-file` language flags), wire up the CI publishing pipeline (cache keys, changelog change detection), run the MCP server, and bring a workspace up to date after upgrading Ritual (`ritual migrate`). |
 
 ## Skill content is always English
 
@@ -147,13 +147,13 @@ Installed `SKILL.md` files are never translated, whatever your [UI locale](/loca
 
 Skill content is generated from the CLI, so installed copies go stale when you upgrade Ritual. Run `ritual skills update` after upgrading (`--global` for a `~/.claude/skills` install). Machine-managed installs are rewritten, edited files are preserved unless you add `--force`, and skills you never installed stay absent.
 
-If your repository was set up with [`ritual init-site`](/commands/init-site/), upgrading it also refreshes installed skills with the same rules (see below).
+If your repository was set up with [`ritual init-site`](/commands/init-site/), [`ritual migrate`](/commands/migrate/) refreshes its installed skills too, as part of refreshing the files Ritual generates. Unlike `skills update`, it overwrites them unconditionally and deletes Ritual skills this version no longer ships.
 
 ## Installing during `init-site`
 
 [`ritual init-site`](/commands/init-site/) offers to install these skills when it scaffolds a repository. Answer the prompt, or pass `--skills` / `--no-skills` to decide without prompting.
 
-When you re-run `init-site` to upgrade a repository, it refreshes already-installed skills without adding skills you never installed or overwriting files you edited (those are reported as skipped, with a pointer to `ritual skills update --force`). Use `--no-skills` to skip this, or `--skills` to (re)install the full set.
+Re-running `init-site` on an initialized repository never touches its skills. Bringing them up to date after an upgrade is [`ritual migrate`](/commands/migrate/)'s job.
 
 ## See also
 

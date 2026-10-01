@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
-import { maybeInstallSkills, refreshSkillsOnUpgrade } from '../../src/commands/init-site'
+import { maybeInstallSkills } from '../../src/commands/init-site'
 import { SKILLS, renderSkillFile } from '../../src/skills/catalog'
 import { installSkills, refreshInstalledSkills, resolveSkillsDir } from '../../src/skills/install'
 import { fileExists } from '../../src/util/fs'
@@ -479,94 +479,6 @@ describe('init-site maybeInstallSkills (Integration)', () => {
       setBaseDir(dir)
       await maybeInstallSkills({ skills: false }, false)
       expect(await fileExists(path.join(dir, '.claude'))).toBe(false)
-    })
-  })
-})
-
-describe('init-site refreshSkillsOnUpgrade (Integration)', () => {
-  let originalBaseDir: string
-  beforeEach(() => {
-    originalBaseDir = getBaseDir()
-  })
-  afterEach(() => setBaseDir(originalBaseDir))
-
-  test('refreshes installed skills but does not introduce uninstalled ones', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const skillsDir = path.join(dir, '.claude', 'skills')
-      const [installed, notInstalled] = SKILLS
-
-      // Install one skill and let it go stale (a machine-managed file from an
-      // older Ritual), simulating a pre-upgrade repo.
-      const installedPath = path.join(skillsDir, installed!.name, 'SKILL.md')
-      await installSkills([installed!], skillsDir, { force: false })
-      await fs.writeFile(installedPath, withFakeOldVersion(renderSkillFile(installed!)), 'utf-8')
-
-      await refreshSkillsOnUpgrade({})
-
-      expect(await fs.readFile(installedPath, 'utf-8')).toBe(renderSkillFile(installed!))
-      expect(await fileExists(path.join(skillsDir, notInstalled!.name, 'SKILL.md'))).toBe(false)
-    })
-  })
-
-  test('preserves user-edited skills during an upgrade refresh', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const skillsDir = path.join(dir, '.claude', 'skills')
-      const skill = SKILLS[0]!
-      const filePath = path.join(skillsDir, skill.name, 'SKILL.md')
-
-      await installSkills([skill], skillsDir, { force: false })
-      await fs.writeFile(filePath, 'my local notes', 'utf-8')
-
-      await refreshSkillsOnUpgrade({})
-
-      expect(await fs.readFile(filePath, 'utf-8')).toBe('my local notes')
-    })
-  })
-
-  test('does nothing when no skills are installed', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      await refreshSkillsOnUpgrade({})
-      expect(await fileExists(path.join(dir, '.claude'))).toBe(false)
-    })
-  })
-
-  test('--no-skills skips the refresh', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const skillsDir = path.join(dir, '.claude', 'skills')
-      const skill = SKILLS[0]!
-      const filePath = path.join(skillsDir, skill.name, 'SKILL.md')
-
-      await installSkills([skill], skillsDir, { force: false })
-      await fs.writeFile(filePath, 'stale content', 'utf-8')
-
-      await refreshSkillsOnUpgrade({ skills: false })
-      expect(await fs.readFile(filePath, 'utf-8')).toBe('stale content')
-    })
-  })
-
-  test('--skills force-installs the full set, overwriting stale skills and adding missing ones', async () => {
-    await withTempDir(async (dir) => {
-      setBaseDir(dir)
-      const skillsDir = path.join(dir, '.claude', 'skills')
-      const installed = SKILLS[0]!
-
-      // Pre-install one skill and tamper with it; leave the rest uninstalled.
-      const installedPath = path.join(skillsDir, installed.name, 'SKILL.md')
-      await installSkills([installed], skillsDir, { force: false })
-      await fs.writeFile(installedPath, 'stale content', 'utf-8')
-
-      await refreshSkillsOnUpgrade({ skills: true })
-
-      // The tampered skill is force-overwritten with current rendered content...
-      expect(await fs.readFile(installedPath, 'utf-8')).toBe(renderSkillFile(installed))
-      // ...and the full set is installed, including skills never present before.
-      for (const skill of SKILLS) {
-        expect(await fileExists(path.join(skillsDir, skill.name, 'SKILL.md'))).toBe(true)
-      }
     })
   })
 })

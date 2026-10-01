@@ -337,7 +337,14 @@ export function buildProgram(build: BuildProgramOptions): Command {
       resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
     )
 
-    await refreshRitualConfig()
+    // `ritual migrate` reads the raw config itself: it must run against a file
+    // the loader would reject or warn about, since fixing that file is its job.
+    // Only the top-level command — a subcommand that happens to be named
+    // `migrate` loads the config like any other.
+    const isMigrate = actionCommand.name() === 'migrate' && actionCommand.parent === program
+    if (!isMigrate) {
+      await refreshRitualConfig()
+    }
     // The authoritative locale pass: `--base-dir` has been applied, so the
     // `uiLocale` tier reads the config file this run will actually use, and the
     // flag has already been validated by its argParser. `initI18n()` ran before

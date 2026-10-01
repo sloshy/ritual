@@ -2,8 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli, withTempDir } from './helpers/cli'
-import { version as ritualVersion } from '../../src/config/version'
-import { renderSkillFile, SKILLS } from '../../src/skills/catalog'
+import { snapshotTree } from '../helpers/workspace'
+import { latestMigrationId } from '../../src/migrate/migrations'
 
 /**
  * Headless `init-site` runs in synthetic directories. runCli's stdin is not a
@@ -13,7 +13,6 @@ import { renderSkillFile, SKILLS } from '../../src/skills/catalog'
 
 type SiteConfigFile = {
   site?: {
-    version?: string
     ciSystem?: string
     deployMode?: string
     distDir?: string
@@ -22,6 +21,7 @@ type SiteConfigFile = {
   }
   defaultPriceSource?: string
   priceSources?: string[]
+  managed?: { version?: string; migration: number; output?: string }
 }
 
 async function readConfig(dir: string): Promise<SiteConfigFile> {
@@ -69,13 +69,16 @@ describe('init-site CLI (Integration)', () => {
 
       const config = await readConfig(dir)
       expect(config.site).toMatchObject({
-        version: ritualVersion,
         ciSystem: 'github-actions',
         deployMode: 'publish-for-me',
         distDir: 'dist',
         detectChanges: true,
         prerelease: true,
       })
+      // A fresh init is current by construction: every migration applied and
+      // the output just generated recorded.
+      expect(config.managed?.migration).toBe(latestMigrationId())
+      expect(config.managed?.output).toMatch(/^sha256:/)
       expect(config.defaultPriceSource).toBe('cardmarket')
       // Choosing a store the sites did not offer enables it, in canonical order.
       expect(config.priceSources).toEqual(['cardmarket', 'cardkingdom'])
@@ -222,12 +225,13 @@ describe('init-site CLI (Integration)', () => {
         dir,
       )
       expect(init.exitCode).toBe(0)
+      const before = await snapshotTree(dir)
 
       const rerun = await runCli(['init-site', '--no-skills'], dir)
 
       expect(rerun.exitCode).toBe(0)
-      expect(rerun.stdout).toContain('Already initialized with the current version')
-      expect(rerun.stdout).toContain('nothing to do')
+      expect(rerun.stdout).toContain('Already initialized and up to date')
+      expect(await snapshotTree(dir)).toEqual(before)
     })
   })
 
@@ -420,113 +424,34 @@ describe('init-site CLI (Integration)', () => {
     })
   })
 
-  test('an upgrade un-ignores the committed dist of an existing local-build scaffold', async () => {
+  test('a re-run with pending updates points at migrate and writes nothing', async () => {
     await withTempDir(async (dir) => {
-      // The only delivery path for the un-ignore into an existing scaffold: a
-      // local-build repo initialized before the fix commits its built site, but
-      // its .gitignore still holds the `dist/` line an older init wrote, so the
-      // deploy workflow publishes an empty site.
+      // Initialized by an older build: a site.version and no managed block.
       await fs.writeFile(
         path.join(dir, 'ritual.config.json'),
-        JSON.stringify({
-          site: {
-            version: '0.0.1',
-            ciSystem: 'github-actions',
-            deployMode: 'local-build',
-            distDir: 'dist',
-            detectChanges: false,
-          },
-        }),
+        JSON.stringify({ site: { version: '0.0.1', ciSystem: 'manual' } }),
       )
-      await fs.writeFile(path.join(dir, '.gitignore'), 'cache/\ndist/\n')
+      const before = await snapshotTree(dir)
 
-      const upgraded = await runCli(['init-site', '--upgrade', '--no-skills'], dir)
-      expect(upgraded.exitCode).toBe(0)
+      const rerun = await runCli(['init-site'], dir)
 
-      const gitignore = await fs.readFile(path.join(dir, '.gitignore'), 'utf-8')
-      // The pre-existing `dist/` line stays (the file is only appended to), so
-      // the un-ignore is what has to be there to override it.
-      expect(gitignore).toContain('!dist/')
-      // Build scratch directories are the one build residue left in a repo that
-      // deliberately commits dist/.
-      expect(gitignore).toContain('.dist-build-*')
+      expect(rerun.exitCode).toBe(0)
+      expect(rerun.stdout).toContain('ritual migrate')
+      expect(await snapshotTree(dir)).toEqual(before)
     })
   })
 
-  test('--upgrade without a skills flag refreshes installed skills and never prompts', async () => {
+  test('a re-run on a workspace a newer Ritual updated is refused like migrate refuses it', async () => {
     await withTempDir(async (dir) => {
       await fs.writeFile(
         path.join(dir, 'ritual.config.json'),
-        JSON.stringify({
-          site: {
-            version: '0.0.1',
-            ciSystem: 'manual',
-            deployMode: 'publish-for-me',
-            distDir: 'dist',
-            detectChanges: false,
-          },
-        }),
-      )
-      // One skill installed by an older Ritual (machine-managed, stale
-      // version marker); every other skill was never installed.
-      const [installed, ...neverInstalled] = SKILLS
-      if (!installed || neverInstalled.length === 0) throw new Error('catalog too small')
-      const skillPath = path.join(dir, '.claude', 'skills', installed.name, 'SKILL.md')
-      await fs.mkdir(path.dirname(skillPath), { recursive: true })
-      await fs.writeFile(
-        skillPath,
-        renderSkillFile(installed).replace(
-          `ritual-version: ${ritualVersion}`,
-          'ritual-version: 0.0.1',
-        ),
+        JSON.stringify({ site: { ciSystem: 'manual' }, managed: { migration: 99 } }),
       )
 
-      // The upgrade path answers the skills question itself (refresh what is
-      // installed), so no --skills/--no-skills flag is needed headless.
-      const upgraded = await runCli(['init-site', '--upgrade'], dir)
-      expect(upgraded.exitCode).toBe(0)
-      expect(upgraded.stderr).not.toContain('--skills')
+      const rerun = await runCli(['init-site'], dir)
 
-      expect(await fs.readFile(skillPath, 'utf-8')).toContain(`ritual-version: ${ritualVersion}`)
-      for (const skill of neverInstalled) {
-        const absentPath = path.join(dir, '.claude', 'skills', skill.name, 'SKILL.md')
-        expect(await Bun.file(absentPath).exists()).toBeFalse()
-      }
-    })
-  })
-
-  test('a headless version upgrade requires --upgrade and migrates the workflow', async () => {
-    await withTempDir(async (dir) => {
-      // A repository initialized by an older build: old site version, and a
-      // workflow still using the old build-site flag.
-      await fs.writeFile(
-        path.join(dir, 'ritual.config.json'),
-        JSON.stringify({
-          site: {
-            version: '0.0.1',
-            ciSystem: 'github-actions',
-            deployMode: 'publish-for-me',
-            distDir: 'dist',
-            detectChanges: false,
-          },
-        }),
-      )
-      const workflowPath = path.join(dir, workflowRelPath)
-      await fs.mkdir(path.dirname(workflowPath), { recursive: true })
-      await fs.writeFile(workflowPath, 'run: ./ritual build-site --allow-refresh\n')
-
-      // Without --upgrade, the confirm prompt cannot run headless.
-      const refused = await runCli(['init-site'], dir)
-      expect(refused.exitCode).toBe(2)
-      expect(refused.stderr).toContain('--upgrade')
-
-      const upgraded = await runCli(['init-site', '--upgrade', '--no-skills'], dir)
-      expect(upgraded.exitCode).toBe(0)
-
-      const workflow = await fs.readFile(workflowPath, 'utf-8')
-      expect(workflow).toContain('./ritual build-site --refresh auto')
-      expect(workflow).not.toContain('--allow-refresh')
-      expect((await readConfig(dir)).site?.version).toBe(ritualVersion)
+      expect(rerun.exitCode).toBe(1)
+      expect(rerun.stderr).toContain('Install a newer Ritual')
     })
   })
 })

@@ -176,6 +176,8 @@ export default [
                 'src/mcp',
                 'src/serve',
                 'src/skills',
+                // The migration engine refreshes installed skills.
+                'src/migrate',
                 'src/cache-server',
                 'src/cache-feed',
               ],

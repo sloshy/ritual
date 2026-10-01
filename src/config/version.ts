@@ -3,6 +3,9 @@ import { execSync } from 'node:child_process'
 // GIT_VERSION is injected at compile time via --define in scripts/build.sh.
 // In development (bun run), it falls back to running git describe at runtime.
 declare const GIT_VERSION: string | undefined
+// RITUAL_RELEASE is defined (as `true`) only by the release workflow's build —
+// see scripts/build.sh. Local, Docker and CI test builds leave it undefined.
+declare const RITUAL_RELEASE: boolean | undefined
 
 export function normalizeVersion(ref: string): string {
   // Exact tag: "v1.2.3" or "v1.2.3-beta8" -> "1.2.3" or "1.2.3-beta8"
@@ -34,3 +37,22 @@ function resolveVersion(): string {
 }
 
 export const version = resolveVersion()
+
+/**
+ * Whether a build is a real release: built by the release workflow (which alone
+ * defines `RITUAL_RELEASE`) and versioned exactly at a tag — neither commits
+ * past one (`-dev.`) nor an untagged fallback (`0.0.0-…`). Only a release may
+ * record itself as a workspace's `managed.version`, since that value is what
+ * CI downloads.
+ */
+export function isReleaseVersion(releaseBuild: boolean, normalized: string): boolean {
+  return releaseBuild && !normalized.includes('-dev.') && !normalized.startsWith('0.0.0-')
+}
+
+/** {@link isReleaseVersion} for the running build. */
+export const isReleaseBuild = isReleaseVersion(
+  typeof GIT_VERSION !== 'undefined' &&
+    typeof RITUAL_RELEASE !== 'undefined' &&
+    RITUAL_RELEASE === true,
+  version,
+)
