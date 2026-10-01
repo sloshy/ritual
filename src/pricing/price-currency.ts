@@ -111,7 +111,7 @@ export function formatPriceOrNA(amount: number, currency: PriceCurrency): string
 }
 
 /**
- * A list total, prefixed "Est." when `estimated` — some card in it pins no
+ * A list total, prefixed "~" when `estimated` — some card in it pins no
  * printing, or has no price from the active store (see `isEstimatedPrice`).
  */
 export function formatTotalPrice(
@@ -124,9 +124,9 @@ export function formatTotalPrice(
 }
 
 /**
- * A list total that may be incomplete: "At least $X (missing N cards)" when
- * some cards have no price, and {@link formatTotalPrice} otherwise. Either form
- * is prefixed "Est." when `estimated`.
+ * A list total that may be incomplete: "$X+ (N unpriced)" when some cards have
+ * no price, and {@link formatTotalPrice} otherwise. Either form is prefixed "~"
+ * when `estimated`.
  */
 export function formatPriceWithMissing(
   amount: number,

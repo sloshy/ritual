@@ -448,11 +448,6 @@ export const siteCardsMeta = {
   'site.cover.noImage': {
     description: "Placeholder on a list's hero tile when no card art could be resolved for it.",
   },
-  'site.cover.lowPrice': {
-    description:
-      'The cheapest printing total, shown beside the ordinary total on a hero tile. {price} is already formatted with its currency; keep the wording very short.',
-    maxLen: 12,
-  },
 
   // ── Trade printing picker ─────────────────────────────────────────────
   'site.tradePicker.aria': {

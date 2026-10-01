@@ -110,7 +110,7 @@ export interface BakedDeckData extends Omit<DeckData, 'sections'> {
  * - `missingPriceCount` — copies with no price from that store.
  * - `estimatedPriceCount` — decks and wanted lists: copies whose part of the
  *   total is an estimate (they pin no printing, or have no price). Any at all
- *   prefixes the total "Est.".
+ *   prefixes the total "~".
  */
 type DeckPriceFields = PriceViewFields<
   'totalPrice' | 'lowestPrice' | 'missingPriceCount' | 'estimatedPriceCount'

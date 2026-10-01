@@ -452,7 +452,7 @@ reports a "lowest" total (cheapest printing of every card) and a quantity-weight
 unpriced-card count. Cards labeled \`proxy\`, and cards given custom art, price as
 0 and are **not** counted as unpriced — their reason is \`proxy\` or
 \`custom-art\`, not a missing price. A total that includes any card with no pinned
-printing (priced at a representative one) or with no price reads **"Est."**
-(\`Total Est. $12.34\`); JSON reports those copies as \`estimatedCount\`.
+printing (priced at a representative one) or with no price reads **"~"**
+(\`Total ~$12.34\`); JSON reports those copies as \`estimatedCount\`.
 `,
 }

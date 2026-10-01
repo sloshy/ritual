@@ -1036,17 +1036,8 @@ h3 {
 }
 
 .cover-prices {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
   color: var(--success-text);
   font-weight: 500;
-
-  & .cover-lowest {
-    color: var(--text-dim);
-    font-weight: 400;
-    font-size: 0.7rem;
-  }
 }
 
 /* ===== FOIL RAINBOW SHEEN ===== */

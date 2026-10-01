@@ -182,7 +182,6 @@ export const siteCardsMessages = {
 
   // ── Cover card (deck/list hero tile) ──────────────────────────────────
   'site.cover.noImage': 'No Image',
-  'site.cover.lowPrice': 'low {price}',
 
   // ── Trade printing picker ─────────────────────────────────────────────
   'site.tradePicker.aria': 'Select printing for {name}',

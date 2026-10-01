@@ -11,7 +11,6 @@ interface CoverCardProps {
   /** Optional smaller parenthetical, e.g. "(62 cards)" when unusual for the format. */
   labelSuffix?: string
   priceLabel?: string
-  secondaryPriceLabel?: string
 }
 
 export const CoverCard: Component<CoverCardProps> = (props) => {
@@ -40,14 +39,7 @@ export const CoverCard: Component<CoverCardProps> = (props) => {
             <span class="cover-label-suffix">{props.labelSuffix}</span>
           </Show>
         </span>
-        <span class="cover-prices">
-          <span>{props.priceLabel}</span>
-          <Show when={props.secondaryPriceLabel}>
-            <span class="cover-lowest">
-              {t('site.cover.lowPrice', { price: props.secondaryPriceLabel ?? '' })}
-            </span>
-          </Show>
-        </span>
+        <span class="cover-prices">{props.priceLabel}</span>
       </div>
     </div>
   )

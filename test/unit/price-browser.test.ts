@@ -116,7 +116,7 @@ describe('formatTotalsSegment', () => {
   })
 
   test('marks an estimated total', () => {
-    expect(formatTotalsSegment(totals({ estimatedCount: 1 }), 'usd')).toBe('Total Est. $10.00')
+    expect(formatTotalsSegment(totals({ estimatedCount: 1 }), 'usd')).toBe('Total ~$10.00')
   })
 })
 

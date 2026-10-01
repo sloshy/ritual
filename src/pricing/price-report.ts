@@ -235,7 +235,7 @@ export type PriceTotals = {
   unpricedCount: number
   /**
    * Quantity-weighted count of deck and wanted entries whose price is an
-   * estimate (see {@link isEstimatedEntry}). Any at all prefixes the total "Est.".
+   * estimate (see {@link isEstimatedEntry}). Any at all prefixes the total "~".
    */
   estimatedCount: number
 }

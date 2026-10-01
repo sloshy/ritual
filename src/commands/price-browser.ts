@@ -137,7 +137,7 @@ export function createDefaultBrowserState(): CardBrowserState {
 
 /**
  * "Total $12.34 · Lowest $10.00 · 2 unpriced" (lowest/unpriced only when they
- * add information), the total prefixed "Est." when it is an estimate.
+ * add information), the total prefixed "~" when it is an estimate.
  */
 export function formatTotalsSegment(totals: PriceTotals, currency: PriceCurrency): string {
   const parts: string[] = [

@@ -132,14 +132,14 @@ export const domainMessages = {
   // (CSV and other machine paths) never reaches the catalog at all.
   'domain.price.atLeastMissing': {
     $plural: 'count',
-    one: 'At least {price} (missing {count} card)',
-    other: 'At least {price} (missing {count} cards)',
+    one: '{price}+ ({count} unpriced)',
+    other: '{price}+ ({count} unpriced)',
   },
-  'domain.price.estimated': 'Est. {price}',
+  'domain.price.estimated': '~{price}',
   'domain.price.estimatedAtLeastMissing': {
     $plural: 'count',
-    one: 'Est. at least {price} (missing {count} card)',
-    other: 'Est. at least {price} (missing {count} cards)',
+    one: '~{price}+ ({count} unpriced)',
+    other: '~{price}+ ({count} unpriced)',
   },
 
   // ── Sync engines ──────────────────────────────────────────────────────

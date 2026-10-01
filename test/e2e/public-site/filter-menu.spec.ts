@@ -469,7 +469,7 @@ test.describe('Toolbar Filters menu', () => {
     const stats = page.locator('.page-stats')
     // No filter yet: only the base total (and its "all cards" extras note) show.
     // Boring Rock is pinned but has no price, so the totals are estimates.
-    await expect(stats).toContainText('Total: Est. $25.75')
+    await expect(stats).toContainText('Total: ~$25.75')
     await expect(stats).not.toContainText('Filtered:')
 
     await openFilterMenu(page)

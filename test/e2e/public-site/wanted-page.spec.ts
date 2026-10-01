@@ -60,16 +60,14 @@ test.describe('Wanted List Page', () => {
   test('a total covering a name-only entry is marked as an estimate', async ({ page }) => {
     const stats = page.locator('.page-stats')
     // Lightning Bolt names no printing, so the list total is an estimate.
-    await expect(stats).toContainText('Total: Est. $')
+    await expect(stats).toContainText('Total: ~$')
 
     // Grouped by printing, only the Any Printing section's total is estimated.
     await page.locator('.toolbar select').first().selectOption('printing')
-    await expect(page.locator('[data-section="Any Printing"] .section-price')).toContainText(
-      'Est. $',
-    )
+    await expect(page.locator('[data-section="Any Printing"] .section-price')).toContainText('~$')
     const specificPrice = page.locator('[data-section="Specific Printing"] .section-price')
     await expect(specificPrice).toContainText('$')
-    await expect(specificPrice).not.toContainText('Est.')
+    await expect(specificPrice).not.toContainText('~')
 
     // Narrowing to a pinned, priced card drops the prefix from the filtered figure.
     await openFilterMenu(page)

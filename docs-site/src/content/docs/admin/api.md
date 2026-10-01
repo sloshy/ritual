@@ -705,7 +705,7 @@ When the store resolves to `cardkingdom` (`source=cardkingdom`, or the configure
 
 `mode` discriminates the two price bodies: `"summary"` here, `"list"` on [Price List](#price-list).
 
-`unpricedCount` counts copies whose price the data could not supply, and **only** those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any at all makes `total` an estimate, which the CLI and sites render as "Est.". Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) — a `proxy` label, custom art, or both — are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
+`unpricedCount` counts copies whose price the data could not supply, and **only** those. `estimatedCount` counts deck and wanted-list copies whose price is an estimate: the line pins no printing (priced at a representative one) or has no price. Any at all makes `total` an estimate, which the CLI and sites render with a `~` prefix (`~$12.34`). Collections never estimate. Cards that carry no price [by rule](/custom-art/#custom-art-carries-no-price) — a `proxy` label, custom art, or both — are priced at `0` and counted in `cardCount`, but are left out of `unpricedCount`: they are not a gap in the price data.
 
 **Response:**
 

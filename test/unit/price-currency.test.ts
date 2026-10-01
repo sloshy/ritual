@@ -55,26 +55,15 @@ describe('formatPriceWithMissing', () => {
     expect(formatPriceWithMissing(12.5, 'usd', 0, false)).toBe('$12.50')
   })
 
-  test('returns "At least" format when cards are missing', () => {
-    expect(formatPriceWithMissing(10.0, 'usd', 3, false)).toBe('At least $10.00 (missing 3 cards)')
-    expect(formatPriceWithMissing(8.5, 'eur', 2, false)).toBe('At least €8.50 (missing 2 cards)')
-    expect(formatPriceWithMissing(5.0, 'tix', 10, false)).toBe(
-      'At least 5.00 tix (missing 10 cards)',
-    )
-  })
-
-  test('uses singular "card" when only 1 is missing', () => {
-    expect(formatPriceWithMissing(20.0, 'usd', 1, false)).toBe('At least $20.00 (missing 1 card)')
+  test('marks the total as a floor when cards are missing', () => {
+    expect(formatPriceWithMissing(10.0, 'usd', 3, false)).toBe('$10.00+ (3 unpriced)')
+    expect(formatPriceWithMissing(8.5, 'eur', 2, false)).toBe('€8.50+ (2 unpriced)')
+    expect(formatPriceWithMissing(5.0, 'tix', 1, false)).toBe('5.00 tix+ (1 unpriced)')
   })
 
   test('prefixes an estimated total, with or without missing cards', () => {
-    expect(formatPriceWithMissing(12.5, 'usd', 0, true)).toBe('Est. $12.50')
-    expect(formatPriceWithMissing(10.0, 'usd', 2, true)).toBe(
-      'Est. at least $10.00 (missing 2 cards)',
-    )
-    expect(formatPriceWithMissing(20.0, 'usd', 1, true)).toBe(
-      'Est. at least $20.00 (missing 1 card)',
-    )
+    expect(formatPriceWithMissing(12.5, 'usd', 0, true)).toBe('~$12.50')
+    expect(formatPriceWithMissing(10.0, 'usd', 2, true)).toBe('~$10.00+ (2 unpriced)')
   })
 
   test('returns normal format for zero missing with tix', () => {

@@ -2,7 +2,7 @@ import type { ListType } from '../list/list-type'
 import type { PriceSource } from './price-source'
 
 /**
- * Whether a list of this type ever marks its totals "Est.". Only decks and
+ * Whether a list of this type ever marks its totals "~". Only decks and
  * wanted lists do: every collection line pins its printing, and a collection
  * card with no price is reported by the missing-price count alone.
  */

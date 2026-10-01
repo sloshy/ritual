@@ -35,7 +35,7 @@ type FilteredPriceStatProps = {
    * active but never narrows `filterCards`'s result, so it must not show this stat). */
   filters: CardFiltersControl
   amount: number
-  /** Whether {@link amount} is an estimate (prefixed "Est."). */
+  /** Whether {@link amount} is an estimate (prefixed "~"). */
   estimated: boolean
   currency: PriceCurrency
 }
@@ -157,7 +157,7 @@ type PageCountAndTotalProps = {
   count: number
   /** The page's total in its display currency. */
   total: number
-  /** Whether {@link total} is an estimate (prefixed "Est."). */
+  /** Whether {@link total} is an estimate (prefixed "~"). */
   estimated: boolean
   currency: PriceCurrency
 }

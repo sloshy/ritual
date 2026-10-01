@@ -85,7 +85,7 @@ test.describe('header price-store picker', () => {
     // The index reads the build's per-store summary figures, so the tile
     // re-prices at Card Kingdom without opening the list.
     await page.locator(SOURCE_SELECT).selectOption('cardkingdom')
-    await expect(tile).toHaveText('At least $26.00 (missing 1 card)')
+    await expect(tile).toHaveText('$26.00+ (1 unpriced)')
 
     // One store for the whole app: the list page opens on it.
     await page.locator('.card-grid-link', { hasText: 'Sell Binder' }).click()

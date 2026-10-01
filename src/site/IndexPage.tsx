@@ -7,7 +7,6 @@ import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { getDeckCountLabel } from '../list/deck-format'
 import {
   getSummaryEstimatedPriceCount,
-  getSummaryLowestPrice,
   getSummaryMissingPriceCount,
   getSummaryTotalPrice,
 } from '../pricing/price-summary'
@@ -164,7 +163,6 @@ interface DeckCoverLinkProps {
 const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
   const { t, locale } = useI18n()
   const total = createMemo(() => getSummaryTotalPrice(props.deck, activeStore()))
-  const lowest = createMemo(() => getSummaryLowestPrice(props.deck, activeStore()))
   const missing = createMemo(() => getSummaryMissingPriceCount(props.deck, activeStore()))
   const estimated = createMemo(() => getSummaryEstimatedPriceCount(props.deck, activeStore()) > 0)
   // `getDeckCountLabel` renders through the module-level (non-reactive) `t`, so
@@ -188,11 +186,6 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
         priceLabel={
           pricesEnabled()
             ? formatPriceWithMissing(total(), props.currency, missing(), estimated())
-            : undefined
-        }
-        secondaryPriceLabel={
-          pricesEnabled() && lowest() > 0
-            ? formatPriceWithMissing(lowest(), props.currency, missing(), false)
             : undefined
         }
       />
