@@ -402,6 +402,10 @@ export const cliInfraMessages = {
   'cli.selfUpdate.error.installFailed':
     'Could not install the new binary at {path}: {error}. The current Ritual was left in place.',
 
+  // ── update-available notice ───────────────────────────────────────────
+  'cli.updateNotice.available':
+    'Ritual {latest} is available (you have {current}). Run `ritual self-update` to update.',
+
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': '✓ {name} → {path}',
   'cli.skills.resultUpToDate': '• {name} already up to date',

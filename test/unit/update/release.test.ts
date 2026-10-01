@@ -7,8 +7,8 @@ import {
   resolveChannel,
   type ChannelFlags,
   type Release,
-  type UpdateChannel,
 } from '../../../src/update/release'
+import type { UpdateChannel } from '../../../src/config/semver'
 import { planUpdate } from '../../../src/update/self-update'
 import { ExitCode } from '../../../src/util/errors'
 import { FAKE_API, fakeEnv, fakeRelease, serveReleases } from '../../helpers/fake-release'

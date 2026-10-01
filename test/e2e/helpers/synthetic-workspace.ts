@@ -464,6 +464,7 @@ const RITUAL_CONFIG = {
   cacheLockTimeoutSeconds: 300,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
+  updateCheck: true,
   admin: {
     gitEnabled: false,
     gitAutoCommit: false,

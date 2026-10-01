@@ -159,6 +159,7 @@ export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
   cacheSource: 'string',
   cacheFeedUrl: 'string',
   searchDebounceMs: 'number',
+  updateCheck: 'boolean',
 } satisfies SettableFieldsMap
 
 // The admin settings, exposed as dotted `admin.<field>` paths handled through the

@@ -384,7 +384,7 @@ export function runMissMatrix<TData, TChange>(
 }
 
 /** Which streams {@link stubTty} pretends are (or are not) terminals. */
-export type TtyStubs = { stdin?: boolean; stdout?: boolean }
+export type TtyStubs = { stdin?: boolean; stdout?: boolean; stderr?: boolean }
 
 /**
  * Simulate terminals for the current test file: `bun test` never runs on one,
@@ -396,14 +396,20 @@ export type TtyStubs = { stdin?: boolean; stdout?: boolean }
  * restored when the file finishes, so nothing leaks into the next one.
  */
 export function stubTty(streams: TtyStubs): void {
-  const original = { stdin: process.stdin.isTTY, stdout: process.stdout.isTTY }
+  const original = {
+    stdin: process.stdin.isTTY,
+    stdout: process.stdout.isTTY,
+    stderr: process.stderr.isTTY,
+  }
   bunBeforeEach(() => {
     if (streams.stdin !== undefined) process.stdin.isTTY = streams.stdin
     if (streams.stdout !== undefined) process.stdout.isTTY = streams.stdout
+    if (streams.stderr !== undefined) process.stderr.isTTY = streams.stderr
   })
   bunAfterAll(() => {
     process.stdin.isTTY = original.stdin
     process.stdout.isTTY = original.stdout
+    process.stderr.isTTY = original.stderr
   })
 }
 

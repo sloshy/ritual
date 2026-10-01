@@ -223,6 +223,12 @@ export interface RitualConfig {
    * debounce entirely. Always present, defaulting to 500.
    */
   searchDebounceMs: number
+  /**
+   * Whether a release build checks GitHub (daily; sooner after a failed or abandoned lookup) for a newer
+   * Ritual and prints a one-line notice when there is one. Always present,
+   * defaulting to `true`; `RITUAL_NO_UPDATE_CHECK` turns it off per process.
+   */
+  updateCheck: boolean
   /** Admin-server settings; always present, defaulting to {@link DEFAULT_ADMIN_CONFIG}. */
   admin: AdminConfig
   /**
@@ -281,6 +287,7 @@ const DEFAULT_CONFIG = {
   cacheLockTimeoutSeconds: DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS,
   cacheSource: 'scryfall',
   searchDebounceMs: DEFAULT_SEARCH_DEBOUNCE_MS,
+  updateCheck: true,
 } satisfies Omit<RitualConfig, 'admin' | 'collectionSync' | 'site' | 'managed' | 'cacheFeedUrl'>
 
 const CONFIG_FILENAME = 'ritual.config.json'
@@ -849,6 +856,16 @@ export function parseSearchDebounceMs(value: unknown): number | ConfigParseError
 }
 
 /**
+ * Parse an `updateCheck` value: a boolean, `true` when absent, or a parse
+ * error when malformed.
+ */
+export function parseUpdateCheck(value: unknown): boolean | ConfigParseError {
+  if (value === undefined) return DEFAULT_CONFIG.updateCheck
+  if (typeof value !== 'boolean') return { error: '"updateCheck" must be a boolean' }
+  return value
+}
+
+/**
  * Parse a `cacheSource` value. Returns the source when valid, the default
  * when absent, or a parse error when malformed.
  */
@@ -968,6 +985,11 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
       parseSearchDebounceMs(parsed.searchDebounceMs),
       'searchDebounceMs',
       DEFAULT_SEARCH_DEBOUNCE_MS,
+    ),
+    updateCheck: field(
+      parseUpdateCheck(parsed.updateCheck),
+      'updateCheck',
+      DEFAULT_CONFIG.updateCheck,
     ),
     admin: field(parseAdminConfig(parsed.admin), 'admin config', { ...DEFAULT_ADMIN_CONFIG }),
     // Defaulted unconditionally rather than only when the key is present, so a

@@ -27,10 +27,10 @@ let noInputOverride: boolean | undefined
 const FALSY_ENV_VALUES = new Set(['0', 'false', 'no', 'off'])
 
 /**
- * A boolean environment variable (`RITUAL_NO_INPUT`, `CI`) counts as set when it is non-empty after trimming and is
- * not one of the {@link FALSY_ENV_VALUES} spellings (case-insensitive).
+ * A boolean environment variable (`RITUAL_NO_INPUT`, `CI`, `RITUAL_NO_UPDATE_CHECK`) counts as set when it is
+ * non-empty after trimming and is not one of the {@link FALSY_ENV_VALUES} spellings (case-insensitive).
  */
-function envFlagSet(envValue: string | undefined): boolean {
+export function envFlagSet(envValue: string | undefined): boolean {
   const value = envValue?.trim().toLowerCase() ?? ''
   if (value === '') return false
   return !FALSY_ENV_VALUES.has(value)

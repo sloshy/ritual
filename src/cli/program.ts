@@ -46,6 +46,19 @@ export type BuildProgramOptions = {
    * passes `checkWorkspaceMigrations`; it decides its own exemptions.
    */
   workspaceCheck: (actionCommand: Command) => Promise<void>
+  /**
+   * The update-available notice: `start` runs at the end of the preAction hook
+   * and may begin a releases lookup beside the command; `finish` runs as the
+   * postAction hook and prints the notice after the command's output. Neither
+   * fails the command. The CLI passes `createUpdateNotice()`.
+   */
+  updateNotice: UpdateNoticeHooks
+}
+
+/** The two halves of the update-available notice the program's hooks call. */
+export type UpdateNoticeHooks = {
+  start: (actionCommand: Command) => Promise<void>
+  finish: (actionCommand: Command) => Promise<void>
 }
 
 /**
@@ -364,9 +377,19 @@ export function buildProgram(build: BuildProgramOptions): Command {
     // registration purely so help text could be authored in the right language.
     applyCliLocale({ flag: options.locale })
 
+    // After the locale (a server prints the notice right here) and before the
+    // backfill, so a lookup gets as much of the run as possible to answer in.
+    await build.updateNotice.start(actionCommand)
+
     if (build.backfill(actionCommand)) {
       await ensureCardIdsForAllLists()
     }
+  })
+
+  // Runs after an action that resolved — including one that reported failure
+  // through `process.exitCode` — but not after one that threw.
+  program.hook('postAction', async (_program, actionCommand) => {
+    await build.updateNotice.finish(actionCommand)
   })
 
   for (const group of build.groups) {

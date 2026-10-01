@@ -13,6 +13,7 @@ import {
   parseSearchDebounceMs,
   parseSiteConfig,
   parseUiLocale,
+  parseUpdateCheck,
   refreshRitualConfig,
   saveRitualConfig,
   type ConfigParseError,
@@ -66,6 +67,7 @@ const KNOWN_CONFIG_KEYS: ReadonlySet<string> = new Set(
     cacheSource: true,
     cacheFeedUrl: true,
     searchDebounceMs: true,
+    updateCheck: true,
     admin: true,
     collectionSync: true,
     site: true,
@@ -95,6 +97,7 @@ type ParsedConfigKey =
   | 'cacheLockTimeoutSeconds'
   | 'cacheSource'
   | 'searchDebounceMs'
+  | 'updateCheck'
   | 'priceSources'
   | 'defaultCategories'
 
@@ -170,6 +173,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       applyParsedUpdate(raw, updates, 'cacheLockTimeoutSeconds', parseCacheLockTimeoutSeconds) ??
       applyParsedUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
       applyParsedUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs) ??
+      applyParsedUpdate(raw, updates, 'updateCheck', parseUpdateCheck) ??
       applyParsedUpdate(raw, updates, 'priceSources', parsePriceSources) ??
       applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategories)
     if (scalarError !== null) {

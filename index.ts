@@ -7,6 +7,7 @@ import { CommanderError } from 'commander'
 import { COMMAND_GROUPS } from './src/commands/registry'
 import { shouldBackfillCardIds } from './src/commands/id-backfill'
 import { checkWorkspaceMigrations } from './src/commands/migrate-check'
+import { createUpdateNotice } from './src/commands/update-notice'
 import { buildProgram } from './src/cli/program'
 import { initI18n } from './src/cli/locale'
 import { registerCliMessages } from './src/i18n/register/cli'
@@ -56,10 +57,12 @@ async function main(): Promise<void> {
   // `--help` can still be authored in the user's language. The preAction hook
   // re-resolves authoritatively once the flag and base dir are parsed.
   initI18n()
+  const updateNotice = createUpdateNotice()
   const program = buildProgram({
     groups: COMMAND_GROUPS,
     backfill: shouldBackfillCardIds,
     workspaceCheck: checkWorkspaceMigrations,
+    updateNotice,
   })
 
   // A Windows `self-update` cannot delete the binary it replaced while that
@@ -89,6 +92,10 @@ async function main(): Promise<void> {
       process.stderr.write(`${getErrorMessage(error)}\n`)
       if (!process.exitCode) process.exitCode = ExitCode.RuntimeError
     }
+  } finally {
+    // A command that threw skipped the postAction hook; its update lookup
+    // must not keep the process alive after it.
+    updateNotice.abandon()
   }
 }
 

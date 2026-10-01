@@ -18,7 +18,7 @@ import { latestMigrationId } from '../../../src/migrate/migrations'
 import { t } from '../../../src/i18n/t'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import { readUserState, writeUserStateSection } from '../../../src/util/user-state'
-import { captureExitCode } from '../../helpers/cli'
+import { captureExitCode, NO_UPDATE_NOTICE } from '../../helpers/cli'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { stubTty } from '../../test-utils'
 
@@ -28,6 +28,7 @@ function actionCommandFor(argv: string[]): Command {
     groups: COMMAND_GROUPS,
     backfill: () => false,
     workspaceCheck: () => Promise.resolve(),
+    updateNotice: NO_UPDATE_NOTICE,
   })
   let command: Command = program
   for (const name of argv) {
@@ -134,6 +135,7 @@ describe('the pre-command migration offer', () => {
       ],
       backfill: () => false,
       workspaceCheck: checkWorkspaceMigrations,
+      updateNotice: NO_UPDATE_NOTICE,
     })
     return captureExitCode(() =>
       program.parseAsync(['--base-dir', ws.dir, ...args], { from: 'user' }),

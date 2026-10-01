@@ -12,6 +12,7 @@ type ConfigPutBody = {
   cacheSource?: string
   cacheFeedUrl?: string
   searchDebounceMs?: number
+  updateCheck?: boolean
   admin?: {
     gitEnabled?: boolean
     gitAutoCommit?: boolean
@@ -77,6 +78,21 @@ test.describe('Settings Page', () => {
     const request = await requestPromise
     const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
     expect(body.searchDebounceMs).toBe(250)
+  })
+
+  test('turning the update check off persists false', async ({ page }) => {
+    const main = page.locator('main')
+    const box = main.locator('input[name="updateCheck"]')
+    await expect(box).toBeChecked()
+    await box.uncheck()
+
+    const requestPromise = page.waitForRequest(
+      (req) => req.url().includes('/api/config') && req.method() === 'PUT',
+    )
+    await main.locator('button:has-text("Save")').click()
+    const request = await requestPromise
+    const body = JSON.parse(request.postData() ?? '{}') as ConfigPutBody
+    expect(body.updateCheck).toBe(false)
   })
 
   test('changing the default language persists the selected code', async ({ page }) => {
@@ -290,15 +306,16 @@ test.describe('Settings Page', () => {
 
 test.describe('Settings Page — site key prefill', () => {
   test.beforeEach(async ({ page }) => {
-    // Serve a config that already has a stored (lowercase) banned printing and
-    // sell mode on, so both prefill paths are exercised. PUTs echo the plain
-    // mock config back.
+    // Serve a config that already has a stored (lowercase) banned printing,
+    // sell mode on, and the update check off (the default is on), so each
+    // prefill path is exercised. PUTs echo the plain mock config back.
     await fulfillJson(page, '**/api/config', (route: Route): ConfigResponse => ({
       success: true,
       config:
         route.request().method() === 'GET'
           ? {
               ...MOCK_CONFIG,
+              updateCheck: false,
               site: { ...defaultSiteSelection(), bannedPrintings: ['sld:123'], sellMode: true },
             }
           : MOCK_CONFIG,
@@ -316,5 +333,9 @@ test.describe('Settings Page — site key prefill', () => {
 
   test('the sell mode checkbox reflects the stored site.sellMode', async ({ page }) => {
     await expect(page.locator('main input[name="sellMode"]')).toBeChecked()
+  })
+
+  test('the update check checkbox reflects a stored updateCheck: false', async ({ page }) => {
+    await expect(page.locator('main input[name="updateCheck"]')).not.toBeChecked()
   })
 })

@@ -1442,6 +1442,14 @@ export const adminMeta = {
     description:
       'Explains the debounce and notes it reaches the public site only at the next build.',
   },
+  'admin.settings.updateCheck': {
+    description:
+      'Checkbox label for the updateCheck setting: whether the command line announces newer Ritual releases.',
+  },
+  'admin.settings.updateCheckHint': {
+    description:
+      'Explains the update check: about one lookup a day, a one-line terminal notice, and only release builds (not development builds) check.',
+  },
   'admin.settings.gitHeading': { description: 'Section heading for the version-control settings.' },
   'admin.settings.gitEnabled': { description: 'Tick box switching git integration on.' },
   'admin.settings.gitAutoCommit': {

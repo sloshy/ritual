@@ -438,6 +438,10 @@ command still ran with its normal output and exit code. Run
 \`ritual migrate --dry-run\`, show the user the plan, and ask before applying
 (details in **ritual-site**).
 
+A stderr line saying **Ritual X is available** is informational too: a newer
+release exists, and nothing changed. Mention it if relevant, but never run
+\`ritual self-update\` without asking the user first.
+
 ## Scripting conventions (uniform across commands)
 
 - \`--output text|json|ndjson\` always selects the **stdout envelope**, never a
@@ -493,6 +497,8 @@ ritual config set defaultLanguage ja   # language stamped on newly added cards (
                                   #   aliases like jp/Japanese normalize). Non-en switches cache
                                   #   downloads to Scryfall's much larger all-cards bulk
 ritual config set searchDebounceMs 250 # web editors' add-card search debounce in ms (0 disables)
+ritual config set updateCheck false  # stop the daily "Ritual X is available" stderr notice
+                                  #   (RITUAL_NO_UPDATE_CHECK=1 does the same per process)
 ritual config set artDir ./art    # directory custom card art is referenced from (default ./art)
 ritual config set uiLocale de-AT  # language Ritual's own interface text speaks (BCP-47 tag).
                                   #   NOT defaultLanguage: that one picks card printings

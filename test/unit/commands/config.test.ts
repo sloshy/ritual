@@ -287,6 +287,24 @@ describe('applyConfigSet — boolean properties', () => {
   })
 })
 
+describe('applyConfigSet — updateCheck', () => {
+  test('a top-level boolean sets, refuses a non-boolean, and unsets back to on', () => {
+    const set = applyConfigSet(base, 'updateCheck', ['false'], 'replace')
+    expect('error' in set).toBeFalse()
+    if ('error' in set) return
+    expect(set.updatedConfig.updateCheck).toBe(false)
+
+    const refused = applyConfigSet(base, 'updateCheck', ['off'], 'replace')
+    expect('error' in refused && refused.error).toContain('"updateCheck" expects a boolean')
+
+    const unset = applyConfigUnset(set.updatedConfig, 'updateCheck')
+    expect('error' in unset).toBeFalse()
+    if ('error' in unset) return
+    expect(unset.defaultValue).toBe(true)
+    expect(unset.updatedConfig.updateCheck).toBeUndefined()
+  })
+})
+
 describe('applyConfigSet — number properties', () => {
   test('sets a number property', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['10'], 'replace')

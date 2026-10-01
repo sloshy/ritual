@@ -53,6 +53,12 @@ export type SelfUpdateEnv = {
   rename: (from: string, to: string) => Promise<void>
 }
 
+/**
+ * The part of {@link SelfUpdateEnv} a releases API lookup needs — all the
+ * update-available notice (`src/commands/update-notice.ts`) carries.
+ */
+export type ReleaseApiEnv = Pick<SelfUpdateEnv, 'fetch' | 'githubToken' | 'apiBase'>
+
 /** How long the downloaded binary gets to answer `--version`. */
 const SMOKE_TEST_TIMEOUT_MS = 30_000
 

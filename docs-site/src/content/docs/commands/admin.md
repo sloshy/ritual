@@ -35,6 +35,7 @@ On startup, `admin`:
 1. Runs the [card-ID backfill](/cli-conventions/#the-card-id-backfill), writing any missing `&N` card IDs into the list files, since the editors rely on them.
 2. Checks whether the Scryfall card cache is missing or stale and offers to refresh it.
 3. When [sell mode](#sell-mode) is on or [`priceSources`](/configuration/#price-stores-pricesources) includes `cardkingdom`, redownloads the [Card Kingdom buylist](/commands/sell/) if it is more than a day old. Startup only _updates_ a buylist: a workspace that has never downloaded one is left alone, with no prompt. A failed download keeps the older feed and warns instead of failing startup.
+4. On a release build, prints the [update notice](/commands/self-update/#update-notice) from its cache if a newer Ritual is out, and refreshes that cache in the background.
 
 `--refresh auto`, `no-bulk`, or `never` answers the cache prompt non-interactively; `no-bulk`/`never` also skip the buylist refresh. Under the default `ask`, a run where prompts are unavailable (see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)) skips the refresh. `bun run dev admin` requires an explicit mode (see [Development → Dev Workflow](/development/#dev-workflow)).
 

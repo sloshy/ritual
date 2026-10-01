@@ -5,9 +5,15 @@
  */
 
 import { Command } from 'commander'
-import type { CommandRegistrar } from '../../src/cli/program'
+import type { CommandRegistrar, UpdateNoticeHooks } from '../../src/cli/program'
 
 export type { CommandRegistrar }
+
+/** `buildProgram`'s update notice, switched off for suites that are not about it. */
+export const NO_UPDATE_NOTICE: UpdateNoticeHooks = {
+  start: () => Promise.resolve(),
+  finish: () => Promise.resolve(),
+}
 
 /**
  * Run one CLI command in-process and return the exit code it set — the driver

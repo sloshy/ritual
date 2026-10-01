@@ -39,6 +39,7 @@ import {
   clearSiteSellModeOverride,
   setSiteSellModeOverride,
   parseSearchDebounceMs,
+  parseUpdateCheck,
   parseSiteApiBaseUrl,
   parseSiteConfig,
   RitualConfigParseError,
@@ -145,6 +146,7 @@ describe('ritual config', () => {
       cacheSource: 'feed',
       cacheFeedUrl: 'https://feed.example/feed.json',
       searchDebounceMs: 250,
+      updateCheck: false,
       admin: {
         gitEnabled: true,
         gitAutoCommit: true,
@@ -193,7 +195,7 @@ describe('ritual config', () => {
     expect(config.admin.rateLimitMaxAttempts).toBe(5)
   })
 
-  test('defaultPriceSource, cacheLockTimeoutSeconds, cacheSource, and searchDebounceMs default when absent', async () => {
+  test('defaultPriceSource, cacheLockTimeoutSeconds, cacheSource, searchDebounceMs, and updateCheck default when absent', async () => {
     await fs.writeFile(configPath, JSON.stringify({ decksDir: './d' }))
     const config = await loadRitualConfig()
     expect(config.defaultPriceSource).toBeUndefined()
@@ -203,6 +205,7 @@ describe('ritual config', () => {
     expect(config.cacheSource).toBe('scryfall')
     expect(config.cacheFeedUrl).toBeUndefined()
     expect(config.searchDebounceMs).toBe(500)
+    expect(config.updateCheck).toBe(true)
   })
 
   test('defaultLanguage loads a valid value, normalizing case', async () => {
@@ -270,6 +273,13 @@ describe('ritual config', () => {
       expect(config.searchDebounceMs).toBe(500)
     },
   )
+
+  test('updateCheck loads false, and a non-boolean falls back to on', async () => {
+    await fs.writeFile(configPath, JSON.stringify({ updateCheck: false }))
+    expect((await loadRitualConfig()).updateCheck).toBe(false)
+    await fs.writeFile(configPath, JSON.stringify({ updateCheck: 'no' }))
+    expect((await loadRitualConfig()).updateCheck).toBe(true)
+  })
 
   test('defaultPriceSource loads a valid value, normalizing case', async () => {
     await fs.writeFile(configPath, JSON.stringify({ defaultPriceSource: 'CardKingdom' }))
@@ -1006,6 +1016,12 @@ describe('config parser error shape', () => {
     expectParseError(parseSearchDebounceMs(-1), 'non-negative integer')
   })
 
+  test('parseUpdateCheck returns the boolean, on when absent, or a shared-shape error', () => {
+    expect(parseUpdateCheck(false)).toBe(false)
+    expect(parseUpdateCheck(undefined)).toBe(true)
+    expectParseError(parseUpdateCheck('no'), 'updateCheck')
+  })
+
   test('parseCacheFeedUrl parses only present values — absence is the caller’s check', () => {
     expect(parseCacheFeedUrl('https://feed.example/feed.json')).toBe(
       'https://feed.example/feed.json',
@@ -1054,6 +1070,7 @@ describe('parseRitualConfig', () => {
     ['cacheLockTimeoutSeconds', 0],
     ['cacheSource', 'torrent'],
     ['searchDebounceMs', -1],
+    ['updateCheck', 'no'],
     ['cacheFeedUrl', 'ftp://feed.example/feed.json'],
     ['admin', 'on'],
     ['collectionSync', { pullTarget: '' }],

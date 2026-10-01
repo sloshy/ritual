@@ -14,3 +14,12 @@ export function qualifiedCommandName(actionCommand: Command): string {
   }
   return names.join(' ')
 }
+
+/**
+ * Whether a qualified command name is one of `names` or a subcommand of one
+ * (`config` matches `config set`, but not `config-x`). The exemption rule the
+ * root hook's advisory checks share.
+ */
+export function isCommandOrSubcommand(qualifiedName: string, names: readonly string[]): boolean {
+  return names.some((name) => qualifiedName === name || qualifiedName.startsWith(`${name} `))
+}

@@ -5,6 +5,7 @@
  * (`src/util/user-state.ts`), keyed by the workspace's resolved base dir.
  */
 
+import { isWithinWindow } from '../util/time-window'
 import type { MigratePromptTimes } from '../util/user-state'
 
 /** How long one prompt silences the next: a day. */
@@ -20,10 +21,7 @@ export function isMigratePromptSnoozed(
   baseDir: string,
   now: number,
 ): boolean {
-  const last = times[baseDir]
-  if (last === undefined) return false
-  const elapsed = now - last
-  return elapsed >= 0 && elapsed < MIGRATE_PROMPT_SNOOZE_MS
+  return isWithinWindow(times[baseDir], now, MIGRATE_PROMPT_SNOOZE_MS)
 }
 
 /**

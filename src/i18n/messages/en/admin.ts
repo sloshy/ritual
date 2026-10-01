@@ -855,6 +855,9 @@ export const adminMessages = {
   'admin.settings.searchDebouncePlaceholder': 'e.g. 500',
   'admin.settings.searchDebounceHint':
     "How long the editors' add-card search waits after a keystroke before querying autocomplete. 0 disables the debounce. Applies to the public site the next time it is built.",
+  'admin.settings.updateCheck': 'Tell me when a newer Ritual is available',
+  'admin.settings.updateCheckHint':
+    'Ritual checks for a new release about once a day and prints a one-line notice in the terminal. Only release builds check.',
   'admin.settings.gitHeading': 'Git Integration',
   'admin.settings.gitEnabled': 'Enable Git integration',
   'admin.settings.gitAutoCommit': 'Auto-commit changes',

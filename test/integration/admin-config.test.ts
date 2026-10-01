@@ -17,6 +17,7 @@ type ConfigView = {
   cacheSource?: string
   cacheFeedUrl?: string
   searchDebounceMs?: number
+  updateCheck?: boolean
   exportPresets?: Record<string, { format?: string }>
   admin?: { gitEnabled?: boolean; rateLimitEnabled?: boolean; rateLimitMaxAttempts?: number }
   collectionSync?: { pullTarget?: string }
@@ -134,6 +135,12 @@ describe('PUT /api/config', () => {
         expected: 250,
       },
       {
+        label: 'updateCheck',
+        update: { updateCheck: false },
+        read: (config) => config.updateCheck,
+        expected: false,
+      },
+      {
         label: 'exportPresets',
         update: { exportPresets: { trades: { format: 'csv', columns: ['name', 'set'] } } },
         read: (config) => config.exportPresets?.trades?.format,
@@ -163,6 +170,7 @@ describe('PUT /api/config', () => {
   test('rejects invalid values with a 400 and persists none of them', async () => {
     const cases: RejectedConfigUpdate[] = [
       { label: 'negative searchDebounceMs', update: { searchDebounceMs: -1 } },
+      { label: 'non-boolean updateCheck', update: { updateCheck: 'no' } },
       { label: 'non-object exportPresets', update: { exportPresets: 42 } },
       {
         label: 'malformed bannedPrintings entry',

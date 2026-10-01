@@ -7,7 +7,7 @@ Ritual can run inside a Docker container. This is most useful for self-hosting t
 
 ## Updating
 
-The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`) or rebuild your own. The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available.
+The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`) or rebuild your own. The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available.
 
 ## Building and Publishing the Image
 

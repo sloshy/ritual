@@ -191,6 +191,15 @@ describe('skill bodies name only tools that exist', () => {
     expect(overview?.body).toContain('ASK THE USER FIRST')
   })
 
+  test('the overview skill explains the update notice and how to turn it off', () => {
+    const overview = SKILLS.find((skill) => skill.name === 'ritual')
+    const prose = overview?.body.replace(/\s+/g, ' ')
+    expect(prose).toContain('**Ritual X is available** is informational')
+    expect(prose).toContain('never run `ritual self-update` without asking')
+    expect(prose).toContain('ritual config set updateCheck false')
+    expect(prose).toContain('RITUAL_NO_UPDATE_CHECK')
+  })
+
   test('the site skill names every command the pending-updates check skips', () => {
     const site = SKILLS.find((skill) => skill.name === 'ritual-site')
     const missing = MIGRATION_CHECK_EXEMPT.filter((name) => !site?.body.includes(`\`${name}\``))

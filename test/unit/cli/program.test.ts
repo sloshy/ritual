@@ -7,6 +7,7 @@ import {
   localizeHelpTitle,
 } from '../../../src/cli/program'
 import { COMMAND_GROUPS } from '../../../src/commands/registry'
+import { NO_UPDATE_NOTICE } from '../../helpers/cli'
 import { COMMANDS_WITH_ID_BACKFILL } from '../../../src/commands/id-backfill'
 import { registerCliMessages } from '../../../src/i18n/register/cli'
 import { t } from '../../../src/i18n/t'
@@ -22,6 +23,7 @@ describe('buildProgram', () => {
     groups: COMMAND_GROUPS,
     backfill: () => false,
     workspaceCheck: () => Promise.resolve(),
+    updateNotice: NO_UPDATE_NOTICE,
   })
 
   test('every COMMANDS_WITH_ID_BACKFILL entry names a registered command', () => {
@@ -122,6 +124,7 @@ describe('buildProgram', () => {
       ],
       backfill: () => false,
       workspaceCheck: () => Promise.resolve(),
+      updateNotice: NO_UPDATE_NOTICE,
     })
     const sub = probe.commands.find((command) => command.name() === 'probe')
     expect(sub).toBeDefined()

@@ -10,7 +10,7 @@ import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { computeHash } from '../../src/changes/content-hash'
-import type { BinaryRunResult, SelfUpdateEnv } from '../../src/update/env'
+import type { BinaryRunResult, ReleaseApiEnv, SelfUpdateEnv } from '../../src/update/env'
 import { stubFetch, type StubbedFetch, type StubRoute } from './stub-fetch'
 
 export const FAKE_API = 'https://api.github.test/repos/sloshy/ritual'
@@ -123,6 +123,30 @@ export function serveReleases(server: FakeReleaseServer): StubbedFetch {
   return stubFetch(routes)
 }
 
+/** The fake releases API reached through `fetch`, without a token. */
+export function fakeReleaseApiEnv(fetch: ReleaseApiEnv['fetch']): ReleaseApiEnv {
+  return { fetch, githubToken: undefined, apiBase: FAKE_API }
+}
+
+/**
+ * A `fetch` that never answers until its request is aborted, then rejects as
+ * `fetch` does — a network that hangs. `seen` receives each request's signal.
+ */
+export function hangingFetch(
+  seen: (signal: AbortSignal | undefined) => void,
+): ReleaseApiEnv['fetch'] {
+  return (_url, init) =>
+    new Promise<Response>((_resolve, reject) => {
+      const signal = init?.signal ?? undefined
+      seen(signal)
+      if (signal?.aborted === true) {
+        reject(new Error('aborted'))
+        return
+      }
+      signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true })
+    })
+}
+
 /** Every `--version` smoke test and inherited run the fake environment saw. */
 export type FakeRuns = {
   smokeTests: string[]
@@ -150,14 +174,12 @@ async function answerVersion(file: string): Promise<BinaryRunResult> {
 export function fakeEnv(execPath: string, overrides: Partial<SelfUpdateEnv> = {}): FakeEnv {
   const runs: FakeRuns = { smokeTests: [], inherited: [] }
   const env: SelfUpdateEnv = {
-    fetch: (url, init) => globalThis.fetch(url, init),
+    ...fakeReleaseApiEnv((url, init) => globalThis.fetch(url, init)),
     execPath,
     platform: 'linux',
     arch: 'x64',
     build: { version: '1.0.0', release: true },
     installKind: undefined,
-    githubToken: undefined,
-    apiBase: FAKE_API,
     runBinary: async (file) => {
       runs.smokeTests.push(file)
       return answerVersion(file)

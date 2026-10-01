@@ -60,6 +60,7 @@ Change admin settings. Each maps to a key on the [Configuration](/configuration/
 - **Cache Feed URL**: the feed URL used when the cache source is the feed (empty = the built-in default)
 - **Cache Lock Timeout**: seconds a cache refresh waits for another process's cache-write lock before failing (default `300`; see [Configuration](/configuration/#cache-lock-timeout))
 - **Card Search Debounce (ms)**: how long the editors' add-card search waits after a keystroke before querying autocomplete; `0` disables the wait (default `500`; see [Configuration](/configuration/#search-debounce)). Applies to the public site the next time it is built
+- **Tell me when a newer Ritual is available**: whether a release build of the CLI checks for a newer Ritual (daily, or hourly while lookups fail) and prints a one-line notice (default on; see [Configuration](/configuration/#update-check))
 
 The headed groups below them:
 

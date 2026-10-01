@@ -725,6 +725,12 @@ export const cliInfraMeta = {
       'Writing or moving the new binary into place failed; the old binary still works. {path} is the binary file; {error} the English system error.',
   },
 
+  // ── update-available notice ───────────────────────────────────────────
+  'cli.updateNotice.available': {
+    description:
+      "One stderr line printed after a command's own output, at most once a day per release, when a newer Ritual release exists. {latest} is that release's version, {current} the running one. The backticked command is literal.",
+  },
+
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': { description: 'One skill file was installed or refreshed.' },
   'cli.skills.resultUpToDate': {

@@ -76,6 +76,21 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
+/**
+ * The two update channels: stable releases only, or every release including
+ * prereleases. A prerelease build tracks the second by default — see
+ * {@link isPrereleaseVersion}.
+ */
+export type UpdateChannel = 'stable' | 'prerelease'
+
+/** Every {@link UpdateChannel}, as stored and reported. */
+export const UPDATE_CHANNELS = ['stable', 'prerelease'] as const satisfies readonly UpdateChannel[]
+
+/** Whether an untrusted value names an {@link UpdateChannel}. */
+export function isUpdateChannel(value: unknown): value is UpdateChannel {
+  return (UPDATE_CHANNELS as readonly unknown[]).includes(value)
+}
+
 /** Whether a version carries a prerelease part (`1.2.0-beta3`). */
 export function isPrereleaseVersion(v: string): boolean {
   return isValidSemver(v) && parseSemver(v).pre !== null

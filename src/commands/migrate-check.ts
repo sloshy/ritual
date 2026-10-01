@@ -12,7 +12,7 @@
 
 import path from 'node:path'
 import type { Command } from 'commander'
-import { qualifiedCommandName } from '../cli/command-name'
+import { isCommandOrSubcommand, qualifiedCommandName } from '../cli/command-name'
 import {
   canPromptWithOutput,
   normalizeScriptingOptions,
@@ -65,14 +65,13 @@ export const MIGRATION_CHECK_EXEMPT = [
 
 /** Whether the check skips this invocation — see {@link MIGRATION_CHECK_EXEMPT}. */
 export function isMigrationCheckExempt(actionCommand: Command): boolean {
-  const name = qualifiedCommandName(actionCommand)
-  return MIGRATION_CHECK_EXEMPT.some((exempt) => name === exempt || name.startsWith(`${exempt} `))
+  return isCommandOrSubcommand(qualifiedCommandName(actionCommand), MIGRATION_CHECK_EXEMPT)
 }
 
-/** The action command's options the offer's gate reads. */
 /** `--yes` already answered every question the command will ask. */
 type YesOption = { yes?: boolean }
 
+/** The action command's options the offer's gate reads. */
 type OfferGateOptions = DryRunOptions & YesOption & Partial<ScriptingOptions>
 
 /**

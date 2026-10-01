@@ -473,6 +473,16 @@ export function Settings(): JSX.Element {
             />
             <p class="form-hint form-hint-top">{t('admin.settings.searchDebounceHint')}</p>
           </div>
+          <label class="checkbox-label">
+            <input
+              type="checkbox"
+              name="updateCheck"
+              checked={config()!.updateCheck}
+              onChange={(e) => updateField('updateCheck', e.currentTarget.checked)}
+            />
+            {t('admin.settings.updateCheck')}
+          </label>
+          <p class="form-hint">{t('admin.settings.updateCheckHint')}</p>
 
           {/* Git settings */}
           <h3 class="section-subheading">{t('admin.settings.gitHeading')}</h3>

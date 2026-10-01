@@ -16,6 +16,16 @@ These options work on every command. Each has an environment variable that does 
 | `--no-input`                 | `RITUAL_NO_INPUT`     | Never prompt; fail or use documented defaults where input would be required |
 | `--locale <tag>`             | `RITUAL_LOCALE`       | Language for Ritual's own interface text (BCP-47, e.g. `de-AT`)             |
 
+A few environment variables have no flag:
+
+| Environment variable     | Description                                                                                                    |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `RITUAL_NO_UPDATE_CHECK` | Never look up or announce newer Ritual releases (the [update notice](/commands/self-update/#update-notice))    |
+| `RITUAL_STATE_DIR`       | Where Ritual keeps its small per-user [state file](/commands/migrate/#when-ritual-offers-to-migrate)           |
+| `CI`                     | Marks a CI run: no offer to migrate and no update notice. `CI=false` (or another off spelling) counts as unset |
+
+`RITUAL_NO_UPDATE_CHECK` and `CI` read `0`, `false`, `no`, and `off` (any casing) as unset, like [`RITUAL_NO_INPUT`](#--no-input).
+
 ### `--base-dir`
 
 By default Ritual reads and writes files relative to the directory you run it from. `--base-dir` points it at a different directory:
@@ -88,6 +98,8 @@ Where a question has a documented default, that default is used instead of faili
 - [`collection-sync`](/commands/collection-sync/#cache-freshness) fails the run instead of skipping.
 - A text `import` without `--type` falls back to a deck **under an explicit `--no-input`**. A merely piped run still errors, since nothing said which type was meant.
 - A URL `import` (and `import-account`) without a [`--sync-printings`/`--no-sync-printings`](/commands/import/#printings-from-a-url-import) answer behaves the same way: an explicit `--no-input` keeps the source's exact printings and says so; a merely piped run errors.
+
+Ritual's [update notice](/commands/self-update/#update-notice) is never a question either: a release build prints one stderr line (after the command's output; at startup for `serve` and `admin`) when a newer release exists. It is off without a terminal on stderr, under `--output json`/`ndjson`/`csv` or `--quiet`, when `CI` is set, with `RITUAL_NO_UPDATE_CHECK` set (the same on/off spellings as `RITUAL_NO_INPUT`), or with [`updateCheck: false`](/configuration/#update-check), and it never changes the exit code.
 
 One question is never required: when a workspace has [pending updates](/commands/migrate/#when-ritual-offers-to-migrate), Ritual offers to run `ritual migrate` before the command. Without a prompt (and also when stdout is not a terminal, under `--output json`/`ndjson`/`csv`, `--dry-run`, `--yes`, or a set `CI` variable) it prints one line on stderr instead and runs the command. That line never changes the exit code or stdout, so scripts can ignore it; run `ritual migrate --check` to test for pending updates explicitly.
 

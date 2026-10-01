@@ -63,7 +63,7 @@ The once-a-day memory lives in a small per-user state file, not in the workspace
 | macOS    | `~/Library/Application Support/ritual/state.json`                                             |
 | Windows  | `%LOCALAPPDATA%\ritual\state.json`, or `~\AppData\Local\ritual\state.json` when that is unset |
 
-Set `RITUAL_STATE_DIR` to use another directory. Deleting the file is harmless: Ritual just asks again. If the file cannot be read or written, the command runs anyway.
+The same file caches the [update notice](/commands/self-update/#update-notice)'s last release lookup (its `updateCheck` section). Set `RITUAL_STATE_DIR` to use another directory. Deleting the file is harmless: Ritual just asks again, and looks the newest release up again. If the file cannot be read or written, the command runs anyway.
 
 ## What gets migrated
 

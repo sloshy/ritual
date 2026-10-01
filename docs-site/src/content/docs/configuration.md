@@ -37,6 +37,7 @@ Ritual uses these values when there is no config file. A first write puts them o
   "cacheLockTimeoutSeconds": 300,
   "cacheSource": "scryfall",
   "searchDebounceMs": 500,
+  "updateCheck": true,
   "admin": {
     "gitEnabled": false,
     "gitAutoCommit": false,
@@ -215,6 +216,14 @@ Refreshes take an exclusive lock (`cache/.ritual-cache-lock`) so concurrent proc
 | `searchDebounceMs` | `500`   | Milliseconds the web editors' add-card search waits after a keystroke before requesting autocomplete. Non-negative integer; `0` disables the wait. |
 
 The admin editors read the value at runtime. The public site picks it up on the next [build-site](/commands/build-site/). Also editable on the admin [Settings page](/admin/dashboard/).
+
+## Update check
+
+| Field         | Default | Description                                                                                                                                                                           |
+| ------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `updateCheck` | `true`  | Whether Ritual looks up the newest release (a day after a successful lookup, sooner after a failed or unfinished one) and prints a one-line notice on stderr when a newer one exists. |
+
+Only release builds check, never development or Docker builds. Set it to `false` to turn the check and the notice off for this workspace, or set `RITUAL_NO_UPDATE_CHECK=1` to turn them off everywhere. See [Update notice](/commands/self-update/#update-notice). Also editable on the admin [Settings page](/admin/dashboard/).
 
 ## Cache source
 

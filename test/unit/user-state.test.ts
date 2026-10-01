@@ -5,8 +5,10 @@ import path from 'node:path'
 import { resolveUserStateDir, type UserDirsEnvironment } from '../../src/util/user-dirs'
 import {
   emptyUserState,
+  parseUpdateCheckState,
   parseUserState,
   readUserState,
+  type UpdateCheckState,
   userStatePath,
   writeUserStateSection,
 } from '../../src/util/user-state'
@@ -68,6 +70,37 @@ describe('parseUserState', () => {
 
   test('a malformed section reads as empty rather than failing the whole file', () => {
     expect(parseUserState({ migratePrompts: 'nope', future: 1 })).toEqual(emptyUserState())
+    expect(parseUserState({ updateCheck: { channel: 'nightly', latest: '9.0.0' } })).toEqual(
+      emptyUserState(),
+    )
+  })
+})
+
+describe('parseUpdateCheckState', () => {
+  test('keeps a well-formed section', () => {
+    const state: UpdateCheckState = {
+      channel: 'prerelease',
+      checkedAt: 10,
+      latest: '1.3.0-beta1',
+      failedAt: 20,
+      notifiedAt: 30,
+      notifiedVersion: '1.3.0-beta1',
+    }
+    expect(parseUpdateCheckState(state)).toEqual(state)
+  })
+
+  test('without a known channel nothing in it is trusted', () => {
+    expect(typeof parseUpdateCheckState({ channel: 'beta', latest: '1.0.0' })).toBe('string')
+    expect(typeof parseUpdateCheckState('stable')).toBe('string')
+  })
+
+  test.each<[string, Record<string, unknown>]>([
+    ['a non-version latest', { checkedAt: 10, latest: 'v1.2.0' }],
+    ['a latest without its time', { latest: '1.2.0' }],
+    ['a negative time', { checkedAt: -1, latest: '1.2.0', failedAt: -5 }],
+    ['a notice time without its version', { notifiedAt: 10, notifiedVersion: 'soon' }],
+  ])('drops %s, keeping the channel', (_label, fields) => {
+    expect(parseUpdateCheckState({ channel: 'stable', ...fields })).toEqual({ channel: 'stable' })
   })
 })
 
@@ -104,12 +137,12 @@ describe('the state file', () => {
 
   test('a write keeps sections this build does not know', async () => {
     await fs.mkdir(path.dirname(userStatePath()), { recursive: true })
-    await fs.writeFile(userStatePath(), JSON.stringify({ updateCheck: { at: 7 } }))
+    await fs.writeFile(userStatePath(), JSON.stringify({ futureSection: { at: 7 } }))
 
     await writeUserStateSection('migratePrompts', { '/ws': 1 })
 
     expect(JSON.parse(await fs.readFile(userStatePath(), 'utf-8'))).toEqual({
-      updateCheck: { at: 7 },
+      futureSection: { at: 7 },
       migratePrompts: { '/ws': 1 },
     })
   })

@@ -37,6 +37,7 @@ Each key is described in full on the [Configuration](/configuration/) page. This
 | `cacheSource`             | `string`   | `scryfall`           |
 | `cacheFeedUrl`            | `string`   | —                    |
 | `searchDebounceMs`        | `number`   | `500`                |
+| `updateCheck`             | `boolean`  | `true`               |
 
 - `artDir`: where [custom card art](/custom-art/) images live. Never created; a missing directory means no local art.
 - `defaultPriceSource`: `tcgplayer`, `cardkingdom`, `cardmarket`, or `cardhoarder` (lowercased; a currency code is rejected). Unset means the first `priceSources` entry. See [Default price store](/configuration/#default-price-store).
@@ -47,6 +48,7 @@ Each key is described in full on the [Configuration](/configuration/) page. This
 - `cacheLockTimeoutSeconds`: how long a cache refresh waits for another process's refresh before failing. See [Cache lock timeout](/configuration/#cache-lock-timeout).
 - `cacheSource`: where card-cache refreshes download from, `scryfall` or `feed`. `cacheFeedUrl` is the feed URL and must be an http(s) URL. See [Cache source](/configuration/#cache-source).
 - `searchDebounceMs`: how long the web editors' add-card search waits after a keystroke before querying autocomplete. A non-negative integer; `0` disables the debounce. See [Search debounce](/configuration/#search-debounce).
+- `updateCheck`: `true` or `false`. Whether a release build checks for a newer Ritual and prints the one-line [update notice](/commands/self-update/#update-notice). See [Update check](/configuration/#update-check).
 
 The nested `admin` keys, settings for the [admin server](/commands/admin/), use dot notation:
 

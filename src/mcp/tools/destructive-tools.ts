@@ -222,7 +222,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'the currencies an enabled store quotes in, so MTGO tix needs "cardhoarder"; [] hides ' +
         'all site prices; enabling ' +
         'cardkingdom makes builds/servers download the Card Kingdom feed like sell mode does) — ' +
-        'or defaultCategories — the global category vocabulary new lists suggest and order by. ' +
+        'or defaultCategories — the global category vocabulary new lists suggest and order by — ' +
+        'or updateCheck — a boolean turning the CLI\'s daily "newer Ritual available" notice on or off. ' +
         'Nested "admin" fields merge; other top-level keys replace. ' +
         'Unknown keys — top-level or nested in "admin" — are rejected. Writing a key a session ' +
         'flag overrides (get_config reports these under overrides) persists the value but does ' +

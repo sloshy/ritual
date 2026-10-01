@@ -2,17 +2,17 @@
  * GitHub release metadata for `ritual self-update`: parsing the releases API's
  * JSON (never trusting its shape), choosing the update channel, finding the
  * release a run should install, and the HTTP requests behind all of it. Network
- * access goes through the injected {@link SelfUpdateEnv} so the lookup is
+ * access goes through the injected {@link ReleaseApiEnv} so the lookup is
  * testable without GitHub.
  */
 
-import { compareVersions, isPrereleaseVersion } from '../config/semver'
+import { compareVersions, isPrereleaseVersion, type UpdateChannel } from '../config/semver'
 import { isReleaseTag, normalizeVersion } from '../config/version'
 import type { MessageKey } from '../i18n/messages/en'
 import { CardCommandError, ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
 import { isRecord } from '../util/json'
 import { isParseError, type ParseError } from '../util/parse-error'
-import type { SelfUpdateEnv } from './env'
+import type { ReleaseApiEnv } from './env'
 
 /** One downloadable file attached to a release. */
 export type ReleaseAsset = {
@@ -31,9 +31,6 @@ export type Release = {
   prerelease: boolean
   assets: ReleaseAsset[]
 }
-
-/** The two update channels: stable releases only, or every release including prereleases. */
-export type UpdateChannel = 'stable' | 'prerelease'
 
 /** The channel switches `self-update` accepts; at most one is set (Commander enforces it). */
 export type ChannelFlags = {
@@ -153,7 +150,7 @@ export function networkError(url: string, error: unknown): CardCommandError {
 }
 
 /** Whether the GitHub token may travel to `url`: only to the API's own origin. */
-function carriesToken(env: SelfUpdateEnv, url: string): boolean {
+function carriesToken(env: ReleaseApiEnv, url: string): boolean {
   return env.githubToken !== undefined && new URL(url).origin === new URL(env.apiBase).origin
 }
 
@@ -168,7 +165,7 @@ const MAX_TOKEN_REDIRECTS = 5
  * otherwise forward the header wherever a redirect points.
  */
 export async function request(
-  env: SelfUpdateEnv,
+  env: ReleaseApiEnv,
   url: string,
   accept: string,
   signal: AbortSignal,
@@ -234,9 +231,17 @@ function badResponse(url: string, error: string): CardCommandError {
 /** A releases API lookup: the document, or GitHub's 404. */
 type JsonLookup = { kind: 'found'; json: unknown } | { kind: 'missing' }
 
-/** GET a releases API document. */
-async function getJson(env: SelfUpdateEnv, url: string): Promise<JsonLookup> {
-  const signal = AbortSignal.timeout(API_TIMEOUT_MS)
+/**
+ * GET a releases API document, giving up after {@link API_TIMEOUT_MS} or when
+ * `cancel` aborts, whichever comes first.
+ */
+async function getJson(
+  env: ReleaseApiEnv,
+  url: string,
+  cancel: AbortSignal | undefined,
+): Promise<JsonLookup> {
+  const timeout = AbortSignal.timeout(API_TIMEOUT_MS)
+  const signal = cancel === undefined ? timeout : AbortSignal.any([timeout, cancel])
   const response = await request(env, url, 'application/vnd.github+json', signal)
   if (response.status === 404) return { kind: 'missing' }
   if (!response.ok) throw httpError(response, url)
@@ -256,12 +261,17 @@ function parsedOrThrow<T>(url: string, parsed: T | ParseError): T {
  * The release a run should install: `releases/latest` for the stable channel,
  * the newest non-draft of the recent release list for prereleases,
  * `releases/tags/<tag>` for an exact tag. A missing release is a not-found
- * error (exit 3).
+ * error (exit 3). `cancel` abandons the lookup early (the update notice's
+ * lookup must never outlive the command it runs beside).
  */
-export async function fetchRelease(env: SelfUpdateEnv, target: ReleaseTarget): Promise<Release> {
+export async function fetchRelease(
+  env: ReleaseApiEnv,
+  target: ReleaseTarget,
+  cancel?: AbortSignal,
+): Promise<Release> {
   if (target.kind === 'tag') {
     const url = `${env.apiBase}/releases/tags/${encodeURIComponent(target.tag)}`
-    const lookup = await getJson(env, url)
+    const lookup = await getJson(env, url, cancel)
     if (lookup.kind === 'missing') {
       throw localizedCommandError(
         'not_found',
@@ -274,7 +284,7 @@ export async function fetchRelease(env: SelfUpdateEnv, target: ReleaseTarget): P
   }
   if (target.channel === 'stable') {
     const url = `${env.apiBase}/releases/latest`
-    const lookup = await getJson(env, url)
+    const lookup = await getJson(env, url, cancel)
     if (lookup.kind === 'missing') {
       throw localizedCommandError(
         'not_found',
@@ -295,7 +305,7 @@ export async function fetchRelease(env: SelfUpdateEnv, target: ReleaseTarget): P
     return release
   }
   const url = `${env.apiBase}/releases?per_page=${RELEASE_LIST_SIZE}`
-  const lookup = await getJson(env, url)
+  const lookup = await getJson(env, url, cancel)
   const releases =
     lookup.kind === 'missing' ? [] : parsedOrThrow(url, parseReleaseList(lookup.json))
   const newest = newestRelease(releases)
