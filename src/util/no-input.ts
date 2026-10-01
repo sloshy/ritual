@@ -27,13 +27,22 @@ let noInputOverride: boolean | undefined
 const FALSY_ENV_VALUES = new Set(['0', 'false', 'no', 'off'])
 
 /**
- * `RITUAL_NO_INPUT` counts as set when it is non-empty after trimming and is
+ * A boolean environment variable (`RITUAL_NO_INPUT`, `CI`) counts as set when it is non-empty after trimming and is
  * not one of the {@link FALSY_ENV_VALUES} spellings (case-insensitive).
  */
-function envNoInput(envValue: string | undefined): boolean {
+function envFlagSet(envValue: string | undefined): boolean {
   const value = envValue?.trim().toLowerCase() ?? ''
   if (value === '') return false
   return !FALSY_ENV_VALUES.has(value)
+}
+
+/**
+ * Whether the process runs under continuous integration: `CI` is set, read with
+ * the same spellings as `RITUAL_NO_INPUT` (so `CI=false` means "not CI"). CI
+ * runs never get Ritual's unsolicited prompts, even on a pseudo-terminal.
+ */
+export function isCiEnvironment(envValue: string | undefined = process.env.CI): boolean {
+  return envFlagSet(envValue)
 }
 
 /**
@@ -45,7 +54,7 @@ export function resolveNoInput(
   envValue: string | undefined = process.env.RITUAL_NO_INPUT,
 ): boolean {
   if (cliValue !== undefined) return cliValue
-  return envNoInput(envValue)
+  return envFlagSet(envValue)
 }
 
 /** Set (or, with `undefined`, clear) the resolved no-input state for this process. */
@@ -60,7 +69,7 @@ export function setNoInputOverride(value: boolean | undefined): void {
  */
 export function isNoInput(): boolean {
   if (noInputOverride !== undefined) return noInputOverride
-  return envNoInput(process.env.RITUAL_NO_INPUT)
+  return envFlagSet(process.env.RITUAL_NO_INPUT)
 }
 
 /**

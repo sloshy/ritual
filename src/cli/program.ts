@@ -11,6 +11,7 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { version } from '../config/version'
 import { applyCliLocale } from './locale'
+import { qualifiedCommandName } from './command-name'
 import { t, type ParameterlessKey } from '../i18n/t'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import {
@@ -39,6 +40,12 @@ export type BuildProgramOptions = {
   groups: readonly CommandGroup[]
   /** Whether the root preAction hook should run the card-ID backfill for this invocation. */
   backfill: (actionCommand: Command) => boolean
+  /**
+   * The pending-migration check, run before the config load: it offers to
+   * migrate, or prints a one-line notice, and never fails the command. The CLI
+   * passes `checkWorkspaceMigrations`; it decides its own exemptions.
+   */
+  workspaceCheck: (actionCommand: Command) => Promise<void>
 }
 
 /**
@@ -301,7 +308,7 @@ export function buildProgram(build: BuildProgramOptions): Command {
     // logging (config init, card-ID backfill, etc.) to stderr before it can run.
     // (`src/mcp/run.ts` diverts again for the stdio transport, but only once the
     // action starts — too late for this hook's own logging.)
-    if (actionCommand.name() === 'mcp') {
+    if (qualifiedCommandName(actionCommand) === 'mcp') {
       divertConsoleLogToStderr()
     }
 
@@ -337,11 +344,17 @@ export function buildProgram(build: BuildProgramOptions): Command {
       resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
     )
 
+    // Needs the base dir (whose config it reads) and the no-input state (whether
+    // it may prompt), and must precede the config load: a yes migrates the file
+    // that load then reads, and the notice comes before any warnings the load
+    // prints about keys a migration would change.
+    await build.workspaceCheck(actionCommand)
+
     // `ritual migrate` reads the raw config itself: it must run against a file
     // the loader would reject or warn about, since fixing that file is its job.
     // Only the top-level command — a subcommand that happens to be named
     // `migrate` loads the config like any other.
-    const isMigrate = actionCommand.name() === 'migrate' && actionCommand.parent === program
+    const isMigrate = qualifiedCommandName(actionCommand) === 'migrate'
     if (!isMigrate) {
       await refreshRitualConfig()
     }

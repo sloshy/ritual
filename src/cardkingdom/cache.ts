@@ -1,6 +1,6 @@
 import path from 'node:path'
 import { getCacheDir } from '../cache/file-cache'
-import { writeFileAtomic } from '../cache/atomic-write'
+import { writeFileAtomic } from '../util/atomic-write'
 import { isFinish } from '../card/finish-condition'
 import { createDefaultFileSystemClient, type FileSystemClient } from '../util/interfaces'
 import { hasErrorCode } from '../util/errors'

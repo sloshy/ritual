@@ -8,7 +8,7 @@ import {
   type CacheManager,
   type CacheStreamEntryMeta,
 } from '../util/interfaces'
-import { writeFileAtomic } from './atomic-write'
+import { writeFileAtomic } from '../util/atomic-write'
 import { getLogger } from '../util/logger'
 import { getBaseDir } from '../config/base-dir'
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'

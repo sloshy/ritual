@@ -22,6 +22,7 @@ import {
   writeRawRitualConfig,
   type InitSiteConfig,
   type ManagedConfig,
+  type RitualConfig,
 } from '../config/ritual-config'
 import { deleteAtPath, setAtPath } from '../config/config-fields'
 import { getBaseDir } from '../config/base-dir'
@@ -35,6 +36,7 @@ import {
   applyManagedRefresh,
   computeManagedOutput,
   planManagedRefresh,
+  type ManagedOutput,
   type ManagedRefreshPlan,
   type ManagedRefreshResult,
 } from './managed-output'
@@ -210,6 +212,118 @@ export function planPinBump(
   return compareVersions(build.version, pinned) > 0 ? { to: build.version, from: pinned } : null
 }
 
+/**
+ * The `ahead` outcome when a newer Ritual last updated the workspace — its
+ * counter is above every migration this build knows, or (for a release build)
+ * the recorded release is newer than this one — else null.
+ */
+function aheadOutcome(
+  recorded: ManagedConfig,
+  latest: number,
+  build: BuildIdentity,
+): AheadOutcome | null {
+  const ahead =
+    recorded.migration > latest ||
+    (build.release &&
+      recorded.version !== undefined &&
+      compareVersions(build.version, recorded.version) < 0)
+  if (!ahead) return null
+  return recorded.version === undefined
+    ? { kind: 'ahead', applied: recorded.migration, latest }
+    : { kind: 'ahead', applied: recorded.migration, latest, version: recorded.version }
+}
+
+/** The fast check found nothing pending. */
+export type CurrentStatus = { kind: 'current' }
+
+/** The fast check found something that may be pending; only a full plan can tell. */
+export type MaybePendingStatus = { kind: 'maybe-pending' }
+
+export type PendingStatus = NoConfigOutcome | AheadOutcome | CurrentStatus | MaybePendingStatus
+
+/**
+ * The cheap pre-command check: one config read and in-memory work only — no
+ * migration plans, no comparison of generated files against disk. A
+ * migration above the recorded counter that {@link Migration.applies} to the
+ * raw config, a managed-output hash that differs from the recorded one, or a
+ * pin bump makes the workspace `maybe-pending`; {@link planMigration} then
+ * decides whether there really is work (a state-based migration plan can turn
+ * out empty). Testing `applies` against the raw config rather than the config
+ * each earlier migration leaves cannot miss work: a later migration that only
+ * applies after an earlier one runs implies the earlier one applies too.
+ *
+ * A config the strict parser rejects reads as `current` once no migration
+ * applies: nothing `migrate` could do would fix it (its plan would refuse it
+ * as `invalid`), and the lenient loader reports the bad fields itself.
+ */
+export async function checkPendingWork(options: MigrateOptions = {}): Promise<PendingStatus> {
+  const resolved = resolveMigrateOptions(options)
+  const read = await readRecorded(resolved)
+  if (read.kind !== 'recorded') return read
+  const { raw, recorded } = read
+
+  const ctx: MigrationContext = { config: raw, baseDir: getBaseDir() }
+  const migrationDue = resolved.migrations.some(
+    (migration) => migration.id > recorded.migration && migration.applies(ctx),
+  )
+  if (migrationDue) return { kind: 'maybe-pending' }
+
+  const parsed = parseRitualConfig(withManaged(raw, recorded))
+  if (isConfigParseError(parsed)) return { kind: 'current' }
+  const due = managedWorkDue(parsed, recorded, resolved)
+  return due.refreshDue || due.pinBump !== null ? { kind: 'maybe-pending' } : { kind: 'current' }
+}
+
+/** {@link MigrateOptions} with every default filled in; migrations in id order. */
+type ResolvedMigrateOptions = Required<MigrateOptions>
+
+function resolveMigrateOptions(options: MigrateOptions): ResolvedMigrateOptions {
+  return {
+    migrations: [...(options.migrations ?? MIGRATIONS)].sort((a, b) => a.id - b.id),
+    skills: options.skills ?? SKILLS,
+    build: options.build ?? RUNNING_BUILD,
+  }
+}
+
+/** The config as read, with the valid parts of its `managed` block. */
+type RecordedWorkspace = { kind: 'recorded'; raw: RawConfig; recorded: ManagedConfig }
+
+/** Read the raw config and its recorded `managed` block, unless there is none or it is ahead. */
+async function readRecorded(
+  options: ResolvedMigrateOptions,
+): Promise<NoConfigOutcome | AheadOutcome | RecordedWorkspace> {
+  const raw = await readRawRitualConfig()
+  if (raw === null) return { kind: 'no-config' }
+  const recorded = recordedManaged(raw)
+  const ahead = aheadOutcome(recorded, latestMigrationId(options.migrations), options.build)
+  return ahead ?? { kind: 'recorded', raw, recorded }
+}
+
+/** The managed-output and pin work a parsed config owes, shared by the fast check and the plan. */
+type ManagedWorkDue = {
+  output: ManagedOutput | null
+  /** The output hash differs from the recorded one. */
+  refreshDue: boolean
+  pinBump: PinBump | null
+}
+
+/**
+ * The one definition of "managed work is due", so the pre-command check can
+ * never call a workspace current that the plan would find work in.
+ */
+function managedWorkDue(
+  parsed: RitualConfig,
+  recorded: ManagedConfig,
+  options: ResolvedMigrateOptions,
+): ManagedWorkDue {
+  const output = computeManagedOutput(parsed, options.skills)
+  return {
+    output,
+    refreshDue: output !== null && output.hash !== recorded.output,
+    pinBump: planPinBump(getSiteDeployConfig(parsed.site), options.build, recorded.version),
+  }
+}
+
 /** Replace the raw config's `managed` block. */
 function withManaged(raw: RawConfig, managed: ManagedConfig): RawConfig {
   return { ...raw, managed }
@@ -232,25 +346,12 @@ function applyConfigOps(raw: RawConfig, ops: readonly MigrationOp[]): RawConfig 
  * hash changed.
  */
 export async function planMigration(options: MigrateOptions = {}): Promise<PlanOutcome> {
-  const migrations = [...(options.migrations ?? MIGRATIONS)].sort((a, b) => a.id - b.id)
-  const skills = options.skills ?? SKILLS
-  const build = options.build ?? RUNNING_BUILD
-
-  const raw = await readRawRitualConfig()
-  if (raw === null) return { kind: 'no-config' }
-
-  const recorded = recordedManaged(raw)
+  const resolved = resolveMigrateOptions(options)
+  const { migrations, skills, build } = resolved
+  const read = await readRecorded(resolved)
+  if (read.kind !== 'recorded') return read
+  const { raw, recorded } = read
   const latest = latestMigrationId(migrations)
-  const ahead =
-    recorded.migration > latest ||
-    (build.release &&
-      recorded.version !== undefined &&
-      compareVersions(build.version, recorded.version) < 0)
-  if (ahead) {
-    return recorded.version === undefined
-      ? { kind: 'ahead', applied: recorded.migration, latest }
-      : { kind: 'ahead', applied: recorded.migration, latest, version: recorded.version }
-  }
 
   const baseDir = getBaseDir()
   let simulated = raw
@@ -275,11 +376,8 @@ export async function planMigration(options: MigrateOptions = {}): Promise<PlanO
   const parsed = parseRitualConfig(withManaged(simulated, stamp))
   if (isConfigParseError(parsed)) return { kind: 'invalid', error: parsed.error }
 
-  const output = computeManagedOutput(parsed, skills)
-  const refresh =
-    output !== null && output.hash !== recorded.output
-      ? await planManagedRefresh(output, skills)
-      : null
+  const { output, refreshDue, pinBump } = managedWorkDue(parsed, recorded, resolved)
+  const refresh = output !== null && refreshDue ? await planManagedRefresh(output, skills) : null
   const managed = output === null ? stamp : { ...stamp, output: output.hash }
 
   return {
@@ -288,7 +386,7 @@ export async function planMigration(options: MigrateOptions = {}): Promise<PlanO
     recorded,
     migrations: pending,
     refresh,
-    pinBump: planPinBump(getSiteDeployConfig(parsed.site), build, recorded.version),
+    pinBump,
     managed,
     build,
   }

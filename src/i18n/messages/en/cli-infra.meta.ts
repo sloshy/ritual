@@ -568,6 +568,30 @@ export const cliInfraMeta = {
     description:
       'Refusal: the migrated config still fails validation. {error} is the English validation message; "ritual.config.json" and the backticked command are literal.',
   },
+  'cli.migrate.offer': {
+    description:
+      'Yes/no question asked before an ordinary command runs, after the list of pending workspace updates. The backticked command is literal. Yes applies the updates and then the command continues.',
+  },
+  'cli.migrate.offerDeclined': {
+    description:
+      'Printed after the user answers no to cli.migrate.offer; the command then continues. Ritual asks at most once a day per workspace. The backticked command is literal.',
+  },
+  'cli.migrate.notice.pending': {
+    description:
+      'One stderr line printed before an ordinary command when the workspace has updates `ritual migrate` would apply and Ritual cannot (or already did today) ask. The command still runs. Backticked commands are literal.',
+  },
+  'cli.migrate.notice.pendingConfig': {
+    description:
+      'Variant of cli.migrate.notice.pending when the config file will also print validation warnings that applying the updates fixes. "ritual.config.json" and the backticked commands are literal.',
+  },
+  'cli.migrate.notice.ahead': {
+    description:
+      'One stderr warning before a command when a newer Ritual release last updated the workspace; the command still runs. {version} is that release (appears twice), {current} is the running build.',
+  },
+  'cli.migrate.notice.aheadNoVersion': {
+    description:
+      'The same warning when no release was recorded. {applied}/{latest} are migration numbers.',
+  },
 
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': { description: 'One skill file was installed or refreshed.' },

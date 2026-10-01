@@ -432,6 +432,11 @@ Exit codes are uniform across commands: **1** runtime error, **2** usage error,
 not there — is always **3**, never 1. **4** means updates are pending, and only
 \`ritual migrate --check\` uses it.
 
+A stderr line saying **this workspace has pending updates** is advisory: the
+command still ran with its normal output and exit code. Run
+\`ritual migrate --dry-run\`, show the user the plan, and ask before applying
+(details in **ritual-site**).
+
 ## Scripting conventions (uniform across commands)
 
 - \`--output text|json|ndjson\` always selects the **stdout envelope**, never a

@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   applyMigration,
+  checkPendingWork,
   hasPendingWork,
   planMigration,
   type BuildIdentity,
@@ -331,6 +332,107 @@ describe('planMigration', () => {
 function computeGitignore(): string {
   return computeManagedOutput(configWithSite(PUBLISH_SITE))?.gitignoreEntries ?? ''
 }
+
+/**
+ * The pre-command fast path reads only the config. Each case pins its verdict
+ * and that it agrees with the full plan: `current` must never hide work the
+ * plan would find, and every `maybe-pending` case here really is pending.
+ */
+describe('checkPendingWork', () => {
+  const release = (version: string): BuildIdentity => ({ version, release: true })
+  const latest = latestMigrationId()
+
+  test('no config file means nothing to check', async () => {
+    await workspace(false)
+    expect(await checkPendingWork()).toEqual({ kind: 'no-config' })
+  })
+
+  test('a workspace migrated past this build is ahead', async () => {
+    await workspace({ managed: { migration: latest + 1 } })
+    expect(await checkPendingWork({ build: DEV_BUILD })).toEqual({
+      kind: 'ahead',
+      applied: latest + 1,
+      latest,
+    })
+  })
+
+  test('a release older than the pin is ahead', async () => {
+    await workspace({
+      site: PUBLISH_SITE,
+      managed: { migration: latest, version: '2.0.0', output: outputHash(PUBLISH_SITE) },
+    })
+    expect(await checkPendingWork({ build: release('1.0.0') })).toEqual({
+      kind: 'ahead',
+      applied: latest,
+      latest,
+      version: '2.0.0',
+    })
+  })
+
+  test.each<[string, Record<string, unknown>, BuildIdentity, 'current' | 'maybe-pending']>([
+    [
+      'a migration above the counter that applies',
+      { site: { version: '0.0.1', ciSystem: 'manual' } },
+      DEV_BUILD,
+      'maybe-pending',
+    ],
+    ['a counter below the latest when no migration applies', {}, DEV_BUILD, 'current'],
+    [
+      'a site block holding no retired key',
+      { site: { includeDecks: ['*'] } },
+      DEV_BUILD,
+      'current',
+    ],
+    [
+      'a retired key under a counter that already passed its migration',
+      {
+        site: { version: '0.0.1', ciSystem: 'manual' },
+        managed: { migration: latest, output: outputHash({ ciSystem: 'manual' }) },
+      },
+      DEV_BUILD,
+      'current',
+    ],
+    [
+      'a malformed recorded block hiding a due refresh',
+      { site: PUBLISH_SITE, managed: { migration: latest, version: 'latest' } },
+      DEV_BUILD,
+      'maybe-pending',
+    ],
+    [
+      'a recorded output hash that differs from this build',
+      { site: PUBLISH_SITE, managed: { migration: latest, output: 'sha256:stale' } },
+      DEV_BUILD,
+      'maybe-pending',
+    ],
+    [
+      'a matching output hash',
+      { site: PUBLISH_SITE, managed: { migration: latest, output: outputHash(PUBLISH_SITE) } },
+      DEV_BUILD,
+      'current',
+    ],
+    [
+      'a release newer than the publish-for-me pin',
+      {
+        site: PUBLISH_SITE,
+        managed: { migration: latest, version: '1.0.0', output: outputHash(PUBLISH_SITE) },
+      },
+      release('1.1.0'),
+      'maybe-pending',
+    ],
+    [
+      'a config the strict parser rejects once no migration applies',
+      { defaultPriceSource: 42, managed: { migration: latest } },
+      DEV_BUILD,
+      'current',
+    ],
+  ])('%s', async (_label, config, build, expected) => {
+    await workspace(config)
+    expect(await checkPendingWork({ build })).toEqual({ kind: expected })
+    const outcome = await planMigration({ build })
+    const pending = outcome.kind === 'plan' && hasPendingWork(outcome)
+    expect(pending).toBe(expected === 'maybe-pending')
+  })
+})
 
 describe('applyMigration', () => {
   test('stamps the counter after each migration, so a failure resumes where it stopped', async () => {

@@ -38,6 +38,33 @@ When nothing is pending it prints `This workspace is already up to date; nothing
 - `--check` prints nothing when the workspace is current (exit `0`). When updates are pending, it prints one line telling you to run `ritual migrate` and exits `4`, a code of its own, so a script or CI job can tell an out-of-date workspace from a failure. `--check` cannot be combined with `--yes` or `--dry-run`.
 - When prompts are unavailable (see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)), applying needs `--yes`. Without it the run is a usage error (exit `2`) and nothing is written.
 
+## When Ritual offers to migrate
+
+You rarely need to remember `migrate`. Before every other command, Ritual checks whether the workspace has pending updates. When nothing is pending, the check reads only `ritual.config.json`, so it costs nothing noticeable. When updates are pending:
+
+- **In an interactive terminal**, Ritual prints the same plan and asks ``Run `ritual migrate` now?``. Yes applies it exactly as `ritual migrate --yes` would, then your command runs against the updated workspace. If applying fails, Ritual reports the error the way `ritual migrate` would and still runs your command; run `ritual migrate` again to finish. No leaves the workspace alone and runs your command. Either way, Ritual asks **at most once a day per workspace**; commands in the next 24 hours only print the one-line notice below.
+- **Otherwise**, it prints one line to stderr and runs the command:
+
+  ```
+  This workspace has pending updates. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.
+  ```
+
+  "Otherwise" means prompts are unavailable (no terminal, or `--no-input` / `RITUAL_NO_INPUT`; see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)), stdout is not a terminal, the command writes `--output json`, `ndjson`, or `csv`, it is a `--dry-run`, `--yes` was passed (the run is meant to be unattended), or the `CI` environment variable is set (`CI=false` and the other off spellings count as unset). When `ritual.config.json` also loads with warnings that the updates fix, the line says so. When the updates cannot be applied because the migrated config would be invalid, Ritual prints only the notice, even in a terminal; `ritual migrate` explains what to fix.
+
+A workspace [from a newer Ritual](#a-workspace-from-a-newer-ritual) gets a one-line warning on stderr instead, naming the release to install when one was recorded. The command still runs: CI pinned to an older release, for example, keeps building a workspace that a development build migrated further.
+
+The notice and the warning never change a command's exit code, and nothing in the workspace is written unless you answer yes. `migrate`, `init-site`, `config` (all its subcommands), `help`, `mcp`, and `detect-changes` (which must see the workspace exactly as committed) skip the check entirely, as does a directory with no `ritual.config.json`.
+
+The once-a-day memory lives in a small per-user state file, not in the workspace:
+
+| Platform | State file                                                                                    |
+| -------- | --------------------------------------------------------------------------------------------- |
+| Linux    | `$XDG_STATE_HOME/ritual/state.json`, or `~/.local/state/ritual/state.json` when that is unset |
+| macOS    | `~/Library/Application Support/ritual/state.json`                                             |
+| Windows  | `%LOCALAPPDATA%\ritual\state.json`, or `~\AppData\Local\ritual\state.json` when that is unset |
+
+Set `RITUAL_STATE_DIR` to use another directory. Deleting the file is harmless: Ritual just asks again. If the file cannot be read or written, the command runs anyway.
+
 ## What gets migrated
 
 ### Numbered migrations
@@ -77,7 +104,7 @@ A newer Ritual may already have updated the workspace: `managed.migration` is hi
 This workspace was last updated by a newer Ritual (0.3.0). Install Ritual 0.3.0 or newer and try again.
 ```
 
-`init-site` refuses such a workspace the same way.
+`init-site` refuses such a workspace the same way. Other commands [only warn](#when-ritual-offers-to-migrate).
 
 ## Development builds
 

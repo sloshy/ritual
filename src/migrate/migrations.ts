@@ -13,7 +13,8 @@ function dropSiteKey(id: number, key: string, descriptionKey: ParameterlessKey):
   return {
     id,
     descriptionKey,
-    applies: (ctx: MigrationContext): boolean => isRecord(ctx.config.site),
+    applies: (ctx: MigrationContext): boolean =>
+      isRecord(ctx.config.site) && ctx.config.site[key] !== undefined,
     plan: (ctx: MigrationContext): Promise<MigrationOp[]> => {
       const site = ctx.config.site
       const needed = isRecord(site) && site[key] !== undefined

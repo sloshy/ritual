@@ -47,7 +47,7 @@ import {
 import { recordCardBulkType } from '../cache/bulk-provenance'
 import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
 import { withCacheLock } from '../cache/lock'
-import { writeFileAtomic } from '../cache/atomic-write'
+import { writeFileAtomic } from '../util/atomic-write'
 import { RATE_LIMIT_MS, RequestQueue } from './request-queue'
 import {
   computeRepresentativePrints,

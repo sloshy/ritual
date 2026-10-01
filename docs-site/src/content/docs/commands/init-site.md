@@ -186,7 +186,7 @@ Re-running `init-site` on an initialized repository never changes it. It prints 
 
 A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it applies any pending migrations before writing its files. If you keep an existing workflow at the overwrite prompt, the generated-files hash is left unrecorded, so `ritual migrate` later offers to regenerate it.
 
-`ritual migrate` is what brings the workspace up to date: it rewrites the workflow from your saved settings (so older workflows pick up template changes), appends `.gitignore` entries added by newer versions (for a **local-build** deploy, this is how an older scaffold gets the `!<distDir>/` un-ignore), and refreshes installed [agent skills](/commands/skills/). Preview it with `ritual migrate --dry-run`.
+`ritual migrate` is what brings the workspace up to date: it rewrites the workflow from your saved settings (so older workflows pick up template changes), appends `.gitignore` entries added by newer versions (for a **local-build** deploy, this is how an older scaffold gets the `!<distDir>/` un-ignore), and refreshes installed [agent skills](/commands/skills/). Preview it with `ritual migrate --dry-run`. You rarely need to remember it: every other command [offers to migrate, or prints a one-line notice](/commands/migrate/#when-ritual-offers-to-migrate), when updates are pending. The generated GitHub Actions workflow runs with `CI` set, so its `build-site` step only prints the notice and never prompts.
 
 ### `--force`
 

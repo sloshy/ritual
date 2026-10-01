@@ -67,6 +67,24 @@ running is refused (exit 1) with the release to install. Ritual records its
 bookkeeping in the \`managed\` block of \`ritual.config.json\` (\`version\`,
 \`migration\`, \`output\`); never edit it, and \`config set\` refuses to.
 
+**The pending-updates notice.** Every other command checks for pending updates
+first (except \`migrate\`, \`init-site\`, \`config\`, \`help\`, \`mcp\` and
+\`detect-changes\`).
+In a non-interactive run like yours it never prompts: it prints one stderr line
+and the command proceeds with its normal exit code and output:
+
+> This workspace has pending updates. Run \`ritual migrate --dry-run\` to see
+> them, then \`ritual migrate\` to apply them.
+
+When you see it, run \`ritual migrate --dry-run\`, show the user the plan, and
+ask before running \`ritual migrate --yes\` — never apply on your own. If
+\`--dry-run\` refuses (exit 1), show the user its message instead: the config
+needs a hand fix first. A stderr
+line starting \`Warning: this workspace was\` that calls the workspace's Ritual
+newer means the installed Ritual is older than the workspace: the command still
+ran, but tell the user to install a newer release (the one the warning names,
+if any).
+
 **The CI pin.** The publish-for-me workflow downloads exactly the release in
 \`managed.version\` (a \`RITUAL_VERSION\` repository variable set to a tag such as
 \`v1.0.0\` overrides it). Only a Ritual **release** build writes the pin; a dev

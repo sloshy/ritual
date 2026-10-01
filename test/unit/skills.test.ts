@@ -14,6 +14,8 @@ import { MCP_TOOL_NAMES, RETIRED_MCP_TOOL_NAMES } from '../../src/mcp/tools/name
 import type { RitualSkill } from '../../src/skills/types'
 import { version } from '../../src/config/version'
 import { SECTION_ROLES } from '../../src/list/deck-format'
+import { t } from '../../src/i18n/t'
+import { MIGRATION_CHECK_EXEMPT } from '../../src/commands/migrate-check'
 
 describe('skill catalog invariants', () => {
   test('every skill is structurally valid and renders without throwing', () => {
@@ -174,6 +176,19 @@ describe('skill bodies name only tools that exist', () => {
     expect(site?.body).toContain('ritual migrate --check')
     expect(site?.body).toContain('ritual migrate --dry-run')
     expect(site?.body).toContain('Always ask before applying')
+  })
+
+  test('the site skill quotes the pending-updates notice the CLI prints', () => {
+    const site = SKILLS.find((skill) => skill.name === 'ritual-site')
+    // The quote is a wrapped Markdown blockquote; unwrap it before comparing.
+    const unwrapped = site?.body.replaceAll('\n> ', ' ')
+    expect(unwrapped).toContain(t('cli.migrate.notice.pending'))
+  })
+
+  test('the site skill names every command the pending-updates check skips', () => {
+    const site = SKILLS.find((skill) => skill.name === 'ritual-site')
+    const missing = MIGRATION_CHECK_EXEMPT.filter((name) => !site?.body.includes(`\`${name}\``))
+    expect(missing).toEqual([])
   })
 
   test('no skill mentions a retired tool name', () => {

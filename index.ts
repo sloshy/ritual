@@ -6,6 +6,7 @@ setupGlobalFetch()
 import { CommanderError } from 'commander'
 import { COMMAND_GROUPS } from './src/commands/registry'
 import { shouldBackfillCardIds } from './src/commands/id-backfill'
+import { checkWorkspaceMigrations } from './src/commands/migrate-check'
 import { buildProgram } from './src/cli/program'
 import { initI18n } from './src/cli/locale'
 import { registerCliMessages } from './src/i18n/register/cli'
@@ -53,7 +54,11 @@ async function main(): Promise<void> {
   // `--help` can still be authored in the user's language. The preAction hook
   // re-resolves authoritatively once the flag and base dir are parsed.
   initI18n()
-  const program = buildProgram({ groups: COMMAND_GROUPS, backfill: shouldBackfillCardIds })
+  const program = buildProgram({
+    groups: COMMAND_GROUPS,
+    backfill: shouldBackfillCardIds,
+    workspaceCheck: checkWorkspaceMigrations,
+  })
 
   try {
     await program.parseAsync()

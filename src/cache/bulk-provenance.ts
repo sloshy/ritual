@@ -2,7 +2,7 @@ import path from 'node:path'
 import { createDefaultFileSystemClient, type FileSystemClient } from '../util/interfaces'
 import { isCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
 import { getCacheDir } from './file-cache'
-import { writeFileAtomic } from './atomic-write'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /**
  * Card-cache bulk provenance: which Scryfall bulk (`default_cards` or

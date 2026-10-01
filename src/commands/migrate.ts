@@ -70,7 +70,7 @@ function printRefreshPlan(refresh: ManagedRefreshPlan): void {
 }
 
 /** Print every change the plan makes: migrations that still have ops, then the refresh. */
-function printPlan(plan: MigrationPlan): void {
+export function printPlan(plan: MigrationPlan): void {
   console.log(t('cli.migrate.planHeading'))
   for (const { migration, ops } of plan.migrations) {
     if (ops.length === 0) continue
@@ -122,6 +122,14 @@ function printResult(plan: MigrationPlan, result: MigrationResult): void {
   }
 }
 
+/**
+ * Apply a confirmed plan and report what it did — the one apply path, shared by
+ * `ritual migrate` and the pre-command offer (`./migrate-check.ts`).
+ */
+export async function applyAndReport(plan: MigrationPlan): Promise<void> {
+  printResult(plan, await applyMigration(plan))
+}
+
 async function runMigrate(options: MigrateCommandOptions): Promise<void> {
   const outcome = await planMigration()
   if (outcome.kind === 'no-config') {
@@ -163,7 +171,7 @@ async function runMigrate(options: MigrateCommandOptions): Promise<void> {
     }
   }
 
-  printResult(plan, await applyMigration(plan))
+  await applyAndReport(plan)
 }
 
 export function registerMigrateCommand(program: Command): void {

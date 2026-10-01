@@ -9,7 +9,7 @@ import path from 'node:path'
 import { createHash } from 'node:crypto'
 import { mkdir, readdir, unlink } from 'node:fs/promises'
 import { createDefaultFileSystemClient, type HttpClient } from '../util/interfaces'
-import { writeFileAtomic } from '../cache/atomic-write'
+import { writeFileAtomic } from '../util/atomic-write'
 import { throwHttpError } from '../util/errors'
 import {
   SCRYFALL_BULK_API_URL,

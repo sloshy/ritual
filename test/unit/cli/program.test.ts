@@ -18,7 +18,11 @@ import { t } from '../../../src/i18n/t'
  */
 describe('buildProgram', () => {
   registerCliMessages()
-  const program = buildProgram({ groups: COMMAND_GROUPS, backfill: () => false })
+  const program = buildProgram({
+    groups: COMMAND_GROUPS,
+    backfill: () => false,
+    workspaceCheck: () => Promise.resolve(),
+  })
 
   test('every COMMANDS_WITH_ID_BACKFILL entry names a registered command', () => {
     expect(COMMANDS_WITH_ID_BACKFILL.length).toBeGreaterThan(10)
@@ -116,6 +120,7 @@ describe('buildProgram', () => {
         },
       ],
       backfill: () => false,
+      workspaceCheck: () => Promise.resolve(),
     })
     const sub = probe.commands.find((command) => command.name() === 'probe')
     expect(sub).toBeDefined()

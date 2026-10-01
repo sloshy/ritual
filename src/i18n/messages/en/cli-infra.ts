@@ -335,6 +335,17 @@ export const cliInfraMessages = {
     'ritual.config.json changed while migrate was running; nothing was written. Run `ritual migrate` again.',
   'cli.migrate.invalid':
     'ritual.config.json would still be invalid after migrating ({error}); nothing was written. Fix the file and run `ritual migrate` again.',
+  'cli.migrate.offer': 'Run `ritual migrate` now?',
+  'cli.migrate.offerDeclined':
+    'Skipped. Run `ritual migrate` when you are ready; Ritual asks again tomorrow.',
+  'cli.migrate.notice.pending':
+    'This workspace has pending updates. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.',
+  'cli.migrate.notice.pendingConfig':
+    'This workspace has pending updates, and ritual.config.json loads with warnings until they are applied. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.',
+  'cli.migrate.notice.ahead':
+    'Warning: this workspace was last updated by Ritual {version}, which is newer than this build ({current}). Install Ritual {version} to work on it safely.',
+  'cli.migrate.notice.aheadNoVersion':
+    'Warning: this workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Install a newer Ritual to work on it safely.',
 
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': '✓ {name} → {path}',

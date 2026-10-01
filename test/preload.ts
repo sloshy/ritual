@@ -11,10 +11,21 @@
  */
 
 import { afterEach, beforeEach } from 'bun:test'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import prompts from 'prompts'
 import { registerCliMessages } from '../src/i18n/register/cli'
 
 process.env.RITUAL_ARCHIDEKT_MIN_INTERVAL_MS = '0'
+
+/**
+ * Point the per-user state file (`src/util/user-state.ts`) at a throwaway
+ * directory, so no suite reads or writes the real one under the home
+ * directory. Spawned CLIs inherit it; suites that test the file itself set
+ * their own.
+ */
+process.env.RITUAL_STATE_DIR = mkdtempSync(path.join(tmpdir(), 'ritual-test-state-'))
 
 /**
  * Register the English catalog, exactly as `main()` in `index.ts` does.

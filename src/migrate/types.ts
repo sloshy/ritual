@@ -53,7 +53,12 @@ export type Migration = {
   id: number
   /** Catalog key describing what this migration does, shown in the plan. */
   descriptionKey: ParameterlessKey
-  /** Whether this migration concerns the workspace at all. */
+  /**
+   * Whether this migration may have ops for the workspace — cheap and
+   * in-memory. The pre-command check (`checkPendingWork`) trusts a `false`
+   * here to mean "nothing to do", so it must not be true for a workspace the
+   * migration has nothing left to change in.
+   */
   applies: (ctx: MigrationContext) => boolean
   /**
    * Inspect the current state and return the operations still needed — none

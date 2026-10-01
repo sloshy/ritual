@@ -89,6 +89,8 @@ Where a question has a documented default, that default is used instead of faili
 - A text `import` without `--type` falls back to a deck **under an explicit `--no-input`**. A merely piped run still errors, since nothing said which type was meant.
 - A URL `import` (and `import-account`) without a [`--sync-printings`/`--no-sync-printings`](/commands/import/#printings-from-a-url-import) answer behaves the same way: an explicit `--no-input` keeps the source's exact printings and says so; a merely piped run errors.
 
+One question is never required: when a workspace has [pending updates](/commands/migrate/#when-ritual-offers-to-migrate), Ritual offers to run `ritual migrate` before the command. Without a prompt (and also when stdout is not a terminal, under `--output json`/`ndjson`/`csv`, `--dry-run`, `--yes`, or a set `CI` variable) it prints one line on stderr instead and runs the command. That line never changes the exit code or stdout, so scripts can ignore it; run `ritual migrate --check` to test for pending updates explicitly.
+
 ### `--locale`
 
 Sets the language of **Ritual's own interface text**: output, prompts, menus, help, and errors. It takes a [BCP-47](https://www.rfc-editor.org/info/bcp47) tag (`en`, `de`, `de-AT`, `pt-BR`). Tags are canonicalized, so `--locale de-at` and `--locale de-AT` mean the same thing.

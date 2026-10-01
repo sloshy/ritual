@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import {
+  isCiEnvironment,
   inputRequiredError,
   isNoInput,
   promptsUnavailable,
@@ -51,6 +52,19 @@ describe('resolveNoInput', () => {
       expect(resolveNoInput(undefined, value)).toBe(false)
     },
   )
+})
+
+describe('isCiEnvironment', () => {
+  test.each<[string | undefined, boolean]>([
+    [undefined, false],
+    ['', false],
+    ['true', true],
+    ['1', true],
+    ['false', false],
+    ['0', false],
+  ])('CI=%p', (value, expected) => {
+    expect(isCiEnvironment(value)).toBe(expected)
+  })
 })
 
 describe('isNoInput', () => {
