@@ -162,6 +162,21 @@ export const helpInfraMeta = {
   'help.migrate.dryRun': { description: '`migrate --dry-run`.' },
   'help.migrate.check': { description: '`migrate --check`: the exit codes are literal.' },
 
+  // ── self-update ───────────────────────────────────────────────────────
+  'help.selfUpdate.description': { description: 'Summary of the `self-update` command.' },
+  'help.selfUpdate.prerelease': {
+    description:
+      '`self-update --prerelease`: switch to the channel that includes prerelease (beta) builds.',
+  },
+  'help.selfUpdate.stable': {
+    description: '`self-update --stable`: switch to stable releases only.',
+  },
+  'help.selfUpdate.tag': {
+    description: '`self-update --tag <tag>`: the example tag is literal.',
+  },
+  'help.selfUpdate.check': { description: '`self-update --check`: the exit codes are literal.' },
+  'help.selfUpdate.yes': { description: '`self-update --yes`.' },
+
   // ── admin ─────────────────────────────────────────────────────────────
   'help.admin.description': { description: 'Summary of the `admin` command.' },
   'help.admin.port': { description: '`admin --port`.' },

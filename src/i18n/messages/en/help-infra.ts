@@ -163,6 +163,15 @@ export const helpInfraMessages = {
   'help.migrate.dryRun': 'Print what would change and write nothing',
   'help.migrate.check': 'Write nothing; exit 4 when updates are pending, 0 when up to date',
 
+  // ── self-update ───────────────────────────────────────────────────────
+  'help.selfUpdate.description':
+    'Download a newer Ritual release, verify it, and install it in place of this binary',
+  'help.selfUpdate.prerelease': 'Include prereleases (default: follow the running build)',
+  'help.selfUpdate.stable': 'Only consider stable releases (default: follow the running build)',
+  'help.selfUpdate.tag': 'Install this exact release tag (e.g. v1.2.0), even an older one',
+  'help.selfUpdate.check': 'Write nothing; exit 4 when an update is available, 0 when up to date',
+  'help.selfUpdate.yes': 'Install without asking for confirmation',
+
   // ── admin ─────────────────────────────────────────────────────────────
   'help.admin.description': 'Start the web admin interface',
   'help.admin.port': 'Port to serve on',

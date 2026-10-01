@@ -7,9 +7,17 @@ declare const GIT_VERSION: string | undefined
 // see scripts/build.sh. Local, Docker and CI test builds leave it undefined.
 declare const RITUAL_RELEASE: boolean | undefined
 
+/**
+ * Whether `ref` is an exact release tag (`v1.2.3`, `1.2.3-beta8`), the form
+ * {@link normalizeVersion} maps to a release version by dropping the `v`.
+ */
+export function isReleaseTag(ref: string): boolean {
+  return /^v?\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(ref)
+}
+
 export function normalizeVersion(ref: string): string {
   // Exact tag: "v1.2.3" or "v1.2.3-beta8" -> "1.2.3" or "1.2.3-beta8"
-  if (/^v?\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/.test(ref)) {
+  if (isReleaseTag(ref)) {
     return ref.replace(/^v/, '')
   }
   // Tag + commits ahead: "v1.2.3-5-gabcdef" or "v1.2.3-beta8-5-gabcdef" -> "1.2.3-dev.abcdef" or "1.2.3-beta8-dev.abcdef"

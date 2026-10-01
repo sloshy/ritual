@@ -431,7 +431,7 @@ describe('init-site CLI (Integration)', () => {
       const rerun = await runCli(['init-site'], dir)
 
       expect(rerun.exitCode).toBe(1)
-      expect(rerun.stderr).toContain('Install a newer Ritual')
+      expect(rerun.stderr).toContain('Run `ritual self-update` to install a newer Ritual')
     })
   })
 })

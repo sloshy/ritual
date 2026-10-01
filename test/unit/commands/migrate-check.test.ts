@@ -54,6 +54,7 @@ describe('migration check exemptions', () => {
 
   test.each<[string[], string, boolean]>([
     [['migrate'], 'migrate', true],
+    [['self-update'], 'self-update', true],
     [['init-site'], 'init-site', true],
     [['mcp'], 'mcp', true],
     [['config', 'set'], 'config set', true],

@@ -153,13 +153,13 @@ A command with no non-essential output does not register the flag at all. `card`
 
 ### Exit codes
 
-| Code | Meaning                                                                                                             |
-| ---- | ------------------------------------------------------------------------------------------------------------------- |
-| `0`  | Success                                                                                                             |
-| `1`  | Runtime error — the work was attempted and failed                                                                   |
-| `2`  | Usage error — a bad flag value or an impossible combination, including a malformed `--base-dir` or `--cache-server` |
-| `3`  | Not found — a named list, file, card, or other resource does not exist                                              |
-| `4`  | Updates pending — [`migrate --check`](/commands/migrate/#previewing-and-scripting) found workspace updates to apply |
+| Code | Meaning                                                                                                                                                                                                                   |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`  | Success                                                                                                                                                                                                                   |
+| `1`  | Runtime error — the work was attempted and failed                                                                                                                                                                         |
+| `2`  | Usage error — a bad flag value or an impossible combination, including a malformed `--base-dir` or `--cache-server`                                                                                                       |
+| `3`  | Not found — a named list, file, card, or other resource does not exist                                                                                                                                                    |
+| `4`  | Updates pending — [`migrate --check`](/commands/migrate/#previewing-and-scripting) found workspace updates to apply, or [`self-update --check`](/commands/self-update/#checking-without-installing) found a newer release |
 
 A closed stdout pipe is not a failure: `ritual … --output ndjson | head` stops quietly and exits `0`, like any standard Unix tool.
 

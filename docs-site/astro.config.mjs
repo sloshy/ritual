@@ -114,6 +114,7 @@ export default defineConfig({
                 'commands/cache',
                 'commands/cleanup',
                 'commands/migrate',
+                'commands/self-update',
                 'commands/detect-changes',
                 'commands/list-all-cards',
                 'commands/config',

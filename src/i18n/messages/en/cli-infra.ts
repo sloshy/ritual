@@ -328,9 +328,9 @@ export const cliInfraMessages = {
   'cli.migrate.devBuildNoPin':
     'Warning: {version} is a development build, so it did not pin a release in managed.version. With no pin, CI builds with the newest Ritual release (the latest stable one, or the newest prerelease when there is none), which may not know the migrations just applied. Run `ritual migrate` with a Ritual release build and commit to pin one.',
   'cli.migrate.ahead':
-    'This workspace was last updated by a newer Ritual ({version}). Install Ritual {version} or newer and try again.',
+    'This workspace was last updated by a newer Ritual ({version}). Run `ritual self-update --tag {version}` and try again.',
   'cli.migrate.aheadNoVersion':
-    'This workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Install a newer Ritual and try again.',
+    'This workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Run `ritual self-update` to install a newer Ritual and try again.',
   'cli.migrate.changedSincePlan':
     'ritual.config.json changed while migrate was running; nothing was written. Run `ritual migrate` again.',
   'cli.migrate.invalid':
@@ -343,9 +343,64 @@ export const cliInfraMessages = {
   'cli.migrate.notice.pendingConfig':
     'This workspace has pending updates, and ritual.config.json loads with warnings until they are applied. Run `ritual migrate --dry-run` to see them, then `ritual migrate` to apply them.',
   'cli.migrate.notice.ahead':
-    'Warning: this workspace was last updated by Ritual {version}, which is newer than this build ({current}). Install Ritual {version} to work on it safely.',
+    'Warning: this workspace was last updated by Ritual {version}, which is newer than this build ({current}). Run `ritual self-update --tag {version}` to work on it safely.',
   'cli.migrate.notice.aheadNoVersion':
-    'Warning: this workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Install a newer Ritual to work on it safely.',
+    'Warning: this workspace was migrated by a newer Ritual (migration {applied}; this build knows up to {latest}). Run `ritual self-update` to install a newer Ritual and work on it safely.',
+
+  // ── self-update ───────────────────────────────────────────────────────
+  'cli.selfUpdate.upToDate':
+    'Ritual {current} is up to date (the newest release on this channel is {latest}).',
+  'cli.selfUpdate.alreadyInstalled': 'Ritual {version} is already installed.',
+  'cli.selfUpdate.available': 'Ritual {latest} is available (installed: {current}).',
+  'cli.selfUpdate.downgradeAvailable':
+    'Ritual {latest} is older than the installed {current}; installing it would downgrade {current} → {latest}.',
+  'cli.selfUpdate.confirm': 'Update Ritual {current} → {target}?',
+  'cli.selfUpdate.confirmDowngrade': 'Downgrade Ritual {current} → {target}?',
+  'cli.selfUpdate.cancelled': 'Cancelled; Ritual was not changed.',
+  'cli.selfUpdate.downloading': 'Downloading Ritual {tag}…',
+  'cli.selfUpdate.updated': '✓ Updated Ritual {current} → {target} ({path})',
+  'cli.selfUpdate.checkingWorkspace':
+    'Checking this workspace with Ritual {version} (nothing is applied):',
+  'cli.selfUpdate.workspaceCheckFailed':
+    'Warning: could not run the new Ritual to check this workspace ({error}). Run `ritual migrate --dry-run` to see its pending updates.',
+  'cli.selfUpdate.refuse.notRelease':
+    'self-update only replaces a Ritual release binary, and {version} is a development or local build. Install a release with the installer, or update your checkout and rebuild.',
+  'cli.selfUpdate.refuse.docker':
+    'This Ritual runs from its Docker image, which self-update cannot change. Pull the newer image instead (docker pull ghcr.io/sloshy/ritual).',
+  'cli.selfUpdate.refuse.notWritable':
+    'Cannot replace Ritual: {dir} is not writable. Re-run with permission to write there, or reinstall Ritual with the installer.',
+  'cli.selfUpdate.error.invalidTag':
+    "'{tag}' is not a release version (expected a tag like v1.2.0 or 1.2.0-beta4).",
+  'cli.selfUpdate.error.unsupportedPlatform':
+    'Ritual publishes no release binary for {platform}/{arch}.',
+  'cli.selfUpdate.error.network': 'Could not reach GitHub ({url}): {error}',
+  'cli.selfUpdate.error.http': 'GitHub answered {status} for {url}.',
+  'cli.selfUpdate.error.rateLimited':
+    'GitHub answered {status} for {url}; its API rate limit may be used up. Try again later, or set GITHUB_TOKEN.',
+  'cli.selfUpdate.error.redirectRefused':
+    'GitHub redirected {url} to {location}, another site; Ritual does not send GITHUB_TOKEN there. Unset GITHUB_TOKEN and try again.',
+  'cli.selfUpdate.error.badResponse': 'GitHub sent an unexpected response for {url}: {error}',
+  'cli.selfUpdate.error.noStableRelease':
+    'No stable Ritual release has been published yet. Run `ritual self-update --prerelease` for the newest prerelease.',
+  'cli.selfUpdate.error.noRelease': 'No Ritual release has been published yet.',
+  'cli.selfUpdate.error.tagNotFound': 'No Ritual release is tagged {tag}.',
+  'cli.selfUpdate.error.missingAsset':
+    'Release {tag} has no {asset} binary for this platform; nothing was installed.',
+  'cli.selfUpdate.error.missingChecksum':
+    'Release {tag} has no checksum file for {asset}; refusing to install an unverified binary.',
+  'cli.selfUpdate.error.badChecksumFile':
+    'The checksum file for {asset} is malformed ({error}); nothing was installed.',
+  'cli.selfUpdate.error.sizeMismatch':
+    'The downloaded {asset} is {actual} bytes, but the release lists {expected}; nothing was installed.',
+  'cli.selfUpdate.error.checksumMismatch':
+    'Checksum mismatch for {asset} (expected {expected}, got {actual}); nothing was installed.',
+  'cli.selfUpdate.error.smokeTest':
+    'The downloaded binary did not report version {expected} ({detail}); nothing was installed.',
+  'cli.selfUpdate.error.swapStranded':
+    'Could not finish replacing {target} ({error}). The previous Ritual is at {old} and the new one at {kept}; rename either to {target} to recover.',
+  'cli.selfUpdate.previewExit': 'it exited with code {exitCode}',
+  'cli.selfUpdate.error.installFailed':
+    'Could not install the new binary at {path}: {error}. The current Ritual was left in place.',
 
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': '✓ {name} → {path}',

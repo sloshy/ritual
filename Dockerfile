@@ -31,6 +31,10 @@ RUN apk add --no-cache libstdc++ libgcc
 # Copy the binary from builder
 COPY --from=builder /app/ritual /usr/local/bin/ritual
 
+# The image, not the binary inside it, is the unit of update: `ritual
+# self-update` sees this and tells the user to pull a newer image instead.
+ENV RITUAL_INSTALL=docker
+
 # Create non-root user for security
 RUN adduser -D -h /app ritual
 

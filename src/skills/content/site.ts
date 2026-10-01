@@ -63,13 +63,14 @@ Always run \`--check\` or \`--dry-run\` first and show the user the plan.
 generated files.
 Headless (\`--no-input\` or no terminal), applying needs \`--yes\`; without it the
 run is a usage error (exit 2). A workspace migrated by a newer Ritual than the one
-running is refused (exit 1) with the release to install. Ritual records its
+running is refused (exit 1) with the \`ritual self-update --tag …\` command
+that installs the release it needs. Ritual records its
 bookkeeping in the \`managed\` block of \`ritual.config.json\` (\`version\`,
 \`migration\`, \`output\`); never edit it, and \`config set\` refuses to.
 
 **The pending-updates notice.** Every other command checks for pending updates
-first (except \`migrate\`, \`init-site\`, \`config\`, \`help\`, \`mcp\` and
-\`detect-changes\`).
+first (except \`migrate\`, \`self-update\`, \`init-site\`, \`config\`, \`help\`,
+\`mcp\` and \`detect-changes\`).
 In a non-interactive run like yours it never prompts: it prints one stderr line
 and the command proceeds with its normal exit code and output:
 
@@ -82,8 +83,10 @@ ask before running \`ritual migrate --yes\` — never apply on your own. If
 needs a hand fix first. A stderr
 line starting \`Warning: this workspace was\` that calls the workspace's Ritual
 newer means the installed Ritual is older than the workspace: the command still
-ran, but tell the user to install a newer release (the one the warning names,
-if any).
+ran, but tell the user. The warning names the fix:
+\`ritual self-update --tag <release>\`, or plain \`ritual self-update\` when
+it names no release. **Ask before running it**, since it replaces the Ritual
+program itself.
 
 **The CI pin.** The publish-for-me workflow downloads exactly the release in
 \`managed.version\` (a \`RITUAL_VERSION\` repository variable set to a tag such as

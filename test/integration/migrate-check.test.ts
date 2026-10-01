@@ -73,7 +73,7 @@ describe('pending-migration check (Integration)', () => {
         expect(result.exitCode).toBe(0)
         expect(JSON.parse(result.stdout)).toEqual([])
         expect(result.stderr).toContain(`migration ${applied}`)
-        expect(result.stderr).toContain('Install a newer Ritual')
+        expect(result.stderr).toContain('Run `ritual self-update` to install a newer Ritual')
       },
       { config: { managed: { migration: applied } } },
     )

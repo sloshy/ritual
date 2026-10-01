@@ -19,6 +19,11 @@ import type {
 } from '../config/ritual-config'
 import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
+import {
+  assetNameFor,
+  GITHUB_RELEASES_API,
+  GITHUB_RELEASES_DOWNLOAD,
+} from '../update/release-source'
 
 /**
  * The `if:` guard stamped on every build/deploy step of the detect-changes
@@ -76,10 +81,10 @@ const RITUAL_VERSION_STEP = `      - name: Get Ritual version
           if [ -z "$VERSION" ]; then
             # No pin: the latest stable release, else (while only prereleases
             # exist) the newest release — the API omits drafts, newest first.
-            VERSION=$(curl -s https://api.github.com/repos/sloshy/ritual/releases/latest \\
+            VERSION=$(curl -s ${GITHUB_RELEASES_API}/releases/latest \\
               | grep '"tag_name"' | head -1 | cut -d'"' -f4)
             if [ -z "$VERSION" ]; then
-              VERSION=$(curl -s "https://api.github.com/repos/sloshy/ritual/releases?per_page=1" \\
+              VERSION=$(curl -s "${GITHUB_RELEASES_API}/releases?per_page=1" \\
                 | grep '"tag_name"' | head -1 | cut -d'"' -f4)
             fi
             if [ -n "$VERSION" ]; then
@@ -159,7 +164,7 @@ ${RITUAL_VERSION_STEP}
         if: steps.ritual-cache.outputs.cache-hit != 'true'
         run: |
           VERSION="\${{ steps.ritual-version.outputs.version }}"
-          curl -fsSL -o ritual "https://github.com/sloshy/ritual/releases/download/\${VERSION}/ritual-linux-x86_64"
+          curl -fsSL -o ritual "${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}/${assetNameFor('linux', 'x64')}"
           chmod +x ritual
 ${detectChanges ? DETECT_AND_COMMIT_STEP : ''}
       - name: Generate card manifest${guard}

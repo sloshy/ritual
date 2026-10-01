@@ -2,7 +2,7 @@
 title: 'migrate'
 ---
 
-Bring a workspace up to date after upgrading Ritual. `migrate` applies the one-time **migrations** a newer Ritual needs (config keys removed or renamed, files moved), **refreshes the files Ritual generates** for a site set up with [`init-site`](/commands/init-site/) (the deploy workflow, the `.gitignore` entries, and the installed [agent skills](/commands/skills/)), and, on a release build, moves the [CI pin](#the-ci-pin) to the running release.
+Bring a workspace up to date after upgrading Ritual (for example with [`ritual self-update`](/commands/self-update/), which previews this command's plan right after installing). `migrate` applies the one-time **migrations** a newer Ritual needs (config keys removed or renamed, files moved), **refreshes the files Ritual generates** for a site set up with [`init-site`](/commands/init-site/) (the deploy workflow, the `.gitignore` entries, and the installed [agent skills](/commands/skills/)), and, on a release build, moves the [CI pin](#the-ci-pin) to the running release.
 
 ## Usage
 
@@ -51,9 +51,9 @@ You rarely need to remember `migrate`. Before every other command, Ritual checks
 
   "Otherwise" means prompts are unavailable (no terminal, or `--no-input` / `RITUAL_NO_INPUT`; see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)), stdout is not a terminal, the command writes `--output json`, `ndjson`, or `csv`, it is a `--dry-run`, `--yes` was passed (the run is meant to be unattended), or the `CI` environment variable is set (`CI=false` and the other off spellings count as unset). When `ritual.config.json` also loads with warnings that the updates fix, the line says so. When the updates cannot be applied because the migrated config would be invalid, Ritual prints only the notice, even in a terminal; `ritual migrate` explains what to fix.
 
-A workspace [from a newer Ritual](#a-workspace-from-a-newer-ritual) gets a one-line warning on stderr instead, naming the release to install when one was recorded. The command still runs: CI pinned to an older release, for example, keeps building a workspace that a development build migrated further.
+A workspace [from a newer Ritual](#a-workspace-from-a-newer-ritual) gets a one-line warning on stderr instead, naming the release to install with [`ritual self-update --tag`](/commands/self-update/#installing-a-specific-release) when one was recorded. The command still runs: CI pinned to an older release, for example, keeps building a workspace that a development build migrated further.
 
-The notice and the warning never change a command's exit code, and nothing in the workspace is written unless you answer yes. `migrate`, `init-site`, `config` (all its subcommands), `help`, `mcp`, and `detect-changes` (which must see the workspace exactly as committed) skip the check entirely, as does a directory with no `ritual.config.json`.
+The notice and the warning never change a command's exit code, and nothing in the workspace is written unless you answer yes. `migrate`, `self-update`, `init-site`, `config` (all its subcommands), `help`, `mcp`, and `detect-changes` (which must see the workspace exactly as committed) skip the check entirely, as does a directory with no `ritual.config.json`.
 
 The once-a-day memory lives in a small per-user state file, not in the workspace:
 
@@ -101,8 +101,10 @@ Other workspaces (local-build, manual, or no `init-site`) run no Ritual in CI, s
 A newer Ritual may already have updated the workspace: `managed.migration` is higher than any migration this build knows, or, on a release build, `managed.version` names a newer release than the one running. `migrate` refuses (exit `1`) rather than move the workspace backwards, and names the release to install when one was recorded:
 
 ```
-This workspace was last updated by a newer Ritual (0.3.0). Install Ritual 0.3.0 or newer and try again.
+This workspace was last updated by a newer Ritual (0.3.0). Run `ritual self-update --tag 0.3.0` and try again.
 ```
+
+When no release was recorded (a development build migrated the workspace), the message suggests plain [`ritual self-update`](/commands/self-update/) instead.
 
 `init-site` refuses such a workspace the same way. Other commands [only warn](#when-ritual-offers-to-migrate).
 

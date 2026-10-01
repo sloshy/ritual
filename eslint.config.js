@@ -161,6 +161,8 @@ export default [
                 'src/collection-sync',
                 'src/api',
                 'src/site-build',
+                // `self-update`'s release lookup, verification and binary swap.
+                'src/update',
               ],
             },
             { name: 'ui', dirs: ['src/ui'] },

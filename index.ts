@@ -12,6 +12,8 @@ import { initI18n } from './src/cli/locale'
 import { registerCliMessages } from './src/i18n/register/cli'
 import { ExitCode, CardCommandError, getErrorMessage, isBrokenPipeError } from './src/util/errors'
 import { markStdoutClosed } from './src/cli/output'
+import { isReleaseBuild } from './src/config/version'
+import { removeLeftoverBinary } from './src/update/install'
 
 // Wrapped in a function because the compiled binary (bun build --bytecode)
 // does not support top-level await.
@@ -59,6 +61,10 @@ async function main(): Promise<void> {
     backfill: shouldBackfillCardIds,
     workspaceCheck: checkWorkspaceMigrations,
   })
+
+  // A Windows `self-update` cannot delete the binary it replaced while that
+  // binary is still running, so the next start removes it. A no-op elsewhere.
+  if (isReleaseBuild) await removeLeftoverBinary(process.execPath, process.platform)
 
   try {
     await program.parseAsync()

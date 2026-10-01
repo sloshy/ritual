@@ -13,7 +13,7 @@ export function getErrorMessage(error: unknown): string {
  * `string` so a typo'd code (`'ENONET'`) is a compile error instead of a
  * permanently-dead branch.
  */
-export type ErrnoCode = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EPERM' | 'EPIPE'
+export type ErrnoCode = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EPERM' | 'EPIPE' | 'EBUSY' | 'EACCES'
 
 /**
  * Whether a failure is "the reader closed the pipe" — the `… | head` case.

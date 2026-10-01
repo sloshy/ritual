@@ -41,6 +41,7 @@ import { registerHistoryCommand } from './history'
 import { registerExportCommand } from './export'
 import { registerCleanupCommand } from './cleanup'
 import { registerMigrateCommand } from './migrate'
+import { registerSelfUpdateCommand } from './self-update'
 import { registerConfigCommand } from './config'
 import { registerMetadataCommand } from './metadata'
 import { registerCategoriesCommand } from './categories'
@@ -118,6 +119,7 @@ export const COMMAND_GROUPS = [
     commands: [
       registerCleanupCommand,
       registerMigrateCommand,
+      registerSelfUpdateCommand,
       registerDetectChangesCommand,
       registerListAllCardsCommand,
       registerConfigCommand,

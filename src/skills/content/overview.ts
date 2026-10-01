@@ -4,7 +4,7 @@ import { asBullet, NO_INPUT_GUARANTEE, REFRESH_COMMANDS } from './shared'
 export const overviewSkill: RitualSkill = {
   name: 'ritual',
   description:
-    'Entry point for working with Ritual, a Magic: The Gathering toolkit that manages decks, collections, and wanted lists as Markdown files. Use when a workspace has decks/, collections/, or wanted/ folders or a ritual.config.json, or when the user mentions Ritual, MTG decks, collections, or wanted lists.',
+    'Entry point for working with Ritual, a Magic: The Gathering toolkit that manages decks, collections, and wanted lists as Markdown files. Use when a workspace has decks/, collections/, or wanted/ folders or a ritual.config.json, or when the user mentions Ritual, MTG decks, collections, or wanted lists, or asks to update Ritual itself (ritual self-update).',
   body: `# Ritual — Magic: The Gathering decks, collections & wanted lists
 
 Ritual is a CLI that manages Magic: The Gathering **decks**, **collections**, and
@@ -430,7 +430,8 @@ ${asBullet(NO_INPUT_GUARANTEE)}
 Exit codes are uniform across commands: **1** runtime error, **2** usage error,
 **3** not found. A missing resource — a list, file, or sidecar that is simply
 not there — is always **3**, never 1. **4** means updates are pending, and only
-\`ritual migrate --check\` uses it.
+\`ritual migrate --check\` (workspace updates) and \`ritual self-update --check\`
+(a newer Ritual release) use it.
 
 A stderr line saying **this workspace has pending updates** is advisory: the
 command still ran with its normal output and exit code. Run
@@ -497,6 +498,14 @@ ritual config set uiLocale de-AT  # language Ritual's own interface text speaks 
                                   #   NOT defaultLanguage: that one picks card printings
 ritual migrate --dry-run          # after upgrading Ritual: preview pending workspace updates
                                   #   (ask the user before \`ritual migrate --yes\` applies them)
+ritual self-update --check        # is a newer Ritual release out? exit 4 yes, 0 no; writes nothing
+                                  #   (exit 2 in a dev/local build or Docker, like the install)
+ritual self-update --yes          # replace this Ritual binary with the newest release on its channel
+                                  #   (--prerelease/--stable switch channel; --tag <tag> installs an
+                                  #   exact release, even an older one). ASK THE USER FIRST: it replaces
+                                  #   the program itself.
+                                  #   Inside a workspace it then prints the new release's
+                                  #   \`migrate --dry-run\` plan; applying that is a separate, asked-for step
 ritual config get <prop>          # read one value (exit 3 when unset)
 ritual config list                # print the full effective config (defaults marked)
 ritual config unset <prop>        # revert a value to its default

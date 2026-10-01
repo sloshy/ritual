@@ -75,6 +75,7 @@ describe('buildProgram', () => {
       'cache',
       'cleanup',
       'migrate',
+      'self-update',
       'detect-changes',
       'list-all-cards',
       'config',

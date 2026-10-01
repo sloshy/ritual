@@ -76,6 +76,11 @@ export function compareVersions(a: string, b: string): number {
   return 0
 }
 
+/** Whether a version carries a prerelease part (`1.2.0-beta3`). */
+export function isPrereleaseVersion(v: string): boolean {
+  return isValidSemver(v) && parseSemver(v).pre !== null
+}
+
 /** Returns true if the string is a valid semver version (with optional leading `v`). */
 export function isValidSemver(v: string): boolean {
   return /^v?\d+\.\d+\.\d+(?:-.+)?$/.test(v)

@@ -5,6 +5,10 @@ description: Run Ritual in a container, for a cache server or a hosted public si
 
 Ritual can run inside a Docker container. This is most useful for self-hosting the [cache server](/commands/cache/#server) or the [public site with a live backend](/public-site/hosted/). The provided Dockerfile uses Alpine Linux with the CLI as its entrypoint, so you pass any command directly to `docker run` or set it in `docker-compose.yml`.
 
+## Updating
+
+The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`) or rebuild your own. The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available.
+
 ## Building and Publishing the Image
 
 Use the provided script so the image build injects `GIT_VERSION` from the current git ref:

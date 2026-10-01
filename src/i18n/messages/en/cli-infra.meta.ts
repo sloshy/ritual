@@ -554,11 +554,11 @@ export const cliInfraMeta = {
   },
   'cli.migrate.ahead': {
     description:
-      'Refusal: a newer Ritual release last updated the workspace. {version} is that release (appears twice).',
+      'Refusal: a newer Ritual release last updated the workspace. {version} is that release (appears twice); the backticked command is literal apart from {version}.',
   },
   'cli.migrate.aheadNoVersion': {
     description:
-      'The same refusal when no release was recorded. {applied}/{latest} are migration numbers.',
+      'The same refusal when no release was recorded. {applied}/{latest} are migration numbers; the backticked command is literal.',
   },
   'cli.migrate.changedSincePlan': {
     description:
@@ -586,11 +586,143 @@ export const cliInfraMeta = {
   },
   'cli.migrate.notice.ahead': {
     description:
-      'One stderr warning before a command when a newer Ritual release last updated the workspace; the command still runs. {version} is that release (appears twice), {current} is the running build.',
+      'One stderr warning before a command when a newer Ritual release last updated the workspace; the command still runs. {version} is that release (appears twice), {current} is the running build; the backticked command is literal apart from {version}.',
   },
   'cli.migrate.notice.aheadNoVersion': {
     description:
-      'The same warning when no release was recorded. {applied}/{latest} are migration numbers.',
+      'The same warning when no release was recorded. {applied}/{latest} are migration numbers; the backticked command is literal.',
+  },
+
+  // ── self-update ───────────────────────────────────────────────────────
+  'cli.selfUpdate.upToDate': {
+    description:
+      '`self-update` found nothing newer. {current} is the running version; {latest} is the newest release on the channel it checked (stable, or prereleases included).',
+  },
+  'cli.selfUpdate.alreadyInstalled': {
+    description:
+      '`self-update --version` named the release that is already running. {version} is it.',
+  },
+  'cli.selfUpdate.available': {
+    description:
+      '`self-update --check` found a release to install. {latest} is that release; {current} is the running version.',
+  },
+  'cli.selfUpdate.downgradeAvailable': {
+    description:
+      '`self-update --check --tag` named a release older than the running one. {latest} is that release; {current} the running version; → reads "to".',
+  },
+  'cli.selfUpdate.confirm': {
+    description:
+      'Yes/no question before `self-update` replaces the running binary with a newer release. {current} → {target} are version numbers.',
+  },
+  'cli.selfUpdate.confirmDowngrade': {
+    description:
+      'The same question when `--version` named an older release than the running one. {current} → {target} are version numbers.',
+  },
+  'cli.selfUpdate.cancelled': {
+    description: 'The user answered no to the update question; nothing was changed.',
+  },
+  'cli.selfUpdate.downloading': {
+    description:
+      'Progress line while the release binary downloads. {tag} is the release tag (e.g. v1.2.0).',
+  },
+  'cli.selfUpdate.updated': {
+    description:
+      'The new binary replaced the old one. {current} → {target} are version numbers; {path} is the replaced file.',
+  },
+  'cli.selfUpdate.checkingWorkspace': {
+    description:
+      'Heading printed after an update inside a workspace, before the new release previews (but does not apply) the workspace updates it wants. {version} is the new release.',
+  },
+  'cli.selfUpdate.workspaceCheckFailed': {
+    description:
+      'Warning when the new binary could not be started to preview workspace updates; the update itself succeeded. {error} is the English system error; the backticked command is literal.',
+  },
+  'cli.selfUpdate.refuse.notRelease': {
+    description:
+      'Refusal: the running Ritual is not a downloaded release binary (a source checkout or local build), so there is nothing self-update can safely replace. {version} is its version string. "self-update" is the literal command name.',
+  },
+  'cli.selfUpdate.refuse.docker': {
+    description:
+      'Refusal inside the Docker image: the image must be updated, not the binary. The `docker pull` command is literal.',
+  },
+  'cli.selfUpdate.refuse.notWritable': {
+    description:
+      'Refusal: the directory holding the Ritual binary cannot be written, so the binary cannot be replaced. {dir} is that directory.',
+  },
+  'cli.selfUpdate.error.invalidTag': {
+    description:
+      'The `--tag` value is not a release version. {tag} is what the user typed; the example tags are literal.',
+  },
+  'cli.selfUpdate.error.unsupportedPlatform': {
+    description:
+      'No release binary exists for this operating system/CPU. {platform}/{arch} are Node.js platform and architecture names (e.g. linux/x64).',
+  },
+  'cli.selfUpdate.error.network': {
+    description:
+      'The GitHub request failed before an answer arrived. {url} is the address; {error} the English system error.',
+  },
+  'cli.selfUpdate.error.http': {
+    description:
+      'GitHub answered with an HTTP error. {status} is the HTTP status number; {url} the address.',
+  },
+  'cli.selfUpdate.error.rateLimited': {
+    description:
+      'GitHub refused the request (HTTP {status}), most likely its API rate limit for anonymous callers. {url} is the address; GITHUB_TOKEN is a literal environment variable name.',
+  },
+  'cli.selfUpdate.error.redirectRefused': {
+    description:
+      'Refusal: an authenticated GitHub API request was redirected to a different site, which would have received the token. {url} and {location} are addresses; GITHUB_TOKEN is a literal environment variable name.',
+  },
+  'cli.selfUpdate.error.badResponse': {
+    description:
+      'GitHub answered, but not with the release data Ritual expects. {url} is the address; {error} an English detail.',
+  },
+  'cli.selfUpdate.error.noStableRelease': {
+    description:
+      'Only prereleases exist so far, so the stable channel has nothing to install. The backticked command is literal.',
+  },
+  'cli.selfUpdate.error.noRelease': {
+    description: 'The prerelease channel found no release at all.',
+  },
+  'cli.selfUpdate.error.tagNotFound': {
+    description:
+      '`self-update --version` named a tag with no release. {tag} is the tag (e.g. v1.2.0).',
+  },
+  'cli.selfUpdate.error.missingAsset': {
+    description:
+      'The release has no binary for this platform. {tag} is the release tag; {asset} the expected file name.',
+  },
+  'cli.selfUpdate.error.missingChecksum': {
+    description:
+      'The release has no .sha256 checksum file for the binary, so it cannot be verified and is not installed. {tag} is the release tag; {asset} the binary file name.',
+  },
+  'cli.selfUpdate.error.badChecksumFile': {
+    description:
+      'The .sha256 checksum file could not be read. {asset} is the binary file name; {error} an English detail.',
+  },
+  'cli.selfUpdate.error.sizeMismatch': {
+    description:
+      'The download is not the size GitHub listed (a truncated or altered download). {asset} is the file name; {actual}/{expected} are byte counts.',
+  },
+  'cli.selfUpdate.error.checksumMismatch': {
+    description:
+      'The download does not match its published SHA-256 checksum. {asset} is the file name; {expected}/{actual} are hex digests.',
+  },
+  'cli.selfUpdate.error.smokeTest': {
+    description:
+      'The downloaded binary was run with --version as a test and did not answer with the expected version. {expected} is that version; {detail} is what it printed (untranslated).',
+  },
+  'cli.selfUpdate.error.swapStranded': {
+    description:
+      'Windows only, rare: the old binary was moved aside but neither the new one nor the old one could be moved back into place. {target} is the binary path; {old} and {kept} are where the previous and the new binary now are; {error} is the English system error.',
+  },
+  'cli.selfUpdate.previewExit': {
+    description:
+      'Spliced into cli.selfUpdate.workspaceCheckFailed as {error} when the new binary ran but exited unsuccessfully. {exitCode} is the process exit code.',
+  },
+  'cli.selfUpdate.error.installFailed': {
+    description:
+      'Writing or moving the new binary into place failed; the old binary still works. {path} is the binary file; {error} the English system error.',
   },
 
   // ── skills ────────────────────────────────────────────────────────────

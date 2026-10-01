@@ -42,7 +42,8 @@ import { applyAndReport, printPlan } from './migrate'
  * Commands that never run the check, matched by qualified name (`config` also
  * covers `config set`, `config list`, …):
  *
- * - `migrate` is the remedy itself; `init-site` sets the workspace up and
+ * - `migrate` is the remedy itself; `self-update` replaces the binary and
+ *   previews the new release's own plan afterwards; `init-site` sets the workspace up and
  *   refuses a stale one on its own; `config` must stay usable to repair the
  *   file the check reads; `help` only prints.
  * - `mcp` speaks JSON-RPC on stdout and its stdin is the client, not a person.
@@ -54,6 +55,7 @@ import { applyAndReport, printPlan } from './migrate'
  */
 export const MIGRATION_CHECK_EXEMPT = [
   'migrate',
+  'self-update',
   'init-site',
   'config',
   'help',

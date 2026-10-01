@@ -185,6 +185,12 @@ describe('skill bodies name only tools that exist', () => {
     expect(unwrapped).toContain(t('cli.migrate.notice.pending'))
   })
 
+  test('the overview skill teaches checking before self-update and asking first', () => {
+    const overview = SKILLS.find((skill) => skill.name === 'ritual')
+    expect(overview?.body).toContain('ritual self-update --check')
+    expect(overview?.body).toContain('ASK THE USER FIRST')
+  })
+
   test('the site skill names every command the pending-updates check skips', () => {
     const site = SKILLS.find((skill) => skill.name === 'ritual-site')
     const missing = MIGRATION_CHECK_EXEMPT.filter((name) => !site?.body.includes(`\`${name}\``))

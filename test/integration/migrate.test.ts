@@ -80,12 +80,12 @@ describe('migrate CLI (Integration)', () => {
     [
       'a workspace a newer release updated',
       { managed: { migration: 99, version: '9.0.0' } },
-      'Install Ritual 9.0.0 or newer',
+      'ritual self-update --tag 9.0.0',
     ],
     [
       'a workspace a newer build migrated',
       { managed: { migration: 99 } },
-      'Install a newer Ritual',
+      'Run `ritual self-update` to install a newer Ritual',
     ],
   ])('refuses %s (exit 1) and writes nothing', async (_label, config, message) => {
     await withTempDir(async (dir) => {

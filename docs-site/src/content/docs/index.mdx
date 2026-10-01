@@ -28,6 +28,10 @@ irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | i
 
 The installer copies the `ritual` binary into `~/.local/bin` on macOS and Linux (`%LOCALAPPDATA%\Programs\ritual\bin` on Windows) and adds that directory to your `PATH` if needed. Open a new shell and run `ritual --help` to check it worked.
 
+### Updating
+
+Once installed, Ritual updates itself: run [`ritual self-update`](/commands/self-update/) to install the newest release on your channel, or `ritual self-update --check` to see whether one exists. A prerelease build keeps following prereleases until you run `ritual self-update --stable`. Re-running the installer works too.
+
 ### Prerelease Builds
 
 There is no stable release yet. To install the newest build, prereleases included:

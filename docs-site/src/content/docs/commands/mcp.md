@@ -489,7 +489,7 @@ It needs the same Archidekt login (`get_sync_status`'s `collection.archidekt.log
 
 The authentication endpoints (`setup`, `login`, TOTP, Archidekt) and the login audit log (`GET /api/audit-log`) are intentionally **not** exposed. They describe who used the admin server, which is not an agent's concern.
 
-Workspace maintenance is not exposed either: [`ritual migrate`](/commands/migrate/), which applies workspace migrations and refreshes generated files, has no tool. Agents run it through the CLI (the `ritual-site` [skill](/commands/skills/) covers it), previewing with `--check` or `--dry-run` and asking before applying. `ritual mcp` also skips the [pending-updates check](/commands/migrate/#when-ritual-offers-to-migrate) other commands run, since its stdout is the JSON-RPC channel; check a workspace with `ritual migrate --check`.
+Workspace maintenance is not exposed either: [`ritual migrate`](/commands/migrate/), which applies workspace migrations and refreshes generated files, has no tool. Agents run it through the CLI (the `ritual-site` [skill](/commands/skills/) covers it), previewing with `--check` or `--dry-run` and asking before applying. `ritual mcp` also skips the [pending-updates check](/commands/migrate/#when-ritual-offers-to-migrate) other commands run, since its stdout is the JSON-RPC channel; check a workspace with `ritual migrate --check`. Updating Ritual itself is likewise CLI-only: [`ritual self-update`](/commands/self-update/) replaces the running binary and has no tool, so agents check with `ritual self-update --check` and ask the user before installing.
 
 ## Resources
 
