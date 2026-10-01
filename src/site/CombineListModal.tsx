@@ -5,7 +5,7 @@ import { compareDisplay } from '../i18n/collate'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { activeStore, pricesEnabled } from '../list-view/price-view'
-import { formatPriceWithMissing } from '../pricing/price-currency'
+import { TotalPrice } from './TotalPrice'
 import {
   getSummaryEstimatedPriceCount,
   getSummaryMissingPriceCount,
@@ -243,12 +243,12 @@ export const CombineListModal: Component<CombineListModalProps> = (props) => {
                 </span>
                 <Show when={pricesEnabled()}>
                   <span class="combine-modal-row-price">
-                    {formatPriceWithMissing(
-                      choice.total,
-                      props.currency,
-                      choice.missing,
-                      choice.estimated,
-                    )}
+                    <TotalPrice
+                      amount={choice.total}
+                      currency={props.currency}
+                      missing={choice.missing}
+                      estimated={choice.estimated}
+                    />
                   </span>
                 </Show>
               </label>

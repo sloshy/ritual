@@ -2,7 +2,7 @@ import type { Component, JSX } from 'solid-js'
 import { createMemo, createSignal, For, Match, Show, Switch } from 'solid-js'
 import type { DeckSummary, CollectionSummary, WantedListSummary } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPriceWithMissing } from '../pricing/price-currency'
+import { TotalPrice } from './TotalPrice'
 import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { getDeckCountLabel } from '../list/deck-format'
 import {
@@ -22,8 +22,6 @@ import { useI18n, useT } from '../ui/i18n'
 import {
   DEFAULT_INDEX_GROUP,
   DEFAULT_INDEX_SORT,
-  INDEX_SORT_OPTIONS,
-  LIST_SORT_OPTIONS,
   type IndexGroup,
   type IndexSort,
   groupDecksByFormat,
@@ -184,9 +182,14 @@ const DeckCoverLink: Component<DeckCoverLinkProps> = (props) => {
         label={countLabel().primary}
         labelSuffix={countLabel().suffix}
         priceLabel={
-          pricesEnabled()
-            ? formatPriceWithMissing(total(), props.currency, missing(), estimated())
-            : undefined
+          pricesEnabled() ? (
+            <TotalPrice
+              amount={total()}
+              currency={props.currency}
+              missing={missing()}
+              estimated={estimated()}
+            />
+          ) : undefined
         }
       />
     </a>
@@ -212,9 +215,14 @@ const ListCoverLink: Component<ListCoverLinkProps> = (props) => {
         image={props.item.featuredCardImage || null}
         label={t('domain.count.cards', { count: props.item.cardCount })}
         priceLabel={
-          pricesEnabled()
-            ? formatPriceWithMissing(total(), props.currency, missing(), estimated())
-            : undefined
+          pricesEnabled() ? (
+            <TotalPrice
+              amount={total()}
+              currency={props.currency}
+              missing={missing()}
+              estimated={estimated()}
+            />
+          ) : undefined
         }
       />
     </a>
@@ -260,7 +268,6 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
             <IndexToolbar
               sort={deckSort()}
               onSortChange={setDeckSort}
-              sortOptions={INDEX_SORT_OPTIONS}
               group={deckGroup()}
               onGroupChange={setDeckGroup}
               reverse={deckReverse()}
@@ -303,7 +310,6 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
           <IndexToolbar
             sort={collectionSort()}
             onSortChange={setCollectionSort}
-            sortOptions={LIST_SORT_OPTIONS}
             reverse={collectionReverse()}
             onReverseToggle={() => setCollectionReverse((v) => !v)}
           />
@@ -324,7 +330,6 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
           <IndexToolbar
             sort={wantedSort()}
             onSortChange={setWantedSort}
-            sortOptions={LIST_SORT_OPTIONS}
             reverse={wantedReverse()}
             onReverseToggle={() => setWantedReverse((v) => !v)}
           />

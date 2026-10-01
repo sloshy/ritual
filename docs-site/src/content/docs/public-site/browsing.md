@@ -14,7 +14,6 @@ Sort options (default: **Alphabetical**):
 - **Alphabetical**: A–Z by name, locale-aware and case-insensitive.
 - **Recently updated**: newest first, by the most recent changelog entry, or the file's modification time when there is no changelog. Lists with no timestamp sort last.
 - **Current price**: highest current total first, in the active currency.
-- **Lowest price** _(Decks only)_: highest "lowest possible" total first. This is the sum of the cheapest available printing of each card, in the active currency.
 
 A **Reverse** toggle next to the selects flips the order.
 

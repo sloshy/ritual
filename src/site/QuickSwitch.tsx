@@ -8,7 +8,7 @@ import type {
 } from '../list/site-data'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { activeStore, pricesEnabled } from '../list-view/price-view'
-import { formatPriceWithMissing } from '../pricing/price-currency'
+import { TotalPrice } from './TotalPrice'
 import { resolveCardThumbnailUrl } from '../card/image-sources'
 import { scoreMatch } from './quick-switch-search'
 import type { CardCandidate } from './quick-switch-candidates'
@@ -485,12 +485,12 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
                           </span>
                           <Show when={pricesEnabled()}>
                             <span class="quick-switch-row-price">
-                              {formatPriceWithMissing(
-                                entry.total,
-                                props.currency(),
-                                entry.missing,
-                                entry.estimated,
-                              )}
+                              <TotalPrice
+                                amount={entry.total}
+                                currency={props.currency()}
+                                missing={entry.missing}
+                                estimated={entry.estimated}
+                              />
                             </span>
                           </Show>
                         </div>

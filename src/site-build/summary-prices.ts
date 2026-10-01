@@ -20,8 +20,6 @@ import { bakedCardKingdomRetail } from './shared'
 /** One store's running totals over a list's counted lines. */
 export type StorePriceTotals = {
   total: number
-  /** Decks only: every line at its cheapest printing (the "Lowest Price" figure). */
-  lowest: number
   /** Copies with no price from this store. */
   missing: number
   /** Copies whose price is an estimate: no pinned printing, or no price. */
@@ -40,8 +38,6 @@ export type StoreLinePricing<Line extends PricedLine> = {
   source: PriceSource
   /** The unit price this store shows for the line; 0 when it has none. */
   price: (line: Line) => number
-  /** The line at its cheapest printing (decks' "Lowest Price" toggle), when the list has one. */
-  lowest?: (line: Line) => number
 }
 
 /** Sum a list's counted lines per store. */
@@ -51,11 +47,10 @@ export function sumStorePrices<Line extends PricedLine>(
 ): Map<PriceSource, StorePriceTotals> {
   const totals = new Map<PriceSource, StorePriceTotals>()
   for (const store of stores) {
-    const sum: StorePriceTotals = { total: 0, lowest: 0, missing: 0, estimated: 0 }
+    const sum: StorePriceTotals = { total: 0, missing: 0, estimated: 0 }
     for (const line of lines) {
       const price = store.price(line)
       sum.total += price * line.quantity
-      if (store.lowest) sum.lowest += store.lowest(line) * line.quantity
       if (price === 0) sum.missing += line.quantity
       if (!line.pinned || price === 0) sum.estimated += line.quantity
     }
@@ -67,7 +62,6 @@ export function sumStorePrices<Line extends PricedLine>(
 /** The summary field each {@link StorePriceTotals} metric is baked under. */
 const METRIC_FIELDS = {
   total: 'totalPrice',
-  lowest: 'lowestPrice',
   missing: 'missingPriceCount',
   estimated: 'estimatedPriceCount',
 } as const satisfies Record<keyof StorePriceTotals, string>

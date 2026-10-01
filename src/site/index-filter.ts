@@ -2,10 +2,10 @@ import type { DeckSummary } from '../list/site-data'
 import { compareDisplayBase } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
 import type { PriceSource } from '../pricing/price-source'
-import { getSummaryLowestPrice, getSummaryTotalPrice } from '../pricing/price-summary'
+import { getSummaryTotalPrice, type PriceViewFields } from '../pricing/price-summary'
 import { getDeckFormatLabel } from '../list/deck-format'
 
-export type IndexSort = 'alpha' | 'recent' | 'price' | 'lowestPrice'
+export type IndexSort = 'alpha' | 'recent' | 'price'
 export type IndexGroup = 'none' | 'format'
 
 export const DEFAULT_INDEX_SORT: IndexSort = 'alpha'
@@ -35,19 +35,7 @@ export const INDEX_SORT_OPTIONS = [
   { value: 'alpha', label: 'site.index.sortAlphabetical' },
   { value: 'recent', label: 'site.index.sortRecent' },
   { value: 'price', label: 'site.index.sortPrice' },
-  { value: 'lowestPrice', label: 'site.index.sortLowestPrice' },
 ] as const satisfies readonly IndexSortOptionShape[]
-
-export type IndexSortOption = (typeof INDEX_SORT_OPTIONS)[number]
-
-/**
- * Sort options for the collection and wanted-list index tabs. "Lowest price"
- * (the cheapest-printing-per-card total) only makes sense for decks, so it is
- * omitted here.
- */
-export const LIST_SORT_OPTIONS: readonly IndexSortOption[] = INDEX_SORT_OPTIONS.filter(
-  (o) => o.value !== 'lowestPrice',
-)
 
 export const INDEX_GROUP_OPTIONS = [
   { value: 'none', label: 'site.index.groupNone' },
@@ -56,17 +44,9 @@ export const INDEX_GROUP_OPTIONS = [
 
 export type IndexGroupOption = (typeof INDEX_GROUP_OPTIONS)[number]
 
-/**
- * Narrow a raw `<select>` value to the sort union, falling back to the default.
- * Validates against `options` (defaulting to the full set) so a toolbar that
- * only offers a subset — e.g. the collection/wanted tabs without "Lowest price"
- * — never yields a value outside what it shows.
- */
-export function parseIndexSort(
-  raw: string,
-  options: readonly IndexSortOptionShape[] = INDEX_SORT_OPTIONS,
-): IndexSort {
-  return options.find((o) => o.value === raw)?.value ?? DEFAULT_INDEX_SORT
+/** Narrow a raw `<select>` value to the sort union, falling back to the default. */
+export function parseIndexSort(raw: string): IndexSort {
+  return INDEX_SORT_OPTIONS.find((o) => o.value === raw)?.value ?? DEFAULT_INDEX_SORT
 }
 
 /** Narrow a raw `<select>` value to the group union, falling back to the default. */
@@ -76,19 +56,12 @@ export function parseIndexGroup(raw: string): IndexGroup {
 
 /**
  * The fields any index summary (deck, collection, or wanted list) must expose
- * to be sortable by the shared toolbar. Decks, collections, and wanted lists
- * all carry a name, a last-updated timestamp, and per-currency total/lowest
- * prices, so the same comparison logic serves every index tab.
+ * to be sortable by the shared toolbar: a name, a last-updated timestamp, and
+ * per-store totals, so the same comparison logic serves every index tab.
  */
-export interface SortableSummary {
+export interface SortableSummary extends PriceViewFields<'totalPrice'> {
   name: string
   lastUpdatedAt?: string
-  totalPrice?: number
-  totalPriceEur?: number
-  totalPriceTix?: number
-  lowestPrice?: number
-  lowestPriceEur?: number
-  lowestPriceTix?: number
 }
 
 function assertNever(value: never): never {
@@ -118,8 +91,6 @@ function compareSummaries(
     }
     case 'price':
       return getSummaryTotalPrice(b, source) - getSummaryTotalPrice(a, source)
-    case 'lowestPrice':
-      return getSummaryLowestPrice(b, source) - getSummaryLowestPrice(a, source)
     default:
       return assertNever(sort)
   }

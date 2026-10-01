@@ -141,6 +141,30 @@ export function formatPriceWithMissing(
   })
 }
 
+/**
+ * The spelled-out reading of a qualified {@link formatPriceWithMissing} total
+ * ("Estimated at least $X, N cards have no price"), for screen readers and the
+ * hover title: the short form's "~" and "+" are read aloud as symbols.
+ * `undefined` for an exact total, whose short form already reads plainly.
+ */
+export function describeTotalPrice(
+  amount: number,
+  currency: PriceCurrency,
+  missingCount: number,
+  estimated: boolean,
+): string | undefined {
+  const price = formatPrice(amount, currency)
+  if (missingCount > 0) {
+    return t(
+      estimated
+        ? 'domain.price.estimatedAtLeastMissingSpoken'
+        : 'domain.price.atLeastMissingSpoken',
+      { price, count: missingCount },
+    )
+  }
+  return estimated ? t('domain.price.estimatedSpoken', { price }) : undefined
+}
+
 /** A printing's base price: its nonfoil quote, or the sole quote in a currency that has one. */
 export function getCardPrice(card: ScryfallCard, currency: PriceCurrency): number {
   return getCardPriceForFinish(card, 'nonfoil', currency)

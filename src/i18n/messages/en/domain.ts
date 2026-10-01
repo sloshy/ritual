@@ -141,6 +141,19 @@ export const domainMessages = {
     one: '~{price}+ ({count} unpriced)',
     other: '~{price}+ ({count} unpriced)',
   },
+  // The same three totals spelled out, for screen readers and the hover title:
+  // the short forms above lean on "~" and "+", which are read aloud literally.
+  'domain.price.estimatedSpoken': 'Estimated {price}',
+  'domain.price.atLeastMissingSpoken': {
+    $plural: 'count',
+    one: 'At least {price}, {count} card has no price',
+    other: 'At least {price}, {count} cards have no price',
+  },
+  'domain.price.estimatedAtLeastMissingSpoken': {
+    $plural: 'count',
+    one: 'Estimated at least {price}, {count} card has no price',
+    other: 'Estimated at least {price}, {count} cards have no price',
+  },
 
   // ── Sync engines ──────────────────────────────────────────────────────
   //

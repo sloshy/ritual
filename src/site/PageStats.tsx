@@ -1,13 +1,14 @@
 import type { Component, JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPrice, formatTotalPrice } from '../pricing/price-currency'
+import { formatPrice } from '../pricing/price-currency'
+import { TotalPrice, TotalPriceMessage } from './TotalPrice'
 import { BUYLIST_CURRENCY } from '../buylist'
 import { buylistError } from '../list-view/buylist-quotes'
 import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { isEmptySellSummary, sellShortfallNote, type SellValueSummary } from './sell-value'
 import type { CardFiltersControl } from './useCardFilters'
-import { useT } from '../ui/i18n'
+import { useT, useTSegments } from '../ui/i18n'
 
 type PageStatProps = {
   /** Whether this stat contributes to the line at all. */
@@ -48,7 +49,7 @@ const FilteredPriceStat: Component<FilteredPriceStatProps> = (props) => {
       when={pricesEnabled() && props.filters.narrowingCount() > 0}
       label={t('site.stats.filtered')}
     >
-      {formatTotalPrice(props.amount, props.currency, props.estimated)}
+      <TotalPrice amount={props.amount} currency={props.currency} estimated={props.estimated} />
     </PageStat>
   )
 }
@@ -170,15 +171,17 @@ type PageCountAndTotalProps = {
  */
 export const PageCountAndTotal: Component<PageCountAndTotalProps> = (props) => {
   const t = useT()
+  const tSegments = useTSegments()
   return (
-    <>
-      {pricesEnabled()
-        ? t('site.stats.cardsAndTotal', {
-            count: props.count,
-            amount: formatTotalPrice(props.total, props.currency, props.estimated),
-          })
-        : t('domain.count.cards', { count: props.count })}
-    </>
+    <Show when={pricesEnabled()} fallback={t('domain.count.cards', { count: props.count })}>
+      {/* `amount` is a placeholder: TotalPriceMessage renders that segment itself. */}
+      <TotalPriceMessage
+        segments={tSegments('site.stats.cardsAndTotal', { count: props.count, amount: '' })}
+        amount={props.total}
+        currency={props.currency}
+        estimated={props.estimated}
+      />
+    </Show>
   )
 }
 

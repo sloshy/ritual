@@ -489,13 +489,13 @@ export async function buildDeckArtifacts(
     .flatMap((section) => section.cards)
     .filter((c) => !pricesAtNothing(c))
     .map((c) => ({ entry: c, quantity: c.quantity, pinned: hasSpecificPrinting(c) }))
-  const priceOf = (card: ScryfallCard | null | undefined, price: (card: ScryfallCard) => number) =>
-    card ? price(card) : 0
+  const priceOf = (
+    card: ScryfallCard | null | undefined,
+    price: (card: ScryfallCard) => number,
+  ): number => (card ? price(card) : 0)
   const stores: StoreLinePricing<DeckSummaryLine>[] = availableCurrencies.map((cur) => ({
     source: scryfallSourceFor(cur),
     price: (line) => priceOf(entryCard(line.entry), (card) => getCardPrice(card, cur)),
-    lowest: (line) =>
-      priceOf(cardData.cheapest[cur]?.[line.entry.name], (card) => getCardPrice(card, cur)),
   }))
   if (cardKingdomData) {
     // Off the detail's baked quotes, at the printing's display finish: exactly
@@ -509,11 +509,6 @@ export async function buildDeckArtifacts(
           line.pinned
             ? entryCard(line.entry)
             : (cardKingdomData.cards[line.entry.name] ?? entryCard(line.entry)),
-          ckRetail,
-        ),
-      lowest: (line) =>
-        priceOf(
-          cardKingdomData.cheapest[line.entry.name] ?? cheapestUsd[line.entry.name],
           ckRetail,
         ),
     })
@@ -530,7 +525,7 @@ export async function buildDeckArtifacts(
     format,
     cardCount,
     lastUpdatedAt,
-    ...summaryPriceFields(storeTotals, ['total', 'lowest', 'missing', 'estimated']),
+    ...summaryPriceFields(storeTotals, ['total', 'missing', 'estimated']),
   }
 
   return { slug, detail, summary }

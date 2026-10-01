@@ -81,11 +81,21 @@ test.describe('header price-store picker', () => {
       .locator('.card-grid-link', { hasText: 'Sell Binder' })
       .locator('.cover-prices')
     await expect(tile).toHaveText('$60.00')
+    // An exact total reads plainly, so it carries no spelled-out copy.
+    await expect(tile.locator('.visually-hidden')).toHaveCount(0)
 
     // The index reads the build's per-store summary figures, so the tile
     // re-prices at Card Kingdom without opening the list.
     await page.locator(SOURCE_SELECT).selectOption('cardkingdom')
-    await expect(tile).toHaveText('$26.00+ (1 unpriced)')
+    // The short form is for the eye; screen readers get it spelled out.
+    await expect(tile.locator('[aria-hidden="true"]')).toHaveText('$26.00+ (1 unpriced)')
+    await expect(tile.locator('.visually-hidden')).toHaveText(
+      'At least $26.00, 1 card has no price',
+    )
+    await expect(tile.locator('[title]')).toHaveAttribute(
+      'title',
+      'At least $26.00, 1 card has no price',
+    )
 
     // One store for the whole app: the list page opens on it.
     await page.locator('.card-grid-link', { hasText: 'Sell Binder' }).click()

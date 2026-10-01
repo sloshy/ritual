@@ -102,7 +102,9 @@ If a refresh only updates some cards (for example, a card Scryfall no longer ret
 
 When a card cannot be priced in the selected currency (a paper-only card has no TIX price, an MTGO-only card has no USD/EUR price), it is left out of price totals. A collapsible warning banner at the top of the deck page lists the cards with missing prices for the active currency, and updates when you switch currencies. [Proxies and custom-art cards](#cards-priced-at-zero) are not "missing": they are priced at zero by rule and never appear in this banner.
 
-On the index page (deck, collection, and wanted-list tiles), and in the Quick Switch and Combine Lists rows, a list with missing prices shows **"$X.XX+ (N unpriced)"** instead of the raw total: the `+` means the real total is at least that much. Deck tiles show only the ordinary total; the cheapest-printing figure lives behind the deck page's "Lowest Price" toggle (the index can still sort decks by it).
+On the index page (deck, collection, and wanted-list tiles), and in the Quick Switch and Combine Lists rows, a list with missing prices shows **"$X.XX+ (N unpriced)"** instead of the raw total: the `+` means the real total is at least that much. Deck tiles show only the ordinary total; the cheapest-printing figure lives behind the deck page's "Lowest Price" toggle.
+
+The `~` and `+` are for the eye: screen readers hear the total spelled out instead ("Estimated at least $X.XX, N cards have no price"), and hovering any qualified total shows the same wording as a tooltip.
 
 ### Estimated totals
 

@@ -190,6 +190,19 @@ export const domainMeta = {
       'Combines the two previous keys: a total that is both an estimate ("~", approximately) and known to be incomplete ("+", or more). {price} is an already-formatted money amount; {count} is how many cards had no price at all.',
   },
 
+  'domain.price.estimatedSpoken': {
+    description:
+      'The spelled-out form of the "~{price}" estimate, read by screen readers and shown as a hover tooltip in place of the symbol. {price} is an already-formatted money amount.',
+  },
+  'domain.price.atLeastMissingSpoken': {
+    description:
+      'The spelled-out form of "{price}+ ({count} unpriced)", read by screen readers and shown as a hover tooltip: the real total is at least {price} because {count} cards have no published price.',
+  },
+  'domain.price.estimatedAtLeastMissingSpoken': {
+    description:
+      'The spelled-out form of "~{price}+ ({count} unpriced)": a total that is both an estimate and at least {price}, because {count} cards have no published price. Read by screen readers and shown as a hover tooltip.',
+  },
+
   'domain.sync.skippedRemovals': {
     description:
       'Reported when a sync was restricted to additions, so this many removals were left alone. "additions" and "removals" name the two halves of a sync and appear in the UI controls too.',

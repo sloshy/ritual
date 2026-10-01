@@ -24,7 +24,7 @@ const SOURCE_FIELD_SUFFIX = {
 
 type SourceFieldSuffix = (typeof SOURCE_FIELD_SUFFIX)[PriceSource]
 
-/** A summary's per-store figures for one base metric (`totalPrice`, `lowestPrice`, …). */
+/** A summary's per-store figures for one base metric (`totalPrice`, `missingPriceCount`, …). */
 export type PriceViewFields<Base extends string> = {
   [K in `${Base}${SourceFieldSuffix}`]?: number
 }
@@ -51,13 +51,6 @@ export function getSummaryTotalPrice(
   source: PriceSource,
 ): number {
   return summaryValue(item, 'totalPrice', source)
-}
-
-export function getSummaryLowestPrice(
-  item: PriceViewFields<'lowestPrice'>,
-  source: PriceSource,
-): number {
-  return summaryValue(item, 'lowestPrice', source)
 }
 
 export function getSummaryMissingPriceCount(

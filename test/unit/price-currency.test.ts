@@ -7,6 +7,7 @@ import {
   MAX_PRICE_COLUMN_LABEL,
   formatPriceOrNA,
   formatPriceWithMissing,
+  describeTotalPrice,
   formatPrintingFinishCell,
   findCheapestPrinting,
   printingFinishColumns,
@@ -68,6 +69,20 @@ describe('formatPriceWithMissing', () => {
 
   test('returns normal format for zero missing with tix', () => {
     expect(formatPriceWithMissing(3.25, 'tix', 0, false)).toBe('3.25 tix')
+  })
+})
+
+describe('describeTotalPrice', () => {
+  test('is undefined for an exact total, whose short form already reads plainly', () => {
+    expect(describeTotalPrice(12.5, 'usd', 0, false)).toBeUndefined()
+  })
+
+  test('spells out the "~" and "+" qualifiers', () => {
+    expect(describeTotalPrice(12.5, 'usd', 0, true)).toBe('Estimated $12.50')
+    expect(describeTotalPrice(10, 'usd', 1, false)).toBe('At least $10.00, 1 card has no price')
+    expect(describeTotalPrice(10, 'usd', 3, true)).toBe(
+      'Estimated at least $10.00, 3 cards have no price',
+    )
   })
 })
 

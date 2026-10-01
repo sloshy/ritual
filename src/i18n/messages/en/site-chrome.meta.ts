@@ -622,9 +622,6 @@ export const siteChromeMeta = {
   'site.index.sortPrice': {
     description: `${INDEX_SORT_CONTEXT} By what the list is worth at today's prices, dearest first.`,
   },
-  'site.index.sortLowestPrice': {
-    description: `${INDEX_SORT_CONTEXT} By what the list would cost buying the cheapest printing of every card. Decks only.`,
-  },
   'site.index.groupNone': {
     description: 'The "no grouping" row of the decks tab\'s Group dropdown.',
   },

@@ -16,16 +16,16 @@ const lines: Line[] = [
 ]
 
 const stores: StoreLinePricing<Line>[] = [
-  { source: 'tcgplayer', price: (line) => line.usd, lowest: (line) => line.usd / 2 },
+  { source: 'tcgplayer', price: (line) => line.usd },
   { source: 'cardmarket', price: (line) => line.eur },
 ]
 
 describe('sumStorePrices', () => {
   test('sums quantity-weighted totals, missing and estimated copies per store', () => {
     const totals = sumStorePrices(lines, stores)
-    expect(totals.get('tcgplayer')).toEqual({ total: 11, lowest: 5.5, missing: 1, estimated: 2 })
+    expect(totals.get('tcgplayer')).toEqual({ total: 11, missing: 1, estimated: 2 })
     // No EUR price for the pinned pair: missing, and so an estimate too.
-    expect(totals.get('cardmarket')).toEqual({ total: 4, lowest: 0, missing: 3, estimated: 4 })
+    expect(totals.get('cardmarket')).toEqual({ total: 4, missing: 3, estimated: 4 })
   })
 })
 

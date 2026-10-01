@@ -1,4 +1,4 @@
-import type { Component } from 'solid-js'
+import type { Component, JSX } from 'solid-js'
 import { Show } from 'solid-js'
 import { useT } from '../ui/i18n'
 
@@ -10,7 +10,7 @@ interface CoverCardProps {
   label: string
   /** Optional smaller parenthetical, e.g. "(62 cards)" when unusual for the format. */
   labelSuffix?: string
-  priceLabel?: string
+  priceLabel?: JSX.Element
 }
 
 export const CoverCard: Component<CoverCardProps> = (props) => {

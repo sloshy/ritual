@@ -11,7 +11,7 @@ import {
   sessionCacheVersion,
 } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
-import { useT } from '../ui/i18n'
+import { useT, useTSegments } from '../ui/i18n'
 import type { Card } from '../card/card'
 import type { ScryfallCard } from '../scryfall/types'
 import type { Finish } from '../card/finish-condition'
@@ -37,7 +37,8 @@ import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { storedLanguage } from '../card/card-language'
 import { ListDescription } from './ListDescription'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatPrice, formatTotalPrice } from '../pricing/price-currency'
+import { formatPrice } from '../pricing/price-currency'
+import { TotalPriceMessage } from './TotalPrice'
 import { pricesEnabled, sitePrice } from '../list-view/price-view'
 import {
   type GroupBy,
@@ -126,6 +127,7 @@ export interface DeckPageProps extends SellModeProps, ListPageCommonProps {
 
 export const DeckPage: Component<DeckPageProps> = (props) => {
   const t = useT()
+  const tSegments = useTSegments()
 
   const [lowestPriceRequested, setLowestPriceRequested] = createSignal(false)
   /**
@@ -662,9 +664,13 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       statsLead={
         <>
           <Show when={pricesEnabled()}>
-            {t('site.stats.total', {
-              amount: formatTotalPrice(totalPrice(), props.currency, totalEstimated()),
-            })}
+            {/* `amount` is a placeholder: TotalPriceMessage renders that segment itself. */}
+            <TotalPriceMessage
+              segments={tSegments('site.stats.total', { amount: '' })}
+              amount={totalPrice()}
+              currency={props.currency}
+              estimated={totalEstimated()}
+            />
           </Show>
           <Show
             when={
@@ -675,13 +681,12 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           >
             <span class="page-stats-label">
               {' '}
-              {t('site.deck.allCardsPrice', {
-                amount: formatTotalPrice(
-                  totalPrice() + extrasPrice(),
-                  props.currency,
-                  allCardsEstimated(),
-                ),
-              })}
+              <TotalPriceMessage
+                segments={tSegments('site.deck.allCardsPrice', { amount: '' })}
+                amount={totalPrice() + extrasPrice()}
+                currency={props.currency}
+                estimated={allCardsEstimated()}
+              />
             </span>
           </Show>
         </>

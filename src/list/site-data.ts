@@ -106,23 +106,19 @@ export interface BakedDeckData extends Omit<DeckData, 'sections'> {
  * friends) key on, so a renamed field cannot silently read as 0. A store's
  * figures are present only when the build offers it:
  *
- * - `lowestPrice` — decks only: every line at its cheapest printing.
  * - `missingPriceCount` — copies with no price from that store.
  * - `estimatedPriceCount` — decks and wanted lists: copies whose part of the
  *   total is an estimate (they pin no printing, or have no price). Any at all
  *   prefixes the total "~".
  */
-type DeckPriceFields = PriceViewFields<
-  'totalPrice' | 'lowestPrice' | 'missingPriceCount' | 'estimatedPriceCount'
+type EstimatedListPriceFields = PriceViewFields<
+  'totalPrice' | 'missingPriceCount' | 'estimatedPriceCount'
 >
-
-/** A flat list's per-store figures; see {@link DeckPriceFields}. */
-type WantedPriceFields = PriceViewFields<'totalPrice' | 'missingPriceCount' | 'estimatedPriceCount'>
 
 /** A collection's per-store figures; collections never estimate. */
 type CollectionPriceFields = PriceViewFields<'totalPrice' | 'missingPriceCount'>
 
-export interface DeckSummary extends DeckPriceFields {
+export interface DeckSummary extends EstimatedListPriceFields {
   slug: string
   name: string
   featuredCardImage: string
@@ -309,7 +305,7 @@ export interface WantedListCardEntry extends CardCategoriesOverlay {
   cardId?: number
 }
 
-export interface WantedListSummary extends WantedPriceFields {
+export interface WantedListSummary extends EstimatedListPriceFields {
   slug: string
   name: string
   featuredCardImage: string

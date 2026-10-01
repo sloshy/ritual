@@ -3,7 +3,6 @@ import type { DeckSummary } from '../../../src/list/site-data'
 import type { PriceSource } from '../../../src/pricing/price-source'
 import {
   groupDecksByFormat,
-  LIST_SORT_OPTIONS,
   parseIndexGroup,
   parseIndexSort,
   sortSummaries,
@@ -21,27 +20,23 @@ describe('sortSummaries (decks)', () => {
     name: 'Charlie',
     lastUpdatedAt: '2026-03-01T00:00:00.000Z',
     totalPrice: 50,
-    lowestPrice: 20,
   })
   const alpha = makeDeck({
     slug: 'a',
     name: 'Alpha',
     lastUpdatedAt: '2026-05-01T00:00:00.000Z',
     totalPrice: 200,
-    lowestPrice: 100,
   })
   const bravo = makeDeck({
     slug: 'b',
     name: 'Bravo',
     lastUpdatedAt: '2026-01-01T00:00:00.000Z',
     totalPrice: 10,
-    lowestPrice: 5,
   })
   const stale = makeDeck({
     slug: 'd',
     name: 'Delta',
     totalPrice: 0,
-    lowestPrice: 0,
   })
   const decks = [charlie, alpha, bravo, stale]
 
@@ -65,15 +60,6 @@ describe('sortSummaries (decks)', () => {
 
   test("'price' sorts highest first", () => {
     expect(sortSummaries(decks, 'price', 'tcgplayer', false).map((d) => d.slug)).toEqual([
-      'a',
-      'c',
-      'b',
-      'd',
-    ])
-  })
-
-  test("'lowestPrice' sorts highest first", () => {
-    expect(sortSummaries(decks, 'lowestPrice', 'tcgplayer', false).map((d) => d.slug)).toEqual([
       'a',
       'c',
       'b',
@@ -108,7 +94,6 @@ describe('sortSummaries (decks)', () => {
       name: 'EurFavored',
       totalPrice: 10,
       totalPriceEur: 500,
-      lowestPrice: 5,
     })
     const usdFavored = makeDeck({
       slug: 'u1',
@@ -124,17 +109,13 @@ describe('sortSummaries (decks)', () => {
       totalPrice: 1,
       totalPriceEur: 1,
       totalPriceCardKingdom: 999,
-      lowestPrice: 1,
-      lowestPriceCardKingdom: 50,
     })
     const decks = [eurFavored, usdFavored, ckFavored]
-    const order = (sort: 'price' | 'lowestPrice', source: PriceSource): string[] =>
-      sortSummaries(decks, sort, source, false).map((d) => d.slug)
-    expect(order('price', 'tcgplayer')).toEqual(['u1', 'e1', 'k1'])
-    expect(order('price', 'cardmarket')).toEqual(['e1', 'u1', 'k1'])
-    expect(order('price', 'cardkingdom')[0]).toBe('k1')
-    expect(order('lowestPrice', 'cardkingdom')[0]).toBe('k1')
-    expect(order('lowestPrice', 'tcgplayer')[0]).toBe('e1')
+    const order = (source: PriceSource): string[] =>
+      sortSummaries(decks, 'price', source, false).map((d) => d.slug)
+    expect(order('tcgplayer')).toEqual(['u1', 'e1', 'k1'])
+    expect(order('cardmarket')).toEqual(['e1', 'u1', 'k1'])
+    expect(order('cardkingdom')[0]).toBe('k1')
   })
 })
 
@@ -173,19 +154,12 @@ describe('parseIndexSort / parseIndexGroup', () => {
   test('passes through valid sort values', () => {
     expect(parseIndexSort('alpha')).toBe('alpha')
     expect(parseIndexSort('recent')).toBe('recent')
-    expect(parseIndexSort('lowestPrice')).toBe('lowestPrice')
+    expect(parseIndexSort('price')).toBe('price')
   })
 
   test('falls back to alpha for unknown sort strings', () => {
     expect(parseIndexSort('totally-bogus')).toBe('alpha')
     expect(parseIndexSort('')).toBe('alpha')
-  })
-
-  test('rejects values outside a restricted option set', () => {
-    // The collection/wanted tabs pass LIST_SORT_OPTIONS, which excludes
-    // 'lowestPrice' — so a stray 'lowestPrice' falls back to the default.
-    expect(parseIndexSort('lowestPrice', LIST_SORT_OPTIONS)).toBe('alpha')
-    expect(parseIndexSort('price', LIST_SORT_OPTIONS)).toBe('price')
   })
 
   test('passes through valid group values', () => {

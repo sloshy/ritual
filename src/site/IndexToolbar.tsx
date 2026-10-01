@@ -4,18 +4,16 @@ import { useT } from '../ui/i18n'
 import { useStuck } from './useStuck'
 import {
   INDEX_GROUP_OPTIONS,
+  INDEX_SORT_OPTIONS,
   parseIndexGroup,
   parseIndexSort,
   type IndexGroup,
   type IndexSort,
-  type IndexSortOption,
 } from './index-filter'
 
 export interface IndexToolbarProps {
   sort: IndexSort
   onSortChange: (sort: IndexSort) => void
-  /** The sort options offered on this tab (decks include "Lowest price"; lists don't). */
-  sortOptions: readonly IndexSortOption[]
   reverse: boolean
   onReverseToggle: () => void
   /**
@@ -58,11 +56,9 @@ export const IndexToolbar: Component<IndexToolbarProps> = (props) => {
           <select
             class="toolbar-select"
             value={props.sort}
-            onChange={(e) =>
-              props.onSortChange(parseIndexSort(e.currentTarget.value, props.sortOptions))
-            }
+            onChange={(e) => props.onSortChange(parseIndexSort(e.currentTarget.value))}
           >
-            <For each={props.sortOptions}>
+            <For each={INDEX_SORT_OPTIONS}>
               {(opt) => <option value={opt.value}>{t(opt.label)}</option>}
             </For>
           </select>

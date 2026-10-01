@@ -2,7 +2,7 @@ import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
 import type { CardData } from '../list-view/card-sorting'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatTotalPrice } from '../pricing/price-currency'
+import { TotalPrice } from './TotalPrice'
 import { groupTotalPrice } from '../list-view/card-sorting'
 import { pricesEnabled } from '../list-view/price-view'
 import { foldCardCategory, primaryCardCategory, type CardCategory } from '../card/card-categories'
@@ -63,7 +63,11 @@ export function CardSection<T extends CardData = CardData>(
           </Show>
           <Show when={pricesEnabled()}>
             <span class="section-price">
-              {formatTotalPrice(sectionTotal(), props.currency, sectionEstimated())}
+              <TotalPrice
+                amount={sectionTotal()}
+                currency={props.currency}
+                estimated={sectionEstimated()}
+              />
             </span>
           </Show>
         </div>

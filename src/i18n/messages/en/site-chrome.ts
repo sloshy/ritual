@@ -231,7 +231,6 @@ export const siteChromeMessages = {
   'site.index.sortAlphabetical': 'Alphabetical',
   'site.index.sortRecent': 'Recently updated',
   'site.index.sortPrice': 'Current price',
-  'site.index.sortLowestPrice': 'Lowest price',
   'site.index.groupNone': 'None',
   'site.index.groupFormat': 'Format',
   'site.index.otherFormat': 'Other',

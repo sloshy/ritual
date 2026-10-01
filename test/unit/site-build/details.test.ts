@@ -289,13 +289,12 @@ describe('buildDeckArtifacts', () => {
     expect(warnings[0]).toContain("Could not find printing for 'Serra Angel' (ZZZ:1)")
   })
 
-  test('totals exclude maybeboard and use cheapest for lowest price', async () => {
+  test('totals exclude maybeboard', async () => {
     const { ctx } = makeContext({ cardData })
     const { summary } = await buildDeckArtifacts(deck, ctx)
 
     // 4x Bolt ($100) + 1x Angel ($0.50); the 1x maybeboard Bolt is excluded.
     expect(summary.totalPrice).toBeCloseTo(400.5)
-    expect(summary.lowestPrice).toBeCloseTo(4.5)
     expect(summary.missingPriceCount).toBe(0)
     // No line pins a printing, so every counted copy is priced at a representative.
     expect(summary.estimatedPriceCount).toBe(5)
@@ -1157,7 +1156,6 @@ describe('by-rule priceless baking', () => {
 
     // Only the Angel is real: 4x $100 of proxied Bolt counts for nothing.
     expect(summary.totalPrice).toBeCloseTo(0.5)
-    expect(summary.lowestPrice).toBeCloseTo(0.5)
     // The card lines still ship their labels, so the client can badge them.
     expect(detail.deck.sections[0]?.cards[0]?.labels).toEqual(['proxy'])
   })
@@ -1639,7 +1637,6 @@ describe('custom art baking', () => {
     const { summary } = await buildDeckArtifacts(loaded, ctx)
 
     expect(summary.totalPrice).toBeCloseTo(0.5)
-    expect(summary.lowestPrice).toBeCloseTo(0.5)
     expect(summary.missingPriceCount).toBe(0)
     expect(buylist.asked.map((printing) => printing.set)).toEqual(['fdn'])
   })
@@ -1858,11 +1855,9 @@ describe('Card Kingdom printing selection', () => {
 
       const { summary } = await buildDeckArtifacts(deck, ctx)
 
-      // 4× Bolt: TCGplayer reads the $100 representative, CK its own $2 pick,
-      // and CK's "lowest" its $1 cheapest.
+      // 4× Bolt: TCGplayer reads the $100 representative, CK its own $2 pick.
       expect(summary.totalPrice).toBeCloseTo(400)
       expect(summary.totalPriceCardKingdom).toBeCloseTo(8)
-      expect(summary.lowestPriceCardKingdom).toBeCloseTo(4)
       expect(summary.missingPriceCountCardKingdom).toBe(0)
       // The line names no printing, so its CK price is an estimate too.
       expect(summary.estimatedPriceCountCardKingdom).toBe(4)

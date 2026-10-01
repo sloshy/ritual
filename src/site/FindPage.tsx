@@ -1,7 +1,7 @@
 import type { Component, Accessor, JSX } from 'solid-js'
 import { createSignal, createMemo, createEffect, onCleanup, For, Show } from 'solid-js'
 import type { PriceCurrency } from '../pricing/price-currency'
-import { formatTotalPrice } from '../pricing/price-currency'
+import { TotalPrice } from './TotalPrice'
 import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { seedBuylistQuotes } from '../list-view/buylist-quotes'
 import { sellModeActive } from '../list-view/sell-mode'
@@ -450,12 +450,14 @@ export const FindPage: Component<FindPageProps> = (props) => {
                       </span>
                       <Show when={pricesEnabled()}>
                         <span class="section-price">
-                          {formatTotalPrice(
-                            groupTotalPrice(group.cards),
-                            props.currency,
-                            listTypeEstimatesPrices(group.kind) &&
-                              groupHasEstimatedPrice(group.cards),
-                          )}
+                          <TotalPrice
+                            amount={groupTotalPrice(group.cards)}
+                            currency={props.currency}
+                            estimated={
+                              listTypeEstimatesPrices(group.kind) &&
+                              groupHasEstimatedPrice(group.cards)
+                            }
+                          />
                         </span>
                       </Show>
                     </div>
