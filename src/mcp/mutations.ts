@@ -1,66 +1,26 @@
+import { ProtocolError } from '@modelcontextprotocol/server'
 import { pickMessage, type ApiMessage } from '../api/result'
 import type { ChangeEvent } from '../changes/change-event'
 import type { ListType } from '../list/list-type'
-import {
-  applyChangesCollectingMisses,
-  describeUnmatchedChanges,
-  listUnmatchedChanges,
-  type UnmatchedChange,
-} from '../changes/apply-batch'
-import { applyChangeToDeck } from '../changes/deck-changes'
-import { applyChangeToWantedList } from '../changes/wanted-changes'
-import { toWantedCardEntries } from '../list/wanted-entries'
+import { listSavePath, listSaveRequest } from '../changes/wire-changes'
 import { callApi } from './dispatch'
-import { apiErrorToMcp, isConflictError, type McpErrorDetail } from './errors'
-import type {
-  CollectionLoadResult,
-  DeckLoadResult,
-  ListSaveResponse,
-  SaveEffect,
-  WantedLoadResult,
-} from './types'
-
-function slugPath(slug: string): string {
-  return encodeURIComponent(slug)
-}
+import { isConflictError, mcpErrorDetail } from './errors'
+import type { ListSaveResponse, SaveEffect } from './types'
 
 /**
- * The load every mutation opens with. `view=cards` skips the Scryfall card,
- * printing, price, and symbol-map work a mutation never reads — for a deck it
- * still carries `frontMatter`, which the save re-sends.
+ * The load every mutation opens with, read only for the list's content hash.
+ * `view=cards` skips the Scryfall card, printing, price, and symbol-map work a
+ * mutation never needs.
  */
 function loadPath(type: ListType, slug: string): string {
-  return `/api/${type}/${slugPath(slug)}?view=cards`
+  return `/api/${type}/${encodeURIComponent(slug)}?view=cards`
 }
 
-/**
- * Fail the whole batch when any change did not apply: nothing is saved, no
- * changelog block is written, and the error names each unapplied change — the
- * alternative (report success, write nothing) is the one behavior an agent
- * cannot recover from, because it never learns anything went wrong.
- */
-function assertAllApplied(
-  unmatched: UnmatchedChange<ChangeEvent>[],
-  type: ListType,
-  slug: string,
-): void {
-  if (unmatched.length === 0) return
-  // The per-change descriptions ride along as structured detail so the tool
-  // wrapper can report them as `unmatched` rather than only in the message.
-  throw apiErrorToMcp(
-    400,
-    {
-      message:
-        describeUnmatchedChanges(unmatched, { type, slug }) +
-        ' Call get_list to see the current entries and their cardIds.',
-    },
-    { unmatched: listUnmatchedChanges(unmatched) } satisfies McpErrorDetail,
-  )
-}
+/** The one field of a list load a mutation reads; an unfiltered load always carries it. */
+type LoadedHash = { contentHash: string }
 
 /**
- * Run a load→apply→save attempt, retrying **once** when the list changed under
- * it.
+ * Run a load→save attempt, retrying **once** when the list changed under it.
  *
  * The retry re-runs the whole attempt, load included, so the changes are applied
  * to the content that actually won — a retry that resent the stale hash would
@@ -78,80 +38,45 @@ export async function withConflictRetry<T>(attempt: () => Promise<T>): Promise<T
 }
 
 /**
- * Apply an ordered batch of changes to a deck atomically: load it fresh (for its
- * current content hash), apply every change client-side in order (the save
- * endpoint persists the `deck` we send, using `changes` only for the changelog),
- * then save once — one load, one write, one changelog block. The agent never
- * sees or manages the content hash; a concurrent edit surfaces as a 409 → tool
- * error.
+ * Point an all-or-nothing refusal at the tool that shows the current entries.
+ * The route's message already names each change that missed; the agent's next
+ * move is to re-read the list, which only this surface knows to suggest.
  */
-export function mutateDeck(slug: string, changes: ChangeEvent[]): Promise<ListSaveResponse> {
-  return withConflictRetry(async () => {
-    const loaded = (await callApi('GET', loadPath('deck', slug))) as DeckLoadResult
-    const { data: deck, unmatched } = applyChangesCollectingMisses(
-      loaded.deck,
-      changes,
-      applyChangeToDeck,
-    )
-    assertAllApplied(unmatched, 'deck', slug)
-    return (await callApi('POST', `/api/deck/${slugPath(slug)}/save`, {
-      changes,
-      deck,
-      frontMatter: loaded.frontMatter,
-      contentHash: loaded.contentHash,
-      validateCardNames: true,
-    })) as ListSaveResponse
-  })
+function withGetListHint(error: unknown): unknown {
+  const detail = mcpErrorDetail(error)
+  if (!ProtocolError.isInstance(error) || detail?.unmatched === undefined) return error
+  return new ProtocolError(
+    error.code,
+    `${error.message} Call get_list to see the current entries and their cardIds.`,
+    detail,
+  )
 }
 
 /**
- * Apply an ordered batch of changes to a collection atomically. The collection
- * save endpoint re-parses the file and replays the changes itself, so only the
- * change list, the content hash, and the section order need to be sent. A
- * change that misses its target is rejected by the handler (400 → tool error
- * naming the unapplied changes); nothing is saved.
+ * Apply an ordered batch of changes to a list atomically: load it (for its
+ * current content hash), then post the changes alone to its save route, which
+ * replays them over the file — one write, one changelog block. A change that
+ * misses its target fails the whole batch with a structured `unmatched` list and
+ * nothing is saved; a concurrent edit surfaces as a 409 and is retried once. The
+ * agent never sees or manages the content hash.
  */
-export function mutateCollection(slug: string, changes: ChangeEvent[]): Promise<ListSaveResponse> {
-  return withConflictRetry(async () => {
-    const loaded = (await callApi('GET', loadPath('collection', slug))) as CollectionLoadResult
-    return (await callApi('POST', `/api/collection/${slugPath(slug)}/save`, {
-      changes,
-      contentHash: loaded.contentHash,
-      sectionOrder: loaded.sectionOrder,
-      validateCardNames: true,
-    })) as ListSaveResponse
-  })
-}
-
-/** Apply an ordered batch of changes to a wanted list atomically (see {@link toWantedCardEntries}). */
-export function mutateWanted(slug: string, changes: ChangeEvent[]): Promise<ListSaveResponse> {
-  return withConflictRetry(async () => {
-    const loaded = (await callApi('GET', loadPath('wanted', slug))) as WantedLoadResult
-    const { data: entries, unmatched } = applyChangesCollectingMisses(
-      toWantedCardEntries(loaded.entries),
-      changes,
-      applyChangeToWantedList,
-    )
-    assertAllApplied(unmatched, 'wanted', slug)
-    return (await callApi('POST', `/api/wanted/${slugPath(slug)}/save`, {
-      changes,
-      entries,
-      contentHash: loaded.contentHash,
-      sectionOrder: loaded.sectionOrder,
-      validateCardNames: true,
-    })) as ListSaveResponse
-  })
-}
-
-/** Apply an ordered change batch to a list of the given type via its load→mutate→save flow. */
-export function mutateList(
+export async function mutateList(
   type: ListType,
   slug: string,
   changes: ChangeEvent[],
 ): Promise<ListSaveResponse> {
-  if (type === 'deck') return mutateDeck(slug, changes)
-  if (type === 'collection') return mutateCollection(slug, changes)
-  return mutateWanted(slug, changes)
+  try {
+    return await withConflictRetry(async () => {
+      const loaded = (await callApi('GET', loadPath(type, slug))) as LoadedHash
+      return (await callApi(
+        'POST',
+        listSavePath(type, slug),
+        listSaveRequest(changes, loaded.contentHash, { validateCardNames: true }),
+      )) as ListSaveResponse
+    })
+  } catch (error) {
+    throw withGetListHint(error)
+  }
 }
 
 /**

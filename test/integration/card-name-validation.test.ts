@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { computeHash } from '../../src/changes/content-hash'
-import { handleCollectionSave } from '../../src/admin/api/collection-save'
-import { handleDeckSave } from '../../src/admin/api/deck-save'
+import { handleListSave } from '../../src/admin/api/list-save'
 import { handleRemoveCommit, handleSelectedMove } from '../../src/admin/api/move'
-import { handleWantedListSave } from '../../src/admin/api/wanted-save'
+import type { ApiErrorResponse } from '../../src/api/http'
 import { createAddChange } from '../../src/changes/change-event'
+import { toWireChange } from '../../src/changes/wire-changes'
 import { callJson } from './helpers/request'
+import { hashOf, saveList } from '../helpers/list-save'
 import {
   bindWorkspace,
   writeCollectionFile,
@@ -27,14 +27,13 @@ import { seedCardNames } from '../test-utils'
  */
 
 let ws: BoundWorkspace
-let collectionHash: string
-let deckHash: string
+let collectionPath: string
 let deckPath: string
-let wantedHash: string
+let wantedPath: string
 
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false, clearCardCache: true })
-  const filePath = await writeCollectionFile(ws.dir, 'binder', {
+  collectionPath = await writeCollectionFile(ws.dir, 'binder', {
     title: 'Binder',
     entries: [
       { name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 },
@@ -43,91 +42,75 @@ beforeEach(async () => {
       { name: 'Homemade Proxy Beast', set: 'xxx', collectorNumber: '1', cardId: 2 },
     ],
   })
-  collectionHash = computeHash(await Bun.file(filePath).text())
   deckPath = await writeDeckFile(ws.dir, 'burn', {
     name: 'Burn',
     cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
   })
-  deckHash = computeHash(await Bun.file(deckPath).text())
-  const wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
+  wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
     title: 'Wishlist',
     entries: [{ name: 'Mana Crypt', cardId: 1 }],
   })
-  wantedHash = computeHash(await Bun.file(wantedPath).text())
 })
 
 afterEach(async () => {
   await ws.dispose()
 })
 
-/** A collection save body; `validateCardNames` is left off unless a test sets it. */
-function saveBody(cardName: string, validateCardNames?: boolean): Record<string, unknown> {
-  const body: Record<string, unknown> = {
-    changes: [createAddChange(cardName, { set: 'c21', collectorNumber: '240' })],
-    contentHash: collectionHash,
-  }
-  if (validateCardNames !== undefined) body.validateCardNames = validateCardNames
-  return body
+/** Save an add of `cardName` to the collection, with `validateCardNames` left off unless given. */
+function saveAdd(cardName: string, validateCardNames?: boolean): Promise<Response> {
+  return saveList(
+    'collection',
+    'binder',
+    collectionPath,
+    [toWireChange(createAddChange(cardName, { set: 'c21', collectorNumber: '240' }))],
+    validateCardNames === undefined ? {} : { validateCardNames },
+  )
 }
 
 describe('a save route with validateCardNames', () => {
   test('refuses an unknown name with a 400 naming the closest cached spellings', async () => {
     await seedCardNames('Sol Ring', 'Sol Talisman')
 
-    const { status, body } = await callJson<{ message: string }>(
-      handleCollectionSave,
-      'POST',
-      '/api/collection/binder',
-      saveBody('Sol Rung', true),
-    )
-    expect(status).toBe(400)
-    expect(body.message).toContain('Sol Rung')
-    expect(body.message).toContain('Sol Ring')
+    const resp = await saveAdd('Sol Rung', true)
+    expect(resp.status).toBe(400)
+    const { message } = (await resp.json()) as ApiErrorResponse
+    expect(message).toContain('Sol Rung')
+    expect(message).toContain('Sol Ring')
   })
 
   test('accepts a name the cache knows', async () => {
     await seedCardNames('Arcane Signet')
 
-    const { status } = await callJson(
-      handleCollectionSave,
-      'POST',
-      '/api/collection/binder',
-      saveBody('Arcane Signet', true),
-    )
-    expect(status).toBe(200)
+    expect((await saveAdd('Arcane Signet', true)).status).toBe(200)
   })
 
   test('a cold cache is a 400 that names both remedies', async () => {
-    const { status, body } = await callJson<{ message: string }>(
-      handleCollectionSave,
-      'POST',
-      '/api/collection/binder',
-      saveBody('Arcane Signet', true),
-    )
-    expect(status).toBe(400)
-    expect(body.message).toContain('refresh_cache')
-    expect(body.message).toContain('ritual cache preload-all')
+    const resp = await saveAdd('Arcane Signet', true)
+    expect(resp.status).toBe(400)
+    const { message } = (await resp.json()) as ApiErrorResponse
+    expect(message).toContain('refresh_cache')
+    expect(message).toContain('ritual cache preload-all')
   })
 
   test('omitting the field leaves the admin path unchanged, cold cache and all', async () => {
-    const { status } = await callJson(
-      handleCollectionSave,
-      'POST',
-      '/api/collection/binder',
-      saveBody('Some Card Nothing Knows'),
-    )
-    expect(status).toBe(200)
+    expect((await saveAdd('Some Card Nothing Knows')).status).toBe(200)
   })
 
   test('is refused when it is not a boolean, never coerced', async () => {
-    const { status, body } = await callJson<{ message: string }>(
-      handleCollectionSave,
+    const { status, body } = await callJson<ApiErrorResponse>(
+      (req) => handleListSave(req, 'collection'),
       'POST',
-      '/api/collection/binder',
-      { ...saveBody('Arcane Signet'), validateCardNames: 'true' },
+      '/api/collection/binder/save',
+      {
+        changes: [
+          toWireChange(createAddChange('Arcane Signet', { set: 'c21', collectorNumber: '240' })),
+        ],
+        contentHash: await hashOf(collectionPath),
+        validateCardNames: 'true',
+      },
     )
     expect(status).toBe(400)
-    expect(body.message).toBe('validateCardNames must be a boolean.')
+    expect(body.message).toBe('"validateCardNames" must be a boolean.')
   })
 })
 
@@ -139,39 +122,32 @@ describe('every write route reaches the checker', () => {
     await seedCardNames('Sol Ring')
     const before = await Bun.file(deckPath).text()
 
-    const { status, body } = await callJson<{ message: string }>(
-      handleDeckSave,
-      'POST',
-      '/api/deck/burn/save',
+    const resp = await saveList(
+      'deck',
+      'burn',
+      deckPath,
+      [toWireChange(createAddChange('Sol Rung'))],
       {
-        changes: [createAddChange('Sol Rung')],
-        deck: { name: 'Burn', sections: [{ name: 'Main', cards: [] }] },
-        name: 'Burn',
-        contentHash: deckHash,
         validateCardNames: true,
       },
     )
-    expect(status).toBe(400)
-    expect(body.message).toContain('Sol Rung')
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as ApiErrorResponse).message).toContain('Sol Rung')
     expect(await Bun.file(deckPath).text()).toBe(before)
   })
 
   test('wanted save refuses an unknown name', async () => {
     await seedCardNames('Mana Crypt')
 
-    const { status, body } = await callJson<{ message: string }>(
-      handleWantedListSave,
-      'POST',
-      '/api/wanted/wishlist/save',
-      {
-        changes: [createAddChange('Mana Crypp')],
-        entries: [],
-        contentHash: wantedHash,
-        validateCardNames: true,
-      },
+    const resp = await saveList(
+      'wanted',
+      'wishlist',
+      wantedPath,
+      [toWireChange(createAddChange('Mana Crypp'))],
+      { validateCardNames: true },
     )
-    expect(status).toBe(400)
-    expect(body.message).toContain('Mana Crypp')
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as ApiErrorResponse).message).toContain('Mana Crypp')
   })
 
   test('remove/commit refuses an unknown name and removes nothing', async () => {

@@ -9,14 +9,8 @@ import {
 import { appendAuditLog, createAuditEntry } from '../audit-log'
 import { loadRitualConfig } from '../../config/ritual-config'
 import { globalRateLimiter } from '../rate-limit'
-import { validateBodySize } from '../../api/http'
+import { readJsonObjectBody } from '../../api/http'
 import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
-
-interface LoginRequest {
-  username: string
-  password: string
-  totpCode?: string
-}
 
 interface LoginResponse {
   success: boolean
@@ -45,17 +39,13 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
     return Response.json(resp, { status: 429, headers: { 'Retry-After': String(remaining) } })
   }
 
-  const tooLarge = validateBodySize(req)
-  if (tooLarge) return tooLarge
-
-  let body: LoginRequest
-  try {
-    body = (await req.json()) as LoginRequest
-  } catch {
-    return Response.json({ success: false, message: 'Invalid request body' }, { status: 400 })
-  }
-
-  const { username, password, totpCode } = body
+  const parsed = await readJsonObjectBody(req)
+  if (!parsed.ok) return parsed.response
+  const body = parsed.body
+  // Read as strings or not at all: a non-string field is a missing one.
+  const username = typeof body.username === 'string' ? body.username : ''
+  const password = typeof body.password === 'string' ? body.password : ''
+  const totpCode = typeof body.totpCode === 'string' ? body.totpCode : undefined
   if (!username || !password) {
     return Response.json(
       { success: false, message: 'Username and password are required' },

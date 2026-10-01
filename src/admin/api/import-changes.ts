@@ -1,6 +1,5 @@
 import path from 'node:path'
 import type { ChangeEvent } from '../../changes/change-event'
-import { replaySectionOrder } from '../../changes/change-event'
 import type { DeckData } from '../../list/deck'
 import type { ListType } from '../../list/list-type'
 import {
@@ -41,14 +40,16 @@ import { buildSyntheticRequest } from '../../util/synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
 import type { ApiMessage } from '../../api/result'
 import { apiHandler } from '../utils'
-import { badRequest, validateBodySize } from '../../api/http'
+import { badRequest, readBodyText } from '../../api/http'
 import { handleDeckLoad } from './deck-load'
-import { handleDeckSave } from './deck-save'
 import { handleCollectionLoad } from './collection-load'
-import { handleCollectionSave } from './collection-save'
 import { handleWantedListLoad } from './wanted-load'
-import { handleWantedListSave } from './wanted-save'
-import { MAX_LIST_BODY_SIZE } from '../validation'
+import { handleListSave } from './list-save'
+import { listSavePath, listSaveRequest, toWireChange } from '../../changes/wire-changes'
+import { MAX_SAVE_CHANGES } from '../../changes/save-limits'
+import type { ListSaveResponse } from './list-save'
+import type { CollectionCardEntry, WantedListCardEntry } from '../../list/site-data'
+import { MAX_EDIT_BODY_SIZE, MAX_UPLOAD_BODY_SIZE } from '../validation'
 
 /** Origin for synthetic in-process request URLs; nothing leaves the process. */
 const SYNTHETIC_ORIGIN = 'http://ritual-import'
@@ -203,162 +204,242 @@ function splitApplicable<TData>(
 }
 
 /**
- * Re-aim a deck batch's `add`/`move-to` copies that the deck reducer folded
- * onto a line it already had. Each such copy was allocated a fresh id by the
+ * Re-aim a deck batch's `add`/`move-to` copies that the deck reducer folds
+ * onto a line it already has. Each such copy was allocated a fresh id by the
  * re-target, but the reducer merges same-tuple copies onto one line, so the
- * fresh id names no line in the written deck — and would end up in the
+ * fresh id would name no line in the written deck — and end up in the
  * changelog and the art plan as a phantom `&N`. The change is rewritten to the
  * line's real id (the one the exporting editor would have used), and the
  * re-target state follows, so a later reference to that copy resolves.
+ *
+ * Decided one change at a time, against the deck as it stands just before that
+ * change — the order the save route replays them in — so the rewritten batch
+ * replays to the same deck the dry run did. Judging every add against the
+ * finished deck instead could point an early add at a line only a later change
+ * creates.
+ *
+ * Exported for its unit test: the per-step decision is unreachable to assert through a whole import.
  */
-function rewriteMergedDeckIds(
+export function rewriteMergedDeckIds(
   deck: DeckData,
-  changes: ChangeEvent[],
+  changes: readonly ChangeEvent[],
   state: RetargetState,
 ): ChangeEvent[] {
-  const present = new Set(collectDeckCardIds(deck))
+  let current = deck
   return changes.map((change) => {
-    if (change.action !== 'add' && change.action !== 'move-to') return change
-    if (change.cardId === undefined || present.has(change.cardId)) return change
-    // Labels and tags are part of the merge identity (`mergesOntoCard`): a
-    // `[proxy]` arrival folds onto the `[proxy]` line, never its plain sibling,
-    // and a tagged copy onto the same-tagged line. A `move-to` carries its
-    // tags but never labels (the copy lands under the list default) — decided
-    // by the action, not by key presence, because a decoded bundle payload is
-    // open and a stray key on a `move-to` must not make this disagree with the
-    // reducer.
-    const isAdd = change.action === 'add'
-    const merged = findDeckAddMergeTargetId(deck, {
-      action: 'add',
-      cardName: change.cardName,
-      set: change.set,
-      collectorNumber: change.collectorNumber,
-      finish: change.finish,
-      condition: change.condition,
-      language: change.language,
-      labels: isAdd ? change.labels : undefined,
-      tags: change.tags,
-    })
-    if (merged === undefined) return change
-    for (const [exported, allocated] of state.idMap) {
-      if (allocated === change.cardId) state.idMap.set(exported, merged)
+    const rewritten = mergeTargetOf(current, change, state)
+    current = applyChangeToDeck(current, rewritten)
+    return rewritten
+  })
+}
+
+/** `change` re-aimed at the line `deck` would merge it onto, or `change` itself. */
+function mergeTargetOf(deck: DeckData, change: ChangeEvent, state: RetargetState): ChangeEvent {
+  if (change.action !== 'add' && change.action !== 'move-to') return change
+  if (change.cardId === undefined || collectDeckCardIds(deck).includes(change.cardId)) {
+    return change
+  }
+  // Labels and tags are part of the merge identity (`mergesOntoCard`): a
+  // `[proxy]` arrival folds onto the `[proxy]` line, never its plain sibling,
+  // and a tagged copy onto the same-tagged line. A `move-to` carries its tags
+  // but never labels (the copy lands under the list default) — decided by the
+  // action, not by key presence, because a decoded bundle payload is open and a
+  // stray key on a `move-to` must not make this disagree with the reducer.
+  const isAdd = change.action === 'add'
+  const merged = findDeckAddMergeTargetId(deck, {
+    action: 'add',
+    cardName: change.cardName,
+    set: change.set,
+    collectorNumber: change.collectorNumber,
+    finish: change.finish,
+    condition: change.condition,
+    language: change.language,
+    labels: isAdd ? change.labels : undefined,
+    tags: change.tags,
+  })
+  if (merged === undefined) return change
+  for (const [exported, allocated] of state.idMap) {
+    if (allocated === change.cardId) state.idMap.set(exported, merged)
+  }
+  if (state.addedByName.get(change.cardName) === change.cardId) {
+    state.addedByName.set(change.cardName, merged)
+  }
+  return { ...change, cardId: merged }
+}
+
+/** How many of a list's changes landed, and why the rest did not. */
+type SaveChangesOutcome = { applied: number; error?: string }
+
+/**
+ * Split `changes` into save-sized batches: no more events than one save may
+ * carry, and no more bytes than its body budget (less room for the envelope).
+ * Exported for its unit test: its limits are too large to reach through a real import cheaply.
+ */
+export function saveChunks(changes: readonly ChangeEvent[]): ChangeEvent[][] {
+  const byteLimit = MAX_EDIT_BODY_SIZE - 64 * 1024
+  const chunks: ChangeEvent[][] = []
+  let chunk: ChangeEvent[] = []
+  let bytes = 0
+  for (const change of changes) {
+    // Bytes, not string length: the budget is measured in UTF-8, and a note in
+    // Japanese is three bytes a character.
+    const size = Buffer.byteLength(JSON.stringify(toWireChange(change))) + 1
+    if (chunk.length > 0 && (chunk.length >= MAX_SAVE_CHANGES || bytes + size > byteLimit)) {
+      chunks.push(chunk)
+      chunk = []
+      bytes = 0
     }
-    if (state.addedByName.get(change.cardName) === change.cardId) {
-      state.addedByName.set(change.cardName, merged)
-    }
-    return { ...change, cardId: merged }
-  })
+    chunk.push(change)
+    bytes += size
+  }
+  if (chunk.length > 0) chunks.push(chunk)
+  return chunks
 }
 
-async function applyToDeck(
+/**
+ * Post one list's applicable changes to its save route — the changes alone: the
+ * route replays them over the file it reads, so neither the list nor its
+ * section order travels. A batch larger than one save may carry goes as
+ * several, in order, each continuing the last one's changelog entry, so the
+ * list still gets one entry. A failed batch stops the rest; what landed before
+ * it is reported as applied, since it is on disk.
+ */
+async function saveChanges(
+  type: ListType,
+  slug: string,
+  changes: readonly ChangeEvent[],
+  contentHash: string | undefined,
+): Promise<SaveChangesOutcome> {
+  let hash = contentHash
+  let applied = 0
+  for (const chunk of saveChunks(changes)) {
+    const saved = await call<ListSaveResponse>(
+      (req) => handleListSave(req, type),
+      'POST',
+      listSavePath(type, slug),
+      // A list loaded without a hash is posted without one, for the route to
+      // refuse with its partial-load hint.
+      hash === undefined
+        ? { changes: chunk.map(toWireChange) }
+        : listSaveRequest(chunk, hash, { continueSession: applied > 0 }),
+    )
+    if (!saved.ok) return { applied, error: saved.error }
+    hash = saved.data.contentHash
+    applied += chunk.length
+  }
+  return { applied }
+}
+
+/** A list as the import engine reads it: its data, its names by id, its hash. */
+type LoadedForImport<TData> = {
+  data: TData
+  namesById: ReadonlyMap<number, string>
+  contentHash: string | undefined
+}
+
+/** What the import engine needs to know about one list type. */
+type ImportTarget<TData> = {
+  type: ListType
+  load: (slug: string) => Promise<ApiCallResult<LoadedForImport<TData>>>
+  /** The save route's own reducer, so the dry run applies exactly what the save will. */
+  apply: ApplyChange<TData, ChangeEvent>
+  /** A last pass over the applicable changes before they are sent. */
+  settle?: (
+    before: TData,
+    applicable: readonly ChangeEvent[],
+    state: RetargetState,
+  ) => ChangeEvent[]
+}
+
+/**
+ * Load a list through its load route. `view=cards` for the same reason the MCP
+ * mutations use it: this reads only the lines and the content hash, never the
+ * Scryfall payload.
+ */
+async function loadForImport<TBody, TData>(
+  handler: (req: Request) => Promise<Response>,
+  type: ListType,
+  slug: string,
+  read: (body: TBody) => LoadedForImport<TData>,
+): Promise<ApiCallResult<LoadedForImport<TData>>> {
+  const loaded = await call<TBody>(
+    handler,
+    'GET',
+    `/api/${type}/${encodeURIComponent(slug)}?view=cards`,
+  )
+  return loaded.ok ? { ok: true, data: read(loaded.data) } : loaded
+}
+
+const DECK_TARGET: ImportTarget<DeckData> = {
+  type: 'deck',
+  load: (slug) =>
+    loadForImport<DeckLoadResult, DeckData>(handleDeckLoad, 'deck', slug, (body) => ({
+      data: body.deck,
+      namesById: deckCardNamesById(body.deck),
+      contentHash: body.contentHash,
+    })),
+  apply: applyChangeToDeck,
+  settle: rewriteMergedDeckIds,
+}
+
+const COLLECTION_TARGET: ImportTarget<CollectionCardEntry[]> = {
+  type: 'collection',
+  load: (slug) =>
+    loadForImport<CollectionLoadResult, CollectionCardEntry[]>(
+      handleCollectionLoad,
+      'collection',
+      slug,
+      (body) => {
+        const entries = toCollectionCardEntries(body.entries)
+        return { data: entries, namesById: cardNamesById(entries), contentHash: body.contentHash }
+      },
+    ),
+  apply: applyChangeToCollection,
+}
+
+const WANTED_TARGET: ImportTarget<WantedListCardEntry[]> = {
+  type: 'wanted',
+  load: (slug) =>
+    loadForImport<WantedLoadResult, WantedListCardEntry[]>(
+      handleWantedListLoad,
+      'wanted',
+      slug,
+      (body) => {
+        const entries = toWantedCardEntries(body.entries)
+        return { data: entries, namesById: cardNamesById(entries), contentHash: body.contentHash }
+      },
+    ),
+  apply: applyChangeToWantedList,
+}
+
+async function applyToList<TData>(
+  target: ImportTarget<TData>,
   slug: string,
   changes: ChangeEvent[],
   state: RetargetState,
 ): Promise<ApplyOutcome> {
-  const encoded = encodeURIComponent(slug)
-  // `view=cards` for the same reason the MCP mutations use it: this reads only
-  // the deck lines, front matter, and content hash, never the Scryfall payload.
-  const loaded = await call<DeckLoadResult>(
-    handleDeckLoad,
-    'GET',
-    `/api/deck/${encoded}?view=cards`,
-  )
+  const loaded = await target.load(slug)
   if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
-  const { deck, frontMatter, contentHash } = loaded.data
+  const { data, namesById, contentHash } = loaded.data
 
-  const { retargeted, conflicts } = retarget(changes, deckCardNamesById(deck), state)
+  const { retargeted, conflicts } = retarget(changes, namesById, state)
   if (retargeted.length === 0) return { retargeted, conflicts }
 
-  const split = splitApplicable(deck, retargeted, applyChangeToDeck)
-  const { updated, missConflicts } = split
-  const applicable = rewriteMergedDeckIds(updated, split.applicable, state)
-  const allConflicts = [...conflicts, ...missConflicts]
+  // The save route replays the changes against the file itself and refuses the
+  // whole batch when any change does not apply, so the inapplicable ones are
+  // split off here first — with the route's own reducer — and only the rest
+  // are sent.
+  const split = splitApplicable(data, retargeted, target.apply)
+  const applicable = target.settle?.(data, split.applicable, state) ?? split.applicable
+  const allConflicts = [...conflicts, ...split.missConflicts]
   if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
 
-  const saved = await call(handleDeckSave, 'POST', `/api/deck/${encoded}/save`, {
-    changes: applicable,
-    deck: updated,
-    frontMatter,
-    contentHash,
-  })
-  if (!saved.ok) return { retargeted: [], conflicts: allConflicts, error: saved.error }
-  return { retargeted: applicable, conflicts: allConflicts }
-}
-
-async function applyToCollection(
-  slug: string,
-  changes: ChangeEvent[],
-  state: RetargetState,
-): Promise<ApplyOutcome> {
-  const encoded = encodeURIComponent(slug)
-  const loaded = await call<CollectionLoadResult>(
-    handleCollectionLoad,
-    'GET',
-    `/api/collection/${encoded}?view=cards`,
-  )
-  if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
-  const { entries, sectionOrder, contentHash } = loaded.data
-
-  const { retargeted, conflicts } = retarget(changes, cardNamesById(entries), state)
-  if (retargeted.length === 0) return { retargeted, conflicts }
-
-  // The collection save endpoint replays the changes against the file itself
-  // and rejects the whole batch when any change does not apply, so split off
-  // inapplicable changes here first (the local dry run maps entries exactly the
-  // way the handler does) and send only the applicable ones.
-  const { applicable, missConflicts } = splitApplicable(
-    toCollectionCardEntries(entries),
-    retargeted,
-    applyChangeToCollection,
-  )
-  const allConflicts = [...conflicts, ...missConflicts]
-  if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
-
-  const saved = await call(handleCollectionSave, 'POST', `/api/collection/${encoded}/save`, {
-    changes: applicable,
-    contentHash,
-    sectionOrder: replaySectionOrder(sectionOrder ?? [], applicable),
-  })
-  if (!saved.ok) return { retargeted: [], conflicts: allConflicts, error: saved.error }
-  return { retargeted: applicable, conflicts: allConflicts }
-}
-
-async function applyToWanted(
-  slug: string,
-  changes: ChangeEvent[],
-  state: RetargetState,
-): Promise<ApplyOutcome> {
-  const encoded = encodeURIComponent(slug)
-  const loaded = await call<WantedLoadResult>(
-    handleWantedListLoad,
-    'GET',
-    `/api/wanted/${encoded}?view=cards`,
-  )
-  if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
-  const { contentHash, sectionOrder } = loaded.data
-  const entries = toWantedCardEntries(loaded.data.entries)
-
-  const { retargeted, conflicts } = retarget(changes, cardNamesById(entries), state)
-  if (retargeted.length === 0) return { retargeted, conflicts }
-
-  // The wanted save endpoint serializes the entries it receives, so the changes
-  // are applied here and the resulting entry list sent along with them.
-  const { updated, applicable, missConflicts } = splitApplicable(
-    entries,
-    retargeted,
-    applyChangeToWantedList,
-  )
-  const allConflicts = [...conflicts, ...missConflicts]
-  if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
-
-  const saved = await call(handleWantedListSave, 'POST', `/api/wanted/${encoded}/save`, {
-    changes: applicable,
-    entries: updated,
-    contentHash,
-    sectionOrder: replaySectionOrder(sectionOrder ?? [], applicable),
-  })
-  if (!saved.ok) return { retargeted: [], conflicts: allConflicts, error: saved.error }
-  return { retargeted: applicable, conflicts: allConflicts }
+  const saved = await saveChanges(target.type, slug, applicable, contentHash)
+  return {
+    retargeted: applicable.slice(0, saved.applied),
+    conflicts: allConflicts,
+    ...(saved.error === undefined ? {} : { error: saved.error }),
+  }
 }
 
 function applyByKind(
@@ -369,11 +450,11 @@ function applyByKind(
 ): Promise<ApplyOutcome> {
   switch (kind) {
     case 'deck':
-      return applyToDeck(slug, changes, state)
+      return applyToList(DECK_TARGET, slug, changes, state)
     case 'collection':
-      return applyToCollection(slug, changes, state)
+      return applyToList(COLLECTION_TARGET, slug, changes, state)
     case 'wanted':
-      return applyToWanted(slug, changes, state)
+      return applyToList(WANTED_TARGET, slug, changes, state)
     default: {
       kind satisfies never
       throw new Error('Unhandled list kind (this is a bug)')
@@ -500,13 +581,12 @@ export function bundleImportMessage(result: BundleImportResult): string {
  */
 export function handleImportChanges(req: Request): Promise<Response> {
   // `readJsonObjectBody` does not fit here: the body is the bundle's raw text,
-  // which `parseChangeBundle` parses and validates itself. The size cap it also
-  // performs is therefore applied on its own.
+  // which `parseChangeBundle` parses and validates itself.
   return apiHandler(async () => {
-    const sizeError = validateBodySize(req, MAX_LIST_BODY_SIZE)
-    if (sizeError) return sizeError
+    const read = await readBodyText(req, MAX_UPLOAD_BODY_SIZE)
+    if (!read.ok) return read.response
 
-    const bundle = parseChangeBundle(await req.text())
+    const bundle = parseChangeBundle(read.text)
     if (typeof bundle === 'string') return badRequest(bundle)
 
     const result = await applyChangeBundle(bundle)

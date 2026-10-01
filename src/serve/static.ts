@@ -1,4 +1,5 @@
 import path from 'node:path'
+import { MAX_BODY_SIZE } from '../api/http'
 
 export type ServeStaticSiteOptions = {
   distDir: string
@@ -56,6 +57,8 @@ export function serveStaticSite(options: ServeStaticSiteOptions): StaticSiteServ
   return Bun.serve({
     port,
     hostname,
+    // Nothing here reads a body; the smallest budget keeps one from being buffered.
+    maxRequestBodySize: MAX_BODY_SIZE,
     async fetch(req) {
       const url = new URL(req.url)
       const response =

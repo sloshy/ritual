@@ -20,7 +20,7 @@ import { apiHandler } from '../utils'
 import type { ApiMessage } from '../../api/result'
 import { autoCommitAndPush } from './save-helpers'
 import { badRequest, readJsonObjectBody } from '../../api/http'
-import { MAX_LIST_BODY_SIZE } from '../validation'
+import { MAX_UPLOAD_BODY_SIZE } from '../validation'
 
 /**
  * CSV import request from the admin site (and, through the in-process dispatch,
@@ -109,7 +109,7 @@ function isImportCsvRequest(value: unknown): value is ImportCsvRequest {
 
 export function handleImportCsv(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
+    const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const body: unknown = parsedBody.body
     if (!isImportCsvRequest(body)) {

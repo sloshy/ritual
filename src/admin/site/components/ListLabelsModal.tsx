@@ -18,16 +18,10 @@ type ListLabelsModalProps = {
   /** The editor session's content hash — the metadata write's concurrency token. */
   contentHash: string
   /**
-   * Adopt the write: the new default labels, the file's new content hash, and
-   * the full front matter the write produced — the deck editor holds a snapshot
-   * of that block and re-sends it with every card save, so a stale one would
-   * delete the very key this dialog just wrote.
+   * Adopt the write: the new default labels and the file's new content hash, so
+   * the editor's next card save does not 409 against a write it made itself.
    */
-  onSaved: (
-    labels: CardLabel[] | undefined,
-    contentHash: string,
-    frontMatter: Record<string, unknown>,
-  ) => void
+  onSaved: (labels: CardLabel[] | undefined, contentHash: string) => void
 }
 
 /**
@@ -74,7 +68,7 @@ export const ListLabelsModal: Component<ListLabelsModalProps> = (props) => {
       setError(result.message)
       return
     }
-    props.onSaved(labels.length > 0 ? labels : undefined, result.contentHash, result.frontMatter)
+    props.onSaved(labels.length > 0 ? labels : undefined, result.contentHash)
     props.onClose()
   }
 

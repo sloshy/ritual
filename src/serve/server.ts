@@ -2,6 +2,20 @@ import { matchRoute } from '../util/routing'
 import { serveSpaFallback, serveStaticFile, type StaticSiteServer } from './static'
 import { createLiveSiteData } from './live-data'
 import { buildSiteRoutes } from './routes'
+import { MAX_BODY_SIZE } from '../api/http'
+import { MAX_QUOTE_BODY_BYTES } from '../api/buylist'
+import { MAX_PRICE_BODY_BYTES } from '../api/card-prices'
+
+/**
+ * The hard ceiling on a request body (`maxRequestBodySize`). The runtime refuses
+ * a larger declared body before any handler runs, and a chunked one as it is
+ * read (a body nothing reads is never buffered at all). These routes are
+ * unauthenticated, so the ceiling is the largest route's own budget plus only
+ * enough headroom that the route, not the runtime, answers a body just past its
+ * budget — with its JSON refusal rather than an empty 413.
+ */
+export const MAX_SITE_REQUEST_BODY_SIZE =
+  Math.max(MAX_BODY_SIZE, MAX_QUOTE_BODY_BYTES, MAX_PRICE_BODY_BYTES) + 16 * 1024
 
 export type SiteServerOptions = {
   port: number
@@ -55,6 +69,7 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
   return Bun.serve({
     port,
     hostname,
+    maxRequestBodySize: MAX_SITE_REQUEST_BODY_SIZE,
     async fetch(req) {
       const url = new URL(req.url)
 

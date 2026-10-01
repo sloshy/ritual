@@ -111,8 +111,8 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     const deckWithCategories = withDeckCategories(deck, categories.record)
 
     if (params.view === 'cards') {
-      // Front matter travels with the cards view because the deck save flow
-      // re-sends it; dropping it here would silently blank a deck's YAML.
+      // Front matter travels with the cards view: it is part of what a client
+      // reading the deck sees (cover, labels, sync stamps).
       const body: DeckCardsLoadResult = {
         success: true,
         slug,

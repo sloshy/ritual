@@ -207,13 +207,15 @@ test('a wanted list can set its cover — one of its two front-matter keys', asy
   expect(bodies).toEqual([{ image: { card: 1 }, contentHash: 'hash-1' }])
 })
 
-/** The deck save body the cover write has to survive. */
-type DeckSaveBody = { contentHash?: string; frontMatter?: Record<string, unknown> }
+/** The deck save body the cover write must not collide with. */
+type DeckSaveBody = Record<string, unknown> & { contentHash?: string }
 
-test('a deck card save carries the cover the dialog just wrote, and its hash', async ({ page }) => {
-  // The regression this exists for: the deck editor snapshots `frontMatter` at
-  // load and re-sends it with every card save, so a cover written mid-session
-  // has to reach that snapshot or the next save deletes the key it just added.
+test('a deck card save after a cover write sends its hash and no front matter', async ({
+  page,
+}) => {
+  // The save route takes front matter from the file, so a cover written
+  // mid-session survives the next card save as long as that save neither
+  // carries a front-matter snapshot nor 409s against the write it follows.
   const bodies = await captureMetadata(page, 'deck/cover-deck')
   let saved: DeckSaveBody | null = null
 
@@ -271,7 +273,8 @@ test('a deck card save carries the cover the dialog just wrote, and its hash', a
   await page.locator('.btn-save').click()
 
   await expect.poll(() => saved).not.toBeNull()
-  expect(saved!.frontMatter?.image).toEqual({ card: 1 })
-  // And the hash the metadata write returned, not the load's.
+  // The changes-only body, exactly: no front-matter snapshot, nor any other list field.
+  expect(Object.keys(saved!).sort()).toEqual(['changes', 'contentHash', 'continueSession'])
+  // The hash the metadata write returned, not the load's.
   expect(saved!.contentHash).toBe('hash-2')
 })

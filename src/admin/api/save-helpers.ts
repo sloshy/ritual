@@ -13,33 +13,11 @@ import { removedArtCardIds, type LineQuantities } from '../../changes/line-copie
 import { listTypeLabel, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
 import { loadDefaultCategories, loadRitualConfig } from '../../config/ritual-config'
-import { parseCardCategoriesValue, parseCardCategory } from '../../card/card-categories'
 import { foldedCardNameSet } from '../../list/card-names'
 import { commitCategoryChanges, isCategoryChange } from '../../list/card-categories-sidecar'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
 import { apiError, badRequest, type ApiConflictResponse } from '../../api/http'
-import { normalizeNote } from '../../card/note-helpers'
-import {
-  checkLabelsForListType,
-  normalizedOverride,
-  parseCardLabelsValue,
-  unsupportedLabelsMessage,
-  type CardLabel,
-} from '../../card/card-labels'
-import {
-  invalidLanguageMessage,
-  isCardLanguage,
-  storedLanguage,
-  type CardLanguage,
-} from '../../card/card-language'
-import {
-  normalizedTags,
-  parseCardTag,
-  parseCardTagsValue,
-  type CardTag,
-} from '../../card/card-tags'
-import type { ChangeEvent, MoveReplacement } from '../../changes/change-event'
-import { isFinish } from '../../card/finish-condition'
+import type { ChangeEvent } from '../../changes/change-event'
 import type { DroppedNote } from '../../list/move-staging'
 import type { SaveEffect } from '../../changes/save-effects'
 import { t } from '../../i18n/t'
@@ -60,19 +38,6 @@ export async function requireCardCache(requirement: string): Promise<Response | 
   }
   return null
 }
-
-/**
- * Why a save may have arrived without a `contentHash`, appended to the routes'
- * "required fields" refusal.
- *
- * A filtered or paged load returns `partial: true` and no hash precisely so a
- * slice cannot be saved back over the whole file; a client that stripped the
- * hash on purpose gets the same message, which costs nothing and rescues the
- * client that did not realise its load was narrowed.
- */
-export const PARTIAL_LOAD_HINT =
-  'A filtered or paged load returns "partial": true and no contentHash, because saving a slice ' +
-  'would truncate the file — reload the list without section/nameContains/limit/offset first.'
 
 export type HashValidationSuccess = {
   valid: true
@@ -147,9 +112,10 @@ export function refuseUnreadableBaseline(
  *
  * Every string in these parts — card names, set codes, collector numbers,
  * sections, list names — is written into a card line, a heading, or a changelog
- * prose line, and every one of those is a single line. The body is cast
- * unvalidated, so a name like `"Sol Ring\n- 1 Black Lotus &3"` would otherwise
- * write a forged card line. Refused rather than folded: a card name is the
+ * prose line, and every one of those is a single line, so a name like
+ * `"Sol Ring\n- 1 Black Lotus &3"` would otherwise write a forged card line.
+ * The save and move routes run this over their raw bodies first, so the refusal
+ * carries a message key and the JSON path. Refused rather than folded: a card name is the
  * card's identity, and folding it would quietly write a different one.
  *
  * `parts` maps each request field name to its value, so the refusal names the
@@ -164,362 +130,11 @@ export function refuseLineBreaks(parts: Record<string, unknown>): Response | nul
   return null
 }
 
-/**
- * Trim and validate every note found in the request payload (set-note changes
- * and any entry-level `note` fields). Mutates each note in place to the trimmed
- * value. Returns a 400 Response if any note contains control characters.
- */
-type RequestNoteEntry = { note?: string }
-
-export function normalizeRequestNotes(
-  changes: ChangeEvent[],
-  entries: RequestNoteEntry[],
-): Response | null {
-  for (const change of changes) {
-    if (change.action !== 'set-note') continue
-    const result = normalizeNote(change.note)
-    if (!result.ok) return badRequest(result.error)
-    change.note = result.note
-  }
-  for (const entry of entries) {
-    if (entry.note === undefined) continue
-    const result = normalizeNote(entry.note)
-    if (!result.ok) return badRequest(result.error)
-    entry.note = result.note === '' ? undefined : result.note
-  }
-  return null
-}
-
-/**
- * An entry (a named card line — a deck card or a wanted row) whose
- * request-supplied labels need validating. `name` is what every request entry
- * shape carries, so an entry type that declares no `labels` at all (a wanted
- * row) still reaches the check: the request body is cast unvalidated, and this
- * is the boundary that exists to *prove* the field's value — or its absence —
- * not assume it. `unknown` on purpose, for the same reason.
- */
-type RequestLabelEntry = { name: string; labels?: unknown }
-
-/**
- * Validate one incoming label set against what `type` carries, returning the
- * normalized labels or the 400 refusal naming the offenders.
- */
-type LabelFieldResult = { ok: true; labels: CardLabel[] } | { ok: false; response: Response }
-
-function normalizeLabelField(raw: unknown, type: ListType): LabelFieldResult {
-  const result = parseCardLabelsValue(raw, 'labels')
-  if (!result.ok) return { ok: false, response: badRequest(result.message) }
-  // One decision for every surface — the CLI flags, this route, the bundle
-  // importer, and the MCP schemas all ask `checkLabelsForListType`, so an empty
-  // set (a clear) is accepted and refused in the same places by all of them.
-  const check = checkLabelsForListType(type, result.labels)
-  if (!check.ok) {
-    return { ok: false, response: badRequest(unsupportedLabelsMessage(type, check.unsupported)) }
-  }
-  return { ok: true, labels: result.labels }
-}
-
-/**
- * Validate and normalize the labels on every `set-label` (and label-carrying
- * `add` / `remove`) change in the request payload — and on every request entry that will
- * be re-serialized — mutating each in place to the normalized (deduped,
- * canonically ordered) form. The request body is cast unvalidated, so this is
- * the boundary that keeps an illegal combination (`keep` alongside
- * `sale`/`trade`), an unknown token, or a label the list type does not carry
- * (`sale` on a deck; any label, or the empty set, on a wanted list) out of the
- * serializer. Returns a 400 Response naming the first offender, or null when
- * all are legal.
- */
-export function normalizeRequestLabels(
-  changes: ChangeEvent[],
-  type: ListType,
-  entries: RequestLabelEntry[] = [],
-): Response | null {
-  for (const change of changes) {
-    if (change.action === 'set-label') {
-      const result = normalizeLabelField(change.labels, type)
-      if (!result.ok) return result.response
-      change.labels = result.labels
-    } else if (
-      (change.action === 'add' || change.action === 'remove') &&
-      change.labels !== undefined
-    ) {
-      const result = normalizeLabelField(change.labels, type)
-      if (!result.ok) return result.response
-      change.labels = normalizedOverride(result.labels)
-    }
-  }
-  for (const entry of entries) {
-    if (entry.labels === undefined) continue
-    const result = normalizeLabelField(entry.labels, type)
-    if (!result.ok) return result.response
-    entry.labels = normalizedOverride(result.labels)
-  }
-  return null
-}
-
-/**
- * An entry (deck card or wanted row) whose request-supplied tags need
- * validating. `unknown` on purpose, like {@link RequestLabelEntry}: the request
- * body is cast unvalidated, and this is the boundary that proves the value.
- */
-type RequestTagEntry = { tags?: unknown }
-
-/** One incoming tag set, canonical (or `undefined` for none), or its 400 refusal. */
-type TagsFieldResult = { ok: true; tags: CardTag[] | undefined } | { ok: false; response: Response }
-
-function normalizeTagsField(raw: unknown): TagsFieldResult {
-  const result = parseCardTagsValue(raw, 'tags')
-  if (!result.ok) return { ok: false, response: badRequest(result.message) }
-  // The stored form: file data never carries an empty tag set, so an empty
-  // array on the way in is "no tags" on the way out (`normalizedTags`).
-  return { ok: true, tags: normalizedTags(result.tags) }
-}
-
-/**
- * Validate and canonicalize the tags in a save request — the `tag` of every
- * `add-tag` / `remove-tag` change, the `tags` an `add` / `remove` / `move-from` /
- * `move-to` may carry (a move's land on the other list's line), and
- * the `tags` of every request entry that will be re-serialized (the deck and
- * wanted routes write the entries they are handed) — mutating each in place to
- * the canonical form (trimmed, single-spaced, deduplicated, sorted, no `#` — a
- * typed leading `#` is tolerated and dropped). The request body is cast
- * unvalidated, so this is the boundary that keeps a malformed tag (`a,b`,
- * `R&D`) out of the serializer and the changelog: the tag
- * grammar is a file-format rule, and a line written with a bad one would not
- * re-parse. Returns a 400 Response carrying the parser's refusal for the first
- * offender, or null when every tag is legal.
- */
-export function normalizeRequestTags(
-  changes: ChangeEvent[],
-  entries: RequestTagEntry[],
-): Response | null {
-  for (const change of changes) {
-    if (change.action === 'add-tag' || change.action === 'remove-tag') {
-      // Refused, never coerced: `String(undefined)` is a perfectly tag-shaped
-      // "undefined", and a missing field must not become a `#undefined` token.
-      const raw: unknown = change.tag
-      if (typeof raw !== 'string') {
-        return badRequest(`A ${change.action} change requires a string "tag".`)
-      }
-      const result = parseCardTag(raw)
-      if (!result.ok) return badRequest(result.message)
-      change.tag = result.tag
-    } else if (
-      (change.action === 'add' ||
-        change.action === 'remove' ||
-        change.action === 'move-from' ||
-        change.action === 'move-to') &&
-      change.tags !== undefined
-    ) {
-      const result = normalizeTagsField(change.tags)
-      if (!result.ok) return result.response
-      change.tags = result.tags
-    }
-  }
-  for (const entry of entries) {
-    if (entry.tags === undefined) continue
-    const result = normalizeTagsField(entry.tags)
-    if (!result.ok) return result.response
-    entry.tags = result.tags
-  }
-  return null
-}
-
-/**
- * Validate and canonicalize the categories in a save request — the `categories`
- * of every `set-categories`, the `order` of every `set-category-order`, and the
- * two names of every `rename-category`. The request body is cast unvalidated, so
- * this is the boundary that keeps a malformed category name out of the sidecar
- * and the changelog. Returns a 400 Response carrying the parser's refusal for
- * the first offender, or null when every value is legal.
- *
- * An empty `categories` array is legal and meaningful: it is a *clear*.
- */
-export function normalizeRequestCategories(changes: ChangeEvent[]): Response | null {
-  for (const change of changes) {
-    if (isCategoryChange(change)) {
-      // The body is cast unvalidated, so a client could smuggle a `cardId` onto
-      // a name-keyed event; the file boundary refuses it too. A foreign list's
-      // `&N` would otherwise be persisted into this list's changelog prose.
-      const raw = change as unknown as Record<string, unknown>
-      if (raw.cardId !== undefined) {
-        return badRequest(
-          `A ${change.action} change is keyed by card name and must not carry a "cardId".`,
-        )
-      }
-      if (change.action !== 'set-categories' && raw.cardName !== undefined) {
-        return badRequest(
-          `A ${change.action} change targets the list, not a card, and must not carry a "cardName".`,
-        )
-      }
-    }
-    if (change.action === 'set-categories') {
-      // Refused, never coerced — the same rule the tag normalizer states: a
-      // missing field must not become a category-shaped "undefined".
-      const result = parseCardCategoriesValue(change.categories, '"categories"')
-      if (!result.ok) return badRequest(result.message)
-      change.categories = result.categories
-    } else if (change.action === 'set-category-order') {
-      const result = parseCardCategoriesValue(change.order, '"order"')
-      if (!result.ok) return badRequest(result.message)
-      change.order = result.categories
-    } else if (change.action === 'rename-category') {
-      for (const field of ['category', 'newCategory'] as const) {
-        const raw: unknown = change[field]
-        if (typeof raw !== 'string') {
-          return badRequest(`A rename-category change requires a string "${field}".`)
-        }
-        const parsed = parseCardCategory(raw)
-        if (!parsed.ok) return badRequest(parsed.message)
-        change[field] = parsed.category
-      }
-    }
-  }
-  return null
-}
-
-/**
- * An entry (deck card or wanted row) whose request-supplied language needs
- * validating. `unknown` on purpose: the request body is cast unvalidated, and
- * this is the boundary that exists to *prove* the value, not assume it.
- */
-type RequestLanguageEntry = { language?: unknown }
-
-/**
- * Lowercase-normalize and validate the incoming value of one `language` field.
- * Returns the canonical code or the 400 refusal naming the offender. The
- * request body is cast unvalidated, so this is the boundary that keeps an
- * unknown code out of the serializer.
- */
-type RequiredLanguageFieldResult =
-  { ok: true; language: CardLanguage } | { ok: false; response: Response }
-
-/** {@link requireLanguageField}'s shape, with "field absent" as a legal outcome. */
-type OptionalLanguageFieldResult =
-  { ok: true; language: CardLanguage | undefined } | { ok: false; response: Response }
-
-/** The required variant: the field must be present and name a known language. */
-function requireLanguageField(raw: unknown, where: string): RequiredLanguageFieldResult {
-  const value = typeof raw === 'string' ? raw.toLowerCase() : null
-  if (value === null || !isCardLanguage(value)) {
-    return {
-      ok: false,
-      response: badRequest(invalidLanguageMessage(raw, `on ${where}`)),
-    }
-  }
-  return { ok: true, language: value }
-}
-
-/** The optional variant: an absent field is legal (English / leave alone). */
-function normalizeLanguageField(raw: unknown, where: string): OptionalLanguageFieldResult {
-  if (raw === undefined) return { ok: true, language: undefined }
-  return requireLanguageField(raw, where)
-}
-
-/**
- * Validate and lowercase-normalize the language on every language-carrying
- * change (`set-language`, `add`, `remove`, `set-printing`, `move-from`,
- * `move-to`) and on every request entry that will be re-serialized, mutating
- * each in place — mirroring {@link normalizeRequestLabels} /
- * {@link normalizeRequestNotes}. A `set-language` change *requires* the field;
- * everywhere else it is optional (absent means English). Returns a 400 Response
- * naming the first offender, or null when all are legal.
- */
-export function normalizeRequestLanguages(
-  changes: ChangeEvent[],
-  entries: RequestLanguageEntry[],
-): Response | null {
-  for (const change of changes) {
-    switch (change.action) {
-      case 'set-language': {
-        if (change.language === undefined) {
-          return badRequest('A set-language change requires a "language".')
-        }
-        const result = requireLanguageField(
-          change.language,
-          `set-language change for "${change.cardName}"`,
-        )
-        if (!result.ok) return result.response
-        change.language = result.language
-        break
-      }
-      case 'add':
-      case 'remove':
-      case 'set-printing':
-      case 'move-from':
-      case 'move-to': {
-        const result = normalizeLanguageField(
-          change.language,
-          `${change.action} change for "${change.cardName}"`,
-        )
-        if (!result.ok) return result.response
-        change.language = result.language
-        break
-      }
-      default:
-        break
-    }
-  }
-  for (const entry of entries) {
-    if (entry.language === undefined) continue
-    const result = normalizeLanguageField(entry.language, 'a card entry')
-    if (!result.ok) return result.response
-    // `en` folds back to the written-value shape (a bare line means English).
-    entry.language = storedLanguage(result.language)
-  }
-  return null
-}
-
-/**
- * Validate and lowercase-normalize the `replacement` on every incoming
- * `move-to` change (the printing a source list gets back for the copy a swap
- * took), mutating in place like {@link normalizeRequestLanguages}. The value
- * arrives from an unvalidated request body and is written to the source
- * list's card line, so half a printing — which the line writer would fold to
- * a name-only line — is refused here. Returns a 400 Response naming the first
- * offender, or null when all are legal.
- */
-export function normalizeRequestReplacements(changes: ChangeEvent[]): Response | null {
-  for (const change of changes) {
-    if (change.action !== 'move-to' || change.replacement === undefined) continue
-    const raw: unknown = change.replacement
-    const where = `move-to change for "${change.cardName}"`
-    if (change.replacesCardId === undefined) {
-      return badRequest(`The ${where} carries a replacement but pins no line ("replacesCardId").`)
-    }
-    if (typeof raw !== 'object' || raw === null) {
-      return badRequest(`The replacement on the ${where} must be an object.`)
-    }
-    const fields = raw as Record<string, unknown>
-    if (typeof fields.set !== 'string' || typeof fields.collectorNumber !== 'string') {
-      return badRequest(`The replacement on the ${where} needs a "set" and "collectorNumber".`)
-    }
-    if (
-      fields.finish !== undefined &&
-      (typeof fields.finish !== 'string' || !isFinish(fields.finish))
-    ) {
-      return badRequest(`The replacement on the ${where} has an unknown finish.`)
-    }
-    const language = normalizeLanguageField(fields.language, `the replacement on the ${where}`)
-    if (!language.ok) return language.response
-    const replacement: MoveReplacement = {
-      set: fields.set.toLowerCase(),
-      collectorNumber: fields.collectorNumber,
-    }
-    if (fields.finish !== undefined) replacement.finish = fields.finish
-    if (language.language !== undefined) replacement.language = language.language
-    change.replacement = replacement
-  }
-  return null
-}
-
 /** Everything the shared save tail needs; see {@link finishListSave}. */
 export interface ListSaveTail {
   /**
    * Which list this is. The commit directory, the commit message, and the
-   * response's wording all follow from it — the three routes used to spell each
-   * of those out, which is three chances for them to drift.
+   * response's wording all follow from it, so they cannot drift apart.
    */
   listType: ListType
   /** The list file to write. */
@@ -654,7 +269,7 @@ function artReconcile(tail: ListSaveTail): CardArtReconcileInput {
 }
 
 /**
- * The shared tail of the three save routes: write the list file, append the
+ * The shared tail of the list save route: write the list file, append the
  * changelog, auto-commit.
  *
  * **Ordering is deliberate — file first, changelog second.** Neither order is
@@ -662,8 +277,7 @@ function artReconcile(tail: ListSaveTail): CardArtReconcileInput {
  * describing an edit the file never received, or a correct file with an
  * incomplete audit trail. `ritual history`, the change-bundle export, the
  * editors' undo, and the sync flows all *act on* changelog entries, so a phantom
- * propagates while a gap does not. The deck route used to write the changelog
- * first and now matches the other two (as does the deck-sync engine).
+ * propagates while a gap does not. The deck-sync engine writes in the same order.
  */
 export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailResult> {
   const written = await writeFileWithHash(tail.filePath, tail.content)
@@ -751,7 +365,7 @@ export function categoriesUnreconciledWarning(reason: string): string {
 }
 
 /**
- * The success body all three save routes return, built from the same tail they
+ * The success body the list save route returns, built from the same tail they
  * were saved with so the message and the subject cannot disagree with the
  * changelog and the commit.
  */

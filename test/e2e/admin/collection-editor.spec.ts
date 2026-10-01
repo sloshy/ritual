@@ -30,8 +30,14 @@ const MOCK_STATIC_ORB = makeMockScryfallCard({
   image_uris: { normal: 'https://img.example/static-orb.jpg' },
 })
 
+/** A change as the save request carries it: the wire form, no session envelope. */
+type WireSavedChange = { action: string; id?: unknown; timestamp?: unknown }
+
+/** The collection save request as posted. */
+type SectionsSaveBody = Record<string, unknown> & { changes: WireSavedChange[] }
+
 test.describe('Collection Editor sections', () => {
-  let savedBody: { changes: { action: string }[]; sectionOrder: string[] } | null
+  let savedBody: SectionsSaveBody | null
 
   test.beforeEach(async ({ page }) => {
     savedBody = null
@@ -105,13 +111,18 @@ test.describe('Collection Editor sections', () => {
 
     await expect(page.locator('.changes-badge')).toHaveText('2')
 
-    // Save and assert the request carried exactly the add-section and set-section changes
-    // plus the updated section order in the right order.
+    // Save and assert the request carried exactly the add-section and set-section
+    // changes, in order — and nothing else: the server derives the section order
+    // and the list from the file, and stamps each change's envelope itself.
     await page.locator('.btn-save').click()
     await expect
       .poll(() => savedBody?.changes.map((c) => c.action))
       .toEqual(['add-section', 'set-section'])
-    expect(savedBody!.sectionOrder).toEqual(['Main', 'Foils'])
+    expect(Object.keys(savedBody!).sort()).toEqual(['changes', 'contentHash', 'continueSession'])
+    for (const change of savedBody!.changes) {
+      expect(change).not.toHaveProperty('id')
+      expect(change).not.toHaveProperty('timestamp')
+    }
   })
 
   test('deleting an empty section is allowed but a non-empty one is blocked', async ({ page }) => {

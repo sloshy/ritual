@@ -40,20 +40,25 @@ type ScryfallErrorDetails = { object: 'error'; details: string }
 type ScryfallSearchBody = ScryfallList<ScryfallCard> | ScryfallErrorBody | ScryfallErrorDetails
 
 /** The installed stub, so both describes read the URLs it recorded the same way. */
-let scryfall: StubbedFetch
+let scryfall: StubbedFetch | undefined
 
 /**
  * Answer every Scryfall search with `body`, at `status`, discarding whatever the
  * previous test staged. One helper for both modes: the two describes stub the
  * same endpoint and differ only in what they assert about the answer.
+ *
+ * The previous stub is restored first, so the stubs never stack: a stacked one
+ * would restore to its predecessor, and the `afterAll` would leave a stub
+ * installed for every test file that runs after this one.
  */
 function stubScryfall(body: ScryfallSearchBody, status = 200): void {
+  scryfall?.restore()
   scryfall = stubFetch({ 'https://api.scryfall.com': () => Response.json(body, { status }) })
 }
 
 /** The URLs the current stub has been asked for, in order. */
 function requestedUrls(): string[] {
-  return scryfall.sent.map((request) => request.url)
+  return scryfall?.sent.map((request) => request.url) ?? []
 }
 
 // "The End" is an unpopular card whose name the popular ones all contain. The
@@ -152,7 +157,7 @@ describe('handleCardSearch', () => {
   // No workspace and no seeded cache: this route neither reads nor writes the
   // card cache, so the only external it has is `fetch`.
   afterAll(() => {
-    scryfall.restore()
+    scryfall?.restore()
   })
 
   type SearchRun = { status: number; body: CardSearchResponse }
@@ -244,7 +249,7 @@ describe('handleCardSearch with warm=true', () => {
   })
 
   afterAll(async () => {
-    scryfall.restore()
+    scryfall?.restore()
     await workspace.dispose()
   })
 

@@ -68,8 +68,9 @@ export function apiErrorToMcp(
   }
   // 499 is the status every admin route answers a cancelled request with.
   if (status === 499) return new ProtocolError(CANCELLED_ERROR_CODE, message, detail)
+  // 413 is the caller's argument too: a batch or file past a route's budget.
   const code =
-    status === 400 || status === 404
+    status === 400 || status === 404 || status === 413
       ? ProtocolErrorCode.InvalidParams
       : ProtocolErrorCode.InternalError
   return new ProtocolError(code, message, detail)

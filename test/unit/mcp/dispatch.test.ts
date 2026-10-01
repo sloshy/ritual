@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server'
-import { callApi, callApiData } from '../../../src/mcp/dispatch'
+import { callApi, callApiData, errorDetail } from '../../../src/mcp/dispatch'
 import { withConflictRetry } from '../../../src/mcp/mutations'
 import { CONFLICT_ERROR_CODE } from '../../../src/mcp/error-codes'
 import { apiErrorToMcp, isConflictError, type McpErrorDetail } from '../../../src/mcp/errors'
@@ -9,8 +9,10 @@ import { toolError } from '../../mcp-test-utils'
 import { setupRitualTestEnv, type RitualTestEnv } from './harness'
 
 describe('apiErrorToMcp', () => {
+  // 413 included: a batch or file past a route's budget is the caller's
+  // argument, not a server fault — the fix is a smaller call.
   test('maps client-error statuses to InvalidParams and keeps the message', () => {
-    for (const status of [400, 404]) {
+    for (const status of [400, 404, 413]) {
       const err = apiErrorToMcp(status, { message: `boom ${status}` })
       expect(ProtocolError.isInstance(err)).toBe(true)
       expect(err.code).toBe(ProtocolErrorCode.InvalidParams)
@@ -38,6 +40,24 @@ describe('apiErrorToMcp', () => {
     expect(isConflictError(apiErrorToMcp(400, {}))).toBe(false)
     expect(isConflictError(apiErrorToMcp(500, {}))).toBe(false)
     expect(isConflictError(new Error('plain'))).toBe(false)
+  })
+})
+
+describe('errorDetail', () => {
+  test("surfaces a refusal body's unmatched strings as the error detail", () => {
+    const body = { success: false, message: 'Nothing was saved.', unmatched: ['Remove Ghost'] }
+    expect(errorDetail(body)).toEqual({ unmatched: ['Remove Ghost'] })
+  })
+
+  // All strings or nothing: a detail the tool wrapper could not render whole
+  // is no detail at all.
+  test('yields no detail when an unmatched item is not a string', () => {
+    expect(errorDetail({ unmatched: ['Remove Ghost', 7] })).toBeUndefined()
+  })
+
+  test('yields no detail for a body without an unmatched list', () => {
+    expect(errorDetail({ message: 'not found' })).toBeUndefined()
+    expect(errorDetail(null)).toBeUndefined()
   })
 })
 

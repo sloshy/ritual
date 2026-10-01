@@ -397,8 +397,10 @@ export function* swapMovesToChanges(
         cardId: converts ? pinned : destinationId(move),
         ...(move.section !== undefined ? { section: move.section } : {}),
         ...(sourceCardId !== undefined ? { sourceCardId } : {}),
+        // The replacement goes back in place of the pinned line, so it only
+        // travels with one: an unpinned copy arrives as a plain add.
         ...(pinned !== undefined ? { replacesCardId: pinned } : {}),
-        ...(replacement !== undefined ? { replacement } : {}),
+        ...(pinned !== undefined && replacement !== undefined ? { replacement } : {}),
       }
       // A split takes one copy off the name-only line; its id goes with the last.
       let release: number | undefined

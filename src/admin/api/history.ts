@@ -22,7 +22,7 @@ import { autoCommitAndPush } from './save-helpers'
 import { categoriesUnreadableWarning } from './categories'
 import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
-import { MAX_LIST_BODY_SIZE } from '../validation'
+import { MAX_UPLOAD_BODY_SIZE } from '../validation'
 import { createFenceTracker } from '../../list/markdown-fence'
 import { hasLineBreak } from '../../util/single-line'
 
@@ -174,9 +174,9 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     const target = parseListTarget(req)
     if (typeof target === 'string') return apiError(target, 400)
 
-    const parsedBody = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
+    const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
-    const raw = parsedBody.body as unknown as RawSaveBody
+    const raw: RawSaveBody = parsedBody.body
     const sets = parseSets(raw, target.type)
     if (typeof sets === 'string') return badRequest(sets)
 

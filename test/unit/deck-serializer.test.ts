@@ -105,8 +105,8 @@ describe('serializeDeckToMarkdown: canonical format', () => {
     expect(parseDeckText(result, 'Fallback').deck.format).toBe('commander')
   })
 
-  // The admin deck-save handler passes the front matter straight from the request
-  // body, so raw, unvalidated values do reach the serializer.
+  // A save re-emits the file's own front matter, which is hand-editable, so raw,
+  // unvalidated values do reach the serializer.
   test('rewrites a declared format into its canonical key', () => {
     const untrusted: Record<string, unknown> = { name: 'Test Deck', format: 'Duel Commander' }
     const result = serializeDeckToMarkdown({ name: 'Test Deck', sections: [] }, untrusted)

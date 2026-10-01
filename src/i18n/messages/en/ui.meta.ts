@@ -126,6 +126,10 @@ export const uiMeta = {
   'ui.editor.saveFailed': {
     description: 'Fallback error when the server refused a save without saying why.',
   },
+  'ui.editor.saveDroppedRefused': {
+    description:
+      'Shown when the user saves and some pending edits no longer make sense against the list as loaded (for example, an edit to a card a later edit removed). Those edits were taken out of the pending list and the rest were saved. {count} is how many were dropped.',
+  },
   'ui.editor.saveRequestFailed': {
     description: 'Error when the save request never reached the server (offline, dropped network).',
   },

@@ -1,7 +1,7 @@
 import { dispatchRoute, type RequestContext } from '../admin/server'
 import type { HttpMethod } from '../util/routing'
 import { buildSyntheticRequest } from '../util/synthetic-request'
-import { apiErrorToMcp, type ApiErrorBody } from './errors'
+import { apiErrorToMcp, type ApiErrorBody, type McpErrorDetail } from './errors'
 import type { OmitSuccess } from './types'
 import type { RouteProgressSink } from '../util/progress'
 import { isRecord } from '../util/json'
@@ -24,6 +24,19 @@ function errorBody(data: unknown, status: number): ApiErrorBody {
     }
   }
   return { message: `Admin request failed (HTTP ${status})` }
+}
+
+/**
+ * The structured detail a refusal body carries for the tool wrapper: the save
+ * routes' per-change `unmatched` list, when the batch was refused as a whole.
+ * Exported for its unit test: no real route sends a malformed `unmatched`.
+ */
+export function errorDetail(data: unknown): McpErrorDetail | undefined {
+  if (!isRecord(data) || !Array.isArray(data.unmatched)) return undefined
+  const items: readonly unknown[] = data.unmatched
+  // All strings or nothing, the rule `mcpErrorDetail` reads the detail back by.
+  if (!items.every((item): item is string => typeof item === 'string')) return undefined
+  return { unmatched: [...items] }
 }
 
 /**
@@ -63,7 +76,7 @@ export async function callApi(
   }
 
   if (!response.ok) {
-    throw apiErrorToMcp(response.status, errorBody(data, response.status))
+    throw apiErrorToMcp(response.status, errorBody(data, response.status), errorDetail(data))
   }
   // A few handlers report failure with a 2xx + `success: false`; treat those as
   // client errors so they still surface as tool errors instead of "succeeding".

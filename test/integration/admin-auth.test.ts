@@ -10,6 +10,11 @@ import {
   setTotpSecret,
 } from '../../src/admin/auth'
 import { startAdminServer } from '../../src/admin/server'
+import { handleSetup } from '../../src/admin/api/setup'
+import { handleLogin } from '../../src/admin/api/auth-login'
+import { handleTotpVerifySetup } from '../../src/admin/api/totp'
+import { handleArchidektLogin } from '../../src/admin/api/login'
+import type { ApiErrorResponse } from '../../src/api/http'
 import { createSession, getSessionCookieName } from '../../src/admin/session'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 
@@ -226,5 +231,55 @@ describe('admin server shutdown (Integration)', () => {
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(fetch(url)).rejects.toThrow()
+  })
+})
+
+/** An auth route, called the way the server's route table calls it. */
+type AuthRouteCase = {
+  route: string
+  handler: (req: Request) => Promise<Response>
+}
+
+const AUTH_ROUTES: AuthRouteCase[] = [
+  { route: '/api/setup', handler: handleSetup },
+  // An address no other suite locks out: the login rate limiter is process-wide.
+  { route: '/api/login', handler: (req) => handleLogin(req, '10.99.0.2') },
+  { route: '/api/totp/verify-setup', handler: handleTotpVerifySetup },
+  { route: '/api/login/archidekt', handler: handleArchidektLogin },
+]
+
+describe.each(AUTH_ROUTES)('POST $route body shape (Integration)', ({ route, handler }) => {
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  /** POST `body` as the route's JSON body, verbatim. */
+  function post(body: string): Promise<Response> {
+    return handler(
+      new Request(`http://localhost${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      }),
+    )
+  }
+
+  // A malformed body is the caller's mistake: a 400 that says so, never a 500
+  // or a credentials refusal that would send the user re-typing a password.
+  test.each([
+    ['a body that is not JSON', '{"username": ', 'Request body must be JSON.'],
+    [
+      'a JSON body that is not an object',
+      '["admin", "hunter22"]',
+      'Request body must be a JSON object.',
+    ],
+  ])('%s is a 400', async (_label, body, message) => {
+    const resp = await post(body)
+    expect(resp.status).toBe(400)
+    expect(((await resp.json()) as ApiErrorResponse).message).toBe(message)
   })
 })

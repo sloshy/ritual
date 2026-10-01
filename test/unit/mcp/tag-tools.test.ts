@@ -129,7 +129,7 @@ describe('card tags over MCP', () => {
     // The sigil, surrounding whitespace, and a forbidden character — the ways
     // a tag typed as prose differs from its stored form. An agent sends the
     // value, never the token. (The HTTP save routes canonicalize these instead
-    // — see test/integration/collection-save.test.ts — because a browser
+    // — see test/integration/list-save-types.test.ts — because a browser
     // editor forwards what a person typed; an agent is held to the stored form.)
     for (const tag of ['#Ramp', ' Ramp', 'a,b']) {
       expectSchemaRejection(

@@ -54,6 +54,10 @@ Card search and prices are answered from the server's card cache, so keep it war
 
 Cards missing from the cache render without data, and autocomplete does not offer them. The live endpoints never fall back to Scryfall for list data.
 
+## Request size
+
+Every API route is public, so request bodies are capped at what each route needs, the largest being a full [buylist quote](/public-site/sell/) request at about 117 KiB. A larger body is refused with `413`, whether or not it declares a `Content-Length`, and the server never buffers more than 16 KiB past that.
+
 ## Route reference
 
 See [`serve` → Live API mode](/commands/serve/#live-api-mode---api) for the full route table, caching, and CORS details.

@@ -1,8 +1,7 @@
 import { createAdminUser, adminUserExists } from '../auth'
 import { apiHandler } from '../utils'
 import { apiMessage, type ApiMessage } from '../../api/result'
-import { validateBodySize } from '../../api/http'
-import { isRecord } from '../../util/json'
+import { apiError, readJsonObjectBody } from '../../api/http'
 import { isSetupToken } from '../setup-token'
 import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '../validation'
 
@@ -23,8 +22,7 @@ interface SetupResponse extends ApiMessage {
  * them (`undefined > 64` is false) and reach the hasher. An empty field reads
  * as missing; the caller reports that.
  */
-function parseSetupRequest(raw: unknown): SetupRequest | null {
-  if (!isRecord(raw)) return null
+function parseSetupRequest(raw: Record<string, unknown>): SetupRequest {
   const { username, password, setupToken } = raw
   return {
     username: typeof username === 'string' ? username : '',
@@ -33,41 +31,25 @@ function parseSetupRequest(raw: unknown): SetupRequest | null {
   }
 }
 
-function refuse(status: number, reason: string | ApiMessage): Response {
-  const resp: SetupResponse = {
-    success: false,
-    ...(typeof reason === 'string' ? { message: reason } : reason),
-  }
-  return Response.json(resp, { status })
-}
-
 export function handleSetup(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    if (await adminUserExists()) return refuse(409, 'Admin user already exists')
+    if (await adminUserExists()) return apiError('Admin user already exists', 409)
 
-    const tooLarge = validateBodySize(req)
-    if (tooLarge) return tooLarge
-
-    let raw: unknown
-    try {
-      raw = await req.json()
-    } catch {
-      return refuse(400, 'Request body must be JSON.')
-    }
-    const body = parseSetupRequest(raw)
-    if (!body) return refuse(400, 'Request body must be a JSON object.')
+    const parsed = await readJsonObjectBody(req)
+    if (!parsed.ok) return parsed.response
+    const body = parseSetupRequest(parsed.body)
 
     // Before any field rule, so a caller without the token learns nothing about them.
     if (!isSetupToken(body.setupToken)) {
-      return refuse(403, apiMessage('admin.api.setup.tokenInvalid'))
+      return apiError(apiMessage('admin.api.setup.tokenInvalid'), 403)
     }
 
     const { username, password } = body
-    if (!username || !password) return refuse(400, 'username and password are required')
-    if (username.length > MAX_USERNAME_LENGTH) return refuse(400, 'Username is too long')
-    if (password.length > MAX_PASSWORD_LENGTH) return refuse(400, 'Password is too long')
+    if (!username || !password) return apiError('username and password are required', 400)
+    if (username.length > MAX_USERNAME_LENGTH) return apiError('Username is too long', 400)
+    if (password.length > MAX_PASSWORD_LENGTH) return apiError('Password is too long', 400)
     if (password.length < MIN_PASSWORD_LENGTH) {
-      return refuse(400, `Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+      return apiError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`, 400)
     }
 
     await createAdminUser(username, password)

@@ -1,3 +1,4 @@
+import { MAX_EDIT_BODY_SIZE } from '../validation'
 /**
  * The HTTP shape both sync endpoints share: a JSON run, an SSE stream of the
  * same run, and the progress mapping in front of them.
@@ -120,7 +121,7 @@ export function runSyncRoute<TRequest, TReport, TResult>(
   signal?: AbortSignal,
 ): Promise<Response> {
   return apiHandler(async () => {
-    const parsedBody = await readJsonObjectBody(req)
+    const parsedBody = await readJsonObjectBody(req, MAX_EDIT_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
 
     const parsed = config.parseBody(parsedBody.body)

@@ -32,12 +32,10 @@ export function wantedState(entry: FinishedPrintingFields): WantedListEntryState
 }
 
 /**
- * Convert the parsed entries returned by the wanted load endpoint into the
- * card-entry shape `applyChangeToWantedList` operates on. The wanted save
- * endpoint serializes the entries it receives (unlike the collection endpoint,
- * which re-derives them from disk), so changes must be applied to these and the
- * full entry list sent back. Shared by the MCP mutations and the change-bundle
- * import engine.
+ * Convert parsed wanted entries — a file read, or the wanted load endpoint's
+ * body — into the card-entry shape `applyChangeToWantedList` operates on. The
+ * save route replays a save's changes over exactly this, and the change-bundle
+ * import dry-runs them over it first, so the two agree on what applies.
  */
 export function toWantedCardEntries(parsed: ParsedWantedEntry[]): WantedListCardEntry[] {
   return parsed.map((entry, index) => ({

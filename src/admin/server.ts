@@ -45,14 +45,13 @@ import { handleCardPrintings } from '../api/card-printings'
 import { handleCardDetails } from '../api/card-details'
 import { handleCardSearch } from '../api/card-search'
 import { handleCardPrice } from '../api/card-price'
-import { handleDeckSave } from './api/deck-save'
+import { handleListSave } from './api/list-save'
+import { MAX_ADMIN_REQUEST_BODY_SIZE } from './validation'
 import { handleDeckCreate } from './api/deck-create'
 import { handleListCollections } from './api/collection-list'
 import { handleCollectionLoad } from './api/collection-load'
-import { handleCollectionSave } from './api/collection-save'
 import { handleListWantedLists } from './api/wanted-list'
 import { handleWantedListLoad } from './api/wanted-load'
-import { handleWantedListSave } from './api/wanted-save'
 import { handleMoveCommit, handleRemoveCommit, handleSelectedMove } from './api/move'
 import { handleCardIndex } from './api/card-index'
 import { handleArtSave } from './api/art'
@@ -254,7 +253,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/collection/:slug/save',
-    handler: handleCollectionSave,
+    handler: (req) => handleListSave(req, 'collection'),
     requiresAuth: true,
   },
   {
@@ -271,7 +270,12 @@ export const routes: Route[] = [
   },
   { method: 'GET', path: '/api/deck/:slug', handler: handleDeckLoad, requiresAuth: true },
   { method: 'POST', path: '/api/deck/create', handler: handleDeckCreate, requiresAuth: true },
-  { method: 'POST', path: '/api/deck/:slug/save', handler: handleDeckSave, requiresAuth: true },
+  {
+    method: 'POST',
+    path: '/api/deck/:slug/save',
+    handler: (req) => handleListSave(req, 'deck'),
+    requiresAuth: true,
+  },
   {
     method: 'POST',
     path: '/api/deck/:slug/rename',
@@ -305,7 +309,7 @@ export const routes: Route[] = [
   {
     method: 'POST',
     path: '/api/wanted/:slug/save',
-    handler: handleWantedListSave,
+    handler: (req) => handleListSave(req, 'wanted'),
     requiresAuth: true,
   },
   {
@@ -667,6 +671,7 @@ export async function startAdminServer(options: AdminServerOptions): Promise<Adm
   const server = Bun.serve({
     port,
     hostname: host,
+    maxRequestBodySize: MAX_ADMIN_REQUEST_BODY_SIZE,
     async fetch(req) {
       const response = await handleRequest(req, server, distDir)
       return withSecurityHeaders(response)

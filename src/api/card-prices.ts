@@ -20,7 +20,7 @@ export const MAX_PRICE_NAMES = 500
  * (`PRICES_BATCH_SIZE`) 413'd on a large price refresh. ~80 bytes per name is
  * roughly double the longest real card name plus its JSON quoting and comma.
  */
-const MAX_PRICE_BODY_BYTES = MAX_PRICE_NAMES * 80
+export const MAX_PRICE_BODY_BYTES = MAX_PRICE_NAMES * 80
 
 export type CardPricesResponse = {
   success: true

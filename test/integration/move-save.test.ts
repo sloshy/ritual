@@ -15,9 +15,6 @@ import {
 } from '../../src/list/move-prepare'
 import { handleSelectedMove } from '../../src/admin/api/move'
 import { handleLists } from '../../src/admin/api/lists'
-import { handleDeckSave } from '../../src/admin/api/deck-save'
-import { handleCollectionSave } from '../../src/admin/api/collection-save'
-import { computeHash } from '../../src/changes/content-hash'
 import {
   categoriesHashPath,
   categoriesSidecarPath,
@@ -25,7 +22,6 @@ import {
   saveCardCategories,
 } from '../../src/list/card-categories-sidecar'
 import { categoriesOf, categoriesRecord } from '../helpers/card-categories'
-import type { DeckData } from '../../src/list/deck'
 import {
   bindWorkspace,
   writeCollectionFile,
@@ -33,6 +29,7 @@ import {
   writeWantedFile,
   type BoundWorkspace,
 } from '../helpers/workspace'
+import { saveList } from '../helpers/list-save'
 
 let ws: BoundWorkspace
 let tmpDir: string
@@ -69,35 +66,16 @@ const BINDER: ListRef = { type: 'collection', name: 'Binder' }
 const MY_DECK: ListRef = { type: 'deck', name: 'My Deck' }
 const WISHLIST: ListRef = { type: 'wanted', name: 'Wishlist' }
 
-/** The fixture deck with the given Main-section cards, as the client posts it. */
-function deckWith(cards: DeckData['sections'][number]['cards']): DeckData {
-  return { name: 'My Deck', sections: [{ name: 'Main', cards }] }
-}
-
 const SOL_RING = { quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }
 
 /** POST the deck save with the file's current hash — the editor's Save. */
-async function saveDeck(changes: ChangeEvent[], deck: DeckData): Promise<Response> {
-  const contentHash = computeHash(await fs.readFile(deckPath(), 'utf-8'))
-  return handleDeckSave(
-    new Request('http://localhost/api/deck/my-deck/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes, deck, name: 'My Deck', contentHash }),
-    }),
-  )
+function saveDeck(changes: ChangeEvent[]): Promise<Response> {
+  return saveList('deck', 'my-deck', deckPath(), changes)
 }
 
-/** POST the collection save with the file's current hash; the handler replays the changes. */
-async function saveBinder(changes: ChangeEvent[]): Promise<Response> {
-  const contentHash = computeHash(await fs.readFile(binderPath(), 'utf-8'))
-  return handleCollectionSave(
-    new Request('http://localhost/api/collection/binder/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ changes, contentHash }),
-    }),
-  )
+/** POST the collection save with the file's current hash. */
+function saveBinder(changes: ChangeEvent[]): Promise<Response> {
+  return saveList('collection', 'binder', binderPath(), changes)
 }
 
 describe('applyOutgoingMoves', () => {
@@ -321,7 +299,8 @@ describe('applyOutgoingMoves', () => {
 describe('incoming moves (move-to saved on the destination)', () => {
   test('a deck save takes the copy out of the source collection and writes both changelogs', async () => {
     // The editor stack holds the destination's own line (&2) and names the
-    // source line it came from; the deck payload already carries the line.
+    // source line it came from; the route replays the move-to to write that
+    // line, and takes the copy out of the source itself.
     const change = createMoveToChange('Lightning Bolt', {
       set: 'lea',
       collectorNumber: '161',
@@ -329,13 +308,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
       sourceCardId: 1,
       from: BINDER,
     })
-    const resp = await saveDeck(
-      [change],
-      deckWith([
-        SOL_RING,
-        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
-      ]),
-    )
+    const resp = await saveDeck([change])
     expect(resp.status).toBe(200)
 
     expect(await fs.readFile(deckPath(), 'utf-8')).toMatch(/1 Lightning Bolt \(LEA:161\) &2/)
@@ -399,13 +372,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
     const deckBefore = await fs.readFile(deckPath(), 'utf-8')
     const binderBefore = await fs.readFile(binderPath(), 'utf-8')
 
-    const resp = await saveDeck(
-      [move(2), move(3)],
-      deckWith([
-        SOL_RING,
-        { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
-      ]),
-    )
+    const resp = await saveDeck([move(2), move(3)])
     expect(resp.status).toBe(500)
     const body = (await resp.json()) as { success: boolean; message: string }
     expect(body.message).toContain('no matching copy')
@@ -416,15 +383,12 @@ describe('incoming moves (move-to saved on the destination)', () => {
     expect(await fs.exists(path.join(tmpDir, 'collections', 'binder.changes.md'))).toBe(false)
 
     // A source list that does not exist is refused the same way.
-    const ghost = await saveDeck(
-      [
-        createMoveToChange('Lightning Bolt', {
-          cardId: 2,
-          from: { type: 'collection', name: 'Ghost' },
-        }),
-      ],
-      deckWith([SOL_RING, { quantity: 1, name: 'Lightning Bolt', cardId: 2 }]),
-    )
+    const ghost = await saveDeck([
+      createMoveToChange('Lightning Bolt', {
+        cardId: 2,
+        from: { type: 'collection', name: 'Ghost' },
+      }),
+    ])
     expect(ghost.status).toBe(500)
     expect(((await ghost.json()) as { message: string }).message).toContain("Collection 'Ghost'")
     expect(await fs.readFile(deckPath(), 'utf-8')).toBe(deckBefore)
@@ -442,13 +406,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
       sourceCardId: 1,
       from: BINDER,
     })
-    const resp = await saveDeck(
-      [change],
-      deckWith([
-        SOL_RING,
-        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
-      ]),
-    )
+    const resp = await saveDeck([change])
     expect(resp.status).toBe(200)
 
     const deckArt = await loadCardArt(deckPath())
@@ -504,10 +462,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
     })
     // Destination: an empty deck, so the new line is &1.
     await writeDeckFile(tmpDir, 'my-deck', { name: 'My Deck', cards: [] })
-    const resp = await saveDeck(
-      [change],
-      deckWith([{ quantity: 1, name: 'Brainstorm', set: 'ice', collectorNumber: '64', cardId: 1 }]),
-    )
+    const resp = await saveDeck([change])
     expect(resp.status).toBe(200)
     const binder = await fs.readFile(binderPath(), 'utf-8')
     expect(binder).toContain('Lightning Bolt (LEA:161) &1')
@@ -589,20 +544,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
       cardId: 2,
       from: BINDER,
     })
-    const resp = await saveDeck(
-      [change],
-      deckWith([
-        SOL_RING,
-        {
-          quantity: 1,
-          name: 'Lightning Bolt',
-          set: 'lea',
-          collectorNumber: '161',
-          finish: 'foil',
-          cardId: 2,
-        },
-      ]),
-    )
+    const resp = await saveDeck([change])
     expect(resp.status).toBe(200)
     expect(await fs.readFile(binderPath(), 'utf-8')).not.toContain('Lightning Bolt')
     const binderLog = await changelogOf(binderPath())
@@ -634,12 +576,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
       sourceCardId: 1,
       from: BINDER,
     })
-    const resp = await saveDeck(
-      [out, incoming],
-      deckWith([
-        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 },
-      ]),
-    )
+    const resp = await saveDeck([out, incoming])
     expect(resp.status).toBe(200)
     const body = (await resp.json()) as { artWarnings?: string[] }
     expect(body.artWarnings).toBeUndefined()
@@ -998,13 +935,7 @@ describe('incoming moves pinning a name-only line', () => {
       from: BINDER,
       replacement: { set: 'm10', collectorNumber: '146', finish: 'foil' },
     })
-    const resp = await saveDeck(
-      [change],
-      deckWith([
-        SOL_RING,
-        { quantity: 1, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 2 },
-      ]),
-    )
+    const resp = await saveDeck([change])
     expect(resp.status).toBe(200)
 
     // The binder swapped its LEA copy for the replacement, which took the freed &1.

@@ -1,3 +1,4 @@
+import { MAX_EDIT_BODY_SIZE } from '../validation'
 import { getErrorMessage } from '../../util/errors'
 import {
   buildExportSelection,
@@ -197,7 +198,7 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | st
  */
 export async function handleExport(req: Request): Promise<Response> {
   try {
-    const read = await readJsonObjectBody(req)
+    const read = await readJsonObjectBody(req, MAX_EDIT_BODY_SIZE)
     if (!read.ok) return read.response
     const body = read.body as ExportRequestBody
 

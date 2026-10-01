@@ -78,15 +78,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     fetchList: () => fetchAdminJson('/api/collections'),
     extractListItems: (r) => (r as CollectionListResponse).collections ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/collection/${slug}`, signal),
-    commit: createApiCommit(
-      (slug) => `/api/collection/${slug}/save`,
-      ({ changes, contentHash, sectionOrder, continueSession }) => ({
-        changes,
-        contentHash,
-        sectionOrder,
-        continueSession,
-      }),
-    ),
+    commit: createApiCommit('collection'),
     entityLabel: 'collection',
 
     processLoadResponse: (response) => {

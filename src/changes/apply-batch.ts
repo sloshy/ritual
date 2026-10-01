@@ -73,20 +73,6 @@ export function listUnmatchedChanges(unmatched: readonly UnmatchedChange<ChangeE
 /** The list a batch of unmatched changes was aimed at, for the error message. */
 export type UnmatchedTarget = { type: ListType; slug: string }
 
-/**
- * One shared wording for "these changes did not apply", used by every surface
- * that rejects a batch (MCP mutations, the collection save handler, the
- * one-shot CLI path) so the phrasing cannot drift. Surfaces append their own
- * recovery hints — this text stays client-neutral.
- *
- * **English by contract, deliberately not routed through `t()`.** Its callers
- * are `src/mcp/mutations.ts` and `src/admin/api/collection-save.ts`, and MCP
- * result prose is English regardless of the operator's UI locale (plan §11).
- * The editors never render it: they surface the *rendered* `message` the API
- * returned, as `statusText`. It becomes localizable when Phase 5 widens
- * `ApiResult` with a `messageKey`, which is where the split between "what the
- * agent reads" and "what the human reads" is introduced.
- */
 /** One clause per reason, rendered from the changes that carry it. */
 type MissDescriber = (
   items: readonly UnmatchedChange<ChangeEvent>[],
@@ -113,6 +99,20 @@ const MISS_DESCRIBERS = {
     `${listChanges(items)} — set the printing first, then the finish`,
 } as const satisfies Record<MissReason, MissDescriber>
 
+/**
+ * One shared wording for "these changes did not apply", used by every surface
+ * that rejects a batch — the list save route (which the editors, the MCP
+ * mutations and the bundle import all go through) and the one-shot CLI path —
+ * so the phrasing cannot drift. Surfaces append their own recovery hints; this
+ * text stays client-neutral.
+ *
+ * **English by contract, deliberately not routed through `t()`.** It lives
+ * inside the persistence fence, and MCP result prose is English regardless of
+ * the operator's UI locale (plan §11). The editors show the *rendered* `message`
+ * the save route returned, as `statusText`. It becomes localizable when the
+ * route answers with a `messageKey`, which is where the split between "what the
+ * agent reads" and "what the human reads" is introduced.
+ */
 export function describeUnmatchedChanges(
   unmatched: readonly UnmatchedChange<ChangeEvent>[],
   target: UnmatchedTarget,

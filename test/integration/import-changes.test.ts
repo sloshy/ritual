@@ -11,6 +11,7 @@ import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { getDefaultRitualConfig } from '../../src/config/ritual-config'
 import { applyChangeBundle } from '../../src/admin/api/import-changes'
 import { parseChangeBundle, type ChangeBundle } from '../../src/changes/change-bundle'
+import { MAX_SAVE_CHANGES } from '../../src/changes/save-limits'
 import { runCli, withTempDir } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import {
@@ -1057,5 +1058,95 @@ describe('applyChangeBundle with moves', () => {
     expect(deck).toMatch(/1 Sol Ring \(C21:263\) \[foil\] &\d+/)
     const binder = await fs.readFile(path.join(ws.dir, 'collections', 'binder.md'), 'utf-8')
     expect(binder).not.toContain('Sol Ring')
+  }, 60_000)
+})
+
+describe('applyChangeBundle save replay', () => {
+  let ws: BoundWorkspace
+  beforeEach(async () => {
+    ws = await bindWorkspace({ config: false })
+    await cardCache.bulkSet({})
+  })
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  test('an add, its removal, and a re-add of a new printing leave the deck’s other printing alone', async () => {
+    // The merge re-target is judged change by change, against the deck as the
+    // save will replay it. Judged against the finished deck instead, the first
+    // add would be aimed at the line only the last add creates, and the save's
+    // replay would refuse the batch the dry run accepted.
+    const deckPath = await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [{ quantity: 1, name: 'Sol Ring', set: '2xm', collectorNumber: '5', cardId: 3 }],
+    })
+    const leaSolRing = { cardName: 'Sol Ring', set: 'lea', collectorNumber: '1' }
+
+    const result = await applyChangeBundle(
+      bundleOf(
+        [
+          {
+            ...DECK_REF,
+            changes: [
+              { id: 'a1', timestamp: 1, action: 'add', ...leaSolRing, cardId: 10 },
+              { id: 'r1', timestamp: 2, action: 'remove', ...leaSolRing, cardId: 10 },
+              { id: 'a2', timestamp: 3, action: 'add', ...leaSolRing, cardId: 11 },
+            ],
+          },
+        ],
+        [],
+      ),
+    )
+
+    expect(result.failedCount).toBe(0)
+    expect(result.lists.map((l) => [l.applied, l.conflicts.length])).toEqual([[3, 0]])
+    const deck = await fs.readFile(deckPath, 'utf-8')
+    expect(deck).toMatch(/1 Sol Ring \(2XM:5\) &3\n/)
+    expect(deck.match(/Sol Ring \(LEA:1\)/g)).toHaveLength(1)
+    expect(deck).toMatch(/1 Sol Ring \(LEA:1\) &\d+\n/)
+  }, 60_000)
+
+  test('a list receiving more changes than one save carries is saved in chunks under one changelog entry', async () => {
+    const wantedPath = await writeWantedFile(ws.dir, 'wishlist', {
+      title: 'Wishlist',
+      entries: [
+        { name: 'Sol Ring', cardId: 1 },
+        { name: 'Mana Crypt', cardId: 2 },
+      ],
+    })
+    // One save's worth of notes on Sol Ring, then one on Mana Crypt: the first
+    // chunk's last note and the second chunk's only one each prove their chunk
+    // landed.
+    const changes = Array.from({ length: MAX_SAVE_CHANGES }, (_, i) => ({
+      id: `n${i}`,
+      timestamp: i + 1,
+      action: 'set-note',
+      cardName: 'Sol Ring',
+      cardId: 1,
+      note: `note ${i}`,
+    }))
+    changes.push({
+      id: 'last',
+      timestamp: MAX_SAVE_CHANGES + 1,
+      action: 'set-note',
+      cardName: 'Mana Crypt',
+      cardId: 2,
+      note: 'second chunk',
+    })
+
+    const result = await applyChangeBundle(
+      bundleOf([{ kind: 'wanted', slug: 'wishlist', name: 'Wishlist', changes }], []),
+    )
+
+    expect(result.failedCount).toBe(0)
+    expect(result.lists[0]?.applied).toBe(MAX_SAVE_CHANGES + 1)
+    const wanted = await fs.readFile(wantedPath, 'utf-8')
+    expect(wanted).toContain(`- Sol Ring {note ${MAX_SAVE_CHANGES - 1}} &1`)
+    expect(wanted).toContain('- Mana Crypt {second chunk} &2')
+    const changelog = await fs.readFile(wantedPath.replace(/\.md$/, '.changes.md'), 'utf-8')
+    // The second chunk continued the first one's entry rather than opening its
+    // own, and that one entry records every change of both chunks.
+    expect(changelog.split('\n').filter((line) => line.startsWith('## '))).toHaveLength(1)
+    expect(changelog.match(/^- Set note on /gm)).toHaveLength(MAX_SAVE_CHANGES + 1)
   }, 60_000)
 })

@@ -1,7 +1,7 @@
 import { isTotpEnabled, getTotpSecret, setTotpSecret, getAdminUsername } from '../auth'
 import { generateTotpSecret, verifyTotp, buildTotpUri } from '../totp'
 import { apiHandler } from '../utils'
-import { validateBodySize } from '../../api/http'
+import { readJsonObjectBody } from '../../api/http'
 
 interface TotpSetupResponse {
   success: boolean
@@ -32,10 +32,6 @@ export function handleTotpSetup(): Promise<Response> {
   })
 }
 
-interface TotpVerifySetupRequest {
-  code: string
-}
-
 interface TotpVerifySetupResponse {
   success: boolean
   message: string
@@ -43,10 +39,9 @@ interface TotpVerifySetupResponse {
 
 export function handleTotpVerifySetup(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    const tooLarge = validateBodySize(req)
-    if (tooLarge) return tooLarge
-    const body = (await req.json()) as TotpVerifySetupRequest
-    const { code } = body
+    const parsed = await readJsonObjectBody(req)
+    if (!parsed.ok) return parsed.response
+    const code = typeof parsed.body.code === 'string' ? parsed.body.code : ''
 
     if (!code) {
       const resp: TotpVerifySetupResponse = { success: false, message: 'code is required' }

@@ -95,7 +95,6 @@ export function useEditor<TData, TCardEntry = unknown>(
   // True once this editing session has saved at least once. Subsequent saves
   // fold into the same changelog entry; reloading the list starts a new session.
   const [hasSavedThisSession, setHasSavedThisSession] = createSignal(false)
-  const [extra, setExtra] = createSignal<Record<string, unknown>>({})
   const [contextMenuCard, setContextMenuCard] = createSignal<ContextMenuState | null>(null)
   // The change-printing flow on screen plus its bulk-run queue, as one value so
   // a transition that touches both (see `change-printing-flow.ts`) is one write.
@@ -177,7 +176,6 @@ export function useEditor<TData, TCardEntry = unknown>(
             pool.resetPool(result.poolIds)
             config.loadCardData(response)
             setContentHash(result.contentHash)
-            setExtra(result.extra)
             changes.discardAll()
             setHasSavedThisSession(false)
             statusActions.loadSuccess()
@@ -687,8 +685,11 @@ export function useEditor<TData, TCardEntry = unknown>(
     list: readonly ChangeEvent[],
   ): ReplayResult<TData, ChangeEvent> => {
     const replayed = replayChanges(baseline, list, config.applyChange)
-    dropRefusedChanges(replayed.refused)
-    setData(() => replayed.data)
+    // One update: memos never see the drop without the data it belongs to.
+    batch(() => {
+      dropRefusedChanges(replayed.refused)
+      setData(() => replayed.data)
+    })
     return replayed
   }
 
@@ -711,34 +712,78 @@ export function useEditor<TData, TCardEntry = unknown>(
   const handleSave = async () => {
     const s = slug()
     const d = data()
-    if (!s || !d || !config.hasData(d) || changes.changes().length === 0) return
-    // Snapshot before committing: a successful commit clears the pending changes,
-    // and `categoriesRecord` is the loaded record replayed over them — without
-    // adopting the saved state it would snap back to the pre-save vocabulary.
+    if (!s || !d || !config.hasData(d) || changes.changes().length === 0 || !original) return
+    // The route replays these events over the file rather than writing what is
+    // on screen, so the two must agree: replay them over the baseline first,
+    // drop any the engine refuses, and show exactly what will be written.
+    const baseline = original
+    const checked = replayAndDrop(baseline, changes.changes())
+    if (checked.refused.length > 0) {
+      statusActions.setError(
+        statusMessage('ui.editor.saveDroppedRefused', { count: checked.refused.length }),
+      )
+    }
+    const sent = changes.changes()
+    if (sent.length === 0) return
+    // Snapshot before committing: `categoriesRecord` is the loaded record
+    // replayed over the pending changes — without adopting the saved state it
+    // would snap back to the pre-save vocabulary once they are cleared.
     const savedCategories = categoriesRecord()
     const result = await config.commit({
       slug: s,
-      data: d,
-      changes: changes.changes(),
+      changes: sent,
       contentHash: contentHash(),
-      extra: extra(),
-      sectionOrder: sectionOrder(),
       continueSession: hasSavedThisSession(),
       statusActions,
-      discardAll: changes.discardAll,
     })
-    if (result?.contentHash) {
-      setContentHash(result.contentHash)
+    if (!result?.contentHash) return
+    // A list switch or reload during the request replaced the baseline: this
+    // answer belongs to a list no longer on screen, which keeps its own hash.
+    if (original !== baseline) return
+
+    const sentIds = new Set(sent.map((change) => change.id))
+    const touchedInFlight = changes.changes() !== sent
+    const remaining = changes.changes().filter((change) => !sentIds.has(change.id))
+    batch(() => {
+      setContentHash(result.contentHash!)
       setHasSavedThisSession(true)
+      // The saved events are now part of the file, so they move from the pending
+      // list into the baseline the next undo replays from — otherwise undoing a
+      // later edit would replay onto the load-time list and lose this save.
+      original = checked.data
+      setOriginalSectionOrder(replaySectionOrder(originalSectionOrder(), sent))
+      // A save is an undo boundary. Edits made while the request was in flight
+      // stay pending, replayed over the new baseline so the screen shows the
+      // file plus exactly those — including the case where one of them undid
+      // or cancelled a change that had already been sent, which is now on disk.
+      if (touchedInFlight) {
+        changes.loadChanges(remaining)
+        replayAndDrop(original, remaining)
+      } else {
+        changes.discardAll()
+      }
       // What is on disk now is the new baseline for the next edit's "restore the
       // original ⇒ record nothing" test. The server's word wins on pruning: names
       // it dropped are gone from the file.
       setOriginalCategories(recordWithoutCardNames(savedCategories, result.prunedCategories ?? []))
-      // Only on a save that actually landed: the effects say which `&N` each
-      // line ended up with, which is what a staged art write has been waiting
-      // for. A failed or conflicted save leaves the staging alone to be flushed
-      // by the next attempt.
-      void config.onSaved?.(result.effects ?? [])
+    })
+    const effects = result.effects ?? []
+    // Every id the file now holds is spoken for, including ones the server gave
+    // lines this editor never numbered (a hand-added line without an `&N`):
+    // the pool must not hand any of them to the next card added.
+    for (const effect of effects) {
+      if (effect.action !== 'removed') pool.claim(effect.cardId)
+    }
+    // Only on a save that actually landed: the effects say which `&N` each
+    // line ended up with, which is what a staged art write has been waiting
+    // for. A failed or conflicted save leaves the staging alone to be flushed
+    // by the next attempt.
+    void config.onSaved?.(effects)
+    // The server renumbers a line only when two claimed one `&N`; the editor's
+    // copy still holds the old number, which later events would aim at. With
+    // nothing pending, re-reading the list is the whole fix.
+    if (remaining.length === 0 && effects.some((effect) => effect.previousCardId !== undefined)) {
+      setRefreshKey((key) => key + 1)
     }
   }
 
@@ -793,8 +838,9 @@ export function useEditor<TData, TCardEntry = unknown>(
    * `move-from` on the source (not `add` here), so they're correctly excluded.
    *
    * `original` is a plain variable, not a signal, but reading it here is safe: it's
-   * reassigned only on load, which also calls `changes.discardAll()` — that writes
-   * the `changes` signal this memo tracks, so a stale `original` is never observed.
+   * reassigned only on load and on a landed save, and both write the `changes`
+   * signal this memo tracks in the same batch — so a stale `original` is never
+   * observed.
    */
   const addedCardNames = createMemo((): string[] => {
     const orig = original
@@ -829,8 +875,6 @@ export function useEditor<TData, TCardEntry = unknown>(
     setData,
     contentHash,
     setContentHash: (hash: string) => setContentHash(hash),
-    extra,
-    setExtra: (next: Record<string, unknown>) => setExtra(next),
     currency,
     getOriginal: () => original,
     isDataReady,

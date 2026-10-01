@@ -128,6 +128,11 @@ export const uiMessages = {
   'ui.editor.saveConflict': 'Content has been modified. Please reload to continue editing.',
   'ui.editor.saveFailed': 'Save failed',
   'ui.editor.saveRequestFailed': 'Failed to save changes',
+  'ui.editor.saveDroppedRefused': {
+    $plural: 'count',
+    one: '{count} change no longer applied to the list and was dropped before saving.',
+    other: '{count} changes no longer applied to the list and were dropped before saving.',
+  },
 
   // ── Action bar ────────────────────────────────────────────────────────
   'ui.editor.addCard': '+ Add Card',

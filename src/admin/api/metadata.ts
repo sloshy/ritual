@@ -27,7 +27,7 @@ import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
 import { apiError, readJsonObjectBody } from '../../api/http'
 import { autoCommitAndPush, validateContentHash } from './save-helpers'
-import { MAX_LIST_BODY_SIZE } from '../validation'
+import { MAX_METADATA_BODY_SIZE } from '../validation'
 
 /**
  * `PUT /api/metadata/:type/:slug` — write a list's front matter.
@@ -375,7 +375,7 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     const target = parseListTarget(req)
     if (typeof target === 'string') return apiError(target, 400)
 
-    const read = await readJsonObjectBody(req, MAX_LIST_BODY_SIZE)
+    const read = await readJsonObjectBody(req, MAX_METADATA_BODY_SIZE)
     if (!read.ok) return read.response
 
     if (target.type !== 'deck') {

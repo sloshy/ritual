@@ -671,6 +671,26 @@ describe('swapMovesToChanges', () => {
     }
   })
 
+  // The replacement goes back in place of the pinned line; a copy that pins
+  // none has no line to replace, and the decoder refuses one that claims to.
+  test('only a copy that pins a line carries the replacement', () => {
+    const ops = opsOf(
+      [
+        inMove({
+          pinsCardIds: [4, undefined],
+          replacement: { card: boltM10, set: 'M10', collectorNumber: '146', finish: 'nonfoil' },
+        }),
+      ],
+      context('flat', { 4: 1 }),
+    )
+    expect(ops[0]?.change).toMatchObject({
+      replacesCardId: 4,
+      replacement: { set: 'm10', collectorNumber: '146' },
+    })
+    expect(ops[1]?.change).not.toHaveProperty('replacesCardId')
+    expect(ops[1]?.change).not.toHaveProperty('replacement')
+  })
+
   test('a name-only line without an id cannot be pinned: the copy arrives as a plain move-to', () => {
     const ops = opsOf(
       [inMove({ count: 1, pinsCardIds: [undefined], sourceCardIds: [100] })],

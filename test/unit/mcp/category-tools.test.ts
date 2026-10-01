@@ -12,9 +12,9 @@ import { expectSchemaRejection, toolData } from '../../mcp-test-utils'
 /**
  * Wiring-only coverage for card categories across the MCP surface, per the test
  * layering policy: the category grammar, the sidecar's order resolution, the
- * three apply engines and the save-time prune are all pinned at the engine
- * layer (`test/unit/card-categories*.test.ts`,
- * `test/unit/admin/save-helpers.test.ts`, `test/integration/save-tail.test.ts`).
+ * three apply engines, the save route's decoding and the save-time prune are
+ * all pinned at the engine layer (`test/unit/card-categories*.test.ts`,
+ * `test/unit/card-category-changes.test.ts`, `test/integration/save-tail.test.ts`).
  * What belongs here is that the tool schemas accept a canonical category and
  * refuse everything else, that the three `apply_changes` actions reach the
  * handlers, and that a category comes back out of `get_list` at both levels.

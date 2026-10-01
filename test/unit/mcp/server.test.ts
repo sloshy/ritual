@@ -1548,18 +1548,21 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const deckPath = path.join(env.dir, 'decks', 'test-deck.md')
     const before = await fs.readFile(deckPath, 'utf-8')
 
-    // Wrong case — matching is exact and case-sensitive.
+    // A real card that is simply not in this deck: name validation passes, so
+    // the miss is the save route's all-or-nothing refusal.
     const result = await callTool(client, 'remove_card', {
       listType: 'deck',
       slug: 'test-deck',
-      cardName: 'sol ring',
+      cardName: 'Counterspell',
     })
     expect(result.isError).toBe(true)
     // The error names the change, says nothing was saved, and points at the recovery step.
     const message = firstText(result)
-    expect(message).toContain('sol ring')
+    expect(message).toContain('Counterspell')
     expect(message).toContain('Nothing was saved')
     expect(message).toContain('get_list')
+    // The refused change also travels as structured detail, not only prose.
+    expect(toolError(result).unmatched).toEqual([expect.stringContaining('Counterspell')])
 
     // Neither the deck file nor a changelog was written.
     expect(await fs.readFile(deckPath, 'utf-8')).toBe(before)
@@ -1580,18 +1583,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const collPath = path.join(env.dir, 'collections', 'shoebox.md')
     const before = await fs.readFile(collPath, 'utf-8')
 
-    // A real card that is simply not in this list: name validation passes, and
-    // collections replay changes server-side, so the miss is rejected by the
-    // collection-save handler (400) rather than the MCP-side apply.
+    // A real card that is simply not in this list: name validation passes, so
+    // the miss is rejected by the save handler (400).
     const result = await callTool(client, 'remove_card', {
       listType: 'collection',
       slug: 'shoebox',
       cardName: 'Counterspell',
     })
-    expect(result.isError).toBe(true)
-    const message = firstText(result)
-    expect(message).toContain('Counterspell')
-    expect(message).toContain('Nothing was saved')
+    const payload = toolError(result)
+    expect(payload.message).toContain('Counterspell')
+    expect(payload.message).toContain('Nothing was saved')
+    expect(payload.message).toContain('get_list')
+    expect(payload.unmatched).toEqual([expect.stringContaining('Counterspell')])
 
     expect(await fs.readFile(collPath, 'utf-8')).toBe(before)
   })
@@ -1631,7 +1634,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
 
   test('remove_card that matches nothing in a wanted list errors and saves nothing', async () => {
     // A real card that is simply not on this list, so the refusal comes from the
-    // MCP-side apply rather than from name validation.
+    // save handler's replay rather than from name validation.
     const result = await callTool(client, 'remove_card', {
       listType: 'wanted',
       slug: 'wishlist',

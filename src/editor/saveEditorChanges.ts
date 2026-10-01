@@ -33,7 +33,6 @@ export async function saveEditorChanges(
   endpoint: string,
   body: unknown,
   statusActions: EditorStatusActions,
-  discardAll: () => void,
 ): Promise<SaveResponse | undefined> {
   statusActions.saveStart()
   try {
@@ -58,7 +57,6 @@ export async function saveEditorChanges(
           ? statusMessage('ui.editor.saveSuccessNotices', { notes: notices })
           : statusMessage('ui.editor.saveSuccess'),
       )
-      discardAll()
       return data
     }
     // `data.message` / `data.error` are prose the server authored; they arrive

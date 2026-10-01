@@ -28,16 +28,10 @@ type ListImageModalProps = {
   /** The editor session's content hash — the metadata write's concurrency token. */
   contentHash: string
   /**
-   * Adopt the write: the new cover, the file's new content hash, and the full
-   * front matter the write produced — the deck editor holds a snapshot of that
-   * block and re-sends it with every card save, so a stale one would delete the
-   * very key this dialog just wrote.
+   * Adopt the write: the new cover and the file's new content hash, so the
+   * editor's next card save does not 409 against a write it made itself.
    */
-  onSaved: (
-    image: ListImageRef | undefined,
-    contentHash: string,
-    frontMatter: Record<string, unknown>,
-  ) => void
+  onSaved: (image: ListImageRef | undefined, contentHash: string) => void
 }
 
 /** The modes in the order the radio group offers them. */
@@ -144,7 +138,7 @@ export const ListImageModal: Component<ListImageModalProps> = (props) => {
       setError(result.message)
       return
     }
-    props.onSaved(parsed ?? undefined, result.contentHash, result.frontMatter)
+    props.onSaved(parsed ?? undefined, result.contentHash)
     props.onClose()
   }
 

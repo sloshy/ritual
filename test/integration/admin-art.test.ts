@@ -8,17 +8,12 @@ import {
 } from '../../src/admin/api/art'
 import { handleCollectionLoad } from '../../src/admin/api/collection-load'
 import type { CollectionCardsLoadResult } from '../../src/admin/api/load-results'
-import { handleCollectionSave } from '../../src/admin/api/collection-save'
-import { handleDeckSave } from '../../src/admin/api/deck-save'
 import {
   createAddChange,
   createRemoveChange,
   createSetLabelChange,
   type ChangeEvent,
 } from '../../src/changes/change-event'
-import type { CardLabel } from '../../src/card/card-labels'
-import { DEFAULT_SECTION, type DeckData } from '../../src/list/deck'
-import { computeHash } from '../../src/changes/content-hash'
 import { artSidecarPath, saveCardArt } from '../../src/list/card-art'
 import {
   bindWorkspace,
@@ -27,6 +22,7 @@ import {
   writeWantedFile,
 } from '../helpers/workspace'
 import type { BoundWorkspace } from '../helpers/workspace'
+import { saveList } from '../helpers/list-save'
 import { callJson } from './helpers/request'
 
 /**
@@ -248,15 +244,8 @@ describe('parseCardArtSaveBody', () => {
 
 describe('a save reconciles the sidecar against the ids it freed', () => {
   /** POST the collection save route with the file's current hash. */
-  async function save(changes: ChangeEvent[]): Promise<Response> {
-    const contentHash = computeHash(await fs.readFile(collectionPath, 'utf-8'))
-    return handleCollectionSave(
-      new Request('http://localhost/api/collection/binder/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes, contentHash }),
-      }),
-    )
+  function save(changes: ChangeEvent[]): Promise<Response> {
+    return saveList('collection', 'binder', collectionPath, changes)
   }
 
   test('a removed card’s art does not pass to the card that reuses its &N', async () => {
@@ -345,25 +334,9 @@ describe('a save reconciles the sidecar against the ids it freed', () => {
 })
 
 describe('a deck line the save only re-quantified keeps its art', () => {
-  /** The deck body the client posts back: one line, `labels` and quantity as given. */
-  function goblins(quantity: number, labels: CardLabel[]): DeckData {
-    return {
-      name: 'Goblins',
-      sections: [
-        { name: DEFAULT_SECTION, cards: [{ name: 'Goblin Guide', quantity, cardId: 1, labels }] },
-      ],
-    }
-  }
-
-  async function saveDeck(deck: DeckData, changes: ChangeEvent[]): Promise<Response> {
-    const contentHash = computeHash(await fs.readFile(deckPath, 'utf-8'))
-    return handleDeckSave(
-      new Request('http://localhost/api/deck/goblins/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes, deck, name: 'Goblins', contentHash }),
-      }),
-    )
+  /** POST the deck save route with the file's current hash. */
+  function saveDeck(changes: ChangeEvent[]): Promise<Response> {
+    return saveList('deck', 'goblins', deckPath, changes)
   }
 
   test('an increment, a label edit, and a decrement leave the art in place', async () => {
@@ -378,12 +351,14 @@ describe('a deck line the save only re-quantified keeps its art', () => {
     })
     await put('deck', 'goblins', { cardId: 1, art: { file: IMAGE } })
 
-    const resp = await saveDeck(goblins(1, ['proxy']), [
+    const resp = await saveDeck([
       createAddChange('Goblin Guide', { cardId: 1 }),
       createSetLabelChange('Goblin Guide', { cardId: 1, labels: ['proxy'] }),
       createRemoveChange('Goblin Guide', { cardId: 1 }),
     ])
     expect(resp.status).toBe(200)
+    // The replay leaves the one line, relabelled, still `&1`.
+    expect(await fs.readFile(deckPath, 'utf-8')).toContain('- 1 Goblin Guide [proxy] &1')
     expect(await readSidecar(deckPath)).toEqual({ '1': { file: IMAGE } })
   })
 
@@ -394,10 +369,9 @@ describe('a deck line the save only re-quantified keeps its art', () => {
     })
     await put('deck', 'goblins', { cardId: 1, art: { file: IMAGE } })
 
-    const resp = await saveDeck({ name: 'Goblins', sections: [] }, [
-      createRemoveChange('Goblin Guide', { cardId: 1 }),
-    ])
+    const resp = await saveDeck([createRemoveChange('Goblin Guide', { cardId: 1 })])
     expect(resp.status).toBe(200)
+    expect(await fs.readFile(deckPath, 'utf-8')).not.toContain('Goblin Guide')
     expect(await fs.exists(artSidecarPath(deckPath))).toBeFalse()
   })
 })

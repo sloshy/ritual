@@ -63,7 +63,7 @@ export const MAX_BUYLIST_PRINTINGS = 500
  * (~120 bytes per printing, doubled for headroom) rather than borrowing the
  * budget meant for a single card edit.
  */
-const MAX_QUOTE_BODY_BYTES = MAX_BUYLIST_PRINTINGS * 240
+export const MAX_QUOTE_BODY_BYTES = MAX_BUYLIST_PRINTINGS * 240
 
 /** A route handler, named because the gate takes and returns one. */
 export type BuylistRouteHandler = (req: Request) => Promise<Response>

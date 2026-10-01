@@ -1,55 +1,42 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import * as fs from 'node:fs/promises'
+import * as path from 'node:path'
 import type { Card } from '../../src/card/card'
-import type { DeckData } from '../../src/list/deck'
-import { createSetPrintingChange, type ChangeEvent } from '../../src/changes/change-event'
-import { handleDeckSave } from '../../src/admin/api/deck-save'
-import { handleCollectionSave } from '../../src/admin/api/collection-save'
-import { handleWantedListSave } from '../../src/admin/api/wanted-save'
+import { createSetPrintingChange } from '../../src/changes/change-event'
+import { toWireChange, type WireChange } from '../../src/changes/wire-changes'
+import { handleListSave } from '../../src/admin/api/list-save'
 import { handleLogin } from '../../src/admin/api/auth-login'
-import { validateBodySize, MAX_BODY_SIZE } from '../../src/api/http'
-import { computeHash } from '../../src/changes/content-hash'
-import { MAX_LIST_BODY_SIZE } from '../../src/admin/validation'
+import { MAX_BODY_SIZE, type ApiErrorResponse } from '../../src/api/http'
+import { MAX_PRICE_BODY_BYTES } from '../../src/api/card-prices'
+import { MAX_EDIT_BODY_SIZE } from '../../src/admin/validation'
+import { MAX_SITE_REQUEST_BODY_SIZE, startSiteServer } from '../../src/serve/server'
+import type { StaticSiteServer } from '../../src/serve/static'
 import {
   bindWorkspace,
   snapshotTree,
   writeDeckFile,
   type BoundWorkspace,
 } from '../helpers/workspace'
+import { hashOf, listSaveRequest } from '../helpers/list-save'
 
 /**
- * The request-body cap is split in two: routes whose body scales with a list get
- * a large budget, credential routes keep the tight one. The split exists because
- * re-pinning the printing of every card in a deck is one ordinary edit whose
- * save runs an order of magnitude past the credential-sized cap — it used to
- * come back as a bare "Request body too large".
- *
- * These requests set `Content-Length` themselves. A `Request` built in-process
- * has none (the header is added by the HTTP client, and the handlers read the
- * header rather than measuring the body), so a test that omits it exercises no
- * cap at all and passes whatever the limit is set to.
+ * Request-body budgets on the routes that hold them. Each route measures its
+ * body as it reads it (`readBodyText`), so the budget holds whatever the
+ * request declares — including no size at all, which is what a chunked upload
+ * and every in-process caller (the MCP dispatcher, `import-changes`) send. The
+ * reader's own cases (malformed and boundary sizes, cancelling the stream) are
+ * pinned in test/unit/api/http.test.ts; this file pins which budget each route
+ * is on, and the servers' runtime ceiling over real HTTP.
  */
 
-const CARD_COUNT = 100
+const CARD_COUNT = 150
+const SAVE_URL = 'http://localhost/api/deck/big-deck/save'
 
 let ws: BoundWorkspace
 let filePath: string
-let contentHash: string
-
-/** POST `body` with the `Content-Length` a real client would have sent. */
-function post(url: string, body: string): Request {
-  return new Request(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Content-Length': String(Buffer.byteLength(body)),
-    },
-    body,
-  })
-}
 
 /** A deck card that definitely names a printing, so the fixture needs no assertions. */
-type PinnedCard = Card & { collectorNumber: string }
+type PinnedCard = Card & { collectorNumber: string; cardId: number }
 
 /** A deck of distinctly-named cards, every one pinned to a printing in `set`. */
 function deckCards(set: string): PinnedCard[] {
@@ -62,52 +49,69 @@ function deckCards(set: string): PinnedCard[] {
   }))
 }
 
-function deckPayload(set: string): DeckData {
-  return { name: 'Big Deck', sections: [{ name: 'Main', cards: deckCards(set) }] }
-}
-
-/** One set-printing change per card — what "re-pin every printing" actually sends. */
-function repinEveryCard(): ChangeEvent[] {
+/** One set-printing change per card — what "re-pin every printing" sends. */
+function repinEveryCard(): WireChange[] {
   return deckCards('m10').map((card) =>
-    createSetPrintingChange(card.name, {
-      set: 'm10',
-      collectorNumber: card.collectorNumber,
-      cardId: card.cardId,
-    }),
+    toWireChange(
+      createSetPrintingChange(card.name, {
+        set: 'm10',
+        collectorNumber: card.collectorNumber,
+        cardId: card.cardId,
+      }),
+    ),
   )
 }
 
-function saveBody(changes: ChangeEvent[], deck: DeckData): string {
-  return JSON.stringify({ changes, deck, name: 'Big Deck', contentHash })
+/**
+ * An endless body of `x` bytes, streamed with no declared size. Only a reader
+ * that counts what it reads can ever finish with it.
+ */
+function endlessBody(): ReadableStream<Uint8Array> {
+  const chunk = new Uint8Array(64 * 1024).fill(0x78)
+  return new ReadableStream<Uint8Array>({
+    pull(controller): void {
+      controller.enqueue(chunk)
+    },
+  })
+}
+
+/** A finite stream of `bytes` bytes, so `fetch` sends it chunked. */
+function chunkedBody(bytes: number): ReadableStream<Uint8Array> {
+  const chunkSize = 64 * 1024
+  let sent = 0
+  return new ReadableStream<Uint8Array>({
+    pull(controller): void {
+      if (sent >= bytes) {
+        controller.close()
+        return
+      }
+      const size = Math.min(chunkSize, bytes - sent)
+      controller.enqueue(new Uint8Array(size).fill(0x78))
+      sent += size
+    },
+  })
 }
 
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false })
-  filePath = await writeDeckFile(ws.dir, 'big-deck', {
-    name: 'Big Deck',
-    cards: deckCards('lea'),
-  })
-  contentHash = computeHash(await fs.readFile(filePath, 'utf-8'))
+  filePath = await writeDeckFile(ws.dir, 'big-deck', { name: 'Big Deck', cards: deckCards('lea') })
 })
 
 afterEach(async () => {
   await ws.dispose()
 })
 
-describe('admin request-body cap', () => {
+describe('admin request-body budgets', () => {
+  // A save rides on the edit budget, not the credential-sized default: a route
+  // that forgot to pass its budget would refuse this ordinary edit as too large.
   test('a save re-pinning every card in the deck is accepted, not refused as too large', async () => {
-    const body = saveBody(repinEveryCard(), deckPayload('m10'))
-    // The premise: this is one ordinary edit that the credential-sized cap refused.
-    // Asserted through the gate itself, not just on the byte count — if the
-    // request ever stopped carrying its `Content-Length`, no cap would be
-    // consulted and this test would keep passing at any limit.
-    expect(Buffer.byteLength(body)).toBeGreaterThan(MAX_BODY_SIZE)
-    expect(
-      validateBodySize(post('http://localhost/api/deck/big-deck/save', body), MAX_BODY_SIZE)
-        ?.status,
-    ).toBe(413)
+    const req = listSaveRequest('deck', 'big-deck', repinEveryCard(), {
+      contentHash: await hashOf(filePath),
+    })
+    // The premise: the body really is past the default cap, which measures bytes.
+    expect(Buffer.byteLength(await req.clone().text())).toBeGreaterThan(MAX_BODY_SIZE)
 
-    const resp = await handleDeckSave(post('http://localhost/api/deck/big-deck/save', body))
+    const resp = await handleListSave(req, 'deck')
     expect(resp.status).toBe(200)
 
     // The write really happened — a 200 that saved nothing would pass a status check.
@@ -116,100 +120,123 @@ describe('admin request-body cap', () => {
     expect(saved).toContain(`1 Test Card ${CARD_COUNT} (M10:${CARD_COUNT}) &${CARD_COUNT}`)
   })
 
-  test('the larger cap is still a cap — a body past it is refused and writes nothing', async () => {
+  // An undeclared body — a chunked upload, or any in-process caller's `Request`
+  // — is counted as it arrives, so even one that never ends is refused once it
+  // passes the budget.
+  test('an endless body with no declared size is refused past the edit budget and writes nothing', async () => {
     const before = await snapshotTree(ws.dir)
-    // Inert padding: the body is refused in the route prologue before it is ever
-    // parsed, so which field carries the bulk is arbitrary. Sized off the
-    // constant so the test cannot rot if the budget is retuned — which does mean
-    // its cost scales with the budget.
-    const body = JSON.stringify({
-      changes: [],
-      deck: deckPayload('lea'),
-      name: 'Big Deck',
-      frontMatter: { description: 'x'.repeat(MAX_LIST_BODY_SIZE) },
-      contentHash,
+    const req = new Request(SAVE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: endlessBody(),
     })
+    expect(req.headers.get('Content-Length')).toBeNull()
 
-    const resp = await handleDeckSave(post('http://localhost/api/deck/big-deck/save', body))
+    const resp = await handleListSave(req, 'deck')
+
     expect(resp.status).toBe(413)
+    expect(((await resp.json()) as ApiErrorResponse).message).toContain(
+      `limit ${MAX_EDIT_BODY_SIZE} bytes`,
+    )
     // The whole tree, not just the list file: a refusal that still appended a
     // changelog entry or refreshed a `.sha256` sidecar would pass a file check.
     expect(await snapshotTree(ws.dir)).toEqual(before)
   })
 
-  // The regression this guards is silent: `validateBodySize`'s `maxBytes`
-  // defaults to MAX_BODY_SIZE, so a list route that forgets to pass the larger
-  // constant reverts to the credential cap with no type error. Each handler is
-  // asked for a body over the credential cap but under the list one, and must
-  // reach its *next* gate (a 400 for the empty payload) rather than refuse it.
-  test.each([
-    ['deck', handleDeckSave, 'http://localhost/api/deck/big-deck/save'],
-    ['collection', handleCollectionSave, 'http://localhost/api/collection/binder/save'],
-    ['wanted', handleWantedListSave, 'http://localhost/api/wanted/wishlist/save'],
-  ])(
-    'the %s save route is on the list cap, not the credential cap',
-    async (_label, handler, url) => {
-      const req = new Request(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Content-Length': String(MAX_BODY_SIZE + 1),
-        },
-        body: '{}',
-      })
-
-      expect((await handler(req)).status).toBe(400)
-    },
-  )
-
-  // Executable documentation of the cap's one real limitation, so that switching
-  // to measuring the body — which would be a behavior change for the MCP
-  // dispatcher and every in-process caller, not just a hardening — fails here
-  // and gets decided deliberately rather than discovered.
-  test('a request that declares no size is not capped at all', () => {
-    const oversized = JSON.stringify({ pad: 'x'.repeat(MAX_LIST_BODY_SIZE) })
-    const req = new Request('http://localhost/api/deck/big-deck/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: oversized,
-    })
-
-    expect(req.headers.get('Content-Length')).toBeNull()
-    expect(validateBodySize(req, MAX_BODY_SIZE)).toBeNull()
-  })
-
-  // A header that is present but unparseable must not read as "fits".
-  test('a malformed declared size is refused', () => {
-    const req = new Request('http://localhost/api/deck/big-deck/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': 'lots' },
-      body: '{}',
-    })
-
-    expect(validateBodySize(req, MAX_BODY_SIZE)?.status).toBe(413)
-  })
-
   test('a credential route keeps the tight cap', async () => {
-    const body = JSON.stringify({ username: 'admin', password: 'x'.repeat(MAX_BODY_SIZE) })
-    // An address no other suite locks out: `handleLogin` consults the global
-    // rate limiter before the size cap, and that limiter is process-wide.
-    const resp = await handleLogin(post('http://localhost/api/login', body), '10.99.0.1')
-
-    expect(resp.status).toBe(413)
-  })
-
-  // The credential routes share `validateBodySize` rather than hand-rolling the
-  // check, so an unparseable header is refused there too. The hand-rolled form
-  // (`Number(header ?? '0') > MAX_BODY_SIZE`) waved NaN through as "fits".
-  test('a credential route refuses a malformed declared size', async () => {
+    // No declared size: the credential route measures too.
     const req = new Request('http://localhost/api/login', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': 'lots' },
-      body: JSON.stringify({ username: 'admin', password: 'hunter2' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: 'admin', password: 'x'.repeat(MAX_BODY_SIZE) }),
     })
-    // A second address the rate limiter has not seen — see the test above.
-    const resp = await handleLogin(req, '10.99.0.2')
+    // An address no other suite locks out: `handleLogin` consults the global
+    // rate limiter before the size cap, and that limiter is process-wide.
+    const resp = await handleLogin(req, '10.99.0.1')
 
     expect(resp.status).toBe(413)
+    expect(((await resp.json()) as ApiErrorResponse).message).toContain(
+      `limit ${MAX_BODY_SIZE} bytes`,
+    )
   })
 })
+
+describe('server body ceiling', () => {
+  let server: StaticSiteServer | undefined
+
+  afterEach(async () => {
+    await server?.stop(true)
+    server = undefined
+  })
+
+  // The runtime ceiling (`maxRequestBodySize`) is a second line under the
+  // per-route budgets. Over real HTTP: a chunked body (no `Content-Length`) on a
+  // route that reads it meets the route's own budget first — the ceiling sits
+  // just above the largest budget so the route answers with its JSON refusal —
+  // and a declared body past the ceiling is refused by the runtime itself, on a
+  // path whose handler never reads a body and would otherwise answer 200, which
+  // only the ceiling can do.
+  test('the hosted site server refuses oversized bodies, chunked or declared', async () => {
+    const distDir = path.join(ws.dir, 'dist')
+    await fs.mkdir(distDir, { recursive: true })
+    await fs.writeFile(path.join(distDir, 'index.html'), '<!DOCTYPE html><title>Ritual</title>')
+    server = startSiteServer({ port: 0, hostname: '127.0.0.1', distDir })
+    const base = `http://127.0.0.1:${server.port}`
+
+    const chunked = await fetch(`${base}/api/card-prices`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: chunkedBody(MAX_SITE_REQUEST_BODY_SIZE + 64 * 1024),
+    })
+    expect(chunked.status).toBe(413)
+    // The route's refusal (its JSON envelope, naming its budget), not the
+    // runtime's bare 413.
+    expect(((await chunked.json()) as ApiErrorResponse).message).toContain(
+      `limit ${MAX_PRICE_BODY_BYTES} bytes`,
+    )
+
+    const atCeiling = await fetch(`${base}/`, {
+      method: 'POST',
+      body: 'x'.repeat(MAX_SITE_REQUEST_BODY_SIZE),
+    })
+    expect(atCeiling.status).toBe(200)
+    // Past the ceiling the runtime answers from the headers alone and may close
+    // the connection while a client is still uploading, so this leg sends the
+    // headers only, over a raw socket, and reads the status line back.
+    expect(await statusForDeclaredBody(Number(server.port), MAX_SITE_REQUEST_BODY_SIZE + 1)).toBe(
+      413,
+    )
+  })
+})
+
+/**
+ * The status a server answers a POST that *declares* `contentLength` bytes,
+ * sending no body: what a runtime ceiling decides on before reading anything.
+ */
+async function statusForDeclaredBody(port: number, contentLength: number): Promise<number> {
+  const { promise, resolve, reject } = Promise.withResolvers<number>()
+  let received = ''
+  const socket = await Bun.connect({
+    hostname: '127.0.0.1',
+    port,
+    socket: {
+      data(_socket, chunk) {
+        received += new TextDecoder().decode(chunk)
+        const status = /^HTTP\/1\.1 (\d{3})/.exec(received)
+        if (status) resolve(Number(status[1]))
+      },
+      error(_socket, error) {
+        reject(error)
+      },
+      close() {
+        reject(new Error(`Connection closed before a status line: ${JSON.stringify(received)}`))
+      },
+    },
+  })
+  socket.write(`POST / HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: ${contentLength}\r\n\r\n`)
+  try {
+    return await promise
+  } finally {
+    socket.end()
+  }
+}

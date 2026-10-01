@@ -1,5 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { readJsonObjectBody, type ApiErrorResponse } from '../../../src/api/http'
+import {
+  readBodyText,
+  readJsonObjectBody,
+  type ApiErrorResponse,
+  type BodyText,
+} from '../../../src/api/http'
 
 /**
  * The shared JSON-body route prologue. Its two refusal messages are pinned here
@@ -66,5 +71,126 @@ describe('readJsonObjectBody', () => {
     const { status, body } = await refuse(raw)
     expect(status).toBe(400)
     expect(body.message).toBe('Request body must be a JSON object.')
+  })
+})
+
+/** A stream of `x` bytes that never ends, recording how it was consumed. */
+type ProbedStream = {
+  stream: ReadableStream<Uint8Array>
+  pulled: () => number
+  cancelled: () => boolean
+}
+
+function endlessStream(chunkSize: number): ProbedStream {
+  const chunk = new Uint8Array(chunkSize).fill(0x78)
+  let pulled = 0
+  let cancelled = false
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      pull(controller): void {
+        pulled += chunk.byteLength
+        controller.enqueue(chunk)
+      },
+      cancel(): void {
+        cancelled = true
+      },
+    },
+    // No read-ahead, so `pulled` counts exactly what the reader asked for.
+    { highWaterMark: 0 },
+  )
+  return { stream, pulled: () => pulled, cancelled: () => cancelled }
+}
+
+/** A finite stream that delivers `chunks` one read at a time. */
+function chunkedStream(chunks: readonly Uint8Array[]): ReadableStream<Uint8Array> {
+  const queue = [...chunks]
+  return new ReadableStream<Uint8Array>({
+    pull(controller): void {
+      const next = queue.shift()
+      if (next === undefined) controller.close()
+      else controller.enqueue(next)
+    },
+  })
+}
+
+/** A POST whose body is `body` and whose `Content-Length` is `declared` (absent when undefined). */
+function postBody(body: BodyInit, declared?: string): Request {
+  const headers = new Headers({ 'Content-Type': 'application/json' })
+  if (declared !== undefined) headers.set('Content-Length', declared)
+  return new Request('http://localhost/api/save', { method: 'POST', headers, body })
+}
+
+/** The refusal's status, failing the test if the read succeeded. */
+function refusedStatus(result: BodyText): number {
+  if (result.ok) throw new Error('expected a refusal, got a body')
+  return result.response.status
+}
+
+describe('readBodyText', () => {
+  // The budget is measured, not trusted from a header: an in-process `Request`
+  // declares no size, and neither does a chunked upload.
+  test('an undeclared body is measured against the budget, inclusive at the limit', async () => {
+    expect(postBody('x'.repeat(10)).headers.get('Content-Length')).toBeNull()
+
+    expect(await readBodyText(postBody('x'.repeat(10)), 10)).toEqual({
+      ok: true,
+      text: 'x'.repeat(10),
+    })
+    expect(refusedStatus(await readBodyText(postBody('x'.repeat(11)), 10))).toBe(413)
+  })
+
+  test('a streamed body is cancelled as soon as it passes the budget', async () => {
+    const probe = endlessStream(4)
+
+    expect(refusedStatus(await readBodyText(postBody(probe.stream), 10))).toBe(413)
+    // Three 4-byte chunks take it past 10; nothing after that is read.
+    expect(probe.pulled()).toBe(12)
+    expect(probe.cancelled()).toBe(true)
+  })
+
+  test('a declared size over the budget is refused before any of the body is read', async () => {
+    const probe = endlessStream(4)
+
+    expect(refusedStatus(await readBodyText(postBody(probe.stream, '11'), 10))).toBe(413)
+    expect(probe.pulled()).toBe(0)
+  })
+
+  // A header that is present but unparseable must not read as "fits".
+  test('a malformed declared size is refused', async () => {
+    expect(refusedStatus(await readBodyText(postBody('{}', 'lots')))).toBe(413)
+  })
+
+  test('a body declaring exactly the budget is accepted', async () => {
+    expect(await readBodyText(postBody('x'.repeat(10), '10'), 10)).toEqual({
+      ok: true,
+      text: 'x'.repeat(10),
+    })
+  })
+
+  // The header is only an early refusal; the bytes that actually arrive are
+  // what the budget holds against.
+  test('a body larger than its declared size is refused once it passes the budget', async () => {
+    const lying = postBody(chunkedStream([new Uint8Array(8).fill(0x78), new Uint8Array(8)]), '5')
+    expect(lying.headers.get('Content-Length')).toBe('5')
+
+    expect(refusedStatus(await readBodyText(lying, 10))).toBe(413)
+  })
+
+  test('a multi-byte character split across two chunks decodes whole', async () => {
+    // '€' is E2 82 AC in UTF-8; the chunk boundary falls inside it.
+    const split = chunkedStream([new Uint8Array([0x22, 0xe2, 0x82]), new Uint8Array([0xac, 0x22])])
+    expect(await readBodyText(postBody(split))).toEqual({ ok: true, text: '"€"' })
+  })
+
+  test('a bodiless request reads as empty text', async () => {
+    const req = new Request('http://localhost/api/save', { method: 'POST' })
+    expect(await readBodyText(req)).toEqual({ ok: true, text: '' })
+  })
+
+  test('the budget counts bytes, not characters', async () => {
+    // Four bytes per glyph in UTF-8: three glyphs fit 12, not 11.
+    const text = '🂡🂢🂣'
+    expect(await readBodyText(postBody(text), 12)).toEqual({ ok: true, text })
+    expect(refusedStatus(await readBodyText(postBody(text), 11))).toBe(413)
   })
 })

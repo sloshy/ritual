@@ -1208,7 +1208,10 @@ export function consolidateSetSection(
  * function of the original order plus the live change list, the result stays correct across
  * undo without any separate reconciliation — the same way card data is replayed from `original`.
  */
-export function replaySectionOrder(originalOrder: string[], changes: ChangeEvent[]): string[] {
+export function replaySectionOrder(
+  originalOrder: readonly string[],
+  changes: readonly ChangeEvent[],
+): string[] {
   let order = [...originalOrder]
   for (const c of changes) {
     if (c.action === 'add-section') {

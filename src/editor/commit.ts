@@ -1,16 +1,15 @@
 import type { ChangeEvent } from '../changes/change-event'
 import type { EditorStatusActions } from './useEditorStatus'
 import type { SaveEffect } from '../changes/save-effects'
+import { listSavePath, listSaveRequest } from '../changes/wire-changes'
+import type { ListType } from '../list/list-type'
 import { saveEditorChanges } from './saveEditorChanges'
 
 /** Everything a {@link CommitSink} needs to persist (or export) a set of edits. */
-export type CommitContext<TData> = {
+export type CommitContext = {
   slug: string
-  data: TData
-  changes: ChangeEvent[]
+  changes: readonly ChangeEvent[]
   contentHash: string
-  extra: Record<string, unknown>
-  sectionOrder: string[]
   /**
    * True when this session has already saved at least once, so the changelog
    * should fold these changes into the existing session entry rather than open
@@ -19,16 +18,14 @@ export type CommitContext<TData> = {
   continueSession: boolean
   /** Drives the editor's save/error status messaging. */
   statusActions: EditorStatusActions
-  /** Clears the pending-change stack on a successful commit. */
-  discardAll: () => void
 }
 
 /**
  * Outcome of a commit. A new `contentHash` (when returned) refreshes the
- * editor's conflict baseline; the `effects` are what the save reported it did to
- * individual card lines, which is how a client learns the `&N` its optimistic
- * ids became. A sink with no server behind it (the public editor's export)
- * returns neither.
+ * editor's conflict baseline and marks the commit as landed; the `effects` are
+ * what the save reported it did to individual card lines, which is how a client
+ * learns the `&N` its optimistic ids became. A sink with no server behind it
+ * (the public editor's export) returns neither.
  */
 export type CommitResult =
   | {
@@ -42,47 +39,28 @@ export type CommitResult =
     }
   | undefined
 
-/** The editor state a {@link createApiCommit} `buildSaveBody` turns into a POST body. */
-export type SaveBodyParams<TData> = {
-  data: TData
-  changes: ChangeEvent[]
-  contentHash: string
-  extra: Record<string, unknown>
-  sectionOrder: string[]
-  /** Whether to merge this save into the session's existing changelog entry. */
-  continueSession: boolean
-}
+/**
+ * How an editor "commits" its edits. The admin editor POSTs them to the list's
+ * save route ({@link createApiCommit}); the public site instead exports the
+ * change list or downloads an updated list file. Injecting this is what lets the
+ * same editor run with or without a server backend.
+ */
+export type CommitSink = (ctx: CommitContext) => Promise<CommitResult>
 
 /**
- * How an editor "commits" its edits. The admin editor POSTs to a save endpoint
- * ({@link createApiCommit}); the public site instead exports the change list or
- * downloads an updated list file. Injecting this is what lets the same editor run
- * with or without a server backend.
+ * Admin {@link CommitSink}: posts the pending changes to
+ * `/api/{type}/{slug}/save` and surfaces success/conflict/error status.
+ *
+ * Only the changes travel — in their wire form, without the session envelope —
+ * because the route replays them over the file itself. The list never does, so
+ * a save's size follows the edit rather than the list.
  */
-export type CommitSink<TData> = (ctx: CommitContext<TData>) => Promise<CommitResult>
-
-/**
- * Admin {@link CommitSink}: builds the POST body and saves it to the server,
- * surfacing success/conflict/error status. `buildSaveBody` is list-specific
- * (decks carry front matter, flat lists carry section order, etc.).
- */
-export function createApiCommit<TData>(
-  saveEndpoint: (slug: string) => string,
-  buildSaveBody: (params: SaveBodyParams<TData>) => unknown,
-): CommitSink<TData> {
+export function createApiCommit(type: ListType): CommitSink {
   return async (ctx) => {
     const result = await saveEditorChanges(
-      saveEndpoint(ctx.slug),
-      buildSaveBody({
-        data: ctx.data,
-        changes: ctx.changes,
-        contentHash: ctx.contentHash,
-        extra: ctx.extra,
-        sectionOrder: ctx.sectionOrder,
-        continueSession: ctx.continueSession,
-      }),
+      listSavePath(type, ctx.slug),
+      listSaveRequest(ctx.changes, ctx.contentHash, { continueSession: ctx.continueSession }),
       ctx.statusActions,
-      ctx.discardAll,
     )
     return result?.contentHash
       ? {

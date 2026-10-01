@@ -42,6 +42,21 @@ A few routes carry extra fields on failure where they are part of the wire contr
 - [Card Search](#card-search) keeps its paging fields and an empty `cards` array.
 - [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) use one shape for success and failure.
 - A save that loses an optimistic-concurrency race carries `conflict: true` with its `409`.
+- A [save](#save-a-list) refused because a change missed its card carries `unmatched`, one entry per change.
+
+### Request size limits
+
+Every route caps its request body and answers `413` past the cap. The bytes are counted as they arrive, so the cap holds for a chunked body or one that declares no `Content-Length`.
+
+| Routes                                                                                                                    | Cap           |
+| ------------------------------------------------------------------------------------------------------------------------- | ------------- |
+| Credentials, settings, list names, and other small bodies                                                                 | 10 KiB        |
+| [List metadata](#list-metadata) (a description can be long)                                                               | 1 MiB         |
+| [Saves](#save-a-list) (at most 50,000 changes), moves, removals, [sync](#sync-decks) and [export](#export-cards) requests | about 9.5 MiB |
+| [Buylist quotes](#buylist-quotes) (at most 500 printings)                                                                 | about 117 KiB |
+| Uploads: [CSV](#import-csv) and decklist imports, [change bundles](#import-changes), history rewrites                     | 16 MiB        |
+
+Beneath the per-route caps, the server refuses any body larger than 16 MiB plus a small allowance; that refusal comes from the runtime and has no JSON body.
 
 ## Authentication
 
@@ -363,7 +378,7 @@ Load a deck at the depth `view` asks for. The same parameters apply to [Load Col
 
 `totalCount` is always present: the number of entries that matched **before** `limit`/`offset` applied (the list's whole line count when nothing was filtered), so a client can page. `offset`/`limit` count lines, and a line is never split: a `4 Lightning Bolt` deck entry travels whole.
 
-Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response carries `"partial": true` and **no** `contentHash`, because saving a slice back would truncate the file. Reload without filters to get a hash you can save with. This applies to every view, `summary` included.
+Any of `section`, `nameContains`, `limit`, or `offset` makes the body a **slice**: the response carries `"partial": true` and **no** `contentHash`, because only a full load shows the whole list a save's changes are replayed over. Reload without filters to get a hash you can save with. This applies to every view, `summary` included.
 
 `warnings` is always present on all three views. It lists everything in the file a re-serializing write would not reproduce, as an array of messages (empty for a clean file):
 
@@ -414,7 +429,7 @@ A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `l
 }
 ```
 
-Front matter travels with the deck's `cards` view because the save route re-sends it. A collection or wanted list returns `entries` + `sectionOrder` instead, plus a top-level `description` (the list's front-matter blurb, absent when none is declared; a deck's is inside `deck.description`). Per-card fields:
+A deck's `cards` view also returns its front matter. A collection or wanted list returns `entries` + `sectionOrder` instead, plus a top-level `description` (the list's front-matter blurb, absent when none is declared; a deck's is inside `deck.description`). Per-card fields:
 
 - `labels` — a deck and a collection carry a top-level `labels` (the list's [front-matter default](/list-format/#card-labels); a deck's can only be `proxy`), and each of their cards may carry its own `labels` override.
 - `tags` — every card on every list type carries `tags` when its line has any: its [tags](/list-format/#card-tags) in canonical order (trimmed, sorted, without the `#`). There is no list-level tag default.
@@ -1044,13 +1059,47 @@ Which buyers this server can quote against and how fresh the cached feed is, wit
 
 `503` with the remedy when no feed has been downloaded — a normal first-run state.
 
-## Save Deck
+## Save a List
 
 ```
 POST /api/deck/:slug/save
+POST /api/collection/:slug/save
+POST /api/wanted/:slug/save
 ```
 
-Save deck changes: write the deck file and append to the changelog.
+Save an editing session: the request carries **only the changes**, never the list. The route reads the file, replays the changes over it with the same rules the editors apply, and writes the result plus a changelog entry. A save therefore scales with the edit rather than the list, and a client cannot write content its changes do not describe.
+
+What the route takes from the file rather than the request:
+
+- **Front matter** is never taken from the request (edit it with [List Metadata](#list-metadata)). A collection or wanted list keeps its block byte for byte. A deck's is re-written in canonical form: a known field of the wrong type, or a legacy `name:` / `created:` key, is dropped, and an inferred format is made explicit. A deck whose front matter is not readable YAML is a `400`, rather than a write that would drop it.
+- **The title** (a deck's name, a flat list's `# Title`), or the file's name when it has none, as the load route reports it.
+- **Section order**: the file's order with the session's `add-section` / `rename-section` / `remove-section` changes replayed over it, so a section the session added survives the write while still empty.
+
+**Request Body:**
+
+```json
+{
+  "changes": [{ "action": "add", "cardName": "Sol Ring", "set": "c21", "collectorNumber": "263" }],
+  "contentHash": "…",
+  "continueSession": false,
+  "validateCardNames": false
+}
+```
+
+- `changes` are [change events](/list-format/#the-changesmd-changelog) without the `id` / `timestamp` envelope; the route stamps its own, and ignores any a client sends. At most 50,000 per save.
+- `contentHash` is required: the hash the [load](#load-deck) returned. A file that changed since is a `409` with `conflict: true`; reload and retry. A filtered or paged load has no hash, because only a full load shows the whole list.
+- `continueSession` (optional boolean) merges this save into the previous save's changelog entry, bumping its timestamp, instead of opening a new one. The editor sets it on every save after the first within an editing session.
+- [`validateCardNames`](#validatecardnames) (optional boolean) checks every named card against the card cache.
+
+**Validation.** Each change is decoded with the same rules the changelog and [change bundles](#import-changes) use, before the file is read. Any failure is a `400` naming the change (`changes[2] …`), and nothing is written:
+
+- Actions, finishes, conditions, boards and [languages](/list-format/#card-language) must be known values. A `set-language` change requires its `language`.
+- Labels must be ones the list type carries: `proxy` alone on a deck, none on a wanted list, and the `keep`/`proxy` exclusivity rule on a collection.
+- Tags must be [tag-shaped](/list-format/#card-tags) and are canonicalized (trimmed, single-spaced, deduplicated, sorted). Category names must be [category-shaped](/list-format/#categories-namecategoriesjson); a `set-categories` list keeps its order (the first is the primary category), and an empty one clears.
+- No string may contain a line break (see [Line breaks](#line-breaks)).
+- A collection change that adds a line (`add`, `move-to`, `set-printing`) must carry a printing.
+
+**All or nothing.** A change that does not apply to the list as it stands (its card is not there, or it needs a printing pinned first) refuses the whole batch with a `400`. The body names each change that missed in an `unmatched` array, and nothing is written. A save never reports success while dropping changes.
 
 **Cross-list moves** in `changes` write the other list too, each with its own changelog entry:
 
@@ -1061,57 +1110,12 @@ Save deck changes: write the deck file and append to the changelog.
 
 Every move is validated in memory before anything is written. A missing list, a source with no copy to take, or a printing-less card headed into a collection fails the save with nothing written.
 
-`continueSession` (optional boolean) merges this save into the previous save's changelog entry, bumping its timestamp, instead of opening a new one. The editor sets it on every save after the first within an editing session.
-
-**Labels and tags.** `set-label` changes (and label-carrying `add`s and deck cards) are validated against what a deck line can carry: `proxy` alone. Any other label or an illegal combination is a `400` and nothing is written. `add-tag` / `remove-tag` changes (and the `tags` an `add`, a `remove`, or a request deck card carries) must be [tag-shaped](/list-format/#card-tags): plain text without `#`, `,`, `&`, brackets, braces or parentheses (a leading `#` is accepted on input and never stored). Tags are canonicalized (trimmed, single-spaced, deduplicated, sorted) before the write; a malformed one is a `400` carrying the parser's message, and nothing is written.
-
-**Request Body:**
-
-```json
-{
-  "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
-  "deck": { "name": "...", "sections": [] },
-  "frontMatter": {},
-  "contentHash": "…",
-  "continueSession": false,
-  "validateCardNames": false
-}
-```
-
-### Unreadable lines block a save
-
-All three save routes parse the file on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck). A line the parser cannot read, or a [fenced code block](/list-format/#fenced-code-blocks), is content the re-serializing write would delete, releasing any `&N` ids it held back into the reuse pool. The message names the file and each entry. Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field. MCP mutations surface the same refusal as a tool error.
-
-### Line breaks
-
-Card names, printings, sections, and list names are written into single-line card lines, headings, and changelog entries, so none of them may contain a line break (newline, carriage return, vertical tab, form feed, NEL, or U+2028/U+2029). The three save routes check every string in their card data (`changes`, a deck's `name` and `sections`, a wanted list's `entries`, and `sectionOrder`), and [Move Selected Cards](#move-selected-cards) and `POST /api/move/commit` check their `moves`. A line break anywhere in those is a `400` with `messageKey: admin.api.save.lineBreak` naming the JSON path, such as `changes[2].cardName`. Nothing is written. A deck's `description` and primer are not checked: both are multi-line by design. [Import changes](#import-changes) refuses a bundle carrying one the same way. MCP mutations surface the refusal as a tool error.
-
-### Language validation
-
-All three save routes validate every [language](/list-format/#card-language) a request carries:
-
-- A `set-language` change **requires** its `language` field.
-- An unknown code anywhere is a `400` naming the offender and listing the 17 valid Scryfall codes.
-- `en` on an entry folds to no token on the written line (a bare line always means English).
-
-### `validateCardNames`
-
-The three save routes and the [Move Selected Cards](#move-selected-cards) / [Remove Cards](#remove-cards) routes accept an optional boolean `validateCardNames`, default `false`. It is validated, never coerced: any non-boolean value is a `400`.
-
-With it set, every card name the request mentions is checked against the local Scryfall card cache before anything is written:
-
-- A name **already present in the affected list** is accepted with no lookup, so a custom, proxied, or unreleased card stays removable and editable.
-- Any other name must be one the cache knows. An unknown one is a `400` naming up to three of the closest cached spellings.
-- An **empty** cache is also a `400` (not a `503` as on [Price List](#price-list)), naming both remedies: the MCP `refresh_cache` tool, or `ritual cache preload-all`.
-
-The admin UI leaves it off. The MCP write tools set it on every request, except the import tools, whose engines report per-row failures.
-
 **Response:**
 
 ```json
 {
   "success": true,
-  "message": "Saved 3 changes to My Deck",
+  "message": "Saved 3 changes to My Collection",
   "contentHash": "…",
   "droppedNotes": [],
   "effects": [
@@ -1127,15 +1131,37 @@ The admin UI leaves it off. The MCP write tools set it on every request, except 
 }
 ```
 
+See [`effects`](#effects) for what the array reports.
+
+### Unreadable lines block a save
+
+All three save routes parse the file on disk before applying anything, and refuse with `400` when that parse yields any [`warnings`](#load-deck). A line the parser cannot read, or a [fenced code block](/list-format/#fenced-code-blocks), is content the re-serializing write would delete, releasing any `&N` ids it held back into the reuse pool. The message names the file and each entry. Nothing is written. Fix the line, or remove the fenced block, and retry; `GET /api/{type}/:slug` reports the same list in its `warnings` field. MCP mutations surface the same refusal as a tool error.
+
+### Line breaks
+
+Card names, printings, sections, and list names are written into single-line card lines, headings, and changelog entries, so none of them may contain a line break (newline, carriage return, vertical tab, form feed, NEL, or U+2028/U+2029). The [save route](#save-a-list) checks every string in `changes`, and [Move Selected Cards](#move-selected-cards) and `POST /api/move/commit` check their `moves`. A line break anywhere in those is a `400` with `messageKey: admin.api.save.lineBreak` naming the JSON path, such as `changes[2].cardName` or `moves[0].cardName`. A save's notes are trimmed first, so a pasted trailing newline on a note is not refused. Nothing is written. [Import changes](#import-changes) refuses a bundle carrying one the same way. MCP mutations surface the refusal as a tool error.
+
+### `validateCardNames`
+
+The save routes and the [Move Selected Cards](#move-selected-cards) / [Remove Cards](#remove-cards) routes accept an optional boolean `validateCardNames`, default `false`. It is validated, never coerced: any non-boolean value is a `400`.
+
+With it set, every card name the request mentions is checked against the local Scryfall card cache before anything is written:
+
+- A name **already present in the affected list** is accepted with no lookup, so a custom, proxied, or unreleased card stays removable and editable.
+- Any other name must be one the cache knows. An unknown one is a `400` naming up to three of the closest cached spellings.
+- An **empty** cache is also a `400` (not a `503` as on [Price List](#price-list)), naming both remedies: the MCP `refresh_cache` tool, or `ritual cache preload-all`.
+
+The admin UI leaves it off. The MCP write tools set it on every request, except the import tools, whose engines report per-row failures.
+
 ### `effects`
 
-All three save routes answer with an `effects` array describing what the save did to individual card lines, and a `contentHash` for the next save. Each entry is `{ action, cardId, name, section?, quantity, printing?, previousCardId? }`, where `action` is `added`, `removed`, or `updated`.
+The [save route](#save-a-list) answers with an `effects` array describing what the save did to individual card lines, and a `contentHash` for the next save. Each entry is `{ action, cardId, name, section?, quantity, printing?, previousCardId? }`, where `action` is `added`, `removed`, or `updated`.
 
 `previousCardId` appears only on an `updated` effect whose line was **renumbered**: another entry in the same save claimed its `&N` (a cross-list move carrying its source id, a replayed change bundle), so the serializer gave the older line a fresh number.
 
 A card's `&N` id is allocated inside the save, so the response is the **only** place a client that added a card can learn the id its line got. Set codes inside `printing` are lowercase.
 
-A save also re-files the list's [custom-art](/custom-art/) sidecar from the **changes**, not from the file it produced: a card the payload removes loses its art even when the payload re-adds the same card and the new line takes the same `&N` back. To put art on a card you are adding, wait for the save to answer, then aim a [Card Art](#card-art) write at the id the effects report (following `previousCardId` where a line was renumbered). The admin editors' [add-card dialog](/admin/editors/#card-options) does this.
+A save also re-files the list's [custom-art](/custom-art/) sidecar from the **changes**, not from the file it produced: a card the changes remove loses its art even when they re-add the same card and the new line takes the same `&N` back. To put art on a card you are adding, wait for the save to answer, then aim a [Card Art](#card-art) write at the id the effects report (following `previousCardId` where a line was renumbered). The admin editors' [add-card dialog](/admin/editors/#card-options) does this.
 
 ### `artWarnings`
 
@@ -1218,50 +1244,6 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
   "warnings": []
 }
 ```
-
-## Save Collection
-
-```
-POST /api/collection/:slug/save
-```
-
-Save collection changes: write the collection file and create a changelog entry. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, validated before anything is written — see [Save Deck](#save-deck). `continueSession` and [`validateCardNames`](#validatecardnames) work as on Save Deck.
-
-Validation, each a `400` that leaves the file untouched:
-
-- Every collection entry must carry a printing: an `add`, `move-to`, or `set-printing` change missing `set` or `collectorNumber`.
-- A change whose target entry does not exist (matching is exact and case-sensitive on name, with `cardId` taking priority). The response names the unapplied changes; a save never reports success while dropping changes.
-- `set-label` changes (and label-carrying `add`s): `labels` are validated against the label vocabulary, the labels a collection carries, and the `keep`/`proxy` exclusivity rule, then normalized to canonical order.
-- `add-tag` / `remove-tag` changes (and the `tags` an `add` or `remove` carries): each tag must be [tag-shaped](/list-format/#card-tags) and is canonicalized before the write; a malformed one carries the parser's message.
-
-The file's front-matter block always passes through a save untouched.
-
-**Request Body:**
-
-```json
-{
-  "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
-  "contentHash": "…",
-  "sectionOrder": ["Main", "Trade Binder"],
-  "continueSession": false
-}
-```
-
-The handler re-parses the file and **replays the changes itself**; no entry list is sent. The optional `sectionOrder` gives section display order (including empty sections); when omitted, the file's parsed order is kept.
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Saved 3 changes to My Collection",
-  "contentHash": "…",
-  "droppedNotes": [],
-  "effects": [{ "action": "removed", "cardId": 4, "name": "Lightning Bolt", "quantity": 1 }]
-}
-```
-
-See [`effects`](#effects) for what the array reports.
 
 ## Create Collection
 
@@ -1390,42 +1372,6 @@ Load a wanted list with full card data, printings, and mana symbol map. Accepts 
   "warnings": []
 }
 ```
-
-## Save Wanted List
-
-```
-POST /api/wanted/:slug/save
-```
-
-Save wanted list changes: write the wanted list file and append to the changelog. Cross-list moves in `changes` (`move-from {to}` / incoming `move-to {from}`) write the other list and its changelog too, validated before anything is written — see [Save Deck](#save-deck). `continueSession` and [`validateCardNames`](#validatecardnames) work as on Save Deck.
-
-- `add-tag` / `remove-tag` changes, and the `tags` on the `entries` the body re-serializes, are validated like the [deck save](#save-deck)'s: tag-shaped or a `400`, canonicalized before the write.
-- A wanted list carries no labels. A `set-label` change, a label-carrying `add` / `remove`, or an entry `labels` field (even an empty array) is a `400` (`labels do not apply to a wanted.`) and nothing is written. The MCP schemas and CLI flags make the same decision (`checkLabelsForListType`).
-
-**Request Body:**
-
-```json
-{
-  "changes": [{ "id": "...", "timestamp": 123, "action": "add", "cardName": "Sol Ring" }],
-  "entries": [{ "name": "Sol Ring", "set": "2xm", "collectorNumber": "270" }],
-  "contentHash": "…",
-  "continueSession": false
-}
-```
-
-**Response:**
-
-```json
-{
-  "success": true,
-  "message": "Saved 3 changes to high-priority",
-  "contentHash": "…",
-  "droppedNotes": [],
-  "effects": [{ "action": "added", "cardId": 9, "name": "Sol Ring", "quantity": 1 }]
-}
-```
-
-See [`effects`](#effects) for what the array reports.
 
 ## Create Wanted List
 

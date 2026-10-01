@@ -1,12 +1,12 @@
 /**
  * The shared save tail's ordering guarantee.
  *
- * `finishListSave` writes the list file before appending the changelog, and the
- * deck route was converged onto that order. Neither order is atomic, so the
- * question is which half survives a crash between the two: a written file with a
- * missing history line (a benign gap) or a history line describing an edit the
- * file never received (a phantom that `ritual history`, the change-bundle
- * export, undo, and the sync flows all act on).
+ * `finishListSave` writes the list file before appending the changelog, and
+ * every list save goes through it. Neither order is atomic, so the question is
+ * which half survives a crash between the two: a written file with a missing
+ * history line (a benign gap) or a history line describing an edit the file
+ * never received (a phantom that `ritual history`, the change-bundle export,
+ * undo, and the sync flows all act on).
  *
  * The failure is injected by making the changelog path unwritable — a directory
  * where the `.changes.md` file belongs — which is deterministic and needs no
@@ -17,8 +17,6 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import { loadDeck } from '../../src/list/deck-io'
 import { ensureDeckFile } from '../../src/list/ensure-list-file'
-import { applyChangeToDeck } from '../../src/changes/deck-changes'
-import { assignMissingDeckCardIds } from '../../src/card/card-id'
 import {
   createAddChange,
   createRemoveChange,
@@ -28,8 +26,8 @@ import {
 } from '../../src/changes/change-event'
 import type { ListSaveResponse } from '../../src/admin/api/list-save'
 import { computeHash } from '../../src/changes/content-hash'
-import { handleDeckSave } from '../../src/admin/api/deck-save'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { saveList } from '../helpers/list-save'
 
 let ws: BoundWorkspace
 
@@ -44,28 +42,14 @@ afterEach(async () => {
 describe('finishListSave ordering (Integration)', () => {
   test('a deck save whose changelog write fails still leaves the deck file written', async () => {
     const filePath = await ensureDeckFile('Ordering Deck', 'commander')
-    const loaded = await loadDeck(filePath)
-    const hash = computeHash(await fs.readFile(filePath, 'utf-8'))
 
     // A directory where the changelog file belongs: `appendChangelog`'s write throws.
     const changelogPath = filePath.replace(/\.md$/, '.changes.md')
     await fs.mkdir(changelogPath, { recursive: true })
 
-    const change = createAddChange('Sol Ring', { section: 'Main' })
-    const deck = assignMissingDeckCardIds(applyChangeToDeck(loaded.deck, change))
-
-    const resp = await handleDeckSave(
-      new Request('http://localhost/api/deck/Ordering Deck/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          changes: [change],
-          deck,
-          frontMatter: loaded.frontMatter,
-          contentHash: hash,
-        }),
-      }),
-    )
+    const resp = await saveList('deck', 'Ordering Deck', filePath, [
+      createAddChange('Sol Ring', { section: 'Main' }),
+    ])
 
     expect(resp.status).toBe(500)
     // The list file is the half that survived: the card is on disk.
@@ -78,28 +62,13 @@ describe('finishListSave ordering (Integration)', () => {
 })
 
 describe('finishListSave — categories sidecar (Integration)', () => {
-  /** Post a deck save built from the file's current state plus `changes`. */
+  /** Post `changes` as a deck save against the file's current state. */
   async function save(
     filePath: string,
     changes: ChangeEvent[],
     slug: string,
   ): Promise<ListSaveResponse> {
-    const loaded = await loadDeck(filePath)
-    const hash = computeHash(await fs.readFile(filePath, 'utf-8'))
-    let deck = loaded.deck
-    for (const change of changes) deck = applyChangeToDeck(deck, change)
-    const resp = await handleDeckSave(
-      new Request(`http://localhost/api/deck/${slug}/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          changes,
-          deck: assignMissingDeckCardIds(deck),
-          frontMatter: loaded.frontMatter,
-          contentHash: hash,
-        }),
-      }),
-    )
+    const resp = await saveList('deck', slug, filePath, changes)
     expect(resp.status).toBe(200)
     return (await resp.json()) as ListSaveResponse
   }

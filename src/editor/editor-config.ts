@@ -144,7 +144,7 @@ export type EditorConfig<TData> = {
    */
   fetchData: (slug: string, signal: AbortSignal) => Promise<unknown>
   /** Commit (or export) the pending edits. See {@link CommitSink}. */
-  commit: CommitSink<TData>
+  commit: CommitSink
   /** Whether to render the list selector dropdown. Defaults to true (admin); the public single-item editor hides it. */
   showSelector?: boolean
   /**
@@ -325,15 +325,6 @@ export type UseEditorResult<TData, TCardEntry> = {
    * card save doesn't 409 against a change this editor itself made.
    */
   setContentHash: (hash: string) => void
-  extra: Accessor<Record<string, unknown>>
-  /**
-   * Replace the load-time extras mid-session — for an out-of-band write to the
-   * same file that returns a fresher copy of what they snapshot (the deck
-   * editor's `frontMatter`, rewritten by the labels and cover dialogs). Without
-   * it the next card save would re-send the snapshot taken at load and delete
-   * the key that write just added.
-   */
-  setExtra: (extra: Record<string, unknown>) => void
   /** The currency price displays use (the config's accessor, or a USD constant). */
   currency: Accessor<PriceCurrency>
   getOriginal: () => TData | null

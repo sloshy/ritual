@@ -1,12 +1,8 @@
+import { readJsonObjectBody } from '../../api/http'
 import { ArchidektAuth } from '../../auth/ArchidektAuth'
 import { FileTokenStore } from '../../auth/FileTokenStore'
 import { getErrorMessage } from '../../util/errors'
 import { apiMessage, type ApiMessage } from '../../api/result'
-
-interface ArchidektLoginRequest {
-  username: string
-  password: string
-}
 
 interface ArchidektLoginResponse extends ApiMessage {
   success: boolean
@@ -15,8 +11,10 @@ interface ArchidektLoginResponse extends ApiMessage {
 
 export async function handleArchidektLogin(req: Request): Promise<Response> {
   try {
-    const body = (await req.json()) as ArchidektLoginRequest
-    const { username, password } = body
+    const parsed = await readJsonObjectBody(req)
+    if (!parsed.ok) return parsed.response
+    const username = typeof parsed.body.username === 'string' ? parsed.body.username : ''
+    const password = typeof parsed.body.password === 'string' ? parsed.body.password : ''
 
     if (!username || !password) {
       const resp: ArchidektLoginResponse = {

@@ -12,12 +12,7 @@ import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 describe('saveEditorChanges', () => {
   type Call = { method: string; args: unknown[] }
   let calls: Call[]
-  let discardCalled: boolean
   let statusActions: EditorStatusActions
-
-  const discardAll = () => {
-    discardCalled = true
-  }
 
   /**
    * What a stored status message renders to. The status store holds
@@ -44,7 +39,6 @@ describe('saveEditorChanges', () => {
 
   beforeEach(() => {
     calls = []
-    discardCalled = false
     statusActions = {
       loadStart: () => calls.push({ method: 'loadStart', args: [] }),
       loadSuccess: () => calls.push({ method: 'loadSuccess', args: [] }),
@@ -59,18 +53,12 @@ describe('saveEditorChanges', () => {
   it('calls saveStart then saveSuccess on success and returns the response data', async () => {
     stubSave({ success: true, contentHash: 'abc123' })
 
-    const result = await saveEditorChanges(
-      '/api/test/save',
-      { data: 'test' },
-      statusActions,
-      discardAll,
-    )
+    const result = await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions)
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
       { method: 'saveSuccess', args: ['Changes saved successfully'] },
     ])
-    expect(discardCalled).toBe(true)
     expect(result).toEqual({ success: true, contentHash: 'abc123' })
   })
 
@@ -81,7 +69,7 @@ describe('saveEditorChanges', () => {
       droppedNotes: [{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }],
     })
 
-    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions, discardAll)
+    await saveEditorChanges('/api/test/save', { data: 'test' }, statusActions)
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
@@ -105,16 +93,14 @@ describe('saveEditorChanges', () => {
 
     for (const { response, expected } of cases) {
       calls = []
-      discardCalled = false
       stubSave(response)
 
-      await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+      await saveEditorChanges('/api/test/save', {}, statusActions)
 
       expect(calls).toEqual([
         { method: 'saveStart', args: [] },
         { method: 'saveError', args: [expected] },
       ])
-      expect(discardCalled).toBe(false)
     }
   })
 
@@ -125,21 +111,20 @@ describe('saveEditorChanges', () => {
       },
     })
 
-    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions)
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
       { method: 'saveError', args: ['Failed to save changes'] },
     ])
-    expect(discardCalled).toBe(false)
     expect(result).toBeUndefined()
   })
 
   it('sends correct request configuration', async () => {
     stubSave({ success: true })
 
-    const body = { changes: [1, 2], entries: ['a'] }
-    await saveEditorChanges('/api/collection/my-col/save', body, statusActions, discardAll)
+    const body = { changes: [{ action: 'add', cardName: 'Sol Ring' }], contentHash: 'abc123' }
+    await saveEditorChanges('/api/collection/my-col/save', body, statusActions)
 
     const sent = stubbed?.sent[0]
     expect(sent?.url).toBe('/api/collection/my-col/save')
@@ -159,7 +144,7 @@ describe('saveEditorChanges', () => {
       409,
     )
 
-    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions)
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
@@ -168,7 +153,6 @@ describe('saveEditorChanges', () => {
         args: ['Deck has been modified since you loaded it. Please reload.'],
       },
     ])
-    expect(discardCalled).toBe(false)
     expect(result).toEqual({
       success: false,
       conflict: true,
@@ -179,7 +163,7 @@ describe('saveEditorChanges', () => {
   it('handles conflict flag without 409 status', async () => {
     stubSave({ success: false, conflict: true }, 200)
 
-    const result = await saveEditorChanges('/api/test/save', {}, statusActions, discardAll)
+    const result = await saveEditorChanges('/api/test/save', {}, statusActions)
 
     expect(calls).toEqual([
       { method: 'saveStart', args: [] },
@@ -200,10 +184,10 @@ describe('saveEditorChanges', () => {
     }
 
     stubSave({ success: true })
-    await saveEditorChanges('/api/test/save', {}, capture, discardAll)
+    await saveEditorChanges('/api/test/save', {}, capture)
 
     stubSave({ success: false, error: 'Bad request data' }, 400)
-    await saveEditorChanges('/api/test/save', {}, capture, discardAll)
+    await saveEditorChanges('/api/test/save', {}, capture)
 
     expect(recorded).toEqual([
       { kind: 'key', key: 'ui.editor.saveSuccess', params: undefined },

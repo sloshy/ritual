@@ -71,16 +71,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     fetchList: () => fetchAdminJson('/api/wanted'),
     extractListItems: (r) => (r as WantedListListResponse).wantedLists ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/wanted/${slug}`, signal),
-    commit: createApiCommit(
-      (slug) => `/api/wanted/${slug}/save`,
-      ({ data, changes, contentHash, sectionOrder, continueSession }) => ({
-        changes,
-        entries: data,
-        contentHash,
-        sectionOrder,
-        continueSession,
-      }),
-    ),
+    commit: createApiCommit('wanted'),
     entityLabel: 'wanted list',
 
     processLoadResponse: (response) => {

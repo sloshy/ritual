@@ -3,7 +3,7 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { handleCollectionLoad } from '../../src/admin/api/collection-load'
 import { handleDeckLoad } from '../../src/admin/api/deck-load'
-import { handleDeckSave } from '../../src/admin/api/deck-save'
+import { handleListSave } from '../../src/admin/api/list-save'
 import { handleWantedListLoad } from '../../src/admin/api/wanted-load'
 import type {
   CollectionLoadResult,
@@ -38,6 +38,11 @@ import {
  */
 
 let ws: BoundWorkspace
+
+/** The deck save route, in the one-argument shape `callJson` drives. */
+function saveDeck(req: Request): Promise<Response> {
+  return handleListSave(req, 'deck')
+}
 
 beforeEach(async () => {
   ws = await bindWorkspace({ config: false, clearCardCache: true })
@@ -167,8 +172,9 @@ describe('view=cards', () => {
     ])
     // totalCount is the match count before the limit, so a client can page.
     expect(body.totalCount).toBe(2)
-    // Front matter travels with the cards view: the deck save flow re-sends it,
-    // and dropping it here would silently blank the file's YAML.
+    // Front matter travels with the cards view: it is part of what a client
+    // reading the deck sees (format, cover, labels default), even though a save
+    // never sends it back — the save route reads it from the file.
     expect(body.frontMatter).toMatchObject({ format: 'modern' })
     for (const key of EXPENSIVE_KEYS) expect(Object.keys(body)).not.toContain(key)
   })
@@ -265,13 +271,14 @@ describe('a narrowed load is not a save payload', () => {
       'GET',
       '/api/deck/burn?view=cards&limit=1',
     )
-    // Exactly the round trip the omission exists to prevent: save back what a
-    // narrowed load returned, which would leave the file holding one line.
+    // A client that edited from a narrowed load has no hash to send back, so
+    // the save is refused with the reason rather than a bare "required".
+    expect(loaded.partial).toBeTrue()
     const { status, body } = await callJson<{ message: string }>(
-      handleDeckSave,
+      saveDeck,
       'POST',
       '/api/deck/burn/save',
-      { changes: [], deck: loaded.deck, frontMatter: loaded.frontMatter },
+      { changes: [] },
     )
     expect(status).toBe(400)
     expect(body.message).toContain('partial')
@@ -409,15 +416,10 @@ describe('warnings reach every view', () => {
       '/api/deck/burn?view=cards',
     )
     const { status, body } = await callJson<{ message: string }>(
-      handleDeckSave,
+      saveDeck,
       'POST',
       '/api/deck/burn/save',
-      {
-        changes: [],
-        deck: loaded.deck,
-        frontMatter: loaded.frontMatter,
-        contentHash: loaded.contentHash,
-      },
+      { changes: [], contentHash: loaded.contentHash },
     )
     expect(status).toBe(400)
     expect(body.message).toContain('holds content the parser cannot re-emit')
@@ -461,15 +463,10 @@ describe('a fenced code block reaches the save gate', () => {
     expect(JSON.stringify(loaded.deck)).not.toContain('Fake Card')
 
     const { status, body } = await callJson<{ message: string }>(
-      handleDeckSave,
+      saveDeck,
       'POST',
       '/api/deck/burn/save',
-      {
-        changes: [],
-        deck: loaded.deck,
-        frontMatter: loaded.frontMatter,
-        contentHash: loaded.contentHash,
-      },
+      { changes: [], contentHash: loaded.contentHash },
     )
     expect(status).toBe(400)
     expect(body.message).toContain('Fenced code block content (3 line(s))')

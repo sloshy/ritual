@@ -1,6 +1,6 @@
 /**
  * The HTTP plumbing every Ritual route shares: the refusal envelope, the JSON
- * body prologue, and the declared-size cap.
+ * body prologue, and the measured body-size cap.
  *
  * It lives here rather than beside the admin save routes because `src/api/`
  * means "handlers no server owns" — some of these routes are mounted by both the
@@ -16,14 +16,10 @@ import { isRecord } from '../util/json'
 import type { ApiMessage } from './result'
 
 /**
- * The declared body size (bytes) allowed on routes whose body is bounded by its
- * own shape — credentials, a config object, a list name. It is also what
- * `validateBodySize`/`readJsonObjectBody` apply when a route passes no budget of
- * its own, so a route that needs more has to say so.
- *
- * Note what this does and does not buy: the check reads `Content-Length` rather
- * than measuring, so it is a courtesy refusal for a well-behaved client, not a
- * defense — see {@link validateBodySize} for the ways past it.
+ * The body size (bytes) allowed on routes whose body is bounded by its own
+ * shape — credentials, a config object, a list name. It is also what
+ * {@link readBodyText}/{@link readJsonObjectBody} apply when a route passes no
+ * budget of its own, so a route that needs more has to say so.
  */
 export const MAX_BODY_SIZE = 10 * 1024
 
@@ -77,27 +73,76 @@ export function badRequest(reason: string | ApiMessage): Response {
   return apiError(reason, 400)
 }
 
+/** The outcome of {@link readBodyText}: the body as text, or the response to return. */
+export type BodyText = { ok: true; text: string } | { ok: false; response: Response }
+
 /** The outcome of {@link readJsonObjectBody}: the parsed object, or the response to return. */
 export type JsonObjectBody =
   { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+
+function tooLarge(maxBytes: number): Response {
+  return apiError(`Request body too large (limit ${maxBytes} bytes)`, 413)
+}
+
+/**
+ * Read a request body as text, refusing with 413 once it passes `maxBytes`.
+ *
+ * The bytes are counted as they arrive, so the budget holds whatever the request
+ * declares: a chunked upload, a lying `Content-Length`, or an in-process caller
+ * that builds its `Request` directly (the MCP dispatcher, `import-changes`). A
+ * declared size over the budget is refused before anything is read. The
+ * servers also set a hard `maxRequestBodySize` ceiling; this is the per-route
+ * budget beneath it.
+ */
+export async function readBodyText(
+  req: Request,
+  maxBytes: number = MAX_BODY_SIZE,
+): Promise<BodyText> {
+  const declared = req.headers.get('Content-Length')
+  // A header that is present but unparseable is refused rather than waved
+  // through: `Number('abc') > maxBytes` is false, so NaN would read as "fits".
+  if (declared !== null) {
+    const contentLength = Number(declared)
+    if (!Number.isFinite(contentLength) || contentLength > maxBytes) {
+      return { ok: false, response: tooLarge(maxBytes) }
+    }
+  }
+  if (req.body === null) return { ok: true, text: '' }
+  const reader = req.body.getReader()
+  // Decoded as it arrives (`stream: true` holds a multi-byte character split
+  // across two chunks until its second half comes), so nothing is copied twice.
+  const decoder = new TextDecoder()
+  let text = ''
+  let total = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    total += value.byteLength
+    if (total > maxBytes) {
+      await reader.cancel()
+      return { ok: false, response: tooLarge(maxBytes) }
+    }
+    text += decoder.decode(value, { stream: true })
+  }
+  return { ok: true, text: text + decoder.decode() }
+}
 
 /**
  * The shared route prologue for a JSON body: size cap, parse, object guard, one
  * error envelope. Folds the three steps every mutating handler opened with.
  *
- * This is the rule: every route that reads a JSON body goes through it. The
- * deliberate hold-outs are the four auth-surface handlers (`setup`,
- * `auth-login`, `login`, `totp`), whose refusal bodies carry their own fields
- * (`retryAfterSeconds`, `loginRequired`) and are a wire contract of their own.
- * They hold out from this prologue and its envelope, not from the cap: all but
- * `login` (Archidekt) call {@link validateBodySize} directly.
+ * This is the rule: every route that reads a JSON body goes through it, the
+ * auth routes included — they keep envelopes of their own only for the
+ * refusals that come after the body is read. The one route that reads its
+ * body raw is `import-changes`, whose body is a bundle `parseChangeBundle`
+ * validates itself; it calls {@link readBodyText} for the cap.
  */
 export async function readJsonObjectBody(req: Request, maxBytes?: number): Promise<JsonObjectBody> {
-  const sizeError = validateBodySize(req, maxBytes)
-  if (sizeError) return { ok: false, response: sizeError }
+  const read = await readBodyText(req, maxBytes)
+  if (!read.ok) return read
   let raw: unknown
   try {
-    raw = await req.json()
+    raw = JSON.parse(read.text)
   } catch {
     return { ok: false, response: apiError('Request body must be JSON.', 400) }
   }
@@ -105,30 +150,4 @@ export async function readJsonObjectBody(req: Request, maxBytes?: number): Promi
     return { ok: false, response: apiError('Request body must be a JSON object.', 400) }
   }
   return { ok: true, body: raw }
-}
-
-/**
- * Return a 413 Response if the request *declares* more bytes than the cap, or
- * null if it may proceed. `maxBytes` defaults to {@link MAX_BODY_SIZE}; a route
- * whose body has no small bound in its shape passes `MAX_LIST_BODY_SIZE`,
- * and a bulk query route derives one from its own per-request item cap.
- *
- * This trusts `Content-Length` rather than measuring, which is deliberate but
- * narrow: a request that sends no such header — a chunked upload, or any of the
- * in-process callers that build a `Request` directly (the MCP dispatcher via
- * `buildSyntheticRequest`, `import-changes` re-dispatching into the save
- * handlers, every integration test) — is not capped at all. So this is a
- * comprehensible refusal for a well-behaved client, not a defense against a
- * hostile one; bounding memory would mean measuring the stream as it is read.
- */
-export function validateBodySize(req: Request, maxBytes: number = MAX_BODY_SIZE): Response | null {
-  const declared = req.headers.get('Content-Length')
-  // A header that is present but unparseable is refused rather than waved
-  // through: `Number('abc') > maxBytes` is false, so NaN would read as "fits".
-  if (declared === null) return null
-  const contentLength = Number(declared)
-  if (!Number.isFinite(contentLength) || contentLength > maxBytes) {
-    return apiError(`Request body too large (limit ${maxBytes} bytes)`, 413)
-  }
-  return null
 }

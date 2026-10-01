@@ -60,13 +60,14 @@ The HTTP-only flags (`--port`, `--host`, `--token`, `--allow-unauthenticated`) d
 
 #### Errors
 
-| Response | When                                                                                                                                                                                     |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `401`    | Missing or wrong bearer token. The JSON-RPC body carries implementation-defined code `-32010`.                                                                                           |
-| `403`    | On a **loopback bind only**: a request whose `Host` or `Origin` header is not local (DNS-rebinding protection, checked before auth). An exposed host skips this and relies on the token. |
-| `404`    | A path other than `/mcp`. The body carries implementation-defined code `-32011`.                                                                                                         |
-| `405`    | `GET`/`DELETE` on `/mcp` — the 2025-era session operations, which stateless serving does not have.                                                                                       |
-| `415`    | A POST whose `Content-Type` is not `application/json`.                                                                                                                                   |
+| Response | When                                                                                                                                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `401`    | Missing or wrong bearer token. The JSON-RPC body carries implementation-defined code `-32010`.                                                                                                                                                                                                         |
+| `403`    | On a **loopback bind only**: a request whose `Host` or `Origin` header is not local (DNS-rebinding protection, checked before auth). An exposed host skips this and relies on the token.                                                                                                               |
+| `404`    | A path other than `/mcp`. The body carries implementation-defined code `-32011`.                                                                                                                                                                                                                       |
+| `405`    | `GET`/`DELETE` on `/mcp` — the 2025-era session operations, which stateless serving does not have.                                                                                                                                                                                                     |
+| `415`    | A POST whose `Content-Type` is not `application/json`.                                                                                                                                                                                                                                                 |
+| `413`    | A request body over about 32 MiB, refused before it reaches the protocol layer (no JSON-RPC body). Tool arguments are also held to each route's own [size limit](/admin/api/#request-size-limits): an `apply_changes` batch carries at most 50,000 changes, and an oversized argument is a tool error. |
 
 On 2026-07-28 responses, the catalog surfaces (`tools/list`, `resources/templates/list`, `server/discover`) advertise a one-hour private cache hint. `resources/list` and `resources/read` are marked never-cacheable, since their contents change with every edit. Ritual declares no tool-list-changed notifications and no resource subscriptions; see [Resources](#resources) for the transport-dependent `resources.listChanged`.
 
@@ -265,7 +266,7 @@ Details the table leaves out:
 - `remove_card`: `finish`, `condition`, and `language` narrow the match to entries with that value (`language: "en"` matches bare lines).
 - `set_card_printing`: omitting `set`/`collectorNumber` clears a deck or wanted-list card's printing; on a collection that is rejected. `condition` takes a grade or `NONE` to clear a recorded grade (also accepted on `apply_changes`' `set-printing` action); `NM` is the unrecorded default, so setting it leaves the line ungraded. `language` sets the card's language alongside the printing; omitted, it is left alone.
 
-Card edits load the list, apply the change, and save in one call, so **you never supply a content hash**; conflict detection is internal. A concurrent web-UI edit is retried once automatically (the retry re-reads the list, so your changes land on the content that won). A second conflict in a row surfaces as a structured `conflict` error (see [Tool errors](#tool-errors)), since two losses mean a live concurrent editor.
+Card edits read the list's content hash and post the changes to its save route, which replays them over the file, in one call, so **you never supply a content hash**; conflict detection is internal. A concurrent web-UI edit is retried once automatically (the retry re-reads the list, so your changes land on the content that won). A second conflict in a row surfaces as a structured `conflict` error (see [Tool errors](#tool-errors)), since two losses mean a live concurrent editor.
 
 The four single-list edit tools (`add_card`, `remove_card`, `set_card_printing`, `apply_changes`) answer with `{ applied, message, listType, slug, effects, unmatched }`:
 

@@ -23,7 +23,7 @@ type CollectionChangeInput = ChangeInput & {
  * write collection files (admin save, one-shot CLI mutations) check this before
  * applying; the move engine enforces the same rule in `applyAddToStaged`.
  */
-export function findCollectionPrintingError(changes: ChangeInput[]): string | null {
+export function findCollectionPrintingError(changes: readonly ChangeInput[]): string | null {
   for (const change of changes) {
     if (
       change.action !== 'add' &&

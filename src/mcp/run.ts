@@ -18,6 +18,7 @@ import { isLoopbackHost } from './host'
 import { buildMcpServer } from './server'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import { secretsEqual } from '../util/secret-compare'
+import { MAX_UPLOAD_BODY_SIZE } from '../admin/validation'
 
 /**
  * Run the MCP server over stdio (the default transport for local agent clients).
@@ -83,6 +84,15 @@ export type RpcErrorBody = {
   id: null
 }
 
+/**
+ * The hard ceiling on an MCP request body (`maxRequestBodySize`). A tool call
+ * carries its arguments inside JSON-RPC, so a file-sized argument (`import_csv`'s
+ * CSV text) arrives as an escaped string — quotes and newlines double — and gets
+ * twice the largest admin route budget. Each tool's dispatched route then holds
+ * its own budget, measured in-process.
+ */
+export const MAX_MCP_REQUEST_BODY_SIZE = 2 * MAX_UPLOAD_BODY_SIZE + 64 * 1024
+
 /** The single path the MCP Streamable HTTP endpoint is served from. */
 const MCP_PATH = '/mcp'
 
@@ -143,6 +153,7 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
   const server = Bun.serve({
     port,
     hostname: host,
+    maxRequestBodySize: MAX_MCP_REQUEST_BODY_SIZE,
     fetch: async (request) => {
       const url = new URL(request.url)
       if (url.pathname !== MCP_PATH) {

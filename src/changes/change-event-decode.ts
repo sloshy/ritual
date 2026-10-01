@@ -85,6 +85,15 @@ const SECTION_META_ACTIONS: ReadonlySet<ChangeAction> = new Set<ChangeAction>([
 /** Which optional numeric ids a `move-to` may carry beyond `cardId`. */
 const MOVE_TO_ID_FIELDS = ['sourceCardId', 'replacesCardId'] as const
 
+/**
+ * Whether `value` can be an `&N`: a positive integer. Anything else would write
+ * a token the line reader cannot read back (`&1.5`, `&-1`), turning the list
+ * unreadable on its next load.
+ */
+function isCardIdValue(value: unknown): value is number {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
+}
+
 /** How a caller wants the printing-ish fields judged. */
 export type PrintingFieldRules = {
   /** `set-printing` alone accepts the `NONE` condition-clear sentinel. */
@@ -258,7 +267,7 @@ export function decodeChangeEvent(
   if (!SECTION_META_ACTIONS.has(action) && obj.cardName === undefined) {
     return `${where}is missing its "cardName".`
   }
-  if (obj.cardId !== undefined && typeof obj.cardId !== 'number') {
+  if (obj.cardId !== undefined && !isCardIdValue(obj.cardId)) {
     return `${where}has an invalid "cardId".`
   }
   // Categories are keyed by card NAME in one list, so none of the three actions
@@ -309,13 +318,20 @@ export function decodeChangeEvent(
     if (typeof from === 'string') return from
     normalized.from = from
     for (const field of MOVE_TO_ID_FIELDS) {
-      if (obj[field] !== undefined && typeof obj[field] !== 'number') {
+      if (obj[field] !== undefined && !isCardIdValue(obj[field])) {
         return `${where}has an invalid "${field}".`
       }
     }
     const replacement = validateReplacement(obj.replacement, where)
     if (typeof replacement === 'string') return replacement
-    if (replacement !== undefined) normalized.replacement = replacement
+    if (replacement !== undefined) {
+      // The printing the source line gets back replaces *that* line; with no
+      // line pinned there is nothing for it to replace.
+      if (obj.replacesCardId === undefined) {
+        return `${where}carries a "replacement" but pins no line ("replacesCardId").`
+      }
+      normalized.replacement = replacement
+    }
   }
   // A labels payload is a closed vocabulary with an exclusivity rule —
   // imported JSON must not smuggle garbage into a serialize. The parsed form
@@ -427,6 +443,22 @@ const SERIALIZED_KEY_ORDER = [
 
 /** The keys the writer never persists. */
 type EnvelopeKey = 'id' | 'timestamp'
+
+const PERSISTED_KEYS: ReadonlySet<string> = new Set(SERIALIZED_KEY_ORDER)
+
+/**
+ * `raw` reduced to the keys an event persists — {@link SERIALIZED_KEY_ORDER},
+ * no envelope. For input that should carry nothing else (a save request's
+ * events): the decoder itself keeps undeclared keys, because a change bundle's
+ * payload is open, but a stray key on a save would reach the reducers.
+ */
+export function pickPersistedFields(raw: Record<string, unknown>): Record<string, unknown> {
+  const picked: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (PERSISTED_KEYS.has(key)) picked[key] = value
+  }
+  return picked
+}
 
 /**
  * Compile-time completeness: adding a field to any event variant without a

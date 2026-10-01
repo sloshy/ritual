@@ -73,7 +73,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
       data: props.detail.deck,
       poolIds: collectDeckCardIds(props.detail.deck),
       contentHash: '',
-      extra: { frontMatter: {}, categories: props.detail.categories ?? null },
+      extra: { categories: props.detail.categories ?? null },
     }),
     loadCardData: () =>
       cardActions.load({

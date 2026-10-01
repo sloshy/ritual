@@ -43,7 +43,6 @@ type DeckDataResponse = {
   lowestPriceCardsTix: Record<string, ScryfallCard | null>
   cardsCardKingdom?: CardKingdomCards
   symbolMap: Record<string, string>
-  frontMatter: Record<string, unknown>
   labels?: CardLabel[]
   image?: ListImageRef
   customArt?: CardArtRecord
@@ -87,16 +86,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     fetchList: () => fetchAdminJson('/api/decks'),
     extractListItems: (r) => (r as DeckListResponse).decks ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/deck/${slug}`, signal),
-    commit: createApiCommit(
-      (slug) => `/api/deck/${slug}/save`,
-      ({ data, changes, contentHash, extra, continueSession }) => ({
-        changes,
-        deck: data,
-        frontMatter: extra.frontMatter,
-        contentHash,
-        continueSession,
-      }),
-    ),
+    commit: createApiCommit('deck'),
     entityLabel: 'deck',
 
     processLoadResponse: (response) => {
@@ -116,7 +106,6 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         poolIds: collectDeckCardIds(r.deck),
         contentHash: r.contentHash,
         extra: {
-          frontMatter: r.frontMatter,
           categories: r.categories ?? null,
           categoryWarnings: r.categoryWarnings ?? [],
         },
@@ -207,12 +196,9 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         image={listImage()}
         cards={imageCards()}
         contentHash={ctrl.editor.contentHash()}
-        onSaved={(image, contentHash, frontMatter) => {
+        onSaved={(image, contentHash) => {
           setListImage(image)
           ctrl.editor.setContentHash(contentHash)
-          // The deck save re-sends this snapshot, so it has to carry the write
-          // this dialog just made rather than the block captured at load.
-          ctrl.editor.setExtra({ ...ctrl.editor.extra(), frontMatter })
         }}
       />
       <ListLabelsModal
@@ -222,10 +208,9 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
         slug={ctrl.editor.slug()}
         labels={listLabels()}
         contentHash={ctrl.editor.contentHash()}
-        onSaved={(labels, contentHash, frontMatter) => {
+        onSaved={(labels, contentHash) => {
           setListLabels(labels)
           ctrl.editor.setContentHash(contentHash)
-          ctrl.editor.setExtra({ ...ctrl.editor.extra(), frontMatter })
         }}
       />
     </>
