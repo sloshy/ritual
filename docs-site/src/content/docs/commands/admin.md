@@ -205,14 +205,14 @@ Every failed authentication attempt is delayed (default: 3 seconds) before the s
 
 ### Rate Limiting
 
-After a number of consecutive failed login attempts (default: 5) from one IP address, that IP is locked out for a set duration (default: 5 minutes). Rate limiting can be disabled in settings.
+After a number of failed login attempts (default: 5) from one IP address within the rate-limit window (default: 5 minutes), that IP is locked out for the same duration. Rate limiting can be disabled in settings.
 
-| Config Field                   | Default | Description                    |
-| ------------------------------ | ------- | ------------------------------ |
-| `admin.rateLimitEnabled`       | `true`  | Enable/disable rate limiting   |
-| `admin.rateLimitMaxAttempts`   | `5`     | Failed attempts before lockout |
-| `admin.rateLimitWindowMinutes` | `5`     | Lockout duration in minutes    |
-| `admin.failedAuthDelayMs`      | `3000`  | Delay (ms) on failed auth      |
+| Config Field                   | Default | Description                                      |
+| ------------------------------ | ------- | ------------------------------------------------ |
+| `admin.rateLimitEnabled`       | `true`  | Enable/disable rate limiting                     |
+| `admin.rateLimitMaxAttempts`   | `5`     | Failed attempts before lockout                   |
+| `admin.rateLimitWindowMinutes` | `5`     | Counting window and lockout duration, in minutes |
+| `admin.failedAuthDelayMs`      | `3000`  | Delay (ms) on failed auth                        |
 
 Rate limit state is kept in memory and resets when the server restarts.
 

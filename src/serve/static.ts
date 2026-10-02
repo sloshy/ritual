@@ -65,11 +65,12 @@ export function serveStaticSite(options: ServeStaticSiteOptions): StaticSiteServ
         (await serveStaticFile(distDir, url.pathname)) ?? (await serveSpaFallback(distDir))
       return response ?? new Response('Not Found', { status: 404 })
     },
+    // The details go to the console, never to the visitor: a stack trace names
+    // paths on the host, and echoing the error as HTML would render whatever
+    // it contains.
     error(error) {
-      return new Response(`<pre>${error}\n${error.stack}</pre>`, {
-        headers: { 'Content-Type': 'text/html' },
-        status: 500,
-      })
+      console.error('Unhandled server error:', error)
+      return new Response('Internal Server Error', { status: 500 })
     },
   })
 }
