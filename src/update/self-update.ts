@@ -38,8 +38,8 @@ export type UpdatePlan = {
 /**
  * Refuse a build that cannot update itself, in every mode (`--check` too).
  * Ritual's Docker image comes first: the image, not the binary, is the unit of
- * update, and its build is never a release, so checking the release identity
- * first would hide the advice that applies. Otherwise only a compiled release
+ * update (and an image may or may not hold a release build), so checking the
+ * release identity first would hide the advice that applies. Otherwise only a compiled release
  * build knows which asset it is and has a release version to compare against;
  * a dev `bun run` or a local build would be replaced by something it is not.
  */

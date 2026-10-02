@@ -1,0 +1,20 @@
+# typos (scripts/lint-repo.sh). Words listed here are deliberate: search
+# prefixes the tests and docs type, set codes, and spellings this repo uses.
+
+[default.extend-words]
+# The spelling used throughout for "cannot be parsed".
+unparseable = "unparseable"
+# As in "mis-exported", "mis-tags".
+mis = "mis"
+# Card-name and command prefixes typed into search boxes and pickers.
+tre = "tre"
+ligh = "ligh"
+gam = "gam"
+sav = "sav"
+categor = "categor"
+# Set codes (ANC, WTH) and "un-IDed".
+anc = "anc"
+wth = "wth"
+ded = "ded"
+# A deliberately bogus locale name in the pseudo-locale tests.
+bogos = "bogos"

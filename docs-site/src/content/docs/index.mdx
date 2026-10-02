@@ -69,6 +69,10 @@ You can also download a binary for your platform from the [releases page](https:
 ./ritual --help
 ```
 
+The binaries are not code-signed. A binary downloaded through a browser is therefore blocked on first run: on macOS, Gatekeeper says it cannot be opened (clear the quarantine flag with `xattr -d com.apple.quarantine ./ritual`); on Windows, SmartScreen warns about an unrecognized app (choose **More info**, then **Run anyway**). The install scripts download with `curl` and `Invoke-WebRequest`, which do not mark the file, so neither prompt appears.
+
+Each binary is published with a `.sha256` checksum and a build provenance attestation. To confirm a download came from Ritual's release workflow, run `gh attestation verify ./ritual --repo sloshy/ritual` with the [GitHub CLI](https://cli.github.com/).
+
 ### Building from Source
 
 Ritual runs on [Bun](https://bun.sh). Install the dependencies, then build the binary:

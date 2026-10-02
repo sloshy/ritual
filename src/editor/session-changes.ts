@@ -44,7 +44,7 @@ export function usedIdsAfterRestore(
 }
 
 /**
- * A refused change is reported like any other unapplicable one — under the
+ * A refused change is reported like any other inapplicable one — under the
  * reason the engine actually gave — so the import summary never counts an
  * edit the list did not take, nor names the wrong fix for it.
  */

@@ -9,9 +9,19 @@ Ritual can run inside a Docker container. This is most useful for self-hosting t
 
 The image, not the binary inside it, is what you update: pull a newer image (`docker pull ghcr.io/sloshy/ritual`) or rebuild your own. The image sets `RITUAL_INSTALL=docker`, so [`ritual self-update`](/commands/self-update/) refuses inside a container (`--check` included) and says so, and no [update notice](/commands/self-update/#update-notice) is ever shown. The [releases page](https://github.com/sloshy/ritual/releases) lists what is available.
 
-## Building and Publishing the Image
+## Pulling the Image
 
-Use the provided script so the image build injects `GIT_VERSION` from the current git ref:
+Each release publishes a multi-platform image (`linux/amd64`, `linux/arm64`) to the GitHub Container Registry:
+
+```sh
+docker pull ghcr.io/sloshy/ritual:latest
+```
+
+`latest` is the newest stable release. Every release is also tagged with its version (`1.2.3`, or `1.3.0-rc1` for a prerelease), and a stable release with its `1.2` and `1` lines too (no bare major tag while the version is 0.x), so you can pin as tightly as you like. Prereleases never move `latest`.
+
+## Building the Image
+
+To build your own image from a checkout, use the provided script so the image build injects `GIT_VERSION` from the current git ref:
 
 ```sh
 sh scripts/build-docker.sh

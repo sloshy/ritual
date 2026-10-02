@@ -83,6 +83,26 @@ describe('generatePublishForMeWorkflow', () => {
     const step = findStep(job.steps, 'Generate card manifest')
     expect(step?.run).toBe('./ritual list-all-cards --out all-cards.md')
   })
+
+  test('checks the download against the release .sha256 before installing it', () => {
+    // The .sha256 names the asset, so the binary keeps that name until the
+    // check passes; a mismatch fails the step before `ritual` exists. Whole
+    // lines, so a check made non-fatal (`|| true`) or a checksum fetched from
+    // another tag does not pass.
+    const run = findStep(job.steps, 'Download Ritual')?.run ?? ''
+    const lines = run.split('\n').map((line) => line.trim())
+    const download = 'https://github.com/sloshy/ritual/releases/download/${VERSION}'
+    const expected = [
+      'ASSET="ritual-linux-x86_64"',
+      `curl -fsSL -o "$ASSET" "${download}/$ASSET"`,
+      `curl -fsSL -o "$ASSET.sha256" "${download}/$ASSET.sha256"`,
+      'sha256sum -c "$ASSET.sha256"',
+      'mv "$ASSET" ritual',
+      'rm "$ASSET.sha256"',
+      'chmod +x ritual',
+    ]
+    expect(lines.filter((line) => expected.includes(line))).toEqual(expected)
+  })
 })
 
 describe('the Get Ritual version step', () => {
@@ -133,7 +153,7 @@ describe('the Get Ritual version step', () => {
   test('the binary cache is keyed by the resolved version', () => {
     expect(step?.id).toBe('ritual-version')
     expect(findStep(steps, 'Cache Ritual binary')?.with?.key).toBe(
-      'ritual-binary-${{ steps.ritual-version.outputs.version }}-linux-x86_64',
+      'ritual-binary-${{ steps.ritual-version.outputs.version }}-ritual-linux-x86_64',
     )
   })
 })

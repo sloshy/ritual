@@ -1,6 +1,6 @@
 #!/bin/sh
 
-GIT_REF=$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GIT_REF=${GIT_VERSION:-$(git describe --tags --always 2>/dev/null || git rev-parse --short HEAD 2>/dev/null || echo "unknown")}
 IMAGE=${IMAGE:-ghcr.io/sloshy/ritual}
 TAG=${TAG:-$GIT_REF}
 PUSH=${PUSH:-false}

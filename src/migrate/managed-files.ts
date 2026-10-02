@@ -20,7 +20,7 @@ import type {
 import { getBaseDir } from '../config/base-dir'
 import { fileExists } from '../util/fs'
 import {
-  assetNameFor,
+  DEPLOY_WORKFLOW_ASSET,
   GITHUB_RELEASES_API,
   GITHUB_RELEASES_DOWNLOAD,
 } from '../update/release-source'
@@ -155,23 +155,28 @@ ${RITUAL_VERSION_STEP}
 
       - name: Cache Ritual binary
         id: ritual-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ritual
-          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-linux-x86_64
+          key: ritual-binary-\${{ steps.ritual-version.outputs.version }}-${DEPLOY_WORKFLOW_ASSET}
 
       - name: Download Ritual
         if: steps.ritual-cache.outputs.cache-hit != 'true'
         run: |
           VERSION="\${{ steps.ritual-version.outputs.version }}"
-          curl -fsSL -o ritual "${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}/${assetNameFor('linux', 'x64')}"
+          ASSET="${DEPLOY_WORKFLOW_ASSET}"
+          curl -fsSL -o "$ASSET" "${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}/$ASSET"
+          curl -fsSL -o "$ASSET.sha256" "${GITHUB_RELEASES_DOWNLOAD}/\${VERSION}/$ASSET.sha256"
+          sha256sum -c "$ASSET.sha256"
+          mv "$ASSET" ritual
+          rm "$ASSET.sha256"
           chmod +x ritual
 ${detectChanges ? DETECT_AND_COMMIT_STEP : ''}
       - name: Generate card manifest${guard}
         run: ./ritual list-all-cards --out all-cards.md
 
       - name: Restore Scryfall cache${guard}
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: cache/
           key: ritual-cache-\${{ hashFiles('all-cards.md') }}

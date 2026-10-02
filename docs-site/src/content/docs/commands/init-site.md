@@ -70,7 +70,7 @@ Flag: `--deploy <mode>`
 **Publish for me** (`--deploy publish-for-me`) generates a GitHub Action that:
 
 1. Resolves the Ritual version — the release [pinned in `ritual.config.json`](#the-pinned-ritual-release-github-actions), unless the `RITUAL_VERSION` variable says otherwise — and restores the Ritual binary from cache if the version has not changed
-2. Downloads the Ritual binary only when the resolved version is not cached
+2. Downloads the Ritual binary only when the resolved version is not cached, and checks it against the release's published SHA-256 checksum before using it
 3. Restores the Scryfall card cache from a previous run (GitHub Actions caching)
 4. Runs `ritual build-site --refresh auto`
 5. Deploys the `dist/` directory to GitHub Pages

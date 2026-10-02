@@ -1,0 +1,108 @@
+name: Build binaries
+
+# Builds the six release binaries and smoke-tests each on a runner of its own
+# OS and architecture. ci.yml calls it on every pull request and push to main;
+# release.yml calls it with the release tag and attaches exactly the binaries
+# that passed here. Each binary is cross-compiled on Linux, as the release has
+# always done, and uploaded as the artifact `binary-<asset name>` together with
+# its `.sha256`. The asset names are what src/update/release-source.ts, the
+# install scripts and the generated deploy workflow download.
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: The version to stamp (a `vX.Y.Z` tag); empty means `git describe`.
+        type: string
+        default: ''
+      release:
+        description: Build as a release, which may record itself as a workspace's managed.version.
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.asset }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { target: bun-linux-x64, asset: ritual-linux-x86_64 }
+          - { target: bun-linux-arm64, asset: ritual-linux-arm64 }
+          - { target: bun-darwin-x64, asset: ritual-macos-x86_64 }
+          - { target: bun-darwin-arm64, asset: ritual-macos-arm64 }
+          - { target: bun-windows-x64, asset: ritual-windows-x86_64.exe }
+          - { target: bun-windows-arm64, asset: ritual-windows-arm64.exe }
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # `git describe` needs the tags when no version is given.
+          fetch-depth: 0
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+
+      - run: bun install --frozen-lockfile
+
+      - name: Build
+        run: sh scripts/build.sh
+        env:
+          GIT_VERSION: ${{ inputs.version }}
+          RITUAL_RELEASE: ${{ inputs.release }}
+          BUILD_TARGET: ${{ matrix.target }}
+          BUILD_OUTFILE: ${{ matrix.asset }}
+
+      - name: Checksum
+        env:
+          ASSET: ${{ matrix.asset }}
+        run: sha256sum "$ASSET" > "$ASSET.sha256"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binary-${{ matrix.asset }}
+          path: |
+            ${{ matrix.asset }}
+            ${{ matrix.asset }}.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  smoke:
+    name: Smoke ${{ matrix.asset }}
+    needs: build
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { asset: ritual-linux-x86_64, runner: ubuntu-latest }
+          - { asset: ritual-linux-arm64, runner: ubuntu-24.04-arm }
+          - { asset: ritual-macos-x86_64, runner: macos-15-intel }
+          - { asset: ritual-macos-arm64, runner: macos-latest }
+          - { asset: ritual-windows-x86_64.exe, runner: windows-latest }
+          - { asset: ritual-windows-arm64.exe, runner: windows-11-arm }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/smoke-binary.sh
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: binary-${{ matrix.asset }}
+
+      - name: Smoke test
+        env:
+          ASSET: ${{ matrix.asset }}
+          VERSION: ${{ inputs.version }}
+        # A tagged build must report the tag's version, without its `v`.
+        run: bash scripts/smoke-binary.sh "./$ASSET" "${VERSION#v}"

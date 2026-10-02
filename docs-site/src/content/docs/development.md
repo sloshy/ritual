@@ -7,8 +7,8 @@ How to set up the project for local development and contribute to the codebase.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) runtime (v1.0 or higher)
-- Node.js 20+ (for the Starlight docs site)
+- [Bun](https://bun.sh) 1.4.2, the version `.bun-version` pins for CI and the Docker build
+- Node.js 22.12 or newer (for the Starlight docs site)
 
 ## Setup
 
@@ -105,16 +105,25 @@ Unit tests run with `--parallel` (one worker per core), the type check is increm
 
 ### Integration Tests
 
-Run the integration tests, which interact with external services:
+Run the integration tests, which build the binary and drive it, the servers, and the file system end to end:
 
 ```bash
 bun run test:it
 ```
 
+### Playwright Tests
+
+The browser tests build the public site from a synthetic workspace, start it and the admin site, and drive both in Chromium. Install the browser once, then run them:
+
+```bash
+bunx playwright install chromium
+bun run test:e2e
+```
+
 ## Project Structure
 
 ```
-ritual-cli/
+ritual/
 ├── index.ts              # CLI entry point
 ├── src/
 │   ├── cli/              # CLI framework: program, options, output, prompts
@@ -132,7 +141,11 @@ ritual-cli/
 │   └── mcp/, skills/     # Agent-facing surfaces
 ├── test/
 │   ├── unit/             # Unit tests
-│   └── integration/      # Integration tests
+│   ├── integration/      # Integration tests
+│   └── e2e/              # Playwright tests
+├── scripts/              # Build, dev, install, lint, and release scripts
+├── docs-site/            # This documentation (Starlight)
+├── .github/workflows/    # CI (ci.yml, build-binaries.yml), release.yml, docs deploy
 ├── decks/                # Deck files (Markdown)
 ├── cache/                # Card cache
 └── dist/                 # Generated static site
@@ -170,6 +183,35 @@ How the three modes differ:
 
 - `bun run precommit` and `bun run test` add `--cache` to lint for a fast local loop. `bun run verify` runs lint **cold**, because type-aware rules can return a stale pass for a file whose type dependencies changed but whose own contents did not.
 - `bun run precommit` scopes **lint** and **format** to the staged files. The build, type check, and unit tests still run over the whole project. When no `.js`/`.ts`/`.tsx` files are staged, only the staged files' format check and the message-catalog check run.
-- `bun run verify` lints and formats the entire repository. Run it before pushing, or rely on it in CI, to catch drift in files a commit did not touch.
+- `bun run verify` lints and formats the entire repository. Run it before pushing to catch drift in files a commit did not touch; CI runs it on every pull request.
 
 > **Note:** the hook checks the working-tree version of staged files. If you stage only part of a file (`git add -p`), the unstaged remainder is included in lint/format. Run `bun run verify` for an airtight whole-repo check.
+
+## Repository Lints
+
+`bun run lint:repo` runs the linters that cover what ESLint and Prettier do not: [shellcheck](https://www.shellcheck.net/) over `scripts/*.sh`, [actionlint](https://github.com/rhysd/actionlint) over the workflows, [hadolint](https://github.com/hadolint/hadolint) over the `Dockerfile`, and [typos](https://github.com/crate-ci/typos) over everything. `scripts/tools.sh` downloads each one, at the version CI uses, into `.tools/` on first run (Linux and macOS). A word typos flags that is deliberate, such as a search prefix a test types, goes in `_typos.toml`.
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every pull request and every push to `main`:
+
+| Job                 | What it runs                                                                                                                    |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Verify              | `bun run verify`                                                                                                                |
+| Integration tests   | `bun run test:it`                                                                                                               |
+| Playwright          | `bun run test:e2e` in Chromium; the HTML report is uploaded when it fails                                                       |
+| Docs site           | The Starlight build, whose link validator fails on a broken internal link                                                       |
+| Repository lints    | `bun run lint:repo`                                                                                                             |
+| Docker image builds | `docker build` of the `Dockerfile`, without pushing                                                                             |
+| Binaries            | All six release binaries, cross-compiled on Linux, then each started on its own OS and architecture (`scripts/smoke-binary.sh`) |
+
+## Releasing
+
+A release is published by pushing its tag; `.github/workflows/release.yml` does the rest.
+
+1. In one commit, set `version` in `package.json` to the new version and move the `Unreleased` notes in `CHANGELOG.md` under a `## [X.Y.Z] - <date>` heading.
+2. Tag that commit `vX.Y.Z` (`vX.Y.Z-rc1` and the like for a prerelease) and push the tag.
+
+The workflow refuses a tag that disagrees with `package.json`, and a stable release without a `CHANGELOG.md` section (a prerelease without one gets GitHub's generated notes). It then runs the CI gates, builds and smoke-tests the binaries with the tag's version, records a provenance attestation for each, and attaches the binaries and their `.sha256` files to a **draft** release. Only once everything is attached is the release published, so the installers and `ritual self-update` never see a release without its binaries. The Docker image is pushed last: tagged with the version, plus `X.Y` and `X` for a stable release (no bare `X` while the version is 0.x, where a minor release may break), and `latest` only for a stable release.
+
+A release you drafted for the tag beforehand, for example to write its notes by hand, is filled in and published as it stands. A failed run is re-run from the Actions page.

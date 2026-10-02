@@ -110,7 +110,7 @@ When no release was recorded (a development build migrated the workspace), the m
 
 ## Development builds
 
-Only a release build (one built by Ritual's release workflow, exactly at a release tag) records itself as `managed.version`. Any other build, including a local or Docker build, can apply migrations but leaves `managed.version` unchanged. When it applies a migration, it warns that CI keeps building with the pinned release, which does not know those migrations (or, when there is no pin, with the newest release: the latest stable one, or the newest prerelease while no stable release exists). Run `migrate` again with a release build and commit to move the pin.
+Only a release build (one built by Ritual's release workflow, exactly at a release tag) records itself as `managed.version`. Any other build, including a local build or a Docker image you build yourself with `scripts/build-docker.sh`, can apply migrations but leaves `managed.version` unchanged. The published Docker images are release builds and record the pin like a release binary. When it applies a migration, it warns that CI keeps building with the pinned release, which does not know those migrations (or, when there is no pin, with the newest release: the latest stable one, or the newest prerelease while no stable release exists). Run `migrate` again with a release build and commit to move the pin.
 
 ## Not an MCP tool
 

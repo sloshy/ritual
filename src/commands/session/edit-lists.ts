@@ -388,7 +388,7 @@ export async function saveOpenList(
   const everyOpen = [...allOpen()]
 
   // Plan the transitive closure without mutating anything. receiveMove only
-  // ever adds move-to events — never new move-froms — so the closure is
+  // ever adds move-to events — never new move-from events — so the closure is
   // already complete before any delivery is applied.
   const queue: OpenList[] = [open]
   const plans: PendingMoveCommit[] = []

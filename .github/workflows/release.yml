@@ -1,0 +1,186 @@
+name: Release
+
+# Publishes a release from a pushed `vX.Y.Z` tag (`vX.Y.Z-<pre>` for a
+# prerelease). The "Releasing" section of docs-site/src/content/docs/
+# development.md has the steps that lead here.
+#
+#   check      the tag is a release tag, agrees with package.json, and (for a
+#              stable release) has a CHANGELOG.md section, which becomes the
+#              release notes
+#   ci         the same gates a pull request gets (ci.yml)
+#   binaries   the six binaries, stamped with the tag's version and each
+#              smoke-tested on its own OS (build-binaries.yml)
+#   publish    a draft release gets every binary, its .sha256 and a provenance
+#              attestation, and only then is published, so `install.sh`,
+#              `ritual self-update` and the deploy workflows never resolve a
+#              release whose binaries are not there yet
+#   docker     the image, tagged with the version (and `latest` for a stable
+#              release only), pushed only once the release is out
+#
+# Nothing is published unless every gate before it passed.
+
+# No manual trigger: the reusable workflows check out the triggering ref, which
+# for a manual run would be a branch, not the tag. A failed run is re-run from
+# the Actions page instead, which keeps the tag as its ref.
+on:
+  push:
+    tags: ['v*']
+
+# One run per tag; a second push of the same tag waits rather than racing.
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  TAG: ${{ github.ref_name }}
+
+jobs:
+  check:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
+      prerelease: ${{ steps.tag.outputs.prerelease }}
+      notes: ${{ steps.tag.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: .bun-version
+      - id: tag
+        run: bun run scripts/release-tag.ts "$TAG" release-notes.md
+      - uses: actions/upload-artifact@v7
+        with:
+          name: release-notes
+          path: release-notes.md
+          retention-days: 7
+
+  ci:
+    needs: check
+    uses: ./.github/workflows/ci.yml
+    with:
+      skip-binaries: true
+
+  binaries:
+    needs: check
+    uses: ./.github/workflows/build-binaries.yml
+    with:
+      version: ${{ github.ref_name }}
+      release: true
+
+  publish:
+    name: Publish the release
+    needs: [check, ci, binaries]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: assets
+          pattern: binary-*
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-notes
+
+      - name: Verify the checksums
+        working-directory: assets
+        run: sha256sum -c ./*.sha256
+
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: assets/*
+
+      - name: Draft, upload, publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+          NOTES: ${{ needs.check.outputs.notes }}
+        run: |
+          # A release the maintainer already drafted for this tag (say, to
+          # write its notes by hand) is filled in and published as it stands.
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "using the existing release for $TAG"
+          else
+            args=(--draft --verify-tag --title "$TAG")
+            if [ "$NOTES" = changelog ]; then
+              args+=(--notes-file release-notes.md)
+            else
+              args+=(--generate-notes)
+            fi
+            if [ "$PRERELEASE" = true ]; then args+=(--prerelease); fi
+            gh release create "$TAG" "${args[@]}"
+          fi
+          gh release upload "$TAG" assets/* --clobber
+          if [ "$PRERELEASE" = true ]; then
+            gh release edit "$TAG" --draft=false --prerelease
+          else
+            gh release edit "$TAG" --draft=false --prerelease=false
+          fi
+          gh release view "$TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+
+  docker:
+    name: Publish the image
+    needs: [check, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # GHCR wants a lowercase repository path; github.repository keeps the
+      # owner's casing.
+      - id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ steps.image.outputs.name }}
+          # `latest=auto` would tag a prerelease `latest` too; only the raw
+          # line below may, and only for a stable release. A prerelease gets
+          # only its full version: metadata-action skips the shorter patterns
+          # for it. No bare major for 0.x, where minors may break.
+          flavor: |
+            latest=false
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
+            type=raw,value=latest,enable=${{ needs.check.outputs.prerelease == 'false' }}
+
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          # The tag itself, so the binary reports the release's version (not
+          # a `-dev.` build of it), and may pin a workspace like any release.
+          build-args: |
+            GIT_VERSION=${{ env.TAG }}
+            RITUAL_RELEASE=true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=release
+          cache-to: type=gha,mode=max,scope=release

@@ -1,5 +1,9 @@
+# The Bun that builds the binary: the one .bun-version names, which CI uses
+# (test/unit/release-contract.test.ts keeps them equal).
+ARG BUN_VERSION=1.4.2
+
 # Stage 1: Build
-FROM oven/bun:1.4.2-alpine AS builder
+FROM oven/bun:${BUN_VERSION}-alpine AS builder
 
 WORKDIR /app
 
@@ -13,9 +17,15 @@ RUN bun install --frozen-lockfile
 # Copy source code
 COPY . .
 
-# Accept version from build arg (e.g. --build-arg GIT_VERSION=$(git describe --tags --always))
+# The version the binary reports, from a build arg: the release tag in the
+# release workflow, `git describe --tags --always` in scripts/build-docker.sh.
 ARG GIT_VERSION=unknown
 ENV GIT_VERSION=$GIT_VERSION
+# `true` only from the release workflow, for a build at a release tag: such a
+# binary may record its version as a workspace's `managed.version`
+# (src/config/version.ts).
+ARG RITUAL_RELEASE=false
+ENV RITUAL_RELEASE=$RITUAL_RELEASE
 
 # Build the ritual binary
 RUN bun run build
@@ -39,13 +49,13 @@ ENV RITUAL_INSTALL=docker
 RUN adduser -D -h /app ritual
 
 # Create necessary directories with correct ownership
-RUN mkdir -p /app/dist /app/decks /app/collections /app/cache /app/.logins && \
+RUN mkdir -p /app/dist /app/decks /app/collections /app/wanted /app/cache /app/.logins && \
     chown -R ritual:ritual /app
 
 USER ritual
 
-# Expose port 3000 for the serve command
-EXPOSE 3000
+# The default ports of `serve` (3000), `cache server` (4000) and `admin` (8080).
+EXPOSE 3000 4000 8080
 
 # Set the default command
 ENTRYPOINT ["ritual"]

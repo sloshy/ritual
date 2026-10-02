@@ -24,6 +24,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # caches
 .eslintcache
+# Linters downloaded by scripts/tools.sh
+.tools/
 .cache
 *.tsbuildinfo
 

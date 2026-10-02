@@ -1,0 +1,8 @@
+# hadolint (scripts/lint-repo.sh).
+ignored:
+  # Alpine's repositories drop old package versions, so pinning libstdc++ and
+  # libgcc would break the build at the next point release. The base image tag
+  # is what pins them.
+  - DL3018
+# DL3066 (non-numeric USER) is info-level and below this threshold.
+failure-threshold: warning

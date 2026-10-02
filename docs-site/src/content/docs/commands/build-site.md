@@ -274,11 +274,11 @@ The next build removes leftovers **older than six hours**. Younger ones are left
 A list named on the command line that cannot be loaded **fails the build**. Every such source is listed in a closing summary, the exit code is `1`, and nothing is published.
 
 ```
-$ ritual build-site --decks "Nonexistant Deck"
-Failed to load deck 'Nonexistant Deck': no deck named that in /home/you/ritual/decks
+$ ritual build-site --decks "Nonexistent Deck"
+Failed to load deck 'Nonexistent Deck': no deck named that in /home/you/ritual/decks
 
 ⚠️  1 source could not be built:
-  - deck 'Nonexistant Deck': no deck named that in /home/you/ritual/decks
+  - deck 'Nonexistent Deck': no deck named that in /home/you/ritual/decks
 The published site was left unchanged.
 ```
 

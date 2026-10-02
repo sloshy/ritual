@@ -4,7 +4,8 @@ import { execSync } from 'node:child_process'
 // In development (bun run), it falls back to running git describe at runtime.
 declare const GIT_VERSION: string | undefined
 // RITUAL_RELEASE is defined (as `true`) only by the release workflow's build —
-// see scripts/build.sh. Local, Docker and CI test builds leave it undefined.
+// see scripts/build.sh (and the Dockerfile, which passes it through for the
+// release image). Local, CI and self-built Docker builds leave it undefined.
 declare const RITUAL_RELEASE: boolean | undefined
 
 /**

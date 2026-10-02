@@ -16,6 +16,7 @@
 .vscode
 .idea
 .eslintcache
+.tools
 *.tsbuildinfo
 .DS_Store
 

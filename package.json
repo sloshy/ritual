@@ -1,23 +1,28 @@
 {
   "name": "ritual",
   "version": "0.1.0",
+  "description": "Your Magic: The Gathering decks and collection as plain files: price them, sync them, and publish them as your own website.",
   "module": "index.ts",
   "type": "module",
-  "private": false,
+  "private": true,
   "homepage": "https://github.com/sloshy/ritual",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sloshy/ritual.git"
+  },
   "bugs": {
     "url": "https://github.com/sloshy/ritual/issues"
   },
   "license": "AGPL-3.0-only",
   "scripts": {
     "build": "sh scripts/build.sh",
-    "build:assets": "bun run scripts/generate-licenses.ts && bun run scripts/generate-locales.ts && sh scripts/bundle-assets.sh",
+    "build:assets": "sh scripts/build-assets.sh",
     "dev": "bun scripts/dev.ts",
-    "version:sync": "bun run scripts/sync-version.ts",
     "serve": "bun run index.ts serve --build",
     "format": "prettier --write .",
     "check-format": "prettier --check .",
     "lint": "eslint . --concurrency auto",
+    "lint:repo": "bash scripts/lint-repo.sh",
     "precommit": "bun run scripts/precommit.ts",
     "verify": "bun run scripts/precommit.ts --full",
     "test": "bun run scripts/precommit.ts --test",

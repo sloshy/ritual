@@ -203,8 +203,15 @@ describe('ritual skills command (Integration)', () => {
       expect(result.exitCode).toBe(0)
 
       const overview = path.join(dir, '.claude', 'skills', 'ritual', 'SKILL.md')
-      // The CLI must write the exact rendered content the catalog produces.
-      expect(await fs.readFile(overview, 'utf-8')).toBe(renderSkillFile(SKILLS[0]!))
+      // The CLI must write the exact rendered content the catalog produces,
+      // stamped with its own version: a prebuilt binary carries its
+      // compiled-in one, while this process's comes from test/preload.ts.
+      const binaryVersion = (await runCli(['--version'], dir)).stdout.trim()
+      const expected = renderSkillFile(SKILLS[0]!).replace(
+        /^ritual-version: .+$/m,
+        `ritual-version: ${binaryVersion}`,
+      )
+      expect(await fs.readFile(overview, 'utf-8')).toBe(expected)
     })
   })
 
