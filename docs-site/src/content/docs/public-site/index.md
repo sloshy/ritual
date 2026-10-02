@@ -13,6 +13,8 @@ ritual serve           # serve the built site at http://localhost:3000
 ritual serve --build   # both in one step
 ```
 
+Every page's footer names the Ritual version that built the site and links to its source code, carries the notice Wizards of the Coast's Fan Content Policy asks of a site showing Magic cards, and credits Scryfall for the card data and images. See [License and Attribution](/attribution/).
+
 [`build-site`](/commands/build-site/) documents the build options: which lists to publish, themes, price stores, languages, and how the card cache is refreshed. [`serve`](/commands/serve/) previews the result and can also run the site against a live backend. [`init-site`](/commands/init-site/) can set up a GitHub Actions workflow that builds and publishes the site for you.
 
 ## What's on the Site

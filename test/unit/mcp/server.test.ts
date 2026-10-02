@@ -7,6 +7,7 @@ import {
   type CallToolResult,
 } from '@modelcontextprotocol/client'
 import { createMcpHandler } from '@modelcontextprotocol/server'
+import { SOURCE_OFFER } from '../../../src/config/version'
 import { cardCache } from '../../../src/cache'
 import { CSV_UPLOAD_THRESHOLD } from '../../../src/collection-sync/csv'
 import { NEVER_CACHE, STATIC_CATALOG_CACHE } from '../../../src/mcp/cache-hints'
@@ -176,6 +177,11 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // `listChanged` to true for every declared capability).
     expect(caps?.tools).toEqual({ listChanged: false })
     expect(caps?.resources).toEqual({ listChanged: false, subscribe: false })
+    // The source offer (AGPL §13) rides in the instructions every client reads.
+    const instructions = (client.getInstructions() ?? '').replace(/\s+/g, ' ')
+    expect(instructions).toContain(
+      `About: Ritual ${SOURCE_OFFER.version}, free software under the AGPL-3.0-only. The source of this version is at ${SOURCE_OFFER.revisionUrl}.`,
+    )
   })
 
   test('lists the full tool catalogue in registration order with valid input schemas', async () => {

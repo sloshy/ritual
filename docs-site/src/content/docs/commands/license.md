@@ -2,7 +2,7 @@
 title: 'license'
 ---
 
-Display the Ritual project license (AGPLv3).
+Display the Ritual project license (AGPLv3). [License and Attribution](/attribution/) covers the license, the Fan Content Policy notice, and where Ritual's card data comes from.
 
 ## Usage
 

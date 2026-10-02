@@ -26,6 +26,10 @@ ENV GIT_VERSION=$GIT_VERSION
 # (src/config/version.ts).
 ARG RITUAL_RELEASE=false
 ENV RITUAL_RELEASE=$RITUAL_RELEASE
+# A fork's repository, which the binary's source offer links to; empty means
+# upstream (src/config/source-offer.ts).
+ARG RITUAL_SOURCE_URL=
+ENV RITUAL_SOURCE_URL=$RITUAL_SOURCE_URL
 
 # Build the ritual binary
 RUN bun run build
@@ -50,6 +54,7 @@ RUN adduser -D -h /app ritual
 
 # Create necessary directories with correct ownership
 RUN mkdir -p /app/dist /app/decks /app/collections /app/wanted /app/cache /app/.logins && \
+    chmod 700 /app/.logins && \
     chown -R ritual:ritual /app
 
 USER ritual

@@ -6,6 +6,8 @@ import { createMemo, createSignal, For, Show } from 'solid-js'
 import { useT, useTKey } from '../../../ui/i18n'
 import { PAGE_DISPLAY, type Page, useRouting } from '../routing'
 import { NavLink } from './NavLink'
+import { AdminAbout } from './AdminAbout'
+import type { SourceOffer } from '../../../config/source-offer'
 import { FlameIcon } from '../../../site/FlameIcon'
 import { Modal } from '../../../ui/Modal'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
@@ -51,6 +53,8 @@ const FULL_WIDTH_PAGES: readonly Page[] = ['list-editor', 'move-cards']
 
 interface LayoutProps {
   onLogout?: () => void
+  /** The running Ritual's source offer, shown at the foot of the navigation; null until status answers. */
+  about: SourceOffer | null
 }
 
 /**
@@ -268,6 +272,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
           <Show when={props.onLogout}>
             <div class="sidebar-divider" />
           </Show>
+          <Show when={props.about}>{(about) => <AdminAbout about={about()} />}</Show>
         </nav>
         {/* Mobile nav overlay */}
         <Show when={menuOpen()}>
@@ -295,6 +300,7 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
                   </div>
                 )}
               </Show>
+              <Show when={props.about}>{(about) => <AdminAbout about={about()} />}</Show>
             </nav>
           </div>
         </Show>

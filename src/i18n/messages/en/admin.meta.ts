@@ -149,6 +149,18 @@ export const adminMeta = {
     description:
       'Last-resort error when a request failed and neither the caller nor the server supplied a reason.',
   },
+  'admin.layout.about': {
+    description:
+      'Small line at the foot of the admin navigation offering the source (the AGPL license asks for this). "Ritual" is the product name. {version} is a version number such as "1.2.0". {source} is a link whose text is admin.layout.sourceLink. {license} is the license identifier "AGPL-3.0-only", not translated.',
+  },
+  'admin.layout.sourceLink': {
+    description:
+      'Link text inside admin.layout.about leading to the source code of the running version of Ritual.',
+  },
+  'admin.layout.attribution': {
+    description:
+      'Link at the foot of the admin navigation to the documentation page with the license, the Wizards of the Coast Fan Content Policy notice, and credits for where card data comes from.',
+  },
   'admin.layout.title': {
     description:
       'Product name in the admin header and mobile menu. A brand name — leave untranslated unless the product is renamed in your language.',

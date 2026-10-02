@@ -1,3 +1,4 @@
+import type { SourceOffer } from '../config/source-offer'
 import type { Card } from '../card/card'
 import type { Condition, Finish } from '../card/finish-condition'
 import type { DeckData } from './deck'
@@ -418,6 +419,11 @@ export interface SiteIndex {
    * explicit empty array is meaningful (`getDefaultCategories`' own TSDoc).
    */
   defaultCategories?: readonly CardCategory[]
+  /**
+   * The Ritual that built (or, under `serve --api`, serves) this site: its
+   * version, license and source, which the footer links to (AGPL §13).
+   */
+  about: SourceOffer
 }
 
 export type TradeCardSource = 'collection' | 'deck' | 'wanted' | 'scryfall'

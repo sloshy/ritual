@@ -33,13 +33,17 @@ By default it builds `ghcr.io/sloshy/ritual:<git-ref>`. You can override the ima
 IMAGE=ghcr.io/<owner>/ritual TAG=v1.2.3 PUSH=true sh scripts/build-docker.sh
 ```
 
-If git metadata is unavailable, the script falls back to a short commit SHA, then `unknown`.
+If git metadata is unavailable, the script falls back to a short commit SHA, then `unknown`. A fork sets `RITUAL_SOURCE_URL` to its repository so the image's [source offer](/attribution/#source-code) links to it, and `GIT_VERSION` pins the version it reports:
+
+```sh
+RITUAL_SOURCE_URL=https://github.com/you/ritual sh scripts/build-docker.sh
+```
 
 ## Docker Compose
 
 ### Example `docker-compose.yml`
 
-This example runs the [cache server](/commands/cache/#server) with common options:
+This example runs the [cache server](/commands/cache/#server) with common options. The cache server has unauthenticated write routes, so the port is published on the host's loopback address only; reach it from other containers on the same Compose network, or widen the mapping only on a network you trust:
 
 ```yaml
 services:
@@ -47,7 +51,7 @@ services:
     image: ritual
     build: .
     ports:
-      - '4000:4000'
+      - '127.0.0.1:4000:4000'
     volumes:
       - ./dist:/app/dist
       - ./decks:/app/decks

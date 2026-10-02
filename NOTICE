@@ -1,0 +1,31 @@
+Ritual
+
+Copyright (C) 2026 Ryan Peters.
+Licensed under the GNU Affero General Public License, version 3 only (LICENSE).
+`ritual license` prints the licence, and `ritual dep-license` lists the licences of
+the third-party packages compiled into the binary.
+
+Every network surface of a running Ritual (the footer of each site it builds or
+serves, the admin site's navigation and its unauthenticated GET /api/status, and the
+MCP server's instructions) states the version and licence and links to the source of
+exactly that version. Someone distributing or serving a modified version builds it
+with RITUAL_SOURCE_URL set to the repository holding their modifications, which is
+what section 13 of the licence asks of them.
+
+Ritual is unofficial Fan Content permitted under the Fan Content Policy
+(https://company.wizards.com/en/legal/fancontentpolicy). Not approved or endorsed by
+Wizards of the Coast. Portions of the materials used are property of Wizards of the
+Coast. ©Wizards of the Coast LLC. Magic: The Gathering, card names, card text, mana
+symbols and card images are property of Wizards of the Coast LLC, a subsidiary of
+Hasbro, Inc. Every site Ritual builds carries this notice in its footer.
+
+Card data, card images, card symbols and most prices (TCGplayer, Cardmarket and
+Cardhoarder) come from Scryfall (https://scryfall.com), under Scryfall's API
+guidelines (https://scryfall.com/docs/api). Ritual downloads Scryfall's bulk data
+rather than querying card by card, and paces the requests it does make. Scryfall is
+not affiliated with this project.
+
+Card Kingdom prices and buylist quotes come from Card Kingdom's public price list
+(https://www.cardkingdom.com). Decks are imported from Archidekt, Moxfield and
+MTGGoldfish, and synced with Archidekt, at the user's request and with the user's
+own account where one is needed. None of these sites is affiliated with this project.

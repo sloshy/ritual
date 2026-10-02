@@ -3,6 +3,7 @@ import { buildSiteIndex, type SiteIndexParts } from '../../../src/site-build/wri
 import type { WantedListSummary } from '../../../src/list/site-data'
 import { localeTag } from '../../../src/i18n/locale-tag'
 import { getDefaultRitualConfig } from '../../../src/config/ritual-config'
+import { SOURCE_OFFER } from '../../../src/config/version'
 
 const WANTED: WantedListSummary = {
   slug: 'wishlist',
@@ -41,6 +42,10 @@ describe('buildSiteIndex', () => {
   test('bakes the configured defaultCategories, so the site editors can suggest them', () => {
     const config = { ...getDefaultRitualConfig(), defaultCategories: ['Ramp', 'Board Wipes'] }
     expect(buildSiteIndex(parts([]), config).defaultCategories).toEqual(['Ramp', 'Board Wipes'])
+  })
+
+  test("carries the running build's source offer for the footer", () => {
+    expect(buildSiteIndex(parts([])).about).toEqual(SOURCE_OFFER)
   })
 
   test('an explicitly empty vocabulary bakes as [], not as the shipped default', () => {

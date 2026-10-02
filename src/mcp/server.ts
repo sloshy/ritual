@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/server'
-import { version } from '../config/version'
+import { SOURCE_OFFER, version } from '../config/version'
 import { NEVER_CACHE, STATIC_CATALOG_CACHE } from './cache-hints'
 import { createListChangeNotifier } from './notify'
 import { registerResources } from './resources'
@@ -12,7 +12,8 @@ import { registerWriteTools } from './tools/write-tools'
  *
  * Anything a single tool's description already says is left to that description:
  * these instructions are served on every session, so restating per-tool prose
- * here pays for it twice. What stays is what no one description can say.
+ * here pays for it twice. What stays is what no one description can say, plus
+ * the one-line source offer every network surface makes (AGPL §13).
  */
 const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, and wanted lists stored as markdown files.
 
@@ -83,7 +84,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   into the published site; site.sellMode alone decides whether the site offers sell mode.
   get_config shows which one is on: "config" is the stored configuration, and "overrides"
   (present only under a session flag) is what this running server is actually operating with,
-  e.g. {"site.sellMode": true}.`
+  e.g. {"site.sellMode": true}.
+- About: Ritual ${SOURCE_OFFER.version}, free software under the ${SOURCE_OFFER.license}. The source
+  of this version is at ${SOURCE_OFFER.revisionUrl}.`
 
 /** How a transport wants the server built. */
 export interface McpServerOptions {

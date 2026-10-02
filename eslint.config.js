@@ -136,6 +136,8 @@ export default [
                 'src/importers/archidekt-categories',
                 'src/importers/archidekt-collection',
                 'src/importers/csv',
+                // Dependency-free release coordinates, read by config/source-offer.
+                'src/update/release-source',
               ],
             },
             {

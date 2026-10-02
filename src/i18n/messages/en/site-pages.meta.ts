@@ -183,9 +183,25 @@ export const sitePagesMeta = {
     description:
       'Line under the header stating how fresh the prices are. {date} is an already-formatted long date.',
   },
-  'site.app.generatedBy': {
+  'site.app.sourceOffer': {
     description:
-      'Site footer credit. {tool} is rendered as a link to the project and reads "ritual" — the program name, which is not translated.',
+      'Site footer credit and source offer (the AGPL license asks that users be offered the source). {tool} is a link reading "ritual", the program name, not translated. {version} is a version number such as "1.2.0". {license} is the license identifier "AGPL-3.0-only", not translated. {source} is a link whose text is site.app.sourceLink and which leads to the source code of this exact version.',
+  },
+  'site.app.sourceLink': {
+    description:
+      "Link text inside site.app.sourceOffer leading to the program's source code for the version that built the site.",
+  },
+  'site.app.fanContent': {
+    description:
+      'Site footer legal notice required by Wizards of the Coast\'s Fan Content Policy for sites showing Magic cards. Keep its legal meaning exact: unofficial, not approved or endorsed by Wizards, portions are Wizards\' property, and the copyright line. {policy} is a link whose text is site.app.fanContentPolicy. "Wizards of the Coast" is a company name and is not translated.',
+  },
+  'site.app.fanContentPolicy': {
+    description:
+      "Link text naming Wizards of the Coast's Fan Content Policy, inside site.app.fanContent. Use the policy's official name in your language if Wizards publishes one.",
+  },
+  'site.app.cardData': {
+    description:
+      'Site footer credit for the card data and images. {scryfall} is a link reading "Scryfall", a website name that is not translated. "Not affiliated" means Scryfall has no connection to this site.',
   },
   'site.app.tradeToastAdded': {
     description:

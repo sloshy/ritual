@@ -17,6 +17,9 @@ export default defineConfig({
       // Declaring the root locale explicitly costs nothing and is what a future
       // translated docs tree would extend.
       locales: { root: { label: 'English', lang: 'en' } },
+      components: {
+        Footer: './src/components/Footer.astro',
+      },
       social: [
         {
           icon: 'github',
@@ -159,6 +162,7 @@ export default defineConfig({
         },
         { label: 'Hosting', items: ['docker'] },
         { slug: 'development' },
+        { slug: 'attribution' },
       ],
     }),
   ],

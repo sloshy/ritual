@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import { sourceOfferFor, UPSTREAM_SOURCE_URL, type SourceOffer } from './source-offer'
 
 // GIT_VERSION is injected at compile time via --define in scripts/build.sh.
 // In development (bun run), it falls back to running git describe at runtime.
@@ -7,6 +8,9 @@ declare const GIT_VERSION: string | undefined
 // see scripts/build.sh (and the Dockerfile, which passes it through for the
 // release image). Local, CI and self-built Docker builds leave it undefined.
 declare const RITUAL_RELEASE: boolean | undefined
+// A fork's repository, injected by scripts/build.sh from the environment and
+// validated there as an http(s) URL. Undefined in an unconfigured build.
+declare const RITUAL_SOURCE_URL: string | undefined
 
 /**
  * Whether `ref` is an exact release tag (`v1.2.3`, `1.2.3-beta8`), the form
@@ -72,4 +76,14 @@ export const isReleaseBuild = isReleaseVersion(
     typeof RITUAL_RELEASE !== 'undefined' &&
     RITUAL_RELEASE === true,
   version,
+)
+
+/** The running build's source offer (see `config/source-offer.ts`), frozen: every response shares it. */
+export const SOURCE_OFFER: Readonly<SourceOffer> = Object.freeze(
+  sourceOfferFor(
+    version,
+    typeof RITUAL_SOURCE_URL !== 'undefined' && RITUAL_SOURCE_URL !== ''
+      ? RITUAL_SOURCE_URL
+      : UPSTREAM_SOURCE_URL,
+  ),
 )

@@ -12,6 +12,7 @@ import {
   getSiteSellMode,
 } from '../config/ritual-config'
 import type { SiteIndex } from '../list/site-data'
+import { SOURCE_OFFER } from '../config/version'
 import type { RitualConfig } from '../config/ritual-config'
 import { generateAllThemesCss, generateCustomThemeCss, type CustomTheme } from '../theme/themes'
 import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from './html-shell'
@@ -20,12 +21,18 @@ import type { SiteSpaAssets } from './assets'
 
 /**
  * What differs between the `index.json` a build bakes and the one `serve --api`
- * answers live; every other field is read from config. Each is documented on
+ * answers live; every other field is read from config (or, for `about`, from
+ * the running build). Each is documented on
  * {@link SiteIndex}.
  */
 export type SiteIndexParts = Omit<
   SiteIndex,
-  'wantedLists' | 'searchDebounceMs' | 'defaultLanguage' | 'sellMode' | 'defaultCategories'
+  | 'wantedLists'
+  | 'searchDebounceMs'
+  | 'defaultLanguage'
+  | 'sellMode'
+  | 'defaultCategories'
+  | 'about'
 > & { wantedLists: NonNullable<SiteIndex['wantedLists']> }
 
 /** Assemble `index.json` from its parts and the (given or current) config. */
@@ -37,6 +44,7 @@ export function buildSiteIndex(parts: SiteIndexParts, config?: RitualConfig): Si
     defaultLanguage: getDefaultLanguage(config),
     sellMode: getSiteSellMode(config),
     defaultCategories: getDefaultCategories(config),
+    about: SOURCE_OFFER,
   }
 }
 

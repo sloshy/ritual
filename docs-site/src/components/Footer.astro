@@ -1,0 +1,43 @@
+---
+// Starlight's footer (pagination and the rest), then the Fan Content Policy
+// statement and where the card data comes from, on every page. The public
+// site's footer (src/site/SiteFooter.tsx) says the same; keep the two in step.
+import Default from '@astrojs/starlight/components/Footer.astro'
+
+// This renders at every depth, so the link cannot be relative.
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+---
+
+<Default />
+<div class="legal">
+  <p>
+    Ritual is unofficial Fan Content permitted under the{' '}
+    <a href="https://company.wizards.com/en/legal/fancontentpolicy">Fan Content Policy</a>. Not
+    approved or endorsed by Wizards of the Coast. Portions of the materials used are property of
+    Wizards of the Coast. ©Wizards of the Coast LLC.
+  </p>
+  <p>
+    Card data, images and symbols come from <a href="https://scryfall.com">Scryfall</a>, which is
+    not affiliated with this project. Ritual is free software under the AGPL-3.0.{' '}
+    <a href={`${base}/attribution/`}>License and attribution</a>.
+  </p>
+</div>
+
+<style>
+  .legal {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--sl-color-hairline);
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .legal p + p {
+    margin-top: 0.5rem;
+  }
+  .legal a {
+    color: var(--sl-color-gray-2);
+  }
+  .legal a:hover {
+    color: var(--sl-color-white);
+  }
+</style>

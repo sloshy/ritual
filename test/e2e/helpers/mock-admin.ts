@@ -37,6 +37,7 @@ import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { fulfillJson } from './fulfill'
 import { MOCK_COLLECTION_DETAIL, MOCK_WANTED_LIST_DETAIL, makeMockScryfallCard } from './mock-cards'
 import { localeTag } from '../../../src/i18n/locale-tag'
+import { EXAMPLE_SOURCE_OFFER } from '../../helpers/source-offer'
 
 type MockDeck = {
   slug: string
@@ -275,6 +276,17 @@ export async function mockTotpApi(page: Page): Promise<void> {
   await fulfillJson(page, '**/api/totp/status', { enabled: false })
 }
 
+/** A logged-in server's `GET /api/status`, offering sell mode or not. */
+export function mockStatusResponse(sellMode = false): StatusResponse {
+  return {
+    ok: true,
+    setupRequired: false,
+    totpEnabled: false,
+    sellMode,
+    about: EXAMPLE_SOURCE_OFFER,
+  }
+}
+
 /**
  * Answer `GET /api/status` with a fixed logged-in payload. Specs that mock the
  * config routes want this too: a Settings save re-reads the effective sell mode
@@ -284,12 +296,7 @@ export async function mockTotpApi(page: Page): Promise<void> {
  * locally instead (see sell-mode-gate.spec.ts).
  */
 export async function mockStatusApi(page: Page, sellMode = false): Promise<void> {
-  await fulfillJson(page, '**/api/status', (): StatusResponse => ({
-    ok: true,
-    setupRequired: false,
-    totpEnabled: false,
-    sellMode,
-  }))
+  await fulfillJson(page, '**/api/status', () => mockStatusResponse(sellMode))
 }
 
 /**

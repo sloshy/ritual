@@ -1,4 +1,5 @@
 import { isRecord } from '../../util/json'
+import { isSourceOffer } from '../../config/source-offer'
 import type { StatusResponse } from '../api/status'
 
 /**
@@ -16,7 +17,8 @@ function isStatusResponse(value: unknown): value is StatusResponse {
     typeof value.ok === 'boolean' &&
     typeof value.setupRequired === 'boolean' &&
     typeof value.totpEnabled === 'boolean' &&
-    typeof value.sellMode === 'boolean'
+    typeof value.sellMode === 'boolean' &&
+    isSourceOffer(value.about)
   )
 }
 

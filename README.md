@@ -38,6 +38,12 @@ You can also download binaries from the [releases page](https://github.com/slosh
 
 📖 **Full documentation at [ritual.rpeters.dev](https://ritual.rpeters.dev)**
 
+## License and Attribution
+
+Ritual is free software under the [GNU Affero General Public License v3](LICENSE). See [NOTICE](NOTICE) for the full attribution.
+
+Ritual is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved or endorsed by Wizards of the Coast. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC. Card data, images and symbols come from [Scryfall](https://scryfall.com), which is not affiliated with this project.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for rules and guidelines.

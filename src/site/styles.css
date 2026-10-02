@@ -267,6 +267,18 @@ body {
       color: var(--text-primary);
     }
   }
+
+  & p + p {
+    margin-top: 0.5rem;
+  }
+}
+
+/* The Fan Content Policy notice and data credit: present on every page,
+   quieter than the credit line above them. */
+.site-footer-legal {
+  max-width: 48rem;
+  margin-inline: auto;
+  font-size: 0.6875rem;
 }
 
 /* ===== Page Structure ===== */

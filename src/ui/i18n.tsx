@@ -178,7 +178,8 @@ export function useTDynamic(): I18nStore['tDynamic'] {
  * The reactive segment renderer, for a sentence with one parameter that must
  * carry markup — a bolded phrase, a `<code>` span, a clickable card name. Render
  * the segments with `<For>` and wrap the `param` segment you care about; the
- * translator keeps control of where in the sentence it sits.
+ * translator keeps control of where in the sentence it sits. When the markup is
+ * a link to another site, `LinkedMessage` (`ui/LinkedMessage.tsx`) does this.
  */
 export function useTSegments(): I18nStore['tSegments'] {
   return useI18n().tSegments

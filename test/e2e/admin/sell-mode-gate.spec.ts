@@ -1,12 +1,18 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import type { RitualConfig } from '../../../src/config/ritual-config'
 import type { ConfigResponse } from '../../../src/admin/site/config-api'
-import type { StatusResponse } from '../../../src/admin/api/status'
 import { defaultSiteSelection } from '../../../src/config/list-selection'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openAdminPage, openDeckWithCards } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
-import { mockBuylistApi, mockMoveCardsApi, mockTotpApi, MOCK_CONFIG } from '../helpers/mock-admin'
+import {
+  mockBuylistApi,
+  mockMoveCardsApi,
+  mockStatusApi,
+  mockStatusResponse,
+  mockTotpApi,
+  MOCK_CONFIG,
+} from '../helpers/mock-admin'
 
 /**
  * Every admin sell surface hangs off one signal, fed by `GET /api/status`. The
@@ -42,12 +48,7 @@ test.describe('Admin editors — sell mode gating', () => {
   test('a server reporting no sell mode renders the toolbar without the toggle', async ({
     page,
   }) => {
-    await fulfillJson(page, '**/api/status', (): StatusResponse => ({
-      ok: true,
-      setupRequired: false,
-      totpEnabled: false,
-      sellMode: false,
-    }))
+    await mockStatusApi(page, false)
     // Navigate after the fake is installed: the signal is read once, at boot.
     await gotoAdminDashboard(page)
     await openSyntheticDeck(page)
@@ -96,12 +97,7 @@ async function mockSellModeServer(page: Page, initial: boolean): Promise<SellMod
       }
     : MOCK_CONFIG
   const puts: Partial<RitualConfig>[] = []
-  await fulfillJson(page, '**/api/status', (): StatusResponse => ({
-    ok: true,
-    setupRequired: false,
-    totpEnabled: false,
-    sellMode: stored.site?.sellMode === true,
-  }))
+  await fulfillJson(page, '**/api/status', () => mockStatusResponse(stored.site?.sellMode === true))
   await fulfillJson(page, '**/api/config', (route: Route): ConfigResponse => {
     if (route.request().method() === 'PUT') {
       const body = route.request().postDataJSON() as Partial<RitualConfig>

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { SOURCE_OFFER } from '../../../src/config/version'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 
 test.describe('Layout & Navigation', () => {
@@ -31,6 +32,25 @@ test.describe('Layout & Navigation', () => {
     }
   })
 
+  test("the sidebar offers the running Ritual's source and the attribution page", async ({
+    page,
+  }) => {
+    // From the real server's GET /api/status, not a mock: the offer is the
+    // running build's own.
+    const about = page.locator('.admin-sidebar .admin-about')
+    await expect(about).toContainText(
+      `Ritual ${SOURCE_OFFER.version} · Source code · AGPL-3.0-only`,
+    )
+    await expect(about.getByRole('link', { name: 'Source code' })).toHaveAttribute(
+      'href',
+      SOURCE_OFFER.revisionUrl,
+    )
+    await expect(about.getByRole('link', { name: 'License and attribution' })).toHaveAttribute(
+      'href',
+      'https://ritual.rpeters.dev/attribution/',
+    )
+  })
+
   test('mobile hamburger menu opens sidebar overlay', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 })
     // Desktop sidebar should not be visible
@@ -40,6 +60,8 @@ test.describe('Layout & Navigation', () => {
     // Mobile nav should appear
     await expect(page.locator('.mobile-nav')).toBeVisible()
     await expect(page.locator('.mobile-backdrop')).toBeVisible()
+    // The overlay carries its own copy of the source offer.
+    await expect(page.locator('.mobile-nav .admin-about')).toContainText('Source code')
   })
 
   test('clicking mobile backdrop closes sidebar', async ({ page }) => {

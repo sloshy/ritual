@@ -4,6 +4,8 @@ import { invalidateCardKingdomIndex, saveCardKingdomCache } from '../../src/card
 import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
 import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
+import type { StatusResponse } from '../../src/admin/api/status'
+import { SOURCE_OFFER } from '../../src/config/version'
 
 /**
  * Sell mode gates the admin server's own sell surfaces, not just the public
@@ -123,6 +125,11 @@ describe('admin sell-mode gate (Integration)', () => {
 
     test('is false on a workspace that never enabled it', async () => {
       expect(await statusSellMode()).toBe(false)
+    })
+
+    test("carries the running build's source offer beside it", async () => {
+      const response = await dispatch({ method: 'GET', path: '/api/status' })
+      expect(((await response?.json()) as StatusResponse).about).toEqual(SOURCE_OFFER)
     })
 
     test('follows site.sellMode in the config, re-read per request', async () => {

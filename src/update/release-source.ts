@@ -11,8 +11,11 @@ export const GITHUB_REPO = 'sloshy/ritual'
 /** The releases API root for {@link GITHUB_REPO}. */
 export const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO}`
 
+/** The repository's web address, where its source lives. */
+export const GITHUB_REPO_URL = `https://github.com/${GITHUB_REPO}`
+
 /** The prefix a release asset's download URL starts with: `<prefix>/<tag>/<asset>`. */
-export const GITHUB_RELEASES_DOWNLOAD = `https://github.com/${GITHUB_REPO}/releases/download`
+export const GITHUB_RELEASES_DOWNLOAD = `${GITHUB_REPO_URL}/releases/download`
 
 /** Release asset names by `process.platform`, then `process.arch`. */
 type ReleaseAssetTable = Partial<Record<NodeJS.Platform, Partial<Record<string, string>>>>

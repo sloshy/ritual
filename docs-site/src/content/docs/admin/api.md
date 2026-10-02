@@ -83,9 +83,17 @@ Returns server health, whether first-time setup is needed, and which optional ca
   "ok": true,
   "setupRequired": false,
   "totpEnabled": true,
-  "sellMode": false
+  "sellMode": false,
+  "about": {
+    "version": "1.0.0",
+    "license": "AGPL-3.0-only",
+    "sourceUrl": "https://github.com/sloshy/ritual",
+    "revisionUrl": "https://github.com/sloshy/ritual/tree/v1.0.0"
+  }
 }
 ```
+
+`about` is the running Ritual's source offer: its version, its license, the repository holding its source, and `revisionUrl`, the source of exactly this version (the release tag's tree, or the commit's for a development build). The admin UI shows it at the foot of its navigation. See [Source Code](/attribution/#source-code).
 
 `sellMode` is the **effective** value: `site.sellMode`, or `true` when the server was started with [`--sell-mode`](/commands/admin/#sell-mode). When it is false a client hides its sell surfaces. The `/api/sell/*` and `/api/buylist/*` routes themselves stay open while the `cardkingdom` [price store](/configuration/#price-stores-pricesources) is enabled, because Card Kingdom retail prices come from the same feed.
 

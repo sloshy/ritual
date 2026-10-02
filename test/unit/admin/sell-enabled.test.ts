@@ -14,6 +14,7 @@ import {
 } from '../../../src/list-view/buylist-quotes'
 import { stubBuylistFetcher } from '../../test-utils'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
+import { EXAMPLE_SOURCE_OFFER } from '../../helpers/source-offer'
 
 /**
  * The admin SPA's sell-mode flag: primed at boot from `GET /api/status` and
@@ -33,7 +34,13 @@ const asked = (): string[] => (stubbed?.sent ?? []).map((sent) => sent.url)
 
 /** A `GET /api/status` payload from a logged-in server offering (or not) sell mode. */
 function status(sellMode: boolean): StatusResponse {
-  return { ok: true, setupRequired: false, totpEnabled: false, sellMode }
+  return {
+    ok: true,
+    setupRequired: false,
+    totpEnabled: false,
+    sellMode,
+    about: EXAMPLE_SOURCE_OFFER,
+  }
 }
 
 /**
@@ -140,11 +147,23 @@ describe('refreshSellModeEnabled', () => {
     expect(sellModeEnabled()).toBe(true)
   })
 
-  test('leaves the flag alone when the payload is missing a field', async () => {
+  // A 200 from a server ahead of or behind this bundle. Validated rather than
+  // asserted into shape, so a payload short of any field is "no answer". Each
+  // carries `sellMode: false` where it has one, so a payload wrongly accepted
+  // would flip the flag.
+  const { sellMode: _sellMode, ...noSellMode } = status(false)
+  const { about: _about, ...noAbout } = status(false)
+  test.each([
+    ['no sellMode', noSellMode],
+    ['no about', noAbout],
+    [
+      'an about without revisionUrl',
+      { ...status(false), about: { ...EXAMPLE_SOURCE_OFFER, revisionUrl: undefined } },
+    ],
+    ['an about that is not an object', { ...status(false), about: 'ritual' }],
+  ])('leaves the flag alone when the payload has %s', async (_label, body) => {
     setSellModeEnabled(true)
-    // A 200 from a server ahead of or behind this bundle. Validated rather than
-    // asserted into shape, so an absent `sellMode` is "no answer", not `false`.
-    stubStatus(() => Response.json({ ok: true, setupRequired: false, totpEnabled: false }))
+    stubStatus(() => Response.json(body))
 
     await refreshSellModeEnabled()
 

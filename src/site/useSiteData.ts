@@ -1,3 +1,4 @@
+import { isSourceOffer, type SourceOffer } from '../config/source-offer'
 import { batch, createEffect, createSignal, onMount, onCleanup } from 'solid-js'
 import type { Accessor } from 'solid-js'
 import type {
@@ -46,6 +47,8 @@ export type UseSiteDataResult = {
    * JSON, so a static host offers sell mode exactly as a served one does.
    */
   sellMode: Accessor<boolean>
+  /** The Ritual that built or serves this site, for the footer's source offer; null until `index.json` arrives. */
+  about: Accessor<SourceOffer | null>
   /**
    * The UI locale in force — the one a dictionary is actually loaded for, which
    * is not always the one that was asked for (an unreachable dictionary
@@ -93,6 +96,7 @@ export function useSiteData(): UseSiteDataResult {
   const [useScryfallImgUrls, setUseScryfallImgUrls] = createSignal(true)
   const [pricesDate, setPricesDate] = createSignal<string | null>(null)
   const [sellModeConfigured, setSellModeConfigured] = createSignal(false)
+  const [about, setAbout] = createSignal<SourceOffer | null>(null)
   const [uiLocale, setUiLocale] = createSignal<LocaleTag>(currentLocale())
   const [availableLocales, setAvailableLocales] = createSignal<LocaleTag[]>([DEFAULT_LOCALE])
 
@@ -121,6 +125,8 @@ export function useSiteData(): UseSiteDataResult {
       }
       // Absent on sites built before sell mode existed, which reads as off.
       setSellModeConfigured(data.sellMode === true)
+      // Validated, since it lands in the footer's links.
+      setAbout(isSourceOffer(data.about) ? data.about : null)
       // The stores and the one to open on; the currency in view follows the
       // store (a pick outlives every refetch). An empty list hides all price UI.
       seedPriceView({ stores: data.priceSources, defaultSource: data.defaultPriceSource })
@@ -253,6 +259,7 @@ export function useSiteData(): UseSiteDataResult {
     // The configured flag alone: each list's detail carries its own baked
     // quotes, so sell mode needs no backend to answer for them.
     sellMode: sellModeConfigured,
+    about,
     uiLocale,
     availableLocales,
     switchLocale,

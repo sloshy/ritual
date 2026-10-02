@@ -25,6 +25,7 @@ import {
   makeMockScryfallCard,
   withImage,
 } from './mock-cards'
+import { EXAMPLE_SOURCE_OFFER } from '../../helpers/source-offer'
 
 // ===== index.json builders =====
 
@@ -43,6 +44,7 @@ export function makeSiteIndex(overrides: Partial<SiteIndex> = {}): SiteIndex {
     // choose) stays out of the way. Fixtures that need a second store pass
     // their own list.
     priceSources: ['tcgplayer'],
+    about: EXAMPLE_SOURCE_OFFER,
     ...overrides,
   }
 }

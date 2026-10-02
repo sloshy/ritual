@@ -927,6 +927,26 @@
   margin: 0.5rem 0;
 }
 
+/* The source offer and attribution link at the foot of the navigation. */
+.admin-about {
+  padding: 0.75rem 1rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+
+  & p + p {
+    margin-top: 0.25rem;
+  }
+
+  & a {
+    color: var(--text-secondary);
+    text-decoration: none;
+
+    &:hover {
+      color: var(--text-primary);
+    }
+  }
+}
+
 /* ----- Mobile navigation ----- */
 .mobile-nav-header {
   display: flex;

@@ -42,6 +42,7 @@ import { adminBuylistFetcher } from './editor-backend'
 import { adminListShareSource } from './share-source'
 import { setSellModeEnabled } from './sell-enabled'
 import { fetchStatus } from './status-api'
+import type { SourceOffer } from '../../config/source-offer'
 import { createI18nStore, I18nProvider, useI18n } from '../../ui/i18n'
 import { registerAdminMessages } from '../../i18n/register/admin'
 import { bootAdminLocale, useAdminLocale } from './hooks/useAdminLocale'
@@ -92,6 +93,7 @@ function App() {
   const [setupRequired, setSetupRequired] = createSignal<boolean | null>(null)
   const [totpEnabled, setTotpEnabled] = createSignal(false)
   const [loggedIn, setLoggedIn] = createSignal(false)
+  const [about, setAbout] = createSignal<SourceOffer | null>(null)
 
   const navigationGuard = createNavigationGuard()
   // Every navigation — link, dashboard card, or the browser's Back/Forward —
@@ -120,6 +122,7 @@ function App() {
       // Whether this server offers sell mode at all; its sell/buylist routes
       // 404 otherwise, so every sell surface in the UI hides itself on this.
       setSellModeEnabled(data.sellMode)
+      setAbout(data.about)
     })
 
     // Check if we have an active session by probing an authenticated endpoint.
@@ -182,7 +185,7 @@ function App() {
       <Match when={loggedIn()}>
         <NavigationGuardProvider value={navigationGuard}>
           <RoutingProvider value={routing}>
-            <Layout onLogout={() => navigationGuard.attempt(() => void onLogout())}>
+            <Layout about={about()} onLogout={() => navigationGuard.attempt(() => void onLogout())}>
               {/* Keyed on the navigation, so arriving at a page — including the
                   one already open, at a different list — always starts it fresh,
                   while the page's own URL updates leave it mounted. */}

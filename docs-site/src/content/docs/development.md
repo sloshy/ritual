@@ -81,6 +81,14 @@ bun run build
 
 This produces a `ritual` executable in the project root.
 
+Every network surface of a running Ritual offers its source: the public site's footer, the admin's navigation, and the MCP server's instructions all link to the repository at the exact version (see [License and Attribution](/attribution/#source-code)). A fork sets `RITUAL_SOURCE_URL` to its own repository when it builds, so the link leads to the modified source, as the AGPL asks:
+
+```bash
+RITUAL_SOURCE_URL=https://github.com/you/ritual bun run build
+```
+
+The value must be an `http(s)` URL. The links take the form `<url>/tree/<tag or commit>`, which GitHub, GitLab, Gitea, and Forgejo all serve. The Docker build takes it as a build argument (`--build-arg RITUAL_SOURCE_URL=…`), and `scripts/build-docker.sh` passes it through.
+
 To regenerate only the bundled front-end assets and license file that the type check reads, without the slower `--compile` step:
 
 ```bash

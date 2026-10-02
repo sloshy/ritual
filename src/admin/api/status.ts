@@ -4,6 +4,8 @@ import { adminUserExists, isTotpEnabled } from '../auth'
 import { readDeckName } from '../../importers/text-file'
 import { getDecksDir, getSiteSellMode, loadRitualConfig } from '../../config/ritual-config'
 import { isListMarkdownFile } from '../../list/list-file-name'
+import { SOURCE_OFFER } from '../../config/version'
+import type { SourceOffer } from '../../config/source-offer'
 
 /**
  * `GET /api/status` — what a client needs before it has a session: whether this
@@ -22,6 +24,12 @@ export interface StatusResponse {
    * that only ever produces a 404 is worse than no toggle.
    */
   sellMode: boolean
+  /**
+   * The running Ritual's version, license and source (AGPL §13), which the UI
+   * offers at the foot of its navigation. Unauthenticated like the rest, so
+   * any client can learn where the source is before it has a session.
+   */
+  about: SourceOffer
 }
 
 export async function handleStatus(): Promise<Response> {
@@ -37,6 +45,7 @@ export async function handleStatus(): Promise<Response> {
     setupRequired,
     totpEnabled,
     sellMode: getSiteSellMode(config),
+    about: SOURCE_OFFER,
   }
   return Response.json(body)
 }

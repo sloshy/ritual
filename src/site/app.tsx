@@ -81,6 +81,7 @@ import { MobileTabBar } from './MobileTabBar'
 import { EditModeButton, ThemeHeaderControls } from './HeaderControls'
 import { PriceStoreSelect } from '../list-view/PriceStoreSelect'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { SiteFooter } from './SiteFooter'
 import { NAV_DESTINATIONS, type NavActiveState } from './nav-destinations'
 import { createI18nStore, I18nProvider, useI18n } from '../ui/i18n'
 import { registerSiteMessages } from '../i18n/register/site'
@@ -94,7 +95,7 @@ import { useHideOnScroll } from './useHideOnScroll'
 registerSiteMessages()
 
 function App() {
-  const { t, tSegments, setLocale: publishLocale } = useI18n()
+  const { t, setLocale: publishLocale } = useI18n()
   const { route, visible } = useRouting()
   const {
     deckList,
@@ -104,6 +105,7 @@ function App() {
     currency,
     pricesDate,
     sellMode: sellModeAvailable,
+    about,
     uiLocale,
     availableLocales,
     switchLocale,
@@ -882,21 +884,7 @@ function App() {
         </div>
       </main>
 
-      <footer class="site-footer">
-        {/* Segments, not concatenation: the link sits mid-sentence and a
-            translator must be free to move it. */}
-        <p>
-          <For each={tSegments('site.app.generatedBy', { tool: 'ritual' })}>
-            {(segment) =>
-              segment.kind === 'param' ? (
-                <a href="https://github.com/sloshy/ritual">{segment.value}</a>
-              ) : (
-                segment.value
-              )
-            }
-          </For>
-        </p>
-      </footer>
+      <SiteFooter about={about()} />
 
       <Show when={showTabBar()}>
         <MobileTabBar active={navActive()} />

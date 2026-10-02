@@ -5,7 +5,11 @@ IMAGE=${IMAGE:-ghcr.io/sloshy/ritual}
 TAG=${TAG:-$GIT_REF}
 PUSH=${PUSH:-false}
 
-docker build --build-arg GIT_VERSION="$GIT_REF" -t "$IMAGE:$TAG" .
+# A fork passes RITUAL_SOURCE_URL through, so the image's source offer links to
+# the fork (src/config/source-offer.ts).
+docker build --build-arg GIT_VERSION="$GIT_REF" \
+  ${RITUAL_SOURCE_URL:+--build-arg RITUAL_SOURCE_URL="$RITUAL_SOURCE_URL"} \
+  -t "$IMAGE:$TAG" .
 
 if [ "$PUSH" = "true" ]; then
   docker push "$IMAGE:$TAG"

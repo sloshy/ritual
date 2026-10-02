@@ -110,6 +110,10 @@ Ritual's internal conflict code `-32012` is **never visible to a client**. Every
 
 One error is re-raised rather than structured: a URL-elicitation request is a protocol handshake the client must answer, not a tool failure.
 
+### Source offer
+
+The server `instructions` end with one line naming the running Ritual version and its license (AGPL-3.0-only) and linking to the source of exactly that version, as the license asks of every network surface. See [License and Attribution](/attribution/#source-code).
+
 ### Language: English by contract
 
 Ritual's CLI output and its two web UIs follow the configured [UI locale](/localization/) (`--locale`, `RITUAL_LOCALE`, or the `uiLocale` config key). **This surface does not.** Tool names, titles, descriptions, parameter documentation, output-schema descriptions, the server `instructions`, and the `message` of every result stay English. They are model-facing prose mixed with flags, file paths, and `snake_case` tool names; translating them would break the identifiers a client matches on.
