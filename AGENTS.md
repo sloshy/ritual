@@ -2,7 +2,11 @@
 
 ## Project Status
 
-This project is **pre-release**. There are no published versions and no external users to support, so **backward compatibility is not a concern**. Freely rename or remove CLI flags, commands, options, config keys, file formats, and APIs when a cleaner design presents itself — do not add deprecated aliases, compatibility shims, or migration paths to preserve old behavior. Just update all in-repo call sites, tests, generated output, and docs to match the new design.
+Ritual is in **0.x**: versions are published, but nothing is a stable contract yet. Any release may rename or remove CLI commands, flags and options, exit codes, `--output json` keys, MCP tools and their schemas, admin HTTP routes, export columns, and theme variables when a cleaner design presents itself. Do not add deprecated aliases or compatibility shims to preserve old behavior; update every in-repo call site, test, generated output, and doc to the new design instead.
+
+**The one promise is the user's data.** A user moves forward linearly from version to version and keeps their decks, collections, wanted lists, changelogs, and config. So any change to what Ritual reads from or writes to a workspace (the list and card-line format, front matter, `.changes.md`, sidecars, `ritual.config.json` keys, managed generated files) ships as a numbered `ritual migrate` migration in `src/migrate/migrations.ts` that rewrites existing workspaces to the new form. The code then reads only the new form: the migration, not a dual-format reader, is the compatibility path.
+
+Record every user-visible change, breaking or not, under `## [Unreleased]` in `CHANGELOG.md`; a change that needs a user to act (a renamed flag in their scripts, a pending migration) says so.
 
 ## LSP
 
@@ -135,6 +139,7 @@ The admin HTTP API (`src/admin/api/`, registered in `src/admin/server.ts`) is Ri
 3. The corresponding skill content in `src/skills/content/` (and the skill descriptions used for discovery), plus `skills.md`. The Skills are meant to mirror the **full CLI surface**, so a new or changed command almost always means a skill edit.
 4. The tests for each surface (`test/unit/mcp/*`, `test/integration/mcp-*.test.ts`, `test/unit/skills.test.ts`, `test/integration/skills-install.test.ts`).
 5. The **message catalog** — any new or reworded user-facing string is a key in `src/i18n/messages/en/` plus its mandatory `description` in the sibling `*.meta.ts`, validated by `bun run scripts/check-locales.ts`. A removed string means a removed key: dead keys are an error, not a warning. See [Localization](#localization) for what is deliberately _not_ translated.
+6. The **CHANGELOG and migrations** — a user-visible change gets a `CHANGELOG.md` `Unreleased` entry, and a change to anything a workspace stores gets a `ritual migrate` migration. See [Project Status](#project-status).
 
 When reviewing changes that touch commands, explicitly confirm the MCP tools and Skills were updated — a CLI change with no matching MCP/Skills update is a defect, not an omission. Run the **`feature-surface-sync`** agent (see [Post-Implementation Review](#post-implementation-review)) to audit this matrix automatically whenever you touch an admin route handler, a `src/commands/` command, or a flag/option.
 

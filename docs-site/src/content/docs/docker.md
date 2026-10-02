@@ -63,6 +63,10 @@ services:
 
 ### Hosting the public site with a live backend
 
+:::caution[Beta]
+Hosting with a live backend is in beta and may change in any release. See [Hosting with a Live Backend](/public-site/hosted/).
+:::
+
 To self-host the [hosted public site](/public-site/hosted/) (live list data plus card search from the cache), run [`serve --api`](/commands/serve/#live-api-mode---api) instead. Mount the list directories and a pre-populated cache:
 
 ```yaml

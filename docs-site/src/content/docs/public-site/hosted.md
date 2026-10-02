@@ -1,7 +1,15 @@
 ---
 title: 'Hosting with a Live Backend'
 description: Serve the public site with live list data and cache-backed card search, on one origin or split across a CDN and an API host.
+sidebar:
+  badge:
+    text: Beta
+    variant: caution
 ---
+
+:::caution[Beta]
+Hosting with a live backend is in beta and may change in any release. The API it serves is unauthenticated; see [`SECURITY.md`](https://github.com/sloshy/ritual/blob/main/SECURITY.md) before you expose it.
+:::
 
 The public site is normally a fully static build. [`build-site`](/commands/build-site/) writes every list's data into `dist/`, and the browser's only network traffic is to Scryfall (card search and price refreshes). That deploys anywhere, but the content is frozen at build time, and the editor's card search uses Scryfall's matching rather than the admin editor's term matching.
 

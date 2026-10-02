@@ -53,7 +53,7 @@ For each such finding, explain precisely WHY it cannot catch a regression, and p
 
 ## Project-Specific Awareness
 
-This is a pre-release TypeScript/Bun project (Magic: the Gathering deck/collection tooling). Keep these invariants in mind when judging test correctness:
+This is a 0.x TypeScript/Bun project (Magic: the Gathering deck/collection tooling). Keep these invariants in mind when judging test correctness:
 
 - Set codes are lowercase internally and uppercase in output — tests asserting the wrong casing are incorrect, not just stylistic.
 - Card lines carry persistent `&N` ID suffixes with pool allocation/reuse semantics — tests around card IDs must verify reuse and stability, not just presence.

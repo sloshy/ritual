@@ -1,15 +1,16 @@
 # Changelog
 
 Notable changes a Ritual user would notice. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the versions follow
-[Semantic Versioning](https://semver.org/spec/v2.0.0.html). Each release's section here
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and each release's section here
 is also its notes on the [releases page](https://github.com/sloshy/ritual/releases).
 
+**Ritual is in 0.x.** Until 1.0, any release may change commands, flags, output formats,
+MCP tools and the like; each change that needs something from you says so here.
+
 **Your data carries forward.** Your decks, collections, wanted lists, their changelogs and
-your `ritual.config.json` keep working across upgrades. When a release changes a file
-format or a generated file, it ships the change as a `ritual migrate` migration, and Ritual
-tells you when one is pending. A release that needs anything more from you says so under
-its own heading.
+your `ritual.config.json` keep working as you upgrade from one version to the next. When a
+release changes a file format or a generated file, it ships the change as a
+`ritual migrate` migration, and Ritual tells you when one is pending.
 
 ## [Unreleased]
 
@@ -28,6 +29,9 @@ its own heading.
 
 ### Changed
 
+- The cache feed (`cache feed`, `cacheSource: feed`) is marked experimental, and hosted mode
+  (`serve --api`) and sell mode on the public and admin sites are marked beta, in the docs
+  and in `--help`. `cache server` is labelled for trusted networks only.
 - The GitHub Actions deploy workflow that `ritual init-site` generates checks the Ritual
   binary it downloads against the release's published SHA-256 checksum. `ritual migrate`
   brings an existing workflow up to date.

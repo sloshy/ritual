@@ -23,7 +23,10 @@ export const helpInfraMeta = {
   'help.cache.refreshTags': { description: 'Summary of `cache refresh-tags`.' },
 
   // ── cache server ──────────────────────────────────────────────────────
-  'help.cacheServer.description': { description: 'Summary of `cache server`.' },
+  'help.cacheServer.description': {
+    description:
+      'Summary of `cache server`. The parenthetical warns that the server must only be reachable from a trusted network, because anyone who can reach it can change the cache.',
+  },
   'help.cacheServer.port': { description: '`cache server --port`.' },
   'help.cacheServer.host': { description: '`cache server --host`.' },
   'help.cacheServer.cardsRefresh': {
@@ -44,8 +47,14 @@ export const helpInfraMeta = {
   'help.cacheServer.denyHttp': { description: '`cache server --deny-http`.' },
 
   // ── cache feed ────────────────────────────────────────────────────────
-  'help.cacheFeed.description': { description: 'Summary of the `cache feed` command group.' },
-  'help.cacheFeed.host': { description: 'Summary of `cache feed host`.' },
+  'help.cacheFeed.description': {
+    description:
+      'Summary of the `cache feed` command group. "Experimental" marks a feature that may change or be removed in any release.',
+  },
+  'help.cacheFeed.host': {
+    description:
+      'Summary of `cache feed host`. "Experimental" marks a feature that may change or be removed in any release.',
+  },
   'help.cacheFeed.hostPort': { description: '`cache feed host --port`.' },
   'help.cacheFeed.hostHost': { description: '`cache feed host --host`.' },
   'help.cacheFeed.publicUrl': { description: '`cache feed host --public-url`.' },
@@ -64,7 +73,10 @@ export const helpInfraMeta = {
     description: '`--torrent-port`, shared by `cache feed host` and `cache feed fetch`.',
   },
   'help.cacheFeed.hostVerbose': { description: '`cache feed host --verbose`.' },
-  'help.cacheFeed.fetch': { description: 'Summary of `cache feed fetch`.' },
+  'help.cacheFeed.fetch': {
+    description:
+      'Summary of `cache feed fetch`. "Experimental" marks a feature that may change or be removed in any release.',
+  },
   'help.cacheFeed.fetchFeedUrl': {
     description: '`cache feed fetch --url`. cacheFeedUrl is a config key.',
   },
@@ -94,7 +106,10 @@ export const helpInfraMeta = {
   'help.serve.port': { description: '`serve --port`.' },
   'help.serve.host': { description: '`serve --host`.' },
   'help.serve.build': { description: '`serve --build`.' },
-  'help.serve.api': { description: '`serve --api`.' },
+  'help.serve.api': {
+    description:
+      '`serve --api`. "(Beta)" marks a feature that works but may still change between releases.',
+  },
 
   // ── build-site ────────────────────────────────────────────────────────
   'help.buildSite.description': { description: 'Summary of the `build-site` command.' },
@@ -133,7 +148,7 @@ export const helpInfraMeta = {
   'help.buildSite.outDir': { description: '`build-site --out-dir`.' },
   'help.buildSite.sellMode': {
     description:
-      '`--sell-mode`, shared by `build-site` and `serve`. site.sellMode is a config key name; Card Kingdom is a company name.',
+      '"(Beta)" marks the sell mode of the web sites as a feature that may still change between releases. `--sell-mode`, shared by `build-site` and `serve`. site.sellMode is a config key name; Card Kingdom is a company name.',
   },
 
   // ── init-site ─────────────────────────────────────────────────────────
@@ -191,7 +206,7 @@ export const helpInfraMeta = {
   },
   'help.admin.sellMode': {
     description:
-      '`admin --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name.',
+      '"(Beta)" marks the sell mode of the web sites as a feature that may still change between releases. `admin --sell-mode`. site.sellMode is a config key name; Card Kingdom is a company name.',
   },
   'help.admin.setup': { description: 'Summary of `admin setup`.' },
   'help.admin.setupUsername': { description: '`admin setup --username`.' },

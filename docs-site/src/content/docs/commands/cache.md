@@ -2,7 +2,7 @@
 title: 'cache'
 ---
 
-Manage the card cache: inspect it, preload it, and run the always-on cache server and peer-to-peer cache feed.
+Manage the card cache: inspect it, preload it, and run the always-on cache server and the experimental peer-to-peer cache feed.
 
 ## Usage
 
@@ -85,11 +85,11 @@ Download and cache the full Scryfall bulk card data. This also downloads the **o
 ritual cache preload-all [options]
 ```
 
-| Option              | Description                                                                                        | Default                                          |
-| ------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| `--source <source>` | Where to download from: `scryfall` or `feed` (overrides the `cacheSource` config key for this run) | `cacheSource` config key                         |
-| `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed`                                       | `cacheFeedUrl` config, then the built-in default |
-| `--force`           | Re-download and re-ingest even when the feed is unchanged (feed source only)                       | off                                              |
+| Option              | Description                                                                                                      | Default                                          |
+| ------------------- | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `--source <source>` | Where to download from: `scryfall` or `feed` (experimental; overrides the `cacheSource` config key for this run) | `cacheSource` config key                         |
+| `--url <feedUrl>`   | Feed URL for a feed-sourced refresh; implies `--source feed`                                                     | `cacheFeedUrl` config, then the built-in default |
+| `--force`           | Re-download and re-ingest even when the feed is unchanged (feed source only)                                     | off                                              |
 
 `--url` combined with `--source scryfall` is a usage error. `--force` has no effect on a Scryfall refresh, which always downloads the full bulk.
 
@@ -134,6 +134,10 @@ ritual cache refresh-tags
 
 ### server
 
+:::caution[Trusted networks only]
+The cache server has no authentication, and its write routes can clear or replace the cache. Bind it to loopback (the default) or a private network you trust.
+:::
+
 Start a local cache server for card and pricing cache data. Other Ritual commands (on this or other machines) use it instead of their local cache files. See [Client configuration](#client-configuration).
 
 ```bash
@@ -146,7 +150,7 @@ ritual cache server [options]
 | `--host <hostname>`           | Host interface for the cache server                                        | `127.0.0.1`                                             |
 | `--cards-refresh <interval>`  | Run a full cards cache refresh on a cadence (`daily`, `weekly`, `monthly`) | env `RITUAL_CACHE_SERVER_CARDS_REFRESH`, else disabled  |
 | `--prices-refresh <interval>` | Run price cache refreshes on a cadence (`daily`, `weekly`, `monthly`)      | env `RITUAL_CACHE_SERVER_PRICES_REFRESH`, else disabled |
-| `--cache-source <source>`     | Where card refreshes download from: `scryfall` or `feed`                   | `cacheSource` config key                                |
+| `--cache-source <source>`     | Where card refreshes download from: `scryfall` or `feed` (experimental)    | `cacheSource` config key                                |
 | `--url <feedUrl>`             | Cache feed URL for feed-sourced refreshes                                  | `cacheFeedUrl` config, then the built-in default        |
 | `--torrent-port <n>`          | Fixed TCP port for incoming torrent peers while seeding feed artifacts     | random                                                  |
 | `--no-seed`                   | With a feed source, sync without seeding the artifacts back to the swarm   | seeding on                                              |
@@ -156,6 +160,10 @@ ritual cache server [options]
 `--url` with `--cache-source scryfall` is a usage error, since that source never reads it. See [The cache server](#the-cache-server) for behavior details and the HTTP API.
 
 ### feed host
+
+:::caution[Experimental]
+The cache feed is experimental: it may change or be removed in any release. Refreshing straight from Scryfall (the default `cacheSource`) is the supported path.
+:::
 
 Host a **cache feed**: download the raw Scryfall bulk files (the card bulk(s) chosen with `--cards` plus the oracle/art tag bulks, as gzipped JSONL), create a BitTorrent torrent for each, and run an HTTP server that publishes a `feed.json` describing the current files while seeding them to peers. Sharing the bulk data peer-to-peer means Scryfall serves each daily download once per group instead of once per machine.
 
@@ -177,6 +185,10 @@ ritual cache feed host --public-url https://feed.example.com
 | `-v, --verbose`        | Log every feed-server request                                                                                    | off                                                                              |
 
 ### feed fetch
+
+:::caution[Experimental]
+The cache feed is experimental: it may change or be removed in any release. Refreshing straight from Scryfall (the default `cacheSource`) is the supported path.
+:::
 
 Sync the card cache from a cache feed, then stay open **seeding** the files back to other peers. Every seeder reduces the load on both Scryfall and the feed host. Press Ctrl+C to stop.
 
@@ -228,7 +240,7 @@ The tag lookup is stored in `cache/tags.json`. The [`sell`](/commands/sell/) com
 - Uses local `cache/cache.json` as the cache storage backend.
 - If the card cache is empty or stale for the selected cards cadence (weekly if unset) on startup, it performs a full preload before serving requests.
 - Startup and scheduled full preloads take the exclusive cache-write lock (`cache/.ritual-cache-lock`), so they never interleave with another process's refresh. See [Configuration → Cache lock timeout](/configuration/#cache-lock-timeout).
-- With a `feed` cache source, card refreshes sync from a peer-to-peer [cache feed](#feed-host) instead of Scryfall. Unchanged feeds are a cheap infohash check, and feed failures fall back to a direct Scryfall preload. Unless `--no-seed` is given, the server **keeps seeding** the feed's files between refreshes. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
+- With a `feed` cache source (experimental), card refreshes sync from a peer-to-peer [cache feed](#feed-host) instead of Scryfall. Unchanged feeds are a cheap infohash check, and feed failures fall back to a direct Scryfall preload. Unless `--no-seed` is given, the server **keeps seeding** the feed's files between refreshes. In feed-seeding mode the startup refresh always runs (it is what starts the seeding), even when the local cache is fresh.
 - `--deny-http` also disables feed syncing and seeding.
 - On cache misses, it fetches from Scryfall and stores the results back into the local cache.
 - Price entries can be grouped into cadence buckets and refreshed on schedule.
@@ -297,6 +309,10 @@ On the server side, the refresh cadences can also come from environment variable
 - `RITUAL_CACHE_SERVER_PRICES_REFRESH=<daily|weekly|monthly>`
 
 ## The cache feed
+
+:::caution[Experimental]
+The cache feed is experimental: it may change or be removed in any release. Refreshing straight from Scryfall (the default `cacheSource`) is the supported path.
+:::
 
 ### HTTP endpoints
 

@@ -35,7 +35,8 @@ export const helpInfraMessages = {
     'Re-download oracle and art tag bulks and re-attach them to cached cards (no full card re-download)',
 
   // ── cache server ──────────────────────────────────────────────────────
-  'help.cacheServer.description': 'Start a local cache server for card and pricing data',
+  'help.cacheServer.description':
+    'Start a local cache server for card and pricing data (trusted networks only: its write routes are unauthenticated)',
   'help.cacheServer.port': 'Port for the cache server',
   'help.cacheServer.host': 'Host interface for the cache server',
   'help.cacheServer.cardsRefresh':
@@ -55,9 +56,9 @@ export const helpInfraMessages = {
     'Reject all outgoing HTTP requests (for testing with pre-populated caches)',
 
   // ── cache feed ────────────────────────────────────────────────────────
-  'help.cacheFeed.description': 'Share Scryfall bulk cache data peer-to-peer',
+  'help.cacheFeed.description': 'Experimental: share Scryfall bulk cache data peer-to-peer',
   'help.cacheFeed.host':
-    'Host a cache feed: download the raw Scryfall bulk files, torrent them, and serve + seed them for other ritual clients',
+    'Experimental: host a cache feed: download the raw Scryfall bulk files, torrent them, and serve + seed them for other ritual clients',
   'help.cacheFeed.hostPort': 'Port for the feed HTTP server',
   'help.cacheFeed.hostHost': 'Host interface for the feed HTTP server',
   'help.cacheFeed.publicUrl':
@@ -73,7 +74,7 @@ export const helpInfraMessages = {
   'help.cacheFeed.torrentPort': 'Fixed TCP port for incoming torrent peers',
   'help.cacheFeed.hostVerbose': 'Log every feed-server request',
   'help.cacheFeed.fetch':
-    'Sync the card cache from a cache feed, then stay open seeding the artifacts to other peers (Ctrl+C to stop)',
+    'Experimental: sync the card cache from a cache feed, then stay open seeding the artifacts to other peers (Ctrl+C to stop)',
   'help.cacheFeed.fetchFeedUrl':
     'Feed URL (defaults to the cacheFeedUrl config key, then the built-in default)',
   'help.cacheFeed.fetchNoP2p': 'Download over plain HTTP instead of BitTorrent',
@@ -102,7 +103,7 @@ export const helpInfraMessages = {
   'help.serve.host': 'Host address to bind to',
   'help.serve.build': 'Build the site before serving it',
   'help.serve.api':
-    'Serve a live read-only data API alongside the site: list data is computed from the markdown files on request, and card search uses the card cache with the same term matching as the admin editor',
+    '(Beta) Serve a live read-only data API alongside the site: list data is computed from the markdown files on request, and card search uses the card cache with the same term matching as the admin editor',
 
   // ── build-site ────────────────────────────────────────────────────────
   'help.buildSite.description':
@@ -135,7 +136,7 @@ export const helpInfraMessages = {
   'help.buildSite.outDir':
     'Publish into this directory instead of dist/ (relative paths resolve against the Ritual directory); `serve` without --build serves it instead',
   'help.buildSite.sellMode':
-    'Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and include its buy prices',
+    '(Beta) Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and include its buy prices',
 
   // ── init-site ─────────────────────────────────────────────────────────
   'help.initSite.description': 'Initialize the current directory for publishing a Ritual site',
@@ -183,7 +184,7 @@ export const helpInfraMessages = {
   'help.admin.mcpToken':
     'Bearer token required on the embedded MCP endpoint (with --mcp; or set RITUAL_MCP_TOKEN)',
   'help.admin.sellMode':
-    'Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices',
+    '(Beta) Offer sell mode for this run even when the site.sellMode config is off: update the Card Kingdom buylist (~70 MB) and serve its buy prices',
   'help.admin.setup': 'Create the admin account without starting the server',
   'help.admin.setupUsername': 'Username for the new admin account',
   'help.admin.setupPasswordStdin': 'Read the password from stdin (for scripting)',

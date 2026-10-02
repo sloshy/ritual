@@ -538,6 +538,10 @@ ritual cache feed fetch           # sync the cache from a feed, then seed to pee
 ritual config set cacheSource feed  # make all cache refreshes sync via the feed
 \`\`\`
 
+The cache feed is **experimental** (it may change or go away in any release); the default
+\`cacheSource: scryfall\` is the supported path. \`cache server\` has no authentication and
+unauthenticated write routes: keep it on loopback or a trusted private network.
+
 \`ritual.config.json\` is created only by a genuine write — \`config set\`/\`unset\`,
 \`init-site\`, the admin Settings page, or the MCP \`update_config\` tool — reading
 config never does. If the file exists but is not valid JSON, every command fails with exit 1

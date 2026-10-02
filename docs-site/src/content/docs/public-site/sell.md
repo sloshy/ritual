@@ -1,7 +1,15 @@
 ---
 title: Sell Mode
 description: Show buylist prices from Card Kingdom on the public and admin sites, filter and group by them, and export a sell cart.
+sidebar:
+  badge:
+    text: Beta
+    variant: caution
 ---
+
+:::caution[Beta]
+Sell mode on the public and admin sites is in beta: it quotes one buyer, Card Kingdom, in US dollars, and may change in any release. The [`sell`](/commands/sell/) command is not affected.
+:::
 
 **Sell mode** shows a buyer's current buylist offer beside each card's retail price, and adds filtering, grouping, sorting, and a cart export built around it. It is the browser-side companion to the [`sell`](/commands/sell/) command, and both quote the same cards the same way.
 

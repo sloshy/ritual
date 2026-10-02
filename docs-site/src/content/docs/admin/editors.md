@@ -395,6 +395,10 @@ The editors follow the [`priceSources`](/configuration/#price-stores-pricesource
 
 ### Sell mode in the editors
 
+:::caution[Beta]
+Sell mode on the sites is in beta and may change in any release. See [Sell Mode](/public-site/sell/).
+:::
+
 When [sell mode](/public-site/sell/) is enabled, the toolbar gains a **Sell mode** toggle and a buyer selector, and the editors offer buylist prices, the Buylist filters, buylist grouping and sorting, and the Card Kingdom cart export. It is **off by default** on the admin site too. Enable it with the **Offer sell mode** checkbox on the [Settings](/admin/dashboard/#settings) page, with `ritual config set site.sellMode true`, or by starting the server as [`ritual admin --sell-mode`](/commands/admin/#sell-mode). With it off, the toggle and buyer selector are not rendered and the sell routes answer `404`, unless the `cardkingdom` [price store](/public-site/prices/), which uses the same feed, is enabled. Saving the checkbox applies at once: reopen an editor and the toggle is there (or gone) with no reload.
 
 Quotes come from the locally cached buylist, and the first download never happens on its own. Press **Refresh buylist** on the **Refresh Cache** page, or run `ritual sell --refresh auto`. After that, [`admin`](/commands/admin/) refreshes a day-old copy at startup and the button forces one mid-session. A press that downloads a new feed also clears the quotes this browser session has already resolved, so an editor opened afterwards prices against the new feed.

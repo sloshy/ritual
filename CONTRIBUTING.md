@@ -16,6 +16,13 @@ All TypeScript code should follow these conventions:
 - New CLI commands belong in `src/commands/`, not directly in `index.ts`.
 - Any new command, flag, option, or feature must be documented in the Starlight docs under `docs-site/`.
 
+## Changes and Compatibility
+
+Ritual is in 0.x, so commands, flags, output formats and the MCP tools may change from one release to the next. Two things go with every such change:
+
+- **A `CHANGELOG.md` entry** under `## [Unreleased]` for anything a user would notice, saying what to do when they need to act.
+- **A `ritual migrate` migration** (`src/migrate/migrations.ts`) for any change to what Ritual reads from or writes to a workspace: the list and card-line format, front matter, changelogs, sidecars, config keys, generated files. Users upgrade version by version and keep their data; the migration is how.
+
 ## Tests
 
 New features and bug fixes must include tests:

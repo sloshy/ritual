@@ -227,10 +227,10 @@ Only release builds check, never development or Docker builds. Set it to `false`
 
 ## Cache source
 
-| Field          | Default    | Description                                                                                                                                               |
-| -------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cacheSource`  | `scryfall` | Where card-cache refreshes download from: `scryfall` (Scryfall's bulk API directly) or `feed` (a peer-to-peer [cache feed](/commands/cache/#feed-fetch)). |
-| `cacheFeedUrl` | —          | The feed URL used when `cacheSource` is `feed`, and by `cache feed fetch` without `--url`. Must be an http(s) URL.                                        |
+| Field          | Default    | Description                                                                                                                                                             |
+| -------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cacheSource`  | `scryfall` | Where card-cache refreshes download from: `scryfall` (Scryfall's bulk API directly) or `feed` (an experimental peer-to-peer [cache feed](/commands/cache/#feed-fetch)). |
+| `cacheFeedUrl` | —          | The feed URL used when `cacheSource` is `feed`, and by `cache feed fetch` without `--url`. Must be an http(s) URL.                                                      |
 
 With `feed`, a refresh checks the feed's infohashes and downloads only when they changed. It falls back to Scryfall when the feed is unreachable. When `cacheFeedUrl` is absent, the built-in default feed is used.
 
@@ -334,7 +334,7 @@ The `site` key holds public-site settings in three groups:
 | `excludeWantedLists` | `[]`    | Wanted lists to drop even when `includeWantedLists` selects them.                                |
 | `bannedPrintings`    | `[]`    | Printings barred from default-printing selection (see [`config`](/commands/config/#properties)). |
 | `apiBaseUrl`         | —       | Base URL of a live backend for a split deployment (see below).                                   |
-| `sellMode`           | `false` | Whether the sites offer [sell mode](/public-site/sell/) (see below).                             |
+| `sellMode`           | `false` | Whether the sites offer [sell mode](/public-site/sell/), in beta (see below).                    |
 
 ### Pointing a static build at a live backend (`apiBaseUrl`)
 
@@ -343,6 +343,10 @@ The `site` key holds public-site settings in three groups:
 The value must be an `http(s)` URL (stored without a trailing slash), or the empty string for a site reverse-proxied on the same origin as its API. Leave it unset for a fully static site. `serve --api` itself needs no configuration.
 
 ### Offering sell mode (`sellMode`)
+
+:::caution[Beta]
+Sell mode on the sites is in beta and may change in any release. See [Sell Mode](/public-site/sell/).
+:::
 
 `site.sellMode` decides whether the sites offer [sell mode](/public-site/sell/): Card Kingdom buylist prices beside each card, the buylist filters, buylist grouping and sorting, and the sell-cart export. It defaults to **off**, because enabling it makes builds and cache refreshes download and index Card Kingdom's ~70 MB pricelist. Opt in with:
 

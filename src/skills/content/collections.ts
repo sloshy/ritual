@@ -513,7 +513,8 @@ off. That is a config decision, not a missing feed — \`refresh_buylist\` will 
 
 The same quotes drive **sell mode** on the admin site and on the public site: buylist prices
 beside each card, buylist filters (on-buylist chips and a price threshold), buylist
-grouping/sorting, and a CK cart export. It is **off by default** — turn it on with
+grouping/sorting, and a CK cart export. Sell mode on the sites is **beta** (one US buyer; it may
+change in any release; the \`sell\` command itself is not). It is **off by default** — turn it on with
 \`ritual config set site.sellMode true\`, with the **Offer sell mode** checkbox on the admin's
 Settings page (same key; unticking unsets it), or per run with \`--sell-mode\` on \`build-site\`,
 \`serve\`, \`admin\`, or \`mcp\`. The public site reads quotes baked into its list JSON (no

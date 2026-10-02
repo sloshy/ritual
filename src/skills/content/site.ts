@@ -353,6 +353,8 @@ stays a usage error.
 
 ### Hosted mode (\`--api\`)
 
+Hosted mode is **beta**: it may change in any release.
+
 \`serve --api\` adds an unauthenticated, read-only API on the same port: list
 JSON is computed from the markdown files per request (CLI/admin edits appear
 without rebuilding), and the public editor's card search uses the card cache
@@ -472,7 +474,8 @@ ritual config set defaultCategories --add "Board Wipes"
 ritual config set defaultCategories --remove Tokens
 \`\`\`
 
-A site can also offer **sell mode**: Card Kingdom buylist prices beside each
+Sell mode on the sites is **beta** (one US buyer; it may change in any release; \`ritual sell\`
+itself is not). A site can also offer **sell mode**: Card Kingdom buylist prices beside each
 card, on-buylist chips plus a buylist-price threshold filter, buylist grouping, sorting by
 buylist price or by buylist-minus-retail ascending (\`Buylist vs Price\`, where a missing offer or
 retail price counts as $0), and a CK sell-cart export. The quotes are **baked into each list's

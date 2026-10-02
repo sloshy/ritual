@@ -18,7 +18,7 @@ For Windows (PowerShell), install as your user with:
 irm https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.ps1 | iex
 ```
 
-Ritual is pre-release, so there is no stable release yet — install the newest prerelease build instead:
+To try the newest build, prereleases included:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sloshy/ritual/main/scripts/install.sh | bash -s -- --prerelease

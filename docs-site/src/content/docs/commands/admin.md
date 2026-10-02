@@ -28,7 +28,7 @@ ritual admin disable-totp
 | `--mcp`                | Also serve an [MCP](/commands/mcp/) endpoint in this process (requires `--mcp-token`)                                                                         |           |
 | `--mcp-port <number>`  | Port for the embedded MCP server (only with `--mcp`)                                                                                                          | `8765`    |
 | `--mcp-token <secret>` | Bearer token required on the embedded MCP endpoint (with `--mcp`)                                                                                             |           |
-| `--sell-mode`          | Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off (enable-only). See [Sell mode](#sell-mode).                               |           |
+| `--sell-mode`          | (Beta) Offer [sell mode](/public-site/sell/) for this run even when `site.sellMode` is off (enable-only). See [Sell mode](#sell-mode).                        |           |
 
 On startup, `admin`:
 
@@ -40,6 +40,10 @@ On startup, `admin`:
 `--refresh auto`, `no-bulk`, or `never` answers the cache prompt non-interactively; `no-bulk`/`never` also skip the buylist refresh. Under the default `ask`, a run where prompts are unavailable (see [When prompts are unavailable](/cli-conventions/#when-prompts-are-unavailable)) skips the refresh. `bun run dev admin` requires an explicit mode (see [Development → Dev Workflow](/development/#dev-workflow)).
 
 ## Sell mode
+
+:::caution[Beta]
+Sell mode on the sites is in beta and may change in any release. See [Sell Mode](/public-site/sell/).
+:::
 
 [Sell mode](/public-site/sell/) adds Card Kingdom buy prices in the editors, buylist filters and groupings, and the sell-cart export. It is **off unless you ask for it**. Turn it on for the workspace with [`ritual config set site.sellMode true`](/configuration/#offering-sell-mode-sellmode), or for one run:
 
