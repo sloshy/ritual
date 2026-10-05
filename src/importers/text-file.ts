@@ -18,8 +18,6 @@ import { readListImage } from '../list/list-image'
 import {
   canonicalSectionName,
   isDroppedEmptySection,
-  isMainBoardSection,
-  isSideboardSection,
   parseDeckFormat,
   type SectionRole,
 } from '../list/deck-format'
@@ -395,43 +393,29 @@ export function parseDeckText(
     warnings.push(`Skipped malformed line: ${trimmed}${malformedLanguageTokenHint(trimmed)}`)
   }
 
-  // A section header with no card lines under it is dropped, and re-serializing
-  // the deck would therefore delete it. That is a silent edit unless it is
-  // reported, so it joins the malformed-line warnings — the save routes refuse a
-  // baseline that carries any.
-  //
-  // Three shapes are emptiness rather than loss, and none of them warns:
+  // A section header with no card lines under it is kept, so re-serializing the
+  // deck writes it back as a bare header, except in these cases:
   //
   // - **The leading bucket**, when nothing adopted it (every canonically-written
-  //   Ritual deck opens with a header). An `##`-or-deeper first heading with no
-  //   cards under it is a genuine empty section and does warn.
+  //   Ritual deck opens with a header): an artifact of parsing, not a section.
   // - **A deck with no cards at all**, which is exactly what `ritual` writes for a
-  //   freshly created list (`## Main` and nothing else). There is no content to
-  //   lose, and warning would refuse the very first save into a new deck.
+  //   freshly created list (`## Main` and nothing else); its sections stay empty
+  //   in memory and nothing is lost.
   // - **An empty extras section** (`## Maybeboard`, `## Tokens`) — see
-  //   {@link isDroppedEmptySection}. It is reported as an advisory so the
-  //   whole-file gates let the rewrite through and the serializer, which drops
-  //   the same sections, can clear the header.
+  //   {@link isDroppedEmptySection}. The serializer drops the same sections, so
+  //   it is reported as an advisory, which the whole-file gates let through.
   //
-  // One more shape is *kept* rather than dropped: an empty `## Sideboard` or
-  // `## Main` in a deck that has cards elsewhere. Those are the boards a deck
-  // is expected to have, so the header survives the parse and the serializer
-  // writes it back bare — nothing is lost, and nothing warns.
+  // Parser and serializer therefore agree on every empty section, and a removal
+  // or move that empties one leaves a file the next parse reads cleanly.
   const hasCards = sections.some((s) => s.cards.length > 0)
   const isKeptEmpty = (section: DeckSection): boolean =>
     hasCards &&
     !(section === syntheticMain && !syntheticMainAdopted) &&
-    (isSideboardSection(section.name) || isMainBoardSection(section.name))
+    !isDroppedEmptySection(section)
   const validSections = sections.filter((s) => s.cards.length > 0 || isKeptEmpty(s))
   if (hasCards) {
     for (const section of sections) {
-      if (section.cards.length > 0 || isKeptEmpty(section)) continue
-      if (section === syntheticMain && !syntheticMainAdopted) continue
-      if (isDroppedEmptySection(section)) {
-        advisories.push(`Dropped empty section: ${section.name}`)
-        continue
-      }
-      warnings.push(`Skipped empty section: ${section.name}`)
+      if (isDroppedEmptySection(section)) advisories.push(`Dropped empty section: ${section.name}`)
     }
   }
 

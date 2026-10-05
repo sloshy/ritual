@@ -20,7 +20,7 @@ export type StartServerResult<T extends BoundServer> =
  * Run `start` (a `Bun.serve` call, or a synchronous wrapper around one) and turn
  * a start failure — nearly always `EADDRINUSE` — into a typed result, so a busy
  * port is a message and an exit code rather than an uncaught throw with a stack
- * trace. Every Ritual server binds through this or {@link startServerOrThrow}.
+ * trace. Ritual's servers bind through this or {@link startServerOrThrow}.
  * It lives in `util` rather than in `serve` so the cache servers, the admin and
  * the MCP server reach it without importing the site-serving layer.
  */

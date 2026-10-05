@@ -350,8 +350,19 @@ describe('deck-sync API', () => {
   test('printings the run cannot square up are reported as printingsUnaligned', async () => {
     // The structured half of the advisory — what MCP and scripted callers read,
     // where the CLI reads the log line. The remote splits its two copies across
-    // two printings; the local file holds both at one, so reconciling would mean
-    // adding a copy, which a run without syncPrintings must not do.
+    // two printings; the local file pins its copy to one of them, so reconciling
+    // the printings would mean adding the other, which a run without
+    // syncPrintings must not do. (A bare local line pins nothing and would agree.)
+    await writeDeckFile(tmpDir, 'linked', {
+      name: 'Linked Deck',
+      frontMatter: {
+        format: 'commander',
+        sourceId: SOURCE_ID,
+        sourceUrl: SOURCE_URL,
+        lastSynced: LAST_SYNCED,
+      },
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240', cardId: 1 }],
+    })
     await signIn()
     const remote: ArchidektDeckResponse = {
       name: 'Linked Deck',

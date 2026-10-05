@@ -217,11 +217,18 @@ export function findOrCreateSection(sections: DeckSection[], name: string): Deck
 }
 
 /**
- * The section an unqualified add lands in: the first section that is neither the
- * commander nor the sideboard, creating and appending `Main` when none exists.
+ * The section an unqualified add lands in: the first main-deck section (not the
+ * commander, companion, sideboard or an extras section such as `## Maybeboard`),
+ * creating and appending `Main` when none exists.
  */
 export function resolveDefaultAddSection(sections: DeckSection[]): DeckSection {
-  const existing = sections.find((s) => !isCommanderSection(s.name) && !isSideboardSection(s.name))
+  const existing = sections.find(
+    (s) =>
+      !isCommanderSection(s.name) &&
+      !isCompanionSection(s.name) &&
+      !isSideboardSection(s.name) &&
+      !isExtraSection(s.name),
+  )
   if (existing) return existing
   const created: DeckSection = { name: DEFAULT_SECTION, cards: [] }
   sections.push(created)

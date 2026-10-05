@@ -113,7 +113,9 @@ export type NameArrayRules = {
    * What a blank entry means. `'drop'` suits an unordered selection, where a
    * form control may well submit an empty row; `'reject'` suits an ordered one
    * — a removal priority — where quietly dropping an entry would change what
-   * the array *means* rather than merely shortening it.
+   * the array *means* rather than merely shortening it. Under `'drop'`, an
+   * array whose entries were all blank is still refused: an empty selection
+   * means "all of them".
    */
   blanks: BlankNamePolicy
 }
@@ -132,7 +134,15 @@ export function parseNameArray(raw: unknown, rules: NameArrayRules): string[] | 
     return `${rules.field} must be an array of ${rules.noun}`
   }
   const names = values.map((name) => name.trim())
-  if (rules.blanks === 'drop') return names.filter((name) => name.length > 0)
+  if (rules.blanks === 'drop') {
+    const kept = names.filter((name) => name.length > 0)
+    // An empty list means "all of them", so names that were all blank must not
+    // quietly widen a request for some to a request for every one.
+    if (kept.length === 0 && names.length > 0) {
+      return `${rules.field} must not hold only blank names`
+    }
+    return kept
+  }
   if (names.some((name) => name.length === 0)) return `${rules.field} must not contain blank names`
   return names
 }

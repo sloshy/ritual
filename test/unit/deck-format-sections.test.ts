@@ -35,6 +35,16 @@ describe('resolveDefaultAddSection', () => {
     expect(resolveDefaultAddSection(sections)).toBe(sections[2]!)
   })
 
+  test('skips the companion and the extras too: an unqualified add belongs in the main deck', () => {
+    const sections = [
+      section('Companion'),
+      section('Maybeboard'),
+      section('Tokens'),
+      section('Ramp'),
+    ]
+    expect(resolveDefaultAddSection(sections)).toBe(sections[3]!)
+  })
+
   test('skips commander/sideboard sections by exact, case-insensitive match', () => {
     const sections = [section(' COMMAND ZONE '), section('sideboard'), section('Spells')]
     expect(resolveDefaultAddSection(sections)).toBe(sections[2]!)
@@ -45,7 +55,7 @@ describe('resolveDefaultAddSection', () => {
     expect(resolveDefaultAddSection(sections)).toBe(sections[0]!)
   })
 
-  test('creates and appends Main when every section is commander or sideboard', () => {
+  test('creates and appends Main when no section is a main-deck one', () => {
     const sections = [section('Commander'), section('Sideboard')]
     const created = resolveDefaultAddSection(sections)
     expect(created).toEqual({ name: 'Main', cards: [] })

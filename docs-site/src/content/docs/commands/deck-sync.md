@@ -97,7 +97,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 
 - Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains anything other than a clean sync.
 - Decks that could not be resolved, or that are not sourced from Archidekt, appear as `failed`. A deck with an Archidekt `sourceUrl` but no `sourceId` is `skipped` in an all-decks run and `failed` when you name it explicitly.
-- Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names).
+- Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names). A card one side holds with no printing at all never counts as disagreeing.
 - Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the number of cards whose categories the run changed, or would change on a dry run.
 - `unreadable` lists any deck whose file holds lines the parser could not read, with those lines. See [Unreadable Lines](#unreadable-lines).
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-decks) and the MCP `sync_decks` tool set it when a client cancels between decks.

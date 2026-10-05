@@ -218,14 +218,18 @@ export function pairPrintings<From extends PrintingHolder, To extends PrintingHo
  * about every card of any deck whose printings are not already in sync — which
  * is most decks, on every ordinary run.
  *
- * A source that states no printing at all agrees with anything: a bare local
- * file is the common case and must not be reported as a mismatch.
+ * A side that states no printing at all agrees with anything: it never chose
+ * printings, so there is nothing to disagree with. A bare local file is the
+ * common case on either side of a sync (the source of a push, the destination
+ * of a pull), and `--sync-printings` is how a user opts into pinning it.
  */
 export function printingsAlign(
   oldHoldings: readonly PrintingHolder[],
   newHoldings: readonly PrintingHolder[],
 ): boolean {
-  if (!newHoldings.some((holding) => statesPrinting(holding.printing))) return true
+  const states = (holdings: readonly PrintingHolder[]): boolean =>
+    holdings.some((holding) => statesPrinting(holding.printing))
+  if (!states(oldHoldings) || !states(newHoldings)) return true
   const pairing = pairPrintings(oldHoldings, newHoldings)
   return pairing.added.length === 0 && pairing.removed.length === 0
 }

@@ -20,7 +20,7 @@ Each card shows a single arrow button (**→**) where the editor's edit controls
 
 - **Choosing a destination** queues the move. When more than one copy is available (a deck entry with quantity > 1, a grouped collection tile, or several identical entries), a prompt asks how many copies to move.
 - **Moving a card with no printing into a collection.** Collections require a specific printing. Moving a card without one (for example a name-only wanted-list entry) into a collection opens a printing picker so you can choose the set and collector number first.
-- **Deck sections.** The CLI session asks which section a card lands in. Here a deck destination always uses the deck's default section: the first that is neither the commander nor the sideboard.
+- **Deck sections.** The CLI session asks which section a card lands in. Here a deck destination always uses the deck's default section: the first main-deck section (not the commander, companion, sideboard, maybeboard or tokens).
 
 Queued moves show in the list view immediately. A moved card disappears from its source list and appears under its destination when you browse there. Moving an already-queued card again updates its destination (a chain `A → B → C` collapses to `A → C`). Moving it back to its original list cancels the queued move.
 

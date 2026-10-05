@@ -40,7 +40,7 @@ Its per-file JSON result carries `"unreadable": true`.
 Two further cases are reported _without_ holding anything back:
 
 - A collection or wanted-list line that carries a quantity (`- 4 Sol Ring (C21:240)`) reads as that many copies. Cleanup reports it (`Read 4 copies: a collection holds one line per copy, so this line becomes 4 lines on the next save.`) and the rewrite expands it. See [Deck-Style Quantity Prefixes](/commands/collection-sync/#deck-style-quantity-prefixes).
-- A deck's **empty extras section**: a `## Maybeboard` or `## Tokens` header with no cards under it, usually left behind by a sync or a `remove-card` that took its last card. The rewrite drops it and reports `Dropped empty section: Maybeboard`; this is the one advisory that names something the rewrite _removes_. An empty `## Main` / `## Mainboard` / `## Deck` or `## Sideboard` header in a deck that has cards elsewhere is kept and written back bare, without a warning. Any _other_ empty section (`## Creatures`, `## Commander`, …) is reported as `Skipped empty section` and blocks the rewrite like any other unreproducible line.
+- A deck's **empty extras section**: a `## Maybeboard` or `## Tokens` header with no cards under it, usually left behind by a sync or a `remove-card` that took its last card. The rewrite drops it and reports `Dropped empty section: Maybeboard`; this is the one advisory that names something the rewrite _removes_. Any other empty section header (`## Sideboard`, `## Commander`, `## Creatures`, …) in a deck that has cards elsewhere is kept and written back bare, without a warning.
 
 ## Usage
 

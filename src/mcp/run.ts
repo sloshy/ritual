@@ -151,41 +151,48 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
   const allowedOrigins = [...new Set([...localhostAllowedOrigins(), host])]
   const loopbackOnly = isLoopbackHost(host)
 
-  const server = startServerOrThrow({ host, port }, () =>
-    Bun.serve({
-      port,
-      hostname: host,
-      maxRequestBodySize: MAX_MCP_REQUEST_BODY_SIZE,
-      fetch: async (request) => {
-        const url = new URL(request.url)
-        if (url.pathname !== MCP_PATH) {
-          return rpcErrorResponse(
-            404,
-            NOT_FOUND_ERROR_CODE,
-            `Not found. Use the ${MCP_PATH} endpoint.`,
-          )
-        }
-        // DNS-rebinding protection (Host + Origin, per the SDK's own mounting
-        // guidance) applies to loopback binds only; a deliberately exposed host
-        // is reached by its own name and guarded by the bearer token.
-        if (loopbackOnly) {
-          const rejection =
-            hostHeaderValidationResponse(request, allowedHosts) ??
-            originValidationResponse(request, allowedOrigins)
-          if (rejection) return rejection
-        }
-        if (!isAuthorized(request, auth)) {
-          return rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'Unauthorized')
-        }
-        try {
-          return await handler.fetch(request)
-        } catch (error) {
-          console.error('MCP HTTP request failed:', error)
-          return rpcErrorResponse(500, ProtocolErrorCode.InternalError, 'Internal server error')
-        }
-      },
-    }),
-  )
+  let server: Bun.Server<undefined>
+  try {
+    server = startServerOrThrow({ host, port }, () =>
+      Bun.serve({
+        port,
+        hostname: host,
+        maxRequestBodySize: MAX_MCP_REQUEST_BODY_SIZE,
+        fetch: async (request) => {
+          const url = new URL(request.url)
+          if (url.pathname !== MCP_PATH) {
+            return rpcErrorResponse(
+              404,
+              NOT_FOUND_ERROR_CODE,
+              `Not found. Use the ${MCP_PATH} endpoint.`,
+            )
+          }
+          // DNS-rebinding protection (Host + Origin, per the SDK's own mounting
+          // guidance) applies to loopback binds only; a deliberately exposed host
+          // is reached by its own name and guarded by the bearer token.
+          if (loopbackOnly) {
+            const rejection =
+              hostHeaderValidationResponse(request, allowedHosts) ??
+              originValidationResponse(request, allowedOrigins)
+            if (rejection) return rejection
+          }
+          if (!isAuthorized(request, auth)) {
+            return rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'Unauthorized')
+          }
+          try {
+            return await handler.fetch(request)
+          } catch (error) {
+            console.error('MCP HTTP request failed:', error)
+            return rpcErrorResponse(500, ProtocolErrorCode.InternalError, 'Internal server error')
+          }
+        },
+      }),
+    )
+  } catch (error) {
+    // Nothing is listening, so nothing else would ever close the handler.
+    await handler.close()
+    throw error
+  }
 
   // Stop the listener before closing the handler: the reverse order aborts
   // in-flight exchanges while the socket still accepts new connections.

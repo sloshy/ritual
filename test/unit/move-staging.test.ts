@@ -331,8 +331,10 @@ describe('applyAddToStaged (deck) finish and condition identity', () => {
   })
 })
 
-describe('applyRemoveFromStaged (deck) section pruning', () => {
-  test('removing the last card empties only that section; a bare kept header survives', () => {
+describe('applyRemoveFromStaged (deck) emptied sections', () => {
+  // Like any other removal (deck-changes `remove`): the section stays, and the
+  // serializer decides which empty sections reach the file.
+  test('removing the last card leaves its section, empty, beside a bare kept header', () => {
     const deck: DeckData = {
       name: 'Burn',
       sections: [
@@ -342,7 +344,10 @@ describe('applyRemoveFromStaged (deck) section pruning', () => {
     }
     const staged = deckStaged(deck)
     expect(applyRemoveFromStaged(staged, physicalCard('Sol Ring', { cardId: 1 }))).toBe(true)
-    expect(deck.sections.map((s) => [s.name, s.cards.length])).toEqual([['Sideboard', 0]])
+    expect(deck.sections.map((s) => [s.name, s.cards.length])).toEqual([
+      ['Main', 0],
+      ['Sideboard', 0],
+    ])
   })
 })
 

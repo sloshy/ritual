@@ -10,6 +10,8 @@ import {
   readDeckName,
 } from '../../../src/importers/text-file'
 import { unreadableLines } from '../../../src/list/markdown-fence'
+import { serializeDeckToMarkdown } from '../../../src/list/deck-file'
+import type { DeckData } from '../../../src/list/deck'
 
 const tempFiles: string[] = []
 
@@ -133,10 +135,36 @@ describe('parseDeckText', () => {
     })
   })
 
-  test('splits sections on markdown headers and drops empty ones', () => {
-    const { deck } = parseDeckText('1 Sol Ring\n\n## Sideboard\n2 Pyroblast\n\n## Empty', 'X')
-    expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
-    expect(deck.sections[1]?.cards[0]?.name).toBe('Pyroblast')
+  test('splits sections on markdown headers and keeps an empty one as a bare header', () => {
+    const { deck, warnings } = parseDeckText(
+      '1 Sol Ring\n\n## Sideboard\n2 Pyroblast\n\n## Empty',
+      'X',
+    )
+    expect(deck.sections.map((s) => [s.name, s.cards.length])).toEqual([
+      ['Main', 1],
+      ['Sideboard', 1],
+      ['Empty', 0],
+    ])
+    expect(warnings).toEqual([])
+  })
+
+  test('an emptied section survives a serialize-then-parse round trip without a warning', () => {
+    // A removal or move that takes a section's last card leaves it empty in
+    // memory; the serializer writes it as a bare header, and the next parse must
+    // read that back cleanly, or every later save and move refuses the file.
+    const deck: DeckData = {
+      name: 'Burn',
+      sections: [
+        { name: 'Commander', cards: [] },
+        { name: 'Main', cards: [{ name: 'Sol Ring', quantity: 1, cardId: 1 }] },
+      ],
+    }
+    const reparsed = parseDeckText(serializeDeckToMarkdown(deck, {}), 'Burn')
+    expect(reparsed.warnings).toEqual([])
+    expect(reparsed.deck.sections.map((s) => [s.name, s.cards.length])).toEqual([
+      ['Commander', 0],
+      ['Main', 1],
+    ])
   })
 
   test.each(['Maybeboard', 'Tokens'])(
@@ -145,12 +173,12 @@ describe('parseDeckText', () => {
       // A leftover extras header holds nothing a re-serialize could destroy, so
       // it must not trip the whole-file save gates — which read `warnings` via
       // `unreadableLines`. The empty `## Notes` in the same parse is the control:
-      // the reclassification must be about extras, not about emptiness.
+      // only an extras section is dropped; any other empty one is kept.
       const parsed = parseDeckText(`## Main\n1 Sol Ring &1\n\n## ${extras}\n\n## Notes\n`, 'X')
-      expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Main'])
+      expect(parsed.deck.sections.map((s) => s.name)).toEqual(['Main', 'Notes'])
       expect(parsed.advisories).toEqual([`Dropped empty section: ${extras}`])
-      expect(parsed.warnings).toEqual(['Skipped empty section: Notes'])
-      expect(unreadableLines(parsed)).toEqual(['Skipped empty section: Notes'])
+      expect(parsed.warnings).toEqual([])
+      expect(unreadableLines(parsed)).toEqual([])
     },
   )
 
@@ -454,13 +482,17 @@ describe('parseDeckText — Arena / MTGO export dialect', () => {
     expect(deck.sections.map((s) => s.name)).toEqual(['Companion', 'Main'])
   })
 
-  test('a marker with no cards under it warns like an empty `##` header', () => {
-    // Markers start a level-2 section deliberately: a marker whose cards went
-    // missing must not be silently dropped by a re-serialize.
+  test('a marker with no cards under it is kept like an empty `##` header', () => {
+    // Markers start a level-2 section deliberately, so a marker whose cards went
+    // missing is kept (and re-serialized as a bare header) rather than dropped.
     // At level 1 the leading bucket is a document title and is exempt, so this
     // assertion is what pins the marker's `##`-equivalence.
-    const { warnings } = parseDeckText('Commander\n\nDeck\n4 Mountain (M20) 274\n', 'Arena')
-    expect(warnings).toEqual(['Skipped empty section: Commander'])
+    const { deck, warnings } = parseDeckText('Commander\n\nDeck\n4 Mountain (M20) 274\n', 'Arena')
+    expect(warnings).toEqual([])
+    expect(deck.sections.map((s) => [s.name, s.cards.length])).toEqual([
+      ['Commander', 0],
+      ['Main', 1],
+    ])
   })
 
   test('lowercases the set code and keeps a starred collector number', () => {

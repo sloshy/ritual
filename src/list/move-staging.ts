@@ -376,8 +376,10 @@ function applyRemoveFromDeck(staged: StagedDeckFile, card: PhysicalCard): boolea
 
 /**
  * Take one copy off the first deck line satisfying `match`: the line's quantity
- * drops by one and the line (and an emptied section) goes at zero. Returns the
- * line's id, or `null` when nothing matched.
+ * drops by one and the line goes at zero. A section it empties stays, as it
+ * does for any other removal; the serializer decides which empty sections
+ * reach the file (`isDroppedEmptySection`). Returns the line's id, or `null`
+ * when nothing matched.
  */
 function removeDeckCopy(
   staged: StagedDeckFile,
@@ -390,9 +392,6 @@ function removeDeckCopy(
     const c = section.cards[idx]!
     c.quantity -= 1
     if (c.quantity <= 0) section.cards.splice(idx, 1)
-    // Only the section this removal emptied goes; a header the parser kept
-    // bare (an empty `## Sideboard`) is not this move's to delete.
-    if (section.cards.length === 0) deck.sections = deck.sections.filter((s) => s !== section)
     return {
       name: c.name,
       tags: c.tags,

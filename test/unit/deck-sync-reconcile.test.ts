@@ -151,6 +151,13 @@ describe('printingsAlign', () => {
     )
   })
 
+  test('a bare destination agrees with anything too (a pull into a plain file)', () => {
+    // Pinning the bare copies would split the line, never add or remove one.
+    expect(printingsAlign([holding('-', 2)], [holding('lea:161', 1), holding('2xm:157', 1)])).toBe(
+      true,
+    )
+  })
+
   test('the same printings on both sides align, whatever the quantities', () => {
     expect(
       printingsAlign(

@@ -60,3 +60,13 @@ release changes a file format or a generated file, it ships the change as a
 
 - On Windows, a workspace git checks out with CRLF line endings (`core.autocrlf`) no longer
   shows every list as hand-edited, and its changelogs no longer read as empty history.
+- `ritual admin` and `ritual mcp --transport http` report a busy port with a one-line error
+  and exit code 1, like `ritual serve`.
+- Moving the last card out of a deck section no longer deletes the section's heading; it
+  stays, as it does when the card is removed. And an empty section heading other than
+  `## Maybeboard`/`## Tokens` (an emptied `## Commander`, say) no longer makes the deck refuse
+  later moves, saves and `cleanup`: it is read back and kept as a bare heading.
+- `deck-sync` no longer reports printings as disagreeing for a card one side holds without a
+  printing (a plain local deck pulled from Archidekt).
+- The admin deck-sync and collection-sync routes refuse a `decks`/`lists` array of only blank
+  names instead of syncing everything.

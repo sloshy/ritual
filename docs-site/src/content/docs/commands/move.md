@@ -46,7 +46,7 @@ With both `--from` and `--to`, the move runs with no prompts, so it is safe for 
 
 Scripted moves behave exactly like interactive ones: deck sources decrement quantity, notes travel with the card, both lists get changelog entries, and the destination assigns a fresh `&N` ID.
 
-`--to-section <name>` places the card in that deck section instead of the default (the first section that is neither Commander nor Sideboard). The name is matched exactly and created when missing. Using it with a collection or wanted-list destination is a usage error.
+`--to-section <name>` places the card in that deck section instead of the default (the first main-deck section: not Commander, Companion, Sideboard, Maybeboard or Tokens). The name is matched exactly and created when missing. Using it with a collection or wanted-list destination is a usage error.
 
 When a card merges onto an existing deck line that already has a different note, the existing note wins and the incoming note is dropped. Each dropped note is warned on stderr, and JSON output lists them in a `droppedNotes` array (`{ cardName, cardId?, note }`).
 
@@ -135,7 +135,7 @@ Key behaviors:
 - **Name-only wanted entries**: a card with no printing headed into a collection prompts you to pick one before the move is queued. The picker shows each printing's price in the currency of your configured `defaultPriceSource`; see [Printing and Finish Prices](/commands/edit/#printing-and-finish-prices).
 - **Single destination**: in the single-card flow, when only one enabled destination is not the card's own list, the destination prompt is skipped. [Batch Mode](#batch-mode) always asks.
 - **Change tracking**: the source gets a `Moved … to …` changelog entry and the destination a `Moved … from …` entry.
-- **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file. The move is **refused** when the parser cannot read part of the file (prose, a fenced code block, or an empty section other than `## Main`/`## Sideboard`), since the write would delete it. An empty extras section (`## Maybeboard`, `## Tokens`) holds nothing, so it is dropped rather than refused. Collection and wanted-list files are edited as text and keep such lines.
+- **Deck files are rewritten in canonical form**: a move touching a deck re-serializes that deck file. The move is **refused** when the parser cannot read part of the file (prose or a fenced code block), since the write would delete it. An empty section heading is kept and written back bare, except an empty extras section (`## Maybeboard`, `## Tokens`), which holds nothing and is dropped rather than refused. Moving a section's last card out leaves its heading behind, as removing it does. Collection and wanted-list files are edited as text and keep such lines.
 
 ### Interactive Flow
 
@@ -150,7 +150,7 @@ The session opens on an autocomplete search field. Type a card name, or pick a m
 
 Select a card, then choose a destination (or confirm the single available one). The destination prompt is also an autocomplete field. The move is queued as a pending change, and you can queue as many as you like before committing.
 
-When the destination is a **deck**, the session asks which section the card lands in, listing the deck's sections plus `➕ New section…`. The deck's default section (the first that is neither Commander nor Sideboard) is preselected, so pressing Return accepts it. On a deck with only a Commander and a Sideboard, the default is a `Main` section the move would create, offered as a row. A deck with no sections is not asked about, and neither is a collection or wanted-list destination.
+When the destination is a **deck**, the session asks which section the card lands in, listing the deck's sections plus `➕ New section…`. The deck's default section (the first main-deck section: not Commander, Companion, Sideboard, Maybeboard or Tokens) is preselected, so pressing Return accepts it. On a deck with no main-deck section, the default is a `Main` section the move would create, offered as a row. A deck with no sections is not asked about, and neither is a collection or wanted-list destination.
 
 Escaping the section prompt cancels the move: in the single-card flow nothing is queued, and in Batch Mode you return to the checklist with the selection intact. `➕ New section…` asks for a name. An empty name cancels; a name matching an existing section (in any casing) folds onto that section; a name starting with `#` or containing a line break is refused, since it could not be written as a `## ` heading. A destination deck whose file the parser cannot read is refused here rather than at save time.
 

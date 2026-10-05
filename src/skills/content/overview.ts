@@ -203,9 +203,9 @@ One shape the whole-file paths **do** delete, on purpose and without refusing: a
 empty **extras** section (a \`## Maybeboard\`/\`## Tokens\` header with no cards under it).
 Extras count toward no total, so the header holds nothing to lose — every whole-file write
 clears it, and \`cleanup\` names it (\`Dropped empty section: Maybeboard\`) while still
-rewriting. An empty \`## Main\`/\`## Mainboard\`/\`## Deck\`/\`## Sideboard\` header in a deck
-with cards elsewhere is kept instead: it is written back bare, with no warning. Any
-other empty heading is content a rewrite would lose, so it warns and blocks the write.
+rewriting. Any other empty heading (\`## Sideboard\`, \`## Commander\`, \`## Creatures\`) in a
+deck with cards elsewhere is kept instead: it is written back bare, with no warning, and
+removing or moving a section's last card leaves its heading the same way.
 
 A deck's YAML front matter carries its \`format:\` and \`tags:\` (a fixed set of keys — see
 the **ritual-decks** skill; \`name:\`/\`created:\` are legacy keys that \`cleanup\` and every

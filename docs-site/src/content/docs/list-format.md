@@ -144,9 +144,8 @@ Matching is exact, never by substring or word: `## Token Generators`, `## Comman
 
 Empty sections are handled by role:
 
-- An empty `## Main` / `## Mainboard` / `## Deck` or `## Sideboard` heading, in a deck that has cards elsewhere, is kept and written back bare, without a warning.
 - An empty `## Maybeboard` / `## Tokens` heading is deleted on purpose by a whole-file rewrite and reported as `Dropped empty section`.
-- Any other empty heading is content a rewrite would lose. It is reported as a warning and blocks whole-file writes, like an unreadable line does.
+- Any other empty heading (`## Sideboard`, `## Commander`, `## Creatures`, …), in a deck that has cards elsewhere, is kept and written back bare, without a warning. Removing or moving a section's last card leaves its heading the same way.
 
 ## Card lines
 

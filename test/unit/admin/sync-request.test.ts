@@ -97,6 +97,10 @@ describe('parseNameArray', () => {
     expect(parseNameArray([' long-box ', 'binder'], rejecting)).toEqual(['long-box', 'binder'])
   })
 
+  test('refuses names that were all blank, which would otherwise read as "all of them"', () => {
+    expect(parseNameArray(['', '   '], dropping)).toBe('lists must not hold only blank names')
+  })
+
   test('refuses a blank entry where the order is the meaning', () => {
     // Dropping it would silently promote every name after it.
     expect(parseNameArray(['long-box', '  '], rejecting)).toBe(

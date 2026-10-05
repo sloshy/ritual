@@ -228,26 +228,29 @@ export function registerAdminCommand(program: Command): void {
       await Bun.write(path.join(adminDistDir, 'app.svg'), buildFlameSvg(themeFlameStops(themeName)))
 
       const adminServer = await startAdminServer({ port, host, distDir: adminDistDir })
-      console.log(t('cli.admin.ready'))
-
-      // A fresh workspace answers setup only to the holder of this token, which
-      // is printed here and nowhere else; see `src/admin/setup-token.ts`.
-      if (!(await adminUserExists())) {
-        console.log(t('cli.admin.setupRequired', { url: setupUrl(host, adminServer.port) }))
-      }
 
       // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
-      // A failed MCP bind must not leave the admin listener holding the process.
+      // A failed MCP bind must not leave the admin listener holding the process,
+      // and the bind error is what the user needs to see, so a failed stop is
+      // not allowed to replace it.
       const mcpServer = embeddedMcp
         ? await runHttpServer({
             port: embeddedMcp.port,
             host,
             auth: { kind: 'bearer', token: embeddedMcp.token },
           }).catch(async (error: unknown) => {
-            await adminServer.stop(true)
+            await adminServer.stop(true).catch(() => undefined)
             throw error
           })
         : undefined
+
+      // Announced only once every listener is bound.
+      console.log(t('cli.admin.ready'))
+      // A fresh workspace answers setup only to the holder of this token, which
+      // is printed here and nowhere else; see `src/admin/setup-token.ts`.
+      if (!(await adminUserExists())) {
+        console.log(t('cli.admin.setupRequired', { url: setupUrl(host, adminServer.port) }))
+      }
 
       // Both listeners hold the process open, so Ctrl-C has to stop both; with
       // nothing left holding the loop the process then exits on its own (the
