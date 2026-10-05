@@ -2,7 +2,7 @@ import { Command, Option } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
-import { isRitualClean, writeListFile } from '../changes/content-hash'
+import { isRitualClean, sameFileContent, writeListFile } from '../changes/content-hash'
 import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
@@ -427,7 +427,7 @@ export async function cleanupList(
     result.warnings.push(...document.parseWarnings)
     result.warnings.push(t('cli.cleanup.notRewritten'))
   } else {
-    result.rewritten = document.canonical !== document.original
+    result.rewritten = !sameFileContent(document.canonical, document.original)
     if (document.foldedNames.length > 0) result.cardNamesFolded = document.foldedNames
   }
 

@@ -251,6 +251,29 @@ describe('appendChangelog', () => {
       ])
     })
 
+    test.each([
+      ['merges into the final entry of', { continueSession: true }, 1],
+      ['appends a new entry to', {}, 2],
+    ] as const)(
+      '%s a CRLF checkout exactly as for LF, writing it back LF',
+      async (_label, options, blocks) => {
+        /** Append Counterspell to `existing` and return the file, its timestamps masked. */
+        const appendTo = async (existing: string): Promise<string> => {
+          await fs.writeFile(changelogPath, existing)
+          await appendChangelog(
+            filePath,
+            'Test',
+            [makeChange({ cardName: 'Counterspell', cardId: 2 })],
+            options,
+          )
+          return (await fs.readFile(changelogPath, 'utf-8')).replace(/^## .*$/gm, '## <timestamp>')
+        }
+        const fromLf = await appendTo(BOLT_ENTRY)
+        expect(countBlocks(fromLf)).toBe(blocks)
+        expect(await appendTo(BOLT_ENTRY.replaceAll('\n', '\r\n'))).toBe(fromLf)
+      },
+    )
+
     test('preserves the order: existing lines first, then new ones', async () => {
       await fs.writeFile(changelogPath, BOLT_ENTRY)
 

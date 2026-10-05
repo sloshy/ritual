@@ -91,6 +91,26 @@ describe('parseChangelog', () => {
     ])
   })
 
+  test('reads a CRLF file (a Windows checkout) exactly as its LF original', () => {
+    const content = [
+      '# Changelog for Test Deck',
+      '',
+      '## 2026-02-01T00:00:00.000Z',
+      '',
+      '- Added "Island" &3',
+      '',
+      '```ritual-changes',
+      '{"action":"add","cardName":"Island","cardId":3}',
+      '```',
+      '',
+    ].join('\n')
+    const crlf = parseChangelog(content.replaceAll('\n', '\r\n'))
+    expect(crlf.advisories).toEqual([])
+    expect(crlf.pages.map((page) => page.changes.map(persisted))).toEqual([
+      [{ action: 'add', cardName: 'Island', cardId: 3 }],
+    ])
+  })
+
   test('reports each undecodable block line as an advisory and keeps the rest', () => {
     const content = [
       '# Changelog',

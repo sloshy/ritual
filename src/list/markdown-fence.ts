@@ -76,8 +76,13 @@ export type FenceTracker = {
   readonly isOpen: boolean
 }
 
-/** A run of three or more backticks or tildes, indented at most three spaces. */
-const FENCE_RE = /^ {0,3}(`{3,}|~{3,})(.*)$/
+/**
+ * A run of three or more backticks or tildes, indented at most three spaces. A
+ * trailing `\r` (a CRLF file split on `\n`) is allowed: `.` never matches it,
+ * so without the `\r?` such a fence would go unseen and its card-looking lines
+ * would read as cards.
+ */
+const FENCE_RE = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)\r?$/
 
 const OUTSIDE: FenceState = Object.freeze({ opaque: false, role: 'outside' })
 

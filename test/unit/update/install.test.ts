@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { computeHash } from '../../../src/changes/content-hash'
 import type { MessageKey } from '../../../src/i18n/messages/en'
 import type { SelfUpdateEnv } from '../../../src/update/env'
 import { parseChecksumFile, removeLeftoverBinary } from '../../../src/update/install'
@@ -21,6 +20,7 @@ import {
   fakeRelease,
   installedBinary,
   serveReleases,
+  sha256Hex,
   type FakeReleaseOptions,
   type FakeRuns,
 } from '../../helpers/fake-release'
@@ -202,7 +202,7 @@ describe('installUpdate', () => {
   test.each<[string, FakeReleaseOptions, MessageKey]>([
     [
       'a checksum mismatch',
-      { checksum: `${computeHash('other')}  ${FAKE_ASSET}` },
+      { checksum: `${sha256Hex('other')}  ${FAKE_ASSET}` },
       'cli.selfUpdate.error.checksumMismatch',
     ],
     ['a download longer than listed', { listedSize: 3 }, 'cli.selfUpdate.error.sizeMismatch'],
@@ -304,7 +304,7 @@ describe('installUpdate', () => {
     const layered = stubFetch(
       {
         [assetUrl(plan, `${FAKE_ASSET}.sha256`)]: () =>
-          new Response(`${computeHash(bytes)}  ${FAKE_ASSET}`),
+          new Response(`${sha256Hex(bytes)}  ${FAKE_ASSET}`),
         [assetUrl(plan, FAKE_ASSET)]: () =>
           new Response(bytes, { headers: { 'content-length': '3', 'content-encoding': 'gzip' } }),
       },

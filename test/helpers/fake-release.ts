@@ -9,9 +9,14 @@
 import fs from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { computeHash } from '../../src/changes/content-hash'
+import { createHash } from 'node:crypto'
 import type { BinaryRunResult, ReleaseApiEnv, SelfUpdateEnv } from '../../src/update/env'
 import { stubFetch, type StubbedFetch, type StubRoute } from './stub-fetch'
+
+/** `sha256sum`'s digest of the exact bytes, as a release's `.sha256` file holds it. */
+export function sha256Hex(data: string | Uint8Array): string {
+  return createHash('sha256').update(data).digest('hex')
+}
 
 export const FAKE_API = 'https://api.github.test/repos/sloshy/ritual'
 const DOWNLOADS = 'https://downloads.github.test'
@@ -52,7 +57,7 @@ export function fakeRelease(tag: string, options: FakeReleaseOptions = {}): Fake
   const binaryUrl = `${DOWNLOADS}/${tag}/${assetName}`
   const checksumUrl = `${binaryUrl}.sha256`
   const checksum =
-    options.checksum === undefined ? `${computeHash(binary)}  ${assetName}\n` : options.checksum
+    options.checksum === undefined ? `${sha256Hex(binary)}  ${assetName}\n` : options.checksum
   const assets: Record<string, unknown>[] = [
     {
       name: assetName,

@@ -31,6 +31,11 @@ describe('createFenceTracker', () => {
     ])
   })
 
+  test('a CRLF file split on LF still opens and closes its fences', () => {
+    const lines = ['1 Sol Ring', '```', '1 Mox Pearl', '```', '1 Island'].join('\r\n')
+    expect(opaqueFlags(lines)).toEqual([false, true, true, true, false])
+  })
+
   test('a tilde fence works the same as a backtick fence', () => {
     expect(visibleLines(['before', '~~~', 'inside', '~~~', 'after'].join('\n'))).toEqual([
       'before',

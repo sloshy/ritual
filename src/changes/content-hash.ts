@@ -14,11 +14,30 @@ export function hashPath(filePath: string): string {
   return filePath + '.sha256'
 }
 
-/** Compute the SHA-256 hex digest of a string. */
+/**
+ * Compute the SHA-256 hex digest of a string, with CRLF line endings read as
+ * LF. Line endings are not content: git with `core.autocrlf` (the Windows
+ * default) checks a file Ritual wrote with LF out with CRLF, and that file
+ * must still match its sidecar rather than look hand-edited everywhere.
+ */
 export function computeHash(content: string): string {
   const hasher = new Bun.CryptoHasher('sha256')
-  hasher.update(content)
+  hasher.update(withLfEndings(content))
   return hasher.digest('hex')
+}
+
+function withLfEndings(content: string): string {
+  return content.replaceAll('\r\n', '\n')
+}
+
+/**
+ * Whether two versions of a file say the same thing, by the rule
+ * {@link computeHash} applies: CRLF and LF line endings are equal. A writer
+ * deciding whether a rewrite changes anything compares with this, so a CRLF
+ * checkout never reads as needing one.
+ */
+export function sameFileContent(a: string, b: string): boolean {
+  return withLfEndings(a) === withLfEndings(b)
 }
 
 /**

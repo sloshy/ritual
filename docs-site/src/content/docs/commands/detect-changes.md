@@ -18,6 +18,8 @@ Every time Ritual writes a list file (the admin UI, `edit`, `add-card`, `move`, 
 
 > **Ritual wrote this exact content, and its changelog entries are already recorded.**
 
+Line endings do not count: a file Ritual wrote with LF that git checks out with CRLF (Windows, with `core.autocrlf`) still matches its sidecar, and its changelog still reads in full.
+
 Detection can therefore skip a file whose content matches its sidecar; re-diffing it would record changes twice. And stamping a sidecar over content Ritual did _not_ write throws those edits' changelog entries away. See [`--hash-only` forfeits changelog entries](#--hash-only-forfeits-changelog-entries).
 
 ## Usage

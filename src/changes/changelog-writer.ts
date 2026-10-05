@@ -84,7 +84,9 @@ export async function appendChangelog(
 
   let existingContent: string | null
   try {
-    existingContent = await fs.readFile(changelogPath, 'utf-8')
+    // Read as LF, the line ending Ritual writes, so a CRLF checkout still
+    // merges into its final entry and the file is not left half CRLF.
+    existingContent = (await fs.readFile(changelogPath, 'utf-8')).replaceAll('\r\n', '\n')
   } catch {
     existingContent = null
   }

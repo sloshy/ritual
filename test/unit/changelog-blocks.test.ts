@@ -65,6 +65,15 @@ const SAMPLE = `# Changelog for My Deck
 `
 
 describe('parseChangeSets', () => {
+  it('reads a CRLF file exactly as its LF original, header and trailing prose included', () => {
+    const lf = `${SAMPLE.replace('# Changelog for My Deck\n', '# Changelog for My Deck\nKept by hand.\n')}A note I wrote.\n`
+    const fromLf = parseChangeSets(lf, 'Fallback')
+    expect(fromLf.sets.at(-1)?.trailing).toEqual(['A note I wrote.'])
+    const fromCrlf = parseChangeSets(lf.replaceAll('\n', '\r\n'), 'Fallback')
+    expect(fromCrlf).toEqual(fromLf)
+    expect(serializeChangeSets(fromCrlf)).toBe(serializeChangeSets(fromLf))
+  })
+
   it('parses the header and sets: prose lines verbatim, events from the block', () => {
     const log = parseChangeSets(SAMPLE, 'Fallback')
     expect(log.header).toBe('# Changelog for My Deck')

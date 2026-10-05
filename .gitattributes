@@ -1,0 +1,4 @@
+# Every text file in the repository keeps LF line endings on every platform,
+# whatever core.autocrlf says: test fixtures and generated pins compare exact
+# bytes, and the shell scripts run in CI and Docker. Git detects binaries itself.
+* text=auto eol=lf

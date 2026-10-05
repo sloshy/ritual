@@ -2,6 +2,22 @@ import { describe, expect, test } from 'bun:test'
 import { parseCollectionFile } from '../../src/list/collection-file'
 
 describe('parseCollectionFile', () => {
+  test('reads a CRLF file (a Windows checkout) exactly as its LF original, fences included', () => {
+    const lf = [
+      '# Binder',
+      '',
+      '- Sol Ring (C21:263) [foil] &1',
+      '```',
+      '- Black Lotus (LEA:232) &9',
+      '```',
+      '- Island (LEA:288) &2',
+      '',
+    ].join('\n')
+    const fromLf = parseCollectionFile(lf)
+    expect(fromLf.entries.map((entry) => entry.name)).toEqual(['Sol Ring', 'Island'])
+    expect(parseCollectionFile(lf.replaceAll('\n', '\r\n'))).toEqual(fromLf)
+  })
+
   test('parses card with set and collector number', () => {
     const content = `# My Collection\n\n- Arcane Signet (ECC:55)\n`
     const { entries, warnings } = parseCollectionFile(content)

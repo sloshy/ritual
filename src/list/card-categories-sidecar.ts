@@ -1,7 +1,13 @@
 import fs from 'node:fs/promises'
 import type { CardCategory } from '../card/card-categories'
 import type { ChangeEvent } from '../changes/change-event'
-import { computeHash, hashPath, isRitualClean, saveHash } from '../changes/content-hash'
+import {
+  computeHash,
+  hashPath,
+  isRitualClean,
+  sameFileContent,
+  saveHash,
+} from '../changes/content-hash'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
 import {
   applyCategoryChangesToRecord,
@@ -181,7 +187,9 @@ function decideCategoriesSave(
     return { action: prior === null ? 'absent' : 'removed' }
   }
   const next = serializeCardCategoriesSidecar(record, defaults)
-  return prior === next ? { action: 'unchanged' } : { action: 'written', next }
+  return prior !== null && sameFileContent(prior, next)
+    ? { action: 'unchanged' }
+    : { action: 'written', next }
 }
 
 /** True when the action writes to or deletes something on disk. */

@@ -188,7 +188,10 @@ function blockEventId(timestamp: string, index: number): string {
  * is derived from the header and its position: the block persists neither.
  */
 export function parseChangeSets(content: string, fallbackName: string): ParsedChangeSets {
-  const lines = content.split('\n')
+  // CRLF (a Windows checkout under core.autocrlf, or an editor) splits like LF:
+  // a `\r` left on each line would hide every events block, and the whole
+  // history would read as empty.
+  const lines = content.split(/\r?\n/)
   const headerLines: string[] = []
   const sets: ChangeSet[] = []
   const advisories: ChangelogAdvisory[] = []

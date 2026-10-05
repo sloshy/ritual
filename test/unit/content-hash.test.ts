@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'bun:test'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -29,6 +30,20 @@ describe('computeHash', () => {
     const hash = computeHash('hello world')
     expect(hash).toHaveLength(64)
     expect(hash).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('reads CRLF line endings as LF and leaves an LF file’s digest as it always was', () => {
+    const lf = '# Deck\n- Sol Ring &1\n'
+    // Every sidecar on disk is a plain SHA-256 of LF bytes; it must keep matching.
+    const lfDigest = createHash('sha256').update(lf).digest('hex')
+    expect(computeHash(lf)).toBe(lfDigest)
+    expect(computeHash(lf.replaceAll('\n', '\r\n'))).toBe(lfDigest)
+    expect(computeHash('# Deck\r\n- Sol Ring &1\n')).toBe(lfDigest)
+  })
+
+  it('treats a carriage return anywhere else as content', () => {
+    expect(computeHash('# Deck\r- Sol Ring &1\r')).not.toBe(computeHash('# Deck\n- Sol Ring &1\n'))
+    expect(computeHash('a\rb\n')).not.toBe(computeHash('ab\n'))
   })
 })
 
@@ -120,6 +135,16 @@ describe('isRitualClean', () => {
   it('is false when no sidecar exists', async () => {
     const filePath = path.join(tmpDir, 'unstamped.md')
     expect(await isRitualClean(filePath, 'anything')).toBe(false)
+  })
+
+  it('is true for a file Ritual wrote that git checked out with CRLF, its sidecar too', async () => {
+    const filePath = path.join(tmpDir, 'autocrlf.md')
+    const content = '# Deck\n- Sol Ring &1\n'
+    await fs.writeFile(filePath, content.replaceAll('\n', '\r\n'))
+    // The `.sha256` is text as well, so the checkout gives it a CRLF ending.
+    await fs.writeFile(hashPath(filePath), `${computeHash(content)}\r\n`)
+
+    expect(await isRitualClean(filePath, await fs.readFile(filePath, 'utf-8'))).toBe(true)
   })
 })
 

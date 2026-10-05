@@ -55,3 +55,8 @@ release changes a file format or a generated file, it ships the change as a
 - `serve` no longer sends the server's stack trace to a visitor when a request fails.
 - The Docker image creates `/app/wanted`, keeps `/app/.logins` private (mode 0700), and exposes the default ports of `admin` (8080)
   and `cache server` (4000) as well as `serve` (3000).
+
+### Fixed
+
+- On Windows, a workspace git checks out with CRLF line endings (`core.autocrlf`) no longer
+  shows every list as hand-edited, and its changelogs no longer read as empty history.

@@ -260,6 +260,17 @@ describe('the sidecar on disk', () => {
     expect((await fs.readFile(hashFilePath, 'utf-8')).trim()).toBe(computeHash(content))
   })
 
+  test('a CRLF checkout of the same sidecar writes nothing either', async () => {
+    const value = record(['Ramp'], { 'Sol Ring': ['Ramp'] })
+    await saveCardCategories(listPath, value)
+    const crlf = (await fs.readFile(sidecarPath, 'utf-8')).replaceAll('\n', '\r\n')
+    await fs.writeFile(sidecarPath, crlf)
+
+    const again = await saveCardCategories(listPath, value)
+    expect(again.action).toBe('unchanged')
+    expect(await fs.readFile(sidecarPath, 'utf-8')).toBe(crlf)
+  })
+
   test('a second identical save writes nothing at all', async () => {
     const value = record(['Ramp'], { 'Sol Ring': ['Ramp'] })
     await saveCardCategories(listPath, value)

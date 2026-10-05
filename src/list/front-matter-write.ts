@@ -111,7 +111,8 @@ export async function writeListFrontMatter(
     const hasBlock = Object.keys(frontMatter).length > 0
     // With a block, the body leads with exactly one blank line; without one,
     // it must not (the file would open with a dangling blank).
-    body = hasBlock ? '\n' + body.replace(/^\n+/, '') : body.replace(/^\n+/, '')
+    const trimmed = body.replace(/^(?:\r?\n)+/, '')
+    body = hasBlock ? '\n' + trimmed : trimmed
   }
   const source: FrontMatterFile = { ...parsed, content: body, data: {} }
   const content = matter.stringify(source, frontMatter)
