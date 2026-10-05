@@ -158,15 +158,19 @@ describe('the pre-command migration offer', () => {
     expect(Object.keys(migratePrompts)).toEqual([path.resolve(ws.dir)])
   })
 
-  // A read-only config makes the apply's first write fail (root ignores the
-  // mode, so the case cannot be exercised there).
-  test.skipIf(process.getuid?.() === 0)(
+  // A read-only workspace directory makes the apply fail at the first thing it
+  // creates there: the `.backups` folder, and after it the config's temp file
+  // (root ignores the mode, so the case cannot be exercised there).
+  test.skipIf(process.getuid?.() === 0 || process.platform === 'win32')(
     'a failed apply is reported and the command still runs',
     async () => {
-      await fs.chmod(path.join(ws.dir, 'ritual.config.json'), 0o444)
+      await fs.chmod(ws.dir, 0o555)
       prompts.inject([true])
-
-      expect(await run(['probe'])).toBe(0)
+      try {
+        expect(await run(['probe'])).toBe(0)
+      } finally {
+        await fs.chmod(ws.dir, 0o755)
+      }
 
       expect(error).toHaveBeenCalledTimes(1)
       expect(probeSaw).toBe(0)

@@ -24,6 +24,8 @@ import {
   GITHUB_RELEASES_API,
   GITHUB_RELEASES_DOWNLOAD,
 } from '../update/release-source'
+import { writeFileAtomic } from '../util/atomic-write'
+import { BACKUPS_DIR, TRASH_DIR } from '../util/safekeeping'
 
 /**
  * The `if:` guard stamped on every build/deploy step of the detect-changes
@@ -265,6 +267,8 @@ export function generateGitignoreEntries(config?: InitSiteConfig): string {
     'exports/',
     '.admin-dist/',
     '.logins/',
+    `${TRASH_DIR}/`,
+    `${BACKUPS_DIR}/`,
     'all-cards.md',
     '.dist-build-*',
     '.dist-old-*',
@@ -343,11 +347,11 @@ export async function updateGitignore(entries: string): Promise<GitignoreUpdate>
   const gitignorePath = path.join(getBaseDir(), '.gitignore')
   const suffix = newLines.join('\n') + '\n'
   if (existing.length === 0) {
-    await fs.writeFile(gitignorePath, suffix, 'utf-8')
+    await writeFileAtomic(gitignorePath, suffix)
     return 'created'
   }
   const separator = existing.endsWith('\n') ? '' : '\n'
-  await fs.writeFile(gitignorePath, existing + separator + suffix, 'utf-8')
+  await writeFileAtomic(gitignorePath, existing + separator + suffix)
   return 'updated'
 }
 
@@ -380,7 +384,7 @@ export type GeneratedFile = { path: string; content: string }
 export async function writeWorkspaceFile(relativePath: string, content: string): Promise<void> {
   const fullPath = path.join(getBaseDir(), relativePath)
   await fs.mkdir(path.dirname(fullPath), { recursive: true })
-  await fs.writeFile(fullPath, content, 'utf-8')
+  await writeFileAtomic(fullPath, content)
 }
 
 /** The deploy config each CI system's managed files are generated from. */

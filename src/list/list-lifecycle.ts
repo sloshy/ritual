@@ -12,7 +12,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { hashPath, isRitualClean, writeFileWithHash } from '../changes/content-hash'
+import { hashPath, isRitualClean, writeFileWithHash, writeListFile } from '../changes/content-hash'
 import { newDeckMarkdown } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
 import { sanitizeListFileName, unusableFileNameMessage, listSlug } from './list-file-name'
@@ -31,6 +31,7 @@ import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
 import { capitalize } from '../util/strings'
 import { titleHeading } from './heading'
 import { singleLineText } from '../util/single-line'
+import { moveToTrash } from '../util/safekeeping'
 
 /** Structured failure of a lifecycle operation. */
 export type ListLifecycleError =
@@ -66,6 +67,11 @@ export type RenameListOptions = {
 export type DeleteListSuccess = {
   /** Every file removed: the list plus whichever sidecars it had. */
   deletedFiles: string[]
+  /**
+   * Absolute path of the trash folder now holding them; inside it each file
+   * keeps its workspace-relative path.
+   */
+  trashDir: string
 }
 export type DeleteListResult = DeleteListSuccess | ListLifecycleError
 
@@ -328,10 +334,8 @@ export async function renameList(
     // temporary name, since a direct rename would be a no-op on the file system
     // that produced this case.
     const moves = await renameListThroughTemp(filePath, newFilePath)
-    if (wasRitualClean) {
-      await writeFileWithHash(newFilePath, updatedContent)
-    } else {
-      await fs.writeFile(newFilePath, updatedContent)
+    await writeListFile(newFilePath, updatedContent, wasRitualClean)
+    if (!wasRitualClean) {
       // The stale hash rode along with the file. Drop it, exactly as the
       // cross-name branch does — one rename must not leave two different
       // on-disk outcomes.
@@ -347,12 +351,8 @@ export async function renameList(
     }
   } else if (newFilePath !== filePath) {
     // Write the new file, then remove the old file and its hash sidecar.
-    if (wasRitualClean) {
-      await writeFileWithHash(newFilePath, updatedContent)
-      touchedFiles.push(hashPath(newFilePath))
-    } else {
-      await fs.writeFile(newFilePath, updatedContent)
-    }
+    await writeListFile(newFilePath, updatedContent, wasRitualClean)
+    if (wasRitualClean) touchedFiles.push(hashPath(newFilePath))
     await fs.unlink(filePath)
     await fs.unlink(hashPath(filePath)).catch(() => undefined)
     touchedFiles.push(filePath, newFilePath)
@@ -363,13 +363,9 @@ export async function renameList(
     }
   } else {
     // Same slug — just update the display name in the file.
-    if (wasRitualClean) {
-      await writeFileWithHash(filePath, updatedContent)
-      touchedFiles.push(filePath, hashPath(filePath))
-    } else {
-      await fs.writeFile(filePath, updatedContent)
-      touchedFiles.push(filePath)
-    }
+    await writeListFile(filePath, updatedContent, wasRitualClean)
+    touchedFiles.push(filePath)
+    if (wasRitualClean) touchedFiles.push(hashPath(filePath))
   }
 
   return { newSlug, newFilePath, oldFilePath: filePath, oldName, touchedFiles }
@@ -382,6 +378,9 @@ export async function renameList(
  * from `list-sidecars`/`content-hash`/`card-art`/`card-categories-sidecar`
  * uniformly, so none can be orphaned by a
  * hand-rolled path at one call site.
+ *
+ * The files are moved into a trash folder (`safekeeping`), not unlinked, so a
+ * delete can be undone by moving them back.
  */
 export async function deleteList(type: ListType, filePath: string): Promise<DeleteListResult> {
   if (!(await Bun.file(filePath).exists())) {
@@ -398,12 +397,16 @@ export async function deleteList(type: ListType, filePath: string): Promise<Dele
   ]
   const deletedFiles: string[] = []
   for (const candidate of candidates) {
-    if (await Bun.file(candidate).exists()) {
-      await fs.unlink(candidate)
-      deletedFiles.push(candidate)
-    }
+    if (await Bun.file(candidate).exists()) deletedFiles.push(candidate)
   }
-  return { deletedFiles }
+  // The list file moves last: it is what makes the list exist, so a failure
+  // part-way (rolled back by moveToTrash) can never leave sidecars behind for a
+  // future list of the same name to inherit.
+  const trashDir = await moveToTrash(
+    [...deletedFiles.filter((file) => file !== filePath), filePath],
+    `${type}-${listSlug(filePath)}`,
+  )
+  return { deletedFiles, trashDir }
 }
 
 /**

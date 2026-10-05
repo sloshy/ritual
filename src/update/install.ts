@@ -15,17 +15,12 @@ import { createHash, randomBytes } from 'node:crypto'
 import { constants as fsConstants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import {
-  CardCommandError,
-  ExitCode,
-  getErrorMessage,
-  hasErrorCode,
-  localizedCommandError,
-} from '../util/errors'
+import { CardCommandError, ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
 import { isParseError, type ParseError } from '../util/parse-error'
 import type { SelfUpdateEnv } from './env'
 import { httpError, networkError, request, type Release, type ReleaseAsset } from './release'
 import { assetNameFor } from './release-source'
+import { renameWithRetry } from '../util/atomic-write'
 
 /** How long the `.sha256` file may take to arrive. */
 const CHECKSUM_TIMEOUT_MS = 30_000
@@ -348,24 +343,6 @@ type SwapFailure =
   /** Windows only: the old binary is at `old` and could not be put back. */
   | { kind: 'stranded'; cause: unknown; old: string }
 
-/** Windows refuses renames while antivirus scans a freshly written `.exe`; wait it out briefly. */
-async function renameWithRetry(env: SelfUpdateEnv, from: string, to: string): Promise<void> {
-  const attempts = env.platform === 'win32' ? 5 : 1
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await env.rename(from, to)
-      return
-    } catch (error) {
-      const transient =
-        hasErrorCode(error, 'EBUSY') ||
-        hasErrorCode(error, 'EPERM') ||
-        hasErrorCode(error, 'EACCES')
-      if (!transient || attempt >= attempts) throw error
-      await new Promise((resolve) => setTimeout(resolve, 200))
-    }
-  }
-}
-
 /**
  * Where the running Windows binary steps aside to: `<target>.old`, or — when an
  * earlier one cannot be deleted because it is still running (a long-lived
@@ -425,7 +402,8 @@ async function swapInto(
       return { kind: 'unchanged', cause }
     }
     try {
-      await renameWithRetry(env, source, target)
+      // Windows refuses renames while antivirus scans a freshly written `.exe`.
+      await renameWithRetry(source, target, { rename: env.rename, platform: env.platform })
       return undefined
     } catch (cause) {
       try {

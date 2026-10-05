@@ -39,6 +39,7 @@ import { inputRequiredError, promptsUnavailable, requireInteractive } from '../u
 import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { t, type MessageRef } from '../i18n/t'
+import { writeFileAtomic } from '../util/atomic-write'
 
 export type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
@@ -545,7 +546,10 @@ async function handleExit(state: EditorState, changesPath: string): Promise<bool
   const choice = await promptExitMenu()
 
   if (choice === 'save') {
-    await fs.writeFile(changesPath, serializeChangeSets({ header: state.header, sets: state.sets }))
+    await writeFileAtomic(
+      changesPath,
+      serializeChangeSets({ header: state.header, sets: state.sets }),
+    )
     console.log(t('cli.history.saved', { count: state.sets.length, file: changesPath }))
     return true
   }

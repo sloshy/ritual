@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 import { DECK_FORMAT_KEYS } from '../../../src/list/deck-format'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson, fulfillJsonRoute } from '../helpers/fulfill'
+import type { ListDeleteResponse } from '../../../src/admin/api/list-lifecycle'
 
 type ListItem = { slug: string; name: string }
 
@@ -62,6 +63,13 @@ async function installConfigMock(page: Page, site: SiteState): Promise<void> {
   })
 }
 
+/** The list type each mock collection holds, as the API names it. */
+const LIST_TYPE_OF = {
+  decks: 'deck',
+  collections: 'collection',
+  wantedLists: 'wanted',
+} as const satisfies Record<keyof ManagerState, string>
+
 /**
  * Stateful mock for the list-manager backend. Routes for all three
  * categories share the same handler shape so the manager UI can be
@@ -105,8 +113,20 @@ async function installManagerMocks(page: Page, state: ManagerState): Promise<voi
     }
     if (method === 'DELETE') {
       const idx = state[key].findIndex((it) => it.slug === slug)
+      const name = state[key][idx]?.name ?? slug
       if (idx !== -1) state[key].splice(idx, 1)
-      await fulfillJsonRoute(route, { success: true, message: 'deleted' })
+      // Shaped like the real handler's response, whose message names the
+      // trash folder the files moved to.
+      const listType = LIST_TYPE_OF[key]
+      const trash = `.trash/2026-10-05T14-03-22Z-${listType}-${slug}`
+      await fulfillJsonRoute(route, {
+        success: true,
+        message: `Deleted ${listType} '${name}'; its files are in ${trash}`,
+        messageKey: 'admin.api.list.deleted',
+        messageParams: { listType, name, trash },
+        deletedFiles: [],
+        trashDir: `/workspace/${trash}`,
+      } satisfies ListDeleteResponse)
       return
     }
     await route.fallback()
@@ -268,6 +288,9 @@ test.describe('List Manager', () => {
 
     await deleteBtn.click()
     await expect(page.locator('.deck-list-item:has-text("Existing Wanted")')).toHaveCount(0)
+    await expect(page.locator('.alert-success')).toContainText(
+      '.trash/2026-10-05T14-03-22Z-wanted-Existing Wanted',
+    )
   })
 
   test('hiding a deck adds it to the exclude list and flips the toggle', async ({ page }) => {

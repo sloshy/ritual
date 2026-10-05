@@ -13,6 +13,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
+  getRitualConfigPath,
   getSiteDeployConfig,
   isMigrationCounter,
   isConfigParseError,
@@ -30,6 +31,8 @@ import { compareVersions, isValidSemver } from '../config/semver'
 import { isReleaseBuild, version as ritualVersion } from '../config/version'
 import { CardCommandError, ExitCode, localizedCommandError } from '../util/errors'
 import { isRecord } from '../util/json'
+import { backUpFiles } from '../util/safekeeping'
+import { renameWithRetry } from '../util/atomic-write'
 import { SKILLS } from '../skills/catalog'
 import type { RitualSkill } from '../skills/types'
 import {
@@ -392,6 +395,36 @@ export async function planMigration(options: MigrateOptions = {}): Promise<PlanO
   }
 }
 
+/** The workspace paths a file op replaces or removes, relative to the base dir. */
+function overwrittenPaths(op: FileOp): string[] {
+  switch (op.type) {
+    case 'write':
+    case 'delete':
+      return [op.path]
+    case 'rename':
+      return [op.from, op.to]
+    default:
+      return op satisfies never
+  }
+}
+
+/**
+ * Copy what the plan's migrations are about to change — `ritual.config.json`
+ * and every file an op rewrites, removes or moves — into a backup folder,
+ * returning it, or null when no migration has ops. The managed refresh is not
+ * backed up: it only writes generated files and appends to `.gitignore`.
+ */
+async function backUpPlannedChanges(plan: MigrationPlan): Promise<string | null> {
+  const changing = plan.migrations.filter(({ ops }) => ops.length > 0)
+  const last = changing.at(-1)
+  if (last === undefined) return null
+  const baseDir = getBaseDir()
+  const files = changing.flatMap(({ ops }) =>
+    ops.filter(isFileOp).flatMap((op) => overwrittenPaths(op).map((p) => path.join(baseDir, p))),
+  )
+  return backUpFiles([getRitualConfigPath(), ...files], `migration-${last.migration.id}`)
+}
+
 async function applyFileOp(op: FileOp): Promise<void> {
   const baseDir = getBaseDir()
   switch (op.type) {
@@ -404,7 +437,7 @@ async function applyFileOp(op: FileOp): Promise<void> {
     case 'rename': {
       const to = path.join(baseDir, op.to)
       await fs.mkdir(path.dirname(to), { recursive: true })
-      await fs.rename(path.join(baseDir, op.from), to)
+      await renameWithRetry(path.join(baseDir, op.from), to)
       return
     }
     default:
@@ -417,6 +450,8 @@ export type MigrationResult = {
   /** The migrations that changed something, in order. */
   applied: Migration[]
   refresh: ManagedRefreshResult | null
+  /** The folder holding copies of what the migrations changed, or null when none ran. */
+  backupDir: string | null
 }
 
 /**
@@ -440,6 +475,7 @@ export async function applyMigration(
   }
 
   const skills = options.skills ?? SKILLS
+  const backupDir = await backUpPlannedChanges(plan)
   let config = plan.raw
   const applied: Migration[] = []
   for (const { migration, ops } of plan.migrations) {
@@ -456,5 +492,5 @@ export async function applyMigration(
 
   await writeRawRitualConfig(withManaged(config, plan.managed))
   await refreshRitualConfig()
-  return { applied, refresh }
+  return { applied, refresh, backupDir }
 }

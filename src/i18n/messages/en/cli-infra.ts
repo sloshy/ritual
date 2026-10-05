@@ -320,6 +320,7 @@ export const cliInfraMessages = {
   'cli.migrate.confirm': 'Apply these updates?',
   'cli.migrate.cancelled': 'Cancelled; nothing was written.',
   'cli.migrate.applied': '✓ Applied migration {id}: {description}',
+  'cli.migrate.backedUp': '✓ Saved a copy of the files it changed in {path}',
   'cli.migrate.wrote': '✓ Wrote {path}',
   'cli.migrate.skillUpdated': '✓ Updated agent skill {name}',
   'cli.migrate.skillRemoved': '✕ Removed agent skill {name}',

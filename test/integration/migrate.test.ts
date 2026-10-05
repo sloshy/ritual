@@ -59,6 +59,17 @@ describe('migrate CLI (Integration)', () => {
       // The spawned CLI is a dev build and the workspace has no pin, so CI
       // would fall back to the latest stable release.
       expect(applied.stderr).toContain('did not pin a release')
+      // The old config was copied aside first, and the folder is named relative
+      // to the workspace.
+      const [backup, ...more] = await fs.readdir(path.join(dir, '.backups'))
+      expect(more).toEqual([])
+      expect(applied.stdout).toContain(
+        `Saved a copy of the files it changed in ${path.join('.backups', backup ?? '')}`,
+      )
+      expect(applied.stdout).not.toContain(dir)
+      expect(
+        await fs.readFile(path.join(dir, '.backups', backup ?? '', 'ritual.config.json'), 'utf-8'),
+      ).toBe(OLD_CONFIG)
       const config = JSON.parse(
         await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8'),
       ) as MigratedConfig

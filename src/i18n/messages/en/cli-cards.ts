@@ -462,9 +462,9 @@ export const cliCardsMessages = {
   },
   'cli.delete.deleted': {
     $select: 'type',
-    deck: "Deleted deck '{name}'",
-    collection: "Deleted collection '{name}'",
-    wanted: "Deleted wanted list '{name}'",
+    deck: "Deleted deck '{name}'; its files are in {trash}",
+    collection: "Deleted collection '{name}'; its files are in {trash}",
+    wanted: "Deleted wanted list '{name}'; its files are in {trash}",
   },
   'cli.delete.notice': {
     $select: 'type',

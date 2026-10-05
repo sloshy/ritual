@@ -60,7 +60,10 @@ ritual migrate --yes       # apply without the confirmation prompt
 
 Always run \`--check\` or \`--dry-run\` first and show the user the plan.
 **Always ask before applying** — migrate rewrites \`ritual.config.json\` and
-generated files.
+generated files. Before a numbered migration changes anything it copies the config
+and every file it will rewrite, delete or move into
+\`.backups/<time>-migration-<n>/\` (paths kept) and prints that folder; copying the
+files back undoes it.
 Headless (\`--no-input\` or no terminal), applying needs \`--yes\`; without it the
 run is a usage error (exit 2). A workspace migrated by a newer Ritual than the one
 running is refused (exit 1) with the \`ritual self-update --tag …\` command

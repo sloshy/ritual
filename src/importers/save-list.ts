@@ -37,6 +37,8 @@ import {
 } from '../list/card-categories-sidecar'
 import { loadDefaultCategories } from '../config/ritual-config'
 import { deckCardNames, deckCardNameSet } from '../list/card-names'
+import { writeFileAtomic } from '../util/atomic-write'
+import { primerSidecarPath } from '../list/list-sidecars'
 
 /**
  * An existing list an import would replace, and how it was matched. Only a
@@ -327,7 +329,7 @@ export async function saveDeck(
   const fileContent = serializeDeckToMarkdown(deckData, frontMatter)
 
   // Derive primer sidecar path from the deck file path
-  const primerPath = filePath.replace(/\.md$/, '.primer.md')
+  const primerPath = primerSidecarPath(filePath)
   const primerMarkdown = deckData.primer ? parseMoxfieldPrimer(deckData.primer).markdown : undefined
 
   const outcome: SavedList = {
@@ -373,7 +375,7 @@ export async function saveDeck(
   saveInfo(resolvedOptions, t('cli.import.savedDeck', { path: filePath }))
 
   if (primerMarkdown) {
-    await Bun.write(primerPath, primerMarkdown + '\n')
+    await writeFileAtomic(primerPath, primerMarkdown + '\n')
     outcome.writtenFiles.push(primerPath)
     saveInfo(resolvedOptions, t('cli.import.savedPrimer', { path: primerPath }))
   }

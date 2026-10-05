@@ -25,6 +25,7 @@ import { parseListTarget } from './target'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
 import { createFenceTracker } from '../../list/markdown-fence'
 import { hasLineBreak } from '../../util/single-line'
+import { writeFileAtomic } from '../../util/atomic-write'
 
 export type HistoryLoadResponse = {
   success: true
@@ -189,7 +190,7 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     if (await changesFile.exists()) existing = await changesFile.text()
     const { header } = parseChangeSets(existing, listSlug(filePath))
 
-    await Bun.write(changesPath, serializeChangeSets({ header, sets }))
+    await writeFileAtomic(changesPath, serializeChangeSets({ header, sets }))
     await autoCommitAndPush(
       getBaseDir(),
       [changesPath],

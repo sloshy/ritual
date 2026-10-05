@@ -380,6 +380,9 @@ describe('generateGitignoreEntries', () => {
       'exports/',
       '.admin-dist/',
       '.logins/',
+      // What `delete` and `migrate` keep a copy of, never meant for the repository.
+      '.trash/',
+      '.backups/',
       'all-cards.md',
       // Build scratch directories: every build makes one beside its output, and
       // an interrupted build leaves it there.

@@ -17,7 +17,7 @@
  */
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { isRitualClean, writeFileWithHash } from '../changes/content-hash'
+import { isRitualClean, writeListFile } from '../changes/content-hash'
 import { allocateId, createIdPool, parseCardIdsFromContent } from '../card/card-id'
 import { formatCanonicalCardLine, type FlatCardLineFields } from '../card/card-line-tail'
 import { matchCardId } from '../card/card-line-id'
@@ -164,12 +164,7 @@ async function ensureIdsInDir(
       // are the ID additions Ritual's own write and safe to stamp. Otherwise
       // the file holds an unrecorded hand edit — leave the sidecar stale or
       // absent so detect-changes still records the edit's changelog.
-      const wasRitualClean = await isRitualClean(filePath, content)
-      if (wasRitualClean) {
-        await writeFileWithHash(filePath, newContent)
-      } else {
-        await fs.writeFile(filePath, newContent)
-      }
+      await writeListFile(filePath, newContent, await isRitualClean(filePath, content))
     }
   }
 }

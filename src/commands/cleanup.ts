@@ -2,7 +2,7 @@ import { Command, Option } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
-import { isRitualClean, writeFileWithHash } from '../changes/content-hash'
+import { isRitualClean, writeListFile } from '../changes/content-hash'
 import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
@@ -504,11 +504,11 @@ export async function cleanupList(
     // Stamping a file that holds unrecorded hand edits would make detect-changes
     // skip it and drop the edits' changelog entries — cleanup canonicalizes
     // formatting, it does not get to declare someone else's edits recorded.
-    if (await isRitualClean(targetPath, document.original)) {
-      await writeFileWithHash(targetPath, document.canonical)
-    } else {
-      await fs.writeFile(targetPath, document.canonical)
-    }
+    await writeListFile(
+      targetPath,
+      document.canonical,
+      await isRitualClean(targetPath, document.original),
+    )
   }
 
   // The categories write, against `targetPath` — a rename may have happened

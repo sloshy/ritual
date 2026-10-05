@@ -805,7 +805,10 @@ export const cliCardsMeta = {
   'cli.rename.renamed': {
     description: 'Success line naming the old name, the new name, and the new file path.',
   },
-  'cli.delete.deleted': { description: 'Success line for a deleted list.' },
+  'cli.delete.deleted': {
+    description:
+      'Success line for a deleted list. {trash} is the workspace-relative trash folder (e.g. ".trash/2026-10-05T14-03-22Z-deck-Burn") the list and its sidecar files were moved into, so the user can move them back.',
+  },
   'cli.delete.notice': {
     description:
       'Printed before the confirmation prompt so the user sees exactly which list resolved. "sidecar files" are the list\'s .sha256/.changes.md companions.',

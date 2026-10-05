@@ -829,7 +829,7 @@ export class ScryfallClient implements PricingBackend {
   ): Promise<TagIndex> {
     const index = buildTagIndex(oracleTags, artTags, Date.now())
     await this.fileSystem.mkdir(getCacheDir(), { recursive: true })
-    await writeFileAtomic(this.fileSystem, this.tagCachePath(), JSON.stringify(index))
+    await writeFileAtomic(this.tagCachePath(), JSON.stringify(index), { fs: this.fileSystem })
     this.tagIndex = index
     getLogger().info(
       `Indexed tags for ${Object.keys(index.oracle).length} oracle ids and ${Object.keys(index.illustration).length} illustrations.`,

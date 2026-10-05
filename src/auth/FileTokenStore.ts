@@ -1,7 +1,7 @@
 import type { TokenStore } from './interfaces'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from './logins-dir'
+import { getLoginsDir, writePrivateJson } from './logins-dir'
 
 export class FileTokenStore implements TokenStore {
   private getFilePath(site: string): string {
@@ -9,11 +9,8 @@ export class FileTokenStore implements TokenStore {
   }
 
   async save(site: string, data: unknown): Promise<void> {
-    await ensureLoginsDir()
     const filePath = this.getFilePath(site)
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), {
-      mode: 0o600,
-    })
+    await writePrivateJson(filePath, data)
   }
 
   async load<T>(site: string): Promise<T | null> {

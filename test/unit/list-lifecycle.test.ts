@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach, spyOn } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -15,7 +15,7 @@ import {
 import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { computeHash } from '../../src/changes/content-hash'
 import { LIST_SIDECAR_KINDS, listSidecarPath } from '../../src/list/list-sidecars'
-import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
 
 let ws: BoundWorkspace
 let decksDir: string
@@ -36,6 +36,36 @@ function unwrapError<S>(result: S | ListLifecycleError): ListLifecycleError {
 }
 
 const exists = (filePath: string): Promise<boolean> => Bun.file(filePath).exists()
+
+/** What `run` returned, every path it unlinked, and every rename it made. */
+type Unlinked<T> = { result: T; unlinked: string[]; renamed: [string, string][] }
+
+/**
+ * Run `run`, recording the paths it unlinks and renames. This tells the two
+ * rename branches apart: on a case-insensitive file system the source path
+ * *is* the destination, so the ordinary branch's unlink of the source would
+ * delete the renamed list, while the two-step move renames the source through
+ * a `.ritual-rename-*` temporary name and never unlinks it.
+ */
+async function unlinkedDuring<T>(run: () => Promise<T>): Promise<Unlinked<T>> {
+  const unlinks = spyOn(fs, 'unlink')
+  const renames = spyOn(fs, 'rename')
+  try {
+    const result = await run()
+    return {
+      result,
+      unlinked: unlinks.mock.calls.map(([target]) => String(target)),
+      renamed: renames.mock.calls.map(([from, to]) => [String(from), String(to)]),
+    }
+  } finally {
+    unlinks.mockRestore()
+    renames.mockRestore()
+  }
+}
+
+/** Whether `renamed` moved `filePath` aside under the two-step move's temporary name. */
+const tookTwoStepMove = (renamed: [string, string][], filePath: string): boolean =>
+  renamed.some(([from, to]) => from === filePath && path.basename(to).startsWith('.ritual-rename-'))
 
 describe('list-lifecycle engine', () => {
   beforeEach(async () => {
@@ -276,11 +306,15 @@ describe('list-lifecycle engine', () => {
       const filePath = path.join(collectionsDir, 'binder.md')
       await fs.writeFile(filePath, '# binder\n\n- Sol Ring (C19:221) &1\n')
       await fs.writeFile(path.join(collectionsDir, 'binder.changes.md'), '# Changelog\n')
-      const originalInode = (await fs.stat(filePath)).ino
 
-      const result = unwrap<RenameListSuccess>(
-        await renameList('collection', filePath, 'Binder', { isSameFile: async () => true }),
+      const {
+        result: renameResult,
+        unlinked,
+        renamed,
+      } = await unlinkedDuring(() =>
+        renameList('collection', filePath, 'Binder', { isSameFile: async () => true }),
       )
+      const result = unwrap<RenameListSuccess>(renameResult)
 
       expect(result.newSlug).toBe('Binder')
       expect(result.oldFilePath).toBe(filePath)
@@ -293,10 +327,10 @@ describe('list-lifecycle engine', () => {
       expect(
         (await fs.readdir(collectionsDir)).filter((f) => f.startsWith('.ritual-rename')),
       ).toEqual([])
-      // The discriminator between the two rename branches: the two-step move
-      // renames the *same* inode, where the ordinary path writes a new file and
-      // unlinks the old one.
-      expect((await fs.stat(newPath)).ino).toBe(originalInode)
+      // The two-step move renamed the file; the ordinary branch would have
+      // unlinked the source path, which here is the renamed list itself.
+      expect(unlinked).not.toContain(filePath)
+      expect(tookTwoStepMove(renamed, filePath)).toBeTrue()
     })
 
     test('a same-file destination moves the .sha256, primer and art sidecars too', async () => {
@@ -309,11 +343,15 @@ describe('list-lifecycle engine', () => {
         path.join(decksDir, 'burn.art.json'),
         '{\n  "1": { "file": "burn.jpg" }\n}\n',
       )
-      const originalInode = (await fs.stat(filePath)).ino
 
-      const result = unwrap<RenameListSuccess>(
-        await renameList('deck', filePath, 'Burn', { isSameFile: async () => true }),
+      const {
+        result: outcome,
+        unlinked,
+        renamed,
+      } = await unlinkedDuring(() =>
+        renameList('deck', filePath, 'Burn', { isSameFile: async () => true }),
       )
+      const result = unwrap<RenameListSuccess>(outcome)
 
       const newPath = path.join(decksDir, 'Burn.md')
       expect(result.newFilePath).toBe(newPath)
@@ -324,12 +362,15 @@ describe('list-lifecycle engine', () => {
       expect(await exists(path.join(decksDir, 'burn.art.json'))).toBe(false)
       // The hash was refreshed for the rewritten display name, so the file stays
       // Ritual-clean.
-      const renamed = await fs.readFile(newPath, 'utf-8')
-      expect(await fs.readFile(`${newPath}.sha256`, 'utf-8')).toBe(computeHash(renamed) + '\n')
+      const renamedContent = await fs.readFile(newPath, 'utf-8')
+      expect(await fs.readFile(`${newPath}.sha256`, 'utf-8')).toBe(
+        computeHash(renamedContent) + '\n',
+      )
       expect(result.touchedFiles).toContain(newPath)
       expect(result.touchedFiles).toContain(filePath)
-      // The two-step move renames the file in place rather than writing a new one.
-      expect((await fs.stat(newPath)).ino).toBe(originalInode)
+      // The two-step move renamed the file rather than unlinking its source.
+      expect(unlinked).not.toContain(filePath)
+      expect(tookTwoStepMove(renamed, filePath)).toBeTrue()
     })
 
     test('a same-file destination drops a stale .sha256 rather than carrying it', async () => {
@@ -340,17 +381,22 @@ describe('list-lifecycle engine', () => {
       const content = '---\nname: burn\nformat: modern\n---\n\n# burn\n\n## Main\n'
       await fs.writeFile(filePath, content)
       await fs.writeFile(`${filePath}.sha256`, computeHash('some earlier content') + '\n')
-      const originalInode = (await fs.stat(filePath)).ino
 
-      const result = unwrap<RenameListSuccess>(
-        await renameList('deck', filePath, 'Burn', { isSameFile: async () => true }),
+      const {
+        result: outcome,
+        unlinked,
+        renamed,
+      } = await unlinkedDuring(() =>
+        renameList('deck', filePath, 'Burn', { isSameFile: async () => true }),
       )
+      const result = unwrap<RenameListSuccess>(outcome)
 
       const newPath = path.join(decksDir, 'Burn.md')
       expect(result.newFilePath).toBe(newPath)
       expect(await exists(`${newPath}.sha256`)).toBe(false)
       expect(await exists(`${filePath}.sha256`)).toBe(false)
-      expect((await fs.stat(newPath)).ino).toBe(originalInode)
+      expect(unlinked).not.toContain(filePath)
+      expect(tookTwoStepMove(renamed, filePath)).toBeTrue()
     })
 
     test('reports a missing source file as not-found', async () => {
@@ -403,6 +449,14 @@ describe('list-lifecycle engine', () => {
       expect(new Set(result.deletedFiles)).toEqual(
         new Set([filePath, ...LIST_SIDECAR_KINDS.map((kind) => listSidecarPath[kind](filePath))]),
       )
+      // Moved into the trash under their workspace-relative paths, not unlinked.
+      expect(path.relative(ws.dir, result.trashDir)).toMatch(/^\.trash[\\/][\dTZ-]+-deck-Doomed$/)
+      expect(Object.keys(await snapshotTree(result.trashDir)).sort()).toEqual(
+        ['decks/', ...result.deletedFiles.map((file) => path.relative(ws.dir, file))].sort(),
+      )
+      expect(
+        await fs.readFile(path.join(result.trashDir, 'decks', 'Doomed.primer.md'), 'utf-8'),
+      ).toBe('# Primer\n')
     })
 
     test('only touches the files that exist', async () => {

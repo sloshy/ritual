@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /**
  * Centralized SHA-256 content hashing for list files (collections, decks, wanted lists).
@@ -89,7 +90,7 @@ export async function loadHash(filePath: string): Promise<string | null> {
  * Save a hash to the `.sha256` sidecar file.
  */
 export async function saveHash(filePath: string, hash: string): Promise<void> {
-  await fs.writeFile(hashPath(filePath), hash + '\n')
+  await writeFileAtomic(hashPath(filePath), hash + '\n')
 }
 
 /**
@@ -109,9 +110,24 @@ export async function isRitualClean(filePath: string, content: string): Promise<
  */
 export async function writeFileWithHash(filePath: string, content: string): Promise<string> {
   const hash = computeHash(content)
-  await fs.writeFile(filePath, content)
+  await writeFileAtomic(filePath, content)
   await saveHash(filePath, hash)
   return hash
+}
+
+/**
+ * Write new content for a list file, refreshing its `.sha256` sidecar only
+ * when `stamp` — that is, when the file was Ritual-clean before this write
+ * ({@link isRitualClean}). A file holding an unrecorded hand edit keeps its
+ * stale or absent sidecar, so `detect-changes` still records the edit.
+ */
+export async function writeListFile(
+  filePath: string,
+  content: string,
+  stamp: boolean,
+): Promise<void> {
+  if (stamp) await writeFileWithHash(filePath, content)
+  else await writeFileAtomic(filePath, content)
 }
 
 /**

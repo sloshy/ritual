@@ -2,7 +2,7 @@
 title: 'delete'
 ---
 
-Delete a deck, collection, or wanted list, along with all of its companion files (called sidecar files in the prompt).
+Delete a deck, collection, or wanted list, along with all of its companion files (called sidecar files in the prompt). The files move into the workspace's `.trash/` folder rather than being erased, so a deletion can be [undone by hand](#restoring-a-deleted-list).
 
 ## Usage
 
@@ -52,11 +52,23 @@ Delete a collection and capture the result as JSON:
 ritual delete --collection main --confirm "Trade Binder" --output json
 ```
 
-The JSON payload is `{ type, slug, deleted: true, deletedFiles }`, where `deletedFiles` lists every path removed: the list plus whichever companion files it had.
+The JSON payload is `{ type, slug, deleted: true, deletedFiles, trashDir }`, where `deletedFiles` lists every path removed (the list plus whichever companion files it had) and `trashDir` is the trash folder they moved into. Both are absolute paths.
 
 ## Behavior
 
-Deleting a list removes the markdown file and every companion file it may have: the `.sha256` content hash, the `.changes.md` changelog, the `.art.json` [custom art](/custom-art/) map, the `.categories.json` [categories](/list-format/#categories-namecategoriesjson) file and its `.categories.json.sha256`, and, for decks, the `.primer.md` primer. Nothing is deleted until the confirmation name matches the display name exactly.
+Deleting a list moves the markdown file and every companion file it may have into the trash: the `.sha256` content hash, the `.changes.md` changelog, the `.art.json` [custom art](/custom-art/) map, the `.categories.json` [categories](/list-format/#categories-namecategoriesjson) file and its `.categories.json.sha256`, and, for decks, the `.primer.md` primer. Nothing is deleted until the confirmation name matches the display name exactly.
+
+### Restoring a deleted list
+
+Each deletion gets its own folder, `.trash/<time>-<type>-<slug>/` (for example `.trash/2026-10-05T14-03-22Z-deck-burn/`), and the files keep their path relative to the workspace inside it. To restore the list, move the files back; `-n` refuses to overwrite a list created under the same name since:
+
+```bash
+mv -n ".trash/2026-10-05T14-03-22Z-deck-burn/decks/"* decks/
+```
+
+A list whose folder lies outside the workspace (an absolute or `../` `decksDir`, `collectionsDir`, or `wantedDir`) is trashed flat: its files sit directly in the trash folder under their own names, so move them back to that folder.
+
+The admin site and the MCP `delete_list` tool use the same trash. Ritual never empties `.trash/`; delete a folder there yourself once you no longer want it. `init-site` adds `.trash/` to the workspace's `.gitignore`.
 
 ## Exit Codes
 

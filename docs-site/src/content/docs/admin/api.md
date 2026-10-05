@@ -264,9 +264,9 @@ Create, rename, and delete answer identically for decks, collections, and wanted
 | --------- | --------------------------------------------------------------- |
 | Create    | `{ success: true, message, slug }`                              |
 | Rename    | `{ success: true, message, newSlug, newFilePath, oldFilePath }` |
-| Delete    | `{ success: true, message, deletedFiles }`                      |
+| Delete    | `{ success: true, message, deletedFiles, trashDir }`            |
 
-`newFilePath`/`oldFilePath` are the list's paths after and before the rename. `deletedFiles` is every path the delete removed: the list plus its sidecar files.
+`newFilePath`/`oldFilePath` are the list's paths after and before the rename. `deletedFiles` is every path the delete removed: the list plus its sidecar files. They are moved, not erased: `trashDir` is the [trash folder](/commands/delete/#restoring-a-deleted-list) now holding them, where each keeps its workspace-relative path. All of these paths are absolute; `message` names the trash folder relative to the workspace.
 
 A refusal is the shared [error envelope](#error-responses) at one of these statuses:
 
@@ -299,8 +299,8 @@ Rename a deck. Rewrites the `# Title` heading and renames the `.md` together wit
   "success": true,
   "message": "Renamed deck to 'New Deck Name'",
   "newSlug": "New Deck Name",
-  "newFilePath": "decks/New Deck Name.md",
-  "oldFilePath": "decks/My Commander Deck.md"
+  "newFilePath": "/home/me/mtg/decks/New Deck Name.md",
+  "oldFilePath": "/home/me/mtg/decks/My Commander Deck.md"
 }
 ```
 
@@ -327,8 +327,12 @@ Delete a deck and every sidecar it has — see [List lifecycle responses](#list-
 ```json
 {
   "success": true,
-  "message": "Deleted deck 'My Commander Deck'",
-  "deletedFiles": ["decks/My Commander Deck.md", "decks/My Commander Deck.md.sha256"]
+  "message": "Deleted deck 'My Commander Deck'; its files are in .trash/2026-10-05T14-03-22Z-deck-My Commander Deck",
+  "deletedFiles": [
+    "/home/me/mtg/decks/My Commander Deck.md",
+    "/home/me/mtg/decks/My Commander Deck.md.sha256"
+  ],
+  "trashDir": "/home/me/mtg/.trash/2026-10-05T14-03-22Z-deck-My Commander Deck"
 }
 ```
 
@@ -1328,8 +1332,12 @@ Delete a collection file and every sidecar it has — see [List lifecycle respon
 ```json
 {
   "success": true,
-  "message": "Deleted collection 'My Collection'",
-  "deletedFiles": ["collections/My Collection.md", "collections/My Collection.md.sha256"]
+  "message": "Deleted collection 'My Collection'; its files are in .trash/2026-10-05T14-03-22Z-collection-My Collection",
+  "deletedFiles": [
+    "/home/me/mtg/collections/My Collection.md",
+    "/home/me/mtg/collections/My Collection.md.sha256"
+  ],
+  "trashDir": "/home/me/mtg/.trash/2026-10-05T14-03-22Z-collection-My Collection"
 }
 ```
 
@@ -1456,8 +1464,12 @@ Delete a wanted list file and every sidecar it has — see [List lifecycle respo
 ```json
 {
   "success": true,
-  "message": "Deleted wanted list 'Holiday Wishlist'",
-  "deletedFiles": ["wanted/Holiday Wishlist.md", "wanted/Holiday Wishlist.md.sha256"]
+  "message": "Deleted wanted list 'Holiday Wishlist'; its files are in .trash/2026-10-05T14-03-22Z-wanted-Holiday Wishlist",
+  "deletedFiles": [
+    "/home/me/mtg/wanted/Holiday Wishlist.md",
+    "/home/me/mtg/wanted/Holiday Wishlist.md.sha256"
+  ],
+  "trashDir": "/home/me/mtg/.trash/2026-10-05T14-03-22Z-wanted-Holiday Wishlist"
 }
 ```
 

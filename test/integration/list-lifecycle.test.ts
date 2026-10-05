@@ -9,6 +9,7 @@ import {
 } from '../../src/admin/api/list-lifecycle'
 import { resolveFlatListFile } from '../../src/admin/api/list-file'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { getBaseDir } from '../../src/config/base-dir'
 
 /**
  * The create/rename/delete handlers write real files, so they belong here rather
@@ -47,6 +48,7 @@ type SuccessBody = {
   newFilePath?: string
   oldFilePath?: string
   deletedFiles?: string[]
+  trashDir?: string
 }
 
 function makeRequest(method: string, urlPath: string, body?: unknown): Request {
@@ -256,6 +258,14 @@ describe('list-lifecycle delete handler', () => {
     expect(data.deletedFiles).toEqual([path.join(collectionsDir, 'My Collection.md')])
     const exists = await Bun.file(path.join(collectionsDir, 'My Collection.md')).exists()
     expect(exists).toBe(false)
+    // The response carries the real trash folder, and the message names it
+    // relative to the workspace.
+    if (data.trashDir === undefined) throw new Error('expected a trashDir')
+    expect(data.message).toEndWith(`its files are in ${path.relative(getBaseDir(), data.trashDir)}`)
+    expect(data.message).not.toContain(getBaseDir())
+    expect(
+      await Bun.file(path.join(data.trashDir, 'collections', 'My Collection.md')).exists(),
+    ).toBe(true)
   })
 
   test('also deletes the changelog sidecar when present', async () => {

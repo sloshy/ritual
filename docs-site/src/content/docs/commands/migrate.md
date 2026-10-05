@@ -78,6 +78,8 @@ Each migration is a numbered, one-time change. `migrate` records the highest one
 
 The counter is written after each migration that changed something, so a run that fails part-way resumes at the failed migration next time.
 
+Before the first numbered migration changes anything, `migrate` copies `ritual.config.json` and every file the migrations will rewrite, delete, or move into a new folder, `.backups/<time>-migration-<n>/` (named after the last migration in the run), keeping each file's path relative to the workspace. It prints the folder when it is done. Ritual never empties `.backups/`, and `init-site` adds it to the workspace's `.gitignore`. Neither the [generated-file refresh](#generated-files) nor a [CI pin](#the-ci-pin) update is backed up: they write only files Ritual generates, append to `.gitignore`, and stamp the `managed` block. A fresh [`init-site`](/commands/init-site/) that applies pending migrations takes the same backup.
+
 `migrate` reads `ritual.config.json` without the usual validation, because a migration's job is to fix keys the current Ritual no longer accepts. The migrated result is validated **before anything is written**. If it would still be invalid, `migrate` stops with the validation error and changes nothing. Fix the file and run it again.
 
 ### Generated files

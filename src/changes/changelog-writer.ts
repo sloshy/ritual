@@ -9,6 +9,7 @@ import {
 } from './changelog-blocks'
 import { createFenceTracker } from '../list/markdown-fence'
 import { singleLineText } from '../util/single-line'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /** Options controlling how {@link appendChangelog} writes a block. */
 export type AppendChangelogOptions = {
@@ -101,12 +102,12 @@ export async function appendChangelog(
         events: [...set.events, ...fresh.events],
         ...(set.trailing !== undefined ? { trailing: set.trailing } : {}),
       }
-      await fs.writeFile(changelogPath, preceding + serializeChangeSet(merged))
+      await writeFileAtomic(changelogPath, preceding + serializeChangeSet(merged))
       return changelogPath
     }
   }
 
   const baseContent = existingContent ?? `# Changelog for ${singleLineText(entityName)}\n`
-  await fs.writeFile(changelogPath, baseContent + serializeChangeSet(fresh))
+  await writeFileAtomic(changelogPath, baseContent + serializeChangeSet(fresh))
   return changelogPath
 }

@@ -192,7 +192,7 @@ export class CacheFeedHost {
       generatedAt: now.toISOString(),
       entries,
     }
-    await writeFileAtomic(fileSystem, this.feedPath, JSON.stringify(feed, null, 2))
+    await writeFileAtomic(this.feedPath, JSON.stringify(feed, null, 2), { fs: fileSystem })
     this.feed = feed
     await this.pruneUnreferenced()
     this.log(`Published feed with ${entries.length} entries.`)
@@ -233,9 +233,11 @@ export class CacheFeedHost {
     const fileUrl = `${this.publicUrl}/files/${encodeURIComponent(fileName)}`
     const torrent = await createFileTorrent(filePath, fileUrl, now)
     await writeFileAtomic(
-      fileSystem,
       path.join(this.torrentsDir, `${torrent.infoHash}.torrent`),
       torrent.buffer,
+      {
+        fs: fileSystem,
+      },
     )
 
     return {

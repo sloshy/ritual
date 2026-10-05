@@ -12,7 +12,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { writeFileAtomic } from './atomic-write'
-import { createDefaultFileSystemClient } from './interfaces'
 import { isUpdateChannel, UPDATE_CHANNELS, type UpdateChannel } from '../config/semver'
 import { isReleaseTag } from '../config/version'
 import { isRecord } from './json'
@@ -162,11 +161,7 @@ export async function writeUserStateSection<S extends UserStateSection>(
     const current = await readStateJson(file)
     const next = { ...(isRecord(current) ? current : {}), [section]: value }
     await fs.mkdir(path.dirname(file), { recursive: true })
-    await writeFileAtomic(
-      createDefaultFileSystemClient(),
-      file,
-      `${JSON.stringify(next, null, 2)}\n`,
-    )
+    await writeFileAtomic(file, `${JSON.stringify(next, null, 2)}\n`)
   } catch {
     // Best-effort by contract — see the module comment.
   }

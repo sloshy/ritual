@@ -1,5 +1,8 @@
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, t, type MessageRef, type RenderParams, type TranslateArgs } from '../i18n/t'
+import { hasErrorCode } from './errno'
+
+export { hasErrorCode, type ErrnoCode } from './errno'
 
 export type ErrorCode = 'not_found' | 'usage_error' | 'runtime_error'
 
@@ -9,35 +12,12 @@ export function getErrorMessage(error: unknown): string {
 }
 
 /**
- * The errno codes Ritual actually branches on. A closed union rather than
- * `string` so a typo'd code (`'ENONET'`) is a compile error instead of a
- * permanently-dead branch.
- */
-export type ErrnoCode = 'ENOENT' | 'ENOTDIR' | 'EEXIST' | 'EPERM' | 'EPIPE' | 'EBUSY' | 'EACCES'
-
-/**
  * Whether a failure is "the reader closed the pipe" — the `… | head` case.
  * Standard Unix tools stop quietly and exit 0 there, so every stdout write path
  * treats this as a normal end of output rather than a runtime error.
  */
 export function isBrokenPipeError(error: unknown): boolean {
   return hasErrorCode(error, 'EPIPE')
-}
-
-/** A Node errno error whose `code` is known to be `C`. */
-type ErrnoWithCode<C extends ErrnoCode> = NodeJS.ErrnoException & { code: C }
-
-/**
- * Whether `error` is a Node system error carrying `code` (e.g. `'ENOENT'`).
- * Narrowing on the `code` property is the only way to tell "the file is not
- * there" from "reading it failed", which callers that treat absence as a
- * default — rather than as an error — have to distinguish.
- */
-export function hasErrorCode<C extends ErrnoCode>(
-  error: unknown,
-  code: C,
-): error is ErrnoWithCode<C> {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === code
 }
 
 /** Throw a descriptive error when an HTTP response is not OK. */

@@ -188,11 +188,13 @@ describe('delete CLI (Integration)', () => {
         slug: string
         deleted: boolean
         deletedFiles: string[]
+        trashDir: string
       }
       expect(payload).toEqual({
         type: 'deck',
         slug: 'test',
         deleted: true,
+        trashDir: expect.any(String),
         deletedFiles: [
           path.join(decksDirForPayload, 'test.md'),
           path.join(decksDirForPayload, 'test.md.sha256'),
@@ -210,6 +212,22 @@ describe('delete CLI (Integration)', () => {
       expect(await exists(path.join(decksDir, 'test.changes.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.primer.md'))).toBe(false)
       expect(await exists(path.join(decksDir, 'test.art.json'))).toBe(false)
+      // …and the payload names the trash folder holding them.
+      expect(path.relative(dir, payload.trashDir)).toMatch(/^\.trash[\\/][\dTZ-]+-deck-test$/)
+      expect(await exists(path.join(payload.trashDir, 'decks', 'test.md'))).toBe(true)
+    })
+  })
+
+  test('the text output names the trash folder relative to the workspace', async () => {
+    await withWorkspace(async (dir) => {
+      await seedDeckWithSidecars(dir)
+
+      const result = await runCli(['delete', 'deck:test', '--confirm', 'Test Deck'], dir)
+
+      expect(result.exitCode).toBe(0)
+      const [trashed] = await fs.readdir(path.join(dir, '.trash'))
+      expect(result.stdout).toContain(`its files are in ${path.join('.trash', trashed ?? '')}`)
+      expect(result.stdout).not.toContain(dir)
     })
   })
 

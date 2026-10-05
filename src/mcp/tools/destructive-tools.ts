@@ -156,8 +156,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
     {
       title: 'Delete list',
       description:
-        'Delete a deck, collection, or wanted list and every sidecar it has. confirmName must ' +
-        'match its display name exactly; the deleted paths come back in deletedFiles.',
+        'Delete a deck, collection, or wanted list and every sidecar it has, moving the files ' +
+        'into a trash folder in the workspace. confirmName must match its display name exactly; ' +
+        'the deleted paths come back in deletedFiles and the trash folder in trashDir.',
       inputSchema: z.object({
         listType: listTypeSchema,
         slug: slugField,

@@ -94,5 +94,5 @@ export async function recordCardBulkType(
   const now = options.now ?? ((): Date => new Date())
   const record: CardBulkProvenance = { bulkType, recordedAt: now().toISOString() }
   await fileSystem.mkdir(getCacheDir(), { recursive: true })
-  await writeFileAtomic(fileSystem, provenancePath(), JSON.stringify(record, null, 2))
+  await writeFileAtomic(provenancePath(), JSON.stringify(record, null, 2), { fs: fileSystem })
 }

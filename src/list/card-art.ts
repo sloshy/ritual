@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
 import { isRecord } from '../util/json'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /**
  * Custom card art: a per-list `<name>.art.json` sidecar mapping a card's `&N` id
@@ -382,7 +383,7 @@ export async function saveCardArt(
       throw error
     }
   }
-  await fs.writeFile(sidecarPath, serializeCardArtSidecar(art))
+  await writeFileAtomic(sidecarPath, serializeCardArtSidecar(art))
   return { path: sidecarPath, action: 'written' }
 }
 

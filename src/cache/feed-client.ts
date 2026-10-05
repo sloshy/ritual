@@ -194,7 +194,7 @@ export class CacheFeedClient {
       }
     }
     await mkdir(this.options.dataDir, { recursive: true })
-    await writeFileAtomic(fileSystem, this.statePath, JSON.stringify(state, null, 2))
+    await writeFileAtomic(this.statePath, JSON.stringify(state, null, 2), { fs: fileSystem })
   }
 
   /** Fetch and validate the feed document. */

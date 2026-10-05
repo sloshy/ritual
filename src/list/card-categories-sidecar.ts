@@ -16,6 +16,7 @@ import {
   type CardCategoriesWarning,
   type CardCategoriesRecord,
 } from './card-categories-record'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /**
  * The pure record half, re-exported so every existing importer of this module —
@@ -247,7 +248,7 @@ export async function saveCardCategories(
 
   const next = decision.next
   const stamped = prior === null ? true : await isRitualClean(sidecarPath, prior)
-  await fs.writeFile(sidecarPath, next)
+  await writeFileAtomic(sidecarPath, next)
   if (!stamped) {
     return { path: sidecarPath, action: 'written', writtenFiles: [sidecarPath], stamped: false }
   }

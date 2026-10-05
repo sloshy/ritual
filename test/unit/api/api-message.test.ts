@@ -71,10 +71,18 @@ describe('renderApiMessage', () => {
   })
 
   test('interpolates the parameters that rode along', () => {
-    withDictionary(localeTag('xx'), { 'admin.api.list.deleted': '{name} ({listType}) weg' })
+    withDictionary(localeTag('xx'), {
+      'admin.api.list.deleted': '{name} ({listType}) weg, in {trash}',
+    })
     try {
-      const result = apiMessage('admin.api.list.deleted', { listType: 'deck', name: 'Burn' })
-      expect(renderApiMessage(translatorFor(localeTag('xx')), result)).toBe('Burn (deck) weg')
+      const result = apiMessage('admin.api.list.deleted', {
+        listType: 'deck',
+        name: 'Burn',
+        trash: '.trash/x',
+      })
+      expect(renderApiMessage(translatorFor(localeTag('xx')), result)).toBe(
+        'Burn (deck) weg, in .trash/x',
+      )
     } finally {
       resetI18nRuntime()
     }

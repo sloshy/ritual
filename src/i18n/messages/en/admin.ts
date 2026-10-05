@@ -507,10 +507,13 @@ export const adminMessages = {
   },
   'admin.list.deleteWarning': {
     $select: 'listType',
-    deck: 'This will permanently delete {name} and its changelog and primer. This cannot be undone.',
-    collection: 'This will permanently delete {name} and its changelog. This cannot be undone.',
-    wanted: 'This will permanently delete {name} and its changelog. This cannot be undone.',
-    other: 'This will permanently delete {name} and its changelog. This cannot be undone.',
+    deck: "This will delete {name} and its changelog and primer. Their files move to the workspace's .trash folder, where you can restore them by hand.",
+    collection:
+      "This will delete {name} and its changelog. Their files move to the workspace's .trash folder, where you can restore them by hand.",
+    wanted:
+      "This will delete {name} and its changelog. Their files move to the workspace's .trash folder, where you can restore them by hand.",
+    other:
+      "This will delete {name} and its changelog. Their files move to the workspace's .trash folder, where you can restore them by hand.",
   },
   'admin.list.nowHidden': "'{name}' is now hidden from the public site",
   'admin.list.nowVisible': "'{name}' is now visible on the public site",
@@ -958,10 +961,10 @@ export const adminMessages = {
   },
   'admin.api.list.deleted': {
     $select: 'listType',
-    deck: "Deleted deck '{name}'",
-    collection: "Deleted collection '{name}'",
-    wanted: "Deleted wanted list '{name}'",
-    other: "Deleted list '{name}'",
+    deck: "Deleted deck '{name}'; its files are in {trash}",
+    collection: "Deleted collection '{name}'; its files are in {trash}",
+    wanted: "Deleted wanted list '{name}'; its files are in {trash}",
+    other: "Deleted list '{name}'; its files are in {trash}",
   },
 
   // ── One-shot operations ───────────────────────────────────────────────

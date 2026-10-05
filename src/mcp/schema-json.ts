@@ -888,8 +888,11 @@ export const DELETE_LIST_OUTPUT: JsonSchemaType = obj(
   {
     ...MESSAGE_PROPS,
     deletedFiles: arr(str(), 'Every file removed: the list plus whichever sidecars it had.'),
+    trashDir: str(
+      'Absolute path of the trash folder the files were moved into. Inside it each file keeps its workspace-relative path (one outside the workspace just its name); moving them back restores the list.',
+    ),
   },
-  ['message', 'deletedFiles'],
+  ['message', 'deletedFiles', 'trashDir'],
 )
 
 export const REWRITE_HISTORY_OUTPUT: JsonSchemaType = obj(

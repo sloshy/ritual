@@ -22,6 +22,7 @@ import type { MigrationOp } from '../migrate/types'
 import { ExitCode } from '../util/errors'
 import { requireInteractive } from '../util/no-input'
 import { printGitignoreRefresh } from './init-site'
+import { workspaceRelative } from '../config/base-dir'
 
 export type MigrateCommandOptions = DryRunOptions & {
   yes?: boolean
@@ -105,6 +106,9 @@ function printResult(plan: MigrationPlan, result: MigrationResult): void {
     console.log(
       t('cli.migrate.applied', { id: migration.id, description: t(migration.descriptionKey) }),
     )
+  }
+  if (result.backupDir !== null) {
+    console.log(t('cli.migrate.backedUp', { path: workspaceRelative(result.backupDir) }))
   }
   if (result.refresh !== null) printRefreshResult(result.refresh)
   if (plan.pinBump !== null) console.log(t('cli.migrate.pinned', { version: plan.pinBump.to }))

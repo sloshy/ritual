@@ -24,7 +24,7 @@ import { skillFilePath } from '../../src/skills/install'
 import type { RitualSkill } from '../../src/skills/types'
 import { CardCommandError, hasErrorCode } from '../../src/util/errors'
 import { fileExists } from '../../src/util/fs'
-import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
 
 const DEV_BUILD: BuildIdentity = { version: '0.0.0-dev.abc', release: false }
 
@@ -97,6 +97,7 @@ describe('MIGRATIONS', () => {
 describe('migration 1: drop site.version', () => {
   test('plans the delete, applies it, stamps managed, and re-plans to nothing', async () => {
     const dir = await workspace({ site: { ...PUBLISH_SITE, version: '0.1.0' } })
+    const original = await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')
 
     const pending = await plan()
     expect(pending.migrations.map((m) => [m.migration.id, m.ops])).toEqual([
@@ -105,7 +106,13 @@ describe('migration 1: drop site.version', () => {
     ])
     expect(hasPendingWork(pending)).toBeTrue()
 
-    await applyMigration(pending)
+    const { backupDir } = await applyMigration(pending)
+
+    // A config-only migration backs up just the config, in a folder named after
+    // the last migration that had ops (1), not the last one planned (2).
+    if (backupDir === null) throw new Error('expected a backup folder')
+    expect(backupDir).toMatch(/-migration-1$/)
+    expect(await snapshotTree(backupDir)).toEqual({ 'ritual.config.json': original })
 
     const config = await readConfig(dir)
     expect(config.site).toEqual(PUBLISH_SITE)
@@ -200,7 +207,7 @@ describe('pin bump', () => {
 
     const result = await applyMigration(await plan({ build: release('1.1.0') }))
 
-    expect(result).toEqual({ applied: [], refresh: null })
+    expect(result).toEqual({ applied: [], refresh: null, backupDir: null })
     expect(await readConfig(dir)).toEqual({
       ...before,
       managed: { ...(before.managed as ManagedConfig), version: '1.1.0' },
@@ -487,17 +494,62 @@ describe('applyMigration', () => {
     expect(await fs.readFile(path.join(dir, 'new', 'dir', 'moved.txt'), 'utf-8')).toBe('moved')
   })
 
+  test('copies the config and every file an op changes into a backup folder first', async () => {
+    const dir = await workspace({})
+    const config = await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')
+    await fs.mkdir(path.join(dir, 'decks'))
+    await fs.writeFile(path.join(dir, 'decks', 'Burn.md'), '# Burn\n')
+    await fs.writeFile(path.join(dir, 'old.txt'), 'moved')
+    await fs.writeFile(path.join(dir, 'gone.txt'), 'deleted')
+    const migrations = [
+      fixedMigration(1, [{ type: 'write', path: 'decks/Burn.md', content: '# Burn v2\n' }]),
+      fixedMigration(2, [
+        { type: 'rename', from: 'old.txt', to: 'new.txt' },
+        { type: 'delete', path: 'gone.txt' },
+        { type: 'delete', path: 'never-existed.txt' },
+      ]),
+    ]
+
+    const { backupDir } = await applyMigration(await plan({ migrations }))
+
+    if (backupDir === null) throw new Error('expected a backup folder')
+    expect(path.relative(dir, backupDir)).toMatch(/^\.backups[\\/][\dTZ-]+-migration-2$/)
+    expect(await snapshotTree(backupDir)).toEqual({
+      'ritual.config.json': config,
+      'decks/': '',
+      [path.join('decks', 'Burn.md')]: '# Burn\n',
+      'old.txt': 'moved',
+      'gone.txt': 'deleted',
+    })
+    expect(await fs.readFile(path.join(dir, 'decks', 'Burn.md'), 'utf-8')).toBe('# Burn v2\n')
+  })
+
   test('a config changed since planning aborts before anything is written', async () => {
     const dir = await workspace({ site: { ...PUBLISH_SITE, version: '0.1.0' } })
     const pending = await plan()
     const changed = JSON.stringify({ site: { ...PUBLISH_SITE, version: '0.1.0' }, artDir: './x' })
     await fs.writeFile(path.join(dir, 'ritual.config.json'), changed)
+    const before = await snapshotTree(dir)
 
     const failure = await rejection(applyMigration(pending))
 
     expect(failure).toBeInstanceOf(CardCommandError)
-    expect(await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')).toBe(changed)
-    expect(await fileExists(path.join(dir, WORKFLOW))).toBeFalse()
+    // Nothing at all, not even a `.backups` folder.
+    expect(await snapshotTree(dir)).toEqual(before)
+  })
+
+  test('a backup that cannot be taken aborts before any op runs', async () => {
+    const dir = await workspace({})
+    const config = await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')
+    await fs.writeFile(path.join(dir, 'old.txt'), 'kept')
+    // A file where the backup folder should go makes its creation fail.
+    await fs.writeFile(path.join(dir, '.backups'), 'not a directory')
+    const migrations = [fixedMigration(1, [{ type: 'delete', path: 'old.txt' }])]
+
+    await rejection(applyMigration(await plan({ migrations })))
+
+    expect(await fs.readFile(path.join(dir, 'old.txt'), 'utf-8')).toBe('kept')
+    expect(await fs.readFile(path.join(dir, 'ritual.config.json'), 'utf-8')).toBe(config)
   })
 
   test('a refresh rewrites the workflow and appends missing .gitignore entries', async () => {

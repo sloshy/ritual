@@ -189,7 +189,7 @@ Every card line in a list file ends in a stable internal ID, the `&N` suffix (`-
 No other command triggers the backfill, so no other command rewrites the card lines in your list files:
 
 - the read-only commands (`lists`, `diff`, `price`, `sell`, `export`, `get-primer`, `history --show`, `list-all-cards`, `scry`, `card`, ...);
-- the lifecycle commands `new`, `rename`, and `delete`, which create, move, or remove list files but never touch card lines;
+- the lifecycle commands `new`, `rename`, and `delete`, which create, move, or trash list files but never touch card lines;
 - the front-matter-only [`metadata`](/commands/metadata/) command and the front-matter-only modes of `set-list-image`;
 - the [`categories`](/commands/categories/) command, which writes only the categories file;
 - `detect-changes`, in all three of its modes, since a backfill would rewrite the very files it is inspecting (`--hash-only` still writes `.sha256` files, as that is its job).

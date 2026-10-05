@@ -44,11 +44,11 @@ Click **Rename** next to a deck. Renaming:
 
 Click **Delete** next to a deck. You must type the **exact deck name** before the Delete button becomes active.
 
-:::danger
-Deletion is permanent and cannot be undone unless you have git history or a backup.
+:::caution
+Deleting takes the deck out of Ritual, but its files are kept: they move into the workspace's `.trash/` folder, where you can [restore them by hand](/commands/delete/#restoring-a-deleted-list).
 :::
 
-Deleting removes, where present:
+Deleting moves, where present:
 
 - The deck file (`<name>.md`)
 - The content-hash file (`<name>.md.sha256`)
@@ -78,7 +78,7 @@ Click **Rename** next to a collection. Renaming:
 
 ### Deleting a collection
 
-Click **Delete** next to a collection and type the exact collection name to confirm. Deletion removes `<name>.md` and, where present, `<name>.md.sha256`, `<name>.changes.md`, `<name>.art.json`, `<name>.categories.json`, and `<name>.categories.json.sha256`.
+Click **Delete** next to a collection and type the exact collection name to confirm. Deletion moves `<name>.md` into [`.trash/`](/commands/delete/#restoring-a-deleted-list), along with, where present, `<name>.md.sha256`, `<name>.changes.md`, `<name>.art.json`, `<name>.categories.json`, and `<name>.categories.json.sha256`.
 
 ## Wanted Lists
 

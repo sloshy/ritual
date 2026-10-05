@@ -23,6 +23,7 @@ import fs from 'node:fs/promises'
 import matter from 'gray-matter'
 import { computeHash, hashPath, isRitualClean, writeFileWithHash } from '../changes/content-hash'
 import { isRecord } from '../util/json'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /** The outcome of reading a front-matter block's YAML as a key/value mapping. */
 export type FrontMatterMappingResult =
@@ -120,7 +121,7 @@ export async function writeListFrontMatter(
       writtenFiles: [filePath, hashPath(filePath)],
     }
   }
-  await fs.writeFile(filePath, content)
+  await writeFileAtomic(filePath, content)
   return { contentHash: computeHash(content), writtenFiles: [filePath] }
 }
 

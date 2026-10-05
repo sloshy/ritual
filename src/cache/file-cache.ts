@@ -3,7 +3,6 @@ import { mkdir } from 'node:fs/promises'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import {
-  createDefaultFileSystemClient,
   type BulkSetOptions,
   type CacheManager,
   type CacheStreamEntryMeta,
@@ -25,7 +24,6 @@ export function getCacheFile(): string {
 export const DEFAULT_EXPIRATION_MS = 86400000 // 24 hours
 const BLOCKLIST_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
 
-const fileSystem = createDefaultFileSystemClient()
 
 export interface CachedItem<T> {
   timestamp: number
@@ -147,7 +145,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     try {
       const filePath = this.filePathGetter()
       await mkdir(path.dirname(filePath), { recursive: true })
-      await writeFileAtomic(fileSystem, filePath, JSON.stringify(this.memoryCache, null, 2))
+      await writeFileAtomic(filePath, JSON.stringify(this.memoryCache, null, 2))
     } catch (e) {
       getLogger().error('Failed to save cache:', e)
     }

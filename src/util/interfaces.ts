@@ -1,5 +1,5 @@
 import * as fs from 'node:fs/promises'
-import { hasErrorCode } from './errors'
+import { hasErrorCode } from './errno'
 import type { PriceCurrency } from '../pricing/price-currency'
 
 /** A wrapper for making fetch requests and being able to mock responses. */
@@ -51,9 +51,15 @@ export type ExclusiveWriteResult = 'created' | 'exists'
 
 export type MkdirOptions = { recursive?: boolean }
 
+/** How {@link FileSystemClient.writeFile} creates a file. */
+export type WriteFileOptions = {
+  /** Permission bits for a newly created file. */
+  mode?: number
+}
+
 export interface FileSystemClient {
   readFile(path: string, encoding: BufferEncoding): Promise<string>
-  writeFile(path: string, data: string | Uint8Array): Promise<void>
+  writeFile(path: string, data: string | Uint8Array, options?: WriteFileOptions): Promise<void>
   /**
    * Atomically create `path` with `data`, failing softly when it already
    * exists. Returns 'created' when this caller won the creation race.
@@ -72,8 +78,8 @@ export interface FileSystemClient {
 export function createDefaultFileSystemClient(): FileSystemClient {
   return {
     readFile: (filePath, encoding) => fs.readFile(filePath, encoding),
-    writeFile: async (filePath, data) => {
-      await fs.writeFile(filePath, data)
+    writeFile: async (filePath, data, options) => {
+      await fs.writeFile(filePath, data, options)
     },
     writeFileExclusive: async (filePath, data) => {
       try {

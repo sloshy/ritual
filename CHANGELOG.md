@@ -29,6 +29,20 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Changed
 
+- Deleting a list (`ritual delete`, the admin site, or the MCP `delete_list` tool) moves its
+  files into the workspace's `.trash/` folder instead of erasing them, so a deletion can be
+  undone by moving them back. The JSON and API results name the folder in a new `trashDir`.
+- `ritual migrate` (and `init-site`, when it applies pending migrations) copies
+  `ritual.config.json` and every file a numbered migration will rewrite, delete or move into a
+  `.backups/` folder first, and prints the folder.
+- `init-site` and `ritual migrate` add `.trash/` and `.backups/` to the workspace's
+  `.gitignore`.
+- Ritual writes lists, their sidecars and changelogs, `ritual.config.json` and the saved
+  logins through a temporary file and a rename, so a crash or a full disk mid-save can no
+  longer leave one of them truncated. A symlinked file stays a symlink and keeps its
+  permissions. On Linux and macOS, a read-only file no longer stops Ritual from replacing it;
+  only a read-only folder does. In Docker, mount folders rather than single files.
+
 - The cache feed (`cache feed`, `cacheSource: feed`) is marked experimental, and hosted mode
   (`serve --api`) and sell mode on the public and admin sites are marked beta, in the docs
   and in `--help`. `cache server` is labelled for trusted networks only.

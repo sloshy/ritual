@@ -13,6 +13,11 @@ export function setBaseDir(dir: string): void {
   baseDir = path.resolve(dir)
 }
 
+/** `file`'s path relative to the workspace, as a message shows it to the user. */
+export function workspaceRelative(file: string): string {
+  return path.relative(baseDir, file)
+}
+
 /** The error branch of {@link parseBaseDir}: why the value cannot be a base dir. */
 export type BaseDirError = { error: string }
 

@@ -975,7 +975,7 @@ export const adminMeta = {
   },
   'admin.list.deleteWarning': {
     description:
-      'Warning above the delete confirmation. {name} is the list, shown in bold. Only a deck has a primer, which is why the deck branch names one more file.',
+      'Warning above the delete confirmation. {name} is the list, shown in bold. Only a deck has a primer, which is why the deck branch names one more file. ".trash" is a literal folder name in the user\'s workspace; do not translate it.',
   },
   'admin.list.nowHidden': {
     description:
@@ -1601,7 +1601,7 @@ export const adminMeta = {
   },
   'admin.api.list.deleted': {
     description:
-      'Success alert after a list is deleted. {name} is the title it had. One branch per list type; see admin.api.list.created.',
+      'Success alert after a list is deleted. {name} is the title it had; {trash} is the workspace-relative trash folder (e.g. ".trash/2026-10-05T14-03-22Z-deck-Burn") its files were moved into. One branch per list type; see admin.api.list.created.',
   },
   'admin.api.save.saved': {
     description:

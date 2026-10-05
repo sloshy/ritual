@@ -78,7 +78,7 @@ Like a deck's `.primer.md`, the art sidecar is **list metadata**:
 - No change event and **no changelog entry** is recorded for it. The change log is card-level, and which picture a card shows is not a card change.
 - It is not part of the editors' change pipeline. The admin dialog saves immediately through its own route, so setting art there never interacts with pending card edits and needs no save. The CLI editor stages its art edits with the session's card edits and writes the sidecar in the same save, but still records no event.
 - [`detect-changes`](/commands/detect-changes/) does not track hand edits to it, and the list's `.sha256` hash covers the markdown file only.
-- It travels with the list: [`rename`](/commands/rename/), [`cleanup`](/commands/cleanup/)'s renames, and [`delete`](/commands/delete/) move or remove `.art.json` with the other sidecars.
+- It travels with the list: [`rename`](/commands/rename/), [`cleanup`](/commands/cleanup/)'s renames, and [`delete`](/commands/delete/) (into [`.trash/`](/commands/delete/#restoring-a-deleted-list)) move `.art.json` with the other sidecars.
 
 ## Art follows the card
 

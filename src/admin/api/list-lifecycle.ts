@@ -8,6 +8,7 @@ import {
   listLifecycleErrorStatus,
   renameList,
   requireDeleteConfirmation,
+  type DeleteListSuccess,
   type ListLifecycleError,
 } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
@@ -16,6 +17,7 @@ import { apiMessage, type ApiMessage } from '../../api/result'
 import { apiError, readJsonObjectBody } from '../../api/http'
 import { autoCommitAndPush } from './save-helpers'
 import { parseSlugFromUrl } from './target'
+import { workspaceRelative } from '../../config/base-dir'
 
 /**
  * Create / rename / delete for **every** list type.
@@ -55,11 +57,9 @@ export interface ListRenameResponse extends ApiMessage {
   oldFilePath: string
 }
 
-/** `DELETE /api/{deck,collection,wanted}/:slug` — the list is gone. */
-export interface ListDeleteResponse extends ApiMessage {
+/** `DELETE /api/{deck,collection,wanted}/:slug` — the list is gone, its files in the trash. */
+export interface ListDeleteResponse extends ApiMessage, DeleteListSuccess {
   success: true
-  /** Every file removed: the list plus whichever sidecars it had. */
-  deletedFiles: string[]
 }
 
 /** Map a lifecycle-engine refusal onto the shared error envelope. */
@@ -174,8 +174,13 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
 
     const resp: ListDeleteResponse = {
       success: true,
-      ...apiMessage('admin.api.list.deleted', { listType: cfg.kind, name: displayName }),
+      ...apiMessage('admin.api.list.deleted', {
+        listType: cfg.kind,
+        name: displayName,
+        trash: workspaceRelative(result.trashDir),
+      }),
       deletedFiles: result.deletedFiles,
+      trashDir: result.trashDir,
     }
     return Response.json(resp)
   })

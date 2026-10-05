@@ -79,7 +79,9 @@ that resolves to an existing list of the same type — \`atraxa superfriends\` b
 \`Atraxa Superfriends\` is an error, not a second deck — so no two lists ever share
 one addressable name; re-spelling a list's own name (capitalization, punctuation) is
 allowed. \`rename --output json\` returns \`newFilePath\`/\`oldFilePath\`, and
-\`delete --output json\` returns \`deletedFiles\`. \`ritual diff <listA> <listB>\` compares any two lists by card name
+\`delete --output json\` returns \`deletedFiles\` and \`trashDir\`: a deleted list's files move into the
+workspace's \`.trash/<time>-<type>-<slug>/\` folder (\`trashDir\` is absolute; workspace-relative paths kept
+inside it), so moving them back restores it. \`ritual diff <listA> <listB>\` compares any two lists by card name
 (\`--by printing\` for exact printings).
 
 **File naming:** creating a list names its file exactly as the list is named — case,

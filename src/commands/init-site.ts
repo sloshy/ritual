@@ -42,7 +42,7 @@ import {
   RUNNING_BUILD,
   type MigrationPlan,
 } from '../migrate/runner'
-import { getBaseDir } from '../config/base-dir'
+import { getBaseDir, workspaceRelative } from '../config/base-dir'
 import { fileExists } from '../util/fs'
 import { promptsUnavailable, requireInteractive } from '../util/no-input'
 import { t } from '../i18n/t'
@@ -56,6 +56,7 @@ import { TEXT_ONLY } from '../cli/output'
 import type { Choice } from 'prompts'
 import { parseEnumFlag, parsePriceSourceFlag } from '../cli/options'
 import { ask } from '../cli/prompts'
+import { writeFileAtomic } from '../util/atomic-write'
 
 /**
  * The build command the scaffolding tells the user to run.
@@ -204,7 +205,7 @@ Make sure GitHub Pages is enabled in your repository settings:
 }
 
 async function promptOverwrite(filePath: string): Promise<boolean> {
-  const relativePath = path.relative(getBaseDir(), filePath)
+  const relativePath = workspaceRelative(filePath)
   const overwrite = await ask<boolean>({
     type: 'confirm',
     message: t('cli.initSite.promptOverwrite', { path: relativePath }),
@@ -275,7 +276,7 @@ export async function maybeInstallSkills(
   if (!install) return
 
   const skillsDir = resolveSkillsDir({})
-  const relativeDir = path.relative(getBaseDir(), skillsDir)
+  const relativeDir = workspaceRelative(skillsDir)
   const results = await installSkills(SKILLS, skillsDir, { force })
   printSkillsWriteSummary(results, {
     verb: 'installedIn',
@@ -300,7 +301,7 @@ async function writeFileWithOverwritePrompt(
     if (!shouldOverwrite) return 'skipped'
   }
   await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, content, 'utf-8')
+  await writeFileAtomic(filePath, content)
   return 'written'
 }
 
@@ -331,7 +332,7 @@ async function writeReadme(
     }
   }
   await fs.mkdir(path.dirname(filePath), { recursive: true })
-  await fs.writeFile(filePath, content, 'utf-8')
+  await writeFileAtomic(filePath, content)
   return 'written'
 }
 
@@ -394,7 +395,10 @@ async function planInitMigrations(): Promise<MigrationPlan | null> {
  */
 async function applyInitMigrations(plan: MigrationPlan | null): Promise<void> {
   if (plan !== null && hasPendingMigrations(plan)) {
-    await applyMigration({ ...plan, refresh: null })
+    const { backupDir } = await applyMigration({ ...plan, refresh: null })
+    if (backupDir !== null) {
+      console.log(t('cli.migrate.backedUp', { path: workspaceRelative(backupDir) }))
+    }
   }
 }
 

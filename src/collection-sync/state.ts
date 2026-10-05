@@ -10,7 +10,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
+import { getLoginsDir, writePrivateJson } from '../auth/logins-dir'
 
 export type CollectionSyncState = {
   /** ISO timestamp of the last completed (non-dry) sync. */
@@ -100,10 +100,7 @@ export async function readCollectionSyncState(): Promise<CollectionSyncState | n
 
 /** Record a completed sync, creating the private logins directory if needed. */
 export async function writeCollectionSyncState(state: CollectionSyncState): Promise<void> {
-  await ensureLoginsDir()
-  await fs.writeFile(collectionSyncStatePath(), `${JSON.stringify(state, null, 2)}\n`, {
-    mode: 0o600,
-  })
+  await writePrivateJson(collectionSyncStatePath(), state)
 }
 
 /** The production state store: the JSON file beside the token store. */

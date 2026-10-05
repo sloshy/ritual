@@ -32,6 +32,7 @@ import { printingKey } from '../card/printing-key'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
+import { writeFileAtomic } from '../util/atomic-write'
 
 export { INCLUDE_ALL } from './list-selection'
 export type { SiteSelectionConfig } from './list-selection'
@@ -1103,7 +1104,7 @@ export async function readRawRitualConfig(): Promise<RawConfig | null> {
  * {@link RitualConfig}.
  */
 export async function writeRawRitualConfig(raw: RawConfig): Promise<void> {
-  await fs.writeFile(getRitualConfigPath(), JSON.stringify(raw, null, 2) + '\n', 'utf-8')
+  await writeFileAtomic(getRitualConfigPath(), JSON.stringify(raw, null, 2) + '\n')
 }
 
 /**

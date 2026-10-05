@@ -539,6 +539,10 @@ export const cliInfraMeta = {
     description:
       'A numbered migration was applied. {id} is its number; {description} is one of the cli.migrate.migration.* messages.',
   },
+  'cli.migrate.backedUp': {
+    description:
+      'Printed after migrations ran. {path} is the workspace-relative backup folder (e.g. ".backups/2026-10-05T14-03-22Z-migration-4") holding copies of ritual.config.json and every file the migrations rewrote, removed or moved, taken before they ran.',
+  },
   'cli.migrate.wrote': { description: 'A generated file was rewritten. {path} is relative.' },
   'cli.migrate.skillUpdated': { description: 'An installed agent skill {name} was rewritten.' },
   'cli.migrate.skillRemoved': {

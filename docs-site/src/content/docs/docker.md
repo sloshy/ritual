@@ -95,12 +95,16 @@ An empty `dist/` mount is fine: `--api` builds the site on startup when there is
 
 Mount these directories to keep your data and work with the files Ritual uses:
 
-| Host Directory  | Container Directory | Purpose                                         |
-| :-------------- | :------------------ | :---------------------------------------------- |
-| `./dist`        | `/app/dist`         | The generated static website files.             |
-| `./decks`       | `/app/decks`        | Your Magic: The Gathering deck files (`.md`).   |
-| `./collections` | `/app/collections`  | Your card collection files.                     |
-| `./wanted`      | `/app/wanted`       | Your wanted-list files.                         |
-| `./art`         | `/app/art`          | [Custom card art](/custom-art/) (optional).     |
-| `./cache`       | `/app/cache`        | Cached card data and images from Scryfall.      |
-| `./.logins`     | `/app/.logins`      | Authentication tokens for sites like Archidekt. |
+| Host Directory  | Container Directory | Purpose                                                                                     |
+| :-------------- | :------------------ | :------------------------------------------------------------------------------------------ |
+| `./dist`        | `/app/dist`         | The generated static website files.                                                         |
+| `./decks`       | `/app/decks`        | Your Magic: The Gathering deck files (`.md`).                                               |
+| `./collections` | `/app/collections`  | Your card collection files.                                                                 |
+| `./wanted`      | `/app/wanted`       | Your wanted-list files.                                                                     |
+| `./art`         | `/app/art`          | [Custom card art](/custom-art/) (optional).                                                 |
+| `./cache`       | `/app/cache`        | Cached card data and images from Scryfall.                                                  |
+| `./.logins`     | `/app/.logins`      | Authentication tokens for sites like Archidekt.                                             |
+| `./.trash`      | `/app/.trash`       | Lists you [delete](/commands/delete/#restoring-a-deleted-list), kept for restoring.         |
+| `./.backups`    | `/app/.backups`     | Copies [`ritual migrate`](/commands/migrate/#numbered-migrations) takes before a migration. |
+
+Without the last two mounts, deleted lists and migration backups live in the container's own filesystem and are lost when the container is recreated. Mount directories rather than single files: Ritual saves a file by writing a new copy and renaming it into place, which a single-file bind mount does not allow, so such a file is written in place instead, without that protection.

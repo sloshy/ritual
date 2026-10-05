@@ -133,22 +133,22 @@ If you work in this repository with a coding agent (such as Claude Code), answer
 
 ### GitHub Actions
 
-| File                                | Description                                                                                                                                                                                              |
-| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                          |
-| `ritual.config.json`                | Your settings (`site` key) and Ritual's bookkeeping (`managed` key). Commit this file.                                                                                                                   |
-| `README.md`                         | Basic setup instructions for your site                                                                                                                                                                   |
-| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the [`.dist-build-*`/`.dist-old-*` build scratch directories](/commands/build-site/#scratch-directories-beside-the-output), etc. Appended if the file exists. |
+| File                                | Description                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.github/workflows/deploy-site.yml` | GitHub Actions workflow for deploying to GitHub Pages (tracked)                                                                                                                                                                                                                                                                         |
+| `ritual.config.json`                | Your settings (`site` key) and Ritual's bookkeeping (`managed` key). Commit this file.                                                                                                                                                                                                                                                  |
+| `README.md`                         | Basic setup instructions for your site                                                                                                                                                                                                                                                                                                  |
+| `.gitignore`                        | Entries for `cache/`, `dist/`, `exports/`, the [`.trash/`](/commands/delete/#restoring-a-deleted-list) and [`.backups/`](/commands/migrate/#numbered-migrations) folders, the [`.dist-build-*`/`.dist-old-*` build scratch directories](/commands/build-site/#scratch-directories-beside-the-output), etc. Appended if the file exists. |
 
 A local-build deploy leaves its built-site directory out of `.gitignore` and un-ignores it instead.
 
 ### Manual / None
 
-| File                 | Description                                                                  |
-| -------------------- | ---------------------------------------------------------------------------- |
-| `ritual.config.json` | Your settings (`site`) and Ritual's bookkeeping (`managed`). Commit it.      |
-| `README.md`          | Basic setup instructions for your site                                       |
-| `.gitignore`         | Entries for `cache/`, `dist/`, `exports/`, etc. Appended if the file exists. |
+| File                 | Description                                                                                                                                                                                                 |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ritual.config.json` | Your settings (`site`) and Ritual's bookkeeping (`managed`). Commit it.                                                                                                                                     |
+| `README.md`          | Basic setup instructions for your site                                                                                                                                                                      |
+| `.gitignore`         | Entries for `cache/`, `dist/`, `exports/`, the [`.trash/`](/commands/delete/#restoring-a-deleted-list) and [`.backups/`](/commands/migrate/#numbered-migrations) folders, etc. Appended if the file exists. |
 
 If a generated file already exists, you are prompted before it is overwritten; `--force` overwrites without asking. For `README.md`, `--overwrite-readme` / `--no-overwrite-readme` decide without a prompt and take precedence over `--force`. In a headless run, an existing file with no decision flag is a usage error.
 
@@ -184,7 +184,7 @@ It also stamps the [`managed` block](/configuration/#ritual-bookkeeping-managed-
 
 Re-running `init-site` on an initialized repository never changes it. It prints `Already initialized and up to date; nothing to do.` when nothing is pending, or tells you to run [`ritual migrate`](/commands/migrate/) when the new Ritual has migrations or regenerated files for the workspace, or, for a "Publish for me" workspace, is a newer release than the [CI pin](#the-pinned-ritual-release-github-actions). Either way it exits `0`, so an "ensure initialized" script can run it unconditionally. A workspace a newer Ritual already updated, or whose config cannot be made valid, is refused with exit `1` and the same message `ritual migrate` gives, which names the [`ritual self-update --tag`](/commands/self-update/#installing-a-specific-release) command that installs the release it needs.
 
-A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it applies any pending migrations before writing its files. If you keep an existing workflow at the overwrite prompt, the generated-files hash is left unrecorded, so `ritual migrate` later offers to regenerate it.
+A fresh init or a `--force` re-init also refuses such a workspace. Otherwise it applies any pending migrations before writing its files, copying what they change into `.backups/` first, as [`ritual migrate`](/commands/migrate/#numbered-migrations) does. If you keep an existing workflow at the overwrite prompt, the generated-files hash is left unrecorded, so `ritual migrate` later offers to regenerate it.
 
 `ritual migrate` is what brings the workspace up to date: it rewrites the workflow from your saved settings (so older workflows pick up template changes), appends `.gitignore` entries added by newer versions (for a **local-build** deploy, this is how an older scaffold gets the `!<distDir>/` un-ignore), and refreshes installed [agent skills](/commands/skills/). Preview it with `ritual migrate --dry-run`. You rarely need to remember it: every other command [offers to migrate, or prints a one-line notice](/commands/migrate/#when-ritual-offers-to-migrate), when updates are pending. The generated GitHub Actions workflow runs with `CI` set, so its `build-site` step only prints the notice and never prompts.
 

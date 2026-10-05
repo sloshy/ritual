@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
+import { getLoginsDir, writePrivateJson } from '../auth/logins-dir'
 import { secretsEqual } from '../util/secret-compare'
 import { MIN_PASSWORD_LENGTH } from './validation'
 
@@ -39,11 +39,8 @@ export async function createAdminUser(username: string, password: string): Promi
 
   const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 10 })
 
-  await ensureLoginsDir()
   const credentials: AdminCredentials = { username, passwordHash }
-  await fs.writeFile(getAuthFilePath(), JSON.stringify(credentials, null, 2), {
-    mode: 0o600,
-  })
+  await writePrivateJson(getAuthFilePath(), credentials)
 }
 
 /**
@@ -63,7 +60,7 @@ export async function resetAdminPassword(password: string, username?: string): P
     credentials.username = username
   }
 
-  await fs.writeFile(getAuthFilePath(), JSON.stringify(credentials, null, 2), { mode: 0o600 })
+  await writePrivateJson(getAuthFilePath(), credentials)
   return credentials.username
 }
 
@@ -121,5 +118,5 @@ export async function setTotpSecret(secret: string | null): Promise<void> {
     credentials.totpSecret = secret
   }
 
-  await fs.writeFile(getAuthFilePath(), JSON.stringify(credentials, null, 2), { mode: 0o600 })
+  await writePrivateJson(getAuthFilePath(), credentials)
 }

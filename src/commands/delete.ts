@@ -5,6 +5,7 @@ import {
   isListLifecycleError,
   listDisplayName,
   requireDeleteConfirmation,
+  type DeleteListSuccess,
 } from '../list/list-lifecycle'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
@@ -14,6 +15,7 @@ import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../c
 import { resolveListSelection } from './card-target'
 import { cancelledError, runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
 import { requireInteractive } from '../util/no-input'
+import { workspaceRelative } from '../config/base-dir'
 import { ask } from '../cli/prompts'
 import {
   emitOutput,
@@ -24,12 +26,11 @@ import {
 
 type DeleteOptions = ListTypeFlags & { confirm?: string } & Partial<ScriptingOptions>
 
-type DeleteResult = {
+/** What `--output json` reports: the list, plus where its files went. */
+type DeleteResult = DeleteListSuccess & {
   type: ListType
   slug: string
   deleted: true
-  /** Every file removed: the list plus whichever sidecars it had. */
-  deletedFiles: string[]
 }
 
 export function registerDeleteCommand(program: Command): void {
@@ -87,7 +88,14 @@ export async function runDelete(
 
   if (scripting.output === 'text') {
     if (!scripting.quiet) {
-      emitOutput(t('cli.delete.deleted', { type: resolved.type, name: displayName }), scripting)
+      emitOutput(
+        t('cli.delete.deleted', {
+          type: resolved.type,
+          name: displayName,
+          trash: workspaceRelative(result.trashDir),
+        }),
+        scripting,
+      )
     }
     return
   }
@@ -97,6 +105,7 @@ export async function runDelete(
     slug,
     deleted: true,
     deletedFiles: result.deletedFiles,
+    trashDir: result.trashDir,
   }
   emitOutput(payload, scripting)
 }

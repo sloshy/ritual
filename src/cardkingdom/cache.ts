@@ -158,5 +158,5 @@ export async function saveCardKingdomCache(
   fs: FileSystemClient = createDefaultFileSystemClient(),
 ): Promise<void> {
   await fs.mkdir(getCacheDir(), { recursive: true })
-  await writeFileAtomic(fs, getCardKingdomCachePath(), JSON.stringify(file))
+  await writeFileAtomic(getCardKingdomCachePath(), JSON.stringify(file), { fs })
 }

@@ -261,9 +261,7 @@ export function ListManager(): JSX.Element {
       apiMessage('admin.list.createFailed', { listType: m.listType }),
     )
     if (ok) {
-      // The API says exactly this after a create; reusing its key keeps the two
-      // paths from drifting into two translations of one sentence.
-      setStatus(apiMessage('admin.api.list.created', { listType: m.listType, name: trimmed }))
+      // `run` already shows the server's message.
       resetForms()
       setView('list')
       await fetchItems()
@@ -286,7 +284,7 @@ export function ListManager(): JSX.Element {
       apiMessage('admin.list.renameFailed', { listType: m.listType }),
     )
     if (ok) {
-      setStatus(apiMessage('admin.api.list.renamed', { listType: m.listType, name: trimmed }))
+      // `run` already shows the server's message.
       resetForms()
       setView('list')
       await fetchItems()
@@ -308,7 +306,7 @@ export function ListManager(): JSX.Element {
       apiMessage('admin.list.deleteFailed', { listType: m.listType }),
     )
     if (ok) {
-      setStatus(apiMessage('admin.api.list.deleted', { listType: m.listType, name: item.name }))
+      // `run` already shows the server's message, which names the trash folder.
       resetForms()
       setView('list')
       await fetchItems()
