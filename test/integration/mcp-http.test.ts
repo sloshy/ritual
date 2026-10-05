@@ -352,6 +352,20 @@ describe('ritual mcp CLI flag gate', () => {
     })
   })
 
+  test('a busy port is a one-line error and exit code 1, not a crash', async () => {
+    const busy = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: () => new Response('busy') })
+    try {
+      await withTempDir(async (dir) => {
+        const port = String(busy.port)
+        const result = await runCli(['mcp', '--transport', 'http', '-p', port], dir)
+        expect(result.exitCode).toBe(1)
+        expect(result.stderr).toContain(`Failed to start the server on 127.0.0.1:${port}`)
+      })
+    } finally {
+      await busy.stop(true)
+    }
+  })
+
   test('--allow-unauthenticated is accepted by the option parser', async () => {
     await withTempDir(async (dir) => {
       // An invalid port keeps the command from actually binding a server; the

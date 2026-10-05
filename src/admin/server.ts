@@ -70,6 +70,7 @@ import {
 } from './api/list-lifecycle'
 import type { ApiErrorResponse } from '../api/http'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
+import { startServerOrThrow } from '../util/start-server'
 
 const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
@@ -668,19 +669,21 @@ export async function startAdminServer(options: AdminServerOptions): Promise<Adm
     ),
   )
 
-  const server = Bun.serve({
-    port,
-    hostname: host,
-    maxRequestBodySize: MAX_ADMIN_REQUEST_BODY_SIZE,
-    async fetch(req) {
-      const response = await handleRequest(req, server, distDir)
-      return withSecurityHeaders(response)
-    },
-    error(error) {
-      console.error('Unhandled server error:', error)
-      return Response.json({ error: 'Internal server error' }, { status: 500 })
-    },
-  })
+  const server: Bun.Server<undefined> = startServerOrThrow({ host, port }, () =>
+    Bun.serve({
+      port,
+      hostname: host,
+      maxRequestBodySize: MAX_ADMIN_REQUEST_BODY_SIZE,
+      async fetch(req) {
+        const response = await handleRequest(req, server, distDir)
+        return withSecurityHeaders(response)
+      },
+      error(error) {
+        console.error('Unhandled server error:', error)
+        return Response.json({ error: 'Internal server error' }, { status: 500 })
+      },
+    }),
+  )
 
   console.log(`Ritual Admin running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`)
 

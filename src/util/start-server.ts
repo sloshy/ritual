@@ -1,4 +1,4 @@
-import { getErrorMessage } from './errors'
+import { ExitCode, getErrorMessage, localizedCommandError } from './errors'
 
 /**
  * The part of a bound listener this module needs to know about.
@@ -20,10 +20,9 @@ export type StartServerResult<T extends BoundServer> =
  * Run `start` (a `Bun.serve` call, or a synchronous wrapper around one) and turn
  * a start failure — nearly always `EADDRINUSE` — into a typed result, so a busy
  * port is a message and an exit code rather than an uncaught throw with a stack
- * trace. `serve`, `cache server` and `cache feed host` bind through this; the
- * `admin` and `mcp` binds do not yet. It lives in `util` rather than in `serve`
- * because it depends on nothing but `getErrorMessage`, so the two cache servers
- * reach it without importing the site-serving layer.
+ * trace. Every Ritual server binds through this or {@link startServerOrThrow}.
+ * It lives in `util` rather than in `serve` so the cache servers, the admin and
+ * the MCP server reach it without importing the site-serving layer.
  */
 export function tryStartServer<T extends BoundServer>(start: () => T): StartServerResult<T> {
   try {
@@ -31,4 +30,24 @@ export function tryStartServer<T extends BoundServer>(start: () => T): StartServ
   } catch (e) {
     return { ok: false, error: getErrorMessage(e) }
   }
+}
+
+/** Where a server tried to listen, for {@link startServerOrThrow}'s message. */
+export type ListenAddress = { host: string; port: number }
+
+/**
+ * {@link tryStartServer} for a caller that reports failures by throwing: a bind
+ * failure becomes the same localized runtime error `serve` prints (exit 1).
+ */
+export function startServerOrThrow<T extends BoundServer>(
+  address: ListenAddress,
+  start: () => T,
+): T {
+  const started = tryStartServer(start)
+  if (started.ok) return started.server
+  throw localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.serve.startFailed', {
+    host: address.host,
+    port: address.port,
+    error: started.error,
+  })
 }

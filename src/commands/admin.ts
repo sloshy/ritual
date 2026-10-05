@@ -227,9 +227,8 @@ export function registerAdminCommand(program: Command): void {
       // in-app logo (the admin has no live theme switcher, so this is static).
       await Bun.write(path.join(adminDistDir, 'app.svg'), buildFlameSvg(themeFlameStops(themeName)))
 
-      console.log(t('cli.admin.ready'))
-
       const adminServer = await startAdminServer({ port, host, distDir: adminDistDir })
+      console.log(t('cli.admin.ready'))
 
       // A fresh workspace answers setup only to the holder of this token, which
       // is printed here and nowhere else; see `src/admin/setup-token.ts`.
@@ -238,11 +237,15 @@ export function registerAdminCommand(program: Command): void {
       }
 
       // Same process, separate port; bearer-token auth like standalone `ritual mcp`.
+      // A failed MCP bind must not leave the admin listener holding the process.
       const mcpServer = embeddedMcp
         ? await runHttpServer({
             port: embeddedMcp.port,
             host,
             auth: { kind: 'bearer', token: embeddedMcp.token },
+          }).catch(async (error: unknown) => {
+            await adminServer.stop(true)
+            throw error
           })
         : undefined
 
