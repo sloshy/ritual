@@ -5,15 +5,15 @@ import { createSignal, createMemo, For, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
-import { useT } from '../ui/i18n'
-import { displayFinish, type Finish } from '../card/finish-condition'
-import { storedLanguage } from '../card/card-language'
+import { useI18n, useT } from '../ui/i18n'
+import type { Finish } from '../card/finish-condition'
+import { languageLabel, storedLanguage } from '../card/card-language'
 import { ListDescriptionSection } from './ListDescription'
 import { PageCountAndTotal } from './PageStats'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { WantedListCardEntry } from '../list/site-data'
-import { pricesEnabled, sitePriceForFinish } from '../list-view/price-view'
+import { pricesEnabled, sitePriceForEntry } from '../list-view/price-view'
 import { type CardData, type GroupBy, type SortBy } from '../list-view/card-sorting'
 import { CardModal } from '../list-view/CardModal'
 import { ListPageShell, type ListPageChangelog, type ListPageExport } from './ListPageShell'
@@ -81,6 +81,7 @@ type WantedListPageProps = FlatListPageProps<WantedListCardEntry, WantedBulkEdit
 
 export const WantedListPage: Component<WantedListPageProps> = (props) => {
   const t = useT()
+  const { locale } = useI18n()
 
   // Section order, including any empty sections from the build/save payload; falls back to the
   // sections discovered in the entries (in file order) when not provided.
@@ -180,7 +181,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
       // not flatly as nonfoil: a foil-only printing has no nonfoil price to quote.
       const price = isPricelessCard(pricelessFacts(entry))
         ? 0
-        : sitePriceForFinish(card, displayFinish(card, entry.finish), props.currency)
+        : sitePriceForEntry(card, entry, props.currency)
       return { ...entry, price }
     })
   })
@@ -396,6 +397,8 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         value: finishName(t, entry.finish),
       })
     }
+    const language = storedLanguage(entry.language)
+    if (language) parts.push({ label: 'language', value: languageLabel(language, locale()) })
     const stateLabel = wantedStateLabel(t, entry.state)
     if (stateLabel !== undefined) {
       parts.push({ label: 'specificity', value: stateLabel })

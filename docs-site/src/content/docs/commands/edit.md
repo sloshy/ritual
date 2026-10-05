@@ -91,7 +91,7 @@ Lists can be created from the `➕ New …` items in the selection menu, and fro
 
 ## Switching Lists
 
-Inside a list session, `🔀 Switch List` backs out to the selection menu, keeping the list's unsaved changes in memory. Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main card prompt does the same. Reopening a list you already edited resumes where you left off, pending changes and undo history included.
+Inside a list session, `🔀 Switch List` backs out to the selection menu, keeping the list's unsaved changes in memory. Pressing <kbd>Esc</kbd>/<kbd>Ctrl-C</kbd> at the main card prompt does the same; with a name half typed, the first <kbd>Esc</kbd> clears it instead, here and in every other card search. Reopening a list you already edited resumes where you left off, pending changes and undo history included.
 
 The session filters (sets, finish, condition, entry mode, and the deck target section) are shared across every list you open. The condition applies to decks and collections only; wanted lists have no condition.
 

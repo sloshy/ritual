@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { PassThrough } from 'node:stream'
 import prompts, { type Choice } from 'prompts'
 import {
   ask,
@@ -44,6 +45,51 @@ describe('ask under --no-input', () => {
     } finally {
       setNoInputOverride(undefined)
     }
+  })
+})
+
+/** A stdin the `prompts` library accepts as a terminal. */
+type FakeTtyStdin = PassThrough & { isTTY: boolean; setRawMode: () => void }
+
+describe('ask with an autocomplete', () => {
+  test('a first Esc clears the typed text and keeps the prompt open; a second backs out', async () => {
+    const stdin = new PassThrough() as FakeTtyStdin
+    stdin.isTTY = true
+    stdin.setRawMode = () => undefined
+    let settled = false
+    const answer = ask<string>({
+      type: 'autocomplete',
+      message: 'Card name?',
+      choices: [{ title: 'Sol Ring', value: 'Sol Ring' }],
+      stdin,
+      stdout: new PassThrough(),
+    }).finally(() => {
+      settled = true
+    })
+
+    // A lone ESC only becomes a keypress after readline's escape timeout, so
+    // wait for the keypress itself (registered after the prompt's own handler,
+    // then one more turn for it to settle) rather than for a guessed delay.
+    const pressed = (name: string): Promise<void> =>
+      new Promise((resolve) => {
+        const onKey = (_text: unknown, key?: { name?: string }): void => {
+          if (key?.name !== name) return
+          stdin.off('keypress', onKey)
+          setImmediate(resolve)
+        }
+        stdin.on('keypress', onKey)
+      })
+
+    stdin.write('Sol')
+    const firstEsc = pressed('escape')
+    stdin.write('\x1b')
+    await firstEsc
+    expect(settled).toBeFalse()
+
+    const secondEsc = pressed('escape')
+    stdin.write('\x1b')
+    await secondEsc
+    expect(await answer).toBeUndefined()
   })
 })
 

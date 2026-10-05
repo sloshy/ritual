@@ -500,6 +500,24 @@ describe('buildCombinedCards — proxies and custom art', () => {
     expect(cards.map((card) => card.price)).toEqual([4.5, 4.5, 9.99, 9.99])
   })
 
+  test('a deck line prices at its own finish token', () => {
+    const deck = pricedDeck()
+    const foilRing = makeScryfallCard({
+      ...PRICED_SOL_RING,
+      finishes: ['nonfoil', 'foil'],
+      prices: { usd: '4.50', usd_foil: '20.00' },
+    })
+    const detail = deck.detail as unknown as {
+      deck: { sections: { cards: { finish?: string }[] }[] }
+      printings: Record<string, ScryfallCard[]>
+    }
+    detail.printings['Sol Ring'] = [foilRing]
+    detail.deck.sections[0]!.cards[0]!.finish = 'foil'
+
+    const [card] = buildCombinedCards([deck], 'usd', false)
+    expect(card!.price).toBe(20)
+  })
+
   test.each(PRICELESS_ENTRY_CASES)(
     '%s prices a collection card at 0, whatever the printing is worth',
     (_label, override) => {

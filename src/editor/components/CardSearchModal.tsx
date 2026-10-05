@@ -351,7 +351,8 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
           const imageUrl = getCardImageUrl(cheapest)
           if (imageUrl) {
             cardImageCache.set(cardName, imageUrl)
-            setPreviewCard({ name: cardName, imageUrl })
+            // The results may have moved on (newer typing, Esc) while this loaded.
+            if (results().includes(cardName)) setPreviewCard({ name: cardName, imageUrl })
           }
         }
       }
@@ -369,6 +370,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     }
     try {
       const names = await props.search.autocomplete(searchQuery)
+      // A late answer for text the user has since changed or cleared (Esc, a
+      // reset) must not fill the search back in.
+      if (searchQuery !== typedQuery) return
       setResults(names)
       setHighlightedIndex(names.length > 0 ? 0 : -1)
       const firstName = names[0]
@@ -534,6 +538,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
 
   // Keyboard navigation for search results
   const handleSearchKeyDown = (e: KeyboardEvent) => {
+    // An IME owns Escape and Enter while composing (Safari reports keyCode 229
+    // just after compositionend).
+    if (e.isComposing || e.keyCode === 229) return
     const currentResults = results()
     const currentIndex = highlightedIndex()
     if (e.key === 'ArrowDown') {
@@ -565,6 +572,19 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
       const index = currentIndex >= 0 ? currentIndex : 0
       const name = currentResults[index]
       if (name) void selectCardName(name)
+    } else if (e.key === 'Escape') {
+      // Esc clears what was typed first; only an empty search lets it through
+      // to the dialog, which closes. The printing step's filter works the same.
+      if (query() === '') return
+      e.preventDefault()
+      e.stopPropagation()
+      if (searchTimeout) clearTimeout(searchTimeout)
+      searchTimeout = null
+      typedQuery = ''
+      setQuery('')
+      setResults([])
+      setHighlightedIndex(-1)
+      setPreviewCard(null)
     } else if (e.key === 'Backspace') {
       if (currentIndex >= 0 && query() !== typedQuery) {
         e.preventDefault()

@@ -34,6 +34,11 @@ export type PromptState = { exited: boolean }
 export type UndeclaredPromptOptions = {
   /** Row shown in place of the choice list when an autocomplete matches nothing. */
   noMatches?: string
+  /**
+   * Whether Esc in an autocomplete first clears typed text before exiting
+   * (`lib/elements/autocomplete.js`). {@link ask} turns it on by default.
+   */
+  clearFirst?: boolean
 }
 
 /**
@@ -127,7 +132,8 @@ function promptLibraryStrings(): PromptLibraryStrings {
 
 /**
  * Run a single `prompts` question and return its answer, or `undefined` when
- * the user cancels (Ctrl-C / Esc). Wraps the library's `onState` exit-detection
+ * the user cancels (Ctrl-C / Esc; in an autocomplete, Esc on text already typed
+ * clears it first). Wraps the library's `onState` exit-detection
  * dance so wizard-style commands don't have to repeat it per question.
  *
  * Every prompt in the CLI passes through here, which makes this the one place
@@ -146,7 +152,13 @@ export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
     throw inputRequiredError(label)
   }
   let exited = false
-  const { subjectKey: _subjectKey, ...libraryQuestion } = question
+  const { subjectKey: _subjectKey, ...asked } = question
+  // Esc in a search clears what was typed before it backs out a level; a
+  // question that wants otherwise passes `clearFirst: false`.
+  const libraryQuestion: Omit<AskQuestion, 'subjectKey'> = {
+    ...asked,
+    clearFirst: asked.clearFirst ?? asked.type === 'autocomplete',
+  }
   const response = (await prompts({
     ...promptLibraryStrings(),
     ...libraryQuestion,

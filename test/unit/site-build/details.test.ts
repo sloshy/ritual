@@ -230,6 +230,53 @@ describe('buildDeckArtifacts', () => {
     expect(summary.estimatedPriceCount).toBe(1)
   })
 
+  test('each line prices at the finish it shows: its own token, else the printing’s default', async () => {
+    const foilOnly = makeScryfallCard({
+      id: 'bolt-foil-only',
+      name: 'Lightning Bolt',
+      set: 'sld',
+      collector_number: '9',
+      finishes: ['foil'],
+      prices: { usd: null, usd_foil: '5.00' },
+      image_uris: imageUris('https://img/bolt-sld.jpg'),
+    })
+    const { ctx } = makeContext({
+      cardData: {
+        ...cardData,
+        printings: { ...cardData.printings, 'Lightning Bolt': [bolt, boltCheap, foilOnly] },
+      },
+      currencies: ['usd'],
+    })
+    const finishes: LoadedDeck = {
+      ...deck,
+      data: {
+        ...deck.data,
+        sections: [
+          {
+            name: 'Mainboard',
+            cards: [
+              // A `[foil]` token reads the foil price ($1.20, not the $0.50 nonfoil)…
+              {
+                name: 'Serra Angel',
+                quantity: 1,
+                set: 'fdn',
+                collectorNumber: '35',
+                finish: 'foil',
+              },
+              // …and a foil-only printing with no token reads its only finish.
+              { name: 'Lightning Bolt', quantity: 2, set: 'sld', collectorNumber: '9' },
+            ],
+          },
+        ],
+      },
+    }
+    const { summary } = await buildDeckArtifacts(finishes, ctx)
+
+    expect(summary.totalPrice).toBeCloseTo(1.2 + 2 * 5)
+    // …and neither line counts as missing a price.
+    expect(summary.missingPriceCount).toBe(0)
+  })
+
   test('a pinned printing unpriced in one currency is an estimate in that currency only', async () => {
     const eurless = makeScryfallCard({ ...bolt, prices: { usd: '100.00', tix: '1.50' } })
     const { ctx } = makeContext({
@@ -1861,6 +1908,54 @@ describe('Card Kingdom printing selection', () => {
       expect(summary.missingPriceCountCardKingdom).toBe(0)
       // The line names no printing, so its CK price is an estimate too.
       expect(summary.estimatedPriceCountCardKingdom).toBe(4)
+    })
+
+    test('a pinned deck line reads CK at its own finish, and a [ja] copy has no CK price', async () => {
+      const pinned: LoadedDeck = {
+        ...deck,
+        data: {
+          name: 'CK Deck',
+          sections: [
+            {
+              name: 'Mainboard',
+              cards: [
+                {
+                  name: 'Serra Angel',
+                  quantity: 1,
+                  set: 'fdn',
+                  collectorNumber: '35',
+                  finish: 'foil',
+                },
+                {
+                  name: 'Serra Angel',
+                  quantity: 1,
+                  set: 'fdn',
+                  collectorNumber: '35',
+                  language: 'ja',
+                },
+              ],
+            },
+          ],
+        },
+      }
+      const { ctx } = makeContext({
+        cardData: {
+          ...deckCardData,
+          cards: { ...deckCardData.cards, 'Serra Angel': angel },
+          printings: { ...deckCardData.printings, 'Serra Angel': [angel] },
+        },
+        currencies: ['usd'],
+        buylist: stubBuylist(
+          { ...ckQuotes, 'fdn:35:foil': makeBuylistQuote({ priceRetail: 3, name: 'Serra Angel' }) },
+          true,
+        ).ctx,
+      })
+
+      const { summary } = await buildDeckArtifacts(pinned, ctx)
+
+      // The foil quote ($3), not the nonfoil ($0.75); the Japanese copy is not
+      // the buyer's to price, so it adds nothing.
+      expect(summary.totalPriceCardKingdom).toBeCloseTo(3)
     })
 
     test('a pinned deck line CK does not stock is missing and estimated under CK only', async () => {

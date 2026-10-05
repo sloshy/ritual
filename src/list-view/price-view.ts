@@ -14,7 +14,12 @@
 
 import { batch, createSignal, type Accessor } from 'solid-js'
 import { displayFinish, type Finish } from '../card/finish-condition'
-import { getCardPrice, getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
+import {
+  getCardPriceForEntry,
+  getCardPriceForFinish,
+  type PriceCurrency,
+} from '../pricing/price-currency'
+import { displayLanguage, type CardLanguage } from '../card/card-language'
 import {
   DEFAULT_PRICE_SOURCE,
   DEFAULT_PRICE_SOURCES,
@@ -211,17 +216,34 @@ export function sitePriceForFinish(
   return getCardPriceForFinish(card, finish, currency)
 }
 
+/** The tokens of a list entry that decide its price. */
+export type PricedEntryTokens = {
+  /** The entry's own finish token; absent means the printing's default finish. */
+  finish?: Finish
+  /** The entry's own language token; a non-English copy has no Card Kingdom offer. */
+  language?: CardLanguage
+}
+
 /**
- * {@link sitePriceForFinish} for a card displayed with no finish token: the
- * Scryfall path reads {@link getCardPrice}'s base (nonfoil) quote exactly as
- * the pages did before sources existed, and the CK path quotes the printing's
- * default finish — the finish the bake requested for the same entry.
+ * A list entry's price under the active store: {@link getCardPriceForEntry}'s
+ * rule for Scryfall's stores, and the Card Kingdom quote at the same display
+ * finish — never for a non-English copy, which the buyer does not buy. The
+ * client twin of what the bake and `ritual price` compute for the same entry.
  */
-export function sitePrice(card: ScryfallCard, currency: PriceCurrency): number {
+export function sitePriceForEntry(
+  card: ScryfallCard,
+  entry: PricedEntryTokens,
+  currency: PriceCurrency,
+): number {
   if (currency === 'usd' && activeUsdSource() === 'cardkingdom') {
-    return cardKingdomRetailFromQuotes(card, undefined)
+    return cardKingdomRetailFromQuotes(card, entry.finish, entry.language)
   }
-  return getCardPrice(card, currency)
+  return getCardPriceForEntry(card, entry.finish, currency)
+}
+
+/** {@link sitePriceForEntry} for a card shown with no entry behind it (a primer or changelog card). */
+export function sitePrice(card: ScryfallCard, currency: PriceCurrency): number {
+  return sitePriceForEntry(card, {}, currency)
 }
 
 /**
@@ -233,14 +255,21 @@ export function sitePrice(card: ScryfallCard, currency: PriceCurrency): number {
  * same rule `buylistRequestFor` applied when the quote was baked or requested
  * — the two must agree or the lookup misses a quote that is sitting there.
  */
-function cardKingdomRetailFromQuotes(card: ScryfallCard, finish: Finish | undefined): number {
+function cardKingdomRetailFromQuotes(
+  card: ScryfallCard,
+  finish: Finish | undefined,
+  language?: CardLanguage,
+): number {
   // A buyer's feed is English-only and keyed by `set:cn`, which an
   // alternate-language object *shares* with its English twin — so reading a
   // quote for one would price a Japanese card at the English offer. The write
   // side (`buylistRequestFor`) has always refused to ask for them; the read side
   // must refuse to answer, now that the printing grid and the pickers render one
   // row per language and would otherwise show the twin's money on every one.
-  if (isNonEnglishCard(card)) return 0
+  // The entry's own language decides too: a `[ja]` deck line resolves to the
+  // English object (decks hold no per-language objects), so the card alone
+  // would price a Japanese copy at the English offer.
+  if (isNonEnglishCard(card) || displayLanguage(language) !== 'en') return 0
   const retail =
     quoteFor(card.set, card.collector_number, displayFinish(card, finish))?.priceRetail ?? 0
   return retail > 0 ? retail : 0

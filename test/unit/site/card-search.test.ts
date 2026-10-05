@@ -8,6 +8,7 @@ import {
 } from '../../../src/list-view/session-cache'
 import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { makeScryfallCard } from '../../test-utils'
+import { mapScryfallCard } from '../../../src/scryfall/card-utils'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 
@@ -74,6 +75,17 @@ describe('autocompleteCardNames', () => {
     expect(await autocompleteCardNames('The En')).toEqual(popularityOrder)
   })
 
+  test('folds a reversible printing ("X // X") into its card, once', async () => {
+    // Scryfall's live answer for this query, verbatim.
+    stubScryfall({ autocomplete: () => ['Blood Crypt', 'Blood Crypt // Blood Crypt'] })
+    expect(await autocompleteCardNames('blood crypt')).toEqual(['Blood Crypt'])
+  })
+
+  test('a reversible printing with no plain twin in the answer is kept, folded, in place', async () => {
+    stubScryfall({ autocomplete: () => ['Bloodghast', 'Blood Crypt // Blood Crypt'] })
+    expect(await autocompleteCardNames('blood')).toEqual(['Bloodghast', 'Blood Crypt'])
+  })
+
   test('resolves empty when Scryfall rejects the query', async () => {
     stubbed = stubFetch({ '': () => Response.json({ object: 'error' }, { status: 400 }) })
     expect(await autocompleteCardNames('!!')).toEqual([])
@@ -99,8 +111,10 @@ describe('fetchCardPrintings', () => {
   test('returns the exact-name search results and caches them for the session', async () => {
     const { sent: requests } = stubScryfall({ search: () => cardList(bolt, boltReprint) })
 
-    expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt, boltReprint])
-    expect(getPrintingsByName('Lightning Bolt')).toEqual([bolt, boltReprint])
+    // Mapped as the card cache maps Scryfall's objects (see `mapScryfallCard`).
+    const mapped = [bolt, boltReprint].map(mapScryfallCard)
+    expect(await fetchCardPrintings('Lightning Bolt')).toEqual(mapped)
+    expect(getPrintingsByName('Lightning Bolt')).toEqual(mapped)
     expect(requests).toHaveLength(1)
   })
 
@@ -112,11 +126,33 @@ describe('fetchCardPrintings', () => {
     expect(requests).toEqual([])
   })
 
+  test('names a reversible printing after its card, so picking it adds the card', async () => {
+    const plain = makeScryfallCard({ id: 'crypt-rna', name: 'Blood Crypt', set: 'rna' })
+    const reversible = makeScryfallCard({
+      id: 'crypt-ecl',
+      name: 'Blood Crypt // Blood Crypt',
+      set: 'ecl',
+    })
+    stubScryfall({ search: () => cardList(plain, reversible) })
+
+    const printings = await fetchCardPrintings('Blood Crypt')
+    expect(printings.map((printing) => [printing.set, printing.name])).toEqual([
+      ['rna', 'Blood Crypt'],
+      ['ecl', 'Blood Crypt'],
+    ])
+  })
+
+  test('asks for the folded name when given a doubled one (an older list line)', async () => {
+    const { sent: requests } = stubScryfall({ search: () => cardList() })
+    await fetchCardPrintings('Blood Crypt // Blood Crypt')
+    expect(new URL(requests[0]!.url).searchParams.get('q')).toBe('!"Blood Crypt"')
+  })
+
   test('falls back to a fuzzy lookup when the exact search 404s', async () => {
     // Scryfall's exact search misses some names (tokens and other edge cases).
     const { sent: requests } = stubScryfall({ named: () => Response.json(bolt) })
 
-    expect(await fetchCardPrintings('Lightning Bolt')).toEqual([bolt])
+    expect(await fetchCardPrintings('Lightning Bolt')).toEqual([mapScryfallCard(bolt)])
     expect(requests.map((r) => r.url.split('?')[0])).toEqual([
       'https://api.scryfall.com/cards/search',
       'https://api.scryfall.com/cards/named',

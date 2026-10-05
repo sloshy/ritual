@@ -242,19 +242,15 @@ describe('buildPriceReport pricing rules', () => {
     expect(entry.unpricedReason).toBe('currency-unavailable')
   })
 
-  test('lowest falls back to the entry price when no printing has a cheapest price', async () => {
-    // The plain usd field is priced, but the only listed finish (foil) has no
-    // price, so findCheapestPrinting comes up empty while the representative
-    // price is positive.
-    const entry = await priceSingle(
+  test('an unpinned line reads its representative at the finish it is shown in', async () => {
+    // The representative's only finish is foil and has no price; the plain usd
+    // field belongs to a finish the printing does not come in, so the line is
+    // unpriced rather than priced off it — the rule the site applies too.
+    const unpriced = await priceSingle(
       input({ entries: [{ name: 'Test Card', quantity: 1, section: 'Main' }] }),
-      {
-        'Test Card': [makeCard({ finishes: ['foil'] }, { usd: '2.00', usd_foil: null })],
-      },
+      { 'Test Card': [makeCard({ finishes: ['foil'] }, { usd: '2.00', usd_foil: null })] },
     )
-    expect(entry.price).toBe(2)
-    expect(entry.lowest).toBe(2)
-    expect(entry.lowestSet).toBeUndefined()
+    expect(unpriced.price).toBe(0)
   })
 
   test('printing without price data is unpriced with no-price-data', async () => {

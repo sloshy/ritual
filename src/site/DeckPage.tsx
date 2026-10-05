@@ -11,7 +11,7 @@ import {
   sessionCacheVersion,
 } from '../list-view/session-cache'
 import { normalizeCardName } from '../card/term-match'
-import { useT, useTSegments } from '../ui/i18n'
+import { useI18n, useT, useTSegments } from '../ui/i18n'
 import type { Card } from '../card/card'
 import type { ScryfallCard } from '../scryfall/types'
 import type { Finish } from '../card/finish-condition'
@@ -32,14 +32,14 @@ import {
   pricelessMarkerText,
 } from '../list-view/priceless'
 import type { MetaEntry } from '../list-view/meta-entry'
-import { rarityName } from '../list-view/printing-display'
+import { finishName, rarityName } from '../list-view/printing-display'
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
-import { storedLanguage } from '../card/card-language'
+import { languageLabel, storedLanguage } from '../card/card-language'
 import { ListDescription } from './ListDescription'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { formatPrice } from '../pricing/price-currency'
 import { TotalPriceMessage } from './TotalPrice'
-import { pricesEnabled, sitePrice } from '../list-view/price-view'
+import { pricesEnabled, sitePriceForEntry, type PricedEntryTokens } from '../list-view/price-view'
 import {
   type GroupBy,
   type SortBy,
@@ -128,6 +128,7 @@ export interface DeckPageProps extends SellModeProps, ListPageCommonProps {
 export const DeckPage: Component<DeckPageProps> = (props) => {
   const t = useT()
   const tSegments = useTSegments()
+  const { locale } = useI18n()
 
   const [lowestPriceRequested, setLowestPriceRequested] = createSignal(false)
   /**
@@ -227,9 +228,17 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     return !canAddMoreToLeft(entry)
   }
 
-  const modalDeckEntry = createMemo(() =>
-    props.modalCardName ? deckEntryByName().get(props.modalCardName) : undefined,
-  )
+  // The line whose tile opened the modal, so a deck holding two lines of one
+  // name (two pinned arts, a main and a sideboard copy) shows the one clicked.
+  // A deep link or the primer opens by name alone and falls back to the first.
+  const [modalOrder, setModalOrder] = createSignal<number | undefined>()
+  const modalDeckEntry = createMemo(() => {
+    const name = props.modalCardName
+    if (!name) return undefined
+    const order = modalOrder()
+    const clicked = order === undefined ? undefined : deckEntryByOrder().get(order)
+    return clicked?.name === name ? clicked : deckEntryByName().get(name)
+  })
 
   // Active card map based on lowest price toggle, currency, and USD source. The
   // store that priced a printing is the store that gets to pick it: under Card
@@ -269,6 +278,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   // "Lowest Price" toggle intentionally ignores the entry's printing (it shows
   // the cheapest printing per card name); name-only entries fall back to the
   // representative card.
+  /**
+   * The tokens a line is priced by. Under Lowest Price the tile shows the
+   * name's cheapest printing rather than the line's pin, and a finish is a claim
+   * about the pinned printing, so it does not carry over.
+   */
+  const pricedTokens = (entry: Card): PricedEntryTokens =>
+    lowestPrice() ? { language: entry.language } : entry
+
   const resolveEntryCard = (entry: Card): ScryfallCard | null => {
     if (!lowestPrice() && hasSpecificPrinting(entry)) {
       const match = findPrinting(props.printings[entry.name], entry.set, entry.collectorNumber)
@@ -290,8 +307,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       })
       return
     }
-    const scryfallCard = activeCards()[cardName] ?? null
-    const searchEntry = buildDeckSearchEntry(cardName, entry, scryfallCard, entry.quantity)
+    // The printing the modal shows, which is the one the tile's own Add sends.
+    const searchEntry = buildDeckSearchEntry(cardName, entry, modalCard(), entry.quantity)
     addAndToast(searchEntry, props.currency, props.useScryfallImgUrls ?? false)
   }
 
@@ -300,8 +317,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     const entry = modalDeckEntry()
     if (!cardName || !entry) return true
     if (!hasSpecificPrinting(entry)) return false // picker will handle
-    const scryfallCard = activeCards()[cardName] ?? null
-    const searchEntry = buildDeckSearchEntry(cardName, entry, scryfallCard, entry.quantity)
+    const searchEntry = buildDeckSearchEntry(cardName, entry, modalCard(), entry.quantity)
     return !canAddMoreToLeft(searchEntry)
   })
 
@@ -335,7 +351,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           // currency — the same rule the bake and the price report apply.
           price:
             card && !isPricelessCard(pricelessFacts(entry, labels))
-              ? sitePrice(card, props.currency)
+              ? sitePriceForEntry(card, pricedTokens(entry), props.currency)
               : 0,
           type: card?.type_line ?? '',
           section: section.name,
@@ -433,9 +449,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   )
 
   // Modal card data
+  // The printing the line's tile shows (its pin, unless Lowest Price is on),
+  // so the modal describes and prices the same card the tile does rather than
+  // the deck's representative for the name.
   const modalCard = createMemo((): ScryfallCard | null => {
+    sessionCacheVersion() // `resolveEntryCard` overlays refreshed prices; follow them
     if (!props.modalCardName) return null
-    return activeCards()[props.modalCardName] ?? null
+    const entry = modalDeckEntry()
+    return entry ? resolveEntryCard(entry) : (activeCards()[props.modalCardName] ?? null)
   })
 
   /**
@@ -451,7 +472,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
     if (!card || !entry) return undefined
     const labels = entryLabels(entry)
     const marker = pricelessMarkerText(t, cardPricelessReason(pricelessFacts(entry, labels)))
-    const price = marker === undefined ? sitePrice(card, props.currency) : 0
+    const price =
+      marker === undefined ? sitePriceForEntry(card, pricedTokens(entry), props.currency) : 0
     const parts: MetaEntry[] = []
     if (pricesEnabled()) {
       if (marker !== undefined) parts.push({ label: 'price', value: marker })
@@ -460,6 +482,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
       }
     }
     parts.push({ label: 'set', value: `${card.set_name} (#${card.collector_number})` })
+    if (entry.finish) parts.push({ label: 'finish', value: finishName(t, entry.finish) })
+    const language = storedLanguage(entry.language)
+    if (language) parts.push({ label: 'language', value: languageLabel(language, locale()) })
     if (labels.length > 0) {
       parts.push({ label: 'labels', value: labels.map(cardLabelName).join(' · ') })
     }
@@ -543,10 +568,14 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         viewMode={page.toolbar.viewMode()}
         hideCount={hideCount}
         useScryfallImgUrls={props.useScryfallImgUrls}
-        onCardClick={() => props.onOpenModal(c.name)}
+        onCardClick={() => {
+          setModalOrder(c.fileOrder)
+          props.onOpenModal(c.name)
+        }}
         onTooltipEnter={(src, sideways) => page.tooltip.setTooltip({ src, sideways })}
         onTooltipLeave={() => page.tooltip.setTooltip(null)}
         collectionFinish={deckEntry?.finish}
+        collectionLanguage={c.language}
         anyPrinting={deckEntry !== undefined && !specific}
         // The entry's own price, not the printing's: a proxy computed 0 above,
         // and letting the tile re-derive from the Scryfall card would print a

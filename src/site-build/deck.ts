@@ -11,7 +11,7 @@ import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../list/
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { printingKey } from '../card/printing-key'
 import { printingLabel } from '../card/card-line-tail'
-import { getCardPrice } from '../pricing/price-currency'
+import { getCardPriceForEntry } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { scryfallSourceFor } from '../pricing/price-source'
 import {
@@ -477,8 +477,9 @@ export async function buildDeckArtifacts(
 
   // Deck prices cover the mainboard, sideboard and commander, not the extras.
   // Each line is priced at the printing its tile shows under each store — its
-  // own pin, else that store's representative — exactly as the deck page reads
-  // it, so the index tile and the page header agree. A proxy and a custom-art
+  // own pin, else that store's representative — and at the finish it shows in
+  // (`displayFinish`: its own token, else the printing's default), exactly as
+  // the deck page reads it, so the index tile and the page header agree. A proxy and a custom-art
   // copy are worth nothing and are not cards whose price is *missing*, so they
   // are left out of the lines entirely.
   const lines: DeckSummaryLine[] = deckData.sections
@@ -495,13 +496,12 @@ export async function buildDeckArtifacts(
   ): number => (card ? price(card) : 0)
   const stores: StoreLinePricing<DeckSummaryLine>[] = availableCurrencies.map((cur) => ({
     source: scryfallSourceFor(cur),
-    price: (line) => priceOf(entryCard(line.entry), (card) => getCardPrice(card, cur)),
+    price: (line) =>
+      priceOf(entryCard(line.entry), (card) => getCardPriceForEntry(card, line.entry.finish, cur)),
   }))
   if (cardKingdomData) {
-    // Off the detail's baked quotes, at the printing's display finish: exactly
-    // what the Card Kingdom view reads — the deck page prices every line
-    // finish-blind (`sitePrice`), so a `[foil]` token does not move it here.
-    const ckRetail = (card: ScryfallCard) => bakedCardKingdomRetail(detail.buylist, card, undefined)
+    // Off the detail's baked quotes, at the line's display finish — the key the
+    // bake quoted it under, and what the deck page's Card Kingdom view reads.
     stores.push({
       source: 'cardkingdom',
       price: (line) =>
@@ -509,7 +509,8 @@ export async function buildDeckArtifacts(
           line.pinned
             ? entryCard(line.entry)
             : (cardKingdomData.cards[line.entry.name] ?? entryCard(line.entry)),
-          ckRetail,
+          (card) =>
+            bakedCardKingdomRetail(detail.buylist, card, line.entry.finish, line.entry.language),
         ),
     })
   }

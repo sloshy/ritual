@@ -70,3 +70,17 @@ release changes a file format or a generated file, it ships the change as a
   printing (a plain local deck pulled from Archidekt).
 - The admin deck-sync and collection-sync routes refuse a `decks`/`lists` array of only blank
   names instead of syncing everything.
+- Deck pages price each card at the finish it shows: a `[foil]` copy at its foil price, a
+  printing sold only in foil at that price instead of "N/A". The deck's card modal, its total
+  on the site's index and `ritual price` follow, and under Card Kingdom a non-English copy
+  is unpriced rather than priced at the English offer.
+- A deck's card modal shows the printing of the line you clicked, as its tile does, rather
+  than the deck's default printing of that card, and its Add to Trade adds that printing.
+- Deck tiles and the deck card modal show a non-English card's language (`JA`), as collection
+  and wanted-list tiles already did; the wanted-list card modal names it too.
+- Prices in a card's Other Printings grid stay readable in light themes.
+- In a card search (`ritual edit` and the sites' Add Card dialog), Esc first clears what you
+  typed; a second Esc backs out or closes, as before.
+- On a site built without `serve --api`, card search no longer lists a reversible printing
+  ("Blood Crypt // Blood Crypt") as a card of its own, and picking it adds the card under its
+  own name.

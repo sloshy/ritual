@@ -3,6 +3,7 @@ import type { AutocompleteResponse } from '../api/autocomplete'
 import type { CardPrintingsResponse } from '../api/card-printings'
 import { getPrintingsByName, putFetchedPrintings } from '../list-view/session-cache'
 import { promoteFullNameMatches } from '../card/term-match'
+import { foldRepeatedFaceNames, mapScryfallCard } from '../scryfall/card-utils'
 import { apiActive, apiUrl } from '../list-view/api-base'
 import { isAbortError } from '../util/errors'
 
@@ -62,7 +63,11 @@ export async function autocompleteCardNames(
   const resp = await fetch(url, options)
   if (!resp.ok) return []
   const data = (await resp.json()) as ScryfallAutocompleteResponse
-  return promoteFullNameMatches(data.data ?? [], query, (name) => name)
+  // Scryfall suggests a reversible printing ("Blood Crypt // Blood Crypt") as a
+  // card of its own; Ritual folds it into its card everywhere (the cache does
+  // the same), and an exact-name search for the folded name finds it.
+  const names = [...new Set((data.data ?? []).map((name) => foldRepeatedFaceNames(name)))]
+  return promoteFullNameMatches(names, query, (name) => name)
 }
 
 /**
@@ -94,19 +99,22 @@ export async function fetchCardPrintings(
     return data.success ? cachePrintings(cardName, data.printings) : []
   }
 
-  const exact = encodeURIComponent(`!"${cardName}"`)
+  // Scryfall's raw objects are mapped as the cache maps them: a reversible
+  // printing ("X // X") is named X and gets the top-level type, cost and colors
+  // Scryfall leaves on its faces, so picking it adds a whole card named X.
+  const exact = encodeURIComponent(`!"${foldRepeatedFaceNames(cardName)}"`)
   const searchUrl = `${SCRYFALL_API}/cards/search?q=${exact}&unique=prints&order=released&dir=desc`
   const search = await get(searchUrl, options)
 
   if (search?.ok) {
     const data = (await search.json()) as ScryfallList<ScryfallCard>
-    return cachePrintings(cardName, data.data ?? [])
+    return cachePrintings(cardName, (data.data ?? []).map(mapScryfallCard))
   }
 
   const namedUrl = `${SCRYFALL_API}/cards/named?fuzzy=${encodeURIComponent(cardName)}`
   const named = await get(namedUrl, options)
   if (!named?.ok) return []
-  return cachePrintings(cardName, [(await named.json()) as ScryfallCard])
+  return cachePrintings(cardName, [mapScryfallCard((await named.json()) as ScryfallCard)])
 }
 
 /**

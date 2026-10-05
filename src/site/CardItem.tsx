@@ -313,12 +313,16 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const canFlip = () => isDFC() && Boolean(images().backImage)
 
         const price = () => sitePrice(card(), currency())
+        // What the tile shows and sorts by: the list's own figure for the entry
+        // when the page passed one, else the printing's.
+        const displayPrice = () =>
+          props.collectionPrice !== undefined ? props.collectionPrice : price()
 
         const dataAttrs = (): CardDataAttrs => ({
           'data-name': props.name.toLowerCase(),
           'data-cmc': card().cmc,
           'data-edhrec': card().edhrec_rank ?? 999999,
-          'data-price': price(),
+          'data-price': displayPrice(),
           'data-type': card().type_line,
           'data-card-id': props.cardId,
         })
@@ -380,8 +384,6 @@ export const CardItem: Component<CardItemProps> = (props) => {
         const binderClass = () => `card-binder${isFoil() ? ' foil-card' : ''}`
         const listClass = () => `card-list${isFoil() ? ' foil-card' : ''}`
         const overlapClass = () => `card-overlap${isFoil() ? ' foil-card' : ''}`
-        const displayPrice = () =>
-          props.collectionPrice !== undefined ? props.collectionPrice : price()
         // A proxy or custom-art copy shows its marker where the price would be —
         // it is worth nothing, and "$0.00" would read as a price rather than as
         // the refusal to quote one.

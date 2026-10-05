@@ -165,6 +165,20 @@ export function describeTotalPrice(
   return estimated ? t('domain.price.estimatedSpoken', { price }) : undefined
 }
 
+/**
+ * A list entry's price: the printing's quote at the finish the entry is shown
+ * in — its own `[foil]`/`[etched]` token, else the printing's default finish
+ * (`displayFinish`, the single finish rule), so a foil-only printing is not
+ * read as an unpriced nonfoil.
+ */
+export function getCardPriceForEntry(
+  card: ScryfallCard,
+  entryFinish: Finish | undefined,
+  currency: PriceCurrency,
+): number {
+  return getCardPriceForFinish(card, displayFinish(card, entryFinish), currency)
+}
+
 /** A printing's base price: its nonfoil quote, or the sole quote in a currency that has one. */
 export function getCardPrice(card: ScryfallCard, currency: PriceCurrency): number {
   return getCardPriceForFinish(card, 'nonfoil', currency)

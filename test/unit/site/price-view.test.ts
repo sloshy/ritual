@@ -12,6 +12,7 @@ import {
   selectStore,
   sitePrice,
   sitePriceForFinish,
+  sitePriceForEntry,
   usdSourceChoices,
   storeIsExplicit,
 } from '../../../src/list-view/price-view'
@@ -191,5 +192,33 @@ describe('sitePriceForFinish', () => {
     expect(sitePriceForFinish(card, 'foil', 'usd')).toBe(0)
     // EUR is untouched by the USD source choice.
     expect(sitePriceForFinish(card, 'nonfoil', 'eur')).toBe(1.5)
+  })
+})
+
+describe('sitePriceForEntry', () => {
+  const foilOnly = makeScryfallCard({
+    set: 'tst',
+    collector_number: '8',
+    finishes: ['foil'],
+    prices: { usd: null, usd_foil: '12.00' },
+  })
+
+  test.each([
+    ['a [foil] token reads the foil price', card, { finish: 'foil' } as const, 5],
+    ['a bare entry reads the default finish', card, {}, 2],
+    ['a foil-only printing with no token reads its only finish', foilOnly, {}, 12],
+  ])('%s under a Scryfall store', (_label, printing, entry, expected) => {
+    seed(['tcgplayer'])
+    expect(sitePriceForEntry(printing, entry, 'usd')).toBe(expected)
+  })
+
+  test('under Card Kingdom it reads the entry finish’s quote, and nothing for a non-English copy', () => {
+    seed(['tcgplayer', 'cardkingdom'])
+    selectStore('cardkingdom')
+    seedRetail('tst:7:foil', 9)
+    expect(sitePriceForEntry(card, { finish: 'foil' }, 'usd')).toBe(9)
+    // The `[ja]` line resolves to the English object, but the buyer quotes
+    // English copies only.
+    expect(sitePriceForEntry(card, { finish: 'foil', language: 'ja' }, 'usd')).toBe(0)
   })
 })

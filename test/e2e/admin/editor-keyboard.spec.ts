@@ -197,6 +197,51 @@ test.describe('Admin Editor — keyboard navigation', () => {
     await expect(page.locator('.search-modal input[type="text"]')).toBeVisible({ timeout: 5_000 })
   })
 
+  test('Esc in the card search clears what was typed first, and closes only an empty search', async ({
+    page,
+  }) => {
+    await page.keyboard.press('Control+Enter')
+    const searchInput = page.locator('.search-modal input[type="text"]')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    await searchInput.fill('Lightning')
+    await expect(page.locator('.search-result-item').first()).toBeVisible({ timeout: 5_000 })
+
+    await page.keyboard.press('Escape')
+    await expect(searchInput).toHaveValue('')
+    await expect(page.locator('.search-result-item')).toHaveCount(0)
+    await expect(searchInput).toBeFocused()
+
+    await page.keyboard.press('Escape')
+    await expect(searchInput).toHaveCount(0, { timeout: 3_000 })
+  })
+
+  test('a search answer that arrives after Esc does not fill the cleared search back in', async ({
+    page,
+  }) => {
+    // Hold the autocomplete answer until Esc has cleared the box.
+    let release: () => void = () => undefined
+    const held = new Promise<void>((resolve) => (release = resolve))
+    await page.route('**/api/autocomplete*', async (route) => {
+      await held
+      await route.fallback()
+    })
+    await page.keyboard.press('Control+Enter')
+    const searchInput = page.locator('.search-modal input[type="text"]')
+    await expect(searchInput).toBeVisible({ timeout: 5_000 })
+    const asked = page.waitForRequest('**/api/autocomplete*')
+    await searchInput.fill('Lightning')
+    await asked
+
+    await page.keyboard.press('Escape')
+    await expect(searchInput).toHaveValue('')
+    const answered = page.waitForResponse('**/api/autocomplete*')
+    release()
+    await answered
+
+    await expect(page.locator('.search-result-item')).toHaveCount(0)
+    await expect(searchInput).toBeVisible()
+  })
+
   test('? opens the shortcuts reference, except while typing', async ({ page }) => {
     const dialog = page.locator('.shortcuts-dialog')
 

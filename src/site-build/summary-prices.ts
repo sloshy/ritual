@@ -10,8 +10,8 @@
 
 import { summaryPriceField, type PriceViewFields } from '../pricing/price-summary'
 import { scryfallSourceFor, type PriceSource } from '../pricing/price-source'
-import { getCardPrice, getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
-import { displayFinish, type Finish } from '../card/finish-condition'
+import { getCardPrice, getCardPriceForEntry, type PriceCurrency } from '../pricing/price-currency'
+import type { Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
 import type { ScryfallCard } from '../scryfall/types'
 import type { BakedBuylist } from '../list/site-data'
@@ -123,9 +123,7 @@ export function flatListStores(
         const card = line.cheapest[currency] ?? line.card
         return card ? getCardPrice(card, currency) : 0
       }
-      return line.card
-        ? getCardPriceForFinish(line.card, displayFinish(line.card, line.finish), currency)
-        : 0
+      return line.card ? getCardPriceForEntry(line.card, line.finish, currency) : 0
     },
   }))
   if (offersCardKingdom) {

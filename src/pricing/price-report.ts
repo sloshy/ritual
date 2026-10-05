@@ -49,7 +49,7 @@ import { loadDeckFile } from '../importers/text-file'
 import { LIST_TYPES, type ListType } from '../list/list-type'
 import {
   findCheapestPrinting,
-  getCardPrice,
+  getCardPriceForEntry,
   getCardPriceForFinish,
   isCurrencyAvailableForCard,
   isFinishPricelessInCurrency,
@@ -609,14 +609,16 @@ function priceEntry(
       ? cardKingdomRetail(ck.quote, exactPrinting, finish, entry.language)
       : getCardPriceForFinish(exactPrinting, finish, currency)
   } else if (pricing.representative) {
+    // Read like any other line (`getCardPriceForEntry`): at the finish the
+    // representative is shown in, so a foil-only one is not an unpriced nonfoil.
     price = ck
       ? cardKingdomRetail(
           ck.quote,
           pricing.representative,
-          displayFinish(pricing.representative, undefined),
+          displayFinish(pricing.representative, entry.finish),
           entry.language,
         )
-      : getCardPrice(pricing.representative, currency)
+      : getCardPriceForEntry(pricing.representative, entry.finish, currency)
   }
 
   // The cheapest acceptable copy depends on how specific the entry is: a

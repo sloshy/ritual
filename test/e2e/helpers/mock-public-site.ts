@@ -484,6 +484,52 @@ export async function mockPublicSiteDeckWithMultipleSections(page: Page): Promis
   await fulfillJson(page, '**/decks/test-multi-section-deck.json', MOCK_MULTI_SECTION_DECK)
 }
 
+// ===== Deck whose line pins a foil-only, Japanese printing =====
+
+const MOCK_ENTRY_DETAILS_DECK = makeDeckDetail({
+  deck: {
+    name: 'Entry Details Deck',
+    sections: [
+      {
+        name: 'Main',
+        cards: [
+          // No finish token: the foil-only printing is read at its only finish.
+          {
+            quantity: 1,
+            name: 'Test Creature',
+            set: 'fyl',
+            collectorNumber: '77',
+            language: 'ja',
+            cardId: 1,
+          },
+          { quantity: 1, name: 'Alpha Creature', set: 'tst', collectorNumber: '4', cardId: 2 },
+        ],
+      },
+    ],
+  },
+  cards: { 'Test Creature': MOCK_SCRYFALL_CREATURE, 'Alpha Creature': MOCK_SCRYFALL_CREATURE_B },
+  printings: {
+    'Test Creature': [MOCK_SCRYFALL_CREATURE, MOCK_SCRYFALL_CREATURE_FOIL_ONLY],
+    'Alpha Creature': [MOCK_SCRYFALL_CREATURE_B],
+  },
+})
+
+const MOCK_SITE_INDEX_WITH_ENTRY_DETAILS_DECK = makeSiteIndex({
+  decks: [
+    makeDeckSummary({ slug: 'entry-details-deck', name: 'Entry Details Deck', cardCount: 2 }),
+  ],
+})
+
+/**
+ * A deck whose Test Creature line pins the foil-only FYL:77 printing ($12.00
+ * foil, no nonfoil price) and carries `[ja]`: what the deck page has to price at
+ * the line's display finish and badge with its language.
+ */
+export async function mockPublicSiteDeckWithEntryDetails(page: Page): Promise<void> {
+  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_WITH_ENTRY_DETAILS_DECK)
+  await fulfillJson(page, '**/decks/entry-details-deck.json', MOCK_ENTRY_DETAILS_DECK)
+}
+
 // ===== Deck mixing a pinned line with a name-only one =====
 
 const MOCK_ANY_PRINTING_DECK = makeDeckDetail({

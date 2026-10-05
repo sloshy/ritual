@@ -96,7 +96,7 @@ A bar pinned to the bottom of the editor holds every editing control, left to ri
 
 ## Adding Cards
 
-Click **+ Add Card** or press **Ctrl+Enter** to open the card search modal. Shortcut hints along its bottom edge change per step, and every step works from the keyboard. Dismiss it with **Esc** or by clicking outside it.
+Click **+ Add Card** or press **Ctrl+Enter** to open the card search modal. Shortcut hints along its bottom edge change per step, and every step works from the keyboard. In the search box, **Esc** first clears what you typed; on an empty box it dismisses the modal, as clicking outside it does.
 
 ### Step 1: Search
 

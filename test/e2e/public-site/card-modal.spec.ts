@@ -1,6 +1,8 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
+import { switchToListView } from '../helpers/list-ui'
 import {
   mockPublicSiteDeckForFilters,
+  mockPublicSiteDeckWithEntryDetails,
   mockPublicSiteDeckWithMultipleSections,
   mockPublicSiteDeckWithSidewaysCard,
 } from '../helpers/mock-public-site'
@@ -48,6 +50,33 @@ test.describe('Card detail modal', () => {
     await expect(foilOnly.locator('.printing-label-price')).toHaveText('$12.00')
   })
 
+  test('printing prices stay readable on the dark label overlay in a light theme', async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      document.documentElement.dataset.theme = 'default-inverted'
+    })
+    await page.locator('.card-item').filter({ hasText: 'Test Creature' }).first().click()
+    await page.getByRole('button', { name: /Other Printings/ }).click()
+    const price = page.locator('.modal-printings-grid .printing-label-price').first()
+    await expect(price).toBeVisible()
+
+    // The overlay is dark in every theme, so the price takes the overlay-safe
+    // card-label token, not the page's own (dark, on a light theme) success green.
+    const colors = await price.evaluate((el) => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--card-label-price)'
+      document.body.append(probe)
+      const expected = getComputedStyle(probe).color
+      probe.style.color = 'var(--success-text)'
+      const pageGreen = getComputedStyle(probe).color
+      probe.remove()
+      return { actual: getComputedStyle(el).color, expected, pageGreen }
+    })
+    expect(colors.pageGreen).not.toBe(colors.expected)
+    expect(colors.actual).toBe(colors.expected)
+  })
+
   // The modal keeps its content mounted while it fades out, so the panel has
   // something to animate rather than emptying mid-flight. That hold runs on a
   // timer, so what's worth pinning is that it always ends: were it to stick, the
@@ -64,6 +93,41 @@ test.describe('Card detail modal', () => {
     // Auto-retries past the exit animation; the content must leave the DOM, not
     // merely stop being visible.
     await expect(body).toHaveCount(0)
+  })
+})
+
+/** The deck's Test Creature tile (or list row). */
+const creatureTile = (page: Page): Locator =>
+  page.locator('.card-item').filter({ hasText: 'Test Creature' }).first()
+
+test.describe('Deck lines: finish-aware price and language', () => {
+  test.beforeEach(async ({ page }) => {
+    await mockPublicSiteDeckWithEntryDetails(page)
+    await page.goto('#/deck/entry-details-deck')
+    await page.waitForSelector('.card-item', { timeout: 15_000 })
+  })
+
+  test('a line pinned to a foil-only printing shows its foil price and its language', async ({
+    page,
+  }) => {
+    // The foil-only printing names its finish, then the line's language.
+    await expect(creatureTile(page).locator('.card-label-finish')).toHaveText(' (Foil · JA)')
+
+    await switchToListView(page)
+    const row = creatureTile(page)
+    await expect(row.locator('.list-price')).toHaveText('$12.00')
+    await expect(row.locator('.list-printing')).toHaveText('(Foil · JA)')
+  })
+
+  test('the card modal names the line’s language and prices it at its finish', async ({ page }) => {
+    await creatureTile(page).click()
+    const meta = page.locator('.card-modal .modal-meta')
+    await expect(meta).toBeVisible({ timeout: 5000 })
+    // The line's pinned printing (FYL #77), not the deck's default one…
+    await expect(meta).toContainText('(#77)')
+    // …priced at its only finish, with its language.
+    await expect(meta).toContainText('$12.00')
+    await expect(meta).toContainText('Japanese')
   })
 })
 
