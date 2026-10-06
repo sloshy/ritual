@@ -92,8 +92,9 @@ ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writ
   terminal the name must match exactly anyway, and a collection add without a
   printing pin succeeds only when the card has a single paper printing — pass
   \`--set\`/\`--collector-number\` to be safe.
-- \`--label <label>\` records the new copy's label override (a deck takes \`proxy\`
-  alone), and \`--tag <tags>\` the tags the new line starts with (any list type;
+- \`--label <label>\` records the new copy's label override, adjusting the list
+  default (a deck takes \`proxy\`/\`no-proxy\` alone; \`--label no-proxy\` adds a real
+  card to a proxy-default deck), and \`--tag <tags>\` the tags the new line starts with (any list type;
   comma-separated, \`"Ramp, Card Draw"\`). There is **no art flag on \`add-card\`**: a line's \`&N\` is allocated by the
   write, so custom art at add time is a two-step — add the card, then aim
   \`set-card --art\` at it (\`--output json\` reports the \`cardId\` the add produced, or
@@ -147,11 +148,14 @@ ritual set-card "To Buy" "Demonic Tutor" --wanted --finish foil --output json
 - \`--language <code>\` sets the card's language on any list type (canonical Scryfall codes
   or aliases like \`jp\`); \`en\` clears the line's token, since a bare line means English.
   Validated cache-only against the printing's real languages, like \`--finish\`.
-- \`--label sale,trade|keep|proxy|none\` — decks and collections. Sets the card's
-  label override (\`sale\`/\`trade\` combine; \`keep\` and \`proxy\` each stand alone);
-  \`none\` clears it so the list's front-matter default applies again. A
-  **deck takes \`proxy\` only** and a wanted list takes no labels at all — anything
-  else is a usage error naming what the type supports. \`add-card\` takes the
+- \`--label sale,trade|keep|proxy|no-<label>,…|none\` — decks and collections. Replaces
+  the card's label override, which **adjusts** the list's front-matter default: a
+  plain label adds it, \`no-<label>\` takes an inherited one away (\`--label
+  trade,no-sale\`; \`sale\`/\`trade\` combine; \`keep\` and \`proxy\` each stand alone;
+  a label cannot be both set and negated). \`none\` clears it so the default
+  applies unchanged. A **deck takes \`proxy\`/\`no-proxy\` only** and a wanted list
+  takes no labels at all — anything else is a usage error naming what the type
+  supports. \`add-card\` takes the
   same \`--label\` (minus \`none\`) to label a fresh add.
 - \`--tag <tags>\` / \`--untag <tags>\` — every list type. Adds or removes the card's
   **tags**: the owner's own free-form words for the card (\`Ramp\`, \`Card Draw\`), as
@@ -278,9 +282,10 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
   created if missing) instead of the default; it errors on non-deck destinations.
 - Deck sources decrement quantity, notes travel with the card, both lists get
   changelog entries, and \`-q <n>\` moves n copies of the same printing. The card's
-  **custom art** and its tags travel too, and so do its effective labels (its own
-  override, else the source list's default): the destination keeps what its type
-  accepts and writes an override only where they differ from its own default. The
+  **custom art** and its tags travel too, and so do its labels: a proxy stays a
+  proxy and a real card real wherever both lists carry \`proxy\`, a sale/trade/keep
+  state the source stated (default or line) is kept, a label it never stated takes
+  the destination's default, and the destination writes the smallest token it needs. The
   art is re-filed under the destination line's new \`&N\`, unless the copy merged onto
   a line the destination already had. JSON output:
   \`{moved, card, from, to, droppedNotes}\` — \`droppedNotes\` lists any note discarded
@@ -312,10 +317,10 @@ each. In a public-site export the move is recorded once, in the bundle's top-lev
 \`moves\` array (never as a per-list change), and \`ritual import-changes\` applies it
 to both lists the same way. Moving a printing-less card into a collection prompts for
 a specific printing first. An editor/TUI move carries the card exactly as the scripted
-\`ritual move\` does: its tags and note, its effective labels (its own override, else the
-source list's default) as far as the destination type accepts them (\`proxy\` into a deck,
-everything into a collection, nothing into a wanted list; no override is written where
-they equal the destination's default), and its **custom art**, re-filed under the
+\`ritual move\` does: its tags and note, its labels by the same rule (proxy kept as a fact,
+stated sale/trade/keep kept, unstated labels taking the destination's default) as far as
+the destination type accepts them (\`proxy\` into a deck, everything into a collection,
+nothing into a wanted list; the smallest token that says so is written), and its **custom art**, re-filed under the
 destination line's new \`&N\`. A copy that merges onto a deck line with a different note
 keeps that line's note, and the dropped note is reported (by the editor's save, by
 \`ritual edit\`, and in \`ritual import-changes\`' per-list \`droppedNotes\`).
@@ -443,7 +448,7 @@ discarded first.
 
 \`ritual import-changes\` applies a change bundle exported from the public site's
 edit mode (or the admin editor's Export panel) to the underlying list files. The
-JSON is a \`ritual-change-bundle\` (version 2) covering one or more lists — the export
+JSON is a \`ritual-change-bundle\` (version 3) covering one or more lists — the export
 panel's "This list" and "All lists" scopes both produce it. Each list's own edits sit
 in \`lists[].changes\`; cross-list moves are normalized into one top-level \`moves\`
 array (source list, destination list, one entry per copy) instead of appearing in

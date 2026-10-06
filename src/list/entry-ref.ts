@@ -10,7 +10,7 @@ import { matchByNormalizedName } from '../card/term-match'
 import type { ListType } from './list-type'
 import { formatPrintingAnnotation } from '../changes/change-event'
 import { t, type MessageParams } from '../i18n/t'
-import type { CardLabel } from '../card/card-labels'
+import type { LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import type { Condition, Finish } from '../card/finish-condition'
@@ -25,7 +25,7 @@ export type EntryRef = {
   /** The line's language token, when present. Absent means `en` (a bare line means English). */
   language?: CardLanguage
   /** Label override — where the list type carries labels (never on a wanted entry). */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** The line's `#tag` tokens in canonical form; carried by every list type. */
   tags?: CardTag[]
   note?: string

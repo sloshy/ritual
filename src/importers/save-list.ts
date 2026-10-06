@@ -14,6 +14,7 @@ import {
   type ImportCardEntry,
 } from './csv-apply'
 import type { DeckData } from '../list/deck'
+import { arrivalLabels, carriedLabels, type CardLabel } from '../card/card-labels'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../list/deck-file'
 import { parseMoxfieldPrimer } from '../list/primer-parser'
 import { getLogger } from '../util/logger'
@@ -86,10 +87,20 @@ export interface SaveListOptions {
    * has no notion of them, and the categories file is left alone.
    */
   categories?: readonly CardCategoryEntry[]
+  /**
+   * The source file's own default labels (`DeckParseResult.defaultLabels`), for
+   * a text-file import: each line's labels are carried as that file states them
+   * and landed against the destination's default (`arrivalLabels`, as a move
+   * lands them), so a `[no-sale]` line from a `sale,trade` binder keeps "for
+   * trade" wherever it arrives. Absent: the lines' own tokens are all it says.
+   */
+  sourceLabels?: readonly CardLabel[]
 }
 
-type ResolvedSaveOptions = Required<Omit<SaveListOptions, 'resolveConflict' | 'categories'>> &
-  Pick<SaveListOptions, 'resolveConflict' | 'categories'>
+type ResolvedSaveOptions = Required<
+  Omit<SaveListOptions, 'resolveConflict' | 'categories' | 'sourceLabels'>
+> &
+  Pick<SaveListOptions, 'resolveConflict' | 'categories' | 'sourceLabels'>
 
 /** What saving the imported list did — or would do, under `--dry-run`. */
 export type SaveListAction = 'created' | 'overwritten' | 'renamed'
@@ -117,6 +128,7 @@ function normalizeSaveListOptions(options?: SaveListOptions): ResolvedSaveOption
     quiet: options?.quiet ?? false,
     resolveConflict: options?.resolveConflict,
     categories: options?.categories,
+    sourceLabels: options?.sourceLabels,
   }
 }
 
@@ -326,7 +338,10 @@ export async function saveDeck(
     description: deckData.description,
     tags: [],
   }
-  const fileContent = serializeDeckToMarkdown(deckData, frontMatter)
+  const fileContent = serializeDeckToMarkdown(
+    withLandedLabels(deckData, resolvedOptions.sourceLabels),
+    frontMatter,
+  )
 
   // Derive primer sidecar path from the deck file path
   const primerPath = primerSidecarPath(filePath)
@@ -427,8 +442,44 @@ async function commitImportedDeckCategories(
   })
 }
 
-/** Flatten parsed deck-style sections into flat-list entries, one per card line. */
-function flattenToEntries(deckData: DeckData): ImportCardEntry[] {
+/**
+ * The deck an import writes: each line's labels carried as the source states
+ * them (its own token over `sourceLabels`) and landed in a fresh deck with no
+ * default of its own — the rule every move follows (`arrivalLabels`). No list
+ * states the copy's `proxy` fact beyond what the source says, so a plain line
+ * from a plain file stays plain.
+ */
+function withLandedLabels(
+  deckData: DeckData,
+  sourceLabels: readonly CardLabel[] | undefined,
+): DeckData {
+  return {
+    ...deckData,
+    sections: deckData.sections.map((section) => ({
+      ...section,
+      cards: section.cards.map((card) => {
+        const labels = arrivalLabels(
+          'deck',
+          carriedLabels(card.labels, sourceLabels),
+          undefined,
+          undefined,
+        )
+        const { labels: _old, ...rest } = card
+        return labels === undefined ? rest : { ...rest, labels }
+      }),
+    })),
+  }
+}
+
+/**
+ * Flatten parsed deck-style sections into flat-list entries, one per card
+ * line, each carrying its labels as the source states them
+ * (`ImportCardEntry.labels`).
+ */
+function flattenToEntries(
+  deckData: DeckData,
+  sourceLabels: readonly CardLabel[] | undefined,
+): ImportCardEntry[] {
   const entries: ImportCardEntry[] = []
   for (const section of deckData.sections) {
     for (const card of section.cards) {
@@ -440,7 +491,7 @@ function flattenToEntries(deckData: DeckData): ImportCardEntry[] {
         finish: card.finish,
         condition: card.condition,
         language: card.language,
-        labels: card.labels,
+        labels: carriedLabels(card.labels, sourceLabels),
         tags: card.tags,
         note: card.note,
         section: section.name,
@@ -463,7 +514,7 @@ export async function saveFlatList(
 ): Promise<SaveListOutcome> {
   const resolvedOptions = normalizeSaveListOptions(options)
   const label = listTypeLabel(listType)
-  const entries = flattenToEntries(deckData)
+  const entries = flattenToEntries(deckData, resolvedOptions.sourceLabels)
 
   // Collection lines always carry a printing; reject up front rather than
   // writing malformed `(:)` lines or silently dropping cards.

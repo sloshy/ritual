@@ -5,6 +5,8 @@
  */
 
 import type { SwapSourceEntry } from './swap-printings'
+import type { CardLabel } from '../card/card-labels'
+import { movedCopyFromLine, type MovedCopySource } from '../changes/change-event'
 
 /**
  * A flat-list entry (collection or wanted) as a source, and the shape the
@@ -13,17 +15,17 @@ import type { SwapSourceEntry } from './swap-printings'
  * resolved display finish on a baked collection entry, the line's own token on
  * an admin one — and the planner resolves the display finish either way.
  */
-export type SwapFlatLine = Omit<SwapSourceEntry, 'quantity'>
+export type SwapFlatLine = Omit<SwapSourceEntry, 'quantity' | 'payload'> & MovedCopySource
 
 /** A deck line as a source: a source entry whose section the caller supplies. */
-export type SwapDeckLine = Omit<SwapSourceEntry, 'section'>
+export type SwapDeckLine = Omit<SwapSourceEntry, 'section' | 'payload'> & MovedCopySource
 
 /** A deck section as a source: its name and lines. */
 export type SwapDeckSection = { name: string; cards: readonly SwapDeckLine[] }
 
 /** Copy only the fields that are set, so an entry never carries `undefined` keys. */
-function printingFields(line: SwapFlatLine | SwapDeckLine): SwapFlatLine {
-  const entry: SwapFlatLine = { name: line.name }
+function printingFields(line: SwapFlatLine | SwapDeckLine): SwapSourceEntry {
+  const entry: SwapSourceEntry = { name: line.name, quantity: 1 }
   if (line.set !== undefined) entry.set = line.set.toLowerCase()
   if (line.collectorNumber !== undefined) entry.collectorNumber = line.collectorNumber
   if (line.finish !== undefined) entry.finish = line.finish
@@ -33,21 +35,42 @@ function printingFields(line: SwapFlatLine | SwapDeckLine): SwapFlatLine {
   return entry
 }
 
-/** A deck's sections as source entries: one per line, carrying its quantity and section. */
-export function deckSectionsToSwapEntries(sections: readonly SwapDeckSection[]): SwapSourceEntry[] {
+/**
+ * A deck's sections as source entries: one per line, carrying its quantity,
+ * section, and move payload measured against the deck's `listDefault`.
+ */
+export function deckSectionsToSwapEntries(
+  sections: readonly SwapDeckSection[],
+  listDefault: readonly CardLabel[] | undefined,
+): SwapSourceEntry[] {
   const entries: SwapSourceEntry[] = []
   for (const section of sections) {
     for (const card of section.cards) {
-      entries.push({ ...printingFields(card), quantity: card.quantity, section: section.name })
+      entries.push({
+        ...printingFields(card),
+        quantity: card.quantity,
+        section: section.name,
+        payload: movedCopyFromLine(card, listDefault),
+      })
     }
   }
   return entries
 }
 
-/** A flat list's entries as source entries: one per copy (`quantity: 1`), keeping its section. */
-export function flatEntriesToSwapEntries(lines: readonly SwapFlatLine[]): SwapSourceEntry[] {
+/**
+ * A flat list's entries as source entries: one per copy (`quantity: 1`),
+ * keeping its section and move payload measured against the list's
+ * `listDefault`.
+ */
+export function flatEntriesToSwapEntries(
+  lines: readonly SwapFlatLine[],
+  listDefault: readonly CardLabel[] | undefined,
+): SwapSourceEntry[] {
   return lines.map((line) => {
-    const entry: SwapSourceEntry = { ...printingFields(line), quantity: 1 }
+    const entry: SwapSourceEntry = {
+      ...printingFields(line),
+      payload: movedCopyFromLine(line, listDefault),
+    }
     if (line.section !== undefined) entry.section = line.section
     return entry
   })

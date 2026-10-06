@@ -7,7 +7,7 @@ import { makeMockScryfallCard } from '../helpers/mock-cards'
 /** A change bundle as the public site would export it: a set-printing on an existing card plus a new add. */
 const CHANGE_BUNDLE = JSON.stringify({
   format: 'ritual-change-bundle',
-  version: 2,
+  version: 3,
   moves: [],
   exportedAt: '2026-06-04T00:00:00.000Z',
   lists: [
@@ -39,7 +39,7 @@ const CHANGE_BUNDLE = JSON.stringify({
  */
 const FOIL_ON_NAME_ONLY_BUNDLE = JSON.stringify({
   format: 'ritual-change-bundle',
-  version: 2,
+  version: 3,
   moves: [],
   exportedAt: '2026-06-04T00:00:00.000Z',
   lists: [
@@ -115,7 +115,7 @@ test.describe('Import changes (admin)', () => {
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
         format: 'ritual-change-bundle',
-        version: 2,
+        version: 3,
         moves: [],
         exportedAt: '2026-06-04T00:00:00.000Z',
         lists: [deckList('some-other-deck'), deckList('yet-another-deck')],
@@ -133,7 +133,7 @@ test.describe('Import changes (admin)', () => {
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
         format: 'ritual-change-bundle',
-        version: 2,
+        version: 3,
         moves: [],
         exportedAt: '2026-06-04T00:00:00.000Z',
         lists: [
@@ -216,7 +216,7 @@ test.describe('Import changes into a deck with default labels (admin)', () => {
     await dialog.locator('.import-dialog-textarea').fill(
       JSON.stringify({
         format: 'ritual-change-bundle',
-        version: 2,
+        version: 3,
         exportedAt: '2026-06-04T00:00:00.000Z',
         lists: [],
         moves: [

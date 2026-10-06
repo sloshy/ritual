@@ -44,7 +44,7 @@ Once a list name is given, no subcommand prompts, so they are safe under `--no-i
 | any        | `description` | Free text; values are joined with spaces, so quoting is optional. Stored trimmed; an empty value clears it.                                                                                   |
 | deck       | `tags`        | One tag per argument (commas inside an argument split too). `--add` appends, `--remove` drops; otherwise values replace. Removing the last tag clears the key.                                |
 | deck       | `format`      | A [deck format key](/commands/new/#deck-format) (e.g. `commander`, `modern`); exactly one value.                                                                                              |
-| deck       | `labels`      | Default card labels for the deck. [`proxy`](/list-format/#card-labels) is the only accepted value. Every line without its own `[labels]` token inherits it.                                   |
+| deck       | `labels`      | Default card labels for the deck. [`proxy`](/list-format/#card-labels) is the only accepted value. Every line inherits it unless its own token takes it away (`[no-proxy]`).                  |
 | deck       | `sourceId`    | The deck's id on its sync source; exactly one value. Must agree with `sourceUrl` (see below).                                                                                                 |
 | deck       | `sourceUrl`   | The deck's `http(s)` URL on its sync source; exactly one value.                                                                                                                               |
 | collection | `labels`      | Default card labels: `sale`/`trade` (combinable) or `keep`/`proxy` (each exclusive), as separate values or comma-joined, case-insensitively.                                                  |
@@ -54,6 +54,7 @@ Notes on `labels` (deck and collection):
 
 - `--add` / `--remove` merge with the current set. Removing the last label clears the key.
 - A misspelled label errors, even under `--remove`, rather than silently removing nothing.
+- A default is positive only. A `no-…` negation is a card-line token (it takes an inherited label away from one card), so `labels no-sale` is refused here.
 - An empty `set` is refused; clearing is `unset`'s job.
 
 Setting `sourceId` plus an `archidekt.com` `sourceUrl` is what makes a deck [sync-linked](/commands/deck-sync/). The two must name the same Archidekt deck; a write that would leave them disagreeing is refused. For the interactive linking flow, prefer `deck-sync link`.

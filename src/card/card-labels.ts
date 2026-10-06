@@ -2,13 +2,16 @@
  * Card labels: the owner's declared intent for a card — `sale` ("For sale") and
  * `trade` ("For trade"), which combine, or `keep` ("To keep") and `proxy`
  * ("Proxy"), which each stand alone. A list declares a default in its front
- * matter (`labels: [sale, trade]`), and an individual card line may override it
- * with a bracketed token (`[keep]`, `[sale,trade]`); the override *replaces*
- * the default, it never merges with it.
+ * matter (`labels: [sale, trade]`), and an individual card line may *adjust* it
+ * with a bracketed token of signed labels: a positive adds a label
+ * (`[trade]`), a `no-` negative takes an inherited one away (`[no-sale]`), and
+ * both combine (`[trade,no-sale]`). See {@link effectiveLabels} for the one
+ * rule that resolves a line against its list.
  *
  * Which labels a list may carry depends on its type — see
  * {@link LIST_TYPE_LABELS}: collections take the whole vocabulary, decks take
- * `proxy` alone, and wanted-list entries never carry labels at all.
+ * `proxy` alone (so `[no-proxy]` too), and wanted-list entries never carry
+ * labels at all. Defaults are positive only; negatives live on card lines.
  *
  * Layer-neutral on purpose (like {@link module:parse-enum}): the same
  * vocabulary, canonical ordering, and exclusivity rule are asked for by the
@@ -26,15 +29,6 @@ import { parseEnumField } from '../util/parse-enum'
 export const CARD_LABELS = ['sale', 'trade', 'keep', 'proxy'] as const
 
 /**
- * The alternation a card line's bracketed labels token matches, built from the
- * vocabulary so no grammar can drift from it. Every list type's line regex
- * accepts the *whole* vocabulary — a label its type does not support is a parse
- * warning naming the offender, not an unreadable line (see
- * {@link LIST_TYPE_LABELS}).
- */
-export const LABEL_TOKEN_PATTERN = `(?:${CARD_LABELS.join('|')})`
-
-/**
  * A single card label. `sale` and `trade` combine; `keep` and `proxy` each
  * stand alone. Derived from {@link CARD_LABELS} so the runtime list and the
  * type can never drift — every schema, regex assertion, and canonical ordering
@@ -42,12 +36,73 @@ export const LABEL_TOKEN_PATTERN = `(?:${CARD_LABELS.join('|')})`
  */
 export type CardLabel = (typeof CARD_LABELS)[number]
 
+/** The prefix that negates a label on a card line (`no-proxy`). */
+export const NEGATED_LABEL_PREFIX = 'no-'
+
+/** A negated label: "this copy is *not* …", taking an inherited label away. */
+export type NegatedCardLabel = `no-${CardLabel}`
+
+/** One member of a card line's label token: a label, or its negation. */
+export type SignedCardLabel = CardLabel | NegatedCardLabel
+
+/**
+ * Every signed label, in canonical serialization order: the positives, then
+ * the negatives, each half in {@link CARD_LABELS} order.
+ */
+export const SIGNED_CARD_LABELS = [
+  'sale',
+  'trade',
+  'keep',
+  'proxy',
+  'no-sale',
+  'no-trade',
+  'no-keep',
+  'no-proxy',
+] as const satisfies readonly SignedCardLabel[]
+
+/**
+ * Compile-time completeness check: a signed label missing from
+ * {@link SIGNED_CARD_LABELS} makes this `never`, so the assignment fails.
+ */
+const SIGNED_CARD_LABELS_COMPLETE: Exclude<
+  SignedCardLabel,
+  (typeof SIGNED_CARD_LABELS)[number]
+> extends never
+  ? true
+  : never = true
+void SIGNED_CARD_LABELS_COMPLETE
+
+/**
+ * A card line's label override: how it adjusts its list's default. Canonical
+ * when produced by {@link normalizedOverride} (positives first, then negatives,
+ * void negatives dropped) and never empty when stored — an empty override is no
+ * override, which is what `undefined` means.
+ */
+export type LabelOverride = SignedCardLabel[]
+
+/** A {@link LabelOverride} split into the labels it adds and the ones it takes away. */
+export type LabelDelta = { add: CardLabel[]; remove: CardLabel[] }
+
+/**
+ * The alternation one member of a card line's bracketed labels token matches,
+ * built from the vocabulary so no grammar can drift from it. Every list type's
+ * line regex accepts the *whole* signed vocabulary — a label its type does not
+ * support is a parse warning naming the offender, not an unreadable line (see
+ * {@link LIST_TYPE_LABELS}).
+ */
+export const LABEL_TOKEN_PATTERN = `(?:${NEGATED_LABEL_PREFIX})?(?:${CARD_LABELS.join('|')})`
+
 /**
  * The labels that cannot be combined with any other — including each other.
  * `keep` declares "not going anywhere" and `proxy` declares "not a real card",
  * and neither statement survives being paired with an offer to sell or trade.
  */
 export const EXCLUSIVE_CARD_LABELS = ['keep', 'proxy'] as const satisfies readonly CardLabel[]
+
+/** True when `label` is one of the {@link EXCLUSIVE_CARD_LABELS}. */
+function isExclusiveLabel(label: CardLabel): boolean {
+  return (EXCLUSIVE_CARD_LABELS as readonly CardLabel[]).includes(label)
+}
 
 /** Which labels each list type may carry. See {@link LIST_TYPE_LABELS}. */
 export type ListTypeLabelSupport = Record<ListType, readonly CardLabel[]>
@@ -57,7 +112,7 @@ export type ListTypeLabelSupport = Record<ListType, readonly CardLabel[]>
  * every "labels apply here?" guard — the file parsers, the CLI flags, the HTTP
  * bodies, and the pickers. Decks carry `proxy` only: a deck lists what you
  * intend to play, so "for sale" says nothing there, while "this copy is a
- * proxy" says a great deal.
+ * proxy" says a great deal. A negation is legal wherever its label is.
  */
 export const LIST_TYPE_LABELS = {
   deck: ['proxy'],
@@ -75,65 +130,53 @@ export function supportsAnyLabels(type: ListType): boolean {
   return supportedLabels(type).length > 0
 }
 
+/** True when `value` is a member of the label vocabulary. */
+export function isCardLabel(value: string): value is CardLabel {
+  return (CARD_LABELS as readonly string[]).includes(value)
+}
+
+/** True when `value` is a member of the signed vocabulary (`sale`, `no-sale`, …). */
+export function isSignedCardLabel(value: string): value is SignedCardLabel {
+  return (SIGNED_CARD_LABELS as readonly string[]).includes(value)
+}
+
+/** The negation of `label` (`proxy` → `no-proxy`). */
+export function negateLabel(label: CardLabel): NegatedCardLabel {
+  return `${NEGATED_LABEL_PREFIX}${label}`
+}
+
+/** True when a signed label is a negation. */
+export function isNegatedLabel(label: SignedCardLabel): label is NegatedCardLabel {
+  return label.startsWith(NEGATED_LABEL_PREFIX)
+}
+
+/** Each negation's label, spelled out so the lookup is exhaustive and cast-free. */
+const NEGATION_BASE = {
+  'no-sale': 'sale',
+  'no-trade': 'trade',
+  'no-keep': 'keep',
+  'no-proxy': 'proxy',
+} as const satisfies Record<NegatedCardLabel, CardLabel>
+
+/** The label a signed label is about (`no-proxy` → `proxy`). */
+export function baseLabel(label: SignedCardLabel): CardLabel {
+  return isNegatedLabel(label) ? NEGATION_BASE[label] : label
+}
+
 /**
  * The members of `labels` that `type` does not accept, in canonical order —
- * empty when every label is legal there. Callers name them in the refusal, so
- * the user is told which label was the problem rather than that "labels" were.
+ * empty when every label is legal there. A negation is judged by its label, and
+ * named as written (`no-sale` on a deck), so the user is told which token was
+ * the problem rather than that "labels" were.
  */
-export function unsupportedLabelsFor(type: ListType, labels: readonly CardLabel[]): CardLabel[] {
-  const supported = supportedLabels(type)
-  return normalizeCardLabels(labels).filter((label) => !supported.includes(label))
-}
-
-/**
- * The part of `labels` that `type` can express, in canonical order — the mirror
- * of {@link unsupportedLabelsFor}, for the paths that *keep* what fits (a move
- * into a deck) rather than refusing the whole set.
- */
-export function supportedLabelsFor(type: ListType, labels: readonly CardLabel[]): CardLabel[] {
-  const supported = supportedLabels(type)
-  return normalizeCardLabels(labels).filter((label) => supported.includes(label))
-}
-
-/**
- * The part of a moved card's labels a destination of `type` keeps, or
- * `undefined` when nothing of them survives. Every move path — `ritual move`,
- * the editors' cross-list moves, a change bundle's moves — filters through this
- * one rule: `proxy` survives a move into a deck, `sale`/`trade`/`keep` do not,
- * and a wanted list keeps none. A move never *invents* a label and never writes
- * one the destination grammar cannot express.
- */
-export function labelsForDestination(
+export function unsupportedLabelsFor(
   type: ListType,
-  labels: readonly CardLabel[] | undefined,
-): CardLabel[] | undefined {
-  if (labels === undefined) return undefined
-  const kept = supportedLabelsFor(type, labels)
-  return kept.length === 0 ? undefined : kept
-}
-
-/**
- * The label override a moved copy is written with on arrival, so that its
- * effective labels in the destination are `labelsForDestination(type,
- * carried)` as far as the grammar allows. `carried` is the copy's effective
- * labels in its source (its override, else its source list's default);
- * `destDefault` is the destination list's own front-matter default.
- *
- * Minimal by construction: no override when the kept labels equal the
- * destination's default (the copy inherits exactly them). When nothing is kept
- * there is no override either — and the copy then inherits the destination's
- * default, if it has one: the line grammar cannot state an *empty* override
- * (the token needs at least one label; see {@link normalizedOverride}), so a
- * real card moving into a `proxy`-default collection reads as a proxy there.
- */
-export function arrivalLabels(
-  type: ListType,
-  carried: readonly CardLabel[] | undefined,
-  destDefault: readonly CardLabel[] | undefined,
-): CardLabel[] | undefined {
-  const kept = labelsForDestination(type, carried)
-  if (kept === undefined || sameCardLabels(kept, destDefault)) return undefined
-  return kept
+  labels: readonly SignedCardLabel[],
+): SignedCardLabel[] {
+  const supported = supportedLabels(type)
+  return SIGNED_CARD_LABELS.filter(
+    (label) => labels.includes(label) && !supported.includes(baseLabel(label)),
+  )
 }
 
 /**
@@ -145,10 +188,10 @@ export function arrivalLabels(
  * the MCP tool schemas. They had drifted into five near-copies that disagreed
  * about the empty set, which is the whole reason this lives here.
  */
-export type LabelSupportResult = { ok: true } | { ok: false; unsupported: CardLabel[] }
+export type LabelSupportResult = { ok: true } | { ok: false; unsupported: SignedCardLabel[] }
 
 /**
- * Check `labels` against what `type` carries.
+ * Check `labels` (an override or a default) against what `type` carries.
  *
  * An empty set is a *clear* ("use the list default"), so it passes on any type
  * that carries labels at all — but it still says nothing on a wanted list, and
@@ -158,7 +201,7 @@ export type LabelSupportResult = { ok: true } | { ok: false; unsupported: CardLa
  */
 export function checkLabelsForListType(
   type: ListType,
-  labels: readonly CardLabel[],
+  labels: readonly SignedCardLabel[],
 ): LabelSupportResult {
   const unsupported = unsupportedLabelsFor(type, labels)
   if (unsupported.length > 0) return { ok: false, unsupported }
@@ -175,7 +218,7 @@ export function checkLabelsForListType(
  */
 export function unsupportedLabelsMessage(
   type: ListType,
-  unsupported: readonly CardLabel[],
+  unsupported: readonly SignedCardLabel[],
 ): string {
   const supported = supportedLabels(type)
   if (supported.length === 0) return `labels do not apply to a ${type}.`
@@ -264,14 +307,24 @@ export const CARD_LABEL_DISPLAY_NAMES = {
   proxy: 'domain.label.proxy',
 } as const satisfies Record<CardLabel, MessageKey>
 
+/** Message keys for each negation's wording ("Not for sale"), like {@link CARD_LABEL_DISPLAY_NAMES}. */
+export const NEGATED_CARD_LABEL_DISPLAY_NAMES = {
+  sale: 'domain.label.notSale',
+  trade: 'domain.label.notTrade',
+  keep: 'domain.label.notKeep',
+  proxy: 'domain.label.notProxy',
+} as const satisfies Record<CardLabel, MessageKey>
+
 /** A label's human wording in the active UI locale ("For sale"). */
 export function cardLabelName(label: CardLabel): string {
   return t(CARD_LABEL_DISPLAY_NAMES[label])
 }
 
-/** True when `value` is a member of the label vocabulary. */
-export function isCardLabel(value: string): value is CardLabel {
-  return (CARD_LABELS as readonly string[]).includes(value)
+/** A signed label's human wording in the active UI locale ("For sale", "Not a proxy"). */
+export function signedLabelName(label: SignedCardLabel): string {
+  return isNegatedLabel(label)
+    ? t(NEGATED_CARD_LABEL_DISPLAY_NAMES[baseLabel(label)])
+    : cardLabelName(label)
 }
 
 /**
@@ -331,11 +384,15 @@ export function matchesCardLabelSelection(
 }
 
 /**
- * The outcome of parsing a label set: the normalized labels, or why the input
- * was refused. Refusals carry prose ready for whichever error channel the
- * caller owns (commander throw, 400 body, parse warning).
+ * The outcome of parsing a positive label set (a list default): the normalized
+ * labels, or why the input was refused. Refusals carry prose ready for
+ * whichever error channel the caller owns (commander throw, 400 body, advisory).
  */
 export type CardLabelsResult = { ok: true; labels: CardLabel[] } | { ok: false; message: string }
+
+/** The outcome of parsing a card line's override: the normalized override, or why it was refused. */
+export type LabelOverrideResult =
+  { ok: true; labels: LabelOverride } | { ok: false; message: string }
 
 /**
  * Dedupe and order a label set canonically (`sale,trade`, never `trade,sale`).
@@ -347,14 +404,11 @@ export function normalizeCardLabels(labels: readonly CardLabel[]): CardLabel[] {
 }
 
 /**
- * A card's stored label override, normalized: the canonical set, or `undefined`
- * when there is nothing to store. An *empty* set is a clear, and file data never
- * carries an empty override — the token grammar needs at least one label — so
- * "no labels" and "no override" must be the same value in memory. Every apply
- * engine writes an override through this, so none of them can invent an `[]`
- * the serializers cannot express.
+ * A positive label set (effective labels, a default) normalized for storage:
+ * the canonical set, or `undefined` when it is empty — the shape an export
+ * entry or a payload carries, where "no labels" is an absent field.
  */
-export function normalizedOverride(
+export function normalizedLabelSet(
   labels: readonly CardLabel[] | undefined,
 ): CardLabel[] | undefined {
   if (labels === undefined || labels.length === 0) return undefined
@@ -362,83 +416,257 @@ export function normalizedOverride(
 }
 
 /**
- * The exclusive label that makes a combination illegal, or `undefined` when the
- * set is legal. The *rule*, with no prose attached: the CLI renders it through
- * {@link exclusivityError}'s localized message, and the card-line grammar —
+ * Whether an inherited `label` gives way to a line's positive `add` labels
+ * under the exclusivity rule: a line that adds any label displaces an inherited
+ * exclusive one, and a line that adds an exclusive label displaces everything
+ * it did not add itself. With nothing added, nothing is displaced.
+ */
+function displacedBy(add: readonly CardLabel[], label: CardLabel): boolean {
+  if (add.length === 0 || add.includes(label)) return false
+  return isExclusiveLabel(label) || add.some(isExclusiveLabel)
+}
+
+/** Split a (validated) override into what it adds and what it takes away, each canonical. */
+export function labelDelta(override: readonly SignedCardLabel[]): LabelDelta {
+  return {
+    add: CARD_LABELS.filter((label) => override.includes(label)),
+    remove: CARD_LABELS.filter((label) => override.includes(negateLabel(label))),
+  }
+}
+
+/** The labels an override names at all, positively or negated, in canonical order. */
+export function overrideBaseLabels(override: readonly SignedCardLabel[]): CardLabel[] {
+  return CARD_LABELS.filter(
+    (label) => override.includes(label) || override.includes(negateLabel(label)),
+  )
+}
+
+/**
+ * Order a (validated) override canonically and drop its **void** negatives —
+ * negations of labels the line's own positives already displace under any
+ * default (`[keep,no-sale]` is `[keep]`), so two lines that mean the same thing
+ * under every default serialize the same. Validity (no exclusive conflict, no
+ * label both added and taken away) is the parsers' job.
+ */
+export function normalizeLabelOverride(override: readonly SignedCardLabel[]): LabelOverride {
+  const { add, remove } = labelDelta(override)
+  return [...add, ...remove.filter((label) => !displacedBy(add, label)).map(negateLabel)]
+}
+
+/**
+ * A card's stored label override, normalized ({@link normalizeLabelOverride}),
+ * or `undefined` when there is nothing to store. An *empty* set is a clear, and
+ * file data never carries an empty override — the token grammar needs at least
+ * one label — so "no override" and an empty one must be the same value in
+ * memory. Every apply engine writes an override through this, so none of them
+ * can invent an `[]` the serializers cannot express.
+ */
+export function normalizedOverride(
+  labels: readonly SignedCardLabel[] | undefined,
+): LabelOverride | undefined {
+  if (labels === undefined) return undefined
+  const normalized = normalizeLabelOverride(labels)
+  return normalized.length === 0 ? undefined : normalized
+}
+
+/**
+ * The labels a card is effectively under: its list's default adjusted by its
+ * own override. The override's positives are added; its negatives take
+ * inherited labels away; and an added label displaces any *inherited* label it
+ * cannot stand beside under the exclusivity rule — so `[keep]` under a `sale`
+ * default is just `keep`, `[trade]` under a `sale` default is `sale,trade`, and
+ * `[no-proxy]` under a `proxy` default is no labels at all.
+ *
+ * The one rule behind every effective-labels question: pricing and proxies,
+ * sell mode, filters, exports, merge identity, and every client recompute.
+ */
+export function effectiveLabels(
+  override: readonly SignedCardLabel[] | undefined,
+  listDefault: readonly CardLabel[] | undefined,
+): CardLabel[] {
+  const { add, remove } = labelDelta(override ?? [])
+  const inherited = (listDefault ?? []).filter(
+    (label) => !remove.includes(label) && !displacedBy(add, label),
+  )
+  return normalizeCardLabels([...add, ...inherited])
+}
+
+/**
+ * The smallest override that makes a card's effective labels exactly `target`
+ * under `listDefault`, or `undefined` when the default already gives them. What
+ * every picker writes, and how a moved copy lands: neither ever writes a token
+ * the line does not need. `target` must be a legal label set.
+ */
+export function minimalOverride(
+  target: readonly CardLabel[],
+  listDefault: readonly CardLabel[] | undefined,
+): LabelOverride | undefined {
+  const inheritedDefault = listDefault ?? []
+  if (sameCardLabels(target, inheritedDefault)) return undefined
+  const add = target.filter((label) => !inheritedDefault.includes(label))
+  const remove = inheritedDefault.filter(
+    (label) => !displacedBy(add, label) && !target.includes(label),
+  )
+  return normalizedOverride([...add, ...remove.map(negateLabel)])
+}
+
+/**
+ * The labels a copy carries across a move: its labels **as its source states
+ * them**, signed. The positives are its effective labels there; a negative
+ * names a label its source had an opinion on — the list default holds it, or
+ * the line names it — that the copy does not have. A label the source never
+ * mentioned is absent, which is what lets the destination's default fill it in
+ * on arrival ({@link arrivalLabels}).
+ */
+export function carriedLabels(
+  override: readonly SignedCardLabel[] | undefined,
+  listDefault: readonly CardLabel[] | undefined,
+): LabelOverride | undefined {
+  const effective = effectiveLabels(override, listDefault)
+  const mentioned = normalizeCardLabels([
+    ...(listDefault ?? []),
+    ...overrideBaseLabels(override ?? []),
+  ])
+  const lacking = mentioned.filter((label) => !effective.includes(label))
+  return normalizedOverride([...effective, ...lacking.map(negateLabel)])
+}
+
+/**
+ * A moved copy's effective labels in its source, read off its carried labels
+ * ({@link carriedLabels}): their positives.
+ */
+export function carriedEffectiveLabels(
+  carried: readonly SignedCardLabel[] | undefined,
+): CardLabel[] {
+  return labelDelta(carried ?? []).add
+}
+
+/**
+ * The override a moved copy is written with on arrival in a list of
+ * `destType` whose default is `destDefault`, given the labels it carries
+ * ({@link carriedLabels}) and the type of the list it left.
+ *
+ * - `proxy` is a physical fact, preserved exactly wherever both types carry
+ *   it: a real card stays real (`[no-proxy]` under a `proxy` default) and a
+ *   proxy stays a proxy.
+ * - An intent label (`sale`, `trade`, `keep`) keeps the state its source gave
+ *   it where the source had an opinion (the carried labels name it, either
+ *   way); where it had none — a source type that cannot carry it included — the
+ *   copy takes the destination's default.
+ * - The destination's vocabulary filters the result (`proxy` into a deck,
+ *   nothing into a wanted list), and a carried positive displaces a conflicting
+ *   inherited label. What lands is the {@link minimalOverride} for that.
+ *
+ * Every move path — `ritual move`, the editors' cross-list moves, a change
+ * bundle's moves — arrives through this one rule. Old payloads that carry
+ * only positives read as an opinion on exactly those labels. `sourceType` is
+ * `undefined` for a copy no list states anything about (a swap's replacement
+ * printing), which simply takes the destination's default.
+ */
+export function arrivalLabels(
+  destType: ListType,
+  carried: readonly SignedCardLabel[] | undefined,
+  destDefault: readonly CardLabel[] | undefined,
+  sourceType: ListType | undefined,
+): LabelOverride | undefined {
+  if (!supportsAnyLabels(destType)) return undefined
+  const accepted = supportedLabels(destType)
+  const { add, remove } = labelDelta(carried ?? [])
+  const sourceStatesProxy =
+    sourceType !== undefined && supportedLabels(sourceType).includes('proxy')
+  const stated = (label: CardLabel): boolean =>
+    add.includes(label) || remove.includes(label) || (label === 'proxy' && sourceStatesProxy)
+  const kept = add.filter((label) => accepted.includes(label))
+  const inherited = (destDefault ?? []).filter(
+    (label) => accepted.includes(label) && !stated(label) && !displacedBy(kept, label),
+  )
+  return minimalOverride(normalizeCardLabels([...kept, ...inherited]), destDefault)
+}
+
+/**
+ * The exclusive label that makes a combination of *positives* illegal, or
+ * `undefined` when the set is legal. The *rule*, with no prose attached: the
+ * CLI renders it through a localized message, and the card-line grammar —
  * which is English by construction and must not render a `t()` string it would
  * only discard — words its own refusal from the label this returns.
  */
-export function conflictingExclusiveLabel(labels: readonly string[]): CardLabel | undefined {
+export function conflictingExclusiveLabel(labels: readonly CardLabel[]): CardLabel | undefined {
   if (labels.length < 2) return undefined
   return EXCLUSIVE_CARD_LABELS.find((label) => labels.includes(label))
 }
 
-/** The exclusivity refusal, or `undefined` for a legal combination. */
-function exclusivityError(labels: readonly CardLabel[]): string | undefined {
-  const exclusive = conflictingExclusiveLabel(labels)
-  return exclusive === undefined ? undefined : t('errors.label.exclusive', { label: exclusive })
+/**
+ * Why a signed label set cannot be one override: two positives that cannot
+ * combine (`exclusive`), or one label both added and taken away
+ * (`contradictory`). Negatives combine freely with each other.
+ */
+export type LabelOverrideConflict = { kind: 'exclusive' | 'contradictory'; label: CardLabel }
+
+/**
+ * The rule behind every override refusal, with no prose attached — the grammar
+ * words it in English, the CLI through the catalog, the data decoders in
+ * English. `labels` are signed members already known to be in the vocabulary.
+ */
+export function labelOverrideConflict(
+  labels: readonly SignedCardLabel[],
+): LabelOverrideConflict | undefined {
+  const { add, remove } = labelDelta(labels)
+  const contradictory = add.find((label) => remove.includes(label))
+  if (contradictory !== undefined) return { kind: 'contradictory', label: contradictory }
+  const exclusive = conflictingExclusiveLabel(add)
+  if (exclusive !== undefined) return { kind: 'exclusive', label: exclusive }
+  return undefined
+}
+
+/** The localized refusal for a {@link labelOverrideConflict}, or `undefined` for a legal set. */
+function localizedConflict(labels: readonly SignedCardLabel[]): string | undefined {
+  const conflict = labelOverrideConflict(labels)
+  if (conflict === undefined) return undefined
+  return conflict.kind === 'exclusive'
+    ? t('errors.label.exclusive', { label: conflict.label })
+    : t('errors.label.contradictory', { label: conflict.label })
 }
 
 /**
- * Parse a comma-separated label token body (`sale,trade`) as it appears in a
- * card line's bracketed token or a CLI `--label` value. Case-insensitive like
- * every enum surface; the result is normalized. An empty body and a
- * combination naming an exclusive label are refusals.
+ * Parse a comma-separated override value (`trade,no-sale`) as a CLI `--label`
+ * takes it, with localized refusals. Case-insensitive like every enum surface
+ * (the card-line grammar itself reads only lowercase tokens and words its own
+ * English refusals); the result is normalized. An empty body, an exclusive
+ * combination, and a label both added and negated are refusals.
  */
-export function parseCardLabelsToken(raw: string): CardLabelsResult {
+export function parseLabelOverrideToken(raw: string): LabelOverrideResult {
   const parts = raw.split(',').map((part) => part.trim())
   if (parts.some((part) => part === '')) {
     return {
       ok: false,
-      message: `Labels must be a comma-separated list of: ${CARD_LABELS.join(', ')}.`,
+      message: t('errors.label.emptyPart', { choices: SIGNED_CARD_LABELS.join(', ') }),
     }
   }
-  const labels: CardLabel[] = []
+  const labels: SignedCardLabel[] = []
   for (const part of parts) {
-    const parsed = parseEnumField(part, CARD_LABELS, 'label')
+    const parsed = parseEnumField(part, SIGNED_CARD_LABELS, 'label')
     if (!parsed.ok) return parsed
     labels.push(parsed.value)
   }
-  const conflict = exclusivityError(labels)
+  const conflict = localizedConflict(labels)
   if (conflict) return { ok: false, message: conflict }
-  return { ok: true, labels: normalizeCardLabels(labels) }
+  return { ok: true, labels: normalizeLabelOverride(labels) }
 }
 
 /**
- * Parse a label set from structured data — a front-matter `labels:` value or an
- * HTTP body field. Must be an array of label strings (case-insensitive); the
- * result is normalized. An empty array is `ok` with `[]` — callers decide what
- * empty means (front matter treats it as "no default", the metadata route as
- * "clear").
+ * Parse a list's *default* label set from structured data — a front-matter
+ * `labels:` value or an HTTP body field. Must be an array of positive label
+ * strings (case-insensitive); the result is normalized. An empty array is `ok`
+ * with `[]` — callers decide what empty means (front matter treats it as "no
+ * default", the metadata route as "clear"). Negations are refused: a default is
+ * positive only.
+ *
+ * Refusals are **English by contract**, one locale for every reader: they name
+ * a field in a file or a request body — the metadata route's 400, the
+ * front-matter warnings, the CLI's "stored value is invalid" report — like
+ * {@link parseLabelOverrideData}'s.
  */
 export function parseCardLabelsValue(raw: unknown, field: string): CardLabelsResult {
-  if (!isUnknownArray(raw)) {
-    return {
-      ok: false,
-      message: `${field} must be an array of labels (${CARD_LABELS.join(', ')}).`,
-    }
-  }
-  const labels: CardLabel[] = []
-  for (const element of raw) {
-    const parsed = parseEnumField(element, CARD_LABELS, field)
-    if (!parsed.ok) return parsed
-    labels.push(parsed.value)
-  }
-  const conflict = exclusivityError(labels)
-  if (conflict) return { ok: false, message: conflict }
-  return { ok: true, labels: normalizeCardLabels(labels) }
-}
-
-/**
- * {@link parseCardLabelsValue} for persisted and exchanged data — a changelog's
- * event block, a change bundle, a save request's events — whose refusals are
- * **English by contract**: they name JSON fields in a file the user inspects,
- * and the decoders that report them live inside the persistence fence, so no
- * message here may depend on the UI locale (the UI-facing parser renders its
- * enum and exclusivity refusals through `t()`). The acceptance rule is the same
- * one: an array of labels, case-insensitive, normalized, exclusivity enforced.
- */
-export function parseCardLabelsData(raw: unknown, field: string): CardLabelsResult {
   const choices = CARD_LABELS.join(', ')
   if (!isUnknownArray(raw)) {
     return { ok: false, message: `${field} must be an array of labels (${choices}).` }
@@ -459,6 +687,43 @@ export function parseCardLabelsData(raw: unknown, field: string): CardLabelsResu
     return { ok: false, message: `'${exclusive}' cannot be combined with other labels.` }
   }
   return { ok: true, labels: normalizeCardLabels(labels) }
+}
+
+/**
+ * Parse a signed override from persisted and exchanged data — a changelog's
+ * event block, a change bundle, a save request's events — whose refusals are
+ * **English by contract**: they name JSON fields in a file the user inspects,
+ * and the decoders that report them live inside the persistence fence, so no
+ * message here may depend on the UI locale. The acceptance rule is the token
+ * parser's: signed labels, case-insensitive, normalized, conflicts refused.
+ */
+export function parseLabelOverrideData(raw: unknown, field: string): LabelOverrideResult {
+  const choices = SIGNED_CARD_LABELS.join(', ')
+  if (!isUnknownArray(raw)) {
+    return { ok: false, message: `${field} must be an array of labels (${choices}).` }
+  }
+  const labels: SignedCardLabel[] = []
+  for (const element of raw) {
+    if (typeof element !== 'string') {
+      return { ok: false, message: `${field} must be one of: ${choices}.` }
+    }
+    const label = element.toLowerCase()
+    if (!isSignedCardLabel(label)) {
+      return { ok: false, message: `Invalid ${field} '${element}'. Use one of: ${choices}.` }
+    }
+    labels.push(label)
+  }
+  const conflict = labelOverrideConflict(labels)
+  if (conflict?.kind === 'exclusive') {
+    return { ok: false, message: `'${conflict.label}' cannot be combined with other labels.` }
+  }
+  if (conflict?.kind === 'contradictory') {
+    return {
+      ok: false,
+      message: `'${conflict.label}' cannot be both set and negated on one card.`,
+    }
+  }
+  return { ok: true, labels: normalizeLabelOverride(labels) }
 }
 
 /**
@@ -531,19 +796,26 @@ export function listDefaultLabels(
 }
 
 /**
- * The canonical comma-joined form (`sale,trade`) written to card-line tokens
- * and changelog lines. Input is assumed already validated; ordering is
- * re-normalized so no caller can serialize `trade,sale`.
+ * The canonical comma-joined form of a positive label set (`sale,trade`),
+ * written to front matter displays and menu rows. Ordering is re-normalized so
+ * no caller can serialize `trade,sale`.
  */
 export function formatCardLabels(labels: readonly CardLabel[]): string {
   return normalizeCardLabels(labels).join(',')
 }
 
 /**
- * Whether two label sets are the same override: order-insensitive, with an
- * absent set equal to an empty one. Compared through the canonical serialized
- * form, so `['trade','sale']` equals `['sale','trade']` — the rule behind
- * every "did the label actually change?" check.
+ * The canonical comma-joined form of an override (`trade,no-sale`), written to
+ * card-line tokens and changelog lines. Input is assumed already validated.
+ */
+export function formatLabelOverride(labels: readonly SignedCardLabel[]): string {
+  return normalizeLabelOverride(labels).join(',')
+}
+
+/**
+ * Whether two positive label sets are the same: order-insensitive, with an
+ * absent set equal to an empty one — the rule behind every effective-labels
+ * and default comparison.
  */
 export function sameCardLabels(
   a: readonly CardLabel[] | undefined,
@@ -553,73 +825,131 @@ export function sameCardLabels(
 }
 
 /**
- * The labels a card is effectively under: its own override when present, else
- * the list's default, else none. A present override replaces the default
- * entirely — file data never carries an *empty* override (the token grammar
- * requires at least one label), so `undefined` always means "no override".
+ * Whether two overrides are the same override, compared canonically with an
+ * absent override equal to an empty one — the rule behind every "did the label
+ * actually change?" check.
  */
-export function effectiveLabels(
-  override: readonly CardLabel[] | undefined,
-  listDefault: readonly CardLabel[] | undefined,
-): CardLabel[] {
-  return [...(override ?? listDefault ?? [])]
+export function sameLabelOverride(
+  a: readonly SignedCardLabel[] | undefined,
+  b: readonly SignedCardLabel[] | undefined,
+): boolean {
+  return formatLabelOverride(a ?? []) === formatLabelOverride(b ?? [])
 }
 
 /**
- * One pickable override in the label pickers, in menu order. `label` is a
- * message key for the same reason {@link CARD_LABEL_DISPLAY_NAMES} holds keys —
- * the choice lists below are module-level constants.
+ * The effective state a label-picker row asks for: a label set (possibly
+ * empty — "No labels"), or `'default'` for the row that clears the override.
  */
-export type CardLabelChoice = { label: CardLabelMessageKey; labels: readonly CardLabel[] }
+export type CardLabelTarget = readonly CardLabel[] | 'default'
 
 /**
- * Every override state a label picker can offer (the CLI edit menu, the
- * editors' Set Label… picker, and — minus the clear row — the admin default-
- * labels modal). `keep` doubles as the explicit "not for sale/trade" state, so
- * there is no separate "none" label; "Use list default" clears the override
- * (an empty label set).
- *
- * Per-list-type pickers are *derived* from this one table by
- * {@link cardLabelChoicesFor}: a second hardcoded table for decks would drift
- * from {@link LIST_TYPE_LABELS} the first time the vocabulary changed.
+ * One pickable row in the label pickers, in menu order. `label` is a message
+ * key for the same reason {@link CARD_LABEL_DISPLAY_NAMES} holds keys — the
+ * choice lists below are built from module-level constants.
  */
-const ALL_CARD_LABEL_CHOICES = [
+export type CardLabelChoice = { label: CardLabelMessageKey; labels: CardLabelTarget }
+
+/**
+ * Every labeled state a picker can offer. The override pickers write the
+ * {@link minimalOverride} that gives the picked state under the list's default,
+ * so they never author a token the line does not need.
+ */
+const LABELED_CHOICES = [
   { label: CARD_LABEL_DISPLAY_NAMES.sale, labels: ['sale'] },
   { label: CARD_LABEL_DISPLAY_NAMES.trade, labels: ['trade'] },
   { label: 'domain.label.saleAndTrade', labels: ['sale', 'trade'] },
   { label: CARD_LABEL_DISPLAY_NAMES.keep, labels: ['keep'] },
   { label: CARD_LABEL_DISPLAY_NAMES.proxy, labels: ['proxy'] },
-  { label: 'domain.label.useListDefault', labels: [] },
 ] as const satisfies readonly CardLabelChoice[]
 
-/**
- * The override rows a picker on a list of `type` offers: every state whose
- * labels that type accepts, plus the "Use list default" clear row (which
- * declares nothing, so it survives every type).
- */
-export function cardLabelChoicesFor(type: ListType): readonly CardLabelChoice[] {
+/** The labeled states a list of `type` can hold, in menu order. */
+function labeledChoicesFor(type: ListType): CardLabelDefaultChoice[] {
   const supported = supportedLabels(type)
-  return ALL_CARD_LABEL_CHOICES.filter((choice) =>
+  return LABELED_CHOICES.filter((choice) =>
     choice.labels.every((label) => supported.includes(label)),
   )
 }
 
 /**
- * The *default*-labels picker rows for a list of `type` (the admin Default
- * Labels modal and the CLI editor's Edit List Labels action): each labeled
- * state that type accepts plus a leading "No default" clear row — "Use list
- * default" makes no sense for the default itself.
+ * The wording of each type's empty-state row: "Not a proxy" on a deck (its one
+ * label), "No labels" on a collection; a wanted list carries no labels.
  */
-export function cardLabelDefaultChoicesFor(type: ListType): readonly CardLabelChoice[] {
-  return [
-    { label: 'domain.label.noDefault', labels: [] },
-    ...cardLabelChoicesFor(type).filter((choice) => choice.labels.length > 0),
-  ]
+const EMPTY_LABEL_CHOICE_KEYS = {
+  deck: 'domain.label.notProxy',
+  collection: 'domain.label.noLabels',
+  wanted: undefined,
+} as const satisfies Record<ListType, CardLabelMessageKey | undefined>
+
+/**
+ * The override rows a picker on a list of `type` offers under `listDefault`:
+ * every labeled state that type accepts, an empty state ("No labels"; "Not a
+ * proxy" on a deck) when the default gives the card something to take away,
+ * and the "Use list default" clear row. A type that carries no labels offers
+ * the clear row alone.
+ */
+export function cardLabelChoicesFor(
+  type: ListType,
+  listDefault: readonly CardLabel[] | undefined,
+): readonly CardLabelChoice[] {
+  const labeled = labeledChoicesFor(type)
+  const emptyKey = EMPTY_LABEL_CHOICE_KEYS[type]
+  const empty: CardLabelChoice[] =
+    emptyKey !== undefined && labeled.length > 0 && (listDefault?.length ?? 0) > 0
+      ? [{ label: emptyKey, labels: [] }]
+      : []
+  return [...labeled, ...empty, { label: 'domain.label.useListDefault', labels: 'default' }]
 }
 
-/** The override picker rows for collections — the whole vocabulary. */
-export const CARD_LABEL_CHOICES: readonly CardLabelChoice[] = cardLabelChoicesFor('collection')
+/**
+ * A picker row's stable value: `default` for the clear row, `none` for the
+ * empty state, else the canonical label list (`sale,trade`) — a real domain
+ * token rather than a menu position, distinct for every row of a table.
+ */
+export function labelChoiceKey(target: CardLabelTarget): string {
+  if (target === 'default') return 'default'
+  return target.length === 0 ? 'none' : formatCardLabels(target)
+}
 
-/** The default-labels picker rows for collections. */
-export const CARD_LABEL_DEFAULT_CHOICES: readonly CardLabelChoice[] =
-  cardLabelDefaultChoicesFor('collection')
+/**
+ * The override a picked row writes as a set-label payload: the clear (`[]`)
+ * for "Use list default", else the {@link minimalOverride} for the row's state
+ * — also the clear when the default already gives it.
+ */
+export function overrideForChoice(
+  target: CardLabelTarget,
+  listDefault: readonly CardLabel[] | undefined,
+): LabelOverride {
+  if (target === 'default') return []
+  return minimalOverride(target, listDefault) ?? []
+}
+
+/**
+ * The row a picker marks current for a card whose override is `override`: the
+ * clear row when it has none, else the row whose state equals its effective
+ * labels (`undefined` when no row does).
+ */
+export function currentLabelChoice(
+  choices: readonly CardLabelChoice[],
+  override: readonly SignedCardLabel[] | undefined,
+  listDefault: readonly CardLabel[] | undefined,
+): CardLabelChoice | undefined {
+  if (normalizedOverride(override) === undefined) {
+    return choices.find((choice) => choice.labels === 'default')
+  }
+  const effective = effectiveLabels(override, listDefault)
+  return choices.find(
+    (choice) => choice.labels !== 'default' && sameCardLabels(choice.labels, effective),
+  )
+}
+
+/** One row of the *default*-labels picker: a positive state, or `[]` for "No default". */
+export type CardLabelDefaultChoice = { label: CardLabelMessageKey; labels: readonly CardLabel[] }
+
+/**
+ * The *default*-labels picker rows for a list of `type` (the admin Default
+ * Labels modal and the CLI editor's Edit List Labels action): a leading "No
+ * default" clear row, then each labeled state that type accepts.
+ */
+export function cardLabelDefaultChoicesFor(type: ListType): readonly CardLabelDefaultChoice[] {
+  return [{ label: 'domain.label.noDefault', labels: [] }, ...labeledChoicesFor(type)]
+}

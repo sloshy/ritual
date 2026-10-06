@@ -33,6 +33,7 @@ import {
   pricelessReason,
   PRICELESS_REASONS,
   type CardLabel,
+  type SignedCardLabel,
 } from '../card/card-labels'
 import {
   findPrinting,
@@ -410,7 +411,7 @@ function customArtFlag(art: CardArtMap | undefined, cardId: number | undefined):
  * pricing entries carry a label field only when there is something to say.
  */
 function labelsOrUndefined(
-  override: readonly CardLabel[] | undefined,
+  override: readonly SignedCardLabel[] | undefined,
   listDefault: readonly CardLabel[] | undefined,
 ): CardLabel[] | undefined {
   const labels = effectiveLabels(override, listDefault)

@@ -139,7 +139,7 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
           frontMatter: openObject('The deck’s YAML front matter, verbatim.'),
           labels: arr(
             CARD_LABEL,
-            'The deck’s default card labels from front matter ("proxy" alone); a card’s own labels override them.',
+            'The deck’s default card labels from front matter ("proxy" alone); a card’s own labels adjust them.',
           ),
           image: LIST_IMAGE_REF,
           customArt: CUSTOM_ART_MAP,
@@ -157,7 +157,7 @@ export const GET_LIST_OUTPUT: JsonSchemaType = withDefs(
           description: str('The list’s front-matter description, the blurb the site prints.'),
           labels: arr(
             CARD_LABEL,
-            'The list’s default card labels from front matter (never on a wanted list).',
+            'The list’s default card labels from front matter (never on a wanted list); a card’s own labels adjust them.',
           ),
           image: LIST_IMAGE_REF,
           customArt: CUSTOM_ART_MAP,

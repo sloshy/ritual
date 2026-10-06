@@ -553,8 +553,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       title: 'Import change bundle',
       description:
         'Apply a change bundle exported from the site editor (format "ritual-change-bundle", ' +
-        'version 2: per-list "lists[].changes" plus a top-level normalized "moves" array, ' +
-        'one entry per copy moved between two lists) to the underlying lists. Each move is ' +
+        'version 3: per-list "lists[].changes" plus a top-level normalized "moves" array, ' +
+        'one entry per copy moved between two lists; labels are signed, adjusting each ' +
+        "list's default, and a version-2 bundle is refused) to the underlying lists. Each move is " +
         'applied to both its source and destination list, with a changelog entry on each; a ' +
         'move with "pinsCardId" pins a name-only line of the destination instead of adding a ' +
         'copy, and one with "replacement" adds that printing back to the source. ' +
@@ -593,7 +594,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'site prints above the cards — and image. Decks add tags, format, the Archidekt source ' +
         'link, and labels ("proxy" alone). Collections add labels over the whole vocabulary ' +
         '("sale"/"trade" combine; "keep" and "proxy" each stand alone) — the default every ' +
-        'entry without its own override inherits. A wanted list carries description and image ' +
+        'entry inherits, adjusted by its own signed labels; a default is positive only. A wanted list carries description and image ' +
         'and nothing else (use rename_list to change its display name). Only the fields you ' +
         'send are touched; null (or "" for description) clears one. Setting sourceId together with an ' +
         'archidekt.com sourceUrl is what makes a deck sync-linked, so it is what sync_decks then ' +
@@ -682,7 +683,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'Add a card to any list (decks increment quantity if the same printing already exists). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
         'one save. Collections require set + collectorNumber together — an add without one is ' +
-        'rejected. labels gives the new card a label override (decks take "proxy" alone); tags ' +
+        'rejected. labels gives the new card a signed label override adjusting the list default ' +
+        '("trade", "no-sale"; decks take "proxy"/"no-proxy" alone); tags ' +
         'gives it tags (plain text in the owner\'s casing, sent without any "#"; any list type). language records a ' +
         'non-English copy; without it the configured defaultLanguage applies.',
       inputSchema: z
@@ -910,8 +912,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'move_selected_cards. ' +
         'This is also the only way to set or clear a card note (set-note), change a card’s ' +
         'language on its own (set-language — "en" clears the token, since a bare line means ' +
-        'English), set or clear a card’s label override (set-label — the whole vocabulary on a ' +
-        'collection, "proxy" alone on a deck, never on a wanted list), put a tag on or take one ' +
+        'English), set or clear a card’s signed label override (set-label — "trade", "no-sale" ' +
+        'and the rest of the vocabulary on a collection, "proxy"/"no-proxy" alone on a deck, ' +
+        'never on a wanted list), put a tag on or take one ' +
         'off a card (add-tag / remove-tag — one event per tag, the tag as its owner writes it, without any "#", ' +
         'on any list type), move a card to a section ' +
         '(set-section), and set or clear a deck commander ' +
@@ -972,10 +975,12 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'skipped and counted; notes that a destination cannot keep are reported in droppedNotes. ' +
         "A moved card's tags and note follow it onto the destination line (a copy merging onto " +
         "a deck line with a different note keeps that line's note; see droppedNotes), and so " +
-        'do its effective labels (its own override, else the source list default) as far as ' +
-        'the destination type accepts them (proxy into a deck; sale/trade/keep into a ' +
-        'collection only; nothing into a wanted list), written as an override only where they ' +
-        "differ from the destination's default. Its custom art " +
+        'do its labels: a proxy stays a proxy and a real card stays real wherever both lists ' +
+        'carry "proxy"; a sale/trade/keep state the source list stated (by its default or on ' +
+        "the card) is kept, and a label it never stated takes the destination's default — as far " +
+        'as the destination type accepts them (proxy into a deck; sale/trade/keep into a ' +
+        'collection only; nothing into a wanted list), written as the smallest override that ' +
+        'says so. Its custom art ' +
         "follows too: the entry is re-filed under the destination line's new cardId, except for " +
         'a copy that merges ' +
         'onto a line the destination already had, which keeps its own art. ' +

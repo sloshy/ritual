@@ -42,7 +42,7 @@ export const helpCardsMessages = {
   'help.addCard.language':
     "Card language (e.g. ja); overrides the configured defaultLanguage. Never prompted — en is a bare line's default",
   'help.addCard.label':
-    'Label the new card: sale,trade (combinable), keep or proxy on a collection; proxy alone on a deck',
+    'Adjust the list default for the new card: sale,trade (combinable), keep or proxy, or no-<label> to drop an inherited one (trade,no-sale); decks take proxy and no-proxy only',
   'help.addCard.tag':
     'Tag the new card: one or more tags separated by commas ("Ramp, Card Draw"); any list type',
   'help.addCard.section': 'Deck section to add to, created if missing (decks only)',
@@ -74,8 +74,9 @@ export const helpCardsMessages = {
   'help.setCard.condition':
     'New condition: {choices}, or NONE to clear it (decks and collections only)',
   'help.setCard.label':
-    'New label override: sale,trade (combinable), keep or proxy, or none to clear it ' +
-    '(decks take proxy only)',
+    'New label override, adjusting the list default: sale,trade (combinable), keep or proxy, ' +
+    'no-<label> to drop an inherited one (trade,no-sale), or none to clear it ' +
+    '(decks take proxy and no-proxy only)',
   'help.setCard.tag':
     'Add these tags to the card: one or more, separated by commas ("Ramp, Card Draw")',
   'help.setCard.untag': 'Remove these tags from the card: one or more, separated by commas',

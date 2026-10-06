@@ -10,7 +10,9 @@ import {
   type ChangeInput,
   type ListRef,
   type MoveReplacement,
-  isSamePrinting,
+  type MovedCopyFields,
+  movedCopyFromLine,
+  movedCopyOf,
 } from '../changes/change-event'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { NamedListRef } from '../list-view/combined-list'
@@ -18,7 +20,12 @@ import { hasSpecificPrinting, resolvePrintingCard } from '../card/card-printing'
 import { displayFinish } from '../card/finish-condition'
 import { printingKey } from '../card/printing-key'
 import { displayLanguage } from '../card/card-language'
-import { findDeckAddMergeTargetId, type DeckLandingOptions } from '../changes/deck-changes'
+import {
+  findDeckAddMergeTargetId,
+  pinConvertsInPlace,
+  type DeckLandingOptions,
+} from '../changes/deck-changes'
+import type { CardLabel } from '../card/card-labels'
 import { definedPrintingDetails, targetPinsPrinting } from './swap-printings/printing-fields'
 import type { ChosenPrinting, SwapMove, SwapTarget } from './swap-printings'
 import type { SwapFlatLine } from './swap-sources'
@@ -43,6 +50,7 @@ function targetFromLine(
   sharedLine: boolean,
   quantity: number,
   card: ScryfallCard | null,
+  payloads: MovedCopyFields[],
 ): SwapTarget {
   const target: SwapTarget = {
     cardName: line.name,
@@ -51,6 +59,7 @@ function targetFromLine(
     quantity,
     ...definedPrintingDetails(line),
     card,
+    payloads,
   }
   if (hasSpecificPrinting(line)) {
     target.set = line.set.toLowerCase()
@@ -65,14 +74,20 @@ function targetFromLine(
  * `&N` shared by all its copies), in section then line order. A line that
  * pins a printing can have it re-picked; a name-only line can be given one.
  */
-export function deckSwapTargets(deck: DeckData, cardData: SwapTargetCardData): SwapTarget[] {
+export function deckSwapTargets(
+  deck: DeckData,
+  cardData: SwapTargetCardData,
+  listDefault: readonly CardLabel[] | undefined,
+): SwapTarget[] {
   const targets: SwapTarget[] = []
   for (const section of deck.sections) {
     for (const card of section.cards) {
       const cardIds = card.cardId !== undefined ? [card.cardId] : []
       const line: SwapFlatLine = { ...card, section: section.name }
       targets.push(
-        targetFromLine(line, cardIds, true, card.quantity, resolveTargetCard(cardData, line)),
+        targetFromLine(line, cardIds, true, card.quantity, resolveTargetCard(cardData, line), [
+          movedCopyFromLine(card, listDefault),
+        ]),
       )
     }
   }
@@ -85,6 +100,8 @@ type FlatTargetGroup = {
   card: ScryfallCard | null
   cardIds: number[]
   quantity: number
+  /** Each copy's move payload, aligned with `cardIds`. */
+  payloads: MovedCopyFields[]
 }
 
 /**
@@ -117,6 +134,7 @@ function flatGroupKey(entry: SwapFlatLine, card: ScryfallCard | null): string {
 export function flatSwapTargets(
   entries: readonly SwapFlatLine[],
   cardData: SwapTargetCardData,
+  listDefault: readonly CardLabel[] | undefined,
 ): SwapTarget[] {
   const groups = new Map<string, FlatTargetGroup>()
   for (const entry of entries) {
@@ -124,14 +142,17 @@ export function flatSwapTargets(
     const key = flatGroupKey(entry, card)
     let group = groups.get(key)
     if (!group) {
-      group = { line: entry, card, cardIds: [], quantity: 0 }
+      group = { line: entry, card, cardIds: [], quantity: 0, payloads: [] }
       groups.set(key, group)
     }
     group.quantity += 1
-    if (entry.cardId !== undefined) group.cardIds.push(entry.cardId)
+    if (entry.cardId !== undefined) {
+      group.cardIds.push(entry.cardId)
+      group.payloads.push(movedCopyFromLine(entry, listDefault))
+    }
   }
   return [...groups.values()].map((group) =>
-    targetFromLine(group.line, group.cardIds, false, group.quantity, group.card),
+    targetFromLine(group.line, group.cardIds, false, group.quantity, group.card, group.payloads),
   )
 }
 
@@ -207,31 +228,75 @@ export type SwapApplyContext = {
    * each `in` op is produced — after the ops before it have applied — so a
    * line an earlier op created or drained is seen as it stands.
    */
-  mergeTargetId: (move: SwapMove) => number | undefined
+  mergeTargetId: (move: SwapMove, copyIndex: number) => number | undefined
+  /**
+   * Whether arriving copy `copyIndex` of `move` may convert the name-only line
+   * `lineId` in place — on a deck, only when its landed labels equal the line's
+   * effective ones ({@link deckSwapPinConvertsInPlace}, the reducer's own rule);
+   * otherwise it splits off as its own arrival. A flat host answers true (a
+   * wanted list carries no labels to disagree about). Probed live, like
+   * {@link mergeTargetId}.
+   */
+  pinConvertsInPlace: (move: SwapMove, copyIndex: number, lineId: number) => boolean
 }
 
 /**
- * The deck host's {@link SwapApplyContext.mergeTargetId}: the line an arriving
- * copy would merge onto under the add reducer's rule (`mergesOntoCard`: name,
- * `isSamePrinting` tuple, effective labels against the deck's `listLabels` — a
- * swapped copy carries no override of its own).
+ * The deck host's {@link SwapApplyContext.mergeTargetId}: the line arriving
+ * copy `copyIndex` of `move` would merge onto under the reducer's own landing
+ * rule (`mergesOntoCard`: name, `isSamePrinting` tuple, tags, and effective
+ * labels — the copy's carried labels landed against the deck's `listLabels`).
  */
 export function deckSwapMergeTargetId(
   deck: DeckData,
   move: SwapMove,
   options: DeckLandingOptions,
+  copyIndex = 0,
 ): number | undefined {
   return findDeckAddMergeTargetId(
     deck,
     {
-      action: 'add',
+      action: 'move-to',
       cardName: move.cardName,
       set: move.set.toLowerCase(),
       collectorNumber: move.collectorNumber,
       ...definedPrintingDetails(move),
+      ...copyPayload(move, copyIndex),
+      from: toListRef(move.from),
+      // Scoped like the reducer's own landing: a move-to merges within its section.
+      ...(move.section !== undefined ? { section: move.section } : {}),
     },
     options,
   )
+}
+
+/**
+ * The deck host's {@link SwapApplyContext.pinConvertsInPlace}: the reducer's
+ * own rule (`pinConvertsInPlace`) against the live line `lineId`.
+ */
+export function deckSwapPinConvertsInPlace(
+  deck: DeckData,
+  move: SwapMove,
+  options: DeckLandingOptions,
+  copyIndex: number,
+  lineId: number,
+): boolean {
+  const line = deck.sections.flatMap((s) => s.cards).find((c) => c.cardId === lineId)
+  if (line === undefined) return false
+  return pinConvertsInPlace(
+    line,
+    { labels: copyPayload(move, copyIndex).labels, from: toListRef(move.from) },
+    options.listLabels,
+  )
+}
+
+/** Copy `index`'s move payload, with only its defined fields (so no event grows `undefined` keys). */
+function copyPayload(move: SwapMove, index: number): MovedCopyFields {
+  const { tags, labels, note } = movedCopyOf(move.payloads?.[index] ?? {})
+  return {
+    ...(tags !== undefined ? { tags } : {}),
+    ...(labels !== undefined ? { labels } : {}),
+    ...(note !== undefined ? { note } : {}),
+  }
 }
 
 /** One editor operation: the change to record and apply, and an id to release after it. */
@@ -262,7 +327,6 @@ function moveReplacementOf(chosen: ChosenPrinting): MoveReplacement {
 type PinnedLineFill = { arriving: number; moves: number }
 
 /** A fresh destination line id already handed to one merge group of arriving copies. */
-type SharedDestinationId = { move: SwapMove; id: number }
 
 /**
  * The ordered editor operations for a set of planned moves.
@@ -273,20 +337,19 @@ type SharedDestinationId = { move: SwapMove; id: number }
  * copies each own their id and release it as they go. Then replacements (`in`):
  * one `move-to` per copy with the source line's id as `sourceCardId` and the
  * target's section. On a deck an arriving copy lands on the line the reducer
- * would fold it onto — a line the deck already holds (`ctx.mergeTargetId`,
- * probed live, so the changelog and the art plan name the real `&N` rather
- * than a phantom one) or the one shared by the copies of the same name and
- * `isSamePrinting` tuple arriving before it, whatever list they came from —
- * and only otherwise takes a fresh id; a flat list gives every copy its own.
- * (The reducer merges across sections too: copies headed for a section that
- * already holds the printing elsewhere land on that line.)
+ * would fold it onto — `ctx.mergeTargetId`, probed live after every earlier op
+ * has applied, so it sees a line an earlier copy started and the changelog and
+ * the art plan name the real `&N` rather than a phantom one — and only
+ * otherwise takes a fresh id; a flat list gives every copy its own. A move-to
+ * merges only within the section it names, like the reducer.
  *
  * An `in` move that PINS a name-only target (`pinsCardIds`) yields one
  * `move-to` per copy carrying `replacesCardId`: on a flat list — or a deck
- * line filled whole by one printing — the copy converts the line in place
- * (`cardId` is the line's own id); otherwise it is a split, one copy off the
- * name-only line landing where an add would, and the name-only id is released
- * with the last copy taken. The move's `replacement`, when chosen, rides on
+ * line filled whole by one printing whose copies land with the line's own
+ * effective labels (`ctx.pinConvertsInPlace`) — the copy converts the line in
+ * place (`cardId` is the line's own id); otherwise it is a split, one copy off
+ * the name-only line landing as a normal arrival, and the name-only id is
+ * released with the last copy taken. The move's `replacement`, when chosen, rides on
  * every copy's event.
  *
  * Out before in so the quantities `quantityOf` reports (read before anything
@@ -343,13 +406,14 @@ export function* swapMovesToChanges(
   for (const move of moves) {
     if (move.direction !== 'out') continue
     const to = toListRef(move.to)
-    for (const cardId of move.sourceCardIds) {
+    for (const [outIndex, cardId] of move.sourceCardIds.entries()) {
       const change: MoveFromInput = {
         action: 'move-from',
         cardName: move.cardName,
         set: move.set.toLowerCase(),
         collectorNumber: move.collectorNumber,
         ...definedPrintingDetails(move),
+        ...copyPayload(move, outIndex),
         ...(cardId !== undefined ? { cardId } : {}),
         to,
       }
@@ -368,21 +432,12 @@ export function* swapMovesToChanges(
     }
   }
 
-  // Deck: the standing line the copy merges onto, else one fresh id per group
-  // the add reducer would merge (`mergesOntoCard`: name + `isSamePrinting`);
-  // flat: one per copy.
-  const shared: SharedDestinationId[] = []
-  const destinationId = (move: SwapMove): number => {
+  // Deck: the line the copy merges onto as the list stands now — the probe is
+  // live (each op applies before the next is pulled), so a line an earlier
+  // copy started is found here too — else a fresh id. Flat: one per copy.
+  const destinationId = (move: SwapMove, index: number): number => {
     if (ctx.kind === 'flat') return ctx.allocateId()
-    const standing = ctx.mergeTargetId(move)
-    if (standing !== undefined) return standing
-    const found = shared.find(
-      (entry) => entry.move.cardName === move.cardName && isSamePrinting(entry.move, move),
-    )
-    if (found) return found.id
-    const id = ctx.allocateId()
-    shared.push({ move, id })
-    return id
+    return ctx.mergeTargetId(move, index) ?? ctx.allocateId()
   }
 
   for (const move of moves) {
@@ -394,15 +449,17 @@ export function* swapMovesToChanges(
       // A name-only line without an `&N` (a hand edit the backfill has not
       // seen) cannot be pinned by id: the copy arrives as a plain add and the
       // name-only line stays for the user to remove.
-      const converts = pinned !== undefined && inPlace(pinned)
+      const converts =
+        pinned !== undefined && inPlace(pinned) && ctx.pinConvertsInPlace(move, i, pinned)
       const change: MoveToInput = {
         action: 'move-to',
         cardName: move.cardName,
         set: move.set.toLowerCase(),
         collectorNumber: move.collectorNumber,
         ...definedPrintingDetails(move),
+        ...copyPayload(move, i),
         from,
-        cardId: converts ? pinned : destinationId(move),
+        cardId: converts ? pinned : destinationId(move, i),
         ...(move.section !== undefined ? { section: move.section } : {}),
         ...(sourceCardId !== undefined ? { sourceCardId } : {}),
         // The replacement goes back in place of the pinned line, so it only

@@ -108,8 +108,23 @@ test.describe('Label badges', () => {
   test('the list default still drives filtering on its page', async ({ page }) => {
     await page.goto('#/collection/sale-binder?view=list&labels=sale')
     await page.waitForSelector('.card-list', { timeout: 10_000 })
-    // Default Card inherits sale+trade; Keeper's override excludes it.
+    // Default Card inherits sale+trade; Keeper's override displaces both, and
+    // Trade Only's `[no-sale]` takes the inherited sale away.
     await expectVisibleCards(page, ['Default Card'])
+  })
+
+  test('a negation badges as "Not for sale" and keeps the rest of the default', async ({
+    page,
+  }) => {
+    await page.goto('#/collection/sale-binder?view=list&labels=trade')
+    await page.waitForSelector('.card-list', { timeout: 10_000 })
+    // `[no-sale]` under `sale, trade` is still for trade.
+    await expectVisibleCards(page, ['Default Card', 'Trade Only'])
+    await expect(
+      page
+        .locator('.card-list', { hasText: 'Trade Only' })
+        .locator('.card-label-badge.label-negated'),
+    ).toHaveText('Not for sale')
   })
 })
 
@@ -143,7 +158,8 @@ test.describe('Collections index "View all..." dropdown', () => {
     await switchToListView(page)
     // Effective labels across both collections: overrides from Label Binder,
     // the sale+trade default from Sale Binder — keeps and unlabeled filtered out.
-    await expectVisibleCards(page, ['Sale Card', 'Trade Card', 'Default Card'])
+    // Trade Only's `[no-sale]` leaves it for trade, so it qualifies too.
+    await expectVisibleCards(page, ['Sale Card', 'Trade Card', 'Default Card', 'Trade Only'])
   })
 
   test('the unfiltered entry opens the combined view with no labels filter', async ({ page }) => {
@@ -161,6 +177,7 @@ test.describe('Collections index "View all..." dropdown', () => {
       'Plain Card',
       'Default Card',
       'Keeper',
+      'Trade Only',
     ])
   })
 })

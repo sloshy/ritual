@@ -768,8 +768,9 @@ describe('POST /api/move/selected', () => {
   })
 
   test('a card that only inherits its deck’s `proxy` default arrives in the binder as a proxy', async () => {
-    // Every move carries the copy's effective labels: the Sol Ring line has no
-    // override of its own, but the deck's front matter makes it a proxy.
+    // Every move carries the copy's labels as its source states them: the Sol
+    // Ring line has no override of its own, but the deck's front matter makes
+    // it a proxy.
     await writeDeckFile(tmpDir, 'my-deck', {
       name: 'My Deck',
       frontMatter: { labels: ['proxy'] },
@@ -789,6 +790,29 @@ describe('POST /api/move/selected', () => {
     expect(res.moved).toBe(1)
     expect(await fs.readFile(binderPath(), 'utf-8')).toContain('- Sol Ring (C19:221) [proxy] &2')
     expect(await changelogOf(deckPath())).toContain('"labels":["proxy"]')
+  })
+
+  test('a real card stays real in a `proxy`-default binder, written as [no-proxy]', async () => {
+    // The deck states `proxy` as a fact (decks carry it), so the binder's
+    // default cannot make the copy a proxy on arrival.
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      labels: ['proxy'],
+      entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
+    })
+    const res = await move([
+      {
+        listType: 'deck',
+        listSlug: 'my-deck',
+        name: 'Sol Ring',
+        cardId: 1,
+        copyIndex: 0,
+        toType: 'collection',
+        toSlug: 'binder',
+      },
+    ])
+    expect(res.moved).toBe(1)
+    expect(await fs.readFile(binderPath(), 'utf-8')).toContain('- Sol Ring (C19:221) [no-proxy] &2')
   })
 
   test('a selected card’s tags travel from the source line to the destination line', async () => {

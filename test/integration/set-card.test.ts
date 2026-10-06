@@ -1007,20 +1007,30 @@ describe('set-card --language (Integration)', () => {
 })
 
 describe('set-card --label (Integration)', () => {
-  test('sets a normalized label token and logs the changelog line', async () => {
+  test('sets a normalized signed label token and logs the changelog line', async () => {
     const result = await runCli(
-      ['set-card', '--collection', 'main', 'Sol Ring', '--label', 'trade,sale', '--output', 'json'],
+      [
+        'set-card',
+        '--collection',
+        'main',
+        'Sol Ring',
+        '--label',
+        'no-sale,trade',
+        '--output',
+        'json',
+      ],
       dir,
     )
     expect(result.exitCode).toBe(0)
     const json = JSON.parse(result.stdout) as SetCardJson
-    expect(json.applied).toEqual(['label → sale, trade'])
+    expect(json.applied).toEqual(['label → trade, no-sale'])
 
     const content = await fs.readFile(path.join(dir, 'collections', 'main.md'), 'utf-8')
-    expect(content).toContain('- Sol Ring (C21:240) [sale,trade] &1')
+    expect(content).toContain('- Sol Ring (C21:240) [trade,no-sale] &1')
 
     const changelog = await fs.readFile(path.join(dir, 'collections', 'main.changes.md'), 'utf-8')
-    expect(changelog).toContain('- Set labels on "Sol Ring" &1 to [sale,trade]')
+    expect(changelog).toContain('- Set labels on "Sol Ring" &1 to [trade,no-sale]')
+    expect(changelog).toContain('"labels":["trade","no-sale"]')
   })
 
   test('--label none clears the override and logs the clear', async () => {
@@ -1085,6 +1095,57 @@ describe('set-card --label (Integration)', () => {
     )
     expect(result.exitCode).toBe(2)
     expect(result.stderr).toContain("'keep' cannot be combined")
+  })
+
+  test('repairs a line whose labels token conflicts (the card is still found)', async () => {
+    const binderPath = path.join(dir, 'collections', 'main.md')
+    const content = await fs.readFile(binderPath, 'utf-8')
+    await fs.writeFile(
+      binderPath,
+      content.replace('- Sol Ring (C21:240) &1', '- Sol Ring (C21:240) [sale,no-sale] &1'),
+    )
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--label', 'sale', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    expect(await fs.readFile(binderPath, 'utf-8')).toContain('- Sol Ring (C21:240) [sale] &1')
+  })
+
+  test('rejects a label both set and negated at parse time', async () => {
+    const result = await runCli(
+      ['set-card', '--collection', 'main', 'Sol Ring', '--label', 'proxy,no-proxy'],
+      dir,
+    )
+    expect(result.exitCode).toBe(2)
+    expect(result.stderr).toContain("'proxy' cannot be both set and negated")
+  })
+
+  test('takes an inherited proxy away from a deck card with no-proxy, refusing no-sale', async () => {
+    // Give the seeded deck a `proxy` default, so `no-proxy` really takes one away.
+    const deckPath = path.join(dir, 'decks', 'test.md')
+    const original = await fs.readFile(deckPath, 'utf-8')
+    await fs.writeFile(
+      deckPath,
+      original.startsWith('---\n')
+        ? original.replace('---\n', '---\nlabels: [proxy]\n')
+        : `---\nlabels: [proxy]\n---\n${original}`,
+    )
+    const real = await runCli(
+      ['set-card', '--deck', 'test', '--card-id', '3', '--label', 'no-proxy', '--output', 'json'],
+      dir,
+    )
+    expect(real.exitCode).toBe(0)
+    expect(await fs.readFile(path.join(dir, 'decks', 'test.md'), 'utf-8')).toContain(
+      '1 Lightning Bolt (2XM:157) [no-proxy] &3',
+    )
+
+    const refused = await runCli(
+      ['set-card', '--deck', 'test', '--card-id', '3', '--label', 'no-sale', '--output', 'json'],
+      dir,
+    )
+    expect(refused.exitCode).toBe(2)
+    expect((JSON.parse(refused.stderr) as ErrorJson).error.message).toContain('no-sale')
   })
 })
 

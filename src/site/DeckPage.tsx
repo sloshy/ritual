@@ -100,7 +100,7 @@ export interface DeckPageProps extends SellModeProps, ListPageCommonProps {
   deck: BakedDeckData
   /**
    * The deck's default card labels from its front matter; a line's own labels
-   * override replaces it entirely. Decks accept `proxy` alone.
+   * override adjusts it (`effectiveLabels`). Decks accept `proxy` alone.
    */
   listLabels?: CardLabel[]
   lowestPriceCards?: Record<string, ScryfallCard | null>
@@ -143,7 +143,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   const [deckTradePicker, setDeckTradePicker] = createSignal<DeckTradePicker | null>(null)
 
-  /** A line's effective labels: its own override, else the deck's front-matter default. */
+  /** A line's effective labels: its own override applied to the deck's front-matter default. */
   const entryLabels = (entry: BakedDeckCard): CardLabel[] =>
     effectiveLabels(entry.labels, props.listLabels)
 

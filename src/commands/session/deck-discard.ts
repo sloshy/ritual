@@ -6,6 +6,7 @@ import {
 } from '../../changes/change-event'
 import { repackSessionIds } from '../../card/card-id'
 import { applyChangeToDeck } from '../../changes/deck-changes'
+import type { CardLabel } from '../../card/card-labels'
 import { findCardById } from '../../list/deck-io'
 import type { SessionAddItem } from './strategy'
 
@@ -63,7 +64,11 @@ export type DeckDiscardOutcome = DeckDiscardState & {
  * they stay dense, freeing the highest. Pure: returns the next state, or null when the
  * index is out of range. Pre-existing (non-session) cards and their ids are untouched.
  */
-export function discardDeckCopy(state: DeckDiscardState, index: number): DeckDiscardOutcome | null {
+export function discardDeckCopy(
+  state: DeckDiscardState,
+  index: number,
+  listLabels: readonly CardLabel[] | undefined,
+): DeckDiscardOutcome | null {
   const record = state.sessionAdds[index]
   if (!record) return null
   const { cardId } = record
@@ -72,6 +77,7 @@ export function discardDeckCopy(state: DeckDiscardState, index: number): DeckDis
   const deck = applyChangeToDeck(
     state.deck,
     createRemoveChange(record.name, { cardId, section: record.section }),
+    { listLabels },
   )
   const sessionAdds = state.sessionAdds.filter((_, i) => i !== index)
   const lineRemoved = findCardById(deck, cardId) === null

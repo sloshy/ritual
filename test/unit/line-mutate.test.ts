@@ -368,6 +368,33 @@ describe('applyDeckAddToContent', () => {
     expect(outcome.merged).toBe(false)
   })
 
+  test('copies merge by effective labels against the deck default, not raw overrides', () => {
+    // A `[no-proxy]` copy in a deck with no default is a plain real card, and
+    // an inheriting copy in a `proxy`-default deck is the `[proxy]` line's twin.
+    const plain = ['## Main', '2 Sol Ring (LEA:270) &1', ''].join('\n')
+    const real = applyDeckAddToContent(
+      plain,
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270', labels: ['no-proxy'] },
+      1,
+    )
+    expect(real.content).toContain('3 Sol Ring (LEA:270) &1')
+    const proxyDeck = [
+      '---',
+      'labels: [proxy]',
+      '---',
+      '## Main',
+      '2 Sol Ring (LEA:270) [proxy] &1',
+      '',
+    ].join('\n')
+    const inherited = applyDeckAddToContent(
+      proxyDeck,
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270' },
+      1,
+    )
+    expect(inherited.content).toContain('3 Sol Ring (LEA:270) [proxy] &1')
+    expect(inherited.outcome.merged).toBe(true)
+  })
+
   test('copies with the same override do merge', () => {
     const proxied = ['## Main', '2 Sol Ring (LEA:270) [proxy] &1', ''].join('\n')
     const { content, outcome } = applyDeckAddToContent(

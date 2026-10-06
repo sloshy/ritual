@@ -2,7 +2,7 @@ import { batch } from 'solid-js'
 import type { Card } from '../card/card'
 import type { DeckData } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
-import type { CardLabel } from '../card/card-labels'
+import type { LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import type { PrintingTuple } from '../changes/change-event'
@@ -66,7 +66,7 @@ export function findDeckCardLabels(
   deck: DeckData | null,
   cardName: string,
   cardId?: number,
-): CardLabel[] | undefined {
+): LabelOverride | undefined {
   return deck ? findDeckCard(deck, cardName, cardId)?.labels : undefined
 }
 
@@ -140,9 +140,16 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
 
   // Decrement the original entry by n, then add n copies of the new printing
   // under a fresh card ID. Batched so the deck view repaints once, not 2n times.
+  // The split-off copies are the same cards in a new printing: they keep the
+  // line's label override and tags (labels and tags are deck merge identity, so
+  // a proxy split never lands as a real card, nor folds into one).
+  const labels = findDeckCardLabels(ctx.data, target.cardName, cardId)
+  const tags = findDeckCardTags(ctx.data, target.cardName, cardId)
+  // And in the line's own section: a Sideboard split stays in the Sideboard.
+  const section = ctx.data.sections.find((s) => s.cards.some((c) => c.cardId === cardId))?.name
   batch(() => {
     for (let i = 0; i < n; i++) {
-      tools.decrementCard(target.cardName, cardId)
+      tools.decrementCard(target.cardName, cardId, labels, tags)
       setData((prev) =>
         prev
           ? ctx.applyChange(prev, { action: 'remove', cardName: target.cardName, cardId })
@@ -151,7 +158,7 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
     }
     const newId = tools.allocateId()
     for (let i = 0; i < n; i++) {
-      tools.addCard(target.cardName, { ...options, cardId: newId })
+      tools.addCard(target.cardName, { ...options, labels, tags, section, cardId: newId })
       setData((prev) =>
         prev
           ? ctx.applyChange(prev, {
@@ -162,6 +169,9 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
               finish: options.finish,
               condition: options.condition,
               language: options.language,
+              labels,
+              tags,
+              section,
               cardId: newId,
             })
           : prev,

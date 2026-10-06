@@ -72,6 +72,31 @@ export const domainMeta = {
       'Card label meaning this copy is a proxy — a stand-in printout, not a real card — so it is worth nothing.',
     maxLen: 16,
   },
+  'domain.label.notSale': {
+    description:
+      'Negated card label on a card that takes "for sale" away from its list default: this copy is not for sale. Shown as a badge and in label pickers.',
+    maxLen: 16,
+  },
+  'domain.label.notTrade': {
+    description:
+      'Negated card label on a card that takes "for trade" away from its list default: this copy is not for trade.',
+    maxLen: 16,
+  },
+  'domain.label.notKeep': {
+    description:
+      'Negated card label on a card that takes "to keep" away from its list default: this copy is not one the owner insists on keeping.',
+    maxLen: 16,
+  },
+  'domain.label.notProxy': {
+    description:
+      'Negated card label meaning this copy is a real card, not a proxy, even though its list defaults to proxies. Also the deck label-picker row for that state.',
+    maxLen: 16,
+  },
+  'domain.label.noLabels': {
+    description:
+      "Label picker row giving a card no labels at all, taking away whatever its list's default labels would give it.",
+    maxLen: 24,
+  },
   'domain.label.saleAndTrade': {
     description: 'Label picker row applying both the "for sale" and "for trade" labels at once.',
     maxLen: 24,
@@ -410,7 +435,7 @@ export const domainMeta = {
     description: `${EXPORT_HINT_CONTEXT} The "language" column, which holds the *card printing's* language code (never the interface language) and is left blank for English cards.`,
   },
   'domain.exportHint.labels': {
-    description: `${EXPORT_HINT_CONTEXT} The "labels" column, which exports the labels actually in force — a card's own override if it has one, otherwise the list's default.`,
+    description: `${EXPORT_HINT_CONTEXT} The "labels" column, which exports the labels actually in force — the list's default, adjusted by the card's own labels (which can add a label or take one away).`,
   },
   'domain.exportHint.tags': {
     description: `${EXPORT_HINT_CONTEXT} The "tags" column: the owner's free-form card tags (e.g. "Ramp", "Card Draw"), joined with commas.`,

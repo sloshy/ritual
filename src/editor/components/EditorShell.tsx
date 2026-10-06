@@ -4,6 +4,7 @@ import type { UseEditorResult, ListItem } from '../editor-config'
 import type { UseEditorDefaultsResult } from '../useEditorDefaults'
 import type { SearchProvider } from '../search-provider'
 import type { ListType } from '../../list/list-type'
+import type { CardLabel } from '../../card/card-labels'
 
 import { ChangesDialog } from './ChangesDialog'
 import { ImportChangesDialog } from './ImportChangesDialog'
@@ -54,7 +55,7 @@ type EditorShellProps<TData, TCardEntry> = {
   enableImport?: boolean
   /** The list kind for import validation; required when `enableImport` is set. */
   importKind?: ListType
-  /** Open the list-default label editor (admin collection editor only). */
+  /** Open the list-default label editor (the admin deck and collection editors). */
   onEditLabels?: () => void
   /** Open the list's cover-image editor (admin editors only). */
   onEditImage?: () => void
@@ -65,6 +66,11 @@ type EditorShellProps<TData, TCardEntry> = {
    * the public editor's exported changes too.
    */
   enableAddArt?: boolean
+  /**
+   * The list's live default labels: what the add dialog's label row measures
+   * a picked state against, and whether it offers "No labels".
+   */
+  listLabels?: readonly CardLabel[]
   /**
    * Open the "Swap Printings" wizard over the whole list from the action bar.
    * Admin hosts pass it; the public editor reaches the wizard from the navbar's
@@ -111,6 +117,7 @@ export function EditorShell<TData, TCardEntry>(
   // add flow gets them, so the change-printing modal below is left without.
   const addOptions = createMemo<AddCardOptionsConfig>(() => ({
     listType: listType(),
+    listDefault: props.listLabels,
     enableArt: props.enableAddArt === true,
   }))
 

@@ -1,10 +1,9 @@
 /**
- * A cross-list move carries the copy's payload — tags, note and EFFECTIVE labels
- * (its own override, else its list's default) — exactly as `ritual move` does:
- * the destination keeps the labels its type accepts (`proxy` into a deck,
- * everything into a collection, nothing into a wanted list) and writes the
- * minimal override for them against its own default; the note lands unless a
- * deck quantity-merge keeps the line's own.
+ * A cross-list move carries the copy's payload — tags, note and CARRIED labels
+ * (its labels as its source states them, `carriedLabels`) — exactly as `ritual
+ * move` does: the destination lands them with `arrivalLabels` (whose rule is
+ * pinned in `card-labels.test.ts`) and writes the minimal override against its
+ * own default; the note lands unless a deck quantity-merge keeps the line's own.
  *
  * Engine semantics only — the payload projection and validator, the reducers
  * every surface replays a `move-to` through, and the persisted changelog form.
@@ -34,14 +33,18 @@ import {
   validateMovedCopyFields,
 } from '../../src/changes/change-event-decode'
 import { parseChangelog } from '../../src/changes/changelog-parser'
-import { arrivalLabels, labelsForDestination, type CardLabel } from '../../src/card/card-labels'
+import type { LabelOverride } from '../../src/card/card-labels'
 import type { DeckData } from '../../src/list/deck'
 
 const BINDER: ListRef = { type: 'collection', name: 'Binder' }
 const MY_DECK: ListRef = { type: 'deck', name: 'My Deck' }
 
 /** A copy of Sol Ring (C19:221) arriving from the binder, carrying `labels` and a note. */
-function arriving(labels: CardLabel[] | undefined, note?: string): MoveToInput {
+function arriving(
+  labels: LabelOverride | undefined,
+  note?: string,
+  from: ListRef = BINDER,
+): MoveToInput {
   return {
     action: 'move-to',
     cardName: 'Sol Ring',
@@ -50,12 +53,12 @@ function arriving(labels: CardLabel[] | undefined, note?: string): MoveToInput {
     labels,
     note,
     cardId: 7,
-    from: BINDER,
+    from,
   }
 }
 
 /** A deck holding one Sol Ring (C19:221) line with `note` and `labels`, plus an unrelated line. */
-function deckWith(note?: string, labels?: CardLabel[]): DeckData {
+function deckWith(note?: string, labels?: LabelOverride): DeckData {
   return {
     name: 'My Deck',
     sections: [
@@ -83,33 +86,29 @@ const EMPTY_DECK: DeckData = { name: 'My Deck', sections: [{ name: 'Main', cards
 /** A deck with no front-matter default labels. */
 const NONE = { listLabels: undefined }
 
-describe('labelsForDestination / arrivalLabels', () => {
-  test('keep what the destination type accepts, and nothing it cannot express', () => {
-    expect(labelsForDestination('deck', ['proxy'])).toEqual(['proxy'])
-    expect(labelsForDestination('deck', ['sale', 'trade'])).toBeUndefined()
-    expect(labelsForDestination('collection', ['trade', 'sale'])).toEqual(['sale', 'trade'])
-    expect(labelsForDestination('wanted', ['proxy'])).toBeUndefined()
-    expect(labelsForDestination('collection', [])).toBeUndefined()
-    expect(labelsForDestination('collection', undefined)).toBeUndefined()
+describe('the reducers land a move-to through arrivalLabels', () => {
+  test('a real card from a deck keeps being real in a proxy-default collection', () => {
+    const [entry] = applyChangeToCollection([], arriving(undefined, undefined, MY_DECK), {
+      listLabels: ['proxy'],
+    })
+    expect(entry?.labels).toEqual(['no-proxy'])
   })
 
-  test.each<[string, CardLabel[] | undefined, CardLabel[] | undefined, CardLabel[] | undefined]>([
-    // kept labels equal the destination default: inherit, no override
-    ['equal to the default', ['proxy'], ['proxy'], undefined],
-    // kept labels differ from the default: an explicit override
-    ['different from the default', ['trade', 'sale'], ['keep'], ['sale', 'trade']],
-    // no default at all: the kept labels are the override
-    ['with no default', ['sale'], undefined, ['sale']],
-    // nothing kept: no override — the grammar cannot say "none", so the copy inherits
-    ['when nothing is carried', undefined, ['proxy'], undefined],
-  ])('write the minimal collection override %s', (_, carried, destDefault, expected) => {
-    expect(arrivalLabels('collection', carried, destDefault)).toEqual(expected)
+  test('a deck measures the source’s stated labels against its own default', () => {
+    // From a collection, a carried sale/trade means nothing in a deck, and
+    // `proxy` (unset there) is a fact the deck keeps.
+    const fromBinder = applyChangeToDeck(EMPTY_DECK, arriving(['sale', 'trade']), {
+      listLabels: ['proxy'],
+    })
+    expect(fromBinder.sections[0]!.cards[0]!.labels).toEqual(['no-proxy'])
   })
 
-  test('a deck measures only what it keeps against its default', () => {
-    expect(arrivalLabels('deck', ['sale', 'trade'], ['proxy'])).toBeUndefined()
-    expect(arrivalLabels('deck', ['proxy'], undefined)).toEqual(['proxy'])
-    expect(arrivalLabels('deck', ['proxy'], ['proxy'])).toBeUndefined()
+  test('carried labels land as the minimal override, not as carried', () => {
+    // `[sale,trade]` arriving in a `sale` binder needs only `[trade]`.
+    const [entry] = applyChangeToCollection([], arriving(['sale', 'trade']), {
+      listLabels: ['sale'],
+    })
+    expect(entry?.labels).toEqual(['trade'])
   })
 })
 
@@ -142,12 +141,12 @@ describe('validateMovedCopyFields', () => {
     [
       'an unknown label',
       { labels: ['gift'] },
-      `M Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy.`,
+      `M Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
     ],
     [
       'a labels value that is not an array',
       { labels: 'sale' },
-      'M "labels" must be an array of labels (sale, trade, keep, proxy).',
+      'M "labels" must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
     ],
     [
       'an exclusive label combination',
@@ -164,7 +163,9 @@ describe('validateMovedCopyFields', () => {
 
 describe('a move-to landing on a deck', () => {
   test('a proxy keeps its label and note on the line it starts', () => {
-    const deck = applyChangeToDeck(EMPTY_DECK, arriving(['proxy'], 'printed at home'))
+    const deck = applyChangeToDeck(EMPTY_DECK, arriving(['proxy'], 'printed at home'), {
+      listLabels: undefined,
+    })
     expect(deck.sections[0]!.cards).toEqual([
       {
         quantity: 1,
@@ -184,7 +185,9 @@ describe('a move-to landing on a deck', () => {
   })
 
   test('a sale/trade copy keeps no labels, so it merges onto the plain line', () => {
-    const deck = applyChangeToDeck(deckWith(), arriving(['sale', 'trade']))
+    const deck = applyChangeToDeck(deckWith(), arriving(['sale', 'trade']), {
+      listLabels: undefined,
+    })
     const solRing = deck.sections[0]!.cards[0]!
     expect(solRing).toMatchObject({ quantity: 2, cardId: 1 })
     expect(solRing.labels).toBeUndefined()
@@ -203,7 +206,7 @@ describe('a move-to landing on a deck', () => {
     const before = deckWith('keep me')
     const change = arriving(undefined, 'incoming')
     expect(droppedMoveNote(before, change, NONE)).toBe('incoming')
-    const after = applyChangeToDeck(before, change)
+    const after = applyChangeToDeck(before, change, { listLabels: undefined })
     expect(after.sections[0]!.cards[0]).toMatchObject({ quantity: 2, note: 'keep me' })
   })
 
@@ -266,7 +269,7 @@ describe('a move-to landing on a deck: default labels and merge scope', () => {
     // line there, so no note is lost and the probe names no line.
     expect(droppedMoveNote(withSideboard, change, NONE)).toBeUndefined()
     expect(findDeckAddMergeTargetId(withSideboard, change, NONE)).toBeUndefined()
-    const after = applyChangeToDeck(withSideboard, change)
+    const after = applyChangeToDeck(withSideboard, change, { listLabels: undefined })
     expect(after.sections.map((section) => section.cards.map((c) => c.quantity))).toEqual([
       [1, 1],
       [1],
@@ -284,7 +287,7 @@ describe('a move-to landing on a deck: default labels and merge scope', () => {
         },
       ],
     }
-    const after = applyChangeToDeck(inSideboard, arriving(undefined))
+    const after = applyChangeToDeck(inSideboard, arriving(undefined), { listLabels: undefined })
     expect(after.sections[1]!.cards[0]!.quantity).toBe(2)
   })
 })
@@ -371,12 +374,12 @@ describe('decodeChangeEvent on a move’s payload', () => {
     [
       'an unknown label',
       { labels: ['gift'] },
-      `C Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy.`,
+      `C Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
     ],
     [
       'a labels value that is not an array',
       { labels: 'sale' },
-      'C "labels" must be an array of labels (sale, trade, keep, proxy).',
+      'C "labels" must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
     ],
     [
       'an exclusive label combination',

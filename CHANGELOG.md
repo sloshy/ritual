@@ -29,6 +29,32 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Changed
 
+- **Card labels now adjust the list default instead of replacing it.** A card line's label
+  token can take a label away with `no-<label>`: `[trade,no-sale]` under a `sale` default is
+  "for trade, not for sale", `[no-sale,no-trade]` is "no labels", and `[no-proxy]` marks a
+  real card in a `proxy`-default deck. A plain label adds to the default, and one that cannot
+  combine with an inherited label displaces it (`[keep]` under a `sale` default is just
+  `keep`), so `[trade]` under a `sale` default now means `sale` and `trade`. List defaults stay
+  positive only. `set-card --label` and `add-card --label` take the same signed values
+  (`--label trade,no-sale`, `--label no-proxy`; `--label none` still clears), as do the MCP
+  `add_card` and `apply_changes` `labels` fields and the admin save's `set-label` events. The
+  label pickers in `ritual edit`, the admin and public editors, and the add-card dialog now
+  offer the state you want (adding **No labels**, and **Not a proxy** on a deck, when the
+  list has a default) and write the smallest token that gives it. The list view badges a
+  negation as **Not a proxy** / **Not for sale** (a card tile strikes the label through, with
+  that wording as its tooltip), toned by a new `--label-negated` theme variable. Deck
+  copies merge onto a line by effective labels on every path, `add-card` included. A card's
+  `labels` in `get_list`, the admin load routes and `--output json` can now hold `no-…`
+  values, and every deck card and collection entry in those loads gains `effectiveLabels`,
+  the labels in force resolved by the server. Imports land a line's labels the way a move
+  does (a `[no-sale]` line from a `sale,trade` file stays for trade), and a Swap Printings
+  move carries the card's labels, tags and note (a pinned name-only deck line is converted in
+  place only when the copy's labels match it, so a pin never turns a proxy real or the reverse). A line whose labels token conflicts
+  (`[sale,keep]`, `[sale,no-sale]`) now keeps its card (with the labels dropped and the usual
+  warning), so `set-card --label` can find and repair it.
+- Change bundles are now format version 3 (labels adjust the list default). A version-2
+  bundle is refused as an unsupported version, and an edit session an older site saved in
+  the browser is not restored; re-export it from an up-to-date site.
 - Deleting a list (`ritual delete`, the admin site, or the MCP `delete_list` tool) moves its
   files into the workspace's `.trash/` folder instead of erasing them, so a deletion can be
   undone by moving them back. The JSON and API results name the folder in a new `trashDir`.
@@ -56,17 +82,18 @@ release changes a file format or a generated file, it ships the change as a
 - Moving a card to another list in an editor (the admin and public sites' **Move to list…**,
   the public site's **Move selected**, and `📤 Move to Another List` in `ritual edit`) keeps
   its note and labels, as `ritual move` does. Every move, `ritual move` included, now carries
-  the card's _effective_ labels — its own override, or else its list's default — so a card
-  that only inherited `proxy` from its deck's default stays a proxy in the collection it
-  moves to. The destination keeps the labels its type accepts (`proxy` into a deck,
-  `sale`/`trade`/`keep` only into a collection, nothing into a wanted list) and writes an
-  override only where they differ from its own default. A card with no labels moving into a
-  list that has a default takes that default: a card line cannot say "no labels". When the
+  the card's labels as its list states them, so a card that only inherited `proxy` from its
+  deck's default stays a proxy in the collection it moves to, and a real card stays real in a
+  `proxy`-default list (written `[no-proxy]`). A `sale`/`trade`/`keep` state the source list
+  stated, in its default or on the card, is kept, and a label it never stated takes the
+  destination's default. The destination keeps the labels its type accepts (`proxy` into a
+  deck, `sale`/`trade`/`keep` only into a collection, nothing into a wanted list) and writes
+  the smallest token that says so. When the
   copy merges onto a deck line that already has a different note, the line keeps its own,
   and the drop is reported once per note by the admin editor's save, `ritual edit`, and
   `ritual import-changes` (whose results, the admin Import Changes page and the MCP
   `import_change_bundle` tool now list each list's `droppedNotes`). Public-site change
-  bundles carry a move's `labels` and `note`; older bundles import as before.
+  bundles carry a move's `labels` and `note`.
 - The Docker image creates `/app/wanted`, keeps `/app/.logins` private (mode 0700), and exposes the default ports of `admin` (8080)
   and `cache server` (4000) as well as `serve` (3000).
 

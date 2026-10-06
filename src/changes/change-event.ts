@@ -2,10 +2,13 @@ import type { Finish, Condition, ConditionUpdate } from '../card/finish-conditio
 import type { Board } from '../list/deck'
 import type { ListType } from '../list/list-type'
 import {
-  formatCardLabels,
+  carriedLabels,
+  formatLabelOverride,
   normalizedOverride,
-  sameCardLabels,
+  sameLabelOverride,
   type CardLabel,
+  type LabelOverride,
+  type SignedCardLabel,
 } from '../card/card-labels'
 import { noteOrUndefined } from '../card/note-helpers'
 import {
@@ -72,7 +75,7 @@ export type AddChange = BaseChange & {
    * added copy and never on a same-named existing entry. Not annotated in the
    * changelog text line.
    */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /**
    * The tags the new card starts with. Rides the add for the same
    * reason `labels` does: the tags belong to the added copy, never to a
@@ -101,7 +104,7 @@ export type RemoveChange = BaseChange & {
    * {@link AddChange.labels} it is not annotated in the changelog text line, so a
    * surface that does not know a line's labels may leave it absent.
    */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /**
    * The `#tag` tokens the removed line carried, recorded like `labels` so
    * {@link areOppositeChanges} treats them as part of the copy's identity.
@@ -159,8 +162,11 @@ export type SetLanguageChange = BaseChange & {
  */
 export type SetLabelChange = BaseChange & {
   action: 'set-label'
-  /** The new label override. An empty array clears it (the list default applies again). */
-  labels: CardLabel[]
+  /**
+   * The new label override (signed: `["trade","no-sale"]`), replacing the
+   * line's own. An empty array clears it (the list default applies again).
+   */
+  labels: LabelOverride
 }
 
 /**
@@ -183,7 +189,7 @@ export type RemoveTagChange = BaseChange & {
 
 /**
  * A `move-from`: one copy leaving this list for `to`. What rides with the copy
- * — its tags, effective labels and note — is {@link MovedCopyFields}; none of
+ * — its tags, carried labels and note — is {@link MovedCopyFields}; none of
  * it is annotated in the changelog text line (the entry's event block holds it).
  */
 export type MoveFromChange = BaseChange &
@@ -201,9 +207,9 @@ export type MoveFromChange = BaseChange &
 
 /**
  * A `move-to`: one copy arriving in this list from `from`, carrying
- * {@link MovedCopyFields} — except on a pinning move (`replacesCardId`), which
- * converts or fills a line this list already holds: that line keeps its own
- * labels and note, so a pinning move's `labels`/`note` are not applied.
+ * {@link MovedCopyFields} — except on a pinning move (`replacesCardId`) that
+ * converts a line in place: that line keeps its own labels and note. A pin
+ * that splits lands the copy as a normal arrival, payload and all.
  */
 export type MoveToChange = BaseChange &
   MovedCopyFields & {
@@ -233,10 +239,15 @@ export type MoveToChange = BaseChange &
      * copy to the list (the swap wizard setting a printing from a copy owned
      * elsewhere). Equal to `cardId`: the line is converted in place — it takes
      * the event's printing and keeps its `&N` and quantity (every copy of a deck
-     * line's fill repeats the event, the later ones changing nothing). Different
-     * from `cardId`: one copy is taken off that line (the line goes when empty)
-     * and lands on `cardId` as an add would — a deck line filled partially or
-     * from several printings. Never rendered in a changelog line.
+     * line's fill repeats the event, the later ones changing nothing). On a deck
+     * that is legal only when the copy's landed labels equal the line's
+     * effective ones (`pinConvertsInPlace`: `proxy` is a physical fact, so a pin
+     * never turns a proxy real or the reverse); an in-place event that fails it
+     * is refused. Different from `cardId`: one copy is taken off that line (the
+     * line goes when empty) and lands on `cardId` as a normal arrival — its own
+     * labels, tags and note — a deck line filled partially, from several
+     * printings, or by a copy whose labels differ. Never rendered in a changelog
+     * line.
      */
     replacesCardId?: number
     /**
@@ -452,15 +463,19 @@ export function printingOptionsFrom(entry: PrintingTupleWithId): CardPrintingOpt
  *
  * - `tags` — the copy's `#tag` tokens. Every list type carries tags, so they
  *   land on the destination line unfiltered.
- * - `labels` — on a move event (and a bundle move), the copy's **effective**
- *   labels in its source list: the line's own override, else the source list's
- *   front-matter default. The destination keeps what its type accepts
- *   (`labelsForDestination`: `proxy` into a deck, everything into a
- *   collection, nothing into a wanted list) and writes the minimal override
- *   for it (`arrivalLabels`: none when that equals the destination's own
- *   default). They are frozen at the move gesture: an editor session that
- *   later edits the source list's default does not change what an earlier
- *   move recorded. On an engine shape that describes a *line* (`PhysicalCard`,
+ * - `labels` — on a move event (and a bundle move), the copy's labels **as its
+ *   source states them** (`carriedLabels`), signed: the positives are its
+ *   effective labels there (the line's override applied to the source list's
+ *   default); a `no-` names a label the source had an opinion on — its default
+ *   holds it, or the line names it — that the copy lacks. A label the source
+ *   never mentioned is absent. On arrival the destination keeps each stated
+ *   label's state, takes its own default for the rest (and for `proxy` keeps
+ *   the source's fact whenever the source type carries it), filters by what its
+ *   type accepts, and writes the minimal override (`arrivalLabels`). A payload
+ *   of positives alone — an older event — reads as an opinion on exactly those
+ *   labels. They are frozen at the move gesture: an editor session that later
+ *   edits the source list's default does not change what an earlier move
+ *   recorded. On an engine shape that describes a *line* (`PhysicalCard`,
  *   `RemovedCopy`), it is that line's own override; the shape says so.
  * - `note` — the copy's note, landing on the destination line on every list
  *   type, except that a deck quantity-merge onto a line with a different note
@@ -468,7 +483,7 @@ export function printingOptionsFrom(entry: PrintingTupleWithId): CardPrintingOpt
  */
 export type MovedCopyFields = {
   tags?: CardTag[]
-  labels?: CardLabel[]
+  labels?: LabelOverride
   note?: string
 }
 
@@ -484,7 +499,7 @@ export type MovedCopyPayload = {
 /** The shape {@link movedCopyOf} reads: anything carrying the move payload, possibly readonly. */
 export type MovedCopySource = {
   tags?: readonly CardTag[]
-  labels?: readonly CardLabel[]
+  labels?: readonly SignedCardLabel[]
   note?: string
 }
 
@@ -500,6 +515,23 @@ export function movedCopyOf(source: MovedCopySource): MovedCopyPayload {
     labels: normalizedOverride(source.labels),
     note: noteOrUndefined(source.note),
   }
+}
+
+/**
+ * The move payload a copy leaving `line` carries: the line's tags and note, and
+ * its labels as its list (default `listDefault`) states them (`carriedLabels`)
+ * — never the raw override, which would lose inherited labels and the source's
+ * negations. Every move emitter builds its payload here.
+ */
+export function movedCopyFromLine(
+  line: MovedCopySource | undefined,
+  listDefault: readonly CardLabel[] | undefined,
+): MovedCopyPayload {
+  return movedCopyOf({
+    tags: line?.tags,
+    labels: carriedLabels(line?.labels, listDefault),
+    note: line?.note,
+  })
 }
 
 /**
@@ -531,7 +563,7 @@ export type AddRemoveOptions = {
    * starts the new card with, and what the line a `remove` takes away was
    * carrying (see {@link RemoveChange.labels}).
    */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** The copy's `#tag` tokens — what an `add` starts with, what a `remove` took away. */
   tags?: CardTag[]
   cardId?: number
@@ -606,7 +638,7 @@ export type SetNoteOptions = {
 /** Options for set-label action. */
 export type SetLabelOptions = {
   /** The new label override; an empty array clears it. */
-  labels: CardLabel[]
+  labels: LabelOverride
   cardId?: number
 }
 
@@ -655,7 +687,7 @@ export function createAddChange(cardName: string, options?: AddRemoveOptions): A
     finish: options?.finish,
     condition: options?.condition,
     language: options?.language,
-    labels: options?.labels,
+    labels: normalizedOverride(options?.labels),
     tags: normalizedTags(options?.tags),
     board: options?.board,
     section: options?.section,
@@ -671,7 +703,7 @@ export function createRemoveChange(cardName: string, options?: AddRemoveOptions)
     finish: options?.finish,
     condition: options?.condition,
     language: options?.language,
-    labels: options?.labels,
+    labels: normalizedOverride(options?.labels),
     tags: normalizedTags(options?.tags),
     board: options?.board,
   }
@@ -729,7 +761,13 @@ export function createSetNoteChange(cardName: string, options: SetNoteOptions): 
 }
 
 export function createSetLabelChange(cardName: string, options: SetLabelOptions): SetLabelChange {
-  return { ...makeBase(cardName, options.cardId), action: 'set-label', labels: options.labels }
+  // Canonical like every other creator; an empty override stays `[]` — on a
+  // set-label that is the clear, not an absent field.
+  return {
+    ...makeBase(cardName, options.cardId),
+    action: 'set-label',
+    labels: normalizedOverride(options.labels) ?? [],
+  }
 }
 
 /** Options for the add-tag / remove-tag actions. */
@@ -815,7 +853,7 @@ export function mirrorMoveTo(
 /**
  * A source line as a move reads it: its own name spelling, its printing as
  * written, its `&N`, and the payload riding with it — with `labels` already
- * the copy's *effective* labels (the line's override, else its list's default).
+ * the copy's *carried* labels (`carriedLabels`: its labels as its source states them).
  */
 export type DepartingLine = PrintingTupleWithId & MovedCopyFields & { name: string }
 
@@ -971,7 +1009,7 @@ export function areOppositeChanges(a: ChangeEvent, b: ChangeEvent): boolean {
   // `[proxy]` (or its absence) would never reach the file. An absent override
   // and an empty one are the same thing, so a surface that carries no labels at
   // all still cancels exactly as it did before.
-  if (!sameCardLabels(ac.labels, bc.labels)) return false
+  if (!sameLabelOverride(ac.labels, bc.labels)) return false
 
   // Tags are identity for the same reason: cancelling a removal against a
   // re-add carrying different tags would keep the old line, old tags and all.
@@ -1133,19 +1171,19 @@ export function consolidateSetNote(
  * - Does not add a new change if `labels` equals `originalLabels` (override restored)
  * - Otherwise adds the new set-label change (an empty `labels` clears the override)
  *
- * Label sets compare by their canonical serialized form, so `['trade','sale']`
+ * Overrides compare by their canonical serialized form, so `['trade','sale']`
  * and `['sale','trade']` are the same override.
  */
 export function consolidateSetLabel(
   changes: ChangeEvent[],
   cardName: string,
-  labels: CardLabel[],
-  originalLabels: readonly CardLabel[] | undefined,
+  labels: LabelOverride,
+  originalLabels: readonly SignedCardLabel[] | undefined,
   cardId?: number,
 ): ConsolidateResult {
   return consolidateLatestWins(changes, cardName, cardId, {
     action: 'set-label',
-    changed: !sameCardLabels(labels, originalLabels),
+    changed: !sameLabelOverride(labels, originalLabels),
     create: () => createSetLabelChange(cardName, { labels, cardId }),
   })
 }
@@ -1493,7 +1531,7 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
         return `${clearVerb} labels on ${name}${idInfo}`
       }
-      return `Set labels on ${name}${idInfo} to [${formatCardLabels(change.labels)}]`
+      return `Set labels on ${name}${idInfo} to [${formatLabelOverride(change.labels)}]`
     }
     case 'add-tag': {
       const verb = tense === 'past' ? 'Added' : 'Add'

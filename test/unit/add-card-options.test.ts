@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  addCardLabelOverride,
   hasAddCardOptions,
   readAddCardArt,
   type AddCardOptionsConfig,
@@ -16,6 +17,7 @@ import {
 
 const config = (over: Partial<AddCardOptionsConfig> = {}): AddCardOptionsConfig => ({
   listType: 'collection',
+  listDefault: undefined,
   enableArt: false,
   ...over,
 })
@@ -63,5 +65,15 @@ describe('hasAddCardOptions', () => {
 
   test('a wanted list on a host that can write art still offers it', () => {
     expect(hasAddCardOptions(config({ listType: 'wanted', enableArt: true }))).toBe(true)
+  })
+})
+
+describe('addCardLabelOverride', () => {
+  test('the picked state is written as the minimal override under the list default', () => {
+    expect(addCardLabelOverride('default', ['sale'])).toBeUndefined()
+    expect(addCardLabelOverride(['sale'], ['sale'])).toBeUndefined()
+    expect(addCardLabelOverride([], ['sale', 'trade'])).toEqual(['no-sale', 'no-trade'])
+    expect(addCardLabelOverride([], ['proxy'])).toEqual(['no-proxy'])
+    expect(addCardLabelOverride(['keep'], undefined)).toEqual(['keep'])
   })
 })

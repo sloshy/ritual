@@ -23,14 +23,18 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   checkLabelsForListType,
-  formatCardLabels,
+  effectiveLabels,
+  formatLabelOverride,
   normalizedOverride,
   sameCardLabels,
   supportsAnyLabels,
   unsupportedLabelsFor,
   unsupportedLabelsMessage,
   type CardLabel,
+  type LabelOverride,
+  type SignedCardLabel,
 } from '../card/card-labels'
+import { listDefaultLabelsInLines } from './flat-list-front-matter'
 import { readCardLine, type ReadCardLine } from '../card/card-line-read'
 import { sameCardTags, withCardTag, withoutCardTag, type CardTag } from '../card/card-tags'
 import type { LineTokens } from '../card/card-line-grammar'
@@ -360,7 +364,7 @@ function requireDeck(type: ListType, action: string): void {
  * Error like the other apply-path guards: reaching here means the caller's own
  * flag/route validation let through a change its list type cannot express.
  */
-function requireSupportedLabels(type: ListType, labels: readonly CardLabel[]): void {
+function requireSupportedLabels(type: ListType, labels: readonly SignedCardLabel[]): void {
   const check = checkLabelsForListType(type, labels)
   if (check.ok) return
   throw new Error(
@@ -421,7 +425,7 @@ function lineLanguageAt(lines: string[], idx: number, type: ListType): CardLangu
  * carry) — the caller must not rewrite such a line, since the re-serialize
  * would silently drop the token.
  */
-type LineLabels = { labels: CardLabel[] | undefined } | { invalid: string }
+type LineLabels = { labels: LabelOverride | undefined } | { invalid: string }
 
 /**
  * Weigh a card line's labels against what `type` carries. A token the grammar
@@ -433,7 +437,7 @@ function tokenLabels(read: ReadCardLine | undefined, type: ListType): LineLabels
   if (read?.invalidLabels !== undefined) return { invalid: read.invalidLabels }
   const labels = read?.tokens.labels
   if (labels === undefined) return { labels: undefined }
-  if (unsupportedLabelsFor(type, labels).length > 0) return { invalid: formatCardLabels(labels) }
+  if (unsupportedLabelsFor(type, labels).length > 0) return { invalid: formatLabelOverride(labels) }
   return { labels: [...labels] }
 }
 
@@ -722,9 +726,10 @@ export function applyDeckAddToContent(
   let cardId = card.cardId
   let quantity = 0
   let merged = false
+  const listLabels = listDefaultLabelsInLines('deck', lines)
 
   for (let copy = 0; copy < copies; copy++) {
-    const idx = findDeckMergeLineIndex(lines, card, cardId)
+    const idx = findDeckMergeLineIndex(lines, card, cardId, listLabels)
     if (idx !== -1) {
       if (copy === 0) merged = true
       // Rewrite from the line's OWN fields, not the incoming card's: a merge
@@ -810,7 +815,7 @@ export async function applyDeckAdd(
 /**
  * The line `card`'s copies should merge onto: the `&N` line when one is known,
  * otherwise a line for the same name whose printing (set, collector number,
- * finish, condition, language) **and label override** are identical — the
+ * finish, condition, language) **and effective labels** are identical — the
  * editor engine's `findCardForAdd` rule, which keeps a differently-printed copy
  * as its own line. Labels are part of that identity because they are part of
  * what the copies *are*: a proxy must not disappear into the line holding the
@@ -820,6 +825,7 @@ function findDeckMergeLineIndex(
   lines: string[],
   card: EntryRef,
   cardId: number | undefined,
+  listLabels: readonly CardLabel[] | undefined,
 ): number {
   const start = frontMatterBodyStart(lines)
   const fenced = markFencedLines(lines, start)
@@ -839,7 +845,18 @@ function findDeckMergeLineIndex(
     // card's. The copies get their own line instead.
     const lineLabels = tokenLabels(read, 'deck')
     if ('invalid' in lineLabels) continue
-    if (!sameCardLabels(lineLabels.labels, card.labels)) continue
+    // Compared as EFFECTIVE labels against the deck's default, as the editor
+    // engine's `mergesOntoCard` does: a redundant `[proxy]` line in a
+    // `proxy`-default deck takes an inheriting proxy copy, and a `[no-proxy]`
+    // line in a deck without a default takes a plain real one.
+    if (
+      !sameCardLabels(
+        effectiveLabels(lineLabels.labels, listLabels),
+        effectiveLabels(card.labels, listLabels),
+      )
+    ) {
+      continue
+    }
     // Tags are identity for the same reason labels are: a line's tags describe
     // every copy on it.
     if (!sameCardTags(tokens.tags, card.tags)) continue
@@ -893,7 +910,7 @@ function parseDeckLineEntry(line: string): EntryRef | undefined {
  * resolving to "no labels": the caller is rewriting this line, and "no labels"
  * would delete the override.
  */
-function deckLineLabels(read: ReadCardLine): CardLabel[] | undefined {
+function deckLineLabels(read: ReadCardLine): LabelOverride | undefined {
   const result = tokenLabels(read, 'deck')
   if ('invalid' in result) throw conflictingLabelsToken(result.invalid)
   return result.labels

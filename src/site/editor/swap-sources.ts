@@ -34,8 +34,11 @@ function toSwapSourceList(loaded: LoadedListDetail): SwapSourceList {
   const ref: NamedListRef = { ...loaded.ref, name: loaded.name }
   const entries =
     loaded.kind === 'deck'
-      ? deckSectionsToSwapEntries(loaded.detail.deck.sections)
-      : flatEntriesToSwapEntries(loaded.detail.entries)
+      ? deckSectionsToSwapEntries(loaded.detail.deck.sections, loaded.detail.labels)
+      : flatEntriesToSwapEntries(
+          loaded.detail.entries,
+          'labels' in loaded.detail ? loaded.detail.labels : undefined,
+        )
   return {
     ref,
     entries,

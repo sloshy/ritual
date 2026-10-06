@@ -16,8 +16,9 @@ import {
   printingOptionsFrom,
   type MoveFromChange,
 } from '../changes/change-event'
-import { importFromTextFile } from '../importers/text-file'
+import { loadDeckFile } from '../importers/text-file'
 import { parseDeckFrontMatter } from './deck-file'
+import type { CardLabel } from '../card/card-labels'
 import { parseCollectionFile } from './collection-file'
 import { parseWantedListFile } from './wanted-file'
 import {
@@ -30,6 +31,7 @@ import {
   commitStagedCategoryPrunes,
   dedupeDroppedNotes,
   movingLabels,
+  stagedDefaultLabels,
   writeStagedFiles,
   type DroppedNote,
   type PhysicalCard,
@@ -104,17 +106,22 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
 
   for (const listEntry of lists) {
     if (listEntry.ref.type === 'deck') {
-      const deckData = await importFromTextFile(listEntry.filePath).catch(() => null)
+      const loaded = await loadDeckFile(listEntry.filePath).catch(() => null)
       // The deck's own default labels, which a line without an override
       // inherits — and which a move therefore carries for it.
       const listLabels = await parseDeckFrontMatter(listEntry.filePath)
         .then((frontMatter) => frontMatter.labels)
         .catch(() => undefined)
-      if (!deckData) {
+      if (!loaded) {
         warnings.push(t('cli.move.listUnreadable', { file: label(listEntry.filePath) }))
         continue
       }
-      for (const section of deckData.sections) {
+      // Reported like a flat list's: a line kept without its labels (a
+      // conflicting token) would otherwise move silently as "no labels".
+      for (const warning of loaded.warnings) {
+        warnings.push(t('cli.move.listWarning', { file: label(listEntry.filePath), warning }))
+      }
+      for (const section of loaded.deck.sections) {
         for (const card of section.cards) {
           // Expand deck cards to individual copies
           for (let i = 0; i < card.quantity; i++) {
@@ -463,9 +470,20 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
 
   // --- APPLY: Removals in memory ---
   const removedKeys = new Set<string>()
+  // Each source's default as the file stands now, re-read from its staged copy
+  // rather than the index's snapshot: the index was built before any prompt,
+  // and what a copy carries must match the file it actually leaves.
+  const sourceDefaults = new Map<string, CardLabel[] | undefined>()
+  const atCommit = (vc: VirtualCard): PhysicalCard => ({
+    ...vc.card,
+    listLabels: sourceDefaults.has(vc.card.listEntry.filePath)
+      ? sourceDefaults.get(vc.card.listEntry.filePath)
+      : vc.card.listLabels,
+  })
 
   for (const { listEntry, removes } of bySource.values()) {
     const stagedFile = staged.get(listEntry.filePath)!
+    sourceDefaults.set(listEntry.filePath, stagedDefaultLabels(stagedFile))
     for (const vc of removes) {
       const removed = applyRemoveFromStaged(stagedFile, vc.card)
       if (removed) removedKeys.add(vc.physicalKey)
@@ -487,7 +505,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
       if (!removedKeys.has(vc.physicalKey)) continue
       const added = applyAddToStaged(
         stagedFile,
-        arrivingCopyOf(vc.card),
+        arrivingCopyOf(atCommit(vc)),
         listEntry.ref.type,
         vc.destSection,
       )
@@ -504,13 +522,13 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
 
   // --- CHANGELOG: Write entries only for successfully moved cards ---
   // Each copy's two halves come from the one pair of mirrors every move engine
-  // uses: the source logs the line that left (its effective labels — the
-  // line's override, else its list's default), the destination mirrors it.
+  // uses: the source logs the line that left (its carried labels — the line's
+  // override applied to its list's default), the destination mirrors it.
   const departed = new Map<string, MoveFromChange>()
   const departureOf = (vc: VirtualCard): MoveFromChange => {
     let event = departed.get(vc.physicalKey)
     if (!event) {
-      event = mirrorMoveFrom({ ...vc.card, labels: movingLabels(vc.card) }, vc.currentList.ref)
+      event = mirrorMoveFrom({ ...vc.card, labels: movingLabels(atCommit(vc)) }, vc.currentList.ref)
       departed.set(vc.physicalKey, event)
     }
     return event

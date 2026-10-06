@@ -16,7 +16,7 @@ import { openSelectionView, type SelectionViewScope } from './SelectionModal'
 import { promptListMove, promptSectionMove } from '../list-view/move-prompt'
 import { promptCardLabels } from '../list-view/label-prompt'
 import { promptCardLanguage } from '../list-view/language-prompt'
-import { supportsAnyLabels, type CardLabel } from '../card/card-labels'
+import { supportsAnyLabels, type CardLabel, type CardLabelTarget } from '../card/card-labels'
 import type { ListType } from '../list/list-type'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { cartBuyer } from '../list-view/sell-mode'
@@ -166,7 +166,11 @@ type SelectionMenuItemsProps = SelectionMenuProps & {
 }
 
 /** The label picker the menu can open: which vocabulary, and what to do with the pick. */
-type LabelAction = { type: ListType; setLabel: (labels: CardLabel[]) => void }
+type LabelAction = {
+  type: ListType
+  listDefault: readonly CardLabel[] | undefined
+  setLabel: (target: CardLabelTarget) => void
+}
 
 const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
   const t = useT()
@@ -199,7 +203,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
     const setLabel = props.editActions?.setLabel
     if (!setLabel) return undefined
     const type = commonLabelListType(props.selection.selected())
-    return type ? { type, setLabel } : undefined
+    return type ? { type, listDefault: props.editActions?.labelDefault?.(), setLabel } : undefined
   })
 
   const viewSelection = (scope: SelectionViewScope) => {
@@ -355,9 +359,9 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
                   onClick={() => {
                     // Capture before closing: the close may unmount this <Show>,
                     // and the picker's callback runs after that.
-                    const { type, setLabel } = action()
+                    const { type, listDefault, setLabel } = action()
                     props.onClose()
-                    promptCardLabels(type, (labels) => setLabel(labels))
+                    promptCardLabels(type, listDefault, setLabel)
                   }}
                 >
                   {t('site.selection.setLabel')}

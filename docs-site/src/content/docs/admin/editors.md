@@ -54,7 +54,7 @@ Fields in order (see [List File Format](/list-format/) for the full grammar):
 - `[finish]`: `nonfoil`, `foil`, or `etched`
 - `[condition]`: `NM`, `LP`, `MP`, `HP`, or `DMG` (`NM` is the default and is not written)
 - `[lang]`: a [Scryfall language code](#card-language), omitted for English
-- `[labels]`: the card's [label override](/list-format/#card-labels). A deck carries `proxy` only
+- `[labels]`: the card's [label override](/list-format/#card-labels), adjusting the list default (`[trade,no-sale]`). A deck carries `proxy` / `no-proxy` only
 - `#tags`: the card's [tags](#card-tags), one comma-separated token. Every list type carries them
 - `{note}`: the card's [note](/commands/note/)
 - `&N`: persistent card ID, auto-assigned and used internally for change tracking
@@ -151,7 +151,7 @@ A deck folds the added copies into one entry with a quantity. Collections and wa
 
 Beneath the printing grid, and again on the finish/condition step (bound to the same values), the dialog offers two optional per-card settings:
 
-- **Label**: the [label override](#card-labels) the new card starts with. The choices are what the list type carries: the full vocabulary on a collection, **Proxy** alone on a deck, nothing on a wanted list. The label is part of the `add` change itself, so it lands on the copy being added and never on a same-named card already in the list.
+- **Label**: the [label](#card-labels) state the new card starts in. The choices are what the list type carries: the full vocabulary on a collection (plus **No labels** under a default), **Proxy** and **Not a proxy** on a deck (the latter under a `proxy` default), nothing on a wanted list. The card is written with the smallest token that gives it that state under the list's default. The label is part of the `add` change itself, so it lands on the copy being added and never on a same-named card already in the list.
 - **Custom art**: a path inside the [art directory](/configuration/#directory-options) or an image URL, validated as you type. An unusable reference is explained under the field and blocks the add until fixed or cleared. Unlike the printing, the art is not part of the change. It is held until the save gives the new line its `&N`, then written straight after (see [Custom Art](#custom-art)). Admin editors only: the public editor exports changes and has no art file to write.
 
 Both fields reset for the next card, including after **Add Another Card**.
@@ -248,7 +248,7 @@ While a list is open in edit mode, the **Selected (N)** menu gains an **edit** s
 - **Swap Printings…**: decks and collections. Opens the [Swap Printings](#swap-printings) wizard with the selected cards pre-checked
 - **Set Language…**: opens the [language picker](#card-language) and applies the chosen language to every selected card
 - **Set as Commander**: decks only. Marks each selected card as a commander
-- **Set Label…**: decks and collections. Opens the [label picker](#card-labels) for the selection's list type (a deck is offered **Proxy** and **Use list default**) and applies the override to every selected card. Hidden when the selection spans several list types, or when the type carries no labels (wanted lists)
+- **Set Label…**: decks and collections. Opens the [label picker](#card-labels) for the selection's list type (a deck is offered **Proxy**, **Not a proxy** under a `proxy` default, and **Use list default**) and puts every selected card in the picked state. Hidden when the selection spans several list types, or when the type carries no labels (wanted lists)
 - **Add Tag…**: every editor. Opens the [tags dialog](#card-tags) empty, with the list's tags as suggestions, and adds the typed tags to every selected card's existing tags without replacing them. One pending `add-tag` per card per tag it lacked, each its own Undo step
 - **Move to section…**: moves every selected card into an existing section, or **New section…** to name a new one
 - **Move to list…**: moves every selected card into another list, carrying what [Moving Cards to Another List](#moving-cards-to-another-list) describes
@@ -275,7 +275,7 @@ Choosing it opens a picker listing your other decks, collections, and wanted lis
 
 For the per-card and per-list **Selected** moves, choosing a destination removes the card from the list you are editing and **stages** a move. **When you Save, both lists are written.** The card is removed from the source (with a "Move … to …" changelog entry) and added to the destination (with a matching "Move … from …" entry). Moving a card with no printing into a collection, which requires one, opens a printing picker first.
 
-Whichever way it moves, the card's [custom art](#custom-art) and its [tags](#card-tags), its note, and its effective [labels](#card-labels) (its own override, or else its list's default) go with it. The destination keeps the labels its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes an override only where the kept labels differ from its own default. A card with no labels arriving in a list that has a default takes that default, since the line grammar has no empty override. A copy that merges onto a deck line with a different note keeps that line's note, and the save reports the dropped one.
+Whichever way it moves, the card's [custom art](#custom-art) and its [tags](#card-tags), its note, and its [labels](#card-labels) go with it: a proxy stays a proxy and a real card stays real wherever both lists carry `proxy`, a `sale`/`trade`/`keep` state the source list stated (in its default or on the card) is kept, and a label the source never stated takes the destination's default. The destination keeps only the labels its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes the smallest token that says so. A copy that merges onto a deck line with a different note keeps that line's note, and the save reports the dropped one.
 
 The cross-list **All Selected** move does not go through the editor's Save button. It is applied **immediately** and atomically across every affected file via `POST /api/move/selected`, each card moving from its own list to the chosen destination.
 
@@ -283,7 +283,7 @@ The cross-list **All Selected** move does not go through the editor's Save butto
 
 Pending changes can also carry **incoming** moves: a `move-to` recording a copy that arrives in the list you are editing from another list. A printing swap that pulls a copy you own elsewhere produces one, as does a bundle loaded through **Import…**. Save handles these symmetrically: the copy is added here and **taken out of the source list**, and both changelogs are written ("Move … from …" here, "Move … to …" on the source). The source copy is found by the source line id the change names when that line still holds the card; otherwise by the exact printing; otherwise (for a source line with no printing, such as a wanted entry) by name.
 
-A move from the **Swap Printings** wizard that gives one of this list's name-only lines a printing carries `replacesCardId` instead. The line is converted in place, keeping its `&N`, or split when only some of its copies are filled. No copy is added. Such a move may also carry a `replacement`: a printing added back to the source list in the section the departed line left, logged there as an `Added` line (see [Save a List](/admin/api/#save-a-list)).
+A move from the **Swap Printings** wizard that gives one of this list's name-only lines a printing carries `replacesCardId` instead. The line is converted in place, keeping its `&N`, or split when only some of its copies are filled — or when the copy's labels differ from the line's (a proxy never turns a real line into proxies, nor the reverse), in which case the copy lands beside it with its own labels. No copy is added. Such a move may also carry a `replacement`: a printing added back to the source list in the section the departed line left, logged there as an `Added` line (see [Save a List](/admin/api/#save-a-list)).
 
 Every move, in either direction, is validated in memory before anything is written. A missing list, a source with no copy left to take, or a card with no printing headed into a collection fails the save with nothing written. A swap that leaves and enters the same other list stages both halves against one copy of its file. The moved copy's tags, note, labels and custom art follow it both ways, by the rules above. An incoming copy that merges onto a deck line with a different note keeps that line's note, and the save's `droppedNotes` reports it. When the source holds several lines of the printing, the one whose effective labels match the copy's is taken first, so a `[proxy]` copy leaves from the proxy line.
 
@@ -344,7 +344,7 @@ Every list type can carry [categories](/commands/categories/): a card's **role i
 
 A [card label](/list-format/#card-labels) tells Ritual what a copy is for. Collections carry the whole vocabulary (**For sale**, **For trade**, **To keep**, **Proxy**). A deck carries **Proxy** alone; a wanted list carries none. Labels are set at two levels:
 
-- **Set Label…** in a card's **⋯** menu (and in the multi-select **Selected** menu) sets one line's override. On a collection the picker offers the five label states plus **Use list default**, which clears the override. On a deck it offers **Proxy** and **Use list default**. The change is a pending `set-label` edit like any other: undoable, listed in **Changes**, and written on save. Tiles show a badge on cards whose _override_ differs from the list default.
+- **Set Label…** in a card's **⋯** menu (and in the multi-select **Selected** menu) puts a card in a label state. On a collection the picker offers the five label states, **No labels** (when the list has a default to take away), and **Use list default**, which clears the override. On a deck it offers **Proxy**, **Not a proxy** (under a `proxy` default), and **Use list default**. The card's override [adjusts the list default](/list-format/#card-labels), so the editor writes the smallest token that gives the picked state (`[no-proxy]`, `[trade,no-sale]`). The change is a pending `set-label` edit like any other: undoable, listed in **Changes**, and written on save. Tiles badge a card's own override; a negation shows struck through (~~PROXY~~, tooltip **Not a proxy**), and the list view spells it out.
 - The action bar's **Labels** button opens the **Default Labels** modal, which sets the list's front-matter `labels:` default (**No default** or **Proxy** on a deck). It writes immediately through the [List Metadata](/admin/api/#list-metadata) route. Front matter is not a card change, so it needs no save, and the editor adopts the returned content hash so pending card edits still save cleanly afterward. This is how you mark a whole playtest deck as proxies without touching a card line.
 
 In the **Selected** menu, the picker offers only what the selected cards' list type carries. It is hidden for a selection spanning several list types (their vocabularies differ) or one whose type carries no labels.
@@ -414,7 +414,7 @@ The editor is the same for all three types. What differs is what a card line mus
 - **Set as Commander** in the context menu and the **Selected** menu moves a card to the Commander section (several commanders are allowed).
 - **No specific printing** is available when adding a card.
 - Condition (NM, LP, MP, HP, DMG) is optional and defaults to NM.
-- Labels: **Proxy** only. See [Card Labels](#card-labels).
+- Labels: **Proxy** / **Not a proxy** only (`proxy`, `no-proxy`). See [Card Labels](#card-labels).
 
 ### Collection Editor
 
@@ -436,23 +436,23 @@ Wanted lists are `.md` files in the `wanted/` directory.
 
 ### Feature Comparison
 
-| Feature                   | Deck Editor             | Collection Editor | Wanted List Editor |
-| ------------------------- | ----------------------- | ----------------- | ------------------ |
-| Set as Commander          | ✅                      | ❌                | ❌                 |
-| Change printing           | ✅                      | ✅                | ✅                 |
-| Multi-copy printing split | ✅ Entry                | ✅ Per-entry      | ❌ Single rows     |
-| Swap printings            | ✅                      | ✅                | ❌ Not offered     |
-| No specific printing      | ✅ Allowed              | ❌ Must select    | ✅ Allowed         |
-| Condition field           | ✅ Optional             | ✅ Required       | ❌ Not applicable  |
-| Finish field              | ✅ Optional             | ✅ Required       | ✅ Optional        |
-| Card labels               | ✅ Proxy + list default | ✅ + list default | ❌                 |
-| Card tags                 | ✅                      | ✅                | ✅                 |
-| Card categories           | ✅                      | ✅                | ✅                 |
-| Custom art                | ✅                      | ✅                | ✅                 |
-| Cover image               | ✅                      | ✅                | ✅                 |
-| Description               | 👁️ Read-only            | 👁️ Read-only      | 👁️ Read-only       |
-| Sections                  | ✅ + reserved Commander | ✅ User-named     | ✅ User-named      |
-| Add/rename/delete section | ✅                      | ✅                | ✅                 |
-| Move card to section      | ✅                      | ✅                | ✅                 |
-| Changelog on save         | ✅                      | ✅                | ✅                 |
-| Add Card Defaults         | ✅ Set/F/C              | ✅ Set/F/C        | ✅ Set/F           |
+| Feature                   | Deck Editor                           | Collection Editor | Wanted List Editor |
+| ------------------------- | ------------------------------------- | ----------------- | ------------------ |
+| Set as Commander          | ✅                                    | ❌                | ❌                 |
+| Change printing           | ✅                                    | ✅                | ✅                 |
+| Multi-copy printing split | ✅ Entry                              | ✅ Per-entry      | ❌ Single rows     |
+| Swap printings            | ✅                                    | ✅                | ❌ Not offered     |
+| No specific printing      | ✅ Allowed                            | ❌ Must select    | ✅ Allowed         |
+| Condition field           | ✅ Optional                           | ✅ Required       | ❌ Not applicable  |
+| Finish field              | ✅ Optional                           | ✅ Required       | ✅ Optional        |
+| Card labels               | ✅ Proxy / Not a proxy + list default | ✅ + list default | ❌                 |
+| Card tags                 | ✅                                    | ✅                | ✅                 |
+| Card categories           | ✅                                    | ✅                | ✅                 |
+| Custom art                | ✅                                    | ✅                | ✅                 |
+| Cover image               | ✅                                    | ✅                | ✅                 |
+| Description               | 👁️ Read-only                          | 👁️ Read-only      | 👁️ Read-only       |
+| Sections                  | ✅ + reserved Commander               | ✅ User-named     | ✅ User-named      |
+| Add/rename/delete section | ✅                                    | ✅                | ✅                 |
+| Move card to section      | ✅                                    | ✅                | ✅                 |
+| Changelog on save         | ✅                                    | ✅                | ✅                 |
+| Add Card Defaults         | ✅ Set/F/C                            | ✅ Set/F/C        | ✅ Set/F           |

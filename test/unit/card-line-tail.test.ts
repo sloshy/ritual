@@ -57,6 +57,9 @@ describe('formatTokenTail', () => {
 
   test('re-normalizes label order', () => {
     expect(formatTokenTail({ labels: ['trade', 'sale'] })).toBe(' [sale,trade]')
+    // positives first, then negatives; a void negative is never written
+    expect(formatTokenTail({ labels: ['no-sale', 'trade'] })).toBe(' [trade,no-sale]')
+    expect(formatTokenTail({ labels: ['keep', 'no-sale'] })).toBe(' [keep]')
   })
 
   test('a zero card id is still written', () => {
@@ -160,6 +163,26 @@ describe('round trip', () => {
       },
     ],
     ['wanted', { quantity: 1, name: 'Arcane Signet', tags: ['ramp'], cardId: 4 }],
+    [
+      'deck',
+      {
+        quantity: 1,
+        name: 'Sol Ring',
+        printing: { set: 'c21', collectorNumber: '263' },
+        labels: ['no-proxy'],
+        cardId: 4,
+      },
+    ],
+    [
+      'collection',
+      {
+        quantity: 1,
+        name: 'Sol Ring',
+        printing: { set: 'c21', collectorNumber: '263' },
+        labels: ['trade', 'no-sale'],
+        cardId: 5,
+      },
+    ],
     [
       'wanted',
       {

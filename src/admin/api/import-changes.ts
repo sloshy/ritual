@@ -392,7 +392,9 @@ const DECK_TARGET: ImportTarget<DeckData> = {
       contentHash: body.contentHash,
       listLabels: body.labels,
     })),
-  apply: applyChangeToDeck,
+  // The batch hands every apply the target's own default (`listLabels` above).
+  apply: (deck, change, options) =>
+    applyChangeToDeck(deck, change, { ...options, listLabels: options?.listLabels }),
   settle: rewriteMergedDeckIds,
 }
 

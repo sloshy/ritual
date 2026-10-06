@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Page, type Route } from '@playwright/test'
 import type { ScryfallCard } from '../../../src/scryfall/types'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
@@ -134,7 +134,7 @@ test.describe('Collection Editor — card labels', () => {
   })
 })
 
-async function openLabelDeck(page: Page): Promise<void> {
+async function openLabelDeck(page: Page, frontMatter: { labels?: 'proxy'[] } = {}): Promise<void> {
   await disableSearchDebounce(page)
   await gotoAdminDashboard(page)
 
@@ -163,7 +163,8 @@ async function openLabelDeck(page: Page): Promise<void> {
     lowestPriceCardsEur: {},
     lowestPriceCardsTix: {},
     symbolMap: {},
-    frontMatter: {},
+    frontMatter,
+    ...(frontMatter.labels ? { labels: frontMatter.labels } : {}),
   })
 
   await openListEditor(page, 'deck')
@@ -203,5 +204,53 @@ test.describe('Deck Editor — card labels', () => {
     await expect(page.locator('.changes-modal .change-item')).toContainText(
       'Set labels on Sol Ring &1 to [proxy]',
     )
+  })
+})
+
+test.describe('Deck Editor — signed labels under a proxy default', () => {
+  test.beforeEach(async ({ page }) => {
+    await openLabelDeck(page, { labels: ['proxy'] })
+  })
+
+  test('"Not a proxy" badges the tile, prices it, and saves [no-proxy]', async ({ page }) => {
+    let saved: { changes: Record<string, unknown>[] } | null = null
+    await fulfillJson(page, '**/api/deck/label-deck/save', (route: Route) => {
+      saved = JSON.parse(route.request().postData() ?? '{}') as {
+        changes: Record<string, unknown>[]
+      }
+      return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+    })
+
+    const tile = page.locator('.card-item').filter({ hasText: 'Sol Ring' }).first()
+    // The deck default makes the plain line a proxy: no badge (inherited), but
+    // the price cell names the rule.
+    await expect(tile.locator('.card-label-badge')).toHaveCount(0)
+    await expect(tile.locator('.card-label-price')).toHaveText('PROXY')
+
+    await tile.locator('.edit-btn-context').click()
+    await page.locator('.card-context-menu').locator('button', { hasText: 'Set Label…' }).click()
+    const picker = page.locator('.move-picker-list')
+    await expect(picker.locator('.move-picker-item')).toHaveText([
+      'Proxy',
+      'Not a proxy',
+      'Use list default',
+    ])
+    await picker.locator('.move-picker-item', { hasText: 'Not a proxy' }).click()
+
+    // On a tile the negation is the label's token struck through, its wording
+    // the accessible name (the list view spells it out).
+    const negated = tile.locator('.card-label-badge.label-negated')
+    await expect(negated).toHaveText('proxy')
+    await expect(negated).toHaveAttribute('aria-label', 'Not a proxy')
+    await expect(tile.locator('.card-label-price')).toHaveText('$2.00')
+
+    await page.locator('.btn-save').click()
+    await expect.poll(() => saved?.changes.length).toBe(1)
+    expect(saved!.changes[0]).toMatchObject({
+      action: 'set-label',
+      cardName: 'Sol Ring',
+      labels: ['no-proxy'],
+      cardId: 1,
+    })
   })
 })

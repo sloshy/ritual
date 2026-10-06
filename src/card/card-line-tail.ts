@@ -16,7 +16,7 @@
  */
 
 import type { CardPrinting } from './card-line'
-import { formatCardLabels, type CardLabel } from './card-labels'
+import { formatLabelOverride, type SignedCardLabel } from './card-labels'
 import { formatCardTagsToken, type CardTag } from './card-tags'
 import { languageToken, type CardLanguage } from './card-language'
 import type { ConditionUpdate, Finish } from './finish-condition'
@@ -63,7 +63,7 @@ export type CardLineTailFields = {
   /** Omitted when `en` — a bare line always means English. */
   language?: CardLanguage
   /** Written only when non-empty; an absent override inherits the list default. */
-  labels?: readonly CardLabel[]
+  labels?: readonly SignedCardLabel[]
   /** Written only when non-empty, as one comma-separated `#a, b` token in canonical order. */
   tags?: readonly CardTag[]
   note?: string
@@ -93,7 +93,7 @@ export function formatTokenTail(fields: CardLineTailFields): string {
   // written, so a changelog annotation reads exactly like the line it produced.
   if (condition && condition !== 'NM' && condition !== 'NONE') tail += ` [${condition}]`
   tail += languageToken(language)
-  if (labels && labels.length > 0) tail += ` [${formatCardLabels(labels)}]`
+  if (labels && labels.length > 0) tail += ` [${formatLabelOverride(labels)}]`
   // Structured tokens stay contiguous: the tags sit before the free-prose note,
   // so a long note never pushes them off the visible end of the line.
   if (tags && tags.length > 0) tail += ` ${formatCardTagsToken(tags)}`

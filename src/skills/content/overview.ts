@@ -148,13 +148,16 @@ format: commander
   Scryfall code (\`en es fr de it pt ja ko ru zhs zht he la grc ar sa ph\`; \`zhs\`/\`zht\`
   for Chinese, not ISO codes), omitted for English so a bare line always means \`en\`.
   \`{...}\` is a note, greedy to the last \`}\`.
-- \`[sale]\`/\`[trade]\`/\`[sale,trade]\`/\`[keep]\`/\`[proxy]\` is a **card label override**:
-  \`sale\` and \`trade\` combine, \`keep\` and \`proxy\` each stand alone. Collections take
-  all four, **decks take \`proxy\` only** (another label on a deck line is a warning that
-  keeps the card and drops the token), and **wanted lists carry neither labels nor a
-  condition** — such a token on a wanted line is a named refusal of that line. A card's
-  *effective* labels are its own token when present, else the list's front-matter
-  default — see the **ritual-collections** and **ritual-decks** skills.
+- \`[sale]\`/\`[sale,trade]\`/\`[keep]\`/\`[proxy]\`/\`[trade,no-sale]\`/\`[no-proxy]\` is a **card
+  label override**, which **adjusts** the list's front-matter default: a plain label
+  adds it, \`no-<label>\` takes an inherited one away (positives first, then negatives).
+  \`sale\` and \`trade\` combine, \`keep\` and \`proxy\` each stand alone (and displace an
+  inherited label they cannot combine with); a label both set and negated is a warning.
+  Collections take all four, **decks take \`proxy\`/\`no-proxy\` only** (another label on a deck line
+  is a warning that keeps the card and drops the token), and **wanted lists carry
+  neither labels nor a condition** — such a token on a wanted line is a named refusal of
+  that line. A card's *effective* labels are its positives plus the default minus its
+  negated labels — see the **ritual-collections** and **ritual-decks** skills.
 - **Read tolerances** (rewritten to the canonical form on the next save): bracket
   tokens in any order; any whitespace run; the \`- \` bullet is optional on a deck line
   (a deck line is recognized by its leading quantity; a flat-list line by its bullet);

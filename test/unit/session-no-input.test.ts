@@ -62,7 +62,7 @@ describe('session prompts under --no-input', () => {
     ],
     [
       'card label picker',
-      () => promptCardLabelChoice('collection', undefined),
+      () => promptCardLabelChoice('collection', undefined, undefined),
       'a label for the card',
     ],
     [

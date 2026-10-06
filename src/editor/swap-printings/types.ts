@@ -17,6 +17,7 @@ import type { CardLanguage } from '../../card/card-language'
 import type { CardPrintingsLookup } from '../../card/card-printing'
 import type { PrintingRef } from '../../card/printing-key'
 import type { NamedListRef } from '../../list-view/combined-list'
+import type { MovedCopyFields } from '../../changes/change-event'
 
 /** How the wizard chooses replacements: by hand per card, or by price. */
 export type SwapMode = 'manual' | 'most-expensive' | 'least-expensive'
@@ -58,6 +59,12 @@ export type SwapSourceEntry = PrintingRef & {
   cardId?: number
   /** Deck section the line lives in. */
   section?: string
+  /**
+   * What a copy of this line carries across a move — its tags, note, and labels
+   * as its list states them (`movedCopyFromLine`) — so a swap moves the copy
+   * whole, labels included, like every other move path.
+   */
+  payload?: MovedCopyFields
 }
 
 /**
@@ -116,6 +123,12 @@ export type SwapTarget = {
   section?: string
   /** The resolved current printing, or null when it is not in the cache. */
   card: ScryfallCard | null
+  /**
+   * Each copy's move payload (`movedCopyFromLine`), aligned with `cardIds`: a
+   * deck line's single payload (shared by all its copies), a flat list's one per
+   * copy. What a displaced copy carries when it leaves.
+   */
+  payloads?: MovedCopyFields[]
 }
 
 /**
@@ -123,7 +136,7 @@ export type SwapTarget = {
  * repeating the line's id; flat-list copies each carry their own id. `cardId`
  * is absent for a legacy line that never received an `&N` id.
  */
-export type SwapCandidateCopy = { cardId?: number; section?: string }
+export type SwapCandidateCopy = { cardId?: number; section?: string; payload?: MovedCopyFields }
 
 /**
  * A group of interchangeable copies in one source list that could replace the
@@ -222,6 +235,11 @@ export type SwapMove = {
    * `undefined` in its slot (the writer falls back to a printing match).
    */
   sourceCardIds: Array<number | undefined>
+  /**
+   * Each moved copy's payload (tags, note, carried labels), aligned with
+   * `sourceCardIds`; absent or short means the copy carries none.
+   */
+  payloads?: MovedCopyFields[]
   /** Destination deck section (set on `in` moves from the target's section). */
   section?: string
   /**

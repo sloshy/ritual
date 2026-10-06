@@ -35,9 +35,16 @@ import {
 import {
   cardLabelChoicesFor,
   cardLabelDefaultChoicesFor,
+  currentLabelChoice,
   formatCardLabels,
+  labelChoiceKey,
+  overrideForChoice,
+  sameCardLabels,
   type CardLabel,
   type CardLabelChoice,
+  type CardLabelDefaultChoice,
+  type LabelOverride,
+  type SignedCardLabel,
 } from '../../card/card-labels'
 import {
   formatCardTags,
@@ -605,21 +612,19 @@ export async function promptLanguageChoice(
 }
 
 /**
- * Pick a label state from `choices`, marking the current one and starting the
- * cursor on it. Returns null when cancelled. Choices round-trip through their
- * canonical serialized form (`''` for the clear row) — a real domain value,
- * like {@link promptLanguageChoice}'s, rather than an array index. Shared by
- * the per-card override picker and the list-default picker, for every list type
- * that carries labels.
+ * Pick one row of `choices`, starting the cursor on `current` and marking it.
+ * Returns the picked row, or null when cancelled. Rows round-trip through
+ * `keyOf` — a real domain value (the canonical label list) rather than an
+ * array index, like {@link promptLanguageChoice}'s.
  */
-async function promptLabelChoiceFrom(
-  choices: readonly CardLabelChoice[],
-  current: readonly CardLabel[] | undefined,
+async function promptLabelRow<C extends CardLabelChoice | CardLabelDefaultChoice>(
+  choices: readonly C[],
+  current: C | undefined,
+  keyOf: (choice: C) => string,
   message: string,
   subjectKey: PromptSubjectKey,
-): Promise<CardLabel[] | null> {
-  const currentKey = formatCardLabels(current ?? [])
-  const currentIndex = choices.findIndex((choice) => formatCardLabels(choice.labels) === currentKey)
+): Promise<C | null> {
+  const currentIndex = current === undefined ? -1 : choices.indexOf(current)
   const key = await ask<string>({
     type: 'select',
     message,
@@ -627,29 +632,35 @@ async function promptLabelChoiceFrom(
     choices: choices.map((choice, i) => ({
       title:
         i === currentIndex ? t('cli.edit.current', { label: t(choice.label) }) : t(choice.label),
-      value: formatCardLabels(choice.labels),
+      value: keyOf(choice),
     })),
     initial: Math.max(0, currentIndex),
   })
   if (key === undefined) return null
-  const picked = choices.find((choice) => formatCardLabels(choice.labels) === key)
-  return picked ? [...picked.labels] : null
+  return choices.find((choice) => keyOf(choice) === key) ?? null
 }
 
 /**
- * Pick a label override for an existing entry: the label states `type` carries
- * plus "Use list default" (clear, encoded as `[]`).
+ * Pick a label override for an existing entry: the effective states `type`
+ * carries (plus "No labels" when the default has something to take away) and
+ * "Use list default". Returns the override to write — the minimal one for the
+ * picked state under `listDefault`, `[]` for the clear — or null when
+ * cancelled.
  */
 export async function promptCardLabelChoice(
   type: ListType,
-  current: readonly CardLabel[] | undefined,
-): Promise<CardLabel[] | null> {
-  return promptLabelChoiceFrom(
-    cardLabelChoicesFor(type),
-    current,
+  current: readonly SignedCardLabel[] | undefined,
+  listDefault: readonly CardLabel[] | undefined,
+): Promise<LabelOverride | null> {
+  const choices = cardLabelChoicesFor(type, listDefault)
+  const picked = await promptLabelRow(
+    choices,
+    currentLabelChoice(choices, current, listDefault),
+    (choice) => labelChoiceKey(choice.labels),
     t('cli.labels.promptOverride'),
     'cli.prompt.subject.cardLabel',
   )
+  return picked === null ? null : overrideForChoice(picked.labels, listDefault)
 }
 
 /**
@@ -660,12 +671,15 @@ export async function promptDefaultLabelsChoice(
   type: ListType,
   current: readonly CardLabel[] | undefined,
 ): Promise<CardLabel[] | null> {
-  return promptLabelChoiceFrom(
-    cardLabelDefaultChoicesFor(type),
-    current,
+  const choices = cardLabelDefaultChoicesFor(type)
+  const picked = await promptLabelRow(
+    choices,
+    choices.find((choice) => sameCardLabels(choice.labels, current)),
+    (choice) => formatCardLabels(choice.labels),
     t('cli.labels.promptDefault'),
     'cli.prompt.subject.defaultLabels',
   )
+  return picked === null ? null : [...picked.labels]
 }
 
 type FinishAndConditionResult = {

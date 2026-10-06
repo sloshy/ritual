@@ -2,8 +2,10 @@ import { z } from 'zod'
 import { DECK_FORMAT_KEYS } from '../list/deck-format'
 import {
   CARD_LABELS,
+  SIGNED_CARD_LABELS,
   checkLabelsForListType,
-  isCardLabel,
+  isSignedCardLabel,
+  parseLabelOverrideData,
   unsupportedLabelsMessage,
 } from '../card/card-labels'
 import { CARD_LANGUAGES } from '../card/card-language'
@@ -36,6 +38,8 @@ export const conditionUpdateSchema = z.enum([...VALID_CONDITIONS, 'NONE'])
 export const deckFormatSchema = z.enum(DECK_FORMAT_KEYS)
 /** Derived from the canonical label vocabulary, so the tool schema cannot drift from it. */
 export const cardLabelSchema = z.enum(CARD_LABELS)
+/** One member of a card's label override: a label or its `no-` negation. */
+export const signedCardLabelSchema = z.enum(SIGNED_CARD_LABELS)
 /**
  * One card tag in canonical form — the same shape rule the card-line grammar
  * reads (`isCardTagShaped`), already trimmed and single-spaced, in the owner's
@@ -92,17 +96,36 @@ export const categoryOrderField = z
       'configured defaultCategories first.',
   )
 /**
- * A label-override *update*: the new override, where `sale` and `trade` combine
- * and `keep`/`proxy` each stand alone, or an empty array to clear the override
- * so the list's front-matter default applies again. Which labels a list type
- * carries is enforced by {@link refineLabelsForListType}.
+ * Refuse an override that names a label both ways or pairs an exclusive label
+ * with another — the conflict rule every override surface shares, worded by the
+ * English data parser so the tools refuse in the bundle importer's words.
+ */
+function refineLabelOverride(labels: readonly string[], ctx: RefinementIssueSink): void {
+  const parsed = parseLabelOverrideData(labels, 'labels')
+  if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.message })
+}
+
+/** How an override adjusts its list's default, spelled once for every tool that takes one. */
+const LABEL_OVERRIDE_RULE =
+  'Signed labels adjusting the list default: "sale"/"trade" (combinable), "keep" or "proxy" ' +
+  '(each exclusive) add a label; "no-sale", "no-trade", "no-keep", "no-proxy" take an inherited ' +
+  'one away. Effective labels = the positives plus the default minus the negated labels; a ' +
+  'positive also displaces an inherited label it cannot combine with (["keep"] under a "sale" ' +
+  'default is just keep). A label may not be both set and negated. Collections take the whole ' +
+  'vocabulary; decks take "proxy"/"no-proxy" alone; wanted lists carry no labels.'
+
+/**
+ * A label-override *update*: the new signed override (replacing the card's
+ * own), or an empty array to clear the override so the list's front-matter
+ * default applies again. Which labels a list type carries is enforced by
+ * {@link refineLabelsForListType}.
  */
 export const labelsUpdateField = z
-  .array(cardLabelSchema)
+  .array(signedCardLabelSchema)
+  .superRefine(refineLabelOverride)
   .describe(
-    'New label override: "sale"/"trade" (combinable), "keep" or "proxy" (each exclusive). ' +
-      'An empty array clears the override (the list default applies). Collections take the ' +
-      'whole vocabulary; decks take "proxy" alone; wanted lists carry no labels.',
+    `New label override, replacing the card's own. ${LABEL_OVERRIDE_RULE} ` +
+      'An empty array clears the override (the list default applies).',
   )
 /**
  * A label override attached to a newly added card — unlike
@@ -110,13 +133,12 @@ export const labelsUpdateField = z
  * rejected rather than meaning "clear".
  */
 export const labelsOverrideField = z
-  .array(cardLabelSchema)
+  .array(signedCardLabelSchema)
   .min(1)
+  .superRefine(refineLabelOverride)
   .optional()
   .describe(
-    'Label override for the new card: "sale"/"trade" (combinable), "keep" or "proxy" ' +
-      '(each exclusive). Collections take the whole vocabulary, decks "proxy" alone; ' +
-      'omit to inherit the list default.',
+    `Label override for the new card. ${LABEL_OVERRIDE_RULE} Omit to inherit the list default.`,
   )
 
 export const DECK_ONLY_FORMAT_MESSAGE = 'format is only valid when listType is "deck".'
@@ -145,8 +167,8 @@ type ListTypeWithLabels = { listType: string; labels?: readonly string[] }
 
 /**
  * Shared cross-field rule: a `labels` field may only name labels `listType`
- * carries — the whole vocabulary on a collection, `proxy` alone on a deck, none
- * on a wanted list. The decision itself is `checkLabelsForListType` and the
+ * carries, positive or negated — the whole vocabulary on a collection,
+ * `proxy`/`no-proxy` alone on a deck, none on a wanted list. The decision itself is `checkLabelsForListType` and the
  * wording `unsupportedLabelsMessage`, so the CLI, the admin routes, the bundle
  * importer, and the tools refuse exactly the same sets in the same words; this
  * only reports the outcome as a zod issue.
@@ -155,9 +177,9 @@ export function refineLabelsForListType(val: ListTypeWithLabels, ctx: Refinement
   const { labels, listType } = val
   // An unknown list type is the enum's own issue to report, not this rule's.
   // The element enum has likewise already refused any non-label string, so the
-  // survivors are label values.
+  // survivors are (signed) label values.
   if (labels === undefined || !isListType(listType)) return
-  const check = checkLabelsForListType(listType, labels.filter(isCardLabel))
+  const check = checkLabelsForListType(listType, labels.filter(isSignedCardLabel))
   if (!check.ok) {
     ctx.addIssue({ code: 'custom', message: unsupportedLabelsMessage(listType, check.unsupported) })
   }

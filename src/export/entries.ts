@@ -9,7 +9,7 @@ import {
   CARD_LABEL_SELECTIONS,
   effectiveLabels,
   isCardLabelSelection,
-  normalizedOverride,
+  normalizedLabelSet,
   matchesCardLabelSelection,
   supportsAnyLabels,
   type CardLabel,
@@ -60,7 +60,7 @@ type ExportEntryFields = {
   /** The line's language token, when present. Absent means `en` (a bare line means English). */
   language?: CardLanguage
   /**
-   * The card's *effective* labels (its line's override, else the list's
+   * The card's *effective* labels (its line's override applied to the list's
    * front-matter default) — decks and collections; absent when the effective
    * set is empty, and always absent for wanted entries, which carry no labels.
    * Exports flatten away the list file, so the override/default split would be
@@ -142,7 +142,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
             finish: card.finish,
             condition: card.condition,
             language: card.language,
-            labels: normalizedOverride(labels),
+            labels: normalizedLabelSet(labels),
             tags: normalizedTags(card.tags),
             categories: cardCategoriesOf(categoriesRecord, card.name),
             note: card.note,
@@ -164,7 +164,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
             location,
             entry,
             condition: entry.condition,
-            labels: normalizedOverride(labels),
+            labels: normalizedLabelSet(labels),
             categories: cardCategoriesOf(categoriesRecord, entry.name),
             fileOrder,
           }),

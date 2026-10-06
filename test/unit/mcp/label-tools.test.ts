@@ -45,9 +45,14 @@ describe('card labels over MCP', () => {
       name: 'get_list',
       arguments: { listType: 'collection', slug: 'shoebox', view: 'cards' },
     })
-    const data = toolData<{ labels?: string[]; entries: { labels?: string[] }[] }>(result)
+    const data = toolData<{
+      labels?: string[]
+      entries: { labels?: string[]; effectiveLabels: string[] }[]
+    }>(result)
     expect(data.labels).toEqual(['sale'])
     expect(data.entries[0]!.labels).toEqual(['keep'])
+    // The rule is resolved server-side: `[keep]` displaces the inherited sale.
+    expect(data.entries[0]!.effectiveLabels).toEqual(['keep'])
   })
 
   test('apply_changes set-label rewrites the override', async () => {
@@ -143,6 +148,81 @@ describe('card labels over MCP', () => {
       .flatMap((section) => section.cards)
       .find((card) => card.name === 'Sol Ring')
     expect(solRing?.labels).toEqual(['proxy'])
+  })
+
+  test('a signed set-label writes the negation onto the line', async () => {
+    await seedLabeledCollection(session)
+    const result = await client.callTool({
+      name: 'apply_changes',
+      arguments: {
+        listType: 'collection',
+        slug: 'shoebox',
+        changes: [
+          { action: 'set-label', cardName: 'Sol Ring', cardId: 1, labels: ['no-sale', 'trade'] },
+        ],
+      },
+    })
+    expect(toolData<{ applied: number }>(result).applied).toBe(1)
+    const content = await fs.readFile(
+      path.join(session.env.dir, 'collections', 'shoebox.md'),
+      'utf-8',
+    )
+    expect(content).toContain('[trade,no-sale] &1')
+
+    // And it reads back signed through get_list's output schema.
+    const listed = toolData<{ entries: { labels?: string[]; effectiveLabels: string[] }[] }>(
+      await client.callTool({
+        name: 'get_list',
+        arguments: { listType: 'collection', slug: 'shoebox', view: 'cards' },
+      }),
+    )
+    expect(listed.entries[0]!.labels).toEqual(['trade', 'no-sale'])
+    expect(listed.entries[0]!.effectiveLabels).toEqual(['trade'])
+  })
+
+  test('the schemas reject a label both set and negated, and a negation off the type', async () => {
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'apply_changes',
+        arguments: {
+          listType: 'deck',
+          slug: 'test-deck',
+          changes: [{ action: 'set-label', cardName: 'Sol Ring', labels: ['proxy', 'no-proxy'] }],
+        },
+      }),
+      "'proxy' cannot be both set and negated",
+    )
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'add_card',
+        arguments: {
+          listType: 'deck',
+          slug: 'test-deck',
+          cardName: 'Sol Ring',
+          labels: ['proxy', 'no-proxy'],
+        },
+      }),
+      "'proxy' cannot be both set and negated",
+    )
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'apply_changes',
+        arguments: {
+          listType: 'deck',
+          slug: 'test-deck',
+          changes: [{ action: 'set-label', cardName: 'Sol Ring', labels: ['no-sale'] }],
+        },
+      }),
+      'labels [no-sale] are not supported on a deck',
+    )
+    expectSchemaRejection(
+      await client.callTool({
+        name: 'set_list_metadata',
+        arguments: { listType: 'collection', slug: 'shoebox', labels: ['no-sale'] },
+      }),
+      // A default is positive only: the negation is not even in its vocabulary.
+      'labels.0: Invalid option: expected one of "sale"|"trade"|"keep"|"proxy"',
+    )
   })
 
   test('the schemas reject labels off-vocabulary or on the wrong list type', async () => {

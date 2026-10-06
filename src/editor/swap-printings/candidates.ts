@@ -50,6 +50,7 @@ function expandCopies(entry: SwapSourceEntry): SwapCandidateCopy[] {
   const copy: SwapCandidateCopy = {}
   if (entry.cardId !== undefined) copy.cardId = entry.cardId
   if (entry.section !== undefined) copy.section = entry.section
+  if (entry.payload !== undefined) copy.payload = entry.payload
   return Array.from({ length: Math.max(0, entry.quantity) }, () => ({ ...copy }))
 }
 

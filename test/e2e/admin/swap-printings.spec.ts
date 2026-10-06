@@ -40,11 +40,15 @@ async function deckLines(page: Page): Promise<string[]> {
   )
 }
 
-/** `name|set:cn` for every entry of the binder, in file order. */
+/** `name|set:cn` (plus `|labels` when the entry has any) for every entry of the binder, in file order. */
 async function binderLines(page: Page): Promise<string[]> {
   const res = await page.request.get(`/api/collection/${SYNTHETIC_SWAP_COLLECTION_SLUG}`)
   const body = (await res.json()) as CollectionFullLoadResult
-  return body.entries.map((entry) => `${entry.name}|${entry.set}:${entry.collectorNumber}`)
+  return body.entries.map(
+    (entry) =>
+      `${entry.name}|${entry.set}:${entry.collectorNumber}` +
+      (entry.labels ? `|${entry.labels.join(',')}` : ''),
+  )
 }
 
 test.describe('Swap Printings (admin deck editor)', () => {
@@ -86,7 +90,8 @@ test.describe('Swap Printings (admin deck editor)', () => {
     await expect(page.locator('.changes-badge')).toHaveText('2')
 
     // Save commits the deck and mirrors the moves into the binder: the deck
-    // pins LEA:270, the binder lost that copy and gained the displaced C21:263.
+    // pins LEA:270, the binder lost that copy and gained the displaced C21:263
+    // — still a proxy, since a swap carries the copy's labels like any move.
     // Compared order-insensitively — an arriving line lands wherever the list
     // writer appends it, and where is not what this asserts.
     await page.locator('.btn-save').click()
@@ -96,6 +101,6 @@ test.describe('Swap Printings (admin deck editor)', () => {
       .toEqual(['Counterspell|:', 'Sol Ring|lea:270'].sort())
     await expect
       .poll(async () => (await binderLines(page)).sort())
-      .toEqual(['Dark Ritual|lea:98', 'Sol Ring|c21:263'].sort())
+      .toEqual(['Dark Ritual|lea:98', 'Sol Ring|c21:263|proxy'].sort())
   })
 })

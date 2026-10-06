@@ -283,7 +283,9 @@ describe('apply engines', () => {
     for (const change of CHANGES) {
       expect(applyChangeToCollection(entries, change, options)).toEqual(entriesBefore)
       expect(applyChangeToWantedList(wanted, change, options)).toEqual(wantedBefore)
-      expect(applyChangeToDeck(deck, change, options).sections).toEqual(sectionsBefore)
+      expect(
+        applyChangeToDeck(deck, change, { ...options, listLabels: undefined }).sections,
+      ).toEqual(sectionsBefore)
     }
     expect(misses).toBe(0)
   })

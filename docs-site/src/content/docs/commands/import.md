@@ -77,7 +77,7 @@ Use the standard decklist format: quantity-led lines, with or without Ritual's `
 2 Pyroblast
 ```
 
-Lines may also carry a printing, finish, condition, language, labels, tags, and note, as in `1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is kept on every list type (see [Card tags](/list-format/#card-tags)). The `[sale]` / `[trade]` / `[keep]` label token is **collection-only**: a collection import keeps it, a deck import warns that it was dropped, and a wanted-list import drops it the same way.
+Lines may also carry a printing, finish, condition, language, labels, tags, and note, as in `1 Sol Ring (C19:221) [foil] [NM] [ja] [sale] #Ramp, Staple {trade binder}`. The `#tags` token is kept on every list type (see [Card tags](/list-format/#card-tags)). The `[sale]` / `[trade]` / `[keep]` label token (and its `no-` forms) is **collection-only**: a collection import keeps it, a deck import warns that it was dropped, and a wanted-list import drops it the same way.
 
 Into a collection or wanted list, each line expands to one bullet line per copy (`4 Lightning Bolt` becomes four `- Lightning Bolt` lines). Into a deck, the quantity stays on the line and the bullet is added (`- 4 Lightning Bolt`).
 

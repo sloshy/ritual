@@ -916,8 +916,8 @@ export function registerReadTools(server: McpServer): void {
               .array(z.enum([...CARD_LABELS, 'none']))
               .optional()
               .describe(
-                'Only deck and collection cards whose effective labels (their override, else ' +
-                  "the list default) include one of these; 'none' matches unlabeled cards. " +
+                'Only deck and collection cards whose effective labels (their own signed labels ' +
+                  "applied to the list default) include one of these; 'none' matches unlabeled cards. " +
                   'Wanted entries carry no labels and never match.',
               ),
             tags: z

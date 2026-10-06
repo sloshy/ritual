@@ -44,7 +44,9 @@ async function addCardToDeck(
   printing?: { set: string; collectorNumber: string },
 ): Promise<DeckData> {
   const next = assignMissingDeckCardIds(
-    applyChangeToDeck(deck, createAddChange(name, { ...printing, section })),
+    applyChangeToDeck(deck, createAddChange(name, { ...printing, section }), {
+      listLabels: undefined,
+    }),
   )
   await writeDeck(filePath, next, frontMatter)
   return next

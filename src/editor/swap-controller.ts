@@ -40,7 +40,9 @@ export type SwapControllerDeps<TData, TCardEntry> = {
    * (see `SwapApplyContext.mergeTargetId`); probed against the data as the ops
    * before it left it. A flat-list host answers undefined.
    */
-  mergeTargetId: (data: TData, move: SwapMove) => number | undefined
+  mergeTargetId: (data: TData, move: SwapMove, copyIndex: number) => number | undefined
+  /** See `SwapApplyContext.pinConvertsInPlace`; probed against the live data. A flat host answers true. */
+  pinConvertsInPlace: (data: TData, move: SwapMove, copyIndex: number, lineId: number) => boolean
 }
 
 /** The swap surface a list controller exposes. */
@@ -122,7 +124,9 @@ export function createSwapController<TData, TCardEntry>(
         kind: deps.kind,
         allocateId: editor.pool.allocate,
         quantityOf: (cardId) => deps.quantityOf(current, cardId),
-        mergeTargetId: (move) => deps.mergeTargetId(current, move),
+        mergeTargetId: (move, copyIndex) => deps.mergeTargetId(current, move, copyIndex),
+        pinConvertsInPlace: (move, copyIndex, lineId) =>
+          deps.pinConvertsInPlace(current, move, copyIndex, lineId),
       })
       for (const op of ops) {
         editor.changes.addChange(op.change)

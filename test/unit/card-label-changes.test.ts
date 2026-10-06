@@ -86,18 +86,22 @@ describe('set-label on other list types', () => {
       name: 'Test',
       sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
     }
-    const applied = applyChangeToDeck(deck, {
-      action: 'set-label',
-      cardName: 'Sol Ring',
-      labels: ['proxy'],
-    })
+    const applied = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-label',
+        cardName: 'Sol Ring',
+        labels: ['proxy'],
+      },
+      { listLabels: undefined },
+    )
     expect(applied.sections[0]!.cards[0]!.labels).toEqual(['proxy'])
 
     let miss: string | undefined
     applyChangeToDeck(
       deck,
       { action: 'set-label', cardName: 'Mox Ruby', labels: ['proxy'] },
-      { onMiss: (reason) => (miss = reason) },
+      { listLabels: undefined, onMiss: (reason) => (miss = reason) },
     )
     expect(miss).toBe('no-target')
   })
@@ -125,23 +129,31 @@ describe('applyChangeToDeck — add merges on the label override too', () => {
   })
 
   it('a proxy add joins the proxy line, not the real one', () => {
-    const applied = applyChangeToDeck(proxiedDeck(), {
-      action: 'add',
-      cardName: 'Sol Ring',
-      set: 'lea',
-      collectorNumber: '270',
-      labels: ['proxy'],
-    })
+    const applied = applyChangeToDeck(
+      proxiedDeck(),
+      {
+        action: 'add',
+        cardName: 'Sol Ring',
+        set: 'lea',
+        collectorNumber: '270',
+        labels: ['proxy'],
+      },
+      { listLabels: undefined },
+    )
     expect(applied.sections[0]!.cards.map((c) => c.quantity)).toEqual([2, 2])
   })
 
   it('a real add joins the real line, not the proxy one', () => {
-    const applied = applyChangeToDeck(proxiedDeck(), {
-      action: 'add',
-      cardName: 'Sol Ring',
-      set: 'lea',
-      collectorNumber: '270',
-    })
+    const applied = applyChangeToDeck(
+      proxiedDeck(),
+      {
+        action: 'add',
+        cardName: 'Sol Ring',
+        set: 'lea',
+        collectorNumber: '270',
+      },
+      { listLabels: undefined },
+    )
     expect(applied.sections[0]!.cards.map((c) => c.quantity)).toEqual([3, 1])
   })
 
@@ -150,11 +162,15 @@ describe('applyChangeToDeck — add merges on the label override too', () => {
       name: 'Test',
       sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
     }
-    const applied = applyChangeToDeck(deck, {
-      action: 'add',
-      cardName: 'Sol Ring',
-      labels: ['proxy'],
-    })
+    const applied = applyChangeToDeck(
+      deck,
+      {
+        action: 'add',
+        cardName: 'Sol Ring',
+        labels: ['proxy'],
+      },
+      { listLabels: undefined },
+    )
     expect(applied.sections[0]!.cards).toHaveLength(2)
     expect(applied.sections[0]!.cards[1]).toMatchObject({ quantity: 1, labels: ['proxy'] })
   })

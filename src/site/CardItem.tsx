@@ -1,7 +1,13 @@
 import type { Component } from 'solid-js'
 import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
-import type { CardLabel, PricelessReason } from '../card/card-labels'
+import {
+  baseLabel,
+  isNegatedLabel,
+  signedLabelName,
+  type PricelessReason,
+  type SignedCardLabel,
+} from '../card/card-labels'
 import { languageBadge } from '../card/card-language'
 import { isCardSideways, isDoubleFacedCard, resolveCardImageSources } from '../card/image-sources'
 import { ManaCost } from '../list-view/symbols'
@@ -85,10 +91,11 @@ export interface CardItemProps {
   buylistPrice?: number
   /**
    * Label badges rendered beside the printing label. List pages pass only the
-   * entry's *override* (the ambient list default would badge every tile);
-   * combined views pass effective labels, since there is no ambient default.
+   * entry's *override*, signed — a `no-proxy` badges as "Not a proxy" (the
+   * ambient list default would badge every tile); combined views pass
+   * effective labels, since there is no ambient default.
    */
-  labelBadges?: CardLabel[]
+  labelBadges?: readonly SignedCardLabel[]
   /**
    * Why this copy carries no price, when it carries none: a marker (`PROXY` /
    * `CUSTOM`) then replaces the price text in every view. Passed rather than
@@ -368,13 +375,40 @@ export const CardItem: Component<CardItemProps> = (props) => {
 
         const labelBadges = () => (props.labelBadges?.length ? props.labelBadges : null)
 
-        /** The compact SALE/TRADE/KEEP tag run, shared by all three view modes. */
-        const badgeRun = () => (
+        /**
+         * The compact SALE/TRADE/KEEP/PROXY tag run, shared by all three view
+         * modes. A negation takes an inherited label away: the list view, which
+         * has room, says so in the UI language ("Not a proxy"); a tile, whose
+         * name line truncates, shows the label's own token struck through
+         * (~~PROXY~~) with that wording as its accessible name and tooltip, so a
+         * long phrase never pushes the card name out. Positives stay the
+         * compact domain token, as before.
+         */
+        const badgeRun = (compact: boolean) => (
           <Show when={labelBadges()}>
             {(labels) => (
               <span class="card-label-badges">
                 <For each={labels()}>
-                  {(label) => <span class={`card-label-badge label-${label}`}>{label}</span>}
+                  {(label) =>
+                    isNegatedLabel(label) ? (
+                      compact ? (
+                        <span
+                          class={`card-label-badge label-negated label-compact label-${label}`}
+                          role="img"
+                          aria-label={signedLabelName(label)}
+                          title={signedLabelName(label)}
+                        >
+                          {baseLabel(label)}
+                        </span>
+                      ) : (
+                        <span class={`card-label-badge label-negated label-${label}`}>
+                          {signedLabelName(label)}
+                        </span>
+                      )
+                    ) : (
+                      <span class={`card-label-badge label-${label}`}>{label}</span>
+                    )
+                  }
                 </For>
               </span>
             )}
@@ -532,7 +566,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <Show when={finishLanguageLabel()}>
                       {(label) => <span class="card-label-finish"> ({label()})</span>}
                     </Show>
-                    {badgeRun()}
+                    {badgeRun(true)}
                   </span>
                   {priceRun()}
                 </div>
@@ -566,7 +600,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     {(label) => <span class="list-printing">{label()}</span>}
                   </Show>
                   {anyPrintingMarker()}
-                  {badgeRun()}
+                  {badgeRun(false)}
                 </span>
                 <span class="list-mana">
                   <ManaCost card={card()} isDFC={isDFC()} symbolMap={props.symbolMap} />
@@ -722,7 +756,7 @@ export const CardItem: Component<CardItemProps> = (props) => {
                     <Show when={finishLanguageLabel()}>
                       {(label) => <span class="card-label-finish"> ({label()})</span>}
                     </Show>
-                    {badgeRun()}
+                    {badgeRun(true)}
                   </span>
                   {priceRun()}
                 </div>

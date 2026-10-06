@@ -3,7 +3,7 @@ import type { Card } from '../../card/card'
 import type { DeckData, DeckSection } from '../../list/deck'
 import type { CardArtRecord } from '../../list/card-art'
 import type { ListCategoriesFields, WithCardCategories } from './categories'
-import type { CardLabel } from '../../card/card-labels'
+import type { CardLabel, LabelOverride } from '../../card/card-labels'
 import type { CardTag } from '../../card/card-tags'
 import type { ListImageRef } from '../../list/list-image'
 import type { CardLanguage } from '../../card/card-language'
@@ -34,16 +34,29 @@ export interface CollectionEntry {
   /** The line's `[ja]`-style language token. Absent means `en` (a bare line). */
   language?: CardLanguage
   /**
-   * The entry's label override. Effective labels are this when present, else
-   * the list-level `labels` on the load body.
+   * The entry's label override, signed (`["trade","no-sale"]`). Its effective
+   * labels are this override applied to the list-level `labels` default on the
+   * load body (`effectiveLabels`).
    */
-  labels?: CardLabel[]
+  labels?: LabelOverride
+  /**
+   * The labels in force: the list default adjusted by {@link labels}
+   * (`effectiveLabels`), resolved by the handler so no client re-implements
+   * the rule. Empty for an unlabeled card.
+   */
+  effectiveLabels: CardLabel[]
   /** The line's tags, canonical (trimmed, sorted, no `#`); absent when it has none. */
   tags?: CardTag[]
   note?: string
   cardId?: number
   section?: string
 }
+
+/**
+ * A card or entry as a load body carries it, widened with its effective labels
+ * (see {@link CollectionEntry.effectiveLabels}).
+ */
+export type WithEffectiveLabels<T> = T & { effectiveLabels: CardLabel[] }
 
 /**
  * The mutually exclusive `partial` / `contentHash` pair every load body carries,
@@ -112,7 +125,7 @@ export interface ListLoadBase extends ListLoadStamp, ListCategoriesFields {
 
 /** The `cards` a load body's deck section carries. */
 type DeckLoadSectionCards = {
-  cards: WithCardCategories<Card>[]
+  cards: WithEffectiveLabels<WithCardCategories<Card>>[]
 }
 
 /** A deck section as a load body carries it. See {@link WithCardCategories}. */
@@ -134,7 +147,7 @@ export interface DeckCardsLoadResult extends ListLoadBase {
   /**
    * The deck's default card labels from its front matter (`proxy` alone).
    * Projected out of `frontMatter` so every list type reports its list-level
-   * default the same way; a card's own `labels` override it.
+   * default the same way; a card's own `labels` override adjusts it.
    */
   labels?: CardLabel[]
   /**

@@ -28,7 +28,7 @@ import {
   type ChangeAction,
   type ChangeEvent,
 } from './change-event'
-import { formatCardLabels } from '../card/card-labels'
+import { formatLabelOverride } from '../card/card-labels'
 import { formatCardCategories } from '../card/card-categories'
 import { languageLabel } from '../card/card-language'
 import { currentLocale } from '../i18n/runtime'
@@ -326,7 +326,7 @@ export function displayChangeFromEvent(
     case 'set-note':
       return { ...base, note: change.note }
     case 'set-label':
-      return { ...base, labels: formatCardLabels(change.labels) }
+      return { ...base, labels: formatLabelOverride(change.labels) }
     case 'add-tag':
     case 'remove-tag':
       return { ...base, tag: change.tag }

@@ -44,7 +44,12 @@ import {
   type PrintingTuple,
 } from '../../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
-import { formatCardLabels, parseCardLabelsValue, sameCardLabels } from '../../card/card-labels'
+import {
+  formatCardLabels,
+  parseCardLabelsValue,
+  sameCardLabels,
+  sameLabelOverride,
+} from '../../card/card-labels'
 import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../list/front-matter-write'
 import { applyLabelsPatch } from '../../list/flat-list-metadata'
 
@@ -226,8 +231,8 @@ export function createCollectionStrategy(
     }
 
     if (action === 'label') {
-      const labels = await promptCardLabelChoice('collection', entry.labels)
-      if (labels === null || sameCardLabels(labels, entry.labels)) {
+      const labels = await promptCardLabelChoice('collection', entry.labels, list.listLabels())
+      if (labels === null || sameLabelOverride(labels, entry.labels)) {
         return
       }
       applyFlatListFieldEdit(list, ctx, entry, cardId, {

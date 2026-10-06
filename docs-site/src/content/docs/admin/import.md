@@ -39,7 +39,7 @@ Rows that fail validation are listed with their line numbers; the valid rows sti
 
 ## Import Changes
 
-The **Import Changes** page applies a change bundle exported from the public site's [in-browser editor](/public-site/editing/). A bundle is a version-2 `ritual-change-bundle` JSON covering one or more lists plus the cross-list moves touching them. The export panel's **This list** and **All lists** scopes both produce one; see the [format](/commands/import-changes/#format).
+The **Import Changes** page applies a change bundle exported from the public site's [in-browser editor](/public-site/editing/). A bundle is a version-3 `ritual-change-bundle` JSON (a version-2 bundle is refused) covering one or more lists plus the cross-list moves touching them. The export panel's **This list** and **All lists** scopes both produce one; see the [format](/commands/import-changes/#format).
 
 Upload the file or paste its contents. The page parses it in the browser and shows:
 

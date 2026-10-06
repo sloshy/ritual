@@ -19,10 +19,12 @@ export type ApplyChangeOptions = {
   onMiss?: (reason: MissReason) => void
   /**
    * The list's own front-matter default labels. A `move-to` arriving here
-   * measures the labels it carries against them to write the minimal override
-   * (`arrivalLabels`); omitted, the list is treated as having no default, which
-   * keeps the copy's effective labels right but may write an override equal to
-   * the default.
+   * lands the labels it carries against them (`arrivalLabels`: unstated labels
+   * take this default, and the override written is the minimal one), and a deck
+   * `add` merges onto a line by effective labels measured against them — which
+   * is why the deck reducer requires the key (`DeckApplyOptions`). Omitted on a
+   * flat list, the list is treated as having no default; only its `move-to`
+   * reads it, and every move seam passes it.
    */
   listLabels?: readonly CardLabel[]
 }

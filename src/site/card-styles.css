@@ -328,6 +328,18 @@ h3 {
   --label-tone: var(--label-proxy);
 }
 
+/* A negated label ("Not a proxy") — the line takes an inherited label away. */
+.card-label-badge.label-negated {
+  --label-tone: var(--label-negated);
+}
+
+/* On a tile the negation is the label's own token struck through (~~PROXY~~),
+   so a long "Not for sale" never truncates the card name; the wording is its
+   accessible name and tooltip. */
+.card-label-badge.label-negated.label-compact {
+  text-decoration: line-through;
+}
+
 /* ===== Any-printing marker =====
    A deck or wanted line that pins no printing shows a representative one, and
    says so with an always-visible ANY tag. It is the only text for the state —

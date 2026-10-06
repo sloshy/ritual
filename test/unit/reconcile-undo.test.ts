@@ -7,7 +7,8 @@ import {
   createAddChange,
 } from '../../src/changes/change-event'
 import type { UndoEntry } from '../../src/editor/useCardChanges'
-import type { ChangeEvent } from '../../src/changes/change-event'
+import type { ChangeEvent, ChangeInput } from '../../src/changes/change-event'
+import type { ApplyChangeOptions } from '../../src/changes/apply-batch'
 import { applyChangeToDeck } from '../../src/changes/deck-changes'
 import type { DeckData } from '../../src/list/deck'
 
@@ -21,6 +22,13 @@ function track() {
     claimed,
   }
 }
+
+/** The deck reducer against a deck with no default labels. */
+const applyDeckNoDefault = (
+  deck: DeckData,
+  c: ChangeInput,
+  options?: ApplyChangeOptions,
+): DeckData => applyChangeToDeck(deck, c, { ...options, listLabels: undefined })
 
 describe('reconcileIdPoolForUndo', () => {
   test('undoing an added move-from reclaims the card id (like undoing a removal)', () => {
@@ -143,7 +151,7 @@ describe('replayChanges', () => {
     // card has been taken back, so replaying the set-finish over the on-disk
     // baseline can no longer apply.
     const setFoil = change({ action: 'set-finish', cardId: 9, finish: 'foil' })
-    const result = replayChanges(nameOnlyDeck(), [setFoil], applyChangeToDeck)
+    const result = replayChanges(nameOnlyDeck(), [setFoil], applyDeckNoDefault)
 
     expect(result.refused).toEqual([{ change: setFoil, reason: 'needs-printing' }])
     expect(result.data.sections[0]!.cards[0]!.finish).toBeUndefined()
@@ -156,7 +164,7 @@ describe('replayChanges', () => {
       change({ action: 'set-printing', cardId: 9, set: 'c19', collectorNumber: '221' }),
       change({ action: 'set-finish', cardId: 9, finish: 'foil' }),
     ]
-    const result = replayChanges(nameOnlyDeck(), changes, applyChangeToDeck)
+    const result = replayChanges(nameOnlyDeck(), changes, applyDeckNoDefault)
 
     expect(result.refused).toEqual([])
     expect(result.data.sections[0]!.cards[0]!.finish).toBe('foil')

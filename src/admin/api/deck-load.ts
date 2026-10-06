@@ -13,6 +13,7 @@ import { deckCardNameSet } from '../../list/card-names'
 import { isEmptyCardCategoriesRecord } from '../../list/card-categories-sidecar'
 import type { CardCategoriesRecord } from '../../list/card-categories-sidecar'
 import type { DeckData } from '../../list/deck'
+import { effectiveLabels, type CardLabel } from '../../card/card-labels'
 import { readListLoadRequest, stampLoadBody } from './list-load'
 import { countDeck, filterDeck, isNarrowedLoad, toCountParams } from './list-load-params'
 import type {
@@ -23,20 +24,30 @@ import type {
 } from './load-results'
 
 /**
- * Attach each card's own categories, resolved by name from the list's sidecar.
+ * Attach each card's own categories, resolved by name from the list's sidecar,
+ * and its effective labels against the deck's default.
  *
  * The widening is the load body's ({@link DeckLoadData}), never the engine
  * deck's: categories are keyed by card name and are never on a card line. Only
  * the section/card traversal lives here — the per-card rule (no key at all when
  * the card has none) is {@link withEntryCategories}'.
  */
-function withDeckCategories(deck: DeckData, record: CardCategoriesRecord): DeckLoadData {
-  if (isEmptyCardCategoriesRecord(record)) return deck
+function withDeckLoadFields(
+  deck: DeckData,
+  record: CardCategoriesRecord,
+  listLabels: readonly CardLabel[] | undefined,
+): DeckLoadData {
+  const noCategories = isEmptyCardCategoriesRecord(record)
   return {
     ...deck,
     sections: deck.sections.map((section) => ({
       ...section,
-      cards: section.cards.map((card) => withEntryCategories(card, record)),
+      cards: section.cards.map((card) => ({
+        ...(noCategories ? card : withEntryCategories(card, record)),
+        // Resolved here, once, so no client re-implements how a line's own
+        // labels adjust the deck default.
+        effectiveLabels: effectiveLabels(card.labels, listLabels),
+      })),
     })),
   }
 }
@@ -108,7 +119,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
       cardNames: deckCardNameSet(loaded),
       parsedLosslessly: warnings.length === 0,
     })
-    const deckWithCategories = withDeckCategories(deck, categories.record)
+    const deckWithCategories = withDeckLoadFields(deck, categories.record, frontMatter.labels)
 
     if (params.view === 'cards') {
       // Front matter travels with the cards view: it is part of what a client

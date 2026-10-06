@@ -26,7 +26,7 @@ import {
 
 const BUNDLE = {
   format: 'ritual-change-bundle',
-  version: 2,
+  version: 3,
   exportedAt: '2026-06-04T00:00:00.000Z',
   moves: [],
   lists: [
@@ -225,7 +225,7 @@ describe('import-changes command (Integration)', () => {
       // send the user hunting for it.
       const bundle = {
         format: 'ritual-change-bundle',
-        version: 2,
+        version: 3,
         exportedAt: '2026-06-04T00:00:00.000Z',
         moves: [],
         lists: [
@@ -543,7 +543,7 @@ describe('import-changes command (Integration)', () => {
       const bundle = parseChangeBundle(
         JSON.stringify({
           format: 'ritual-change-bundle',
-          version: 2,
+          version: 3,
           exportedAt: '2026-06-04T00:00:00.000Z',
           moves: [],
           lists: [
@@ -611,7 +611,7 @@ describe('import-changes command (Integration)', () => {
       const bundle = parseChangeBundle(
         JSON.stringify({
           format: 'ritual-change-bundle',
-          version: 2,
+          version: 3,
           exportedAt: '2026-06-04T00:00:00.000Z',
           moves: [],
           lists: [
@@ -712,7 +712,7 @@ function bundleOf(lists: unknown[], moves: unknown[]): ChangeBundle {
   const bundle = parseChangeBundle(
     JSON.stringify({
       format: 'ritual-change-bundle',
-      version: 2,
+      version: 3,
       exportedAt: '2026-06-04T00:00:00.000Z',
       lists,
       moves,

@@ -8,7 +8,7 @@
 import type { JsonSchemaType } from '@modelcontextprotocol/server'
 import { LIST_TYPES } from '../list/list-type'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
-import { CARD_LABELS } from '../card/card-labels'
+import { CARD_LABELS, SIGNED_CARD_LABELS } from '../card/card-labels'
 import { CARD_CATEGORY_SHAPE_CLAUSE } from '../card/card-categories'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { UNPRICED_REASONS, type PriceTotals } from '../pricing/price-report'
@@ -136,6 +136,7 @@ export const LIST_TYPE = enumOf(LIST_TYPES)
 export const FINISH = enumOf(VALID_FINISHES)
 export const CONDITION = enumOf(VALID_CONDITIONS)
 export const CARD_LABEL = enumOf(CARD_LABELS)
+export const SIGNED_CARD_LABEL = enumOf(SIGNED_CARD_LABELS)
 /** One card tag as its owner wrote it: plain text, no `#` — the value `add-tag` takes. */
 export const CARD_TAG = str(
   'A card tag, canonical: plain text in its owner\'s casing, without any "#" (e.g. "Ramp", "Card Draw").',
@@ -354,12 +355,18 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       name: str(),
       ...ENTRY_PRINTING_PROPS,
       labels: arr(
+        SIGNED_CARD_LABEL,
+        'Per-card label override ("proxy", "no-proxy"), adjusting the deck default: effective ' +
+          'labels are the positives plus the default minus the negated ones.',
+      ),
+      effectiveLabels: arr(
         CARD_LABEL,
-        'Per-card label override ("proxy"); effective labels are this, else the deck default.',
+        'The labels in force for this card: the deck default adjusted by its own labels. ' +
+          'Empty when it has none.',
       ),
       ...ENTRY_META_PROPS,
     },
-    ['quantity', 'name'],
+    ['quantity', 'name', 'effectiveLabels'],
   ),
   DeckSection: obj({ name: str(), cards: arr(ref('DeckCard')) }, ['name', 'cards']),
   DeckData: obj(
@@ -380,13 +387,20 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
       name: str(),
       ...ENTRY_PRINTING_PROPS,
       labels: arr(
+        SIGNED_CARD_LABEL,
+        'Per-card label override, signed ("trade", "no-sale"), adjusting the list default: ' +
+          'effective labels are the positives plus the default minus the negated ones, and a ' +
+          'positive displaces an inherited label it cannot combine with.',
+      ),
+      effectiveLabels: arr(
         CARD_LABEL,
-        'Per-card label override; effective labels are this, else the list default.',
+        'The labels in force for this card: the list default adjusted by its own labels — ' +
+          'what pricing, sell mode, filters and exports act on. Empty when it has none.',
       ),
       ...ENTRY_META_PROPS,
       section: str(),
     },
-    ['name', 'set', 'collectorNumber'],
+    ['name', 'set', 'collectorNumber', 'effectiveLabels'],
   ),
   // No `condition`: a wanted list records what you want, not the grade of a
   // copy you hold.

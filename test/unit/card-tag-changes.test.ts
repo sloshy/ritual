@@ -315,31 +315,43 @@ describe('apply engines', () => {
   })
 
   it('deck: add-tag / remove-tag edit the line', () => {
-    const tagged = applyChangeToDeck(deck(), {
-      action: 'add-tag',
-      cardName: 'Sol Ring',
-      cardId: 1,
-      tag: 'ramp',
-    })
+    const tagged = applyChangeToDeck(
+      deck(),
+      {
+        action: 'add-tag',
+        cardName: 'Sol Ring',
+        cardId: 1,
+        tag: 'ramp',
+      },
+      { listLabels: undefined },
+    )
     expect(tagged.sections[0]!.cards[0]!.tags).toEqual(['ramp'])
-    const untagged = applyChangeToDeck(tagged, {
-      action: 'remove-tag',
-      cardName: 'Sol Ring',
-      cardId: 1,
-      tag: 'ramp',
-    })
+    const untagged = applyChangeToDeck(
+      tagged,
+      {
+        action: 'remove-tag',
+        cardName: 'Sol Ring',
+        cardId: 1,
+        tag: 'ramp',
+      },
+      { listLabels: undefined },
+    )
     expect(untagged.sections[0]!.cards[0]!.tags).toBeUndefined()
   })
 
   it('deck and collection: a move-to lands the copy with its tags', () => {
-    const arrived = applyChangeToDeck(deck(), {
-      action: 'move-to',
-      cardName: 'Sol Ring',
-      set: 'c21',
-      collectorNumber: '263',
-      tags: ['ramp'],
-      from: { type: 'collection', name: 'Binder' },
-    })
+    const arrived = applyChangeToDeck(
+      deck(),
+      {
+        action: 'move-to',
+        cardName: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '263',
+        tags: ['ramp'],
+        from: { type: 'collection', name: 'Binder' },
+      },
+      { listLabels: undefined },
+    )
     expect(arrived.sections[0]!.cards.map((c) => [c.quantity, c.tags])).toEqual([
       [2, undefined],
       [1, ['ramp']],
@@ -356,21 +368,29 @@ describe('apply engines', () => {
   })
 
   it('deck: a differently-tagged add starts its own line instead of merging', () => {
-    const merged = applyChangeToDeck(deck(), {
-      action: 'add',
-      cardName: 'Sol Ring',
-      set: 'c21',
-      collectorNumber: '263',
-    })
+    const merged = applyChangeToDeck(
+      deck(),
+      {
+        action: 'add',
+        cardName: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '263',
+      },
+      { listLabels: undefined },
+    )
     expect(merged.sections[0]!.cards).toHaveLength(1)
     expect(merged.sections[0]!.cards[0]!.quantity).toBe(3)
-    const split = applyChangeToDeck(deck(), {
-      action: 'add',
-      cardName: 'Sol Ring',
-      set: 'c21',
-      collectorNumber: '263',
-      tags: ['ramp'],
-    })
+    const split = applyChangeToDeck(
+      deck(),
+      {
+        action: 'add',
+        cardName: 'Sol Ring',
+        set: 'c21',
+        collectorNumber: '263',
+        tags: ['ramp'],
+      },
+      { listLabels: undefined },
+    )
     expect(split.sections[0]!.cards).toHaveLength(2)
     expect(split.sections[0]!.cards[1]!.tags).toEqual(['ramp'])
   })

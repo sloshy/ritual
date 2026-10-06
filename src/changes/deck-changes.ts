@@ -1,7 +1,7 @@
 import type { Card } from '../card/card'
 import type { DeckData, DeckSection } from '../list/deck'
 import type { ChangeInput, PrintingTuple, SetPrintingChange } from './change-event'
-import type { CardLabel } from '../card/card-labels'
+import type { CardLabel, SignedCardLabel } from '../card/card-labels'
 import type { ApplyChangeOptions } from './apply-batch'
 import { isSamePrinting } from './change-event'
 import {
@@ -30,7 +30,7 @@ import { storedLanguage } from '../card/card-language'
 
 /** What one copy landing on a deck brings: its printing, override, tags and section. */
 export type DeckAdd = PrintingTuple & {
-  labels?: readonly CardLabel[]
+  labels?: readonly SignedCardLabel[]
   tags?: readonly CardTag[]
   section?: string
 }
@@ -42,6 +42,14 @@ export type DeckAdd = PrintingTuple & {
  * that lands a copy, so one that forgot the default cannot compile.
  */
 export type DeckLandingOptions = { listLabels: readonly CardLabel[] | undefined }
+
+/**
+ * What {@link applyChangeToDeck} takes: the shared apply options with the
+ * deck's default labels required-but-nullable — an `add` merges by effective
+ * labels and a `move-to` lands against them, so a caller that forgot the
+ * default must not compile.
+ */
+export type DeckApplyOptions = ApplyChangeOptions & DeckLandingOptions
 
 /**
  * Where a merge search looks: every section, or — for a `move-to` that names
@@ -166,7 +174,7 @@ function findLineById(sections: readonly DeckSection[], cardId: number): DeckLin
 export function applyChangeToDeck(
   deck: DeckData,
   change: ChangeInput,
-  options?: ApplyChangeOptions,
+  options: DeckApplyOptions,
 ): DeckData {
   const sections = deck.sections.map((s) => ({
     ...s,
@@ -471,6 +479,26 @@ export function applyChangeToDeck(
   }
 }
 
+/**
+ * Whether a copy pinning the name-only `line` may convert it in place: its
+ * carried labels, landed against the deck default (`arrivalLabels`, with its
+ * source type), must be the line's effective labels. `proxy` is a physical
+ * fact, so a pin never silently turns a proxy into a real card or the reverse;
+ * a copy that differs splits off as its own arrival instead. The one rule the
+ * reducer (`pinDeckLine`) and the swap planner's probe share.
+ */
+export function pinConvertsInPlace(
+  line: Pick<Card, 'labels'>,
+  change: Pick<MoveToInput, 'labels' | 'from'>,
+  listLabels: readonly CardLabel[] | undefined,
+): boolean {
+  const landed = arrivalLabels('deck', change.labels, listLabels, change.from.type)
+  return sameCardLabels(
+    effectiveLabels(landed, listLabels),
+    effectiveLabels(line.labels, listLabels),
+  )
+}
+
 /** A `move-to` change input (the pinning variant carries `replacesCardId`, see `MoveToChange`). */
 export type MoveToInput = Extract<ChangeInput, { action: 'move-to' }>
 
@@ -488,7 +516,7 @@ function arrivingCopy(change: MoveToInput, listLabels: readonly CardLabel[] | un
     finish: change.finish,
     condition: change.condition,
     language: change.language,
-    labels: arrivalLabels('deck', change.labels, listLabels),
+    labels: arrivalLabels('deck', change.labels, listLabels, change.from.type),
     tags: change.tags,
     section: change.section,
   }
@@ -530,10 +558,17 @@ export function droppedMoveNote(
  * a later copy finds the line already pinned and leaves it alone.
  *
  * Split (`change.cardId` names another line): one copy comes off the
- * name-only line (the line goes at zero) and lands as an add would — on the
- * line `cardId` names, else on the line the merge rule folds it onto, else on
- * a fresh line inserted right after the one it came from, so a partially
- * filled card stays next to its unpinned remainder.
+ * name-only line (the line goes at zero) and lands as a normal arrival would —
+ * its carried labels landed against the deck default (`arrivingCopy`), its
+ * tags and note — on the line `cardId` names, else on the line the merge rule
+ * folds it onto (in the move's section, like the merge-target probe), else on a
+ * fresh line inserted right after the one it came from, so a partially filled
+ * card stays next to its unpinned remainder.
+ *
+ * In place is legal only when {@link pinConvertsInPlace} says the copy's landed
+ * labels equal the line's effective ones: `proxy` is a physical fact, so a pin
+ * never silently turns a proxy into a real card or the reverse. An in-place
+ * event that fails it is refused (a miss), never applied with the wrong labels.
  */
 function pinDeckLine(
   sections: DeckSection[],
@@ -548,6 +583,7 @@ function pinDeckLine(
   if (!finishMatchesPrinting(change)) return false
 
   if (change.cardId === replacesCardId) {
+    if (!pinConvertsInPlace(line, change, listLabels)) return false
     // Copies 2..n of a deck line's fill find it already pinned by the first
     // and change nothing — but only when it is THIS printing: a pinned id
     // that resolved to some other line (an import's name fallback) is a miss.
@@ -561,19 +597,13 @@ function pinDeckLine(
 
   line.quantity -= 1
   if (line.quantity <= 0) found.section.cards.splice(found.idx, 1)
-  const cards = sections.flatMap((s) => s.cards)
+  // The copy lands as a normal arrival: its own landed labels and tags, merged
+  // by the rule (and in the scope) the merge-target probe uses.
+  const copy = arrivingCopy(change, listLabels)
   const landing =
-    cards.find((c) => c.cardId === change.cardId) ??
-    // The copy is one of the fill's own, so it keeps the fill's override and
-    // tags: it lands on a line that shares them, or starts one that does.
-    cards.find((c) =>
-      mergesOntoCard(
-        c,
-        change.cardName,
-        { ...change, labels: line.labels, tags: line.tags },
-        listLabels,
-      ),
-    )
+    findLineById(sections, change.cardId)?.card ??
+    findDeckMergeLine(sections, change.cardName, copy, { listLabels, section: change.section })
+      ?.card
   if (landing) {
     landing.quantity += 1
     return true
@@ -583,8 +613,9 @@ function pinDeckLine(
     quantity: 1,
     name: change.cardName,
     cardId: change.cardId,
-    labels: line.labels,
-    tags: line.tags,
+    labels: normalizedOverride(copy.labels),
+    tags: normalizedTags(copy.tags),
+    note: noteOrUndefined(change.note),
   }
   writePrinting(fresh, change)
   found.section.cards.splice(insertAt, 0, fresh)

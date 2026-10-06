@@ -28,12 +28,12 @@ ritual import-changes <file>
 
 ## Format
 
-The file is a **`ritual-change-bundle`** JSON (format version **2**) covering one or more lists. The Export panel's **This list** scope produces a one-list bundle. Its **All lists** scope (offered when edit mode has changes across several lists) covers every edited list in one envelope.
+The file is a **`ritual-change-bundle`** JSON (format version **3**) covering one or more lists. Version 3 is the first whose card labels [adjust the list default](/list-format/#card-labels); a version-2 bundle is refused as an unsupported version. The Export panel's **This list** scope produces a one-list bundle. Its **All lists** scope (offered when edit mode has changes across several lists) covers every edited list in one envelope.
 
 ```json
 {
   "format": "ritual-change-bundle",
-  "version": 2,
+  "version": 3,
   "exportedAt": "2026-06-04T00:00:00.000Z",
   "lists": [
     {
@@ -76,12 +76,12 @@ The file is a **`ritual-change-bundle`** JSON (format version **2**) covering on
 - `from` and `to`: the source and destination list as `{ kind, slug?, name }`. `slug` is a hint; `name` is what the import resolves by when the slug is absent or stale.
 - The copy's printing fields: `set`, `collectorNumber`, `finish`, `condition`, `language`.
 - Optional `tags`: the card's [tags](/list-format/#card-tags) in canonical form, written to the destination line.
-- Optional `labels`: the card's effective [labels](/list-format/#card-labels) in its source list (its own override, or else the list's default). The destination keeps the labels its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes an override only where they differ from its own default.
+- Optional `labels`: the card's [labels](/list-format/#card-labels) as its source list states them, signed: its effective labels there, plus a `no-` for each label its source stated (in the list default or on the card's line) that the card lacks, such as `["trade", "no-sale"]`. On arrival a proxy stays a proxy and a real card stays real wherever both lists carry `proxy`, every stated label keeps its state, and an unstated one takes the destination's default. The destination keeps only what its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes the smallest token that says so.
 - Optional `note`: the card's note, written to the destination line. A copy that merges onto a deck line with a different note keeps that line's note instead, and the dropped note is reported in the list's `droppedNotes`.
 - Optional `cardId`: the **source** list's `&N` line id the copy came from. It is a removal hint; the importer falls back to a printing or name match.
 - Optional `toCardId`: the **destination** line id the exporting editor gave the arriving copy. It is re-targeted on import like an `add`'s id, so a later edit of that copy in the same export still finds it.
 - Optional `section`, for deck destinations.
-- Optional `pinsCardId` and `replacement`, for a copy that gives a **name-only** destination line its printing (the web editors' Swap Printings wizard). `pinsCardId` is the destination line pinned: equal to `toCardId` when the line is converted in place, otherwise the line one copy is taken off before it lands on `toCardId`. It is re-targeted on import like any edit's id. `replacement` is `{ set, collectorNumber, finish?, language? }`, a printing added back to the **source** list in place of the copy taken.
+- Optional `pinsCardId` and `replacement`, for a copy that gives a **name-only** destination line its printing (the web editors' Swap Printings wizard). `pinsCardId` is the destination line pinned: equal to `toCardId` when the line is converted in place (on a deck only when the copy's landed labels equal the line's effective labels), otherwise the line one copy is taken off before it lands on `toCardId` as a normal arrival. It is re-targeted on import like any edit's id. `replacement` is `{ set, collectorNumber, finish?, language? }`, a printing added back to the **source** list in place of the copy taken.
 
 ## Preview and Confirmation
 

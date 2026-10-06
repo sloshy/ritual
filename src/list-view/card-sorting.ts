@@ -210,7 +210,7 @@ export interface CardData {
   /** Art (illustration) tag slugs for this printing. Empty when untagged. */
   artTags: string[]
   /**
-   * Effective card labels (the entry's override, else its list's default).
+   * Effective card labels (the entry's override applied to its list's default).
    * Always empty for wanted cards, which carry no labels; a deck card carries
    * `proxy` alone (see `LIST_TYPE_LABELS`).
    */

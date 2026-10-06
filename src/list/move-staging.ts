@@ -40,14 +40,17 @@ import { commitCategoryChanges } from './card-categories-sidecar'
 import { loadDefaultCategories } from '../config/ritual-config'
 import {
   arrivalLabels,
+  carriedEffectiveLabels,
+  carriedLabels,
   effectiveLabels,
-  listDefaultLabels,
   sameCardLabels,
   type CardLabel,
+  type LabelOverride,
 } from '../card/card-labels'
+import type { ListType } from './list-type'
 import { normalizedTags, sameCardTags, type CardTag } from '../card/card-tags'
 import { findDeckMergeLine, type DeckAdd } from '../changes/deck-changes'
-import { parseFlatListFrontMatter } from './flat-list-front-matter'
+import { listDefaultLabelsInLines } from './flat-list-front-matter'
 import type { ListEntry } from './list-info'
 import { readCardId } from '../card/card-line-grammar'
 
@@ -57,7 +60,8 @@ import { readCardId } from '../card/card-line-grammar'
  *
  * Its {@link MovedCopyFields} are the source LINE's: `labels` is the line's own
  * override (what a removal record names). What a move carries is the copy's
- * effective labels, {@link movingLabels} — that override, else `listLabels`.
+ * labels as its source states them, {@link movingLabels} — that override
+ * applied to `listLabels` (`carriedLabels`).
  */
 export type PhysicalCard = PrintingTuple &
   MovedCopyFields & {
@@ -77,20 +81,24 @@ export type PhysicalCard = PrintingTuple &
   }
 
 /**
- * The labels a physical card carries across a move: its effective labels in
- * its source list (the line's override, else the list's default). Every move
- * path carries these, and the destination writes the minimal override for what
- * its type accepts (`arrivalLabels`).
+ * The labels a physical card carries across a move: its labels as its source
+ * list states them (`carriedLabels` — its effective labels there, plus the
+ * labels its source had an opinion on that it lacks). Every move path carries
+ * these, and the destination writes the override that keeps them
+ * (`arrivalLabels`).
  */
-export function movingLabels(card: PhysicalCard): CardLabel[] {
-  return effectiveLabels(card.labels, card.listLabels)
+export function movingLabels(card: PhysicalCard): LabelOverride | undefined {
+  return carriedLabels(card.labels, card.listLabels)
 }
 
 /**
  * A copy a move adds to a staged list. `carriedLabels` are the labels the copy
- * carries — its effective labels in its source — stated apart from any line's
- * override, so no caller can fold a list default in twice; the destination
- * writes the minimal override for them (`arrivalLabels`). Every payload field is
+ * carries — as its source states them (`carriedLabels` in `card-labels.ts`) —
+ * stated apart from any line's override, so no caller can fold a list default
+ * in twice; `sourceType` is the type of the list it left, which decides
+ * whether its `proxy` state is a stated fact (`undefined` for a copy that left
+ * no list, such as a swap's replacement printing). The destination writes the
+ * override that keeps them (`arrivalLabels`). Every payload field is
  * required-but-nullable, so a caller states each one. `sourceCardId` is the
  * source line's `&N`, naming the copy in a dropped-note report; the destination
  * always allocates (or merges onto) a line id of its own.
@@ -99,11 +107,12 @@ export type ArrivingCopy = PrintingTuple & {
   name: string
   tags: CardTag[] | undefined
   note: string | undefined
-  carriedLabels: CardLabel[] | undefined
+  carriedLabels: LabelOverride | undefined
+  sourceType: ListType | undefined
   sourceCardId: number | undefined
 }
 
-/** The {@link ArrivingCopy} a physical card makes: its printing, payload and effective labels. */
+/** The {@link ArrivingCopy} a physical card makes: its printing, payload and carried labels. */
 export function arrivingCopyOf(card: PhysicalCard): ArrivingCopy {
   return {
     name: card.name,
@@ -115,22 +124,19 @@ export function arrivingCopyOf(card: PhysicalCard): ArrivingCopy {
     tags: card.tags,
     note: card.note,
     carriedLabels: movingLabels(card),
+    sourceType: card.listEntry.ref.type,
     sourceCardId: card.cardId,
   }
 }
 
 /**
- * A staged list's own front-matter default labels (`listDefaultLabels`): what
+ * A staged list's own front-matter default labels (`listDefaultLabelsInLines`): what
  * an arriving copy's labels are measured against (`arrivalLabels`), and what a
  * departing line without an override inherits. Wanted lists carry no labels.
  */
 export function stagedDefaultLabels(staged: StagedFile): CardLabel[] | undefined {
   if (staged.kind === 'deck') return staged.data.frontMatter.labels
-  const lines = staged.content.split('\n')
-  return listDefaultLabels(
-    staged.type,
-    parseFlatListFrontMatter(lines, { validateLabels: false }).frontMatter?.data,
-  )
+  return listDefaultLabelsInLines(staged.type, staged.content.split('\n'))
 }
 
 export type DeckWithFrontMatter = {
@@ -540,7 +546,7 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
  * tuple is the one the copy arrives with — which a printing-less source line (a
  * wanted entry, a name-only deck line) never carried. `tags` are the copy's, so
  * two source lines differing only in tags are told apart; `labels` are its
- * effective labels, a preference that picks a `[proxy]` line over the real one
+ * carried labels, whose positives (its effective labels) are a preference that picks a `[proxy]` line over the real one
  * of the same printing (see {@link applyRemoveIncomingFromStaged}).
  */
 export type IncomingCopy = PrintingTuple &
@@ -646,7 +652,7 @@ function incomingTiers(
   // fall to the next level. A move that carries no labels (a swap) still finds
   // its copy.
   const sameLabels = (line: LineView): boolean =>
-    sameCardLabels(effectiveLabels(line.labels, sourceDefault), copy.labels)
+    sameCardLabels(effectiveLabels(line.labels, sourceDefault), carriedEffectiveLabels(copy.labels))
   for (const level of levels) {
     for (const tier of level) tiers.push((line) => tier(line) && sameLabels(line))
     tiers.push(...level)
@@ -831,7 +837,7 @@ function applyAddToDeck(
   // must match: a `sale` copy arriving from a collection carries no override
   // into a deck, so it belongs on the plain line, not beside it; a `proxy` one
   // arriving in a `proxy`-default deck needs none of its own either.
-  const labels = arrivalLabels('deck', card.carriedLabels, listLabels)
+  const labels = arrivalLabels('deck', card.carriedLabels, listLabels, card.sourceType)
   const copy: DeckAdd = {
     set: card.set,
     collectorNumber: card.collectorNumber,
@@ -914,7 +920,7 @@ function applyAddCollectionLine(
     finish: card.finish ?? 'nonfoil',
     condition: card.condition,
     language: card.language,
-    labels: arrivalLabels('collection', card.carriedLabels, listLabels),
+    labels: arrivalLabels('collection', card.carriedLabels, listLabels, card.sourceType),
     tags: normalizedTags(card.tags),
     note: card.note,
     cardId,

@@ -96,7 +96,12 @@ function applyOverlay<T>(
 }
 
 export function overlayDeck(base: DeckData, pending: PendingMove[], id: ListId): DeckData {
-  return applyOverlay(base, pending, id, applyChangeToDeck)
+  // A display-only preview of pending moves whose adds carry no labels; the
+  // loaded deck's default is not kept here, so the preview merges as if the
+  // deck had none. The real landing happens in the save, against the file.
+  return applyOverlay(base, pending, id, (deck, change) =>
+    applyChangeToDeck(deck, change, { listLabels: undefined }),
+  )
 }
 
 export function overlayCollection(

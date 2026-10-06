@@ -692,14 +692,18 @@ function makeDeck(): DeckData {
 describe('applyChangeToDeck — change-printing support', () => {
   test('add with a different printing creates a separate entry (does not merge by name)', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'add',
-      cardName: 'Lightning Bolt',
-      set: 'm10',
-      collectorNumber: '146',
-      finish: 'nonfoil',
-      cardId: 99,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'add',
+        cardName: 'Lightning Bolt',
+        set: 'm10',
+        collectorNumber: '146',
+        finish: 'nonfoil',
+        cardId: 99,
+      },
+      { listLabels: undefined },
+    )
     const cards = result.sections[0]!.cards
     expect(cards).toHaveLength(2)
     expect(cards[0]!.set).toBe('lea')
@@ -711,14 +715,18 @@ describe('applyChangeToDeck — change-printing support', () => {
 
   test('add with the same printing merges into the existing entry', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'add',
-      cardName: 'Lightning Bolt',
-      set: 'lea',
-      collectorNumber: '161',
-      finish: 'nonfoil',
-      cardId: 99,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'add',
+        cardName: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        cardId: 99,
+      },
+      { listLabels: undefined },
+    )
     const cards = result.sections[0]!.cards
     expect(cards).toHaveLength(1)
     expect(cards[0]!.quantity).toBe(5)
@@ -728,15 +736,19 @@ describe('applyChangeToDeck — change-printing support', () => {
     const deck = makeDeck()
     // findCardForAdd scans every section for a same-printing entry before consulting
     // change.section, so a Sideboard-targeted add merges into the Main entry.
-    const result = applyChangeToDeck(deck, {
-      action: 'add',
-      cardName: 'Lightning Bolt',
-      set: 'lea',
-      collectorNumber: '161',
-      finish: 'nonfoil',
-      cardId: 99,
-      section: 'Sideboard',
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'add',
+        cardName: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        cardId: 99,
+        section: 'Sideboard',
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections.map((s) => s.name)).toEqual(['Main'])
     const cards = result.sections[0]!.cards
     expect(cards).toHaveLength(1)
@@ -746,15 +758,19 @@ describe('applyChangeToDeck — change-printing support', () => {
   test('add with a different language creates a separate entry (language is a variant dimension)', () => {
     const deck = makeDeck()
     // Same printing, but Japanese: must NOT merge into the English line.
-    const result = applyChangeToDeck(deck, {
-      action: 'add',
-      cardName: 'Lightning Bolt',
-      set: 'lea',
-      collectorNumber: '161',
-      finish: 'nonfoil',
-      language: 'ja',
-      cardId: 99,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'add',
+        cardName: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        language: 'ja',
+        cardId: 99,
+      },
+      { listLabels: undefined },
+    )
     const cards = result.sections[0]!.cards
     expect(cards).toHaveLength(2)
     expect(cards[0]!.quantity).toBe(4)
@@ -764,14 +780,18 @@ describe('applyChangeToDeck — change-printing support', () => {
 
   test('add with the same language merges (missing folds to en on both sides)', () => {
     let deck = makeDeck()
-    deck = applyChangeToDeck(deck, {
-      action: 'add',
-      cardName: 'Lightning Bolt',
-      set: 'lea',
-      collectorNumber: '161',
-      finish: 'nonfoil',
-      language: 'en',
-    })
+    deck = applyChangeToDeck(
+      deck,
+      {
+        action: 'add',
+        cardName: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        finish: 'nonfoil',
+        language: 'en',
+      },
+      { listLabels: undefined },
+    )
     const cards = deck.sections[0]!.cards
     expect(cards).toHaveLength(1)
     expect(cards[0]!.quantity).toBe(5)
@@ -779,20 +799,28 @@ describe('applyChangeToDeck — change-printing support', () => {
 
   test('set-language rewrites the card in place; en clears the stored value', () => {
     const deck = makeDeck()
-    const toJa = applyChangeToDeck(deck, {
-      action: 'set-language',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      language: 'ja',
-    })
+    const toJa = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-language',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        language: 'ja',
+      },
+      { listLabels: undefined },
+    )
     expect(toJa.sections[0]!.cards[0]!.language).toBe('ja')
 
-    const backToEn = applyChangeToDeck(toJa, {
-      action: 'set-language',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      language: 'en',
-    })
+    const backToEn = applyChangeToDeck(
+      toJa,
+      {
+        action: 'set-language',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        language: 'en',
+      },
+      { listLabels: undefined },
+    )
     // Cleared, matching what a re-parse of the bare serialized line yields.
     expect(backToEn.sections[0]!.cards[0]!.language).toBeUndefined()
   })
@@ -803,21 +831,25 @@ describe('applyChangeToDeck — change-printing support', () => {
     applyChangeToDeck(
       deck,
       { action: 'set-language', cardName: 'Sol Ring', language: 'ja' },
-      { onMiss: (reason) => (missed = reason) },
+      { listLabels: undefined, onMiss: (reason) => (missed = reason) },
     )
     expect(missed).toBe('no-target')
   })
 
   test('set-printing retargets the entry by cardId in place', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'set-printing',
-      cardName: 'Lightning Bolt',
-      set: 'm10',
-      collectorNumber: '146',
-      finish: 'foil',
-      cardId: 5,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-printing',
+        cardName: 'Lightning Bolt',
+        set: 'm10',
+        collectorNumber: '146',
+        finish: 'foil',
+        cardId: 5,
+      },
+      { listLabels: undefined },
+    )
     const cards = result.sections[0]!.cards
     expect(cards).toHaveLength(1)
     expect(cards[0]!.set).toBe('m10')
@@ -830,18 +862,26 @@ describe('applyChangeToDeck — change-printing support', () => {
     let deck = makeDeck()
     // Decrement the original entry by 2.
     for (let i = 0; i < 2; i++) {
-      deck = applyChangeToDeck(deck, { action: 'remove', cardName: 'Lightning Bolt', cardId: 5 })
+      deck = applyChangeToDeck(
+        deck,
+        { action: 'remove', cardName: 'Lightning Bolt', cardId: 5 },
+        { listLabels: undefined },
+      )
     }
     // Add 2 copies of the new printing under a fresh id.
     for (let i = 0; i < 2; i++) {
-      deck = applyChangeToDeck(deck, {
-        action: 'add',
-        cardName: 'Lightning Bolt',
-        set: 'm10',
-        collectorNumber: '146',
-        finish: 'nonfoil',
-        cardId: 99,
-      })
+      deck = applyChangeToDeck(
+        deck,
+        {
+          action: 'add',
+          cardName: 'Lightning Bolt',
+          set: 'm10',
+          collectorNumber: '146',
+          finish: 'nonfoil',
+          cardId: 99,
+        },
+        { listLabels: undefined },
+      )
     }
     const cards = deck.sections[0]!.cards
     expect(cards).toHaveLength(2)
@@ -857,11 +897,15 @@ describe('applyChangeToDeck — change-printing support', () => {
 describe('applyChangeToDeck — additional action coverage', () => {
   test('set-commander moves the card into a new Commander section (created if absent)', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'set-commander',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-commander',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+      },
+      { listLabels: undefined },
+    )
     const commander = result.sections.find((s) => s.name === 'Commander')
     const main = result.sections.find((s) => s.name === 'Main')
     expect(commander).toBeDefined()
@@ -890,11 +934,15 @@ describe('applyChangeToDeck — additional action coverage', () => {
         { name: 'Main', cards: [] },
       ],
     }
-    const result = applyChangeToDeck(deck, {
-      action: 'unset-commander',
-      cardName: 'Kenrith',
-      cardId: 1,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'unset-commander',
+        cardName: 'Kenrith',
+        cardId: 1,
+      },
+      { listLabels: undefined },
+    )
     const commander = result.sections.find((s) => s.name === 'Commander')!
     const main = result.sections.find((s) => s.name === 'Main')!
     expect(commander.cards).toHaveLength(0)
@@ -905,12 +953,16 @@ describe('applyChangeToDeck — additional action coverage', () => {
 
   test('set-section moves the card to the named section, creating it when missing', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'set-section',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      section: 'Sideboard',
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-section',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        section: 'Sideboard',
+      },
+      { listLabels: undefined },
+    )
     const main = result.sections.find((s) => s.name === 'Main')!
     const sideboard = result.sections.find((s) => s.name === 'Sideboard')!
     expect(main.cards).toHaveLength(0)
@@ -923,12 +975,16 @@ describe('applyChangeToDeck — additional action coverage', () => {
 
   test('set-finish mutates the matching card finish in place', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'set-finish',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      finish: 'foil',
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-finish',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        finish: 'foil',
+      },
+      { listLabels: undefined },
+    )
     const card = result.sections[0]!.cards[0]!
     expect(card.finish).toBe('foil')
     expect(card.quantity).toBe(4)
@@ -936,12 +992,16 @@ describe('applyChangeToDeck — additional action coverage', () => {
 
   test('set-note mutates the matching card note in place', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'set-note',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      note: 'burn spell',
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-note',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        note: 'burn spell',
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections[0]!.cards[0]!.note).toBe('burn spell')
   })
 
@@ -952,68 +1012,92 @@ describe('applyChangeToDeck — additional action coverage', () => {
     // a previously-set note without a separate "clear-note" action.
     const deck = makeDeck()
     deck.sections[0]!.cards[0]!.note = 'burn spell'
-    const result = applyChangeToDeck(deck, {
-      action: 'set-note',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      note: '',
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-note',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        note: '',
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections[0]!.cards[0]!.note).toBeUndefined()
   })
 
   test('remove that drops quantity to zero deletes the entry entirely', () => {
     let deck = makeDeck()
     for (let i = 0; i < 4; i++) {
-      deck = applyChangeToDeck(deck, { action: 'remove', cardName: 'Lightning Bolt', cardId: 5 })
+      deck = applyChangeToDeck(
+        deck,
+        { action: 'remove', cardName: 'Lightning Bolt', cardId: 5 },
+        { listLabels: undefined },
+      )
     }
     expect(deck.sections[0]!.cards).toHaveLength(0)
   })
 
   test('remove of a card not in the deck is a no-op (no error, deck unchanged)', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'remove',
-      cardName: 'Mana Crypt',
-      cardId: 999,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'remove',
+        cardName: 'Mana Crypt',
+        cardId: 999,
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections[0]!.cards).toHaveLength(1)
     expect(result.sections[0]!.cards[0]!.quantity).toBe(4)
   })
 
   test('set-finish on a card not in the deck is a no-op', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'set-finish',
-      cardName: 'Mana Crypt',
-      cardId: 999,
-      finish: 'foil',
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-finish',
+        cardName: 'Mana Crypt',
+        cardId: 999,
+        finish: 'foil',
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections[0]!.cards).toHaveLength(1)
     expect(result.sections[0]!.cards[0]!.finish).toBe('nonfoil')
   })
 
   test('move-from decrements one copy (behaves like remove)', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'move-from',
-      cardName: 'Lightning Bolt',
-      cardId: 5,
-      set: 'lea',
-      collectorNumber: '161',
-      to: { type: 'collection', name: 'Binder' },
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'move-from',
+        cardName: 'Lightning Bolt',
+        cardId: 5,
+        set: 'lea',
+        collectorNumber: '161',
+        to: { type: 'collection', name: 'Binder' },
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections[0]!.cards[0]!.quantity).toBe(3)
   })
 
   test('move-to adds the card with its printing (behaves like add)', () => {
     const deck = makeDeck()
-    const result = applyChangeToDeck(deck, {
-      action: 'move-to',
-      cardName: 'Counterspell',
-      set: 'lea',
-      collectorNumber: '54',
-      from: { type: 'deck', name: 'Other' },
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'move-to',
+        cardName: 'Counterspell',
+        set: 'lea',
+        collectorNumber: '54',
+        from: { type: 'deck', name: 'Other' },
+      },
+      { listLabels: undefined },
+    )
     const added = result.sections.flatMap((s) => s.cards).find((c) => c.name === 'Counterspell')
     expect(added).toBeDefined()
     expect(added!.set).toBe('lea')
@@ -1021,15 +1105,23 @@ describe('applyChangeToDeck — additional action coverage', () => {
   })
 
   test('move-to lands in its stated section, leaving the default section untouched', () => {
-    const deck = applyChangeToDeck(makeDeck(), { action: 'add-section', section: 'Sideboard' })
-    const result = applyChangeToDeck(deck, {
-      action: 'move-to',
-      cardName: 'Counterspell',
-      set: 'lea',
-      collectorNumber: '54',
-      from: { type: 'deck', name: 'Other' },
-      section: 'Sideboard',
-    })
+    const deck = applyChangeToDeck(
+      makeDeck(),
+      { action: 'add-section', section: 'Sideboard' },
+      { listLabels: undefined },
+    )
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'move-to',
+        cardName: 'Counterspell',
+        set: 'lea',
+        collectorNumber: '54',
+        from: { type: 'deck', name: 'Other' },
+        section: 'Sideboard',
+      },
+      { listLabels: undefined },
+    )
     const sideboard = result.sections.find((s) => s.name === 'Sideboard')
     expect(sideboard?.cards.map((c) => c.name)).toEqual(['Counterspell'])
     expect(result.sections[0]!.cards.some((c) => c.name === 'Counterspell')).toBe(false)
@@ -1041,12 +1133,14 @@ describe('applyChangeToDeck — labels', () => {
     const labeled = applyChangeToDeck(
       makeDeck(),
       makeChange({ action: 'set-label', cardName: 'Lightning Bolt', cardId: 5, labels: ['proxy'] }),
+      { listLabels: undefined },
     )
     expect(labeled.sections[0]!.cards[0]!.labels).toEqual(['proxy'])
 
     const cleared = applyChangeToDeck(
       labeled,
       makeChange({ action: 'set-label', cardName: 'Lightning Bolt', cardId: 5, labels: [] }),
+      { listLabels: undefined },
     )
     expect(cleared.sections[0]!.cards[0]!.labels).toBeUndefined()
   })
@@ -1061,6 +1155,7 @@ describe('applyChangeToDeck — labels', () => {
         collectorNumber: '284',
         labels: ['proxy'],
       }),
+      { listLabels: undefined },
     )
     const added = result.sections[0]!.cards.find((c) => c.name === 'Sol Ring')!
     expect(added.labels).toEqual(['proxy'])
@@ -1087,7 +1182,7 @@ describe('findDeckAddMergeTargetId', () => {
     expect(findDeckAddMergeTargetId(deck, add, NO_DEFAULT)).toBe(5)
     // The reason it matters: the allocated `&99` reaches no card line, so
     // per-line metadata (custom art) aimed at it would be written for nothing.
-    const result = applyChangeToDeck(deck, add)
+    const result = applyChangeToDeck(deck, add, { listLabels: undefined })
     expect(result.sections[0]!.cards).toHaveLength(1)
     expect(result.sections[0]!.cards[0]!.quantity).toBe(5)
     expect(result.sections.flatMap((s) => s.cards).map((c) => c.cardId)).toEqual([5])
@@ -1248,7 +1343,11 @@ describe('applyChangeToDeck — onMiss reporting', () => {
     ],
   ]
 
-  runMissMatrix(applyChangeToDeck, makeDeck, cases)
+  runMissMatrix(
+    (deck, c, options) => applyChangeToDeck(deck, c, { ...options, listLabels: undefined }),
+    makeDeck,
+    cases,
+  )
 
   describe('set-finish needs a printing', () => {
     const nameOnlyDeck = (): DeckData => ({
@@ -1262,7 +1361,7 @@ describe('applyChangeToDeck — onMiss reporting', () => {
       const result = applyChangeToDeck(
         deck,
         makeChange({ action: 'set-finish', cardName: 'Sol Ring', cardId: 9, finish: 'foil' }),
-        { onMiss: (reason) => (seen.reason = reason) },
+        { listLabels: undefined, onMiss: (reason) => (seen.reason = reason) },
       )
       expect(seen.reason).toBe('needs-printing')
       expect(result.sections[0]!.cards[0]!.finish).toBeUndefined()
@@ -1281,12 +1380,12 @@ describe('applyChangeToDeck — onMiss reporting', () => {
           set: 'c19',
           collectorNumber: '221',
         }),
-        onMiss,
+        { ...onMiss, listLabels: undefined },
       )
       deck = applyChangeToDeck(
         deck,
         makeChange({ action: 'set-finish', cardName: 'Sol Ring', cardId: 9, finish: 'foil' }),
-        onMiss,
+        { ...onMiss, listLabels: undefined },
       )
       expect(misses).toEqual([])
       expect(deck.sections[0]!.cards[0]!.finish).toBe('foil')
@@ -1311,7 +1410,7 @@ describe('applyChangeToDeck — onMiss reporting', () => {
       const result = applyChangeToDeck(
         deck,
         makeChange({ action: 'set-printing', cardName: 'Sol Ring', cardId: 9, finish: 'foil' }),
-        { onMiss: (reason) => (seen.reason = reason) },
+        { listLabels: undefined, onMiss: (reason) => (seen.reason = reason) },
       )
       expect(seen.reason).toBe('needs-printing')
       expect(result.sections[0]!.cards[0]!.set).toBe('c19')
@@ -1341,7 +1440,7 @@ describe('applyChangeToDeck — onMiss reporting', () => {
       const result = applyChangeToDeck(
         deck,
         makeChange({ action: 'set-printing', cardName: 'Sol Ring', cardId: 9 }),
-        { onMiss: (reason) => (seen.reason = reason) },
+        { listLabels: undefined, onMiss: (reason) => (seen.reason = reason) },
       )
       expect(seen.reason).toBeNull()
       expect(result.sections[0]!.cards[0]!.set).toBeUndefined()
@@ -1355,7 +1454,7 @@ describe('applyChangeToDeck — onMiss reporting', () => {
       const result = applyChangeToDeck(
         deck,
         makeChange({ action: 'set-finish', cardName: 'Sol Ring', cardId: 9, finish: 'nonfoil' }),
-        { onMiss: (reason) => (seen.reason = reason) },
+        { listLabels: undefined, onMiss: (reason) => (seen.reason = reason) },
       )
       expect(seen.reason).toBeNull()
       expect(result.sections[0]!.cards[0]!.finish).toBe('nonfoil')
@@ -1371,7 +1470,7 @@ describe('applyChangeToDeck — onMiss reporting', () => {
     const result = applyChangeToDeck(
       deck,
       makeChange({ action: 'set-commander', cardName: 'Atraxa' }),
-      { onMiss: () => (missed = true) },
+      { listLabels: undefined, onMiss: () => (missed = true) },
     )
     expect(missed).toBe(false)
     // The card stays in the commander section — no move, no new section.
@@ -1390,7 +1489,7 @@ describe('applyChangeToDeck — onMiss reporting', () => {
     const result = applyChangeToDeck(
       deck,
       makeChange({ action: 'unset-commander', cardName: 'Sol Ring' }),
-      { onMiss: () => (missed = true) },
+      { listLabels: undefined, onMiss: () => (missed = true) },
     )
     expect(missed).toBe(false)
     // Atraxa keeps the command zone; Sol Ring stays where it was.
@@ -1430,13 +1529,14 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
     const base = nameOnlyDeck(2)
     base.sections[0]!.cards[0]!.language = 'ja'
     base.sections[0]!.cards[0]!.condition = 'LP'
-    let deck = applyChangeToDeck(base, pin(4))
+    let deck = applyChangeToDeck(base, pin(4), { listLabels: undefined })
     // The input is not mutated (undo replays the stack over the baseline).
     expect(base.sections[0]!.cards[0]!.set).toBeUndefined()
     // A second copy of the fill, even spelled with another printing, is a no-op.
     deck = applyChangeToDeck(
       deck,
       pin(4, { set: 'm10', collectorNumber: '146', finish: undefined }),
+      { listLabels: undefined },
     )
     expect(deck.sections[0]!.cards[0]).toEqual({
       quantity: 2,
@@ -1453,8 +1553,9 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
 
   test('a pinned id that resolved to a line of another printing is a miss, not a silent success', () => {
     const misses: MissReason[] = []
-    const deck = applyChangeToDeck(nameOnlyDeck(1), pin(4), {})
+    const deck = applyChangeToDeck(nameOnlyDeck(1), pin(4), { listLabels: undefined })
     applyChangeToDeck(deck, pin(4, { set: 'm10', collectorNumber: '146', finish: undefined }), {
+      listLabels: undefined,
       onMiss: (reason) => misses.push(reason),
     })
     expect(misses).toEqual(['no-target'])
@@ -1463,13 +1564,14 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
   test('a split without a landing id is a miss', () => {
     const misses: MissReason[] = []
     applyChangeToDeck(nameOnlyDeck(2), pin(4, { cardId: undefined }), {
+      listLabels: undefined,
       onMiss: (reason) => misses.push(reason),
     })
     expect(misses).toEqual(['no-target'])
   })
 
   test('split: one copy leaves the name-only line and lands on a fresh line right after it', () => {
-    const deck = applyChangeToDeck(nameOnlyDeck(3), pin(9))
+    const deck = applyChangeToDeck(nameOnlyDeck(3), pin(9), { listLabels: undefined })
     expect(deck.sections[0]!.cards.map((c) => [c.name, c.quantity, c.cardId, c.set])).toEqual([
       ['Lightning Bolt', 2, 4, undefined],
       ['Lightning Bolt', 1, 9, 'lea'],
@@ -1477,22 +1579,64 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
     ])
   })
 
-  test('split: the fresh line keeps the fill’s tags and labels, and a later copy merges onto it', () => {
+  test('split: the copy lands as a normal arrival with its own labels and tags; a later copy merges onto it', () => {
     const base = nameOnlyDeck(3)
     base.sections[0]!.cards[0]!.tags = ['Ramp']
-    base.sections[0]!.cards[0]!.labels = ['proxy']
-    let deck = applyChangeToDeck(base, pin(9))
-    deck = applyChangeToDeck(deck, pin(9))
+    let deck = applyChangeToDeck(base, pin(9, { tags: ['Signed'] }), { listLabels: undefined })
+    deck = applyChangeToDeck(deck, pin(9, { tags: ['Signed'] }), { listLabels: undefined })
     expect(deck.sections[0]!.cards.map((c) => [c.quantity, c.cardId, c.tags, c.labels])).toEqual([
-      [1, 4, ['Ramp'], ['proxy']],
-      [2, 9, ['Ramp'], ['proxy']],
+      [1, 4, ['Ramp'], undefined],
+      [2, 9, ['Signed'], undefined],
       [1, 5, undefined, undefined],
     ])
   })
 
+  test('a [proxy] copy never converts a plain name-only line: in place is refused, a split keeps it a proxy', () => {
+    const proxyCopy = { labels: ['proxy' as const], from: { type: 'deck' as const, name: 'Cube' } }
+    // In place would turn the line's real copies into proxies (or the proxy real).
+    const refused: string[] = []
+    const inPlace = applyChangeToDeck(nameOnlyDeck(1), pin(4, proxyCopy), {
+      listLabels: undefined,
+      onMiss: (reason) => refused.push(reason),
+    })
+    expect(refused).toEqual(['no-target'])
+    expect(inPlace.sections[0]!.cards[0]).toMatchObject({ cardId: 4, quantity: 1 })
+    expect(inPlace.sections[0]!.cards[0]!.set).toBeUndefined()
+    // A split lands the copy as the proxy it is.
+    const split = applyChangeToDeck(nameOnlyDeck(2), pin(9, proxyCopy), { listLabels: undefined })
+    expect(split.sections[0]!.cards.map((c) => [c.cardId, c.quantity, c.labels])).toEqual([
+      [4, 1, undefined],
+      [9, 1, ['proxy']],
+      [5, 1, undefined],
+    ])
+  })
+
+  test('a real copy pinning a proxy-default deck’s name-only line splits off as [no-proxy]', () => {
+    // The name-only line inherits proxy; a real card from a deck states it is
+    // not one, so converting in place would make it a proxy.
+    const realCopy = { from: { type: 'deck' as const, name: 'Cube' } }
+    expect(
+      applyChangeToDeck(nameOnlyDeck(1), pin(4, realCopy), { listLabels: ['proxy'] }).sections[0]!
+        .cards[0]!.set,
+    ).toBeUndefined()
+    const split = applyChangeToDeck(nameOnlyDeck(2), pin(9, realCopy), { listLabels: ['proxy'] })
+    expect(split.sections[0]!.cards.map((c) => [c.cardId, c.quantity, c.labels])).toEqual([
+      [4, 1, undefined],
+      [9, 1, ['no-proxy']],
+      [5, 1, undefined],
+    ])
+    // From a wanted list (which states nothing) the copy inherits proxy and converts in place.
+    const inherited = applyChangeToDeck(
+      nameOnlyDeck(1),
+      pin(4, { from: { type: 'wanted', name: 'Wants' } }),
+      { listLabels: ['proxy'] },
+    )
+    expect(inherited.sections[0]!.cards[0]).toMatchObject({ cardId: 4, set: 'lea' })
+  })
+
   test('split: the last copy off the line removes it, and a copy merges onto the line its id names', () => {
-    let deck = applyChangeToDeck(nameOnlyDeck(2), pin(9))
-    deck = applyChangeToDeck(deck, pin(9))
+    let deck = applyChangeToDeck(nameOnlyDeck(2), pin(9), { listLabels: undefined })
+    deck = applyChangeToDeck(deck, pin(9), { listLabels: undefined })
     expect(deck.sections[0]!.cards.map((c) => [c.name, c.quantity, c.cardId])).toEqual([
       ['Lightning Bolt', 2, 9],
       ['Counterspell', 1, 5],
@@ -1509,7 +1653,7 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
       finish: 'foil',
       cardId: 8,
     })
-    const result = applyChangeToDeck(deck, pin(50))
+    const result = applyChangeToDeck(deck, pin(50), { listLabels: undefined })
     expect(result.sections[0]!.cards.map((c) => [c.quantity, c.cardId])).toEqual([
       [1, 4],
       [1, 5],
@@ -1520,6 +1664,7 @@ describe('applyChangeToDeck — move-to pinning a name-only line', () => {
   test('a pinned line that no longer exists is a miss, not an add', () => {
     const misses: MissReason[] = []
     const deck = applyChangeToDeck(nameOnlyDeck(1), pin(7, { replacesCardId: 99 }), {
+      listLabels: undefined,
       onMiss: (reason) => misses.push(reason),
     })
     expect(misses).toEqual(['no-target'])

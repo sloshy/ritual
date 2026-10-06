@@ -458,6 +458,13 @@ export const themeVarMetadata: ThemeVarMeta[] = [
     type: 'color',
   },
   {
+    name: '--label-negated',
+    label: 'site.themeVar.labelNegated.label',
+    description: 'site.themeVar.labelNegated.description',
+    group: 'labels',
+    type: 'color',
+  },
+  {
     name: '--label-any-printing',
     label: 'site.themeVar.labelAnyPrinting.label',
     description: 'site.themeVar.labelAnyPrinting.description',

@@ -103,8 +103,9 @@ A deck card can be marked a **proxy** — the one card label decks carry (\`sale
 naming what the type supports). It is the same bracketed token collections use,
 written between the language token and the note: \`1 Sol Ring (LEA:270) [proxy] &5\`.
 A \`labels: [proxy]\` key in the deck's front matter marks the **whole deck** as
-proxies; a card's own token overrides that default, and \`--label none\` clears the
-override so the deck default applies again. A front-matter value the deck cannot
+proxies; a card's own token adjusts that default — \`[no-proxy]\` marks a real card
+in a proxy deck — and \`--label none\` clears the override so the deck default
+applies again. A front-matter value the deck cannot
 carry (\`labels: [sale]\`) is dropped whole and reported as a parse warning — the
 next whole-file save would delete the key. Labels are part of a deck line's merge
 identity: adding a \`[proxy]\` copy of a card the deck already runs for real makes
@@ -113,6 +114,7 @@ a second line rather than folding the proxies into the real copies.
 \`\`\`bash
 ritual set-card "Winota Stax" "Sol Ring" --deck --label proxy   # one card
 ritual set-card "Winota Stax" "Sol Ring" --deck --label none    # back to the deck default
+ritual set-card "Playtest" "Sol Ring" --deck --label no-proxy   # a real card in a proxy deck
 ritual add-card "Winota Stax" "Mox Jet" --deck --label proxy
 ritual metadata set "Winota Stax" labels proxy                  # every card in the deck
 ritual metadata unset "Winota Stax" labels                      # no deck default

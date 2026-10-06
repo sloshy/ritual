@@ -33,10 +33,11 @@ import { type CardPrinting, resolvePrinting } from './card-line'
 import { matchCardId } from './card-line-id'
 import { printingLabel } from './card-line-tail'
 import {
-  conflictingExclusiveLabel,
-  parseCardLabelsToken,
+  isSignedCardLabel,
+  labelOverrideConflict,
+  normalizeLabelOverride,
   LABEL_TOKEN_PATTERN,
-  type CardLabel,
+  type SignedCardLabel,
 } from './card-labels'
 import {
   isCardLanguage,
@@ -107,7 +108,7 @@ export type LineTokens = {
   /** Absent for English — a bare line always means `en`. */
   language?: CardLanguage
   /** The line's label override, absent when it carries no labels token. */
-  labels?: readonly CardLabel[]
+  labels?: readonly SignedCardLabel[]
   /** The line's tags in canonical form (trimmed, deduplicated, sorted); absent when none. */
   tags?: readonly CardTag[]
   note?: string
@@ -471,7 +472,8 @@ function matchExportPrinting(name: string): ExportPrintingMatch | undefined {
 const PRINTING_BODY_RE = new RegExp(`^(${SET_CHARS}+):([^)\\s]+)$`)
 
 /**
- * A labels token body: one or more label words, comma-separated. Whitespace
+ * A labels token body: one or more signed label words (`sale`, `no-proxy`),
+ * comma-separated. Whitespace
  * around the commas is tolerated like every other run in the grammar —
  * `[sale, trade]` is what a person types.
  */
@@ -848,29 +850,29 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
       } else if (LABELS_BODY_RE.test(inner)) {
         const refusal = accept({ kind: 'labels', ...token })
         if (refusal) return refusal
-        const parts = inner.split(',').map((part) => part.trim())
-        // Checked *before* `parseCardLabelsToken`, whose refusal prose is
-        // localized for the CLI: a `CardLineError.message` is English by
-        // construction, so rendering that string only to discard it would be
-        // both wasted work and a fence hazard. The rule itself still lives in
-        // `card-labels.ts`.
-        const exclusive = conflictingExclusiveLabel(parts)
-        if (exclusive !== undefined) {
+        // The body matched the signed vocabulary pattern, so every part is a
+        // signed label. The conflict rule lives in `card-labels.ts`; it is
+        // worded here, in English, because a `CardLineError.message` is
+        // English by construction (the CLI's localized wording would only be
+        // discarded, and would be a fence hazard).
+        const parts = inner
+          .split(',')
+          .map((part) => part.trim())
+          .filter(isSignedCardLabel)
+        const conflict = labelOverrideConflict(parts)
+        if (conflict !== undefined) {
           return failToken(type, line, {
             code: 'conflicting-labels',
             kind: 'labels',
             token: text,
             column: open,
             message:
-              `Conflicting labels ${text} — ` +
-              `[${exclusive}] cannot be combined with any other label.`,
+              conflict.kind === 'exclusive'
+                ? `Conflicting labels ${text} — [${conflict.label}] cannot be combined with any other label.`
+                : `Conflicting labels ${text} — [${conflict.label}] cannot be both set and negated.`,
           })
         }
-        const parsed = parseCardLabelsToken(inner)
-        // Unreachable: the body matched the vocabulary pattern and carries no
-        // exclusivity conflict, which are the only two ways this refuses.
-        if (!parsed.ok) break
-        tokens.labels = parsed.labels
+        tokens.labels = normalizeLabelOverride(parts)
       } else {
         return failToken(type, line, {
           code: 'unknown-token',

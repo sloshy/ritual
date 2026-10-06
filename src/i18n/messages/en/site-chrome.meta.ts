@@ -1129,6 +1129,12 @@ export const siteChromeMeta = {
   'site.themeVar.labelProxy.description': {
     description: 'Tooltip for the `--label-proxy` swatch, explaining what the variable colors.',
   },
+  'site.themeVar.labelNegated.label': {
+    description: 'Swatch label for the `--label-negated` CSS variable in the theme editor.',
+  },
+  'site.themeVar.labelNegated.description': {
+    description: 'Tooltip for the `--label-negated` swatch, explaining what the variable colors.',
+  },
   'site.themeVar.labelAnyPrinting.label': {
     description: 'Swatch label for the `--label-any-printing` CSS variable in the theme editor.',
   },

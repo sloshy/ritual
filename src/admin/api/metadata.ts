@@ -15,9 +15,9 @@ import { isListImageRefError, parseListImage, type ListImageRef } from '../../li
 import { isListDescriptionError, parseListDescription } from '../../list/list-description'
 import { checkListImageCardId } from '../../list/list-image-file'
 import {
-  LIST_TYPE_LABELS,
   parseCardLabelsValue,
   unsupportedLabelsFor,
+  unsupportedLabelsMessage,
   type CardLabel,
 } from '../../card/card-labels'
 import type { ListType } from '../../list/list-type'
@@ -163,9 +163,7 @@ function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | nul
   const labels = parseCardLabelsValue(raw, 'labels')
   if (!labels.ok) return labels.message
   const unsupported = unsupportedLabelsFor(type, labels.labels)
-  if (unsupported.length > 0) {
-    return `labels [${unsupported.join(', ')}] are not supported on a ${type}; supported: ${LIST_TYPE_LABELS[type].join(', ')}.`
-  }
+  if (unsupported.length > 0) return unsupportedLabelsMessage(type, unsupported)
   // An empty array says "no default"; clear the key rather than writing `[]`.
   return labels.labels.length === 0 ? null : labels.labels
 }

@@ -1,8 +1,12 @@
 import { createSignal, type Accessor } from 'solid-js'
 import type { Finish, Condition } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
-import { effectiveLabels, type CardLabel } from '../card/card-labels'
-import { movedCopyOf, type MovedCopyFields, type MovedCopySource } from '../changes/change-event'
+import type { CardLabel } from '../card/card-labels'
+import {
+  movedCopyFromLine,
+  type MovedCopyFields,
+  type MovedCopySource,
+} from '../changes/change-event'
 import type { CardTag } from '../card/card-tags'
 import { isPricelessCard } from './priceless'
 import type { CardLanguage } from '../card/card-language'
@@ -29,16 +33,17 @@ export type SelectionCarryLine = MovedCopySource & { cardId?: number }
 
 /**
  * The {@link SelectedMoveCarry} for a tile's source lines, each line's labels
- * folded to its **effective** labels — its own override, else the list's
- * default `listLabels` — which is what a move carries (the destination keeps
- * what its type accepts). Wanted lines carry no labels, so they pass none.
+ * folded to its **carried** labels — its own override applied to the list's
+ * default `listLabels`, as that list states them (`carriedLabels`) — which is
+ * what a move carries (the destination keeps them as its type and default
+ * allow). Wanted lines carry no labels, so they pass none.
  */
 export function selectionMoveCarry(
   lines: readonly SelectionCarryLine[],
   listLabels?: readonly CardLabel[],
 ): SelectedMoveCarry {
   const payloadOf = (line: SelectionCarryLine): MovedCopyFields =>
-    movedCopyOf({ ...line, labels: effectiveLabels(line.labels, listLabels) })
+    movedCopyFromLine(line, listLabels)
   const byCardId = new Map<number, MovedCopyFields>()
   for (const line of lines) {
     if (line.cardId !== undefined && !byCardId.has(line.cardId)) {
@@ -82,7 +87,7 @@ export interface SelectedCard {
   labels?: CardLabel[]
   /**
    * What a move out of the selection carries from each source line — tags,
-   * effective labels, note (see {@link SelectedMoveCarry}). Kept apart from the
+   * carried labels, note (see {@link SelectedMoveCarry}). Kept apart from the
    * tile's display fields: a deck tile shows no note, and its trade row must
    * not grow one.
    */

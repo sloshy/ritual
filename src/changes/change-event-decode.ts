@@ -15,9 +15,9 @@ import { type Condition, type Finish, isCondition, isFinish } from '../card/fini
 import { isCardLanguage, type CardLanguage } from '../card/card-language'
 import {
   checkLabelsForListType,
-  parseCardLabelsData,
+  parseLabelOverrideData,
   unsupportedLabelsMessage,
-  type CardLabel,
+  type LabelOverride,
 } from '../card/card-labels'
 import { parseCardTag, parseCardTagsValue, type CardTag } from '../card/card-tags'
 import { parseCardCategoriesValue, parseCardCategory } from '../card/card-categories'
@@ -99,7 +99,8 @@ export type MovedCopyFieldsResult =
  * (`movedCopyOf`: canonical, empty folded to absent). `where` prefixes every
  * error.
  *
- * Labels are checked against the vocabulary and the exclusivity rule only,
+ * Labels (signed, as the source states them) are checked against the
+ * vocabulary and the conflict rules only,
  * never a list type: they describe the copy in its source list, and the
  * destination filters them on arrival — a `sale` copy moving into a deck is
  * expected, not malformed. A note is free text, like a `set-note`'s (the line
@@ -115,9 +116,9 @@ export function validateMovedCopyFields(
     if (!parsed.ok) return { ok: false, error: `${where}${parsed.message}` }
     tags = parsed.tags
   }
-  let labels: CardLabel[] | undefined
+  let labels: LabelOverride | undefined
   if (obj.labels !== undefined) {
-    const parsed = parseCardLabelsData(obj.labels, '"labels"')
+    const parsed = parseLabelOverrideData(obj.labels, '"labels"')
     if (!parsed.ok) return { ok: false, error: `${where}${parsed.message}` }
     labels = parsed.labels
   }
@@ -391,7 +392,7 @@ export function decodeChangeEvent(
       normalized.replacement = replacement
     }
   }
-  // A labels payload is a closed vocabulary with an exclusivity rule —
+  // A labels payload is a closed signed vocabulary with conflict rules —
   // imported JSON must not smuggle garbage into a serialize. The parsed form
   // is normalized (deduped, canonical order). On a set-label an empty array
   // (a clear) is valid; an add (or the record of the line a remove took away)
@@ -400,15 +401,22 @@ export function decodeChangeEvent(
     action === 'set-label' ||
     ((action === 'add' || action === 'remove') && obj.labels !== undefined)
   ) {
-    const labels = parseCardLabelsData(obj.labels, 'labels')
+    const labels = parseLabelOverrideData(obj.labels, 'labels')
     if (!labels.ok) return `${where}${labels.message}`
     if (opts.listType !== undefined) {
       const check = checkLabelsForListType(opts.listType, labels.labels)
       if (!check.ok) return `${where}${unsupportedLabelsMessage(opts.listType, check.unsupported)}`
     }
-    normalized = { ...normalized, labels: labels.labels }
+    // An add or remove with an empty override carries none: drop the key, as
+    // the tags branch folds an empty tag set, so it never re-encodes as `[]`.
+    if (action === 'set-label' || labels.labels.length > 0) {
+      normalized = { ...normalized, labels: labels.labels }
+    } else {
+      const { labels: _empty, ...rest } = normalized
+      normalized = rest
+    }
   }
-  // Either half of a move carries the moved copy's payload (tags, effective
+  // Either half of a move carries the moved copy's payload (tags, carried
   // labels, note), validated by the one rule a bundle's moves share.
   if (action === 'move-from' || action === 'move-to') {
     const moved = validateMovedCopyFields(obj, where)

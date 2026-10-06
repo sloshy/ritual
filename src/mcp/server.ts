@@ -35,15 +35,21 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
 - Card labels are per list type: a collection takes the whole vocabulary ("sale"/"trade" combine,
-  "keep" and "proxy" each stand alone), a deck takes "proxy" alone, a wanted list none. A card
-  labeled "proxy" is not a real copy, and a card given custom art (set_card_art) is no longer the
+  "keep" and "proxy" each stand alone), a deck takes "proxy" alone, a wanted list none. A list
+  declares a default (front matter "labels"), and a card's own labels ADJUST it: they are signed,
+  so "trade" adds a label and "no-sale" takes an inherited one away (["trade","no-sale"]). A
+  card's effective labels are its positives plus the default minus its negated labels, and a
+  positive displaces an inherited label it cannot combine with (["keep"] under a "sale" default
+  is just keep; ["no-proxy"] in a "proxy"-default deck is a real card). A card labeled "proxy" is
+  not a real copy, and a card given custom art (set_card_art) is no longer the
   printing a price is quoted for: either one prices as 0 everywhere and is left out of unpriced
   counts, sell reports, and buylist quotes entirely — its absence there is the rule, not a lookup
   failure. In a price report such an entry carries unpricedReason "proxy" or "custom-art"
-  ("custom-art" wins when both apply). A move (move_selected_cards, a bundle move) carries a
-  card's effective labels — its own override, else its list's default — and the destination
-  keeps what its type takes, so a card that is a proxy only through its deck's default arrives
-  in a collection as "proxy".
+  ("custom-art" wins when both apply). A move (move_selected_cards, a bundle move) keeps a
+  card's labels: a proxy stays a proxy and a real card stays real wherever both lists carry
+  "proxy", a "sale"/"trade"/"keep" state its source list stated (by default or on the card)
+  is kept, and a label the source never stated takes the destination's default. The destination
+  keeps only what its type takes and writes the smallest override that says so.
 - Card tags are the owner's own free-form vocabulary, on any list type: get_list reports a card's
   "tags" (canonical — trimmed, sorted, in the owner's own casing, without the "#" the card line
   writes), add_card and an apply_changes "add" take "tags" for a new card, and apply_changes

@@ -5,6 +5,7 @@ import { readListImage } from '../../list/list-image'
 import { getCollectionsDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
 import type { CollectionEntry } from './load-results'
+import { effectiveLabels } from '../../card/card-labels'
 
 const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
   label: 'collection',
@@ -14,7 +15,13 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
     const { entries, sectionOrder, labels, frontMatter } = parsed
     // Set codes are normalized to lowercase so they match Scryfall card keys.
     return {
-      entries: entries.map((entry) => ({ ...entry, set: entry.set.toLowerCase() })),
+      entries: entries.map((entry) => ({
+        ...entry,
+        set: entry.set.toLowerCase(),
+        // Resolved here, once, so no client (MCP agents included) re-implements
+        // how a card's own labels adjust the list default.
+        effectiveLabels: effectiveLabels(entry.labels, labels),
+      })),
       sectionOrder,
       labels,
       // The block round-trips verbatim, so its blurb and cover are read out of

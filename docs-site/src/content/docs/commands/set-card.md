@@ -36,7 +36,7 @@ With no list name, the command prompts you to pick a list and then a card. When 
 | `--finish <finish>`         | New finish: `nonfoil`, `foil`, or `etched` (case-insensitive)                                                                |         |
 | `--condition <condition>`   | New condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to clear it (case-insensitive; decks and collections only)           |         |
 | `--language <code>`         | New language as a Scryfall code (`ja`, `de`, `zhs`, ...); aliases like `jp`/`Japanese` normalize; `en` clears the token      |         |
-| `--label <labels>`          | New label override: `sale,trade` (combinable), `keep` or `proxy`, or `none` to clear it (decks take `proxy` only)            |         |
+| `--label <labels>`          | New label override: `sale,trade` (combinable), `keep` or `proxy`, `no-<label>` to drop an inherited one, or `none` to clear  |         |
 | `--tag <tags>`              | Add these [tags](/list-format/#card-tags) to the card, comma-separated (`"Ramp, Card Draw"`); any list type                  |         |
 | `--untag <tags>`            | Remove these tags from the card, comma-separated; any list type                                                              |         |
 | `--categories <categories>` | Set the card's [categories](/commands/categories/) in this list, comma-separated (`"Ramp, Artifacts"`); the first is primary |         |
@@ -144,20 +144,22 @@ There is no standalone "set condition" change event. A condition change is recor
 
 ### Label Updates
 
-`--label` sets the card's [label override](/list-format/#card-labels), and `--label none` clears it so the list's front-matter default applies again. Which labels are accepted depends on the list type:
+`--label` replaces the card's [label override](/list-format/#card-labels), and `--label none` clears it so the list's front-matter default applies again. The override **adjusts** that default: a plain label adds it, and `no-<label>` takes an inherited one away (`--label trade,no-sale` under a `sale` default means "for trade, not for sale"; `--label no-proxy` makes a card in a `proxy`-default deck a real one). Which labels are accepted depends on the list type:
 
-- **Collection**: the whole vocabulary. `sale` and `trade` combine as `sale,trade`; `keep` and `proxy` each stand alone.
-- **Deck**: `proxy` only.
+- **Collection**: the whole vocabulary, each also as `no-…`. `sale` and `trade` combine as `sale,trade`; `keep` and `proxy` each stand alone.
+- **Deck**: `proxy` and `no-proxy` only.
 - **Wanted list**: no labels.
 
-A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports. It is never silently dropped.
+A label the type does not carry is a usage error (exit `2`) naming the offending labels and the ones that type supports. It is never silently dropped. A label both set and negated (`proxy,no-proxy`) is refused at parse time.
 
 `--label` is also the only edit that can **repair** a line whose existing `[labels]` token the parser refuses (`[sale,keep]`, or a label the type does not carry). It replaces the token outright; every other edit to that line refuses rather than dropping the token.
 
 ```bash
 ritual set-card --collection main "Sol Ring" --label keep
 ritual set-card --collection main "Sol Ring" --label sale,trade
+ritual set-card --collection main "Sol Ring" --label trade,no-sale
 ritual set-card --deck "Winota Stax" "Sol Ring" --label proxy
+ritual set-card --deck "Playtest" "Sol Ring" --label no-proxy
 ritual set-card --deck "Winota Stax" "Sol Ring" --label none
 ```
 

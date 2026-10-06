@@ -1,7 +1,11 @@
 import { type Component, createEffect, createSignal, For, Show, on } from 'solid-js'
 import { Modal } from '../../../ui/Modal'
-import type { CardLabel, CardLabelChoice } from '../../../card/card-labels'
-import { cardLabelDefaultChoicesFor, sameCardLabels } from '../../../card/card-labels'
+import {
+  cardLabelDefaultChoicesFor,
+  sameCardLabels,
+  type CardLabel,
+  type CardLabelDefaultChoice,
+} from '../../../card/card-labels'
 import type { ListType } from '../../../list/list-type'
 import { useT, useTKey } from '../../../ui/i18n'
 import { putListMetadata } from '../editor-backend'
@@ -45,13 +49,14 @@ export const ListLabelsModal: Component<ListLabelsModalProps> = (props) => {
     on(
       () => [props.open, props.slug] as const,
       () => {
-        setSelected(props.labels ?? [])
+        setSelected([...(props.labels ?? [])])
         setError(null)
       },
     ),
   )
 
-  const isSelected = (choice: CardLabelChoice): boolean => sameCardLabels(choice.labels, selected())
+  const isSelected = (choice: CardLabelDefaultChoice): boolean =>
+    sameCardLabels(choice.labels, selected())
 
   const save = async () => {
     const slug = props.slug

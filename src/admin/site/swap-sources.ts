@@ -36,8 +36,8 @@ function toSwapSourceList(
   if (body.success !== true) return null
   const entries =
     'deck' in body
-      ? deckSectionsToSwapEntries(body.deck.sections)
-      : flatEntriesToSwapEntries(body.entries)
+      ? deckSectionsToSwapEntries(body.deck.sections, body.labels)
+      : flatEntriesToSwapEntries(body.entries, body.labels)
   return { ref, entries, cards: body.cards, printings: body.printings }
 }
 

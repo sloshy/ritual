@@ -23,7 +23,12 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
   // label and swap actions are dropped here rather than forwarded — the page's
   // `WantedBulkEditBundle` declares them absent, which is what makes this
   // explicit instead of silent.
-  const { setLabel: _setLabel, swapPrintings: _swapPrintings, ...bulkEdit } = ctrl.bulkEdit
+  const {
+    setLabel: _setLabel,
+    labelDefault: _labelDefault,
+    swapPrintings: _swapPrintings,
+    ...bulkEdit
+  } = ctrl.bulkEdit
   return (
     <FlatEditorBody
       {...props}

@@ -295,7 +295,7 @@ export function applyChangeToCollection(
           finish: change.finish,
           condition: change.condition,
           language: change.language,
-          labels: arrivalLabels('collection', change.labels, options?.listLabels),
+          labels: arrivalLabels('collection', change.labels, options?.listLabels, change.from.type),
           tags: change.tags,
           section: change.section,
         },

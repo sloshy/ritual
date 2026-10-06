@@ -7,6 +7,7 @@ import {
   createMoveFromChange,
   createMoveToChange,
   createRemoveChange,
+  createSetLabelChange,
   createSetNoteChange,
   type ListRef,
 } from '../../src/changes/change-event'
@@ -168,6 +169,23 @@ describe('POST /api/:type/:slug/save', () => {
     expect(await fs.readFile(changelogOf(filePath), 'utf-8')).toContain(
       'Set note on "Sol Ring" &1 to "Signed"',
     )
+  })
+
+  test('the save route accepts a signed set-label on the wire and logs it signed', async () => {
+    const filePath = await writeDeckFile(ws.dir, 'proxies', {
+      frontMatter: { labels: ['proxy'] },
+      cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+    })
+
+    const resp = await saveList('deck', 'proxies', filePath, [
+      toWireChange(createSetLabelChange('Sol Ring', { labels: ['no-proxy'], cardId: 1 })),
+    ])
+
+    expect(resp.status).toBe(200)
+    expect(await fs.readFile(filePath, 'utf-8')).toContain('1 Sol Ring [no-proxy] &1')
+    const changelog = await fs.readFile(changelogOf(filePath), 'utf-8')
+    expect(changelog).toContain('Set labels on "Sol Ring" &1 to [no-proxy]')
+    expect(changelog).toContain('"labels":["no-proxy"]')
   })
 
   test('a set-note holding a control character is a 400 that writes nothing', async () => {

@@ -53,7 +53,7 @@ import {
 import type { RefreshMode } from '../cache/refresh'
 import { appendChangelog } from '../changes/changelog-writer'
 import { createAddChange, type ConditionUpdate } from '../changes/change-event'
-import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
+import { parseLabelOverrideToken, type LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import { allocateNextIdFromContent } from '../card/card-id'
 import { endsInsideOpenFence } from '../list/markdown-fence'
@@ -121,7 +121,7 @@ type AddCardOptions = {
   /** Explicit `--language` override; otherwise the configured default applies. */
   language?: CardLanguage
   /** Label override the new card starts with, where the list type carries labels. */
-  label?: CardLabel[]
+  label?: LabelOverride
   /** The tags the new card starts with (every list type carries tags). */
   tag?: CardTag[]
   exact?: boolean
@@ -162,7 +162,7 @@ type AddCardSuccess = {
   /** The recorded language; omitted for English (bare-line default). */
   language?: CardLanguage
   /** The label override the new line carries, where the list type carries labels. */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** The tags the new line carries, canonical; omitted when none. */
   tags?: CardTag[]
   quantity?: number
@@ -182,11 +182,12 @@ function parseCollectorNumberFlag(value: string): string {
 }
 
 /**
- * `--label` for a fresh add: a comma-separated label set. Unlike `set-card`'s
- * flag there is no `none` — absence already means "inherit the list default".
+ * `--label` for a fresh add: a comma-separated signed label set (`trade`,
+ * `no-proxy`) adjusting the list default. Unlike `set-card`'s flag there is no
+ * `none` — absence already means "inherit the list default".
  */
-function parseAddLabelFlag(value: string): CardLabel[] {
-  const parsed = parseCardLabelsToken(value)
+function parseAddLabelFlag(value: string): LabelOverride {
+  const parsed = parseLabelOverrideToken(value)
   if (!parsed.ok) throw new InvalidArgumentError(parsed.message)
   return parsed.labels
 }

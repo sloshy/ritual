@@ -1645,7 +1645,7 @@ describe('custom art baking', () => {
     const boltLine = detail.deck.sections[0]?.cards[0]
     expect(boltLine?.customArt).toBeUndefined()
     expect(boltLine?.hasCustomArt).toBe(true)
-    expect(cardPricelessReason(boltLine!)).toBe('custom-art')
+    expect(cardPricelessReason({ ...boltLine!, labels: undefined })).toBe('custom-art')
     // Only the Angel is left in the totals, the missing counts, and the quotes.
     expect(summary.totalPrice).toBeCloseTo(0.5)
     expect(summary.missingPriceCount).toBe(0)

@@ -491,6 +491,49 @@ describe('editDeckCardLanguage', () => {
   })
 })
 
+describe('deck session applies against the deck default', () => {
+  /** A `proxy`-default deck holding a real Sol Ring and an inheriting (proxy) one. */
+  function proxyDeckState(): DeckSessionState {
+    const state = stateOf(
+      deckOf([
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          labels: ['no-proxy'],
+          cardId: 1,
+        },
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 2 },
+      ]),
+    )
+    state.listLabels = () => ['proxy']
+    return state
+  }
+
+  test('an add of an inheriting copy merges onto the proxy line, never the [no-proxy] one', () => {
+    const state = proxyDeckState()
+    applyDeckChange(
+      state,
+      createAddChange('Sol Ring', { set: 'c21', collectorNumber: '263', section: 'Main' }),
+    )
+    expect(state.deck.sections[0]!.cards.map((c) => [c.cardId, c.quantity, c.labels])).toEqual([
+      [1, 1, ['no-proxy']],
+      [2, 2, undefined],
+    ])
+  })
+
+  test('undoing a whole-line removal restores the real line rather than bumping the proxy one', () => {
+    const state = proxyDeckState()
+    const ctx = contextOf()
+    performDeckLineRemoval(state, ctx, 1)
+    undoDeckEdit(state, ctx)
+    const cards = state.deck.sections[0]!.cards
+    expect(cards.find((c) => c.labels?.includes('no-proxy'))).toMatchObject({ quantity: 1 })
+    expect(cards.find((c) => c.labels === undefined)).toMatchObject({ cardId: 2, quantity: 1 })
+  })
+})
+
 describe('deck edit-mode — Change Label', () => {
   test('the edit menu applies a set-label change, undoable back to the original', async () => {
     const state = stateOf(

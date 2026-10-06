@@ -4,14 +4,21 @@ import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
 import { malformedLanguageTokenHint } from '../card/card-language'
-import { readListDefaultLabels, unsupportedLabelsFor, type CardLabel } from '../card/card-labels'
+import {
+  listDefaultLabels,
+  readListDefaultLabels,
+  unsupportedLabelsFor,
+  type CardLabel,
+  type LabelOverride,
+  type SignedCardLabel,
+} from '../card/card-labels'
 import {
   isCommentLine,
   parseCardLine,
   type CardLineDiagnostic,
   type LineTokens,
 } from '../card/card-line-grammar'
-import { isCardCandidate } from '../card/card-line-read'
+import { isCardCandidate, readCardLine } from '../card/card-line-read'
 import { createLineDiagnostics, type ListFileParseOptions } from '../list/line-diagnostics'
 import { listDescriptionOrUndefined } from '../list/list-description'
 import { readListImage } from '../list/list-image'
@@ -95,6 +102,15 @@ export type ParseDeckTextOptions = ListFileParseOptions & {
    * grammar describes.
    */
   listType?: ListType
+  /**
+   * Keep each line's whole label override, even labels `listType` cannot
+   * carry (still warned about, for display): an import carries the line's
+   * labels as its file states them and lets the destination filter them on
+   * arrival (`arrivalLabels`), so narrowing first would lose what a dropped
+   * label displaced — a `[sale]` line under a `proxy` default is a real card,
+   * not a proxy. Workspace loads never set it: a rewrite would drop the token.
+   */
+  keepWholeLabels?: boolean
 }
 
 /**
@@ -105,6 +121,7 @@ export type ParseDeckTextOptions = ListFileParseOptions & {
  */
 export const IMPORT_TEXT_PARSE_OPTIONS: ParseDeckTextOptions = {
   readFencedContent: true,
+  keepWholeLabels: true,
 }
 
 /** A parsed deck plus a warning for every body line the parser had to skip. */
@@ -129,6 +146,22 @@ export type DeckParseResult = {
    */
   advisories: string[]
   /**
+   * The file's own front-matter `labels:` default read over the whole label
+   * vocabulary (whatever list type it came from), when it declares a legal
+   * one: what an *import* measures the file's card labels against, so each
+   * line's meaning survives the move into a list with a different default.
+   * Loads of workspace decks read their default through the deck front-matter
+   * validator instead.
+   */
+  defaultLabels?: CardLabel[]
+  /**
+   * The members of {@link warnings} about a card that was KEPT with some or all
+   * of its labels dropped (a conflicting token, a label the destination type
+   * cannot carry) rather than skipped — so a report can say "imported without
+   * its labels" instead of "could not be imported".
+   */
+  labelsDropped: string[]
+  /**
    * Every card-line diagnostic above in structured form — code, offending
    * token, column. The strings in {@link warnings} and {@link advisories} are
    * these, rendered, alongside the front-matter and section messages this
@@ -142,7 +175,7 @@ export type DeckParseResult = {
  * the destination keeps (absent when the line carries no token), plus the
  * warning explaining a token that was dropped.
  */
-type DeckLineLabels = { labels?: CardLabel[] } | { labels?: undefined; warning: string }
+type DeckLineLabels = { labels?: LabelOverride } | { labels?: undefined; warning: string }
 
 /**
  * Narrow a card line's labels to the ones `listType` carries. The grammar has
@@ -154,7 +187,7 @@ type DeckLineLabels = { labels?: CardLabel[] } | { labels?: undefined; warning: 
  * must block.
  */
 function deckLineLabels(
-  labels: readonly CardLabel[] | undefined,
+  labels: readonly SignedCardLabel[] | undefined,
   cardName: string,
   line: string,
   listType: ListType,
@@ -177,9 +210,21 @@ function deckLineLabels(
  * only judgement left is the label narrowing, whose refusal is a warning the
  * caller collects rather than a lost line.
  */
-function deckCard(tokens: LineTokens, line: string, listType: ListType, warnings: string[]): Card {
-  const labels = deckLineLabels(tokens.labels, tokens.name, line, listType)
-  if ('warning' in labels) warnings.push(labels.warning)
+function deckCard(
+  tokens: LineTokens,
+  line: string,
+  listType: ListType,
+  warnings: string[],
+  labelsDropped: string[],
+  keepWholeLabels: boolean,
+): Card {
+  const narrowed = deckLineLabels(tokens.labels, tokens.name, line, listType)
+  if ('warning' in narrowed) {
+    warnings.push(narrowed.warning)
+    labelsDropped.push(narrowed.warning)
+  }
+  const labels: DeckLineLabels =
+    keepWholeLabels && tokens.labels !== undefined ? { labels: [...tokens.labels] } : narrowed
   return {
     quantity: tokens.quantity,
     name: tokens.name,
@@ -230,6 +275,7 @@ export function parseDeckText(
   const parsed = matter(rawText, { language: 'yaml' })
   const readFencedContent = options?.readFencedContent === true
   const listType: ListType = options?.listType ?? 'deck'
+  const keepWholeLabels = options?.keepWholeLabels === true
   // `parsed.content` starts at the first body line, so a diagnostic's file line
   // is its index in that content plus however many lines the front matter took.
   const bodyOffset = frontMatterBodyStart(rawText.split(/\r?\n/))
@@ -264,11 +310,15 @@ export function parseDeckText(
   const lines = parsed.content.split(/\r?\n/)
   const report = createLineDiagnostics(options?.file)
   const { warnings, advisories } = report
+  const labelsDropped: string[] = []
   // A `labels:` default the deck cannot carry is dropped by
   // `validateDeckFrontMatter`, so the next save deletes the key outright — the
   // same loss a refused card-line token would cause, and a warning for the same
   // reason: the whole-file-rewrite gates must see it.
-  if ('labels' in parsed.data) {
+  // Only when the cards are bound for a deck: an import into a collection or a
+  // wanted list writes no deck, and reads the file's default as data instead
+  // (`defaultLabels` below), against which its lines' labels are carried.
+  if (listType === 'deck' && 'labels' in parsed.data) {
     const defaultLabels = readListDefaultLabels('deck', parsed.data.labels)
     if (defaultLabels.warning) warnings.push(defaultLabels.warning)
   }
@@ -382,10 +432,32 @@ export function parseDeckText(
       const card = parseCardLine('deck', trimmed)
       if (!card.ok) {
         report.record(card, bodyOffset + index + 1)
+        // A conflicting labels token keeps its card with the labels dropped,
+        // like an unsupported `[sale]`: the warning still blocks whole-file
+        // rewrites, and the line stays findable by the `set-card --label` that
+        // repairs it. Every other refusal loses the line.
+        const recovered =
+          card.code === 'conflicting-labels' ? readCardLine('deck', trimmed) : undefined
+        if (recovered !== undefined) {
+          const recorded = report.warnings.at(-1)
+          if (recorded !== undefined) labelsDropped.push(recorded)
+          currentSection.cards.push(
+            deckCard(
+              recovered.tokens,
+              trimmed,
+              listType,
+              report.warnings,
+              labelsDropped,
+              keepWholeLabels,
+            ),
+          )
+        }
         continue
       }
       for (const advisory of card.advisories) report.record(advisory, bodyOffset + index + 1)
-      currentSection.cards.push(deckCard(card.tokens, trimmed, listType, report.warnings))
+      currentSection.cards.push(
+        deckCard(card.tokens, trimmed, listType, report.warnings, labelsDropped, keepWholeLabels),
+      )
       continue
     }
 
@@ -428,7 +500,16 @@ export function parseDeckText(
     sourceId,
     sections: validSections,
   }
-  return { deck, warnings, fencedLines, advisories, diagnostics: report.diagnostics }
+  const defaultLabels = listDefaultLabels('collection', parsed.data)
+  return {
+    deck,
+    warnings,
+    fencedLines,
+    advisories,
+    ...(defaultLabels !== undefined ? { defaultLabels } : {}),
+    labelsDropped,
+    diagnostics: report.diagnostics,
+  }
 }
 
 /**

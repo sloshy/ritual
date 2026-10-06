@@ -416,7 +416,8 @@ export function useEditor<TData, TCardEntry = unknown>(
     setPrinting: (cardName, target, original, cardId) =>
       changes.setPrinting(cardName, target, original, cardId),
     addCard: (cardName, options) => changes.addCard(cardName, options),
-    decrementCard: (cardName, cardId) => changes.decrementCard(cardName, cardId),
+    decrementCard: (cardName, cardId, labels, tags) =>
+      changes.decrementCard(cardName, cardId, undefined, labels, tags),
     allocateId: () => pool.allocate(),
   }
 

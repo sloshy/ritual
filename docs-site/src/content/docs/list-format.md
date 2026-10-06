@@ -16,7 +16,7 @@ The rule is **lenient in, canonical out**. The reader accepts several spellings 
 | `[finish]`                 | Yes                                                             | Yes                                            | Yes                    |
 | `[condition]`              | Yes                                                             | Yes                                            | **Never**              |
 | `[lang]`                   | Yes                                                             | Yes                                            | Yes                    |
-| `[labels]`                 | `proxy` only                                                    | `sale`, `trade`, `keep`, `proxy`               | **Never**              |
+| `[labels]`                 | `proxy`, `no-proxy`                                             | `sale`, `trade`, `keep`, `proxy`, and `no-…`   | **Never**              |
 | `#tags` (card tags)        | Yes                                                             | Yes                                            | Yes                    |
 | `{note}`, `&N`             | Yes                                                             | Yes                                            | Yes                    |
 | Sections with a fixed role | Commander, Companion, Oathbreaker, Sideboard…                   | None — every `## Section` is a free-form group | None                   |
@@ -65,15 +65,15 @@ labels: [trade]
 
 An optional YAML block between `---` fences at the top of the file. Each type has its own keys. Any key not listed here survives every save: a deck's block is re-dumped, and a collection's or wanted list's block is kept byte for byte.
 
-| Key                             | Types            | Meaning                                                                                                                                      |
-| ------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `format`                        | deck             | The [deck format key](/commands/new/#deck-format) (`commander`, `modern`, …). Missing: inferred from the sections and written on next save.  |
-| `tags`                          | deck             | Free-text tags describing **the list** (`aggro`, `budget`), not its cards. Edited with [`metadata`](/commands/metadata/); shown on the site. |
-| `labels`                        | deck, collection | The list's default [card labels](#card-labels), inherited by every line without its own `[labels]` token. Never on a wanted list.            |
-| `description`                   | all              | A prose blurb the [built site](/commands/build-site/) prints above the cards.                                                                |
-| `image`                         | all              | The list's [cover image](/list-images/): a `{card: N}`, `{file: …}` or `{url: …}` mapping.                                                   |
-| `sourceId`, `sourceUrl`         | deck             | The deck's identity on its [sync source](/commands/deck-sync/).                                                                              |
-| `lastSynced`, `sourceUpdatedAt` | deck             | Stamped by `deck-sync`; never hand-edited.                                                                                                   |
+| Key                             | Types            | Meaning                                                                                                                                                  |
+| ------------------------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`                        | deck             | The [deck format key](/commands/new/#deck-format) (`commander`, `modern`, …). Missing: inferred from the sections and written on next save.              |
+| `tags`                          | deck             | Free-text tags describing **the list** (`aggro`, `budget`), not its cards. Edited with [`metadata`](/commands/metadata/); shown on the site.             |
+| `labels`                        | deck, collection | The list's default [card labels](#card-labels), inherited by every line and adjusted by its own `[labels]` token. Positive only; never on a wanted list. |
+| `description`                   | all              | A prose blurb the [built site](/commands/build-site/) prints above the cards.                                                                            |
+| `image`                         | all              | The list's [cover image](/list-images/): a `{card: N}`, `{file: …}` or `{url: …}` mapping.                                                               |
+| `sourceId`, `sourceUrl`         | deck             | The deck's identity on its [sync source](/commands/deck-sync/).                                                                                          |
+| `lastSynced`, `sourceUpdatedAt` | deck             | Stamped by `deck-sync`; never hand-edited.                                                                                                               |
 
 A deck with no `format` and a `## Commander` section is inferred as Commander.
 
@@ -92,10 +92,10 @@ labels: [sale, trade]
 # Trade Binder
 ```
 
-Every entry without its own `[labels]` token inherits the default. The values a list can carry:
+Every entry inherits the default, adjusted by its own `[labels]` token if it has one (see [Card labels](#card-labels)). A default is positive only: `no-sale` belongs on a card line, never in `labels:`. The values a list can carry:
 
 - **Collection:** `sale` and `trade` (together or alone), or `keep` or `proxy` (each alone).
-- **Deck:** `proxy` alone. Every deck line without its own token then counts as a proxy, which marks a whole playtest deck at once.
+- **Deck:** `proxy` alone. Every deck line then counts as a proxy, which marks a whole playtest deck at once; a real card in it carries `[no-proxy]`.
 
 ```markdown
 ---
@@ -166,7 +166,7 @@ Every writer emits this, in this order, with one space between tokens and defaul
 | `[finish]` | `[foil]`, `[etched]`                          | `nonfoil` is the default and is not written.                                                                                                                  |
 | `[cond]`   | `[LP]`, `[MP]`, `[HP]`, `[DMG]`               | `NM` is the default and is not written.                                                                                                                       |
 | `[lang]`   | `[ja]`, `[zhs]`, …                            | A lowercase [Scryfall language code](#card-language). English is the default and is not written.                                                              |
-| `[labels]` | `[sale]`, `[sale,trade]`, `[keep]`, `[proxy]` | The line's label override. `sale` and `trade` combine; `keep` and `proxy` each stand alone.                                                                   |
+| `[labels]` | `[sale]`, `[trade,no-sale]`, `[no-proxy]`     | The line's label override, [adjusting the list default](#card-labels). Positives first, then `no-` negatives. `keep` and `proxy` each stand alone.            |
 | `#tags`    | `#Ramp`, `#Card Draw, Ramp`, `#Binder: Trade` | The card's [tags](#card-tags): one `#`, then the tags comma-separated. Written deduplicated and sorted.                                                       |
 | `{note}`   | `{any text}`                                  | A free-text note. Runs to the **last** `}` on the line, so a note may contain braces. An empty `{}` is dropped.                                               |
 | `&N`       | `&12`                                         | The persistent card ID, always last.                                                                                                                          |
@@ -177,19 +177,21 @@ A bracket token at the end of the line must be one the grammar knows. `[Alpha]` 
 
 ### Which tokens each type accepts
 
-| Token     | Deck         | Collection   | Wanted      |
-| --------- | ------------ | ------------ | ----------- |
-| quantity  | yes          | read only\*  | read only\* |
-| printing  | yes          | **required** | yes         |
-| finish    | yes          | yes          | yes         |
-| condition | yes          | yes          | no          |
-| language  | yes          | yes          | yes         |
-| labels    | `proxy` only | all four     | no          |
-| tags      | yes          | yes          | yes         |
-| note      | yes          | yes          | yes         |
-| id        | yes          | yes          | yes         |
+| Token     | Deck                | Collection           | Wanted      |
+| --------- | ------------------- | -------------------- | ----------- |
+| quantity  | yes                 | read only\*          | read only\* |
+| printing  | yes                 | **required**         | yes         |
+| finish    | yes                 | yes                  | yes         |
+| condition | yes                 | yes                  | no          |
+| language  | yes                 | yes                  | yes         |
+| labels    | `proxy`, `no-proxy` | all four, and `no-…` | no          |
+| tags      | yes                 | yes                  | yes         |
+| note      | yes                 | yes                  | yes         |
+| id        | yes                 | yes                  | yes         |
 
 \* Accepted when reading and expanded on save — see [Read tolerances](#read-tolerances).
+
+A `no-` negation is accepted wherever its label is: `[no-proxy]` on a deck, any of the four on a collection.
 
 The parser **refuses** a line, naming the offending token and its column, when it finds:
 
@@ -201,7 +203,7 @@ The parser **refuses** a line, naming the offending token and its column, when i
 
 A collection line with no `(SET:CN)` is refused too (`missing-printing`), since a stored copy is a specific physical card.
 
-One exception: a deck line carrying a label a deck cannot hold (`[keep]`, `[sale,trade]`) keeps the card and drops the labels, with a warning.
+One exception: a deck line carrying a label a deck cannot hold (`[keep]`, `[sale,trade]`, `[no-sale]`) keeps the card and drops the labels, with a warning.
 
 A refused line is reported as a **warning** naming the file and line. A whole-file rewrite would delete it, so it blocks every whole-file write of that file until fixed: editor saves, syncs, `cleanup`'s rewrite, and `move` with a deck on either side. Line-preserving commands (`add-card`, `remove-card`, `set-card`, `note`) leave such lines untouched.
 
@@ -233,16 +235,16 @@ Ritual has three ways to say something about a card. They look alike, since each
 - A **tag** describes the physical _copy_: something true of that card whichever list it sits in. `#Signed`, `#Trade Binder`.
 - A **category** describes the card's _role in one list_: why it is in this deck. `Ramp`, `Board Wipes`.
 
-|                           | [Label](#card-labels)                        | [Tag](#card-tags)              | [Category](#categories-namecategoriesjson)                                    |
-| ------------------------- | -------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
-| Belongs to                | one card line (`&N`)                         | one card line: the copy        | a card **name** in one list, covering every line of that name                 |
-| Vocabulary                | closed: `sale`, `trade`, `keep`, `proxy`     | open: any text                 | open: any text, with [suggested defaults](/configuration/#default-categories) |
-| List types                | collections (all four), decks (`proxy` only) | all three                      | all three                                                                     |
-| Several per card?         | `sale` + `trade` only                        | yes, unordered                 | yes, **ordered**: the first is the card's _primary_ category                  |
-| Moved to another list     | kept as far as the destination type allows   | **always** kept                | **never** kept: a role belongs to the list                                    |
-| Stored                    | `[…]` token on the card line                 | `#a, b` token on the card line | `<name>.categories.json` beside the list                                      |
-| Changes Ritual's behavior | yes: pricing, sell/trade filters             | no                             | no                                                                            |
-| Other sites' name         | —                                            | —                              | Archidekt **categories**, Moxfield **tags**                                   |
+|                           | [Label](#card-labels)                                   | [Tag](#card-tags)              | [Category](#categories-namecategoriesjson)                                    |
+| ------------------------- | ------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
+| Belongs to                | one card line (`&N`)                                    | one card line: the copy        | a card **name** in one list, covering every line of that name                 |
+| Vocabulary                | closed: `sale`, `trade`, `keep`, `proxy`                | open: any text                 | open: any text, with [suggested defaults](/configuration/#default-categories) |
+| List types                | collections (all four), decks (`proxy`/`no-proxy` only) | all three                      | all three                                                                     |
+| Several per card?         | `sale` + `trade`, plus any `no-` negations              | yes, unordered                 | yes, **ordered**: the first is the card's _primary_ category                  |
+| Moved to another list     | kept as far as the destination type allows              | **always** kept                | **never** kept: a role belongs to the list                                    |
+| Stored                    | `[…]` token on the card line                            | `#a, b` token on the card line | `<name>.categories.json` beside the list                                      |
+| Changes Ritual's behavior | yes: pricing, sell/trade filters                        | no                             | no                                                                            |
+| Other sites' name         | —                                                       | —                              | Archidekt **categories**, Moxfield **tags**                                   |
 
 Some consequences:
 
@@ -255,31 +257,54 @@ Which one to use: if Ritual should _act_ on it, it is a label. If it would still
 
 ## Card labels
 
-A card entry can carry **labels**, a bracket token on its line (`[sale,trade]`, `[keep]`, `[proxy]`) declaring what you intend to do with that copy. Each list type carries a different set:
+A card entry can carry **labels**, a bracket token on its line (`[sale,trade]`, `[keep]`, `[no-proxy]`) declaring what you intend to do with that copy. Each list type carries a different set:
 
 | List type   | Labels it carries                |
 | ----------- | -------------------------------- |
 | Collection  | `sale`, `trade`, `keep`, `proxy` |
-| Deck        | `proxy` only                     |
+| Deck        | `proxy` only (and `no-proxy`)    |
 | Wanted list | none                             |
 
 - **`sale`** ("For sale") and **`trade`** ("For trade") are the only two that combine, as `[sale,trade]`.
 - **`keep`** ("To keep") and **`proxy`** ("Proxy") are each **exclusive**. Neither combines with any other label. `[sale,keep]` or `[keep,proxy]` is a parse warning, as is a label the list's type does not carry. The entry is kept and its labels dropped, and the warning blocks whole-file rewrites until it is fixed.
 - **`proxy`** marks a copy that is not a real card, which is why it is the one label a deck carries. It has [pricing consequences](#proxies-carry-no-price).
 
-A list can also declare a **default** in its front matter (`labels:`); see [Default labels and descriptions](#default-labels-and-descriptions). A card's _effective_ labels are its own token when present, else the list default. An override **replaces** the default; it never merges with it.
+### A card line adjusts the list default
+
+A list can declare a **default** in its front matter (`labels:`); see [Default labels and descriptions](#default-labels-and-descriptions). A card's token **adjusts** that default rather than replacing it:
+
+- a label written plainly (`trade`) **adds** it;
+- a label written as `no-<label>` (`no-sale`, "Not for sale") **takes an inherited one away**;
+- an added label also displaces any inherited label it cannot stand beside, so `[keep]` under a `sale` default is just `keep`.
+
+A card's _effective_ labels are its positives, plus the default, minus the labels it negates:
+
+| Default        | Card token           | Effective labels   |
+| -------------- | -------------------- | ------------------ |
+| `[sale]`       | none                 | `sale`             |
+| `[sale]`       | `[trade]`            | `sale`, `trade`    |
+| `[sale]`       | `[trade,no-sale]`    | `trade`            |
+| `[sale,trade]` | `[no-sale,no-trade]` | none ("No labels") |
+| `[sale,trade]` | `[keep]`             | `keep`             |
+| `[proxy]`      | `[no-proxy]`         | none: a real card  |
+| none           | `[sale]`             | `sale`             |
+
+On the line, positives come first, then negatives, each in the order `sale`, `trade`, `keep`, `proxy`: `[trade,no-sale]`. A label both added and negated (`[proxy,no-proxy]`) is a parse warning like an exclusive pair. A negation the line's own positive already makes pointless (`[keep,no-sale]`) is dropped when the line is written. A negation of a label the default does not hold (`[no-proxy]` in a deck without a default) is kept: it keeps the card's meaning if the default changes later.
 
 Set an override with:
 
-- [`set-card --label`](/commands/set-card/); `--label none` clears it;
+- [`set-card --label`](/commands/set-card/) (`--label trade,no-sale`); `--label none` clears it;
+- [`add-card --label`](/commands/add-card/) for a new card (`--label no-proxy` adds a real card to a proxy-default deck);
 - the [`edit`](/commands/edit/#card-labels) session's `🏷️ Change Label` action;
-- on a collection, the web editors' **Set Label…** menu item ("Use list default" clears it).
+- the web editors' **Set Label…** menu item ("Use list default" clears it).
 
-Every picker offers only what its list type carries. On a deck the choice is **Proxy** or the list default, and asking for `sale` on a deck is a usage error naming the supported labels.
+The pickers offer the **state** you want the card in (For sale, For trade, For sale + trade, To keep, Proxy, **No labels**, or Use list default; on a deck, Proxy, **Not a proxy**, or Use list default), and write the smallest token that gives it under the list's default. "No labels" and "Not a proxy" appear only when the list has a default to take away. Every picker offers only what its list type carries, and asking for `sale` or `no-sale` on a deck is a usage error naming the supported labels.
+
+The site badges a card's own token: in the list view `no-proxy` shows as **Not a proxy** and `no-sale` as **Not for sale**; on a card tile, where the name line is short, the negation is the label struck through (~~PROXY~~), with that wording as its tooltip. The card's details show its effective labels.
 
 `set-card --label` is also how you **repair** a line whose token the parser refuses. It replaces the token outright, so it is the one edit the refusal does not block. Every other edit to that line refuses rather than drop the token silently, including a [`remove-card`](/commands/remove-card/) that would decrement the line's quantity.
 
-Labels are part of a deck line's **identity** for merging. Copies added by [`add-card`](/commands/add-card/), the editors, or [`ritual move`](/commands/move/) join an existing line only when its label override matches theirs. A proxy never merges into the line holding the real copies, and a real card never inherits `[proxy]` from a line it lands beside.
+Labels are part of a deck line's **identity** for merging. Copies added by [`add-card`](/commands/add-card/), the editors, or [`ritual move`](/commands/move/) join an existing line only when its effective labels match theirs. A proxy never merges into the line holding the real copies, and a real card never inherits `[proxy]` from a line it lands beside.
 
 ### Proxies carry no price
 

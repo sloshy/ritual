@@ -1,5 +1,5 @@
 import type { Finish } from '../card/finish-condition'
-import type { CardLabel } from '../card/card-labels'
+import type { CardLabel, CardLabelTarget } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { ListRef } from '../changes/change-event'
 import type { CardSelectionControl, SelectedCard } from './useCardSelection'
@@ -54,13 +54,20 @@ export type BulkEditBundle = {
   /** Mark each selected card as a commander. Decks only. */
   setCommander?: (cards: SelectedCard[]) => void
   /**
-   * Set (or clear, with `[]`) the label override on every selected card. Present
-   * where the list type carries labels and its editor wires them — collections
-   * take the whole vocabulary (supplied by the collection layer; absent for
-   * wanted lists), decks carry `proxy` alone so the picker offers that and the
-   * clear row. The menu picks the offered choices from the selection's list type.
+   * Give every selected card the picked label state (a label set, or
+   * `'default'` to clear its override); the editor writes the minimal override
+   * for it against its own live default. Present where the list type carries
+   * labels and its editor wires them — collections take the whole vocabulary
+   * (supplied by the collection layer; absent for wanted lists), decks carry
+   * `proxy` alone. The menu picks the offered choices from the selection's list
+   * type and {@link labelDefault}.
    */
-  setLabel?: (cards: SelectedCard[], labels: CardLabel[]) => void
+  setLabel?: (cards: SelectedCard[], target: CardLabelTarget) => void
+  /**
+   * The list's live default labels, which decide whether the label picker
+   * offers its "No labels" / "Not a proxy" row. Present wherever `setLabel` is.
+   */
+  labelDefault?: () => readonly CardLabel[] | undefined
   /**
    * Open the tags dialog empty, with the list's distinct tags as suggestions,
    * and union the typed tags onto every selected card's *live* tag set — one
@@ -112,7 +119,9 @@ export interface SelectionEditActions {
   /** Present for decks only. */
   setCommander?: () => void
   /** {@link BulkEditBundle.setLabel} over the selection; absent where unwired. */
-  setLabel?: (labels: CardLabel[]) => void
+  setLabel?: (target: CardLabelTarget) => void
+  /** {@link BulkEditBundle.labelDefault}. */
+  labelDefault?: () => readonly CardLabel[] | undefined
   /** {@link BulkEditBundle.addTags} over the selection: opens the dialog; the selection clears on save. */
   addTags: () => void
   moveToSection: (section: string) => void
@@ -124,7 +133,7 @@ export interface SelectionEditActions {
 
 /** A deck's bundle: the shared set plus the actions every deck line supports. */
 export type DeckBulkEditBundle = BulkEditBundle &
-  Required<Pick<BulkEditBundle, 'setCommander' | 'setLabel' | 'swapPrintings'>>
+  Required<Pick<BulkEditBundle, 'setCommander' | 'setLabel' | 'labelDefault' | 'swapPrintings'>>
 
 /**
  * A wanted list holds no physical cards: no commander, no labels, no swap.
@@ -137,8 +146,8 @@ export type DeckBulkEditBundle = BulkEditBundle &
  */
 export type WantedBulkEditBundle = Omit<
   BulkEditBundle,
-  'setCommander' | 'setLabel' | 'swapPrintings'
-> & { setCommander?: never; setLabel?: never; swapPrintings?: never }
+  'setCommander' | 'setLabel' | 'labelDefault' | 'swapPrintings'
+> & { setCommander?: never; setLabel?: never; labelDefault?: never; swapPrintings?: never }
 
 /**
  * Adapt a controller's bulk-edit bundle into the {@link SelectionEditActions} the
@@ -170,11 +179,12 @@ export function buildSelectionEditActions(
     swapPrintings: bulk.swapPrintings ? apply(bulk.swapPrintings) : undefined,
     setCommander: bulk.setCommander ? apply(bulk.setCommander) : undefined,
     setLabel: setLabel
-      ? (labels) => {
-          setLabel(selection.selected(), labels)
+      ? (target) => {
+          setLabel(selection.selected(), target)
           selection.clear()
         }
       : undefined,
+    labelDefault: bulk.labelDefault,
     addTags: () => bulk.addTags(selection.selected(), () => selection.clear()),
     moveToSection: (section) => {
       bulk.moveToSection(selection.selected(), section)

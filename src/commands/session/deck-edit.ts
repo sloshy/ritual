@@ -13,6 +13,7 @@ import {
   createSetPrintingChange,
   createSetSectionChange,
   formatPrintingAnnotation,
+  movedCopyFromLine,
   type AddRemoveOptions,
   type ChangeEvent,
   type PrintingTuple,
@@ -24,7 +25,7 @@ import {
   type MoveDeps,
   type MoveDestination,
 } from './edit-move'
-import { effectiveLabels, sameCardLabels, type CardLabel } from '../../card/card-labels'
+import { sameLabelOverride, type CardLabel, type LabelOverride } from '../../card/card-labels'
 import {
   noteArtLineRemoved,
   noteArtLineRestored,
@@ -106,7 +107,7 @@ import { hasSpecificPrinting } from '../../card/card-printing'
 export type DeckCardSnapshot = EditSnapshot & {
   printing: PrintingTuple
   /** The line's `[proxy]` label override at session start; absent means the deck default. */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   section: string
 }
 
@@ -161,8 +162,11 @@ export function applyDeckChange(
   change: ChangeEvent,
   options?: ApplyChangeOptions,
 ): void {
+  // Always against the deck's live default: an `add` merges by effective labels
+  // and a `move-to` lands against them, so applying with no default would merge
+  // a proxy into a `[no-proxy]` line (or an undo's re-add into an inheriting one).
   state.deck = assignMissingDeckCardIds(
-    applyChangeToDeck(state.deck, change, options),
+    applyChangeToDeck(state.deck, change, { ...options, listLabels: state.listLabels() }),
     state.pendingMoveIds,
   )
   state.dirty = true
@@ -289,6 +293,7 @@ export function discardDeckSessionAdd(
       sessionLineIds: state.sessionLineIds,
     },
     index,
+    state.listLabels(),
   )
   if (!outcome) return false
   state.deck = outcome.deck
@@ -448,8 +453,8 @@ export async function editDeckCard(
   }
 
   if (action === 'label') {
-    const labels = await promptCardLabelChoice('deck', card.labels)
-    if (labels === null || sameCardLabels(labels, card.labels)) return
+    const labels = await promptCardLabelChoice('deck', card.labels, state.listLabels())
+    if (labels === null || sameLabelOverride(labels, card.labels)) return
     applyDeckFieldEdit(state, ctx, located, cardId, {
       label: t('cli.editLabel.labels', { name: card.name }),
       change: createSetLabelChange(card.name, { labels, cardId }),
@@ -574,9 +579,7 @@ export function performDeckLineMove(
         moveFromOptionsFor(
           {
             ...printing,
-            tags: snapshot.tags,
-            labels: effectiveLabels(snapshot.labels, state.listLabels()),
-            note: snapshot.note,
+            ...movedCopyFromLine(snapshot, state.listLabels()),
             cardId,
           },
           dest,

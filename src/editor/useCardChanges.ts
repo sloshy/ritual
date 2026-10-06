@@ -24,7 +24,7 @@ import {
   consolidateTagEdits,
   isSetCategoriesFor,
 } from '../changes/change-event'
-import type { CardLabel } from '../card/card-labels'
+import type { LabelOverride, SignedCardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
 import { foldCategoryCardName, type CardCategory } from '../card/card-categories'
@@ -46,15 +46,18 @@ export type TagEditResult = Omit<ConsolidateManyResult<CardTagChange>, 'changes'
  * as opposites (see {@link RemoveChange.labels} and `areOppositeChanges`).
  */
 export type AddCardOptions = CardPrintingOptions & {
-  labels?: CardLabel[]
+  labels?: LabelOverride
   tags?: CardTag[]
+  /** The section an add lands in (a deck split stays in its line's section); ignored by a remove. */
+  section?: string
 }
 
 /**
  * What a cross-list move records about the copy leaving: its printing and its
- * {@link MovedCopySource} payload — tags, **effective** labels (the line's
- * override, else the list's default) and note, everything `ritual move`
- * carries. The destination keeps the labels its type accepts.
+ * {@link MovedCopySource} payload — tags, **carried** labels (the line's
+ * override applied to the list's default, as that list states them —
+ * `carriedLabels`) and note, everything `ritual move` carries. The destination
+ * keeps them as its type and default allow (`arrivalLabels`).
  */
 export type MoveCardOptions = CardPrintingOptions & MovedCopySource
 
@@ -120,7 +123,7 @@ export type UseCardChangesResult<T = unknown> = {
     cardName: string,
     cardId?: number,
     removedCardData?: T,
-    labels?: CardLabel[],
+    labels?: LabelOverride,
     tags?: CardTag[],
   ) => void
   /**
@@ -136,8 +139,7 @@ export type UseCardChangesResult<T = unknown> = {
   removeCard: (cardName: string, options?: AddCardOptions, removedCardData?: T) => void
   /**
    * Record a move of a card out of this list into another list (`to`); its
-   * tags, effective labels (its override, else the list's default) and note
-   * ride along.
+   * tags, carried labels (`carriedLabels`) and note ride along.
    */
   moveCardToList: (
     cardName: string,
@@ -164,11 +166,11 @@ export type UseCardChangesResult<T = unknown> = {
     originalLanguage: CardLanguage | undefined,
     cardId?: number,
   ) => void
-  /** Set (or, with `[]`, clear) a collection card's label override — latest wins. */
+  /** Set (or, with `[]`, clear) a deck or collection card's label override — latest wins. */
   setLabel: (
     cardName: string,
-    labels: CardLabel[],
-    originalLabels: readonly CardLabel[] | undefined,
+    labels: LabelOverride,
+    originalLabels: readonly SignedCardLabel[] | undefined,
     cardId?: number,
   ) => void
   /**
@@ -334,7 +336,7 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
     cardName: string,
     cardId?: number,
     removedCardData?: T,
-    labels?: CardLabel[],
+    labels?: LabelOverride,
     tags?: CardTag[],
   ) {
     addChange({ action: 'remove', cardName, cardId, labels, tags }, removedCardData)
@@ -416,8 +418,8 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
 
   function setLabel(
     cardName: string,
-    labels: CardLabel[],
-    originalLabels: readonly CardLabel[] | undefined,
+    labels: LabelOverride,
+    originalLabels: readonly SignedCardLabel[] | undefined,
     cardId?: number,
   ) {
     commit(consolidateSetLabel(changesRef, cardName, labels, originalLabels, cardId))

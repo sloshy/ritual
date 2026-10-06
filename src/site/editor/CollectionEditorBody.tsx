@@ -34,12 +34,16 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
 
   const bulkEdit: FlatBulkEdit = {
     ...ctrl.bulkEdit,
-    setLabel: (cards, labels) =>
+    setLabel: (cards, target) =>
       setLabelsForCards(
         ctrl.editor,
         cards.map((c) => ({ cardName: c.name, cardIds: c.cardIds })),
-        labels,
+        target,
+        ctrl.listLabels(),
       ),
+    // The controller's live default, the one its reducer lands changes
+    // against — so the picker rows and the written override cannot disagree.
+    labelDefault: () => ctrl.listLabels(),
     swapPrintings: (cards) => ctrl.openSwapPrintings(cards.map(contextInfoFromSelected)),
   }
 
@@ -54,11 +58,12 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
       }}
       onSwapPrinting={(target) => ctrl.openSwapPrintings([target])}
       onSetLabel={(target) =>
-        promptCardLabels('collection', (labels) =>
+        promptCardLabels('collection', ctrl.listLabels(), (state) =>
           setLabelsForCards(
             ctrl.editor,
             [{ cardName: target.cardName, cardIds: target.cardIds }],
-            labels,
+            state,
+            ctrl.listLabels(),
           ),
         )
       }

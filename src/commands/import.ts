@@ -250,15 +250,26 @@ function emitImportSummary(
  * Report a text-file source's parse warnings — lines the parser skipped are
  * content the import silently lost, so they are listed on stderr (mirroring
  * the CSV path's per-row failure report) and the run exits 1 even though the
- * import was written.
+ * import was written. Lines imported with labels dropped (`labelsDropped`, a
+ * subset of `warnings`) are listed under their own heading: the card arrived,
+ * only its labels did not.
  */
-function reportSkippedLines(warnings: string[], scripting: ScriptingOptions): void {
+function reportSkippedLines(
+  warnings: string[],
+  labelsDropped: readonly string[],
+  scripting: ScriptingOptions,
+): void {
   if (warnings.length === 0) return
   if (scripting.output === 'text') {
     const logger = getLogger()
-    logger.error(t('cli.import.linesNotImported', { count: warnings.length }))
-    for (const warning of warnings) {
-      logger.error(`  ${warning}`)
+    const skipped = warnings.filter((warning) => !labelsDropped.includes(warning))
+    if (skipped.length > 0) {
+      logger.error(t('cli.import.linesNotImported', { count: skipped.length }))
+      for (const warning of skipped) logger.error(`  ${warning}`)
+    }
+    if (labelsDropped.length > 0) {
+      logger.error(t('cli.import.linesWithoutLabels', { count: labelsDropped.length }))
+      for (const warning of labelsDropped) logger.error(`  ${warning}`)
     }
   }
   // A partial import still writes the list, but the run must not look clean.
@@ -897,19 +908,24 @@ export function registerImportCommand(program: Command): void {
         deck: deckData,
         warnings,
         advisories,
+        defaultLabels,
+        labelsDropped,
       } = await loadDeckFile(source, { ...IMPORT_TEXT_PARSE_OPTIONS, listType })
 
+      // The file's own default rides along, so each line's labels land as the
+      // file states them (a move's rule) rather than as a bare token.
+      const textSaveOptions = { ...saveOptions, sourceLabels: defaultLabels }
       const outcome =
         listType === 'deck'
-          ? await saveDeck(deckData, getDecksDir(), saveOptions)
-          : await saveFlatList(deckData, listType, saveOptions)
+          ? await saveDeck(deckData, getDecksDir(), textSaveOptions)
+          : await saveFlatList(deckData, listType, textSaveOptions)
       emitImportSummary(source, listType, outcome, saveOptions.dryRun === true, scripting, {
         warnings,
         advisories,
       })
       if (outcome.status === 'saved') {
         reportAdvisories(advisories)
-        reportSkippedLines(warnings, scripting)
+        reportSkippedLines(warnings, labelsDropped, scripting)
       }
     } catch (error) {
       // The prompt guards throw a structured usage error when input is

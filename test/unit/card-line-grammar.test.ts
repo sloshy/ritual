@@ -461,6 +461,17 @@ describe('names the tokenizer must not eat', () => {
     ])
   })
 
+  test('a labels token reads signed labels canonically', () => {
+    expect(parsed('collection', '- Sol Ring (LEA:161) [no-sale,trade]').labels).toEqual([
+      'trade',
+      'no-sale',
+    ])
+    expect(parsed('deck', '1 Sol Ring (C21:263) [no-proxy] &4').labels).toEqual(['no-proxy'])
+    // A void negative — one the line's exclusive positive displaces anyway — is
+    // read away, so the line means the same thing however it was written.
+    expect(parsed('collection', '- Sol Ring (LEA:161) [keep, no-sale]').labels).toEqual(['keep'])
+  })
+
   test('an empty note folds to absent, like the writer that drops it', () => {
     expect(parsed('collection', '- Sol Ring (LEA:161) {}').note).toBeUndefined()
   })
@@ -645,6 +656,14 @@ describe('every error code', () => {
     // language, labels) or uppercase (condition), and nothing folds them.
     ['unknown-token', 'deck', '1 Sol Ring [Foil]', { token: '[Foil]' }],
     ['unknown-token', 'collection', '- Sol Ring (LEA:1) [mint]', { token: '[mint]' }],
+    ['unknown-token', 'collection', '- Sol Ring (LEA:1) [No-Sale]', { token: '[No-Sale]' }],
+    ['unknown-token', 'collection', '- Sol Ring (LEA:1) [no-]', { token: '[no-]' }],
+    [
+      'token-not-allowed',
+      'wanted',
+      '- Sol Ring (LEA:1) [no-proxy]',
+      { token: '[no-proxy]', kind: 'labels' },
+    ],
     [
       'token-not-allowed',
       'wanted',
@@ -768,8 +787,19 @@ describe('every error code', () => {
         kind: 'labels',
         column: '- Sol Ring (LEA:1) '.length,
         // English by construction, like every other message this type carries —
-        // the exclusivity *rule* still comes from `parseCardLabelsToken`.
+        // the conflict *rule* still comes from `labelOverrideConflict`.
         message: 'Conflicting labels [keep,sale] — [keep] cannot be combined with any other label.',
+      },
+    ],
+    [
+      'conflicting-labels',
+      'deck',
+      '1 Sol Ring [proxy,no-proxy]',
+      {
+        token: '[proxy,no-proxy]',
+        kind: 'labels',
+        column: '1 Sol Ring '.length,
+        message: 'Conflicting labels [proxy,no-proxy] — [proxy] cannot be both set and negated.',
       },
     ],
   ]
@@ -811,6 +841,7 @@ describe('the ALLOWED table', () => {
     // `[sale]` on a deck is a *value* refusal the callers make (keeping the
     // card, dropping the labels), not a grammar refusal that costs the line.
     expect(parsed('deck', '1 Sol Ring [sale]').labels).toEqual(['sale'])
+    expect(parsed('deck', '1 Sol Ring [no-sale]').labels).toEqual(['no-sale'])
   })
 })
 

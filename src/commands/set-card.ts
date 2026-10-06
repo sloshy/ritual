@@ -17,7 +17,7 @@ import {
 } from '../changes/change-event'
 import { languageDisplayName, type CardLanguage } from '../card/card-language'
 import type { PrintingFields } from '../card/card-printing'
-import { parseCardLabelsToken, type CardLabel } from '../card/card-labels'
+import { parseLabelOverrideToken, type LabelOverride } from '../card/card-labels'
 import { formatCardTags, normalizeCardTags, type CardTag } from '../card/card-tags'
 import { formatCardCategories, type CardCategory } from '../card/card-categories'
 import {
@@ -104,7 +104,7 @@ type SetCardOptions = {
   /** The new language; `en` clears the token (a bare line means English). */
   language?: CardLanguage
   /** The new label override; an empty array (`--label none`) clears it. */
-  label?: CardLabel[]
+  label?: LabelOverride
   /** Tags to put on the line (`--tag`), canonical. */
   tag?: CardTag[]
   /** Tags to take off the line (`--untag`), canonical. */
@@ -124,13 +124,14 @@ type SetCardOptions = {
   Partial<ScriptingOptions>
 
 /**
- * Commander argParser for `--label`: a comma-separated label set (`sale,trade`,
- * `keep`), or `none` to clear the override — mapped to the empty array the
- * set-label event uses as its clear.
+ * Commander argParser for `--label`: a comma-separated signed label set
+ * (`sale,trade`, `keep`, `trade,no-sale`, `no-proxy`) that replaces the line's
+ * override, or `none` to clear it — mapped to the empty array the set-label
+ * event uses as its clear.
  */
-export function parseLabelFlag(value: string): CardLabel[] {
+export function parseLabelFlag(value: string): LabelOverride {
   if (value.trim().toLowerCase() === 'none') return []
-  const parsed = parseCardLabelsToken(value)
+  const parsed = parseLabelOverrideToken(value)
   if (!parsed.ok) {
     throw new InvalidArgumentError(t('cli.setCard.labelWithNone', { reason: parsed.message }))
   }
@@ -240,7 +241,7 @@ type RunInput = {
   /** The new language; `en` clears the token. */
   language: CardLanguage | undefined
   /** The new label override; an empty array clears it. */
-  label: CardLabel[] | undefined
+  label: LabelOverride | undefined
   /** Tags to put on the line, canonical; never empty when given. */
   tag: CardTag[] | undefined
   /** Tags to take off the line, canonical; never empty when given. */

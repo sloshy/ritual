@@ -11,8 +11,9 @@ import type { ScryfallCard } from '../../scryfall/types'
 import { getCardImageUrl } from '../../card/card-image'
 import type { EditorDefaults } from '../useEditorDefaults'
 import type { AddCardExtras, AddCardFromSearch } from '../editor-config'
-import type { CardLabel } from '../../card/card-labels'
+import type { CardLabelTarget } from '../../card/card-labels'
 import {
+  addCardLabelOverride,
   readAddCardArt,
   type AddCardOptionsConfig,
   type AddCardOptionsState,
@@ -228,7 +229,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   // The per-card add options (see AddCardOptions). Held at dialog level, not per
   // step: the printing grid and the finish/condition step show the same row, and
   // a value typed on one must survive the walk to the other.
-  const [addLabels, setAddLabels] = createSignal<CardLabel[]>([])
+  const [addLabels, setAddLabels] = createSignal<CardLabelTarget>('default')
   const [addArt, setAddArt] = createSignal('')
 
   /** The typed art, parsed. `invalid` blocks every commit path in the add flow. */
@@ -254,9 +255,9 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
   const addExtras = (): AddCardExtras | undefined => {
     if (props.addOptions === undefined) return undefined
     const parsed = addArtInput()
-    const labels = addLabels()
+    const labels = addCardLabelOverride(addLabels(), props.addOptions.listDefault)
     const extras: AddCardExtras = {}
-    if (labels.length > 0) extras.labels = [...labels]
+    if (labels !== undefined) extras.labels = labels
     if (parsed.state === 'valid') extras.art = parsed.art
     return extras.labels === undefined && extras.art === undefined ? undefined : extras
   }
@@ -297,7 +298,7 @@ export const CardSearchModal: Component<CardSearchModalProps> = (props) => {
     // Cleared for "Add Another Card" as well as for a fresh open: a label or an
     // image belongs to the card it was typed for, and carrying either onto the
     // next card silently would be a worse default than re-picking it.
-    setAddLabels([])
+    setAddLabels('default')
     setAddArt('')
     setSetFilterFellBack(false)
     typedQuery = ''

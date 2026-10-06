@@ -103,6 +103,7 @@ export const cliSyncMessages = {
 
   // ── `import` — parse diagnostics ──────────────────────────────────────
   'cli.import.linesNotImported': '{count} line(s) could not be imported:',
+  'cli.import.linesWithoutLabels': '{count} line(s) were imported without their labels:',
   'cli.import.advisory': 'Warning: {message}',
   'cli.import.rowsFailed': '{count} row(s) failed to import:',
   'cli.import.failureLine': 'Line {line}: {raw}',

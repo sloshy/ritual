@@ -1474,6 +1474,30 @@ describe('add-card --label (Integration)', () => {
     expect(changelog).toContain('- Added "Lightning Bolt" (STA:42) [etched] &2')
   })
 
+  test('a deck add takes an inherited proxy away with no-proxy', async () => {
+    // The plain Sol Ring line inherits the deck's `proxy` default, so a real
+    // copy (`--label no-proxy`) must start its own line rather than merge.
+    const deckPath = await writeDeckFile(dir, 'test', {
+      name: 'Test Deck',
+      frontMatter: { labels: ['proxy'] },
+      cards: [
+        { quantity: 1, name: 'Demonic Tutor', cardId: 1 },
+        { quantity: 1, name: 'Sol Ring', cardId: 2 },
+      ],
+    })
+    const result = await runCli(
+      ['add-card', '--deck', 'test', 'Sol', 'Ring', '--label', 'no-proxy', '--output', 'json'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    const json = JSON.parse(result.stdout) as AddCardPayload & { labels?: string[] }
+    expect(json.labels).toEqual(['no-proxy'])
+
+    const content = await fs.readFile(deckPath, 'utf-8')
+    expect(content).toContain('- 1 Sol Ring &2')
+    expect(content).toMatch(/- 1 Sol Ring.*\[no-proxy\] &3/)
+  })
+
   test('a deck add carries a proxy label onto the new line', async () => {
     const result = await runCli(
       ['add-card', '--deck', 'test', 'Sol', 'Ring', '--label', 'proxy', '--output', 'json'],

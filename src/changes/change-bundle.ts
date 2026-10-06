@@ -27,7 +27,7 @@ import { findLineBreak } from '../util/single-line'
 export const CHANGE_BUNDLE_FORMAT = 'ritual-change-bundle'
 
 /** The bundle shape version. Bump only on incompatible shape changes. */
-export const CHANGE_BUNDLE_VERSION = 2
+export const CHANGE_BUNDLE_VERSION = 3
 
 /**
  * One list's worth of changes inside a {@link ChangeBundle}. A single-list
@@ -67,7 +67,7 @@ export type ChangeBundleListRef = {
  * `move-to` in the other's. The changelog files still record both halves; the
  * bundle is the normalized form.
  *
- * The copy's payload — tags, effective labels, note — is {@link MovedCopyFields},
+ * The copy's payload — tags, carried labels, note — is {@link MovedCopyFields},
  * each omitted from the JSON when absent (the parsed object still has the key,
  * set to `undefined`).
  */

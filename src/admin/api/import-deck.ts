@@ -1,4 +1,5 @@
 import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
+import type { CardLabel } from '../../card/card-labels'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
 import type { CardCategoryEntry } from '../../list/card-categories-record'
 import { importCategoryAdvisories } from '../../importers/import-categories'
@@ -113,6 +114,10 @@ export function handleImportDeck(req: Request): Promise<Response> {
     let refusedCategories: string[] | undefined
     let warnings: string[] = []
     let advisories: string[] = []
+    /** A pasted file's own front-matter default, which its lines' labels are measured against. */
+    let sourceLabels: CardLabel[] | undefined
+    /** The members of `warnings` about a card imported with its labels dropped. */
+    let labelsDropped: string[] = []
 
     if (request.mode === 'url') {
       const url = request.url.trim()
@@ -133,6 +138,8 @@ export function handleImportDeck(req: Request): Promise<Response> {
       const parsed = parseDeckText(content, fallbackName, undefined, IMPORT_TEXT_PARSE_OPTIONS)
       deckData = parsed.deck
       advisories = parsed.advisories
+      sourceLabels = parsed.defaultLabels
+      labelsDropped = parsed.labelsDropped
       // Skipped lines are content the import silently lost — the client must
       // be able to report them (the CLI's text path exits 1 on the same class).
       warnings = parsed.warnings
@@ -148,6 +155,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       forceOverwrite: overwrite,
       assumeYes: overwrite,
       categories,
+      sourceLabels,
     })
     // Only a resolver can cancel, and this call injects none; still, the
     // outcome is honoured rather than assumed so the contract cannot drift.
@@ -168,10 +176,13 @@ export function handleImportDeck(req: Request): Promise<Response> {
 
     // The admin UI surfaces only `message`, so a lossy text import says so
     // there too; API clients get the individual lines in `warnings`.
+    // A card kept with its labels dropped arrived; only its labels did not.
+    const skippedCount = warnings.filter((warning) => !labelsDropped.includes(warning)).length
     const skippedNote =
-      warnings.length > 0
-        ? ` — ${warnings.length} line(s) could not be parsed and were skipped`
-        : ''
+      (skippedCount > 0 ? ` — ${skippedCount} line(s) could not be parsed and were skipped` : '') +
+      (labelsDropped.length > 0
+        ? ` — ${labelsDropped.length} line(s) were imported without their labels`
+        : '')
     // Advisories are not loss, but they mean a line was probably misread, so the
     // UI's one-line message mentions them too rather than only the API clients.
     const advisoryNote =

@@ -168,6 +168,43 @@ describe('import Arena-dialect text file (Integration)', () => {
     })
   })
 
+  test('a dropped label still decides what it displaced: [sale] under a proxy default lands as a real card', async () => {
+    // A deck cannot carry `sale`, but `[sale]` displaced the file's `proxy`
+    // default, so the card is real — narrowing before carrying would make it a proxy.
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'proxies.md')
+      await fs.writeFile(source, '---\nlabels: [proxy]\n---\n\n1 Sol Ring (C19:221) [sale]\n')
+
+      const result = await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
+
+      // The dropped label is reported, under its own heading: the card arrived.
+      expect(result.exitCode).toBe(ExitCode.RuntimeError)
+      expect(result.stderr).toContain('1 line(s) were imported without their labels:')
+      expect(result.stderr).not.toContain('could not be imported')
+      const written = await fs.readFile(path.join(dir, 'decks', 'proxies.md'), 'utf-8')
+      expect(written).toContain('1 Sol Ring (C19:221) &1')
+      expect(written).not.toContain('[proxy]')
+    })
+  })
+
+  test('a line keeps its meaning across the file default: [no-sale] under sale,trade lands as [trade]', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'binder.md')
+      await fs.writeFile(
+        source,
+        '---\nlabels: [sale, trade]\n---\n\n# Binder\n\n1 Sol Ring (C19:221) [no-sale]\n1 Arcane Signet (C19:216)\n',
+      )
+
+      const result = await runCli(['import', source, '--type', 'collection', '--no-input'], dir)
+
+      expect(result.exitCode).toBe(0)
+      const written = await fs.readFile(path.join(dir, 'collections', 'Binder.md'), 'utf-8')
+      // The new collection has no default, so each line states what it had.
+      expect(written).toContain('- Sol Ring (C19:221) [trade] &1')
+      expect(written).toContain('- Arcane Signet (C19:216) [sale,trade] &2')
+    })
+  })
+
   test('a name with nothing usable in a file name is a usage error, not a crash', async () => {
     await withWorkspace(async (dir) => {
       const source = path.join(dir, 'decklist.txt')

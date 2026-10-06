@@ -437,6 +437,9 @@ export const siteChromeMessages = {
   'site.themeVar.labelProxy.label': 'Proxy',
   'site.themeVar.labelProxy.description':
     'Tone of the PROXY badge on cards labeled as proxies, which carry no value.',
+  'site.themeVar.labelNegated.label': 'Negated label',
+  'site.themeVar.labelNegated.description':
+    'Tone of a negated label badge (NOT A PROXY, NOT FOR SALE) on a card that takes a label away from its list default.',
   'site.themeVar.labelAnyPrinting.label': 'Any printing',
   'site.themeVar.labelAnyPrinting.description':
     'Tone of the ANY tag on deck and wanted cards that pin no printing and show a representative one.',

@@ -23,7 +23,7 @@ import { REFRESH_MODES, type RefreshMode } from '../cache/refresh'
 import { t } from '../i18n/t'
 import { parseEnumField } from '../util/parse-enum'
 import { ExitCode, localizedCommandError } from '../util/errors'
-import { checkLabelsForListType, LIST_TYPE_LABELS, type CardLabel } from '../card/card-labels'
+import { checkLabelsForListType, LIST_TYPE_LABELS, type SignedCardLabel } from '../card/card-labels'
 import { normalizeCardTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
 import {
   normalizeCardCategories,
@@ -356,7 +356,7 @@ export function parseQuantityFlag(value: string): number {
  * this is the one surface of the five whose refusal a human reads.
  * Shared by `set-card` and `add-card` so the two refuse alike.
  */
-export function ensureLabelsSupported(type: ListType, labels: readonly CardLabel[]): void {
+export function ensureLabelsSupported(type: ListType, labels: readonly SignedCardLabel[]): void {
   const check = checkLabelsForListType(type, labels)
   if (check.ok) return
   throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.cardOps.labelsUnsupported', {

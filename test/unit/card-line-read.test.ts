@@ -67,6 +67,13 @@ describe('readCardLine', () => {
     expect(read?.tokens.labels).toBeUndefined()
   })
 
+  test('a label both set and negated is recovered the same way', () => {
+    const read = readCardLine('deck', '1 Sol Ring (C21:263) [proxy,no-proxy] &4')
+    expect(read?.invalidLabels).toBe('proxy,no-proxy')
+    expect(read?.tokens).toMatchObject({ name: 'Sol Ring', cardId: 4 })
+    expect(read?.tokens.labels).toBeUndefined()
+  })
+
   test('the recovered read keeps every other token on the line', () => {
     const read = readCardLine('deck', '2 Sol Ring (LEA:1) [keep,proxy] [foil] {mine} &9')
     expect(read?.invalidLabels).toBe('keep,proxy')

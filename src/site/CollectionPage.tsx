@@ -113,7 +113,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   // the combined view, which caps its unmerged tiles from the same groups.
   const collectionQtyMap = createMemo(() => collectionTradeQtyMap(props.entries))
 
-  /** An entry's effective labels: its own override, else the list default. */
+  /** An entry's effective labels: its own override applied to the list default. */
   const entryLabels = (entry: CollectionCardEntry): CardLabel[] =>
     effectiveLabels(entry.labels, props.listLabels)
 

@@ -26,7 +26,8 @@ import {
 import { createCardArtCache, type CardArtMap, type CardArtReconcileFailure } from './card-art'
 import { artReconcileFor, commitArtReconciles, type ArtReconcile } from './move-commit'
 import { loadAllLists, type ListEntry } from './list-info'
-import { effectiveLabels } from '../card/card-labels'
+import { carriedLabels } from '../card/card-labels'
+import type { ListType } from './list-type'
 import { t } from '../i18n/t'
 import {
   adoptedCardId,
@@ -76,11 +77,10 @@ type OtherList = { listEntry: ListEntry; outgoing: Outgoing[]; incoming: Incomin
 /** An {@link OtherList} loaded into memory, ready for its moves to be applied. */
 type StagedOther = OtherList & { file: StagedFile }
 
-/** A removal applied in memory, with the source line as it was written. */
 /**
  * A removal applied in memory: the source line as it left, read as a
- * {@link DepartingLine} — its labels already the copy's effective labels (the
- * line's override, else the source list's default) — plus the section it sat
+ * {@link DepartingLine} — its labels already the copy's carried labels (the
+ * line's override applied to the source list's default) — plus the section it sat
  * in, where a replacement printing lands.
  */
 type RemovedIncoming = Incoming & { line: DepartingLine & { section?: string } }
@@ -110,16 +110,20 @@ type MovedCopy = PrintingTuple & MovedCopyPayload & { sourceCardId: number | und
  * The {@link ArrivingCopy} `applyAddToStaged` consumes, from a printing tuple
  * the save carries: a move-from event (the copy leaving a saved list, whose
  * payload rides along exactly as `ritual move` carries it — tags unfiltered,
- * its effective labels measured against the destination on arrival, the note
+ * its carried labels landed against the destination on arrival, the note
  * discarded only by a deck quantity-merge, which reports it) or an incoming
  * move's `replacement` (the printing its source gets back, standing in for the
  * departed line and so wearing that line's tags). The event's labels are
- * already effective, so they are carried as they are. The set code is
+ * already the carried labels, so they ride as they are. The set code is
  * normalized here because this is where the event stops being an event and
  * becomes in-memory card state — admin clients may send uppercase codes in the
  * request body.
  */
-function arrivingFrom(name: string, tuple: MovedCopy): ArrivingCopy {
+function arrivingFrom(
+  name: string,
+  tuple: MovedCopy,
+  sourceType: ListType | undefined,
+): ArrivingCopy {
   const { tags, labels, note } = movedCopyOf(tuple)
   return {
     name,
@@ -131,6 +135,7 @@ function arrivingFrom(name: string, tuple: MovedCopy): ArrivingCopy {
     tags,
     note,
     carriedLabels: labels,
+    sourceType,
     sourceCardId: tuple.sourceCardId,
   }
 }
@@ -398,11 +403,12 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
           }),
         )
       }
-      // The source-side `move-from` records the copy's effective labels, as
-      // every move event does: the line's override, else its list's default.
+      // The source-side `move-from` records the copy's carried labels, as
+      // every move event does: the line's override applied to its list's
+      // default, as that list states them (`carriedLabels`).
       removed.push({
         ...entry,
-        line: { ...line, labels: effectiveLabels(line.labels, stagedDefaultLabels(file)) },
+        line: { ...line, labels: carriedLabels(line.labels, stagedDefaultLabels(file)) },
       })
     }
     incomingByFile.set(listEntry.filePath, { removed, surviving: stagedCardIds(file) })
@@ -420,13 +426,17 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       if (!move.replacement) continue
       const added = applyAddToStaged(
         file,
-        arrivingFrom(move.cardName, {
-          ...move.replacement,
-          tags: line.tags,
-          labels: undefined,
-          note: undefined,
-          sourceCardId: undefined,
-        }),
+        arrivingFrom(
+          move.cardName,
+          {
+            ...move.replacement,
+            tags: line.tags,
+            labels: undefined,
+            note: undefined,
+            sourceCardId: undefined,
+          },
+          undefined,
+        ),
         listEntry.ref.type,
         line.section,
       )
@@ -458,7 +468,11 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     for (const { move, source } of departures) {
       const added = applyAddToStaged(
         file,
-        arrivingFrom(move.cardName, { ...move, ...movedCopyOf(move), sourceCardId: move.cardId }),
+        arrivingFrom(
+          move.cardName,
+          { ...move, ...movedCopyOf(move), sourceCardId: move.cardId },
+          source.ref.type,
+        ),
         listEntry.ref.type,
       )
       if (added.droppedNote) dropped.push(added.droppedNote)

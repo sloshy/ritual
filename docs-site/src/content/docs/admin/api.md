@@ -443,7 +443,7 @@ A `full` deck load also carries `lowestPriceCards`, `lowestPriceCardsEur` and `l
 
 A deck's `cards` view also returns its front matter. A collection or wanted list returns `entries` + `sectionOrder` instead, plus a top-level `description` (the list's front-matter blurb, absent when none is declared; a deck's is inside `deck.description`). Per-card fields:
 
-- `labels` — a deck and a collection carry a top-level `labels` (the list's [front-matter default](/list-format/#card-labels); a deck's can only be `proxy`), and each of their cards may carry its own `labels` override.
+- `labels` — a deck and a collection carry a top-level `labels` (the list's [front-matter default](/list-format/#card-labels); a deck's can only be `proxy`), and each of their cards may carry its own signed `labels` override (`["no-proxy"]`), which adjusts that default. Every deck card and collection entry also carries `effectiveLabels`: the labels in force, resolved by the server.
 - `tags` — every card on every list type carries `tags` when its line has any: its [tags](/list-format/#card-tags) in canonical order (trimmed, sorted, without the `#`). There is no list-level tag default.
 
 A narrowed request replaces `contentHash` with `"partial": true`.
@@ -1106,7 +1106,7 @@ What the route takes from the file rather than the request:
 **Validation.** Each change is decoded with the same rules the changelog and [change bundles](#import-changes) use, before the file is read. Any failure is a `400` naming the change (`changes[2] …`), and nothing is written:
 
 - Actions, finishes, conditions, boards and [languages](/list-format/#card-language) must be known values. A `set-language` change requires its `language`.
-- Labels must be ones the list type carries: `proxy` alone on a deck, none on a wanted list, and the `keep`/`proxy` exclusivity rule on a collection. A `move-from`/`move-to` is the exception: its `labels` describe the moving copy as its source line had them, so only the vocabulary and the exclusivity rule are checked, and the destination filters them on arrival.
+- Labels are signed (`["trade", "no-sale"]`; see [Card labels](/list-format/#card-labels)) and must be ones the list type carries: `proxy`/`no-proxy` alone on a deck, none on a wanted list. The `keep`/`proxy` exclusivity rule applies, and no label may be both set and negated. A `move-from`/`move-to` is the exception: its `labels` describe the moving copy as its source states them, so only the vocabulary and the conflict rules are checked, and the destination lands them on arrival.
 - Tags must be [tag-shaped](/list-format/#card-tags) and are canonicalized (trimmed, single-spaced, deduplicated, sorted). Category names must be [category-shaped](/list-format/#categories-namecategoriesjson); a `set-categories` list keeps its order (the first is the primary category), and an empty one clears.
 - No string may contain a line break (see [Line breaks](#line-breaks)).
 - A collection change that adds a line (`add`, `move-to`, `set-printing`) must carry a printing.
@@ -1115,9 +1115,9 @@ What the route takes from the file rather than the request:
 
 **Cross-list moves** in `changes` write the other list too, each with its own changelog entry:
 
-- A `move-from {to}` adds the copy to its destination. The copy keeps the event's `tags` and `note`, and as much of its `labels` (the copy's effective labels in this list) as the destination type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list), written as an override only where they differ from the destination's own default. On a deck, the copy merges onto a line whose effective labels, printing and tags match, only within the `section` the move names (any section when it names none). The line grammar has no empty override, so a copy with no labels arriving in a list with a default takes that default. A copy that merges onto a deck line with a different note keeps the line's note, and the dropped one is reported in `droppedNotes`.
-- A `move-to {from}` (an incoming move) takes the copy out of its source: by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line. Each fallback prefers a line whose effective labels equal the move's `labels`, so a `[proxy]` copy leaves from the proxy line. The copy lands here with its labels written against this list's default, and a merge onto a deck line with a different note is reported in `droppedNotes` too.
-- A `move-to` carrying `replacesCardId` pins one of this list's own name-only lines rather than adding a copy. When it equals the move's `cardId`, the line is converted in place; otherwise one copy leaves that line and lands on `cardId`.
+- A `move-from {to}` adds the copy to its destination. The copy keeps the event's `tags` and `note`, and its `labels` (the copy's labels as this list states them) land by the [move rule](/commands/move/): a proxy stays a proxy and a real card real wherever both types carry `proxy`, a stated label keeps its state, an unstated one takes the destination's default, as far as the destination type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list), written as the smallest override that says so. On a deck, the copy merges onto a line whose effective labels, printing and tags match, only within the `section` the move names (any section when it names none). A copy that merges onto a deck line with a different note keeps the line's note, and the dropped one is reported in `droppedNotes`.
+- A `move-to {from}` (an incoming move) takes the copy out of its source: by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line. Each fallback prefers a line whose effective labels equal the move's positive `labels`, so a `[proxy]` copy leaves from the proxy line. The copy lands here with its labels written against this list's default, and a merge onto a deck line with a different note is reported in `droppedNotes` too.
+- A `move-to` carrying `replacesCardId` pins one of this list's own name-only lines rather than adding a copy. When it equals the move's `cardId`, the line is converted in place — on a deck only when the copy's labels, landed against the deck default, equal the line's effective labels (`proxy` is a fact a pin never changes); an in-place pin that fails this is refused. Otherwise one copy leaves that line and lands on `cardId` as a normal arrival, with its own labels, tags and note.
 - A `move-to` that pins a line (`replacesCardId`) may also carry `replacement` (`{ set, collectorNumber, finish?, language? }`): that printing is added to the source list in place of the copy taken, logged there as an `Added` line. A `replacement` without `replacesCardId` is a `400`.
 
 Every move is validated in memory before anything is written. A missing list, a source with no copy to take, or a printing-less card headed into a collection fails the save with nothing written.
@@ -1224,7 +1224,7 @@ GET /api/collection/:slug
 Load a collection with full card data, printings, and mana symbol map. Accepts the same [list load parameters](#list-load-parameters) as [Load Deck](#load-deck); the `cards` view returns `entries` + `sectionOrder` rather than a deck.
 
 - Top-level `description` — the collection's front-matter blurb, absent when none is declared.
-- Top-level `labels` — its [default card labels](/list-format/#default-labels-and-descriptions), absent when none are declared. An entry's own `labels` is its per-card override; effective labels are the override when present, else the default.
+- Top-level `labels` — its [default card labels](/list-format/#default-labels-and-descriptions), absent when none are declared. An entry's own `labels` is its per-card override, signed (`["trade", "no-sale"]`); its effective labels are the default adjusted by it: the positives added, the negated labels taken away. Each entry also carries `effectiveLabels`, those labels resolved by the server (empty when it has none), so a client never re-implements the rule.
 - Entry `tags` — the line's [tags](/list-format/#card-tags), canonical and without the `#`, absent when it has none.
 - Entry `categories` — the card name's [categories](/list-format/#categories-namecategoriesjson) in this list, primary first, absent when it has none. The list's own vocabulary is the top-level `categories` — see [Load Deck](#load-deck).
 
@@ -1240,6 +1240,7 @@ Load a collection with full card data, printings, and mana symbol map. Accepts t
       "set": "2xm",
       "collectorNumber": "270",
       "labels": ["keep"],
+      "effectiveLabels": ["keep"],
       "tags": ["Binder: Trade", "Ramp"],
       "cardId": 1
     }
@@ -1863,16 +1864,16 @@ Only the fields present in the body are written; every other front-matter key (i
 }
 ```
 
-| Field         | Validation                                                                                                                                                                                                     |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description` | All three types. String (trimmed) or `null`; an empty (or blank) string clears it                                                                                                                              |
-| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved); `null` or `[]` clears the key                                                                                                  |
-| `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                                                |
-| `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                                          |
-| `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                                                     |
-| `labels`      | Deck and collection. Array of `sale`/`trade` (combinable) or `keep`/`proxy` (each alone), case-insensitive, normalized to canonical order; a **deck** accepts `proxy` alone. `null` or `[]` clears the default |
-| `image`       | All three types. A single-key mapping — `{"card": N}`, `{"file": "rel/path"}` or `{"url": "https://…"}` — or `null` to clear it. Scalars are rejected. See below                                               |
-| `contentHash` | Optional concurrency token from the list's load route; a non-string value is a `400`                                                                                                                           |
+| Field         | Validation                                                                                                                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | All three types. String (trimmed) or `null`; an empty (or blank) string clears it                                                                                                                                                                              |
+| `tags`        | Deck only. Array of non-empty strings (trimmed, deduplicated, order preserved); `null` or `[]` clears the key                                                                                                                                                  |
+| `format`      | Deck only. A [deck format](/commands/new/#deck-format) name, canonicalized (`EDH` → `commander`); `null` clears it and the deck falls back to section inference                                                                                                |
+| `sourceId`    | Deck only. Non-empty string or `null`                                                                                                                                                                                                                          |
+| `sourceUrl`   | Deck only. An `http`/`https` URL or `null`                                                                                                                                                                                                                     |
+| `labels`      | Deck and collection. Array of `sale`/`trade` (combinable) or `keep`/`proxy` (each alone), case-insensitive, normalized to canonical order; a **deck** accepts `proxy` alone. A default is positive only (`no-…` is refused). `null` or `[]` clears the default |
+| `image`       | All three types. A single-key mapping — `{"card": N}`, `{"file": "rel/path"}` or `{"url": "https://…"}` — or `null` to clear it. Scalars are rejected. See below                                                                                               |
+| `contentHash` | Optional concurrency token from the list's load route; a non-string value is a `400`                                                                                                                                                                           |
 
 Rejected fields, each a `400`:
 
@@ -2390,18 +2391,18 @@ POST /api/import-changes
 
 Apply a change bundle exported from the site editor to the underlying lists. Used by the admin site's **Import Changes** page and exposed as the MCP `import_change_bundle` tool; shares its apply engine with the [`import-changes`](/commands/import-changes/) CLI command.
 
-**Request Body:** the exported JSON, verbatim — a version-2 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`. Cross-list moves are normalized into the top-level `moves` array and never appear as `move-from`/`move-to` inside a list's `changes`. Each move is one copy, naming its source and destination list by kind + name (the slug is a best-effort hint), and carries:
+**Request Body:** the exported JSON, verbatim — a version-3 `ritual-change-bundle` covering one or more lists. Each list's own edits sit in `lists[].changes`. Cross-list moves are normalized into the top-level `moves` array and never appear as `move-from`/`move-to` inside a list's `changes`. Each move is one copy, naming its source and destination list by kind + name (the slug is a best-effort hint), and carries:
 
 - the copy's printing fields (`set`, `collectorNumber`, `finish`, `condition`, `language`);
 - optional `tags` (the card's [tags](/list-format/#card-tags), canonical and without the `#`), landing on the destination line;
-- optional `labels` (the card's effective [labels](/list-format/#card-labels) in its source list: its own override, or else the list's default), of which the destination keeps what its type accepts, writing an override only where they differ from its own default, and optional `note`, landing on the destination line;
+- optional `labels` (the card's [labels](/list-format/#card-labels) as its source list states them, signed: its effective labels there plus a `no-` for each label its source stated that it lacks), landed by the [move rule](/commands/move/) — a proxy stays a proxy and a real card real, a stated label keeps its state, an unstated one takes the destination's default — as far as the destination type accepts, and optional `note`, landing on the destination line;
 - optional `toCardId`, the destination line's `&N` as the exporting editor allocated it, which the import re-targets like an `add`'s id;
 - for a copy pinning a name-only destination line, `pinsCardId` and `replacement`.
 
 ```json
 {
   "format": "ritual-change-bundle",
-  "version": 2,
+  "version": 3,
   "exportedAt": "2026-06-04T00:00:00.000Z",
   "lists": [
     {

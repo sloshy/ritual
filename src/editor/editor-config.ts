@@ -11,7 +11,7 @@ import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
 import type { CardCategory } from '../card/card-categories'
 import type { CardCategoriesJson, CardCategoriesRecord } from '../list/card-categories-record'
-import type { CardLabel } from '../card/card-labels'
+import type { LabelOverride } from '../card/card-labels'
 import type { CardArtRef } from '../list/card-art'
 import type { SaveEffect } from '../changes/save-effects'
 import type { PriceCurrency } from '../pricing/price-currency'
@@ -28,7 +28,7 @@ import type { EditorStatus, EditorStatusActions } from './useEditorStatus'
 import type { EditorEntity } from './entity'
 import type { DialogState } from './useDialogState'
 import type { UseCardIdPoolResult } from './useCardIdPool'
-import type { UseCardChangesResult } from './useCardChanges'
+import type { AddCardOptions, UseCardChangesResult } from './useCardChanges'
 import type { CommitSink } from './commit'
 import type { ApplyChange } from '../changes/apply-batch'
 import type { SwapSourceProvider } from './swap-printings'
@@ -48,8 +48,15 @@ export type ChangePrintingTools = {
     original: PrintingTuple,
     cardId?: number,
   ) => void
-  addCard: (cardName: string, options?: CardPrintingOptions) => void
-  decrementCard: (cardName: string, cardId?: number) => void
+  /** Add a copy; a split's copies keep the line's label override and tags. */
+  addCard: (cardName: string, options?: AddCardOptions) => void
+  /** Take one copy off a line, recording the override and tags it carried. */
+  decrementCard: (
+    cardName: string,
+    cardId?: number,
+    labels?: LabelOverride,
+    tags?: CardTag[],
+  ) => void
   allocateId: () => number
 }
 
@@ -108,7 +115,7 @@ export type AddCardFromSearch = (
  * `pending-art.ts`).
  */
 export type AddCardExtras = {
-  labels?: CardLabel[]
+  labels?: LabelOverride
   art?: CardArtRef
 }
 

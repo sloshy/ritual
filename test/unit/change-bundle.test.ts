@@ -152,11 +152,18 @@ describe('change-bundle round trip', () => {
     expect(parsed.moves[0]).toMatchObject({ labels: ['proxy'], note: 'mint' })
   })
 
+  it('accepts signed carried labels on a move, normalized', () => {
+    const parsed = parseOk(
+      bundle([], [{ ...move('m1', 1, BINDER, DECK), labels: ['no-sale', 'trade'] }]),
+    )
+    expect(parsed.moves[0]?.labels).toEqual(['trade', 'no-sale'])
+  })
+
   it.each<[string, Record<string, unknown>, string]>([
     [
       'an unknown label',
       { labels: ['gift'] },
-      `Move #1 Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy.`,
+      `Move #1 Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
     ],
     [
       'an exclusive label combination',
@@ -333,6 +340,8 @@ describe('parseChangeBundle validation', () => {
       'Move #1 "tags" must be an array of tags',
     ],
     ['version 1 (pre-normalized moves)', { ...sampleBundle(), version: 1 }, 'version'],
+    // Version 2 labels replaced the list default; version 3 labels adjust it.
+    ['version 2 (replace-semantics labels)', { ...sampleBundle(), version: 2 }, 'version'],
     ['a non-array lists field', { ...sampleBundle(), lists: 'nope' }, '"lists"'],
     ['a missing moves array', { ...sampleBundle(), moves: undefined }, '"moves"'],
     [

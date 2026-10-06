@@ -39,7 +39,7 @@ describe('discardDeckCopy', () => {
       sessionLineIds: [1, 2, 3],
     }
 
-    const outcome = discardDeckCopy(state, 1)!
+    const outcome = discardDeckCopy(state, 1, undefined)!
     expect(outcome.discarded.name).toBe('Lightning Bolt')
 
     // The Bolt line is gone; Brainstorm (was &3) slides down to &2, freeing 3.
@@ -82,7 +82,7 @@ describe('discardDeckCopy', () => {
       sessionLineIds: [11, 12, 13],
     }
 
-    const outcome = discardDeckCopy(state, 1)! // discard Lightning Bolt (&12)
+    const outcome = discardDeckCopy(state, 1, undefined)! // discard Lightning Bolt (&12)
     const byName = (n: string) => outcome.deck.sections[0]!.cards.find((c) => c.name === n)!
     // The pre-existing card keeps &10; only the session ids re-pack (13 → 12, freeing 13).
     expect(byName('Ancient Tomb').cardId).toBe(10)
@@ -103,7 +103,7 @@ describe('discardDeckCopy', () => {
       sessionLineIds: [5],
     }
 
-    const outcome = discardDeckCopy(state, 0)!
+    const outcome = discardDeckCopy(state, 0, undefined)!
     const card = outcome.deck.sections[0]!.cards[0]!
     expect(card.quantity).toBe(1)
     expect(card.cardId).toBe(5)
@@ -123,7 +123,7 @@ describe('discardDeckCopy', () => {
       sessionLineIds: [],
     }
 
-    const outcome = discardDeckCopy(state, 0)!
+    const outcome = discardDeckCopy(state, 0, undefined)!
     expect(outcome.deck.sections[0]!.cards[0]!.quantity).toBe(1)
     expect(outcome.deck.sections[0]!.cards[0]!.cardId).toBe(10)
     expect(outcome.sessionChanges).toHaveLength(0)
@@ -137,7 +137,7 @@ describe('discardDeckCopy', () => {
       sessionAdds: [],
       sessionLineIds: [1],
     }
-    expect(discardDeckCopy(state, 0)).toBeNull()
+    expect(discardDeckCopy(state, 0, undefined)).toBeNull()
   })
 
   test('an index past the end of a non-empty session is a no-op', () => {
@@ -147,6 +147,6 @@ describe('discardDeckCopy', () => {
       sessionAdds: [{ cardId: 1, name: 'Sol Ring', printing: {}, section: 'Main' }],
       sessionLineIds: [1],
     }
-    expect(discardDeckCopy(state, 1)).toBeNull()
+    expect(discardDeckCopy(state, 1, undefined)).toBeNull()
   })
 })

@@ -321,10 +321,14 @@ const deckWith = (sections: DeckData['sections']): DeckData => ({ name: 'D', sec
 
 describe('applyChangeToDeck sections', () => {
   test('add-section appends an empty section', () => {
-    const result = applyChangeToDeck(deckWith([{ name: 'Main', cards: [] }]), {
-      action: 'add-section',
-      section: 'Sideboard',
-    })
+    const result = applyChangeToDeck(
+      deckWith([{ name: 'Main', cards: [] }]),
+      {
+        action: 'add-section',
+        section: 'Sideboard',
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
   })
 
@@ -334,21 +338,33 @@ describe('applyChangeToDeck sections', () => {
       { name: 'Spare', cards: [] },
     ])
     expect(
-      applyChangeToDeck(deck, { action: 'remove-section', section: 'Main' }).sections,
+      applyChangeToDeck(
+        deck,
+        { action: 'remove-section', section: 'Main' },
+        { listLabels: undefined },
+      ).sections,
     ).toHaveLength(2)
     expect(
-      applyChangeToDeck(deck, { action: 'remove-section', section: 'Spare' }).sections,
+      applyChangeToDeck(
+        deck,
+        { action: 'remove-section', section: 'Spare' },
+        { listLabels: undefined },
+      ).sections,
     ).toHaveLength(1)
   })
 
   test('set-section moves a card between sections, creating the target', () => {
     const deck = deckWith([{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }])
-    const result = applyChangeToDeck(deck, {
-      action: 'set-section',
-      cardName: 'Sol Ring',
-      section: 'Ramp',
-      cardId: 1,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-section',
+        cardName: 'Sol Ring',
+        section: 'Ramp',
+        cardId: 1,
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections.find((s) => s.name === 'Main')!.cards).toHaveLength(0)
     expect(result.sections.find((s) => s.name === 'Ramp')!.cards[0]!.name).toBe('Sol Ring')
   })
@@ -358,22 +374,30 @@ describe('applyChangeToDeck sections', () => {
       { name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] },
       { name: 'Ramp', cards: [] },
     ])
-    const result = applyChangeToDeck(deck, {
-      action: 'set-section',
-      cardName: 'Sol Ring',
-      section: 'Ramp',
-      cardId: 1,
-    })
+    const result = applyChangeToDeck(
+      deck,
+      {
+        action: 'set-section',
+        cardName: 'Sol Ring',
+        section: 'Ramp',
+        cardId: 1,
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections).toHaveLength(2)
     expect(result.sections.find((s) => s.name === 'Ramp')!.cards[0]!.name).toBe('Sol Ring')
   })
 
   test('rename-section renames in place', () => {
-    const result = applyChangeToDeck(deckWith([{ name: 'Main', cards: [] }]), {
-      action: 'rename-section',
-      section: 'Main',
-      newSection: 'Deck',
-    })
+    const result = applyChangeToDeck(
+      deckWith([{ name: 'Main', cards: [] }]),
+      {
+        action: 'rename-section',
+        section: 'Main',
+        newSection: 'Deck',
+      },
+      { listLabels: undefined },
+    )
     expect(result.sections[0]!.name).toBe('Deck')
   })
 })

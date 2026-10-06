@@ -282,13 +282,15 @@ describe('parseCollectionFile — labels token', () => {
     expect(entries[0]!.condition).toBeUndefined()
   })
 
-  test('keep-conflict refuses the line and names both labels', () => {
-    // A self-conflicting token is a grammar refusal, not a value one: the line
-    // is skipped and warns, so the rewrite gates block until it is fixed.
+  test('keep-conflict keeps the card without labels, warns, and names both labels', () => {
+    // A self-conflicting token warns, so the rewrite gates block until it is
+    // fixed — but the card stays (labels dropped), so it is still on the site
+    // and findable by the `set-card --label` that repairs it.
     const { entries, warnings, diagnostics } = parseCollectionFile(
       '- Sol Ring (C21:263) [sale,keep] &2\n',
     )
-    expect(entries).toHaveLength(0)
+    expect(entries).toMatchObject([{ name: 'Sol Ring', cardId: 2 }])
+    expect(entries[0]!.labels).toBeUndefined()
     expect(warnings).toEqual([
       'line 1: Conflicting labels [sale,keep] — [keep] cannot be combined with any other label.',
     ])
@@ -312,10 +314,13 @@ describe('parseCollectionFile — labels token', () => {
     expect(warnings).toHaveLength(0)
   })
 
-  test('proxy-conflict refuses the line too', () => {
-    const { entries, warnings } = parseCollectionFile('- Sol Ring (C21:263) [keep,proxy] &2\n')
-    expect(entries).toHaveLength(0)
-    expect(warnings[0]).toContain('Conflicting labels [keep,proxy]')
+  test('a proxy conflict and a set-and-negated label are kept the same way', () => {
+    for (const token of ['[keep,proxy]', '[sale,no-sale]']) {
+      const { entries, warnings } = parseCollectionFile(`- Sol Ring (C21:263) ${token} &2\n`)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.labels).toBeUndefined()
+      expect(warnings[0]).toContain(`Conflicting labels ${token}`)
+    }
   })
 })
 

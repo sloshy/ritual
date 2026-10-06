@@ -3,11 +3,11 @@ import type { SellModeProps } from '../../list-view/sell-mode'
 import type { CardKingdomCards } from '../../list/site-data'
 import type { DeckData } from '../../list/deck'
 import type { Card } from '../../card/card'
-import { effectiveLabels, type CardLabel } from '../../card/card-labels'
+import { overrideForChoice, type CardLabel, type CardLabelTarget } from '../../card/card-labels'
 import { DeckPage } from '../DeckPage'
 import type { PriceCurrency } from '../../pricing/price-currency'
 import {
-  movedCopyOf,
+  movedCopyFromLine,
   type ChangeInput,
   type ListRef,
   type MovedCopyPayload,
@@ -52,7 +52,11 @@ import { canSetFinish, hasSpecificPrinting } from '../../card/card-printing'
 import { EditorShell } from '../../editor/components/EditorShell'
 import type { SwapPrintingsWizardProps } from '../../editor/components/SwapPrintingsWizard'
 import { createSwapController, type SwapController } from '../../editor/swap-controller'
-import { deckSwapMergeTargetId, deckSwapTargets } from '../../editor/swap-targets'
+import {
+  deckSwapMergeTargetId,
+  deckSwapPinConvertsInPlace,
+  deckSwapTargets,
+} from '../../editor/swap-targets'
 import { withDeckArt, type CardArtRefs } from '../../editor/card-art-view'
 import { deckCardNamesById } from '../../card/card-id'
 
@@ -67,6 +71,8 @@ export type DeckContextMenuState = ContextMenuState & { isInCommanderSection: bo
  * stay behaviorally identical.
  */
 export type DeckEditController = SwapController & {
+  /** The deck's live default labels (the `listLabels` accessor this controller was built with). */
+  listLabels: Accessor<CardLabel[] | undefined>
   editor: UseEditorResult<DeckData, Card>
   cardData: DeckCardData
   cardActions: DeckCardDataActions
@@ -78,10 +84,11 @@ export type DeckEditController = SwapController & {
   handleContextMenu: (info: CardContextInfo, rect: DOMRect) => void
   handleChangePrinting: () => void
   /**
-   * Set (or clear, with `[]`) one card's label override — the body behind the
-   * context menu's "Set Label…" and the multi-select bulk action.
+   * Put one card in a picked label state (`'default'` clears its override) —
+   * the body behind the context menu's "Set Label…" and the multi-select bulk
+   * action.
    */
-  handleSetLabelFor: (cardName: string, labels: CardLabel[], cardId?: number) => void
+  handleSetLabelFor: (cardName: string, target: CardLabelTarget, cardId?: number) => void
   handleSetCommander: () => void
   handleUnsetCommander: () => void
   /** Move the context-menu's card (every copy of the entry) into another list. */
@@ -223,12 +230,14 @@ export function useDeckEditController(
   }
 
   /**
-   * Set (or, with `[]`, clear) a deck line's label override. A deck entry holds
-   * every copy under one `cardId`, so one event covers the whole tile. The
+   * Give a deck line the picked label state: the minimal override for it under
+   * the deck's live default, or the clear for "Use list default". A deck entry
+   * holds every copy under one `cardId`, so one event covers the whole tile. The
    * change consolidates against the on-disk override, so restoring a card's
    * original label cancels the pending change outright.
    */
-  const handleSetLabelFor = (cardName: string, labels: CardLabel[], cardId?: number) => {
+  const handleSetLabelFor = (cardName: string, target: CardLabelTarget, cardId?: number) => {
+    const labels = overrideForChoice(target, listLabels())
     const originalLabels = findDeckCardLabels(editor.getOriginal(), cardName, cardId)
     editor.changes.setLabel(cardName, labels, originalLabels, cardId)
     editor.setData((prev) =>
@@ -267,10 +276,10 @@ export function useDeckEditController(
 
   // Emit one move-from per copy. A deck entry holds all its copies under a single
   // cardId, so every event shares that id and it is freed to the pool once. The
-  // moved copies keep the entry's language, tags, effective labels (its
-  // override, else the deck's default) and note, resolved before the first
-  // move-from collapses the entry (the destination keeps the labels its type
-  // accepts); a name-only card whose printing came from the picker has no entry
+  // moved copies keep the entry's language, tags, carried labels (its override
+  // applied to the deck's default, `carriedLabels`) and note, resolved before
+  // the first move-from collapses the entry (the destination lands them with
+  // `arrivalLabels`); a name-only card whose printing came from the picker has no entry
   // language, so the tuple's own stamp (a ja-only pick) wins as the fallback.
   const emitMove = (
     cardName: string,
@@ -282,11 +291,7 @@ export function useDeckEditController(
     const d = editor.data()
     const line = d ? findDeckCard(d, cardName, cardId) : undefined
     const language = line?.language ?? printing.language
-    const copy: MovedCopyPayload = movedCopyOf({
-      tags: line?.tags,
-      labels: effectiveLabels(line?.labels, listLabels?.()),
-      note: line?.note,
-    })
+    const copy: MovedCopyPayload = movedCopyFromLine(line, listLabels())
     batch(() => {
       for (let i = 0; i < copies; i++) {
         editor.changes.moveCardToList(cardName, dest, { ...printing, language, ...copy, cardId })
@@ -331,11 +336,14 @@ export function useDeckEditController(
     editor,
     listType: 'deck',
     kind: 'deck',
-    targetsOf: (deck) => deckSwapTargets(deck, cardData),
+    targetsOf: (deck) => deckSwapTargets(deck, cardData, listLabels()),
     applyChange: applyDeck,
     quantityOf: (deck, cardId) =>
       deck.sections.flatMap((s) => s.cards).find((c) => c.cardId === cardId)?.quantity ?? 0,
-    mergeTargetId: (deck, move) => deckSwapMergeTargetId(deck, move, { listLabels: listLabels() }),
+    mergeTargetId: (deck, move, copyIndex) =>
+      deckSwapMergeTargetId(deck, move, { listLabels: listLabels() }, copyIndex),
+    pinConvertsInPlace: (deck, move, copyIndex, lineId) =>
+      deckSwapPinConvertsInPlace(deck, move, { listLabels: listLabels() }, copyIndex, lineId),
   })
 
   const liveTagsOf = (cardName: string, cardId?: number): readonly CardTag[] | undefined => {
@@ -378,11 +386,12 @@ export function useDeckEditController(
         for (const c of cards) editor.handleSetLanguageFor(c.name, language, c.cardIds[0])
       })
     },
-    setLabel: (cards, labels) => {
+    setLabel: (cards, target) => {
       batch(() => {
-        for (const c of cards) handleSetLabelFor(c.name, labels, c.cardIds[0])
+        for (const c of cards) handleSetLabelFor(c.name, target, c.cardIds[0])
       })
     },
+    labelDefault: () => listLabels(),
     addTags: (cards, onApplied) =>
       bulkAddTags({
         suggestions: tagSuggestions(editor.data()?.sections.flatMap((s) => s.cards) ?? []),
@@ -403,6 +412,7 @@ export function useDeckEditController(
   }
 
   return {
+    listLabels,
     editor,
     cardData,
     cardActions,
@@ -494,6 +504,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
       showDiscard={props.showDiscard}
       enableImport={props.enableImport}
       importKind="deck"
+      listLabels={ctrl.listLabels()}
       onEditLabels={props.onEditLabels}
       onEditImage={props.onEditImage}
       enableAddArt={props.onSetCustomArt !== undefined}
@@ -545,9 +556,9 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
                 onSetLabel={() => {
                   const target = menu()
                   ctrl.closeContextMenu()
-                  // Deck-only choices: `proxy` and "use list default".
-                  promptCardLabels('deck', (labels) =>
-                    ctrl.handleSetLabelFor(target.cardName, labels, target.cardIds[0]),
+                  // Deck-only choices: `proxy`, "Not a proxy" and "use list default".
+                  promptCardLabels('deck', ctrl.listLabels(), (state) =>
+                    ctrl.handleSetLabelFor(target.cardName, state, target.cardIds[0]),
                   )
                 }}
                 onEditTags={() => {

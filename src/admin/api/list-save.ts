@@ -229,7 +229,9 @@ const deckAdapter: ListSaveAdapter<DeckData> = {
       },
     }
   },
-  apply: applyChangeToDeck,
+  // The replay hands every apply the file's own default (`baseline.listLabels`).
+  apply: (deck, change, options) =>
+    applyChangeToDeck(deck, change, { ...options, listLabels: options?.listLabels }),
   droppedNote: (deck, change, listLabels) => {
     if (change.action !== 'move-to') return undefined
     const note = droppedMoveNote(deck, change, { listLabels })

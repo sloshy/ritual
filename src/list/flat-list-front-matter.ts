@@ -22,7 +22,8 @@
 
 import { frontMatterBodyStart } from './markdown-fence'
 import { readFrontMatterMapping } from './front-matter-write'
-import { readListDefaultLabelsValue, type CardLabel } from '../card/card-labels'
+import { listDefaultLabels, readListDefaultLabelsValue, type CardLabel } from '../card/card-labels'
+import type { ListType } from './list-type'
 
 /** A flat list's front-matter block, as parsed from the top of the file. */
 export type FlatListFrontMatter = {
@@ -106,4 +107,20 @@ export function parseFlatListFrontMatter(
   }
 
   return result
+}
+
+/**
+ * A list file's default card labels, read from the front matter at the top of
+ * its `lines` (any list type — the block is plain YAML), or `undefined` when it
+ * declares none or an unreadable one. The one raw-content reader behind the
+ * move engines' staged lists and the line-preserving deck add.
+ */
+export function listDefaultLabelsInLines(
+  type: ListType,
+  lines: readonly string[],
+): CardLabel[] | undefined {
+  return listDefaultLabels(
+    type,
+    parseFlatListFrontMatter(lines, { validateLabels: false }).frontMatter?.data,
+  )
 }

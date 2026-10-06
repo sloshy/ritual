@@ -44,6 +44,9 @@
   --label-trade: oklch(75% 0.12 250);
   --label-keep: oklch(70% 0.17 25);
   --label-proxy: oklch(72% 0.14 310);
+  /* A negated label (NOT A PROXY, NOT FOR SALE) takes an inherited label away:
+     a muted neutral, so it reads as an absence rather than a fifth tone. */
+  --label-negated: oklch(66% 0.02 260);
   /* --label-any-printing (the ANY tag on a card showing a representative
      printing) is per-theme, generated from the accent in src/theme/themes.ts. */
 

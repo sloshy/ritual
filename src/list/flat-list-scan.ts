@@ -14,7 +14,7 @@
  */
 
 import { isCommentLine, parseCardLine, type LineTokens } from '../card/card-line-grammar'
-import { isCardCandidate } from '../card/card-line-read'
+import { isCardCandidate, readCardLine } from '../card/card-line-read'
 import { DEFAULT_SECTION } from './deck'
 import {
   createLineDiagnostics,
@@ -121,18 +121,28 @@ export function scanFlatListFile<E>(
     }
 
     const parsed = parseCardLine(type, trimmed)
-    if (!parsed.ok) {
+    let tokens: LineTokens
+    if (parsed.ok) {
+      for (const advisory of parsed.advisories) report.record(advisory, lineIndex + 1)
+      tokens = parsed.tokens
+    } else {
       report.record(parsed, lineIndex + 1)
-      continue
+      // A conflicting labels token (`[sale,keep]`, `[sale,no-sale]`) keeps its
+      // card with the labels dropped, as a deck's unsupported `[sale]` does:
+      // the warning just recorded still blocks whole-file rewrites, and the
+      // card stays on the site, in pricing, and findable by the `set-card
+      // --label` that repairs it. Every other refusal loses the line.
+      const recovered =
+        parsed.code === 'conflicting-labels' ? readCardLine(type, trimmed) : undefined
+      if (recovered === undefined) continue
+      tokens = recovered.tokens
     }
-    for (const advisory of parsed.advisories) report.record(advisory, lineIndex + 1)
 
     // A card before any explicit header pins the implicit Main section into the order list.
     registerSection(currentSection)
     // One line per copy is a flat list's whole model, so a pasted quantity is
     // read as that many entries — and written as that many lines on the next
     // save (see `ensure-card-ids.ts`).
-    const { tokens } = parsed
     for (let copy = 0; copy < tokens.quantity; copy++) {
       const entry = buildEntry({
         tokens,

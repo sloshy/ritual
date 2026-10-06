@@ -9,7 +9,7 @@ import type { Condition, Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
 import type { CardLineDiagnostic } from '../card/card-line-grammar'
 import type { ListFileParseOptions } from './line-diagnostics'
-import type { CardLabel } from '../card/card-labels'
+import type { CardLabel, LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import type { FlatListFrontMatter } from './flat-list-front-matter'
 import { scanFlatListFile } from './flat-list-scan'
@@ -24,10 +24,11 @@ export type CollectionEntry = {
   /** The printing's language, from a `[ja]`-style token. Absent means `en` (bare lines stay bare). */
   language?: CardLanguage
   /**
-   * This card's label override (`[keep]`, `[sale,trade]`). Replaces the list's
-   * front-matter default entirely; `undefined` means "inherit the default".
+   * This card's label override (`[keep]`, `[trade,no-sale]`), adjusting the
+   * list's front-matter default (see `effectiveLabels`); `undefined` means
+   * "inherit the default".
    */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** This card's `#tag` tokens in canonical form; absent when it carries none. */
   tags?: CardTag[]
   note?: string

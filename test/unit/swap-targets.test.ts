@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import type { DeckData } from '../../src/list/deck'
 import type { ChangeInput } from '../../src/changes/change-event'
+import { applyChangeToDeck } from '../../src/changes/deck-changes'
+import type { CardLabel } from '../../src/card/card-labels'
 import type { CardContextInfo } from '../../src/list-view/card-context'
 import type { SwapMove, SwapTarget } from '../../src/editor/swap-printings'
 import {
   buildSwapRequest,
   deckSwapMergeTargetId,
+  deckSwapPinConvertsInPlace,
   deckSwapTargets,
   flatSwapTargets,
   preselectedKeysFor,
@@ -71,6 +74,7 @@ describe('deckSwapTargets', () => {
         },
       ]),
       cardData,
+      undefined,
     )
     expect(targets).toEqual([
       {
@@ -82,6 +86,7 @@ describe('deckSwapTargets', () => {
         collectorNumber: '146',
         section: 'Main',
         card: boltM10,
+        payloads: [{}],
       },
       {
         cardName: 'Counterspell',
@@ -90,6 +95,7 @@ describe('deckSwapTargets', () => {
         quantity: 1,
         section: 'Main',
         card: null,
+        payloads: [{}],
       },
       {
         cardName: 'Lightning Bolt',
@@ -103,6 +109,7 @@ describe('deckSwapTargets', () => {
         language: 'ja',
         section: 'Sideboard',
         card: boltLea,
+        payloads: [{}],
       },
     ])
   })
@@ -116,6 +123,7 @@ describe('deckSwapTargets', () => {
         },
       ]),
       cardData,
+      undefined,
     )
     expect(targets[0]?.cardIds).toEqual([])
     expect(targets[0]?.card).toBeNull()
@@ -133,6 +141,7 @@ describe('deckSwapTargets', () => {
         },
       ]),
       cardData,
+      undefined,
     )
     expect(targets[0]?.card).toBe(solRingC21)
     // `cards['Sol Ring']` is the CMR representative — not LTC:5.
@@ -192,7 +201,7 @@ describe('flatSwapTargets', () => {
   ]
 
   test('identical copies fold into one target carrying every id; finish/section split them; name-only copies fold per name', () => {
-    const targets = flatSwapTargets(entries, cardData)
+    const targets = flatSwapTargets(entries, cardData, undefined)
     expect(targets.map((t) => [t.cardIds, t.quantity, t.finish, t.section])).toEqual([
       [[1, 2, 5], 3, 'nonfoil', 'Main'],
       [[3], 1, 'foil', 'Main'],
@@ -207,6 +216,7 @@ describe('flatSwapTargets', () => {
       sharedLine: false,
       quantity: 2,
       card: null,
+      payloads: [{}, {}],
     })
   })
 
@@ -225,6 +235,7 @@ describe('flatSwapTargets', () => {
         },
       ],
       cardData,
+      undefined,
     )
     expect(targets.map((t) => [t.cardIds, t.card])).toEqual([[[1, 2], boltFoilOnly]])
   })
@@ -243,6 +254,7 @@ describe('flatSwapTargets', () => {
         },
       ],
       cardData,
+      undefined,
     )
     expect(targets.map((t) => t.cardIds)).toEqual([[1, 2]])
   })
@@ -255,6 +267,7 @@ describe('flatSwapTargets', () => {
         { name: 'Lightning Bolt', set: 'm10', collectorNumber: '146', language: 'en', cardId: 3 },
       ],
       cardData,
+      undefined,
     )
     expect(targets.map((t) => [t.cardIds, t.language])).toEqual([
       [[1, 3], undefined],
@@ -425,6 +438,7 @@ describe('swapMovesToChanges', () => {
     kind: SwapApplyContext['kind'],
     quantities: Record<number, number>,
     mergeTargetId: SwapApplyContext['mergeTargetId'] = () => undefined,
+    pinConvertsInPlace: SwapApplyContext['pinConvertsInPlace'] = () => true,
   ): SwapApplyContext {
     let next = 50
     return {
@@ -432,6 +446,7 @@ describe('swapMovesToChanges', () => {
       allocateId: () => next++,
       quantityOf: (id) => quantities[id] ?? 0,
       mergeTargetId,
+      pinConvertsInPlace,
     }
   }
 
@@ -458,6 +473,27 @@ describe('swapMovesToChanges', () => {
     expect(outs[1]?.release).toBe(7)
   })
 
+  test('each copy carries its own payload: a displaced proxy leaves as a proxy, a real copy arrives real', () => {
+    // Without the payload the move would read as "the source states no proxy",
+    // landing a displaced [proxy] line as a real card.
+    const ops = opsOf(
+      [
+        inMove({ payloads: [{ labels: ['no-proxy'] }, { tags: ['Ramp'], note: 'mint' }] }),
+        outMove({ payloads: [{ labels: ['proxy'] }, { labels: ['proxy'] }] }),
+      ],
+      context('deck', { 7: 2 }),
+    )
+    expect(ops.map((op) => op.change)).toMatchObject([
+      { action: 'move-from', labels: ['proxy'] },
+      { action: 'move-from', labels: ['proxy'] },
+      { action: 'move-to', labels: ['no-proxy'] },
+      { action: 'move-to', tags: ['Ramp'], note: 'mint' },
+    ])
+    // A copy without a payload grows no `labels` key at all.
+    const plain = opsOf([outMove()], context('deck', { 7: 2 }))
+    expect(plain[0]?.change).not.toHaveProperty('labels')
+  })
+
   test('deck: a partial swap keeps the line id', () => {
     const ops = opsOf([outMove()], context('deck', { 7: 4 }))
     expect(ops.map((op) => op.release)).toEqual([undefined, undefined])
@@ -475,8 +511,44 @@ describe('swapMovesToChanges', () => {
     expect(ops[1]?.change).toMatchObject({ to: { type: 'deck', name: 'Cube' } })
   })
 
-  test('deck: copies of one in move share a single fresh id and each carry their source id', () => {
-    const ops = opsOf([inMove()], context('deck', {}))
+  /**
+   * Drive the generator the way the controller does — each op applied to the
+   * deck with the real reducer before the next is pulled, the merge and pin
+   * probes reading that live deck — and return the ops and the final deck.
+   */
+  function runLive(
+    start: DeckData,
+    moves: readonly SwapMove[],
+    listLabels: readonly CardLabel[] | undefined = undefined,
+  ): { ops: SwapChangeOp[]; deck: DeckData } {
+    let current = start
+    let next = 50
+    const ops: SwapChangeOp[] = []
+    for (const op of swapMovesToChanges(moves, {
+      kind: 'deck',
+      allocateId: () => next++,
+      quantityOf: (id) =>
+        current.sections.flatMap((s) => s.cards).find((c) => c.cardId === id)?.quantity ?? 0,
+      mergeTargetId: (move, i) => deckSwapMergeTargetId(current, move, { listLabels }, i),
+      pinConvertsInPlace: (move, i, lineId) =>
+        deckSwapPinConvertsInPlace(current, move, { listLabels }, i, lineId),
+    })) {
+      ops.push(op)
+      current = applyChangeToDeck(current, op.change, { listLabels })
+    }
+    return { ops, deck: current }
+  }
+
+  const emptyDeck = (): DeckData => ({
+    name: 'Edited Deck',
+    sections: [
+      { name: 'Main', cards: [] },
+      { name: 'Sideboard', cards: [] },
+    ],
+  })
+
+  test('deck: copies of one in move land on one fresh line, each carrying its source id', () => {
+    const { ops, deck } = runLive(emptyDeck(), [inMove()])
     const expected: ChangeInput = {
       action: 'move-to',
       cardName: 'Lightning Bolt',
@@ -490,20 +562,44 @@ describe('swapMovesToChanges', () => {
     }
     expect(ops[0]?.change).toEqual(expected)
     expect(ops[1]?.change).toEqual({ ...expected, sourceCardId: 101 })
+    expect(deck.sections[0]!.cards).toMatchObject([{ cardId: 50, quantity: 2 }])
   })
 
-  test('deck: in moves the add reducer would merge share one id, whatever their source; a different finish gets its own', () => {
-    const ops = opsOf(
-      [
-        inMove({ count: 1, sourceCardIds: [100] }),
-        inMove({ count: 1, sourceCardIds: [300], from: CUBE }),
-        inMove({ count: 1, sourceCardIds: [101], finish: undefined }),
-        inMove({ count: 1, sourceCardIds: [102], finish: 'foil' }),
-      ],
-      context('deck', {}),
-    )
+  test('deck: in moves the reducer would merge share one line, whatever their source; a different finish gets its own', () => {
+    const { ops } = runLive(emptyDeck(), [
+      inMove({ count: 1, sourceCardIds: [100] }),
+      inMove({ count: 1, sourceCardIds: [300], from: CUBE }),
+      inMove({ count: 1, sourceCardIds: [101], finish: undefined }),
+      inMove({ count: 1, sourceCardIds: [102], finish: 'foil' }),
+    ])
     // `mergesOntoCard` folds a bare finish to nonfoil and ignores the source list.
     expect(ops.map((op) => cardIdOf(op.change))).toEqual([50, 50, 50, 51])
+  })
+
+  test('deck: copies headed for different sections never share a line id', () => {
+    // A Main and a Sideboard Bolt both swapped to the same printing: a move-to
+    // merges only within its section, so each must keep its own line.
+    const { ops, deck } = runLive(emptyDeck(), [
+      inMove({ count: 1, sourceCardIds: [100], section: 'Main' }),
+      inMove({ count: 1, sourceCardIds: [101], section: 'Sideboard' }),
+    ])
+    expect(ops.map((op) => cardIdOf(op.change))).toEqual([50, 51])
+    expect(deck.sections.map((s) => s.cards.map((c) => [c.cardId, c.quantity]))).toEqual([
+      [[50, 1]],
+      [[51, 1]],
+    ])
+  })
+
+  test('deck: copies with different landed labels never share a line id', () => {
+    // A proxy and a real copy of the same printing, into a plain deck.
+    const { deck } = runLive(emptyDeck(), [
+      inMove({ count: 1, sourceCardIds: [100], payloads: [{ labels: ['proxy'] }] }),
+      inMove({ count: 1, sourceCardIds: [101] }),
+    ])
+    expect(deck.sections[0]!.cards.map((c) => [c.cardId, c.labels])).toEqual([
+      [50, ['proxy']],
+      [51, undefined],
+    ])
   })
 
   test('deck: a copy the deck already holds a line for lands on that line; nothing is allocated', () => {

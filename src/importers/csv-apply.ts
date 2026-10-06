@@ -19,7 +19,13 @@ import { getDefaultLanguage, loadDefaultCategories } from '../config/ritual-conf
 import { getCachedCardPrintings } from '../scryfall'
 import { withFrontMatter } from '../list/list-export'
 import { parseFlatListFrontMatter } from '../list/flat-list-front-matter'
-import type { CardLabel } from '../card/card-labels'
+import {
+  arrivalLabels,
+  listDefaultLabels,
+  type CardLabel,
+  type LabelOverride,
+} from '../card/card-labels'
+import { findDeckMergeLine } from '../changes/deck-changes'
 import type { CardTag } from '../card/card-tags'
 import { parseTitleFromContent, serializeSectionedList } from '../list/section-format'
 import {
@@ -37,7 +43,6 @@ import { reconcileListRefs } from '../list/list-refs'
 import {
   createAddChange,
   createSetCategoriesChange,
-  isSamePrinting,
   type ChangeEvent,
 } from '../changes/change-event'
 import {
@@ -100,11 +105,33 @@ export type CsvImportOptions = {
 /**
  * A normalized card entry ready to apply to a list. CSV rows never produce a
  * `note` or `labels`; text-file imports carry both through to the written list line.
+ * `labels` are the copy's labels **as its source states them** (`carriedLabels`
+ * over the source file's own default): the writers land them against the
+ * destination's default with `arrivalLabels`, as a move does, so a line keeps
+ * its meaning in a list whose default differs.
  */
 export type ImportCardEntry = CsvCardEntry & {
   note?: string
-  labels?: CardLabel[]
+  labels?: LabelOverride
   tags?: CardTag[]
+}
+
+/**
+ * `entries` with each copy's carried labels landed in a list of `destType`
+ * whose default is `destDefault` (`arrivalLabels`): what the written line's
+ * token must be. An import's source is a file, not a list that states the
+ * copy's `proxy` fact, so only what the line or its file says counts.
+ */
+function landedEntries(
+  entries: readonly ImportCardEntry[],
+  destType: ListType,
+  destDefault: readonly CardLabel[] | undefined,
+): ImportCardEntry[] {
+  return entries.map((entry) => {
+    const labels = arrivalLabels(destType, entry.labels, destDefault, undefined)
+    const { labels: _carried, ...rest } = entry
+    return labels === undefined ? rest : { ...rest, labels }
+  })
 }
 
 export type CsvImportTarget = {
@@ -261,13 +288,15 @@ function buildDeckMarkdown(
       cards = []
       sectionsByName.set(entry.section, cards)
     }
-    // Rows naming the same card and the same printing merge into one deck line,
+    // Rows naming the same card merge into one deck line under the deck
+    // engine's own rule (`findDeckMergeLine`: printing, effective labels, tags),
     // exactly as `appendToDeck` merges them into an existing one — real CSV
     // exports repeat a card across rows, and create/append must not disagree
-    // about what the same file means. A different printing stays its own line.
-    const existing = cards.find(
-      (card) => card.name.toLowerCase() === entry.name.toLowerCase() && isSamePrinting(card, entry),
-    )
+    // about what the same file means. A different printing, or a `[proxy]`
+    // copy beside a real one, stays its own line. A fresh deck has no default.
+    const existing = findDeckMergeLine([{ name: entry.section, cards }], entry.name, entry, {
+      listLabels: undefined,
+    })?.card
     if (existing) {
       existing.quantity += entry.quantity
       continue
@@ -338,7 +367,7 @@ type FlatLineEntry = {
   /** Language token — carried through from parsed entries so a re-serialize never drops `[ja]`. */
   language?: CardLanguage
   /** Label override — parsed collection entries and text-file imports; CSV rows never carry one. */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** `#tag` tokens — parsed entries and text-file imports carry them through. */
   tags?: CardTag[]
   note?: string
@@ -428,15 +457,26 @@ async function createList(
     if (target.format === undefined) {
       return { error: 'Creating a deck from CSV requires a format' }
     }
-    content = buildDeckMarkdown(target.name, target.format, entries)
+    content = buildDeckMarkdown(
+      target.name,
+      target.format,
+      landedEntries(entries, 'deck', undefined),
+    )
   } else {
-    content = buildFlatListMarkdown(target.listType, target.name, entries)
     // Overwrite replaces the card lines, not the list's metadata — an existing
-    // front-matter block (a collection's `labels:` default) survives verbatim.
-    if (replaced !== null) {
-      const parsed = parseFlatListFrontMatter(replaced.split('\n'), { validateLabels: false })
-      content = withFrontMatter(parsed.frontMatter, content)
-    }
+    // front-matter block (a collection's `labels:` default) survives verbatim,
+    // and the lines land against the default it declares.
+    const kept =
+      replaced === null
+        ? undefined
+        : parseFlatListFrontMatter(replaced.split('\n'), { validateLabels: false }).frontMatter
+    const destDefault = listDefaultLabels(target.listType, kept?.data)
+    content = buildFlatListMarkdown(
+      target.listType,
+      target.name,
+      landedEntries(entries, target.listType, destDefault),
+    )
+    if (kept !== undefined) content = withFrontMatter(kept, content)
   }
 
   if (dryRun) {
@@ -497,18 +537,23 @@ function appendToDeck(
   if (lost.length > 0) return { unreadable: lost }
   const { deck } = parsedDeck
   const frontMatter = matter(content).data
+  const listLabels = listDefaultLabels('deck', frontMatter)
   const pool = createIdPool(collectDeckCardIds(deck))
   const changes: ChangeEvent[] = []
 
-  for (const entry of entries) {
+  for (const entry of landedEntries(entries, 'deck', listLabels)) {
     let section = deck.sections.find((s) => s.name === entry.section)
     if (!section) {
       section = { name: entry.section, cards: [] }
       deck.sections.push(section)
     }
-    const existing = section.cards.find(
-      (card) => card.name.toLowerCase() === entry.name.toLowerCase() && isSamePrinting(card, entry),
-    )
+    // The deck engine's merge rule (printing, effective labels against the
+    // deck's default, tags), within the row's section, so the line the file
+    // gets and the add event recorded for it describe the same copies.
+    const existing = findDeckMergeLine(deck.sections, entry.name, entry, {
+      listLabels,
+      section: entry.section,
+    })?.card
     let cardId: number | undefined
     if (existing) {
       existing.quantity += entry.quantity
@@ -565,7 +610,9 @@ function appendToFlatList(
   const sectionOrder = parsed.sectionOrder
 
   const pool = createIdPool(collectExistingIds(existing))
-  const copies = expandCopies(entries, pool)
+  const destDefault =
+    listType === 'collection' ? listDefaultLabels(listType, parsed.frontMatter?.data) : undefined
+  const copies = expandCopies(landedEntries(entries, listType, destDefault), pool)
   const changes: ChangeEvent[] = copies.map((copy) =>
     createAddChange(copy.name, {
       set: copy.set,

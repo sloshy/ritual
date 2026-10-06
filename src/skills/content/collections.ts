@@ -53,9 +53,15 @@ Collection lists and cards carry **labels** declaring what the owner would do
 with them: \`sale\` and \`trade\` (combinable), \`keep\`, or \`proxy\` — \`keep\` and
 \`proxy\` are each exclusive of every other label, including each other. A
 list-level default lives in the collection's front matter
-(\`labels: [sale, trade]\`); an individual card overrides it with a bracketed
-token on its line (\`[keep]\`, \`[sale,trade]\`). A card's *effective* labels are
-its override when present, else the list default. Labels drive the public
+(\`labels: [sale, trade]\`); an individual card **adjusts** it with a bracketed
+token on its line: a plain label adds it, and \`no-<label>\` takes an inherited
+one away (\`[trade,no-sale]\` under a \`sale\` default is "for trade, not for
+sale"; \`[no-sale,no-trade]\` is "no labels"). A card's *effective* labels are
+its positives plus the default minus its negated labels, and a positive also
+displaces an inherited label it cannot combine with (\`[keep]\` under a \`sale\`
+default is just \`keep\`). Defaults are positive only. A move keeps a card's
+labels: a stated sale/trade/keep state survives, \`proxy\` is kept as a fact,
+and a label the source never stated takes the destination's default. Labels drive the public
 site's list filters, the collections-index "Labels" view-all menu, and a
 one-time warning when a \`keep\`-labeled card is added to a trade. Decks carry
 \`proxy\` too, and nothing else (see the **ritual-decks** skill); wanted lists
@@ -73,6 +79,7 @@ when a card has both).
 \`\`\`bash
 ritual set-card "Main Binder" "Sol Ring" --collection --label keep       # override
 ritual set-card "Main Binder" "Sol Ring" --collection --label sale,trade
+ritual set-card "Main Binder" "Sol Ring" --collection --label trade,no-sale  # adjust the default
 ritual set-card "Main Binder" "Sol Ring" --collection --label proxy     # not a real card: no price
 ritual set-card "Main Binder" "Sol Ring" --collection --label none      # back to the list default
 ritual add-card "Main Binder" "Mox Jet" --collection --set lea --collector-number 262 -c LP --label keep
@@ -182,7 +189,7 @@ ${textImportSection({
   examples: `ritual import binder.txt --type collection
 ritual import binder.txt --type collection --overwrite --no-input`,
   extra:
-    'Every line must carry a printing (e.g. `2 Sol Ring (C19:221)`) — collections track specific physical printings, so name-only lines are rejected. A `[sale]` / `[trade]` / `[keep]` label token on a line is carried through to the collection (a wanted-list import drops it, since wanted lists carry no labels).',
+    'Every line must carry a printing (e.g. `2 Sol Ring (C19:221)`) — collections track specific physical printings, so name-only lines are rejected. A `[sale]` / `[trade]` / `[keep]` / `[no-sale]` label token on a line is carried through to the collection (a wanted-list import drops it, since wanted lists carry no labels).',
 })}
 
 ## Import from a CSV file

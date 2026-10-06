@@ -8,7 +8,7 @@ import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ri
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../src/list/deck-file'
 import { serializeSectionedList } from '../../src/list/section-format'
 import { formatCollectionLine, formatWantedListLine } from '../../src/card/card-line'
-import type { CardLabel } from '../../src/card/card-labels'
+import type { CardLabel, LabelOverride } from '../../src/card/card-labels'
 import type { CardTag } from '../../src/card/card-tags'
 import type { CardLanguage } from '../../src/card/card-language'
 import { frontMatterFor, withFrontMatter } from '../../src/list/list-export'
@@ -241,8 +241,8 @@ export type CollectionFixtureEntry = {
   condition?: Condition
   /** The line's `[ja]`-style language token; omit for English. */
   language?: CardLanguage
-  /** Per-card label override (`[keep]`, `[sale,trade]`). */
-  labels?: CardLabel[]
+  /** Per-card label override (`[keep]`, `[sale,trade]`, `[trade,no-sale]`). */
+  labels?: LabelOverride
   /** Per-card `#tag` tokens. */
   tags?: CardTag[]
   note?: string

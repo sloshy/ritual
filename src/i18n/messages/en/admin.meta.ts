@@ -527,7 +527,8 @@ export const adminMeta = {
     description: 'Title of the dialog setting a list’s default card labels.',
   },
   'admin.labels.desc': {
-    description: 'Explains that the chosen labels apply to every card that does not set its own.',
+    description:
+      'Explains that the chosen labels apply to every card in the list, and that a card can adjust them with its own labels (adding one, or taking one away).',
   },
   'admin.labels.groupLabel': {
     description: 'Accessible name of the radio group of label choices.',

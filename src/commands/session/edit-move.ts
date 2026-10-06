@@ -69,8 +69,8 @@ export type MoveDestination = {
 
 /**
  * The source entry a move reads: its printing tuple, its `&N`, and what rides
- * with the copy — its tags, its **effective** labels (the entry's override,
- * else its list's default) and its note.
+ * with the copy — its tags, its **carried** labels (the entry's override
+ * applied to its list's default, `carriedLabels`) and its note.
  */
 export type MoveSource = PrintingTupleWithId & MovedCopySource
 
@@ -87,8 +87,8 @@ export function moveFromOptionsFor(source: MoveSource, dest: MoveDestination): M
     finish: source.finish,
     condition: source.condition,
     language: dest.printing?.language ?? source.language,
-    // The payload rides as every move carries it (tags unfiltered, effective
-    // labels the destination filters on arrival, the note), exactly as
+    // The payload rides as every move carries it (tags unfiltered, carried
+    // labels the destination lands with `arrivalLabels`, the note), exactly as
     // `ritual move` does.
     ...movedCopyOf(source),
     cardId: source.cardId,

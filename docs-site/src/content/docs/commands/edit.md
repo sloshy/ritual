@@ -293,7 +293,7 @@ For a **deck** line:
 | `➕ Add a Copy`            | Increment the line's quantity                                                                                 |
 | `➖ Remove a Copy`         | Decrement the line's quantity (multi-copy lines only); keeps the `&N` id                                      |
 | `🌐 Change Language`       | Pick the line's [language](#card-language) (`en` removes the token)                                           |
-| `🏷️ Change Label`          | Set the line's [label override](#card-labels) to **Proxy**, or revert to the deck's default                   |
+| `🏷️ Change Label`          | Make the line **Proxy** or **Not a proxy**, or revert to the deck's default ([labels](#card-labels))          |
 | `🔖 Edit Tags`             | Edit the line's [tags](#card-tags) in one field (empty clears them)                                           |
 | `🎨 Set Custom Art`        | Set or clear the line's [custom art](#custom-art) (an image URL, or a file from the art directory)            |
 | `🗂️ Edit Categories`       | Set the line's [categories](#card-categories) in this list (comma-separated; empty clears them)               |
@@ -311,7 +311,7 @@ For a **collection** entry:
 | `✨ Change Finish`        | Switch between `nonfoil`, `foil`, and `etched`                                                                  |
 | `📋 Change Condition`     | Switch between `NM`, `LP`, `MP`, `HP`, and `DMG`                                                                |
 | `🌐 Change Language`      | Pick the entry's [language](#card-language) (`en` removes the token)                                            |
-| `🏷️ Change Label`         | Set the [label override](#card-labels) (For sale / For trade / both / To keep / Proxy) or revert to the default |
+| `🏷️ Change Label`         | Pick the [label](#card-labels) state (For sale / For trade / both / To keep / Proxy / No labels) or the default |
 | `🔖 Edit Tags`            | Edit the entry's [tags](#card-tags) in one field (empty clears them)                                            |
 | `🎨 Set Custom Art`       | Set or clear the entry's [custom art](#custom-art) (an image URL, or a file from the art directory)             |
 | `🗂️ Edit Categories`      | Set the entry's [categories](#card-categories) in this list (comma-separated; empty clears them)                |
@@ -352,14 +352,14 @@ If a destination cannot be written at save time (its file was deleted, a deck de
 What follows a moved card:
 
 - **Note**: yes, on every list type. The one exception matches [`ritual move`](/commands/move/): when the copy merges onto a deck line that already has a different note, the line keeps its own note and the CLI reports the dropped one.
-- **[Labels](#card-labels)**: yes, as `ritual move` carries them. The card takes its effective labels (its own override, or else the source list's default), and the destination keeps what its type can express: another collection keeps all of them, a deck keeps `proxy` and drops `sale`/`trade`/`keep`, and a wanted list keeps none. An override is written only when the kept labels differ from the destination's own default. The line grammar has no empty override, so a card with no labels moving into a list that has a default takes that default.
+- **[Labels](#card-labels)**: yes, as `ritual move` carries them: a proxy stays a proxy and a real card stays real wherever both lists carry `proxy`, a `sale`/`trade`/`keep` state the source list stated (in its default or on the card) is kept, and a label the source never stated takes the destination's default. The destination keeps what its type can express (another collection keeps all of them, a deck keeps `proxy`, a wanted list keeps none) and writes the smallest token that says so.
 - **[Tags](#card-tags)**: yes, on every path, since every list type carries them.
 - **[Custom art](/custom-art/#art-follows-the-card)**: yes. The entry leaves the source list's `.art.json` and is re-filed under the destination line's new `&N`, unless the copy merged onto a line the destination already had, which keeps its own art.
 - **[Categories](#card-categories)**: no. A category belongs to a card _name in one list_, so the destination inherits nothing. The save also prunes the source list's `<list>.categories.json` of any name the source no longer holds. It skips that pruning for a list with a bullet the card-line grammar could not read.
 
 ## Card Labels
 
-Labels (`[proxy]`, `[sale,trade]`, `[keep]`) are a card-line token described on [List Files](/list-format/#card-labels). In a session, `🏷️ Change Label` in [edit mode](#edit-mode) sets a card's override, offering only what the list type carries (on a deck, **Proxy** or the list default), and **Use list default** clears it. `🏷️ Edit List Labels` on the list menu sets the list's front-matter [default](/list-format/#default-labels-and-descriptions), deferred to the next save like any other edit. A proxied card [carries no price](/list-format/#proxies-carry-no-price).
+Labels (`[proxy]`, `[sale,trade]`, `[trade,no-sale]`, `[no-proxy]`) are a card-line token that adjusts the list's default, described on [List Files](/list-format/#card-labels). In a session, `🏷️ Change Label` in [edit mode](#edit-mode) offers the label **states** the list type can hold (on a deck, **Proxy**, **Not a proxy**, or the list default; on a collection, the label states plus **No labels**) and writes the smallest token that puts the card in the picked state under the list's default. **Use list default** clears the token, and "No labels" / "Not a proxy" appear only when the list has a default to take away. The current state is marked. `🏷️ Edit List Labels` on the list menu sets the list's front-matter [default](/list-format/#default-labels-and-descriptions), deferred to the next save like any other edit. A proxied card [carries no price](/list-format/#proxies-carry-no-price).
 
 ## Card Tags
 
@@ -500,7 +500,7 @@ Each card entry is written to a markdown collection file in the `collections/` d
 
 Non-foil finish, `NM` condition, and English are omitted, as on deck lines. A "Don't Care" condition choice is treated as `NM` and not written. The note is optional and can be added after entry via `📝 Add Note`; notes are shown in the card detail modal on the generated site.
 
-The optional `[labels]` token is the card's [label override](/list-format/#card-labels). [`ritual move`](/commands/move/) carries it as far as the destination type can express it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow carries it the same way, along with the card's note. Both carry the card's _effective_ labels, so a card that inherits the source list's default takes that default along too (see [what follows a moved card](#moving-cards-to-another-list)).
+The optional `[labels]` token is the card's [label override](/list-format/#card-labels), adjusting the list default (`[trade,no-sale]`). [`ritual move`](/commands/move/) keeps the card's labels as far as the destination type can express them: another collection keeps all of them, a deck keeps `proxy`, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow carries them the same way, along with the card's note (see [what follows a moved card](#moving-cards-to-another-list)).
 
 ## Wanted Lists
 

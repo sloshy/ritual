@@ -703,7 +703,7 @@ function makeLabelEntry(
   name: string,
   collectorNumber: string,
   fileOrder: number,
-  labels?: CollectionDetail['labels'],
+  labels?: CollectionCardEntry['labels'],
 ): CollectionCardEntry {
   return makeCollectionEntry({
     name,
@@ -734,17 +734,23 @@ const MOCK_LABEL_BINDER_DETAIL = makeCollectionDetail({
   totalPrice: 4.0,
 })
 
-// A list-level default (`sale, trade`) with one keep override — proves the
-// default resolves end-to-end and that tiles badge overrides only.
+// A list-level default (`sale, trade`) with one keep override and one `no-sale`
+// adjustment — proves the default resolves end-to-end, that tiles badge
+// overrides only, and that a negation takes an inherited label away.
 const MOCK_SALE_BINDER_DETAIL = makeCollectionDetail({
   name: 'Sale Binder',
   labels: ['sale', 'trade'],
-  entries: [makeLabelEntry('Default Card', '5', 0), makeLabelEntry('Keeper', '6', 1, ['keep'])],
+  entries: [
+    makeLabelEntry('Default Card', '5', 0),
+    makeLabelEntry('Keeper', '6', 1, ['keep']),
+    makeLabelEntry('Trade Only', '7', 2, ['no-sale']),
+  ],
   cards: {
     'tst:5': makeLabelCard('Default Card', '5'),
     'tst:6': makeLabelCard('Keeper', '6'),
+    'tst:7': makeLabelCard('Trade Only', '7'),
   },
-  totalPrice: 2.0,
+  totalPrice: 3.0,
 })
 
 const MOCK_SITE_INDEX_FOR_LABELS = makeSiteIndex({
@@ -758,8 +764,8 @@ const MOCK_SITE_INDEX_FOR_LABELS = makeSiteIndex({
     makeCollectionSummary({
       slug: 'sale-binder',
       name: 'Sale Binder',
-      cardCount: 2,
-      totalPrice: 2.0,
+      cardCount: 3,
+      totalPrice: 3.0,
       labels: ['sale', 'trade'],
     }),
   ],

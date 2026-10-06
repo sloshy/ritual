@@ -66,7 +66,7 @@ export const helpCardsMeta = {
   },
   'help.addCard.label': {
     description:
-      'Help for add-card --label. "sale", "trade", "keep" and "proxy" are persisted label slugs and never translate.',
+      'Help for add-card --label. "sale", "trade", "keep", "proxy", the "no-" prefix and the examples are persisted label slugs and never translate.',
   },
   'help.addCard.tag': {
     description:
@@ -116,7 +116,7 @@ export const helpCardsMeta = {
   },
   'help.setCard.label': {
     description:
-      'Help for set-card --label. The label slugs and "none" are machine values; decks carry "proxy" alone.',
+      'Help for set-card --label. The label slugs, the "no-" prefix, the examples and "none" are machine values; decks carry "proxy" (and "no-proxy") alone.',
   },
   'help.setCard.tag': {
     description:

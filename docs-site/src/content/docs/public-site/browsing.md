@@ -99,9 +99,9 @@ A card with [custom art](/custom-art/) shows that image on its tile in every vie
 
 ## Card Labels
 
-Cards can carry [labels](/list-format/#card-labels): `sale`, `trade`, `keep`, and `proxy` on a collection, and `proxy` on a deck. A card's _effective_ labels are its own override, or else the list's front-matter default. The toolbar's [Labels filter](/public-site/filtering/#available-filters) filters on effective labels and offers only the chips the page's lists can answer.
+Cards can carry [labels](/list-format/#card-labels): `sale`, `trade`, `keep`, and `proxy` on a collection, and `proxy` on a deck. A card's _effective_ labels are the list's front-matter default [adjusted by its own token](/list-format/#card-labels): its labels added, its `no-` labels taken away. The toolbar's [Labels filter](/public-site/filtering/#available-filters) filters on effective labels and offers only the chips the page's lists can answer.
 
-Tiles show a **badge** only for a card's own override, in a themable color per label. A list-wide default is not badged on every tile. In a [combined view](/public-site/combined-view/), where there is no single list default, the badge shows the effective labels instead.
+Tiles show a **badge** only for a card's own override, in a themable color per label; a negation shows as **Not a proxy** / **Not for sale** in the list view and as the label struck through (with that wording as its tooltip) on a card tile, in the negated-label color. A list-wide default is not badged on every tile. In a [combined view](/public-site/combined-view/), where there is no single list default, the badge shows the effective labels instead.
 
 A **proxy** is not a real card, so the site prices it at zero. See [Cards priced at zero](/public-site/prices/#cards-priced-at-zero).
 

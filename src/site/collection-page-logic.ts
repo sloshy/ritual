@@ -1,4 +1,4 @@
-import { formatCardLabels } from '../card/card-labels'
+import { formatLabelOverride } from '../card/card-labels'
 import { displayLanguage } from '../card/card-language'
 import { formatCardTags } from '../card/card-tags'
 import type { CollectionCardEntry } from '../list/site-data'
@@ -12,12 +12,15 @@ export type GroupedEntry = { entry: CollectionCardEntry; count: number }
  * differently-tagged or custom-art copy never merges into (and mislabels,
  * mis-tags, or zero-prices) a stack of otherwise identical tradable copies. The art joins as the *fact* as well as the URL: a
  * copy whose art file was not deployed has no URL to tell it apart, and merging
- * would price the priceless copy at retail. Shared by
+ * would price the priceless copy at retail. The *raw* override on purpose, not
+ * the effective labels: a tile badges its entry's own override, so copies that
+ * share a tile must share the badge it shows (a redundant `[sale]` and an
+ * inherited sale are two tiles, each truthful about its line). Shared by
  * {@link groupDuplicateEntries} and {@link groupCardIds}, so a tile's card IDs
  * are exactly the entries it visually represents.
  */
 export function duplicateGroupKey(entry: CollectionCardEntry): string {
-  return `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatCardLabels(entry.labels ?? [])}|${formatCardTags(entry.tags)}|${entry.customArt ?? ''}|${entry.hasCustomArt === true ? 'art' : ''}`
+  return `${entry.name}|${entry.set}|${entry.collectorNumber}|${entry.finish}|${entry.condition}|${displayLanguage(entry.language)}|${formatLabelOverride(entry.labels ?? [])}|${formatCardTags(entry.tags)}|${entry.customArt ?? ''}|${entry.hasCustomArt === true ? 'art' : ''}`
 }
 
 /**

@@ -765,11 +765,12 @@ describe('parseDeckText — language token', () => {
     expect(warnings).toHaveLength(0)
   })
 
-  test('a conflicting labels token refuses the line and names both labels', () => {
-    // A self-conflicting token is a grammar refusal, not a value one: the line
-    // is skipped and warns, so the rewrite gates block until it is fixed.
+  test('a conflicting labels token keeps the card without labels and names both labels', () => {
+    // It warns, so the rewrite gates block until it is fixed, but the card stays
+    // (labels dropped) — on the site, in pricing, and repairable by set-card.
     const { deck, warnings } = parseDeckText('## Main\n1 Sol Ring (LTC:284) [sale,proxy] &1', 'd')
-    expect(deck.sections[0]?.cards ?? []).toHaveLength(0)
+    expect(deck.sections[0]?.cards).toMatchObject([{ name: 'Sol Ring', cardId: 1 }])
+    expect(deck.sections[0]?.cards[0]?.labels).toBeUndefined()
     expect(warnings).toEqual([
       'line 2: Conflicting labels [sale,proxy] — [proxy] cannot be combined with any other label.',
     ])

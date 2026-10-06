@@ -23,35 +23,35 @@ ritual add-card <targetName> <cardName...> [options]
 
 ## Options
 
-| Option                     | Description                                                                                              | Default | Applies To               |
-| -------------------------- | -------------------------------------------------------------------------------------------------------- | ------- | ------------------------ |
-| `--deck`                   | Resolve the name as a deck                                                                               |         |                          |
-| `--collection`             | Resolve the name as a collection (created if missing)                                                    |         |                          |
-| `--wanted`                 | Resolve the name as a wanted list (created if missing)                                                   |         |                          |
-| `-q, --quantity <num>`     | Number of copies to add (positive integer)                                                               | `1`     | Deck only                |
-| `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                 |         | Deck, Collection, Wanted |
-| `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                          |         | Deck, Collection         |
-| `--language <code>`        | Card language as a Scryfall code (`ja`, `de`, `zhs`, ...); see [Language](#language)                     |         | Deck, Collection, Wanted |
-| `--label <labels>`         | Label the new card: `sale,trade` (combinable), `keep`, or `proxy` on a collection; `proxy` on a deck     |         | Deck, Collection         |
-| `--tag <tags>`             | [Tag](/list-format/#card-tags) the new card, comma-separated (`"Ramp, Card Draw"`); repeatable           |         | Deck, Collection, Wanted |
-| `--section <name>`         | Deck section to add to, created at the end of the file if missing                                        |         | Deck only                |
-| `--commander`              | Add the card to the deck's Commander section (created at the top if missing)                             |         | Deck only                |
-| `-e, --exact`              | Use exact matching (skip selection if name matches)                                                      | `false` |                          |
-| `--set <code>`             | Pin an exact printing by set code (requires `--collector-number`)                                        |         |                          |
-| `--collector-number <num>` | Pin an exact printing by collector number (requires `--set`)                                             |         |                          |
-| `--name-only`              | Add the card by name without choosing a printing                                                         |         | Wanted only              |
-| `--specific`               | Record a specific printing (via `--set`/`--collector-number` or interactive picker)                      |         | Wanted only              |
-| `--refresh <mode>`         | Card cache refresh policy: `ask`, `auto`, `no-bulk`, or `never`; see [Cache Freshness](#cache-freshness) | `ask`   |                          |
-| `-n, --dry-run`            | Report what would be added without writing anything                                                      | `false` |                          |
-| `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                               | `text`  |                          |
-| `--quiet`                  | Suppress non-essential output                                                                            | `false` |                          |
+| Option                     | Description                                                                                                          | Default | Applies To               |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- | ------- | ------------------------ |
+| `--deck`                   | Resolve the name as a deck                                                                                           |         |                          |
+| `--collection`             | Resolve the name as a collection (created if missing)                                                                |         |                          |
+| `--wanted`                 | Resolve the name as a wanted list (created if missing)                                                               |         |                          |
+| `-q, --quantity <num>`     | Number of copies to add (positive integer)                                                                           | `1`     | Deck only                |
+| `-f, --finish <finish>`    | Card finish: `nonfoil`, `foil`, `etched`                                                                             |         | Deck, Collection, Wanted |
+| `-c, --condition <cond>`   | Card condition: `NM`, `LP`, `MP`, `HP`, `DMG`, or `NONE` to record no condition                                      |         | Deck, Collection         |
+| `--language <code>`        | Card language as a Scryfall code (`ja`, `de`, `zhs`, ...); see [Language](#language)                                 |         | Deck, Collection, Wanted |
+| `--label <labels>`         | Adjust the list default for the new card: `sale,trade`, `keep`, `proxy`, or `no-<label>` (decks: `proxy`/`no-proxy`) |         | Deck, Collection         |
+| `--tag <tags>`             | [Tag](/list-format/#card-tags) the new card, comma-separated (`"Ramp, Card Draw"`); repeatable                       |         | Deck, Collection, Wanted |
+| `--section <name>`         | Deck section to add to, created at the end of the file if missing                                                    |         | Deck only                |
+| `--commander`              | Add the card to the deck's Commander section (created at the top if missing)                                         |         | Deck only                |
+| `-e, --exact`              | Use exact matching (skip selection if name matches)                                                                  | `false` |                          |
+| `--set <code>`             | Pin an exact printing by set code (requires `--collector-number`)                                                    |         |                          |
+| `--collector-number <num>` | Pin an exact printing by collector number (requires `--set`)                                                         |         |                          |
+| `--name-only`              | Add the card by name without choosing a printing                                                                     |         | Wanted only              |
+| `--specific`               | Record a specific printing (via `--set`/`--collector-number` or interactive picker)                                  |         | Wanted only              |
+| `--refresh <mode>`         | Card cache refresh policy: `ask`, `auto`, `no-bulk`, or `never`; see [Cache Freshness](#cache-freshness)             | `ask`   |                          |
+| `-n, --dry-run`            | Report what would be added without writing anything                                                                  | `false` |                          |
+| `--output <format>`        | Output format: `text`, `json`, or `ndjson`                                                                           | `text`  |                          |
+| `--quiet`                  | Suppress non-essential output                                                                                        | `false` |                          |
 
 Rules on combining flags:
 
 - `--deck`, `--collection`, and `--wanted` are mutually exclusive, as are `--name-only` and `--specific`.
-- A flag that does not apply to the resolved list type is a usage error, not ignored. Examples: `--condition` on a wanted list, `--section` on a collection, `--label` on a wanted list, `--label sale` on a deck (decks only take `proxy`), `--name-only` on a deck, or `--quantity` other than `1` on a collection or wanted list.
+- A flag that does not apply to the resolved list type is a usage error, not ignored. Examples: `--condition` on a wanted list, `--section` on a collection, `--label` on a wanted list, `--label sale` on a deck (decks only take `proxy` and `no-proxy`), `--name-only` on a deck, or `--quantity` other than `1` on a collection or wanted list.
 - Invalid `--finish`, `--condition`, `--label`, `--tag`, and `--quantity` values are rejected at parse time. An empty `--tag` is invalid.
-- Omitting `--label` inherits the list's default label.
+- Omitting `--label` inherits the list's default labels. A `--label` [adjusts](/list-format/#card-labels) that default: `--label no-proxy` adds a real card to a `proxy`-default deck, `--label trade,no-sale` a for-trade-only card to a `sale` binder.
 
 ## Examples
 
@@ -197,11 +197,11 @@ The card is selected via autocomplete (or `--exact`) and then added through the 
 
 How the card lands in the deck:
 
-- **Copies merge onto an existing line** for the same card when the printing (set, collector number, finish, condition, language), the label override, and the tags all match. The merged line keeps its `&N` ID and any `{note}`. Labels are part of that identity: `--label proxy` on a card the deck already runs for real adds a second, `[proxy]` line rather than folding the proxies into the real copies.
+- **Copies merge onto an existing line** for the same card when the printing (set, collector number, finish, condition, language), the effective labels (each line's override applied to the deck's default), and the tags all match. The merged line keeps its `&N` ID and any `{note}`. Labels are part of that identity: `--label proxy` on a card the deck already runs for real adds a second, `[proxy]` line rather than folding the proxies into the real copies.
 - **Merging wins over placement.** `--section` and `--commander` place a **new** line. When the deck already runs the printing, the copies join the existing line wherever it lives, and `--commander` then moves that whole line (every copy) into the Commander section. A `--section` naming a different section does not move the merged line, and the changelog records the section the copies actually landed in.
 - **A new line is appended at the end of its section**: the section named by `--section`, the Commander section under `--commander`, otherwise the deck's first non-commander, non-sideboard section. A deck organized as `## Mainboard` keeps that one main section instead of gaining a `## Main`. A deck whose body is bare card lines with no headings is one implicit Main section, and the card joins after its last card line. Only a deck with no card lines at all gets a `## Main` created.
 
-Deck entries record the card name and quantity, plus the set code and collector number when pinned, and `[finish]`/`[condition]`/`[labels]`/`#tags` annotations when the matching flags are given. `proxy` is the only label a deck line takes (see [Card Labels](/list-format/#card-labels)); tags are free-form on every type (see [Card Tags](/list-format/#card-tags)). A `--finish` on a deck add is validated only when `--set`/`--collector-number` pin a printing, since an unpinned deck line records no printing to check against.
+Deck entries record the card name and quantity, plus the set code and collector number when pinned, and `[finish]`/`[condition]`/`[labels]`/`#tags` annotations when the matching flags are given. `proxy` (and `no-proxy`) is the only label a deck line takes (see [Card Labels](/list-format/#card-labels)); tags are free-form on every type (see [Card Tags](/list-format/#card-tags)). A `--finish` on a deck add is validated only when `--set`/`--collector-number` pin a printing, since an unpinned deck line records no printing to check against.
 
 ### Collection Mode
 
@@ -248,7 +248,7 @@ With `--output json` (or `ndjson`), a successful add prints exactly one machine-
 Extra fields:
 
 - Deck adds include `quantity` (copies added, not the merged line's new total) and `section` (where the card's line ended up).
-- `--label` adds `labels` (the override the new line carries); `--tag` adds `tags` (trimmed, sorted).
+- `--label` adds `labels` (the signed override the new line carries); `--tag` adds `tags` (trimmed, sorted).
 - A non-English add includes `language` (canonical lowercase code); English is omitted, like the line's token.
 - Wanted adds omit the fields that weren't recorded.
 - `--dry-run` adds `"dryRun": true`.

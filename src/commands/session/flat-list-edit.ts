@@ -3,11 +3,12 @@ import {
   createMoveFromChange,
   createRemoveChange,
   createSetNoteChange,
+  movedCopyFromLine,
   printingOptionsFrom,
   type ChangeEvent,
 } from '../../changes/change-event'
 import type { Condition, Finish } from '../../card/finish-condition'
-import { effectiveLabels, type CardLabel } from '../../card/card-labels'
+import type { LabelOverride } from '../../card/card-labels'
 import type { CardLanguage } from '../../card/card-language'
 import type { CardTag } from '../../card/card-tags'
 import { allocateId, claimId, releaseId } from '../../card/card-id'
@@ -89,7 +90,7 @@ export type EditableFlatListEntry = FlatListEntry & {
   /** The line's `[ja]`-style language token. Absent means `en`. */
   language?: CardLanguage
   /** Label override — collection entries only; wanted entries never carry one. */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** The line's `#tag` tokens, canonical; absent when it carries none. */
   tags?: CardTag[]
   note?: string
@@ -287,9 +288,7 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
     moveFromOptionsFor(
       {
         ...printingOptionsFrom(removed),
-        tags: removed.tags,
-        labels: effectiveLabels(removed.labels, list.listLabels()),
-        note: removed.note,
+        ...movedCopyFromLine(removed, list.listLabels()),
         cardId,
       },
       dest,

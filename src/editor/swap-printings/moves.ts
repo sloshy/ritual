@@ -5,6 +5,7 @@
 
 import { displayFinish } from '../../card/finish-condition'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../list-view/combined-list'
+import type { MovedCopyFields } from '../../changes/change-event'
 import { currentPrintingPrice } from './auto'
 import { definedPrintingDetails, targetPinsPrinting } from './printing-fields'
 import type {
@@ -87,6 +88,28 @@ export function candidatePrice(candidate: SwapCandidate, priceOf: PriceOf): numb
  * id shared by every copy (repeated), a flat list one id per copy (taken in
  * sequence, `undefined` past the end for legacy lines — never another copy's).
  */
+/** The payloads of the copies {@link takeTargetIds} hands out, aligned with them. */
+function takeTargetPayloads(
+  target: Pick<SwapTarget, 'payloads' | 'sharedLine'>,
+  cursor: number,
+  count: number,
+): MovedCopyFields[] {
+  const payloads = target.payloads ?? []
+  if (target.sharedLine) return Array.from({ length: count }, () => payloads[0] ?? {})
+  return Array.from({ length: count }, (_, i) => payloads[cursor + i] ?? {})
+}
+
+/** True when a payload carries nothing (no tags, labels or note). */
+function isEmptyPayload(payload: MovedCopyFields): boolean {
+  return payload.tags === undefined && payload.labels === undefined && payload.note === undefined
+}
+
+/** Attach `payloads` to a move only when some copy carries something, so plain moves stay plain. */
+function withPayloads(move: SwapMove, payloads: MovedCopyFields[]): void {
+  if (payloads.every(isEmptyPayload)) delete move.payloads
+  else move.payloads = payloads
+}
+
 function takeTargetIds(
   target: Pick<SwapTarget, 'cardIds' | 'sharedLine'>,
   cursor: number,
@@ -151,10 +174,15 @@ export function planMoves(
       to: editedRef,
       sourceCardIds: copies.map((copy) => copy.cardId),
     }
+    withPayloads(
+      inMove,
+      copies.map((copy) => copy.payload ?? {}),
+    )
     if (target.section !== undefined) inMove.section = target.section
     inMoves.push(inMove)
 
     const targetIds = takeTargetIds(target, idCursor, count)
+    const targetPayloads = takeTargetPayloads(target, idCursor, count)
     idCursor += count
     // A name-only target's copies are pinned where they stand: nothing leaves.
     if (!targetPinsPrinting(target)) {
@@ -173,11 +201,13 @@ export function planMoves(
     const key = listRefKey(destination)
     const existing = outMoves.get(key)
     if (existing) {
+      const before = existing.payloads ?? Array.from({ length: existing.count }, () => ({}))
       existing.count += count
       existing.sourceCardIds.push(...sourceCardIds)
+      withPayloads(existing, [...before, ...targetPayloads])
       continue
     }
-    outMoves.set(key, {
+    const outMove: SwapMove = {
       direction: 'out',
       cardName: target.cardName,
       count,
@@ -188,7 +218,9 @@ export function planMoves(
       to: destination,
       sourceCardIds,
       card: target.card,
-    })
+    }
+    withPayloads(outMove, targetPayloads)
+    outMoves.set(key, outMove)
   }
 
   return { moves: [...inMoves, ...outMoves.values()], flags }

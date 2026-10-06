@@ -769,7 +769,7 @@ export async function mockAdminCollectionLoadApi(page: Page): Promise<void> {
   const body: CollectionFullLoadResult = {
     success: true,
     view: 'full',
-    entries: MOCK_COLLECTION_DETAIL.entries,
+    entries: MOCK_COLLECTION_DETAIL.entries.map((entry) => ({ ...entry, effectiveLabels: [] })),
     description: MOCK_COLLECTION_DETAIL.description,
     cards: MOCK_COLLECTION_DETAIL.cards,
     printings: MOCK_COLLECTION_DETAIL.printings,
@@ -892,6 +892,7 @@ export async function mockMoveCardsApi(
         condition: 'NM',
         section: 'Main',
         cardId: 1,
+        effectiveLabels: [],
       },
     ],
     sectionOrder: ['Main'],
@@ -910,7 +911,12 @@ export async function mockMoveCardsApi(
     view: 'full',
     deck: {
       name: 'Move Deck',
-      sections: [{ name: 'Main', cards: [{ quantity: 2, name: 'Giant Growth', cardId: 5 }] }],
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 2, name: 'Giant Growth', cardId: 5, effectiveLabels: [] }],
+        },
+      ],
     },
     cards: { 'Giant Growth': MOVE_GROWTH_PRINTINGS[0]! },
     printings: { 'Giant Growth': MOVE_GROWTH_PRINTINGS },

@@ -198,7 +198,7 @@ export const adminMessages = {
   // ── List default-labels modal ─────────────────────────────────────────
   'admin.labels.title': 'Default Labels',
   'admin.labels.desc':
-    'The default for every card in this list. Individual cards can override it with their own label.',
+    'The default for every card in this list. Individual cards can add to it or take a label away with their own labels.',
   'admin.labels.groupLabel': 'Default labels',
   'admin.labels.saving': 'Saving…',
   'admin.labels.save': 'Save',

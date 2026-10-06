@@ -428,7 +428,7 @@ tags: []
 # Test Swap Deck
 
 ## Main
-- 1 Sol Ring (C21:263) &1
+- 1 Sol Ring (C21:263) [proxy] &1
 - 1 Counterspell &2
 `
 

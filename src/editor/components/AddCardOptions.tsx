@@ -1,9 +1,12 @@
 import { type Component, For, Show, createMemo } from 'solid-js'
 import {
   cardLabelChoicesFor,
-  formatCardLabels,
+  labelChoiceKey,
+  overrideForChoice,
   supportsAnyLabels,
   type CardLabel,
+  type CardLabelTarget,
+  type LabelOverride,
 } from '../../card/card-labels'
 import { isCardArtRefError, parseCardArtInput, type CardArtRef } from '../../list/card-art'
 import type { ListType } from '../../list/list-type'
@@ -32,6 +35,11 @@ export type AddCardOptionsConfig = {
   /** Drives which label rows are offered — a deck gets `proxy` and nothing else. */
   listType: ListType
   /**
+   * The list's default labels: the picked state is written as the minimal
+   * override against them, and they decide whether "No labels" is offered.
+   */
+  listDefault: readonly CardLabel[] | undefined
+  /**
    * Whether art may be set at add time. Only a host with somewhere to put it
    * (the admin editors, whose art route the staged reference is flushed to)
    * turns this on; the public editor exports card changes and has no sidecar.
@@ -41,8 +49,9 @@ export type AddCardOptionsConfig = {
 
 /** The add dialog's live options state, owned by the dialog and shown by this row. */
 export type AddCardOptionsState = {
-  labels: CardLabel[]
-  setLabels: (labels: CardLabel[]) => void
+  /** The picked label state; `'default'` (inherit the list default) until one is picked. */
+  labels: CardLabelTarget
+  setLabels: (labels: CardLabelTarget) => void
   /** The raw art text exactly as typed — a path inside the art dir, or a URL. */
   art: string
   setArt: (value: string) => void
@@ -96,10 +105,24 @@ export function hasAddCardOptions(config: AddCardOptionsConfig): boolean {
   return config.enableArt || supportsAnyLabels(config.listType)
 }
 
+/**
+ * The override an add commits for the options row's picked state under the
+ * list's default — `undefined` when it inherits the default.
+ */
+export function addCardLabelOverride(
+  target: CardLabelTarget,
+  listDefault: readonly CardLabel[] | undefined,
+): LabelOverride | undefined {
+  const override = overrideForChoice(target, listDefault)
+  return override.length > 0 ? override : undefined
+}
+
 export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
   const t = useT()
-  const choices = createMemo(() => cardLabelChoicesFor(props.config.listType))
-  const selected = createMemo(() => formatCardLabels(props.labels))
+  const choices = createMemo(() =>
+    cardLabelChoicesFor(props.config.listType, props.config.listDefault),
+  )
+  const selected = createMemo(() => labelChoiceKey(props.labels))
   const artError = createMemo(() =>
     props.artInput.state === 'invalid' ? props.artInput.reason : null,
   )
@@ -119,9 +142,9 @@ export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
               value={selected()}
               onChange={(e) => {
                 const picked = choices().find(
-                  (choice) => formatCardLabels(choice.labels) === e.currentTarget.value,
+                  (choice) => labelChoiceKey(choice.labels) === e.currentTarget.value,
                 )
-                props.setLabels(picked ? [...picked.labels] : [])
+                props.setLabels(picked ? picked.labels : 'default')
               }}
             >
               <For each={choices()}>
@@ -131,8 +154,8 @@ export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
                   // without it the first row would show while the state says
                   // otherwise.
                   <option
-                    value={formatCardLabels(choice.labels)}
-                    selected={formatCardLabels(choice.labels) === selected()}
+                    value={labelChoiceKey(choice.labels)}
+                    selected={labelChoiceKey(choice.labels) === selected()}
                   >
                     {t(choice.label)}
                   </option>

@@ -154,6 +154,35 @@ describe('planMoves', () => {
     expect(ins.map((m) => m.section)).toEqual([undefined, undefined])
   })
 
+  test('moves carry each copy’s payload: the candidate copy’s in, the target line’s out', () => {
+    const proxyCopies = {
+      ...lea,
+      copies: lea.copies.map((copy) => ({ ...copy, payload: { labels: ['no-proxy' as const] } })),
+    }
+    const { moves } = planMoves(
+      plan({
+        target: makeTarget({
+          quantity: 4,
+          cardIds: [7],
+          finish: 'nonfoil',
+          condition: 'NM',
+          payloads: [{ labels: ['proxy'], tags: ['Ramp'] }],
+        }),
+        allocations: [{ candidate: proxyCopies, count: 2 }],
+      }),
+      DECK,
+      { kind: 'swap' },
+    )
+    expect(moves.find((m) => m.direction === 'in')?.payloads).toEqual([
+      { labels: ['no-proxy'] },
+      { labels: ['no-proxy'] },
+    ])
+    expect(moves.find((m) => m.direction === 'out')?.payloads).toEqual([
+      { labels: ['proxy'], tags: ['Ramp'] },
+      { labels: ['proxy'], tags: ['Ramp'] },
+    ])
+  })
+
   test('a flat-list target short of ids yields undefined slots past the end', () => {
     const { moves } = planMoves(
       plan({

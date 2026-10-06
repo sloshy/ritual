@@ -1,7 +1,7 @@
 import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
 import type { Finish, Condition } from '../card/finish-condition'
 import { DEFAULT_SECTION } from '../list/deck'
-import { effectiveLabels, type CardLabel } from '../card/card-labels'
+import { type CardLabel, type LabelOverride } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
 import { bulkAddTags, tagSuggestions, type TagTarget } from './card-tags-edit'
@@ -9,7 +9,7 @@ import { promptCardTags } from './tags-prompt'
 import { openCategoriesPrompt } from './card-categories-edit'
 import { holdsCardName } from '../card/card-categories'
 import {
-  movedCopyOf,
+  movedCopyFromLine,
   type ChangeInput,
   type ListRef,
   type MovedCopyPayload,
@@ -58,7 +58,7 @@ export type FlatEntry = {
   /** The line's language token, when present. Absent means `en`. */
   language?: CardLanguage
   /** The line's label override, where the list type carries labels. */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** The line's `#tag` tokens in canonical form; absent when it carries none. */
   tags?: CardTag[]
   note?: string
@@ -115,6 +115,8 @@ export type FlatListController<E extends FlatEntry> = SwapController & {
   liveTagsOf: (cardName: string, cardId?: number) => readonly CardTag[] | undefined
   /** Bulk edit operations over a multi-select of flat-list cards. */
   bulkEdit: FlatBulkEdit
+  /** The list's live default labels (see the params' `listLabels`). */
+  listLabels: Accessor<CardLabel[] | undefined>
 }
 
 type FlatListControllerParams<E extends FlatEntry> = {
@@ -163,12 +165,13 @@ export function useFlatListEditController<E extends FlatEntry>(
     editor,
     listType: entityListType(pageConfig.entityLabel),
     kind: 'flat',
-    targetsOf: (entries) => flatSwapTargets(entries, cardData),
+    targetsOf: (entries) => flatSwapTargets(entries, cardData, params.listLabels()),
     applyChange: applyFlat,
     // One entry per copy: a flat line always holds exactly one, and an
     // arriving copy never merges onto a standing line.
     quantityOf: () => 1,
     mergeTargetId: () => undefined,
+    pinConvertsInPlace: () => true,
   })
 
   const handleIncrement = (entry: E) => {
@@ -248,9 +251,10 @@ export function useFlatListEditController<E extends FlatEntry>(
 
   // Emit one move-from per copy (flat lists hold one entry per copy, each with its
   // own cardId), updating the live data and freeing each id back to the pool. Each
-  // copy keeps its own language, tags, effective labels (its override, else the
-  // list's default) and note, resolved per entry before that entry's move-from
-  // removes it (the destination keeps the labels its type accepts); a name-only
+  // copy keeps its own language, tags, carried labels (its override applied to
+  // the list's default, `carriedLabels`) and note, resolved per entry before
+  // that entry's move-from removes it (the destination lands them with
+  // `arrivalLabels`); a name-only
   // card whose printing came from the picker has no entry language, so the
   // tuple's own stamp (a ja-only pick) wins as the fallback.
   const emitMove = (
@@ -263,11 +267,7 @@ export function useFlatListEditController<E extends FlatEntry>(
       for (const id of cardIds) {
         const entry = entryByCardId(id)
         const language = entry?.language ?? printing.language
-        const copy: MovedCopyPayload = movedCopyOf({
-          tags: entry?.tags,
-          labels: effectiveLabels(entry?.labels, params.listLabels()),
-          note: entry?.note,
-        })
+        const copy: MovedCopyPayload = movedCopyFromLine(entry, params.listLabels())
         editor.changes.moveCardToList(cardName, dest, {
           ...printing,
           language,
@@ -401,6 +401,7 @@ export function useFlatListEditController<E extends FlatEntry>(
   }
 
   return {
+    listLabels: params.listLabels,
     editor,
     cardData,
     cardActions,
@@ -624,6 +625,7 @@ export function FlatListEditorShell<E extends FlatEntry>(
       // Art is offered at add time exactly where a card's art can be written:
       // the same authed route behind the context menu's "Set Custom Art…".
       enableAddArt={props.onSetCustomArt !== undefined}
+      listLabels={props.ctrl.listLabels()}
       contextMenu={
         <FlatListContextMenu
           ctrl={props.ctrl}

@@ -124,6 +124,48 @@ describe('applyCsvImport', () => {
     )
   })
 
+  test('carried labels land against the destination default, as a move lands them', async () => {
+    // `[trade,no-sale]` is how a `[no-sale]` line from a `sale,trade` file is
+    // carried: in a no-default collection it must still read "for trade".
+    await writeCollectionFile(tmpDir, 'Plain', {
+      entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    const result = await applyCsvImport({ listType: 'collection', name: 'Plain', mode: 'append' }, [
+      {
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        quantity: 1,
+        section: 'Main',
+        labels: ['trade', 'no-sale'],
+      },
+    ])
+    if ('error' in result) throw new Error(result.error)
+    expect(await fs.readFile(result.filePath, 'utf-8')).toContain(
+      '- Lightning Bolt (LEA:161) [trade] &2',
+    )
+  })
+
+  test('a deck append keeps a [proxy] row off the line holding the real copies', async () => {
+    const filePath = await writeDeckFile(tmpDir, 'Deck', {
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    const result = await applyCsvImport({ listType: 'deck', name: 'Deck', mode: 'append' }, [
+      {
+        name: 'Sol Ring',
+        set: 'c19',
+        collectorNumber: '221',
+        quantity: 1,
+        section: 'Main',
+        labels: ['proxy'],
+      },
+    ])
+    if ('error' in result) throw new Error(result.error)
+    const content = await fs.readFile(filePath, 'utf-8')
+    expect(content).toContain('- 1 Sol Ring (C19:221) &1')
+    expect(content).toContain('- 1 Sol Ring (C19:221) [proxy] &2')
+  })
+
   test('a language-silent import under a non-en default stamps the available language', async () => {
     // The Bolt printing exists in Japanese; Sol Ring's only cached object is
     // English — the import prefers the primary language where the cache allows

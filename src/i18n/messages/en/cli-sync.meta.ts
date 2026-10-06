@@ -218,6 +218,10 @@ export const cliSyncMeta = {
     description:
       'Heading over the list of source lines the parser could not read. Content was lost, so the run also exits non-zero.',
   },
+  'cli.import.linesWithoutLabels': {
+    description:
+      'Heading over the source lines whose card WAS imported but whose labels were dropped (a conflicting labels token, or a label the destination list type cannot carry). The labels were lost, so the run also exits non-zero.',
+  },
   'cli.import.advisory': {
     description:
       'Prefix for a line that WAS imported but whose shape suggests the file dialect was not fully understood. Nothing was lost.',

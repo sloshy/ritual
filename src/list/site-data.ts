@@ -4,7 +4,7 @@ import type { Condition, Finish } from '../card/finish-condition'
 import type { DeckData } from './deck'
 import type { ScryfallCard } from '../scryfall/types'
 import type { BuyerId, BuylistFeedProvenance, BuylistQuote } from '../buylist'
-import type { CardLabel } from '../card/card-labels'
+import type { CardLabel, LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import type { CardCategory, CardCategoriesOverlay } from '../card/card-categories'
 import type { CardCategoriesJson } from './card-categories-sidecar'
@@ -142,7 +142,7 @@ export interface DeckDetail {
   deck: BakedDeckData
   /**
    * The deck's default card labels from its front matter, when declared. A
-   * line's own `labels` override replaces it entirely — resolve the pair with
+   * line's own `labels` override adjusts it — resolve the pair with
    * `effectiveLabels`, exactly as a collection's entries do.
    */
   labels?: CardLabel[]
@@ -206,10 +206,11 @@ export interface CollectionCardEntry extends CardCategoriesOverlay {
    */
   language?: CardLanguage
   /**
-   * This card's label override, as written on its line. Effective labels are
-   * this when present, else the list's `CollectionDetail.labels` default.
+   * This card's label override, as written on its line (signed: `[trade,no-sale]`).
+   * Its effective labels are this override applied to the list's
+   * `CollectionDetail.labels` default (`effectiveLabels`).
    */
-  labels?: CardLabel[]
+  labels?: LabelOverride
   /** This card's `#tag` tokens in canonical form; absent when it carries none. */
   tags?: CardTag[]
   /**

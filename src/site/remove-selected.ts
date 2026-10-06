@@ -77,8 +77,8 @@ async function moveEventsFor(card: SelectedCard, dest: ListRef): Promise<ChangeE
     card.printings ?? [],
   )
   if (!printing) return null
-  // Each copy takes its own line's payload — tags, effective labels, note —
-  // and the destination keeps the labels its type accepts.
+  // Each copy takes its own line's payload — tags, carried labels, note —
+  // and the destination lands them with `arrivalLabels`.
   if (card.sourceKind === 'deck') {
     const cardId = card.cardIds[0]
     const carry = moveCarryFor(card, cardId)
