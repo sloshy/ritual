@@ -1,9 +1,8 @@
 /**
- * The update-available notice (plan §8 of
- * research/self-update-and-migrations-plan-2026-09-30.md): one stderr line,
- * after a command's own output, when a newer Ritual release is out — at most
- * once a day per version. The rules live in `src/update/notice.ts`; this module
- * decides whether a run takes part and drives the cache around the command.
+ * The update-available notice: one stderr line, after a command's own output,
+ * when a newer Ritual release is out — at most once a day per version. The
+ * rules live in `src/update/notice.ts`; this module decides whether a run takes
+ * part and drives the cache around the command.
  *
  * - `start` (end of the root preAction hook) reads the cache and, when it is
  *   due, starts the releases lookup beside the command.

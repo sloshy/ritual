@@ -11,7 +11,6 @@ import type { ArchidektCard, ArchidektCardModifier } from './archidekt-types'
 /**
  * Types and enum mapping for Archidekt's collection API
  * (`/api/collection/…`), the remote side of `ritual collection-sync`.
- * See `research/archidekt-collection-api.md` for the endpoint reference.
  */
 
 /** Archidekt game id for Paper — the only game Ritual syncs. */
@@ -22,7 +21,7 @@ export const ARCHIDEKT_LANGUAGE_ENGLISH = 1
 
 /**
  * Archidekt's numeric language ids (1–11) ↔ Ritual's {@link CardLanguage}
- * codes, from `research/archidekt-collection-api.md`. Archidekt models only
+ * codes, as Archidekt's API documents them. Archidekt models only
  * these eleven; Ritual's remaining codes (`ph`, `la`, `grc`, `he`, `ar`, `sa`)
  * have no id and push as English with a warning. Declared as literal pairs —
  * like `CONDITIONS_BY_ID` below, the types are proven by the table rather than
@@ -348,8 +347,8 @@ export function validateArchidektCsvColumns(
  * may well match on the printing alone, in which case uploading a Damaged copy
  * of a printing the account already holds Near Mint would grow the NM record
  * rather than create a DMG one — leaving the DMG key absent remotely and
- * re-uploaded on every subsequent push. Confirm against a real account (see
- * `research/archidekt-collection-api.md`) before relying on the distinction.
+ * re-uploaded on every subsequent push. Confirm against a real account before
+ * relying on the distinction.
  */
 export const ARCHIDEKT_CSV_IF_FOUND = 'add'
 

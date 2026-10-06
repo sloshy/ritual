@@ -2,7 +2,6 @@
  * The controller half of the "Swap Printings" wizard, shared by the deck and
  * flat-list controllers: holds the open request, builds it from the live list,
  * and applies the wizard's planned moves as change events.
- * Design record: `research/swap-printings-plan-2026-08-21.md` §3 and §7.2.
  */
 
 import { type Accessor, batch, createSignal } from 'solid-js'

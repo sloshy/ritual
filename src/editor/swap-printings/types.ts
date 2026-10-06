@@ -1,6 +1,6 @@
 /**
  * Types for the "Swap Printings" planner — the pure engine behind the batch
- * swap wizard (design record: `research/swap-printings-plan-2026-08-21.md` §4).
+ * swap wizard.
  *
  * The planner never touches a list file, the network, or the UI: a provider
  * hands it the saved contents of the other lists ({@link SwapSourceList}), it

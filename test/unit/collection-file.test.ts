@@ -442,15 +442,15 @@ describe('parseCollectionFile — language token', () => {
 })
 
 /**
- * The four silent-corruption rows of `research/list-format-review-2026-08-28.md`
- * §2.1 a *collection* line can exhibit, through the file parser rather than the
+ * The four silent-corruption cases of the old three-regex card-line parsing a
+ * *collection* line can exhibit, through the file parser rather than the
  * tokenizer: whitespace runs, underscore set codes, and token order all used to
- * eat the printing or leave a trailing space in the name. Row 5 (`[LP]` on a
- * wanted list) is unreachable here — a collection legitimately carries a
- * condition — and lives in `wanted-file.test.ts`; the deck half of row 4 is in
- * `importers/text-file.test.ts`.
+ * eat the printing or leave a trailing space in the name. A fifth case (`[LP]`
+ * on a wanted list) is unreachable here — a collection legitimately carries a
+ * condition — and lives in `wanted-file.test.ts`; the deck half of the
+ * token-order case is in `importers/text-file.test.ts`.
  */
-describe('parseCollectionFile — the drift defects from review §2.1', () => {
+describe('parseCollectionFile — the old three-regex drift defects', () => {
   const rows: readonly [string, string, Record<string, unknown>][] = [
     ['a double space before the printing', '- Sol Ring  (LEA:270)', { set: 'lea' }],
     [

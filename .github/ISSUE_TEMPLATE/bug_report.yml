@@ -1,0 +1,78 @@
+name: Bug report
+description: Something in Ritual doesn't work the way it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Before pasting list files or output, remove anything personal you don't want public (names, account handles, private notes). A small made-up list that reproduces the problem is the most useful thing you can attach.
+
+        Security problems go through the repository's private vulnerability reporting instead; see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Ritual version
+      description: The output of `ritual --version`.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: OS / platform
+      placeholder: macOS 15 (arm64), Windows 11, Ubuntu 24.04, WSL2…
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install method
+      options:
+        - Release binary (install script or download)
+        - Updated with `ritual self-update`
+        - Docker image
+        - From source (`bun run index.ts`)
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where does it happen?
+      multiple: true
+      options:
+        - CLI
+        - Admin site
+        - Public site
+        - MCP server
+        - Skills
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The commands you ran or what you clicked, in order.
+      placeholder: |
+        1. Run `ritual …`
+        2. …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Relevant output
+      description: Error messages, logs or terminal output. It is formatted as code automatically, so no backticks are needed.
+      render: shell

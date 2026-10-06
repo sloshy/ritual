@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Message-catalog validator (see `research/i18n-framework-plan-2026-08-07.md` §9).
+ * Message-catalog validator.
  *
  * English is authored in TypeScript (`src/i18n/messages/en/*.ts`), so a stale
  * `t()` call site is already a `tsc` error. Everything a *translation* can get

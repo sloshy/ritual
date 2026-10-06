@@ -81,7 +81,7 @@ export default [
       // shape that the recent review surfaced in `watchedDirs`.
       'ritual/no-anonymous-object-types': 'error',
 
-      // ── i18n framework (research/i18n-framework-plan-2026-08-07.md §9).
+      // ── i18n framework.
       // All three landed at `warn` in Phase 0 and flipped to `error` per
       // directory as each surface converted, which is what made a ~2,000-message
       // migration reviewable instead of a big bang. Each rule carries its own
@@ -91,14 +91,14 @@ export default [
       // `no-bare-intl-locale` flipped at the end of Phase 3, and
       // `no-untranslated-literal` at the end of Phase 7, once Phases 4–6 had
       // routed the site, admin and CLI strings through the catalog. The
-      // remaining English-by-contract surfaces (plan §4.9, §11) are excluded by
+      // remaining English-by-contract surfaces (see AGENTS.md) are excluded by
       // path in `eslint-rules/no-untranslated-literal.js` rather than downgraded
       // here, so a new violation in a converted directory fails the build.
       'ritual/no-untranslated-literal': 'error',
       'ritual/no-bare-intl-locale': 'error',
       'ritual/no-inline-plural': 'error',
 
-      // ── Directory layering (research/simplification-zones-2026-08-26.md, Zone 2).
+      // ── Directory layering.
       // Bottom-up: a file may import its own layer or anything below, never
       // above. Directories missing from the table are unconstrained. The
       // `allow` list is the known debt at the time the rule landed; the zone

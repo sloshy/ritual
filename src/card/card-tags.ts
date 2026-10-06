@@ -12,9 +12,8 @@
  * Tags are the open-vocabulary counterpart of labels ({@link module:card-labels}):
  * a label is an instruction to the app drawn from a closed list (`[proxy]`
  * changes pricing), while a tag is validated by *shape* alone and means whatever
- * its author meant. The two are different token kinds on purpose — see
- * `research/list-format-review-2026-08-28.md` §4.4 — so `Keep` is a perfectly
- * legal tag that has nothing to do with the `[keep]` label.
+ * its author meant. The two are different token kinds on purpose, so `Keep` is
+ * a perfectly legal tag that has nothing to do with the `[keep]` label.
  *
  * **Shape**: any non-empty text that does not contain the card line's own
  * punctuation — `#` (the tag sigil), `,` (the tag separator), `&` (the id

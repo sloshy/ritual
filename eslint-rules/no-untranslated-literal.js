@@ -1,9 +1,9 @@
 /**
  * @fileoverview Flag user-facing string literals that never went through `t()`.
  *
- * The i18n framework (see `research/i18n-framework-plan-2026-08-07.md` §9)
- * routes every human-readable string through the message catalog. This rule
- * catches the positions where a raw literal is almost always user-facing text:
+ * The i18n framework routes every human-readable string through the message
+ * catalog. This rule catches the positions where a raw literal is almost always
+ * user-facing text:
  *
  *   - JSX text nodes:                 <span>Save and exit</span>
  *   - Object properties:              { message: 'Deck saved.' }

@@ -2,9 +2,7 @@ import type { Finish } from '../card/finish-condition'
 
 /**
  * Card Kingdom's public bulk pricelist feed (`api.cardkingdom.com/api/v2/pricelist`),
- * trimmed to the fields the sell report uses. Full research notes, including
- * verified field semantics and join-key coverage statistics, live in
- * `research/cardkingdom-buylist-api.md`.
+ * trimmed to the fields the sell report uses.
  */
 
 /** One MTG single from Card Kingdom's pricelist feed. */

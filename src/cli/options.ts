@@ -384,7 +384,7 @@ export type TagsFlagParser = (value: string, previous?: readonly CardTag[]) => C
  * functions: the shape rule they each state belongs to their own vocabulary
  * module, and unifying them is tracked with the wider "extract an
  * `open-vocabulary` leaf module" item rather than being papered over at the flag
- * layer (see `research/card-categories-phase2-plan.md` §17).
+ * layer.
  */
 export function tagsFlagParser(flag: string): TagsFlagParser {
   return (value, previous) => {

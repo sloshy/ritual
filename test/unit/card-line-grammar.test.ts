@@ -17,11 +17,10 @@ import {
 import type { ListType } from '../../src/list/list-type'
 
 /**
- * The tokenizer suite. Every row of `research/list-format-review-2026-08-28.md`
- * §2.1 (the three-regex drift that silently corrupted card names) is pinned
- * here, alongside one case per error code and the read tolerances the grammar
- * promises: any token order, any whitespace run, an optional bullet, `Nx`
- * quantities, and the Arena/MTGO export dialect.
+ * The tokenizer suite. Every case of the old three-regex drift that silently
+ * corrupted card names is pinned here, alongside one case per error code and
+ * the read tolerances the grammar promises: any token order, any whitespace
+ * run, an optional bullet, `Nx` quantities, and the Arena/MTGO export dialect.
  *
  * Engine-layer by the Test Layering Policy: the parsers, the CLI and the admin
  * handlers all reach this one function, so semantics are asserted here and

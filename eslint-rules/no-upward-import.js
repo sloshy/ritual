@@ -2,9 +2,9 @@
  * @fileoverview Enforce a directory layering for relative imports inside `src/`.
  *
  * The layer table is ordered bottom-up. A file may import from its own layer or
- * any layer below it, never a layer above — that is the one-way dependency
- * direction research/simplification-zones-2026-08-26.md (Zone 2) wants between
- * the domain core, the shared editor engine, the two SPAs and the entry points.
+ * any layer below it, never a layer above — the one-way dependency direction
+ * between the domain core, the shared editor engine, the two SPAs and the entry
+ * points.
  * Directories that appear in no layer are unconstrained, both as importer and
  * as target, so the table can be tightened one zone at a time.
  *

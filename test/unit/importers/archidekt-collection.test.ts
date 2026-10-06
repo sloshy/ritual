@@ -96,7 +96,7 @@ describe('Archidekt collection enums', () => {
   })
 
   // A deliberate tripwire: these are Archidekt's own values, so changing one
-  // means re-verifying it against the live API (see research/).
+  // means re-verifying it against the live API.
   test('pins the Archidekt constants the sync depends on', () => {
     expect(ARCHIDEKT_LANGUAGE_ENGLISH).toBe(1)
     expect(ARCHIDEKT_GAME_PAPER).toBe(1)
@@ -107,8 +107,7 @@ describe('Archidekt collection enums', () => {
 })
 
 describe('Archidekt language mapping', () => {
-  // The full documented id table (research/archidekt-collection-api.md),
-  // pinned in both directions.
+  // Archidekt's full documented id table, pinned in both directions.
   test.each<[number, CardLanguage]>([
     [1, 'en'],
     [2, 'zht'],

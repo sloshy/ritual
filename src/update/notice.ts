@@ -1,9 +1,8 @@
 /**
- * The update-available notice's rules (plan §8 of
- * research/self-update-and-migrations-plan-2026-09-30.md): when the cached
- * releases lookup is due for a refresh, what a lookup's outcome does to the
- * cache, and which version — if any — the notice announces. Pure apart from
- * {@link lookupLatestVersion}; the cache itself lives in the user state file's
+ * The update-available notice's rules: when the cached releases lookup is due
+ * for a refresh, what a lookup's outcome does to the cache, and which version
+ * — if any — the notice announces. Pure apart from {@link lookupLatestVersion};
+ * the cache itself lives in the user state file's
  * `updateCheck` section (`src/util/user-state.ts`), and the command hook that
  * drives all of this is `src/commands/update-notice.ts`.
  *

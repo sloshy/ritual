@@ -2,7 +2,6 @@
  * Pure helpers between the editors and the "Swap Printings" wizard: the edited
  * list's lines as wizard targets, a selection as pre-checked keys, and the
  * wizard's planned moves as the ordered change operations a controller applies.
- * Design record: `research/swap-printings-plan-2026-08-21.md` §3 and §7.2.
  */
 
 import type { DeckData } from '../list/deck'

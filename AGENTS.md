@@ -71,9 +71,7 @@ Absolute rules, in the same spirit as Set Code Normalization above:
 - **Casing.** `toUpperCase()` / `toLowerCase()` are locale-invariant and are what the set-code rule wants. `toLocaleUpperCase` / `toLocaleLowerCase` are banned anywhere in `src/`.
 - **Collation.** Never call bare `localeCompare` or construct a bare `Intl.*`. Pick `compareData` (pinned English — set codes, dates, slugs, paths, any asserted CLI ordering) or `compareDisplay` (locale-aware — user-visible names) from `src/i18n/collate.ts`, and get every `Intl` factory from `src/i18n/format.ts`. The `ritual/no-bare-intl-locale` rule enforces this.
 - **Machine contracts never localize.** Exit codes, `ErrorCode`, `--output json|ndjson` payload _keys_, CSV/export headers, persisted slugs and tokens, `printingKey`. A structured error's `message` follows the UI locale; its `code` and `messageKey` do not.
-- **English by contract.** MCP tool names, titles, descriptions and `.describe()` docs; `src/skills/content/**` and skill descriptions; `docs-site/**`. These are model-facing prose and are deliberately never translated — see `research/i18n-framework-plan-2026-08-07.md` §11.
-
-Design record: `research/i18n-framework-plan-2026-08-07.md`.
+- **English by contract.** MCP tool names, titles, descriptions and `.describe()` docs; `src/skills/content/**` and skill descriptions; `docs-site/**`. These are model-facing prose and are deliberately never translated.
 
 ### Organization
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Locale codegen (see `research/i18n-framework-plan-2026-08-07.md` §8.6, §9).
+ * Locale codegen.
  *
  * Two jobs, both of which have to happen before `tsc` and before the binary is
  * compiled:

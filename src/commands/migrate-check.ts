@@ -1,9 +1,9 @@
 /**
- * The pending-work check the root preAction hook runs before every command
- * (plan §6 of research/self-update-and-migrations-plan-2026-09-30.md): when the
- * workspace has updates `ritual migrate` would apply, offer to apply them now —
- * at most once a day per workspace — or print one stderr line pointing at
- * `ritual migrate`. A workspace a newer Ritual updated gets a one-line warning.
+ * The pending-work check the root preAction hook runs before every command:
+ * when the workspace has updates `ritual migrate` would apply, offer to apply
+ * them now — at most once a day per workspace — or print one stderr line
+ * pointing at `ritual migrate`. A workspace a newer Ritual updated gets a
+ * one-line warning.
  *
  * Advisory only. Nothing here changes the exit code or stops the command: a
  * development build can stamp a migration counter the pinned CI release does

@@ -82,7 +82,7 @@ import {
 
 export { swapTargetKey }
 
-/** What the wizard is opened with (see the design record, §7.1 and §9). */
+/** What the wizard is opened with. */
 export type SwapWizardRequest = {
   /** The lines of the edited list, pinned and name-only alike, in list order. */
   targets: SwapTarget[]
@@ -122,11 +122,10 @@ const STEP_LABELS = {
 } as const satisfies Record<SwapWizardStep, string>
 
 /**
- * The batch "Swap Printings" wizard (design record
- * `research/swap-printings-plan-2026-08-21.md` §1/§7.1): Cards → Sources →
- * Mode → Pick/Review → Summary, ending in `onApply(moves)`. State lives in
- * signals here; the pure transitions are in `swap-printings/wizard-state.ts`
- * and the planner in `swap-printings/`.
+ * The batch "Swap Printings" wizard: Cards → Sources → Mode → Pick/Review →
+ * Summary, ending in `onApply(moves)`. State lives in signals here; the pure
+ * transitions are in `swap-printings/wizard-state.ts` and the planner in
+ * `swap-printings/`.
  */
 export function SwapPrintingsWizard(props: SwapPrintingsWizardProps): JSX.Element {
   const t = useT()
