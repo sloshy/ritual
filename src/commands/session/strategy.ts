@@ -1,3 +1,4 @@
+import type { DroppedNote } from '../../list/move-staging'
 import type { ScryfallCard } from '../../scryfall/types'
 import type { ChangeEvent, MoveToChange } from '../../changes/change-event'
 import type { CardArtRef } from '../../list/card-art'
@@ -179,8 +180,12 @@ export type CardSessionStrategy = {
    * `art` is the moved card's custom art in the source list, if it had any: the
    * strategy files it under the id it just allocated, so the art follows the
    * card the way it does on the on-disk move paths.
+   *
+   * Returns the note the arrival discarded (a deck quantity-merge onto a line
+   * holding a different note keeps the line's), for the save to report — it
+   * gathers every destination's and reports each distinct note once.
    */
-  receiveMove: (change: MoveToChange, art?: CardArtRef) => void
+  receiveMove: (change: MoveToChange, art?: CardArtRef) => DroppedNote | undefined
   /** Write the in-memory list model to the list file. */
   persist: () => Promise<void>
   /** Whether the in-memory model differs from what was last written to disk. */

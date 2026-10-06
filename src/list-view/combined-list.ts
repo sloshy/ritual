@@ -12,7 +12,7 @@ import { resolveCardPreview } from '../card/image-sources'
 import { resolveWantedCardEntry } from './resolve-card'
 import { sourceCard, type SourceCardMaps } from './source-cards'
 import type { CardData } from './card-sorting'
-import type { SelectedCard } from './useCardSelection'
+import { selectionMoveCarry, type SelectedCard } from './useCardSelection'
 import { fetchJson } from './useFetchJson'
 import { detailUrl, reportDataFetchError } from './api-base'
 import { isAbortError } from '../util/errors'
@@ -302,6 +302,8 @@ function buildDeckCards(
         condition: entry.condition,
         language: entryLanguage(entry.language),
         labels,
+        tags: entry.tags,
+        moveCarry: selectionMoveCarry([entry], detail.labels),
         customArt: entry.customArt,
         hasCustomArt: entry.hasCustomArt,
         quantity: entry.quantity,
@@ -392,6 +394,8 @@ function buildCollectionCards(
       condition: entry.condition,
       language: entryLanguage(entry.language),
       labels,
+      tags: entry.tags,
+      moveCarry: selectionMoveCarry([entry], detail.labels),
       customArt: entry.customArt,
       hasCustomArt: entry.hasCustomArt,
       note: entry.note,
@@ -474,6 +478,8 @@ function buildWantedCards(
       collectorNumber: specific ? entry.collectorNumber : undefined,
       finish: entry.finish,
       language: entryLanguage(entry.language),
+      tags: entry.tags,
+      moveCarry: selectionMoveCarry([entry]),
       customArt: entry.customArt,
       hasCustomArt: entry.hasCustomArt,
       note: entry.note,

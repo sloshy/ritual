@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
-import { openListEditor } from '../helpers/editor-nav'
+import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
@@ -416,5 +416,99 @@ test.describe('Collection Editor — add card from search', () => {
 
     await page.locator('.card-item', { hasText: 'Static Orb' }).locator('img').first().click()
     await expect(page.locator('.card-modal-details')).toBeVisible({ timeout: 5_000 })
+  })
+})
+
+test.describe('Collection Editor — move to list keeps the copy’s labels and note', () => {
+  /** One save request's events, as far as this test reads them. */
+  type SavedMove = { action: string; cardName: string; labels?: string[]; note?: string }
+
+  test('each moved copy records its own note and its effective labels', async ({ page }) => {
+    let saved: SavedMove[] | null = null
+    await gotoAdminDashboard(page)
+    await fulfillJson(
+      page,
+      '**/api/collections',
+      { collections: [{ slug: 'move-binder', name: 'Move Binder' }] },
+      { method: 'GET' },
+    )
+    await fulfillJson(page, '**/api/lists', {
+      success: true,
+      lists: [
+        { type: 'collection', slug: 'move-binder', name: 'Move Binder' },
+        { type: 'deck', slug: 'burn', name: 'Burn' },
+      ],
+    })
+    const sol = (cardId: number, extra: Record<string, unknown>): Record<string, unknown> => ({
+      name: 'Sol Ring',
+      set: 'c21',
+      collectorNumber: '167',
+      finish: 'nonfoil',
+      condition: 'NM',
+      price: 0,
+      fileOrder: cardId - 1,
+      section: 'Main',
+      cardId,
+      ...extra,
+    })
+    await fulfillJson(page, '**/api/collection/move-binder', {
+      success: true,
+      slug: 'move-binder',
+      // The list default `sale` is what the second copy (no override) carries.
+      labels: ['sale'],
+      // Static Orb stays behind: an emptied collection hides the editor chrome.
+      entries: [
+        sol(1, { labels: ['proxy'], note: 'home print' }),
+        sol(2, { note: 'mint' }),
+        {
+          name: 'Static Orb',
+          set: 'tmp',
+          collectorNumber: '319',
+          finish: 'nonfoil',
+          condition: 'NM',
+          price: 0,
+          fileOrder: 2,
+          section: 'Main',
+          cardId: 3,
+        },
+      ],
+      sectionOrder: ['Main'],
+      cards: {
+        'c21:167': MOCK_SOL_RING,
+        'Sol Ring': MOCK_SOL_RING,
+        'tmp:319': MOCK_STATIC_ORB,
+        'Static Orb': MOCK_STATIC_ORB,
+      },
+      printings: { 'Sol Ring': [MOCK_SOL_RING], 'Static Orb': [MOCK_STATIC_ORB] },
+      symbolMap: {},
+      contentHash: 'hash-1',
+    })
+    await fulfillJson(page, '**/api/collection/move-binder/save', (route: Route) => {
+      saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: SavedMove[] }).changes
+      return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+    })
+
+    await openListEditor(page, 'collection')
+    await selectList(page, 'collection', 'move-binder')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+
+    // The two copies differ in note, so the editor shows them as two tiles.
+    const solRings = page.locator('.card-item', { hasText: 'Sol Ring' })
+    await expect(solRings).toHaveCount(2)
+    for (const remaining of [1, 0]) {
+      await solRings.first().locator('.edit-btn-context').click()
+      await page.locator('.card-context-menu button', { hasText: 'Move to list…' }).click()
+      await page.locator('.move-picker-item', { hasText: "Deck 'Burn'" }).click()
+      await expect(solRings).toHaveCount(remaining)
+    }
+
+    await page.locator('.btn-save').click()
+    await expect.poll(() => saved?.length).toBe(2)
+    expect(saved).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ action: 'move-from', labels: ['proxy'], note: 'home print' }),
+        expect.objectContaining({ action: 'move-from', labels: ['sale'], note: 'mint' }),
+      ]),
+    )
   })
 })

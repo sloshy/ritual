@@ -1,3 +1,4 @@
+import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import type { DeckFormatKey } from '../../list/deck-format'
@@ -28,7 +29,7 @@ import {
 } from '../../list/move-prepare'
 import { getErrorMessage } from '../../util/errors'
 import { createCardArtCache } from '../../list/card-art'
-import type { MoveTargetsProvider } from './edit-move'
+import { warnDroppedMoveNote, type MoveTargetsProvider } from './edit-move'
 import { createCollectionStrategy } from './collection-strategy'
 import { createDeckStrategy } from './deck-strategy'
 import { listExistingDecks, loadDeck } from '../../list/deck-io'
@@ -458,6 +459,10 @@ export async function saveOpenList(
     // it was carrying was quietly dropped.
     const committed = await offline.commit()
     for (const failure of committed.artFailures) warnUnreconciledArt(failure)
+    // A deck destination — closed (written above) or open (delivered below) —
+    // that merged a moved copy onto a line with a different note kept the
+    // line's note; each distinct note is reported once, as `ritual move` does.
+    const dropped: DroppedNote[] = [...committed.droppedNotes]
     // Deliver to the open destinations (each allocates its own line id; the
     // pushed move-to names the source line as `sourceCardId` and carries no
     // destination id — `receiveMove` does not report the line it landed on).
@@ -465,10 +470,12 @@ export async function saveOpenList(
       for (const { dest, move } of plan.openDest) {
         const moveTo = mirrorMoveTo(move, plan.sourceRef)
         const art = await sourceArt.lookup(plan.source.ref.file, move.cardId)
-        dest.strategy.receiveMove(moveTo, art)
+        const lost = dest.strategy.receiveMove(moveTo, art)
+        if (lost !== undefined) dropped.push(lost)
         dest.ctx.sessionChanges.push(moveTo)
       }
     }
+    for (const note of dedupeDroppedNotes(dropped)) warnDroppedMoveNote(note)
     for (const list of [...queue].reverse()) {
       if (list !== open) console.log(t('cli.edit.savingMoveDest', { name: list.ref.name }))
       await saveCardSession(list.strategy, list.ctx)

@@ -461,6 +461,7 @@ export function useEditor<TData, TCardEntry = unknown>(
       ? { ...options, set: options.set?.toLowerCase() }
       : {}
     config.applyChangePrinting({
+      applyChange: config.applyChange,
       data: d,
       original,
       target: flow.target,

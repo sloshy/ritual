@@ -96,6 +96,47 @@ export function supportedLabelsFor(type: ListType, labels: readonly CardLabel[])
 }
 
 /**
+ * The part of a moved card's labels a destination of `type` keeps, or
+ * `undefined` when nothing of them survives. Every move path — `ritual move`,
+ * the editors' cross-list moves, a change bundle's moves — filters through this
+ * one rule: `proxy` survives a move into a deck, `sale`/`trade`/`keep` do not,
+ * and a wanted list keeps none. A move never *invents* a label and never writes
+ * one the destination grammar cannot express.
+ */
+export function labelsForDestination(
+  type: ListType,
+  labels: readonly CardLabel[] | undefined,
+): CardLabel[] | undefined {
+  if (labels === undefined) return undefined
+  const kept = supportedLabelsFor(type, labels)
+  return kept.length === 0 ? undefined : kept
+}
+
+/**
+ * The label override a moved copy is written with on arrival, so that its
+ * effective labels in the destination are `labelsForDestination(type,
+ * carried)` as far as the grammar allows. `carried` is the copy's effective
+ * labels in its source (its override, else its source list's default);
+ * `destDefault` is the destination list's own front-matter default.
+ *
+ * Minimal by construction: no override when the kept labels equal the
+ * destination's default (the copy inherits exactly them). When nothing is kept
+ * there is no override either — and the copy then inherits the destination's
+ * default, if it has one: the line grammar cannot state an *empty* override
+ * (the token needs at least one label; see {@link normalizedOverride}), so a
+ * real card moving into a `proxy`-default collection reads as a proxy there.
+ */
+export function arrivalLabels(
+  type: ListType,
+  carried: readonly CardLabel[] | undefined,
+  destDefault: readonly CardLabel[] | undefined,
+): CardLabel[] | undefined {
+  const kept = labelsForDestination(type, carried)
+  if (kept === undefined || sameCardLabels(kept, destDefault)) return undefined
+  return kept
+}
+
+/**
  * Whether a label set may be written to a list of `type`, and which labels are
  * the problem when it may not.
  *
@@ -389,6 +430,38 @@ export function parseCardLabelsValue(raw: unknown, field: string): CardLabelsRes
 }
 
 /**
+ * {@link parseCardLabelsValue} for persisted and exchanged data — a changelog's
+ * event block, a change bundle, a save request's events — whose refusals are
+ * **English by contract**: they name JSON fields in a file the user inspects,
+ * and the decoders that report them live inside the persistence fence, so no
+ * message here may depend on the UI locale (the UI-facing parser renders its
+ * enum and exclusivity refusals through `t()`). The acceptance rule is the same
+ * one: an array of labels, case-insensitive, normalized, exclusivity enforced.
+ */
+export function parseCardLabelsData(raw: unknown, field: string): CardLabelsResult {
+  const choices = CARD_LABELS.join(', ')
+  if (!isUnknownArray(raw)) {
+    return { ok: false, message: `${field} must be an array of labels (${choices}).` }
+  }
+  const labels: CardLabel[] = []
+  for (const element of raw) {
+    if (typeof element !== 'string') {
+      return { ok: false, message: `${field} must be one of: ${choices}.` }
+    }
+    const label = element.toLowerCase()
+    if (!isCardLabel(label)) {
+      return { ok: false, message: `Invalid ${field} '${element}'. Use one of: ${choices}.` }
+    }
+    labels.push(label)
+  }
+  const exclusive = conflictingExclusiveLabel(labels)
+  if (exclusive !== undefined) {
+    return { ok: false, message: `'${exclusive}' cannot be combined with other labels.` }
+  }
+  return { ok: true, labels: normalizeCardLabels(labels) }
+}
+
+/**
  * What a list's front-matter `labels:` default parsed to: the declared default,
  * or the warning explaining why the value was ignored. Both absent means the
  * list simply declares no default.
@@ -415,23 +488,46 @@ export type ListDefaultLabelsResult = {
  * default is judged identically on the read and write sides.
  */
 export function readListDefaultLabels(type: ListType, raw: unknown): ListDefaultLabelsResult {
+  const read = readListDefaultLabelsValue(type, raw)
+  if ('reason' in read) {
+    return {
+      warning: `Front matter 'labels' ignored: ${read.reason} A rewrite would drop the key.`,
+    }
+  }
+  return read.labels.length === 0 ? {} : { labels: read.labels }
+}
+
+/** {@link readListDefaultLabelsValue}' outcome: the default (possibly empty), or why it was refused. */
+export type ListDefaultLabelsValue = { labels: CardLabel[] } | { reason: string }
+
+/**
+ * The one rule for a front-matter `labels:` value: a legal label set (empty
+ * meaning "no default") that `type` carries, or the reason it is not. Each
+ * reader words the refusal for its own file — a deck drops the key on its next
+ * write, a flat list keeps its block verbatim — but they all judge the value
+ * here.
+ */
+export function readListDefaultLabelsValue(type: ListType, raw: unknown): ListDefaultLabelsValue {
   const parsed = parseCardLabelsValue(raw, 'labels')
-  if (!parsed.ok) {
-    return {
-      warning:
-        `Front matter 'labels' ignored: ${parsed.message} ` + 'A rewrite would drop the key.',
-    }
-  }
-  if (parsed.labels.length === 0) return {}
+  if (!parsed.ok) return { reason: parsed.message }
   const unsupported = unsupportedLabelsFor(type, parsed.labels)
-  if (unsupported.length > 0) {
-    return {
-      warning:
-        `Front matter 'labels' ignored: ${unsupportedLabelsMessage(type, unsupported)} ` +
-        'A rewrite would drop the key.',
-    }
-  }
+  if (unsupported.length > 0) return { reason: unsupportedLabelsMessage(type, unsupported) }
   return { labels: parsed.labels }
+}
+
+/**
+ * A list's default card labels from its front-matter mapping, or `undefined`
+ * when it declares none (or an unreadable one — its readers report that). The
+ * one reader behind every "what does a line without an override inherit here?"
+ * question: the move engines' staged lists, the CLI sessions, and the save and
+ * import paths all ask it, so they cannot disagree about a list's default.
+ */
+export function listDefaultLabels(
+  type: ListType,
+  frontMatter: Readonly<Record<string, unknown>> | undefined,
+): CardLabel[] | undefined {
+  if (frontMatter === undefined || !('labels' in frontMatter)) return undefined
+  return readListDefaultLabels(type, frontMatter.labels).labels
 }
 
 /**

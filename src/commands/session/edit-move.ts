@@ -1,5 +1,10 @@
-import type { MoveFromOptions, PrintingTupleWithId } from '../../changes/change-event'
-import type { CardTag } from '../../card/card-tags'
+import {
+  movedCopyOf,
+  type MoveFromOptions,
+  type MovedCopySource,
+  type PrintingTupleWithId,
+} from '../../changes/change-event'
+import type { DroppedNote } from '../../list/move-staging'
 import { LIST_TYPE_DISPLAY } from '../../list/list-type'
 import { t } from '../../i18n/t'
 import { resolveCardPrinting, type PrintingFilterConfig } from './prompts'
@@ -63,14 +68,18 @@ export type MoveDestination = {
 }
 
 /**
+ * The source entry a move reads: its printing tuple, its `&N`, and what rides
+ * with the copy — its tags, its **effective** labels (the entry's override,
+ * else its list's default) and its note.
+ */
+export type MoveSource = PrintingTupleWithId & MovedCopySource
+
+/**
  * The `move-from` options a move records: the source entry's printing, with
  * the destination-resolved fields laid over it. The single statement of the
  * override rule — set, collector number, and language may come from the
  * picker; finish and condition always come from the source entry.
  */
-/** The source entry a move reads: its printing tuple, its `&N`, and its tags. */
-export type MoveSource = PrintingTupleWithId & { tags?: readonly CardTag[] }
-
 export function moveFromOptionsFor(source: MoveSource, dest: MoveDestination): MoveFromOptions {
   return {
     set: dest.printing?.set ?? source.set,
@@ -78,8 +87,10 @@ export function moveFromOptionsFor(source: MoveSource, dest: MoveDestination): M
     finish: source.finish,
     condition: source.condition,
     language: dest.printing?.language ?? source.language,
-    // Tags ride every move unfiltered — every list type carries them.
-    tags: source.tags === undefined ? undefined : [...source.tags],
+    // The payload rides as every move carries it (tags unfiltered, effective
+    // labels the destination filters on arrival, the note), exactly as
+    // `ritual move` does.
+    ...movedCopyOf(source),
     cardId: source.cardId,
     to: { type: dest.target.type, name: dest.target.name },
   }
@@ -142,4 +153,19 @@ export async function resolveMoveDestination(
     language: result.language,
   }
   return { target, printing }
+}
+
+/**
+ * Report a note a move's destination discarded — the copy merged onto a deck
+ * line that already holds a different note — with `ritual move`'s own wording,
+ * so a session move and the one-shot command say the same thing about the loss.
+ */
+export function warnDroppedMoveNote(dropped: DroppedNote): void {
+  console.log(
+    t('cli.move.noteDroppedLine', {
+      name: dropped.cardName,
+      id: dropped.cardId !== undefined ? ` &${dropped.cardId}` : '',
+      note: dropped.note,
+    }),
+  )
 }

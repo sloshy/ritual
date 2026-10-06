@@ -130,6 +130,59 @@ describe('import-changes command (Integration)', () => {
     })
   }, 60_000)
 
+  test('prints a dropped note after the list’s applied line, and still prints it under --quiet', async () => {
+    const seedDrop = async (dir: string): Promise<void> => {
+      await seedWorkspace(dir)
+      await writeDeckFile(dir, 'test-deck', {
+        name: 'Test Deck',
+        cards: [
+          {
+            quantity: 1,
+            name: 'Sol Ring',
+            set: 'c21',
+            collectorNumber: '263',
+            note: 'mine',
+            cardId: 7,
+          },
+        ],
+      })
+      await writeCollectionFile(dir, 'binder', {
+        title: 'Binder',
+        entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+      })
+      const move = {
+        id: 'm1',
+        timestamp: 1,
+        cardName: 'Sol Ring',
+        from: { kind: 'collection', name: 'Binder' },
+        to: { kind: 'deck', slug: 'test-deck', name: 'Test Deck' },
+        set: 'c21',
+        collectorNumber: '263',
+        note: 'from the binder',
+        cardId: 1,
+      }
+      await fs.writeFile(
+        path.join(dir, 'edits.json'),
+        JSON.stringify({ ...BUNDLE, lists: [], moves: [move] }),
+      )
+    }
+    const warning =
+      '  ⚠ Note on "Sol Ring" &1 was dropped (merged onto an existing line): from the binder'
+    await withTempDir(async (dir) => {
+      await seedDrop(dir)
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir)
+      expect(result.exitCode).toBe(0)
+      expect(result.stderr).toContain(warning)
+    })
+    await withTempDir(async (dir) => {
+      await seedDrop(dir)
+      const quiet = await runCli(['import-changes', 'edits.json', '--yes', '--quiet'], dir)
+      expect(quiet.exitCode).toBe(0)
+      expect(quiet.stdout).toBe('')
+      expect(quiet.stderr).toContain(warning)
+    })
+  }, 120_000)
+
   // A conflict is not always "card not found": an action that can never apply
   // to the list's type must be reported as such, quiet or not.
   test('reports a not-applicable conflict with its own reason', async () => {
@@ -765,6 +818,122 @@ describe('applyChangeBundle with moves', () => {
     const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
     expect(deckLog).toMatch(/Moved "Sol Ring" \(C21:263\) &7/)
     expect(deckLog).not.toMatch(/&9/)
+  }, 60_000)
+
+  test('a proxy copy moved into a deck folds onto the proxy line, leaving the source’s proxy line', async () => {
+    // The labels twin of the tagged test above: the merge probe must measure
+    // the move's labels as the reducer does, and the source removal (no id
+    // hint) must take the binder's proxy line rather than its real copy.
+    await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          labels: ['proxy'],
+          cardId: 7,
+        },
+        { quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 9 },
+      ],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 },
+        { name: 'Sol Ring', set: 'c21', collectorNumber: '263', labels: ['proxy'], cardId: 2 },
+      ],
+    })
+    const { cardId: _hint, ...unhinted } = SWAP_MOVES[1]!
+    const result = await applyChangeBundle(
+      bundleOf([], [{ ...unhinted, labels: ['proxy'], toCardId: 50 }]),
+    )
+    expect(result.failedCount).toBe(0)
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/2 Sol Ring \(C21:263\) \[proxy\] &7/)
+    expect(deck).toMatch(/1 Sol Ring \(C21:263\) &9/)
+    const deckLog = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.changes.md'), 'utf-8')
+    expect(deckLog).toMatch(/Moved "Sol Ring" \(C21:263\) &7/)
+    const binder = await fs.readFile(path.join(ws.dir, 'collections', 'binder.md'), 'utf-8')
+    expect(binder).toContain('- Sol Ring (C21:263) &1')
+    expect(binder).not.toContain('[proxy]')
+  }, 60_000)
+
+  test('a move whose note a deck merge discards is reported on the destination’s result', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          note: 'mine',
+          cardId: 7,
+        },
+      ],
+    })
+    await writeCollectionFile(ws.dir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    })
+    const result = await applyChangeBundle(
+      bundleOf([], [{ ...SWAP_MOVES[1]!, note: 'from the binder', toCardId: 50 }]),
+    )
+    expect(result.failedCount).toBe(0)
+    const deckResult = result.lists.find((list) => list.kind === 'deck')
+    expect(deckResult?.droppedNotes).toEqual([
+      { cardName: 'Sol Ring', cardId: 1, note: 'from the binder' },
+    ])
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/2 Sol Ring \(C21:263\) \{mine\} &7/)
+  }, 60_000)
+
+  test('two copies of one source line dropping the same note are reported once', async () => {
+    await writeDeckFile(ws.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          note: 'mine',
+          cardId: 7,
+        },
+      ],
+    })
+    await writeDeckFile(ws.dir, 'other-deck', {
+      name: 'Other Deck',
+      cards: [
+        {
+          quantity: 2,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          note: 'spare',
+          cardId: 1,
+        },
+      ],
+    })
+    const move = (id: string, timestamp: number): Record<string, unknown> => ({
+      id,
+      timestamp,
+      cardName: 'Sol Ring',
+      from: { kind: 'deck', slug: 'other-deck', name: 'Other Deck' },
+      to: DECK_REF,
+      set: 'c21',
+      collectorNumber: '263',
+      note: 'spare',
+      cardId: 1,
+    })
+    const result = await applyChangeBundle(bundleOf([], [move('m1', 1), move('m2', 2)]))
+    expect(result.failedCount).toBe(0)
+    const deckResult = result.lists.find((list) => list.slug === 'test-deck')
+    expect(deckResult?.droppedNotes).toEqual([{ cardName: 'Sol Ring', cardId: 1, note: 'spare' }])
+    const deck = await fs.readFile(path.join(ws.dir, 'decks', 'test-deck.md'), 'utf-8')
+    expect(deck).toMatch(/3 Sol Ring \(C21:263\) \{mine\} &7/)
   }, 60_000)
 
   test('a two-move swap round-trips both files and both changelogs', async () => {

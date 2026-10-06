@@ -108,6 +108,7 @@ export function makeSelectedCard(
     sourceKind: 'deck',
     maxQty: 1,
     cardIds: [],
+    moveCarry: { byCardId: new Map(), fallback: {} },
     ...overrides,
   }
 }

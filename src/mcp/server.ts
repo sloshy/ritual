@@ -40,7 +40,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   printing a price is quoted for: either one prices as 0 everywhere and is left out of unpriced
   counts, sell reports, and buylist quotes entirely — its absence there is the rule, not a lookup
   failure. In a price report such an entry carries unpricedReason "proxy" or "custom-art"
-  ("custom-art" wins when both apply).
+  ("custom-art" wins when both apply). A move (move_selected_cards, a bundle move) carries a
+  card's effective labels — its own override, else its list's default — and the destination
+  keeps what its type takes, so a card that is a proxy only through its deck's default arrives
+  in a collection as "proxy".
 - Card tags are the owner's own free-form vocabulary, on any list type: get_list reports a card's
   "tags" (canonical — trimmed, sorted, in the owner's own casing, without the "#" the card line
   writes), add_card and an apply_changes "add" take "tags" for a new card, and apply_changes

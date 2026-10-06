@@ -278,9 +278,11 @@ ritual move --card-id 7 --from "wanted:To Buy" --to deck:storm --output json
   created if missing) instead of the default; it errors on non-deck destinations.
 - Deck sources decrement quantity, notes travel with the card, both lists get
   changelog entries, and \`-q <n>\` moves n copies of the same printing. The card's
-  **custom art**, its tags and — as far as the destination type can express them —
-  its label overrides travel too; the art is re-filed under the destination line's new \`&N\`,
-  unless the copy merged onto a line the destination already had. JSON output:
+  **custom art** and its tags travel too, and so do its effective labels (its own
+  override, else the source list's default): the destination keeps what its type
+  accepts and writes an override only where they differ from its own default. The
+  art is re-filed under the destination line's new \`&N\`, unless the copy merged onto
+  a line the destination already had. JSON output:
   \`{moved, card, from, to, droppedNotes}\` — \`droppedNotes\` lists any note discarded
   by a quantity-merge onto an existing deck line whose note differs (also warned on
   stderr).
@@ -309,9 +311,14 @@ written — removed from the source, added to the destination, with a changelog 
 each. In a public-site export the move is recorded once, in the bundle's top-level
 \`moves\` array (never as a per-list change), and \`ritual import-changes\` applies it
 to both lists the same way. Moving a printing-less card into a collection prompts for
-a specific printing first. Notes and label overrides never follow an editor/TUI move
-(the scripted \`ritual move\` carries labels); the card's tags and its
-**custom art** do, the art re-filed under the destination line's new \`&N\`.
+a specific printing first. An editor/TUI move carries the card exactly as the scripted
+\`ritual move\` does: its tags and note, its effective labels (its own override, else the
+source list's default) as far as the destination type accepts them (\`proxy\` into a deck,
+everything into a collection, nothing into a wanted list; no override is written where
+they equal the destination's default), and its **custom art**, re-filed under the
+destination line's new \`&N\`. A copy that merges onto a deck line with a different note
+keeps that line's note, and the dropped note is reported (by the editor's save, by
+\`ritual edit\`, and in \`ritual import-changes\`' per-list \`droppedNotes\`).
 
 The web editors (admin and public) carry the same categories affordances: an
 **Edit Categories…** row in a card's ⋯ menu (a comma-separated field, first name primary,

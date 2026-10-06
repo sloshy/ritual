@@ -81,6 +81,8 @@ export function createWantedStrategy(
     sessionAdds: [],
     editUndo: [],
     originals: new Map(),
+    // A wanted list carries no labels, so it has no default to inherit.
+    listLabels: () => undefined,
   }
 
   const logUpdated = (cardId: number, fallbackName: string): void =>

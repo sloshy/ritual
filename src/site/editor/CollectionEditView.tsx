@@ -3,7 +3,7 @@ import type { CollectionDetail, CollectionCardEntry } from '../../list/site-data
 import type { PriceCurrency } from '../../pricing/price-currency'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
-import type { ListEditorConfig } from '../../editor/editor-config'
+import type { ListPageConfig } from '../../editor/editor-config'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card/card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
@@ -43,7 +43,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
-  ): ListEditorConfig<CollectionCardEntry[]> => ({
+  ): ListPageConfig<CollectionCardEntry[]> => ({
     currency: () => props.currency,
     fetchList: () => Promise.resolve(undefined),
     extractListItems: () => [{ slug: props.slug, name: props.detail.name }],
@@ -73,7 +73,6 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
     onCardAdded: (cardName, scryfallCard) =>
       backfillImportedCard(siteSearch, cardName, scryfallCard, cardActions.addCard),
 
-    applyChange: applyChangeToCollection,
     applyChangePrinting: applyCollectionChangePrinting,
     hasData: (entries) => entries.length > 0,
 
@@ -92,6 +91,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
     initialSlug: props.slug,
     applyChange: applyChangeToCollection,
     printingOf: collectionPrintingOf,
+    listLabels: () => props.detail.labels,
   })
 
   const changeCount = () => ctrl.editor.changes.changeCount()

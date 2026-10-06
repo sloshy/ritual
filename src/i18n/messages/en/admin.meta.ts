@@ -743,6 +743,10 @@ export const adminMeta = {
     description:
       'Per-list result: how many changes were written to that list. A sentence fragment following the list’s name.',
   },
+  'admin.importChanges.droppedNote': {
+    description:
+      'Per-list result line after an import: a moved card merged onto a deck line that already had a different note, so the line kept its own note and this one was discarded. {name} is the card name and {note} the discarded note text.',
+  },
   'admin.importChanges.skipped': {
     description:
       'Per-change result: the change was not applied. {reason} is one of the domain.importConflict.* phrases saying why, and {change} is a rendered change line.',

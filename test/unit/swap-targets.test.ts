@@ -545,10 +545,14 @@ describe('swapMovesToChanges', () => {
         ],
       },
     ])
-    expect(deckSwapMergeTargetId(live, inMove())).toBe(9)
-    expect(deckSwapMergeTargetId(live, inMove({ finish: 'foil' }))).toBeUndefined()
+    expect(deckSwapMergeTargetId(live, inMove(), { listLabels: undefined })).toBe(9)
     expect(
-      deckSwapMergeTargetId(live, inMove({ set: 'sta', collectorNumber: '42' })),
+      deckSwapMergeTargetId(live, inMove({ finish: 'foil' }), { listLabels: undefined }),
+    ).toBeUndefined()
+    expect(
+      deckSwapMergeTargetId(live, inMove({ set: 'sta', collectorNumber: '42' }), {
+        listLabels: undefined,
+      }),
     ).toBeUndefined()
   })
 

@@ -53,11 +53,42 @@ release changes a file format or a generated file, it ships the change as a
   stable release, never for a prerelease. A published image reports its release version
   and can pin a workspace's Ritual release like a release binary.
 - `serve` no longer sends the server's stack trace to a visitor when a request fails.
+- Moving a card to another list in an editor (the admin and public sites' **Move to list…**,
+  the public site's **Move selected**, and `📤 Move to Another List` in `ritual edit`) keeps
+  its note and labels, as `ritual move` does. Every move, `ritual move` included, now carries
+  the card's _effective_ labels — its own override, or else its list's default — so a card
+  that only inherited `proxy` from its deck's default stays a proxy in the collection it
+  moves to. The destination keeps the labels its type accepts (`proxy` into a deck,
+  `sale`/`trade`/`keep` only into a collection, nothing into a wanted list) and writes an
+  override only where they differ from its own default. A card with no labels moving into a
+  list that has a default takes that default: a card line cannot say "no labels". When the
+  copy merges onto a deck line that already has a different note, the line keeps its own,
+  and the drop is reported once per note by the admin editor's save, `ritual edit`, and
+  `ritual import-changes` (whose results, the admin Import Changes page and the MCP
+  `import_change_bundle` tool now list each list's `droppedNotes`). Public-site change
+  bundles carry a move's `labels` and `note`; older bundles import as before.
 - The Docker image creates `/app/wanted`, keeps `/app/.logins` private (mode 0700), and exposes the default ports of `admin` (8080)
   and `cache server` (4000) as well as `serve` (3000).
 
 ### Fixed
 
+- A move that takes a copy out of another list (a bundle import, a swap) now prefers the
+  source line whose labels match the copy, so a `[proxy]` copy leaves from the proxy line.
+  Printing still comes first: an exact-printing line is taken before a name-only one.
+- A moved copy landing in a deck now merges the same way on every path: with
+  `ritual move --to-section` (or a move naming its section) only within that section,
+  otherwise with a matching line in any section — `ritual move` used to look only in the
+  default section — and labels are compared as effective labels, so a redundant `[proxy]`
+  line in a `proxy`-default deck takes an arriving proxy.
+- The web editors land an imported move the way the save replays it, against the list's
+  default labels, so a proxy imported into a `proxy`-default deck no longer shows (or saves
+  into the editor's baseline) as a separate line.
+- Adding a copy of a tagged collection or wanted-list card in the web editors no longer
+  shows the new copy untagged.
+- Change-bundle and changelog refusals of a bad label set are reported in English whatever
+  the UI language, and a bundle move with a malformed card id is refused.
+- Moving a `[ja]` deck card off the public site's deck page with **Move selected** keeps its
+  language, and moving cards from the combined views keeps their tags.
 - On Windows, a workspace git checks out with CRLF line endings (`core.autocrlf`) no longer
   shows every list as hand-edited, and its changelogs no longer read as empty history.
 - `ritual admin` and `ritual mcp --transport http` report a busy port with a one-line error

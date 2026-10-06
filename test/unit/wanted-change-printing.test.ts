@@ -1,3 +1,4 @@
+import { applyChangeToWantedList } from '../../src/changes/wanted-changes'
 import { describe, expect, test } from 'bun:test'
 import { createSignal } from 'solid-js'
 import { applyWantedChangePrinting } from '../../src/editor/wanted-config'
@@ -35,6 +36,7 @@ describe('applyWantedChangePrinting', () => {
     const [data, setData] = createSignal<WantedListCardEntry[] | null>([entry])
     const calls: SetPrintingCall[] = []
     applyWantedChangePrinting({
+      applyChange: applyChangeToWantedList,
       data: [entry],
       original: [entry],
       target: makeContextInfo({

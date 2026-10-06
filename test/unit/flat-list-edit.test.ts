@@ -95,6 +95,7 @@ function harness(entries: CollectionCardEntry[]): Harness {
     sessionAdds: [],
     editUndo: [],
     originals: new Map(),
+    listLabels: () => undefined,
   }
   const ctx: CardSessionContext = {
     sessionChanges: [],
@@ -690,6 +691,21 @@ describe('performFlatListMove', () => {
     // The id stays reserved while the move is pending — a new add must not
     // take over an id the move-from event still references.
     expect(allocateId(h.session.pool)).toBe(3)
+  })
+
+  test('the move-from carries the entry’s tags, note and effective labels', () => {
+    const h = harness([
+      entry('Sol Ring', 1, { tags: ['Ramp'], note: 'mint' }),
+      entry('Mana Crypt', 2, { labels: ['keep'], note: 'signed' }),
+    ])
+    // The list's default stands in for an entry with no override of its own.
+    h.list.listLabels = () => ['sale']
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 1)!, 1, dest)
+    performFlatListMove(h.list, h.ctx, findFlatListEntry(h.list, 2)!, 2, dest)
+    expect(h.ctx.sessionChanges).toMatchObject([
+      { action: 'move-from', cardName: 'Sol Ring', tags: ['Ramp'], labels: ['sale'], note: 'mint' },
+      { action: 'move-from', cardName: 'Mana Crypt', labels: ['keep'], note: 'signed' },
+    ])
   })
 
   test("folds the entry's earlier edits out; the move-from carries the final printing", () => {

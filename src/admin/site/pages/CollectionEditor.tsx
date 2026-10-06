@@ -8,7 +8,7 @@ import type { CollectionCardEntry } from '../../../list/site-data'
 import { ListLabelsModal } from '../components/ListLabelsModal'
 import { ListImageModal } from '../components/ListImageModal'
 import { flatListImageCardOptions, type ListImageCardOption } from '../list-image-cards'
-import type { ListEditorConfig } from '../../../editor/editor-config'
+import type { ListPageConfig } from '../../../editor/editor-config'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card/card-id'
 import { useEditorDefaults } from '../../../editor/useEditorDefaults'
@@ -73,7 +73,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
-  ): ListEditorConfig<CollectionCardEntry[]> => ({
+  ): ListPageConfig<CollectionCardEntry[]> => ({
     currency: priceCurrency,
     fetchList: () => fetchAdminJson('/api/collections'),
     extractListItems: (r) => (r as CollectionListResponse).collections ?? [],
@@ -124,7 +124,6 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
       )
     },
 
-    applyChange: applyChangeToCollection,
     applyChangePrinting: applyCollectionChangePrinting,
     hasData: (entries) => entries.length > 0,
 
@@ -149,6 +148,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     initialSlug: props.initialSlug,
     applyChange: applyChangeToCollection,
     printingOf: collectionPrintingOf,
+    listLabels,
   })
   // Wired after the editor exists: a staged art write that fails *after* a
   // successful save has no dialog left to report into, so it takes over the

@@ -3,10 +3,12 @@ import {
   applyAddToStaged,
   applyRemoveFromStaged,
   applyRemoveIncomingFromStaged,
+  arrivingCopyOf,
+  movingLabels,
   loadStagedOrThrow,
   type StagedFile,
 } from '../../src/list/move-staging'
-import type { PhysicalCard } from '../../src/list/move-staging'
+import type { ArrivingCopy, PhysicalCard } from '../../src/list/move-staging'
 import type { DeckData } from '../../src/list/deck'
 import type { Card } from '../../src/card/card'
 import { scratchListPath } from '../test-utils'
@@ -33,6 +35,11 @@ function physicalCard(name: string, extra?: Partial<PhysicalCard>): PhysicalCard
     listEntry: { ref: { type: 'deck', name: 'Test' }, filePath: 'Test.md' },
     ...extra,
   }
+}
+
+/** The copy a physical card makes arriving in a staged list (its effective labels carried). */
+function arriving(name: string, extra?: Partial<PhysicalCard>): ArrivingCopy {
+  return arrivingCopyOf(physicalCard(name, extra))
 }
 
 describe('applyRemoveFromStaged (text) line matching', () => {
@@ -96,8 +103,8 @@ describe('applyAddToStaged label handling', () => {
     const deck: DeckData = { name: 'Test', sections: [{ name: 'Main', cards: [] }] }
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Sol Ring', { labels: ['proxy'] }), 'deck')
-    applyAddToStaged(staged, physicalCard('Mana Crypt', { labels: ['sale', 'trade'] }), 'deck')
+    applyAddToStaged(staged, arriving('Sol Ring', { labels: ['proxy'] }), 'deck')
+    applyAddToStaged(staged, arriving('Mana Crypt', { labels: ['sale', 'trade'] }), 'deck')
 
     const cards = deck.sections[0]!.cards
     expect(cards.find((c) => c.name === 'Sol Ring')!.labels).toEqual(['proxy'])
@@ -117,7 +124,7 @@ describe('applyAddToStaged label handling', () => {
     const staged = deckStaged(deck)
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['proxy'] }),
+      arriving('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['proxy'] }),
       'deck',
     )
     expect(result.merged).toBe(false)
@@ -140,7 +147,7 @@ describe('applyAddToStaged label handling', () => {
     const staged = deckStaged(deck)
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['sale'] }),
+      arriving('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['sale'] }),
       'deck',
     )
     expect(result).toMatchObject({ merged: true, cardId: 1 })
@@ -156,7 +163,7 @@ describe('applyAddToStaged label handling', () => {
     }
     applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', {
+      arriving('Sol Ring', {
         set: 'c19',
         collectorNumber: '221',
         labels: ['sale', 'trade'],
@@ -166,6 +173,138 @@ describe('applyAddToStaged label handling', () => {
     expect(staged.kind === 'text' && staged.content).toContain(
       '- Sol Ring (C19:221) [sale,trade] &2',
     )
+  })
+})
+
+describe('applyAddToStaged with inherited labels and destination defaults', () => {
+  test('a copy carries its effective labels: the line’s override, else its list’s default', () => {
+    expect(movingLabels(physicalCard('Sol Ring', { listLabels: ['proxy'] }))).toEqual(['proxy'])
+    expect(
+      movingLabels(physicalCard('Sol Ring', { labels: ['keep'], listLabels: ['sale'] })),
+    ).toEqual(['keep'])
+  })
+
+  test('a card that only inherited `proxy` stays a proxy in a collection without that default', () => {
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '# Binder\n\n- Mox Pearl (LEA:265) &1\n',
+    }
+    applyAddToStaged(
+      staged,
+      arriving('Sol Ring', { set: 'c19', collectorNumber: '221', listLabels: ['proxy'] }),
+      'collection',
+    )
+    expect(staged.kind === 'text' && staged.content).toContain('- Sol Ring (C19:221) [proxy] &2')
+  })
+
+  test('labels equal to the destination’s own default are inherited, not restated', () => {
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '---\nlabels: [sale]\n---\n# Binder\n\n- Mox Pearl (LEA:265) &1\n',
+    }
+    applyAddToStaged(
+      staged,
+      arriving('Sol Ring', { set: 'c19', collectorNumber: '221', labels: ['sale'] }),
+      'collection',
+    )
+    applyAddToStaged(
+      staged,
+      arriving('Black Lotus', { set: 'lea', collectorNumber: '232', labels: ['trade'] }),
+      'collection',
+    )
+    const content = staged.kind === 'text' ? staged.content : ''
+    expect(content).toContain('- Sol Ring (C19:221) &2')
+    expect(content).toContain('- Black Lotus (LEA:232) [trade] &3')
+  })
+
+  test('a proxy arriving in a proxy-default deck merges onto its override-less line', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 }],
+        },
+      ],
+    }
+    const staged: StagedFile = { kind: 'deck', data: { deck, frontMatter: { labels: ['proxy'] } } }
+    const result = applyAddToStaged(
+      staged,
+      arriving('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['proxy'] }),
+      'deck',
+    )
+    expect(result).toMatchObject({ merged: true, cardId: 1 })
+    expect(deck.sections[0]!.cards[0]!.labels).toBeUndefined()
+  })
+
+  test('a wanted destination keeps the note but no labels', () => {
+    const staged: StagedFile = {
+      kind: 'text',
+      type: 'wanted',
+      content: '# Wishlist\n\n- Brainstorm &1\n',
+    }
+    applyAddToStaged(
+      staged,
+      arriving('Lightning Bolt', {
+        set: 'lea',
+        collectorNumber: '161',
+        labels: ['sale', 'trade'],
+        note: 'mint',
+      }),
+      'wanted',
+    )
+    // (The wanted grammar has no label token, so only the note can show.)
+    expect(staged.kind === 'text' && staged.content).toContain(
+      '- Lightning Bolt (LEA:161) {mint} &2',
+    )
+  })
+
+  test('a copy naming a section merges within that section only; naming none, in any', () => {
+    const deck = (): DeckData => ({
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270', cardId: 1 }],
+        },
+        { name: 'Sideboard', cards: [] },
+      ],
+    })
+    const ring = arriving('Sol Ring', { set: 'lea', collectorNumber: '270' })
+    const scoped = deckStaged(deck())
+    expect(applyAddToStaged(scoped, ring, 'deck', 'Sideboard')).toMatchObject({ merged: false })
+    const unscoped = deckStaged(deck())
+    expect(applyAddToStaged(unscoped, ring, 'deck')).toMatchObject({ merged: true, cardId: 1 })
+  })
+
+  test('a line with a redundant `[proxy]` in a proxy-default deck absorbs an arriving proxy', () => {
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            {
+              quantity: 1,
+              name: 'Sol Ring',
+              set: 'lea',
+              collectorNumber: '270',
+              labels: ['proxy'],
+              cardId: 1,
+            },
+          ],
+        },
+      ],
+    }
+    const staged: StagedFile = { kind: 'deck', data: { deck, frontMatter: { labels: ['proxy'] } } }
+    const result = applyAddToStaged(
+      staged,
+      arriving('Sol Ring', { set: 'lea', collectorNumber: '270', labels: ['proxy'] }),
+      'deck',
+    )
+    expect(result).toMatchObject({ merged: true, cardId: 1 })
   })
 })
 
@@ -185,11 +324,11 @@ describe('applyAddToStaged (deck) ID allocation', () => {
     }
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck')
+    applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck')
     expect(deck.sections[0]!.cards.find((c) => c.name === 'Lightning Bolt')!.cardId).toBe(2)
 
     // The deck now holds [1, 2, 3]; the next add falls through to 4.
-    applyAddToStaged(staged, physicalCard('Counterspell'), 'deck')
+    applyAddToStaged(staged, arriving('Counterspell'), 'deck')
     expect(deck.sections[0]!.cards.find((c) => c.name === 'Counterspell')!.cardId).toBe(4)
   })
 
@@ -205,11 +344,7 @@ describe('applyAddToStaged (deck) ID allocation', () => {
     }
     const staged = deckStaged(deck)
 
-    applyAddToStaged(
-      staged,
-      physicalCard('Sol Ring', { set: 'c21', collectorNumber: '167' }),
-      'deck',
-    )
+    applyAddToStaged(staged, arriving('Sol Ring', { set: 'c21', collectorNumber: '167' }), 'deck')
 
     const main = deck.sections[0]!.cards
     expect(main).toHaveLength(1)
@@ -242,7 +377,7 @@ describe('applyAddToStaged (deck) finish and condition identity', () => {
 
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { ...printing, finish: 'foil' }),
+      arriving('Sol Ring', { ...printing, finish: 'foil' }),
       'deck',
     )
 
@@ -262,7 +397,7 @@ describe('applyAddToStaged (deck) finish and condition identity', () => {
 
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { ...printing, condition: 'LP' }),
+      arriving('Sol Ring', { ...printing, condition: 'LP' }),
       'deck',
     )
 
@@ -280,7 +415,7 @@ describe('applyAddToStaged (deck) finish and condition identity', () => {
 
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { ...printing, finish: 'foil', condition: 'LP' }),
+      arriving('Sol Ring', { ...printing, finish: 'foil', condition: 'LP' }),
       'deck',
     )
 
@@ -299,7 +434,7 @@ describe('applyAddToStaged (deck) finish and condition identity', () => {
 
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { ...printing, finish: 'nonfoil', condition: 'NM', language: 'en' }),
+      arriving('Sol Ring', { ...printing, finish: 'nonfoil', condition: 'NM', language: 'en' }),
       'deck',
     )
 
@@ -318,7 +453,7 @@ describe('applyAddToStaged (deck) finish and condition identity', () => {
 
     const result = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { ...printing, language: 'ja' }),
+      arriving('Sol Ring', { ...printing, language: 'ja' }),
       'deck',
     )
 
@@ -366,7 +501,7 @@ describe('applyAddToStaged (deck) section targeting', () => {
     const deck = twoSectionDeck()
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck', 'Sideboard')
+    applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck', 'Sideboard')
 
     const sideboard = deck.sections.find((s) => s.name === 'Sideboard')!
     expect(sideboard.cards.map((c) => c.name)).toContain('Lightning Bolt')
@@ -377,7 +512,7 @@ describe('applyAddToStaged (deck) section targeting', () => {
     const deck = twoSectionDeck()
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck', 'sideboard')
+    applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck', 'sideboard')
 
     expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard', 'sideboard'])
     expect(deck.sections.find((s) => s.name === 'sideboard')!.cards[0]!.name).toBe('Lightning Bolt')
@@ -387,7 +522,7 @@ describe('applyAddToStaged (deck) section targeting', () => {
     const deck = twoSectionDeck()
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck', 'Maybeboard')
+    applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck', 'Maybeboard')
 
     const created = deck.sections.find((s) => s.name === 'Maybeboard')
     expect(created).toBeDefined()
@@ -404,7 +539,7 @@ describe('applyAddToStaged (deck) section targeting', () => {
     }
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Sol Ring'), 'deck', 'Sideboard')
+    applyAddToStaged(staged, arriving('Sol Ring'), 'deck', 'Sideboard')
 
     expect(deck.sections.find((s) => s.name === 'Main')!.cards[0]!.quantity).toBe(1)
     expect(deck.sections.find((s) => s.name === 'Sideboard')!.cards[0]!.quantity).toBe(2)
@@ -420,7 +555,7 @@ describe('applyAddToStaged (deck) section targeting', () => {
     }
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck')
+    applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck')
 
     // First non-commander/sideboard section receives the card.
     expect(deck.sections.find((s) => s.name === 'Spells')!.cards.map((c) => c.name)).toContain(
@@ -432,7 +567,7 @@ describe('applyAddToStaged (deck) section targeting', () => {
     const deck: DeckData = { name: 'Test', sections: [] }
     const staged = deckStaged(deck)
 
-    applyAddToStaged(staged, physicalCard('Lightning Bolt'), 'deck')
+    applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck')
 
     expect(deck.sections.map((s) => s.name)).toEqual(['Main'])
   })
@@ -451,7 +586,7 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
 
     const added = applyAddToStaged(
       staged,
-      physicalCard('Sol Ring', { note: 'incoming note', cardId: 7 }),
+      arriving('Sol Ring', { note: 'incoming note', cardId: 7 }),
       'deck',
     )
 
@@ -467,7 +602,7 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
   test('reports nothing when the incoming card has no note', () => {
     const staged = deckStaged(deckWithLine('existing'))
 
-    const added = applyAddToStaged(staged, physicalCard('Sol Ring'), 'deck')
+    const added = applyAddToStaged(staged, arriving('Sol Ring'), 'deck')
 
     expect(added).toEqual({ cardId: 1, merged: true, droppedNote: undefined })
   })
@@ -475,7 +610,7 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
   test('reports nothing when the incoming note matches the existing line note', () => {
     const staged = deckStaged(deckWithLine('same note'))
 
-    const added = applyAddToStaged(staged, physicalCard('Sol Ring', { note: 'same note' }), 'deck')
+    const added = applyAddToStaged(staged, arriving('Sol Ring', { note: 'same note' }), 'deck')
 
     expect(added.droppedNote).toBeUndefined()
   })
@@ -483,11 +618,7 @@ describe('applyAddToStaged (deck) dropped-note reporting', () => {
   test('reports nothing when the card appends a new line (note travels with it)', () => {
     const staged = deckStaged(deckWithLine())
 
-    const added = applyAddToStaged(
-      staged,
-      physicalCard('Lightning Bolt', { note: 'travels' }),
-      'deck',
-    )
+    const added = applyAddToStaged(staged, arriving('Lightning Bolt', { note: 'travels' }), 'deck')
 
     // A new line, so the note travels with it and the id is the one allocated.
     expect(added).toEqual({ cardId: 2, merged: false })
@@ -515,6 +646,133 @@ describe('applyRemoveIncomingFromStaged line matching', () => {
     })
     expect(file.content).toContain('[foil] &3')
     expect(file.content).not.toContain('#Ramp')
+  })
+
+  test('without an id hint, a copy’s labels prefer the line whose effective labels match', () => {
+    // Whichever line comes first in the file, a `[proxy]` copy takes the proxy
+    // line and a plain copy the real one.
+    const content =
+      '# binder\n\n## Main\n- Sol Ring (C19:221) &1\n- Sol Ring (C19:221) [proxy] &2\n'
+    const copy = { name: 'Sol Ring', set: 'c19', collectorNumber: '221' } as const
+    const proxyFile: StagedFile = { kind: 'text', type: 'collection', content }
+    expect(applyRemoveIncomingFromStaged(proxyFile, { ...copy, labels: ['proxy'] })).toMatchObject({
+      cardId: 2,
+    })
+    const plainFile: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '# binder\n\n## Main\n- Sol Ring (C19:221) [proxy] &2\n- Sol Ring (C19:221) &1\n',
+    }
+    expect(applyRemoveIncomingFromStaged(plainFile, copy)).toMatchObject({ cardId: 1 })
+  })
+
+  test('printing confidence outranks labels: an exact-printing proxy line beats a plain name-only one', () => {
+    // A swap's move-to carries no labels and here a stale id; the plain line
+    // matches its (empty) labels but pins no printing, so the exact printing
+    // wins — the label preference only orders lines within a level.
+    const deck: DeckData = {
+      name: 'Test',
+      sections: [
+        {
+          name: 'Main',
+          cards: [
+            {
+              quantity: 1,
+              name: 'Lightning Bolt',
+              set: 'lea',
+              collectorNumber: '161',
+              labels: ['proxy'],
+              cardId: 1,
+            },
+            { quantity: 1, name: 'Lightning Bolt', cardId: 2 },
+          ],
+        },
+      ],
+    }
+    expect(
+      applyRemoveIncomingFromStaged(deckStaged(deck), {
+        name: 'Lightning Bolt',
+        set: 'lea',
+        collectorNumber: '161',
+        cardId: 9,
+      }),
+    ).toMatchObject({ cardId: 1 })
+  })
+
+  test('a bare proxy line beats a `[foil]` real one for a proxy copy: finish tiers share a level', () => {
+    const file: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content:
+        '# binder\n\n## Main\n- Sol Ring (C19:221) [foil] &1\n- Sol Ring (C19:221) [proxy] &2\n',
+    }
+    expect(
+      applyRemoveIncomingFromStaged(file, {
+        name: 'Sol Ring',
+        set: 'c19',
+        collectorNumber: '221',
+        finish: 'foil',
+        labels: ['proxy'],
+      }),
+    ).toMatchObject({ cardId: 2 })
+  })
+
+  test('the preference reads effective labels: a bare line inherits the source’s default', () => {
+    const file: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content:
+        '---\nlabels: [proxy]\n---\n# binder\n\n## Main\n- Sol Ring (C19:221) [sale] &1\n- Sol Ring (C19:221) &2\n',
+    }
+    expect(
+      applyRemoveIncomingFromStaged(file, {
+        name: 'Sol Ring',
+        set: 'c19',
+        collectorNumber: '221',
+        labels: ['proxy'],
+      }),
+    ).toMatchObject({ cardId: 2 })
+  })
+
+  test('labels are a preference, not a filter: a copy whose labels match no line still finds one', () => {
+    const file: StagedFile = {
+      kind: 'text',
+      type: 'collection',
+      content: '# binder\n\n## Main\n- Sol Ring (C19:221) [sale] &1\n',
+    }
+    expect(
+      applyRemoveIncomingFromStaged(file, {
+        name: 'Sol Ring',
+        set: 'c19',
+        collectorNumber: '221',
+        labels: ['proxy'],
+      }),
+    ).toMatchObject({ cardId: 1 })
+  })
+
+  test('the removed line reports its label override and note, for the source-side move-from', () => {
+    const file: Extract<StagedFile, { kind: 'text' }> = {
+      kind: 'text',
+      type: 'collection',
+      content: '# binder\n\n## Main\n- Sol Ring (C19:221) [sale,trade] {mint} &2\n',
+    }
+    expect(
+      applyRemoveIncomingFromStaged(file, { name: 'Sol Ring', set: 'c19', collectorNumber: '221' }),
+    ).toMatchObject({ cardId: 2, labels: ['sale', 'trade'], note: 'mint' })
+
+    const deck = deckStaged({
+      name: 'Deck',
+      sections: [
+        {
+          name: 'Main',
+          cards: [{ quantity: 1, name: 'Sol Ring', labels: ['proxy'], note: 'home', cardId: 4 }],
+        },
+      ],
+    })
+    expect(applyRemoveIncomingFromStaged(deck, { name: 'Sol Ring', cardId: 4 })).toMatchObject({
+      labels: ['proxy'],
+      note: 'home',
+    })
   })
 
   test('the source id hint picks among identical sibling lines; without it the first tuple match goes', () => {

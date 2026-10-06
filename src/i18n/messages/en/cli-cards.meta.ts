@@ -555,7 +555,7 @@ export const cliCardsMeta = {
   },
   'cli.move.noteDroppedLine': {
     description:
-      'The same data-loss notice inside the interactive session, indented under the save summary.',
+      'The same data-loss notice as an indented line: under the interactive `ritual move` save summary, when a `ritual edit` save delivers a moved card onto a deck line holding a different note, and in `ritual import-changes` results. {name} is the card name, {id} an optional " &N" suffix, {note} the discarded note text.',
   },
   'cli.move.noCardWithId': {
     description: 'No card in the source list carries the requested &N id.',

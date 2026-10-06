@@ -251,7 +251,7 @@ While a list is open in edit mode, the **Selected (N)** menu gains an **edit** s
 - **Set Label…**: decks and collections. Opens the [label picker](#card-labels) for the selection's list type (a deck is offered **Proxy** and **Use list default**) and applies the override to every selected card. Hidden when the selection spans several list types, or when the type carries no labels (wanted lists)
 - **Add Tag…**: every editor. Opens the [tags dialog](#card-tags) empty, with the list's tags as suggestions, and adds the typed tags to every selected card's existing tags without replacing them. One pending `add-tag` per card per tag it lacked, each its own Undo step
 - **Move to section…**: moves every selected card into an existing section, or **New section…** to name a new one
-- **Move to list…**: moves every selected card into another list. Each card's [tags](#card-tags) and [custom art](#custom-art) go with it
+- **Move to list…**: moves every selected card into another list, carrying what [Moving Cards to Another List](#moving-cards-to-another-list) describes
 
 These edits go through the same pending-changes/undo flow as per-card edits, so nothing is written until you **Save** (admin) or export (public). The selection is cleared once an action is applied.
 
@@ -275,6 +275,8 @@ Choosing it opens a picker listing your other decks, collections, and wanted lis
 
 For the per-card and per-list **Selected** moves, choosing a destination removes the card from the list you are editing and **stages** a move. **When you Save, both lists are written.** The card is removed from the source (with a "Move … to …" changelog entry) and added to the destination (with a matching "Move … from …" entry). Moving a card with no printing into a collection, which requires one, opens a printing picker first.
 
+Whichever way it moves, the card's [custom art](#custom-art) and its [tags](#card-tags), its note, and its effective [labels](#card-labels) (its own override, or else its list's default) go with it. The destination keeps the labels its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes an override only where the kept labels differ from its own default. A card with no labels arriving in a list that has a default takes that default, since the line grammar has no empty override. A copy that merges onto a deck line with a different note keeps that line's note, and the save reports the dropped one.
+
 The cross-list **All Selected** move does not go through the editor's Save button. It is applied **immediately** and atomically across every affected file via `POST /api/move/selected`, each card moving from its own list to the chosen destination.
 
 ### Incoming moves
@@ -283,7 +285,7 @@ Pending changes can also carry **incoming** moves: a `move-to` recording a copy 
 
 A move from the **Swap Printings** wizard that gives one of this list's name-only lines a printing carries `replacesCardId` instead. The line is converted in place, keeping its `&N`, or split when only some of its copies are filled. No copy is added. Such a move may also carry a `replacement`: a printing added back to the source list in the section the departed line left, logged there as an `Added` line (see [Save a List](/admin/api/#save-a-list)).
 
-Every move, in either direction, is validated in memory before anything is written. A missing list, a source with no copy left to take, or a card with no printing headed into a collection fails the save with nothing written. A swap that leaves and enters the same other list stages both halves against one copy of its file. The moved copy's tags and custom art follow it both ways.
+Every move, in either direction, is validated in memory before anything is written. A missing list, a source with no copy left to take, or a card with no printing headed into a collection fails the save with nothing written. A swap that leaves and enters the same other list stages both halves against one copy of its file. The moved copy's tags, note, labels and custom art follow it both ways, by the rules above. An incoming copy that merges onto a deck line with a different note keeps that line's note, and the save's `droppedNotes` reports it. When the source holds several lines of the printing, the one whose effective labels match the copy's is taken first, so a `[proxy]` copy leaves from the proxy line.
 
 ## Swap Printings
 

@@ -67,7 +67,7 @@ import { resolveCardPreview } from '../card/image-sources'
 import { CardSection } from './CardSection'
 import { printingKey } from '../card/printing-key'
 import { PrimerRenderer, buildToc } from './PrimerRenderer'
-import type { SelectedCard } from '../list-view/useCardSelection'
+import { selectionMoveCarry, type SelectedCard } from '../list-view/useCardSelection'
 import type { DeckBulkEditBundle } from '../list-view/selection-edit-actions'
 import type { ExportFormat } from './ExportMenu'
 import { isExtraSection, isSideboardSection } from '../list/deck-format'
@@ -529,7 +529,9 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
         collectorNumber: specific ? deckEntry?.collectorNumber : undefined,
         finish: deckEntry?.finish,
         condition: deckEntry?.condition,
+        language: storedLanguage(deckEntry?.language),
         labels: c.labels.length > 0 ? c.labels : undefined,
+        moveCarry: selectionMoveCarry(deckEntry ? [deckEntry] : [], props.listLabels),
         tags: c.tags,
         customArt: c.customArt,
         hasCustomArt: c.hasCustomArt,

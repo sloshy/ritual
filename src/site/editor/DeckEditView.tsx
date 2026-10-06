@@ -4,11 +4,10 @@ import type { PriceCurrency } from '../../pricing/price-currency'
 import type { DeckData } from '../../list/deck'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
-import type { ListEditorConfig } from '../../editor/editor-config'
+import type { ListPageConfig } from '../../editor/editor-config'
 import type { DeckCardDataActions } from '../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../card/card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
-import { applyChangeToDeck } from '../../changes/deck-changes'
 import {
   applyDeckChangePrinting,
   findDeckFinish,
@@ -54,7 +53,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
 
   const deckName = () => props.detail.deck.name
 
-  const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
+  const buildConfig = (cardActions: DeckCardDataActions): ListPageConfig<DeckData> => ({
     currency: () => props.currency,
     // Single preloaded item — no list, no network. The selector is hidden.
     fetchList: () => Promise.resolve(undefined),
@@ -88,7 +87,6 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
     onCardAdded: (cardName, scryfallCard) =>
       backfillImportedCard(siteSearch, cardName, scryfallCard, cardActions.addCard),
 
-    applyChange: applyChangeToDeck,
     applyChangePrinting: applyDeckChangePrinting,
     hasData: () => true,
     findCurrentFinish: findDeckFinish,
@@ -102,7 +100,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
     cardSectionOf: findDeckCardSection,
   })
 
-  const ctrl = useDeckEditController(buildConfig, props.slug)
+  const ctrl = useDeckEditController(buildConfig, props.slug, () => props.detail.labels)
   const changeCount = () => ctrl.editor.changes.changeCount()
 
   return (

@@ -15,16 +15,23 @@ import { type Condition, type Finish, isCondition, isFinish } from '../card/fini
 import { isCardLanguage, type CardLanguage } from '../card/card-language'
 import {
   checkLabelsForListType,
-  parseCardLabelsValue,
+  parseCardLabelsData,
   unsupportedLabelsMessage,
+  type CardLabel,
 } from '../card/card-labels'
-import { parseCardTag, parseCardTagsValue } from '../card/card-tags'
+import { parseCardTag, parseCardTagsValue, type CardTag } from '../card/card-tags'
 import { parseCardCategoriesValue, parseCardCategory } from '../card/card-categories'
 import { BOARDS } from '../list/deck'
 import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
-import type { ChangeAction, ChangeEvent, ListRef, MoveReplacement } from './change-event'
-import { CATEGORY_ACTIONS, CHANGE_ACTIONS } from './change-event'
+import type {
+  ChangeAction,
+  ChangeEvent,
+  ListRef,
+  MovedCopyFields,
+  MoveReplacement,
+} from './change-event'
+import { CATEGORY_ACTIONS, CHANGE_ACTIONS, movedCopyOf } from './change-event'
 import { findLineBreak } from '../util/single-line'
 
 // ── Validation ────────────────────────────────────────────────────────
@@ -82,6 +89,57 @@ const SECTION_META_ACTIONS: ReadonlySet<ChangeAction> = new Set<ChangeAction>([
   'set-category-order',
 ])
 
+/** {@link validateMovedCopyFields}' outcome: the payload in its stored form, or why it was refused. */
+export type MovedCopyFieldsResult =
+  { ok: true; fields: MovedCopyFields } | { ok: false; error: string }
+
+/**
+ * Validate the payload riding with a moved copy ({@link MovedCopyFields}) on a
+ * move event or a change bundle's move, and return it in its stored form
+ * (`movedCopyOf`: canonical, empty folded to absent). `where` prefixes every
+ * error.
+ *
+ * Labels are checked against the vocabulary and the exclusivity rule only,
+ * never a list type: they describe the copy in its source list, and the
+ * destination filters them on arrival — a `sale` copy moving into a deck is
+ * expected, not malformed. A note is free text, like a `set-note`'s (the line
+ * break check is the caller's walk over the whole object).
+ */
+export function validateMovedCopyFields(
+  obj: Record<string, unknown>,
+  where: string,
+): MovedCopyFieldsResult {
+  let tags: CardTag[] | undefined
+  if (obj.tags !== undefined) {
+    const parsed = parseCardTagsValue(obj.tags, '"tags"')
+    if (!parsed.ok) return { ok: false, error: `${where}${parsed.message}` }
+    tags = parsed.tags
+  }
+  let labels: CardLabel[] | undefined
+  if (obj.labels !== undefined) {
+    const parsed = parseCardLabelsData(obj.labels, '"labels"')
+    if (!parsed.ok) return { ok: false, error: `${where}${parsed.message}` }
+    labels = parsed.labels
+  }
+  if (obj.note !== undefined && typeof obj.note !== 'string') {
+    return { ok: false, error: `${where}has an invalid "note".` }
+  }
+  return { ok: true, fields: movedCopyOf({ tags, labels, note: obj.note }) }
+}
+
+/**
+ * The fields of `obj` whose value is defined, as a partial overlay — so a
+ * decoded event never gains an explicit `undefined` key, and a merge of two
+ * halves of one move never lets an absent field erase a present one.
+ */
+export function definedFields<T extends object>(obj: T): Partial<T> {
+  const out: Partial<T> = {}
+  for (const key of Object.keys(obj) as (keyof T)[]) {
+    if (obj[key] !== undefined) out[key] = obj[key]
+  }
+  return out
+}
+
 /** Which optional numeric ids a `move-to` may carry beyond `cardId`. */
 const MOVE_TO_ID_FIELDS = ['sourceCardId', 'replacesCardId'] as const
 
@@ -90,7 +148,7 @@ const MOVE_TO_ID_FIELDS = ['sourceCardId', 'replacesCardId'] as const
  * a token the line reader cannot read back (`&1.5`, `&-1`), turning the list
  * unreadable on its next load.
  */
-function isCardIdValue(value: unknown): value is number {
+export function isCardIdValue(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value > 0
 }
 
@@ -342,13 +400,21 @@ export function decodeChangeEvent(
     action === 'set-label' ||
     ((action === 'add' || action === 'remove') && obj.labels !== undefined)
   ) {
-    const labels = parseCardLabelsValue(obj.labels, 'labels')
+    const labels = parseCardLabelsData(obj.labels, 'labels')
     if (!labels.ok) return `${where}${labels.message}`
     if (opts.listType !== undefined) {
       const check = checkLabelsForListType(opts.listType, labels.labels)
       if (!check.ok) return `${where}${unsupportedLabelsMessage(opts.listType, check.unsupported)}`
     }
     normalized = { ...normalized, labels: labels.labels }
+  }
+  // Either half of a move carries the moved copy's payload (tags, effective
+  // labels, note), validated by the one rule a bundle's moves share.
+  if (action === 'move-from' || action === 'move-to') {
+    const moved = validateMovedCopyFields(obj, where)
+    if (!moved.ok) return moved.error
+    const { tags: _t, labels: _l, note: _n, ...rest } = normalized
+    normalized = { ...rest, ...definedFields(moved.fields) }
   }
   // Tags are an open vocabulary validated by shape: a tag event names one
   // tag-shaped string (`tag`), and an add, a remove, or either half of a move
@@ -362,7 +428,8 @@ export function decodeChangeEvent(
     if (!tag.ok) return `${where}${tag.message}`
     normalized = { ...normalized, tag: tag.tag }
   }
-  if (obj.tags !== undefined) {
+  // (A move's `tags` were validated with the rest of its payload above.)
+  if (obj.tags !== undefined && action !== 'move-from' && action !== 'move-to') {
     const tags = parseCardTagsValue(obj.tags, 'tags')
     if (!tags.ok) return `${where}${tags.message}`
     // An empty set is no set: the stored form is absent (`normalizedTags`), so

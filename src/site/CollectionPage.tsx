@@ -43,7 +43,7 @@ import { addEntryToLeftGuarded, canAddMoreToLeft } from './useTradeState'
 import { toastTradeAdd } from './useSelectionTrade'
 import type { TradeSearchEntry } from './useTradeData'
 import { resolveCardPreview } from '../card/image-sources'
-import type { SelectedCard } from '../list-view/useCardSelection'
+import { selectionMoveCarry, type SelectedCard } from '../list-view/useCardSelection'
 import type { BulkEditBundle } from '../list-view/selection-edit-actions'
 import type { ExportFormat } from './ExportMenu'
 import {
@@ -310,6 +310,23 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
   const cardIdsOf = (entry: CollectionCardEntry): number[] =>
     groupCardIds(groupIdIndex(), entry, groupDuplicates())
 
+  // Every entry by its `&N`, so a grouped tile's move carries each copy's own
+  // note and labels (grouping ignores the note) rather than the first entry's.
+  const entryByCardId = createMemo(() => {
+    const byId = new Map<number, CollectionCardEntry>()
+    for (const e of currencyEntries()) if (e.cardId !== undefined) byId.set(e.cardId, e)
+    return byId
+  })
+
+  /** The tile's lines for its move carry: its own entry first, then each grouped copy's. */
+  const carryLinesOf = (entry: CollectionCardEntry): CollectionCardEntry[] => [
+    entry,
+    ...cardIdsOf(entry).flatMap((id) => {
+      const line = entryByCardId().get(id)
+      return line === undefined ? [] : [line]
+    }),
+  ]
+
   const renderCollectionCard = (c: CardData) => {
     const entryIdx = entryIndexOf(c)
     const entry = currencyEntries()[entryIdx]
@@ -326,6 +343,7 @@ export const CollectionPage: Component<CollectionPageProps> = (props) => {
         condition: entry?.condition,
         language: entry ? entryLanguage(entry) : undefined,
         labels: entry ? entryLabels(entry) : undefined,
+        moveCarry: selectionMoveCarry(entry ? carryLinesOf(entry) : [], props.listLabels),
         tags: entry?.tags,
         customArt: c.customArt,
         hasCustomArt: c.hasCustomArt,

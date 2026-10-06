@@ -3,7 +3,7 @@ import type { WantedListDetail, WantedListCardEntry } from '../../list/site-data
 import type { PriceCurrency } from '../../pricing/price-currency'
 import type { ListRef } from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
-import type { ListEditorConfig } from '../../editor/editor-config'
+import type { ListPageConfig } from '../../editor/editor-config'
 import type { EntryCardDataActions } from '../../editor/useEntryCardData'
 import { collectExistingIds } from '../../card/card-id'
 import { useEditorDefaults } from '../../editor/useEditorDefaults'
@@ -42,7 +42,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
-  ): ListEditorConfig<WantedListCardEntry[]> => ({
+  ): ListPageConfig<WantedListCardEntry[]> => ({
     currency: () => props.currency,
     fetchList: () => Promise.resolve(undefined),
     extractListItems: () => [{ slug: props.slug, name: props.detail.name }],
@@ -71,7 +71,6 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
     onCardAdded: (cardName, scryfallCard) =>
       backfillImportedCard(siteSearch, cardName, scryfallCard, cardActions.addCard),
 
-    applyChange: applyChangeToWantedList,
     applyChangePrinting: applyWantedChangePrinting,
     hasData: (entries) => entries.length > 0,
 
@@ -90,6 +89,8 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
     initialSlug: props.slug,
     applyChange: applyChangeToWantedList,
     printingOf: wantedPrintingOf,
+    // A wanted list carries no labels, so it has no default for a move to carry.
+    listLabels: () => undefined,
   })
 
   const changeCount = () => ctrl.editor.changes.changeCount()

@@ -300,6 +300,8 @@ export const adminMessages = {
     other: 'applied {count} changes',
   },
   'admin.importChanges.skipped': 'Skipped ({reason}): {change}',
+  'admin.importChanges.droppedNote':
+    'Note on {name} was dropped (merged onto an existing line): "{note}"',
   'admin.importChanges.sourceLabel': 'JSON source',
   'admin.importChanges.fileLabel': 'Change bundle (JSON)',
   'admin.importChanges.fileHint':

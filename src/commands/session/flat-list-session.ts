@@ -52,7 +52,9 @@ import {
 import { foldCategoryCardName } from '../../card/card-categories'
 import type { CardSessionContext, SessionAddItem } from './strategy'
 import type { EditUndoEntry } from './edit-undo'
-import type { ApplyChange } from '../../changes/apply-batch'
+import type { ApplyChange, ApplyChangeOptions } from '../../changes/apply-batch'
+import { listDefaultLabels, type CardLabel } from '../../card/card-labels'
+import type { ListType } from '../../list/list-type'
 import type { FlatListEntry } from '../../list/flat-list-read'
 import { readCollectionFile, readWantedFile } from '../../list/flat-list-read'
 
@@ -195,17 +197,31 @@ export function flatListTargetSection<E extends FlatListEntry>(
 export function applyFlatListChange<E extends FlatListEntry>(
   session: FlatListSession<E>,
   change: ChangeEvent,
+  options?: ApplyChangeOptions,
 ): void {
-  session.entries = session.apply(session.entries, change)
+  session.entries = session.apply(session.entries, change, options)
   session.dirty = true
 }
 
 /**
+ * A flat session's current default labels, read from its in-memory
+ * front-matter block — which the session's own `Edit List Labels` rewrites, so
+ * this is the default as of now, saved or not. A wanted list carries none.
+ */
+export function flatListDefaultLabels<E extends FlatListEntry>(
+  session: FlatListSession<E>,
+  type: Exclude<ListType, 'deck'>,
+): CardLabel[] | undefined {
+  return listDefaultLabels(type, session.frontMatter?.data)
+}
+
+/**
  * Receive the destination side of a cross-list move on an open flat-list
- * session: the moved card arrives as a fresh entry with an id from this
- * list's own pool (the event's cardId is the source list's, kept for its
- * changelog only) in the session's target section — the same placement a
- * regular add gets. Shared by the collection and wanted strategies so the
+ * session: the moved card arrives as a fresh entry — its tags, its note, and
+ * the minimal override for the labels this type accepts, measured against
+ * `listLabels` (the session's default) — with an id from this list's own pool
+ * (the event's cardId is the source list's, kept for its changelog only) in the
+ * session's target section — the same placement a regular add gets. Shared by the collection and wanted strategies so the
  * "how a moved card lands" rule exists once.
  *
  * `art` is the moved card's custom art in the source list, which follows it onto
@@ -215,22 +231,20 @@ export function applyFlatListChange<E extends FlatListEntry>(
 export function receiveFlatListMove<E extends FlatListEntry>(
   session: FlatListSession<E>,
   change: MoveToChange,
+  listLabels: readonly CardLabel[] | undefined,
   art?: CardArtRef,
-): void {
+): undefined {
   const cardId = allocateId(session.pool)
+  // Applied as the move-to itself, so the list's own reducer lands the copy
+  // exactly as a save would.
   applyFlatListChange(
     session,
-    createAddChange(change.cardName, {
-      set: change.set,
-      collectorNumber: change.collectorNumber,
-      finish: change.finish,
-      condition: change.condition,
-      language: change.language,
-      cardId,
-      section: flatListTargetSection(session),
-    }),
+    { ...change, cardId, section: flatListTargetSection(session) },
+    { listLabels },
   )
   if (art) noteArtArrival(session.art, cardId, art)
+  // A flat list holds one entry per copy and never merges, so no note is lost.
+  return undefined
 }
 
 /**
@@ -302,6 +316,12 @@ export type FlatListStrategyContext<E extends FlatListEntry> = {
   sessionAdds: number[]
   /** Linear undo stack for edit-mode operations, oldest first. */
   editUndo: EditUndoEntry[]
+  /**
+   * The list's current default labels (see {@link flatListDefaultLabels}): what
+   * an entry without an override inherits, what a move out of the list carries
+   * for it, and what a move arriving here is measured against.
+   */
+  listLabels: () => CardLabel[] | undefined
   /**
    * Session-start snapshots of entries touched in edit mode, keyed by card id.
    * Used so an entry edited back to its original state drops out of the

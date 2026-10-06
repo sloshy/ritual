@@ -1,3 +1,4 @@
+import type { ApplyChangeOptions } from '../../changes/apply-batch'
 import type { Card } from '../../card/card'
 import type { DeckData } from '../../list/deck'
 import {
@@ -23,7 +24,7 @@ import {
   type MoveDeps,
   type MoveDestination,
 } from './edit-move'
-import { sameCardLabels, type CardLabel } from '../../card/card-labels'
+import { effectiveLabels, sameCardLabels, type CardLabel } from '../../card/card-labels'
 import {
   noteArtLineRemoved,
   noteArtLineRestored,
@@ -132,6 +133,13 @@ export type DeckSessionState = {
   /** Whether the in-memory deck differs from what was last written to disk. */
   dirty: boolean
   /**
+   * The deck's current default labels (front matter `labels:`, as the session's
+   * own `Edit List Labels` last left it): what a line without an override
+   * inherits, what a move out of the deck carries for it, and what a move
+   * arriving here is measured against.
+   */
+  listLabels: () => CardLabel[] | undefined
+  /**
    * Pending `<deck>.art.json` edits, applied by the same save that writes the
    * deck — the sidecar is keyed by `&N`, and a removed line's id is handed to
    * the next line the session creates.
@@ -148,8 +156,15 @@ export type DeckSessionState = {
  * Apply a change to the in-memory deck. IDs are assigned to the in-memory copy
  * too (not just on serialize) so subsequent edits resolve cards by ID.
  */
-export function applyDeckChange(state: DeckSessionState, change: ChangeEvent): void {
-  state.deck = assignMissingDeckCardIds(applyChangeToDeck(state.deck, change), state.pendingMoveIds)
+export function applyDeckChange(
+  state: DeckSessionState,
+  change: ChangeEvent,
+  options?: ApplyChangeOptions,
+): void {
+  state.deck = assignMissingDeckCardIds(
+    applyChangeToDeck(state.deck, change, options),
+    state.pendingMoveIds,
+  )
   state.dirty = true
 }
 
@@ -556,7 +571,16 @@ export function performDeckLineMove(
     moveEvents.push(
       createMoveFromChange(
         snapshot.name,
-        moveFromOptionsFor({ ...printing, tags: snapshot.tags, cardId }, dest),
+        moveFromOptionsFor(
+          {
+            ...printing,
+            tags: snapshot.tags,
+            labels: effectiveLabels(snapshot.labels, state.listLabels()),
+            note: snapshot.note,
+            cardId,
+          },
+          dest,
+        ),
       ),
     )
   }
@@ -581,7 +605,6 @@ export function performDeckLineMove(
     reclaimId: cardId,
   })
   resetStaleLastAdded(deckModel(state), ctx, cardId)
-  if (snapshot.note) console.log(t('cli.edit.moveNoteDropped', { name: snapshot.name }))
   console.log(
     t('cli.edit.movedToList', {
       line: renderDeckCardLine(snapshot, sectionName),

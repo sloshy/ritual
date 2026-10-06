@@ -17,6 +17,7 @@ import type { CardSessionContext, CardSessionStrategy } from './strategy'
 import {
   applyFlatListCardEntry,
   flatListCategoryDeps,
+  flatListDefaultLabels,
   type CollectionSession,
   type FlatListStrategyContext,
   type LastAddState,
@@ -43,12 +44,7 @@ import {
   type PrintingTuple,
 } from '../../changes/change-event'
 import { displayLanguage, type CardLanguage } from '../../card/card-language'
-import {
-  formatCardLabels,
-  parseCardLabelsValue,
-  sameCardLabels,
-  type CardLabel,
-} from '../../card/card-labels'
+import { formatCardLabels, parseCardLabelsValue, sameCardLabels } from '../../card/card-labels'
 import { dumpFrontMatterBlock, readFrontMatterMapping } from '../../list/front-matter-write'
 import { applyLabelsPatch } from '../../list/flat-list-metadata'
 
@@ -95,18 +91,11 @@ export function createCollectionStrategy(
     sessionAdds: [],
     editUndo: [],
     originals: new Map(),
+    listLabels: () => flatListDefaultLabels(session, 'collection'),
   }
 
   const logUpdated = (cardId: number, fallbackName: string): void =>
     logFlatListUpdated(list, cardId, fallbackName)
-
-  /** The list's current default labels, read from the session's front-matter block. */
-  const currentDefaultLabels = (): CardLabel[] => {
-    const raw = session.frontMatter?.data.labels
-    if (raw === undefined) return []
-    const parsed = parseCardLabelsValue(raw, 'labels')
-    return parsed.ok ? parsed.labels : []
-  }
 
   /**
    * Edit the list's default labels (`labels:` front matter). Deferred like
@@ -264,7 +253,7 @@ export function createCollectionStrategy(
     sessionConfig,
     extraMenuItems: (): MenuChoice[] => {
       const params = {
-        labels: formatCardLabels(currentDefaultLabels()) || t('cli.labels.none'),
+        labels: formatCardLabels(list.listLabels() ?? []) || t('cli.labels.none'),
       }
       return [
         menuRow('🏷️ ', '__LIST_LABELS__', 'cli.labels.menuListLabels', params),

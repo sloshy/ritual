@@ -172,6 +172,13 @@ const CASES = {
     }),
     createMoveFromChange('Sol Ring', { to: WANTED }),
     createMoveFromChange('Sol Ring', { to: DECK, tags: ['Ramp', 'binder/trade'], cardId: 6 }),
+    // The copy's override and note ride the event, delimiters and all.
+    createMoveFromChange('Sol Ring', {
+      to: DECK,
+      labels: ['sale', 'trade'],
+      note: 'said "go to "war"" {now} [ok] &5',
+      cardId: 7,
+    }),
     createMoveFromChange('Sol Ring', {
       to: DECK,
       finish: 'nonfoil',
@@ -196,6 +203,13 @@ const CASES = {
     }),
     createMoveToChange('Sol Ring', { from: WANTED }),
     createMoveToChange('Sol Ring', { from: DECK, tags: ['ramp'], cardId: 6, sourceCardId: 2 }),
+    createMoveToChange('Sol Ring', {
+      from: COLLECTION,
+      labels: ['proxy'],
+      note: 'signed by the artist',
+      cardId: 7,
+      sourceCardId: 3,
+    }),
   ],
   'add-tag': [
     ...NAMES.map((name) => createAddTagChange(name, { tag: 'ramp', cardId: 5 })),

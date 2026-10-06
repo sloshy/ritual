@@ -12,7 +12,7 @@ import { findOrCreateSection, resolveDefaultAddSection } from './deck-format'
 import { loadDeckFile } from '../importers/text-file'
 import { formatCollectionLine, resolvePrinting, type CardPrinting } from '../card/card-line'
 import { formatWantedListLine } from './wanted-file'
-import { serializeDeckToMarkdown, parseDeckFrontMatter } from './deck-file'
+import { serializeDeckToMarkdown, parseDeckFrontMatter, type DeckFrontMatter } from './deck-file'
 import {
   allocateId,
   allocateNextIdFromContent,
@@ -29,8 +29,8 @@ import {
 } from './markdown-fence'
 import type { Card } from '../card/card'
 import type { DeckData } from './deck'
-import { isSamePrinting, type ListRef, type PrintingTuple } from '../changes/change-event'
-import { displayLanguage, type CardLanguage } from '../card/card-language'
+import { type ListRef, type MovedCopyFields, type PrintingTuple } from '../changes/change-event'
+import { displayLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
 import { t } from '../i18n/t'
 import { isCardCandidate, readCardLine } from '../card/card-line-read'
@@ -38,66 +38,105 @@ import { foldCategoryCardName } from '../card/card-categories'
 import { deckCardNameSet } from './card-names'
 import { commitCategoryChanges } from './card-categories-sidecar'
 import { loadDefaultCategories } from '../config/ritual-config'
-import type { Condition, Finish } from '../card/finish-condition'
 import {
-  normalizedOverride,
+  arrivalLabels,
+  effectiveLabels,
+  listDefaultLabels,
   sameCardLabels,
-  supportedLabelsFor,
   type CardLabel,
 } from '../card/card-labels'
 import { normalizedTags, sameCardTags, type CardTag } from '../card/card-tags'
-import type { ListType } from './list-type'
+import { findDeckMergeLine, type DeckAdd } from '../changes/deck-changes'
+import { parseFlatListFrontMatter } from './flat-list-front-matter'
 import type { ListEntry } from './list-info'
 import { readCardId } from '../card/card-line-grammar'
 
 /**
  * A single movable card. For deck entries with quantity > 1, multiple PhysicalCards
  * are created (one per copy), keyed by `filePath:cardId:copyIndex`.
+ *
+ * Its {@link MovedCopyFields} are the source LINE's: `labels` is the line's own
+ * override (what a removal record names). What a move carries is the copy's
+ * effective labels, {@link movingLabels} — that override, else `listLabels`.
  */
-export type PhysicalCard = {
-  /** Stable unique key within the session (used to look up VirtualCard). */
-  key: string
-  name: string
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
-  /** The line's `[ja]`-style language token. Absent means `en`; rides every move. */
-  language?: CardLanguage
-  /**
-   * Label override — decks and collections (see `LIST_TYPE_LABELS`). A `ritual
-   * move` carries it (like the note), filtered on arrival to what the
-   * destination type accepts: `proxy` survives a move into a deck, `sale` does
-   * not, and a wanted list keeps none of it. The editor sessions' move events
-   * do not carry it at all — an editor move drops the override even between
-   * collections, matching the notes precedent.
-   */
-  labels?: CardLabel[]
-  /** The card's `#tag` tokens. Every list type carries them, so a move carries them unfiltered. */
-  tags?: CardTag[]
-  note?: string
-  cardId?: number
-  listEntry: ListEntry
-  /** Only set for deck cards: the copy index when quantity > 1. */
-  copyIndex?: number
+export type PhysicalCard = PrintingTuple &
+  MovedCopyFields & {
+    /** Stable unique key within the session (used to look up VirtualCard). */
+    key: string
+    name: string
+    /** The source list's front-matter default labels, which a line without an override inherits. */
+    listLabels?: CardLabel[]
+    /**
+     * The source line's `&N`. Names the copy in a dropped-note report; the
+     * destination always allocates (or merges onto) a line id of its own.
+     */
+    cardId?: number
+    listEntry: ListEntry
+    /** Only set for deck cards: the copy index when quantity > 1. */
+    copyIndex?: number
+  }
+
+/**
+ * The labels a physical card carries across a move: its effective labels in
+ * its source list (the line's override, else the list's default). Every move
+ * path carries these, and the destination writes the minimal override for what
+ * its type accepts (`arrivalLabels`).
+ */
+export function movingLabels(card: PhysicalCard): CardLabel[] {
+  return effectiveLabels(card.labels, card.listLabels)
 }
 
 /**
- * The part of a moved card's label override the destination type can carry, or
- * `undefined` when nothing of it survives. A move never *invents* a label and
- * never writes one the destination grammar cannot express.
+ * A copy a move adds to a staged list. `carriedLabels` are the labels the copy
+ * carries — its effective labels in its source — stated apart from any line's
+ * override, so no caller can fold a list default in twice; the destination
+ * writes the minimal override for them (`arrivalLabels`). Every payload field is
+ * required-but-nullable, so a caller states each one. `sourceCardId` is the
+ * source line's `&N`, naming the copy in a dropped-note report; the destination
+ * always allocates (or merges onto) a line id of its own.
  */
-function labelsForDestination(
-  type: ListType,
-  labels: readonly CardLabel[] | undefined,
-): CardLabel[] | undefined {
-  if (!labels || labels.length === 0) return undefined
-  return normalizedOverride(supportedLabelsFor(type, labels))
+export type ArrivingCopy = PrintingTuple & {
+  name: string
+  tags: CardTag[] | undefined
+  note: string | undefined
+  carriedLabels: CardLabel[] | undefined
+  sourceCardId: number | undefined
+}
+
+/** The {@link ArrivingCopy} a physical card makes: its printing, payload and effective labels. */
+export function arrivingCopyOf(card: PhysicalCard): ArrivingCopy {
+  return {
+    name: card.name,
+    set: card.set,
+    collectorNumber: card.collectorNumber,
+    finish: card.finish,
+    condition: card.condition,
+    language: card.language,
+    tags: card.tags,
+    note: card.note,
+    carriedLabels: movingLabels(card),
+    sourceCardId: card.cardId,
+  }
+}
+
+/**
+ * A staged list's own front-matter default labels (`listDefaultLabels`): what
+ * an arriving copy's labels are measured against (`arrivalLabels`), and what a
+ * departing line without an override inherits. Wanted lists carry no labels.
+ */
+export function stagedDefaultLabels(staged: StagedFile): CardLabel[] | undefined {
+  if (staged.kind === 'deck') return staged.data.frontMatter.labels
+  const lines = staged.content.split('\n')
+  return listDefaultLabels(
+    staged.type,
+    parseFlatListFrontMatter(lines, { validateLabels: false }).frontMatter?.data,
+  )
 }
 
 export type DeckWithFrontMatter = {
   deck: DeckData
-  frontMatter: Record<string, unknown>
+  /** Validated on load (`parseDeckFrontMatter`), so its `labels` is already the deck's default. */
+  frontMatter: DeckFrontMatter
 }
 
 type StagedDeckFile = { kind: 'deck'; data: DeckWithFrontMatter }
@@ -395,6 +434,8 @@ function removeDeckCopy(
     return {
       name: c.name,
       tags: c.tags,
+      labels: c.labels,
+      note: c.note,
       cardId: c.cardId,
       set: c.set?.toLowerCase(),
       collectorNumber: c.collectorNumber,
@@ -412,13 +453,17 @@ function removeDeckCopy(
  * grammar for the staged file's own type. Set code lowercased, as every
  * in-memory representation is.
  */
-type TextLineFields = PrintingTuple & { name: string; tags?: CardTag[]; cardId?: number }
+type TextLineFields = PrintingTuple &
+  MovedCopyFields & {
+    name: string
+    cardId?: number
+  }
 
 /** The parse of a flat-list bullet, or `undefined` when the line is not one. */
 function textLineFields(staged: StagedTextFile, trimmed: string): TextLineFields | undefined {
   const read = readCardLine(staged.type, trimmed)
   if (read === undefined) return undefined
-  const { name, printing, finish, condition, language, tags, cardId } = read.tokens
+  const { name, printing, finish, condition, language, labels, tags, note, cardId } = read.tokens
   return {
     name,
     set: printing?.set,
@@ -427,6 +472,8 @@ function textLineFields(staged: StagedTextFile, trimmed: string): TextLineFields
     condition,
     language,
     tags: tags === undefined ? undefined : [...tags],
+    labels: labels === undefined ? undefined : [...labels],
+    note,
     cardId,
   }
 }
@@ -492,23 +539,29 @@ function applyRemoveFromText(staged: StagedTextFile, card: PhysicalCard): boolea
  * event describes it. `cardId` is the event's `sourceCardId` hint; the printing
  * tuple is the one the copy arrives with — which a printing-less source line (a
  * wanted entry, a name-only deck line) never carried. `tags` are the copy's, so
- * two source lines differing only in tags are told apart.
+ * two source lines differing only in tags are told apart; `labels` are its
+ * effective labels, a preference that picks a `[proxy]` line over the real one
+ * of the same printing (see {@link applyRemoveIncomingFromStaged}).
  */
-export type IncomingCopy = PrintingTuple & { name: string; cardId?: number; tags?: CardTag[] }
+export type IncomingCopy = PrintingTuple &
+  Pick<MovedCopyFields, 'tags' | 'labels'> & {
+    name: string
+    cardId?: number
+  }
 
 /**
  * What a removal took out, as the line was written: its own name spelling,
- * printing tuple (bare tokens left absent) and `&N`. The source changelog
- * describes the line, not the event that asked for it.
+ * printing tuple (bare tokens left absent), `&N`, tags, note and label
+ * override (the line's own — its list's default is the caller's to fold in).
+ * The source changelog describes the line, not the event that asked for it.
  */
-export type RemovedCopy = PrintingTuple & {
-  name: string
-  /** The line's `#tag` tokens, so the source-side `move-from` records what left. */
-  tags?: CardTag[]
-  cardId?: number
-  /** The deck section the line sat in (absent for a flat-list bullet). */
-  section?: string
-}
+export type RemovedCopy = PrintingTuple &
+  MovedCopyFields & {
+    name: string
+    cardId?: number
+    /** The deck section the line sat in (absent for a flat-list bullet). */
+    section?: string
+  }
 
 /** The line-side view the incoming tiers compare against, for a deck card or a flat-list bullet. */
 type LineView = RemovedCopy
@@ -545,13 +598,17 @@ function sameCopy(line: LineView, copy: IncomingCopy, printing: CardPrinting): b
  * planner matched them — front face, case- and diacritic-folded — so a
  * double-faced event finds its front-face line.
  */
-function incomingTiers(copy: IncomingCopy): ((line: LineView) => boolean)[] {
+function incomingTiers(
+  copy: IncomingCopy,
+  sourceDefault: readonly CardLabel[] | undefined,
+): ((line: LineView) => boolean)[] {
   const printing: CardPrinting | undefined = resolvePrinting(copy.set, copy.collectorNumber)
   const nameKey = findMatchKey(copy.name)
   const sameName = (line: LineView): boolean => findMatchKey(line.name) === nameKey
   const printingless = (line: LineView): boolean =>
     resolvePrinting(line.set, line.collectorNumber) === undefined
-  const tiers: ((line: LineView) => boolean)[] = []
+  type Tier = (line: LineView) => boolean
+  const tiers: Tier[] = []
   if (copy.cardId !== undefined) {
     // The id disambiguates sibling lines (same tuple, different `&N`) and is
     // trusted regardless of finish; it is still guarded by name and, when the
@@ -565,26 +622,48 @@ function incomingTiers(copy: IncomingCopy): ((line: LineView) => boolean)[] {
         (printing === undefined || printingless(line) || sameSetAndNumber(line, printing)),
     )
   }
+  // The fallbacks, in levels of printing confidence.
+  const levels: Tier[][] = []
   if (printing !== undefined) {
-    // The exact copy first — a line whose finish token states this finish —
-    // and only then a bare line of the printing (the printing's default
-    // finish, which matches any finish the planner resolved the copy to), so
-    // a `[foil]` line is taken for a foil copy however the file orders them.
-    tiers.push(
+    // The copy's printing: the exact copy first — a line whose finish token
+    // states this finish — and only then a bare line of the printing (the
+    // printing's default finish, which matches any finish the planner resolved
+    // the copy to), so a `[foil]` line is taken for a foil copy however the
+    // file orders them.
+    levels.push([
       (line) => line.finish !== undefined && sameName(line) && sameCopy(line, copy, printing),
-    )
-    tiers.push(
       (line) => line.finish === undefined && sameName(line) && sameCopy(line, copy, printing),
-    )
+    ])
   }
-  tiers.push((line) => sameName(line) && printingless(line))
-  if (printing === undefined) tiers.push((line) => sameName(line))
+  levels.push([(line) => sameName(line) && printingless(line)])
+  if (printing === undefined) levels.push([(line) => sameName(line)])
+  // Labels are a preference within a level, never a filter and never above
+  // printing confidence: each level is tried first among the lines whose
+  // effective labels are the copy's — so a `[proxy]` copy takes the proxy line
+  // of its printing over the real one (a bare proxy line over a `[foil]` real
+  // one too, the two finish tiers sharing a level), and a plain copy the real
+  // one — then among all of that level's lines, and only then does the search
+  // fall to the next level. A move that carries no labels (a swap) still finds
+  // its copy.
+  const sameLabels = (line: LineView): boolean =>
+    sameCardLabels(effectiveLabels(line.labels, sourceDefault), copy.labels)
+  for (const level of levels) {
+    for (const tier of level) tiers.push((line) => tier(line) && sameLabels(line))
+    tiers.push(...level)
+  }
   return tiers
 }
 
 /**
  * Remove one copy for an incoming move (`move-to {from}` saved on the
  * destination), resolving the source line in order of confidence:
+ *
+ * Within each of tiers 2–4 the lines whose effective labels equal the copy's
+ * `labels` are tried first, then the whole tier (see `incomingTiers`). Accepted
+ * consequence: a fallback tier can take a differently labelled line when none
+ * of that printing carries the copy's labels — a stale bundle with no
+ * `sourceCardId`, say — while the destination has already landed the event's
+ * own labels. The move still takes a real copy of the card it names.
  *
  * 1. the line carrying `cardId`, provided it names the same card and either
  *    pins no printing or pins this `SET:CN` (finish is not consulted: the id
@@ -607,7 +686,7 @@ export function applyRemoveIncomingFromStaged(
   staged: StagedFile,
   copy: IncomingCopy,
 ): RemovedCopy | null {
-  const tiers = incomingTiers(copy)
+  const tiers = incomingTiers(copy, stagedDefaultLabels(staged))
   if (staged.kind === 'deck') {
     for (const match of tiers) {
       const removed = removeDeckCopy(staged, match)
@@ -661,6 +740,24 @@ export type DroppedNote = {
 }
 
 /**
+ * `notes` with repeats removed, first occurrence kept. Moving N copies of one
+ * deck line onto a line with a different note drops the same note N times;
+ * the copies share a name, a source line id and a note, so they are reported
+ * once. Every surface that reports dropped notes reports them through this.
+ */
+export function dedupeDroppedNotes(notes: readonly DroppedNote[]): DroppedNote[] {
+  const seen = new Set<string>()
+  const out: DroppedNote[] = []
+  for (const note of notes) {
+    const key = JSON.stringify([note.cardName, note.cardId ?? null, note.note])
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(note)
+  }
+  return out
+}
+
+/**
  * What one staged addition did, beyond mutating the file.
  *
  * `cardId` is the whole reason this is a record rather than a bare dropped
@@ -703,7 +800,7 @@ export function adoptedCardId(added: StagedAddResult): number | undefined {
  */
 export function applyAddToStaged(
   staged: StagedFile,
-  card: PhysicalCard,
+  card: ArrivingCopy,
   listType: ListRef['type'],
   section?: string,
 ): StagedAddResult {
@@ -714,7 +811,7 @@ export function applyAddToStaged(
     if (!card.set || !card.collectorNumber) {
       throw new Error(t('cli.move.collectionNeedsPrinting', { name: card.name }))
     }
-    const added = applyAddCollectionLine(staged.content, card)
+    const added = applyAddCollectionLine(staged.content, card, stagedDefaultLabels(staged))
     staged.content = added.content
     return { cardId: added.cardId, merged: false }
   }
@@ -725,35 +822,29 @@ export function applyAddToStaged(
 
 function applyAddToDeck(
   staged: StagedDeckFile,
-  card: PhysicalCard,
+  card: ArrivingCopy,
   section?: string,
 ): StagedAddResult {
   const { deck } = staged.data
-  const targetSection =
-    section !== undefined
-      ? findOrCreateSection(deck.sections, section)
-      : resolveDefaultAddSection(deck.sections)
-
+  const listLabels = stagedDefaultLabels(staged)
   // What the moved card's override becomes here, which is what a merge target
   // must match: a `sale` copy arriving from a collection carries no override
-  // into a deck, so it belongs on the plain line, not beside it.
-  const labels = labelsForDestination('deck', card.labels)
-  const existing = targetSection.cards.find(
-    (c) =>
-      c.name === card.name &&
-      // The printing half is `isSamePrinting`: set, collector number, finish,
-      // condition and language, absent tokens folded to their bare-line
-      // defaults — the same rule the editors' `mergesOntoCard`
-      // (`deck-changes.ts`) and `add-card`'s `findDeckMergeLineIndex`
-      // (`line-mutate.ts`) merge on, so a `[foil]` or `[LP]` copy lands beside
-      // the plain line instead of losing its token on it.
-      isSamePrinting(c, card) &&
-      // Labels distinguish them the same way: merging a proxy into the line
-      // holding real copies would either lose the `[proxy]` or spread it.
-      sameCardLabels(c.labels, labels) &&
-      // And tags: a deck line's tags describe every copy on it.
-      sameCardTags(c.tags, card.tags),
-  )
+  // into a deck, so it belongs on the plain line, not beside it; a `proxy` one
+  // arriving in a `proxy`-default deck needs none of its own either.
+  const labels = arrivalLabels('deck', card.carriedLabels, listLabels)
+  const copy: DeckAdd = {
+    set: card.set,
+    collectorNumber: card.collectorNumber,
+    finish: card.finish,
+    condition: card.condition,
+    language: card.language,
+    labels,
+    tags: card.tags,
+  }
+  // The reducer's own merge rule and scope (`findDeckMergeLine`): the named
+  // section alone when the move names one, else every section — so `ritual
+  // move`, a save's replay and a `ritual edit` destination write the same bytes.
+  const existing = findDeckMergeLine(deck.sections, card.name, copy, { listLabels, section })?.card
 
   if (existing) {
     // Quantity merge into an existing line: multiple copies share a single line
@@ -763,10 +854,14 @@ function applyAddToDeck(
     existing.quantity += 1
     const droppedNote: DroppedNote | undefined =
       card.note && card.note !== existing.note
-        ? { cardName: card.name, cardId: card.cardId, note: card.note }
+        ? { cardName: card.name, cardId: card.sourceCardId, note: card.note }
         : undefined
     return { cardId: existing.cardId, merged: true, droppedNote }
   }
+  const targetSection =
+    section !== undefined
+      ? findOrCreateSection(deck.sections, section)
+      : resolveDefaultAddSection(deck.sections)
   // Allocate from a pool seeded by the deck's existing IDs so released IDs (gaps)
   // are reused, matching the collection/wanted add paths instead of always taking
   // the next-highest number.
@@ -805,7 +900,11 @@ function assertAppendable(content: string, cardName: string): void {
 /** A flat-list line appended, with the `&N` it was given. */
 type AppendedLine = { content: string; cardId: number }
 
-function applyAddCollectionLine(content: string, card: PhysicalCard): AppendedLine {
+function applyAddCollectionLine(
+  content: string,
+  card: ArrivingCopy,
+  listLabels: readonly CardLabel[] | undefined,
+): AppendedLine {
   assertAppendable(content, card.name)
   const { nextId: cardId } = allocateNextIdFromContent(content)
   const line = formatCollectionLine({
@@ -815,7 +914,7 @@ function applyAddCollectionLine(content: string, card: PhysicalCard): AppendedLi
     finish: card.finish ?? 'nonfoil',
     condition: card.condition,
     language: card.language,
-    labels: labelsForDestination('collection', card.labels),
+    labels: arrivalLabels('collection', card.carriedLabels, listLabels),
     tags: normalizedTags(card.tags),
     note: card.note,
     cardId,
@@ -823,7 +922,7 @@ function applyAddCollectionLine(content: string, card: PhysicalCard): AppendedLi
   return { content: content.trimEnd() + '\n' + line, cardId }
 }
 
-function applyAddWantedLine(content: string, card: PhysicalCard): AppendedLine {
+function applyAddWantedLine(content: string, card: ArrivingCopy): AppendedLine {
   assertAppendable(content, card.name)
   const { nextId: cardId } = allocateNextIdFromContent(content)
   const printing = resolvePrinting(card.set, card.collectorNumber)

@@ -2,7 +2,6 @@ import { batch } from 'solid-js'
 import type { CollectionCardEntry } from '../list/site-data'
 import { printingRetarget } from './printing-retarget'
 import type { ChangePrintingContext } from './editor-config'
-import { applyChangeToCollection } from '../changes/collection-changes'
 import { findEntryPrintingById } from '../changes/entry-targeting'
 import type { FlatPrinting } from './flat-list-controller'
 import { storedLanguage } from '../card/card-language'
@@ -41,7 +40,7 @@ export function applyCollectionChangePrinting(
       tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
       setData((prev) =>
         prev
-          ? applyChangeToCollection(prev, {
+          ? ctx.applyChange(prev, {
               action: 'set-printing',
               cardName: target.cardName,
               set: options.set,

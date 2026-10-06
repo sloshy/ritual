@@ -76,6 +76,8 @@ The file is a **`ritual-change-bundle`** JSON (format version **2**) covering on
 - `from` and `to`: the source and destination list as `{ kind, slug?, name }`. `slug` is a hint; `name` is what the import resolves by when the slug is absent or stale.
 - The copy's printing fields: `set`, `collectorNumber`, `finish`, `condition`, `language`.
 - Optional `tags`: the card's [tags](/list-format/#card-tags) in canonical form, written to the destination line.
+- Optional `labels`: the card's effective [labels](/list-format/#card-labels) in its source list (its own override, or else the list's default). The destination keeps the labels its type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list) and writes an override only where they differ from its own default.
+- Optional `note`: the card's note, written to the destination line. A copy that merges onto a deck line with a different note keeps that line's note instead, and the dropped note is reported in the list's `droppedNotes`.
 - Optional `cardId`: the **source** list's `&N` line id the copy came from. It is a removal hint; the importer falls back to a printing or name match.
 - Optional `toCardId`: the **destination** line id the exporting editor gave the arriving copy. It is re-targeted on import like an `add`'s id, so a later edit of that copy in the same export still finds it.
 - Optional `section`, for deck destinations.
@@ -152,7 +154,8 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
           },
           "reason": "target-not-found"
         }
-      ]
+      ],
+      "droppedNotes": [{ "cardName": "Sol Ring", "cardId": 3, "note": "from trade" }]
     }
   ],
   "message": "Applied 2 changes across 1 list"
@@ -160,6 +163,7 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
 ```
 
 - `lists` has one entry per list the bundle touched: the bundle's own entries plus any list named only as a move destination (whose `slug` is the file basename it resolved to). Moves count toward `applied` on their destination list.
+- `droppedNotes` lists the notes the list's saves discarded, as `{ cardName, cardId?, note }` (`cardId` is the source line's): a moved card that merged onto a deck line already holding a different note keeps the line's note. Empty when none. Text mode prints each one as a warning, even with `--quiet`.
 - A list that failed to resolve, load, or save carries an `error` string and is counted in `failedCount`. Its later batches are skipped; anything already applied is still counted.
 - `success` stays `true` even then. It is the envelope flag and means the run was processed; `failedCount` and each list's `error` report the failures. The exit code is `1`, as in text mode.
 

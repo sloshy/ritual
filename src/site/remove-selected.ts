@@ -1,13 +1,18 @@
 import {
   type ChangeEvent,
   type ListRef,
+  type PrintingTuple,
   createMoveFromChange,
   createRemoveChange,
 } from '../changes/change-event'
 import { activeEditSession } from './editor/active-edit-session'
 import { appendEditSession } from './editor/edit-session-memory'
 import { printingForMove } from '../list-view/printing-prompt'
-import { groupSelectionsBySource, type SelectedCard } from '../list-view/useCardSelection'
+import {
+  groupSelectionsBySource,
+  moveCarryFor,
+  type SelectedCard,
+} from '../list-view/useCardSelection'
 
 /**
  * Build the `remove` change events that delete a selected card entirely. Decks
@@ -16,7 +21,7 @@ import { groupSelectionsBySource, type SelectedCard } from '../list-view/useCard
  * cardId. Set codes stay lowercase (already normalized on the SelectedCard).
  */
 function removeEventsFor(card: SelectedCard): ChangeEvent[] {
-  const printing = {
+  const printing: PrintingTuple = {
     set: card.set,
     collectorNumber: card.collectorNumber,
     finish: card.finish,
@@ -72,14 +77,22 @@ async function moveEventsFor(card: SelectedCard, dest: ListRef): Promise<ChangeE
     card.printings ?? [],
   )
   if (!printing) return null
+  // Each copy takes its own line's payload — tags, effective labels, note —
+  // and the destination keeps the labels its type accepts.
   if (card.sourceKind === 'deck') {
     const cardId = card.cardIds[0]
+    const carry = moveCarryFor(card, cardId)
     return Array.from({ length: card.groupSize }, () =>
-      createMoveFromChange(card.name, { ...printing, tags: card.tags, cardId, to: dest }),
+      createMoveFromChange(card.name, { ...printing, ...carry, cardId, to: dest }),
     )
   }
   return card.cardIds.map((cardId) =>
-    createMoveFromChange(card.name, { ...printing, tags: card.tags, cardId, to: dest }),
+    createMoveFromChange(card.name, {
+      ...printing,
+      ...moveCarryFor(card, cardId),
+      cardId,
+      to: dest,
+    }),
   )
 }
 

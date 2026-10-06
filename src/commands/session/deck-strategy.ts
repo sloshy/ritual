@@ -14,6 +14,9 @@ import {
   targetSectionDisplay,
 } from './deck-prompts'
 import type { MoveTargetsProvider } from './edit-move'
+import type { DroppedNote } from '../../list/move-staging'
+import type { MoveToChange } from '../../changes/change-event'
+import { droppedMoveNote, type DeckLandingOptions } from '../../changes/deck-changes'
 import { t } from '../../i18n/t'
 import { getDeckFormatLabel, resolveDeckFormat, type DeckFormatKey } from '../../list/deck-format'
 import type { DeckFrontMatter } from '../../list/deck-file'
@@ -99,6 +102,7 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     editUndo: [],
     originals: new Map(),
     dirty: args.initiallyDirty ?? false,
+    listLabels: () => frontMatter.labels,
     art: createSessionArtChanges(),
     categories: createSessionCategories(),
   }
@@ -278,13 +282,23 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
     updateConfig: (excludeDigital: boolean) =>
       promptDeckConfigUpdate(state.deck, sessionConfig, excludeDigital),
     applyChange: (change: ChangeEvent) => applyDeckChange(state, change),
-    receiveMove: (change, art?: CardArtRef): void => {
+    receiveMove: (change, art?: CardArtRef): DroppedNote | undefined => {
       // The event carries no destination id (`sourceCardId` names the source
       // line); the arriving line gets a deck id of its own via
-      // assignMissingDeckCardIds.
+      // assignMissingDeckCardIds. It is measured against the deck's own default
+      // labels, so it writes the minimal override.
+      const arriving: MoveToChange = { ...change, cardId: undefined }
+      const options: DeckLandingOptions = { listLabels: frontMatter.labels }
+      // A copy merging onto a line with a different note leaves the line's
+      // note in place; reported like `ritual move` reports it.
+      const note = droppedMoveNote(state.deck, arriving, options)
+      const dropped: DroppedNote | undefined =
+        note === undefined
+          ? undefined
+          : { cardName: change.cardName, cardId: change.sourceCardId, note }
       if (art === undefined) {
-        applyDeckChange(state, { ...change, cardId: undefined })
-        return
+        applyDeckChange(state, arriving, options)
+        return dropped
       }
       // A deck has no explicit id pool, so the arriving line's `&N` is read off
       // the deck as the one the apply introduced. Heal any line still missing
@@ -292,11 +306,12 @@ export function createDeckStrategy(args: DeckStrategyArgs): CardSessionStrategy 
       // difference names the moved card's line and nothing else.
       state.deck = assignMissingDeckCardIds(state.deck, state.pendingMoveIds)
       const before = new Set(collectDeckCardIds(state.deck))
-      applyDeckChange(state, { ...change, cardId: undefined })
+      applyDeckChange(state, arriving, options)
       const landed = collectDeckCardIds(state.deck).find((id) => !before.has(id))
       // No new id means the copy merged onto a line the deck already had, which
       // stands for the card in its own right and may carry art of its own.
       if (landed !== undefined) noteArtArrival(state.art, landed, art)
+      return dropped
     },
     persist: async (): Promise<void> => {
       await writeDeck(deckFile, state.deck, frontMatter)

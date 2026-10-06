@@ -362,10 +362,6 @@ export const cliEditMeta = {
     description:
       'Confirms a card was moved out of the edited list. {line} is an already-rendered canonical card line and {list} the destination rendered as icon + name; the parenthetical reminds that the destination receives the card when the list is saved.',
   },
-  'cli.edit.moveNoteDropped': {
-    description:
-      'Warns, at move time, that the note attached to the moving card stays behind — the destination line arrives without it.',
-  },
   'cli.edit.savingMoveDest': {
     description:
       'Progress line while a save also writes an open destination list that just received moved cards.',

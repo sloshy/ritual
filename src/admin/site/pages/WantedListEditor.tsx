@@ -4,7 +4,7 @@ import type { ScryfallCard } from '../../../scryfall/types'
 import type { CardKingdomCards, WantedListCardEntry } from '../../../list/site-data'
 import type { CardArtRecord } from '../../../list/card-art'
 import type { ListImageRef } from '../../../list/list-image'
-import type { ListEditorConfig } from '../../../editor/editor-config'
+import type { ListPageConfig } from '../../../editor/editor-config'
 import type { EntryCardDataActions } from '../../../editor/useEntryCardData'
 import { collectExistingIds } from '../../../card/card-id'
 import { useEditorDefaults } from '../../../editor/useEditorDefaults'
@@ -66,7 +66,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
 
   const buildConfig = (
     cardActions: EntryCardDataActions,
-  ): ListEditorConfig<WantedListCardEntry[]> => ({
+  ): ListPageConfig<WantedListCardEntry[]> => ({
     currency: priceCurrency,
     fetchList: () => fetchAdminJson('/api/wanted'),
     extractListItems: (r) => (r as WantedListListResponse).wantedLists ?? [],
@@ -119,7 +119,6 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
       )
     },
 
-    applyChange: applyChangeToWantedList,
     applyChangePrinting: applyWantedChangePrinting,
     hasData: (entries) => entries.length > 0,
 
@@ -143,6 +142,8 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     initialSlug: props.initialSlug,
     applyChange: applyChangeToWantedList,
     printingOf: wantedPrintingOf,
+    // A wanted list carries no labels, so it has no default for a move to carry.
+    listLabels: () => undefined,
   })
   // Wired after the editor exists: a staged art write that fails *after* a
   // successful save has no dialog left to report into, so it takes over the

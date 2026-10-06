@@ -1,18 +1,24 @@
 import { type Accessor, type JSX, Show, batch, createMemo, createSignal } from 'solid-js'
 import type { Finish, Condition } from '../card/finish-condition'
 import { DEFAULT_SECTION } from '../list/deck'
-import type { CardLabel } from '../card/card-labels'
+import { effectiveLabels, type CardLabel } from '../card/card-labels'
 import type { CardLanguage } from '../card/card-language'
 import type { CardTag } from '../card/card-tags'
 import { bulkAddTags, tagSuggestions, type TagTarget } from './card-tags-edit'
 import { promptCardTags } from './tags-prompt'
 import { openCategoriesPrompt } from './card-categories-edit'
 import { holdsCardName } from '../card/card-categories'
-import type { ChangeInput, ListRef, PrintingTuple } from '../changes/change-event'
+import {
+  movedCopyOf,
+  type ChangeInput,
+  type ListRef,
+  type MovedCopyPayload,
+  type PrintingTuple,
+} from '../changes/change-event'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { BulkEditBundle } from '../list-view/selection-edit-actions'
-import type { ListEditorConfig, UseEditorResult } from './editor-config'
+import type { ListPageConfig, UseEditorResult } from './editor-config'
 import type { EditorEntity } from './entity'
 import type { ListType } from '../list/list-type'
 import {
@@ -112,11 +118,18 @@ export type FlatListController<E extends FlatEntry> = SwapController & {
 }
 
 type FlatListControllerParams<E extends FlatEntry> = {
-  buildConfig: (cardActions: EntryCardDataActions) => ListEditorConfig<E[]>
+  buildConfig: (cardActions: EntryCardDataActions) => ListPageConfig<E[]>
   initialSlug?: string | null
   applyChange: ApplyChange<E[], FlatChangeInput>
   /** Printing fields (set/cn/finish/condition) to log when this entry is added or removed. */
   printingOf: (entry: E) => FlatPrinting
+  /**
+   * The list's front-matter default labels (collections; a wanted list passes
+   * `() => undefined`), read live: what an entry without an override inherits,
+   * what a move out of the list carries for it, and what every apply here — the
+   * replay a save adopts as its baseline included — lands a copy against.
+   */
+  listLabels: Accessor<CardLabel[] | undefined>
 }
 
 export function useFlatListEditController<E extends FlatEntry>(
@@ -126,6 +139,9 @@ export function useFlatListEditController<E extends FlatEntry>(
   const [modalCardKey, setModalCardKey] = createSignal<string | null>(null)
 
   const pageConfig = params.buildConfig(cardActions)
+  /** The list's reducer with its live default labels: every apply in this editor goes through it. */
+  const applyFlat: ApplyChange<E[], FlatChangeInput> = (data, change, options) =>
+    params.applyChange(data, change, { ...options, listLabels: params.listLabels() })
   const editor = useEditor<E[], E>(
     {
       // Flat entries carry their language directly, so the controller supplies the
@@ -136,6 +152,7 @@ export function useFlatListEditController<E extends FlatEntry>(
       findOriginalLanguage: (entries, cardName, cardId) =>
         findEntryByIdOrName(entries, cardName, cardId)?.language,
       ...pageConfig,
+      applyChange: applyFlat,
       copyModel: 'per-entry',
       getOriginalCardNames: cardNamesById,
     },
@@ -147,7 +164,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     listType: entityListType(pageConfig.entityLabel),
     kind: 'flat',
     targetsOf: (entries) => flatSwapTargets(entries, cardData),
-    applyChange: params.applyChange,
+    applyChange: applyFlat,
     // One entry per copy: a flat line always holds exactly one, and an
     // arriving copy never merges onto a standing line.
     quantityOf: () => 1,
@@ -165,11 +182,15 @@ export function useFlatListEditController<E extends FlatEntry>(
     editor.changes.addCard(entry.name, { ...p, cardId, labels, tags })
     editor.setData((prev) =>
       prev
-        ? params.applyChange(prev, {
+        ? applyFlat(prev, {
             action: 'add',
             cardName: entry.name,
             ...p,
             labels,
+            // The live entry must hold the tags the event records, or the copy
+            // shows untagged, splits into a tile of its own, and a move of it
+            // later in the session carries none.
+            tags,
             cardId,
           })
         : prev,
@@ -195,7 +216,7 @@ export function useFlatListEditController<E extends FlatEntry>(
     )
     editor.setData((prev) =>
       prev
-        ? params.applyChange(prev, {
+        ? applyFlat(prev, {
             action: 'remove',
             cardName: entry.name,
             set: p.set,
@@ -227,9 +248,11 @@ export function useFlatListEditController<E extends FlatEntry>(
 
   // Emit one move-from per copy (flat lists hold one entry per copy, each with its
   // own cardId), updating the live data and freeing each id back to the pool. Each
-  // copy keeps its own language and tags, resolved per entry before that entry's
-  // move-from removes it; a name-only card whose printing came from the picker has
-  // no entry language, so the tuple's own stamp (a ja-only pick) wins as the fallback.
+  // copy keeps its own language, tags, effective labels (its override, else the
+  // list's default) and note, resolved per entry before that entry's move-from
+  // removes it (the destination keeps the labels its type accepts); a name-only
+  // card whose printing came from the picker has no entry language, so the
+  // tuple's own stamp (a ja-only pick) wins as the fallback.
   const emitMove = (
     cardName: string,
     dest: ListRef,
@@ -240,16 +263,25 @@ export function useFlatListEditController<E extends FlatEntry>(
       for (const id of cardIds) {
         const entry = entryByCardId(id)
         const language = entry?.language ?? printing.language
-        const tags = entry?.tags
-        editor.changes.moveCardToList(cardName, dest, { ...printing, language, tags, cardId: id })
+        const copy: MovedCopyPayload = movedCopyOf({
+          tags: entry?.tags,
+          labels: effectiveLabels(entry?.labels, params.listLabels()),
+          note: entry?.note,
+        })
+        editor.changes.moveCardToList(cardName, dest, {
+          ...printing,
+          language,
+          ...copy,
+          cardId: id,
+        })
         editor.setData((prev) =>
           prev
-            ? params.applyChange(prev, {
+            ? applyFlat(prev, {
                 action: 'move-from',
                 cardName,
                 ...printing,
                 language,
-                tags,
+                ...copy,
                 cardId: id,
                 to: dest,
               })

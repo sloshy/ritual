@@ -22,7 +22,7 @@
 
 import { frontMatterBodyStart } from './markdown-fence'
 import { readFrontMatterMapping } from './front-matter-write'
-import { parseCardLabelsValue, type CardLabel } from '../card/card-labels'
+import { readListDefaultLabelsValue, type CardLabel } from '../card/card-labels'
 
 /** A flat list's front-matter block, as parsed from the top of the file. */
 export type FlatListFrontMatter = {
@@ -97,9 +97,9 @@ export function parseFlatListFrontMatter(
   const result: FlatListFrontMatterParse = { frontMatter: { raw, data }, bodyStart, advisories }
 
   if (opts.validateLabels && 'labels' in data) {
-    const labels = parseCardLabelsValue(data.labels, 'labels')
-    if (!labels.ok) {
-      advisories.push(`Front matter 'labels' ignored: ${labels.message}`)
+    const labels = readListDefaultLabelsValue('collection', data.labels)
+    if ('reason' in labels) {
+      advisories.push(`Front matter 'labels' ignored: ${labels.reason}`)
     } else if (labels.labels.length > 0) {
       result.labels = labels.labels
     }

@@ -1,7 +1,7 @@
 import type { ChangeInput, SetPrintingChange } from './change-event'
 import type { CollectionCardEntry } from '../list/site-data'
 import { DEFAULT_SECTION } from '../list/deck'
-import { normalizedOverride } from '../card/card-labels'
+import { arrivalLabels, normalizedOverride } from '../card/card-labels'
 import { normalizedTags, withCardTag, withoutCardTag } from '../card/card-tags'
 import { noteOrUndefined } from '../card/note-helpers'
 import { applyConditionUpdate } from '../card/finish-condition'
@@ -110,6 +110,35 @@ function withPrinting(entry: CollectionCardEntry, change: PrintingWrite): Collec
   }
 }
 
+/** An `add` as this reducer receives it. */
+type CollectionAdd = Extract<CollectionChangeInput, { action: 'add' }>
+
+/** Append the entry an `add` (or a `move-to` landing as one, with its `note`) creates. */
+function appendEntry(
+  entries: CollectionCardEntry[],
+  change: CollectionAdd,
+  note: string | undefined,
+): CollectionCardEntry[] {
+  const newEntry: CollectionCardEntry = {
+    name: change.cardName,
+    // Normalized on the way into in-memory state, per the set-code rule: a
+    // change may arrive from a CLI flag or an agent spelling it upper-case.
+    set: change.set?.toLowerCase() ?? '',
+    collectorNumber: change.collectorNumber ?? '',
+    finish: change.finish ?? 'nonfoil',
+    condition: change.condition ?? 'NM',
+    language: change.language ?? 'en',
+    labels: normalizedOverride(change.labels),
+    tags: normalizedTags(change.tags),
+    price: 0,
+    fileOrder: entries.length,
+    section: change.section ?? DEFAULT_SECTION,
+    note: noteOrUndefined(note),
+    cardId: change.cardId,
+  }
+  return [...entries, newEntry]
+}
+
 /**
  * Apply a single change to a collection entries array, returning a new array.
  * Does not mutate the input.
@@ -126,25 +155,8 @@ export function applyChangeToCollection(
   options?: ApplyChangeOptions,
 ): CollectionCardEntry[] {
   switch (change.action) {
-    case 'add': {
-      const newEntry: CollectionCardEntry = {
-        name: change.cardName,
-        // Normalized on the way into in-memory state, per the set-code rule: a
-        // change may arrive from a CLI flag or an agent spelling it upper-case.
-        set: change.set?.toLowerCase() ?? '',
-        collectorNumber: change.collectorNumber ?? '',
-        finish: change.finish ?? 'nonfoil',
-        condition: change.condition ?? 'NM',
-        language: change.language ?? 'en',
-        labels: normalizedOverride(change.labels),
-        tags: normalizedTags(change.tags),
-        price: 0,
-        fileOrder: entries.length,
-        section: change.section ?? DEFAULT_SECTION,
-        cardId: change.cardId,
-      }
-      return [...entries, newEntry]
-    }
+    case 'add':
+      return appendEntry(entries, change, undefined)
 
     case 'remove':
       return removeTarget(entries, change, options)
@@ -267,8 +279,12 @@ export function applyChangeToCollection(
         }
         return entries.map((e, i) => (i === idx ? withPrinting(e, change) : e))
       }
-      // A move into this list adds the card (e.g. when importing a destination list's changes).
-      return applyChangeToCollection(
+      // A move into this list adds the card (e.g. when importing a destination
+      // list's changes), keeping its tags, its note and its labels — a
+      // collection accepts them all — written as the minimal override against
+      // this list's own default (`arrivalLabels`). A pinning move (above)
+      // keeps the pinned entry's own labels and note.
+      return appendEntry(
         entries,
         {
           action: 'add',
@@ -279,10 +295,11 @@ export function applyChangeToCollection(
           finish: change.finish,
           condition: change.condition,
           language: change.language,
+          labels: arrivalLabels('collection', change.labels, options?.listLabels),
           tags: change.tags,
           section: change.section,
         },
-        options,
+        change.note,
       )
     }
   }

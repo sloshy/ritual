@@ -6,12 +6,11 @@ import type { CardLabel } from '../../../card/card-labels'
 import type { CardKingdomCards } from '../../../list/site-data'
 import type { CardArtRecord } from '../../../list/card-art'
 import type { ListImageRef } from '../../../list/list-image'
-import type { ListEditorConfig } from '../../../editor/editor-config'
+import type { ListPageConfig } from '../../../editor/editor-config'
 import type { DeckCardDataActions } from '../../../editor/useDeckCardData'
 import { collectDeckCardIds } from '../../../card/card-id'
 import { useEditorDefaults } from '../../../editor/useEditorDefaults'
 import { createApiCommit } from '../../../editor/commit'
-import { applyChangeToDeck } from '../../../changes/deck-changes'
 import {
   applyDeckChangePrinting,
   findDeckFinish,
@@ -81,7 +80,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
   const [imageCards, setImageCards] = createSignal<readonly ListImageCardOption[]>([])
   const [imageOpen, setImageOpen] = createSignal(false)
 
-  const buildConfig = (cardActions: DeckCardDataActions): ListEditorConfig<DeckData> => ({
+  const buildConfig = (cardActions: DeckCardDataActions): ListPageConfig<DeckData> => ({
     currency: priceCurrency,
     fetchList: () => fetchAdminJson('/api/decks'),
     extractListItems: (r) => (r as DeckListResponse).decks ?? [],
@@ -141,7 +140,6 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
       )
     },
 
-    applyChange: applyChangeToDeck,
     applyChangePrinting: applyDeckChangePrinting,
     hasData: () => true,
     findCurrentFinish: findDeckFinish,
@@ -161,7 +159,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
   // the filter menu's option memos stay warm) across re-renders.
   const shareLists = createMemo(() => listInfosToNamedRefs(lists()))
 
-  const ctrl = useDeckEditController(buildConfig, props.initialSlug)
+  const ctrl = useDeckEditController(buildConfig, props.initialSlug, listLabels)
   // Wired after the editor exists: a staged art write that fails *after* a
   // successful save has no dialog left to report into, so it takes over the
   // editor's own error banner.

@@ -6,6 +6,8 @@ import {
   groupSelectionsBySource,
   deselectCards,
   snapshotRemoval,
+  moveCarryFor,
+  selectionMoveCarry,
   type SelectedCard,
   type SelectionListId,
 } from '../../../src/list-view/useCardSelection'
@@ -195,5 +197,34 @@ describe('groupSelectionsBySource', () => {
 
   test('returns an empty array for no cards', () => {
     expect(groupSelectionsBySource([])).toEqual([])
+  })
+})
+
+describe('selectionMoveCarry / moveCarryFor', () => {
+  test('each copy of a grouped tile carries its own line’s note and effective labels', () => {
+    // Two binder copies grouped onto one tile (grouping ignores the note): the
+    // first has its own override, the second inherits the list default.
+    const moveCarry = selectionMoveCarry(
+      [
+        { cardId: 4, labels: ['keep'], note: 'first copy', tags: ['Ramp'] },
+        { cardId: 9, note: 'second copy' },
+      ],
+      ['sale'],
+    )
+    const tile = card(COLLECTION, 'k', { cardIds: [4, 9], moveCarry })
+    expect(moveCarryFor(tile, 4)).toEqual({ tags: ['Ramp'], labels: ['keep'], note: 'first copy' })
+    expect(moveCarryFor(tile, 9)).toEqual({
+      tags: undefined,
+      labels: ['sale'],
+      note: 'second copy',
+    })
+  })
+
+  test('a copy with no `&N` (or an unknown one) carries the tile’s first line', () => {
+    const tile = card(DECK, 'k', {
+      moveCarry: selectionMoveCarry([{ note: 'only line' }], ['proxy']),
+    })
+    expect(moveCarryFor(tile, undefined)).toMatchObject({ labels: ['proxy'], note: 'only line' })
+    expect(moveCarryFor(tile, 42)).toMatchObject({ labels: ['proxy'], note: 'only line' })
   })
 })

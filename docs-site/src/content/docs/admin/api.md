@@ -1106,7 +1106,7 @@ What the route takes from the file rather than the request:
 **Validation.** Each change is decoded with the same rules the changelog and [change bundles](#import-changes) use, before the file is read. Any failure is a `400` naming the change (`changes[2] …`), and nothing is written:
 
 - Actions, finishes, conditions, boards and [languages](/list-format/#card-language) must be known values. A `set-language` change requires its `language`.
-- Labels must be ones the list type carries: `proxy` alone on a deck, none on a wanted list, and the `keep`/`proxy` exclusivity rule on a collection.
+- Labels must be ones the list type carries: `proxy` alone on a deck, none on a wanted list, and the `keep`/`proxy` exclusivity rule on a collection. A `move-from`/`move-to` is the exception: its `labels` describe the moving copy as its source line had them, so only the vocabulary and the exclusivity rule are checked, and the destination filters them on arrival.
 - Tags must be [tag-shaped](/list-format/#card-tags) and are canonicalized (trimmed, single-spaced, deduplicated, sorted). Category names must be [category-shaped](/list-format/#categories-namecategoriesjson); a `set-categories` list keeps its order (the first is the primary category), and an empty one clears.
 - No string may contain a line break (see [Line breaks](#line-breaks)).
 - A collection change that adds a line (`add`, `move-to`, `set-printing`) must carry a printing.
@@ -1115,8 +1115,8 @@ What the route takes from the file rather than the request:
 
 **Cross-list moves** in `changes` write the other list too, each with its own changelog entry:
 
-- A `move-from {to}` adds the copy to its destination.
-- A `move-to {from}` (an incoming move) takes the copy out of its source: by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line.
+- A `move-from {to}` adds the copy to its destination. The copy keeps the event's `tags` and `note`, and as much of its `labels` (the copy's effective labels in this list) as the destination type accepts (`proxy` into a deck, all of them into a collection, none into a wanted list), written as an override only where they differ from the destination's own default. On a deck, the copy merges onto a line whose effective labels, printing and tags match, only within the `section` the move names (any section when it names none). The line grammar has no empty override, so a copy with no labels arriving in a list with a default takes that default. A copy that merges onto a deck line with a different note keeps the line's note, and the dropped one is reported in `droppedNotes`.
+- A `move-to {from}` (an incoming move) takes the copy out of its source: by the `sourceCardId` line when it still holds the card, else by printing, else by name for a printing-less source line. Each fallback prefers a line whose effective labels equal the move's `labels`, so a `[proxy]` copy leaves from the proxy line. The copy lands here with its labels written against this list's default, and a merge onto a deck line with a different note is reported in `droppedNotes` too.
 - A `move-to` carrying `replacesCardId` pins one of this list's own name-only lines rather than adding a copy. When it equals the move's `cardId`, the line is converted in place; otherwise one copy leaves that line and lands on `cardId`.
 - A `move-to` that pins a line (`replacesCardId`) may also carry `replacement` (`{ set, collectorNumber, finish?, language? }`): that printing is added to the source list in place of the copy taken, logged there as an `Added` line. A `replacement` without `replacesCardId` is a `400`.
 
@@ -2394,6 +2394,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 
 - the copy's printing fields (`set`, `collectorNumber`, `finish`, `condition`, `language`);
 - optional `tags` (the card's [tags](/list-format/#card-tags), canonical and without the `#`), landing on the destination line;
+- optional `labels` (the card's effective [labels](/list-format/#card-labels) in its source list: its own override, or else the list's default), of which the destination keeps what its type accepts, writing an override only where they differ from its own default, and optional `note`, landing on the destination line;
 - optional `toCardId`, the destination line's `&N` as the exporting editor allocated it, which the import re-targets like an `add`'s id;
 - for a copy pinning a name-only destination line, `pinsCardId` and `replacement`.
 
@@ -2439,14 +2440,16 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
       "slug": "Winota Stax",
       "name": "Winota Stax",
       "applied": 1,
-      "conflicts": []
+      "conflicts": [],
+      "droppedNotes": [{ "cardName": "Sol Ring", "cardId": 3, "note": "from trade" }]
     },
     {
       "kind": "collection",
       "slug": "binder",
       "name": "Binder",
       "applied": 1,
-      "conflicts": []
+      "conflicts": [],
+      "droppedNotes": []
     }
   ]
 }
@@ -2457,6 +2460,8 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 **Conflicts.** Changes whose target card no longer exists, whose action cannot apply to that list (a commander change aimed at a collection), or which would set a foil/etched finish on a card that pins no printing are skipped and reported in that list's `conflicts` as `{ change, reason }`, where `reason` is `"target-not-found"`, `"not-applicable"`, or `"needs-printing"`.
 
 **Moves.** Each entry of `moves` is applied on its **destination** list as a `move-to`: that save adds the copy there, takes it out of the source list (by the source line id the move names, else by the exact printing, else by name for a printing-less source line), and writes both changelogs. A destination named only by a move is resolved by its slug, then by its name, and reported as a list of its own (`slug` is the file basename it resolved to). `lists[].applied` counts moves arriving in the list; a replacement printing written back to a move's source list is not counted.
+
+**Dropped notes.** Each list's `droppedNotes` gathers its saves' own `droppedNotes` (see [Save a List](#save-a-list)): a moved card that merged onto a deck line already holding a different note keeps the line's note. Each distinct note is listed once. Empty when none.
 
 **Failures.** A list that fails to resolve, load, or save carries an `error` string and is counted in `failedCount`. The failing batch applied nothing, that list's later batches are skipped, and batches already applied stay applied and counted; the other lists continue. `success` stays `true` on a partial import, so read `failedCount` (and each list's `error`), not the envelope. Every list that received changes gets a changelog entry, through the same save path as the editors. The response is `400` when the body is not a valid change bundle.
 

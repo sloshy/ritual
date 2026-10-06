@@ -38,8 +38,22 @@ test.describe('Import Changes Page', () => {
     await mockImportChangesApi(
       page,
       [
-        { kind: 'deck', slug: 'my-deck', name: 'My Deck', applied: 2, conflicts: [] },
-        { kind: 'collection', slug: 'binder', name: 'Binder', applied: 1, conflicts: [] },
+        {
+          kind: 'deck',
+          slug: 'my-deck',
+          name: 'My Deck',
+          applied: 2,
+          conflicts: [],
+          droppedNotes: [],
+        },
+        {
+          kind: 'collection',
+          slug: 'binder',
+          name: 'Binder',
+          applied: 1,
+          conflicts: [],
+          droppedNotes: [],
+        },
       ],
       (body) => (captured = body),
     )
@@ -72,7 +86,16 @@ test.describe('Import Changes Page', () => {
     let captured: unknown
     await mockImportChangesApi(
       page,
-      [{ kind: 'deck', slug: 'my-deck', name: 'My Deck', applied: 2, conflicts: [] }],
+      [
+        {
+          kind: 'deck',
+          slug: 'my-deck',
+          name: 'My Deck',
+          applied: 2,
+          conflicts: [],
+          droppedNotes: [],
+        },
+      ],
       (body) => (captured = body),
     )
     const main = page.locator('main')
@@ -93,7 +116,7 @@ test.describe('Import Changes Page', () => {
     expect(captured).toEqual(file)
   })
 
-  test('reports per-list conflicts and errors from the apply', async ({ page }) => {
+  test('reports per-list conflicts, dropped notes and errors from the apply', async ({ page }) => {
     await mockImportChangesApi(page, [
       {
         kind: 'deck',
@@ -106,6 +129,7 @@ test.describe('Import Changes Page', () => {
             reason: 'target-not-found',
           },
         ],
+        droppedNotes: [{ cardName: 'Sol Ring', cardId: 3, note: 'from trade' }],
       },
       {
         kind: 'collection',
@@ -113,6 +137,7 @@ test.describe('Import Changes Page', () => {
         name: 'Binder',
         applied: 0,
         conflicts: [],
+        droppedNotes: [],
         error: "Collection 'binder' not found",
       },
     ])
@@ -125,6 +150,9 @@ test.describe('Import Changes Page', () => {
     await expect(main.locator('.alert-error')).toBeVisible({ timeout: 5000 })
     const results = main.locator('.import-changes-result')
     await expect(results.nth(0)).toContainText('Skipped (card not found): Remove Ghost Card')
+    await expect(results.nth(0)).toContainText(
+      'Note on Sol Ring was dropped (merged onto an existing line): "from trade"',
+    )
     await expect(results.nth(1)).toContainText("Collection 'binder' not found")
     await expect(results.nth(1)).toHaveAttribute('data-error', 'true')
   })

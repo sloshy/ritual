@@ -1,7 +1,6 @@
 import type { WantedListCardEntry } from '../list/site-data'
 import { printingRetarget } from './printing-retarget'
 import type { ChangePrintingContext } from './editor-config'
-import { applyChangeToWantedList } from '../changes/wanted-changes'
 import { findEntryPrintingById } from '../changes/entry-targeting'
 import type { FlatPrinting } from './flat-list-controller'
 
@@ -34,7 +33,7 @@ export function applyWantedChangePrinting(ctx: ChangePrintingContext<WantedListC
   tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
   setData((prev) =>
     prev
-      ? applyChangeToWantedList(prev, {
+      ? ctx.applyChange(prev, {
           action: 'set-printing',
           cardName: target.cardName,
           set: options.set,

@@ -1067,6 +1067,9 @@ describe('applyChangeToDeck — labels', () => {
   })
 })
 
+/** No front-matter default: the probe compares overrides as written. */
+const NO_DEFAULT = { listLabels: undefined }
+
 describe('findDeckAddMergeTargetId', () => {
   /** The add an editing session builds: a freshly allocated id no line carries. */
   const addOf = (overrides: Partial<AddChange> = {}): ChangeInput => ({
@@ -1081,7 +1084,7 @@ describe('findDeckAddMergeTargetId', () => {
   test('names the line the add merges into, whose id is not the one it carries', () => {
     const deck = makeDeck()
     const add = addOf()
-    expect(findDeckAddMergeTargetId(deck, add)).toBe(5)
+    expect(findDeckAddMergeTargetId(deck, add, NO_DEFAULT)).toBe(5)
     // The reason it matters: the allocated `&99` reaches no card line, so
     // per-line metadata (custom art) aimed at it would be written for nothing.
     const result = applyChangeToDeck(deck, add)
@@ -1092,25 +1095,37 @@ describe('findDeckAddMergeTargetId', () => {
 
   test('a printing the deck does not have starts its own line', () => {
     expect(
-      findDeckAddMergeTargetId(makeDeck(), addOf({ set: 'm10', collectorNumber: '146' })),
+      findDeckAddMergeTargetId(
+        makeDeck(),
+        addOf({ set: 'm10', collectorNumber: '146' }),
+        NO_DEFAULT,
+      ),
     ).toBeUndefined()
   })
 
   test('a copy under a different label override starts its own line', () => {
-    expect(findDeckAddMergeTargetId(makeDeck(), addOf({ labels: ['proxy'] }))).toBeUndefined()
+    expect(
+      findDeckAddMergeTargetId(makeDeck(), addOf({ labels: ['proxy'] }), NO_DEFAULT),
+    ).toBeUndefined()
   })
 
   test('a card the deck does not have starts its own line', () => {
-    expect(findDeckAddMergeTargetId(makeDeck(), addOf({ cardName: 'Sol Ring' }))).toBeUndefined()
+    expect(
+      findDeckAddMergeTargetId(makeDeck(), addOf({ cardName: 'Sol Ring' }), NO_DEFAULT),
+    ).toBeUndefined()
   })
 
   test('answers nothing for a change that is not an add', () => {
     expect(
-      findDeckAddMergeTargetId(makeDeck(), {
-        action: 'remove',
-        cardName: 'Lightning Bolt',
-        cardId: 5,
-      }),
+      findDeckAddMergeTargetId(
+        makeDeck(),
+        {
+          action: 'remove',
+          cardName: 'Lightning Bolt',
+          cardId: 5,
+        },
+        NO_DEFAULT,
+      ),
     ).toBeUndefined()
   })
 })

@@ -86,9 +86,9 @@ describe('rewriteMergedDeckIds', () => {
       { id: '2', timestamp: 2, action: 'remove', cardName: 'Sol Ring', cardId: 10 },
       solRingAdd('3', 11, 'lea', '1'),
     ]
-    expect(cardIds(rewriteMergedDeckIds(deck(), changes, createRetargetState()))).toEqual([
-      10, 10, 11,
-    ])
+    expect(
+      cardIds(rewriteMergedDeckIds(deck(), changes, createRetargetState(), undefined)),
+    ).toEqual([10, 10, 11])
   })
 
   test('an add matching a line the deck holds at that step is rewritten to that line', () => {
@@ -99,9 +99,9 @@ describe('rewriteMergedDeckIds', () => {
       // Merges onto the line the deck already had.
       solRingAdd('3', 12, '2xm', '5'),
     ]
-    expect(cardIds(rewriteMergedDeckIds(deck(), changes, createRetargetState()))).toEqual([
-      10, 10, 3,
-    ])
+    expect(
+      cardIds(rewriteMergedDeckIds(deck(), changes, createRetargetState(), undefined)),
+    ).toEqual([10, 10, 3])
   })
 
   test('the re-target state follows a rewritten id, so a later reference resolves', () => {
@@ -109,7 +109,7 @@ describe('rewriteMergedDeckIds', () => {
     state.idMap.set(77, 12)
     state.addedByName.set('Sol Ring', 12)
 
-    rewriteMergedDeckIds(deck(), [solRingAdd('1', 12, '2xm', '5')], state)
+    rewriteMergedDeckIds(deck(), [solRingAdd('1', 12, '2xm', '5')], state, undefined)
 
     expect(state.idMap.get(77)).toBe(3)
     expect(state.addedByName.get('Sol Ring')).toBe(3)

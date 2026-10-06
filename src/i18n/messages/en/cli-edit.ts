@@ -213,8 +213,6 @@ export const cliEditMessages = {
   'cli.edit.moveNeedsPrinting':
     'Cannot move {name} into a collection: no printings found to pin it to.',
   'cli.edit.movedToList': 'Moved: {line} → {list} (delivered on save)',
-  'cli.edit.moveNoteDropped':
-    'The note on {name} will not follow it — notes do not move across lists.',
   'cli.edit.savingMoveDest': 'Saving {name} (received moved cards)…',
   'cli.edit.moveCommitFailed': 'Could not deliver moved cards, so {name} was left unsaved: {error}',
   'cli.edit.moveWriteFailed':

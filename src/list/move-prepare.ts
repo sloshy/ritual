@@ -9,13 +9,16 @@
 import { appendChangelog } from '../changes/changelog-writer'
 import {
   createAddChange,
-  createMoveFromChange,
   listRefLabel,
+  mirrorMoveFrom,
   mirrorMoveTo,
+  movedCopyOf,
   printingOptionsFrom,
   type AddChange,
   type ChangeEvent,
   type ListRef,
+  type DepartingLine,
+  type MovedCopyPayload,
   type MoveFromChange,
   type MoveToChange,
   type PrintingTuple,
@@ -23,19 +26,20 @@ import {
 import { createCardArtCache, type CardArtMap, type CardArtReconcileFailure } from './card-art'
 import { artReconcileFor, commitArtReconciles, type ArtReconcile } from './move-commit'
 import { loadAllLists, type ListEntry } from './list-info'
-import type { PhysicalCard } from './move-staging'
-import { normalizedTags, type CardTag } from '../card/card-tags'
+import { effectiveLabels } from '../card/card-labels'
 import { t } from '../i18n/t'
 import {
   adoptedCardId,
   applyAddToStaged,
   applyRemoveIncomingFromStaged,
   commitStagedCategoryPrunes,
+  dedupeDroppedNotes,
   loadStagedOrThrow,
   stagedCardIds,
+  stagedDefaultLabels,
   writeStagedFiles,
+  type ArrivingCopy,
   type DroppedNote,
-  type RemovedCopy,
   type StagedFile,
 } from './move-staging'
 import { replayLineCopies, type LineQuantities } from '../changes/line-copies'
@@ -73,7 +77,13 @@ type OtherList = { listEntry: ListEntry; outgoing: Outgoing[]; incoming: Incomin
 type StagedOther = OtherList & { file: StagedFile }
 
 /** A removal applied in memory, with the source line as it was written. */
-type RemovedIncoming = Incoming & { line: RemovedCopy }
+/**
+ * A removal applied in memory: the source line as it left, read as a
+ * {@link DepartingLine} — its labels already the copy's effective labels (the
+ * line's override, else the source list's default) — plus the section it sat
+ * in, where a replacement printing lands.
+ */
+type RemovedIncoming = Incoming & { line: DepartingLine & { section?: string } }
 
 /** One source list's incoming removals, applied, plus the ids it still held afterwards. */
 type IncomingStage = {
@@ -88,47 +98,41 @@ type IncomingStage = {
 }
 
 /**
- * What a copy brings to the line a move adds: its printing tuple and its tags.
- * `tags` is required-but-nullable on purpose, so every caller says whether the
- * copy had any — a caller that forgot them would otherwise compile as "none".
+ * What a copy brings to the line a move adds: its printing tuple, the source
+ * line id that names it in a dropped-note report, and its move payload
+ * (`MovedCopyPayload`). Each payload field is required-but-nullable on purpose, so every
+ * caller says whether the copy had one — a caller that forgot one would
+ * otherwise compile as "none".
  */
-type MovedCopy = PrintingTuple & { tags: CardTag[] | undefined }
+type MovedCopy = PrintingTuple & MovedCopyPayload & { sourceCardId: number | undefined }
 
 /**
- * The movable-card shape `applyAddToStaged` consumes, from a printing tuple
+ * The {@link ArrivingCopy} `applyAddToStaged` consumes, from a printing tuple
  * the save carries: a move-from event (the copy leaving a saved list, whose
- * tags ride along — every list type carries them, so the arriving line keeps
- * them exactly as the mirrored `move-to` changelog line says it does) or an
- * incoming move's `replacement` (the printing its source gets back, standing
- * in for the departed line and so wearing that line's tags). No cardId: the
- * destination allocates a fresh id when
- * the line is added. The set code is normalized here because this is where
- * the event stops being an event and becomes in-memory card state — admin
- * clients may send uppercase codes in the request body.
+ * payload rides along exactly as `ritual move` carries it — tags unfiltered,
+ * its effective labels measured against the destination on arrival, the note
+ * discarded only by a deck quantity-merge, which reports it) or an incoming
+ * move's `replacement` (the printing its source gets back, standing in for the
+ * departed line and so wearing that line's tags). The event's labels are
+ * already effective, so they are carried as they are. The set code is
+ * normalized here because this is where the event stops being an event and
+ * becomes in-memory card state — admin clients may send uppercase codes in the
+ * request body.
  */
-function movedPhysicalCard(name: string, tuple: MovedCopy, listEntry: ListEntry): PhysicalCard {
+function arrivingFrom(name: string, tuple: MovedCopy): ArrivingCopy {
+  const { tags, labels, note } = movedCopyOf(tuple)
   return {
-    key: '',
     name,
     set: tuple.set?.toLowerCase(),
     collectorNumber: tuple.collectorNumber,
     finish: tuple.finish,
     condition: tuple.condition,
     language: tuple.language,
-    tags: normalizedTags(tuple.tags),
-    listEntry,
+    tags,
+    note,
+    carriedLabels: labels,
+    sourceCardId: tuple.sourceCardId,
   }
-}
-
-/**
- * The source-side `move-from` an incoming move's removal is logged as. It
- * describes the LINE that left — its own name spelling, its printing as
- * written (a bare finish stays bare), its `&N` — exactly as `commitAllMoves`
- * logs the physical card; the event's resolved finish and full name are the
- * destination's to record.
- */
-function mirrorMoveFrom(line: RemovedCopy, to: ListRef): MoveFromChange {
-  return createMoveFromChange(line.name, { ...printingOptionsFrom(line), tags: line.tags, to })
 }
 
 /**
@@ -382,6 +386,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       const line = applyRemoveIncomingFromStaged(file, {
         ...printingOptionsFrom(move),
         tags: move.tags,
+        labels: move.labels,
         name: move.cardName,
         cardId: move.sourceCardId,
       })
@@ -393,7 +398,12 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
           }),
         )
       }
-      removed.push({ ...entry, line })
+      // The source-side `move-from` records the copy's effective labels, as
+      // every move event does: the line's override, else its list's default.
+      removed.push({
+        ...entry,
+        line: { ...line, labels: effectiveLabels(line.labels, stagedDefaultLabels(file)) },
+      })
     }
     incomingByFile.set(listEntry.filePath, { removed, surviving: stagedCardIds(file) })
   }
@@ -410,7 +420,13 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       if (!move.replacement) continue
       const added = applyAddToStaged(
         file,
-        movedPhysicalCard(move.cardName, { ...move.replacement, tags: line.tags }, listEntry),
+        arrivingFrom(move.cardName, {
+          ...move.replacement,
+          tags: line.tags,
+          labels: undefined,
+          note: undefined,
+          sourceCardId: undefined,
+        }),
         listEntry.ref.type,
         line.section,
       )
@@ -428,7 +444,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
   }
 
   // APPLY: in-memory adds (a bad add — e.g. a printing-less card into a collection — throws here).
-  const droppedNotes: DroppedNote[] = []
+  const dropped: DroppedNote[] = []
   const artByFile = new Map<string, ArtReconcile>()
   // Read here, in the staging phase: a saved list's own save re-files its
   // sidecar against the ids its removal freed, and by then the departed entry
@@ -442,10 +458,10 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     for (const { move, source } of departures) {
       const added = applyAddToStaged(
         file,
-        movedPhysicalCard(move.cardName, { ...move, tags: move.tags }, listEntry),
+        arrivingFrom(move.cardName, { ...move, ...movedCopyOf(move), sourceCardId: move.cardId }),
         listEntry.ref.type,
       )
-      if (added.droppedNote) droppedNotes.push(added.droppedNote)
+      if (added.droppedNote) dropped.push(added.droppedNote)
       if (added.cardId !== undefined) landedOn.set(move.id, added.cardId)
       const adopted = adoptedCardId(added)
       if (adopted === undefined) continue
@@ -497,6 +513,8 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       forDest.set(move.cardId, ref)
     }
   }
+
+  const droppedNotes = dedupeDroppedNotes(dropped)
 
   // appendChangelog is not idempotent, so committing the same staging twice
   // would duplicate the mirrored blocks. Latched rather than trusted to callers.

@@ -1,8 +1,9 @@
 import path from 'node:path'
-import type { DroppedNote } from '../../list/move-staging'
+import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
+import type { CardLabel } from '../../card/card-labels'
 import type { SaveEffect } from '../../changes/save-effects'
 import type { ApiMessage } from '../../api/result'
-import type { ChangeEvent } from '../../changes/change-event'
+import type { ChangeAction, ChangeEvent } from '../../changes/change-event'
 import type { DeckData } from '../../list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../list/site-data'
 import { listTypeLabel, type ListType } from '../../list/list-type'
@@ -28,7 +29,7 @@ import { parseWantedListFile } from '../../list/wanted-file'
 import { toWantedCardEntries } from '../../list/wanted-entries'
 import { collectionToMarkdown, wantedToMarkdown } from '../../list/list-export'
 import { parseTitleFromContent } from '../../list/section-format'
-import { applyChangeToDeck } from '../../changes/deck-changes'
+import { applyChangeToDeck, droppedMoveNote } from '../../changes/deck-changes'
 import {
   applyChangeToCollection,
   findCollectionPrintingError,
@@ -139,6 +140,12 @@ type ListBaseline<TData> = {
   displayName: string
   /** Serialize the replayed list, ids already assigned. */
   serialize: (data: TData) => string
+  /**
+   * The list's front-matter default labels, read from the file: what an
+   * incoming `move-to` measures the labels it carries against
+   * (`ApplyChangeOptions.listLabels`).
+   */
+  listLabels?: CardLabel[]
 }
 
 /** A refusal raised while reading the baseline. */
@@ -171,6 +178,15 @@ interface ListSaveAdapter<TData> {
   finalize: (before: TData, after: TData) => FinalizedList<TData>
   /** Refuse a batch this list type cannot take before any file is read. */
   refuseChanges?: (changes: readonly ChangeEvent[]) => string | null
+  /**
+   * The note an incoming change would discard landing on the list as it stands
+   * (a deck quantity-merge keeps the line's own note); flat lists never merge.
+   */
+  droppedNote?: (
+    data: TData,
+    change: ChangeEvent,
+    listLabels: readonly CardLabel[] | undefined,
+  ) => DroppedNote | undefined
 }
 
 type FinalizedList<TData> = { data: TData; effects: SaveEffect[]; cardNames: string[] }
@@ -209,10 +225,18 @@ const deckAdapter: ListSaveAdapter<DeckData> = {
         subject: parsed.deck.name,
         displayName: parsed.deck.name,
         serialize: (deck) => serializeDeckToMarkdown(deck, validated),
+        listLabels: validated.labels,
       },
     }
   },
   apply: applyChangeToDeck,
+  droppedNote: (deck, change, listLabels) => {
+    if (change.action !== 'move-to') return undefined
+    const note = droppedMoveNote(deck, change, { listLabels })
+    return note === undefined
+      ? undefined
+      : { cardName: change.cardName, cardId: change.sourceCardId, note }
+  },
   lineQuantities: deckLineQuantities,
   cardIds: collectDeckCardIds,
   cardNames: deckCardNames,
@@ -234,6 +258,8 @@ type ParsedFlatList<TParsedEntry> = ParsedListContent & {
   entries: TParsedEntry[]
   sectionOrder: string[]
   frontMatter?: FlatListFrontMatter
+  /** The list's default card labels (collections), when legally declared. */
+  labels?: CardLabel[]
 }
 
 /** What tells one flat list type from the other. */
@@ -280,6 +306,7 @@ function flatListAdapter<TParsedEntry, TEntry extends FlatEntry>(
           subject: slug,
           displayName: title,
           serialize: (entries) => spec.toMarkdown(title, entries, order, parsed.frontMatter),
+          listLabels: parsed.labels,
         },
       }
     },
@@ -335,16 +362,27 @@ function readSaveOptions(body: Record<string, unknown>): SaveOptions | string {
   }
 }
 
+/** The actions whose `note` lands on a card line: a `set-note`, and the moved copy's note on either half of a move. */
+const NOTE_CARRYING_ACTIONS = [
+  'set-note',
+  'move-from',
+  'move-to',
+] as const satisfies readonly ChangeAction[]
+
 /**
- * Trim each raw `set-note` change's note in place — a pasted trailing newline is
- * not part of the note — refusing one that holds control characters. Runs before
- * the line-break check, which would otherwise refuse that newline.
+ * Trim each raw note-carrying change's note in place — a pasted trailing
+ * newline is not part of the note — refusing one that holds control characters.
+ * Runs before the line-break check, which would otherwise refuse that newline.
  */
 function normalizeRawNotes(changes: unknown): Response | null {
   if (!Array.isArray(changes)) return null
   const items: readonly unknown[] = changes
   for (const change of items) {
-    if (!isRecord(change) || change.action !== 'set-note' || typeof change.note !== 'string') {
+    if (
+      !isRecord(change) ||
+      !(NOTE_CARRYING_ACTIONS as readonly unknown[]).includes(change.action) ||
+      typeof change.note !== 'string'
+    ) {
       continue
     }
     const result = normalizeNote(change.note)
@@ -438,7 +476,17 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
   // guards against concurrent *file* edits). Refusing is the only honest
   // answer: a save that reported success while dropping changes would also
   // write a changelog entry for edits that never happened.
-  const replayed = applyChangesCollectingMisses(baseline.data, changes, adapter.apply)
+  // Replayed against the file's own default labels, so an incoming move writes
+  // the minimal override; a `move-to` that merges onto a deck line with a
+  // different note is recorded as it lands, the way the move engines report it.
+  const replayDrops: DroppedNote[] = []
+  const replayed = applyChangesCollectingMisses(baseline.data, changes, adapter.apply, {
+    listLabels: baseline.listLabels,
+    before: (current, change) => {
+      const dropped = adapter.droppedNote?.(current, change, baseline.listLabels)
+      if (dropped !== undefined) replayDrops.push(dropped)
+    },
+  })
   if (replayed.unmatched.length > 0) {
     const refused: ListSaveRefusal = {
       success: false,
@@ -479,7 +527,8 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
     cardNames: finalized.cardNames,
   }
   const saved = await finishListSave(tail)
-  return Response.json(listSaveResponse(tail, listSaveOutcome(saved, moves)))
+  const droppedNotes = dedupeDroppedNotes([...replayDrops, ...moves.droppedNotes])
+  return Response.json(listSaveResponse(tail, listSaveOutcome(saved, { ...moves, droppedNotes })))
 }
 
 /**

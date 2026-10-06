@@ -1,6 +1,7 @@
 import type { ChangeEvent } from './change-event'
 import { formatChange } from './change-message'
 import type { ListType } from '../list/list-type'
+import type { CardLabel } from '../card/card-labels'
 
 /**
  * Why a change did not apply:
@@ -16,6 +17,14 @@ export type MissReason = 'no-target' | 'not-applicable' | 'needs-printing'
 export type ApplyChangeOptions = {
   /** Called when the change does not apply, with the reason. */
   onMiss?: (reason: MissReason) => void
+  /**
+   * The list's own front-matter default labels. A `move-to` arriving here
+   * measures the labels it carries against them to write the minimal override
+   * (`arrivalLabels`); omitted, the list is treated as having no default, which
+   * keeps the copy's effective labels right but may write an override equal to
+   * the default.
+   */
+  listLabels?: readonly CardLabel[]
 }
 
 /**
@@ -50,13 +59,26 @@ export function applyChangesCollectingMisses<TData, TChange>(
   data: TData,
   changes: readonly TChange[],
   apply: ApplyChange<TData, TChange>,
+  options: BatchApplyOptions<TData, TChange> = {},
 ): ApplyBatchResult<TData, TChange> {
   const unmatched: UnmatchedChange<TChange>[] = []
   let current = data
   for (const change of changes) {
-    current = apply(current, change, { onMiss: (reason) => unmatched.push({ change, reason }) })
+    options.before?.(current, change)
+    current = apply(current, change, {
+      listLabels: options.listLabels,
+      onMiss: (reason) => unmatched.push({ change, reason }),
+    })
   }
   return { data: current, unmatched }
+}
+
+/** What {@link applyChangesCollectingMisses} takes beyond the batch. */
+export type BatchApplyOptions<TData, TChange> = {
+  /** Handed to every apply; see {@link ApplyChangeOptions.listLabels}. */
+  listLabels?: readonly CardLabel[]
+  /** Called with the list as it stands just before each change applies. */
+  before?: (current: TData, change: TChange) => void
 }
 
 /**

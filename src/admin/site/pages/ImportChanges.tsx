@@ -135,6 +135,21 @@ export function ImportChanges(): JSX.Element {
                   >
                     <span>{t('admin.importChanges.appliedCount', { count: list.applied })}</span>
                   </Show>
+                  <Show when={list.droppedNotes.length > 0}>
+                    <ul class="import-changes-conflicts import-changes-dropped-notes">
+                      <For each={list.droppedNotes}>
+                        {(dropped) => (
+                          <li>
+                            ⚠{' '}
+                            {t('admin.importChanges.droppedNote', {
+                              name: dropped.cardName,
+                              note: dropped.note,
+                            })}
+                          </li>
+                        )}
+                      </For>
+                    </ul>
+                  </Show>
                   <Show when={list.conflicts.length > 0}>
                     <ul class="import-changes-conflicts">
                       <For each={list.conflicts}>

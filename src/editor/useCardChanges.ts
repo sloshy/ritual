@@ -9,8 +9,11 @@ import {
   type CardPrintingOptions,
   type PrintingTuple,
   type ListRef,
+  type MovedCopySource,
   type RemoveChange,
   createChangeId,
+  movedCopyOf,
+  printingOptionsFrom,
   areOppositeChanges,
   consolidateSetFinish,
   consolidateSetLabel,
@@ -46,6 +49,14 @@ export type AddCardOptions = CardPrintingOptions & {
   labels?: CardLabel[]
   tags?: CardTag[]
 }
+
+/**
+ * What a cross-list move records about the copy leaving: its printing and its
+ * {@link MovedCopySource} payload — tags, **effective** labels (the line's
+ * override, else the list's default) and note, everything `ritual move`
+ * carries. The destination keeps the labels its type accepts.
+ */
+export type MoveCardOptions = CardPrintingOptions & MovedCopySource
 
 /**
  * What an {@link UseCardChangesResult.addCard} did.
@@ -123,11 +134,15 @@ export type UseCardChangesResult<T = unknown> = {
    */
   addCard: (cardName: string, options?: AddCardOptions) => AddCardResult
   removeCard: (cardName: string, options?: AddCardOptions, removedCardData?: T) => void
-  /** Record a move of a card out of this list into another list (`to`); its tags ride along. */
+  /**
+   * Record a move of a card out of this list into another list (`to`); its
+   * tags, effective labels (its override, else the list's default) and note
+   * ride along.
+   */
   moveCardToList: (
     cardName: string,
     to: ListRef,
-    options?: AddCardOptions,
+    options?: MoveCardOptions,
     removedCardData?: T,
   ) => void
   setFinish: (cardName: string, finish: Finish, originalFinish: Finish, cardId?: number) => void
@@ -341,10 +356,22 @@ export function useCardChanges<T = unknown>(): UseCardChangesResult<T> {
   function moveCardToList(
     cardName: string,
     to: ListRef,
-    options?: AddCardOptions,
+    options: MoveCardOptions = {},
     removedCardData?: T,
   ) {
-    addChange({ action: 'move-from', cardName, ...options, to }, removedCardData)
+    // The payload goes through the one normalization every move event does, so
+    // an empty note or label set is absent rather than a value that could beat
+    // a real one when the editor pairs a move's halves.
+    addChange(
+      {
+        action: 'move-from',
+        cardName,
+        ...printingOptionsFrom(options),
+        ...movedCopyOf(options),
+        to,
+      },
+      removedCardData,
+    )
   }
 
   /**

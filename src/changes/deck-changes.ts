@@ -1,5 +1,5 @@
 import type { Card } from '../card/card'
-import type { DeckData } from '../list/deck'
+import type { DeckData, DeckSection } from '../list/deck'
 import type { ChangeInput, PrintingTuple, SetPrintingChange } from './change-event'
 import type { CardLabel } from '../card/card-labels'
 import type { ApplyChangeOptions } from './apply-batch'
@@ -10,7 +10,12 @@ import {
   isCommanderSection,
   resolveDefaultAddSection,
 } from '../list/deck-format'
-import { normalizedOverride, sameCardLabels } from '../card/card-labels'
+import {
+  arrivalLabels,
+  effectiveLabels,
+  normalizedOverride,
+  sameCardLabels,
+} from '../card/card-labels'
 import {
   normalizedTags,
   sameCardTags,
@@ -22,6 +27,30 @@ import { canSetFinish, finishMatchesPrinting, hasSpecificPrinting } from '../car
 import { applyConditionUpdate } from '../card/finish-condition'
 import { noteOrUndefined } from '../card/note-helpers'
 import { storedLanguage } from '../card/card-language'
+
+/** What one copy landing on a deck brings: its printing, override, tags and section. */
+export type DeckAdd = PrintingTuple & {
+  labels?: readonly CardLabel[]
+  tags?: readonly CardTag[]
+  section?: string
+}
+
+/**
+ * What a deck must know to land a copy: its own front-matter default labels,
+ * which decide the minimal override an arriving copy is written with and which
+ * lines count as carrying the same labels. Required-but-nullable on every seam
+ * that lands a copy, so one that forgot the default cannot compile.
+ */
+export type DeckLandingOptions = { listLabels: readonly CardLabel[] | undefined }
+
+/**
+ * Where a merge search looks: every section, or — for a `move-to` that names
+ * its destination section — that section alone. The one scope rule every path
+ * that lands a moved copy follows (`ritual move`, a save's replay, an import, a
+ * `ritual edit` destination), so the same move writes the same bytes on all of
+ * them. A plain `add` searches every section.
+ */
+export type DeckMergeScope = DeckLandingOptions & { section?: string }
 
 /** The card fields commander targeting matches on. */
 type CommanderTarget = { cardId?: number; name: string }
@@ -39,17 +68,22 @@ type CommanderTarget = { cardId?: number; name: string }
 function mergesOntoCard(
   card: Card,
   cardName: string,
-  printing: PrintingTuple,
-  labels: readonly CardLabel[] | undefined,
-  tags: readonly CardTag[] | undefined,
+  copy: DeckAdd,
+  listLabels: readonly CardLabel[] | undefined,
 ): boolean {
   return (
     card.name === cardName &&
-    isSamePrinting(card, printing) &&
-    sameCardLabels(card.labels, labels) &&
+    isSamePrinting(card, copy) &&
+    // Labels are compared as each side's EFFECTIVE labels against the deck's
+    // default: a line with a redundant `[proxy]` override in a `proxy`-default
+    // deck carries the same labels as a copy that inherits them.
+    sameCardLabels(
+      effectiveLabels(card.labels, listLabels),
+      effectiveLabels(copy.labels, listLabels),
+    ) &&
     // A line's tags describe every copy on it, so a differently-tagged copy
     // starts its own line rather than inheriting (or overwriting) the tags.
-    sameCardTags(card.tags, tags)
+    sameCardTags(card.tags, copy.tags)
   )
 }
 
@@ -64,15 +98,53 @@ function mergesOntoCard(
  * — at the line the copies will actually share, rather than at an id that
  * evaporates when {@link applyChangeToDeck} folds the copy in.
  */
-export function findDeckAddMergeTargetId(deck: DeckData, change: ChangeInput): number | undefined {
-  if (change.action !== 'add') return undefined
-  for (const section of deck.sections) {
-    const found = section.cards.find((c) =>
-      mergesOntoCard(c, change.cardName, change, change.labels, change.tags),
-    )
-    if (found) return found.cardId
+export function findDeckAddMergeTargetId(
+  deck: DeckData,
+  change: ChangeInput,
+  options: DeckLandingOptions,
+): number | undefined {
+  if (change.action === 'add') {
+    return findDeckMergeLine(deck.sections, change.cardName, change, options)?.card.cardId
   }
-  return undefined
+  if (change.action !== 'move-to') return undefined
+  const copy = arrivingCopy(change, options.listLabels)
+  return findDeckMergeLine(deck.sections, change.cardName, copy, {
+    ...options,
+    section: change.section,
+  })?.card.cardId
+}
+
+/** Where a line sits: its section, its index within it, and the line itself. */
+export type DeckLineAt = { section: DeckSection; idx: number; card: Card }
+
+/**
+ * The line a copy of `cardName` folds onto under {@link mergesOntoCard}, in
+ * `scope` ({@link DeckMergeScope}), or `null` when it would start a line of its
+ * own. Ignores ids: the one merge-line finder behind the reducer's add, the
+ * merge-target probe, the dropped-note probe and the on-disk move engine's
+ * staged add, so none of them can disagree.
+ */
+export function findDeckMergeLine(
+  sections: readonly DeckSection[],
+  cardName: string,
+  copy: DeckAdd,
+  scope: DeckMergeScope,
+): DeckLineAt | null {
+  for (const section of sections) {
+    if (scope.section !== undefined && section.name !== scope.section) continue
+    const idx = section.cards.findIndex((c) => mergesOntoCard(c, cardName, copy, scope.listLabels))
+    if (idx !== -1) return { section, idx, card: section.cards[idx]! }
+  }
+  return null
+}
+
+/** The line carrying `cardId`, in any section, or `null`. */
+function findLineById(sections: readonly DeckSection[], cardId: number): DeckLineAt | null {
+  for (const section of sections) {
+    const idx = section.cards.findIndex((c) => c.cardId === cardId)
+    if (idx !== -1) return { section, idx, card: section.cards[idx]! }
+  }
+  return null
 }
 
 /**
@@ -122,59 +194,50 @@ export function applyChangeToDeck(
 
   // For adds, an existing entry is matched by cardId first, then by the
   // merge rule ({@link mergesOntoCard}) — name AND identical printing AND the
-  // same label override.
-  const changeLabels = 'labels' in change ? change.labels : undefined
-  const changeTags = 'tags' in change ? change.tags : undefined
-  const findCardForAdd = (sectionList: typeof sections, printing: PrintingTuple) => {
-    if (changeCardId !== undefined) {
-      for (const section of sectionList) {
-        const idx = section.cards.findIndex((c) => c.cardId === changeCardId)
-        if (idx !== -1) return { section, idx, card: section.cards[idx]! }
-      }
+  // same label override and tags.
+  const findCardForAdd = (add: DeckAdd, scope: DeckMergeScope): DeckLineAt | null =>
+    (changeCardId !== undefined ? findLineById(sections, changeCardId) : null) ??
+    findDeckMergeLine(sections, changeCardName, add, scope)
+
+  // Land one copy: onto the line it merges with in `scope` (that line keeps its
+  // own note — one line, one note slot), else on a fresh line carrying `note`.
+  const addCopy = (add: DeckAdd, note: string | undefined, scope: DeckMergeScope): DeckData => {
+    const found = findCardForAdd(add, scope)
+    if (found) {
+      found.card.quantity += 1
+      return { ...deck, sections }
     }
-    for (const section of sectionList) {
-      const idx = section.cards.findIndex((c) =>
-        mergesOntoCard(c, changeCardName, printing, changeLabels, changeTags),
-      )
-      if (idx !== -1) return { section, idx, card: section.cards[idx]! }
-    }
-    return null
+
+    // No existing entry — add to the explicitly requested section if given, otherwise the
+    // first non-commander, non-sideboard section.
+    const targetSection = add.section
+      ? findOrCreateSection(sections, add.section)
+      : resolveDefaultAddSection(sections)
+    targetSection.cards.push({
+      quantity: 1,
+      name: changeCardName,
+      // Normalized on the way into in-memory state, per the set-code rule.
+      set: add.set?.toLowerCase(),
+      collectorNumber: add.collectorNumber,
+      finish: add.finish,
+      // An add's condition is a plain grade (adds have no `NONE` clear), so it
+      // is recorded as-is.
+      condition: add.condition,
+      // The written value: `undefined` means `en` and serializes bare.
+      language: add.language,
+      // An empty override is no override — the deck's front-matter default
+      // applies, exactly as on a collection.
+      labels: normalizedOverride(add.labels),
+      tags: normalizedTags(add.tags),
+      note: noteOrUndefined(note),
+      cardId: changeCardId,
+    })
+    return { ...deck, sections }
   }
 
   switch (change.action) {
-    case 'add': {
-      // Find existing card to increment quantity
-      const found = findCardForAdd(sections, change)
-      if (found) {
-        found.card.quantity += 1
-        return { ...deck, sections }
-      }
-
-      // No existing entry — add to the explicitly requested section if given, otherwise the
-      // first non-commander, non-sideboard section.
-      const targetSection = change.section
-        ? findOrCreateSection(sections, change.section)
-        : resolveDefaultAddSection(sections)
-      targetSection.cards.push({
-        quantity: 1,
-        name: change.cardName,
-        // Normalized on the way into in-memory state, per the set-code rule.
-        set: change.set?.toLowerCase(),
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        // `AddChange.condition` is a plain grade (adds have no `NONE` clear),
-        // so it is recorded as-is.
-        condition: change.condition,
-        // The written value: `undefined` means `en` and serializes bare.
-        language: change.language,
-        // An empty override is no override — the deck's front-matter default
-        // applies, exactly as on a collection.
-        labels: normalizedOverride(change.labels),
-        tags: normalizedTags(change.tags),
-        cardId: change.cardId,
-      })
-      return { ...deck, sections }
-    }
+    case 'add':
+      return addCopy(change, undefined, { listLabels: options?.listLabels })
 
     case 'remove': {
       const found = findCard(sections)
@@ -391,36 +454,71 @@ export function applyChangeToDeck(
       // A copy pinning a name-only line the deck already holds (the swap
       // wizard's "set printing from another list"): see `pinDeckLine`.
       if (change.replacesCardId !== undefined) {
-        if (pinDeckLine(sections, change, change.replacesCardId)) return { ...deck, sections }
+        if (pinDeckLine(sections, change, change.replacesCardId, options?.listLabels)) {
+          return { ...deck, sections }
+        }
         options?.onMiss?.('no-target')
         return { ...deck, sections }
       }
-      // A move into this deck adds the card (e.g. when importing a destination list's changes).
-      return applyChangeToDeck(
-        deck,
-        {
-          action: 'add',
-          cardName: change.cardName,
-          cardId: change.cardId,
-          set: change.set,
-          collectorNumber: change.collectorNumber,
-          finish: change.finish,
-          condition: change.condition,
-          language: change.language,
-          tags: change.tags,
-          section: change.section,
-        },
-        options,
-      )
+      // A move into this deck adds the card (e.g. when importing a destination
+      // list's changes), keeping its tags, its note and the labels a deck
+      // accepts (see `arrivingCopy`).
+      return addCopy(arrivingCopy(change, options?.listLabels), change.note, {
+        listLabels: options?.listLabels,
+        section: change.section,
+      })
     }
   }
 }
 
-/** Where a line sits: its section and index within it. */
-type DeckLinePosition = { section: DeckData['sections'][number]; idx: number }
-
 /** A `move-to` change input (the pinning variant carries `replacesCardId`, see `MoveToChange`). */
-type PinningMoveTo = Extract<ChangeInput, { action: 'move-to' }>
+export type MoveToInput = Extract<ChangeInput, { action: 'move-to' }>
+
+/**
+ * What a `move-to` lands on a deck as: its printing, tags and section, and the
+ * override {@link arrivalLabels} writes for the labels it carries — the part a
+ * deck line can express (`proxy`), omitted when that equals the deck's own
+ * default `listLabels`. That override is also what decides which line it merges
+ * onto.
+ */
+function arrivingCopy(change: MoveToInput, listLabels: readonly CardLabel[] | undefined): DeckAdd {
+  return {
+    set: change.set,
+    collectorNumber: change.collectorNumber,
+    finish: change.finish,
+    condition: change.condition,
+    language: change.language,
+    labels: arrivalLabels('deck', change.labels, listLabels),
+    tags: change.tags,
+    section: change.section,
+  }
+}
+
+/**
+ * The note a `move-to` would discard landing on this deck: the copy lands on an
+ * existing line (one line, one note slot) whose note differs from the copy's,
+ * so the line keeps its own. The landing line is found the way the reducer
+ * finds it — the line carrying the event's `cardId` first, then the merge rule.
+ * `undefined` when the copy carries no note, starts a line of its own, lands on
+ * a line with the same note, or pins a line (`replacesCardId`: a pinning move
+ * applies no note). What lets a save or an editor report the loss the way
+ * `ritual move` does.
+ */
+export function droppedMoveNote(
+  deck: DeckData,
+  change: MoveToInput,
+  options: DeckLandingOptions,
+): string | undefined {
+  if (!change.note || change.replacesCardId !== undefined) return undefined
+  const line =
+    (change.cardId !== undefined ? findLineById(deck.sections, change.cardId) : null) ??
+    findDeckMergeLine(deck.sections, change.cardName, arrivingCopy(change, options.listLabels), {
+      ...options,
+      section: change.section,
+    })
+  if (line === null || line.card.note === change.note) return undefined
+  return change.note
+}
 
 /**
  * Apply a `move-to` that pins the name-only line `replacesCardId` (mutates
@@ -438,20 +536,14 @@ type PinningMoveTo = Extract<ChangeInput, { action: 'move-to' }>
  * filled card stays next to its unpinned remainder.
  */
 function pinDeckLine(
-  sections: DeckData['sections'],
-  change: PinningMoveTo,
+  sections: DeckSection[],
+  change: MoveToInput,
   replacesCardId: number,
+  listLabels: readonly CardLabel[] | undefined,
 ): boolean {
-  let found: DeckLinePosition | null = null
-  for (const section of sections) {
-    const idx = section.cards.findIndex((c) => c.cardId === replacesCardId)
-    if (idx !== -1) {
-      found = { section, idx }
-      break
-    }
-  }
+  const found = findLineById(sections, replacesCardId)
   if (!found) return false
-  const line = found.section.cards[found.idx]!
+  const line = found.card
   // The pair has to hold together, exactly as `set-printing` requires.
   if (!finishMatchesPrinting(change)) return false
 
@@ -474,7 +566,14 @@ function pinDeckLine(
     cards.find((c) => c.cardId === change.cardId) ??
     // The copy is one of the fill's own, so it keeps the fill's override and
     // tags: it lands on a line that shares them, or starts one that does.
-    cards.find((c) => mergesOntoCard(c, change.cardName, change, line.labels, line.tags))
+    cards.find((c) =>
+      mergesOntoCard(
+        c,
+        change.cardName,
+        { ...change, labels: line.labels, tags: line.tags },
+        listLabels,
+      ),
+    )
   if (landing) {
     landing.quantity += 1
     return true

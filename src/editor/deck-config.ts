@@ -9,7 +9,6 @@ import type { PrintingTuple } from '../changes/change-event'
 import { printingRetarget } from './printing-retarget'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { ChangePrintingContext } from './editor-config'
-import { applyChangeToDeck } from '../changes/deck-changes'
 
 /**
  * Deck-specific helpers wiring a deck into the shared {@link useEditor} engine.
@@ -124,7 +123,7 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
     tools.setPrinting(target.cardName, newPrinting, origPrinting, cardId)
     setData((prev) =>
       prev
-        ? applyChangeToDeck(prev, {
+        ? ctx.applyChange(prev, {
             action: 'set-printing',
             cardName: target.cardName,
             set: newPrinting.set,
@@ -146,7 +145,7 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
       tools.decrementCard(target.cardName, cardId)
       setData((prev) =>
         prev
-          ? applyChangeToDeck(prev, { action: 'remove', cardName: target.cardName, cardId })
+          ? ctx.applyChange(prev, { action: 'remove', cardName: target.cardName, cardId })
           : prev,
       )
     }
@@ -155,7 +154,7 @@ export function applyDeckChangePrinting(ctx: ChangePrintingContext<DeckData>): v
       tools.addCard(target.cardName, { ...options, cardId: newId })
       setData((prev) =>
         prev
-          ? applyChangeToDeck(prev, {
+          ? ctx.applyChange(prev, {
               action: 'add',
               cardName: target.cardName,
               set: options.set,

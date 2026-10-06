@@ -1,7 +1,13 @@
 import type { Finish, Condition, ConditionUpdate } from '../card/finish-condition'
 import type { Board } from '../list/deck'
 import type { ListType } from '../list/list-type'
-import { formatCardLabels, sameCardLabels, type CardLabel } from '../card/card-labels'
+import {
+  formatCardLabels,
+  normalizedOverride,
+  sameCardLabels,
+  type CardLabel,
+} from '../card/card-labels'
+import { noteOrUndefined } from '../card/note-helpers'
 import {
   type CardCategory,
   foldCategoryCardName,
@@ -175,67 +181,72 @@ export type RemoveTagChange = BaseChange & {
   tag: CardTag
 }
 
-export type MoveFromChange = BaseChange & {
-  action: 'move-from'
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
-  /** The moved copy's language. Omitted means English (the bare-line default). */
-  language?: CardLanguage
-  /**
-   * The moved copy's `#tag` tokens. Every list type carries tags, so — unlike a
-   * label override, which the destination type may not accept — they ride the
-   * move and land on the destination line unfiltered.
-   */
-  tags?: CardTag[]
-  /** The list this card was moved to. */
-  to: ListRef
-}
+/**
+ * A `move-from`: one copy leaving this list for `to`. What rides with the copy
+ * — its tags, effective labels and note — is {@link MovedCopyFields}; none of
+ * it is annotated in the changelog text line (the entry's event block holds it).
+ */
+export type MoveFromChange = BaseChange &
+  MovedCopyFields & {
+    action: 'move-from'
+    set?: string
+    collectorNumber?: string
+    finish?: Finish
+    condition?: Condition
+    /** The moved copy's language. Omitted means English (the bare-line default). */
+    language?: CardLanguage
+    /** The list this card was moved to. */
+    to: ListRef
+  }
 
-export type MoveToChange = BaseChange & {
-  action: 'move-to'
-  set?: string
-  collectorNumber?: string
-  finish?: Finish
-  condition?: Condition
-  /** The moved copy's language. Omitted means English (the bare-line default). */
-  language?: CardLanguage
-  /** The moved copy's `#tag` tokens, landing on the destination line — see {@link MoveFromChange.tags}. */
-  tags?: CardTag[]
-  /** The list this card was moved from. */
-  from: ListRef
-  /**
-   * Destination section (decks; flat lists place the copy in that section).
-   * Like `AddChange.section`: applied by the reducer when the copy lands,
-   * never rendered in a changelog line.
-   */
-  section?: string
-  /**
-   * The SOURCE list's line id the copy was taken from. A removal hint for the
-   * incoming-move writer (`applyCrossListMoves`); a name + printing match is
-   * the fallback. `cardId` on an in-stack move-to is the destination's own line id.
-   */
-  sourceCardId?: number
-  /**
-   * The destination's own name-only line this copy PINS instead of adding a
-   * copy to the list (the swap wizard setting a printing from a copy owned
-   * elsewhere). Equal to `cardId`: the line is converted in place — it takes
-   * the event's printing and keeps its `&N` and quantity (every copy of a deck
-   * line's fill repeats the event, the later ones changing nothing). Different
-   * from `cardId`: one copy is taken off that line (the line goes when empty)
-   * and lands on `cardId` as an add would — a deck line filled partially or
-   * from several printings. Never rendered in a changelog line.
-   */
-  replacesCardId?: number
-  /**
-   * A printing added to the SOURCE list in place of the copy taken — the swap
-   * wizard's "replace taken copies" option. Applied by the incoming-move
-   * writer (a plain `add` on the source, logged there); the destination's own
-   * reducer ignores it.
-   */
-  replacement?: MoveReplacement
-}
+/**
+ * A `move-to`: one copy arriving in this list from `from`, carrying
+ * {@link MovedCopyFields} — except on a pinning move (`replacesCardId`), which
+ * converts or fills a line this list already holds: that line keeps its own
+ * labels and note, so a pinning move's `labels`/`note` are not applied.
+ */
+export type MoveToChange = BaseChange &
+  MovedCopyFields & {
+    action: 'move-to'
+    set?: string
+    collectorNumber?: string
+    finish?: Finish
+    condition?: Condition
+    /** The moved copy's language. Omitted means English (the bare-line default). */
+    language?: CardLanguage
+    /** The list this card was moved from. */
+    from: ListRef
+    /**
+     * Destination section (decks; flat lists place the copy in that section).
+     * Like `AddChange.section`: applied by the reducer when the copy lands,
+     * never rendered in a changelog line.
+     */
+    section?: string
+    /**
+     * The SOURCE list's line id the copy was taken from. A removal hint for the
+     * incoming-move writer (`applyCrossListMoves`); a name + printing match is
+     * the fallback. `cardId` on an in-stack move-to is the destination's own line id.
+     */
+    sourceCardId?: number
+    /**
+     * The destination's own name-only line this copy PINS instead of adding a
+     * copy to the list (the swap wizard setting a printing from a copy owned
+     * elsewhere). Equal to `cardId`: the line is converted in place — it takes
+     * the event's printing and keeps its `&N` and quantity (every copy of a deck
+     * line's fill repeats the event, the later ones changing nothing). Different
+     * from `cardId`: one copy is taken off that line (the line goes when empty)
+     * and lands on `cardId` as an add would — a deck line filled partially or
+     * from several printings. Never rendered in a changelog line.
+     */
+    replacesCardId?: number
+    /**
+     * A printing added to the SOURCE list in place of the copy taken — the swap
+     * wizard's "replace taken copies" option. Applied by the incoming-move
+     * writer (a plain `add` on the source, logged there); the destination's own
+     * reducer ignores it.
+     */
+    replacement?: MoveReplacement
+  }
 
 /** The printing a source list receives back for a copy a `move-to` took (see {@link MoveToChange.replacement}). */
 export type MoveReplacement = {
@@ -435,6 +446,63 @@ export function printingOptionsFrom(entry: PrintingTupleWithId): CardPrintingOpt
 }
 
 /**
+ * What rides with a copy across a cross-list move, beside its printing: the
+ * one statement of the move payload, shared by the move events, a change
+ * bundle's moves, and every engine shape a moving copy passes through.
+ *
+ * - `tags` — the copy's `#tag` tokens. Every list type carries tags, so they
+ *   land on the destination line unfiltered.
+ * - `labels` — on a move event (and a bundle move), the copy's **effective**
+ *   labels in its source list: the line's own override, else the source list's
+ *   front-matter default. The destination keeps what its type accepts
+ *   (`labelsForDestination`: `proxy` into a deck, everything into a
+ *   collection, nothing into a wanted list) and writes the minimal override
+ *   for it (`arrivalLabels`: none when that equals the destination's own
+ *   default). They are frozen at the move gesture: an editor session that
+ *   later edits the source list's default does not change what an earlier
+ *   move recorded. On an engine shape that describes a *line* (`PhysicalCard`,
+ *   `RemovedCopy`), it is that line's own override; the shape says so.
+ * - `note` — the copy's note, landing on the destination line on every list
+ *   type, except that a deck quantity-merge onto a line with a different note
+ *   keeps that line's note and reports this one as dropped.
+ */
+export type MovedCopyFields = {
+  tags?: CardTag[]
+  labels?: CardLabel[]
+  note?: string
+}
+
+/**
+ * {@link MovedCopyFields} with every key present (each may be `undefined`):
+ * what {@link movedCopyOf} returns, and what a hand-off that must state every
+ * field takes — a caller that forgot one would otherwise compile as "none".
+ */
+export type MovedCopyPayload = {
+  [K in keyof Required<MovedCopyFields>]: MovedCopyFields[K] | undefined
+}
+
+/** The shape {@link movedCopyOf} reads: anything carrying the move payload, possibly readonly. */
+export type MovedCopySource = {
+  tags?: readonly CardTag[]
+  labels?: readonly CardLabel[]
+  note?: string
+}
+
+/**
+ * Project a copy's move payload into its stored form: tags and labels
+ * canonical (sorted, deduplicated) and an empty set, like an empty note,
+ * absent — so two moves of the same copy always serialize to the same bytes.
+ * Every move event, bundle move and engine hand-off builds its payload here.
+ */
+export function movedCopyOf(source: MovedCopySource): MovedCopyPayload {
+  return {
+    tags: normalizedTags(source.tags),
+    labels: normalizedOverride(source.labels),
+    note: noteOrUndefined(source.note),
+  }
+}
+
+/**
  * {@link printingOptionsFrom} with the language *resolved*: a bare line's
  * absent language reads as `en` rather than staying undefined. This is the
  * projection an edit's "before" tuple needs — on a set-printing event an absent
@@ -542,30 +610,26 @@ export type SetLabelOptions = {
   cardId?: number
 }
 
-/** Options for move-from action. */
-export type MoveFromOptions = {
+/** Options for move-from action: the printing, the {@link MovedCopyFields} payload, the destination. */
+export type MoveFromOptions = MovedCopySource & {
   set?: string
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
-  /** The moved copy's `#tag` tokens; see {@link MoveFromChange.tags}. */
-  tags?: CardTag[]
   cardId?: number
   to: ListRef
 }
 
-/** Options for move-to action. */
-export type MoveToOptions = {
+/** Options for move-to action: the printing, the {@link MovedCopyFields} payload, the source. */
+export type MoveToOptions = MovedCopySource & {
   set?: string
   collectorNumber?: string
   finish?: Finish
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
-  /** The moved copy's `#tag` tokens; see {@link MoveFromChange.tags}. */
-  tags?: CardTag[]
   cardId?: number
   from: ListRef
   /** Destination section (decks; flat lists place the copy in that section); see {@link MoveToChange.section}. */
@@ -700,7 +764,7 @@ export function createMoveFromChange(cardName: string, options: MoveFromOptions)
     finish: options.finish,
     condition: options.condition,
     language: options.language,
-    tags: normalizedTags(options.tags),
+    ...movedCopyOf(options),
     to: options.to,
   }
 }
@@ -714,7 +778,7 @@ export function createMoveToChange(cardName: string, options: MoveToOptions): Mo
     finish: options.finish,
     condition: options.condition,
     language: options.language,
-    tags: normalizedTags(options.tags),
+    ...movedCopyOf(options),
     from: options.from,
     section: options.section,
     sourceCardId: options.sourceCardId,
@@ -741,11 +805,29 @@ export function mirrorMoveTo(
   const { cardId: sourceCardId, ...printing } = printingOptionsFrom(move)
   return createMoveToChange(move.cardName, {
     ...printing,
-    tags: move.tags,
+    ...movedCopyOf(move),
     cardId: destCardId,
     from,
     sourceCardId,
   })
+}
+
+/**
+ * A source line as a move reads it: its own name spelling, its printing as
+ * written, its `&N`, and the payload riding with it — with `labels` already
+ * the copy's *effective* labels (the line's override, else its list's default).
+ */
+export type DepartingLine = PrintingTupleWithId & MovedCopyFields & { name: string }
+
+/**
+ * The source-side `move-from` a departing line is logged as: the LINE that
+ * left, by its own name spelling, its printing as written (a bare finish stays
+ * bare) and its `&N` — the counterpart of {@link mirrorMoveTo}, used by every
+ * engine that takes a copy out of a list it is not saving (`ritual move`, an
+ * editor save's incoming moves).
+ */
+export function mirrorMoveFrom(line: DepartingLine, to: ListRef): MoveFromChange {
+  return createMoveFromChange(line.name, { ...printingOptionsFrom(line), ...movedCopyOf(line), to })
 }
 
 /** Whether two list refs name the same list (same type and name). */

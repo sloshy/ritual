@@ -3,14 +3,18 @@ import type {
   AddChange,
   ChangeEvent,
   ListRef,
+  MovedCopyFields,
   MoveFromChange,
   MoveReplacement,
   MoveToChange,
 } from './change-event'
+import { movedCopyOf } from './change-event'
 import type { CardLanguage } from '../card/card-language'
-import { normalizedTags, parseCardTagsValue, type CardTag } from '../card/card-tags'
 import {
   decodeChangeEvent,
+  definedFields,
+  isCardIdValue,
+  validateMovedCopyFields,
   validatePrintingFields,
   validateReplacement,
 } from './change-event-decode'
@@ -62,8 +66,12 @@ export type ChangeBundleListRef = {
  * recorded once, here, rather than as a `move-from` in one list's changes and a
  * `move-to` in the other's. The changelog files still record both halves; the
  * bundle is the normalized form.
+ *
+ * The copy's payload — tags, effective labels, note — is {@link MovedCopyFields},
+ * each omitted from the JSON when absent (the parsed object still has the key,
+ * set to `undefined`).
  */
-export type ChangeBundleMove = {
+export type ChangeBundleMove = MovedCopyFields & {
   id: string
   timestamp: number
   cardName: string
@@ -75,13 +83,6 @@ export type ChangeBundleMove = {
   condition?: Condition
   /** The moved copy's language. Omitted means English (the bare-line default). */
   language?: CardLanguage
-  /**
-   * The moved copy's tags, canonical. Every list type carries tags, so a move
-   * takes them along unfiltered — they land on the destination line exactly as
-   * `ritual move` and the editors' own saves land them. Omitted from the JSON
-   * when none (the parsed object still has the key, set to `undefined`).
-   */
-  tags?: CardTag[]
   /**
    * The SOURCE list's line id the copy was taken from, when known — a removal
    * hint; the importer falls back to a name + printing match.
@@ -181,7 +182,7 @@ function moveFromOutgoing(
     finish: change.finish,
     condition: change.condition,
     language: change.language,
-    tags: change.tags,
+    ...movedCopyOf(change),
     cardId: change.cardId,
   }
 }
@@ -202,7 +203,7 @@ function moveFromIncoming(
     finish: change.finish,
     condition: change.condition,
     language: change.language,
-    tags: change.tags,
+    ...movedCopyOf(change),
     cardId: change.sourceCardId,
     toCardId: change.cardId,
     section: change.section,
@@ -212,15 +213,6 @@ function moveFromIncoming(
 }
 
 const NO_SLUG: ResolveListSlug = () => undefined
-
-/** The fields of `obj` whose value is defined, as a partial overlay. */
-function definedFields<T extends object>(obj: T): Partial<T> {
-  const out: Partial<T> = {}
-  for (const key of Object.keys(obj) as (keyof T)[]) {
-    if (obj[key] !== undefined) out[key] = obj[key]
-  }
-  return out
-}
 
 /** Of two refs to one list end, the one that knows the slug (the later when both or neither do). */
 function preferSlugged(
@@ -379,7 +371,7 @@ export function moveFromEventOf(move: ChangeBundleMove): MoveFromChange {
     finish: move.finish,
     condition: move.condition,
     language: move.language,
-    tags: move.tags,
+    ...movedCopyOf(move),
     to: listRefOf(move.to),
   }
 }
@@ -402,7 +394,7 @@ export function moveToEventOf(move: ChangeBundleMove): MoveToChange {
     finish: move.finish,
     condition: move.condition,
     language: move.language,
-    tags: move.tags,
+    ...movedCopyOf(move),
     from: listRefOf(move.from),
     section: move.section,
     sourceCardId: move.cardId,
@@ -601,10 +593,10 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
     if (typeof from === 'string') return from
     const to = validateMoveRef(obj.to, `${where}"to" `)
     if (typeof to === 'string') return to
-    if (obj.cardId !== undefined && typeof obj.cardId !== 'number') {
+    if (obj.cardId !== undefined && !isCardIdValue(obj.cardId)) {
       return `${where}has an invalid "cardId".`
     }
-    if (obj.toCardId !== undefined && typeof obj.toCardId !== 'number') {
+    if (obj.toCardId !== undefined && !isCardIdValue(obj.toCardId)) {
       return `${where}has an invalid "toCardId".`
     }
     if (sameBundleList(from, to)) {
@@ -613,7 +605,7 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
     if (obj.section !== undefined && typeof obj.section !== 'string') {
       return `${where}has an invalid "section".`
     }
-    if (obj.pinsCardId !== undefined && typeof obj.pinsCardId !== 'number') {
+    if (obj.pinsCardId !== undefined && !isCardIdValue(obj.pinsCardId)) {
       return `${where}has an invalid "pinsCardId".`
     }
     // Without the landing id a pin would read as a split (a copy off the line
@@ -630,12 +622,8 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
     if (!printing.ok) return printing.error
     const replacement = validateReplacement(obj.replacement, where)
     if (typeof replacement === 'string') return replacement
-    let tags: CardTag[] | undefined
-    if (obj.tags !== undefined) {
-      const parsed = parseCardTagsValue(obj.tags, '"tags"')
-      if (!parsed.ok) return `${where}${parsed.message}`
-      tags = normalizedTags(parsed.tags)
-    }
+    const moved = validateMovedCopyFields(obj, where)
+    if (!moved.ok) return moved.error
     moves.push({
       id: obj.id,
       timestamp: obj.timestamp,
@@ -643,7 +631,7 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
       from,
       to,
       ...printing.fields,
-      tags,
+      ...moved.fields,
       cardId: obj.cardId,
       toCardId: obj.toCardId,
       section: obj.section,

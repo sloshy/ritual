@@ -18,7 +18,7 @@ import { hasSpecificPrinting, resolvePrintingCard } from '../card/card-printing'
 import { displayFinish } from '../card/finish-condition'
 import { printingKey } from '../card/printing-key'
 import { displayLanguage } from '../card/card-language'
-import { findDeckAddMergeTargetId } from '../changes/deck-changes'
+import { findDeckAddMergeTargetId, type DeckLandingOptions } from '../changes/deck-changes'
 import { definedPrintingDetails, targetPinsPrinting } from './swap-printings/printing-fields'
 import type { ChosenPrinting, SwapMove, SwapTarget } from './swap-printings'
 import type { SwapFlatLine } from './swap-sources'
@@ -213,16 +213,25 @@ export type SwapApplyContext = {
 /**
  * The deck host's {@link SwapApplyContext.mergeTargetId}: the line an arriving
  * copy would merge onto under the add reducer's rule (`mergesOntoCard`: name,
- * `isSamePrinting` tuple, labels — a moved copy carries none).
+ * `isSamePrinting` tuple, effective labels against the deck's `listLabels` — a
+ * swapped copy carries no override of its own).
  */
-export function deckSwapMergeTargetId(deck: DeckData, move: SwapMove): number | undefined {
-  return findDeckAddMergeTargetId(deck, {
-    action: 'add',
-    cardName: move.cardName,
-    set: move.set.toLowerCase(),
-    collectorNumber: move.collectorNumber,
-    ...definedPrintingDetails(move),
-  })
+export function deckSwapMergeTargetId(
+  deck: DeckData,
+  move: SwapMove,
+  options: DeckLandingOptions,
+): number | undefined {
+  return findDeckAddMergeTargetId(
+    deck,
+    {
+      action: 'add',
+      cardName: move.cardName,
+      set: move.set.toLowerCase(),
+      collectorNumber: move.collectorNumber,
+      ...definedPrintingDetails(move),
+    },
+    options,
+  )
 }
 
 /** One editor operation: the change to record and apply, and an id to release after it. */

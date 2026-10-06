@@ -351,8 +351,8 @@ If a destination cannot be written at save time (its file was deleted, a deck de
 
 What follows a moved card:
 
-- **Note**: no. Notes never move across lists, and the CLI warns when one is left behind.
-- **[Label override](#card-labels)**: no. (The one-shot [`ritual move`](/commands/move/) carries it as far as the destination type can express it.)
+- **Note**: yes, on every list type. The one exception matches [`ritual move`](/commands/move/): when the copy merges onto a deck line that already has a different note, the line keeps its own note and the CLI reports the dropped one.
+- **[Labels](#card-labels)**: yes, as `ritual move` carries them. The card takes its effective labels (its own override, or else the source list's default), and the destination keeps what its type can express: another collection keeps all of them, a deck keeps `proxy` and drops `sale`/`trade`/`keep`, and a wanted list keeps none. An override is written only when the kept labels differ from the destination's own default. The line grammar has no empty override, so a card with no labels moving into a list that has a default takes that default.
 - **[Tags](#card-tags)**: yes, on every path, since every list type carries them.
 - **[Custom art](/custom-art/#art-follows-the-card)**: yes. The entry leaves the source list's `.art.json` and is re-filed under the destination line's new `&N`, unless the copy merged onto a line the destination already had, which keeps its own art.
 - **[Categories](#card-categories)**: no. A category belongs to a card _name in one list_, so the destination inherits nothing. The save also prunes the source list's `<list>.categories.json` of any name the source no longer holds. It skips that pruning for a list with a bullet the card-line grammar could not read.
@@ -500,7 +500,7 @@ Each card entry is written to a markdown collection file in the `collections/` d
 
 Non-foil finish, `NM` condition, and English are omitted, as on deck lines. A "Don't Care" condition choice is treated as `NM` and not written. The note is optional and can be added after entry via `📝 Add Note`; notes are shown in the card detail modal on the generated site.
 
-The optional `[labels]` token is the card's [label override](/list-format/#card-labels). [`ritual move`](/commands/move/) carries it as far as the destination type can express it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow drops it in every case, as it does notes.
+The optional `[labels]` token is the card's [label override](/list-format/#card-labels). [`ritual move`](/commands/move/) carries it as far as the destination type can express it: another collection keeps all of it, a deck keeps `proxy` and drops the rest, a wanted list keeps none. The editors' **Move to list…** / `📤 Move to Another List` flow carries it the same way, along with the card's note. Both carry the card's _effective_ labels, so a card that inherits the source list's default takes that default along too (see [what follows a moved card](#moving-cards-to-another-list)).
 
 ## Wanted Lists
 

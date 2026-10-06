@@ -33,6 +33,7 @@ import {
   type RitualTestEnv,
 } from './harness'
 import { stubFetch } from '../../helpers/stub-fetch'
+import { writeCollectionFile, writeDeckFile } from '../../helpers/workspace'
 
 // In registration order (read → write → destructive, as server.ts registers
 // them) — the catalogue test asserts ordered equality to pin `tools/list`
@@ -1483,9 +1484,11 @@ describe('Ritual MCP server (in-memory transport)', () => {
     const result = await callTool(client, 'import_change_bundle', { json: JSON.stringify(bundle) })
     expect(result.isError).toBeFalsy()
     const data = toolData<{
-      lists: { slug: string; applied: number }[]
+      lists: { slug: string; applied: number; droppedNotes: unknown[] }[]
     }>(result)
     expect(data.lists.map((l) => l.applied)).toEqual([1, 1])
+    // Every list reports the notes its saves discarded, empty when none.
+    expect(data.lists.map((l) => l.droppedNotes)).toEqual([[], []])
 
     const deckOnDisk = await fs.readFile(path.join(env.dir, 'decks', 'test-deck.md'), 'utf-8')
     expect(deckOnDisk).toMatch(/Counterspell &\d+/)
@@ -1526,6 +1529,51 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.lists.map((l) => l.applied)).toEqual([1, 0])
     expect(data.lists[0]?.error).toBeUndefined()
     expect(data.lists[1]?.error).toBeTruthy()
+  })
+
+  test('import_change_bundle passes through the notes a deck merge discarded', async () => {
+    await writeDeckFile(env.dir, 'test-deck', {
+      name: 'Test Deck',
+      cards: [
+        {
+          quantity: 1,
+          name: 'Sol Ring',
+          set: 'c21',
+          collectorNumber: '263',
+          note: 'mine',
+          cardId: 7,
+        },
+      ],
+    })
+    await writeCollectionFile(env.dir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c21', collectorNumber: '263', cardId: 1 }],
+    })
+    const bundle = {
+      format: 'ritual-change-bundle',
+      version: 2,
+      exportedAt: '2026-06-04T00:00:00.000Z',
+      lists: [],
+      moves: [
+        {
+          id: 'm1',
+          timestamp: 1,
+          cardName: 'Sol Ring',
+          from: { kind: 'collection', name: 'Binder' },
+          to: { kind: 'deck', slug: 'test-deck', name: 'Test Deck' },
+          set: 'c21',
+          collectorNumber: '263',
+          note: 'from the binder',
+          cardId: 1,
+        },
+      ],
+    }
+    const result = await callTool(client, 'import_change_bundle', { json: JSON.stringify(bundle) })
+    expect(result.isError).toBeFalsy()
+    const data = toolData<{ lists: { slug: string; droppedNotes: unknown[] }[] }>(result)
+    expect(data.lists.find((list) => list.slug === 'test-deck')?.droppedNotes).toEqual([
+      { cardName: 'Sol Ring', cardId: 1, note: 'from the binder' },
+    ])
   })
 
   test('import_change_bundle rejects malformed JSON with a clear error', async () => {

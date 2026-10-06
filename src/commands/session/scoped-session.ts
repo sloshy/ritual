@@ -184,7 +184,7 @@ export function createScopedSession(args: ScopedSessionArgs): ScopedSession {
     applyChange: (change: ChangeEvent) => activeList()?.strategy.applyChange(change),
     // Never a move destination: moves target concrete lists, and the save path
     // resolves them against the open per-list sessions, not this aggregate.
-    receiveMove: (): void => {},
+    receiveMove: (): undefined => undefined,
     noteAdded: (note: string) => activeList()?.strategy.noteAdded?.(note),
 
     // Per-list session actions (target section, format, tags, default labels)

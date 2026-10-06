@@ -122,6 +122,7 @@ describe('applyOutgoingMoves', () => {
     const change = createMoveFromChange('Sol Ring', {
       set: 'c19',
       collectorNumber: '221',
+      note: 'from the binder',
       cardId: 2,
       to: { type: 'deck', name: 'My Deck' },
     })
@@ -130,50 +131,36 @@ describe('applyOutgoingMoves', () => {
     ])
 
     const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
-    expect(deckContent).toContain('2 Sol Ring')
-    // `move-from` events carry no note today, so a merge cannot drop one — the
-    // field is pinned here as the (empty) report the editor save surfaces.
-    expect(result.droppedNotes).toEqual([])
+    expect(deckContent).toContain('2 Sol Ring (C19:221) &1')
+    // The line's single note slot keeps what it had (nothing); the copy's note
+    // is the report the editor save surfaces.
+    expect(deckContent).not.toContain('from the binder')
+    // Named by the source line's id, which is what tells N copies of one line apart.
+    expect(result.droppedNotes).toEqual([
+      { cardName: 'Sol Ring', cardId: 2, note: 'from the binder' },
+    ])
   })
 
-  test('keeps the moved card’s [ja] token on the destination line and changelog', async () => {
-    // The editor's dual-list save path: a move-from event carries the source
-    // entry's language, and the destination side must write it back rather
-    // than landing the copy as a bare (English) line.
-    const change = createMoveFromChange('Lightning Bolt', {
-      set: 'lea',
-      collectorNumber: '161',
-      language: 'ja',
-      cardId: 1,
-      to: { type: 'deck', name: 'My Deck' },
-    })
-    await applyOutgoingMoves({ type: 'collection', name: 'Binder' }, binderPath(), [change])
-
-    const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
-    expect(deckContent).toContain('1 Lightning Bolt (LEA:161) [ja]')
-
-    const changelog = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.changes.md'), 'utf-8')
-    expect(changelog).toMatch(/Moved "Lightning Bolt" \(LEA:161\) \[ja\].*from Collection 'Binder'/)
-  })
-
-  test('lands the moved card’s tags on the destination line', async () => {
+  test('lands the moved card’s note and the labels the destination accepts, and logs them', async () => {
     // The closed-destination path: the source's save writes the destination
-    // file itself, and the arriving line must carry what the move-from event
-    // carries — tags included — not just the printing tuple.
-    const change = createMoveFromChange('Lightning Bolt', {
+    // file itself. What lands per list type is pinned by the staging unit tests;
+    // this pins the wiring from the move-from event to the written line and the
+    // mirrored move-to's event block.
+    const proxy = createMoveFromChange('Lightning Bolt', {
       set: 'lea',
       collectorNumber: '161',
-      tags: ['Ramp', 'Card Draw'],
+      labels: ['proxy'],
+      note: 'printed at home',
       cardId: 1,
       to: MY_DECK,
     })
-    await applyOutgoingMoves(BINDER, binderPath(), [change])
+    const result = await applyOutgoingMoves(BINDER, binderPath(), [proxy])
 
+    expect(result.droppedNotes).toEqual([])
     expect(await fs.readFile(deckPath(), 'utf-8')).toContain(
-      '1 Lightning Bolt (LEA:161) #Card Draw, Ramp &2',
+      '1 Lightning Bolt (LEA:161) [proxy] {printed at home} &2',
     )
-    // The mirrored move-to records them too, in the event block the history reads.
-    expect(await changelogOf(deckPath())).toContain('"tags":["Card Draw","Ramp"]')
+    expect(await changelogOf(deckPath())).toContain('"labels":["proxy"],"note":"printed at home"')
   })
 
   test('carries the moved card’s custom art onto the destination line’s new id', async () => {
@@ -589,6 +576,130 @@ describe('incoming moves (move-to saved on the destination)', () => {
     expect(binderArt.ok && [...binderArt.art.values()]).toEqual([{ file: 'deck/ring.png' }])
   })
 
+  test('the save route carries a moved copy’s override and note both ways', async () => {
+    // Outgoing: the deck's own proxy line leaves for the binder, which keeps
+    // `[proxy]` and the note. Incoming: the binder's sale/trade line arrives on
+    // the deck, which keeps the note but not the labels a deck cannot express.
+    await writeDeckFile(tmpDir, 'my-deck', {
+      name: 'My Deck',
+      cards: [{ ...SOL_RING, labels: ['proxy'], note: 'home print' }],
+    })
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [
+        {
+          name: 'Lightning Bolt',
+          set: 'lea',
+          collectorNumber: '161',
+          labels: ['sale', 'trade'],
+          note: 'mint',
+          cardId: 1,
+        },
+      ],
+    })
+    const out = createMoveFromChange('Sol Ring', {
+      set: 'c19',
+      collectorNumber: '221',
+      labels: ['proxy'],
+      note: 'home print',
+      cardId: 1,
+      to: BINDER,
+    })
+    // The incoming event's payload differs from the binder line's on purpose:
+    // the deck lands the EVENT's note, while the binder's mirrored move-from
+    // records the LINE that left — its own labels and note.
+    const incoming = createMoveToChange('Lightning Bolt', {
+      set: 'lea',
+      collectorNumber: '161',
+      labels: ['trade'],
+      note: 'from the event',
+      cardId: 2,
+      sourceCardId: 1,
+      from: BINDER,
+    })
+    const resp = await saveDeck([out, incoming])
+    expect(resp.status).toBe(200)
+
+    const deck = await fs.readFile(deckPath(), 'utf-8')
+    expect(deck).toContain('1 Lightning Bolt (LEA:161) {from the event} &2')
+    expect(deck).not.toContain('Sol Ring')
+    const binder = await fs.readFile(binderPath(), 'utf-8')
+    expect(binder).toContain('- Sol Ring (C19:221) [proxy] {home print} &')
+    expect(binder).not.toContain('Lightning Bolt')
+    // The binder's mirrored move-from records the line that left, override and note.
+    expect(await changelogOf(binderPath())).toMatch(
+      /"action":"move-from","cardName":"Lightning Bolt".*"labels":\["sale","trade"\].*"note":"mint"/,
+    )
+  })
+
+  test('the save route trims a moved copy’s note and refuses one with a control character', async () => {
+    const move = (note: string): ChangeEvent =>
+      createMoveFromChange('Sol Ring', {
+        set: 'c19',
+        collectorNumber: '221',
+        note,
+        cardId: 1,
+        to: BINDER,
+      })
+    const refused = await saveDeck([move('bad\u0007note')])
+    expect(refused.status).toBe(400)
+    expect(await fs.readFile(binderPath(), 'utf-8')).not.toContain('Sol Ring')
+
+    const saved = await saveDeck([move('  pasted note\n')])
+    expect(saved.status).toBe(200)
+    expect(await fs.readFile(binderPath(), 'utf-8')).toContain('{pasted note}')
+  })
+
+  test('an incoming move records the source line’s inherited labels on the source changelog', async () => {
+    // The binder's Bolt has no override; its labels come from the binder's
+    // default. The source-side move-from must record the effective labels.
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      labels: ['sale'],
+      entries: [{ name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 1 }],
+    })
+    const resp = await saveDeck([
+      createMoveToChange('Lightning Bolt', {
+        set: 'lea',
+        collectorNumber: '161',
+        cardId: 2,
+        sourceCardId: 1,
+        from: BINDER,
+      }),
+    ])
+    expect(resp.status).toBe(200)
+    expect(await changelogOf(binderPath())).toMatch(
+      /"action":"move-from","cardName":"Lightning Bolt".*"labels":\["sale"\]/,
+    )
+  })
+
+  test('an incoming copy merging onto a deck line with another note is reported', async () => {
+    await writeDeckFile(tmpDir, 'my-deck', {
+      name: 'My Deck',
+      cards: [{ ...SOL_RING, note: 'keep me' }],
+    })
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 4 }],
+    })
+    const resp = await saveDeck([
+      createMoveToChange('Sol Ring', {
+        set: 'c19',
+        collectorNumber: '221',
+        note: 'from the binder',
+        cardId: 1,
+        sourceCardId: 4,
+        from: BINDER,
+      }),
+    ])
+    expect(resp.status).toBe(200)
+    const body = (await resp.json()) as { droppedNotes: unknown[] }
+    expect(body.droppedNotes).toEqual([
+      { cardName: 'Sol Ring', cardId: 4, note: 'from the binder' },
+    ])
+    expect(await fs.readFile(deckPath(), 'utf-8')).toContain('2 Sol Ring (C19:221) {keep me} &1')
+  })
+
   test('a swap stages both directions against one copy of the other list', async () => {
     // Sol Ring leaves the deck for the binder while Lightning Bolt arrives
     // from it: the binder is written once, with both lines in one changelog
@@ -654,6 +765,30 @@ describe('POST /api/move/selected', () => {
     expect(coll).toContain('Sol Ring')
     const deckContent = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
     expect(deckContent).not.toContain('Sol Ring')
+  })
+
+  test('a card that only inherits its deck’s `proxy` default arrives in the binder as a proxy', async () => {
+    // Every move carries the copy's effective labels: the Sol Ring line has no
+    // override of its own, but the deck's front matter makes it a proxy.
+    await writeDeckFile(tmpDir, 'my-deck', {
+      name: 'My Deck',
+      frontMatter: { labels: ['proxy'] },
+      cards: [SOL_RING],
+    })
+    const res = await move([
+      {
+        listType: 'deck',
+        listSlug: 'my-deck',
+        name: 'Sol Ring',
+        cardId: 1,
+        copyIndex: 0,
+        toType: 'collection',
+        toSlug: 'binder',
+      },
+    ])
+    expect(res.moved).toBe(1)
+    expect(await fs.readFile(binderPath(), 'utf-8')).toContain('- Sol Ring (C19:221) [proxy] &2')
+    expect(await changelogOf(deckPath())).toContain('"labels":["proxy"]')
   })
 
   test('a selected card’s tags travel from the source line to the destination line', async () => {

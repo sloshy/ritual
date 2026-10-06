@@ -287,6 +287,7 @@ describe('session custom art', () => {
       sessionAdds: [],
       editUndo: [],
       originals: new Map(),
+      listLabels: () => undefined,
     }
   }
 
@@ -445,6 +446,7 @@ describe('session language edits', () => {
       sessionAdds: [1, 2],
       editUndo: [],
       originals: new Map(),
+      listLabels: () => undefined,
     }
     const detailsFor: number[] = []
     return {
@@ -527,6 +529,7 @@ describe('session categories', () => {
       sessionAdds: [],
       editUndo: [],
       originals: new Map(),
+      listLabels: () => undefined,
     }
   }
 

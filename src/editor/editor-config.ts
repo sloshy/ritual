@@ -55,6 +55,8 @@ export type ChangePrintingTools = {
 
 /** Everything a list-specific `applyChangePrinting` needs to apply the change. */
 export type ChangePrintingContext<TData> = {
+  /** The editor's own reducer — the one its replay uses, list default labels included. */
+  applyChange: ApplyChange<TData, ChangeInput>
   data: TData
   original: TData | null
   /** Identity + current printing of the targeted tile. */
@@ -443,3 +445,14 @@ export type UseEditorResult<TData, TCardEntry> = {
   /** Open the shell's text prompt to rename one category across the whole list. */
   promptRenameCategory: (oldName: CardCategory) => void
 }
+
+/**
+ * A page's half of {@link ListEditorConfig}. The deck and flat-list controllers
+ * supply the rest: the reducer and the merge probe, each handed the list's own
+ * default labels — so a `move-to` lands in the editor exactly as the save route
+ * replays it, and a page cannot wire a reducer that forgets them.
+ */
+export type ListPageConfig<TData> = Omit<
+  ListEditorConfig<TData>,
+  'applyChange' | 'findAddMergeTargetId'
+>

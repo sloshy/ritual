@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
+import { fulfillJson } from '../helpers/fulfill'
+import { makeMockScryfallCard } from '../helpers/mock-cards'
 
 /** A change bundle as the public site would export it: a set-printing on an existing card plus a new add. */
 const CHANGE_BUNDLE = JSON.stringify({
@@ -156,5 +158,90 @@ test.describe('Import changes (admin)', () => {
     await expect(dialog).toContainText('Loaded 1 change')
     await dialog.getByRole('button', { name: 'Done' }).click()
     await expect(page.locator('.changes-badge')).toHaveText('1')
+  })
+})
+
+test.describe('Import changes into a deck with default labels (admin)', () => {
+  const SOL_RING = makeMockScryfallCard({
+    id: 'sol-ring-c19',
+    name: 'Sol Ring',
+    cmc: 1,
+    type_line: 'Artifact',
+    set: 'c19',
+    set_name: 'Commander 2019',
+    collector_number: '221',
+  })
+
+  test('an imported proxy lands on the proxy-default deck’s line, as the save will replay it', async ({
+    page,
+  }) => {
+    await gotoAdminDashboard(page)
+    await fulfillJson(
+      page,
+      '**/api/decks',
+      { decks: [{ slug: 'proxy-default', name: 'Proxy Default' }] },
+      { method: 'GET' },
+    )
+    await fulfillJson(page, '**/api/deck/proxy-default', {
+      success: true,
+      slug: 'proxy-default',
+      contentHash: 'hash-1',
+      deck: {
+        name: 'Proxy Default',
+        sections: [
+          {
+            name: 'Main',
+            cards: [
+              { quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 3 },
+            ],
+          },
+        ],
+      },
+      // Every line here is a proxy through the deck's default.
+      labels: ['proxy'],
+      cards: { 'Sol Ring': SOL_RING },
+      printings: { 'Sol Ring': [SOL_RING] },
+      lowestPriceCards: {},
+      lowestPriceCardsEur: {},
+      lowestPriceCardsTix: {},
+      symbolMap: {},
+      frontMatter: {},
+    })
+    await openListEditor(page, 'deck')
+    await selectList(page, 'deck', 'proxy-default')
+    await expect(page.locator('.card-item')).toHaveCount(1)
+
+    await page.locator('.btn-import').click()
+    const dialog = page.locator('.import-dialog')
+    await dialog.locator('.import-dialog-textarea').fill(
+      JSON.stringify({
+        format: 'ritual-change-bundle',
+        version: 2,
+        exportedAt: '2026-06-04T00:00:00.000Z',
+        lists: [],
+        moves: [
+          {
+            id: 'm1',
+            timestamp: 1,
+            cardName: 'Sol Ring',
+            from: { kind: 'collection', name: 'Binder' },
+            to: { kind: 'deck', slug: 'proxy-default', name: 'Proxy Default' },
+            set: 'c19',
+            collectorNumber: '221',
+            labels: ['proxy'],
+            cardId: 1,
+            toCardId: 7,
+          },
+        ],
+      }),
+    )
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    await expect(dialog).toContainText('Loaded 1 change')
+    await dialog.getByRole('button', { name: 'Done' }).click()
+
+    // Measured against the default, the proxy needs no override of its own and
+    // folds onto &3 — not a separate `[proxy]` line the save would never write.
+    await expect(page.locator('.card-item')).toHaveCount(1)
+    await expect(page.locator('.card-item .qty-badge').first()).toHaveText('2x')
   })
 })

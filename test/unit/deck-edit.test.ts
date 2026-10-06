@@ -52,6 +52,7 @@ function stateOf(deck: DeckData): DeckSessionState {
     editUndo: [],
     originals: new Map(),
     dirty: false,
+    listLabels: () => undefined,
     art: createSessionArtChanges(),
     categories: createSessionCategories(),
   }
@@ -618,6 +619,31 @@ describe('performDeckLineMove', () => {
       { action: 'move-from', cardName: 'Sol Ring' },
     ])
     expect(lastDeckEditLabel(state)).toBe('move of Sol Ring to 📦 Binder')
+  })
+
+  test('every move-from carries the line’s tags, note and effective labels', () => {
+    const state = stateOf(
+      deckOf([
+        {
+          quantity: 2,
+          name: 'Sol Ring',
+          set: 'c19',
+          collectorNumber: '221',
+          tags: ['Ramp'],
+          note: 'home print',
+          cardId: 1,
+        },
+      ]),
+    )
+    // The line has no override; the deck's `proxy` default is what it carries.
+    state.listLabels = () => ['proxy']
+    const ctx = contextOf()
+    performDeckLineMove(state, ctx, 1, dest)
+    const carried = { tags: ['Ramp'], labels: ['proxy'], note: 'home print' }
+    expect(ctx.sessionChanges).toMatchObject([
+      { action: 'move-from', ...carried },
+      { action: 'move-from', ...carried },
+    ])
   })
 
   test('copies added this session keep their add events but leave the discard menus', () => {

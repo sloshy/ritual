@@ -490,11 +490,15 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
         'Changes applied after dropping conflicts, moves arriving in the list included (a replacement printing written back to a move source is not counted).',
       ),
       conflicts: arr(ref('ImportConflict')),
+      droppedNotes: arr(
+        ref('DroppedNote'),
+        "Notes this list's saves discarded: a moved card that merged onto a deck line already holding a different note keeps the line's note. Empty when none.",
+      ),
       error: str(
         "Present when the list could not be resolved, loaded, or saved. The failing batch applied nothing and the list's later batches were skipped; batches already applied stay applied and are counted in `applied`.",
       ),
     },
-    ['kind', 'slug', 'name', 'applied', 'conflicts'],
+    ['kind', 'slug', 'name', 'applied', 'conflicts', 'droppedNotes'],
   ),
 
   DiffPrinting: obj(

@@ -38,7 +38,7 @@ import {
   isPricelessCard,
   pricelessFacts,
 } from '../list-view/priceless'
-import type { SelectedCard } from '../list-view/useCardSelection'
+import { selectionMoveCarry, type SelectedCard } from '../list-view/useCardSelection'
 import type { WantedBulkEditBundle } from '../list-view/selection-edit-actions'
 import type { ExportFormat } from './ExportMenu'
 import { frontMatterFor, wantedToText, wantedToMarkdown, wantedToCsv } from '../list/list-export'
@@ -305,6 +305,7 @@ export const WantedListPage: Component<WantedListPageProps> = (props) => {
         language: storedLanguage(entry?.language),
         note: entry?.note,
         tags: entry?.tags,
+        moveCarry: selectionMoveCarry(entry ? [entry] : []),
         quantity: 1,
         groupSize: 1,
         price: c.price,

@@ -13,6 +13,34 @@ type WantedListChangeInput = ChangeInput & {
   fileOrder?: number
 }
 
+/** An `add` as this reducer receives it. */
+type WantedAdd = Extract<WantedListChangeInput, { action: 'add' }>
+
+/** Append the entry an `add` (or a `move-to` landing as one, with its `note`) creates. */
+function appendEntry(
+  entries: WantedListCardEntry[],
+  change: WantedAdd,
+  note: string | undefined,
+): WantedListCardEntry[] {
+  const newEntry: WantedListCardEntry = {
+    name: change.cardName,
+    // Lowercased at the apply boundary, like the collection engine.
+    set: change.set?.toLowerCase(),
+    collectorNumber: change.collectorNumber,
+    finish: change.finish,
+    // The written value: `undefined` means `en` and serializes bare.
+    language: change.language,
+    tags: normalizedTags(change.tags),
+    price: 0,
+    fileOrder: entries.length,
+    section: change.section ?? DEFAULT_SECTION,
+    state: wantedState(change),
+    note: noteOrUndefined(note),
+    cardId: change.cardId,
+  }
+  return [...entries, newEntry]
+}
+
 /**
  * Apply a single change to a wanted-list entries array, returning a new array.
  * Does not mutate the input.
@@ -29,25 +57,8 @@ export function applyChangeToWantedList(
   options?: ApplyChangeOptions,
 ): WantedListCardEntry[] {
   switch (change.action) {
-    case 'add': {
-      const state = wantedState(change)
-      const newEntry: WantedListCardEntry = {
-        name: change.cardName,
-        // Lowercased at the apply boundary, like the collection engine.
-        set: change.set?.toLowerCase(),
-        collectorNumber: change.collectorNumber,
-        finish: change.finish,
-        // The written value: `undefined` means `en` and serializes bare.
-        language: change.language,
-        tags: normalizedTags(change.tags),
-        price: 0,
-        fileOrder: entries.length,
-        section: change.section ?? DEFAULT_SECTION,
-        state,
-        cardId: change.cardId,
-      }
-      return [...entries, newEntry]
-    }
+    case 'add':
+      return appendEntry(entries, change, undefined)
 
     case 'remove':
       return removeTarget(entries, change, options)
@@ -165,8 +176,10 @@ export function applyChangeToWantedList(
       )
 
     case 'move-to':
-      // A move into this list adds the card (e.g. when importing a destination list's changes).
-      return applyChangeToWantedList(
+      // A move into this list adds the card (e.g. when importing a destination
+      // list's changes), keeping its tags and note. A wanted line carries no
+      // labels, so the copy's override stays behind.
+      return appendEntry(
         entries,
         {
           action: 'add',
@@ -179,7 +192,7 @@ export function applyChangeToWantedList(
           tags: change.tags,
           section: change.section,
         },
-        options,
+        change.note,
       )
   }
 }

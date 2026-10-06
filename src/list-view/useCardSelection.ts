@@ -1,13 +1,59 @@
 import { createSignal, type Accessor } from 'solid-js'
 import type { Finish, Condition } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
-import type { CardLabel } from '../card/card-labels'
+import { effectiveLabels, type CardLabel } from '../card/card-labels'
+import { movedCopyOf, type MovedCopyFields, type MovedCopySource } from '../changes/change-event'
 import type { CardTag } from '../card/card-tags'
 import { isPricelessCard } from './priceless'
 import type { CardLanguage } from '../card/card-language'
 import type { ListType } from '../list/list-type'
 import type { NamedListRef } from './combined-list'
 import { getCardPriceForFinish, type PriceCurrency } from '../pricing/price-currency'
+
+/**
+ * What a move out of the selection takes with each copy of a tile: the
+ * {@link MovedCopyFields} payload per source line, keyed by the line's `&N`
+ * (a grouped collection tile spans several lines, each with its own note and
+ * labels), plus the payload of a copy whose line has no `&N` yet. Built only
+ * by {@link selectionMoveCarry}, so every tile builder states it the same way;
+ * read only through {@link moveCarryFor}.
+ */
+export type SelectedMoveCarry = {
+  byCardId: ReadonlyMap<number, MovedCopyFields>
+  /** The tile's first line's payload: for a copy with no `&N`, or one not in {@link byCardId}. */
+  fallback: MovedCopyFields
+}
+
+/** One source line as {@link selectionMoveCarry} reads it: its `&N` and its own payload. */
+export type SelectionCarryLine = MovedCopySource & { cardId?: number }
+
+/**
+ * The {@link SelectedMoveCarry} for a tile's source lines, each line's labels
+ * folded to its **effective** labels — its own override, else the list's
+ * default `listLabels` — which is what a move carries (the destination keeps
+ * what its type accepts). Wanted lines carry no labels, so they pass none.
+ */
+export function selectionMoveCarry(
+  lines: readonly SelectionCarryLine[],
+  listLabels?: readonly CardLabel[],
+): SelectedMoveCarry {
+  const payloadOf = (line: SelectionCarryLine): MovedCopyFields =>
+    movedCopyOf({ ...line, labels: effectiveLabels(line.labels, listLabels) })
+  const byCardId = new Map<number, MovedCopyFields>()
+  for (const line of lines) {
+    if (line.cardId !== undefined && !byCardId.has(line.cardId)) {
+      byCardId.set(line.cardId, payloadOf(line))
+    }
+  }
+  const first = lines[0]
+  return { byCardId, fallback: first === undefined ? {} : payloadOf(first) }
+}
+
+/** The payload a move of `card`'s copy on line `cardId` carries. */
+export function moveCarryFor(card: SelectedCard, cardId: number | undefined): MovedCopyFields {
+  const { byCardId, fallback } = card.moveCarry
+  return (cardId === undefined ? undefined : byCardId.get(cardId)) ?? fallback
+}
 
 /**
  * A single card chosen via the list-page multi-select. Carries everything the
@@ -34,7 +80,14 @@ export interface SelectedCard {
    * where a `proxy` copy counts as worth nothing.
    */
   labels?: CardLabel[]
-  /** The tile's `#tag` tokens, carried so a move out of the selection keeps them. */
+  /**
+   * What a move out of the selection carries from each source line — tags,
+   * effective labels, note (see {@link SelectedMoveCarry}). Kept apart from the
+   * tile's display fields: a deck tile shows no note, and its trade row must
+   * not grow one.
+   */
+  moveCarry: SelectedMoveCarry
+  /** The tile's `#tag` tokens, for display and the trade row; a move reads {@link moveCarry}. */
   tags?: CardTag[]
   /**
    * The tile's baked custom art, when it has any. Carried for the valuation and
@@ -47,6 +100,7 @@ export interface SelectedCard {
    * could not deploy shows the real printing and is still worth nothing.
    */
   hasCustomArt?: boolean
+  /** The tile's note, for display and the trade row (unset on deck tiles); a move reads {@link moveCarry}. */
   note?: string
   /** Copies currently selected from this tile (1..groupSize). Removing copies lowers it. */
   quantity: number

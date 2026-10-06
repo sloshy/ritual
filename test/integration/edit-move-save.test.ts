@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import type { CardTag } from '../../src/card/card-tags'
+import type { CardLabel } from '../../src/card/card-labels'
 import * as fs from 'node:fs/promises'
 import * as path from 'node:path'
 import {
@@ -21,6 +22,8 @@ import {
   type BoundWorkspace,
 } from '../helpers/workspace'
 import { captureConsole } from '../helpers/capture'
+import prompts from 'prompts'
+import { stubTty } from '../test-utils'
 
 /**
  * The unified editor's save path for cross-list moves (`saveOpenList`): a saved
@@ -30,6 +33,10 @@ import { captureConsole } from '../helpers/capture'
  * unit tests in `test/unit/{flat-list,deck}-edit.test.ts`; this covers the
  * wiring and file side effects only.
  */
+
+// `ask` refuses to prompt without a terminal; the edit action is answered with
+// prompts.inject, so pretend stdin is one.
+stubTty({ stdin: true })
 
 let ws: BoundWorkspace
 let tmpDir: string
@@ -78,6 +85,8 @@ type MoveFixtureCard = {
   collectorNumber?: string
   cardId?: number
   tags?: CardTag[]
+  labels?: CardLabel[]
+  note?: string
 }
 
 /** Record a pending move of a fixture card, as edit mode does. */
@@ -149,6 +158,110 @@ describe('saveOpenList', () => {
     expect(await saveOpenList(binder, () => [binder])).toBe(true)
     const dest = await fs.readFile(path.join(tmpDir, 'wanted', 'wishlist.md'), 'utf-8')
     expect(dest).toMatch(/Lightning Bolt \(LEA:161\) #Card Draw, Ramp &\d+/)
+  })
+
+  test('an open flat destination receives the moved card’s note through its own session', async () => {
+    const binder = await openBinder()
+    const wishlist = await openWishlist()
+    recordMove(binder, { ...BOLT, note: 'mint' }, { type: 'wanted', name: 'Wishlist' })
+    expect(await saveOpenList(binder, () => [binder, wishlist])).toBe(true)
+    // The in-memory entry proves the open-session path delivered it (the disk
+    // path never touches the session model).
+    const entries = wishlist.strategy.listEntries().map((entry) => entry.label)
+    expect(entries.join('\n')).toContain('Lightning Bolt (LEA:161) {mint}')
+    const dest = await fs.readFile(path.join(tmpDir, 'wanted', 'wishlist.md'), 'utf-8')
+    expect(dest).toMatch(/- Lightning Bolt \(LEA:161\) \{mint\} &2/)
+  })
+
+  test('a copy merging onto an open deck line with another note keeps that note and says so', async () => {
+    await writeCollectionFile(tmpDir, 'binder', {
+      title: 'Binder',
+      entries: [{ name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    const binder = await openBinder()
+    const deck = await openDeck()
+    recordMove(
+      binder,
+      { name: 'Sol Ring', set: 'c19', collectorNumber: '221', note: 'binder copy' },
+      { type: 'deck', name: 'My Deck' },
+    )
+    const { result: saved, lines } = await captureConsole(['log'], () =>
+      saveOpenList(binder, () => [binder, deck]),
+    )
+    expect(saved).toBe(true)
+    // The open deck's own model merged the copy (the open-session branch).
+    const entries = deck.strategy.listEntries().map((entry) => entry.label)
+    expect(entries.join('\n')).toContain('2 Sol Ring')
+    const dest = await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')
+    expect(dest).toContain('2 Sol Ring (C19:221) &1')
+    expect(dest).not.toContain('binder copy')
+    expect(lines.log.join('\n')).toContain(
+      'Note on "Sol Ring" &1 was dropped (merged onto an existing line): binder copy',
+    )
+  })
+
+  test('a deck line that inherits its deck’s `proxy` default moves into the binder as a proxy', async () => {
+    // Driven through the real edit-mode entry point, so the deck strategy's own
+    // default-labels wiring (its front matter, read live) is what is tested.
+    await writeDeckFile(tmpDir, 'my-deck', {
+      name: 'My Deck',
+      frontMatter: { labels: ['proxy'] },
+      cards: [{ quantity: 1, name: 'Sol Ring', set: 'c19', collectorNumber: '221', cardId: 1 }],
+    })
+    const binderRef = {
+      type: 'collection',
+      name: 'Binder',
+      file: path.join(tmpDir, 'collections', 'binder.md'),
+    } as const
+    const deck = await openListSession(
+      { type: 'deck', name: 'My Deck', file: path.join(tmpDir, 'decks', 'my-deck.md') },
+      sessionConfig,
+      true,
+      () => Promise.resolve([binderRef]),
+    )
+    prompts.inject(['move-list', binderRef])
+    await deck.strategy.editEntry(deck.ctx, 1)
+    expect(await saveOpenList(deck, () => [deck])).toBe(true)
+    expect(await fs.readFile(binderRef.file, 'utf-8')).toContain('- Sol Ring (C19:221) [proxy] &2')
+  })
+
+  test('copies merging onto a closed deck line with another note are reported once', async () => {
+    // Two copies of one source line leave for a deck that is not open: the
+    // destination is written directly (the offline branch), and the drop the
+    // two copies share is one warning, not two.
+    await writeDeckFile(tmpDir, 'other-deck', {
+      name: 'Other Deck',
+      cards: [
+        {
+          quantity: 2,
+          name: 'Sol Ring',
+          set: 'c19',
+          collectorNumber: '221',
+          note: 'spare',
+          cardId: 1,
+        },
+      ],
+    })
+    const other = await openFixtureList('deck', 'Other Deck', 'decks/other-deck.md')
+    const ring: MoveFixtureCard = {
+      name: 'Sol Ring',
+      set: 'c19',
+      collectorNumber: '221',
+      note: 'spare',
+    }
+    recordMove(other, ring, { type: 'deck', name: 'My Deck' })
+    recordMove(other, ring, { type: 'deck', name: 'My Deck' })
+    const { result: saved, lines } = await captureConsole(['log'], () =>
+      saveOpenList(other, () => [other]),
+    )
+    expect(saved).toBe(true)
+    expect(await fs.readFile(path.join(tmpDir, 'decks', 'my-deck.md'), 'utf-8')).toContain(
+      '3 Sol Ring (C19:221) &1',
+    )
+    const warnings = lines.log.filter((line) => line.includes('was dropped'))
+    expect(warnings).toEqual([
+      '  ⚠ Note on "Sol Ring" &1 was dropped (merged onto an existing line): spare',
+    ])
   })
 
   test('a move to an open list lands on its session and saves it in the same step', async () => {

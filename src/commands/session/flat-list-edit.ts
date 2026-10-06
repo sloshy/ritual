@@ -7,7 +7,7 @@ import {
   type ChangeEvent,
 } from '../../changes/change-event'
 import type { Condition, Finish } from '../../card/finish-condition'
-import type { CardLabel } from '../../card/card-labels'
+import { effectiveLabels, type CardLabel } from '../../card/card-labels'
 import type { CardLanguage } from '../../card/card-language'
 import type { CardTag } from '../../card/card-tags'
 import { allocateId, claimId, releaseId } from '../../card/card-id'
@@ -284,7 +284,16 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
   const removed = { ...entry }
   const moveEvent = createMoveFromChange(
     removed.name,
-    moveFromOptionsFor({ ...printingOptionsFrom(removed), tags: removed.tags, cardId }, dest),
+    moveFromOptionsFor(
+      {
+        ...printingOptionsFrom(removed),
+        tags: removed.tags,
+        labels: effectiveLabels(removed.labels, list.listLabels()),
+        note: removed.note,
+        cardId,
+      },
+      dest,
+    ),
   )
 
   // The model removal targets the entry's own fields, not the move-from's —
@@ -324,7 +333,6 @@ export function performFlatListMove<E extends EditableFlatListEntry>(
     reclaimId: cardId,
   })
   resetStaleLastAdded(flatListModel(list), ctx, cardId)
-  if (removed.note) console.log(t('cli.edit.moveNoteDropped', { name: removed.name }))
   console.log(
     t('cli.edit.movedToList', {
       line: list.renderEntry(removed),
@@ -474,7 +482,7 @@ export function flatListDelegates<E extends EditableFlatListEntry>(
   const { session, state } = list
   return {
     applyChange: (change: ChangeEvent) => applyFlatListChange(session, change),
-    receiveMove: (change, art) => receiveFlatListMove(session, change, art),
+    receiveMove: (change, art) => receiveFlatListMove(session, change, list.listLabels(), art),
     persist: () => persistFlatListSession(session),
     hasUnsavedChanges: () => session.dirty,
     sessionSaved: () => resetFlatListSessionTracking(list),

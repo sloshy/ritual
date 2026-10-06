@@ -297,4 +297,98 @@ test.describe('Deck Editor Page', () => {
       await expect(changeItem).toContainText('[ja]')
     })
   })
+
+  test.describe('move to list — the copy keeps its labels and note', () => {
+    const SOL_RING = makeMockScryfallCard({
+      id: 'sol-ring-c19',
+      name: 'Sol Ring',
+      cmc: 1,
+      type_line: 'Artifact',
+      set: 'c19',
+      set_name: 'Commander 2019',
+      collector_number: '221',
+    })
+    /** One save request's events, as far as this test reads them. */
+    type SavedMove = { action: string; cardName: string; labels?: string[]; note?: string }
+
+    test.beforeEach(async ({ page }) => {
+      await gotoAdminDashboard(page)
+      await fulfillJson(
+        page,
+        '**/api/decks',
+        { decks: [{ slug: 'proxy-move-deck', name: 'Proxy Move Deck' }] },
+        { method: 'GET' },
+      )
+      await fulfillJson(page, '**/api/lists', {
+        success: true,
+        lists: [
+          { type: 'deck', slug: 'proxy-move-deck', name: 'Proxy Move Deck' },
+          { type: 'collection', slug: 'binder', name: 'Binder' },
+        ],
+      })
+      await fulfillJson(page, '**/api/deck/proxy-move-deck', {
+        success: true,
+        slug: 'proxy-move-deck',
+        contentHash: 'hash-1',
+        deck: {
+          name: 'Proxy Move Deck',
+          sections: [
+            {
+              name: 'Main',
+              cards: [
+                {
+                  quantity: 1,
+                  name: 'Sol Ring',
+                  set: 'c19',
+                  collectorNumber: '221',
+                  note: 'home print',
+                  cardId: 1,
+                },
+              ],
+            },
+          ],
+        },
+        cards: { 'Sol Ring': SOL_RING },
+        printings: { 'Sol Ring': [SOL_RING] },
+        lowestPriceCards: {},
+        lowestPriceCardsEur: {},
+        lowestPriceCardsTix: {},
+        symbolMap: {},
+        frontMatter: {},
+        // The line has no override: it is a proxy through the deck's default,
+        // which the editor reads from the load's list-level `labels`.
+        labels: ['proxy'],
+      })
+      await openListEditor(page, 'deck')
+      await selectList(page, 'deck', 'proxy-move-deck')
+      await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    })
+
+    test('the saved move-from carries the line’s note and its inherited labels', async ({
+      page,
+    }) => {
+      let saved: SavedMove[] | null = null
+      await fulfillJson(page, '**/api/deck/proxy-move-deck/save', (route) => {
+        saved = (JSON.parse(route.request().postData() ?? '{}') as { changes: SavedMove[] }).changes
+        return { success: true, message: 'Saved', contentHash: 'hash-2', effects: [] }
+      })
+
+      await page.locator('.card-item').first().locator('.edit-btn-context').click()
+      await page.locator('.card-context-menu button', { hasText: 'Move to list…' }).click()
+      await page.locator('.move-picker-item', { hasText: "Collection 'Binder'" }).click()
+      await expect(page.locator('.card-item')).toHaveCount(0)
+      await expect(page.locator('.changes-badge')).toHaveText('1')
+
+      await page.locator('.btn-save').click()
+      await expect.poll(() => saved?.length).toBe(1)
+      // The event records the copy's effective labels — the deck default it
+      // inherits — so the binder can keep it a proxy.
+      expect(saved![0]).toMatchObject({
+        action: 'move-from',
+        cardName: 'Sol Ring',
+        labels: ['proxy'],
+        note: 'home print',
+      })
+    })
+  })
 })

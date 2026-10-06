@@ -35,6 +35,8 @@ import { applyChangesCollectingMisses, type ApplyChange } from '../../changes/ap
 import { applyChangeToCollection, toCollectionCardEntries } from '../../changes/collection-changes'
 import { applyChangeToDeck, findDeckAddMergeTargetId } from '../../changes/deck-changes'
 import { applyChangeToWantedList } from '../../changes/wanted-changes'
+import type { CardLabel } from '../../card/card-labels'
+import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import { toWantedCardEntries } from '../../list/wanted-entries'
 import { buildSyntheticRequest } from '../../util/synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
@@ -78,6 +80,13 @@ export type ListImportResult = {
   applied: number
   /** Changes skipped: target card no longer exists, or the action cannot apply to the list. */
   conflicts: ImportConflict[]
+  /**
+   * Notes the list's saves discarded: a moved copy that merged onto a deck line
+   * already holding a different note keeps the line's note, on this list (a
+   * move arriving here) or on a list a move from here landed in. Each save
+   * route's own `droppedNotes`, gathered across the list's batches.
+   */
+  droppedNotes: DroppedNote[]
   /**
    * Human-readable failure when the list could not be resolved, loaded, or
    * saved. The failing batch applied nothing and the list's later batches were
@@ -163,6 +172,8 @@ function retarget(
 type ApplyOutcome = {
   retargeted: ChangeEvent[]
   conflicts: ImportConflict[]
+  /** What the batch's saves reported in `droppedNotes`. */
+  droppedNotes: DroppedNote[]
   error?: string
 }
 
@@ -185,8 +196,11 @@ function splitApplicable<TData>(
   data: TData,
   retargeted: ChangeEvent[],
   apply: ApplyChange<TData, ChangeEvent>,
+  listLabels: readonly CardLabel[] | undefined,
 ): SplitApplicableResult<TData> {
-  const { data: updated, unmatched } = applyChangesCollectingMisses(data, retargeted, apply)
+  const { data: updated, unmatched } = applyChangesCollectingMisses(data, retargeted, apply, {
+    listLabels,
+  })
   if (unmatched.length === 0) return { updated, applicable: retargeted, missConflicts: [] }
   const missed = new Set(unmatched.map((item) => item.change))
   return {
@@ -224,39 +238,33 @@ export function rewriteMergedDeckIds(
   deck: DeckData,
   changes: readonly ChangeEvent[],
   state: RetargetState,
+  listLabels: readonly CardLabel[] | undefined,
 ): ChangeEvent[] {
   let current = deck
   return changes.map((change) => {
-    const rewritten = mergeTargetOf(current, change, state)
-    current = applyChangeToDeck(current, rewritten)
+    const rewritten = mergeTargetOf(current, change, state, listLabels)
+    current = applyChangeToDeck(current, rewritten, { listLabels })
     return rewritten
   })
 }
 
 /** `change` re-aimed at the line `deck` would merge it onto, or `change` itself. */
-function mergeTargetOf(deck: DeckData, change: ChangeEvent, state: RetargetState): ChangeEvent {
+function mergeTargetOf(
+  deck: DeckData,
+  change: ChangeEvent,
+  state: RetargetState,
+  listLabels: readonly CardLabel[] | undefined,
+): ChangeEvent {
   if (change.action !== 'add' && change.action !== 'move-to') return change
   if (change.cardId === undefined || collectDeckCardIds(deck).includes(change.cardId)) {
     return change
   }
   // Labels and tags are part of the merge identity (`mergesOntoCard`): a
   // `[proxy]` arrival folds onto the `[proxy]` line, never its plain sibling,
-  // and a tagged copy onto the same-tagged line. A `move-to` carries its tags
-  // but never labels (the copy lands under the list default) — decided by the
-  // action, not by key presence, because a decoded bundle payload is open and a
-  // stray key on a `move-to` must not make this disagree with the reducer.
-  const isAdd = change.action === 'add'
-  const merged = findDeckAddMergeTargetId(deck, {
-    action: 'add',
-    cardName: change.cardName,
-    set: change.set,
-    collectorNumber: change.collectorNumber,
-    finish: change.finish,
-    condition: change.condition,
-    language: change.language,
-    labels: isAdd ? change.labels : undefined,
-    tags: change.tags,
-  })
+  // and a tagged copy onto the same-tagged line. The probe is the reducer's
+  // own, so a `move-to`'s carried labels are measured against this deck's
+  // default exactly as they will be when it lands.
+  const merged = findDeckAddMergeTargetId(deck, change, { listLabels })
   if (merged === undefined) return change
   for (const [exported, allocated] of state.idMap) {
     if (allocated === change.cardId) state.idMap.set(exported, merged)
@@ -267,8 +275,8 @@ function mergeTargetOf(deck: DeckData, change: ChangeEvent, state: RetargetState
   return { ...change, cardId: merged }
 }
 
-/** How many of a list's changes landed, and why the rest did not. */
-type SaveChangesOutcome = { applied: number; error?: string }
+/** How many of a list's changes landed, the notes their saves dropped, and why the rest did not. */
+type SaveChangesOutcome = { applied: number; droppedNotes: DroppedNote[]; error?: string }
 
 /**
  * Split `changes` into save-sized batches: no more events than one save may
@@ -312,6 +320,7 @@ async function saveChanges(
 ): Promise<SaveChangesOutcome> {
   let hash = contentHash
   let applied = 0
+  const droppedNotes: DroppedNote[] = []
   for (const chunk of saveChunks(changes)) {
     const saved = await call<ListSaveResponse>(
       (req) => handleListSave(req, type),
@@ -323,11 +332,12 @@ async function saveChanges(
         ? { changes: chunk.map(toWireChange) }
         : listSaveRequest(chunk, hash, { continueSession: applied > 0 }),
     )
-    if (!saved.ok) return { applied, error: saved.error }
+    if (!saved.ok) return { applied, droppedNotes, error: saved.error }
     hash = saved.data.contentHash
     applied += chunk.length
+    droppedNotes.push(...saved.data.droppedNotes)
   }
-  return { applied }
+  return { applied, droppedNotes }
 }
 
 /** A list as the import engine reads it: its data, its names by id, its hash. */
@@ -335,6 +345,8 @@ type LoadedForImport<TData> = {
   data: TData
   namesById: ReadonlyMap<number, string>
   contentHash: string | undefined
+  /** The list's front-matter default labels, which the save route replays an arriving move against. */
+  listLabels?: CardLabel[]
 }
 
 /** What the import engine needs to know about one list type. */
@@ -348,6 +360,7 @@ type ImportTarget<TData> = {
     before: TData,
     applicable: readonly ChangeEvent[],
     state: RetargetState,
+    listLabels: readonly CardLabel[] | undefined,
   ) => ChangeEvent[]
 }
 
@@ -377,6 +390,7 @@ const DECK_TARGET: ImportTarget<DeckData> = {
       data: body.deck,
       namesById: deckCardNamesById(body.deck),
       contentHash: body.contentHash,
+      listLabels: body.labels,
     })),
   apply: applyChangeToDeck,
   settle: rewriteMergedDeckIds,
@@ -391,7 +405,12 @@ const COLLECTION_TARGET: ImportTarget<CollectionCardEntry[]> = {
       slug,
       (body) => {
         const entries = toCollectionCardEntries(body.entries)
-        return { data: entries, namesById: cardNamesById(entries), contentHash: body.contentHash }
+        return {
+          data: entries,
+          namesById: cardNamesById(entries),
+          contentHash: body.contentHash,
+          listLabels: body.labels,
+        }
       },
     ),
   apply: applyChangeToCollection,
@@ -419,25 +438,28 @@ async function applyToList<TData>(
   state: RetargetState,
 ): Promise<ApplyOutcome> {
   const loaded = await target.load(slug)
-  if (!loaded.ok) return { retargeted: [], conflicts: [], error: loaded.error }
-  const { data, namesById, contentHash } = loaded.data
+  if (!loaded.ok) return { retargeted: [], conflicts: [], droppedNotes: [], error: loaded.error }
+  const { data, namesById, contentHash, listLabels } = loaded.data
 
   const { retargeted, conflicts } = retarget(changes, namesById, state)
-  if (retargeted.length === 0) return { retargeted, conflicts }
+  if (retargeted.length === 0) return { retargeted, conflicts, droppedNotes: [] }
 
   // The save route replays the changes against the file itself and refuses the
   // whole batch when any change does not apply, so the inapplicable ones are
   // split off here first — with the route's own reducer — and only the rest
   // are sent.
-  const split = splitApplicable(data, retargeted, target.apply)
-  const applicable = target.settle?.(data, split.applicable, state) ?? split.applicable
+  const split = splitApplicable(data, retargeted, target.apply, listLabels)
+  const applicable = target.settle?.(data, split.applicable, state, listLabels) ?? split.applicable
   const allConflicts = [...conflicts, ...split.missConflicts]
-  if (applicable.length === 0) return { retargeted: applicable, conflicts: allConflicts }
+  if (applicable.length === 0) {
+    return { retargeted: applicable, conflicts: allConflicts, droppedNotes: [] }
+  }
 
   const saved = await saveChanges(target.type, slug, applicable, contentHash)
   return {
     retargeted: applicable.slice(0, saved.applied),
     conflicts: allConflicts,
+    droppedNotes: saved.droppedNotes,
     ...(saved.error === undefined ? {} : { error: saved.error }),
   }
 }
@@ -523,6 +545,7 @@ async function applyBatch(progress: TargetProgress, batch: ImportBatch): Promise
   const outcome = await applyByKind(result.kind, resolved.data, batch.changes, progress.retarget)
   result.applied += outcome.error ? 0 : outcome.retargeted.length
   result.conflicts.push(...outcome.conflicts)
+  result.droppedNotes = dedupeDroppedNotes([...result.droppedNotes, ...outcome.droppedNotes])
   if (outcome.error) result.error = outcome.error
 }
 
@@ -549,6 +572,7 @@ export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImp
       name: target.name,
       applied: 0,
       conflicts: [],
+      droppedNotes: [],
     },
   }))
   for (const batch of plan.batches) {

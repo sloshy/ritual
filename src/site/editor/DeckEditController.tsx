@@ -3,10 +3,16 @@ import type { SellModeProps } from '../../list-view/sell-mode'
 import type { CardKingdomCards } from '../../list/site-data'
 import type { DeckData } from '../../list/deck'
 import type { Card } from '../../card/card'
-import type { CardLabel } from '../../card/card-labels'
+import { effectiveLabels, type CardLabel } from '../../card/card-labels'
 import { DeckPage } from '../DeckPage'
 import type { PriceCurrency } from '../../pricing/price-currency'
-import type { ListRef, PrintingTuple } from '../../changes/change-event'
+import {
+  movedCopyOf,
+  type ChangeInput,
+  type ListRef,
+  type MovedCopyPayload,
+  type PrintingTuple,
+} from '../../changes/change-event'
 import type { NamedListRef } from '../../list-view/combined-list'
 import type { CardContextInfo, ContextMenuState } from '../../list-view/card-context'
 import { contextInfoFromSelected } from '../../list-view/selected-to-context'
@@ -22,7 +28,8 @@ import { bulkAddTags, tagSuggestions } from '../../editor/card-tags-edit'
 import type { CardTag } from '../../card/card-tags'
 import { useEditor } from '../../editor/useEditor'
 import { sharedBulkEdit } from '../../editor/shared-bulk-edit'
-import type { ListEditorConfig, UseEditorResult } from '../../editor/editor-config'
+import type { ListPageConfig, UseEditorResult } from '../../editor/editor-config'
+import type { ApplyChange } from '../../changes/apply-batch'
 import type { UseEditorDefaultsResult } from '../../editor/useEditorDefaults'
 import type { SearchProvider } from '../../editor/search-provider'
 import {
@@ -103,10 +110,20 @@ export type DeckEditController = SwapController & {
  * strategies while sharing the store and interaction logic.
  */
 export function useDeckEditController(
-  buildConfig: (cardActions: DeckCardDataActions) => ListEditorConfig<DeckData>,
-  initialSlug?: string | null,
+  buildConfig: (cardActions: DeckCardDataActions) => ListPageConfig<DeckData>,
+  initialSlug: string | null | undefined,
+  /**
+   * The deck's front-matter default labels (`proxy`), read live: what a line
+   * without an override inherits, what a move out of the deck carries for it,
+   * and what every apply here — the replay a save adopts as its baseline
+   * included — lands a copy against, exactly as the save route replays it.
+   */
+  listLabels: Accessor<CardLabel[] | undefined>,
 ): DeckEditController {
   const [cardData, cardActions] = useDeckCardData()
+  /** The deck reducer with the deck's live default labels: every apply in this editor goes through it. */
+  const applyDeck: ApplyChange<DeckData, ChangeInput> = (data, change, options) =>
+    applyChangeToDeck(data, change, { ...options, listLabels: listLabels() })
   const [modalCardName, setModalCardName] = createSignal<string | null>(null)
   const [deckContextMenu, setDeckContextMenu] = createSignal<DeckContextMenuState | null>(null)
 
@@ -116,12 +133,14 @@ export function useDeckEditController(
       // set-language original resolver; a page config may still override it.
       findOriginalLanguage: findDeckCardLanguage,
       ...buildConfig(cardActions),
+      applyChange: applyDeck,
       copyModel: 'quantity',
       getOriginalCardNames: deckCardNamesById,
       // Follows from the data shape, like the copy model: a deck folds a repeat
       // of the same printing into the existing entry, so per-line metadata an
       // add carries has to be aimed at that entry's `&N`.
-      findAddMergeTargetId: findDeckAddMergeTargetId,
+      findAddMergeTargetId: (data, add) =>
+        findDeckAddMergeTargetId(data, add, { listLabels: listLabels() }),
     },
     initialSlug,
   )
@@ -136,7 +155,7 @@ export function useDeckEditController(
     const tags = findDeckCardTags(d, cardName, cardId)
     editor.changes.addCard(cardName, { cardId, labels, tags })
     editor.setData((prev) =>
-      prev ? applyChangeToDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
+      prev ? applyDeck(prev, { action: 'add', cardName, labels, tags, cardId }) : prev,
     )
   }
 
@@ -171,7 +190,7 @@ export function useDeckEditController(
       findDeckCardTags(d, cardName, cardId),
     )
     editor.setData((prev) =>
-      prev ? applyChangeToDeck(prev, { action: 'remove', cardName, cardId }) : prev,
+      prev ? applyDeck(prev, { action: 'remove', cardName, cardId }) : prev,
     )
     // The removal took the deck's last line of this name, so its pending
     // `set-categories` events no longer have a card — fold them onto the undo
@@ -213,7 +232,7 @@ export function useDeckEditController(
     const originalLabels = findDeckCardLabels(editor.getOriginal(), cardName, cardId)
     editor.changes.setLabel(cardName, labels, originalLabels, cardId)
     editor.setData((prev) =>
-      prev ? applyChangeToDeck(prev, { action: 'set-label', cardName, labels, cardId }) : prev,
+      prev ? applyDeck(prev, { action: 'set-label', cardName, labels, cardId }) : prev,
     )
   }
 
@@ -223,7 +242,7 @@ export function useDeckEditController(
     const cardId = findDeckCardIdInSection(d, cardName, false)
     editor.changes.addChange({ action: 'set-commander', cardName, cardId })
     editor.setData((prev) =>
-      prev ? applyChangeToDeck(prev, { action: 'set-commander', cardName, cardId }) : prev,
+      prev ? applyDeck(prev, { action: 'set-commander', cardName, cardId }) : prev,
     )
   }
 
@@ -241,19 +260,18 @@ export function useDeckEditController(
     const cardId = findDeckCardIdInSection(d, menu.cardName, true)
     editor.changes.addChange({ action: 'unset-commander', cardName: menu.cardName, cardId })
     editor.setData((prev) =>
-      prev
-        ? applyChangeToDeck(prev, { action: 'unset-commander', cardName: menu.cardName, cardId })
-        : prev,
+      prev ? applyDeck(prev, { action: 'unset-commander', cardName: menu.cardName, cardId }) : prev,
     )
     closeContextMenu()
   }
 
   // Emit one move-from per copy. A deck entry holds all its copies under a single
   // cardId, so every event shares that id and it is freed to the pool once. The
-  // moved copies keep the entry's language, resolved before the first move-from
-  // collapses the entry; a name-only card whose printing came from the picker
-  // has no entry language, so the tuple's own stamp (a ja-only pick) wins as
-  // the fallback.
+  // moved copies keep the entry's language, tags, effective labels (its
+  // override, else the deck's default) and note, resolved before the first
+  // move-from collapses the entry (the destination keeps the labels its type
+  // accepts); a name-only card whose printing came from the picker has no entry
+  // language, so the tuple's own stamp (a ja-only pick) wins as the fallback.
   const emitMove = (
     cardName: string,
     dest: ListRef,
@@ -262,20 +280,24 @@ export function useDeckEditController(
     copies: number,
   ) => {
     const d = editor.data()
-    const language =
-      (d ? findDeckCardLanguage(d, cardName, cardId) : undefined) ?? printing.language
-    const tags = d ? findDeckCardTags(d, cardName, cardId) : undefined
+    const line = d ? findDeckCard(d, cardName, cardId) : undefined
+    const language = line?.language ?? printing.language
+    const copy: MovedCopyPayload = movedCopyOf({
+      tags: line?.tags,
+      labels: effectiveLabels(line?.labels, listLabels?.()),
+      note: line?.note,
+    })
     batch(() => {
       for (let i = 0; i < copies; i++) {
-        editor.changes.moveCardToList(cardName, dest, { ...printing, language, tags, cardId })
+        editor.changes.moveCardToList(cardName, dest, { ...printing, language, ...copy, cardId })
         editor.setData((prev) =>
           prev
-            ? applyChangeToDeck(prev, {
+            ? applyDeck(prev, {
                 action: 'move-from',
                 cardName,
                 ...printing,
                 language,
-                tags,
+                ...copy,
                 cardId,
                 to: dest,
               })
@@ -310,10 +332,10 @@ export function useDeckEditController(
     listType: 'deck',
     kind: 'deck',
     targetsOf: (deck) => deckSwapTargets(deck, cardData),
-    applyChange: applyChangeToDeck,
+    applyChange: applyDeck,
     quantityOf: (deck, cardId) =>
       deck.sections.flatMap((s) => s.cards).find((c) => c.cardId === cardId)?.quantity ?? 0,
-    mergeTargetId: deckSwapMergeTargetId,
+    mergeTargetId: (deck, move) => deckSwapMergeTargetId(deck, move, { listLabels: listLabels() }),
   })
 
   const liveTagsOf = (cardName: string, cardId?: number): readonly CardTag[] | undefined => {

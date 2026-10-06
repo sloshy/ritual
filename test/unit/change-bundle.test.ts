@@ -81,6 +81,8 @@ const SAMPLE_MOVE = move('m1', 1002, DECK, BINDER, {
   condition: 'NM',
   language: 'ja',
   tags: ['Card Draw', 'Ramp'],
+  labels: ['sale', 'trade'],
+  note: 'from the {first} pack',
   cardId: 5,
   section: 'Artifacts',
 })
@@ -121,6 +123,50 @@ describe('change-bundle round trip', () => {
     // Both halves of the move carry them back into the editor stacks.
     expect(moveFromEventOf(SAMPLE_MOVE).tags).toEqual(['Card Draw', 'Ramp'])
     expect(moveToEventOf(SAMPLE_MOVE).tags).toEqual(['Card Draw', 'Ramp'])
+  })
+
+  it('carries a move’s label override and note into both halves, folding empty ones to absent', () => {
+    const parsed = parseOk(
+      bundle(
+        [],
+        [
+          move('m1', 1, DECK, BINDER, { labels: ['trade', 'sale', 'sale'] }),
+          move('m2', 2, DECK, BINDER, { labels: [], note: '' }),
+        ],
+      ),
+    )
+    expect(parsed.moves[0]?.labels).toEqual(['sale', 'trade'])
+    expect(parsed.moves[1]?.labels).toBeUndefined()
+    expect(parsed.moves[1]?.note).toBeUndefined()
+    // Unfiltered here: the labels describe the copy, and the destination keeps
+    // what its type accepts when the move lands.
+    for (const event of [moveFromEventOf(SAMPLE_MOVE), moveToEventOf(SAMPLE_MOVE)]) {
+      expect(event).toMatchObject({ labels: ['sale', 'trade'], note: 'from the {first} pack' })
+    }
+  })
+
+  it('accepts a move carrying a valid payload (the control for the refusals below)', () => {
+    const parsed = parseOk(
+      bundle([], [{ ...move('m1', 1, DECK, BINDER), labels: ['proxy'], note: 'mint' }]),
+    )
+    expect(parsed.moves[0]).toMatchObject({ labels: ['proxy'], note: 'mint' })
+  })
+
+  it.each<[string, Record<string, unknown>, string]>([
+    [
+      'an unknown label',
+      { labels: ['gift'] },
+      `Move #1 Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy.`,
+    ],
+    [
+      'an exclusive label combination',
+      { labels: ['proxy', 'sale'] },
+      "Move #1 'proxy' cannot be combined with other labels.",
+    ],
+    ['a non-string note', { note: 5 }, 'Move #1 has an invalid "note".'],
+  ])('rejects a move carrying %s', (_, extra, message) => {
+    const result = parseRaw(bundle([], [{ ...move('m1', 1, DECK, BINDER), ...extra }]))
+    expect(result).toBe(message)
   })
 
   it('omits baseContentHash and a move ref slug when not provided', () => {
@@ -501,6 +547,8 @@ const OUTGOING: MoveFromChange = {
   collectorNumber: '221',
   finish: 'foil',
   tags: ['Ramp'],
+  labels: ['proxy'],
+  note: 'leaving',
   to: { type: 'collection', name: 'Binder' },
 }
 
@@ -514,6 +562,8 @@ const INCOMING: MoveToChange = {
   section: 'Artifacts',
   language: 'ja',
   tags: ['Ramp'],
+  labels: ['sale', 'trade'],
+  note: 'arriving',
   from: { type: 'wanted', name: 'Wishlist' },
 }
 
@@ -539,6 +589,8 @@ describe('normalizeChangeGroups', () => {
         to: BINDER,
         language: 'ja',
         tags: ['Ramp'],
+        labels: ['sale', 'trade'],
+        note: 'arriving',
         cardId: 7,
         toCardId: 42,
         section: 'Artifacts',
@@ -553,6 +605,8 @@ describe('normalizeChangeGroups', () => {
         collectorNumber: '221',
         finish: 'foil',
         tags: ['Ramp'],
+        labels: ['proxy'],
+        note: 'leaving',
         cardId: 5,
       },
     ])

@@ -123,8 +123,23 @@ function summarizeConflictReasons(conflicts: readonly ImportConflict[]): string 
 function printResults(result: BundleImportResult, quiet: boolean): void {
   for (const list of result.lists) {
     const heading = `${LIST_TYPE_DISPLAY[list.kind].icon} ${list.name}`
+    // A discarded note is data loss, like a skipped change: printed even under
+    // `--quiet`, and even for a list whose later batch failed (the batches
+    // before it landed). In a normal run it follows the list's applied line.
+    const printDroppedNotes = (): void => {
+      for (const dropped of list.droppedNotes) {
+        console.error(
+          t('cli.move.noteDroppedLine', {
+            name: dropped.cardName,
+            id: dropped.cardId !== undefined ? ` &${dropped.cardId}` : '',
+            note: dropped.note,
+          }),
+        )
+      }
+    }
     if (list.error !== undefined) {
       console.error(`✗ ${t('cli.importChanges.listFailed', { heading, reason: list.error })}`)
+      printDroppedNotes()
       continue
     }
     // Skipped changes are the one thing `--quiet` must never hide: nothing else
@@ -140,6 +155,7 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
           })}`,
         )
       }
+      printDroppedNotes()
       continue
     }
     console.log(
@@ -148,6 +164,7 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
         changes: t('domain.count.changes', { count: list.applied }),
       })}`,
     )
+    printDroppedNotes()
     for (const conflict of list.conflicts) {
       console.error(
         `  ⚠ ${t('cli.importChanges.skippedChange', {

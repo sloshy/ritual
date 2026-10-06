@@ -970,8 +970,14 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'destination list; set/collectorNumber/finish/condition/language override the printing ' +
         'on arrival, and toSection picks a destination deck section. Unresolvable moves are ' +
         'skipped and counted; notes that a destination cannot keep are reported in droppedNotes. ' +
-        "A moved card's tags follow it onto the destination line, and so does its custom art: the " +
-        "entry is re-filed under the destination line's new cardId, except for a copy that merges " +
+        "A moved card's tags and note follow it onto the destination line (a copy merging onto " +
+        "a deck line with a different note keeps that line's note; see droppedNotes), and so " +
+        'do its effective labels (its own override, else the source list default) as far as ' +
+        'the destination type accepts them (proxy into a deck; sale/trade/keep into a ' +
+        'collection only; nothing into a wanted list), written as an override only where they ' +
+        "differ from the destination's default. Its custom art " +
+        "follows too: the entry is re-filed under the destination line's new cardId, except for " +
+        'a copy that merges ' +
         'onto a line the destination already had, which keeps its own art. ' +
         'Categories do NOT follow a moved card — a category belongs to a card name in one list — ' +
         'so a source list that loses its last copy of a name drops that name’s assignment and ' +

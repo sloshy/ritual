@@ -10,12 +10,14 @@ import path from 'node:path'
 import { t } from '../i18n/t'
 import { appendChangelog } from '../changes/changelog-writer'
 import {
-  createMoveFromChange,
-  createMoveToChange,
   createRemoveChange,
+  mirrorMoveFrom,
+  mirrorMoveTo,
   printingOptionsFrom,
+  type MoveFromChange,
 } from '../changes/change-event'
 import { importFromTextFile } from '../importers/text-file'
+import { parseDeckFrontMatter } from './deck-file'
 import { parseCollectionFile } from './collection-file'
 import { parseWantedListFile } from './wanted-file'
 import {
@@ -23,8 +25,11 @@ import {
   applyRemoveFromStaged,
   adoptedCardId,
   applyAddToStaged,
+  arrivingCopyOf,
   stagedCardIds,
   commitStagedCategoryPrunes,
+  dedupeDroppedNotes,
+  movingLabels,
   writeStagedFiles,
   type DroppedNote,
   type PhysicalCard,
@@ -100,6 +105,11 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
   for (const listEntry of lists) {
     if (listEntry.ref.type === 'deck') {
       const deckData = await importFromTextFile(listEntry.filePath).catch(() => null)
+      // The deck's own default labels, which a line without an override
+      // inherits — and which a move therefore carries for it.
+      const listLabels = await parseDeckFrontMatter(listEntry.filePath)
+        .then((frontMatter) => frontMatter.labels)
+        .catch(() => undefined)
       if (!deckData) {
         warnings.push(t('cli.move.listUnreadable', { file: label(listEntry.filePath) }))
         continue
@@ -118,6 +128,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
               condition: card.condition,
               language: card.language,
               labels: card.labels,
+              listLabels,
               tags: card.tags,
               note: card.note,
               cardId: card.cardId,
@@ -148,6 +159,7 @@ export async function loadPhysicalCards(lists: ListEntry[]): Promise<PhysicalCar
           condition: entry.condition,
           language: entry.language,
           labels: entry.labels,
+          listLabels: parsed.labels,
           tags: entry.tags,
           note: entry.note,
           cardId: entry.cardId,
@@ -466,16 +478,21 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   const survivingBySource = snapshotSurvivingIds(bySource, staged)
 
   // --- APPLY: Additions in memory (only for successfully removed cards) ---
-  const droppedNotes: DroppedNote[] = []
+  const dropped: DroppedNote[] = []
   /** Where each moved card landed, so its custom art can follow it. */
   const landed = new Map<string, StagedAddResult>()
   for (const { listEntry, adds } of byDest.values()) {
     const stagedFile = staged.get(listEntry.filePath)!
     for (const vc of adds) {
       if (!removedKeys.has(vc.physicalKey)) continue
-      const added = applyAddToStaged(stagedFile, vc.card, listEntry.ref.type, vc.destSection)
+      const added = applyAddToStaged(
+        stagedFile,
+        arrivingCopyOf(vc.card),
+        listEntry.ref.type,
+        vc.destSection,
+      )
       landed.set(vc.physicalKey, added)
-      if (added.droppedNote) droppedNotes.push(added.droppedNote)
+      if (added.droppedNote) dropped.push(added.droppedNote)
     }
   }
 
@@ -486,16 +503,20 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   const writtenFiles = await writeStagedFiles(staged)
 
   // --- CHANGELOG: Write entries only for successfully moved cards ---
+  // Each copy's two halves come from the one pair of mirrors every move engine
+  // uses: the source logs the line that left (its effective labels — the
+  // line's override, else its list's default), the destination mirrors it.
+  const departed = new Map<string, MoveFromChange>()
+  const departureOf = (vc: VirtualCard): MoveFromChange => {
+    let event = departed.get(vc.physicalKey)
+    if (!event) {
+      event = mirrorMoveFrom({ ...vc.card, labels: movingLabels(vc.card) }, vc.currentList.ref)
+      departed.set(vc.physicalKey, event)
+    }
+    return event
+  }
   for (const { listEntry, removes } of bySource.values()) {
-    const changes = removes
-      .filter((vc) => removedKeys.has(vc.physicalKey))
-      .map((vc) =>
-        createMoveFromChange(vc.card.name, {
-          ...printingOptionsFrom(vc.card),
-          tags: vc.card.tags,
-          to: vc.currentList.ref,
-        }),
-      )
+    const changes = removes.filter((vc) => removedKeys.has(vc.physicalKey)).map(departureOf)
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
     }
@@ -508,13 +529,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     const changes = adds
       .filter((vc) => removedKeys.has(vc.physicalKey))
       .map((vc) =>
-        createMoveToChange(vc.card.name, {
-          ...printingOptionsFrom(vc.card),
-          tags: vc.card.tags,
-          cardId: landed.get(vc.physicalKey)?.cardId,
-          from: vc.card.listEntry.ref,
-          sourceCardId: vc.card.cardId,
-        }),
+        mirrorMoveTo(departureOf(vc), vc.card.listEntry.ref, landed.get(vc.physicalKey)?.cardId),
       )
     if (changes.length > 0) {
       writtenFiles.push(await appendChangelog(listEntry.filePath, listEntry.ref.name, changes))
@@ -534,7 +549,7 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
   return {
     moved: removedKeys.size,
     writtenFiles: [...new Set(writtenFiles)],
-    droppedNotes,
+    droppedNotes: dedupeDroppedNotes(dropped),
     prunedCategories: categoryPrunes.pruned,
   }
 }
