@@ -7,7 +7,7 @@ body:
       value: |
         Thanks for the report. Before pasting list files or output, remove anything personal you don't want public (names, account handles, private notes). A small made-up list that reproduces the problem is the most useful thing you can attach.
 
-        Security problems go through the repository's private vulnerability reporting instead; see SECURITY.md.
+        Report security problems privately instead, as described in SECURITY.md.
   - type: input
     id: version
     attributes:

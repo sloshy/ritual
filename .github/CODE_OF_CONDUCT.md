@@ -36,7 +36,6 @@ It seriously wastes my time to be disregarding basic etiquette in this way.
 If someone breaks these rules, tell me privately rather than calling it out in the thread:
 
 - **Report the comment, issue or PR itself.** Use the **⋯** menu on it and choose **Report content**, then **Report to repository admins**. That reaches me without posting anything publicly. (Choose **Report abuse** instead if it's something GitHub itself should deal with, like spam or harassment across accounts.)
-- **If it doesn't fit that**, open a private report from the repository's **Security** tab (**Report a vulnerability**) and say up front that it's a conduct report. Only the maintainer can see those.
 
 I'll look at every report and keep who sent it private. Depending on what happened, I may edit or delete content, lock a conversation, close an issue or PR, or block someone from the repository, with or without a warning first.
 

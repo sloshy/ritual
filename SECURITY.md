@@ -2,10 +2,8 @@
 
 ## Reporting a vulnerability
 
-Report security problems privately, not in a public issue. Use GitHub's **Report a
-vulnerability** button on the repository's Security tab (private vulnerability
-reporting). If that is unavailable, contact the maintainer at the address on the
-project's commits. You should hear back within a week.
+Report security problems privately, not in a public issue: email the maintainer at
+the address on the project's commits. You should hear back within a week.
 
 In scope: the `ritual` binary and Docker image, every server it starts (`serve`,
 `admin`, `mcp`, `cache server`, `cache feed host`), the sites it builds, the install
