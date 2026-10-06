@@ -4,7 +4,7 @@
  * The HTTP API is Ritual's client-neutral surface: the admin SPA renders
  * these responses as alerts, and the MCP server dispatches the *same* handlers
  * in-process, where an agent reads `message` and expects English. Rather than
- * negotiate a language per client, the shape is widened once (plan §7.7):
+ * negotiate a language per client, the shape is widened once:
  *
  * - `message` — rendered **English**, byte for byte what it has always been.
  *   MCP, `curl`, and scripts see no change, ever.

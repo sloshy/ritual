@@ -42,7 +42,7 @@ import {
  * script matches on and the sentence the admin UI translates can never drift.
  *
  * A function rather than a module-level constant: message namespaces are
- * registered by the surface entry point (`src/i18n/register/*`, plan §4.2),
+ * registered by the surface entry point (`src/i18n/register/*`),
  * which runs after every module body has been evaluated. Rendering at module
  * scope would freeze the key string into the response.
  */
@@ -174,8 +174,8 @@ function countStatus(report: DeckSyncReport, status: DeckSyncStatus): number {
  *
  * Split by verb rather than spliced from `{verb} {count} deck(s)` because the
  * count needs a plural table and the verb needs a selector, and one level of
- * each is all a catalog value gets — nesting them is what the plan says to
- * solve by splitting the key instead.
+ * each is all a catalog value gets — nesting them is solved by splitting the
+ * key instead.
  */
 const RUN_VERB_KEYS = {
   pull: 'admin.api.deckSync.pulled',

@@ -955,7 +955,7 @@ export async function mockPublicSiteCollectionWithDuplicateNames(page: Page): Pr
 
 // A deck with all four board kinds — commander, mainboard, sideboard and an
 // extras section — each holding categorized cards: under a category grouping
-// every board nests its own categories inside it (design §1.1), so the
+// every board nests its own categories inside it, so the
 // sideboard's card heads under `Sideboard › Draw` and the commander keeps its
 // count-free tiles.
 const MOCK_CATEGORY_DECK_DETAIL = makeDeckDetail({

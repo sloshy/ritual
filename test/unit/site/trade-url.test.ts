@@ -686,7 +686,7 @@ describe('encode → decode round-trip', () => {
 describe('decodeTradeFromParams — URL-decode race / stale-entry coverage', () => {
   // Regression coverage for the gating effect at TradePage.tsx that waits on
   // `decksReady`/`initialReady` before decoding URL params. If the gate is ever
-  // weakened (or §3.1/§3.2 collapse the state machine incorrectly), decode will
+  // weakened (or the state machine is collapsed incorrectly), decode will
   // run against not-yet-loaded entries — these tests pin down the
   // currently-relied-upon silent-skip behavior so a regression is visible.
 

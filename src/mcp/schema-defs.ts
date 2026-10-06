@@ -84,8 +84,8 @@ export function ref(name: SharedDefName): JsonSchemaType {
 }
 
 /**
- * An open object: the key set is the payload owner's, not ours (see the Tier B
- * table in the phase plan). `description` is what carries the meaning here, so
+ * An open object: the key set is the payload owner's, not ours. `description`
+ * is what carries the meaning here, so
  * it is required.
  */
 export function openObject(description: string): JsonSchemaType {

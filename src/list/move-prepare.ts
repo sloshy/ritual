@@ -175,11 +175,11 @@ export type MovesOutcome = {
   artFailures: CardArtReconcileFailure[]
   /**
    * Stored card names whose categories entry this write pruned — a list lost
-   * its last copy of that name, so design §2's "the entry is pruned on that
-   * save" applied here. Reported for the same reason `artFailures` is: it is an
-   * assignment the user made that the move dropped, and every other save
-   * surface lists it (`prunedCategories` on the save routes,
-   * `cli.session.categoriesPruned` in the CLI editor).
+   * its last copy of that name, so the entry is pruned on this save. Reported
+   * for the same reason `artFailures` is: it is an assignment the user made
+   * that the move dropped, and every other save surface lists it
+   * (`prunedCategories` on the save routes, `cli.session.categoriesPruned` in
+   * the CLI editor).
    */
   prunedCategories: string[]
 }
@@ -534,7 +534,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     written.push(...artCommit.writtenFiles)
     const artFailures: CardArtReconcileFailure[] = [...unfiled, ...artCommit.failures]
     // Categories are keyed by card name, so a list that lost its last copy of a
-    // name prunes that entry on this write (design §2) and a destination that
+    // name prunes that entry on this write and a destination that
     // gained one keeps whatever it already had — categories never follow a move.
     const categoryPrunes = await commitStagedCategoryPrunes(
       prepared.map(({ listEntry, file }) => [listEntry.filePath, file] as const),

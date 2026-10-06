@@ -166,7 +166,7 @@ export function finishRequiresPrinting(finish: Finish): boolean {
 /**
  * A finish's display name. A key table rather than `capitalize(finish)`: the
  * slugs are file-format vocabulary that must never move, and capitalising one
- * leaves a translator with no string to translate at all (plan §7.3).
+ * leaves a translator with no string to translate at all.
  */
 const FINISH_LABELS = {
   nonfoil: 'cli.session.finishNonfoil',

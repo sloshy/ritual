@@ -14,7 +14,7 @@ ruleTester.run('no-untranslated-literal', rule as never, {
   valid: [
     // Outside the scoped directories entirely.
     { code: `const message = 'Deck saved.'`, filename: 'src/deck.ts' },
-    // English-by-contract carve-outs (plan §4.9, §11).
+    // English-by-contract carve-outs.
     { code: `const tool = { description: 'Add a card to a list.' }`, filename: 'src/mcp/tools.ts' },
     { code: `const skill = { description: 'Drive the ritual CLI.' }`, filename: 'src/skills/x.ts' },
     { code: `const c = { message: 'Added Sol Ring.' }`, filename: 'src/changes/change-event.ts' },

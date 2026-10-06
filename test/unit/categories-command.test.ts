@@ -4,9 +4,9 @@ import { diffCardCategories } from '../../src/changes/diff-categories'
 import { categoriesRecord } from '../helpers/card-categories'
 
 /**
- * `ritual categories remove` has no change action of its own: design §5 says a
- * removal is the affected cards' `set-categories` plus a `set-category-order`
- * without the name. The record surgery itself lives with the rest of the sidecar
+ * `ritual categories remove` has no change action of its own: a removal is the
+ * affected cards' `set-categories` plus a `set-category-order` without the
+ * name. The record surgery itself lives with the rest of the sidecar
  * engine (`card-categories-sidecar.test.ts`); what is pinned here is the event
  * decomposition the command derives from it.
  */

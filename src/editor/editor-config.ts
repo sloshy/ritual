@@ -400,7 +400,7 @@ export type UseEditorResult<TData, TCardEntry> = {
   /**
    * Remove a category: one `set-categories` per card that held it, plus a
    * `set-category-order` without it. There is no `remove-category` action —
-   * design §5 keeps the action set to three.
+   * the action set stays at three.
    */
   handleRemoveCategory: (category: CardCategory) => void
   handleAddCardFromSearch: (...args: Parameters<AddCardFromSearch>) => Promise<void>

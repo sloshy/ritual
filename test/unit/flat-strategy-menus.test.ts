@@ -181,7 +181,7 @@ const LANGUAGE_ROW: MenuRow = { title: '🌐 Change Language', value: 'language'
 const TAGS_ROW: MenuRow = { title: '🔖 Edit Tags', value: 'tags' }
 const ART_ROW: MenuRow = { title: '🎨 Set Custom Art', value: 'art' }
 const CATEGORIES_ROW: MenuRow = { title: '🗂️  Edit Categories', value: 'categories' }
-/** The two list-level category rows every strategy carries (design §1.5). */
+/** The two list-level category rows every strategy carries. */
 const CATEGORY_MENU_ROWS: MenuRow[] = [
   { title: '🗂️  Rename Category…', value: '__RENAME_CATEGORY__' },
   { title: '🗂️  Reorder Categories…', value: '__REORDER_CATEGORIES__' },
@@ -245,7 +245,7 @@ describe('wanted strategy menus', () => {
   })
 
   test('the wanted strategy offers exactly the two list-level category rows', () => {
-    // Its first extra menu items: design §1.5 puts categories on all three types.
+    // Its first extra menu items: categories are on all three list types.
     expect(extraRows(wantedStrategy(true, true))).toEqual(CATEGORY_MENU_ROWS)
   })
 

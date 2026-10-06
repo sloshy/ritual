@@ -121,7 +121,7 @@ describe('new CLI (Integration)', () => {
   })
 
   test('refuses a name that folds onto an existing deck, which stays targetable', async () => {
-    // The audit's exact repro: creating the lowercase twin used to succeed and
+    // The exact repro: creating the lowercase twin used to succeed and
     // leave *both* decks unreachable by name.
     await withWorkspace(async (dir) => {
       expect((await runCli(['new', 'deck', 'Atraxa Superfriends'], dir)).exitCode).toBe(0)

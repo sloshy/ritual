@@ -171,7 +171,8 @@ describe('pseudo-locale (Integration)', () => {
   test('--locale reaches help too, not just RITUAL_LOCALE', async () => {
     await withTempDir(async (dir) => {
       // The flag is read by the argv pre-scan, which runs before Commander
-      // exists — the piece of §6.3 that has no other observable effect.
+      // exists — the piece of locale resolution that has no other observable
+      // effect.
       const result = await runCli(['--locale', PSEUDO, '--help'], dir)
 
       expect(result.exitCode).toBe(0)

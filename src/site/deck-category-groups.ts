@@ -1,5 +1,5 @@
 /**
- * Nesting the two category groupings inside a deck's boards (design §1.1, §7):
+ * Nesting the two category groupings inside a deck's boards:
  * a `Ramp` card in the sideboard heads under `Sideboard › Ramp`, never under a
  * flat `Ramp` shared with mainboard cards.
  *
@@ -8,7 +8,7 @@
  * contract forbids a `filterSource` that reads the group-by). Calling the shared
  * grouper once per board keeps its key ordering, fold-collapsing,
  * Uncategorized-last and `reverseGroups` behaviour verbatim — per board, which
- * is exactly what the design asks for. The *category half* of a composite key is
+ * is exactly what the nesting needs. The *category half* of a composite key is
  * the grouper's own heading spelling, so for every category the list's `order`
  * names, a heading and a filter chip can never disagree. An off-vocabulary
  * category is spelled per board (the grouper picks the first card that holds

@@ -17,7 +17,7 @@ import type { cliSyncMessages } from './cli-sync'
  * - **Interchange text is spliced in, not translated.** `{listType}` is a
  *   persisted slug (`deck` / `collection` / `wanted`), `{field}` is a CSV column
  *   label, `{dialect}` an export dialect name, `{format}` an export format —
- *   all English by contract (plan §4.9).
+ *   all English by contract.
  */
 
 export const cliSyncMeta = {

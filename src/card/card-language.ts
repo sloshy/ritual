@@ -56,7 +56,7 @@ export const DEFAULT_CARD_LANGUAGE: CardLanguage = 'en'
  * defaultLanguage`, CSV import, the malformed-token hint, and — critically —
  * `changelog-parser.ts`, which re-reads `Set language of "X" to Japanese` out
  * of a persisted `.changes.md`. Translating these strings would make an old
- * changelog unparseable, so they are English by contract (plan §4.9) and
+ * changelog unparseable, so they are English by contract and
  * `languageLabel` is where a localized name comes from instead.
  */
 export const LANGUAGE_PARSE_NAMES: Record<CardLanguage, string> = {

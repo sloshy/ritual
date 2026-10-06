@@ -639,7 +639,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
   const sideboardLabel = () =>
     props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'
 
-  // Owner decision (design §1.1, §7): the two category groupings nest inside
+  // The two category groupings nest inside
   // every board — `Sideboard › Draw` — while every other grouping keeps grouping
   // the mainboard alone. Empty (and unrendered) for those other groupings.
   const nestedCategoryGroups = createMemo((): DeckBoardGroup<CardData>[] => {
@@ -841,7 +841,7 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
             </>
           }
         >
-          {/* Every board's categories, nested under it (design §1.1). */}
+          {/* Every board's categories, nested under it. */}
           <For each={nestedCategoryGroups()}>
             {(group) => (
               <CardSection

@@ -458,7 +458,7 @@ describe('incoming moves (move-to saved on the destination)', () => {
   })
 
   test("a source list that loses its last copy of a name loses that card's categories", async () => {
-    // Design §2 on the move write path: categories are keyed by card NAME, so a
+    // On the move write path, categories are keyed by card NAME, so a
     // source list that no longer holds the name prunes its entry on this write —
     // and the destination inherits nothing, because categories never follow a move.
     await writeCollectionFile(tmpDir, 'binder', {

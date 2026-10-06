@@ -9,7 +9,7 @@ import { buildMcpServer } from '../../../src/mcp/server'
 import { PSEUDO_LOCALE, pseudoLocalize } from '../../../scripts/generate-locales'
 
 /**
- * MCP prose is **English by contract** (plan §11): tool names, titles,
+ * MCP prose is **English by contract**: tool names, titles,
  * descriptions, `.describe()` parameter docs, output-schema descriptions, the
  * server `instructions`, and resource-template metadata never follow the user's
  * UI locale. They are model-facing prose interleaved with flags, paths, and

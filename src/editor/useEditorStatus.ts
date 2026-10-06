@@ -9,12 +9,11 @@ import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn 
  * formatted string would freeze it in the language that was active when the
  * request came back, so a locale switch would relabel the whole page around a
  * stale sentence. Holding the key and its parameters instead lets the shell
- * re-render it in whatever locale is current (plan §7.4).
+ * re-render it in whatever locale is current.
  *
  * The `text` variant carries prose the server authored (`ApiResult.message`),
- * which arrives already rendered. Phase 5 gives those responses a `messageKey`
- * as well, at which point this variant becomes the exception rather than the
- * common case.
+ * which arrives already rendered. Once those responses carry a `messageKey` as
+ * well, this variant becomes the exception rather than the common case.
  */
 export type EditorStatusMessage = ({ kind: 'key' } & MessageRef) | { kind: 'text'; text: string }
 

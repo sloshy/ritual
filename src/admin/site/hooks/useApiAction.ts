@@ -16,7 +16,7 @@ import { useTDynamic } from '../../../ui/i18n'
  * formatted string would freeze it in the language that was active when the
  * request came back — a locale switch would relabel the page around a stale
  * sentence. This is the same reason `useEditorStatus` stores its status as a
- * key (plan §7.4).
+ * key.
  */
 export type ApiActionMessage = string | ApiMessage
 
@@ -42,7 +42,7 @@ export type UseApiActionResult = {
  * into an alert — rendering the raw key, or throwing under `RITUAL_I18N_STRICT`.
  * `isMessageKey` is the gate; a key this build does not know is dropped and the
  * English `message` covers the gap, which is the fallback the design already
- * relies on for an unconverted handler (plan §7.7).
+ * relies on for an unconverted handler.
  */
 function readApiResponse(raw: unknown): ApiActionParsed {
   const body = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>

@@ -3,7 +3,7 @@ import { ADMIN_STORAGE_STATE } from './test/e2e/helpers/auth-helper'
 import { registerCliMessages } from './src/i18n/register/cli'
 
 // Hand the runtime its English catalog, exactly as `main()` in `index.ts` and
-// `test/preload.ts` do. Namespaces are import boundaries (plan §4.2), so `t()`
+// `test/preload.ts` do. Namespaces are import boundaries, so `t()`
 // renders the key string until a surface entry point registers them — and a
 // Playwright process runs no entry point. That matters on both sides of the
 // wire: `test/e2e/helpers/mock-admin.ts` renders admin API prose through
@@ -17,7 +17,7 @@ import { registerCliMessages } from './src/i18n/register/cli'
 registerCliMessages()
 
 // Missing message keys and missing plural/select parameters are fatal for the
-// whole e2e run (plan §10). `t()` degrades in production — a gap renders the key
+// whole e2e run. `t()` degrades in production — a gap renders the key
 // string rather than throwing, because a missing translation must never take a
 // page down — and that degradation is silent, so a spec asserting on rendered
 // prose would pass against a key that was never wired.

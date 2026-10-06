@@ -21,8 +21,8 @@
  * `src/site-build`) and never inside the
  * surfaces that are English by contract (`src/mcp`, `src/skills`, the changelog
  * persistence modules, `src/export`, generated code, tests,
- * docs). Both lists are options so the ratchet in §12 can widen or narrow them
- * per directory as each surface converts.
+ * docs). Both lists are options so they can be widened or narrowed per
+ * directory as each surface converts.
  *
  * Escape hatch: a `// i18n-exempt: <reason>` comment on the reported line or on
  * the line above it suppresses the report. The reason is mandatory — a bare
@@ -43,7 +43,7 @@ const DEFAULT_INCLUDE = [
   'src/site-build/',
 ]
 
-/** Files and directories that are English by contract (plan §4.9, §11). */
+/** Files and directories that are English by contract. */
 const DEFAULT_EXCLUDE = [
   'src/mcp/',
   'src/skills/',
@@ -84,8 +84,8 @@ const SLUG_LIKE = /^[a-z0-9][a-z0-9._-]*$/
  * A message key (`site.toolbar.groupLabel`) — a *reference* to catalog text,
  * not untranslated text.
  *
- * The plan's §7.2 rule turns every module-level label table into
- * `Record<Key, MessageKey>`, and those rows sit in exactly the `label:` /
+ * Every module-level label table is a `Record<Key, MessageKey>` (keys, not
+ * rendered text), and those rows sit in exactly the `label:` /
  * `description:` / `title:` positions this rule polices. Without this the
  * correct pattern would need an exempt comment on every row, which would train
  * everyone to write exempt comments.

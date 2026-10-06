@@ -117,7 +117,7 @@ export function ListManager(): JSX.Element {
    * The list type the current tab edits — the `$select` branch every message on
    * this page keys off. Verb + capitalized noun concatenation ("Create New " +
    * "Deck") survives neither case nor gender, so each phrase is a whole message
-   * per list type instead (plan §7.3).
+   * per list type instead.
    */
   const listType = createMemo((): ListType => meta().listType)
 

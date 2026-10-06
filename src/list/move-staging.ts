@@ -335,9 +335,9 @@ function* cardBullets(staged: StagedTextFile): Generator<CardBullet> {
 
 /**
  * Prune every staged list's categories sidecar to the names it still holds, and
- * return the files that changed. Design §2's "the entry is pruned on that save"
- * applied to the move write path, where a source list can lose its last copy of
- * a name and a destination can gain one.
+ * return the files that changed. The rule that a categories entry is pruned on
+ * the save that drops its last copy, applied to the move write path, where a
+ * source list can lose its last copy of a name and a destination can gain one.
  *
  * A file whose staged read is not complete ({@link StagedCardNames}) is skipped
  * entirely — no prune, no canonicalize, nothing written — the same gate
@@ -351,7 +351,7 @@ export type StagedCategoryPrunes = {
   /**
    * Stored names whose categories entry the prune removed. Reported rather than
    * swallowed: dropping an assignment the user made is an effect of the save,
-   * and design §2 asks every save surface to list it.
+   * and every save surface lists it.
    */
   pruned: string[]
 }

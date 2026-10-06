@@ -53,7 +53,7 @@ export const MCP_TOOL_NAMES = [
 /** Every tool name the server registers, as a type. */
 export type McpToolName = (typeof MCP_TOOL_NAMES)[number]
 
-/** Names retired by the Phase 2 rename/merge sweep — never valid again. */
+/** Names retired by an earlier rename/merge sweep — never valid again. */
 export const RETIRED_MCP_TOOL_NAMES = [
   'load_list',
   'load_history',

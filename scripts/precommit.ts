@@ -85,7 +85,7 @@ const DISPLAY_ORDER = ['build', 'typecheck', 'lint', 'locales', 'test:unit', 'fo
  * `generate-locales.ts` publishes it with a rename so this check can never see
  * a partial file.)
  *
- * Run with no flags, which since Phase 7 means dead-key detection is on: an
+ * Run with no flags, which means dead-key detection is on: an
  * English key with no `t('…')` call site fails the run. `--allow-dead-keys`
  * exists for a branch that lands catalog entries ahead of their call sites.
  */
@@ -97,7 +97,7 @@ const LOCALES_CHECK: Check = {
 
 /**
  * The unit suite, run with missing message keys and missing plural/select
- * parameters made fatal (plan §10).
+ * parameters made fatal.
  *
  * `t()` degrades in production — a gap renders the key string rather than
  * throwing, because a missing translation must never take a command down. That

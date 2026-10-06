@@ -47,8 +47,8 @@ import { createI18nStore, I18nProvider, useI18n } from '../../ui/i18n'
 import { registerAdminMessages } from '../../i18n/register/admin'
 import { bootAdminLocale, useAdminLocale } from './hooks/useAdminLocale'
 
-// The English catalog is registered per surface, not imported by the runtime
-// (plan §4.2): this is what keeps the CLI's `cli.*` / `help.*` inventory —
+// The English catalog is registered per surface, not imported by the runtime:
+// this is what keeps the CLI's `cli.*` / `help.*` inventory —
 // half the catalog — out of this bundle. Module scope, before anything renders.
 registerAdminMessages()
 

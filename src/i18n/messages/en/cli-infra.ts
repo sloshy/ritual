@@ -10,7 +10,7 @@
  * - the files `init-site` generates (README, workflow YAML, `.gitignore`) — they
  *   are repository artifacts, English by contract like `.changes.md`;
  * - everything the MCP server and the installed skills say — LLM-facing prose,
- *   English by contract (plan §11).
+ *   English by contract.
  */
 
 import type { MessageCatalogShape } from '../../types'

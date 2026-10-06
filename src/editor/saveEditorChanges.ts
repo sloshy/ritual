@@ -60,8 +60,7 @@ export async function saveEditorChanges(
       return data
     }
     // `data.message` / `data.error` are prose the server authored; they arrive
-    // rendered and stay as they are until the API carries a `messageKey`
-    // (plan §7.7, Phase 5).
+    // rendered and stay as they are until the API carries a `messageKey`.
     if (resp.status === 409 || data.conflict) {
       statusActions.saveError(
         data.message ? statusText(data.message) : statusMessage('ui.editor.saveConflict'),

@@ -1,5 +1,5 @@
 /**
- * Message registration for the **admin** SPA (plan §4.2).
+ * Message registration for the **admin** SPA.
  *
  * Everything the public site registers, plus `admin`. The public site's set is
  * reused rather than re-listed because the admin embeds the shared

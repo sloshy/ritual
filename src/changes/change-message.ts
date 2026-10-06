@@ -11,8 +11,7 @@
  *    UI locale, and is the only place that does. The CLI's pending-change
  *    output, the public site's changelog modal, and the admin/public editors
  *    all go through {@link changeMessage} — collapsing the duplicated wording
- *    `src/site/changelog-format.ts` used to carry beside `formatChangeCore`
- *    (the plan's §7.8 and open question #6).
+ *    `src/site/changelog-format.ts` used to carry beside `formatChangeCore`.
  *
  * One shape reaches it — a typed {@link ChangeEvent} — normalized into
  * {@link DisplayChange} first: a pending change is described in the present

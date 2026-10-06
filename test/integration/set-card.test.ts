@@ -352,7 +352,7 @@ describe('set-card CLI (Integration)', () => {
   })
 
   test('preserves hand-written prose in the file — only the target line changes', async () => {
-    // The audit's exact repro: prose under the front matter and inside a
+    // The exact repro: prose under the front matter and inside a
     // section must survive a one-shot mutation byte-for-byte.
     const deckPath = path.join(dir, 'decks', 'prose.md')
     const before = [

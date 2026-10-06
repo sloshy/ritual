@@ -104,8 +104,7 @@ export function categoriesForCard(record: CardCategoriesRecord, cardName: string
 /**
  * The vocabulary the prompts offer: the categories this list already uses, in
  * their display order, followed by any configured `defaultCategories` the list
- * has not used yet (design §6 — "suggestions from the list's vocabulary then
- * config defaults").
+ * has not used yet.
  *
  * The union happens **here**, not in {@link resolveCategoryOrder}: that value is
  * persisted as the sidecar's `order` and hashed, so seeding it with unused
@@ -126,8 +125,8 @@ export async function sessionCategoryVocabulary(
  * bookkeeping.
  *
  * `knownCardNames` is always supplied, so an ordinary save prunes and
- * canonicalizes exactly as the admin save tail does (design §2: the entry is
- * pruned on that save). The pending events are cleared however the commit went,
+ * canonicalizes exactly as the admin save tail does (the entry is pruned on
+ * that save). The pending events are cleared however the commit went,
  * and the remembered baseline goes with them — a save with nothing pending is
  * still a save, and the remembered sidecar must not go on answering for a file
  * `set-card --categories` may have rewritten meanwhile.

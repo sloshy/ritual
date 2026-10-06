@@ -17,7 +17,7 @@ import {
 /**
  * Message keys, not rendered text: the table is built once at module load, so a
  * rendered string would keep the radio labels in the boot language after a
- * locale switch (plan §7.2).
+ * locale switch.
  */
 const FINISH_LABELS: Record<Finish, ParameterlessKey> = {
   nonfoil: 'ui.editor.finishNonfoil',

@@ -122,7 +122,7 @@ export function selectSkills(names: readonly string[]): RitualSkill[] | string {
     else unknown.push(name)
   }
   if (unknown.length > 0) {
-    // The skill *content* is English by contract (plan §11), but this refusal is
+    // The skill *content* is English by contract, but this refusal is
     // ordinary CLI prose, so it comes from the catalog. The names on both sides
     // are identifiers and stay verbatim.
     return t('errors.skills.unknown', {

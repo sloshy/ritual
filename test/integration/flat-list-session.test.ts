@@ -561,8 +561,8 @@ describe('session categories', () => {
     expect(before.ok && categoriesOf(before.categories)).toEqual({ 'Lightning Bolt': ['Burn'] })
     const hashBefore = await fs.readFile(categoriesHashPath(filePath), 'utf-8')
 
-    // The save's prune drops an assignment the user made, so it must say so —
-    // design §2: "pruned names are listed in the save's effects".
+    // The save's prune drops an assignment the user made, so it must say so:
+    // pruned names are listed in the save's effects.
     const saved = await captureConsole(['warn'], () => persistFlatListSession(session))
     expect(saved.all.join('\n')).toContain('Lightning Bolt')
 

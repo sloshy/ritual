@@ -121,7 +121,7 @@ describe('list-lifecycle engine', () => {
     })
 
     test('refuses a name that only folds onto an existing list of the same type', async () => {
-      // The audit's repro: both decks would be permanently unaddressable by the
+      // The original repro: both decks would be permanently unaddressable by the
       // folded name, so the second creation is refused instead.
       unwrap(await createList('deck', 'Atraxa Superfriends'))
       const error = unwrapError(await createList('deck', 'atraxa superfriends'))

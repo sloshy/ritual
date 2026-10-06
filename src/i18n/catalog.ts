@@ -45,7 +45,7 @@ export function isCatalogEntryError(
  * The rules are exactly the value forms `t()` can render: a plain string, a
  * `$plural` table that supplies `other`, or a `$select` table with at least one
  * branch. Every branch must be a string — a nested plural-in-select is rejected
- * with the advice to split the key, matching the design's one-level rule.
+ * with the advice to split the key: values nest one level deep at most.
  */
 export function parseCatalogEntry(raw: unknown): MessageValue | CatalogEntryError {
   if (typeof raw === 'string') return raw

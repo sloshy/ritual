@@ -4,7 +4,7 @@
  *
  * Bun resolves no locale from the environment: with `LANG=de_DE.UTF-8` set,
  * `new Intl.DateTimeFormat().resolvedOptions().locale` is still `en-US` and
- * `navigator.language` is `undefined` (measured — plan §0). In a browser the
+ * `navigator.language` is `undefined` (measured). In a browser the
  * same call follows the *host's* locale instead. A bare constructor is
  * therefore never right: it is silently English on the CLI and host-dependent
  * in the SPAs, which is exactly the class of bug that makes the same list sort

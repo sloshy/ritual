@@ -126,7 +126,7 @@ test.describe('Card categories', () => {
 })
 
 /**
- * Owner decision §1.1: on a deck, the two category groupings nest inside every
+ * On a deck, the two category groupings nest inside every
  * board — the board first, its categories in the list's order, Uncategorized
  * last within each board — so a `Ramp` card in the sideboard heads under
  * `Sideboard › Ramp`. Every other grouping still groups the mainboard alone.

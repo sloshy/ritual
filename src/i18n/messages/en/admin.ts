@@ -937,7 +937,7 @@ export const adminMessages = {
   // Prose the admin API *authors*. Every one of these is rendered to English
   // at the handler (that is what `message` carries, unchanged, for MCP and
   // curl) and re-rendered in the reader's locale from `messageKey` +
-  // `messageParams` by `useApiAction`. See plan §7.7.
+  // `messageParams` by `useApiAction`.
 
   // ── First-run setup ───────────────────────────────────────────────────
   'admin.api.setup.tokenInvalid':

@@ -270,7 +270,7 @@ describe('ritual skills command (Integration)', () => {
 
   test('installs the same English skill files under a non-English UI locale', async () => {
     await withTempDir(async (dir) => {
-      // Skill content is English by contract (plan §11): it is model-facing
+      // Skill content is English by contract: it is model-facing
       // prose, and `ritual-content-hash` decides machine-managed vs user-edited
       // at one fixed path — a per-locale body would make every install look
       // edited the moment the reader's language changed.

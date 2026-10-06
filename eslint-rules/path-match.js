@@ -2,7 +2,7 @@
  * Path matching shared by the i18n lint rules.
  *
  * All three (`no-untranslated-literal`, `no-inline-plural`, `no-bare-intl-locale`)
- * decide where they apply from a list of directory/file fragments, and the plan's
+ * decide where they apply from a list of directory/file fragments, and the
  * ratchet — flip each rule to `error` per directory as that surface converts —
  * means those lists get edited repeatedly. One copy of the predicate, so a
  * Windows-separator fix or a matching-semantics change lands once.

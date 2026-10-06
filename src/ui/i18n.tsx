@@ -149,7 +149,7 @@ export function useT(): I18nStore['t'] {
 /**
  * A reactive translator for a key read out of a **data table** at render time —
  * `KeyHint.label`, `ShortcutGroup.title`, and the other `Record<Key, MessageKey>`
- * tables the plan's §7.2 rule produces.
+ * tables that store message keys rather than rendered text.
  *
  * `t`'s parameter checking keys off the *literal* message key, and a table
  * lookup has already widened that to the whole `MessageKey` union, so the check

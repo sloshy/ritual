@@ -5,7 +5,7 @@
  *
  * Persisted slugs never live here: `CARD_LABELS`, `DeckFormatKey`,
  * `CardLanguage`, set codes and the `[foil]`/`[ja]` line tokens are English by
- * contract (see the plan's §4.9 carve-out list).
+ * contract.
  */
 
 import type { MessageCatalogShape } from '../../types'

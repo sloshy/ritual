@@ -1,5 +1,5 @@
 /**
- * Message registration for the **public site** SPA (plan §4.2).
+ * Message registration for the **public site** SPA.
  *
  * Four namespaces: `site` (its own chrome and pages), `ui` (the shared
  * `src/ui` / `src/editor` components), `domain` (the vocabulary all three

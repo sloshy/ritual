@@ -556,7 +556,7 @@ describe('parseDeckText — Arena / MTGO export dialect', () => {
   })
 
   test('a marker line and an export printing are read wherever they appear', () => {
-    // The dialect stopped being a mode in P2: one grammar, always tolerant, so
+    // The dialect is not a mode: one grammar, always tolerant, so
     // a workspace file that picked up Arena shapes reads the same as an import.
     const { deck, warnings, advisories } = parseDeckText(
       'Sideboard\n4 Lightning Bolt (M10) 146',

@@ -6,7 +6,7 @@
 // from CSS via `var(--…)`, it should be in this list.
 //
 // This table is evaluated once at import, so it holds message *keys* rather
-// than rendered text (plan §7.2): `ThemeEditor` resolves them through `useTKey`
+// than rendered text: `ThemeEditor` resolves them through `useTKey`
 // at render time, which is what lets a locale switch relabel the editor.
 
 import type { MessageKey } from '../i18n/messages/en'

@@ -89,8 +89,8 @@ import type { LocaleTag } from '../i18n/types'
 import { useMobileLayout } from '../ui/useMediaQuery'
 import { useHideOnScroll } from './useHideOnScroll'
 
-// The English catalog is registered per surface, not imported by the runtime
-// (plan §4.2): this is what keeps the CLI's `cli.*` / `help.*` inventory —
+// The English catalog is registered per surface, not imported by the runtime:
+// this is what keeps the CLI's `cli.*` / `help.*` inventory —
 // half the catalog — out of this bundle. Module scope, before anything renders.
 registerSiteMessages()
 

@@ -53,7 +53,7 @@ function isTokenError(error: CardLineError): error is TokenCardLineError {
   return 'token' in error
 }
 
-describe('the drift defects from review §2.1', () => {
+describe('lines that used to drift tokens into the name or drop them', () => {
   /** Each row: the input that used to corrupt a name, and what it must now read as. */
   const rows: readonly [string, ListType, string, Partial<LineTokens>][] = [
     [
@@ -449,8 +449,8 @@ describe('names the tokenizer must not eat', () => {
   })
 
   test('a labels token tolerates whitespace around its commas', () => {
-    // `[sale, trade]` is what a person types, and §3.1 promises whitespace runs
-    // everywhere else in the grammar.
+    // `[sale, trade]` is what a person types, and the grammar tolerates
+    // whitespace runs everywhere else.
     expect(parsed('collection', '- Sol Ring (LEA:161) [sale, trade]').labels).toEqual([
       'sale',
       'trade',
@@ -979,7 +979,7 @@ describe('readCardId', () => {
 describe('isCardLineError', () => {
   // The two halves of the diagnostic channel both have a `kind`, and the two
   // kinds mean different things — so the guard reads the `severity`
-  // discriminant, not the shape. P2 wires this into every save gate.
+  // discriminant, not the shape. Every save gate relies on this.
   test('separates a refusal from an advisory', () => {
     const error = refused('wanted', '- Bolt (LEA:161) [LP]')
     const parse = parseCardLine('deck', '4 Lightning Bolt (M10) 146')

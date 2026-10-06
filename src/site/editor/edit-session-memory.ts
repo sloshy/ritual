@@ -110,7 +110,7 @@ export function clearEditSessions(): void {
  *
  * Answering "is confirmation needed?" rather than running the prompt is what
  * lets the confirmation be a real dialog: `window.confirm` is a blocking browser
- * string that no catalog can reach and no theme can style (plan §7.3).
+ * string that no catalog can reach and no theme can style.
  * {@link EditViewFrame} owns the dialog.
  */
 export function needsDiscardConfirm(currentChangeCount: number): boolean {

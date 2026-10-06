@@ -22,7 +22,7 @@
  *
  * **English arrives the same way.** This module does not import the English
  * catalog; each surface entry point registers the namespaces it actually speaks
- * (`src/i18n/register/{cli,site,admin}.ts`). That is what makes the §4.2
+ * (`src/i18n/register/{cli,site,admin}.ts`). That is what makes the
  * namespace boundary a real import boundary rather than an authoring
  * convention — without it, `t()`'s English fallback would pull all seven
  * namespaces into both SPA bundles.

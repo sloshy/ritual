@@ -57,7 +57,7 @@ export type SyncSubject = 'decks' | 'collectionLists'
  * Register the `--only` / `-y, --yes` / `--dry-run` options every sync surface
  * takes, so their spellings, argParsers, and help text cannot drift. `subject`
  * selects the noun the `--yes` text names; it is a `$select` branch rather than
- * an interpolated noun so a translator controls the whole sentence (plan §7.3).
+ * an interpolated noun so a translator controls the whole sentence.
  */
 export function addSyncOptions(command: Command, subject: SyncSubject): Command {
   return addDryRunOption(

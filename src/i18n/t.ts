@@ -8,8 +8,8 @@
  * placeholder fails to compile. There is no extraction step and no codegen.
  *
  * The *type* is the whole catalog; the *values* are only the namespaces this
- * surface registered (`src/i18n/register/*`, §4.2). A key whose namespace is
- * unregistered renders as the key string — the same §4.8 degradation as a
+ * surface registered (`src/i18n/register/*`). A key whose namespace is
+ * unregistered renders as the key string — the same degradation as a
  * missing key, and a throw under `RITUAL_I18N_STRICT=1`.
  *
  * Browser-safe: no `node:` imports.
@@ -27,7 +27,7 @@ import {
 // Type-only, and load-bearing that it stays that way: the barrel merges all
 // seven namespaces, so a value import here would inline the CLI's ~1,400
 // messages into both SPA bundles. Types are erased, so `EnglishCatalog` costs
-// nothing — the *values* arrive through `registerMessages` (§4.2).
+// nothing — the *values* arrive through `registerMessages`.
 import type { EnglishCatalog, MessageKey } from './messages/en'
 import {
   isPluralForms,

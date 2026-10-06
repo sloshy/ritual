@@ -74,7 +74,7 @@ describe('groupDeckBoardsByCategory', () => {
     const artifacts = groups.find((g) => g.key === 'Main › Artifacts')!
     expect(artifacts.cards.map((c) => c.name)).toEqual(['Sol Ring'])
     // The same card again under its primary — the deliberate one-card-two-groups
-    // break (design §7) — and in the forwarded within-group name order.
+    // break — and in the forwarded within-group name order.
     expect(groups.find((g) => g.key === 'Main › Ramp')!.cards.map((c) => c.name)).toEqual([
       'Arcane Signet',
       'Sol Ring',

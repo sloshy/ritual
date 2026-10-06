@@ -46,8 +46,8 @@ async function main(): Promise<void> {
     process.exitCode = ExitCode.RuntimeError
   })
 
-  // Hand the runtime its English catalog. Namespaces are import boundaries
-  // (plan §4.2), so nothing is registered until a surface asks for it — the CLI
+  // Hand the runtime its English catalog. Namespaces are import boundaries,
+  // so nothing is registered until a surface asks for it — the CLI
   // is the surface that asks for all seven. Must precede `initI18n()`, and
   // therefore every `t()` call in the process.
   registerCliMessages()

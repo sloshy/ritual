@@ -175,7 +175,7 @@ export function createWantedStrategy(
     // The wanted list has no condition, but the shared engine config carries the
     // full shape; the condition field is simply never read by this strategy.
     sessionConfig,
-    // Design §1.5: every list type carries categories, so a wanted list gets
+    // Every list type carries categories, so a wanted list gets
     // the two list-level rows too — its first extra menu items.
     extraMenuItems: (): MenuChoice[] => categoryMenuItems(),
     handleSentinel: async (ctx: CardSessionContext, value: MenuSentinel): Promise<void> => {

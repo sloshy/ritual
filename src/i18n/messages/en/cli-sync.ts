@@ -8,7 +8,7 @@
  * Nothing here crosses into an interchange format. CSV and export *headers*,
  * the Archidekt/Moxfield dialect spellings, `EXPORT_PROPERTY_LABELS`,
  * `CSV_FIELD_LABELS`, list-type slugs, set codes, and `--output json` payload
- * keys are English by contract (plan §4.9) and are spliced in as parameters
+ * keys are English by contract and are spliced in as parameters
  * rather than translated.
  */
 

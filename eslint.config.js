@@ -18,8 +18,8 @@ const ritualPlugin = {
   },
 }
 
-// Focused ruleset: rules picked to catch the same kinds of issues that the
-// most recent code review flagged, plus a small set of clear-bug rules. The
+// Focused ruleset: rules picked to catch the kinds of issues code review has
+// flagged in this codebase, plus a small set of clear-bug rules. The
 // broader `recommendedTypeChecked` preset is deliberately NOT extended — it
 // surfaces hundreds of stylistic violations across this codebase that would
 // need a separate cleanup pass.
@@ -78,19 +78,17 @@ export default [
 
       // ── Targeted: enforces AGENTS.md #2 (no anonymous object types
       // outside named declarations). Catches the kind of inline `{ … }`
-      // shape that the recent review surfaced in `watchedDirs`.
+      // shape that once turned up in `watchedDirs`.
       'ritual/no-anonymous-object-types': 'error',
 
       // ── i18n framework.
-      // All three landed at `warn` in Phase 0 and flipped to `error` per
-      // directory as each surface converted, which is what made a ~2,000-message
+      // All three landed at `warn` and flipped to `error` per directory as
+      // each surface converted, which is what made a ~2,000-message
       // migration reviewable instead of a big bang. Each rule carries its own
       // scope/carve-out defaults — see the rule files.
       //
-      // The ratchet is now fully closed: `no-inline-plural` and
-      // `no-bare-intl-locale` flipped at the end of Phase 3, and
-      // `no-untranslated-literal` at the end of Phase 7, once Phases 4–6 had
-      // routed the site, admin and CLI strings through the catalog. The
+      // The ratchet is now fully closed: all three are `error` everywhere,
+      // with the site, admin and CLI strings routed through the catalog. The
       // remaining English-by-contract surfaces (see AGENTS.md) are excluded by
       // path in `eslint-rules/no-untranslated-literal.js` rather than downgraded
       // here, so a new violation in a converted directory fails the build.
@@ -101,14 +99,14 @@ export default [
       // ── Directory layering.
       // Bottom-up: a file may import its own layer or anything below, never
       // above. Directories missing from the table are unconstrained. The
-      // `allow` list is the known debt at the time the rule landed; the zone
-      // that closes a debt deletes its entry — never widen one. Zone 10 closed
-      // the last two, so the layering now holds with no exceptions at all.
+      // `allow` list is the known debt at the time the rule landed; the change
+      // that closes a debt deletes its entry — never widen one. The list is
+      // now empty, so the layering holds with no exceptions at all.
       'ritual/no-upward-import': [
         'error',
         {
           layers: [
-            // Zone 9 sub-layered `domain` into three. Fragments pin a single
+            // `domain` is sub-layered into three. Fragments pin a single
             // file whose imports differ from its directory's layer
             // (longest-fragment-wins, see eslint-rules/no-upward-import.js).
             {

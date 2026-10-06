@@ -260,7 +260,7 @@ describe('parseWantedListFile — quantity expansion', () => {
 })
 
 /**
- * Owner decision §0(5): a wanted list never carries a condition. The refusal
+ * A wanted list never carries a condition. The refusal
  * has to *say* that — the old grammar swallowed the whole line and blamed a
  * missing set code three tokens away.
  */

@@ -20,8 +20,7 @@ import { sitePriceForFinish } from '../../list-view/price-view'
 /**
  * The currency this dialog quotes in. Every price it renders — the grid tiles and
  * the finish radios alike — goes through this, so the two can never disagree on
- * how a number is written. The currency sweep (plan §6.4 / Phase 3) is what gives
- * the picker a currency of its own.
+ * how a number is written. This is what gives the picker a currency of its own.
  */
 export const PICKER_CURRENCY = 'usd' as const satisfies PriceCurrency
 

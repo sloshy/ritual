@@ -1,5 +1,5 @@
 /**
- * Message registration for the **CLI** process (plan §4.2).
+ * Message registration for the **CLI** process.
  *
  * The CLI is the one surface that speaks every namespace: it renders its own
  * `cli.*` output and `help.*` text, and it is also what builds the public site

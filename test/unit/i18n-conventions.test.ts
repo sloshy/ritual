@@ -86,7 +86,7 @@ describe('i18n persistence fence', () => {
   /**
    * These modules write or re-parse `.changes.md`, CSV exports, the
    * ritual-change-bundle envelope, and the Archidekt/Moxfield dialect headers.
-   * All of it is English by contract (plan §4.9), so none of them may import
+   * All of it is English by contract, so none of them may import
    * the message catalog directly. (The scan is direct-import only; a transitive
    * route through e.g. `card-labels` returns prose to callers rather than
    * writing it into the file, which is the line the fence protects.)
@@ -382,7 +382,7 @@ describe('lint-rule vocabulary', () => {
   /**
    * `eslint-rules/no-untranslated-literal.js` treats a key-shaped literal in a
    * `label:` / `description:` position as a *reference* to catalog text rather
-   * than untranslated prose, so the §7.2 `Record<Key, MessageKey>` tables do not
+   * than untranslated prose, so the `Record<Key, MessageKey>` label tables do not
    * each need an exempt comment. An ESLint rule cannot import TypeScript, so it
    * duplicates the namespace list — this keeps the copy honest. A namespace
    * missing from the rule would make every label table in it a lint error.

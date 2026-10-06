@@ -244,7 +244,7 @@ describe('skill bodies name only tools that exist', () => {
 
 describe('skill content is English by contract', () => {
   /**
-   * Skill bodies are model-facing prose (plan §11), and their content hash is
+   * Skill bodies are model-facing prose, and their content hash is
    * what `classifyInstalledSkill` uses to tell a machine-managed install from a
    * user-edited one at one fixed path — a body that changed with the reader's
    * UI locale would make every installed skill look edited the moment the

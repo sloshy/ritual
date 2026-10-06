@@ -48,12 +48,13 @@ export function getPriceField(currency: PriceCurrency): BasePriceField {
  * The **locale-invariant** money format: symbol, two decimals separated by a
  * literal `.`, then the currency suffix — `$12.30`, `€4.00`, `1.25 tix`.
  *
- * This is the machine-contract half of the split described in the localization
- * plan (§6.4). Every path whose output is *parsed* rather than read must use
- * it, and CSV is the sharp case: `Intl.NumberFormat('de-DE')` renders `12,30`,
- * and a comma decimal separator inside a comma-delimited file silently shifts
- * every following column. Making that unrepresentable is the whole point of
- * having a second function rather than a `locale` parameter someone can forget.
+ * This is the machine-contract half of the localization split between parsed
+ * and displayed money. Every path whose output is *parsed* rather than read
+ * must use it, and CSV is the sharp case: `Intl.NumberFormat('de-DE')`
+ * renders `12,30`, and a comma decimal separator inside a comma-delimited file
+ * silently shifts every following column. Making that unrepresentable is the
+ * whole point of having a second function rather than a `locale` parameter
+ * someone can forget.
  *
  * Use it for: CSV and other delimited exports, values written to disk, and
  * anything a downstream importer re-parses. Use {@link formatPrice} for text a

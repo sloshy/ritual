@@ -130,7 +130,7 @@ const MISS_DESCRIBERS = {
  *
  * **English by contract, deliberately not routed through `t()`.** It lives
  * inside the persistence fence, and MCP result prose is English regardless of
- * the operator's UI locale (plan §11). The editors show the *rendered* `message`
+ * the operator's UI locale. The editors show the *rendered* `message`
  * the save route returned, as `statusText`. It becomes localizable when the
  * route answers with a `messageKey`, which is where the split between "what the
  * agent reads" and "what the human reads" is introduced.

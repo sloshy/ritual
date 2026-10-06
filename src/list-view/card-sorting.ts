@@ -107,7 +107,7 @@ export const SELL_GROUP_BYS = ['buylist-price', 'on-buylist'] as const satisfies
 export type SellGroupBy = (typeof SELL_GROUP_BYS)[number]
 
 /**
- * The groupings that nest inside a deck's boards (design §1.1, §7). One table,
+ * The groupings that nest inside a deck's boards. One table,
  * compile-checked against `GroupBy`, shared by the page dropdowns and by the
  * deck nesting leaf so the two halves can never disagree.
  */
@@ -720,7 +720,7 @@ export function groupAndSortCards<T extends CardData>(
         continue
       }
       // Deliberately breaks the one-card-one-group invariant: a card appears
-      // under every category it holds, so group totals overlap (design §7) and
+      // under every category it holds, so group totals overlap and
       // the section heading says so.
       for (const name of own) {
         const key = headings.get(foldCardCategory(name)) ?? name

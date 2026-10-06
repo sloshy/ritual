@@ -13,8 +13,8 @@ const ROOT = path.resolve(import.meta.dir, '../..')
  * module that called the `prompts` library directly would open a prompt that
  * `--no-input` cannot refuse and that speaks the library's English — so all of
  * `src/` may import the library's types, never its value, except the files in
- * {@link ALLOWED}: `ask()` itself and the three unconverted prompt sites, which
- * are the Zone 12 conversion inventory. A new entry here is a regression.
+ * {@link ALLOWED}: `ask()` itself and the three unconverted prompt sites. A new
+ * entry here is a regression.
  */
 
 type Violation = { file: string; text: string }

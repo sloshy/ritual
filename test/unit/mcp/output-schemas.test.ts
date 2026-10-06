@@ -632,7 +632,7 @@ describe('MCP output schemas, as authored', () => {
   })
 
   test('every admin-authored message advertises its localization pair', () => {
-    // The response shape the admin API was widened to (plan §7.7): `message`
+    // The response shape the admin API was widened to: `message`
     // stays rendered English and required — that is what an agent reads and it
     // never moves — while `messageKey`/`messageParams` ride beside it, optional,
     // for a client that renders in the reader's locale. A schema that advertised

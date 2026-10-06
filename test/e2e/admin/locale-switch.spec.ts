@@ -107,7 +107,7 @@ test.describe('admin language switch', () => {
     await expect(tab).toContainText('Decks')
 
     // "Create New Deck" is one message per list type, not a verb glued to a
-    // capitalized noun (plan §7.3) — so it survives the switch as a whole
+    // capitalized noun — so it survives the switch as a whole
     // sentence rather than as a half-translated splice.
     await page.locator('.btn-primary:has-text("New Deck")').click()
     const formHeading = page.locator('.section-subheading')

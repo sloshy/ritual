@@ -6,7 +6,7 @@ import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**
- * The widened API response shape (plan §7.7): `message` is rendered English —
+ * The widened API response shape: `message` is rendered English —
  * byte for byte what MCP and scripts already read — and the key/params pair
  * beside it is what lets a client re-render the same sentence in the reader's
  * language.

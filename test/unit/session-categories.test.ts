@@ -257,7 +257,7 @@ describe('categoryMenuItems / handleCategoryMenuSentinel', () => {
 
 /**
  * The prompts' suggestion list is wider than the sidecar's persisted `order`:
- * design §6 asks for "the list's vocabulary then config defaults", and the
+ * the list's vocabulary, then config defaults. The
  * union happens in `sessionCategoryVocabulary` rather than in
  * `resolveCategoryOrder`, whose value is hashed into the file.
  */

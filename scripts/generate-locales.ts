@@ -25,7 +25,7 @@
  * ```sh
  * bun run scripts/generate-locales.ts                    # bake `en` (default)
  * RITUAL_BUNDLED_LOCALES=all bun run scripts/generate-locales.ts
- * bun run scripts/generate-locales.ts --emit-types       # §3 bailout clause
+ * bun run scripts/generate-locales.ts --emit-types       # type-table bailout
  * ```
  */
 
@@ -50,7 +50,7 @@ export type GenerateOptions = {
   bundled: string[]
   /** Bake every locale found on disk, ignoring {@link GenerateOptions.bundled}. */
   bundleAll: boolean
-  /** Emit `src/generated/messages.ts` instead of catalogs (the §3 bailout). */
+  /** Emit `src/generated/messages.ts` instead of catalogs (the type-table bailout). */
   emitTypes: boolean
   localesDir: string
   generatedDir: string
@@ -253,7 +253,7 @@ export function renderLocalesModule(baked: readonly BakedLocale[]): string {
 }
 
 /**
- * Render `src/generated/messages.ts` — the §3 bailout clause. If literal-type
+ * Render `src/generated/messages.ts` — the type-table bailout. If literal-type
  * placeholder extraction ever costs too much `tsc` time, `t()` switches to
  * reading this generated table instead of inferring from the `as const`
  * catalog. Call sites do not change.
@@ -264,7 +264,7 @@ export function renderMessageTypesModule(english: MessageCatalogShape): string {
     '',
     '/**',
     ' * Per-key parameter names, extracted from the English catalog. The bailout',
-    " * path for `src/i18n/t.ts` (see the plan's §3 decision rule): a plain",
+    ' * path for `src/i18n/t.ts`: a plain',
     ' * mapped type costs `tsc` nothing, where template-literal extraction over a',
     ' * few thousand literals is measurable.',
     ' */',

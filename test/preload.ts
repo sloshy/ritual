@@ -47,7 +47,7 @@ process.env.RITUAL_STATE_DIR = mkdtempSync(path.join(tmpdir(), 'ritual-test-stat
 /**
  * Register the English catalog, exactly as `main()` in `index.ts` does.
  *
- * Namespaces are import boundaries (plan §4.2), so `t()` renders the key string
+ * Namespaces are import boundaries, so `t()` renders the key string
  * until a surface entry point registers its namespaces. A unit test that
  * imports a module directly never runs an entry point, so this stands in for
  * one — with the CLI's full set, because a suite may exercise any surface.

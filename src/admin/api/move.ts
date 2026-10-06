@@ -209,7 +209,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
     // batch never produces a "Move 0 cards" message or an empty commit.
     //
     // The count phrase comes from the catalog rendered in DEFAULT_LOCALE, not the
-    // active one: a commit message is git data, English by contract (plan §4.9), and
+    // active one: a commit message is git data, English by contract, and
     // routing it through `domain.count.cards` keeps one plural table for the whole repo.
     if (moved > 0) {
       await autoCommitAndPush(

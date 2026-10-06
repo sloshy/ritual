@@ -458,7 +458,7 @@ function registerCategoriesRemoveSubcommand(categories: Command): void {
           })
           return
         }
-        // Design §5: removing a category has no action of its own — it is the
+        // Removing a category has no action of its own — it is the
         // affected cards' `set-categories` plus a `set-category-order` without
         // the name. The engine's own diff computes exactly that.
         const events = diffCardCategories(

@@ -71,7 +71,7 @@ export const EditControlsRow: Component<EditControlsRowProps> = (props) => {
     props.chrome.onSwapPrintings ? [swapPrintings, ...always] : always,
   )
   // The stressed phrase is a parameter, not hard-coded markup, so a translator
-  // can put it anywhere in the sentence (plan §4.6).
+  // can put it anywhere in the sentence.
   const notice = () =>
     tSegments('site.editor.localCopy', { emphasis: t('site.editor.localCopyEmphasis') })
   return (

@@ -510,8 +510,8 @@ export function movesTouching(
  * plural categories — which is why `ritual/no-inline-plural` flags the body.
  * The browser surfaces now render `ui.count.changes` / `ui.count.lists`
  * instead; the one remaining caller is `src/admin/api/import-changes.ts`, whose
- * server-authored prose is restructured in Phase 5 (plan §7.7). This function
- * goes away with it.
+ * server-authored prose is still to be restructured. This function goes away
+ * with it.
  */
 export function countLabel(count: number, noun: string): string {
   // eslint-disable-next-line ritual/no-inline-plural -- see the retirement note above
@@ -652,7 +652,7 @@ function validateMoves(raw: unknown): ChangeBundleMove[] | string {
  * and index positions in a file the user is expected to inspect, and the same
  * text is what `ritual import-changes` and the MCP import tool report. They are
  * a diagnostic vocabulary for a data format, like the format marker itself, not
- * UI prose — see the plan's §4.9 carve-out list.
+ * UI prose.
  */
 export function parseChangeBundle(text: string): ChangeBundle | string {
   let raw: unknown

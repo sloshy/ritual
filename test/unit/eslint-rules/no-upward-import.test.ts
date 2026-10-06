@@ -330,7 +330,7 @@ describe('the eslint.config.js layer table', () => {
     return options
   }
 
-  test('the layers are the Zone 9 sub-layered table, bottom-up', async () => {
+  test('the layers are the sub-layered table, bottom-up', async () => {
     const options = await loadOptions()
     expect(options.layers.map((layer) => layer.name)).toEqual([
       'core',
@@ -346,7 +346,7 @@ describe('the eslint.config.js layer table', () => {
   })
 
   test('the allow list is empty and stays that way', async () => {
-    // Zone 10 closed the last two entries. Each one was a hole in the layering
+    // The last two entries are closed. Each one was a hole in the layering
     // that lint could not see through, so re-adding one is a decision to take
     // deliberately — not a way past a lint failure.
     const options = await loadOptions()
@@ -394,7 +394,7 @@ describe('the eslint.config.js layer table', () => {
     ['src/list/x.js', '../util/errors', 0],
     ['src/importers/x.js', '../scryfall/client', 0],
     ['src/importers/x.js', '../admin/server', 1],
-    // The two edges Zone 10 closed, now enforced rather than allow-listed.
+    // The two edges once allow-listed, now enforced.
     ['src/api/x.js', '../admin/api/save-helpers', 1],
     ['src/cache/x.js', '../cache-feed/host', 1],
   ])('%s importing %s reports %i', async (filename, specifier, reports) => {

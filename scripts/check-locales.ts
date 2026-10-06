@@ -599,7 +599,7 @@ function sourceFiles(root: string): string[] {
  *
  * The generosity extends to comments — raw file text is scanned, so a key named
  * only in a doc comment counts as live. That was reviewed when dead keys became
- * blocking (plan §12, Phase 7) and kept deliberately: the two failure modes are
+ * blocking and kept deliberately: the two failure modes are
  * not symmetric. A false *negative* leaves one unused key in the catalog, which
  * a reviewer can spot. A false *positive* fails `bun run test` for everyone over
  * a key that is genuinely wired, and stripping comments correctly (without
@@ -713,7 +713,7 @@ export type RegistrationSurface = {
 }
 
 /**
- * The browser surfaces' registration modules (plan §4.2).
+ * The browser surfaces' registration modules.
  *
  * Registration is what puts message *text* in a bundle: the runtime holds no
  * catalog of its own, so a namespace reaches `src/site/app.compiled.js` only by

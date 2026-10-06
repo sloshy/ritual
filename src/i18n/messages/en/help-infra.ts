@@ -197,7 +197,7 @@ export const helpInfraMessages = {
   //
   // Only the *command's* help is localized. Everything the MCP server itself
   // says to an agent — tool names, titles, descriptions, instructions — is
-  // English by contract (see the plan's §11).
+  // English by contract.
   'help.mcp.description':
     'Start an MCP (Model Context Protocol) server exposing deck, collection, and wanted-list management to AI agents',
   'help.mcp.transport': 'Transport to use',
