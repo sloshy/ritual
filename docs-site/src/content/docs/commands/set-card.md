@@ -236,7 +236,7 @@ In the changelog the change appears as `Set language of "Sol Ring" to Japanese &
 
 ### Sections and Commander
 
-`--section` moves the card to the named deck section, creating it at the end of the deck if missing. `--commander` moves the card into the deck's `Commander` section (created at the top if missing), and `--no-commander` moves it back out to the first regular section. If both appear on one command line, the last one wins.
+`--section` moves the card to the named deck section, creating it at the end of the deck if missing. The name resolves to the deck's own section the way [`add-card --section`](/commands/add-card/) does: case-insensitively, or by role (an alias like `Main` or `Deck` is the first main-deck section, including card lines above the first heading). A name that resolves to an existing section never creates a new one, and a card already in the section it resolves to stays where it is. The changelog records the section the card landed in. `--commander` moves the card into the deck's `Commander` section (created at the top if missing), and `--no-commander` moves it back out to the first regular section. If both appear on one command line, the last one wins.
 
 ### Dry Runs
 

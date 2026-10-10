@@ -91,6 +91,11 @@ export const domainMessages = {
     one: '{count} printing',
     other: '{count} printings',
   },
+  'domain.count.boardMoves': {
+    $plural: 'count',
+    one: '{count} board move',
+    other: '{count} board moves',
+  },
   'domain.count.cardCategories': {
     $plural: 'count',
     one: "{count} card's categories",

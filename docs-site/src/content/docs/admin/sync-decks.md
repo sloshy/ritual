@@ -66,12 +66,13 @@ Decks refused this way are reported as failed (`N unreadable lines would be drop
 
 The same as the CLI, since it is the same engine:
 
-- A **pull** applies remote card additions, removals, and quantity changes per board, adopts the deck's Archidekt format, records every card change in the deck's `.changes.md`, and stamps `lastSynced`.
-- A **push** sends local card changes to Archidekt (ignoring board placement) and stamps `lastSynced`, **only for decks that pushed cleanly**.
+- A **pull** applies remote card additions, removals, quantity changes, and board moves per board, adopts the deck's Archidekt format, records every card change in the deck's `.changes.md`, and stamps `lastSynced`.
+- A **push** sends local card changes, board moves included, to Archidekt and stamps `lastSynced`, **only for decks that pushed cleanly**.
+- Both directions **move a card between boards** when it sits on a different board on each side: a pull moves the local line (keeping its ID), and a push moves the existing Archidekt entry by changing its board category. The change filter never skips a move. See [Board moves](/commands/deck-sync/#board-moves).
 - With **Sync printings** ticked, a pull also rewrites local printings and finishes to what Archidekt records (as `set-printing` changelog entries), and a push moves the remote entries to the local file's printing and finish. A card held at several printings is reconciled printing by printing, adding and removing copies as needed. See [Printing Sync](/commands/deck-sync/#printing-sync---sync-printings).
 - With it **unticked**, printings are never added or removed. A card's new total is spread over the lines (or Archidekt entries) it already occupies, and a card whose printings the two sides cannot square up is reported and left alone. See [Without the flag](/commands/deck-sync/#without-the-flag).
 
-- With **Sync categories** ticked, a pull makes the deck's categories file hold Archidekt's categories for every card (as `set-categories` changelog entries), and a push makes each Archidekt card hold the local categories, keeping its board. A push from a deck with no local categories leaves Archidekt's alone. See [Category Sync](/commands/deck-sync/#category-sync---sync-categories).
+- With **Sync categories** ticked, a pull makes the deck's categories file hold Archidekt's categories for every card (as `set-categories` changelog entries), and a push makes each Archidekt card hold the local categories, beside the board category of the board it ends up on. A push from a deck with no local categories leaves Archidekt's alone. See [Category Sync](/commands/deck-sync/#category-sync---sync-categories).
 
 See [What Is Compared](/commands/deck-sync/#what-is-compared) for the full rules.
 

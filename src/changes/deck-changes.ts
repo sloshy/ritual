@@ -7,6 +7,7 @@ import { isSamePrinting } from './change-event'
 import {
   COMMANDER_SECTION,
   findOrCreateSection,
+  resolveSectionName,
   isCommanderSection,
   resolveDefaultAddSection,
 } from '../list/deck-format'
@@ -52,11 +53,12 @@ export type DeckLandingOptions = { listLabels: readonly CardLabel[] | undefined 
 export type DeckApplyOptions = ApplyChangeOptions & DeckLandingOptions
 
 /**
- * Where a merge search looks: every section, or — for a `move-to` that names
- * its destination section — that section alone. The one scope rule every path
- * that lands a moved copy follows (`ritual move`, a save's replay, an import, a
- * `ritual edit` destination), so the same move writes the same bytes on all of
- * them. A plain `add` searches every section.
+ * Where a merge search looks: every section, or — for a `move-to` or an `add`
+ * that names its destination section — that section alone (the deck's own
+ * section that name means, per `resolveSectionName`). The one scope rule every
+ * path that lands a copy follows (`ritual move`, `add-card`, a save's replay,
+ * an import, a `ritual edit` destination), so the same change writes the same
+ * bytes on all of them. An `add` naming no section searches every section.
  */
 export type DeckMergeScope = DeckLandingOptions & { section?: string }
 
@@ -112,7 +114,10 @@ export function findDeckAddMergeTargetId(
   options: DeckLandingOptions,
 ): number | undefined {
   if (change.action === 'add') {
-    return findDeckMergeLine(deck.sections, change.cardName, change, options)?.card.cardId
+    return findDeckMergeLine(deck.sections, change.cardName, change, {
+      ...options,
+      section: change.section,
+    })?.card.cardId
   }
   if (change.action !== 'move-to') return undefined
   const copy = arrivingCopy(change, options.listLabels)
@@ -138,8 +143,15 @@ export function findDeckMergeLine(
   copy: DeckAdd,
   scope: DeckMergeScope,
 ): DeckLineAt | null {
+  const scoped =
+    scope.section === undefined
+      ? undefined
+      : resolveSectionName(
+          sections.map((s) => s.name),
+          scope.section,
+        )
   for (const section of sections) {
-    if (scope.section !== undefined && section.name !== scope.section) continue
+    if (scoped !== undefined && section.name !== scoped) continue
     const idx = section.cards.findIndex((c) => mergesOntoCard(c, cardName, copy, scope.listLabels))
     if (idx !== -1) return { section, idx, card: section.cards[idx]! }
   }
@@ -245,7 +257,16 @@ export function applyChangeToDeck(
 
   switch (change.action) {
     case 'add':
-      return addCopy(change, undefined, { listLabels: options?.listLabels })
+      // An add that names its section merges only within it, the scope a
+      // `move-to` arrival already uses: a copy added to the Sideboard must not
+      // fold onto a same-printing Main line. Deck sync relies on this to replay
+      // a partial board move (copies removed from a line, then added to a new
+      // one in the target section) — unscoped, the adds would land straight
+      // back on the line they left.
+      return addCopy(change, undefined, {
+        listLabels: options?.listLabels,
+        section: change.section,
+      })
 
     case 'remove': {
       const found = findCard(sections)
@@ -399,7 +420,12 @@ export function applyChangeToDeck(
     }
 
     case 'add-section': {
-      findOrCreateSection(sections, change.section)
+      // Exact: an explicitly added section is a new heading, never an alias for
+      // one the deck already has (`findOrCreateSection` would resolve `Main` to
+      // `## Creatures`).
+      if (!sections.some((s) => s.name === change.section)) {
+        sections.push({ name: change.section, cards: [] })
+      }
       return { ...deck, sections }
     }
 
@@ -433,10 +459,14 @@ export function applyChangeToDeck(
         options?.onMiss?.('no-target')
         return { ...deck, sections }
       }
-      if (found.section.name === change.section) return { ...deck, sections }
+      // Resolved before comparing: a request that means the card's own section
+      // (`main` for `## Main`, `Main` for `## Creatures`) leaves it in place
+      // rather than moving it to that section's end.
+      const target = findOrCreateSection(sections, change.section)
+      if (target === found.section) return { ...deck, sections }
       const [moved] = found.section.cards.splice(found.idx, 1)
       if (!moved) return { ...deck, sections }
-      findOrCreateSection(sections, change.section).cards.push(moved)
+      target.cards.push(moved)
       return { ...deck, sections }
     }
 

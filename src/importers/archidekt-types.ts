@@ -166,8 +166,6 @@ export interface ArchidektRawDeckResponse {
   updatedAt: string
 }
 
-export type ModifyCardAction = 'add' | 'modify' | 'remove'
-
 export interface ModifyCardModifications {
   quantity: number
   modifier: ArchidektCardModifier
@@ -177,15 +175,25 @@ export interface ModifyCardModifications {
   label: string // "name,hexcolor" — default ",#656565"
 }
 
-export interface ModifyCardEntry {
-  action: ModifyCardAction
+/** What every `modifyCards/v2/` entry carries, whatever its action. */
+interface ModifyCardEntryBase {
   cardid: number // Archidekt card edition ID
   customCardId: number | null
   categories: string[]
   patchId: string // Client-generated tracking ID
   modifications: ModifyCardModifications
-  deckRelationId?: number // Required for "modify" and "remove" actions
 }
+
+/**
+ * One `modifyCards/v2/` entry. An `add` creates a relation and so names none;
+ * a `modify` or `remove` must name the relation it acts on.
+ */
+export type ModifyCardEntry =
+  | (ModifyCardEntryBase & { action: 'add' })
+  | (ModifyCardEntryBase & {
+      action: 'modify' | 'remove'
+      deckRelationId: number // Deck-card relation ID
+    })
 
 /**
  * The oracle block a card-search hit carries.

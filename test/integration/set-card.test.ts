@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import { parseChangelog } from '../../src/changes/changelog-parser'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { runCli } from './helpers/cli'
@@ -349,6 +350,26 @@ describe('set-card CLI (Integration)', () => {
 
     const changelog = await fs.readFile(path.join(dir, 'decks', 'test.changes.md'), 'utf-8')
     expect(changelog).toContain('Moved "Sol Ring" to section "Sideboard" &1')
+  })
+
+  test('records the section the card landed in, not the spelling it was asked for', async () => {
+    const deckPath = path.join(dir, 'decks', 'spelled.md')
+    await fs.writeFile(
+      deckPath,
+      ['---', 'name: Spelled', '---', '', '## Main', '1 Sol Ring &1', '', '## Sideboard', ''].join(
+        '\n',
+      ),
+    )
+    const result = await runCli(
+      ['set-card', '--deck', 'spelled', 'Sol', 'Ring', '--section', 'sideboard'],
+      dir,
+    )
+    expect(result.exitCode).toBe(0)
+    expect(await fs.readFile(deckPath, 'utf-8')).toContain('## Sideboard\n1 Sol Ring &1')
+    const changelog = await fs.readFile(path.join(dir, 'decks', 'spelled.changes.md'), 'utf-8')
+    expect(parseChangelog(changelog).pages.flatMap((page) => page.changes)).toMatchObject([
+      { action: 'set-section', cardName: 'Sol Ring', cardId: 1, section: 'Sideboard' },
+    ])
   })
 
   test('preserves hand-written prose in the file — only the target line changes', async () => {

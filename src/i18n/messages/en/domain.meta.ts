@@ -174,6 +174,9 @@ export const domainMeta = {
   'domain.count.printings': {
     description: `${COUNT_CONTEXT} Card printings (a specific set/collector-number/finish of a card), e.g. in a deck sync's "2 printings changed".`,
   },
+  'domain.count.boardMoves': {
+    description: `${COUNT_CONTEXT} Cards a deck sync moves from one deck board (Main, Sideboard, Maybeboard, Commander) to another without adding or removing copies, e.g. "2 board moves" in a sync's change summary.`,
+  },
   'domain.count.cardCategories': {
     description: `${COUNT_CONTEXT} Cards whose categories (a card's role in the deck, e.g. Ramp) a deck sync changes, e.g. "3 cards' categories changed".`,
   },

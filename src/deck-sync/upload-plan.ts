@@ -5,8 +5,9 @@
  */
 
 import type { ArchidektClient } from '../clients/ArchidektClient'
+import { t } from '../i18n/t'
 import type { Card } from '../card/card'
-import type { DeckSection } from '../list/deck'
+import type { Board, DeckSection } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
 import { archidektEntryCategoryNames, archidektEntryPrinting } from '../importers/archidekt-types'
 import type {
@@ -16,15 +17,26 @@ import type {
   ModifyCardEntry,
   ModifyCardModifications,
 } from '../importers/archidekt-types'
-import { appliedPrinting, type DeckDiff, type PrintingUpdate } from './diff'
+import {
+  appliedPrinting,
+  diffPhases,
+  normalizeBoard,
+  type BoardMove,
+  type DeckDiff,
+  type PrintingUpdate,
+  type QuantityChange,
+} from './diff'
 import { distributeQuantity, holdingsAt, samePrintingRef, type DeckPrintingRef } from './reconcile'
 import { printingSuffix } from '../card/card-line'
 import { hasSpecificPrinting } from '../card/card-printing'
 import { archidektModifier } from '../importers/archidekt-collection'
 import type { CardCategory } from '../card/card-categories'
 import {
+  archidektEntrySection,
+  archidektNonBoardCategories,
   composeArchidektCategories,
   indexArchidektCategories,
+  reboardArchidektCategories,
   sameArchidektCategories,
   type ArchidektCategoryIndex,
 } from '../importers/archidekt-categories'
@@ -33,8 +45,8 @@ import {
 
 /**
  * One Archidekt deck-card relation as the upload planner works with it: the raw
- * entry, the printing it holds today, and the edition/finish/quantity it should
- * hold after the push.
+ * entry, the printing and board it holds today, and the edition/finish/
+ * quantity/board it should hold after the push.
  *
  * A push plans per *relation*, not per card name. Archidekt lets one deck hold
  * the same card several times over — a different edition or finish per relation,
@@ -42,7 +54,23 @@ import {
  * for the single-relation case: it would write a card's whole local quantity
  * onto one relation and leave the others standing.
  */
-export type PlannedRelation = {
+export type PlannedRelation =
+  | (PlannedRelationState & {
+      /** A relation Archidekt already records, addressed by its own id. */
+      kind: 'existing'
+      deckRelationId: number
+    })
+  | (PlannedRelationState & {
+      /**
+       * A relation the plan split off a board move — sent as an `add`, carrying
+       * `raw`'s label and flags but, having no id of its own yet, unable to
+       * name the relation it was split from.
+       */
+      kind: 'split'
+    })
+
+/** What the planner tracks for every relation, existing or split off. */
+type PlannedRelationState = {
   raw: ArchidektRawCardEntry
   /** The printing the relation holds, moved on by any printing update planned for it. */
   printing: DeckPrintingRef
@@ -52,6 +80,13 @@ export type PlannedRelation = {
   quantity: number
   /** The Archidekt categories to send — never null, which fails the whole batch. */
   categories: string[]
+  /**
+   * The deck-sync board the relation is on — read off its categories the way
+   * the deck parser reads them (`archidektEntrySection`, then
+   * `normalizeBoard`), so it always agrees with the board the diff saw — moved
+   * on by any board move planned for it.
+   */
+  board: Board
   /** Whether anything above was changed from what Archidekt already records. */
   touched: boolean
 }
@@ -77,16 +112,21 @@ export type RawCardIndex = Map<string, RawCardIndexEntry>
  */
 export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardIndex {
   const index: RawCardIndex = new Map()
+  const categoryIndex = indexArchidektCategories(rawDeck.categories)
   for (const entry of rawDeck.cards) {
     const name = entry.card.oracleCard.name.toLowerCase()
+    // `modifyCards/v2/` takes names, so an old payload's ids are resolved here.
+    const categories = archidektEntryCategoryNames(entry.categories, rawDeck.categories)
     const relation: PlannedRelation = {
+      kind: 'existing',
+      deckRelationId: entry.id,
       raw: entry,
       printing: archidektEntryPrinting(entry.card, entry.modifier),
       cardid: entry.card.id,
       modifier: entry.modifier,
       quantity: entry.quantity,
-      // `modifyCards/v2/` takes names, so an old payload's ids are resolved here.
-      categories: archidektEntryCategoryNames(entry.categories, rawDeck.categories),
+      categories,
+      board: normalizeBoard(archidektEntrySection(categories, categoryIndex)),
       touched: false,
     }
     const existing = index.get(name)
@@ -97,15 +137,19 @@ export function buildRawCardIndex(rawDeck: ArchidektRawDeckResponse): RawCardInd
 }
 
 /**
- * The relations of a card that hold a printing. Without one — a name-keyed diff,
- * which is not syncing printings — every relation of the name matches, and the
- * caller spreads the change across them.
+ * The relations of a card on one board that hold a printing. Without one — a
+ * name-keyed diff, which is not syncing printings — every relation of the name
+ * on the board matches, and the caller spreads the change across them.
  */
 function selectRelations(
   indexed: RawCardIndexEntry,
+  board: Board,
   printing: DeckPrintingRef | undefined,
 ): PlannedRelation[] {
-  return holdingsAt(indexed.relations, printing)
+  return holdingsAt(
+    indexed.relations.filter((relation) => relation.board === board),
+    printing,
+  )
 }
 
 // ── Upload plan ───────────────────────────────────────────────────────
@@ -227,7 +271,7 @@ async function resolvePrintingTarget(
 }
 
 /** What the plan was trying to do to a card, for the message when it cannot. */
-type PlanVerb = 'remove' | 'update the printing' | 'update the quantity'
+type PlanVerb = 'remove' | 'update the printing' | 'update the quantity' | 'change the board'
 
 /** A card to add to the remote deck, once its edition has been resolved. */
 type ResolvedAdd = {
@@ -245,41 +289,98 @@ type ResolvedAdd = {
 }
 
 /**
- * Where a newly added relation should sit.
- *
- * A card the deck **already holds** at another printing takes the categories its
- * existing relations use: splitting `3 Mountain` into two printings must leave
- * both in whatever category the three were in, not fling the new copies into
- * Archidekt's default. Only a card genuinely new to the deck falls back to that
- * default — and when Archidekt reports none, to no category at all, since a null
- * category fails the entire batch.
+ * The relation of a card already on Archidekt whose categories new copies of it
+ * follow: the first with any non-board category, preferring one on the target
+ * board, else simply the first on the target board, else the first at all.
+ * Splitting `3 Mountain` into two printings must leave both in whatever role
+ * category the three were in, not fling the new copies into Archidekt's
+ * default. The one rule both {@link addCategories} and
+ * {@link syncedAddCategories} read.
  */
-function addCategories(
+function preferredSibling(
   siblings: RawCardIndexEntry | undefined,
+  board: Board,
+  categoryIndex: ArchidektCategoryIndex,
+): PlannedRelation | undefined {
+  const relations = siblings?.relations ?? []
+  const ordered = [
+    ...relations.filter((relation) => relation.board === board),
+    ...relations.filter((relation) => relation.board !== board),
+  ]
+  return (
+    ordered.find(
+      (relation) => archidektNonBoardCategories(relation.categories, categoryIndex).length > 0,
+    ) ?? ordered[0]
+  )
+}
+
+/**
+ * A relation's categories once it sits on `board`: its board categories
+ * swapped for the target's, and — when that leaves nothing at all, which only
+ * the main board can — `defaultCategory`, the same fallback a new card gets.
+ * Never holds a null.
+ */
+function boardedCategories(
+  categories: readonly string[] | undefined,
+  board: Board,
   defaultCategory: string | null | undefined,
+  categoryIndex: ArchidektCategoryIndex,
 ): string[] {
-  const existing = siblings?.relations.find((relation) => relation.categories.length > 0)
-  if (existing) return existing.categories
+  const boarded = reboardArchidektCategories(categories, board, categoryIndex)
+  if (boarded.length > 0) return boarded
   return defaultCategory ? [defaultCategory] : []
 }
 
 /**
- * Where a newly added relation should sit when the push syncs categories. A
- * card the deck already holds takes its sibling's board and the local
- * categories, exactly as the category pass leaves its other relations — so an
- * uncategorized card is uncategorized on every relation. Only a card new to
- * Archidekt that the local file leaves uncategorized falls back to
- * Archidekt's own default: it has no remote categories to preserve and has not
- * said where it goes, and the default is a better home than none at all.
+ * Where a newly added relation should sit: its local board's category
+ * (`archidektBoardCategory` — none for the main board) and the non-board
+ * categories of its {@link preferredSibling}. Only a main-board card with no
+ * other category falls back to Archidekt's own default category — and when
+ * Archidekt reports none, to no category at all, since a null category fails
+ * the entire batch. A card going to another board has its board as its home
+ * already.
+ */
+function addCategories(
+  siblings: RawCardIndexEntry | undefined,
+  board: Board,
+  defaultCategory: string | null | undefined,
+  categoryIndex: ArchidektCategoryIndex,
+): string[] {
+  return boardedCategories(
+    preferredSibling(siblings, board, categoryIndex)?.categories,
+    board,
+    defaultCategory,
+    categoryIndex,
+  )
+}
+
+/**
+ * Where a newly added relation should sit when the push syncs categories: its
+ * local board's category and the local categories, exactly as the category
+ * pass leaves the card's other relations — so an uncategorized card is
+ * uncategorized on every relation. Only a card new to Archidekt that the
+ * local file leaves uncategorized falls back to {@link addCategories}: it has
+ * no remote categories to preserve and has not said where it goes.
  */
 function syncedAddCategories(
   siblings: RawCardIndexEntry | undefined,
+  board: Board,
   defaultCategory: string | null | undefined,
   categoryIndex: ArchidektCategoryIndex,
   local: readonly CardCategory[],
 ): string[] {
-  if (siblings === undefined && local.length === 0) return addCategories(undefined, defaultCategory)
-  return composeArchidektCategories(siblings?.relations[0].categories, categoryIndex, local)
+  if (siblings === undefined && local.length === 0) {
+    return addCategories(undefined, board, defaultCategory, categoryIndex)
+  }
+  return composeArchidektCategories(
+    reboardArchidektCategories(
+      preferredSibling(siblings, board, categoryIndex)?.categories,
+      board,
+      categoryIndex,
+    ),
+    categoryIndex,
+    local,
+  )
 }
 
 /**
@@ -293,9 +394,19 @@ function syncedAddCategories(
  * relations keep their identity (and so their Archidekt categories), and
  * whatever is left over is added as a new relation or zeroed out.
  *
- * The three passes are ordered the way the local appliers are, and for the same
- * reason: printings move first, so a quantity change keyed by the printing the
- * copies end up on finds the relations that now hold it.
+ * Every relation is addressed by name, **board**, and (when syncing printings)
+ * printing, so a card on two boards is two independent sets of relations: a
+ * local `1 Main` against a remote `1 Main + 1 Maybeboard` removes the
+ * Maybeboard relation and leaves the Main one alone.
+ *
+ * The passes follow the order the local appliers use, for the same reasons
+ * ({@link DeckDiff}, {@link diffPhases}): printings move first, so a quantity
+ * change keyed by the printing the copies end up on finds the relations that
+ * now hold it; then whatever shrinks a board, then the board moves, then
+ * whatever grows one. Removals are planned before the printing updates rather
+ * than after, which is equivalent: a removal names a holding `pairPrintings`
+ * left unpaired, and a printing update names a paired one, so the two never
+ * touch the same relation.
  */
 export async function buildUploadPlan(
   diff: DeckDiff,
@@ -315,11 +426,12 @@ export async function buildUploadPlan(
   /** The relations of a diff entry's card, or the reason there are none to act on. */
   const relationsFor = (
     name: string,
+    board: Board,
     printing: DeckPrintingRef | undefined,
     verb: PlanVerb,
   ): PlannedRelation[] => {
     const indexed = rawIndex.get(name.toLowerCase())
-    const relations = indexed ? selectRelations(indexed, printing) : []
+    const relations = indexed ? selectRelations(indexed, board, printing) : []
     // The diff only asks for these against cards the remote deck holds, so a
     // miss means the raw payload and the parsed deck disagree — report it.
     if (relations.length === 0) {
@@ -336,11 +448,13 @@ export async function buildUploadPlan(
     relation.touched = true
   }
 
-  // Removals take out every relation holding the printing. Under a name-keyed
-  // diff that is every relation of the name: the card is gone locally, so no
-  // copy of it may survive remotely.
-  for (const card of diff.removed) {
-    for (const relation of relationsFor(card.name, card.printing, 'remove')) {
+  const phases = diffPhases(diff)
+
+  // Removals take out every relation on the board holding the printing. Under a
+  // name-keyed diff that is every relation of the name on the board: the card
+  // is gone from that board locally, so no copy of it may survive there.
+  for (const card of phases.shrinking.removed) {
+    for (const relation of relationsFor(card.name, card.board, card.printing, 'remove')) {
       setQuantity(relation, 0)
     }
   }
@@ -349,7 +463,7 @@ export async function buildUploadPlan(
   // own quantity. Re-using the relation rather than adding a new one preserves
   // its Archidekt categories, label, and placement.
   for (const update of diff.printingUpdates) {
-    const relations = relationsFor(update.name, update.from, 'update the printing')
+    const relations = relationsFor(update.name, update.board, update.from, 'update the printing')
     const first = relations[0]
     if (!first) continue
 
@@ -375,18 +489,37 @@ export async function buildUploadPlan(
 
   // Quantities are spread over the relations the entry covers rather than
   // written onto one of them, so a card split across relations keeps its split.
-  for (const entry of diff.quantityChanged) {
-    const relations = relationsFor(entry.name, entry.printing, 'update the quantity')
+  // Decreases run before the board moves and increases after them, matching
+  // the quantities the diff states.
+  const applyQuantity = (entry: QuantityChange): void => {
+    const relations = relationsFor(entry.name, entry.board, entry.printing, 'update the quantity')
     const quantities = distributeQuantity(
       relations.map((relation) => relation.quantity),
       entry.newQty,
     )
     relations.forEach((relation, index) => setQuantity(relation, quantities[index]!))
   }
+  for (const entry of phases.shrinking.quantityChanged) applyQuantity(entry)
+
+  for (const move of phases.boardMoves) {
+    const indexed = rawIndex.get(move.name.toLowerCase())
+    const relations = relationsFor(move.name, move.from, move.printing, 'change the board')
+    if (indexed === undefined || relations.length === 0) continue
+    const missing = planBoardMove(indexed, relations, move, categoryIndex)
+    if (missing > 0) {
+      errors.push(
+        `Cannot change the board for ${t('domain.count.copies', { count: missing })} of ` +
+          `${printingLabel(move.name, move.printing)}: the Archidekt ${move.from} board ` +
+          'does not hold them',
+      )
+    }
+  }
+
+  for (const entry of phases.growing.quantityChanged) applyQuantity(entry)
 
   // Categories: every surviving relation's role categories become the local
-  // file's, keeping the board categories it holds on Archidekt. A relation the
-  // passes above zeroed out is left alone — it is being removed.
+  // file's, keeping the board categories it holds after the board moves above.
+  // A relation the passes above zeroed out is left alone — it is being removed.
   if (localCategoriesOf !== undefined) {
     for (const indexed of rawIndex.values()) {
       const name = indexed.relations[0].raw.card.oracleCard.name
@@ -411,7 +544,7 @@ export async function buildUploadPlan(
   // lets Archidekt pick its default edition. Without printings, the historical
   // behavior: the first matching local line's set as a mere search hint.
   const adds: ResolvedAdd[] = []
-  for (const card of diff.added) {
+  for (const card of phases.growing.added) {
     const printing = card.printing
     const searchSet = diff.byPrinting ? printing?.set : findLocalCard(localSections, card.name)?.set
     const result = await client.searchCards(card.name, searchSet, token, printing?.collectorNumber)
@@ -432,13 +565,15 @@ export async function buildUploadPlan(
       }
       modifier = resolved.modifier
     }
+    const siblings = rawIndex.get(card.name.toLowerCase())
     adds.push({
       cardid: result.id,
       categories:
         localCategoriesOf === undefined
-          ? addCategories(rawIndex.get(card.name.toLowerCase()), result.oracleCard.defaultCategory)
+          ? addCategories(siblings, card.board, result.oracleCard.defaultCategory, categoryIndex)
           : syncedAddCategories(
-              rawIndex.get(card.name.toLowerCase()),
+              siblings,
+              card.board,
               result.oracleCard.defaultCategory,
               categoryIndex,
               localCategoriesOf(card.name) ?? [],
@@ -453,6 +588,23 @@ export async function buildUploadPlan(
   for (const indexed of rawIndex.values()) {
     for (const relation of indexed.relations) {
       if (!relation.touched) continue
+      if (relation.kind === 'split') {
+        // Split off a board move: a new relation, unless a later pass took
+        // every copy it was carrying back off it again.
+        if (relation.quantity === 0) continue
+        entries.push({
+          action: 'add',
+          cardid: relation.cardid,
+          customCardId: null,
+          categories: relation.categories,
+          patchId: nextPatchId(),
+          modifications: {
+            ...modificationsFromRaw(relation.raw, relation.quantity),
+            modifier: relation.modifier,
+          },
+        })
+        continue
+      }
       entries.push({
         action: relation.quantity === 0 ? 'remove' : 'modify',
         cardid: relation.cardid,
@@ -463,7 +615,7 @@ export async function buildUploadPlan(
           ...modificationsFromRaw(relation.raw, relation.quantity),
           modifier: relation.modifier,
         },
-        deckRelationId: relation.raw.id,
+        deckRelationId: relation.deckRelationId,
       })
     }
   }
@@ -486,6 +638,59 @@ export async function buildUploadPlan(
   }
 
   return { entries, errors, categoriesChanged }
+}
+
+/**
+ * Plan one board move on the relations holding the copies, last relation first
+ * — the same end the local applier takes lines from. A relation whose every
+ * copy moves is re-boarded in place: its board categories are swapped for the
+ * target board's and everything else — `deckRelationId`, label, printing, role
+ * categories — stays. The last one, when it holds more copies than are still to
+ * move, is split: it keeps the copies staying, and a new relation on the
+ * target board carries the moved copies with the same printing, modifier,
+ * label, and role categories. A relation re-boarded onto the main board with
+ * no category left falls back to its card's Archidekt default category, the
+ * same as a new card would. Returns the copies it could not find to move.
+ */
+function planBoardMove(
+  indexed: RawCardIndexEntry,
+  relations: readonly PlannedRelation[],
+  move: BoardMove,
+  categoryIndex: ArchidektCategoryIndex,
+): number {
+  let remaining = move.quantity
+  for (const relation of relations.toReversed()) {
+    if (remaining === 0) break
+    if (relation.quantity === 0) continue
+    const categories = boardedCategories(
+      relation.categories,
+      move.to,
+      relation.raw.card.oracleCard.defaultCategory,
+      categoryIndex,
+    )
+    if (relation.quantity <= remaining) {
+      remaining -= relation.quantity
+      relation.board = move.to
+      relation.categories = categories
+      relation.touched = true
+      continue
+    }
+    relation.quantity -= remaining
+    relation.touched = true
+    indexed.relations.push({
+      kind: 'split',
+      raw: relation.raw,
+      printing: relation.printing,
+      cardid: relation.cardid,
+      modifier: relation.modifier,
+      quantity: remaining,
+      categories,
+      board: move.to,
+      touched: true,
+    })
+    remaining = 0
+  }
+  return remaining
 }
 
 function findLocalCard(sections: DeckSection[], cardName: string): Card | undefined {

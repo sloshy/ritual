@@ -6,15 +6,16 @@ import {
 } from '../../src/deck-sync/categories'
 import { buildUploadPlan, type UploadPlan } from '../../src/deck-sync/upload-plan'
 import { diffDeckCards } from '../../src/deck-sync/diff'
-import type { ArchidektClient } from '../../src/clients/ArchidektClient'
-import type {
-  ArchidektCardSearchResult,
-  ArchidektCategory,
-  ArchidektRawCardEntry,
-  ArchidektRawDeckResponse,
-} from '../../src/importers/archidekt-types'
+import type { ArchidektCategory } from '../../src/importers/archidekt-types'
 import { recordFromJson } from '../../src/list/card-categories-record'
 import type { DeckData, DeckSection } from '../../src/list/deck'
+import {
+  archidektDeck,
+  archidektDeckSections,
+  searchingClient,
+  type ArchidektDeckFixture,
+  type RelationSpec,
+} from '../helpers/archidekt-deck'
 
 /**
  * The categories half of a deck sync at the engine layer: what a pull turns
@@ -28,38 +29,8 @@ const DEFINITIONS: ArchidektCategory[] = [
   { id: 2, name: 'Sideboard', isPremier: false, includedInDeck: false },
 ]
 
-type RelationSpec = { id: number; name: string; quantity?: number; categories: string[] }
-
-function relation({ id, name, quantity = 1, categories }: RelationSpec): ArchidektRawCardEntry {
-  return {
-    id,
-    quantity,
-    modifier: 'Normal',
-    categories,
-    companion: false,
-    flippedDefault: false,
-    label: ',#656565',
-    customCmc: null,
-    card: {
-      id: id * 100,
-      uid: `uid-${id}`,
-      collectorNumber: String(id),
-      options: ['Normal'],
-      oracleCard: { id: id * 10, name },
-      edition: { editioncode: 'tst' },
-    },
-  }
-}
-
-function rawDeck(relations: RelationSpec[]): ArchidektRawDeckResponse {
-  return {
-    id: 1,
-    name: 'Test',
-    owner: { id: 1, username: 'tester' },
-    categories: DEFINITIONS,
-    cards: relations.map(relation),
-    updatedAt: '2026-01-01T00:00:00Z',
-  }
+function rawDeck(relations: RelationSpec[]): ArchidektDeckFixture {
+  return archidektDeck(relations, DEFINITIONS)
 }
 
 function deck(names: string[]): DeckData {
@@ -67,18 +38,15 @@ function deck(names: string[]): DeckData {
 }
 
 function main(names: string[]): DeckSection {
-  return { name: 'Main', cards: names.map((name) => ({ quantity: 1, name })) }
+  return section('Main', names)
+}
+
+function section(name: string, names: string[]): DeckSection {
+  return { name, cards: names.map((cardName) => ({ quantity: 1, name: cardName })) }
 }
 
 /** A client whose card search answers every name with Archidekt's `defaultCategory: Removal`. */
-const searchClient = {
-  searchCards: async (name: string): Promise<ArchidektCardSearchResult> => ({
-    id: 900,
-    collectorNumber: '1',
-    options: ['Normal'],
-    oracleCard: { name, defaultCategory: 'Removal' },
-  }),
-} as unknown as ArchidektClient
+const searchClient = searchingClient('Removal')
 
 describe('pullCategoryChanges', () => {
   const remote = remoteDeckCategories(
@@ -133,18 +101,7 @@ describe('buildUploadPlan categories', () => {
     withPrintings = false,
   ): Promise<UploadPlan> {
     const raw = rawDeck(remote)
-    const remoteSections = [
-      {
-        name: 'Main',
-        cards: remote.map((r) => ({
-          quantity: r.quantity ?? 1,
-          name: r.name,
-          set: 'tst',
-          collectorNumber: String(r.id),
-        })),
-      },
-    ]
-    const diff = diffDeckCards(remoteSections, local, { byBoard: false, withPrintings })
+    const diff = diffDeckCards(archidektDeckSections(raw), local, { withPrintings })
     const localDeck: DeckData = { name: 'Test', sections: local }
     return buildUploadPlan(
       diff,
@@ -159,13 +116,39 @@ describe('buildUploadPlan categories', () => {
   test('keeps boards and refused names from the remote, and never sends a board as a role', async () => {
     const result = await plan(
       [{ id: 1, name: 'Sol Ring', categories: ['Commander', 'Draw, Cantrips', 'Ramp'] }],
-      [main(['Sol Ring'])],
+      [section('Commander', ['Sol Ring'])],
       { 'Sol Ring': ['Artifacts', 'Sideboard'] },
     )
     expect(result.entries).toMatchObject([
       { deckRelationId: 1, categories: ['Commander', 'Draw, Cantrips', 'Artifacts'] },
     ])
     expect(result.categoriesChanged).toEqual(['Sol Ring'])
+  })
+
+  test('a card moved to another board lands there with the local categories', async () => {
+    const result = await plan(
+      [{ id: 1, name: 'Sol Ring', categories: ['Commander', 'Ramp'] }],
+      [section('Sideboard', ['Sol Ring'])],
+      { 'Sol Ring': ['Artifacts'] },
+    )
+    expect(result.entries).toMatchObject([
+      { action: 'modify', deckRelationId: 1, categories: ['Sideboard', 'Artifacts'] },
+    ])
+  })
+
+  test('a split relation lands on the target board with the local categories, as does the rest', async () => {
+    const result = await plan(
+      [{ id: 1, name: 'Island', quantity: 3, categories: ['Land'] }],
+      [
+        { name: 'Main', cards: [{ quantity: 2, name: 'Island' }] },
+        section('Sideboard', ['Island']),
+      ],
+      { Island: ['Mana'] },
+    )
+    expect(result.entries).toMatchObject([
+      { action: 'modify', deckRelationId: 1, categories: ['Mana'], modifications: { quantity: 2 } },
+      { action: 'add', categories: ['Sideboard', 'Mana'], modifications: { quantity: 1 } },
+    ])
   })
 
   test('a relation the push removes keeps its categories', async () => {
@@ -186,7 +169,7 @@ describe('buildUploadPlan categories', () => {
       [{ id: 1, name: 'Sol Ring', categories: ['Commander', 'Ramp'] }],
       [
         {
-          name: 'Main',
+          name: 'Commander',
           cards: [
             { quantity: 1, name: 'Sol Ring', set: 'tst', collectorNumber: '1' },
             { quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270' },

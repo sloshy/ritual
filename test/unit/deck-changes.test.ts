@@ -732,10 +732,10 @@ describe('applyChangeToDeck — change-printing support', () => {
     expect(cards[0]!.quantity).toBe(5)
   })
 
-  test('re-adding the same printing merges into the existing entry regardless of target section', () => {
+  test('an add naming a section merges only within it', () => {
     const deck = makeDeck()
-    // findCardForAdd scans every section for a same-printing entry before consulting
-    // change.section, so a Sideboard-targeted add merges into the Main entry.
+    // The Main entry holds the same printing, but the add names the Sideboard:
+    // it starts a Sideboard line rather than folding onto the Main one.
     const result = applyChangeToDeck(
       deck,
       {
@@ -749,10 +749,12 @@ describe('applyChangeToDeck — change-printing support', () => {
       },
       { listLabels: undefined },
     )
-    expect(result.sections.map((s) => s.name)).toEqual(['Main'])
-    const cards = result.sections[0]!.cards
-    expect(cards).toHaveLength(1)
-    expect(cards[0]!.quantity).toBe(5)
+    expect(
+      result.sections.map((s) => [s.name, s.cards.map((c) => [c.quantity, c.cardId])]),
+    ).toEqual([
+      ['Main', [[4, deck.sections[0]!.cards[0]!.cardId]]],
+      ['Sideboard', [[1, 99]]],
+    ])
   })
 
   test('add with a different language creates a separate entry (language is a variant dimension)', () => {
@@ -1186,6 +1188,14 @@ describe('findDeckAddMergeTargetId', () => {
     expect(result.sections[0]!.cards).toHaveLength(1)
     expect(result.sections[0]!.cards[0]!.quantity).toBe(5)
     expect(result.sections.flatMap((s) => s.cards).map((c) => c.cardId)).toEqual([5])
+  })
+
+  test('an add naming another section merges with nothing outside it', () => {
+    expect(
+      findDeckAddMergeTargetId(makeDeck(), addOf({ section: 'Sideboard' }), NO_DEFAULT),
+    ).toBeUndefined()
+    // A case-folded spelling of the section the line is in still finds it.
+    expect(findDeckAddMergeTargetId(makeDeck(), addOf({ section: 'main' }), NO_DEFAULT)).toBe(5)
   })
 
   test('a printing the deck does not have starts its own line', () => {

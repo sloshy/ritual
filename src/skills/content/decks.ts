@@ -15,7 +15,7 @@ import {
 export const decksSkill: RitualSkill = {
   name: 'ritual-decks',
   description:
-    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes (including card categories) to Archidekt, extract a deck primer, mark deck cards as proxies, or price a deck.',
+    'Create, build, import, sync, and price Magic: The Gathering decks with Ritual. Use when the user wants to make a new deck, interactively build a deck by adding cards to sections, import a decklist from Archidekt, Moxfield, or MTGGoldfish, import a deck from a CSV file, pull or push changes (including board moves and card categories) to Archidekt, extract a deck primer, mark deck cards as proxies, or price a deck.',
   body: `# Managing decks with Ritual
 
 Decks live in \`decks/<name>.md\`. See the **ritual** skill for the file format and
@@ -372,6 +372,32 @@ with its last card rather than left as a bare header — as is one that was alre
 empty in the file. Empty \`## Main\`/\`## Sideboard\` headers are kept, and an empty
 extras header never counts as unreadable content, so it cannot block a sync.
 
+### Board moves
+
+Both directions diff **per board** (Commander, Main, Sideboard, Maybeboard;
+\`## Tokens\` counts as Maybeboard, \`## Companion\`/\`## Oathbreaker\` as Main), and
+a card on a different board on each side is **moved** — always, no flag. Copies
+one board loses and another gains pair by name (and by printing under
+\`--sync-printings\`; a card changing board *and* printing is removed and
+re-added; a gaining line naming no printing takes the copies at theirs);
+unpaired copies are ordinary adds/removes/quantity changes, so local \`1 Main\`
+vs remote \`1 Main + 1 Maybeboard\` removes the Maybeboard copy only. Copies
+never move onto a board that already holds the card — that is a quantity change
+(removed there, added to the existing line/entry) instead.
+A pull moves the line itself (keeping its \`&N\`, tags, labels, note,
+condition, language; changelogged as \`set-section\`), splitting it when only some
+copies move (the line keeps its \`&N\` and note; the split-off line gets a new
+\`&N\`, changelogged as remove + add). A section a pull empties is removed, except
+\`## Main\`/\`## Sideboard\`.
+A push swaps the Archidekt entry's board category (Main = none, Commander = the
+deck's premier category, Sideboard, Maybeboard = the deck's \`Maybeboard\` or
+other excluded category), keeping its id, label, printing and role categories; a
+new card is added with its board's category. \`--only\` never drops a move: a
+move changes no copy count, so only the leftovers around it are filtered, and a
+move still takes copies off the losing board under \`--only additions\`. The
+summary line says \`…, N board moves\`, and each deck's structured result
+carries \`boardMoves\`.
+
 ### Printing sync
 
 By default the diff **syncs names and quantities only** — printings
@@ -413,8 +439,9 @@ Archidekt's categories, kept in \`<deck>.categories.json\` (see the
 every card the deck holds carry exactly Archidekt's categories, in Archidekt's
 order (first = primary; changelogged as \`set-categories\` events, and a
 categories-only pull leaves the card lines untouched), and a push makes every
-Archidekt entry of a card the local deck holds carry the local categories,
-keeping any board category it has. A push from a deck with **no local
+Archidekt entry of a card the local deck holds carry the local categories
+beside the board category of the board it ends up on (role categories never
+decide a board). A push from a deck with **no local
 categories at all** leaves Archidekt's alone — pull with the flag first. An
 unreadable categories file fails the deck; \`--only\` does not filter category
 changes. Each deck's structured result carries \`categoriesChanged\`.

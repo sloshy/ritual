@@ -325,7 +325,14 @@ export const conditionUpdateField = conditionUpdateSchema
 export const sectionField = z
   .string()
   .optional()
-  .describe('Section (markdown "## Section") to place the card in. Defaults to the main section.')
+  .describe(
+    'Section (markdown "## Section") to place the card in, matched to the deck’s own section ' +
+      'case-insensitively, or by role: an alias like "Main" or "Deck" means the first main-deck ' +
+      'section (card lines above the first heading count), "Sideboard" the sideboard. A name ' +
+      'that resolves to an existing section never creates a new one. A copy of the same ' +
+      'printing merges only with a line in that section; omit section to merge with a matching ' +
+      'line anywhere and otherwise land in the first main-deck section.',
+  )
 
 export const quantityField = z
   .number()

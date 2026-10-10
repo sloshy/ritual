@@ -2079,6 +2079,7 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 
 - Each deck carries `printingsChanged` (a count) when the request set `syncPrintings`, or `printingsUnaligned` (the card names whose printings the two sides disagree about) when it did not.
 - Each deck carries `categoriesChanged` (a count of cards) when the request set `syncCategories`.
+- Each deck carries `boardMoves` (a count) when its diff moved cards between boards. Moves bypass `only`: a move adds and removes no copies, so neither filter value drops it. See [Board moves](/commands/deck-sync/#board-moves).
 - `report.unreadable` lists any deck whose file holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the stream can still show what a retry with `ignoreUnreadableLines` would delete.
 - `report.cancelled` is `true` when an in-process caller cancelled the run (the MCP `sync_decks` tool, on a client's `notifications/cancelled`). Cancellation is honoured **between decks only**: the deck in flight finishes, every deck the run never reached is reported `skipped` with the reason `cancelled before it started`, and the summary ends on a `cancelled with N decks not started` clause. The response is still `200` with the report. HTTP callers cannot cancel a run: closing the stream leaves it running to completion.
 

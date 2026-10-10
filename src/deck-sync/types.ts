@@ -42,6 +42,13 @@ export type DeckSyncDeckResult = {
    */
   printingsUnaligned?: string[]
   /**
+   * Board moves the run applied (or would have, on a dry run): how many of the
+   * diff's move entries — one per card, source board and target board, however
+   * many copies it carries. Moves add and remove no copies, so they pass any
+   * `only` filter. Present only when there is at least one.
+   */
+  boardMoves?: number
+  /**
    * Cards whose categories the run changed — in the local categories file on a
    * pull, on Archidekt on a push (or would have, on a dry run). Present only
    * when the run synced categories.

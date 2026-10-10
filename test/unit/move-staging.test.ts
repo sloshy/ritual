@@ -508,14 +508,16 @@ describe('applyAddToStaged (deck) section targeting', () => {
     expect(deck.sections.find((s) => s.name === 'Main')!.cards).toHaveLength(1)
   })
 
-  test('section matching is exact — a case-different name creates a new section', () => {
+  test('a case-different section name lands in the deck’s own section', () => {
     const deck = twoSectionDeck()
     const staged = deckStaged(deck)
 
     applyAddToStaged(staged, arriving('Lightning Bolt'), 'deck', 'sideboard')
 
-    expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard', 'sideboard'])
-    expect(deck.sections.find((s) => s.name === 'sideboard')!.cards[0]!.name).toBe('Lightning Bolt')
+    expect(deck.sections.map((s) => s.name)).toEqual(['Main', 'Sideboard'])
+    expect(deck.sections.find((s) => s.name === 'Sideboard')!.cards.map((c) => c.name)).toContain(
+      'Lightning Bolt',
+    )
   })
 
   test('creates the section when missing', () => {

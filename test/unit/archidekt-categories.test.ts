@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  archidektBoardCategory,
   archidektCategoryBoard,
   archidektEntrySection,
   archidektRoleCategories,
   collectArchidektCategories,
   composeArchidektCategories,
   indexArchidektCategories,
+  reboardArchidektCategories,
 } from '../../src/importers/archidekt-categories'
 import {
   parseArchidektDeckCategories,
@@ -27,7 +29,7 @@ const DEFINITIONS: ArchidektCategory[] = [
 ]
 const INDEX = indexArchidektCategories(DEFINITIONS)
 
-describe('archidektCategoryBoard', () => {
+describe('archidektCategoryBoard (category → board)', () => {
   test('a section alias is a board, whatever its flags', () => {
     const unflagged = indexArchidektCategories([{ id: 1, name: 'Commander', isPremier: false }])
     expect(archidektCategoryBoard('Commander', unflagged)).toBe('commander')
@@ -182,5 +184,76 @@ describe('parseArchidektDeckResponse / parseArchidektDeckCategories', () => {
       refused: [],
       held: new Set(['winota', 'sol ring', 'goblin', 'signet', 'mountain']),
     })
+  })
+})
+
+describe('archidektBoardCategory (board → category)', () => {
+  const excluded = (id: number, name: string): ArchidektCategory => ({
+    id,
+    name,
+    isPremier: false,
+    includedInDeck: false,
+  })
+
+  test('the main board is no board category at all', () => {
+    expect(archidektBoardCategory('Main', INDEX)).toBeUndefined()
+  })
+
+  test('the command zone is the deck’s premier category, else Commander', () => {
+    const premier = indexArchidektCategories([
+      { id: 1, name: 'Partners', isPremier: true, includedInDeck: true },
+    ])
+    expect(archidektBoardCategory('Commander', premier)).toBe('Partners')
+    expect(archidektBoardCategory('Commander', indexArchidektCategories([]))).toBe('Commander')
+  })
+
+  test('the sideboard reuses the deck’s spelling, else Sideboard', () => {
+    expect(
+      archidektBoardCategory('Sideboard', indexArchidektCategories([excluded(1, 'sideboard')])),
+    ).toBe('sideboard')
+    expect(archidektBoardCategory('Sideboard', indexArchidektCategories([]))).toBe('Sideboard')
+  })
+
+  test('the maybeboard prefers Maybeboard, then an excluded extras category, never Tokens', () => {
+    const extras = [excluded(1, 'Tokens'), excluded(2, 'Considering')]
+    expect(archidektBoardCategory('Maybeboard', indexArchidektCategories(extras))).toBe(
+      'Considering',
+    )
+    expect(
+      archidektBoardCategory(
+        'Maybeboard',
+        indexArchidektCategories([...extras, excluded(3, 'Maybeboard')]),
+      ),
+    ).toBe('Maybeboard')
+    expect(
+      archidektBoardCategory('Maybeboard', indexArchidektCategories([excluded(1, 'Tokens')])),
+    ).toBe('Maybeboard')
+  })
+
+  test('every fallback reads back as the board it was chosen for', () => {
+    const empty = indexArchidektCategories([])
+    for (const board of ['Commander', 'Sideboard', 'Maybeboard'] as const) {
+      expect(archidektEntrySection([archidektBoardCategory(board, empty)!], empty)).toBe(board)
+    }
+  })
+})
+
+describe('reboardArchidektCategories', () => {
+  test('swaps every board category for the target’s and keeps the rest in order', () => {
+    expect(
+      reboardArchidektCategories(['Ramp', 'Commander', 'Tokens & Extras'], 'Sideboard', INDEX),
+    ).toEqual(['Sideboard', 'Ramp'])
+  })
+
+  test('moving to the main board strips the boards and adds none', () => {
+    expect(reboardArchidektCategories(['Sideboard', 'Ramp'], 'Main', INDEX)).toEqual(['Ramp'])
+    expect(reboardArchidektCategories(null, 'Main', INDEX)).toEqual([])
+  })
+
+  test('an included Tokens category is a role and stays', () => {
+    expect(reboardArchidektCategories(['Tokens'], 'Commander', INDEX)).toEqual([
+      'Commander',
+      'Tokens',
+    ])
   })
 })

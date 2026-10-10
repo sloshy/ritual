@@ -29,6 +29,23 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Changed
 
+- **`deck-sync push` now moves cards between boards.** A push diffs per board the way a pull
+  does, so a card that is in Main locally but in the Maybeboard on Archidekt (or any other
+  board pair) is moved there on Archidekt, instead of the push doing nothing. The existing
+  Archidekt entry keeps its label, printing and role categories; only its board category
+  changes. New cards are added to their local board's category; a new Main card with no
+  other category still gets Archidekt's default. A copy removed from one board removes
+  only that board's entry.
+- `deck-sync pull` now moves a line whose card changed board on Archidekt instead of
+  removing and re-adding it, so it keeps its `&N` ID, tags, labels, note, condition and
+  language, and the changelog records a section move. When only some of a line's copies
+  moved, the line keeps the rest, and the moved copies become a new line with a new `&N`.
+  A section a pull leaves empty is now removed (an emptied `## Commander` no longer stays
+  behind as a bare header); empty `## Main` and `## Sideboard` headers are still kept.
+- Both directions report `N board moves` in their summary and a `boardMoves` count in each
+  deck's structured result (`--output json`, the admin API, MCP `sync_decks`). `--only`
+  never drops a move, since a move changes no copy count. There is no flag: if you relied
+  on pushes ignoring boards, review a `deck-sync push --dry-run` first.
 - Interactive menus and card pickers in the CLI now size themselves to your terminal's
   height instead of showing a fixed 10–22 rows, so a menu no longer scrolls in a tall
   window and every picker shows as many rows as the card list in `ritual edit` does.
@@ -102,6 +119,20 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Fixed
 
+- Adding a card to a named deck section (`add-card --section`, MCP `add_card` and
+  `apply_changes` with a `section`, a change-bundle import, a changelog replay) now merges
+  only with a line of the same printing in that section, instead of folding onto a matching
+  line elsewhere in the deck. Without a section, copies still join a matching line anywhere.
+- A section name given to `add-card --section`, `set-card --section`, or the MCP tools now
+  resolves to the deck's own section: case-insensitively (`sideboard` is `## Sideboard`),
+  and by role (`Main` or `Deck` is the deck's first main-deck section, such as
+  `## Creatures`, or the card lines above the first heading), instead of creating a
+  near-duplicate section. `Signature Spell` and `Oathbreaker` stay separate sections, and
+  `set-card --section` records the section the card landed in.
+- An add with no section (or a card leaving the command zone) now lands in the same section
+  through every path, CLI and editors alike: the card lines above the first heading when
+  the deck has any, else the first main-deck section, never a Commander, Oathbreaker,
+  Signature Spell, Companion, Sideboard, or extras section.
 - A move that takes a copy out of another list (a bundle import, a swap) now prefers the
   source line whose labels match the copy, so a `[proxy]` copy leaves from the proxy line.
   Printing still comes first: an exact-printing line is taken before a name-only one.

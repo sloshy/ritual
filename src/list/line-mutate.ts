@@ -41,7 +41,12 @@ import type { LineTokens } from '../card/card-line-grammar'
 import { storedLanguage, type CardLanguage } from '../card/card-language'
 import { canonicalCardLine } from './deck-text'
 import { parseHeading } from './section-format'
-import { COMMANDER_SECTION, isCommanderSection, isSideboardSection } from './deck-format'
+import {
+  COMMANDER_SECTION,
+  isCommanderSection,
+  isDefaultAddSection,
+  resolveSectionName,
+} from './deck-format'
 import { DEFAULT_SECTION } from './deck'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
 import { commitCategoryChanges } from './card-categories-sidecar'
@@ -104,17 +109,25 @@ export async function applyTargetedChanges(
   const content = await fs.readFile(filePath, 'utf-8')
   // When the target arrived without a cardId, adopt the line's `&N` up front so
   // the changelog names the same id the file line carries.
+  const lines = content.split('\n')
   const resolved: EntryRef = { ...target }
   if (resolved.cardId === undefined) {
-    const lines = content.split('\n')
     const idx = findTargetLineIndex(lines, type, resolved)
     if (idx !== -1) resolved.cardId = lineCardIdAt(lines, idx, type)
   }
-  const stamped = changes.map((change) =>
-    'cardId' in change && change.cardId === undefined && resolved.cardId !== undefined
-      ? { ...change, cardId: resolved.cardId }
-      : change,
-  )
+  const stamped = changes.map((change) => {
+    const withId =
+      'cardId' in change && change.cardId === undefined && resolved.cardId !== undefined
+        ? { ...change, cardId: resolved.cardId }
+        : change
+    // A `set-section` records the section the card lands in, not the spelling
+    // it was asked for — as a deck add's event does — so the changelog names
+    // the deck's own heading (`Sideboard` for a requested `sideboard`, the
+    // leading bucket's `Main` for a requested `Deck`).
+    if (withId.action !== 'set-section' || type !== 'deck') return withId
+    const section = resolveDeckSection(lines, headingName(withId.section))
+    return { ...withId, section: section.kind === 'leading' ? DEFAULT_SECTION : section.name }
+  })
   const newContent = applyTargetedChangesToContent(content, type, resolved, stamped)
   if (options.dryRun === true) return { writtenFiles: [] }
   const writtenFiles: string[] = []
@@ -595,6 +608,86 @@ function headingAbove(headings: HeadingLine[], lineIdx: number): HeadingLine | n
 }
 
 /**
+ * The last card line above every heading — the deck's leading bucket, which
+ * the parser reads as a synthetic `Main` section — or -1 when no card line
+ * precedes the first heading. Front matter and fenced lines are skipped.
+ */
+function lastLeadingCardIndex(lines: string[], headings: HeadingLine[]): number {
+  const start = frontMatterBodyStart(lines)
+  const end = headings[0]?.index ?? lines.length
+  const fenced = markFencedLines(lines, start)
+  let last = -1
+  for (let i = start; i < end; i++) {
+    if (!fenced[i] && isDeckCardLine(lines[i]!)) last = i
+  }
+  return last
+}
+
+/**
+ * A deck section as this engine addresses it: the leading bucket of card lines
+ * above every heading, or a heading by name (which may not exist yet).
+ */
+type DeckSectionRef = { kind: 'leading' } | { kind: 'heading'; name: string }
+
+/**
+ * The section a requested name means in this file, resolved exactly as the
+ * change reducer resolves it against the parsed deck (`resolveSectionName`):
+ * the candidates are the deck's sections in parse order, the leading bucket
+ * first — under the parser's own name for it, `Main` — when card lines
+ * precede the first heading. Two engines resolving against different lists
+ * would place the same request in different sections.
+ */
+function resolveDeckSection(lines: string[], requested: string): DeckSectionRef {
+  const headings = deckHeadings(lines)
+  const leading = lastLeadingCardIndex(lines, headings) !== -1
+  const names = [...(leading ? [DEFAULT_SECTION] : []), ...headings.map((h) => h.name)]
+  const name = resolveSectionName(names, requested)
+  return leading && name === DEFAULT_SECTION ? { kind: 'leading' } : { kind: 'heading', name }
+}
+
+/**
+ * Where an unqualified add (or a card leaving the command zone) lands: the
+ * leading bucket when the deck has one — it is the parsed deck's first
+ * section — else the first heading `isDefaultAddSection` accepts. `undefined`
+ * when there is neither, and a `## Main` must be created.
+ */
+function defaultAddSection(lines: string[], headings: HeadingLine[]): DeckSectionRef | undefined {
+  if (lastLeadingCardIndex(lines, headings) !== -1) return { kind: 'leading' }
+  const heading = headings.find((h) => isDefaultAddSection(h.name))
+  return heading === undefined ? undefined : { kind: 'heading', name: heading.name }
+}
+
+/** Whether the line at `lineIdx` sits in `section`. */
+function lineInSection(headings: HeadingLine[], lineIdx: number, section: DeckSectionRef): boolean {
+  const heading = headingAbove(headings, lineIdx)
+  return section.kind === 'leading' ? heading === null : heading?.name === section.name
+}
+
+/**
+ * `lines` with `cardLine` joined to `section`: after the section's last card
+ * line, or — for a heading the deck lacks — under a new heading appended at
+ * the end of the file, exactly one blank line before it.
+ */
+function insertIntoSection(lines: string[], cardLine: string, section: DeckSectionRef): string[] {
+  const headings = deckHeadings(lines)
+  if (section.kind === 'leading') {
+    const last = lastLeadingCardIndex(lines, headings)
+    return [...lines.slice(0, last + 1), cardLine, ...lines.slice(last + 1)]
+  }
+  const heading = headings.find((h) => h.name === section.name)
+  if (heading) {
+    const insertAt = insertionIndexFor(lines, headings, heading)
+    return [...lines.slice(0, insertAt), cardLine, ...lines.slice(insertAt)]
+  }
+  if (endsInsideOpenFence(lines.join('\n'))) throw appendIntoOpenFence()
+  const trimmedEnd = [...lines]
+  while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
+    trimmedEnd.pop()
+  }
+  return [...trimmedEnd, '', sectionHeading(section.name), cardLine, '']
+}
+
+/**
  * The insertion index for a card line joining the section that starts at
  * `heading`: after the section's last card line, or directly after the heading
  * when it has none — matching the engine's push-to-end placement.
@@ -624,58 +717,46 @@ function moveTargetLine(lines: string[], target: EntryRef, destination: MoveDest
   if (idx === -1) throw targetLineGone()
   const headings = deckHeadings(lines)
   const current = headingAbove(headings, idx)
-
-  const alreadyThere = (): boolean => {
-    if (destination.kind === 'out-of-commander') {
-      // A line above every heading belongs to the synthetic Main section.
-      return current === null || !isCommanderSection(current.name)
-    }
-    if (current === null) return false
-    if (destination.kind === 'named-section') return current.name === destination.section
-    return isCommanderSection(current.name)
-  }
-  if (alreadyThere()) return lines
-
   const cardLine = lines[idx]!
-  const without = [...lines.slice(0, idx), ...lines.slice(idx + 1)]
-  const remainingHeadings = deckHeadings(without)
+  const without = (): string[] => [...lines.slice(0, idx), ...lines.slice(idx + 1)]
 
-  const existing = remainingHeadings.find((h) => {
-    if (destination.kind === 'named-section') return h.name === destination.section
-    if (destination.kind === 'commander') return isCommanderSection(h.name)
-    // out-of-commander lands in the default add section, like the engine.
-    return !isCommanderSection(h.name) && !isSideboardSection(h.name)
-  })
-  if (existing) {
-    const insertAt = insertionIndexFor(without, remainingHeadings, existing)
-    return [...without.slice(0, insertAt), cardLine, ...without.slice(insertAt)]
+  if (destination.kind === 'named-section') {
+    // A named section means the deck's own section of that name or role, the
+    // same resolution the change reducer applies — the leading bucket included.
+    const section = resolveDeckSection(lines, destination.section)
+    if (lineInSection(headings, idx, section)) return lines
+    return insertIntoSection(without(), cardLine, section)
   }
 
-  const sectionName =
-    destination.kind === 'named-section'
-      ? destination.section
-      : destination.kind === 'commander'
-        ? COMMANDER_SECTION
-        : DEFAULT_SECTION
-  if (destination.kind === 'commander' && remainingHeadings.length > 0) {
+  if (destination.kind === 'out-of-commander') {
+    // A line above every heading belongs to the synthetic Main section.
+    if (current === null || !isCommanderSection(current.name)) return lines
+    // Lands where the engine's unqualified add would.
+    const rest = without()
+    const section = defaultAddSection(rest, deckHeadings(rest)) ?? {
+      kind: 'heading',
+      name: DEFAULT_SECTION,
+    }
+    return insertIntoSection(rest, cardLine, section)
+  }
+
+  if (current !== null && isCommanderSection(current.name)) return lines
+  const rest = without()
+  const remainingHeadings = deckHeadings(rest)
+  const existing = remainingHeadings.find((h) => isCommanderSection(h.name))
+  if (existing) return insertIntoSection(rest, cardLine, { kind: 'heading', name: existing.name })
+  if (remainingHeadings.length > 0) {
     // The engine unshifts a fresh Commander section in front of the others.
     const firstHeading = remainingHeadings[0]!.index
     return [
-      ...without.slice(0, firstHeading),
-      sectionHeading(sectionName),
+      ...rest.slice(0, firstHeading),
+      sectionHeading(COMMANDER_SECTION),
       cardLine,
       '',
-      ...without.slice(firstHeading),
+      ...rest.slice(firstHeading),
     ]
   }
-  // Everything else is appended at the end, per findOrCreateSection /
-  // resolveDefaultAddSection.
-  if (endsInsideOpenFence(without.join('\n'))) throw appendIntoOpenFence()
-  const trimmedEnd = [...without]
-  while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
-    trimmedEnd.pop()
-  }
-  return [...trimmedEnd, '', sectionHeading(sectionName), cardLine, '']
+  return insertIntoSection(rest, cardLine, { kind: 'heading', name: COMMANDER_SECTION })
 }
 
 // ── Deck adds ─────────────────────────────────────────────────────────────────
@@ -706,9 +787,11 @@ export type DeckAddResult = { content: string; outcome: DeckAddOutcome }
  * Add `copies` of `card` to a deck's markdown, one copy at a time — the same
  * per-copy semantics as the editor engine's `add` event (`quantity += 1`), and
  * the same placement rules: a line for the same card **and the same printing**
- * absorbs the copies, otherwise a new line is appended at the end of the target
- * section (the explicitly requested one, else the first non-commander,
- * non-sideboard section, else a freshly created `## Main`).
+ * absorbs the copies — within the requested section when one is given (the
+ * deck's own section that name means, per `resolveSectionName`), anywhere in
+ * the deck otherwise — else a new line is appended at the end of the target
+ * section (the requested one, else the first non-commander, non-sideboard
+ * section, else a freshly created `## Main`).
  *
  * Line-preserving like the rest of this module: only the merged line is
  * rewritten, or one line inserted. Nothing else in the file is touched.
@@ -727,9 +810,13 @@ export function applyDeckAddToContent(
   let quantity = 0
   let merged = false
   const listLabels = listDefaultLabelsInLines('deck', lines)
+  const scope =
+    placement.section === undefined
+      ? undefined
+      : resolveDeckSection(lines, headingName(placement.section))
 
   for (let copy = 0; copy < copies; copy++) {
-    const idx = findDeckMergeLineIndex(lines, card, cardId, listLabels)
+    const idx = findDeckMergeLineIndex(lines, card, cardId, listLabels, scope)
     if (idx !== -1) {
       if (copy === 0) merged = true
       // Rewrite from the line's OWN fields, not the incoming card's: a merge
@@ -752,7 +839,7 @@ export function applyDeckAddToContent(
     lines = insertDeckCardLine(
       lines,
       canonicalCardLine('deck', { ...card, quantity, cardId }),
-      placement.section === undefined ? undefined : headingName(placement.section),
+      scope,
     )
   }
 
@@ -820,15 +907,21 @@ export async function applyDeckAdd(
  * as its own line. Labels are part of that identity because they are part of
  * what the copies *are*: a proxy must not disappear into the line holding the
  * real card, nor confer its `[proxy]` on a real one added beside it.
+ *
+ * A `section` scopes the name-and-printing search (never the `&N` one) to the
+ * lines under that heading, as the change reducer scopes an `add` naming its
+ * section.
  */
 function findDeckMergeLineIndex(
   lines: string[],
   card: EntryRef,
   cardId: number | undefined,
   listLabels: readonly CardLabel[] | undefined,
+  section: DeckSectionRef | undefined,
 ): number {
   const start = frontMatterBodyStart(lines)
   const fenced = markFencedLines(lines, start)
+  const headings = section === undefined ? [] : deckHeadings(lines)
   for (let i = start; i < lines.length; i++) {
     // Copies never merge onto a fenced example line.
     if (fenced[i]) continue
@@ -840,6 +933,7 @@ function findDeckMergeLineIndex(
       continue
     }
     if (tokens.name !== card.name) continue
+    if (section !== undefined && !lineInSection(headings, i, section)) continue
     // A token this file cannot re-emit is never a merge target: the rewrite
     // would delete it, and its labels cannot be compared against the incoming
     // card's. The copies get their own line instead.
@@ -917,40 +1011,19 @@ function deckLineLabels(read: ReadCardLine): LabelOverride | undefined {
 }
 
 /**
- * Insert a new card line at the end of its section: the named section when one
- * was requested, otherwise the first non-commander, non-sideboard section —
- * `resolveDefaultAddSection`'s rule, so a deck organized as `## Mainboard`
- * never grows a second `## Main`. A missing section is appended at the end of
- * the file, exactly one blank line before it.
+ * Insert a new card line at the end of its section: the requested section when
+ * there is one, otherwise where `resolveDefaultAddSection` would put it — the
+ * leading bucket of card lines above every heading, else the first section
+ * `isDefaultAddSection` accepts — so a deck organized as `## Mainboard` never
+ * grows a second `## Main`, and a headless deck never gains one at all. A
+ * missing section is appended at the end of the file, exactly one blank line
+ * before it.
  */
-function insertDeckCardLine(lines: string[], cardLine: string, section?: string): string[] {
-  const headings = deckHeadings(lines)
-  const target =
-    section !== undefined
-      ? headings.find((h) => h.name === section)
-      : headings.find((h) => !isCommanderSection(h.name) && !isSideboardSection(h.name))
-  if (target) {
-    const insertAt = insertionIndexFor(lines, headings, target)
-    return [...lines.slice(0, insertAt), cardLine, ...lines.slice(insertAt)]
-  }
-  if (section === undefined && headings.length === 0) {
-    // A headless deck body is one synthetic `Main` bucket: join it after its
-    // last card line rather than appending a `## Main` that would split the
-    // deck into two same-named sections on the next parse.
-    let lastCard = -1
-    const start = frontMatterBodyStart(lines)
-    const fenced = markFencedLines(lines, start)
-    for (let i = start; i < lines.length; i++) {
-      if (!fenced[i] && isDeckCardLine(lines[i]!)) lastCard = i
-    }
-    if (lastCard !== -1) {
-      return [...lines.slice(0, lastCard + 1), cardLine, ...lines.slice(lastCard + 1)]
-    }
-  }
-  if (endsInsideOpenFence(lines.join('\n'))) throw appendIntoOpenFence()
-  const trimmedEnd = [...lines]
-  while (trimmedEnd.length > 0 && trimmedEnd[trimmedEnd.length - 1]!.trim() === '') {
-    trimmedEnd.pop()
-  }
-  return [...trimmedEnd, '', sectionHeading(section ?? DEFAULT_SECTION), cardLine, '']
+function insertDeckCardLine(
+  lines: string[],
+  cardLine: string,
+  section: DeckSectionRef | undefined,
+): string[] {
+  const target = section ?? defaultAddSection(lines, deckHeadings(lines))
+  return insertIntoSection(lines, cardLine, target ?? { kind: 'heading', name: DEFAULT_SECTION })
 }

@@ -1,3 +1,4 @@
+import type { DeckLandingOptions } from '../../src/changes/deck-changes'
 import { describe, expect, test } from 'bun:test'
 import {
   applyDownloadDiff,
@@ -11,6 +12,9 @@ import {
 } from '../../src/deck-sync/diff'
 import type { Card } from '../../src/card/card'
 import type { DeckSection } from '../../src/list/deck'
+
+/** No deck-level default labels. */
+const NO_LABELS: DeckLandingOptions = { listLabels: undefined }
 
 /**
  * The printing-aware half of the deck-sync diff (`--sync-printings`): how a
@@ -148,10 +152,9 @@ describe('diffDeckCards withPrintings', () => {
     ])
   })
 
-  test('byBoard: false flattens boards, matching a push’s name-only namespace', () => {
-    // Remote holds the card in Main, local in the Sideboard. Board-aware these
-    // never meet (an add plus a removal); flattened they are the same card and
-    // its printing difference is found.
+  test('a card that changes board and printing at once is removed and re-added, not moved', () => {
+    // Moves pair copies at one printing, so the Main C21 copy and the Sideboard
+    // LTC copy are different cards to the pairing.
     const remote: DeckSection[] = [
       {
         name: 'Main',
@@ -164,13 +167,11 @@ describe('diffDeckCards withPrintings', () => {
         cards: [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' }],
       },
     ]
-    expect(diffPrintings(remote, local).printingUpdates).toEqual([])
-    const { printingUpdates } = diffDeckCards(remote, local, {
-      withPrintings: true,
-      byBoard: false,
-    })
-    expect(printingUpdates).toHaveLength(1)
-    expect(printingUpdates[0]!.to.set).toBe('ltc')
+    const diff = diffDeckCards(remote, local, { withPrintings: true })
+    expect(diff.boardMoves).toEqual([])
+    expect(diff.printingUpdates).toEqual([])
+    expect(diff.removed).toMatchObject([{ board: 'Main', printing: { set: 'c21' } }])
+    expect(diff.added).toMatchObject([{ board: 'Sideboard', printing: { set: 'ltc' } }])
   })
 })
 
@@ -298,7 +299,11 @@ describe('diffDeckCards withPrintings across several printings of one card', () 
     ])
     const remote = main([bolt(2, 'lea', '161'), bolt(1, '2xm', '157')])
     const diff = diffPrintings(local, remote)
-    const result = applyDownloadDiff(applyPrintingUpdates(local, diff.printingUpdates), diff)
+    const result = applyDownloadDiff(
+      applyPrintingUpdates(local, diff.printingUpdates),
+      diff,
+      NO_LABELS,
+    ).sections
 
     expect(result[0]!.cards).toEqual([
       { quantity: 2, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161', cardId: 4 },
@@ -319,7 +324,11 @@ describe('diffDeckCards withPrintings across several printings of one card', () 
     ])
     const remote = main([bolt(2, 'lea', '161'), bolt(1, 'clb', '187')])
     const diff = diffPrintings(local, remote)
-    const result = applyDownloadDiff(applyPrintingUpdates(local, diff.printingUpdates), diff)
+    const result = applyDownloadDiff(
+      applyPrintingUpdates(local, diff.printingUpdates),
+      diff,
+      NO_LABELS,
+    ).sections
 
     // The re-pinned line kept `&2` rather than being dropped and re-added.
     expect(result[0]!.cards.map((card) => [card.set, card.quantity, card.cardId])).toEqual([
@@ -367,7 +376,7 @@ describe('diffDeckCards without printings', () => {
       { quantity: 3, name: 'Lightning Bolt', set: 'lea', collectorNumber: '161' },
     ])
     const diff = diffDeckCards(local, remote)
-    const result = applyDownloadDiff(local, diff)
+    const result = applyDownloadDiff(local, diff, NO_LABELS).sections
     expect(result[0]!.cards.map((card) => [card.set, card.quantity])).toEqual([
       ['lea', 2],
       ['2xm', 1],
@@ -554,8 +563,8 @@ describe('printing-aware change events', () => {
     ])
     const events = diffToChangeEvents(diff, buildCardIdResolver(saved))
     expect(events.map((event) => [event.action, event.cardId])).toEqual([
-      ['add', 2],
       ['remove', 1],
+      ['add', 2],
     ])
   })
 

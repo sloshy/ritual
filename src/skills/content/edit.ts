@@ -75,11 +75,15 @@ ritual add-card "Winota Stax" "Sol Ring" --deck -q 4 --dry-run   # preview, writ
 - \`-q\` quantity (deck only), \`-f\` finish (nonfoil/foil/etched — any list type),
   \`-c\` condition (NM/LP/MP/HP/DMG, or \`NONE\` to record no condition — decks and
   collections). Decks also take \`--section <name>\` and \`--commander\` to place the
-  new line. A flag the target type does not support is an error. Neither
-  finish nor condition has an implicit default: without a terminal a collection add
-  needs \`-c\`, and any specific-printing add whose printing comes in several finishes
-  needs \`-f\` — otherwise the run exits 2 naming the flag instead of writing a
-  half-specified line.
+  new line; with \`--section\`, copies merge only with a same-printing line in that
+  section (else a new line there). Section names match the deck's own sections
+  case-insensitively or by role (\`Main\`/\`Deck\` = first main-deck section, card lines
+  above the first heading included; a resolving name never creates a new section).
+  A flag the target type does not support is an error. Neither finish nor condition
+  has an implicit default: without a terminal a collection add needs \`-c\`, and
+  any specific-printing add whose printing comes in several finishes needs \`-f\` —
+  otherwise the run exits 2 naming the flag instead of writing a half-specified
+  line.
 - \`--language <code>\` records a non-English copy (lowercase Scryfall codes — \`ja\`, \`de\`,
   \`zhs\`, ...; aliases like \`jp\` or \`Japanese\` normalize). Adding **never prompts** for a
   language: omitted, the configured \`defaultLanguage\` is stamped, and a bare line in the

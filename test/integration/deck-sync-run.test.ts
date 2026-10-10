@@ -18,6 +18,8 @@ import type { Card } from '../../src/card/card'
 import type { DeckSection } from '../../src/list/deck'
 import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
 import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
+import { parseChangelog } from '../../src/changes/changelog-parser'
+import type { ChangeEvent } from '../../src/changes/change-event'
 
 /**
  * End-to-end coverage for the `deck-sync` behaviors only the command and engine
@@ -1226,7 +1228,10 @@ describe('deck-sync --sync-categories (Integration)', () => {
   })
 
   test('a push sends the local roles and keeps the remote board category', async () => {
-    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 1 }], synced)
+    await writeLinkedDeck(
+      [{ name: 'Commander', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
+      synced,
+    )
     await writeSidecar({ 'Sol Ring': ['Draw'] })
     stubFetch(categorizedRoutes(['Commander', 'Ramp']))
 
@@ -1283,4 +1288,92 @@ describe('deck-sync --sync-categories (Integration)', () => {
       expect(pushedToArchidekt()).toBe(false)
     },
   )
+})
+
+describe('deck-sync board moves (Integration)', () => {
+  const UPDATED_AT = '2026-08-01T00:00:00.000Z'
+  const synced = { sourceUpdatedAt: UPDATED_AT }
+
+  /** The stubbed remote with its Sol Ring filed under `categories`. */
+  function routesWithSolRingIn(categories: string[]): Record<string, StubRoute> {
+    const deck = remoteDeck(UPDATED_AT) as { cards: { categories: string[] }[] }
+    deck.cards[0]!.categories = categories
+    return { ...pushRoutes(UPDATED_AT), [DECK_URL]: () => Response.json(deck) }
+  }
+
+  test('a push re-boards the existing relation onto the local board', async () => {
+    await writeLinkedDeck(
+      [{ name: 'Sideboard', cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }] }],
+      synced,
+    )
+    stubFetch(routesWithSolRingIn(['Artifact']))
+
+    expect(await runDeckSync(['push'])).toBe(0)
+
+    expect(pushedEntries()).toEqual([
+      expect.objectContaining({
+        action: 'modify',
+        deckRelationId: 11,
+        categories: ['Sideboard', 'Artifact'],
+      }),
+    ])
+    expect(logged()).toContain('1 board move')
+  })
+
+  /** The events the deck's changelog records, oldest page first. */
+  async function changelogEvents(): Promise<ChangeEvent[]> {
+    const content = await fs.readFile(path.join(dir, 'decks', 'winota-stax.changes.md'), 'utf-8')
+    return parseChangelog(content)
+      .pages.toReversed()
+      .flatMap((page) => page.changes)
+  }
+
+  test('a pull moves the line into the remote board, keeping its ID, and records the move', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 4 }], synced)
+    stubFetch(routesWithSolRingIn(['Sideboard']))
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+
+    expect(await readDeck()).toMatch(/## Sideboard\n+- 1 Sol Ring &4\n/)
+    expect(logged()).toContain('1 board move')
+    expect(await changelogEvents()).toMatchObject([
+      { action: 'set-section', cardName: 'Sol Ring', cardId: 4, section: 'Sideboard' },
+    ])
+  })
+
+  test('a pull moving part of a line splits it, recording the copies taken off and put on', async () => {
+    await writeLinkedDeck([{ quantity: 3, name: 'Island', cardId: 2 }], synced)
+    const island = (relationId: number, quantity: number, categories: string[]): unknown => {
+      const entry = remoteEntry(relationId, 'Island', quantity, {
+        set: 'tst',
+        collectorNumber: '1',
+        cardId: 600,
+      }) as { categories: string[] }
+      entry.categories = categories
+      return entry
+    }
+    const deck = remoteDeck(UPDATED_AT) as { cards: unknown[] }
+    deck.cards = [island(21, 2, []), island(22, 1, ['Sideboard'])]
+    stubFetch({ ...pushRoutes(UPDATED_AT), [DECK_URL]: () => Response.json(deck) })
+
+    expect(await runDeckSync(['pull'])).toBe(0)
+
+    expect(await readDeck()).toMatch(/## Main\n+- 2 Island &2\n+## Sideboard\n+- 1 Island &1\n/)
+    expect(await changelogEvents()).toMatchObject([
+      { action: 'remove', cardName: 'Island', cardId: 2, board: 'Main' },
+      { action: 'add', cardName: 'Island', cardId: 1, board: 'Sideboard', section: 'Sideboard' },
+    ])
+  })
+
+  test('a dry-run pull whose only change is a move writes nothing', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring', cardId: 4 }], synced)
+    const before = await readDeck()
+    stubFetch(routesWithSolRingIn(['Sideboard']))
+
+    expect(await runDeckSync(['pull', '--dry-run'])).toBe(0)
+
+    expect(logged()).toContain('1 board move')
+    expect(await readDeck()).toBe(before)
+    expect(await Bun.file(path.join(dir, 'decks', 'winota-stax.changes.md')).exists()).toBe(false)
+  })
 })

@@ -22,14 +22,11 @@ import type { DeckData } from '../list/deck'
 import type { ArchidektRawDeckResponse } from '../importers/archidekt-types'
 import {
   diffDeckCards,
-  diffToChangeEvents,
-  buildCardIdResolver,
-  buildCardIdsResolver,
   filterDeckDiff,
   isDiffEmpty,
   applyDownloadDiff,
   applyPrintingUpdates,
-  printingUpdatesToChangeEvents,
+  pullChangeEvents,
   syncDeckFormat,
   type DeckDiff,
   type PrintingMismatch,
@@ -267,11 +264,19 @@ async function readRemoteUpdatedAt(
 /** The report fields the printing pass adds to a deck's results. */
 type PrintingResultFields = Pick<DeckSyncDeckResult, 'printingsChanged' | 'printingsUnaligned'>
 
+/** The report field board moves add to a deck's results. */
+type BoardMoveResultFields = Pick<DeckSyncDeckResult, 'boardMoves'>
+
 /** The report field the category pass adds to a deck's results. */
 type CategoryResultFields = Pick<DeckSyncDeckResult, 'categoriesChanged'>
 
-/** The report fields the printing and category passes add to a deck's results. */
-type ResultFields = PrintingResultFields & CategoryResultFields
+/** The report fields the diff and the category pass add to a deck's results. */
+type ResultFields = PrintingResultFields & BoardMoveResultFields & CategoryResultFields
+
+/** What this deck's results say about board moves: a count, only when there is one. */
+function boardMoveResultFields(diff: DeckDiff): BoardMoveResultFields {
+  return diff.boardMoves.length > 0 ? { boardMoves: diff.boardMoves.length } : {}
+}
 
 /** What this deck's results say about categories: a count, only when the run synced them. */
 function categoryResultFields(flow: SyncFlow, changed: number): CategoryResultFields {
@@ -313,6 +318,12 @@ function emitPrintingMismatches(
         'different printings of it. Re-run with --sync-printings to reconcile them.',
     })
   }
+}
+
+/** The run log's board-move clause, present only when the diff moves a card. */
+function boardMoveClause(diff: DeckDiff): string {
+  if (diff.boardMoves.length === 0) return ''
+  return `, ${t('domain.count.boardMoves', { count: diff.boardMoves.length })}`
 }
 
 // ── Download flow ─────────────────────────────────────────────────────
@@ -379,10 +390,23 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // for re-pinned copies is keyed by the printing they end up on, so the lines
     // must already carry it. Pure, so the categories below can be diffed
     // against the deck the pull *will* write even on a dry run.
-    const pulledSections = applyDownloadDiff(
+    const pulled = applyDownloadDiff(
       applyPrintingUpdates(target.deck.sections, diff.printingUpdates),
       diff,
+      { listLabels: target.frontMatter.labels },
     )
+    const pulledSections = pulled.sections
+    for (const shortfall of pulled.shortfalls) {
+      emit({
+        kind: 'log',
+        level: 'warn',
+        item: name,
+        message:
+          `Could not move ${t('domain.count.copies', { count: shortfall.quantity })} ` +
+          `of "${shortfall.name}" from ${shortfall.from} to ${shortfall.to}: ` +
+          `the local ${shortfall.from} does not hold them.`,
+      })
+    }
 
     const remoteCategories = flow.syncCategories ? remoteDeckCategories(remoteRaw) : undefined
     if (remoteCategories !== undefined && remoteCategories.refused.length > 0) {
@@ -405,6 +429,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // what the printing and category passes did without reading the log.
     const report: ResultFields = {
       ...printingResultFields(flow, diff),
+      ...boardMoveResultFields(diff),
       ...categoryResultFields(flow, categoryChanges.length),
     }
 
@@ -429,7 +454,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     const categoryClause = flow.syncCategories
       ? `, ${t('domain.count.cardCategories', { count: categoryChanges.length })} changed`
       : ''
-    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${printingClause}${categoryClause}`
+    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${boardMoveClause(diff)}${printingClause}${categoryClause}`
     if (!isDiffEmpty(diff) || categoryChanges.length > 0) {
       emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${changeSummary}` })
     }
@@ -488,17 +513,14 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       const refs = await reconcileListRefs(target.filePath, { removed: removedCardIds })
       stage(refs.writtenFiles)
 
-      // Changes are stamped with their card ID. Added and quantity-changed cards
-      // resolve against the post-sync deck; removed cards (no longer present)
-      // resolve against the pre-sync deck. Printing updates rewrite every line
-      // of a card, so they resolve to one event per rewritten line.
-      const resolveCardId = buildCardIdResolver(updatedDeck.sections, target.deck.sections)
+      // Changes are stamped with their card ID, in the order they were applied.
       changes.push(
-        ...diffToChangeEvents(diff, resolveCardId),
-        ...printingUpdatesToChangeEvents(
-          diff.printingUpdates,
-          buildCardIdsResolver(updatedDeck.sections),
-        ),
+        ...pullChangeEvents({
+          diff,
+          applied: pulled,
+          saved: updatedDeck.sections,
+          before: target.deck.sections,
+        }),
       )
     } else {
       // Only the categories moved: the card lines are left exactly as written,
@@ -646,14 +668,13 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       }
     }
 
-    // Uploads diff by name only: the modifyCards API path cannot yet target a
-    // specific remote board/category, so board placement must be ignored here to
-    // avoid spuriously moving cards on Archidekt. `withPrintings` rides the
-    // flag so a new card's printing pin comes from the summary — set only when
-    // the card's local lines agree on one printing.
+    // Uploads diff per board like pulls do: on Archidekt a board is just a
+    // category on the relation, so a card the local file holds in another board
+    // is a board move the plan sends by re-categorizing the relation.
+    // `withPrintings` rides the flag so a new card's printing pin comes from the
+    // summary — set only when the card's local lines agree on one printing.
     const { diff, skipped } = filterDeckDiff(
       diffDeckCards(remoteDeck.sections, target.deck.sections, {
-        byBoard: false,
         withPrintings: flow.syncPrintings,
       }),
       only,
@@ -663,7 +684,10 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       emit({ kind: 'log', level: 'info', item: name, message: skippedMessage })
     }
     emitPrintingMismatches(flow, name, diff.unaligned)
-    const printingReport = printingResultFields(flow, diff)
+    const printingReport: PrintingResultFields & BoardMoveResultFields = {
+      ...printingResultFields(flow, diff),
+      ...boardMoveResultFields(diff),
+    }
 
     // Without categories to compare, an empty card diff is the whole answer. With
     // them, only the plan can say whether any card's categories differ.
@@ -709,7 +733,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       kind: 'log',
       level: 'info',
       item: name,
-      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${printingClause}${categoryClause}`,
+      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${boardMoveClause(diff)}${printingClause}${categoryClause}`,
     })
 
     // Plan errors are partial failures: some cards could not be turned into

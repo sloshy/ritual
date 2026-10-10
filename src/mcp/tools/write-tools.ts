@@ -680,7 +680,8 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
     {
       title: 'Add card',
       description:
-        'Add a card to any list (decks increment quantity if the same printing already exists). ' +
+        'Add a card to any list (decks increment quantity if the same printing already exists — ' +
+        'within the named section when section is given, anywhere in the deck otherwise). ' +
         'Supply set + collectorNumber to pin the printing. quantity adds that many copies in ' +
         'one save. Collections require set + collectorNumber together — an add without one is ' +
         'rejected. labels gives the new card a signed label override adjusting the list default ' +

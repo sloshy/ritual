@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { findOrCreateSection, resolveDefaultAddSection } from '../../src/list/deck-format'
+import {
+  findOrCreateSection,
+  resolveDefaultAddSection,
+  resolveSectionName,
+} from '../../src/list/deck-format'
 import type { DeckSection } from '../../src/list/deck'
 
 function section(name: string, cardNames: string[] = []): DeckSection {
@@ -14,11 +18,11 @@ describe('findOrCreateSection', () => {
     expect(sections).toHaveLength(2)
   })
 
-  test('matches by exact name only — no case folding or substrings', () => {
+  test('finds the section a requested name means, folding case but never substrings', () => {
     const sections = [section('Main')]
-    const created = findOrCreateSection(sections, 'main')
-    expect(created).not.toBe(sections[0]!)
-    expect(sections.map((s) => s.name)).toEqual(['Main', 'main'])
+    expect(findOrCreateSection(sections, 'main')).toBe(sections[0]!)
+    findOrCreateSection(sections, 'Mai')
+    expect(sections.map((s) => s.name)).toEqual(['Main', 'Mai'])
   })
 
   test('creates and appends an empty section when missing', () => {
@@ -67,5 +71,24 @@ describe('resolveDefaultAddSection', () => {
     const created = resolveDefaultAddSection(sections)
     expect(created.name).toBe('Main')
     expect(sections).toHaveLength(1)
+  })
+})
+
+describe('resolveSectionName', () => {
+  const names = ['Commander', 'Creatures', 'Lands', 'Sideboard']
+
+  test('folds case and surrounding space', () => {
+    expect(resolveSectionName(names, ' sideboard ')).toBe('Sideboard')
+    expect(resolveSectionName(names, 'lands')).toBe('Lands')
+  })
+
+  test('a reserved name means the deck’s first section of that role', () => {
+    expect(resolveSectionName(names, 'Main')).toBe('Creatures')
+    expect(resolveSectionName(names, 'command zone')).toBe('Commander')
+  })
+
+  test('anything else is a section to create, under the requested name', () => {
+    expect(resolveSectionName(names, 'Ramp')).toBe('Ramp')
+    expect(resolveSectionName(names, 'Maybeboard')).toBe('Maybeboard')
   })
 })

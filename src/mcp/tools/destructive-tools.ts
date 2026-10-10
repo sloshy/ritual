@@ -275,7 +275,13 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
       description:
         'Sync Archidekt-linked decks: "pull" applies remote changes to the local deck files ' +
         '(recording them in each changelog), "push" sends local changes to decks you own on ' +
-        'Archidekt. Omit decks to sync every linked deck. A push whose remote deck changed ' +
+        'Archidekt. Both directions diff per board (Commander, Main, Sideboard, Maybeboard) ' +
+        'and always move a card that sits on a different board on each side, keeping the ' +
+        'local line (and its ID) or the Archidekt entry rather than removing and re-adding ' +
+        'it — never onto a board already holding the card, where the copies are a quantity ' +
+        'change instead. The "only" filter never drops a move (a move adds and removes no ' +
+        'copies); each deck entry that moved cards carries boardMoves. Omit decks to sync every ' +
+        'linked deck. A push whose remote deck changed ' +
         'since that deck’s recorded lastSynced fails rather than reverting those remote edits ' +
         '— pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
         'a run with failures still reports success — check report.failedCount. ' +
@@ -325,9 +331,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
             'Also sync each card’s categories — its role in the deck, such as Ramp or ' +
               'Removal (the CLI’s --sync-categories). Off by default. A pull makes the local ' +
               'categories file hold Archidekt’s categories for every card; a push makes each ' +
-              'Archidekt card hold the local ones, keeping its board categories (Commander, ' +
-              'Sideboard, Maybeboard). Archidekt categories that name a board always decide the ' +
-              'card’s section and are never categories. A push from a deck with no local ' +
+              'Archidekt card hold the local ones beside the board category of the board it ends ' +
+              'up on (Commander, Sideboard, Maybeboard). Archidekt categories that name a board ' +
+              'always decide the card’s section and are never categories. A push from a deck with no local ' +
               'categories leaves Archidekt’s alone. Each deck’s report entry then carries ' +
               'categoriesChanged.',
           ),

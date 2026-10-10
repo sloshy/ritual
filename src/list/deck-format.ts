@@ -207,9 +207,59 @@ export function isCompanionSection(name: string): boolean {
   return sectionRole(name) === 'companion'
 }
 
-/** Find a deck section by exact name, creating and appending an empty one when missing. */
+/**
+ * The existing section a requested section name means, else the name itself.
+ * A caller naming a section to place a card in — an MCP `add`, a CLI
+ * `--section`, a changelog replay — rarely spells it the way the file does:
+ *
+ * 1. the same name, case and surrounding space folded (`sideboard` →
+ *    `## Sideboard`);
+ * 2. else, for a name with a reserved role (`Commander`, `Sideboard`,
+ *    `Maybeboard`, …, or a main-board spelling such as `Main`), the deck's
+ *    first section of that role (`Main` → `## Creatures` in a deck whose main
+ *    board is split into custom sections);
+ * 3. else the requested name, unchanged — a section to create.
+ *
+ * The one resolver behind both engines that place deck cards by section (the
+ * change reducer and the on-disk line engine), so a requested section lands
+ * in the same place whichever wrote it.
+ */
+export function resolveSectionName(existing: readonly string[], requested: string): string {
+  const folded = requested.trim().toLowerCase()
+  const byName = existing.find((name) => name.trim().toLowerCase() === folded)
+  if (byName !== undefined) return byName
+  const role = sectionRole(requested)
+  if (role !== 'main' || isMainBoardSection(requested)) {
+    const slot = sectionSlot(requested)
+    const byRole = existing.find((name) => sectionSlot(name) === slot)
+    if (byRole !== undefined) return byRole
+  }
+  return requested
+}
+
+/**
+ * The slot a section fills, for {@link resolveSectionName}'s role step: its
+ * role, except that the oathbreaker role's two aliases name two different
+ * cards — the Oathbreaker and its Signature Spell — so neither stands in for
+ * the other. Every other role's aliases are synonyms.
+ */
+function sectionSlot(name: string): string {
+  const role = sectionRole(name)
+  if (role !== 'oathbreaker') return role
+  return name.trim().toLowerCase() === 'signature spell' ? 'signature spell' : role
+}
+
+/**
+ * Find the deck section a requested name means ({@link resolveSectionName}),
+ * creating and appending an empty one under the requested name when the deck
+ * has none.
+ */
 export function findOrCreateSection(sections: DeckSection[], name: string): DeckSection {
-  const existing = sections.find((s) => s.name === name)
+  const resolved = resolveSectionName(
+    sections.map((s) => s.name),
+    name,
+  )
+  const existing = sections.find((s) => s.name === resolved)
   if (existing) return existing
   const created: DeckSection = { name, cards: [] }
   sections.push(created)
@@ -217,18 +267,25 @@ export function findOrCreateSection(sections: DeckSection[], name: string): Deck
 }
 
 /**
- * The section an unqualified add lands in: the first main-deck section (not the
- * commander, companion, sideboard or an extras section such as `## Maybeboard`),
- * creating and appending `Main` when none exists.
+ * Whether an unqualified add (or a card leaving the command zone) may land in
+ * this section: any main-deck section — `## Main`, `## Creatures`, `## Ramp` —
+ * and none of the reserved slots: not the commander, oathbreaker / signature
+ * spell or companion slot (each holds exactly the card the format puts there),
+ * not the sideboard, not an extras section such as `## Maybeboard`. The one
+ * rule the change reducer ({@link resolveDefaultAddSection}) and the on-disk
+ * line engine share.
+ */
+export function isDefaultAddSection(name: string): boolean {
+  return sectionRole(name) === 'main'
+}
+
+/**
+ * The section an unqualified add lands in: the first section
+ * {@link isDefaultAddSection} accepts, creating and appending `Main` when none
+ * exists.
  */
 export function resolveDefaultAddSection(sections: DeckSection[]): DeckSection {
-  const existing = sections.find(
-    (s) =>
-      !isCommanderSection(s.name) &&
-      !isCompanionSection(s.name) &&
-      !isSideboardSection(s.name) &&
-      !isExtraSection(s.name),
-  )
+  const existing = sections.find((s) => isDefaultAddSection(s.name))
   if (existing) return existing
   const created: DeckSection = { name: DEFAULT_SECTION, cards: [] }
   sections.push(created)

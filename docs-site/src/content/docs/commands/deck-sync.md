@@ -70,6 +70,8 @@ Syncing "Winota Stax" (pull)...
 
 The filter applies to cards only. A pull still adopts the deck's Archidekt format, and a deck whose only change is a format change still saves.
 
+`--only` never drops a [board move](#board-moves). A move changes no copy count, so both values keep it, and only the additions or removals left over around it are filtered. A move still takes its copies off the losing board under `--only additions`.
+
 The admin Sync Decks page offers the same choice as an _All changes / Additions only / Removals only_ control, and the MCP `sync_decks` tool takes it as an `only` field.
 
 ## Scripted Output
@@ -98,6 +100,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains anything other than a clean sync.
 - Decks that could not be resolved, or that are not sourced from Archidekt, appear as `failed`. A deck with an Archidekt `sourceUrl` but no `sourceId` is `skipped` in an all-decks run and `failed` when you name it explicitly.
 - Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names). A card one side holds with no printing at all never counts as disagreeing.
+- A deck whose diff [moves cards between boards](#board-moves) carries `boardMoves`: the number of moves applied, or previewed on a dry run. It is absent when there are none.
 - Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the number of cards whose categories the run changed, or would change on a dry run.
 - `unreadable` lists any deck whose file holds lines the parser could not read, with those lines. See [Unreadable Lines](#unreadable-lines).
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-decks) and the MCP `sync_decks` tool set it when a client cancels between decks.
@@ -240,9 +243,9 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
    - New cards are added to the section matching their remote board, creating that section if needed. A new section is inserted in canonical board order (Commander, Main, Sideboard, Maybeboard) without reordering existing sections.
    - Removed cards are deleted from the board they were removed from.
    - Quantity changes are applied in place within the matching board.
-   - A card that moved between boards on Archidekt is removed from its old board and added to the new one.
-   - An extras section (`## Maybeboard`, `## Tokens`) left with no cards is removed along with them. Empty `## Main` and `## Sideboard` headers are kept.
-4. Records all changes in the deck's `.changes.md` changelog. Card names are quoted, and changes to a non-main board name the board, such as `Added "Cavern-Hoard Dragon" to Maybeboard` or `Removed "Lightning Bolt" from Sideboard`.
+   - A card that moved between boards on Archidekt is moved to the matching local section: the line itself moves, keeping its `&N` ID, tags, labels, note, condition, and language. When only some of a line's copies moved, the line keeps the rest (and its ID and note), and the moved copies become a new line in the target section with the same tags, labels, condition, and language and a new ID.
+   - A section the pull leaves with no cards is removed with its last card, such as an emptied `## Commander`, `## Maybeboard`, or custom section. Empty `## Main` and `## Sideboard` headers are kept.
+4. Records all changes in the deck's `.changes.md` changelog. Card names are quoted, and changes to a non-main board name the board, such as `Added "Cavern-Hoard Dragon" to Maybeboard` or `Removed "Lightning Bolt" from Sideboard`. A line that moved between boards is recorded as a section move (`Moved "Sol Ring" to section "Sideboard"`); a line split by a partial move is recorded as the copies removed from it and added to the new line.
 5. Adopts the deck's Archidekt format, mapped onto Ritual's format keys ("Commander / EDH" becomes `commander`, "Dual Commander" becomes `duel-commander`, and so on). A format Ritual does not model (Custom, Frontier, Future Standard) leaves the local format untouched. A format change alone is enough to make the deck sync, but it is not recorded in the changelog, which tracks cards only.
 6. Sets `lastSynced` and `sourceUpdatedAt` in front matter, including on a pull that found no changes (which rewrites the front matter only).
 
@@ -251,16 +254,17 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
 1. Verifies you own the Archidekt deck (skips non-owned decks with a warning).
 2. Fetches the current Archidekt deck state.
 3. Refuses the deck when the remote changed since its `sourceUpdatedAt`, unless `--force` was given. See [Divergence Guard](#divergence-guard-push). A refused deck is never diffed.
-4. Compares local cards and quantities against the remote state, by card name only, across all boards (see the note below).
+4. Compares local cards and quantities against the remote state, **per board** and by card name, the same way a pull does.
 5. Pushes differences to Archidekt via their batch API:
-   - New cards are resolved by name (with the local line's set as a search hint) and added.
-   - Removed cards are set to quantity 0.
+   - New cards are resolved by name (with the local line's set as a search hint) and added to their local board (see [Board moves](#board-moves)).
+   - Removed cards are set to quantity 0, on the board they were removed from only.
    - Quantity changes are set to the new absolute value.
+   - A card the local file holds on a different board is moved there on Archidekt.
 6. Sets `lastSynced` and `sourceUpdatedAt` in front matter, **only for decks that pushed cleanly**. A deck whose cards could not all be turned into upload entries is reported `failed` and keeps its old stamps. `sourceUpdatedAt` is re-read from Archidekt after the push, since the push itself moved it.
 
 ### What Is Compared
 
-Sync compares **card names** and **quantities**. Pulls also respect the **board** a card lives in (Main, Commander, Sideboard, Maybeboard, and the other reserved sections), so cards land in the right section locally. Archidekt files boards as categories; see [Boards and categories](#boards-and-categories) for which ones count as boards.
+Sync compares **card names** and **quantities**, per **board** (Main, Commander, Sideboard, Maybeboard), in both directions. A card that sits on a different board on each side is moved, see [Board moves](#board-moves). Archidekt files boards as categories; see [Boards and categories](#boards-and-categories) for which ones count as boards.
 
 Pulls adopt the deck's format from Archidekt. Pushes do not send the local format back.
 
@@ -274,7 +278,24 @@ Not written by default:
 
 Printings are still _read_ without the flag: enough to land a quantity change on the line that holds that printing, and to report a difference the run will not act on. See [Without the flag](#without-the-flag).
 
-> **Note on pushes:** pushes ignore board placement by design. A push keeps each Archidekt entry's board categories exactly as they are, so moving a card between boards locally is not pushed. Board-aware behavior applies to `pull` only.
+### Board moves
+
+A card on one board on one side and another board on the other side is a **board move**, and both directions apply it. There is no flag for it. The summary line gets a clause, such as `…, 2 board moves`.
+
+- **What pairs.** Copies one board loses and another board gains pair up by card name. With `--sync-printings` they also have to be the same printing, except that a gaining line naming no printing (or only a finish the copies already have) takes the copies at their own printing. A card that changes board _and_ printing in one sync is removed from one board and added to the other. Copies that do not pair are ordinary additions, removals, or quantity changes. For example, a local `1 Main` against a remote `1 Main + 1 Maybeboard` is a removal from the Maybeboard, not a move.
+- **Never onto a board that already holds the card.** When the gaining board already has the card (at the same printing, under `--sync-printings`), moving copies there would make a second line or entry beside the first. The copies are a quantity change instead: removed from one board, added to the existing line or entry on the other.
+- **What a board is.** Sync works at four boards: Commander, Main, Sideboard, Maybeboard. `## Tokens` counts as the Maybeboard, and `## Companion`/`## Oathbreaker` count as Main, so a card in those sections is never moved just because the other side files it under a different section of the same board.
+- **Pull** moves the local line itself, so it keeps its ID and every per-copy detail. The target section is the first one on that board, or a new one inserted in canonical board order.
+- **Push** moves the existing Archidekt entry by replacing its board category, keeping its label, printing, finish, and role categories. When only some of an entry's copies move, the entry keeps the rest and a new entry with the same details takes the moved copies. The board categories a push uses:
+  - **Main:** no board category at all.
+  - **Commander:** the deck's command-zone (premier) category, else `Commander`.
+  - **Sideboard:** `Sideboard`.
+  - **Maybeboard:** the deck's `Maybeboard` category, else another category the deck excludes from its count (such as _Tokens & Extras_, but never one named `Tokens`), else `Maybeboard`.
+
+  A card new to Archidekt gets its board's category too, plus the role categories its other entries use. Archidekt's default category is used only for a new Main card with no other category.
+
+- **`--only`** never drops a move (see [Change Filter](#change-filter)).
+- **Reporting.** Each deck's structured result carries `boardMoves`. A move the other side cannot fully cover (which the diff should never produce) is a warning on a pull and fails the deck on a push.
 
 ### Front Matter
 
@@ -339,7 +360,7 @@ The admin [Sync Decks](/admin/sync-decks/) page offers the same behavior as a ch
 A **category** is a card's role in one deck (`Ramp`, `Removal`, `Board Wipes`). Archidekt calls it a category too; Ritual keeps it in the deck's [`<deck>.categories.json`](/list-format/#categories-namecategoriesjson). By default a sync leaves categories alone. `--sync-categories` (valid on `pull` and `push`) syncs them too:
 
 - **Pull**: every card the deck holds after the pull gets exactly the categories Archidekt files it under, in Archidekt's order, the first being primary. A card with no role category on Archidekt loses its local ones. The categories of cards the pull removed are pruned. Each card whose categories changed is recorded in the changelog (`Set categories of "Sol Ring" to Ramp, Artifact`). A pull that changes only categories leaves every card line exactly as written and updates only the front matter's sync stamps.
-- **Push**: every Archidekt card the local deck also holds gets the local categories, keeping any board category it has (`Commander`, `Sideboard`, …): a push never moves a card between boards. A local card with no categories has its Archidekt roles cleared. A card new to Archidekt goes into its local categories, or Archidekt's default category when the local file gives it none.
+- **Push**: every Archidekt card the local deck also holds gets the local categories, alongside the board category of the board the card ends up on (`Commander`, `Sideboard`, …; see [Board moves](#board-moves)). Role categories never decide a board. A local card with no categories has its Archidekt roles cleared. A card new to Archidekt goes into its board's category and its local categories, or Archidekt's default category when it goes to Main and the local file gives it none.
 
 Each deck's summary line gets a clause: `…, 3 cards' categories changed` on a pull, `…, 3 cards' categories to change` on a push. A deck whose only difference is its categories still syncs.
 

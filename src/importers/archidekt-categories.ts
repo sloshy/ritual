@@ -17,9 +17,14 @@
  * - every other category is a Ritual category, in the relation's order, the
  *   first being primary.
  *
- * A push composes the reverse: the relation keeps the board categories it has
- * on Archidekt (sync never moves cards between boards on a push) and its role
- * categories become the local file's.
+ * A push composes the reverse. A relation's board follows the local file: a
+ * card the local file holds in another board is re-boarded by swapping the
+ * relation's board categories for the target board's
+ * ({@link archidektBoardCategory}, {@link reboardArchidektCategories}), its
+ * role categories untouched. Under `--sync-categories` the role categories
+ * then become the local file's while the (possibly new) board categories stay
+ * ({@link composeArchidektCategories}). Only board categories ever decide a
+ * board; role categories never move a card.
  */
 
 import {
@@ -37,6 +42,7 @@ import {
   sectionRole,
   type SectionRole,
 } from '../list/deck-format'
+import type { Board } from '../list/deck'
 import type { ArchidektCategory } from './archidekt-types'
 
 /** A deck's category definitions, keyed by lowercased, trimmed name. */
@@ -106,6 +112,101 @@ export function archidektEntrySection(
   return canonicalSectionName(role)
 }
 
+/**
+ * The first category the deck defines (in deck order) that `accepts` takes,
+ * by its name as Archidekt spells it.
+ */
+function findDeckCategory(
+  index: ArchidektCategoryIndex,
+  accepts: (definition: ArchidektCategory) => boolean,
+): string | undefined {
+  for (const definition of index.values()) if (accepts(definition)) return definition.name
+  return undefined
+}
+
+/**
+ * The Archidekt category that puts a relation on a deck-sync board, or
+ * `undefined` for the main board, which on Archidekt is the absence of any
+ * board category. The deck's own category is preferred so a push reuses what
+ * the deck already has rather than minting a near-duplicate:
+ *
+ * - **Commander:** the deck's `isPremier` (command-zone) category, else one
+ *   named as a commander alias, else `Commander`.
+ * - **Sideboard:** the deck's category named `Sideboard`, else `Sideboard`.
+ * - **Maybeboard:** the deck's category named `Maybeboard`; else any other
+ *   category the deck excludes from its count that reads as a maybeboard
+ *   (a "Considering" or "Tokens & Extras"-style one, never one named
+ *   `Tokens`); else `Maybeboard`.
+ *
+ * Each fallback is a section alias, so {@link archidektCategoryBoard} reads it
+ * back as the same board whether or not the deck defines it yet. A deck-sync
+ * board folds Ritual's finer sections (see `normalizeBoard`): a local
+ * `## Tokens` card is on the Maybeboard board, and so is a remote relation in
+ * an excluded Tokens category, so neither side ever reads the other as moved.
+ */
+export function archidektBoardCategory(
+  board: Board,
+  index: ArchidektCategoryIndex,
+): string | undefined {
+  const named = (role: SectionRole): string | undefined =>
+    findDeckCategory(index, (definition) => sectionRole(definition.name) === role)
+  switch (board) {
+    case 'Main':
+      return undefined
+    case 'Commander':
+      return (
+        findDeckCategory(
+          index,
+          (definition) =>
+            definition.isPremier === true &&
+            archidektCategoryBoard(definition.name, index) === 'commander',
+        ) ??
+        named('commander') ??
+        canonicalSectionName('commander')
+      )
+    case 'Sideboard':
+      return named('sideboard') ?? canonicalSectionName('sideboard')
+    case 'Maybeboard':
+      return (
+        named('maybeboard') ??
+        findDeckCategory(
+          index,
+          (definition) => archidektCategoryBoard(definition.name, index) === 'maybeboard',
+        ) ??
+        canonicalSectionName('maybeboard')
+      )
+    default: {
+      const unreachable: never = board
+      return unreachable
+    }
+  }
+}
+
+/** The categories among a relation's that are not boards — roles, refused names included. */
+export function archidektNonBoardCategories(
+  categoryNames: readonly string[] | null | undefined,
+  index: ArchidektCategoryIndex,
+): string[] {
+  return (categoryNames ?? []).filter((name) => archidektCategoryBoard(name, index) === undefined)
+}
+
+/**
+ * A relation's categories moved onto `board`: every board category it holds is
+ * replaced by the target board's ({@link archidektBoardCategory}) — or by none
+ * at all for the main board — and every other category is kept in order. The
+ * board comes first, the way {@link composeArchidektCategories} orders it.
+ * Never holds a null.
+ */
+export function reboardArchidektCategories(
+  categoryNames: readonly string[] | null | undefined,
+  board: Board,
+  index: ArchidektCategoryIndex,
+): string[] {
+  const target = archidektBoardCategory(board, index)
+  const rest = archidektNonBoardCategories(categoryNames, index)
+  return target === undefined ? rest : [target, ...rest]
+}
+
 /** The role categories among a relation's categories, canonical and in relation order. */
 export function archidektRoleCategories(
   categoryNames: readonly string[] | null | undefined,
@@ -169,10 +270,11 @@ export function collectArchidektCategories(
  * speak for, kept as Archidekt has it, then the local role categories. Never
  * holds a null — `modifyCards/v2/` rejects the whole batch over one.
  *
- * Kept from the remote: its **board** categories (a push never moves a card
- * between boards) and any role category Ritual's name rule refused on the
- * pull, which the local file therefore never held and must not be read as
- * having dropped. Skipped from the local list: a category Archidekt would read
+ * Kept from `remote`: its **board** categories — the board the relation is
+ * on after any board move the push planned, which the caller has already
+ * applied with {@link reboardArchidektCategories} — and any role category
+ * Ritual's name rule refused on the pull, which the local file therefore
+ * never held and must not be read as having dropped. Skipped from the local list: a category Archidekt would read
  * as a board (`Sideboard`, or one the deck excludes from its count), since
  * sending it would move the card — a pull never produces one, so it can only
  * have come from another source.

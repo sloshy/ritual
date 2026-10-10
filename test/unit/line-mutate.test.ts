@@ -453,6 +453,28 @@ describe('applyDeckAddToContent', () => {
     expect(content).toContain('1 Pyroblast &3\n\n## Maybeboard')
   })
 
+  test('--section merges only within that section, else starts a line there', () => {
+    // Sol Ring sits in the Mainboard; a Sideboard add of the same printing is
+    // the Sideboard's own line, as the change reducer would place it.
+    const { content, outcome } = applyDeckAddToContent(mainboardDeck, { name: 'Sol Ring' }, 1, {
+      section: 'Sideboard',
+    })
+    expect(content).toContain('2 Sol Ring &2')
+    expect(content).toContain('1 Pyroblast &3\n- 1 Sol Ring &4')
+    expect(outcome).toEqual({ cardId: 4, quantity: 1, section: 'Sideboard', merged: false })
+  })
+
+  test('--section names the deck’s own section, by folded name or by role', () => {
+    const folded = applyDeckAddToContent(mainboardDeck, { name: 'Pyroblast' }, 1, {
+      section: 'sideboard',
+    })
+    expect(folded.outcome).toEqual({ cardId: 3, quantity: 2, section: 'Sideboard', merged: true })
+    const byRole = applyDeckAddToContent(mainboardDeck, { name: 'Sol Ring' }, 1, {
+      section: 'Main',
+    })
+    expect(byRole.outcome).toEqual({ cardId: 2, quantity: 3, section: 'Mainboard', merged: true })
+  })
+
   test('a --section with a line break lands under one folded heading, and a repeat add finds it', () => {
     const placement = { section: 'Maybe\nboard ' }
     const first = applyDeckAddToContent(mainboardDeck, { name: 'Brainstorm' }, 1, placement)
