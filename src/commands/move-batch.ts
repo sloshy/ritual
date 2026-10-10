@@ -138,7 +138,6 @@ export async function runBatchRound(
       message: t('cli.move.batchPrompt', { count: selected.size }),
       subjectKey: 'cli.prompt.subject.cardsToMove',
       choices: [...menuChoices, ...cardChoices],
-      limit: 12,
       // The menu rows stay visible while the cards filter: they are how the
       // screen is left, and typing must never strand the user on it.
       suggest: suggestCardsWithMenu({ isMenuChoice: isBatchMenuChoice, emptyShows: 'all' }),

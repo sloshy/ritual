@@ -99,7 +99,6 @@ export async function resolveListSelection(
       title: t('cli.cardOps.listChoice', { name: loc.name, type: listTypeLabel(loc.type) }),
       value: i,
     })),
-    limit: 15,
   })
   if (typeof index !== 'number') throw cancelledError()
   const chosen = locations[index]
@@ -185,7 +184,6 @@ async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {
     type: 'autocomplete',
     message: t('cli.cardOps.promptSelectCard'),
     choices,
-    limit: 15,
     suggest: suggestByTitleTerms,
   })
   if (typeof index !== 'number') throw cancelledError()

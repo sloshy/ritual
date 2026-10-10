@@ -120,9 +120,6 @@ function isSameArtState(a: CardArtRef | null, b: CardArtRef | null): boolean {
 /** The browser's own rows plus its way out. */
 type ArtBrowseChoice = ArtBrowseTarget | { kind: 'cancel' }
 
-/** How many browser rows are visible at once, matching the session prompt's window. */
-const ART_BROWSE_LIMIT = 15
-
 /**
  * Browse the configured art directory for an image, one directory at a time:
  * directory rows descend, `..` goes back out, and an image row picks the file.
@@ -173,7 +170,6 @@ export async function browseArtFile(): Promise<string | null> {
       message: t('cli.art.promptPickFile', { dir: absolute }),
       subjectKey: 'cli.prompt.subject.artFile',
       choices: [...rows, { title: `← ${t('cli.menu.cancel')}`, value: { kind: 'cancel' } }],
-      limit: ART_BROWSE_LIMIT,
       suggest: suggestByTitleTerms,
     })
     if (choice === undefined || choice.kind === 'cancel') return null

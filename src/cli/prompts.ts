@@ -30,6 +30,8 @@ export type PromptState = { exited: boolean }
  * Its multiselect `\nInstructions:\n` block has no such hook and cannot be
  * overridden without vendoring the library — an accepted, documented gap, since
  * the CLI contains exactly one multiselect.
+ *
+ * `optionsPerPage` is real too, and is how the select family pages its rows.
  */
 export type UndeclaredPromptOptions = {
   /** Row shown in place of the choice list when an autocomplete matches nothing. */
@@ -39,6 +41,11 @@ export type UndeclaredPromptOptions = {
    * (`lib/elements/autocomplete.js`). {@link ask} turns it on by default.
    */
   clearFirst?: boolean
+  /**
+   * Choice rows a select or multiselect shows at once (`lib/elements/select.js`
+   * defaults it to 10). Normally left to {@link withMenuPageSize}.
+   */
+  optionsPerPage?: number
 }
 
 /**
@@ -74,6 +81,65 @@ export type AskQuestion = Omit<prompts.PromptObject<'value'>, 'name'> &
   }
 
 type PromptAnswer = { value?: unknown }
+
+/** The `prompts` library's own page size, and the floor for {@link menuPageSize}. */
+const MIN_MENU_ROWS = 10
+
+/**
+ * Terminal rows a menu leaves for everything that is not a choice row: the
+ * question line, a selected choice's wrapped description, the cursor line
+ * below, and a little slack for rows that wrap. Rendering more lines than the
+ * terminal holds breaks the library's redraw (it cannot clear what scrolled
+ * off the top), so the budget errs on the generous side.
+ */
+const MENU_CHROME_ROWS = 5
+
+/**
+ * Extra rows a multiselect spends above its choices: the library's
+ * `Instructions:` block (a header and four key lines) plus the
+ * autocomplete-multiselect's "Filtered results for:" line.
+ */
+const MULTISELECT_EXTRA_ROWS = 6
+
+/**
+ * How many choice rows a menu shows at once: most of the terminal's height,
+ * read when the prompt opens so a resized window is honored on the next menu.
+ * Every list prompt sizes itself from this instead of a per-menu constant, so
+ * a short menu never scrolls in a tall window and a long list never overflows
+ * a short one. A terminal whose height is unknown (not a TTY) gets the floor.
+ */
+export function menuPageSize(
+  terminalRows: number | undefined = process.stdout.rows,
+  extraChromeRows = 0,
+): number {
+  if (terminalRows === undefined) return MIN_MENU_ROWS
+  return Math.max(MIN_MENU_ROWS, terminalRows - MENU_CHROME_ROWS - extraChromeRows)
+}
+
+/**
+ * Fill in the terminal-sized page for a list prompt that does not set its own:
+ * `limit` for an autocomplete, `optionsPerPage` for the select family. Any
+ * other prompt type comes back unchanged.
+ */
+export function withMenuPageSize<Q extends prompts.PromptObject<string> & UndeclaredPromptOptions>(
+  question: Q,
+): Q {
+  switch (question.type) {
+    case 'autocomplete':
+      return { ...question, limit: question.limit ?? menuPageSize() }
+    case 'select':
+      return { ...question, optionsPerPage: question.optionsPerPage ?? menuPageSize() }
+    case 'multiselect':
+    case 'autocompleteMultiselect':
+      return {
+        ...question,
+        optionsPerPage:
+          question.optionsPerPage ?? menuPageSize(process.stdout.rows, MULTISELECT_EXTRA_ROWS),
+      }
+    default:
+      return question
+  }
+}
 
 /**
  * The `suggest` callback for an autocomplete whose choices are titled with a
@@ -136,9 +202,11 @@ function promptLibraryStrings(): PromptLibraryStrings {
  * clears it first). Wraps the library's `onState` exit-detection
  * dance so wizard-style commands don't have to repeat it per question.
  *
- * Every prompt in the CLI passes through here, which makes this the one place
- * the library's own English is overridden and the one place `--no-input`
- * refusals are phrased. A question's `subjectKey` names what it wanted as a
+ * Every prompt in the CLI passes through here (bar a few unconverted sites in
+ * `history` and `dep-license`, which size themselves with
+ * {@link withMenuPageSize}), which makes this the one place the library's own
+ * English is overridden, list prompts are sized to the terminal, and
+ * `--no-input` refusals are phrased. A question's `subjectKey` names what it wanted as a
  * noun phrase; without one the refusal falls back to splicing the question
  * itself, which is what every not-yet-converted prompt does.
  */
@@ -159,14 +227,16 @@ export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
     ...asked,
     clearFirst: asked.clearFirst ?? asked.type === 'autocomplete',
   }
-  const response = (await prompts({
-    ...promptLibraryStrings(),
-    ...libraryQuestion,
-    name: 'value',
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
-  })) as PromptAnswer
+  const response = (await prompts(
+    withMenuPageSize({
+      ...promptLibraryStrings(),
+      ...libraryQuestion,
+      name: 'value',
+      onState: (state: PromptState) => {
+        if (state.exited) exited = true
+      },
+    }),
+  )) as PromptAnswer
   if (exited || response.value === undefined) return undefined
   return response.value as T
 }

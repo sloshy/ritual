@@ -445,7 +445,6 @@ async function promptMainSelection(report: PriceReport): Promise<PriceMainSelect
     type: 'autocomplete',
     message: t('cli.price.promptMainMenu'),
     choices: buildMainMenuChoices(report),
-    limit: 14,
     suggest: suggestByTitleTerms,
   })
 }
@@ -558,7 +557,6 @@ async function runCardBrowser(
       type: 'autocomplete',
       message: t('cli.price.promptBrowser'),
       choices: buildCardBrowserChoices(visible, state, currency, options),
-      limit: 15,
       suggest: suggestByTitleTerms,
     })
     if (!selection || selection.kind === 'back') return

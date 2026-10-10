@@ -1,13 +1,16 @@
-import { describe, expect, test } from 'bun:test'
+import { afterEach, describe, expect, test } from 'bun:test'
 import { PassThrough } from 'node:stream'
 import prompts, { type Choice } from 'prompts'
 import {
   ask,
   askSequence,
+  menuPageSize,
   promptCredentials,
   promptExitMenu,
   resolveImportPrintings,
   suggestByTitleTerms,
+  withMenuPageSize,
+  type UndeclaredPromptOptions,
 } from '../../../src/cli/prompts'
 import { normalizeScriptingOptions } from '../../../src/cli/output'
 import { setNoInputOverride } from '../../../src/util/no-input'
@@ -31,6 +34,67 @@ describe('suggestByTitleTerms', () => {
   test('matches terms anywhere in the title, past the leading icon', async () => {
     const matched = await suggestByTitleTerms('binder', choices)
     expect(matched.map((c) => c.value)).toEqual(['collection'])
+  })
+})
+
+describe('menu page sizing', () => {
+  const realRows = process.stdout.rows
+  afterEach(() => {
+    process.stdout.rows = realRows
+  })
+
+  /** Pretend the terminal is `rows` tall, or of unknown height. */
+  function setTerminalRows(rows: number | undefined): void {
+    process.stdout.rows = rows as number
+  }
+
+  /** A bare list prompt, typed wide enough to read either page option. */
+  function question(
+    type: 'autocomplete' | 'select' | 'multiselect' | 'autocompleteMultiselect',
+    own: UndeclaredPromptOptions & { limit?: number } = {},
+  ): prompts.PromptObject<string> & UndeclaredPromptOptions {
+    return { type, name: 'v', message: 'm', ...own }
+  }
+
+  test('a tall terminal is filled, keeping a few rows for the question around the list', () => {
+    expect(menuPageSize(50)).toBe(45)
+  })
+
+  test("a short terminal, or one of unknown height, still gets the library's own page", () => {
+    expect(menuPageSize(12)).toBe(10)
+    setTerminalRows(undefined)
+    expect(menuPageSize()).toBe(10)
+  })
+
+  test('autocompletes are sized by limit from the height when the prompt opens', () => {
+    setTerminalRows(40)
+    expect(withMenuPageSize(question('autocomplete')).limit).toBe(35)
+    setTerminalRows(60)
+    expect(withMenuPageSize(question('autocomplete')).limit).toBe(55)
+  })
+
+  test('selects are sized by optionsPerPage', () => {
+    setTerminalRows(40)
+    expect(withMenuPageSize(question('select')).optionsPerPage).toBe(35)
+  })
+
+  test.each(['multiselect', 'autocompleteMultiselect'] as const)(
+    '%s leaves room for its instructions block',
+    (type) => {
+      setTerminalRows(40)
+      expect(withMenuPageSize(question(type)).optionsPerPage).toBe(29)
+    },
+  )
+
+  test("a prompt's own page size is kept", () => {
+    setTerminalRows(40)
+    expect(withMenuPageSize(question('autocomplete', { limit: 7 })).limit).toBe(7)
+    expect(withMenuPageSize(question('select', { optionsPerPage: 7 })).optionsPerPage).toBe(7)
+  })
+
+  test('other prompt types pass through untouched', () => {
+    const text: prompts.PromptObject<string> = { type: 'text', name: 'v', message: 'm' }
+    expect(withMenuPageSize(text)).toBe(text)
   })
 })
 

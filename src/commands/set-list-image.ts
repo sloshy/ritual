@@ -438,7 +438,6 @@ async function promptListImageCard(
     message: t('cli.setListImage.cardPrompt'),
     subjectKey: 'cli.prompt.subject.listImageCard',
     choices: rows.map((row) => ({ title: row.title, value: row.cardId })),
-    limit: 15,
     suggest: suggestByTitleTerms,
   })
   if (cardId === undefined) return undefined

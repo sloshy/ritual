@@ -29,6 +29,9 @@ release changes a file format or a generated file, it ships the change as a
 
 ### Changed
 
+- Interactive menus and card pickers in the CLI now size themselves to your terminal's
+  height instead of showing a fixed 10–22 rows, so a menu no longer scrolls in a tall
+  window and every picker shows as many rows as the card list in `ritual edit` does.
 - **Card labels now adjust the list default instead of replacing it.** A card line's label
   token can take a label away with `no-<label>`: `[trade,no-sale]` under a `sale` default is
   "for trade, not for sale", `[no-sale,no-trade]` is "no labels", and `[no-proxy]` marks a

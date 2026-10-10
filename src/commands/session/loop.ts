@@ -4,7 +4,7 @@ import { appendChangelog } from '../../changes/changelog-writer'
 import { createSetNoteChange } from '../../changes/change-event'
 import { formatSetCodesForDisplay } from '../../card/set-codes'
 import { t } from '../../i18n/t'
-import { ask, promptExitMenu } from '../../cli/prompts'
+import { ask, menuPageSize, promptExitMenu } from '../../cli/prompts'
 import { languageDisplayName } from '../../card/card-language'
 import { promptLanguageChoice } from './prompts'
 import {
@@ -359,7 +359,7 @@ export async function runCardSession(options: CardSessionOptions): Promise<CardS
       message: promptMessage,
       subjectKey: 'cli.prompt.subject.sessionCard',
       choices,
-      limit: SESSION_MENU_LIMIT,
+      limit: Math.max(SESSION_MENU_LIMIT, menuPageSize()),
       suggest: async (rawInput, suggestChoices) =>
         sessionMode === 'edit'
           ? suggestEditMode(String(rawInput), suggestChoices)

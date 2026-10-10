@@ -113,7 +113,6 @@ async function promptMoveTarget(
     type: 'autocomplete',
     message: t('cli.edit.promptMoveTarget', { name: cardName }),
     choices: targets.map((target) => ({ title: listRefTitle(target), value: target })),
-    limit: 12,
     suggest: suggestByTitleTerms,
   })
 }

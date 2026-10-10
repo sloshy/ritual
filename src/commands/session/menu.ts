@@ -232,14 +232,17 @@ function buildSaveAndSwitchItems(input: MenuBuildInput): Choice[] {
 }
 
 /**
- * How many rows the card prompt shows at once. It must be at least as tall as
- * the longest menu {@link buildMenuChoices} can build (a deck session showing
- * every shortcut), or Save and Exit — the items at its foot — would sit below
- * the fold. A new conditional menu item therefore has to be raised here and in
- * the maximal input of the "tallest possible menu" test that guards it.
+ * The fewest rows the card prompt shows at once; a taller terminal gets more
+ * (see `menuPageSize`). It must be at least as tall as the longest menu
+ * {@link buildMenuChoices} can build (a deck session showing every shortcut),
+ * or Save and Exit — the items at its foot — would sit below the fold. A new
+ * conditional menu item therefore has to be raised here and in the maximal
+ * input of the "tallest possible menu" test that guards it. On a terminal too
+ * short for it the prompt overflows and redraws untidily; keeping Save and Exit
+ * reachable is the better trade.
  *
  * In edit mode it is also the browsing window: with nothing typed the prompt
- * lists every entry under the menu, so this limit less the (short) edit-mode
+ * lists every entry under the menu, so the window less the (short) edit-mode
  * menu is how many card lines are visible before the list scrolls.
  */
 export const SESSION_MENU_LIMIT = 22

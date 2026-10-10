@@ -119,7 +119,6 @@ async function promptListToEdit(choices: Choice[]): Promise<UnifiedSelection | u
     message: t('cli.edit.promptSelectList'),
     subjectKey: 'cli.prompt.subject.listToEdit',
     choices,
-    limit: 12,
     suggest: suggestByTitleTerms,
   })
 }

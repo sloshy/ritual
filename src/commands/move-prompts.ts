@@ -35,7 +35,6 @@ export async function promptMoveDestination(
     message,
     subjectKey: 'cli.prompt.subject.moveDestination',
     choices,
-    limit: 15,
     suggest: suggestByTitleTerms,
   })
 }

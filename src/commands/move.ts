@@ -268,7 +268,6 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
       message: t('cli.move.promptSearch'),
       subjectKey: 'cli.prompt.subject.cardsToMove',
       choices: [...menuChoices, ...cardChoices],
-      limit: 12,
       // The menu rows stay visible while the cards filter, so the session can
       // always be left; an empty input shows them alone rather than every card.
       suggest: suggestCardsWithMenu({ isMenuChoice: isMoveMenuChoice, emptyShows: 'menu' }),

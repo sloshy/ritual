@@ -311,7 +311,6 @@ async function promptAddLists(
           value: location,
         })),
       ],
-      limit: 14,
       suggest: suggestByTitleTerms,
     })
     if (!pick || pick === DONE_SENTINEL) return
@@ -337,7 +336,6 @@ async function promptAddCards(state: ExportWizardState, allEntries: ExportEntry[
           value: entry,
         })),
       ],
-      limit: 15,
       suggest: suggestByTitleTerms,
     })
     if (!pick || pick === DONE_SENTINEL) return
@@ -625,7 +623,6 @@ export async function promptColumns(
       type: 'autocomplete',
       message,
       choices,
-      limit: 14,
       suggest: suggestByTitleTerms,
     })
     if (pick === undefined || pick === KEEP_SENTINEL) {

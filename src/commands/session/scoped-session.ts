@@ -145,7 +145,6 @@ async function promptAddTarget(
     message: t('cli.edit.promptAddTarget'),
     subjectKey: 'cli.prompt.subject.addTarget',
     choices: buildAddTargetChoices(lists, scope),
-    limit: 12,
     suggest: suggestByTitleTerms,
   })
 }

@@ -7,6 +7,7 @@ import { t } from '../i18n/t'
 import { addOutputOption } from '../cli/options'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 import { fail } from '../cli/action'
+import { withMenuPageSize } from '../cli/prompts'
 
 type DepLicenseOptions = {
   plain: boolean
@@ -128,25 +129,27 @@ export function registerDepLicenseCommand(program: Command): void {
     ]
 
     let aborted = false
-    const response = await prompts({
-      type: 'autocomplete',
-      name: 'pkg',
-      message: t('cli.depLicense.promptSelect'),
-      choices,
-      suggest: async (input, choices) => {
-        if (!input) return choices
-        const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
-        return choices.filter(
-          (c) =>
-            c.value !== SEPARATOR &&
-            !c.disabled &&
-            terms.every((t: string) => c.title.toLowerCase().includes(t)),
-        )
-      },
-      onState(state: PromptStateChange) {
-        aborted = state.aborted || state.exited
-      },
-    })
+    const response = await prompts(
+      withMenuPageSize({
+        type: 'autocomplete',
+        name: 'pkg',
+        message: t('cli.depLicense.promptSelect'),
+        choices,
+        suggest: async (input, choices) => {
+          if (!input) return choices
+          const terms = input.toLowerCase().split(/\s+/).filter(Boolean)
+          return choices.filter(
+            (c) =>
+              c.value !== SEPARATOR &&
+              !c.disabled &&
+              terms.every((t: string) => c.title.toLowerCase().includes(t)),
+          )
+        },
+        onState(state: PromptStateChange) {
+          aborted = state.aborted || state.exited
+        },
+      }),
+    )
 
     if (aborted || !response.pkg || response.pkg === SEPARATOR) return
     const entry = depLicenses.find((e) => e.name === response.pkg)

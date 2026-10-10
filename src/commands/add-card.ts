@@ -539,7 +539,6 @@ async function selectCardAutocomplete(
     type: 'autocomplete',
     message: t('cli.cardOps.promptSelectCard'),
     choices,
-    limit: 15,
     suggest: suggestNames,
   })
 

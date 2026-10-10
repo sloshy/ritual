@@ -1,7 +1,6 @@
 import { Command, InvalidArgumentError } from 'commander'
 import prompts from 'prompts'
 import * as fs from 'node:fs/promises'
-import type { PromptState } from '../cli/prompts'
 import {
   isResolveListError,
   listLocations,
@@ -34,7 +33,7 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { ExitCode } from '../util/errors'
-import { promptExitMenu } from '../cli/prompts'
+import { promptExitMenu, type PromptState, withMenuPageSize } from '../cli/prompts'
 import { inputRequiredError, promptsUnavailable, requireInteractive } from '../util/no-input'
 import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
@@ -75,15 +74,17 @@ function setHeading(set: ChangeSet): string {
 /** Run a single-select prompt, returning the chosen value or null on cancel/ESC. */
 async function selectMenu(message: string, choices: prompts.Choice[]): Promise<string | null> {
   let exited = false
-  const resp = await prompts({
-    type: 'select',
-    name: 'value',
-    message,
-    choices,
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
-  })
+  const resp = await prompts(
+    withMenuPageSize({
+      type: 'select',
+      name: 'value',
+      message,
+      choices,
+      onState: (state: PromptState) => {
+        if (state.exited) exited = true
+      },
+    }),
+  )
   if (exited || typeof resp.value !== 'string') return null
   return resp.value
 }
@@ -102,25 +103,26 @@ async function autocompleteMenu(
   pinned?: ReadonlySet<string>,
 ): Promise<string | null> {
   let exited = false
-  const resp = await prompts({
-    type: 'autocomplete',
-    name: 'value',
-    message,
-    choices,
-    limit: 15,
-    suggest: async (input, items) => {
-      const terms = String(input).toLowerCase().split(/\s+/).filter(Boolean)
-      if (terms.length === 0) return items
-      return items.filter(
-        (choice) =>
-          (pinned?.has(String(choice.value)) ?? false) ||
-          terms.every((term) => choice.title.toLowerCase().includes(term)),
-      )
-    },
-    onState: (state: PromptState) => {
-      if (state.exited) exited = true
-    },
-  })
+  const resp = await prompts(
+    withMenuPageSize({
+      type: 'autocomplete',
+      name: 'value',
+      message,
+      choices,
+      suggest: async (input, items) => {
+        const terms = String(input).toLowerCase().split(/\s+/).filter(Boolean)
+        if (terms.length === 0) return items
+        return items.filter(
+          (choice) =>
+            (pinned?.has(String(choice.value)) ?? false) ||
+            terms.every((term) => choice.title.toLowerCase().includes(term)),
+        )
+      },
+      onState: (state: PromptState) => {
+        if (state.exited) exited = true
+      },
+    }),
+  )
   if (exited || typeof resp.value !== 'string') return null
   return resp.value
 }

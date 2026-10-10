@@ -538,7 +538,6 @@ export async function resolveCardPrinting(
         message: t('cli.printing.promptSelect'),
         subjectKey: 'cli.prompt.subject.printing',
         choices,
-        limit: 15,
         suggest: async (rawInput, choices) => suggestPrintings(String(rawInput), choices),
       })
 
