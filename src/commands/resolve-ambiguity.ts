@@ -17,11 +17,8 @@
  * testable without a TTY.
  */
 
-import {
-  describeAmbiguousLists,
-  describeCollectionKey,
-  type AmbiguousRemoval,
-} from '../collection-sync/describe'
+import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
+import { describeSyncCard } from '../sync/describe'
 import type { AmbiguityResolutionOutcome } from '../collection-sync/engine'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 import type { Logger } from '../util/logger'
@@ -87,7 +84,7 @@ export async function resolveAmbiguousRemovals(
 
   const assignments: RemovalAssignment[] = []
   for (const entry of ambiguous) {
-    const card = describeCollectionKey(entry.name, entry.parts)
+    const card = describeSyncCard(entry.name, entry.parts)
     logger.info(
       t('cli.resolveAmbiguity.copiesLiveIn', {
         card,

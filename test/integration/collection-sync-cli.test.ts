@@ -27,6 +27,8 @@ import {
 } from './helpers/archidekt'
 import { runCli } from './helpers/cli'
 import { runInProcess } from '../helpers/cli'
+import { captureStream } from '../helpers/capture'
+import type { CollectionSyncReport } from '../../src/collection-sync/engine'
 import { OFFLINE_ENV } from './helpers/offline-env'
 import {
   bindWorkspace,
@@ -76,6 +78,8 @@ async function runSync(args: string[]): Promise<number> {
   return runInProcess(registerCollectionSyncCommand, ['collection-sync', ...args])
 }
 
+const VERBOSE_HINT = 'Run with --verbose to list the cards being synced.'
+
 /** Everything the run logged, as one string. */
 function logged(): string {
   return logger.entries.map((entry) => entry.args.map((arg) => String(arg)).join(' ')).join('\n')
@@ -120,6 +124,29 @@ describe('collection-sync CLI (Integration)', () => {
     scryfallIdIndex.reset()
     await ws.dispose()
   })
+
+  /**
+   * Serve a push that creates the binder's Sol Ring (C21:240) as Archidekt card
+   * 555 and deletes the account's Lightning Bolt record, which no list holds.
+   */
+  function stubPushOfSolRing(): void {
+    stubFetch({
+      [COLLECTION_URL]: () => Response.json(collectionPage([record({ ...BOLT, id: 7 })])),
+      [SEARCH_URL]: () =>
+        Response.json({
+          results: [
+            {
+              id: 555,
+              collectorNumber: '240',
+              options: ['Normal', 'Foil'],
+              oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
+            },
+          ],
+        }),
+      [BULK_URL]: () => new Response(null, { status: 204 }),
+      [UPSERT_URL]: () => Response.json({ id: 99, createdAt: 'now', modifiedAt: 'now' }),
+    })
+  }
 
   /** Serve a collection holding `records`; the only endpoint a pull needs. */
   function stubCollection(...records: ArchidektCollectionRecord[]): void {
@@ -209,6 +236,39 @@ describe('collection-sync CLI (Integration)', () => {
     // A dry run changed nothing, so it records no sync timestamp either.
     expect(await exists(path.join(dir, '.logins', 'collection-sync.json'))).toBe(false)
     expect(logged()).toContain('[dry-run] Would sync: +1 added, -0 removed')
+  })
+
+  test('lists the pulled cards only under --verbose, and otherwise says how to see them', async () => {
+    stubCollection(record(SOL_RING), record(BOLT))
+
+    expect(await runSync(['pull', '--into', 'binder', '--dry-run'])).toBe(0)
+    expect(logged()).toContain('Changes: +1 added, -0 removed')
+    expect(logged()).not.toContain('+ 1 Lightning Bolt')
+    expect(logged()).toContain(VERBOSE_HINT)
+
+    logger.clear()
+    expect(await runSync(['pull', '--into', 'binder', '--dry-run', '-v'])).toBe(0)
+    expect(logged()).toContain('  + 1 Lightning Bolt (LEA:161) to binder')
+    expect(logged()).not.toContain(VERBOSE_HINT)
+  })
+
+  test('the JSON report lists each list’s card changes, whatever --verbose says', async () => {
+    stubCollection(record(SOL_RING), record(BOLT))
+
+    let exitCode = 1
+    const stdout = await captureStream('stdout', async () => {
+      exitCode = await runSync(['pull', '--into', 'binder', '--dry-run', '--output', 'json'])
+    })
+    expect(exitCode).toBe(0)
+    const report = JSON.parse(stdout) as CollectionSyncReport
+    expect(report.lists.find((list) => list.name === 'binder')?.changes).toEqual([
+      {
+        kind: 'added',
+        name: 'Lightning Bolt',
+        quantity: 1,
+        printing: { set: 'lea', collectorNumber: '161', finish: 'nonfoil', condition: 'NM' },
+      },
+    ])
   })
 
   test('--only additions keeps a pull from removing local copies', async () => {
@@ -365,22 +425,7 @@ describe('collection-sync CLI (Integration)', () => {
   })
 
   test('pushes a local-only card and deletes the records no list holds', async () => {
-    stubFetch({
-      [COLLECTION_URL]: () => Response.json(collectionPage([record({ ...BOLT, id: 7 })])),
-      [SEARCH_URL]: () =>
-        Response.json({
-          results: [
-            {
-              id: 555,
-              collectorNumber: '240',
-              options: ['Normal', 'Foil'],
-              oracleCard: { name: 'Sol Ring', defaultCategory: 'Artifact' },
-            },
-          ],
-        }),
-      [BULK_URL]: () => new Response(null, { status: 204 }),
-      [UPSERT_URL]: () => Response.json({ id: 99, createdAt: 'now', modifiedAt: 'now' }),
-    })
+    stubPushOfSolRing()
     const before = await readList('binder')
 
     expect(await runSync(['push'])).toBe(0)
@@ -402,6 +447,21 @@ describe('collection-sync CLI (Integration)', () => {
     // A push writes nothing locally.
     expect(await readList('binder')).toBe(before)
     expect(await exists(path.join(dir, 'collections', 'binder.changes.md'))).toBe(false)
+    // Without --verbose the per-card lines give way to the count and the hint.
+    expect(logged()).toContain('Changes: +1 added, -0 removed')
+    expect(logged()).not.toContain('+ 1 Sol Ring')
+    expect(logged()).toContain(VERBOSE_HINT)
+  })
+
+  test('a verbose push lists each card it adds and removes', async () => {
+    stubPushOfSolRing()
+
+    expect(await runSync(['push', '--verbose'])).toBe(0)
+
+    expect(logged()).toContain('  + 1 Sol Ring (C21:240) to Archidekt')
+    // A card no list holds belongs to the run, so its line is not indented.
+    expect(logged()).toMatch(/^- 1 Lightning Bolt \(LEA:161\) from Archidekt$/m)
+    expect(logged()).not.toContain(VERBOSE_HINT)
   })
 
   /**
@@ -455,11 +515,21 @@ describe('collection-sync CLI (Integration)', () => {
       expect(logged()).toContain('Synced: +2 added, -0 removed.')
     })
 
+    test('--verbose lists the cards the CSV imported', async () => {
+      await twoAdditions()
+
+      expect(await runSync(['push', '--csv', '-v'])).toBe(0)
+
+      // The import runs before any list's turn, so its cards are the run's.
+      expect(logged()).toMatch(/^\+ 1 Sol Ring \(C21:240\) to Archidekt$/m)
+      expect(logged()).toMatch(/^\+ 1 Lightning Bolt \(LEA:161\) \[DMG\] to Archidekt$/m)
+    })
+
     test('--csv-file writes the CSV and pushes no additions', async () => {
       await twoAdditions()
       const csvPath = path.join(dir, 'out', 'archidekt-import.csv')
 
-      expect(await runSync(['push', '--csv-file', csvPath])).toBe(0)
+      expect(await runSync(['push', '--csv-file', csvPath, '-v'])).toBe(0)
 
       // Written locally, with the parent directory created — and nothing at all
       // sent to Archidekt beyond the read.
@@ -469,6 +539,7 @@ describe('collection-sync CLI (Integration)', () => {
       )
       expect(sent.map((request) => request.method)).toEqual(['GET'])
       expect(logged()).toContain('Synced: +0 added, -0 removed, 2 awaiting upload.')
+      expect(logged()).toMatch(/^\+ 1 Sol Ring \(C21:240\) to the CSV file, not pushed yet$/m)
       expect(logged()).toContain(
         '2 cards were not pushed: upload ' +
           csvPath +

@@ -304,15 +304,15 @@ export const domainMeta = {
   },
   'domain.sync.detailAdded': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card added. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card added. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt.',
   },
   'domain.sync.detailRemoved': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card removed. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card removed. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt.',
   },
   'domain.sync.detailQuantity': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose quantity changes. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name. {from} and {to} are the old and new copy counts.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose quantity changes. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt. {from} and {to} are the old and new copy counts.',
   },
   'domain.sync.detailMove': {
     description:
@@ -320,11 +320,47 @@ export const domainMeta = {
   },
   'domain.sync.detailPrinting': {
     description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose copies change printing. {card} is the card name. {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name. {from} and {to} are the old and new printings in card-line grammar like "(LEA:270) [foil]" (a finish-only change reads "[nonfoil] → [foil]"), or domain.sync.detailNoPrinting.',
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose copies change printing. {card} is the card name. {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt. {from} and {to} are the old and new printings in card-line grammar like "(LEA:270) [foil]" (a finish-only change reads "[nonfoil] → [foil]"), or domain.sync.detailNoPrinting.',
   },
   'domain.sync.detailCategories': {
     description:
       'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose categories the sync sets. {card} is the card name, {categories} a comma-separated list of user-defined category names (primary first) or domain.sync.detailNoCategories.',
+  },
+  'domain.sync.detailPending': {
+    description:
+      'One per-card detail line a collection-sync push lists under the run (CLI: only with --verbose): copies the CLI’s --csv-file wrote to a file the user imports by hand, so they are not on Archidekt yet. Only the CLI writes such a file. The leading symbol marks the kind of change; keep it first. {quantity} is the number of copies, {card} the card name with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated).',
+  },
+  'domain.sync.changesLine': {
+    description:
+      'The per-deck or per-list count line both syncs log (CLI and admin sync pages), above the per-card detail lines. {summary} is a pre-rendered domain.sync.deckCounts or domain.sync.collectionCounts with its clauses.',
+  },
+  'domain.sync.deckCounts': {
+    description:
+      "Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. A deck sync's card-change counts, branched on the persisted direction slug (pull = what the pull changed locally, push = what the push will change on Archidekt). {added}, {removed} and {quantity} are entry counts; the +, - and ~ signs mirror the detail lines' markers. Optional clauses (domain.sync.deckMovesClause, deckPrintingsClause, deckCategoriesClause) are appended after it.",
+  },
+  'domain.sync.deckMovesClause': {
+    description:
+      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.deckCounts when a deck sync moves cards between boards. {moves} is a pre-rendered domain.count.boardMoves. Keep the leading separator.',
+  },
+  'domain.sync.deckPrintingsClause': {
+    description:
+      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.deckCounts when a deck sync changes printings, branched on the direction slug. {printings} is a pre-rendered domain.count.printings. Keep the leading separator.',
+  },
+  'domain.sync.deckCategoriesClause': {
+    description:
+      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.deckCounts when a deck sync syncs categories, branched on the direction slug. {cards} is a pre-rendered domain.count.cardCategories. Keep the leading separator.',
+  },
+  'domain.sync.collectionCounts': {
+    description:
+      "Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. A collection sync's copies added and removed for one list (or on Archidekt for it, on a push). The + and - signs mirror the detail lines' markers.",
+  },
+  'domain.sync.collectionPendingClause': {
+    description:
+      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.collectionCounts when a CLI push wrote copies to its --csv-file instead of pushing them. {copies} is a pre-rendered domain.count.copies. Keep the leading separator.',
+  },
+  'domain.sync.placeArchidekt': {
+    description:
+      "The {place} of a collection-sync push's detail lines (domain.sync.detailAdded / detailRemoved): the user's Archidekt collection, which the copies are added to or removed from. Archidekt is a product name.",
   },
   'domain.sync.detailNoPrinting': {
     description:

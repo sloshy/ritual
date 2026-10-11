@@ -2212,7 +2212,28 @@ Without either, or with one that does not cover a removal, the run **fails and w
     "direction": "pull",
     "into": "Inbox",
     "dryRun": false,
-    "lists": [{ "name": "binder", "status": "synced", "added": 1, "removed": 0, "pending": 0 }],
+    "lists": [
+      {
+        "name": "binder",
+        "status": "synced",
+        "added": 1,
+        "removed": 0,
+        "pending": 0,
+        "changes": [
+          {
+            "kind": "added",
+            "name": "Lightning Bolt",
+            "quantity": 1,
+            "printing": {
+              "set": "lea",
+              "collectorNumber": "161",
+              "finish": "nonfoil",
+              "condition": "NM"
+            }
+          }
+        ]
+      }
+    ],
     "failedCount": 0,
     "errors": [],
     "unreadable": [],
@@ -2230,6 +2251,8 @@ Without either, or with one that does not cover a removal, the run **fails and w
 
 `success` reports whether the run could be performed, **not** whether every list synced: a run with per-list failures still returns `200` with `success: true` and a non-zero `report.failedCount`. Report fields:
 
+- `report.lists[].changes`, present when a list had any: every card behind its counts, which are its totals. Each entry has a `kind` (`added`, with `via: "csv"` when a push's CSV import created it, or `removed`), `name`, `quantity` in copies, and `printing` (`set` lowercase, `collectorNumber`, `finish`, `condition`, and `language` when not English). There is one entry per card, printing and kind, narrowed by `only`. The `pending` kind comes only from the CLI's `--csv-file` and never appears on this surface. It lists what went through, or would on a dry run: a card whose write failed is left out, and the list's `reason` says what failed. On a push a card held in several lists is one key, so its entry, with the key's whole quantity, is listed under each of them. A list a cancellation skipped may still carry changes an earlier list's turn made for it. The SSE stream carries the same cards as `detail` log lines.
+- `report.unlisted` — a push's deletions of records for cards no in-scope list holds any more (the same shape as a `removed` change), present only when there is at least one; a failed one is in `errors` instead.
 - `report.errors` — failures that belong to the run rather than to one list (the collection fetch, or deleting records for cards no list holds any more).
 - `report.ambiguous` — every removal a pull could not place on its own, whether a strategy then placed them or the run failed on them. Counts are in copies, not lists.
 - `report.unresolvedAmbiguity` — `true` when the run stopped _because_ of them: no `removalPriority` or `removalAssignments` was given, the priority could not cover a removal, or the assignments did not account for every copy. Nothing was written; rerun with a decision. Branch on this flag rather than the prose in `errors` (the MCP `sync_collection` tool asks the client for the decision when it can).
@@ -2269,11 +2292,11 @@ The same sync as `POST /api/collection-sync`, streamed as server-sent events. `E
 
 Three event types are emitted:
 
-| Event      | Payload                                                                                                                                                                                                                                                                                                             |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the collection list being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message }` (`item` is `null` for run-level lines), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items }`. |
-| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                   |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                      |
+| Event      | Payload                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the collection list being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message }` (`item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail`, one line per card under a list's `Changes:` count, while a run-level `detail` line is a card a push's CSV import created or a record it deleted for a card no list holds), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items }`. |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                                                                                                              |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no response body for a non-2xx open.
 

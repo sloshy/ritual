@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { deckSyncCardChanges } from '../../src/deck-sync/card-changes'
-import { describeDeckCardChange } from '../../src/deck-sync/describe'
+import {
+  deckChangeCounts,
+  deckItemLines,
+  describeDeckCardChange,
+  describeDeckChangesLine,
+} from '../../src/deck-sync/describe'
 import { diffDeckCards, type DeckDiff } from '../../src/deck-sync/diff'
 import { buildUploadPlan } from '../../src/deck-sync/upload-plan'
 import type { ArchidektClient } from '../../src/clients/ArchidektClient'
@@ -328,5 +333,46 @@ describe('buildUploadPlan applied', () => {
     expect(plan.applied.quantityChanged).toEqual([
       { name: 'Sol Ring', board: 'Sideboard', oldQty: 1, newQty: 4 },
     ])
+  })
+})
+
+describe('deck change count lines', () => {
+  /** One of every kind, two printing changes, and a category change. */
+  const CHANGES: DeckSyncCardChange[] = [
+    { kind: 'added', name: 'Brainstorm', quantity: 4, board: 'Main' },
+    { kind: 'removed', name: 'Lightning Bolt', quantity: 1, board: 'Sideboard' },
+    { kind: 'removed', name: 'Ponder', quantity: 1, board: 'Main' },
+    { kind: 'quantity', name: 'Counterspell', board: 'Main', from: 2, to: 3 },
+    { kind: 'move', name: 'Island', quantity: 2, from: 'Main', to: 'Sideboard' },
+    { kind: 'printing', name: 'Sol Ring', board: 'Main', from: {}, to: { finish: 'foil' } },
+    { kind: 'printing', name: 'Mox', board: 'Main', from: {}, to: { finish: 'foil' } },
+    { kind: 'categories', name: 'Sol Ring', categories: ['Ramp'] },
+  ]
+
+  // The exact strings the engine logged before its builders moved here.
+  test('a pull and a push word every clause as the run log always has', () => {
+    expect(describeDeckChangesLine('pull', deckChangeCounts(CHANGES, true))).toBe(
+      "Changes: +1 added, -2 removed, ~1 quantity changed, 1 board move, 2 printings changed, 1 card's categories changed",
+    )
+    expect(describeDeckChangesLine('push', deckChangeCounts(CHANGES, true))).toBe(
+      "Changes: +1 to add, -2 to remove, ~1 quantity changes, 1 board move, 2 printings to change, 1 card's categories to change",
+    )
+  })
+
+  test('a run not syncing categories has no categories clause, and no moves no move clause', () => {
+    expect(describeDeckChangesLine('pull', deckChangeCounts(CHANGES.slice(0, 2), false))).toBe(
+      'Changes: +1 added, -1 removed, ~0 quantity changed',
+    )
+    expect(describeDeckChangesLine('pull', deckChangeCounts([], true))).toBe(
+      "Changes: +0 added, -0 removed, ~0 quantity changed, 0 cards' categories changed",
+    )
+  })
+
+  test('a deck replays its count line, then a line per card', () => {
+    expect(deckItemLines('pull', CHANGES.slice(0, 1), false)).toEqual([
+      { level: 'info', text: 'Changes: +1 added, -0 removed, ~0 quantity changed' },
+      { level: 'detail', text: '+ 4 Brainstorm to Main' },
+    ])
+    expect(deckItemLines('pull', [], false)).toEqual([])
   })
 })

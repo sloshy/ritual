@@ -7,7 +7,14 @@
 import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
 import type { CollectionCsvUploadResult } from '../importers/archidekt-collection'
-import { describeCsvFailure, describeCsvFailureReasons, describeCsvSize } from './describe'
+import {
+  archidektPlace,
+  describeCollectionCardChange,
+  describeCsvFailure,
+  describeCsvFailureReasons,
+  describeCsvSize,
+} from './describe'
+import { csvRowChange } from './card-changes'
 import type { PushCreate } from './diff'
 import type { UploadCacheReady } from '../cache/freshness'
 import {
@@ -203,14 +210,23 @@ export async function pushAdditionsAsCsv(
 
   const size = describeCsvSize(counts.cards, counts.rows)
 
-  /** Credit every list holding these creates, and total the copies. */
+  /**
+   * Credit every list holding these creates — the count and the listed change —
+   * log each card's line at run level (the CSV runs before any list's turn),
+   * and total the copies.
+   */
   const credit = (rows: readonly PushCreate[], field: 'added' | 'pending'): number => {
     let total = 0
     for (const operation of rows) {
       total += operation.quantity
-      for (const list of operation.lists) {
-        results.track(list)[field] += operation.quantity
-      }
+      const change = csvRowChange(operation, field)
+      emit({
+        kind: 'log',
+        level: 'detail',
+        item: null,
+        message: describeCollectionCardChange(change, archidektPlace()),
+      })
+      for (const list of operation.lists) results.record(list, change)
     }
     return total
   }

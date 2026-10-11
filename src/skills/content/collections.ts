@@ -231,6 +231,7 @@ ritual collection-sync push --csv-file import.csv   # write that CSV instead of 
 ritual collection-sync push --csv --refresh auto    # refresh a stale card cache instead of asking
 ritual collection-sync pull --yes                   # accept losing lines the parser can't read
 ritual collection-sync pull --output json           # scripted per-list report
+ritual collection-sync push --dry-run -v            # also list every card it would change
 \`\`\`
 
 ${wrapProse(
@@ -240,6 +241,24 @@ ${wrapProse(
     'my Archidekt collection mirrors": cards living only in lists you did not ' +
     'name read as absent, so a push would delete their records and a pull would ' +
     'try to re-add them. Narrow such a run with `--only`.',
+)}
+
+${wrapProse(
+  '**Card listing:** each list prints a `Changes: +N added, -N removed` count; ' +
+    '`-v`/`--verbose` also lists every card behind it, one line each — ' +
+    '`+ 2 Sol Ring (C21:240) to Blue Binder` / `- 1 Island from Blue Binder` on ' +
+    'a pull, `… to Archidekt` / `… from Archidekt` on a push, and ' +
+    '`+ N card to the CSV file, not pushed yet` for a `--csv-file`. A run ' +
+    'without it that had cards to list ends with a hint naming the flag. ' +
+    '`--output json` carries the same cards as data with or without the flag: ' +
+    "each list's `changes` (entries with `kind` `added`/`removed`/`pending`, " +
+    '`name`, `quantity` in copies, `printing`; an `added` entry the CSV import ' +
+    'created carries `via: "csv"`), plus `unlisted` for records a push deleted ' +
+    'for cards no list holds. Only what went through is listed; a failed card ' +
+    "is left out and the list's `reason` says why. On a push a card held in " +
+    'several lists is one record: it is listed under each holding list with its ' +
+    'whole quantity, so do not sum `changes` across lists. `--verbose` prints ' +
+    'the CSV import’s cards once, under the run rather than under each list.',
 )}
 
 ${SYNC_CHANGE_FILTER}

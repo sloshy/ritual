@@ -7,11 +7,11 @@
 import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
 import { describeSkippedChanges } from '../sync/common'
-import { describeCollectionKey } from './describe'
+import { archidektPlace, describeCollectionCardChange } from './describe'
+import { describeSyncCard } from '../sync/describe'
+import { pushOperationChange, recordCardChange } from './card-changes'
 import {
   createRecordBody,
-  operationAdded,
-  operationRemoved,
   planPush,
   unmappableLanguageWarning,
   updateRecordBody,
@@ -22,10 +22,13 @@ import {
   type RemoteCollectionIndex,
 } from './diff'
 import {
+  type CollectionSyncCardAdded,
+  type CollectionSyncCardRemoved,
   type CollectionSyncCsv,
   type SyncFlow,
   type FlowOutcome,
   abortedOutcome,
+  emitListLines,
   markCancelled,
 } from './types'
 import { routeAdditions, pushAdditionsAsCsv } from './push-csv'
@@ -60,7 +63,7 @@ export async function pushToArchidekt(
   // A refresh is a bulk download that can take minutes, and a cancel during it
   // must not be followed by the CSV upload that runs ahead of the per-list loop.
   if (flow.signal?.aborted) {
-    markCancelled(names, emit, results)
+    markCancelled(names, emit, results, 'push')
     return { ...abortedOutcome([]), aborted: false, cancelled: true }
   }
 
@@ -114,54 +117,45 @@ export async function pushToArchidekt(
     else byList.set(owner, [operation])
   }
 
+  /** Removals of cards no list holds any more, as they went through. */
+  const unlisted: CollectionSyncCardRemoved[] = []
   let cancelled = false
   for (const [index, name] of names.entries()) {
     if (flow.signal?.aborted) {
-      markCancelled(names.slice(index), emit, results)
+      markCancelled(names.slice(index), emit, results, 'push')
       cancelled = true
       break
     }
     emit({ kind: 'item-start', item: name, index, total: names.length })
     const owned = byList.get(name) ?? []
-    if (owned.length === 0) {
-      // A key held in several binders is pushed once, at its first list's turn
-      // (or by the CSV upload, before the loop began), and credited to every list
-      // holding it — so a list with nothing of its own may still have moved
-      // copies, and must not report "no changes". Nor may a list the CSV already
-      // failed: "could not be imported; no changes" is two answers to one
-      // question.
-      const entry = results.track(name)
-      if (
-        entry.status !== 'failed' &&
-        entry.added === 0 &&
-        entry.removed === 0 &&
-        entry.pending === 0
-      ) {
-        emit({ kind: 'log', level: 'info', item: name, message: 'No changes.' })
-        results.finish(name, 'no changes')
-      } else {
-        results.finish(name)
-      }
-      continue
-    }
 
     for (const operation of owned) {
-      const applied = await runPushOperation(flow, operation, name, route.kind !== 'individual')
-      if (!applied) continue
-      const operationAdd = operationAdded(operation)
-      const operationRemove = operationRemoved(operation)
-      added += operationAdd
-      removed += operationRemove
+      const change = await runPushOperation(flow, operation, name, route.kind !== 'individual')
+      if (change === null) continue
+      if (change.kind === 'added') added += change.quantity
+      else removed += change.quantity
       // A key held in several lists is equally pushed from each of them, so the
-      // counts (and any failure) are recorded against all of them.
-      for (const list of operation.lists) {
-        const entry = results.track(list)
-        entry.added += operationAdd
-        entry.removed += operationRemove
-      }
+      // change (and any failure) is recorded against all of them.
+      for (const list of operation.lists) results.record(list, change)
     }
 
-    results.finish(name)
+    // A key held in several binders is pushed once, at its first list's turn
+    // (or by the CSV upload, before the loop began), and credited to every list
+    // holding it — so a list with nothing of its own may still have moved
+    // copies, and must not report "no changes". Nor may a list the CSV already
+    // failed: "could not be imported; no changes" is two answers to one
+    // question. Its lines come once its operations are done, so they describe
+    // what went through — including what an earlier list's turn pushed for it.
+    const entry = results.track(name)
+    if (entry.changes.length > 0) {
+      emitListLines(emit, name, entry.changes, archidektPlace())
+      results.finish(name)
+    } else if (entry.status !== 'failed' && owned.length === 0) {
+      emit({ kind: 'log', level: 'info', item: name, message: 'No changes.' })
+      results.finish(name, 'no changes')
+    } else {
+      results.finish(name)
+    }
   }
 
   for (const operation of orphaned) {
@@ -173,12 +167,20 @@ export async function pushToArchidekt(
     }
     // Orphans are removals — a card no list holds any more — so the CSV route
     // never applies to them.
-    const applied = await runPushOperation(flow, operation, null, false)
-    if (!applied) {
+    const change = await runPushOperation(flow, operation, null, false)
+    if (change === null) {
       errors.push(pushFailureReason(operation))
       continue
     }
-    removed += operationRemoved(operation)
+    if (change.kind !== 'removed') continue
+    removed += change.quantity
+    recordCardChange(unlisted, change)
+    emit({
+      kind: 'log',
+      level: 'detail',
+      item: null,
+      message: describeCollectionCardChange(change, archidektPlace()),
+    })
   }
 
   return {
@@ -193,6 +195,7 @@ export async function pushToArchidekt(
     cancelled,
     // A push never removes locally, so it never meets an ambiguous removal.
     unresolvedAmbiguity: false,
+    unlisted,
   }
 }
 
@@ -223,8 +226,12 @@ function planOperations(
   let operations = plan.operations
   let withheldCopies = 0
   if (!flow.localComplete) {
-    for (const operation of operations) withheldCopies += operationRemoved(operation)
-    operations = operations.filter((operation) => operationRemoved(operation) === 0)
+    const removes = (operation: PushOperation): boolean =>
+      pushOperationChange(operation).kind === 'removed'
+    for (const operation of operations) {
+      if (removes(operation)) withheldCopies += pushOperationChange(operation).quantity
+    }
+    operations = operations.filter((operation) => !removes(operation))
   }
   const creates = operations.filter(
     (operation): operation is PushCreate => operation.kind === 'create',
@@ -232,13 +239,17 @@ function planOperations(
   return { plan, operations, creates, withheldCopies }
 }
 
+/** What one push operation did to Archidekt: copies added or removed. */
+type PushedChange = CollectionSyncCardAdded | CollectionSyncCardRemoved
+
 /** The reason recorded when an orphaned operation fails; the log carries the detail. */
 function pushFailureReason(operation: PushOperation): string {
-  return `Failed to remove ${describeCollectionKey(operation.name, operation.parts)} from Archidekt`
+  return `Failed to remove ${describeSyncCard(operation.name, operation.parts)} from Archidekt`
 }
 
 /**
- * Execute one push operation, returning whether it applied. A failure is
+ * Execute one push operation, returning the change it made — or `null` when it
+ * failed. A failure is
  * reported against every list holding the key (a card split across binders is
  * equally unpushed from either) and never aborts the run.
  *
@@ -253,31 +264,28 @@ async function runPushOperation(
   operation: PushOperation,
   list: string | null,
   csvRouted: boolean,
-): Promise<boolean> {
+): Promise<PushedChange | null> {
   const { client, token, dryRun, emit, results } = flow
-  const label = describeCollectionKey(operation.name, operation.parts)
+  const label = describeSyncCard(operation.name, operation.parts)
+  const change = pushOperationChange(operation)
 
-  const fail = (reason: string): boolean => {
+  const fail = (reason: string): null => {
     emit({ kind: 'log', level: 'error', item: list, message: reason })
     for (const name of operation.lists) results.fail(name, reason)
-    return false
+    return null
   }
 
-  const log = (message: string): void => {
-    emit({ kind: 'log', level: 'info', item: list, message })
-  }
+  /** The operation went through (or would, on a dry run). */
+  const done = (): PushedChange => change
 
   if (operation.kind === 'create') {
     // Said before anything is sent (and on dry runs too): the record about to be
     // created will not carry the language the local line does.
     const languageWarning = unmappableLanguageWarning(operation.name, operation.parts)
     if (languageWarning) emit({ kind: 'log', level: 'warn', item: list, message: languageWarning })
-    if (dryRun && csvRouted) {
-      log(
-        `[dry-run] Would add ${operation.quantity} × ${label} one at a time — the printing is not in the Scryfall cache, so it cannot ride the CSV and was not resolved here.`,
-      )
-      return true
-    }
+    // A preview of a CSV-routed run does not resolve the printings the cache
+    // could not key (the run-level warning says they go one at a time).
+    if (dryRun && csvRouted) return done()
     // Resolving the printing is a read, so a dry run does it too: an
     // unresolvable printing is the failure a dry run most needs to surface.
     const found = await client.searchCards(
@@ -287,39 +295,26 @@ async function runPushOperation(
       operation.parts.collectorNumber,
     )
     if (typeof found === 'string') return fail(found)
-    if (dryRun) {
-      log(`[dry-run] Would add ${operation.quantity} × ${label}.`)
-      return true
-    }
+    if (dryRun) return done()
     try {
       await client.createCollectionRecord(createRecordBody(operation, found.id), token)
     } catch (error: unknown) {
       return fail(`Failed to add ${label}: ${getErrorMessage(error)}`)
     }
-    log(`Added ${operation.quantity} × ${label}.`)
-    return true
+    return done()
   }
 
   if (operation.kind === 'update') {
-    const grew = operation.delta > 0
-    const change = `${Math.abs(operation.delta)} × ${label}`
-    if (dryRun) {
-      log(`[dry-run] Would ${grew ? 'add' : 'remove'} ${change}.`)
-      return true
-    }
+    if (dryRun) return done()
     try {
       await client.updateCollectionRecord(operation.record.id, updateRecordBody(operation), token)
     } catch (error: unknown) {
       return fail(`Failed to update ${label}: ${getErrorMessage(error)}`)
     }
-    log(`${grew ? 'Added' : 'Removed'} ${change}.`)
-    return true
+    return done()
   }
 
-  if (dryRun) {
-    log(`[dry-run] Would remove ${operation.removed} × ${label}.`)
-    return true
-  }
+  if (dryRun) return done()
   try {
     await client.deleteCollectionRecords(
       operation.records.map((record) => record.id),
@@ -328,6 +323,5 @@ async function runPushOperation(
   } catch (error: unknown) {
     return fail(`Failed to remove ${label}: ${getErrorMessage(error)}`)
   }
-  log(`Removed ${operation.removed} × ${label}.`)
-  return true
+  return done()
 }

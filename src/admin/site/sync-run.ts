@@ -12,6 +12,7 @@
 
 import { formatDuration } from '../../util/duration'
 import type { SyncEvent, SyncLogLevel, UnreadableSource } from '../../sync/common'
+import type { ItemChangeLine } from '../../sync/describe'
 import { t } from '../../i18n/t'
 
 /** How far a run has progressed; drives the button state and the result panel. */
@@ -140,4 +141,39 @@ export function applySyncEvent<TResult extends SyncRunResult>(
       throw new Error(`Unhandled sync event: ${JSON.stringify(unhandled)}`)
     }
   }
+}
+
+/** Anything a change replay can fall back on: every change names its card. */
+type NamedChange = { name: string }
+
+/**
+ * Word one change for a replay of a finished report. A change of a kind this
+ * build does not know — a newer server's — reads as its card name rather than
+ * failing the whole replay of a run that completed.
+ */
+export function replayDescribe<C extends NamedChange, A extends unknown[]>(
+  describe: (change: C, ...rest: A) => string,
+): (change: C, ...rest: A) => string {
+  return (change, ...rest) => {
+    try {
+      return describe(change, ...rest)
+    } catch {
+      return change.name
+    }
+  }
+}
+
+/**
+ * One finished item's messages, as the non-streaming fallback shows them: its
+ * change lines (count, then cards) followed by its reason — the order the
+ * stream logs them in.
+ */
+export function replayResultMessages(
+  lines: readonly ItemChangeLine[],
+  reason: string | undefined,
+): SyncRunMessage[] {
+  return [
+    ...lines.map((line): SyncRunMessage => ({ level: line.level, text: line.text })),
+    ...(reason ? [{ level: 'info' as const, text: reason }] : []),
+  ]
 }

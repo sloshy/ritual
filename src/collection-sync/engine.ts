@@ -24,6 +24,7 @@
  * testable without touching any of them.
  */
 
+import type { SyncDirection } from '../sync/common'
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
 import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
@@ -65,6 +66,11 @@ import { pushToArchidekt } from './push'
 export type {
   CollectionSyncStatus,
   CollectionSyncListResult,
+  CollectionSyncCardAdded,
+  CollectionSyncCardChange,
+  CollectionSyncCardPending,
+  CollectionSyncCardRemoved,
+  CollectionSyncPrinting,
   UnreadableList,
   ConfirmUnreadableLists,
   CollectionSyncLogLevel,
@@ -135,6 +141,9 @@ export async function runCollectionSync(
         totals: outcome.totals,
         cancelled: outcome.cancelled,
         unresolvedAmbiguity: outcome.unresolvedAmbiguity,
+        ...(outcome.unlisted !== undefined && outcome.unlisted.length > 0
+          ? { unlisted: outcome.unlisted }
+          : {}),
       },
       writtenFiles: outcome.writtenFiles,
     }
@@ -240,6 +249,7 @@ export async function runCollectionSync(
         loaded.lists.map((list) => list.name),
         emit,
         results,
+        direction,
       ),
       loaded,
     )
@@ -304,6 +314,10 @@ export async function runCollectionSync(
     signal: options.signal,
   }
   const names = loaded.lists.map((list) => list.name)
+  // Tracked up front, so the report lists them in scope order whatever order a
+  // flow credits them in — a push's CSV import credits lists before any of
+  // their turns — and a replay of the report reads them back in that order.
+  for (const name of names) results.track(name)
   const outcome =
     direction === 'pull'
       ? await pullFromArchidekt(flow, localIndex, remote.index, names)
@@ -343,8 +357,9 @@ function cancelledBeforeApplying(
   names: readonly string[],
   emit: CollectionSyncEventHandler,
   results: ListResults,
+  direction: SyncDirection,
 ): FlowOutcome {
-  markCancelled(names, emit, results)
+  markCancelled(names, emit, results, direction)
   return { ...abortedOutcome([]), aborted: false, cancelled: true }
 }
 

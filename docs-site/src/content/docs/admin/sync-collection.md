@@ -42,11 +42,11 @@ The run streams over server-sent events, so each list updates as it is processed
 | ⏭    | Skipped, with the reason.                                           |
 | ✗    | Failed, with the error. The run continues with the remaining lists. |
 
-A finished list shows its tally (`+2 added, -1 removed`) beside its name, counting **copies**, since a collection line is one physical copy. Under each list are the lines the CLI prints: the change summary, what the change filter left out, and the final `Saved.`
+A finished list shows its tally (`+2 added, -1 removed`) beside its name, counting **copies**, since a collection line is one physical copy. Under each list are the lines the CLI prints: the change summary (`Changes: +2 added, -1 removed`), one line per card it changes (`+ 2 Sol Ring (C21:240) to Blue Binder` on a pull, `- 1 Island from Archidekt` on a push; the listing the CLI prints only under [`--verbose`](/commands/collection-sync/#card-listing)), what the change filter left out, and the final `Saved.`
 
 Lines that belong to the run rather than to one list sit above the list rows: the opening phase progress (reading the list files, matching them against the card cache, one line per fetched collection page, each with its elapsed time), the size of the fetched collection, and any removal too ambiguous to place (see below). A closing alert summarizes the run, such as `Pulled +4 added, -1 removed into "Inbox".`
 
-If the browser cannot hold the event stream open (some reverse proxies buffer server-sent events), the page falls back to a single non-streaming request and fills in every list's result, including ambiguous removals and run-level errors, when it returns. That fallback shows no progress lines, only the finished report.
+If the browser cannot hold the event stream open (some reverse proxies buffer server-sent events), the page falls back to a single non-streaming request and fills in every list's result, including ambiguous removals and run-level errors, when it returns. That fallback shows no progress lines, only the finished report, though each item still gets its change summary and per-card lines, rendered from the report's structured `changes` in the same order the stream shows them. A push's CSV import cards and its deletions of cards no list holds any more are listed under the run on both paths.
 
 ## Removals it will not guess at
 

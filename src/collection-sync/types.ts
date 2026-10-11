@@ -17,9 +17,11 @@ import type {
   UnreadableSource,
 } from '../sync/common'
 import { syncCancellationLog, SYNC_CANCELLED_REASON } from '../sync/common'
+import { collectionChangeCounts, collectionChangePlace, collectionListLines } from './describe'
+import { recordCardChange } from './card-changes'
 import type { ScryfallCard } from '../scryfall/types'
 import type { CardPrintingsLookup } from '../card/card-printing'
-import type { AmbiguousRemoval, CollectionCsvFailure } from './describe'
+import type { AmbiguousRemoval, CollectionCsvFailure, CollectionKeyParts } from './describe'
 import type { LocalCollectionIndex, RemovalAssignment } from './diff'
 import type { UploadCacheReady } from '../cache/freshness'
 import type { CsvFileWriter } from './csv'
@@ -31,6 +33,54 @@ import type { CollectionSyncStateStore } from './state'
 /** What happened to one collection list during a run. */
 export type CollectionSyncStatus = SyncItemStatus
 
+/**
+ * The printing a collection-sync card change is about — the five dimensions a
+ * local copy and a remote record agree on. Set codes are lowercase; `language`
+ * is absent for English.
+ */
+export type CollectionSyncPrinting = CollectionKeyParts
+
+/** Copies of one card at one printing, as every collection-sync card change states them. */
+export type CollectionSyncCopies<K extends string> = {
+  kind: K
+  name: string
+  /**
+   * Copies. On a push a card held in several lists is one key, so this is the
+   * key's whole change, listed under each of those lists.
+   */
+  quantity: number
+  printing: CollectionSyncPrinting
+}
+
+/**
+ * Copies of a card added: written into this list on a pull, created or grown on
+ * Archidekt on a push. `via: 'csv'` marks copies a push's CSV import created
+ * (run-level in the log, since the import runs before any list's turn).
+ */
+export type CollectionSyncCardAdded = CollectionSyncCopies<'added'> & { via?: 'csv' }
+
+/**
+ * Copies of a card removed: deleted from this list on a pull, trimmed or
+ * deleted on Archidekt on a push (a trim and a delete of one key are one entry).
+ */
+export type CollectionSyncCardRemoved = CollectionSyncCopies<'removed'>
+
+/**
+ * Copies of a card a push wrote to its CLI `--csv-file` instead of pushing: not
+ * on Archidekt until the file is imported by hand. Always CSV-routed.
+ */
+export type CollectionSyncCardPending = CollectionSyncCopies<'pending'>
+
+/**
+ * One card change a collection sync made for a list (or would have, on a dry
+ * run), after the `only` filter — the structured form of the per-card lines
+ * the run logs at the `detail` level. Only what went through is listed: a card
+ * whose write failed is left out, and the list's `reason` says what failed.
+ */
+export type CollectionSyncCardChange =
+  CollectionSyncCardAdded | CollectionSyncCardRemoved | CollectionSyncCardPending
+
+/** One collection list's outcome in a sync report. */
 export type CollectionSyncListResult = {
   name: string
   status: CollectionSyncStatus
@@ -45,6 +95,18 @@ export type CollectionSyncListResult = {
    * Always 0 on a pull, and on a push that did not export a CSV.
    */
   pending: number
+  /**
+   * Every card change behind {@link added}, {@link removed} and
+   * {@link pending} — the counts are its totals — narrowed by the `only`
+   * filter: what went through (or would have, on a dry run), one entry per
+   * card, printing and kind. A card whose write failed is left out, and
+   * {@link reason} says what failed. On a push a card held in several lists is
+   * one key, pushed once: its entry, carrying the key's whole quantity, is
+   * listed under each of them. A list a cancellation skipped may still carry
+   * changes an earlier list's turn made for it. Present only when there is at
+   * least one.
+   */
+  changes?: CollectionSyncCardChange[]
 }
 
 /**
@@ -201,6 +263,13 @@ export type CollectionSyncReport = {
    * {@link errors}.
    */
   unresolvedAmbiguity: boolean
+  /**
+   * A push's removals of cards no in-scope list holds any more — they belong to
+   * the run rather than to a list, so they are not in any list's `changes`.
+   * What went through (or would have, on a dry run); a failed one is in
+   * {@link errors} instead. Present only when there is at least one.
+   */
+  unlisted?: CollectionSyncCardRemoved[]
 }
 
 /** Resolves Scryfall ids to cached cards; satisfied by the cache's id index. */
@@ -424,9 +493,8 @@ export type MutableListResult = {
   status: CollectionSyncStatus
   /** Every reason recorded for the list; joined into the final result. */
   reasons: string[]
-  added: number
-  removed: number
-  pending: number
+  /** What went through for the list; its counts are derived from these. */
+  changes: CollectionSyncCardChange[]
 }
 
 /**
@@ -436,6 +504,8 @@ export type MutableListResult = {
  */
 export type ListResults = {
   track(name: string): MutableListResult
+  /** Record a change that went through for a list; see `recordCardChange`. */
+  record(name: string, change: CollectionSyncCardChange): void
   fail(name: string, reason: string): void
   /** Mark a list stepped over — cancelled before it started, say — without failing it. */
   skip(name: string, reason: string): void
@@ -456,9 +526,7 @@ export function createListResults(emit: CollectionSyncEventHandler): ListResults
       name,
       status: 'synced',
       reasons: [],
-      added: 0,
-      removed: 0,
-      pending: 0,
+      changes: [],
     }
     tracked.set(name, created)
     return created
@@ -469,13 +537,13 @@ export function createListResults(emit: CollectionSyncEventHandler): ListResults
     if (already) return already
     const entry = track(name)
     if (reason) entry.reasons.push(reason)
+    // The counts are the changes' totals, so the two can never disagree.
     const result: CollectionSyncListResult = {
       name: entry.name,
       status: entry.status,
       reason: entry.reasons.length > 0 ? entry.reasons.join('; ') : undefined,
-      added: entry.added,
-      removed: entry.removed,
-      pending: entry.pending,
+      ...collectionChangeCounts(entry.changes),
+      ...(entry.changes.length > 0 ? { changes: [...entry.changes] } : {}),
     }
     finished.set(name, result)
     emit({ kind: 'item-result', result })
@@ -484,6 +552,9 @@ export function createListResults(emit: CollectionSyncEventHandler): ListResults
 
   return {
     track,
+    record(name: string, change: CollectionSyncCardChange): void {
+      recordCardChange(track(name).changes, change)
+    },
     fail(name: string, reason: string): void {
       const entry = track(name)
       entry.status = 'failed'
@@ -511,11 +582,34 @@ export function markCancelled(
   names: readonly string[],
   emit: CollectionSyncEventHandler,
   results: ListResults,
+  direction: SyncDirection,
 ): void {
   emit(syncCancellationLog('collection', names.length))
   for (const name of names) {
+    // A list the run never reached may still carry changes an earlier list's
+    // turn made for it (a push credits a shared card to every list holding
+    // it); its result reports them, so its lines say them too.
+    const { changes } = results.track(name)
+    emitListLines(emit, name, changes, collectionChangePlace(direction, name))
     results.skip(name, SYNC_CANCELLED_REASON)
     results.finish(name)
+  }
+}
+
+/**
+ * Emit a list's change lines — its `Changes:` count, then a `detail` line per
+ * card that did not ride the CSV — from the changes its result reports. The
+ * admin fallback replays the same {@link collectionListLines} from the
+ * report, so the two cannot disagree. Nothing for a list with no changes.
+ */
+export function emitListLines(
+  emit: CollectionSyncEventHandler,
+  list: string,
+  changes: readonly CollectionSyncCardChange[],
+  place: string,
+): void {
+  for (const line of collectionListLines(changes, place)) {
+    emit({ kind: 'log', level: line.level, item: list, message: line.text })
   }
 }
 
@@ -577,6 +671,8 @@ export type FlowOutcome = {
   cancelled: boolean
   /** True when the flow stopped on ambiguous removals nobody placed; see the report field. */
   unresolvedAmbiguity: boolean
+  /** A push's removals of cards no list holds any more; see the report field. */
+  unlisted?: CollectionSyncCardRemoved[]
 }
 
 /**

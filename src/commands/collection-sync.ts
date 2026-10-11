@@ -1,7 +1,11 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { ensureCardCacheForUpload } from '../cache/freshness'
 import { ARCHIDEKT_IMPORT_URL, CSV_UPLOAD_THRESHOLD } from '../collection-sync/csv'
-import { runCollectionSync, type CollectionSyncReport } from '../collection-sync/engine'
+import {
+  runCollectionSync,
+  type CollectionSyncListResult,
+  type CollectionSyncReport,
+} from '../collection-sync/engine'
 import { addRefreshOption, addScriptingOptions } from '../cli/options'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import type { RefreshMode } from '../cache/refresh'
@@ -20,13 +24,14 @@ import { ExitCode } from '../util/errors'
 import {
   addSyncDirectionArgument,
   addSyncOptions,
+  addVerboseOption,
   confirmUnreadableSync,
   createScopedIndenter,
   loggerFor,
   requireArchidektSession,
   type UnreadableSubject,
 } from './sync-helpers'
-import { createSyncEventRenderer } from './sync-render-event'
+import { createSyncEventRenderer, printVerboseHint } from './sync-render-event'
 import { t } from '../i18n/t'
 
 /** Commander argParser for `--into`: the name of the list a pull adds cards to. */
@@ -68,6 +73,7 @@ export type CollectionSyncCommandOptions = {
   csv?: boolean
   csvFile?: string
   refresh?: RefreshMode
+  verbose?: boolean
 } & Partial<ScriptingOptions>
 
 /** What this command calls the things it syncs, in prompts and warnings. */
@@ -146,9 +152,12 @@ function csvNote(report: CollectionSyncReport): string | undefined {
 export function registerCollectionSyncCommand(program: Command): void {
   addScriptingOptions(
     addRefreshOption(
-      addSyncOptions(
-        addSyncDirectionArgument(
-          program.command('collection-sync').description(t('help.collectionSync.description')),
+      addVerboseOption(
+        addSyncOptions(
+          addSyncDirectionArgument(
+            program.command('collection-sync').description(t('help.collectionSync.description')),
+          ),
+          'collectionLists',
         ),
         'collectionLists',
       )
@@ -206,6 +215,13 @@ export function registerCollectionSyncCommand(program: Command): void {
       // some route this command has not thought of.)
       const canPrompt = canPromptWithOutput(scripting) && options.dryRun !== true
 
+      const renderer = createSyncEventRenderer<CollectionSyncListResult>({
+        subject: 'collection',
+        direction,
+        logger,
+        indent,
+        verbose: options.verbose === true,
+      })
       const { report } = await runCollectionSync({
         direction,
         token: session.token,
@@ -233,8 +249,7 @@ export function registerCollectionSyncCommand(program: Command): void {
             log: (message) => log(message),
           }),
         dryRun: options.dryRun ?? false,
-        onEvent: createSyncEventRenderer({ subject: 'collection', direction, logger, indent })
-          .onEvent,
+        onEvent: renderer.onEvent,
         confirmUnreadable: (unreadable) =>
           confirmUnreadableSync({
             sources: unreadable,
@@ -252,6 +267,7 @@ export function registerCollectionSyncCommand(program: Command): void {
         logger.info(summarize(report))
         const note = csvNote(report)
         if (note) logger.info(note)
+        printVerboseHint(renderer, logger)
       }
 
       if (report.failedCount > 0) {

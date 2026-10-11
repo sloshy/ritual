@@ -33,9 +33,23 @@ release changes a file format or a generated file, it ships the change as a
   each deck in the `--output json` report, the admin `POST /api/deck-sync` response and the
   MCP `sync_decks` result carries a `changes` list. The admin Sync Decks page always shows
   the listing, including when it falls back from the progress stream.
+- `collection-sync pull` and `collection-sync push` take `-v, --verbose` too, listing every
+  card each list gains or loses (and, on a push, what the CSV import or `--csv-file` took)
+  in the same `+ 2 Sol Ring (C21:240) to Blue Binder` form. The same cards are in each
+  list's new `changes` in the `--output json` report, the admin `POST /api/collection-sync`
+  response and the MCP `sync_collection` result, and a push's deletions of cards no list
+  holds are in the new `unlisted`. A card the CSV import created is marked `via: "csv"`.
+  The admin Sync Collection page shows the listing.
 
 ### Changed
 
+- `collection-sync push` now prints a `Changes: +N added, -N removed` count per list instead
+  of one `Added 2 × Sol Ring (C21:240).` line per card. The per-card lines are behind
+  `--verbose`, worded as `+ 2 Sol Ring (C21:240) to Archidekt`, and a dry run no longer says
+  `[dry-run] Would add …`. Update any script that matched the old lines.
+- The admin Sync Decks and Sync Collection pages' fallback for when the progress stream
+  cannot connect now shows each deck's or list's `Changes:` count and per-card lines, as
+  the stream does.
 - **`deck-sync push` now moves cards between boards.** A push diffs per board the way a pull
   does, so a card that is in Main locally but in the Maybeboard on Archidekt (or any other
   board pair) is moved there on Archidekt, instead of the push doing nothing. The existing

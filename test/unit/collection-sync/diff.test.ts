@@ -862,14 +862,16 @@ describe('pullChangesByList', () => {
     const changes = pullChangesByList(planPull(local, remote), 'inbox', naming)
     const byList = new Map(changes.map((change) => [change.list, change]))
 
-    expect(byList.get('blue-binder')?.removed).toBe(1)
+    expect(byList.get('blue-binder')?.cardChanges).toMatchObject([{ kind: 'removed', quantity: 1 }])
     const removal = byList.get('blue-binder')?.changes[0] as RemoveChange
     expect(removal.action).toBe('remove')
     // The tail line is the one that goes, addressed by its stable `&N` id.
     expect(removal.cardId).toBe(2)
 
     const inbox = byList.get('inbox')
-    expect(inbox?.added).toBe(2)
+    expect(inbox?.cardChanges).toMatchObject([
+      { kind: 'added', name: 'Karlach, Fury of Avernus (resolved)', quantity: 2 },
+    ])
     const add = inbox?.changes[0] as AddChange
     expect(add.action).toBe('add')
     expect(add.cardName).toBe('Karlach, Fury of Avernus (resolved)')
@@ -901,7 +903,8 @@ describe('pullChangesByList', () => {
     const changes = pullChangesByList(planPull(new Map(), remote), 'inbox', (a) => a.name)
 
     expect(changes[0]?.changes).toHaveLength(3)
-    expect(changes[0]?.added).toBe(3)
+    // One event per copy, but one listed change for the card.
+    expect(changes[0]?.cardChanges).toMatchObject([{ kind: 'added', quantity: 3 }])
   })
 
   test('threads the record language into pulled adds and removes', async () => {

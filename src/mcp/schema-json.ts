@@ -58,6 +58,15 @@ import { VALID_PRICE_SOURCES } from '../pricing/price-source'
 import { SYNC_DIRECTIONS, SYNC_ITEM_STATUSES } from '../sync/common'
 import { BOARDS } from '../list/deck'
 import type {
+  CollectionSyncCardAdded,
+  CollectionSyncCardChange,
+  CollectionSyncCopies,
+  CollectionSyncListResult,
+  CollectionSyncPrinting,
+  CollectionSyncReport,
+  CollectionSyncTotals,
+} from '../collection-sync/types'
+import type {
   DeckSyncCardAdded,
   DeckSyncCardCategories,
   DeckSyncCardMove,
@@ -66,6 +75,7 @@ import type {
   DeckSyncCardRemoved,
   DeckSyncDeckResult,
   DeckSyncPrinting,
+  DeckSyncReport,
 } from '../deck-sync/types'
 import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
@@ -1066,80 +1076,170 @@ const DECK_SYNC_DECK_RESULT_PROPS = {
 
 const DECK_SYNC_DECK_RESULT: JsonSchemaType = obj(DECK_SYNC_DECK_RESULT_PROPS, ['name', 'status'])
 
+/** The deck-sync report, checked against the engine type. */
+const DECK_SYNC_REPORT_PROPS = {
+  direction: SYNC_DIRECTION,
+  decks: arr(DECK_SYNC_DECK_RESULT, 'One sync outcome per deck the run covered.'),
+  failedCount: int('Decks that failed; a run with failures still reports success.'),
+  unreadable: arr(openObject('A deck file holding lines the parser cannot read.')),
+  cancelled: bool(
+    'True when the call was cancelled between decks; the decks never started are skipped.',
+  ),
+} as const satisfies Record<keyof DeckSyncReport, JsonSchemaType>
+
 export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
   {
     message: str(),
     summary: SYNC_SUMMARY,
-    report: obj(
-      {
-        direction: SYNC_DIRECTION,
-        decks: arr(DECK_SYNC_DECK_RESULT, 'One sync outcome per deck the run covered.'),
-        failedCount: int('Decks that failed; a run with failures still reports success.'),
-        unreadable: arr(openObject('A deck file holding lines the parser cannot read.')),
-        cancelled: bool(
-          'True when the call was cancelled between decks; the decks never started are skipped.',
-        ),
-      },
-      ['direction', 'decks', 'failedCount', 'unreadable', 'cancelled'],
-    ),
+    report: obj(DECK_SYNC_REPORT_PROPS, [
+      'direction',
+      'decks',
+      'failedCount',
+      'unreadable',
+      'cancelled',
+    ]),
   },
   ['message', 'summary', 'report'],
 )
+
+/** The printing a collection-sync card change is about. */
+const COLLECTION_SYNC_PRINTING: JsonSchemaType = obj(
+  {
+    set: str('Lowercase set code.'),
+    collectorNumber: str(),
+    finish: FINISH,
+    condition: CONDITION,
+    language: enumOf(CARD_LANGUAGES, 'Absent for English.'),
+  } as const satisfies Record<keyof CollectionSyncPrinting, JsonSchemaType>,
+  ['set', 'collectorNumber', 'finish', 'condition'],
+)
+
+/** The property map every `CollectionSyncCopies` arm shares, checked against the type. */
+function collectionCopiesProps<K extends CollectionSyncCardChange['kind']>(
+  kind: K,
+  quantityDescription?: string,
+): Record<keyof CollectionSyncCopies<K>, JsonSchemaType> {
+  return {
+    kind: literal(kind),
+    name: str(),
+    quantity: int(quantityDescription ?? 'Copies.'),
+    printing: COLLECTION_SYNC_PRINTING,
+  }
+}
+
+const COLLECTION_SYNC_CHANGE_REQUIRED = ['kind', 'name', 'quantity', 'printing'] as const
+
+const COLLECTION_SYNC_ADDED_PROPS = {
+  ...collectionCopiesProps('added'),
+  via: {
+    ...literal('csv'),
+    description: 'Present when a push’s CSV import created these copies.',
+  },
+} as const satisfies Record<keyof CollectionSyncCardAdded, JsonSchemaType>
+
+const COLLECTION_SYNC_REMOVED: JsonSchemaType = obj(
+  collectionCopiesProps('removed'),
+  COLLECTION_SYNC_CHANGE_REQUIRED,
+)
+
+/** One `CollectionSyncCardChange`, discriminated by `kind`. */
+const COLLECTION_SYNC_CARD_CHANGE: JsonSchemaType = {
+  type: 'object',
+  description: 'One card change, by `kind`.',
+  oneOf: [
+    obj(COLLECTION_SYNC_ADDED_PROPS, COLLECTION_SYNC_CHANGE_REQUIRED),
+    COLLECTION_SYNC_REMOVED,
+    obj(
+      collectionCopiesProps(
+        'pending',
+        'Copies the CLI’s --csv-file wrote to a file rather than pushed; never on this surface.',
+      ),
+      COLLECTION_SYNC_CHANGE_REQUIRED,
+    ),
+  ],
+}
+
+/** One collection list's `CollectionSyncListResult`, checked against the engine type. */
+const COLLECTION_SYNC_LIST_RESULT_PROPS = {
+  name: str(),
+  status: SYNC_ITEM_STATUS,
+  reason: str('Why the list did not cleanly sync, or a dry run’s summary.'),
+  added: int('Copies added: into the list on a pull, to Archidekt on a push.'),
+  removed: int('Copies removed: from the list on a pull, from Archidekt on a push.'),
+  pending: int('Copies written to a --csv-file rather than pushed (CLI only).'),
+  changes: arr(
+    COLLECTION_SYNC_CARD_CHANGE,
+    'Every card change behind the counts (which are its totals), narrowed by `only`: what ' +
+      'went through (or would have, on a dry run), one entry per card, printing and kind. A ' +
+      'card whose write failed is left out; `reason` says what failed. On a push a card held ' +
+      'in several lists is one key: the entry, with the key’s whole quantity, is listed under ' +
+      'each. A list a cancellation skipped may still carry changes an earlier list’s turn ' +
+      'made for it. Present only when there is at least one.',
+  ),
+} as const satisfies Record<keyof CollectionSyncListResult, JsonSchemaType>
+
+/** The collection-sync report, checked against the engine type. */
+const COLLECTION_SYNC_REPORT_PROPS = {
+  direction: SYNC_DIRECTION,
+  into: nullableStr('The list a pull added new cards to; null on a push.'),
+  dryRun: bool(),
+  lists: arr(
+    obj(COLLECTION_SYNC_LIST_RESULT_PROPS, ['name', 'status', 'added', 'removed', 'pending']),
+    'One sync outcome per collection list the run covered.',
+  ),
+  failedCount: int('Lists that failed; a run with failures still reports success.'),
+  errors: arr(str(), 'Run-level failures, as opposed to per-list ones.'),
+  unreadable: arr(openObject('A list file holding lines the parser cannot read.')),
+  ambiguous: arr(openObject('A partial removal spanning several lists.')),
+  localIncomplete: bool('True when some in-scope list did not make it into the comparison.'),
+  csv: nullable(openObject('What the CSV bulk-import path did with a push’s additions.')),
+  // Enumerated, unlike the per-list outcomes above: this is the field a
+  // caller is told to read to find out what a run actually did, so leaving
+  // its four counts unnamed would defeat the instruction.
+  totals: obj(
+    {
+      added: int('Copies added (locally on a pull, remotely on a push).'),
+      removed: int('Copies removed.'),
+      skipped: int('Changes the `only` filter skipped.'),
+      pending: int('Copies written to a --csv-file rather than pushed (CLI only).'),
+    } as const satisfies Record<keyof CollectionSyncTotals, JsonSchemaType>,
+    ['added', 'removed', 'skipped', 'pending'],
+  ),
+  cancelled: bool(
+    'True when the call was cancelled between lists; the lists never started are ' +
+      'skipped and no lastSynced was recorded.',
+  ),
+  unresolvedAmbiguity: bool(
+    'True when a pull stopped on ambiguous removals nobody placed — nothing was ' +
+      'written; rerun with removalPriority or removalAssignments (or answer the ' +
+      'elicitation this tool raises when the client supports it).',
+  ),
+  unlisted: arr(
+    COLLECTION_SYNC_REMOVED,
+    'A push’s removals of cards no in-scope list holds any more (they belong to no ' +
+      'list’s changes); what went through. Present only when there is at least one.',
+  ),
+} as const satisfies Record<keyof CollectionSyncReport, JsonSchemaType>
 
 export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
   {
     message: str(),
     summary: SYNC_SUMMARY,
-    report: obj(
-      {
-        direction: SYNC_DIRECTION,
-        into: nullableStr('The list a pull added new cards to; null on a push.'),
-        dryRun: bool(),
-        lists: arr(openObject('One collection list’s sync outcome.')),
-        failedCount: int('Lists that failed; a run with failures still reports success.'),
-        errors: arr(str(), 'Run-level failures, as opposed to per-list ones.'),
-        unreadable: arr(openObject('A list file holding lines the parser cannot read.')),
-        ambiguous: arr(openObject('A partial removal spanning several lists.')),
-        localIncomplete: bool('True when some in-scope list did not make it into the comparison.'),
-        csv: nullable(openObject('What the CSV bulk-import path did with a push’s additions.')),
-        // Enumerated, unlike the per-list outcomes above: this is the field a
-        // caller is told to read to find out what a run actually did, so leaving
-        // its four counts unnamed would defeat the instruction.
-        totals: obj(
-          {
-            added: int('Copies added (locally on a pull, remotely on a push).'),
-            removed: int('Copies removed.'),
-            skipped: int('Copies the run could not apply.'),
-            pending: int('Copies written to a --csv-file rather than pushed (CLI only).'),
-          },
-          ['added', 'removed', 'skipped', 'pending'],
-        ),
-        cancelled: bool(
-          'True when the call was cancelled between lists; the lists never started are ' +
-            'skipped and no lastSynced was recorded.',
-        ),
-        unresolvedAmbiguity: bool(
-          'True when a pull stopped on ambiguous removals nobody placed — nothing was ' +
-            'written; rerun with removalPriority or removalAssignments (or answer the ' +
-            'elicitation this tool raises when the client supports it).',
-        ),
-      },
-      [
-        'direction',
-        'into',
-        'dryRun',
-        'lists',
-        'failedCount',
-        'errors',
-        'unreadable',
-        'ambiguous',
-        'localIncomplete',
-        'csv',
-        'totals',
-        'cancelled',
-        'unresolvedAmbiguity',
-      ],
-    ),
+    report: obj(COLLECTION_SYNC_REPORT_PROPS, [
+      'direction',
+      'into',
+      'dryRun',
+      'lists',
+      'failedCount',
+      'errors',
+      'unreadable',
+      'ambiguous',
+      'localIncomplete',
+      'csv',
+      'totals',
+      'cancelled',
+      'unresolvedAmbiguity',
+    ]),
   },
   ['message', 'summary', 'report'],
 )

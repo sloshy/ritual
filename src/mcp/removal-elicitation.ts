@@ -27,11 +27,8 @@ import {
   type McpServer,
 } from '@modelcontextprotocol/server'
 import { z } from 'zod'
-import {
-  describeAmbiguousLists,
-  describeCollectionKey,
-  type AmbiguousRemoval,
-} from '../collection-sync/describe'
+import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
+import { describeSyncCard } from '../sync/describe'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 
 /**
@@ -70,7 +67,7 @@ export function elicitRemovalAssignments(
 ): InputRequiredResult {
   const inputRequests: InputRequests = {}
   for (const entry of ambiguous) {
-    const card = describeCollectionKey(entry.name, entry.parts)
+    const card = describeSyncCard(entry.name, entry.parts)
     inputRequests[`${REQUEST_KEY_PREFIX}${entry.key}`] = inputRequired.elicit({
       message:
         `${entry.quantity} × ${card} left the Archidekt collection, but the local copies ` +

@@ -34,9 +34,16 @@ import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
 import { VALID_FINISHES } from '../../../src/card/finish-condition'
 import { CARD_LANGUAGES } from '../../../src/card/card-language'
 import { BY_RULE_UNPRICED_REASONS, UNPRICED_REASONS } from '../../../src/pricing/price-report'
-import type { BuildSiteResult, DeckSyncResult } from '../../../src/mcp/tools/destructive-tools'
+import type {
+  BuildSiteResult,
+  CollectionSyncResult,
+  DeckSyncResult,
+} from '../../../src/mcp/tools/destructive-tools'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
-import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
+import type {
+  CollectionSyncPrinting,
+  CollectionSyncReport,
+} from '../../../src/collection-sync/engine'
 import { setupMcpClient, type McpTestSession } from './harness'
 
 /**
@@ -641,11 +648,38 @@ describe('MCP output schemas, as authored', () => {
         }),
       ).toBe(false)
 
+      const SOL_RING: CollectionSyncPrinting = {
+        set: 'ltc',
+        collectorNumber: '284',
+        finish: 'nonfoil',
+        condition: 'NM',
+      }
       const collectionReport: CollectionSyncReport = {
         direction: 'push',
         into: null,
         dryRun: false,
-        lists: [{ name: 'Binder', status: 'synced', added: 1, removed: 0, pending: 0 }],
+        lists: [
+          {
+            name: 'Binder',
+            status: 'synced',
+            added: 1,
+            removed: 0,
+            pending: 0,
+            // One of every card-change kind, so each `oneOf` arm is exercised.
+            changes: [
+              { kind: 'added', name: 'Sol Ring', quantity: 1, printing: SOL_RING },
+              { kind: 'added', via: 'csv', name: 'Mox', quantity: 1, printing: SOL_RING },
+              { kind: 'removed', name: 'Sol Ring', quantity: 1, printing: SOL_RING },
+              {
+                kind: 'pending',
+                name: 'Lightning Bolt',
+                quantity: 2,
+                printing: { ...SOL_RING, finish: 'foil', language: 'ja' },
+              },
+            ],
+          },
+        ],
+        unlisted: [{ kind: 'removed', name: 'Island', quantity: 3, printing: SOL_RING }],
         failedCount: 0,
         errors: [],
         unreadable: [],
@@ -656,15 +690,31 @@ describe('MCP output schemas, as authored', () => {
         csv: null,
         totals: { added: 1, removed: 0, skipped: 0, pending: 0 },
       }
+      const collectionSample: CollectionSyncResult = {
+        message: 'Synced 1 list.',
+        summary: {
+          clauses: [{ message: 'Synced 1 list', messageKey: 'admin.api.collectionSync.totals' }],
+        },
+        report: collectionReport,
+      }
+      expect(await validates(SYNC_COLLECTION_OUTPUT, collectionSample)).toBe(true)
+      // A change of no known kind matches no arm, and `unlisted` holds removals only.
+      const removed = { kind: 'removed', name: 'Island', quantity: 1, printing: SOL_RING }
       expect(
         await validates(SYNC_COLLECTION_OUTPUT, {
-          message: 'Synced 1 list.',
-          summary: {
-            clauses: [{ message: 'Synced 1 list', messageKey: 'admin.api.collectionSync.totals' }],
+          ...collectionSample,
+          report: {
+            ...collectionReport,
+            lists: [{ ...collectionReport.lists[0], changes: [{ ...removed, kind: 'swapped' }] }],
           },
-          report: collectionReport,
         }),
-      ).toBe(true)
+      ).toBe(false)
+      expect(
+        await validates(SYNC_COLLECTION_OUTPUT, {
+          ...collectionSample,
+          report: { ...collectionReport, unlisted: [{ ...removed, kind: 'added' }] },
+        }),
+      ).toBe(false)
     })
   })
 

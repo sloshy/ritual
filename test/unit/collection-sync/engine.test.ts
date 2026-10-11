@@ -21,6 +21,11 @@ import type {
   CollectionSyncStateStore,
 } from '../../../src/collection-sync/state'
 import type { CardMutationChange } from '../../../src/list/list-mutate'
+import type {
+  CollectionSyncCardChange,
+  CollectionSyncPrinting,
+} from '../../../src/collection-sync/engine'
+import { collectionChangeCounts, collectionRunLines } from '../../../src/collection-sync/describe'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
 import { SYNC_CANCELLED_REASON } from '../../../src/sync/common'
 import type { UploadCacheReady } from '../../../src/cache/freshness'
@@ -293,6 +298,14 @@ async function sync(
   }
 }
 
+/** The printing most tests' Sol Ring lines hold, as a change reports it. */
+const SOL_RING_LTC: CollectionSyncPrinting = {
+  set: 'ltc',
+  collectorNumber: '284',
+  finish: 'nonfoil',
+  condition: 'NM',
+}
+
 // ── Cancellation ──────────────────────────────────────────────────────
 
 describe('runCollectionSync (cancellation)', () => {
@@ -303,6 +316,39 @@ describe('runCollectionSync (cancellation)', () => {
       { name: 'long-box', entries: [entry('Lightning Bolt', 'lea', '161', { cardId: 1 })] },
     ])
   }
+
+  test('a list a cancelled push never reached still lists the shared card credited to it', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+      { name: 'long-box', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+    ])
+    const { client } = mockArchidekt({ pages: [[]], printings: { 'ltc:284': 4242 } })
+    const controller = new AbortController()
+
+    const { run, events } = await sync({
+      direction: 'push',
+      client,
+      store,
+      state: fakeState(),
+      signal: controller.signal,
+      onEvent: (event) => {
+        if (event.kind === 'item-start') controller.abort()
+      },
+    })
+
+    // The first list's turn pushed the shared card for both; the second, skipped,
+    // reports it — and its lines say so, as a replay of the report would.
+    const longBox = run.report.lists.find((list) => list.name === 'long-box')
+    expect(longBox).toMatchObject({ status: 'skipped', added: 2 })
+    expect(longBox?.changes).toHaveLength(1)
+    expect(
+      events.flatMap((event) =>
+        event.kind === 'log' && event.item === 'long-box' && event.level !== 'warn'
+          ? [event.message]
+          : [],
+      ),
+    ).toEqual(['Changes: +2 added, -0 removed', '+ 2 Sol Ring (LTC:284) to Archidekt'])
+  })
 
   test('a pull cancelled on the first list finishes it, skips the rest, and records no timestamp', async () => {
     const store = twoListsWithRemovals()
@@ -521,6 +567,11 @@ describe('runCollectionSync (pull)', () => {
 
     expect(store.applied.map((applied) => applied.list)).toEqual(['inbox'])
     expect(run.report.totals).toEqual({ added: 1, removed: 0, skipped: 1, pending: 0 })
+    // The listing is narrowed the same way: the skipped removal is not in it.
+    expect(run.report.lists.map((list) => [list.name, list.changes?.map((c) => c.kind)])).toEqual([
+      ['blue-binder', undefined],
+      ['inbox', ['added']],
+    ])
     expect(logs).toContain('Skipped 1 removal (applying additions only).')
   })
 
@@ -574,11 +625,18 @@ describe('runCollectionSync (pull)', () => {
     )
     const { client } = mockArchidekt({ pages: [[]] })
 
-    const { run } = await sync({ direction: 'pull', client, store, state: fakeState() })
+    const { run, events } = await sync({ direction: 'pull', client, store, state: fakeState() })
 
     expect(run.report.failedCount).toBe(1)
     expect(run.report.lists[0]?.reason).toContain('disk is full')
     expect(run.report.totals.removed).toBe(0)
+    // Nothing went through, so nothing is listed — in the report or the log.
+    expect(run.report.lists[0]?.changes).toBeUndefined()
+    expect(events.some((event) => event.kind === 'log' && event.level === 'detail')).toBe(false)
+    // Nor its count line: the lines come from what the result reports.
+    expect(
+      events.some((event) => event.kind === 'log' && event.message.startsWith('Changes:')),
+    ).toBe(false)
   })
 
   test('follows every page of the collection', async () => {
@@ -1170,6 +1228,90 @@ describe('runCollectionSync (push)', () => {
     expect(run.report.totals.removed).toBe(3)
     // The cards belong to no list, so the deletion is the run's, not a list's.
     expect(run.report.lists[0]).toMatchObject({ name: 'blue-binder', removed: 0 })
+    expect(run.report.lists[0]?.changes).toBeUndefined()
+    expect(run.report.unlisted).toEqual([
+      {
+        kind: 'removed',
+        name: 'Sol Ring',
+        quantity: 3,
+        printing: { set: 'ltc', collectorNumber: '284', finish: 'nonfoil', condition: 'NM' },
+      },
+    ])
+  })
+
+  test('a trim and a delete of one card are one listed removal, matching the count', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+    ])
+    const { client, requests } = mockArchidekt({
+      pages: [
+        [
+          record({ id: 11, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 2 }),
+          record({ id: 12, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', quantity: 1 }),
+        ],
+      ],
+    })
+
+    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+
+    // Two requests on the wire: the small record deleted, the large one trimmed.
+    expect(requests.filter((request) => request.method !== 'GET')).toHaveLength(2)
+    const [list] = run.report.lists
+    expect(list?.changes).toEqual([
+      { kind: 'removed', name: 'Sol Ring', quantity: 2, printing: SOL_RING_LTC },
+    ])
+    // The counts are the changes' totals.
+    expect(list).toMatchObject(collectionChangeCounts(list?.changes ?? []))
+    expect(list).toMatchObject({ added: 0, removed: 2, pending: 0 })
+  })
+
+  test('a list with one card through and one failed lists only the one that went through', async () => {
+    const store = fakeStore([
+      {
+        name: 'blue-binder',
+        entries: [
+          entry('Sol Ring', 'ltc', '284', { cardId: 1 }),
+          entry('Made Up Card', 'xxx', '1', { cardId: 2 }),
+        ],
+      },
+    ])
+    const { client } = mockArchidekt({ pages: [[]], printings: { 'ltc:284': 4242 } })
+
+    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+
+    expect(run.report.lists[0]).toMatchObject({ status: 'failed', added: 1 })
+    expect(run.report.lists[0]?.changes).toEqual([
+      { kind: 'added', name: 'Sol Ring', quantity: 1, printing: SOL_RING_LTC },
+    ])
+  })
+
+  test('a shared card that fails fails every list holding it, listing nothing', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Made Up Card', 'xxx', '1', { cardId: 1 })] },
+      { name: 'long-box', entries: [entry('Made Up Card', 'xxx', '1', { cardId: 1 })] },
+    ])
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+
+    expect(run.report.lists.map((list) => [list.status, list.changes])).toEqual([
+      ['failed', undefined],
+      ['failed', undefined],
+    ])
+  })
+
+  test('a local [en] line lists no language, the way a bare line does', async () => {
+    const store = fakeStore([
+      {
+        name: 'blue-binder',
+        entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1, language: 'en' })],
+      },
+    ])
+    const { client } = mockArchidekt({ pages: [[]], printings: { 'ltc:284': 4242 } })
+
+    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+
+    expect(run.report.lists[0]?.changes?.[0]?.printing).toEqual(SOL_RING_LTC)
   })
 
   test('grows the leading record when the binders hold more copies', async () => {
@@ -1213,10 +1355,20 @@ describe('runCollectionSync (push)', () => {
     ])
     const { client, requests } = mockArchidekt({ pages: [[]], printings: { 'ltc:284': 4242 } })
 
-    const { run, logs } = await sync({ direction: 'push', client, store, state: fakeState() })
+    const harness = await sync({ direction: 'push', client, store, state: fakeState() })
+    const { run, logs } = harness
 
     // One record covers both copies; neither binder pushed it alone.
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1)
+    // Like the counts, the one record's change is listed under both binders.
+    const changes: CollectionSyncCardChange[] = [
+      {
+        kind: 'added',
+        name: 'Sol Ring',
+        quantity: 2,
+        printing: { set: 'ltc', collectorNumber: '284', finish: 'nonfoil', condition: 'NM' },
+      },
+    ]
     expect(run.report.lists).toEqual([
       {
         name: 'blue-binder',
@@ -1225,11 +1377,34 @@ describe('runCollectionSync (push)', () => {
         added: 2,
         removed: 0,
         pending: 0,
+        changes,
       },
       // Credited, so not "no changes" — the copies it holds really did move.
-      { name: 'long-box', status: 'synced', reason: undefined, added: 2, removed: 0, pending: 0 },
+      {
+        name: 'long-box',
+        status: 'synced',
+        reason: undefined,
+        added: 2,
+        removed: 0,
+        pending: 0,
+        changes,
+      },
     ])
     expect(logs.filter((line) => line === 'No changes.')).toEqual([])
+    // Each list lists the card it was credited with, after its own count line.
+    const { events } = harness
+    expect(
+      events.flatMap((event) =>
+        event.kind === 'log' && event.level !== 'warn' && event.item !== null
+          ? [`${event.item}: ${event.message}`]
+          : [],
+      ),
+    ).toEqual([
+      'blue-binder: Changes: +2 added, -0 removed',
+      'blue-binder: + 2 Sol Ring (LTC:284) to Archidekt',
+      'long-box: Changes: +2 added, -0 removed',
+      'long-box: + 2 Sol Ring (LTC:284) to Archidekt',
+    ])
     expect(run.report.totals.added).toBe(2)
   })
 
@@ -1274,6 +1449,11 @@ describe('runCollectionSync (push)', () => {
     // The second list still pushed.
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1)
     expect(run.report.lists.find((list) => list.name === 'long-box')?.status).toBe('synced')
+    // Only what went through is listed.
+    expect(run.report.lists.map((list) => list.changes?.map((change) => change.name))).toEqual([
+      undefined,
+      ['Sol Ring'],
+    ])
   })
 
   test('a dry run resolves printings but writes nothing', async () => {
@@ -1296,7 +1476,7 @@ describe('runCollectionSync (push)', () => {
     expect(requests[1]?.url).toContain('collectorNumber=284')
     expect(state.written).toEqual([])
     expect(run.report.totals.added).toBe(1)
-    expect(logs).toContain('[dry-run] Would add 1 × Sol Ring (LTC:284).')
+    expect(logs).toContain('+ 1 Sol Ring (LTC:284) to Archidekt')
   })
 
   test('refuses to push when nothing local could be read', async () => {
@@ -1485,6 +1665,62 @@ describe('runCollectionSync (push CSV additions)', () => {
     expect(run.report.totals).toEqual({ added: 3, removed: 0, skipped: 0, pending: 0 })
     expect(run.report.lists[0]).toMatchObject({ name: 'blue-binder', status: 'synced', added: 3 })
     expect(logs).toContain('Imported 3 cards (2 rows) from the CSV in 1 request.')
+    // The import's cards are marked as the CSV's, and listed under the run.
+    expect(run.report.lists[0]?.changes).toEqual([
+      {
+        kind: 'added',
+        via: 'csv',
+        name: 'Sol Ring',
+        quantity: 1,
+        printing: { set: 'ltc', collectorNumber: '284', finish: 'foil', condition: 'DMG' },
+      },
+      {
+        kind: 'added',
+        via: 'csv',
+        name: 'Black Lotus',
+        quantity: 2,
+        printing: { set: 'lea', collectorNumber: '232', finish: 'nonfoil', condition: 'NM' },
+      },
+    ])
+    expect(logs).toContain('+ 1 Sol Ring (LTC:284) [foil] [DMG] to Archidekt')
+  })
+
+  test('the run lists the CSV cards once each, in the order the stream did', async () => {
+    // K1 in lists A and C, K2 in B, K3 in C.
+    const store = fakeStore([
+      { name: 'a', entries: [entry('Card 1', 'ltc', '1', { cardId: 1 })] },
+      { name: 'b', entries: [entry('Card 2', 'ltc', '2', { cardId: 1 })] },
+      {
+        name: 'c',
+        entries: [
+          entry('Card 1', 'ltc', '1', { cardId: 1 }),
+          entry('Card 3', 'ltc', '3', { cardId: 2 }),
+        ],
+      },
+    ])
+    const { client } = mockArchidekt({ pages: [[]] })
+
+    const { run, events } = await sync({
+      direction: 'push',
+      client,
+      store,
+      state: fakeState(),
+      csv: true,
+      lookupPrintings: additionCache(3),
+    })
+
+    const streamed = events.flatMap((event) =>
+      event.kind === 'log' && event.level === 'detail' && event.item === null
+        ? [event.message]
+        : [],
+    )
+    expect(streamed).toEqual([
+      '+ 2 Card 1 (LTC:1) to Archidekt',
+      '+ 1 Card 2 (LTC:2) to Archidekt',
+      '+ 1 Card 3 (LTC:3) to Archidekt',
+    ])
+    expect(run.report.lists.map((list) => list.name)).toEqual(['a', 'b', 'c'])
+    expect(collectionRunLines(run.report.lists, []).map((line) => line.text)).toEqual(streamed)
   })
 
   test('a printing the cache does not hold falls back to the per-card path', async () => {
@@ -1581,6 +1817,9 @@ describe('runCollectionSync (push CSV additions)', () => {
     expect(run.report.csv).toBeNull()
     expect(requests.map((request) => request.method)).toEqual(['GET', 'DELETE'])
     expect(run.report.totals).toMatchObject({ added: 0, removed: 1, skipped: count })
+    // Only the removal went through, so only it is listed.
+    expect(run.report.lists.every((list) => list.changes === undefined)).toBe(true)
+    expect(run.report.unlisted).toMatchObject([{ kind: 'removed', quantity: 1 }])
   })
 
   test('csvFile writes the CSV and pushes no addition, while removals still push', async () => {
@@ -1626,6 +1865,12 @@ describe('runCollectionSync (push CSV additions)', () => {
     // account.
     expect(run.report.totals).toEqual({ added: 0, removed: 1, skipped: 0, pending: 1 })
     expect(run.report.lists[0]).toMatchObject({ name: 'blue-binder', status: 'synced', pending: 1 })
+    expect(run.report.lists[0]?.changes).toEqual([
+      { kind: 'pending', name: 'Sol Ring', quantity: 1, printing: SOL_RING_LTC },
+    ])
+    expect(run.report.unlisted).toMatchObject([
+      { kind: 'removed', name: 'Black Lotus', quantity: 1 },
+    ])
     expect(logs).toContain(
       'Wrote 1 card (1 row) to out/archidekt-import.csv; they were not pushed. Import the file at https://archidekt.com/collections/import.',
     )
@@ -1654,6 +1899,7 @@ describe('runCollectionSync (push CSV additions)', () => {
     expect(run.report.failedCount).toBe(1)
     expect(run.report.lists[0]?.reason).toContain('permission denied')
     expect(run.report.totals).toEqual({ added: 0, removed: 0, skipped: 0, pending: 0 })
+    expect(run.report.lists[0]?.changes).toBeUndefined()
   })
 
   describe('the decision seam', () => {
@@ -1874,6 +2120,9 @@ describe('runCollectionSync (push CSV additions)', () => {
         uncached: 0,
       })
       expect(run.report.totals).toEqual({ added: 0, removed: 0, skipped: 0, pending: 1 })
+      expect(run.report.lists[0]?.changes).toEqual([
+        { kind: 'pending', name: 'Sol Ring', quantity: 1, printing: SOL_RING_LTC },
+      ])
       expect(logs).toContain(
         '[dry-run] Would write 1 card (1 row) to import.csv for a manual upload at https://archidekt.com/collections/import.',
       )
@@ -1902,9 +2151,9 @@ describe('runCollectionSync (push CSV additions)', () => {
 
       expect(requests.map((request) => request.method)).toEqual(['GET'])
       expect(run.report.csv).toMatchObject({ status: 'planned', rows: count - 1, uncached: 1 })
-      expect(logs).toContain(
-        '[dry-run] Would add 1 × Card 3 (LTC:3) one at a time — the printing is not in the Scryfall cache, so it cannot ride the CSV and was not resolved here.',
-      )
+      // Listed with the rest, though it would go one at a time; the run-level
+      // warning says why, and nothing was searched for it.
+      expect(logs).toContain('+ 1 Card 3 (LTC:3) to Archidekt')
       // Named, and still counted as the copy a real run would add.
       expect(run.report.totals.added).toBe(count)
       expect(run.report.lists[0]).toMatchObject({ name: 'blue-binder', status: 'synced' })
@@ -2204,6 +2453,10 @@ describe('runCollectionSync (push CSV additions)', () => {
       })
       // Only the row that landed is counted, and only its list stays clean.
       expect(run.report.totals.added).toBe(1)
+      const changesOf = (name: string): string[] | undefined =>
+        run.report.lists.find((list) => list.name === name)?.changes?.map((change) => change.name)
+      expect(changesOf('blue-binder')).toEqual(['Sol Ring'])
+      expect(changesOf('long-box')).toBeUndefined()
       expect(run.report.lists.find((list) => list.name === 'blue-binder')?.status).toBe('synced')
       expect(run.report.lists.find((list) => list.name === 'long-box')?.status).toBe('failed')
       expect(logs).toContain('Archidekt did not import 1 of 2 CSV rows (1 not found).')
@@ -2231,6 +2484,7 @@ describe('runCollectionSync (push CSV additions)', () => {
       expect(run.report.totals).toEqual({ added: 0, removed: 1, skipped: 0, pending: 0 })
       expect(run.report.csv).toMatchObject({ status: 'failed', cards: 2, rows: 2 })
       expect(run.report.failedCount).toBe(2)
+      expect(run.report.lists.every((list) => list.changes === undefined)).toBe(true)
       // No addition is retried the slow way after a failed upload — a partial
       // import would then be imported twice.
       expect(requests.filter((request) => request.url.includes('/api/cards/v2/'))).toEqual([])
@@ -2593,6 +2847,7 @@ describe('runCollectionSync (run-level failures)', () => {
     expect(run.report.failedCount).toBe(0)
     expect(run.report.errors[0]).toBe('Failed to remove Sol Ring (LTC:284) from Archidekt')
     expect(run.report.totals.removed).toBe(0)
+    expect(run.report.unlisted).toBeUndefined()
   })
 
   test('stops paging when a response advertises a next page past the last one', async () => {

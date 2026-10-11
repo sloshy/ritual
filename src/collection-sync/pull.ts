@@ -10,7 +10,13 @@ import { t } from '../i18n/t'
 import { normalizeListName } from '../list/resolve-list'
 import { describeSkippedChanges } from '../sync/common'
 import type { ScryfallCard } from '../scryfall/types'
-import { describeAmbiguousRemoval, describeCollectionKey, type AmbiguousRemoval } from './describe'
+import {
+  collectionChangeCounts,
+  describeAmbiguousRemoval,
+  describeCollectionChangeSummary,
+  type AmbiguousRemoval,
+} from './describe'
+import { describeSyncCard } from '../sync/describe'
 import {
   applyRemovalAssignments,
   planPull,
@@ -18,6 +24,7 @@ import {
   resolveAmbiguousByPriority,
   type LocalCollectionIndex,
   type PullAddition,
+  type PulledCardName,
   type PullListChanges,
   type PullRemoval,
   type RemoteCollectionIndex,
@@ -28,6 +35,7 @@ import {
   type SyncFlow,
   type FlowOutcome,
   abortedOutcome,
+  emitListLines,
   markCancelled,
 } from './types'
 
@@ -124,7 +132,7 @@ export async function pullFromArchidekt(
   let cancelled = false
   for (const [index, name] of ordered.entries()) {
     if (flow.signal?.aborted) {
-      markCancelled(ordered.slice(index), emit, results)
+      markCancelled(ordered.slice(index), emit, results, 'pull')
       cancelled = true
       break
     }
@@ -136,29 +144,31 @@ export async function pullFromArchidekt(
       continue
     }
 
-    const summary = `+${changes.added} added, -${changes.removed} removed`
-    emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${summary}` })
+    const { cardChanges } = changes
+    const counts = collectionChangeCounts(cardChanges)
 
-    // Counted only once the write lands, so the totals describe what happened
-    // rather than what was planned.
-    const countChanges = (): void => {
-      const entry = results.track(name)
-      entry.added += changes.added
-      entry.removed += changes.removed
-      added += changes.added
-      removed += changes.removed
+    /**
+     * Record what went through — once the write lands, or on a dry run — and
+     * say it: the count line and the per-card lines come from the changes the
+     * result reports, so they describe only what happened.
+     */
+    const landed = (): void => {
+      for (const change of cardChanges) results.record(name, change)
+      added += counts.added
+      removed += counts.removed
+      emitListLines(emit, name, results.track(name).changes, name)
     }
 
     if (dryRun) {
-      countChanges()
+      landed()
       emit({ kind: 'log', level: 'info', item: name, message: '[dry-run] Not saved.' })
-      results.finish(name, `dry-run: ${summary}`)
+      results.finish(name, `dry-run: ${describeCollectionChangeSummary(counts)}`)
       continue
     }
 
     try {
       writtenFiles.push(...(await store.apply(name, changes.changes)))
-      countChanges()
+      landed()
       emit({ kind: 'log', level: 'info', item: name, message: 'Saved.' })
       results.finish(name)
     } catch (error: unknown) {
@@ -221,7 +231,7 @@ async function resolveRemovalPriority(
 /** The cards an unplaceable set of removals is about, for the failure message. */
 function describeUnplaceable(unresolved: readonly AmbiguousRemoval[]): string {
   return unresolved
-    .map((entry) => `${entry.quantity} × ${describeCollectionKey(entry.name, entry.parts)}`)
+    .map((entry) => `${entry.quantity} × ${describeSyncCard(entry.name, entry.parts)}`)
     .join(', ')
 }
 
@@ -250,7 +260,7 @@ async function placeAmbiguous(
         kind: 'log',
         level: 'info',
         item: null,
-        message: `${preview}Removing ${removal.copies.length} × ${describeCollectionKey(removal.name, removal.parts)} from "${removal.list}" (${reason}).`,
+        message: `${preview}Removing ${removal.copies.length} × ${describeSyncCard(removal.name, removal.parts)} from "${removal.list}" (${reason}).`,
       })
     }
   }
@@ -399,7 +409,7 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
 async function pulledNameResolver(
   flow: SyncFlow,
   additions: readonly PullAddition[],
-): Promise<(addition: PullAddition) => string> {
+): Promise<PulledCardName> {
   if (additions.length === 0) return (addition) => addition.name
   let cards: Map<string, ScryfallCard>
   try {

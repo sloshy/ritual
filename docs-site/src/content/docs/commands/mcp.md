@@ -491,6 +491,8 @@ It needs the same Archidekt login (`get_sync_status`'s `collection.archidekt.log
 
 - `ambiguous`: every ambiguous removal, with the lists holding copies and how many each holds, reported whether a strategy placed them or the run failed on them.
 - `unresolvedAmbiguity`: true when the run stopped on them, having written nothing.
+- `lists[].changes`, present when a list had any: every card behind its counts, which are its totals. Each entry has a `kind` (`added`, with `via: "csv"` when the CSV import created it, or `removed`), `name`, `quantity` in copies, and `printing` (`set` lowercase, `collectorNumber`, `finish`, `condition`, and `language` when not English). There is one entry per card, printing and kind, narrowed by `only`. The schema's `pending` kind is the CLI's `--csv-file` and never appears here. It lists what went through, or would on a dry run: a card whose write failed is left out, and the list's `reason` says what failed. On a push a card held in several lists is one key, listed under each with the key's whole quantity. A list a cancellation skipped may still carry changes an earlier list's turn made for it. These are the cards the CLI lists under `--verbose`.
+- `unlisted`: a push's deletions of records for cards no in-scope list holds any more, present only when there is at least one.
 - `totals.skipped`: what `only` left out.
 - `localIncomplete`: true when a list in scope did not make it into the comparison (an unresolvable name, an unreadable file, or one refused for unreadable lines). The local side is then short of cards it really holds, so the run withholds the changes that shortfall would have produced: a pull adds nothing and a push removes nothing.
 

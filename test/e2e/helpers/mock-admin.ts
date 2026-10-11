@@ -3,6 +3,7 @@ import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
 import type {
   CollectionSyncList,
+  CollectionSyncRequest,
   CollectionSyncRunResponse,
   CollectionSyncStatusResponse,
 } from '../../../src/admin/api/collection-sync'
@@ -12,6 +13,8 @@ import type {
   UnreadableDeck,
 } from '../../../src/deck-sync/engine'
 import type {
+  CollectionSyncCardChange,
+  CollectionSyncCardRemoved,
   CollectionSyncCsv,
   CollectionSyncListResult,
   UnreadableList,
@@ -628,6 +631,14 @@ export type CollectionSyncMocks = {
   setErrors: (errors: string[]) => void
   /** What the non-streaming run reports the CSV import did with a push's new cards. */
   setCsv: (csv: CollectionSyncCsv | null) => void
+  /**
+   * The card changes the non-streaming run reports for a list, by list name.
+   * The list's counts stay the mock's fixed `added: 1` — the page renders the
+   * count line from the changes, never from those fields.
+   */
+  setListChanges: (changes: Record<string, CollectionSyncCardChange[]>) => void
+  /** A push's removals of cards no list holds, as the non-streaming run reports them. */
+  setUnlisted: (changes: CollectionSyncCardRemoved[]) => void
   /** How many times the page has loaded the status. */
   statusRequests: () => number
   /** Bodies posted to the non-streaming fallback endpoint. */
@@ -652,6 +663,8 @@ export async function mockCollectionSyncApi(
   let currentAmbiguous: AmbiguousRemoval[] = []
   let currentErrors: string[] = []
   let currentCsv: CollectionSyncCsv | null = null
+  let currentChanges: Record<string, CollectionSyncCardChange[]> = {}
+  let currentUnlisted: CollectionSyncCardRemoved[] = []
   let statusCount = 0
   const posted: unknown[] = []
 
@@ -678,23 +691,38 @@ export async function mockCollectionSyncApi(
     page,
     '**/api/collection-sync',
     (route: Route): CollectionSyncRunResponse => {
-      posted.push(route.request().postDataJSON())
+      const request = route.request().postDataJSON() as CollectionSyncRequest
+      posted.push(request)
+      // Echoes the run it was asked for: a push has nowhere to put cards.
+      const direction = request.direction
+      const into = direction === 'push' ? null : pullTarget
       // Typed against the real response so the mock cannot drift from the handler.
-      const results = currentLists.map((list): CollectionSyncListResult => ({
-        name: list.name,
-        status: 'synced',
-        added: 1,
-        removed: 0,
-        pending: 0,
-      }))
+      const results = currentLists.map((list): CollectionSyncListResult => {
+        const changes = currentChanges[list.name]
+        return {
+          name: list.name,
+          status: 'synced',
+          added: 1,
+          removed: 0,
+          pending: 0,
+          ...(changes ? { changes } : {}),
+        }
+      })
+      const action = direction === 'push' ? 'pushed' : 'pulled'
       const summary: SyncSummary = {
         clauses: [
-          apiMessage('admin.api.collectionSync.totalsInto', {
-            action: 'pulled',
-            added: results.length,
-            removed: 0,
-            into: pullTarget,
-          }),
+          into === null
+            ? apiMessage('admin.api.collectionSync.totals', {
+                action,
+                added: results.length,
+                removed: 0,
+              })
+            : apiMessage('admin.api.collectionSync.totalsInto', {
+                action,
+                added: results.length,
+                removed: 0,
+                into,
+              }),
         ],
       }
       return {
@@ -702,8 +730,8 @@ export async function mockCollectionSyncApi(
         message: renderSyncSummaryEnglish(summary),
         summary,
         report: {
-          direction: 'pull',
-          into: pullTarget,
+          direction,
+          into,
           dryRun: false,
           lists: results,
           failedCount: 0,
@@ -716,6 +744,7 @@ export async function mockCollectionSyncApi(
           localIncomplete: false,
           csv: currentCsv,
           totals: { added: results.length, removed: 0, skipped: 0, pending: 0 },
+          ...(currentUnlisted.length > 0 ? { unlisted: currentUnlisted } : {}),
         },
       }
     },
@@ -743,6 +772,12 @@ export async function mockCollectionSyncApi(
     },
     setCsv: (next: CollectionSyncCsv | null) => {
       currentCsv = next
+    },
+    setListChanges: (next: Record<string, CollectionSyncCardChange[]>) => {
+      currentChanges = next
+    },
+    setUnlisted: (next: CollectionSyncCardRemoved[]) => {
+      currentUnlisted = next
     },
     statusRequests: () => statusCount,
     postedRuns: () => posted,

@@ -16,3 +16,22 @@ import { formatPrintingAnnotation, type PrintingAnnotationInput } from '../chang
 export function describeSyncCard(name: string, printing?: PrintingAnnotationInput): string {
   return printing === undefined ? name : `${name}${formatPrintingAnnotation(printing)}`
 }
+
+/** One line of an item's change listing, at the level the run logs it. */
+export type ItemChangeLine = { level: 'info' | 'detail'; text: string }
+
+/**
+ * An item's change lines in the one order every surface shows them: the
+ * `Changes:` count line (when there is one), then a detail line per card. The
+ * engines emit these and the admin pages replay them from a finished report,
+ * so the order cannot drift between the stream and the fallback.
+ */
+export function itemChangeLines(
+  changesLine: string | undefined,
+  details: readonly string[],
+): ItemChangeLine[] {
+  return [
+    ...(changesLine === undefined ? [] : [{ level: 'info' as const, text: changesLine }]),
+    ...details.map((text): ItemChangeLine => ({ level: 'detail', text })),
+  ]
+}

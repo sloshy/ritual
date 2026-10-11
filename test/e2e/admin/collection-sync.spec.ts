@@ -15,7 +15,13 @@ import {
 } from '../helpers/mock-admin'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 import type { AmbiguousRemoval } from '../../../src/collection-sync/describe'
-import type { CollectionSyncCsv, CollectionSyncReport } from '../../../src/collection-sync/engine'
+import type {
+  CollectionSyncCsv,
+  CollectionSyncEvent,
+  CollectionSyncListResult,
+  CollectionSyncPrinting,
+  CollectionSyncReport,
+} from '../../../src/collection-sync/engine'
 
 /**
  * Sync Collection page state transitions: what the direction, scope, change
@@ -44,6 +50,18 @@ const DONE_REPORT: CollectionSyncReport = {
   localIncomplete: false,
   csv: null,
   totals: { added: 0, removed: 0, skipped: 0, pending: 0 },
+}
+
+/** A list's result as the stream carries it, typed against the engine's event. */
+function itemResult(result: CollectionSyncListResult): CollectionSyncEvent {
+  return { kind: 'item-result', result }
+}
+
+const SOL_RING_C21: CollectionSyncPrinting = {
+  set: 'c21',
+  collectorNumber: '240',
+  finish: 'nonfoil',
+  condition: 'NM',
 }
 
 /** A push's new cards, uploaded as one CSV import with one row Archidekt refused. */
@@ -148,6 +166,17 @@ test.describe('Sync Collection Page', () => {
       'Archidekt collection: 12 collection records covering 9 printings, fetched in 6 seconds.',
     )
 
+    // A card a push's CSV import created is the run's, not a list's.
+    await emitStreamEvent(page, 'progress', {
+      kind: 'log',
+      level: 'detail',
+      item: null,
+      message: '+ 1 Black Lotus (LEA:232) to Archidekt',
+    })
+    await expect(page.locator('.sync-run-note[data-level="detail"]')).toHaveText(
+      '+ 1 Black Lotus (LEA:232) to Archidekt',
+    )
+
     await emitStreamEvent(page, 'progress', {
       kind: 'item-start',
       item: BLUE!.name,
@@ -165,24 +194,37 @@ test.describe('Sync Collection Page', () => {
     await expect(runRow(page, BLUE!.name).locator('.sync-run-message')).toContainText('+2 added')
 
     await emitStreamEvent(page, 'progress', {
-      kind: 'item-result',
-      result: { name: BLUE!.name, status: 'synced', added: 2, removed: 0 },
+      kind: 'log',
+      level: 'detail',
+      item: BLUE!.name,
+      message: '+ 2 Sol Ring (C21:240) to Blue Binder',
     })
+    await expect(
+      runRow(page, BLUE!.name).locator('.sync-run-message[data-level="detail"]'),
+    ).toHaveText('+ 2 Sol Ring (C21:240) to Blue Binder')
+
+    await emitStreamEvent(
+      page,
+      'progress',
+      itemResult({ name: BLUE!.name, status: 'synced', added: 2, removed: 0, pending: 0 }),
+    )
     await expect(runRow(page, BLUE!.name)).toHaveAttribute('data-status', 'synced')
     await expect(runRow(page, BLUE!.name).locator('.sync-run-meta')).toHaveText(
       '+2 added, -0 removed',
     )
 
-    await emitStreamEvent(page, 'progress', {
-      kind: 'item-result',
-      result: {
+    await emitStreamEvent(
+      page,
+      'progress',
+      itemResult({
         name: LONG!.name,
         status: 'failed',
         reason: 'Failed to save: disk full',
         added: 0,
         removed: 0,
-      },
-    })
+        pending: 0,
+      }),
+    )
     await expect(runRow(page, LONG!.name)).toHaveAttribute('data-status', 'failed')
     // A list that moved no copies has no tally to show.
     await expect(runRow(page, LONG!.name).locator('.sync-run-meta')).toHaveCount(0)
@@ -253,10 +295,11 @@ test.describe('Sync Collection Page', () => {
     expect(url).toContain('only=removals')
     expect(url).toContain('dryRun=true')
 
-    await emitStreamEvent(page, 'progress', {
-      kind: 'item-result',
-      result: { name: BLUE!.name, status: 'synced', added: 0, removed: 3 },
-    })
+    await emitStreamEvent(
+      page,
+      'progress',
+      itemResult({ name: BLUE!.name, status: 'synced', added: 0, removed: 3, pending: 0 }),
+    )
     await expect(runRow(page, BLUE!.name).locator('.sync-run-meta')).toHaveText(
       '+0 added, -3 removed',
     )
@@ -659,6 +702,16 @@ test.describe('Sync Collection Page', () => {
 
   test('a stream that never connects falls back to a plain request', async ({ page }) => {
     const mocks = await openPage(page)
+    mocks.setListChanges({
+      [LONG!.name]: [
+        {
+          kind: 'added',
+          name: 'Sol Ring',
+          quantity: 2,
+          printing: { set: 'c21', collectorNumber: '240', finish: 'nonfoil', condition: 'NM' },
+        },
+      ],
+    })
     mocks.setAmbiguous([
       {
         key: 'lea|161|nonfoil|NM',
@@ -692,6 +745,14 @@ test.describe('Sync Collection Page', () => {
       ])
     await expect(page.locator('.sync-run-status .alert-success')).toContainText('Pulled')
     await expect(runRow(page, LONG!.name)).toHaveAttribute('data-status', 'synced')
+    // The count line and per-card lines the stream would have carried, rendered
+    // from the report.
+    await expect(
+      runRow(page, LONG!.name).locator('.sync-run-message[data-level="info"]'),
+    ).toHaveText('Changes: +2 added, -0 removed')
+    await expect(
+      runRow(page, LONG!.name).locator('.sync-run-message[data-level="detail"]'),
+    ).toHaveText(`+ 2 Sol Ring (C21:240) to ${LONG!.name}`)
 
     // `report.ambiguous` is a census of what the planner found: with no
     // run-level error a priority placed them, so replaying them as "Not
@@ -699,6 +760,37 @@ test.describe('Sync Collection Page', () => {
     await expect(page.locator('.sync-run-note')).toHaveCount(0)
     await expect(page.locator('.sync-ambiguous')).toHaveCount(0)
     await expect(syncButton(page)).toBeEnabled()
+  })
+
+  test('a push fallback lists each list’s cards, and the run’s CSV and unlisted ones', async ({
+    page,
+  }) => {
+    const mocks = await openPage(page)
+    mocks.setListChanges({
+      [BLUE!.name]: [
+        { kind: 'added', name: 'Sol Ring', quantity: 1, printing: SOL_RING_C21 },
+        // The CSV import's card is the run's, though the list counts it.
+        { kind: 'added', via: 'csv', name: 'Black Lotus', quantity: 1, printing: SOL_RING_C21 },
+      ],
+    })
+    mocks.setUnlisted([{ kind: 'removed', name: 'Island', quantity: 2, printing: SOL_RING_C21 }])
+    await page.locator('.sync-direction .segmented-option:has-text("Push")').click()
+
+    await syncButton(page).click()
+    await emitStreamConnectionError(page)
+
+    await expect(page.locator('.sync-run-status .alert-success')).toContainText('Pushed')
+    const row = runRow(page, BLUE!.name)
+    await expect(row.locator('.sync-run-message[data-level="info"]')).toHaveText(
+      'Changes: +2 added, -0 removed',
+    )
+    await expect(row.locator('.sync-run-message[data-level="detail"]')).toHaveText(
+      '+ 1 Sol Ring (C21:240) to Archidekt',
+    )
+    await expect(page.locator('.sync-run-note[data-level="detail"]')).toHaveText([
+      '+ 1 Black Lotus (C21:240) to Archidekt',
+      '- 2 Island (C21:240) from Archidekt',
+    ])
   })
 
   test('the fallback replays a removal the run actually refused', async ({ page }) => {

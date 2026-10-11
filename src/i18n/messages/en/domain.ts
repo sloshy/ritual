@@ -231,6 +231,28 @@ export const domainMessages = {
   'domain.sync.detailPrinting': '* {card} in {place}: {from} → {to}',
   'domain.sync.detailCategories': '= {card} categories: {categories}',
   'domain.sync.detailNoPrinting': 'no printing',
+  'domain.sync.detailPending': '+ {quantity} {card} to the CSV file, not pushed yet',
+  'domain.sync.placeArchidekt': 'Archidekt',
+  // The per-item count line both syncs log above their detail lines.
+  'domain.sync.changesLine': 'Changes: {summary}',
+  'domain.sync.deckCounts': {
+    $select: 'direction',
+    pull: '+{added} added, -{removed} removed, ~{quantity} quantity changed',
+    push: '+{added} to add, -{removed} to remove, ~{quantity} quantity changes',
+  },
+  'domain.sync.deckMovesClause': ', {moves}',
+  'domain.sync.deckPrintingsClause': {
+    $select: 'direction',
+    pull: ', {printings} changed',
+    push: ', {printings} to change',
+  },
+  'domain.sync.deckCategoriesClause': {
+    $select: 'direction',
+    pull: ', {cards} changed',
+    push: ', {cards} to change',
+  },
+  'domain.sync.collectionCounts': '+{added} added, -{removed} removed',
+  'domain.sync.collectionPendingClause': ', {copies} pending',
   'domain.sync.detailNoCategories': 'none',
 
   // ── Site navigation ───────────────────────────────────────────────────

@@ -58,6 +58,8 @@ import type { ScryfallCard } from '../scryfall/types'
 // bundle reaches for these — a re-export here would put this module (and the
 // Archidekt client types it pulls in) one autocomplete away from the SPA.
 import type { AmbiguousRemoval, CollectionKeyParts } from './describe'
+import { printingOf, recordCardChange } from './card-changes'
+import type { CollectionSyncCardChange } from './types'
 
 // ── The join key ──────────────────────────────────────────────────────
 
@@ -648,10 +650,11 @@ export type PulledCardName = (addition: PullAddition) => string
 export type PullListChanges = {
   list: string
   changes: CardMutationChange[]
-  /** Copies added to this list. */
-  added: number
-  /** Copies removed from this list. */
-  removed: number
+  /**
+   * The same share as the report lists it: one entry per removal and addition,
+   * in the order the events are written. The list's counts derive from these.
+   */
+  cardChanges: CollectionSyncCardChange[]
 }
 
 /**
@@ -673,13 +676,20 @@ export function pullChangesByList(
   const forList = (list: string): PullListChanges => {
     const existing = byList.get(list)
     if (existing) return existing
-    const created: PullListChanges = { list, changes: [], added: 0, removed: 0 }
+    const created: PullListChanges = { list, changes: [], cardChanges: [] }
     byList.set(list, created)
     return created
   }
 
   for (const removal of plan.removals) {
     const entry = forList(removal.list)
+    // Named the way the local line spells it.
+    recordCardChange(entry.cardChanges, {
+      kind: 'removed',
+      name: removal.copies[0]?.name ?? removal.name,
+      quantity: removal.copies.length,
+      printing: printingOf(removal.parts),
+    })
     // Tail lines first, so removing several copies never renumbers a line this
     // same batch still has to find.
     for (const copy of [...removal.copies].reverse()) {
@@ -693,13 +703,18 @@ export function pullChangesByList(
           cardId: copy.cardId,
         }),
       )
-      entry.removed++
     }
   }
 
   for (const addition of plan.additions) {
     const entry = forList(targetList)
     const name = resolveName(addition)
+    recordCardChange(entry.cardChanges, {
+      kind: 'added',
+      name,
+      quantity: addition.quantity,
+      printing: printingOf(addition.parts),
+    })
     for (let i = 0; i < addition.quantity; i++) {
       entry.changes.push(
         createAddChange(name, {
@@ -710,7 +725,6 @@ export function pullChangesByList(
           language: addition.parts.language,
         }),
       )
-      entry.added++
     }
   }
 
@@ -969,18 +983,4 @@ export function updateRecordBody(operation: PushUpdate): CollectionUpsertBody {
     tags: operation.record.tags,
     purchasePrice: operation.record.purchasePrice,
   }
-}
-
-/** Copies an operation adds to Archidekt (0 for the ones that take copies away). */
-export function operationAdded(operation: PushOperation): number {
-  if (operation.kind === 'create') return operation.quantity
-  if (operation.kind === 'update') return Math.max(0, operation.delta)
-  return 0
-}
-
-/** Copies an operation takes away from Archidekt (0 for the ones that add). */
-export function operationRemoved(operation: PushOperation): number {
-  if (operation.kind === 'delete') return operation.removed
-  if (operation.kind === 'update') return Math.max(0, -operation.delta)
-  return 0
 }

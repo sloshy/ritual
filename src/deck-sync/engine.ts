@@ -59,7 +59,7 @@ import {
   remoteDeckCategories,
 } from './categories'
 import { resolveTargetDecks } from './targets'
-import { describeDeckCardChange } from './describe'
+import { deckChangeCounts, deckItemLines, describeDeckChangeSummary } from './describe'
 import { deckSyncCardChanges } from './card-changes'
 
 export { listSyncableDecks } from './targets'
@@ -347,21 +347,20 @@ function emitPrintingMismatches(
   }
 }
 
-/** Emit one `detail` line per card change, under the deck's `Changes:` summary. */
-function emitChangeDetails(
+/**
+ * Emit a deck's change lines — its `Changes:` count, then a `detail` line per
+ * card — from the very changes its result reports, once they are final. The
+ * admin fallback replays the same {@link deckItemLines} from the report, so the
+ * two cannot disagree. Nothing for a deck with no card changes.
+ */
+function emitDeckItemLines(
   flow: SyncFlow,
   deck: string,
   changes: readonly DeckSyncCardChange[],
 ): void {
-  for (const change of changes) {
-    flow.emit({ kind: 'log', level: 'detail', item: deck, message: describeDeckCardChange(change) })
+  for (const line of deckItemLines(flow.direction, changes, flow.syncCategories)) {
+    flow.emit({ kind: 'log', level: line.level, item: deck, message: line.text })
   }
-}
-
-/** The run log's board-move clause, present only when the diff moves a card. */
-function boardMoveClause(diff: DeckDiff): string {
-  if (diff.boardMoves.length === 0) return ''
-  return `, ${t('domain.count.boardMoves', { count: diff.boardMoves.length })}`
 }
 
 // ── Download flow ─────────────────────────────────────────────────────
@@ -487,29 +486,30 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       continue
     }
 
-    const printingClause =
-      diff.printingUpdates.length > 0
-        ? `, ${t('domain.count.printings', { count: diff.printingUpdates.length })} changed`
-        : ''
-    const categoryClause = flow.syncCategories
-      ? `, ${t('domain.count.cardCategories', { count: categoryChanges.length })} changed`
-      : ''
-    const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${boardMoveClause(diff)}${printingClause}${categoryClause}`
-    if (!isDiffEmpty(diff) || categoryChanges.length > 0) {
-      emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${changeSummary}` })
-      emitChangeDetails(flow, name, cardChanges)
-    }
-    if (formatSync.changed && formatSync.format) {
-      const was = formatSync.localFormat ? getDeckFormatLabel(formatSync.localFormat) : 'not set'
-      emit({
-        kind: 'log',
-        level: 'info',
-        item: name,
-        message: `Format: ${was} → ${getDeckFormatLabel(formatSync.format)}`,
-      })
+    const changeSummary = describeDeckChangeSummary(
+      'pull',
+      deckChangeCounts(cardChanges, flow.syncCategories),
+    )
+    /**
+     * The deck's change lines and its format line, from the changes its result
+     * reports — said once the writes have landed (or, on a dry run, now), so
+     * they describe what went through.
+     */
+    const announce = (changes: readonly DeckSyncCardChange[]): void => {
+      emitDeckItemLines(flow, name, changes)
+      if (formatSync.changed && formatSync.format) {
+        const was = formatSync.localFormat ? getDeckFormatLabel(formatSync.localFormat) : 'not set'
+        emit({
+          kind: 'log',
+          level: 'info',
+          item: name,
+          message: `Format: ${was} → ${getDeckFormatLabel(formatSync.format)}`,
+        })
+      }
     }
 
     if (dryRun) {
+      announce(cardChanges)
       emit({ kind: 'log', level: 'info', item: name, message: '[dry-run] Not saved.' })
       finish(results, emit, {
         name,
@@ -587,8 +587,10 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       stage([await appendChangelog(target.filePath, target.deck.name, changes)])
     }
     if (categoryError !== undefined) {
-      // The cards were written; the categories were not, so the report lists
-      // the card changes alone.
+      // The cards were written; the categories were not, so the lines and the
+      // report list the card changes alone.
+      const cardsOnly = deckSyncCardChanges(diff, [])
+      announce(cardsOnly)
       failDeck(
         results,
         emit,
@@ -598,11 +600,12 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
           ...printingResultFields(flow, diff),
           ...boardMoveResultFields(diff),
           ...categoryResultFields(flow, 0),
-          ...cardChangeResultFields(deckSyncCardChanges(diff, [])),
+          ...cardChangeResultFields(cardsOnly),
         },
       )
       continue
     }
+    announce(cardChanges)
     emit({ kind: 'log', level: 'info', item: name, message: 'Saved.' })
     finish(results, emit, { name, status: 'synced', ...report })
   }
@@ -781,20 +784,9 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       continue
     }
 
-    const printingClause =
-      applied.printingUpdates.length > 0
-        ? `, ${t('domain.count.printings', { count: applied.printingUpdates.length })} to change`
-        : ''
-    const categoryClause = flow.syncCategories
-      ? `, ${t('domain.count.cardCategories', { count: plan.categoriesChanged.length })} to change`
-      : ''
-    emit({
-      kind: 'log',
-      level: 'info',
-      item: name,
-      message: `Changes: +${applied.added.length} to add, -${applied.removed.length} to remove, ~${applied.quantityChanged.length} quantity changes${boardMoveClause(applied)}${printingClause}${categoryClause}`,
-    })
-    emitChangeDetails(flow, name, cardChanges)
+    // From the changes the result reports: nothing when every entry errored or
+    // the only rewrite changed no card's roles.
+    emitDeckItemLines(flow, name, cardChanges)
 
     // Plan errors are partial failures: some cards could not be turned into
     // upload entries, so the deck did not fully sync even if the rest pushes.

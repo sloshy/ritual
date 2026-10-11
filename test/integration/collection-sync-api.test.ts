@@ -14,7 +14,10 @@ import {
 import { compareData } from '../../src/i18n/collate'
 import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import type { ArchidektToken } from '../../src/auth/interfaces'
-import type { CollectionSyncEvent } from '../../src/collection-sync/engine'
+import type {
+  CollectionSyncCardChange,
+  CollectionSyncEvent,
+} from '../../src/collection-sync/engine'
 import type { ArchidektCollectionRecord } from '../../src/importers/archidekt-collection'
 import { collectionPage, record } from '../fixtures/archidekt'
 import {
@@ -361,9 +364,24 @@ describe('collection-sync API', () => {
       .map((frame) => frame.data as unknown as CollectionSyncEvent)
 
     expect(progress).toContainEqual({ kind: 'item-start', item: 'binder', index: 0, total: 1 })
+    const changes: CollectionSyncCardChange[] = [
+      {
+        kind: 'added',
+        name: 'Lightning Bolt',
+        quantity: 1,
+        printing: { set: 'lea', collectorNumber: '161', finish: 'nonfoil', condition: 'NM' },
+      },
+    ]
+    // The per-card line rides the stream whatever the client shows.
+    expect(progress).toContainEqual({
+      kind: 'log',
+      level: 'detail',
+      item: 'binder',
+      message: '+ 1 Lightning Bolt (LEA:161) to binder',
+    })
     expect(progress.at(-1)).toEqual({
       kind: 'item-result',
-      result: { name: 'binder', status: 'synced', added: 1, removed: 0, pending: 0 },
+      result: { name: 'binder', status: 'synced', added: 1, removed: 0, pending: 0, changes },
     })
 
     const done = frames.at(-1)

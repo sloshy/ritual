@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  replayDescribe,
+  replayResultMessages,
   applySyncEvent,
   lastSyncedLabel,
   relativeTime,
@@ -148,5 +150,34 @@ describe('applySyncEvent', () => {
     // The engines report those sources on every run, so an already-confirmed run
     // must not re-raise the panel it was launched from.
     expect(fold([UNREADABLE], true).unreadable).toBeNull()
+  })
+})
+
+describe('replay helpers', () => {
+  test('an item replays its change lines, then its reason', () => {
+    expect(
+      replayResultMessages(
+        [
+          { level: 'info', text: 'Changes: +1 added, -0 removed' },
+          { level: 'detail', text: '+ 1 Sol Ring to Main' },
+        ],
+        'dry-run: +1 added',
+      ),
+    ).toEqual([
+      { level: 'info', text: 'Changes: +1 added, -0 removed' },
+      { level: 'detail', text: '+ 1 Sol Ring to Main' },
+      { level: 'info', text: 'dry-run: +1 added' },
+    ])
+    expect(replayResultMessages([], undefined)).toEqual([])
+  })
+
+  test('a change this build cannot word reads as its card name', () => {
+    type Change = { kind: string; name: string }
+    const describe = replayDescribe((change: Change): string => {
+      if (change.kind !== 'added') throw new Error(`Unhandled card change: ${change.kind}`)
+      return `+ ${change.name}`
+    })
+    expect(describe({ kind: 'added', name: 'Sol Ring' })).toBe('+ Sol Ring')
+    expect(describe({ kind: 'swapped', name: 'Island' })).toBe('Island')
   })
 })

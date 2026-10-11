@@ -9,7 +9,10 @@
  */
 
 import type { CardLanguage } from '../card/card-language'
-import { describeSyncCard } from '../sync/describe'
+import { describeSyncCard, itemChangeLines, type ItemChangeLine } from '../sync/describe'
+import type { SyncDirection } from '../sync/common'
+import type { CollectionSyncCardChange, CollectionSyncListResult } from './types'
+import { changeKey } from './card-changes'
 import { t } from '../i18n/t'
 import type { Condition, Finish } from '../card/finish-condition'
 
@@ -54,16 +57,6 @@ export type AmbiguousRemoval = {
 }
 
 /**
- * A card and its variant as a log line reads it, e.g.
- * `Karlach, Fury of Avernus (CLB:507) [etched] [LP]`. Built from the same
- * annotation formatter changelog lines use, so defaults are omitted and set
- * codes uppercased exactly as they are everywhere else.
- */
-export function describeCollectionKey(name: string, parts: CollectionKeyParts): string {
-  return describeSyncCard(name, parts)
-}
-
-/**
  * Who holds the copies, and how many each holds:
  * `"Blue Binder" (1) and "Long Box" (2)`. The counts are the whole point — they
  * are what a reader needs to decide which list should give a copy up.
@@ -76,7 +69,7 @@ export function describeAmbiguousLists(lists: readonly AmbiguousList[]): string 
 
 /** The warning a pull emits for a removal it cannot place by itself. */
 export function describeAmbiguousRemoval(entry: AmbiguousRemoval): string {
-  const card = describeCollectionKey(entry.name, entry.parts)
+  const card = describeSyncCard(entry.name, entry.parts)
   return `Not removing ${entry.quantity} × ${card}: ambiguous — copies live in ${describeAmbiguousLists(entry.lists)}.`
 }
 
@@ -138,4 +131,133 @@ export function describeCsvFailure(failure: CollectionCsvFailure): string {
   if (failure.ambiguous) return 'matched more than one printing'
   if (failure.errors.length > 0) return failure.errors.join('; ')
   return 'Archidekt gave no reason'
+}
+
+/**
+ * Where a collection sync's copies land or leave, as its detail lines name it:
+ * the list on a pull, the Archidekt collection on a push.
+ */
+export function collectionChangePlace(direction: SyncDirection, list: string): string {
+  return direction === 'pull' ? list : archidektPlace()
+}
+
+/** The Archidekt collection, as a push's detail lines name the place its copies go. */
+export function archidektPlace(): string {
+  return t('domain.sync.placeArchidekt')
+}
+
+/**
+ * The per-card detail line for one collection-sync change, e.g.
+ * `+ 2 Sol Ring (C21:240) to Blue Binder` on a pull or
+ * `- 1 Island from Archidekt` on a push; `place` comes from
+ * {@link collectionChangePlace}.
+ */
+export function describeCollectionCardChange(
+  change: CollectionSyncCardChange,
+  place: string,
+): string {
+  const card = describeSyncCard(change.name, change.printing)
+  switch (change.kind) {
+    case 'added':
+      return t('domain.sync.detailAdded', { quantity: change.quantity, card, place })
+    case 'removed':
+      return t('domain.sync.detailRemoved', { quantity: change.quantity, card, place })
+    case 'pending':
+      return t('domain.sync.detailPending', { quantity: change.quantity, card })
+    default: {
+      const unhandled: never = change
+      throw new Error(`Unhandled card change: ${JSON.stringify(unhandled)}`)
+    }
+  }
+}
+
+/** What a collection sync's `Changes:` line counts: copies by kind of change. */
+export type CollectionChangeCounts = {
+  added: number
+  removed: number
+  pending: number
+}
+
+/** Total a list's card changes by kind, in copies. */
+export function collectionChangeCounts(
+  changes: readonly CollectionSyncCardChange[],
+): CollectionChangeCounts {
+  const copies = (kind: CollectionSyncCardChange['kind']): number =>
+    changes
+      .filter((change) => change.kind === kind)
+      .reduce((total, change) => total + change.quantity, 0)
+  return { added: copies('added'), removed: copies('removed'), pending: copies('pending') }
+}
+
+/**
+ * A list's change counts as the run log states them: `+2 added, -1 removed`,
+ * with a pending clause when a push wrote copies to its CSV file.
+ */
+export function describeCollectionChangeSummary(counts: CollectionChangeCounts): string {
+  const pending =
+    counts.pending > 0
+      ? t('domain.sync.collectionPendingClause', {
+          copies: t('domain.count.copies', { count: counts.pending }),
+        })
+      : ''
+  return `${t('domain.sync.collectionCounts', { added: counts.added, removed: counts.removed })}${pending}`
+}
+
+/** The `Changes: …` line a collection sync logs for a list with changes. */
+export function describeCollectionChangesLine(counts: CollectionChangeCounts): string {
+  return t('domain.sync.changesLine', { summary: describeCollectionChangeSummary(counts) })
+}
+
+/**
+ * Whether a change went through a push's CSV — an import or a `--csv-file`.
+ * The CSV runs before any list's turn, so its cards are listed under the run
+ * rather than under each list (they still count in each list's `Changes:`).
+ */
+export function isCsvRouted(change: CollectionSyncCardChange): boolean {
+  return change.kind === 'pending' || (change.kind === 'added' && change.via === 'csv')
+}
+
+/**
+ * A list's change lines: its `Changes:` count, then a detail line per card
+ * that did not go through the CSV. Empty for a list with no changes.
+ */
+export function collectionListLines(
+  changes: readonly CollectionSyncCardChange[],
+  place: string,
+  describe: (
+    change: CollectionSyncCardChange,
+    place: string,
+  ) => string = describeCollectionCardChange,
+): ItemChangeLine[] {
+  if (changes.length === 0) return []
+  return itemChangeLines(
+    describeCollectionChangesLine(collectionChangeCounts(changes)),
+    changes.filter((change) => !isCsvRouted(change)).map((change) => describe(change, place)),
+  )
+}
+
+/**
+ * The run-level detail lines a finished push report implies: the cards its CSV
+ * imported or wrote (once each, though every list holding one lists it), then
+ * the records it deleted for cards no list holds — the lines the stream logs
+ * under the run rather than under a list.
+ */
+export function collectionRunLines(
+  lists: readonly Pick<CollectionSyncListResult, 'changes'>[],
+  unlisted: readonly CollectionSyncCardChange[],
+  describe: (
+    change: CollectionSyncCardChange,
+    place: string,
+  ) => string = describeCollectionCardChange,
+): ItemChangeLine[] {
+  // Every list holding a CSV card lists it; the run says it once, in the
+  // order the lists (scope order) first name it — the order the CSV ran in.
+  const csv = new Map<string, CollectionSyncCardChange>()
+  for (const change of lists.flatMap((list) => list.changes ?? [])) {
+    if (isCsvRouted(change) && !csv.has(changeKey(change))) csv.set(changeKey(change), change)
+  }
+  return itemChangeLines(
+    undefined,
+    [...csv.values(), ...unlisted].map((change) => describe(change, archidektPlace())),
+  )
 }

@@ -864,7 +864,9 @@
   color: var(--text-muted);
 }
 
-/* A per-card change line, listed under its deck's change summary. */
+/* A per-card change line, listed under its deck's or list's change summary (or,
+   for a collection push's CSV and unlisted cards, under the run). */
+.sync-run-note[data-level='detail'],
 .sync-run-message[data-level='detail'] {
   padding-left: 0.75rem;
 }

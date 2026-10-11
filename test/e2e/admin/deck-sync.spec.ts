@@ -175,7 +175,11 @@ test.describe('Sync Decks Page', () => {
     await expect(page.locator('.sync-run-status .alert-success')).toContainText('Pulled')
     const winotaRun = page.locator('.sync-run-item', { hasText: WINOTA!.name })
     await expect(winotaRun).toHaveAttribute('data-status', 'synced')
-    // The per-card lines the stream would have carried, rendered from the report.
+    // The count line and per-card lines the stream would have carried, rendered
+    // from the report.
+    await expect(winotaRun.locator('.sync-run-message[data-level="info"]')).toHaveText(
+      'Changes: +1 added, -0 removed, ~0 quantity changed',
+    )
     await expect(winotaRun.locator('.sync-run-message[data-level="detail"]')).toHaveText(
       '+ 1 Lightning Bolt to Main',
     )

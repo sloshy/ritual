@@ -15,7 +15,14 @@ import type {
   CollectionSyncReport,
   UnreadableList,
 } from '../../../collection-sync/engine'
-import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
+import {
+  collectionChangePlace,
+  collectionListLines,
+  collectionRunLines,
+  describeAmbiguousRemoval,
+  describeCollectionCardChange,
+  type AmbiguousRemoval,
+} from '../../../collection-sync/describe'
 import { normalizeListName } from '../../../list/list-file-name'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { t as tStatic, type TranslateFn } from '../../../i18n/t'
@@ -40,6 +47,8 @@ import { UnreadableLinesPanel } from '../components/UnreadableLinesPanel'
 import {
   applySyncEvent,
   relativeTime,
+  replayDescribe,
+  replayResultMessages,
   upsertRunItem,
   type SyncRunItem,
   type SyncRunMessage,
@@ -402,14 +411,22 @@ export function CollectionSync(): JSX.Element {
       }
       // One render for the whole report rather than one per list.
       batch(() => {
-        for (const result of data.report.lists) {
+        const report = data.report
+        const describe = replayDescribe(describeCollectionCardChange)
+        for (const result of report.lists) {
+          // The lines the stream logs for the list, in its order — the count
+          // line, the per-card lines (CSV cards are the run's) — rendered from
+          // the report, then its reason.
+          const lines = collectionListLines(
+            result.changes ?? [],
+            collectionChangePlace(report.direction, result.name),
+            describe,
+          )
           updateList(result.name, (item) => ({
             ...item,
             status: result.status,
             meta: resultMeta(result),
-            messages: result.reason
-              ? [...item.messages, { level: 'info', text: result.reason }]
-              : item.messages,
+            messages: [...item.messages, ...replayResultMessages(lines, result.reason)],
           }))
         }
         // This path never saw the run's own log lines, so the two things it
@@ -420,13 +437,20 @@ export function CollectionSync(): JSX.Element {
         // So they are replayed only for the run that actually stopped on them,
         // which is the same signal the panel below uses.
         const unplaced = data.report.unresolvedAmbiguity ? data.report.ambiguous : []
+        // In the stream's order: a push's CSV cards and its removals of cards no
+        // list holds any more (a pull has neither), a pull's unplaced removals
+        // (a push has none), then the errors the run ended on.
         setRunLog((current) => [
           ...current,
-          ...data.report.errors.map((text): SyncRunMessage => ({ level: 'error', text })),
+          ...replayResultMessages(
+            collectionRunLines(report.lists, report.unlisted ?? [], describe),
+            undefined,
+          ),
           ...unplaced.map((entry): SyncRunMessage => ({
             level: 'warn',
             text: describeAmbiguousRemoval(entry),
           })),
+          ...report.errors.map((text): SyncRunMessage => ({ level: 'error', text })),
         ])
         // The report carries the unreadable lists too, so this path offers the
         // same confirmation the streamed one does.

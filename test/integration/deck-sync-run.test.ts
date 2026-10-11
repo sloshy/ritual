@@ -567,6 +567,19 @@ describe('deck-sync --verbose (Integration)', () => {
     expect(logged()).not.toContain(VERBOSE_HINT)
   })
 
+  test('a pull lists its cards once the deck is saved', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }])
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z', {}, [BOLT]))
+
+    expect(await runDeckSync(['pull', '-v'])).toBe(0)
+
+    const lines = logged().split('\n')
+    const at = (text: string): number => lines.findIndex((line) => line.includes(text))
+    expect(at('Changes: +1 added')).toBeGreaterThan(-1)
+    expect(at('+ 1 Lightning Bolt to Main')).toBe(at('Changes: +1 added') + 1)
+    expect(at('Saved.')).toBe(at('+ 1 Lightning Bolt to Main') + 1)
+  })
+
   test('a run with nothing to list prints no hint', async () => {
     await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }])
     stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
@@ -664,6 +677,8 @@ describe('deck-sync push lastSynced (Integration)', () => {
 
     expect(await readDeck()).toContain('2026-08-01T00:00:00.000Z')
     expect(logged()).not.toContain('Updated lastSynced.')
+    // Its one addition never reached the plan, so there is nothing to count.
+    expect(logged()).not.toContain('Changes:')
   })
 
   test('a clean push stamps lastSynced and says so', async () => {

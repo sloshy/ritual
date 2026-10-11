@@ -11,8 +11,8 @@ Unlike [deck-sync](/commands/deck-sync/), there is no per-file link. An Archidek
 ## Usage
 
 ```bash
-ritual collection-sync pull [lists...]
-ritual collection-sync push [lists...]
+ritual collection-sync pull [lists...] [-v]
+ritual collection-sync push [lists...] [-v]
 ```
 
 ## Arguments
@@ -35,6 +35,7 @@ Names resolve within collection lists only, following the usual [list name rules
 | `--removal-priority <list>` | Collection list an [ambiguous removal](#ambiguous-removals) may take copies from. Repeatable, in order            | none                        |
 | `--csv`                     | Upload a push's new cards as one [CSV import](#csv-import-for-new-cards) instead of adding them one by one        | automatic above 25          |
 | `--csv-file <path>`         | Write a push's new cards to this CSV file **instead of** pushing them                                             | none                        |
+| `-v, --verbose`             | List every card being synced under its list (see [Card Listing](#card-listing))                                   | `false`                     |
 | `--refresh <mode>`          | Card cache refresh policy when new cards take the [CSV path](#cache-freshness): `ask`, `auto`, `no-bulk`, `never` | `ask`                       |
 | `--output <format>`         | Output format: `text`, `json`, or `ndjson`                                                                        | `text`                      |
 | `--quiet`                   | Suppress non-essential output                                                                                     | `false`                     |
@@ -273,11 +274,7 @@ A printing missing from the local cache even after a refresh (a card too new for
 1 addition cannot ride the CSV (the printing is not in the Scryfall cache); it is added one at a time instead.
 ```
 
-Under `--dry-run` they are named rather than resolved, so a preview of a large push makes no per-card request:
-
-```
-[dry-run] Would add 1 × Card 3 (LTC:3) one at a time — the printing is not in the Scryfall cache, so it cannot ride the CSV and was not resolved here.
-```
+Under `--dry-run` they are listed with the other additions (see [Card Listing](#card-listing)) but not resolved, so a preview of a large push makes no per-card request.
 
 This applies to `--csv-file` too: cached printings go in the file, and uncached ones are still pushed one at a time. The report's `csv.uncached` counts them. When the cache can key _none_ of the additions, no file is built and the report says `csv.status: "empty"`.
 
@@ -360,6 +357,29 @@ Without a terminal to ask (`--no-input`, a piped stdin, or `--output json`/`ndjs
 
 `--dry-run` is exempt: a preview writes nothing, so there is nothing to confirm.
 
+## Card Listing
+
+Each list with changes prints a one-line count: `Changes: +3 added, -1 removed`. Both directions print it once the list's cards have gone through: a pull after the list is saved (or, on a dry run, at once), and a push after the list's turn. A list whose save failed prints no count. A push that wrote cards to a `--csv-file` adds a `, N copies pending` clause. With `-v, --verbose` the run also lists every card behind those counts, one line each, right after the count:
+
+```
+Syncing "Blue Binder" (pull)...
+  Changes: +1 added, -1 removed
+  - 1 Lightning Bolt (LEA:161) [LP] from Blue Binder
+  + 2 Sol Ring (C21:240) [foil] to Blue Binder
+```
+
+| Line                                                | Change                                                          |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| `+ N card to <list>` / `- N card from <list>`       | A pull adds copies to, or removes them from, that list          |
+| `+ N card to Archidekt` / `- N card from Archidekt` | A push creates or grows records, or trims or deletes them       |
+| `+ N card to the CSV file, not pushed yet`          | A push wrote the copies to its `--csv-file` for a manual import |
+
+Each card shows its printing, finish, condition and language the way a list line does. The listing follows [`--only`](#change-filter) and names only what went through, or would on a dry run. A card whose write failed is left out, in either direction, and its error is printed instead. A pull whose save fails lists no cards for that list.
+
+Most lines sit under their list. On a push, a card held in several lists is one record, pushed once, and it is listed (with its whole quantity) under each of those lists. A push's [CSV import](#csv-import-for-new-cards) runs before any list's turn, so its cards are listed under the run, as are the records a push deletes for cards no list holds any more. They still count in each list's `Changes:` line.
+
+Without `--verbose`, a run that had cards to list ends with `Run with --verbose to list the cards being synced.` The listing is progress output, so `--quiet` and `--output json`/`ndjson` print neither it nor that hint. Under `--output json`/`ndjson` the same cards arrive as data in each list's [`changes`](#scripted-output) (and the report's `unlisted`), and the MCP `sync_collection` tool reports them the same way. The admin [Sync Collection](/admin/sync-collection/) page always shows the listing.
+
 ## Scripted Output
 
 With `--output json` (or `ndjson`), progress logging is suppressed and a single report is emitted on stdout:
@@ -370,7 +390,26 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
   "into": "Inbox",
   "dryRun": false,
   "lists": [
-    { "name": "binder", "status": "synced", "added": 0, "removed": 1, "pending": 0 },
+    {
+      "name": "binder",
+      "status": "synced",
+      "added": 0,
+      "removed": 1,
+      "pending": 0,
+      "changes": [
+        {
+          "kind": "removed",
+          "name": "Sol Ring",
+          "quantity": 1,
+          "printing": {
+            "set": "c21",
+            "collectorNumber": "240",
+            "finish": "nonfoil",
+            "condition": "NM"
+          }
+        }
+      ]
+    },
     {
       "name": "long-box",
       "status": "synced",
@@ -379,7 +418,26 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
       "removed": 0,
       "pending": 0
     },
-    { "name": "Inbox", "status": "synced", "added": 3, "removed": 0, "pending": 0 }
+    {
+      "name": "Inbox",
+      "status": "synced",
+      "added": 3,
+      "removed": 0,
+      "pending": 0,
+      "changes": [
+        {
+          "kind": "added",
+          "name": "Lightning Bolt",
+          "quantity": 3,
+          "printing": {
+            "set": "lea",
+            "collectorNumber": "161",
+            "finish": "nonfoil",
+            "condition": "NM"
+          }
+        }
+      ]
+    }
   ],
   "failedCount": 0,
   "errors": [],
@@ -407,6 +465,8 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - `into` is the list a pull adds to, and `null` on a push.
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-collection) and the MCP `sync_collection` tool set it when a client cancels between lists; the lists never reached are then `skipped`, and no `lastSynced` is recorded.
 - Each list's `status` is `synced`, `failed`, or `skipped`. `added`, `removed`, and `pending` count **copies**, not lines. A printing held in several lists counts for each of them.
+- `changes` lists, per list, every card behind `added`, `removed` and `pending` (the counts are its totals), present when there is at least one. Entries are discriminated by `kind` (`added`, `removed`, or `pending` for a `--csv-file`), each with `name`, `quantity` (copies) and `printing` (`set` lowercase, `collectorNumber`, `finish`, `condition`, and `language` when not English). An `added` entry carries `via: "csv"` when the CSV import created it. There is one entry per card, printing and kind, so a push that trims one record and deletes another lists one removal. It lists what went through, or would on a dry run, narrowed by `--only`. A card whose write failed is left out, and the list's `reason` says what failed. On a push a card held in several lists is one key: its entry, with the key's whole quantity, is listed under each, like the counts. A list a cancellation skipped may still carry changes an earlier list's turn made for it.
+- `unlisted`, on a push, lists the records deleted for cards no in-scope list holds any more, in the same shape as a `removed` change. It is present only when there is at least one; a failed one is in `errors` instead.
 - `errors` holds failures that belong to the run rather than to one list: the collection fetch, or records for cards that live in no list any more. They fail the run like a failed list does.
 - `localIncomplete` is `true` when a list in scope did not make it into the comparison (see [When a list in scope cannot be read](#when-a-list-in-scope-cannot-be-read)).
 - `ambiguous` holds the removals a pull could not place by itself, with the lists holding copies and how many each holds. They are reported whether or not a [resolution strategy](#ambiguous-removals) placed them. When none could, `errors` says so, `unresolvedAmbiguity` is `true`, and the run wrote nothing. A client that can ask the user branches on that flag rather than parsing `errors`.

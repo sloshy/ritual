@@ -38,7 +38,8 @@ import { DEFAULT_SECTION } from '../list/deck'
 // The row-failure type and its describers live in `describe.ts`: the admin page
 // renders a finished report's CSV outcome, and this module reaches for the
 // filesystem, so it cannot be part of the browser bundle.
-import { describeCollectionKey, type CollectionCsvFailure } from './describe'
+import { type CollectionCsvFailure } from './describe'
+import { describeSyncCard } from '../sync/describe'
 import { unmappableLanguageWarning, type PushCreate } from './diff'
 
 /**
@@ -387,7 +388,7 @@ export function collectionCsvOutcome(
       // a row it never sent; show the echoed line rather than inventing a card.
       card:
         pairing.kind === 'operation'
-          ? describeCollectionKey(pairing.operation.name, pairing.operation.parts)
+          ? describeSyncCard(pairing.operation.name, pairing.operation.parts)
           : row.raw === undefined
             ? `CSV row ${row.row + 1}`
             : `CSV row ${row.row + 1} (${row.raw.trim()})`,

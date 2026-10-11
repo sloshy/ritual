@@ -9,7 +9,7 @@ import type {
 } from '../../api/deck-sync'
 import type { DeckSyncEvent, SyncableDeck, UnreadableDeck } from '../../../deck-sync/engine'
 import { unreadableConsequence, type SyncDirection } from '../../../sync/common'
-import { describeDeckCardChange } from '../../../deck-sync/describe'
+import { deckItemLines, describeDeckCardChange } from '../../../deck-sync/describe'
 import { useT } from '../../../ui/i18n'
 import { indeterminateRef } from '../../../ui/indeterminate'
 import type { TranslateFn } from '../../../i18n/t'
@@ -28,6 +28,8 @@ import { SyncRunLog } from '../components/SyncRunLog'
 import { UnreadableLinesPanel } from '../components/UnreadableLinesPanel'
 import {
   applySyncEvent,
+  replayDescribe,
+  replayResultMessages,
   lastSyncedLabel,
   relativeTime,
   upsertRunItem,
@@ -217,19 +219,18 @@ export function DeckSync(): JSX.Element {
       // One render for the whole report rather than one per deck.
       batch(() => {
         for (const result of data.report.decks) {
-          // The per-card lines the stream would have carried, rendered from
-          // the report's structured list with the engine's own wording.
-          const details = (result.changes ?? []).map((change): SyncRunMessage => ({
-            level: 'detail',
-            text: describeDeckCardChange(change),
-          }))
-          const reason: SyncRunMessage[] = result.reason
-            ? [{ level: 'info', text: result.reason }]
-            : []
+          // The lines the stream logs for the deck, in its order — the count
+          // line, the per-card lines — rendered from the report, then its reason.
+          const lines = deckItemLines(
+            request.direction,
+            result.changes ?? [],
+            request.syncCategories === true,
+            replayDescribe(describeDeckCardChange),
+          )
           updateDeck(result.name, (item) => ({
             ...item,
             status: result.status,
-            messages: [...item.messages, ...reason, ...details],
+            messages: [...item.messages, ...replayResultMessages(lines, result.reason)],
           }))
         }
         // The report carries the unreadable decks too, so this path offers the

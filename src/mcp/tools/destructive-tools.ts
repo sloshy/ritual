@@ -405,7 +405,13 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'whether or not a strategy went on to place them, so read report.errors to tell a ' +
         `failed run from a resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
         'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
-        '(report.csv then says what that import did). Returns a per-list report; a run with ' +
+        '(report.csv then says what that import did). Each list entry with changes carries ' +
+        'changes: every card it gained or lost (added — via: "csv" when the CSV import ' +
+        'created it — or removed), narrowed by only; the list’s counts are its totals. It ' +
+        'lists what went through; a card whose write failed is left out and the list’s reason ' +
+        'says so. On a push a card held in several lists is one key, listed under each with ' +
+        'the key’s whole quantity. A push’s removals of cards no list holds any more are in ' +
+        'report.unlisted. Returns a per-list report; a run with ' +
         'failures still reports success — check report.failedCount. Emits one progress ' +
         'notification per list when the call supplies a progressToken, and honours ' +
         'cancellation between lists (the list in flight finishes, the rest are reported ' +
