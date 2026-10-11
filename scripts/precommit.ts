@@ -76,7 +76,32 @@ type Plan = {
 }
 
 const CODE_FILE_PATTERN = /\.(js|ts|tsx)$/
-const DISPLAY_ORDER = ['build', 'typecheck', 'lint', 'locales', 'test:unit', 'format']
+/** Files that define what lint enforces: the config, the project rules, the untranslated baseline. */
+const LINT_DEFINITION = /^(?:eslint\.config\.js|eslint-rules\/.*)$/
+const DISPLAY_ORDER = ['build', 'typecheck', 'lint', 'locales', 'baseline', 'test:unit', 'format']
+
+/** The `ritual/no-untranslated-literal` ratchet. */
+const UNTRANSLATED_BASELINE = 'eslint-rules/untranslated-baseline.json'
+
+/**
+ * The untranslated baseline only shrinks: fail when any entry's count went up
+ * against `HEAD` (following renames). `RITUAL_ADMIT_UNTRANSLATED_REKEY=1`
+ * allows growth for the one commit that changes the rule's heuristics. Run in
+ * every mode — a hand edit to the JSON is otherwise just a data change.
+ */
+function baselineGuard(staged: boolean): Check {
+  return {
+    name: 'baseline',
+    cmd: [
+      'bun',
+      'run',
+      'scripts/untranslated-baseline.ts',
+      '--guard',
+      ...(staged ? ['--staged'] : []),
+    ],
+    needsBuild: false,
+  }
+}
 
 /**
  * Message-catalog validation, blocking in all three modes. `needsBuild: false`
@@ -132,6 +157,33 @@ async function getStagedFiles(): Promise<string[]> {
   return out.split('\n').filter((line) => line.length > 0)
 }
 
+/**
+ * Staged deletions and renames' old paths. A baselined file among them leaves
+ * stranded entries the lint config refuses to load with, so the full lint runs.
+ */
+async function getStagedRemovals(): Promise<string[]> {
+  const proc = Bun.spawn(['git', 'diff', '--cached', '--name-status', '-M', '--diff-filter=DR'], {
+    stdout: 'pipe',
+    stderr: 'inherit',
+  })
+  const out = await new Response(proc.stdout).text()
+  await proc.exited
+  return out
+    .split('\n')
+    .map((line) => line.split('\t')[1])
+    .filter((file): file is string => file !== undefined && file.length > 0)
+}
+
+/** The files the working-copy baseline names (empty when it is absent or unreadable). */
+async function baselinedFiles(): Promise<Set<string>> {
+  try {
+    const parsed: unknown = JSON.parse(await Bun.file(UNTRANSLATED_BASELINE).text())
+    return new Set(typeof parsed === 'object' && parsed !== null ? Object.keys(parsed) : [])
+  } catch {
+    return new Set()
+  }
+}
+
 async function planChecks(mode: Mode): Promise<Plan> {
   // A `switch` with no `default` makes this exhaustive: `noImplicitReturns`
   // turns a newly-added `Mode` variant into a compile error here (mirroring the
@@ -146,6 +198,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
           // for a file whose type dependencies changed but whose own bytes did not.
           { name: 'lint', cmd: ['bun', 'run', 'lint'], needsBuild: false },
           LOCALES_CHECK,
+          baselineGuard(false),
           UNIT_TEST_CHECK,
           // Whole-repo prettier reads `app.compiled.js` / admin compiled CSS,
           // which are not in `.prettierignore`, so it must wait for the build.
@@ -163,6 +216,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
           // `verify` (full mode) runs cold as the correctness gate.
           { name: 'lint', cmd: ['bun', 'run', 'lint', '--cache'], needsBuild: false },
           LOCALES_CHECK,
+          baselineGuard(false),
           UNIT_TEST_CHECK,
         ],
       }
@@ -170,6 +224,18 @@ async function planChecks(mode: Mode): Promise<Plan> {
     case 'staged': {
       const staged = await getStagedFiles()
       const codeFiles = staged.filter((file) => CODE_FILE_PATTERN.test(file))
+      // A lint-rule, lint-config or baseline edit changes what every file under
+      // `src/` may contain, so it lints all of `src/`: a hand-added baseline
+      // entry is stale (no such string) or new debt, and a tightened rule
+      // flags files nobody staged — either must fail here rather than in CI.
+      const baselined = await baselinedFiles()
+      const removed = await getStagedRemovals()
+      if (
+        staged.some((file) => LINT_DEFINITION.test(file)) ||
+        removed.some((file) => baselined.has(file))
+      ) {
+        codeFiles.push('src')
+      }
       const checks: Check[] = []
 
       if (staged.length > 0) {
@@ -182,6 +248,7 @@ async function planChecks(mode: Mode): Promise<Plan> {
         // `locales/*.json`, and validation is the whole review gate for it.
         checks.push(LOCALES_CHECK)
       }
+      if (staged.length > 0 || removed.length > 0) checks.push(baselineGuard(true))
       if (codeFiles.length > 0) {
         checks.push(
           {

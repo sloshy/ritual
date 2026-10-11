@@ -5,6 +5,8 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { scanNamespaceBoundaries, scanRegistrationBoundaries } from '../../scripts/check-locales'
 import { MESSAGE_NAMESPACES } from '../../src/i18n/messages/en'
+import { isInScope } from '../../eslint-rules/no-untranslated-literal.js'
+import tseslint from 'typescript-eslint'
 
 /**
  * Source-scan convention tests for the i18n framework, modeled on
@@ -22,6 +24,65 @@ import { MESSAGE_NAMESPACES } from '../../src/i18n/messages/en'
  */
 
 const ROOT = path.resolve(import.meta.dir, '../..')
+
+/** What {@link forbiddenDirectives} reads from a parse: the comments. */
+type ParsedComments = { ast: { comments?: ReadonlyArray<{ value: string }> } }
+
+/** The repo's own TypeScript parser, typed for the one field read here. */
+const parseWithComments = tseslint.parser.parseForESLint as unknown as (
+  code: string,
+  options: Record<string, boolean>,
+) => ParsedComments
+
+/** An ESLint directive comment: its keyword, then its body. `/*eslint-disable*\/` needs no space. */
+const DIRECTIVE =
+  /^\s*(eslint-disable-next-line|eslint-disable-line|eslint-disable|eslint-enable|eslint)(?:\s|$)([\s\S]*)$/
+
+/**
+ * The inline ESLint directives in `source` that would switch off or reconfigure
+ * `ritual/no-untranslated-literal`: an `eslint-disable*` naming it or naming no
+ * rule at all, or an `eslint` config comment naming it.
+ */
+function forbiddenDirectives(source: string): string[] {
+  // Every directive spells `eslint`, so a file without it needs no parse — which
+  // keeps the whole-`src/` scan to the handful of files that mention it.
+  if (!source.includes('eslint')) return []
+  const { ast } = parseWithComments(source, {
+    comment: true,
+    jsx: true,
+    range: true,
+    loc: true,
+  })
+  const found: string[] = []
+  for (const comment of ast.comments ?? []) {
+    const match = DIRECTIVE.exec(comment.value)
+    if (match === null) continue
+    const [, keyword = '', body = ''] = match
+    const rules = (body.split(/(?:^|\s)--(?:\s|$)/)[0] ?? '').trim()
+    const namesRule = rules.includes('no-untranslated-literal')
+    const blanket = keyword.startsWith('eslint-disable') && rules.length === 0
+    if (namesRule || blanket) found.push(comment.value.trim())
+  }
+  return found
+}
+
+/** The persistence fence: modules that must never import `src/i18n` (see AGENTS.md). */
+const PERSISTENCE_FENCE = [
+  'src/changes/change-event.ts',
+  'src/changes/changelog-writer.ts',
+  'src/changes/changelog-parser.ts',
+  'src/changes/changelog-blocks.ts',
+  'src/changes/change-event-decode.ts',
+  'src/changes/csv.ts',
+  'src/changes/change-bundle.ts',
+  'src/changes/list-snapshot.ts',
+  'src/changes/diff-categories.ts',
+  'src/changes/wire-changes.ts',
+  'src/changes/save-limits.ts',
+  'src/list/entry-load.ts',
+  'src/buylist/cart-csv.ts',
+  ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
+]
 
 type Violation = {
   file: string
@@ -92,23 +153,7 @@ describe('i18n persistence fence', () => {
    * writing it into the file, which is the line the fence protects.)
    */
   test('changelog, CSV, and export modules never import src/i18n', async () => {
-    const fenced = [
-      'src/changes/change-event.ts',
-      'src/changes/changelog-writer.ts',
-      'src/changes/changelog-parser.ts',
-      'src/changes/changelog-blocks.ts',
-      'src/changes/change-event-decode.ts',
-      'src/changes/csv.ts',
-      'src/changes/change-bundle.ts',
-      'src/changes/list-snapshot.ts',
-      'src/changes/diff-categories.ts',
-      'src/changes/wire-changes.ts',
-      'src/changes/save-limits.ts',
-      'src/list/entry-load.ts',
-      'src/buylist/cart-csv.ts',
-      ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
-    ]
-    expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: fenced })).toEqual([])
+    expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: PERSISTENCE_FENCE })).toEqual([])
   })
 
   /**
@@ -392,5 +437,88 @@ describe('lint-rule vocabulary', () => {
     const match = /const MESSAGE_KEY_LIKE =\s*\/\^\(\?:([^)]+)\)/.exec(source)
     expect(match).not.toBeNull()
     expect((match?.[1] ?? '').split('|').sort()).toEqual([...MESSAGE_NAMESPACES].sort())
+  })
+
+  /**
+   * The fence stops these modules importing the catalog; it does not make their
+   * human messages (validation errors, export warnings) English by contract. They
+   * stay visible to `no-untranslated-literal` — baselined debt that converts to
+   * structured codes translated at the boundary — so none can land unnoticed.
+   */
+  test('the persistence fence stays in the untranslated-text rule scope', () => {
+    expect(PERSISTENCE_FENCE.filter((file) => !isInScope(file))).toEqual([])
+  })
+
+  /**
+   * The only escape hatch from `no-untranslated-literal` is a reasoned
+   * `// i18n-exempt:` comment. An `eslint-disable` naming the rule — or naming no
+   * rule at all, which disables every rule — or an inline `/* eslint … *\/`
+   * config that reconfigures it would be a silent second one. Comments are read
+   * from the parsed AST, so spacing, block comments and multi-line directives
+   * cannot hide one; only files containing `eslint` are parsed, which keeps the
+   * scan fast.
+   */
+  test('no inline directive turns off or reconfigures the untranslated-text rule', async () => {
+    const violations: string[] = []
+    for (const file of sourceFiles()) {
+      const source = await Bun.file(path.join(ROOT, file)).text()
+      for (const directive of forbiddenDirectives(source)) violations.push(`${file}: ${directive}`)
+    }
+    expect(violations).toEqual([])
+  })
+
+  test.each([
+    ['/* eslint ritual/no-untranslated-literal: off */', true],
+    ['/* eslint ritual/no-untranslated-literal: ["error", { "include": [] }] */', true],
+    ['/*eslint-disable*/', true],
+    ['// eslint-disable-next-line', true],
+    ['/* eslint-disable\n   ritual/no-untranslated-literal\n*/', true],
+    ['// eslint-disable-line -- a reason, but no rule list', true],
+    ['// eslint-disable-next-line ritual/no-untranslated-literal -- x', true],
+    ['// eslint-disable-next-line no-control-regex -- y', false],
+    ['/* eslint no-console: off */', false],
+    ['// i18n-exempt: data', false],
+    ['// prose that mentions eslint-disable in passing', false],
+  ])('the directive scan judges %p', (comment, forbidden) => {
+    const source = `const a = 1\n${comment}\nconst b = 2\n`
+    expect(forbiddenDirectives(source).length > 0).toBe(forbidden)
+  })
+
+  /**
+   * The lint config may hand the rule only its root and the baseline: any
+   * `include` / `exclude` / `contractCalls` override there would quietly narrow
+   * what the rule sees, away from the defaults AGENTS.md documents. Likewise no
+   * `src/` path may be ESLint-ignored beyond generated code and compiled bundles.
+   */
+  test('the lint config passes the rule only its root and baseline, and ignores no source', async () => {
+    const config = (await import('../../eslint.config.js')).default as ReadonlyArray<{
+      ignores?: string[]
+      rules?: Record<string, unknown>
+    }>
+    const settings = config
+      .map((entry) => entry.rules?.['ritual/no-untranslated-literal'])
+      .filter((setting): setting is [string, Record<string, unknown>] => Array.isArray(setting))
+    expect(settings).toHaveLength(1)
+    const options = settings[0]?.[1] ?? {}
+    expect(Object.keys(options).sort()).toEqual(['baseline', 'root'])
+    expect(options['root']).toBe(ROOT)
+    const ignoredSources = config
+      .flatMap((entry) => (entry.rules === undefined ? (entry.ignores ?? []) : []))
+      .filter((pattern) => pattern.startsWith('src/'))
+      .sort()
+    expect(ignoredSources).toEqual([
+      'src/admin/site/app.compiled.js',
+      'src/admin/site/styles.compiled.css',
+      'src/generated/**',
+      'src/site/app.compiled.js',
+      'src/site/styles.compiled.css',
+    ])
+  })
+
+  test('no JavaScript sources under src/ escape the TypeScript-only lint', () => {
+    const js = [...new Glob('src/**/*.{js,jsx,mjs,cjs}').scanSync(ROOT)]
+      .map((file) => file.replace(/\\/g, '/'))
+      .filter((file) => !file.endsWith('.compiled.js'))
+    expect(js).toEqual([])
   })
 })

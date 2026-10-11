@@ -6,9 +6,32 @@ import noBareIntlLocale from './eslint-rules/no-bare-intl-locale.js'
 import noInlinePlural from './eslint-rules/no-inline-plural.js'
 import noUntranslatedLiteral from './eslint-rules/no-untranslated-literal.js'
 import noUpwardImport from './eslint-rules/no-upward-import.js'
+import { loadUntranslatedBaseline } from './eslint-rules/untranslated-baseline.js'
+import { createHash } from 'node:crypto'
+import { readdirSync, readFileSync } from 'node:fs'
+import path from 'node:path'
+
+const RULES_DIR = path.join(import.meta.dirname, 'eslint-rules')
+
+/**
+ * A hash of the rule sources. ESLint's `--cache` keys results on the config,
+ * and a plugin enters the config only as `name@version` — so without a version
+ * that changes with the code, editing a rule would keep serving cached passes.
+ */
+const RULES_VERSION = createHash('sha256')
+  .update(
+    readdirSync(RULES_DIR)
+      .filter((file) => file.endsWith('.js'))
+      .sort()
+      .map((file) => readFileSync(path.join(RULES_DIR, file), 'utf8'))
+      .join('\0'),
+  )
+  .digest('hex')
+  .slice(0, 16)
 
 // Project-local plugin housing custom rules that enforce AGENTS.md guidelines.
 const ritualPlugin = {
+  meta: { name: 'ritual', version: RULES_VERSION },
   rules: {
     'no-anonymous-object-types': noAnonymousObjectTypes,
     'no-upward-import': noUpwardImport,
@@ -44,6 +67,11 @@ export default [
     ],
   },
   js.configs.recommended,
+  {
+    // A disable comment that suppresses nothing is an error, so an escape hatch
+    // cannot outlive the text it was written for.
+    linterOptions: { reportUnusedDisableDirectives: 'error' },
+  },
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
@@ -92,7 +120,18 @@ export default [
       // remaining English-by-contract surfaces (see AGENTS.md) are excluded by
       // path in `eslint-rules/no-untranslated-literal.js` rather than downgraded
       // here, so a new violation in a converted directory fails the build.
-      'ritual/no-untranslated-literal': 'error',
+      //
+      // `no-untranslated-literal` covers all of `src/`; the text that predates
+      // that widening is listed in `eslint-rules/untranslated-baseline.json`,
+      // which only shrinks (a converted string's entry is reported as stale
+      // until deleted — see AGENTS.md "Localization").
+      'ritual/no-untranslated-literal': [
+        'error',
+        {
+          root: import.meta.dirname,
+          baseline: loadUntranslatedBaseline(import.meta.dirname),
+        },
+      ],
       'ritual/no-bare-intl-locale': 'error',
       'ritual/no-inline-plural': 'error',
 

@@ -632,11 +632,11 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
 
   // The two board names the deck may spell for itself. Extracted so the nested
   // and flat branches below can never disagree about a heading.
-  // i18n-exempt: a board name, English by contract (see BOARDS).
   const commanderLabel = () =>
+    // i18n-exempt: a board name, English by contract (see BOARDS).
     props.deck.sections.find((s) => s.name.toLowerCase().includes('commander'))?.name ?? 'Commander'
-  // i18n-exempt: a board name, English by contract (see BOARDS).
   const sideboardLabel = () =>
+    // i18n-exempt: a board name, English by contract (see BOARDS).
     props.deck.sections.find((s) => isSideboardSection(s.name))?.name ?? 'Sideboard'
 
   // The two category groupings nest inside

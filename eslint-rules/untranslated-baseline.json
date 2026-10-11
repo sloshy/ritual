@@ -1,0 +1,1657 @@
+{
+  "src/admin/api/art.ts": {
+    "${…}: custom art is set for cards that are no longer in this list: ${…}.": 1,
+    "Card ${…} is not in ${…} '${…}'.": 1,
+    "No ${…} named '${…}'": 1,
+    "No image at ${…}.": 1,
+    "Unknown field '${…}'. Accepted fields: cardId, art.": 1,
+    "art is required — an object with a \"file\" or \"url\", or null to clear the card’s art.": 1,
+    "cardId must be a card line’s &N id (a positive integer).": 1
+  },
+  "src/admin/api/auth-login.ts": {
+    "Input exceeds maximum length": 1,
+    "Invalid TOTP code": 2,
+    "Invalid credentials": 1,
+    "Invalid username or password": 1,
+    "Login successful": 1,
+    "TOTP code required": 1,
+    "TOTP configuration error": 1,
+    "Too many failed attempts. Try again later.": 1,
+    "Username and password are required": 1
+  },
+  "src/admin/api/build-site.ts": {
+    "A site build is already running; wait for it to finish.": 1,
+    "Building…": 1,
+    "Publishing to dist/…": 1,
+    "Site build failed (exit ${…}). ${…}": 1,
+    "Site built successfully": 1,
+    "Starting site build…": 1
+  },
+  "src/admin/api/card-index.ts": {
+    "Invalid list slug '${…}'.": 1,
+    "list type": 1
+  },
+  "src/admin/api/card-name-check.ts": {
+    "'${…}' is not a card name the local cache knows.${…}": 1,
+    "Did you mean: ${…}?": 1,
+    "The local card cache is empty, so card names cannot be validated. ${…}, or omit validateCardNames.": 1,
+    "validateCardNames must be a boolean.": 1
+  },
+  "src/admin/api/collection-sync.ts": {
+    "${…} must be an object with key and choices": 1,
+    "${…} must be an object with list and copies": 1,
+    "${…}.choices must be a non-empty array of { list, copies }": 1,
+    "${…}.copies must be a whole number of at least 1": 1,
+    "${…}.key must be the ambiguous removal's key": 1,
+    "${…}.list must be a collection list name": 1,
+    "Invalid request body": 1,
+    "a collection list name": 1,
+    "collection list names": 2,
+    "csv must be a boolean": 1,
+    "csvFile is not supported over HTTP: use the CLI’s --csv-file to write a CSV, or csv: true to upload the additions.": 1,
+    "removalAssignments must be a JSON-encoded array of { key, choices }": 1,
+    "removalAssignments must be an array of { key, choices }": 1,
+    "removalPriority and removalAssignments are two ways to settle the same removals; send one or the other.": 1
+  },
+  "src/admin/api/config.ts": {
+    "\"${…}\" must be a string": 1,
+    "Unknown admin config key \"${…}\"": 1,
+    "Unknown config key \"${…}\"": 1
+  },
+  "src/admin/api/deck-create.ts": {
+    "Created deck '${…}'": 1,
+    "Deck name is required": 1
+  },
+  "src/admin/api/deck-sync.ts": {
+    "Invalid request body": 1,
+    "deck names": 1,
+    "force must be a boolean": 1,
+    "syncCategories must be a boolean": 1,
+    "syncPrintings must be a boolean": 1
+  },
+  "src/admin/api/diff.ts": {
+    "Query parameters 'a' and 'b' are required ([type:]name).": 1
+  },
+  "src/admin/api/export.ts": {
+    "Each list needs a name.": 1,
+    "Invalid list type '${…}'.": 1,
+    "No export preset named '${…}'. Available presets: ${…}.": 1,
+    "cards must be an array of search-term strings.": 2,
+    "columns must be an array of property names.": 1,
+    "filters must be an object.": 1,
+    "filters.conditions must be an array of condition values.": 1,
+    "filters.labels must be an array of label values.": 1,
+    "filters.name must be a string.": 1,
+    "filters.set must be a string.": 1,
+    "header must be a boolean.": 1,
+    "lists must be an array of { type?, name } objects.": 1,
+    "preset must be a string.": 1,
+    "quoteAll must be a boolean.": 1,
+    "write must be a boolean.": 1
+  },
+  "src/admin/api/history.ts": {
+    "A change set trailing field must be an array of strings": 1,
+    "Each change set must be an object": 1,
+    "Each change set must have at least one change line": 1,
+    "Each change set needs a lines array of strings": 1,
+    "Each change set needs a valid ISO-8601 timestamp": 1,
+    "Each change set needs an events array": 1,
+    "Each change set needs one event per change line (or none, for a legacy set)": 1,
+    "Every change line must start with \"- \" and be a single line": 1,
+    "List '${…}' not found": 2,
+    "Set #${…}${…} event #${…}${…}": 1,
+    "Trailing lines must each be a single line": 1,
+    "Trailing lines must not leave a code fence open": 1,
+    "Trailing lines must not look like change lines or \"## \" headers": 1,
+    "sets array is required": 1
+  },
+  "src/admin/api/import-batches.ts": {
+    "bundleTargets omitted ${…} '${…}'": 1
+  },
+  "src/admin/api/import-changes.ts": {
+    "Applied ${…} across ${…}": 1,
+    "Applied ${…}; ${…} failed": 1,
+    "Request failed (HTTP ${…})": 1,
+    "Unhandled list kind (this is a bug)": 1
+  },
+  "src/admin/api/import-csv.ts": {
+    "; ${…} row(s) failed validation": 1,
+    "CSV contains no data rows": 1,
+    "Failed to parse CSV: ${…}": 1,
+    "Imported 0 card(s) into ${…} '${…}'; ${…} row(s) failed validation": 1,
+    "Invalid request: expected listType (${…}), name, content, and columns (with optional mode [${…}], format, hasHeader)": 1,
+    "Skipped header row: ${…}": 1,
+    "The first row does not look like a header but was skipped as one: ${…} — set hasHeader to false to import it as a card.": 1,
+    "format is required when creating or overwriting a deck": 1,
+    "name is required": 1
+  },
+  "src/admin/api/import-deck.ts": {
+    "Import cancelled": 1,
+    "Imported Deck": 1,
+    "Invalid request: expected mode \"url\" (with url) or \"text\" (with content)": 1,
+    "No valid card lines found in the provided text.": 1,
+    "Successfully imported '${…}'${…}${…}": 1,
+    "content is required": 1,
+    "content is required for mode \"text\"": 1,
+    "name must be a string": 1,
+    "overwrite must be a boolean": 1,
+    "syncPrintings is required for a URL import and must be a boolean: true keeps the exact printings (set, collector number, finish) the source lists, false imports bare card names": 1,
+    "syncPrintings only applies to URL imports; pasted text states its own printings": 1,
+    "url is required": 1,
+    "url is required for mode \"url\"": 1,
+    "{ — ${…} line(s) could not be parsed and were skipped|}{ — ${…} line(s) were imported without their labels|}": 1,
+    "— ${…} line(s) may not have been understood": 1,
+    "— ${…} note(s) about its categories": 1
+  },
+  "src/admin/api/list-file.ts": {
+    "${…} '${…}' not found${…}": 1,
+    "Invalid ${…} slug": 1,
+    "Use GET /api/lists to see the available slugs.": 1
+  },
+  "src/admin/api/list-lifecycle.ts": {
+    "${…} name is required": 1,
+    "New ${…} name is required": 1,
+    "confirmName is required": 1
+  },
+  "src/admin/api/list-load-params.ts": {
+    "Invalid offset '${…}'. Use a non-negative integer.": 1
+  },
+  "src/admin/api/list-save.ts": {
+    "\"${…}\" must be a boolean.": 1,
+    "A filtered or paged load returns \"partial\": true and no contentHash — reload the list without section/nameContains/limit/offset to get one.": 1,
+    "The deck's front matter could not be read (${…}). Fix it before saving.": 1,
+    "changes and contentHash are required. ${…}": 1,
+    "changes[${…}] claims &${…}, past the ${…} this save could allocate.": 1,
+    "not a mapping": 1
+  },
+  "src/admin/api/metadata.ts": {
+    "${…} '${…}' not found": 1,
+    "Collection": 1,
+    "Deck '${…}' not found": 1,
+    "Unknown metadata field '${…}'. Accepted fields: ${…}.": 1,
+    "Wanted list": 1,
+    "contentHash must be a string.": 1,
+    "lastSynced is stamped by deck sync and cannot be edited.": 1,
+    "sourceId must be a non-empty string or null.": 1,
+    "sourceUrl must be an http(s) URL.": 3,
+    "tags must be an array of non-empty strings.": 1,
+    "tags must be an array of strings or null.": 1
+  },
+  "src/admin/api/move.ts": {
+    "Invalid move request": 2,
+    "Invalid remove request": 1,
+    "moves array is required": 2,
+    "removes array is required": 1,
+    "toSection is only valid when the destination is a deck.": 1
+  },
+  "src/admin/api/price.ts": {
+    "Invalid list type '${…}'": 1,
+    "List '${…}' not found": 1,
+    "prices are unavailable": 2
+  },
+  "src/admin/api/save-helpers.ts": {
+    "${…} has been modified since you loaded it. Please reload.": 1,
+    "The card cache is empty; ${…}. ${…}.": 1
+  },
+  "src/admin/api/sell.ts": {
+    "Invalid list reference '${…}' (expected type:slug)": 1,
+    "Invalid list type '${…}'": 1,
+    "List '${…}' not found": 1,
+    "No list references in 'lists'": 1,
+    "buylist matching requires it": 1
+  },
+  "src/admin/api/setup.ts": {
+    "Admin account created successfully": 1,
+    "Admin user already exists": 1,
+    "Password is too long": 1,
+    "Password must be at least ${…} characters": 1,
+    "Username is too long": 1,
+    "username and password are required": 1
+  },
+  "src/admin/api/sync-request.ts": {
+    "${…} must be ${…}": 1,
+    "${…} must be 'true' or 'false'": 1,
+    "${…} must be an array of ${…}": 1,
+    "${…} must not contain blank names": 1,
+    "${…} must not hold only blank names": 1,
+    "direction is required (${…})": 1,
+    "dryRun must be a boolean": 1,
+    "ignoreUnreadableLines must be a boolean": 1,
+    "or": 1
+  },
+  "src/admin/api/target.ts": {
+    "Invalid list slug": 2,
+    "Invalid or missing list type": 1,
+    "List slug is required": 2
+  },
+  "src/admin/api/totp.ts": {
+    "Invalid TOTP code. Check your authenticator app and try again.": 1,
+    "No pending TOTP setup. Call /api/totp/setup first.": 1,
+    "TOTP disabled successfully": 1,
+    "TOTP enabled successfully": 1,
+    "TOTP is already enabled. Disable it first to reconfigure.": 1,
+    "TOTP is not enabled": 1,
+    "code is required": 1
+  },
+  "src/admin/api/wanted-load.ts": {
+    "wanted list": 1
+  },
+  "src/admin/auth.ts": {
+    "Admin user already exists": 1,
+    "Password must be at least ${…} characters": 2
+  },
+  "src/admin/server.ts": {
+    "Forbidden": 4,
+    "Internal server error": 1,
+    "Not Found": 2,
+    "Ritual Admin running at http://{localhost|${…}}:${…}": 1,
+    "Setup required. Create an admin account first.": 1,
+    "Unauthorized": 1,
+    "Unhandled server error:": 1,
+    "wanted list": 1
+  },
+  "src/admin/site/components/SyncCsv.tsx": {
+    "Unhandled CSV outcome: ${…}": 1
+  },
+  "src/admin/site/pages/WantedListEditor.tsx": {
+    "wanted list": 1
+  },
+  "src/admin/site/routing.ts": {
+    "useRouting called outside of a RoutingProvider": 1
+  },
+  "src/admin/site/share-source.ts": {
+    "Share filter: failed to load ${…}/${…}:": 1
+  },
+  "src/admin/site/swap-sources.ts": {
+    "Swap printings: failed to load ${…}/${…}:": 1
+  },
+  "src/admin/site/sync-run.ts": {
+    "Unhandled sync event: ${…}": 1
+  },
+  "src/api/art.ts": {
+    "Not found": 1
+  },
+  "src/api/buylist.ts": {
+    "\"buyer\" must be one of: ${…}": 1,
+    "\"printings\" must be an array": 1,
+    "\"printings\" must contain at most ${…} entries": 1,
+    "\"printings[${…}]\" must be an object": 1,
+    "\"printings[${…}].collectorNumber\" must be a non-empty string": 1,
+    "\"printings[${…}].finish\" must be one of: nonfoil, foil, etched": 1,
+    "\"printings[${…}].scryfallId\" must be a string when present": 1,
+    "\"printings[${…}].set\" must be a non-empty string": 1,
+    "Not found": 1
+  },
+  "src/api/card-details.ts": {
+    "No card named '${…}'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).": 1,
+    "name is required.": 1
+  },
+  "src/api/card-price.ts": {
+    "No printings found for '${…}'": 1,
+    "name is required": 1
+  },
+  "src/api/card-prices.ts": {
+    "\"names\" must be an array of strings": 1,
+    "\"names\" must contain at most ${…} entries": 1
+  },
+  "src/api/card-printings.ts": {
+    "name is required": 1
+  },
+  "src/api/card-search.ts": {
+    "limit must be at most ${…} (one Scryfall page), got '${…}'.": 1,
+    "page must be a positive integer, got '${…}'.": 1,
+    "q is required.": 1
+  },
+  "src/api/cards.ts": {
+    "ids is required": 1,
+    "ids must contain at least one Scryfall ID": 1,
+    "ids must contain at most ${…} entries": 1
+  },
+  "src/api/http.ts": {
+    "Request body must be JSON.": 1,
+    "Request body must be a JSON object.": 1,
+    "Request body too large (limit ${…} bytes)": 1
+  },
+  "src/auth/ArchidektAuth.ts": {
+    "Failed to refresh token:": 1,
+    "Login failed": 1,
+    "Token refresh failed": 1,
+    "Token refresh failed: missing access token in response": 1,
+    "Token refreshed successfully.": 1
+  },
+  "src/buylist/cart-csv.ts": {
+    "CK imports at most ${…} cards per upload (this file has ${…}); split it before uploading.": 1,
+    "CK imports at most ${…} unique titles per upload (this file has ${…}); split it before uploading.": 1,
+    "The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: ${…}": 1
+  },
+  "src/cache-feed/host.ts": {
+    "Artifact ${…} is missing on disk; redownloading.": 1,
+    "Bulk download for ${…} has no body": 1,
+    "Bulk manifest has no usable '${…}' entry": 1,
+    "Downloading ${…} (updated ${…})...": 1,
+    "Failed to download ${…} bulk": 1,
+    "Feed is up to date.": 1,
+    "Feed not generated yet": 1,
+    "Ignoring existing ${…}: ${…}": 1,
+    "Ignoring unreadable ${…} (not valid JSON).": 1,
+    "Invalid range": 1,
+    "Loaded existing feed (generated ${…}).": 1,
+    "Method not allowed": 1,
+    "Not found": 3,
+    "Pruning stale artifact ${…}": 1,
+    "Published feed with ${…} entries.": 1,
+    "Refusing suspicious bulk file name '${…}'": 1
+  },
+  "src/cache-feed/seeder.ts": {
+    "FeedSeeder.sync called before start()": 1,
+    "Stopped seeding ${…} (${…})": 1,
+    "Torrent ${…} did not become ready in time": 1,
+    "Torrent client error: ${…}": 1
+  },
+  "src/cache-server/cadence.ts": {
+    "\"--url\" requires a value": 1,
+    "--url only applies when the cache source is 'feed'.": 1,
+    "Refresh interval must be one of: 'daily', 'weekly', 'monthly'.": 1
+  },
+  "src/cache-server/helpers.ts": {
+    "${…} ${…} ${…}${…} -> ${…} (${…}ms)": 1,
+    "${…} cache update: ${…}": 1
+  },
+  "src/cache-server/scheduler.ts": {
+    "${…} Scheduled price refresh bucket failed:": 1,
+    "${…} Scheduled price refresh failed for '${…}':": 1
+  },
+  "src/cache-server/server.ts": {
+    "${…} Cache feed is unchanged; cards are current.": 1,
+    "${…} Cache server listening on http://${…}:${…}": 1,
+    "${…} Cache server request failed:": 1,
+    "${…} Failed to start the cache server:": 1,
+    "${…} Feed mode disabled by --deny-http.": 1,
+    "${…} Feed sync failed; falling back to Scryfall:": 1,
+    "${…} HTTP requests denied (--deny-http).": 1,
+    "${…} Refreshing cards from Scryfall failed:": 1,
+    "${…} Running startup cards refresh (${…}, source: ${…})...": 1,
+    "${…} Scheduled cards cache refresh complete.": 1,
+    "${…} Scheduled cards cache refresh enabled: ${…}": 1,
+    "${…} Scheduled cards cache refresh failed:": 1,
+    "${…} Scheduled prices cache refresh enabled: ${…}": 1,
+    "${…} Seeding feed artifacts failed (cards already ingested):": 1,
+    "${…} Seeding feed artifacts{ on TCP port ${…}|}.": 1,
+    "${…} Verbose request logging enabled.": 1,
+    "At least one cache key is required.": 1,
+    "Cache key is required.": 2,
+    "Cache server request failed.": 1,
+    "Expected 'replace' to be a boolean.": 1,
+    "Expected JSON body with 'entries' object.": 1,
+    "Expected JSON body with 'keys' string array.": 1,
+    "Expected JSON body with 'value'.": 1,
+    "HTTP requests are denied (--deny-http). Pre-populate the cache for testing.": 1,
+    "Invalid cache route.": 1,
+    "Invalid cache section.": 1,
+    "Method not allowed.": 1,
+    "Not Found": 1
+  },
+  "src/cache/bulk-provenance.ts": {
+    "Invalid card-bulk provenance: expected an object": 1,
+    "Invalid card-bulk provenance: missing string recordedAt": 1,
+    "Invalid card-bulk provenance: unknown bulkType '${…}'": 1
+  },
+  "src/cache/config.ts": {
+    "Cache server must be a non-empty hostname and port (example: localhost:4000).": 1,
+    "Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).": 2
+  },
+  "src/cache/ensure-cards.ts": {
+    "Card cache bulk download is more than a week old. Refreshing...": 1,
+    "Card cache has never been bulk-downloaded. Downloading from Scryfall...": 1,
+    "Over ${…} cards not found in cache. Triggering bulk cache refresh...": 1
+  },
+  "src/cache/feed-client.ts": {
+    "(the configured defaultLanguage needs the all_cards bulk, which this feed's host does not publish — host with `cache feed host --cards all` or refresh with --source scryfall)": 1,
+    "Cache feed has no '${…}' entry${…}": 1,
+    "Completed ${…} (${…} peers).": 1,
+    "Download of ${…} has no body": 1,
+    "Downloaded ${…} does not match the feed's sha256 (got ${…})": 1,
+    "Downloading ${…} over BitTorrent...": 1,
+    "Downloading ${…} over HTTP...": 1,
+    "Failed to download ${…}": 1,
+    "Failed to fetch cache feed ${…}": 1,
+    "Failed to fetch torrent for ${…}": 1,
+    "Ignoring unreadable ${…} (not valid JSON).": 1,
+    "Invalid feed-client state: entry for '${…}' is missing a string infoHash/ingestedAt": 1,
+    "Invalid feed-client state: expected an object": 1,
+    "Invalid feed-client state: missing ingested map": 1,
+    "Invalid feed-client state: unknown kind '${…}'": 1,
+    "Restoring missing artifact ${…}...": 1,
+    "Reusing already-downloaded ${…}.": 1,
+    "Stopped seeding superseded artifact ${…} (${…})": 1,
+    "Torrent ${…} did not become ready in time": 1,
+    "Torrent client error: ${…}": 1,
+    "Torrent download of ${…} timed out": 1
+  },
+  "src/cache/feed.ts": {
+    "Invalid cache feed: entry ${…} has unknown kind '${…}'": 1,
+    "Invalid cache feed: entry ${…} is missing a positive numeric length": 1,
+    "Invalid cache feed: entry ${…} is missing a string ${…}": 1,
+    "Invalid cache feed: entry ${…} is not an object": 1,
+    "Invalid cache feed: expected an object": 1,
+    "Invalid cache feed: missing entries array": 1,
+    "Invalid cache feed: missing string generatedAt": 1,
+    "Invalid cache feed: unsupported version ${…} (expected ${…})": 1
+  },
+  "src/cache/file-cache.ts": {
+    "Card '${…}' added to blocklist (expires ${…}).": 1,
+    "Card '${…}' removed from blocklist (expired).": 1,
+    "Detected invalid cache format. Resetting cache.": 1,
+    "Detected old cache schema (single objects). Resetting cards cache.": 1,
+    "Failed to load cache, starting fresh.": 1,
+    "Failed to save cache:": 1
+  },
+  "src/cache/freshness.ts": {
+    "${…} Continuing with the existing cache.": 1,
+    "${…} Redownload the card cache now?": 1,
+    "${…} Redownloading the card cache...": 1,
+    "${…} Refreshing it from Scryfall first...": 1,
+    "${…} Run `ritual cache preload-all` first, or re-run with --refresh auto to download it.": 1,
+    "${…} Update it before uploading?": 1,
+    "${…} of ${…} card(s) have prices older than 24 hours.": 1,
+    "Added oracle/art tags to the card cache.": 1,
+    "Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is ${…}.": 1,
+    "Cached prices are more than a day old. Refreshing the card cache from Scryfall...": 2,
+    "Card cache download failed: ${…}": 1,
+    "Card cache is ${…} old. Would you like to update it?": 1,
+    "Card cache is empty. ${…}": 1,
+    "Card cache is empty. A preloaded cache is required for card autocomplete.": 1,
+    "Could not download tags; the site's tag filters will be empty.": 1,
+    "Fetching oracle/art tags from Scryfall...": 1,
+    "Prices were last updated ${…} ago. Update now?": 1,
+    "Pricing requires the Scryfall card database.": 1,
+    "Redownload the latest Scryfall card cache now?": 1,
+    "Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.": 1,
+    "Run `ritual cache preload-all`, or re-run with --refresh auto.": 1,
+    "Skipping tag download; the site's tag filters will be empty. Run `ritual cache refresh-tags` later to add them.": 1,
+    "The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?": 1,
+    "The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.": 1,
+    "The card cache was built from Scryfall's '${…}' bulk, but ${…}.": 1,
+    "Would you like to download it now?": 1,
+    "Would you like to download the card database now?": 1,
+    "the configured defaultLanguage '${…}' needs the every-language 'all_cards' bulk": 1,
+    "the configured defaultLanguage 'en' only needs the English-only 'default_cards' bulk": 1
+  },
+  "src/cache/http-cache.ts": {
+    "Cache server request failed (${…}) POST ${…}{: ${…}|}": 1,
+    "Cache server request failed (${…}) {${…}|GET} ${…}{: ${…}|}": 1,
+    "Cache server stream buffer exceeded maximum size": 1,
+    "Cache server stream error: ${…}": 1,
+    "Cache server stream response body is missing.": 1,
+    "streamGetMany is only supported for prices cache.": 1
+  },
+  "src/cache/lock.ts": {
+    "\"${…}\" (pid ${…} on ${…})": 1,
+    "Breaking stale cache lock (${…}).": 1,
+    "Cache is locked by \"${…}\" (pid ${…}). Waiting up to ${…} for it to finish...": 1,
+    "Invalid cache lock: expected an object": 1,
+    "Invalid cache lock: missing numeric createdAt": 1,
+    "Invalid cache lock: missing numeric pid": 1,
+    "Invalid cache lock: missing string hostname": 1,
+    "Invalid cache lock: missing string operation": 1,
+    "Invalid cache lock: not valid JSON": 1,
+    "Timed out after ${…} waiting for the cache lock held by ${…}. If no other ritual process is running, delete the lock file manually.": 1,
+    "another process": 1,
+    "holder pid ${…} is no longer running or exceeded the stale age": 1
+  },
+  "src/cache/refresh-source.ts": {
+    "Cache feed is unchanged; card cache is current.": 1,
+    "Feed refresh failed (${…}); falling back to Scryfall.": 1
+  },
+  "src/cache/status.ts": {
+    "Refresh it first (MCP: the refresh_cache tool; CLI: `ritual cache preload-all`)": 1
+  },
+  "src/card/card-categories.ts": {
+    "${…} must be an array of categories.": 2,
+    "Board Wipes": 1,
+    "Invalid category ${…}: ${…}.": 1,
+    "a category is non-empty plain text that cannot contain a comma or a control character": 1,
+    "defaultCategories must be an array of category names": 1,
+    "defaultCategories must be an array of category names, got ${…}": 1
+  },
+  "src/card/card-labels.ts": {
+    "${…} must be an array of labels (${…}).": 2,
+    "${…} must be one of: ${…}.": 2,
+    "'${…}' cannot be both set and negated on one card.": 1,
+    "'${…}' cannot be combined with other labels.": 2,
+    "Front matter 'labels' ignored: ${…} A rewrite would drop the key.": 1,
+    "Invalid ${…} '${…}'. Use one of: ${…}.": 2,
+    "labels [${…}] are not supported on a ${…}; supported: ${…}.": 1,
+    "labels do not apply to a ${…}.": 1
+  },
+  "src/card/card-language.ts": {
+    "(did you mean [${…}]?)": 1,
+    "Ancient Greek": 1,
+    "Invalid language ${…}${…}. Valid languages: ${…}": 1,
+    "Simplified Chinese": 1,
+    "Traditional Chinese": 1
+  },
+  "src/card/card-line-grammar.ts": {
+    "${…} is inside the card name: a card line's tokens all follow the name.": 1,
+    "${…} is not a ${…} token{.| — ${…}.}": 1,
+    "${…} runs into the text beside it: a card line's tokens are separated by whitespace.": 1,
+    "A ${…} line must name a printing, e.g. (LEA:161): ${…}": 1,
+    "A card line must name at least one copy.": 1,
+    "Blank line.": 1,
+    "Card name still contains a printing token, so the line's format was not recognized: ${…}": 1,
+    "Conflicting labels ${…} — [${…}] cannot be both set and negated.": 1,
+    "Conflicting labels ${…} — [${…}] cannot be combined with any other label.": 1,
+    "Duplicate ${…} token ${…}.": 1,
+    "Malformed tag token ${…}: ${…}.": 1,
+    "No card name: ${…}": 1,
+    "Not a card line: ${…}": 1,
+    "Read ${…} copies: a ${…} holds one line per copy, so this line becomes ${…} lines on the next save.": 1,
+    "Read the export finish marker ${…} as [${…}].": 1,
+    "Read the export printing ${…} as (${…}){ [${…}]|}.": 1,
+    "Unclosed note: a {note} must end with a closing brace.": 1,
+    "Unrecognized token ${…}.": 1,
+    "insert a space {after|before} ${…}": 1,
+    "move ${…} after the name": 1,
+    "the &N id must be the last token on the line": 1,
+    "wanted lists never carry a condition": 1,
+    "wanted lists never carry labels": 1
+  },
+  "src/card/card-line-tail.ts": {
+    "A card line cannot hold a line break: ${…}": 1
+  },
+  "src/card/card-tags.ts": {
+    "${…} must be an array of tags.": 2,
+    "Invalid tag ${…}: ${…}.": 1,
+    "No tags given.": 1,
+    "a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses": 1
+  },
+  "src/card/note-helpers.ts": {
+    "Notes must be single-line text with no control characters (newlines, tabs, etc. are not allowed).": 1
+  },
+  "src/card/set-codes.ts": {
+    "Invalid set code '${…}'.": 1
+  },
+  "src/cardkingdom/cache.ts": {
+    "Dropped ${…} malformed products from the Card Kingdom cache": 1,
+    "Ignoring unreadable Card Kingdom cache (not valid JSON)": 1,
+    "Ignoring unreadable Card Kingdom cache: ${…}": 1,
+    "Invalid Card Kingdom cache: expected an object": 1,
+    "Invalid Card Kingdom cache: missing feed object": 1,
+    "Invalid Card Kingdom cache: missing feed.baseUrl": 1,
+    "Invalid Card Kingdom cache: missing feed.createdAt": 1,
+    "Invalid Card Kingdom cache: missing numeric retrievedAt": 1,
+    "Invalid Card Kingdom cache: missing products array": 1,
+    "Invalid Card Kingdom cache: no readable products": 1
+  },
+  "src/cardkingdom/client.ts": {
+    "Card Kingdom feed download failed: ${…}": 1,
+    "Card Kingdom feed download failed: HTTP ${…}": 1,
+    "Card Kingdom feed was not valid JSON: ${…}": 1
+  },
+  "src/cardkingdom/ensure.ts": {
+    "${…} Download it now (~70 MB)?": 1,
+    "${…} Re-run with --refresh auto to download it (~70 MB).": 1,
+    "${…} Refresh the Card Kingdom buylist first: the refresh_buylist tool, POST /api/sell/refresh, or `ritual sell --refresh auto` on the CLI.": 1,
+    "${…} Using the buylist retrieved ${…} ago instead.": 1,
+    "Card Kingdom buylist updated (${…} products).": 1,
+    "Downloading the Card Kingdom buylist (~70 MB)...": 1,
+    "No Card Kingdom buylist has been downloaded yet.": 1,
+    "Sell mode: ${…}": 1,
+    "The Card Kingdom buylist was retrieved ${…} ago. Updating it...": 1
+  },
+  "src/cardkingdom/feed.ts": {
+    "Invalid Card Kingdom feed: expected a JSON object": 1,
+    "Invalid Card Kingdom feed: missing data array": 1,
+    "Invalid Card Kingdom feed: missing meta object": 1,
+    "Invalid Card Kingdom feed: no readable products": 1,
+    "Skipped ${…} more malformed Card Kingdom products": 1,
+    "Skipped Card Kingdom product data[${…}]: ${…}": 1,
+    "missing card name": 1,
+    "missing edition": 1,
+    "missing numeric id": 1,
+    "missing string sku": 1,
+    "not an object": 1
+  },
+  "src/changes/apply-batch.ts": {
+    "${…} change(s) matched no card in ${…} \"${…}\": ${…} — card names match exactly (case-sensitive)": 1,
+    "${…} change(s) never apply to a ${…} list: ${…}": 1,
+    "${…} change(s) would set a finish on a card with no printing: ${…} — set the printing first, then the finish": 1,
+    "${…}. Nothing was saved.": 1
+  },
+  "src/changes/change-bundle.ts": {
+    "${…}Invalid list kind: ${…} (expected deck, collection, or wanted).": 1,
+    "${…}Missing or invalid \"changes\" array.": 1,
+    "${…}Missing or invalid \"name\".": 1,
+    "${…}Missing or invalid \"slug\".": 1,
+    "${…}has a \"pinsCardId\" but no \"toCardId\"; a pinning move must name the line the copy lands on.": 1,
+    "${…}has a \"replacement\" but no \"pinsCardId\"; only a pinning move carries one.": 1,
+    "${…}has an invalid \"cardId\".": 1,
+    "${…}has an invalid \"pinsCardId\".": 1,
+    "${…}has an invalid \"section\".": 1,
+    "${…}has an invalid \"slug\".": 1,
+    "${…}has an invalid \"toCardId\".": 1,
+    "${…}has an invalid list kind: ${…} (expected deck, collection, or wanted).": 1,
+    "${…}is a ${…}; moves belong in the top-level \"moves\" array.": 1,
+    "${…}is missing its \"cardName\".": 1,
+    "${…}is missing its \"id\".": 1,
+    "${…}is missing its \"name\".": 1,
+    "${…}is missing its \"timestamp\".": 1,
+    "${…}is not an object.": 2,
+    "${…}names the same list as source and destination.": 1,
+    "A line break in \"${…}\".": 1,
+    "Expected a JSON object.": 1,
+    "List #${…}${…} is not an object.": 1,
+    "Missing or invalid \"exportedAt\".": 1,
+    "Missing or invalid \"lists\" array.": 1,
+    "Missing or invalid \"moves\" array.": 1,
+    "Not a ritual change bundle (missing \"format\": \"${…}\").": 1,
+    "Not valid JSON.": 1,
+    "Unsupported change-bundle version: ${…}.": 1
+  },
+  "src/changes/change-event-decode.ts": {
+    "${…}(${…}) is keyed by card name and must not carry a \"cardId\".": 1,
+    "${…}(${…}) is missing its \"${…}\".": 1,
+    "${…}(${…}) targets the list, not a card, and must not carry a \"cardName\".": 1,
+    "${…}carries a \"replacement\" but pins no line (\"replacesCardId\").": 1,
+    "${…}has a line break in \"${…}\".": 1,
+    "${…}has an invalid \"${…}\".": 3,
+    "${…}has an invalid \"cardId\".": 1,
+    "${…}has an invalid \"cardName\".": 1,
+    "${…}has an invalid \"collectorNumber\".": 1,
+    "${…}has an invalid \"note\".": 1,
+    "${…}has an invalid \"replacement\".": 1,
+    "${…}has an invalid \"section\".": 1,
+    "${…}has an invalid \"set\".": 1,
+    "${…}has an invalid \"tag\".": 1,
+    "${…}has an invalid list type: ${…} (expected deck, collection, or wanted).": 1,
+    "${…}has an unknown action: ${…}.": 1,
+    "${…}has an unknown board: ${…}.": 1,
+    "${…}has an unknown condition: ${…}.": 1,
+    "${…}has an unknown finish: ${…}.": 1,
+    "${…}has an unknown language: ${…}.": 1,
+    "${…}is missing its \"cardName\".": 1,
+    "${…}is missing its \"id\".": 1,
+    "${…}is missing its \"name\".": 1,
+    "${…}is missing its \"timestamp\".": 1,
+    "${…}is not an object.": 2,
+    "${…}must name a printing (\"set\" and \"collectorNumber\").": 1,
+    "${…}must not name a \"condition\" (a replacement carries no grade).": 1,
+    "${…}names half a printing; \"set\" and \"collectorNumber\" must both be present or both absent.": 1
+  },
+  "src/changes/change-event.ts": {
+    "${…} ${…}${…}${…} from ${…}": 1,
+    "${…} ${…}${…}${…} to ${…}": 1,
+    "${…} categories of ${…}": 1,
+    "${…} labels on ${…}${…}": 1,
+    "${…} note on ${…}${…}": 1,
+    "${…} tag \"${…}\" from ${…}${…}": 1,
+    "${…} tag \"${…}\" to ${…}${…}": 1,
+    "Collection '${…}'": 1,
+    "Deck '${…}'": 1,
+    "Set ${…} as commander${…}": 1,
+    "Set ${…} finish to ${…}${…}": 1,
+    "Set ${…} printing to ${…}${…}": 1,
+    "Set categories of ${…} to ${…}": 1,
+    "Set category order to ${…}": 1,
+    "Set labels on ${…}${…} to [${…}]": 1,
+    "Set language of ${…} to ${…}${…}": 1,
+    "Set note on ${…}${…} to \"${…}\"": 1,
+    "Unhandled change action (this is a bug)": 1,
+    "Unset ${…} as commander${…}": 1,
+    "Wanted list '${…}'": 1,
+    "no specific printing": 1,
+    "{Added|Add} section \"${…}\"": 1,
+    "{Cleared|Clear} category order": 1,
+    "{Moved|Move} ${…} to section \"${…}\"${…}": 1,
+    "{Removed|Remove} section \"${…}\"": 1,
+    "{Renamed|Rename} category \"${…}\" to \"${…}\"": 1,
+    "{Renamed|Rename} section \"${…}\" to \"${…}\"": 1
+  },
+  "src/changes/change-message.ts": {
+    "Unhandled change action (this is a bug)": 2
+  },
+  "src/changes/changelog-blocks.ts": {
+    "# Changelog for ${…}": 1,
+    "Not valid JSON.": 1
+  },
+  "src/changes/changelog-writer.ts": {
+    "# Changelog for ${…}": 1
+  },
+  "src/changes/collection-changes.ts": {
+    "Cannot add \"${…}\" to a collection without set and collector number": 1,
+    "Cannot set printing on \"${…}\" without set and collector number": 1
+  },
+  "src/changes/git-diff.ts": {
+    "Failed to check whether ${…} is a git repository": 1,
+    "Failed to read ${…} at ${…} in ${…}": 1,
+    "Failed to read the git diff between ${…} and HEAD in ${…}": 1,
+    "Failed to resolve \"${…}\" in ${…}": 1,
+    "git is not installed or not on PATH": 1
+  },
+  "src/changes/wire-changes.ts": {
+    "\"changes\" must be an array.": 1,
+    "A save may carry at most ${…} changes (got ${…}). Save in smaller batches.": 1
+  },
+  "src/cli/options.ts": {
+    "output format": 1,
+    "refresh mode": 1
+  },
+  "src/cli/program.ts": {
+    "Global Options:": 1
+  },
+  "src/clients/ArchidektClient.ts": {
+    "${…} failed (${…}): ${…}": 1,
+    "Archidekt returned a next-page link it had already served (${…}); stopping after ${…} result(s).": 1,
+    "Archidekt served a next-page link that will not be followed (${…}): ${…}. The list may be incomplete.": 1,
+    "Card not found on Archidekt: ${…}${…}": 1,
+    "Card search failed (${…}): ${…}": 1,
+    "Failed to fetch collection page ${…} for user ${…}": 1,
+    "Failed to fetch deck ${…}": 1,
+    "Failed to fetch own decks": 1,
+    "Failed to fetch public decks": 1,
+    "Stopped after ${…} pages; the list may be incomplete (${…} result(s) so far).": 1,
+    "deleteCollectionRecords (${…} records)": 1,
+    "minRequestIntervalMs must be a non-negative finite number, got ${…}": 1,
+    "response body had no `results` array": 1,
+    "response body was not an object": 1,
+    "unexpected host ${…}": 1,
+    "uploadCollectionCsv (chunk ${…})": 1,
+    "uploadCollectionCsv: ${…}": 1,
+    "uploadCollectionCsv: the CSV could not be read — ${…}": 1
+  },
+  "src/collection-sync/csv.ts": {
+    "CSV row ${…}${…}": 1,
+    "CSV row ${…}${…} (${…})": 1,
+    "No Archidekt CSV column for the export property '${…}'": 1,
+    "The Archidekt CSV upload has no '${…}' column": 1
+  },
+  "src/collection-sync/describe.ts": {
+    "${…} and ${…}": 1,
+    "${…} not found": 1,
+    "${…} refused without a reason": 1,
+    "Archidekt gave no reason": 1,
+    "Not removing ${…} × ${…}: ambiguous — copies live in ${…}.": 1,
+    "Unhandled card change: ${…}": 1,
+    "matched more than one printing": 1,
+    "not found on Archidekt": 1
+  },
+  "src/collection-sync/diff.ts": {
+    "Archidekt cannot represent ${…} [${…}]; pushing ${…}${…} as English.": 1,
+    "Archidekt record ${…} (${…}) has an unknown language id '${…}'; treating it as English.": 1,
+    "Skipping Archidekt record ${…} (${…}): ${…}": 2,
+    "Skipping Archidekt record ${…}: it does not name a card, set code, and collector number.": 1
+  },
+  "src/collection-sync/engine.ts": {
+    "${…} would be dropped by a sync": 1,
+    "Could not confirm the unreadable lines: ${…}": 1,
+    "Could not read collection list \"${…}\": ${…}": 1,
+    "Could not record the sync timestamp: ${…}": 1,
+    "No collection lists to sync from.": 1,
+    "No readable collection lists to push. Refusing to treat that as an empty collection.": 1,
+    "This preview includes the lists above; a real run holds them back until their unreadable lines are accepted.": 1
+  },
+  "src/collection-sync/pull.ts": {
+    "${…} Nothing was written.": 1,
+    "${…}A real run would refuse to place ${…} until the ambiguity is resolved.": 1,
+    "${…}Removing ${…} × ${…} from \"${…}\" (${…}).": 1,
+    "Cannot use the removal priority: ${…}.": 1,
+    "Could not create the collection list \"${…}\": ${…}": 1,
+    "Could not place ${…}: the removals are ambiguous and were not resolved. Nothing was written.": 1,
+    "Could not place ${…}: the resolution did not say which lists lose those copies. Nothing was written.": 1,
+    "Could not read the Scryfall cache: ${…}": 1,
+    "Could not resolve the ambiguous removals: ${…}. Nothing was written.": 1,
+    "Created collection list \"${…}\" for the cards being added.": 1,
+    "Failed to save: ${…}": 1,
+    "More than one collection list is named \"${…}\": ${…}. Point --into (or collectionSync.pullTarget) at one of them.": 2,
+    "No changes.": 1,
+    "Not adding ${…}: some collection lists in scope could not be read, so cards they already hold would be duplicated into \"${…}\". Fix or accept those lists and run again.": 1,
+    "Saved.": 1,
+    "The removal priority (${…}) cannot place ${…}. Nothing was written.": 1,
+    "[dry-run] Not saved.": 1,
+    "[dry-run] Would create collection list \"${…}\" for the cards being added.": 1,
+    "more than one collection list is named \"${…}\": ${…}": 1,
+    "no changes": 1,
+    "no collection list is named \"${…}\"": 1,
+    "removal priority": 1
+  },
+  "src/collection-sync/push-csv.ts": {
+    "${…} Nothing was pushed.": 2,
+    "${…} cards would be added — more than ${…}, so adding them one at a time would cost ${…} printing searches, and this run was not told to upload them as one CSV import instead. Nothing was pushed.": 1,
+    "${…} could not be imported from the CSV": 1,
+    "${…} could not be matched to a card; the copies they carried are credited on faith — a later push reconciles anything actually missed.": 1,
+    "Archidekt did not import ${…} of ${…} CSV rows{ (${…})|}.": 1,
+    "Could not decide how to add ${…} cards: ${…}. Nothing was pushed.": 1,
+    "Could not prepare the card cache for a CSV upload: ${…}. Nothing was pushed.": 1,
+    "Could not read Archidekt's answer for CSV chunk ${…}: ${…}. Response: ${…}": 1,
+    "Failed to upload ${…} as a CSV import: ${…}": 1,
+    "Failed to write the additions CSV to ${…}: ${…}": 1,
+    "Imported ${…} from the CSV in ${…}.": 1,
+    "No file was named for the additions CSV. Nothing was pushed.": 1,
+    "Not imported: ${…} — ${…}.": 1,
+    "Uploading ${…} as a CSV import...": 1,
+    "Wrote ${…} to ${…}; they were not pushed. Import the file at ${…}.": 1,
+    "[dry-run] Would upload ${…} as a CSV import.": 1,
+    "[dry-run] Would write ${…} to ${…} for a manual upload at ${…}.": 1,
+    "…and ${…} more.": 1
+  },
+  "src/collection-sync/push.ts": {
+    "Failed to add ${…}: ${…}": 1,
+    "Failed to remove ${…} from Archidekt": 1,
+    "Failed to remove ${…}: ${…}": 1,
+    "Failed to update ${…}: ${…}": 1,
+    "No changes.": 1,
+    "Not removing ${…} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.": 1,
+    "no changes": 1
+  },
+  "src/collection-sync/state.ts": {
+    "Collection sync state is missing a 'lastSynced' timestamp": 1,
+    "Collection sync state is missing a 'username'": 1,
+    "Collection sync state is missing a numeric 'userId'": 1,
+    "Collection sync state is not an object": 1,
+    "the file is not valid JSON": 1
+  },
+  "src/collection-sync/store.ts": {
+    "Collection list '${…}' is no longer on disk": 2
+  },
+  "src/commands/admin.ts": {
+    "Admin": 1,
+    "Admin SPA CSS build failed": 1,
+    "Admin SPA CSS build produced no .css output": 1,
+    "Admin SPA JS build failed": 1,
+    "Admin account created via CLI": 1,
+    "Admin password reset via CLI": 1,
+    "MCP HTTP": 1,
+    "TOTP disabled via CLI": 1
+  },
+  "src/commands/card-target.ts": {
+    "a card name or --card-id <id>": 1,
+    "a list name": 1
+  },
+  "src/commands/detect-changes.ts": {
+    "${…} git: ${…}": 1,
+    "Unknown list kind: ${…}": 1,
+    "{[dry-run] |}${…}: ${…}": 1
+  },
+  "src/commands/export.ts": {
+    "and": 1,
+    "export format": 1
+  },
+  "src/commands/history.ts": {
+    "a list name": 1
+  },
+  "src/commands/id-backfill.ts": {
+    "deck-sync pull": 1,
+    "deck-sync push": 1
+  },
+  "src/commands/init-site.ts": {
+    "# My Ritual Site A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual). ${…} ## Building Install [Ritual](https://github.com/sloshy/ritual) and run: ```sh ${…} ``` The generated site is written to `${…}/`. Deploy it to any static hosting provider.": 1,
+    "# My Ritual Site A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual). ${…} ${…} ## Setup Make sure GitHub Pages is enabled in your repository settings: 1. Go to **Settings → Pages** 2. Under **Source**, select **GitHub Actions**": 1,
+    "## Building Install [Ritual](https://github.com/sloshy/ritual) and run: ```sh ${…} ``` The generated site is written to `${…}`. ## Deploying Commit the built `${…}` directory and push to `main`. The included GitHub Action deploys it to GitHub Pages automatically. `${…}/` is deliberately **not** gitignored for this deploy mode.": 1,
+    "## Deploying This repository is configured with a GitHub Action that automatically builds and deploys your site to GitHub Pages on every push to `main`. The action downloads Ritual, fetches the latest card data from Scryfall, builds your site, and deploys it. Both the Ritual binary and Scryfall cache are persisted between runs so subsequent builds are fast. ### Ritual version The action downloads the Ritual release pinned in `ritual.config.json` (`managed.version`). The pin moves only when you run `ritual migrate` with a newer Ritual release and commit the result. To override it, create a GitHub Actions repository variable called `RITUAL_VERSION` set to a release tag (e.g. `v1.0.0`).": 1,
+    "## Getting Started Ritual manages three kinds of card lists as Markdown files in your repository: - **Decks** in `decks/` - **Collections** in `collections/` - **Wanted lists** in `wanted/` The easiest way to build any of them is the interactive editor: ```sh ritual edit ``` `ritual edit` opens a single session over every list. From the menu you can create a new deck, collection, or wanted list — or pick an existing one — and then add, remove, and update cards. Your changes are written to disk when you save on exit. Prefer a browser? Run `ritual admin` to manage your lists from a local web interface instead. ## Previewing Locally Build and serve the site on your machine before you deploy: ```sh ${…} ``` Then open <http://localhost:3000> to preview it. ## Project Layout - `decks/`, `collections/`, `wanted/` — your card lists as Markdown files - `ritual.config.json` — site and pricing settings - ${…}{ - `${…}/` — your built site, committed so the deploy workflow can publish it|} ## Documentation For the full list of commands and features, see the [Ritual documentation](https://ritual.rpeters.dev/).": 1,
+    "`cache/`, `${…}/`, `exports/`, and `all-cards.md` — generated artifacts (gitignored)": 1,
+    "`cache/`, `exports/`, and `all-cards.md` — generated artifacts (gitignored)": 1,
+    "ritual build-site": 1
+  },
+  "src/commands/locale.ts": {
+    "ritual config set uiLocale ${…}": 1
+  },
+  "src/commands/session/edit-model.ts": {
+    "Unhandled session change action: ${…}": 1
+  },
+  "src/commands/session/loop.ts": {
+    "A multi-list session must be saved one open list at a time.": 1
+  },
+  "src/commands/skills.ts": {
+    "Unhandled skill install status (this is a bug)": 1
+  },
+  "src/commands/sync-helpers.ts": {
+    "change filter": 1
+  },
+  "src/commands/sync-render-event.ts": {
+    "Unhandled sync event: ${…}": 1
+  },
+  "src/config/base-dir.ts": {
+    "base directory does not exist: ${…}": 1,
+    "base directory is not a directory: ${…}": 2,
+    "base directory is not readable: ${…} — ${…}": 1
+  },
+  "src/config/config-fields.ts": {
+    "\"${…}\" expects a boolean. Use \"true\" or \"false\", got \"${…}\".": 1,
+    "\"${…}\" expects a non-negative integer, got \"${…}\".": 1,
+    "\"${…}\" expects a number, got \"${…}\".": 1,
+    "\"${…}\" expects a number, got an empty string.": 1,
+    "\"${…}\" expects an integer, got \"${…}\".": 1,
+    "\"${…}\" is a ${…} and only accepts one value, but ${…} were provided.": 1,
+    "--add and --remove can only be used with array properties. \"${…}\" is a ${…}.": 1,
+    "At least one value must be provided.": 2,
+    "The \"managed\" property is owned by Ritual and cannot be ${…} with \"config ${…}\"; \"ritual init-site\" and \"ritual migrate\" keep it up to date.": 1,
+    "The \"site\" property is managed by \"ritual init-site\" and cannot be ${…} with \"config ${…}\", except for the public-site selection lists: ${…}.": 1,
+    "Unknown property: \"${…}\". Available properties: ${…}": 3,
+    "for \"defaultLanguage\"": 1
+  },
+  "src/config/ritual-config.ts": {
+    "\"cacheFeedUrl\" must be an http(s) URL": 1,
+    "\"cacheLockTimeoutSeconds\" must be a positive integer": 1,
+    "\"cacheSource\" must be one of: ${…}": 1,
+    "\"searchDebounceMs\" must be a non-negative integer": 1,
+    "\"updateCheck\" must be a boolean": 1,
+    "admin config": 1,
+    "admin config must be a JSON object": 1,
+    "admin config: \"${…}\" must be a boolean": 1,
+    "admin config: \"${…}\" must be a number": 1,
+    "admin config: \"${…}\" must be an array of strings": 1,
+    "banned printing \"${…}\" must be in \"SET:COLLECTOR\" form (e.g. \"sld:123\")": 2,
+    "collectionSync config": 1,
+    "collectionSync config must be a JSON object": 1,
+    "collectionSync config: \"pullTarget\" must be a non-empty list name": 1,
+    "for \"defaultLanguage\"": 1,
+    "invalid UI locale \"${…}\": no such language is known (expected a BCP-47 tag such as \"en\" or \"de-AT\")": 1,
+    "invalid UI locale: ${…}": 1,
+    "managed config": 1,
+    "managed config must be a JSON object": 1,
+    "managed config: \"migration\" must be a non-negative integer": 1,
+    "managed config: \"output\" must be a \"sha256:\" hash string": 1,
+    "managed config: \"version\" must be a semver string": 1,
+    "ritual.config.json is not valid JSON: ${…} ${…} Fix the file (or delete it to fall back to defaults) and try again.": 1,
+    "ritual.config.json: ignoring invalid ${…} — ${…}": 1,
+    "site config": 1,
+    "site config must be a JSON object": 1,
+    "site config: \"${…}\" must be an array of strings": 1,
+    "site config: \"apiBaseUrl\" must be a string": 1,
+    "site config: \"apiBaseUrl\" must be an http(s) URL or an empty string": 1,
+    "site config: \"bannedPrintings\" must be an array of strings": 1,
+    "site config: \"ciSystem\" must be \"github-actions\" or \"manual\"": 1,
+    "site config: \"deployMode\" must be \"publish-for-me\" or \"local-build\"": 1,
+    "site config: \"detectChanges\" must be a boolean": 1,
+    "site config: \"distDir\" must be a string": 1,
+    "site config: \"sellMode\" must be a boolean": 1,
+    "site config: ${…}": 1,
+    "the file must contain a JSON object": 1
+  },
+  "src/deck-sync/categories.ts": {
+    "Skipped {an Archidekt category|${…} Archidekt categories} Ritual cannot store (${…}): ${…}": 1
+  },
+  "src/deck-sync/describe.ts": {
+    "Changes: ${…}": 1,
+    "Unhandled card change: ${…}": 1
+  },
+  "src/deck-sync/divergence.ts": {
+    "Archidekt reported an unreadable update timestamp (\"${…}\")": 1,
+    "Archidekt reported no update timestamp for this deck": 1,
+    "Remote deck changed since last sync (remote: ${…}, last synced against: ${…}) — pull first, or pass --force to overwrite remote changes.": 1,
+    "The deck's sourceUpdatedAt is not a readable timestamp (\"${…}\")": 1
+  },
+  "src/deck-sync/engine.ts": {
+    "${…} — pushing without the divergence check.": 1,
+    "Could not move ${…} of \"${…}\" from ${…} to ${…}: the local ${…} does not hold them.": 1,
+    "Could not read the categories file: ${…}": 2,
+    "Failed to push changes: ${…}": 1,
+    "Format: ${…} → ${…}": 1,
+    "No Archidekt decks found to sync.": 1,
+    "No changes detected.": 1,
+    "No changes to upload.": 2,
+    "Printings not synced for \"${…}\": the local file and Archidekt hold different printings of it. Re-run with --sync-printings to reconcile them.": 1,
+    "Pushed ${…} card changes to Archidekt.": 1,
+    "Saved.": 1,
+    "Skipping: ${…}": 1,
+    "Synced the cards, but could not write the categories file: ${…}": 1,
+    "The local deck has no categories, so its Archidekt categories are left as they are. Pull with --sync-categories first to bring them down.": 1,
+    "Updated lastSynced.": 1,
+    "[dry-run] Not saved.": 1,
+    "[dry-run] Would push ${…} card changes to Archidekt.": 1,
+    "dry-run: ${…}": 1,
+    "dry-run: would push ${…} card changes": 1,
+    "no changes": 3,
+    "not set": 1,
+    "you do not own Archidekt deck ${…}": 1
+  },
+  "src/deck-sync/link.ts": {
+    "\"${…}\" is not an Archidekt deck URL. Expected something like https://archidekt.com/decks/123456.": 1,
+    "An Archidekt deck URL is required.": 1,
+    "sourceUrl names Archidekt deck ${…} but sourceId is ${…}. A sync addresses the deck by sourceId, so the two must name the same deck.": 1
+  },
+  "src/deck-sync/targets.ts": {
+    "${…} would be dropped by a sync": 1,
+    "Could not confirm the unreadable lines: ${…}": 1,
+    "Could not read deck file for \"${…}\": ${…}": 1,
+    "Could not read deck file: ${…}": 1,
+    "Deck \"${…}\" has Archidekt sourceUrl but no sourceId": 1,
+    "Deck \"${…}\" has unreadable front matter: ${…}": 1,
+    "Deck \"${…}\" is not sourced from Archidekt": 1,
+    "Skipping ${…}: has Archidekt sourceUrl but no sourceId": 1,
+    "Skipping ${…}: unreadable front matter (${…})": 1,
+    "has Archidekt sourceUrl but no sourceId": 2,
+    "not sourced from Archidekt": 1,
+    "unreadable front matter: ${…}": 2
+  },
+  "src/deck-sync/upload-plan.ts": {
+    "Cannot ${…} for card not found in Archidekt deck: ${…}": 1,
+    "Cannot change the board for ${…} of ${…}: the Archidekt ${…} board does not hold them": 1,
+    "Finish \"${…}\" is not offered for ${…} on Archidekt (valid: ${…})": 1,
+    "change the board": 1,
+    "update the printing": 1,
+    "update the quantity": 1
+  },
+  "src/editor/card-search/key-hints.ts": {
+    "Tab": 1
+  },
+  "src/editor/components/card-search/FinishConditionStep.tsx": {
+    "Ctrl": 1,
+    "Enter": 2
+  },
+  "src/editor/components/card-search/LanguageNoticeStep.tsx": {
+    "Enter": 1
+  },
+  "src/editor/shortcuts.ts": {
+    "Ctrl": 3,
+    "Enter": 6,
+    "Esc": 2,
+    "Tab": 2
+  },
+  "src/editor/swap-printings/moves.ts": {
+    "swap allocation for printingless candidate ${…} has no chosen printing": 1
+  },
+  "src/editor/useEditorDefaults.ts": {
+    "Failed to parse stored editor defaults: ${…}": 1,
+    "[editor-defaults] ${…}": 1
+  },
+  "src/export/cache-columns.ts": {
+    "No EDHREC rank for ${…}: the card is not in the Scryfall cache.": 1,
+    "No Scryfall ID for ${…}${…}: the printing is not in the Scryfall cache.": 1,
+    "No Scryfall ID for ${…}: the entry has no set and collector number.": 1
+  },
+  "src/export/entries.ts": {
+    "Invalid condition '${…}'. Use one of: ${…}, none.": 2,
+    "Invalid label '${…}'. Use one of: ${…}.": 1,
+    "No cards matched '${…}'": 1,
+    "No conditions given. Use one of: ${…}, none.": 1,
+    "No labels given. Use one of: ${…}.": 1
+  },
+  "src/export/file.ts": {
+    "Could not find a free export file name after ${…} attempts in ${…}.": 1,
+    "Refusing to write export under a non-basename name '${…}'.": 1
+  },
+  "src/export/presets.ts": {
+    "\"exportPresets\" must be an object mapping preset names to presets": 1,
+    "${…} must be an object": 1,
+    "${…}.columns must be an array of property names": 1,
+    "${…}.dialect must be one of: ${…}": 1,
+    "${…}.format must be one of: ${…}": 1,
+    "${…}.header must be a boolean": 1,
+    "${…}.quoteAll must be a boolean": 1
+  },
+  "src/export/render.ts": {
+    "Categories": 1,
+    "Categories not written as Moxfield tags: ${…}. Moxfield’s bulk-edit format documents only single-word tags, so a category holding a space (or starting with \"!\") has no spelling it is known to read, and one holding a character a Ritual tag cannot (\"#\", \"&\", brackets and the like) would not import back.": 1,
+    "Collector Number": 1,
+    "Condition": 1,
+    "Duplicate column '${…}'.": 1,
+    "EDHREC Rank": 1,
+    "Edition": 1,
+    "Finish": 1,
+    "Is Foil": 1,
+    "Labels": 1,
+    "Language": 1,
+    "List": 1,
+    "List Type": 1,
+    "Name": 1,
+    "No columns given. Available columns: ${…}": 1,
+    "Note": 1,
+    "Omitted cards a decklist has no board for: ${…}. Maybeboard and token sections are deck-building extras rather than part of a decklist, so neither Arena nor Moxfield writes them.": 1,
+    "Primary Category": 1,
+    "Quantity": 1,
+    "Scryfall ID": 1,
+    "Section": 1,
+    "Set": 1,
+    "Tags": 1,
+    "Unknown column '${…}'. Available columns: ${…}": 1,
+    "Variant": 1
+  },
+  "src/i18n/catalog.ts": {
+    "$plural table needs an \"other\" form": 1,
+    "$select table needs at least one branch": 1,
+    "branch \"${…}\" must be a string (nested plural-in-select is not supported — split the key)": 1,
+    "object value needs a $plural or $select discriminator": 1,
+    "value cannot be both $plural and $select": 1,
+    "value must be a string, a $plural table, or a $select table": 1
+  },
+  "src/i18n/detect.ts": {
+    "defaults read -g AppleLocale": 1
+  },
+  "src/i18n/locale-tag.ts": {
+    "invalid locale tag: ${…}": 1,
+    "locale must be a BCP-47 language tag string (e.g. \"en\", \"de-AT\")": 1,
+    "locale must not be empty": 1
+  },
+  "src/i18n/runtime.ts": {
+    "Could not load the ${…} dictionary from ${…}; using English.": 1,
+    "HTTP ${…}": 1
+  },
+  "src/i18n/t.ts": {
+    "i18n: ${…} (RITUAL_I18N_STRICT=1)": 1,
+    "message \"${…}\" has no \"${…}\" branch for \"${…}\"": 1,
+    "message \"${…}\" is missing the \"${…}\" param": 1,
+    "message \"${…}\" needs a numeric \"${…}\" param": 1,
+    "missing message key \"${…}\" — is its namespace registered?": 1
+  },
+  "src/importers/archidekt-collection.ts": {
+    "${…} of ${…} row results in \"data\" were not objects": 1,
+    "A CSV upload needs at least one column.": 1,
+    "A CSV upload takes at most ${…} columns, got ${…}.": 1,
+    "A CSV upload's columns must include 'uid', or 'oracleCard__name' plus 'collectorNumber' plus 'edition__editionname' or 'edition__editioncode'; got: ${…}.": 1,
+    "Unknown Archidekt condition id '${…}'. Expected one of: ${…}.": 1,
+    "Unknown Archidekt modifier '${…}'. Expected one of: ${…}.": 1,
+    "the response carried no \"data\" array of per-row results": 1,
+    "the response reported ${…} row results for ${…} uploaded rows": 1,
+    "the response was not JSON": 1
+  },
+  "src/importers/archidekt-types.ts": {
+    "Archidekt Deck ${…}": 1,
+    "Archidekt deck ${…}: skipped ${…} with no card name.": 1,
+    "Commander / EDH": 1,
+    "Dual Commander": 1,
+    "Future Standard": 1,
+    "Penny Dreadful": 1
+  },
+  "src/importers/csv-apply.ts": {
+    "${…} Use overwrite or append mode to change it.": 1,
+    "Categories are recorded for card(s) the list does not hold: ${…}": 1,
+    "Creating a deck from CSV requires a format": 1,
+    "Dropped categories for card(s) no longer in the list: ${…}": 1,
+    "File already exists: ${…}. Use overwrite or append mode to change it.": 1
+  },
+  "src/importers/csv.ts": {
+    "Card name": 1,
+    "Categories": 1,
+    "Collection imports require both a set and a collector-number column": 1,
+    "Collector number": 1,
+    "Column ${…}${…} (mapped to '${…}') does not exist: the file has ${…} column(s)": 1,
+    "Condition": 1,
+    "Field '${…}' is mapped more than once": 1,
+    "Fields '${…}' and '${…}' are mapped to the same column ${…}${…}": 1,
+    "Finish": 1,
+    "Invalid column assignment '${…}': expected field=column": 1,
+    "Invalid column number '${…}' for field '${…}': expected a 1-based column number": 1,
+    "Invalid quantity '${…}'": 1,
+    "Invalid quantity '${…}': must be at least 1": 1,
+    "Language": 1,
+    "Line ${…}: ${…} on \"${…}\"": 1,
+    "Line break inside the card name, set code, or collector number": 1,
+    "Missing card name": 1,
+    "Missing collector number (required for collections)": 1,
+    "Missing required field 'name' in column mapping": 1,
+    "Missing set code (required for collections)": 1,
+    "Quantity": 1,
+    "Section": 1,
+    "Set code": 1,
+    "Tags": 1,
+    "Unknown field '${…}'. Valid fields: ${…}": 1,
+    "Unrecognized condition '${…}'": 1,
+    "Unrecognized finish '${…}'": 1,
+    "Unrecognized language '${…}'": 1,
+    "Unterminated quoted field starting on line ${…}": 1,
+    "Wanted lists do not track condition; remove the condition column": 1,
+    "category ${…} names a board — dropped from the categories, and the row's section is '${…}'": 1,
+    "ignored category ${…}": 1
+  },
+  "src/importers/import-categories.ts": {
+    "Skipped categories Ritual cannot store (${…}): ${…}": 1,
+    "The deck was imported, but its categories could not be saved: ${…}": 1
+  },
+  "src/importers/moxfield-client.ts": {
+    "Failed to fetch Moxfield deck": 1,
+    "Failed to fetch Moxfield primer": 1
+  },
+  "src/importers/moxfield-lib.ts": {
+    "Moxfield Lib Error:": 1
+  },
+  "src/importers/mtggoldfish.ts": {
+    "Could not find deck download link on MTGGoldfish page": 1,
+    "Failed to fetch MTGGoldfish page": 1,
+    "Failed to fetch deck list text": 1,
+    "MTGGoldfish Deck": 1,
+    "by": 1
+  },
+  "src/importers/text-file.ts": {
+    "Dropped empty section: ${…}": 1,
+    "File not found: ${…}": 1,
+    "Front matter 'image' ignored: ${…} A rewrite would drop the key.": 1,
+    "Labels [${…}] on '${…}' are not supported on a ${…}. The labels were ignored, and a rewrite would drop them: ${…}": 1,
+    "Skipped About line: ${…}": 1,
+    "Skipped extra title line: ${…}": 1,
+    "Skipped malformed line: ${…}": 1,
+    "Skipped malformed line: ${…}${…}": 1
+  },
+  "src/importers/url-dispatch.ts": {
+    "Fetching deck ID ${…} from Archidekt...": 1,
+    "Fetching deck ID ${…} from Moxfield...": 1,
+    "Fetching deck from MTGGoldfish...": 1,
+    "Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.": 1,
+    "URL not supported. Use Archidekt, Moxfield, or MTGGoldfish URLs.": 1
+  },
+  "src/list-view/buylist-quotes.ts": {
+    "Buylist quotes failed: HTTP ${…}": 1
+  },
+  "src/list-view/card-sorting.ts": {
+    "Abzan (WBG)": 1,
+    "Any Printing": 1,
+    "Azorius (WU)": 1,
+    "Bant (WUG)": 1,
+    "Boros (WR)": 1,
+    "Dimir (UB)": 1,
+    "Esper (WUB)": 1,
+    "Golgari (BG)": 1,
+    "Grixis (UBR)": 1,
+    "Gruul (RG)": 1,
+    "Izzet (UR)": 1,
+    "Jeskai (WUR)": 1,
+    "Jund (BRG)": 1,
+    "Mardu (WBR)": 1,
+    "Naya (WRG)": 1,
+    "No Price Data": 1,
+    "Not on Buylist": 1,
+    "On Buylist": 1,
+    "Orzhov (WB)": 1,
+    "Rakdos (BR)": 1,
+    "Selesnya (WG)": 1,
+    "Simic (UG)": 1,
+    "Specific Printing": 1,
+    "Sultai (UBG)": 1,
+    "Temur (URG)": 1,
+    "UBRG (Four Color)": 1,
+    "WBRG (Four Color)": 1,
+    "WUBG (Four Color)": 1,
+    "WUBR (Four Color)": 1,
+    "WUBRG (Five Color)": 1,
+    "WURG (Four Color)": 1
+  },
+  "src/list-view/combined-list.ts": {
+    "Combined view: failed to load ${…}/${…}:": 1
+  },
+  "src/list-view/useFetchJson.ts": {
+    "Failed to load ${…}:": 1,
+    "Failed to load data.": 1,
+    "HTTP ${…}": 1
+  },
+  "src/list/card-art.ts": {
+    "\"${…}\" escapes the art directory": 1,
+    "\"${…}\" is a directory, not an image file": 1,
+    "\"${…}\" is not a card id — keys are the card line's &N": 1,
+    "\"${…}\" is not a valid URL": 1,
+    "\"${…}\" is not an image file — custom art must be one of: ${…}": 1,
+    "\"${…}\" must be an http(s) URL": 1,
+    "\"${…}\" must be relative to the art directory, not absolute": 1,
+    "\"${…}\" must use forward slashes": 1,
+    "\"file\" must be a string": 1,
+    "\"file\" must not be empty": 1,
+    "\"url\" must be a string": 1,
+    "an art reference has no such key: ${…}": 1,
+    "an art reference must be an object with a \"file\" or \"url\"": 1,
+    "an art reference must have a \"file\" or a \"url\"": 1,
+    "an art reference must have either \"file\" or \"url\", not both": 1,
+    "an art reference must not be empty": 1,
+    "card ${…}: ${…}": 1,
+    "not valid JSON: ${…}": 1,
+    "the file must contain a JSON object keyed by card id": 1
+  },
+  "src/list/card-categories-record.ts": {
+    "\"${…}\" appears twice under different spellings": 1,
+    "\"${…}\" has no categories — remove the key instead": 1,
+    "\"cards\" must be an object keyed by card name": 1,
+    "a \"cards\" key must be a card name, not empty": 1,
+    "not valid JSON: ${…}": 1,
+    "the file must contain a JSON object with \"order\" and \"cards\"": 1
+  },
+  "src/list/deck-format.ts": {
+    "Invalid deck format '${…}'. Valid formats: ${…}": 1,
+    "command zone": 1,
+    "signature spell": 2
+  },
+  "src/list/ensure-card-ids.ts": {
+    "ensure-card-ids: failed to read ${…}: ${…}": 2
+  },
+  "src/list/flat-list-front-matter.ts": {
+    "Front matter 'labels' ignored: ${…}": 1,
+    "Front matter could not be read as YAML, so its keys were ignored (the block itself is preserved on save): ${…}": 1,
+    "Front matter is not a key/value mapping, so its content was ignored (the block itself is preserved on save).": 1
+  },
+  "src/list/flat-list-metadata.ts": {
+    "The file's front matter ${…}, so a metadata write would overwrite it. Fix the block by hand first.": 1,
+    "could not be read as YAML": 1,
+    "is not a key/value mapping": 1
+  },
+  "src/list/flat-list-scan.ts": {
+    "Skipped malformed line: ${…}": 1
+  },
+  "src/list/line-mutate.ts": {
+    "applyDeckAddToContent needs at least one copy to add (got ${…}).": 1,
+    "applyDeckAddToContent produced no card id": 1,
+    "applyTargetedChanges cannot apply '${…}' to a ${…}": 1,
+    "applyTargetedChanges cannot apply this set-label: ${…}": 1,
+    "applyTargetedChanges does not handle '${…}' events; use the editor engines.": 1
+  },
+  "src/list/list-description.ts": {
+    "a list description must be text": 1
+  },
+  "src/list/list-file-name.ts": {
+    "'${…}' contains no characters usable in a file name.": 1
+  },
+  "src/list/list-image-file.ts": {
+    "Front matter could not be read as YAML, so any list image it names was ignored: ${…}": 1,
+    "Front matter is not a key/value mapping, so any list image it names was ignored.": 1,
+    "The file's front matter ${…}, so a list image write would overwrite it. Fix the block by hand first.": 1,
+    "The list file could not be read, so any list image it names was ignored: ${…}": 1,
+    "could not be read as YAML": 1,
+    "image references card &${…}, which is not a card in this list.": 1,
+    "is not a key/value mapping": 1
+  },
+  "src/list/list-image.ts": {
+    "\"card\" must be a positive card id": 1,
+    "a list image has no such key: ${…}": 1,
+    "a list image must be a mapping with one of \"card\", \"file\" or \"url\"": 1,
+    "a list image must have exactly one of \"card\", \"file\" or \"url\"": 1
+  },
+  "src/list/list-lifecycle.ts": {
+    "${…} '${…}' not found.": 2,
+    "A ${…} named '${…}' already exists (it matches '${…}' under list-name folding).": 1,
+    "A ${…} named '${…}' already exists.": 1,
+    "Confirmation name does not match. Expected '${…}'.": 1,
+    "Invalid ${…} name.": 1
+  },
+  "src/list/list-mutate.ts": {
+    "applyChangesToCollectionFile does not handle move events; use the move engine.": 1
+  },
+  "src/list/list-sidecars.ts": {
+    "Not a list markdown path: ${…}": 1
+  },
+  "src/list/list-type.ts": {
+    "wanted list": 1
+  },
+  "src/list/markdown-fence.ts": {
+    "${…} holds content the parser cannot re-emit, and ${…} would delete it (releasing any &N ids it carries). Fix the file first — ${…}": 1,
+    "Fenced code block content (${…} line(s)) — read as prose, but a whole-file rewrite would delete it": 1
+  },
+  "src/list/move-prepare.ts": {
+    "PreparedMoves.commit() is single-use": 1
+  },
+  "src/list/resolve-list.ts": {
+    "or": 1
+  },
+  "src/mcp/dispatch.ts": {
+    "Admin request failed (HTTP ${…})": 1,
+    "Admin route ${…} ${…} returned a non-JSON body (HTTP ${…}).": 1,
+    "No admin route for ${…} ${…}": 1
+  },
+  "src/mcp/errors.ts": {
+    "Admin request failed (HTTP ${…})": 1
+  },
+  "src/mcp/mutations.ts": {
+    "${…} Call get_list to see the current entries and their cardIds.": 1
+  },
+  "src/mcp/notify.ts": {
+    "Failed to send resources/list_changed:": 1
+  },
+  "src/mcp/removal-elicitation.ts": {
+    "${…} × ${…} left the Archidekt collection, but the local copies live in ${…}. How many copies should each list give up? The counts must add up to ${…}.": 1,
+    "Copies to take from \"${…}\", which holds ${…}.": 1
+  },
+  "src/mcp/result.ts": {
+    "Re-read the list with get_list, then re-apply your change.": 1
+  },
+  "src/mcp/run.ts": {
+    "Internal server error": 1,
+    "MCP HTTP error:": 1,
+    "MCP HTTP request failed:": 1,
+    "MCP stdio error:": 1,
+    "MCP stdio teardown failed:": 1,
+    "Not found. Use the ${…} endpoint.": 1,
+    "Ritual MCP server (HTTP) listening at http://${…}:${…}${…}": 1
+  },
+  "src/pricing/price-currency.ts": {
+    "Cheapest printing: ${…} (${…}) [${…}]": 1,
+    "Cheapest printing: unavailable": 1,
+    "Price: ${…}": 1,
+    "Price: unavailable": 1
+  },
+  "src/pricing/price-source.ts": {
+    "\"defaultPriceSource\" must be one of: ${…}": 1,
+    "\"priceSources\" contains unknown store \"${…}\". Must be any of: ${…}": 1,
+    "\"priceSources\" must be an array of strings": 1
+  },
+  "src/pricing/prices.ts": {
+    "Cache key '${…}' has unknown currency suffix '${…}'": 1,
+    "Cache key '${…}' is missing currency suffix": 1
+  },
+  "src/pricing/sell-report.ts": {
+    "Invalid ${…} '${…}' (expected a non-negative number)": 1,
+    "Invalid minimum owned count '${…}' (expected a whole number)": 1,
+    "minimum price": 1,
+    "minimum ratio": 1
+  },
+  "src/scryfall/bulk-manifest.ts": {
+    "Failed to fetch bulk manifest": 1
+  },
+  "src/scryfall/client.ts": {
+    "Building tag index from downloaded tag bulks...": 1,
+    "Bulk URL: ${…}": 1,
+    "Bulk data response has no body": 1,
+    "Card '${…}' is arena-only, skipping.": 1,
+    "Could not find ${…} bulk data URI": 1,
+    "Could not find oracle_tags / art_tags bulk data URIs": 1,
+    "Done! Card cache populated from downloaded artifacts.": 1,
+    "Done! Card cache populated.": 2,
+    "Done! Tags refreshed.": 1,
+    "Download size: ${…} MiB (compressed)": 2,
+    "Downloading oracle and art tags...": 1,
+    "Downloading oracle/art tags…": 1,
+    "Error fetching card '${…}':": 1,
+    "Failed to build tags from downloaded bulks: ${…}": 1,
+    "Failed to cache printings for '${…}':": 1,
+    "Failed to download image from ${…}:": 1,
+    "Failed to download symbol ${…}": 1,
+    "Failed to download tags: ${…}": 1,
+    "Failed to evict excluded printings for '${…}':": 1,
+    "Failed to fetch batch prices": 1,
+    "Failed to fetch bulk data": 1,
+    "Failed to fetch card '${…}': ${…} ${…}": 1,
+    "Failed to fetch printing": 1,
+    "Failed to fetch symbology": 1,
+    "Failed to fetch tag bulk ${…}": 1,
+    "Fetching bulk data metadata from Scryfall...": 1,
+    "Fetching bulk data metadata from Scryfall…": 1,
+    "Fetching symbology from Scryfall...": 1,
+    "Fetching tag bulk metadata from Scryfall...": 1,
+    "Filtered out ${…} printings (${…}).": 1,
+    "Indexed tags for ${…} oracle ids and ${…} illustrations.": 1,
+    "Processed ${…} cards.": 1,
+    "Processing: ${…} MiB": 2,
+    "Processing: ${…}% (${…}/${…} MiB)": 2,
+    "Re-attaching tags to ${…} cached cards...": 1,
+    "Saving to cache...": 1,
+    "Saving to cache…": 1,
+    "Scryfall could not find prices for: ${…}": 1,
+    "Scryfall request timed out after ${…} seconds: ${…}": 1,
+    "Searching for: ${…}": 1,
+    "Skipped ${…} malformed bulk card entries.": 1,
+    "Tag bulk response for ${…} has no body": 1,
+    "Tag refresh aborted: could not download the oracle/art tag bulks.": 1,
+    "The cache refresh was cancelled; the existing card cache was left as it was.": 1,
+    "bulk card cache download": 1,
+    "bulk card cache ingest": 1,
+    "tag refresh": 1
+  },
+  "src/scryfall/jsonl.ts": {
+    "Invalid JSONL: line ${…} is not valid JSON": 1
+  },
+  "src/scryfall/tags.ts": {
+    "Invalid tag bulk: entry ${…} has unexpected type '${…}'": 1,
+    "Invalid tag bulk: entry ${…} is missing a string id": 1,
+    "Invalid tag bulk: entry ${…} is missing a string label": 1,
+    "Invalid tag bulk: entry ${…} is missing a string object": 1,
+    "Invalid tag bulk: entry ${…} is missing a string slug": 1,
+    "Invalid tag bulk: entry ${…} is not an object": 1,
+    "Invalid tag bulk: expected a JSON array": 1,
+    "Invalid tag index: expected an object": 1,
+    "Invalid tag index: missing illustration map": 1,
+    "Invalid tag index: missing numeric updatedAt": 1,
+    "Invalid tag index: missing oracle map": 1
+  },
+  "src/serve/lists.ts": {
+    "Failed to enumerate ${…} sources: ${…}": 1
+  },
+  "src/serve/routes.ts": {
+    "Not found": 4
+  },
+  "src/serve/server.ts": {
+    "Internal server error": 1,
+    "Not Found": 1,
+    "Not found": 1,
+    "Unhandled server error:": 1
+  },
+  "src/serve/static.ts": {
+    "Internal Server Error": 1,
+    "Not Found": 1,
+    "Unhandled server error:": 1
+  },
+  "src/site-build/assets.ts": {
+    "Site SPA ${…} build failed": 1,
+    "Site SPA build produced no ${…} output": 1
+  },
+  "src/site-build/collection.ts": {
+    "⚠️ Could not find printing for '${…}' (${…})": 1
+  },
+  "src/site-build/deck.ts": {
+    "⚠️ Could not find printing for '${…}' (${…})": 1
+  },
+  "src/site-build/dist-dir.ts": {
+    "--out-dir may not be the Ritual directory itself (${…}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.": 1,
+    "--out-dir may not contain the Ritual directory (${…} contains ${…}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.": 1,
+    "--out-dir requires a directory path.": 1
+  },
+  "src/site-build/publish.ts": {
+    "Could not remove the previous site build at ${…}.": 1
+  },
+  "src/site-build/shared.ts": {
+    "unhandled cover issue: ${…}": 1
+  },
+  "src/site-build/wanted.ts": {
+    "⚠️ Could not find printing for '${…}' (${…})": 1
+  },
+  "src/site/CardItem.tsx": {
+    "x": 2
+  },
+  "src/site/CombinedListPage.tsx": {
+    "Combined view: load failed": 1
+  },
+  "src/site/PrimerRenderer.tsx": {
+    "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture": 1
+  },
+  "src/site/QuickSwitch.tsx": {
+    "QuickSwitch: failed to load ${…}/${…}:": 1
+  },
+  "src/site/SiteFooter.tsx": {
+    "Scryfall": 1
+  },
+  "src/site/card-filters.ts": {
+    "Buylist price must be a non-negative number": 1,
+    "Copies must be a non-negative integer": 1,
+    "Mana value must be a non-negative integer": 1,
+    "Price must be a non-negative number": 1
+  },
+  "src/site/card-lookup.ts": {
+    "api/cards responded ${…}": 1
+  },
+  "src/site/card-types.ts": {
+    "Time Lord": 1
+  },
+  "src/site/editor/ExportPanel.tsx": {
+    "ritual import-changes": 1
+  },
+  "src/site/editor/WantedEditView.tsx": {
+    "wanted list": 1
+  },
+  "src/site/editor/WantedEditorBody.tsx": {
+    "wanted list": 1
+  },
+  "src/site/editor/edit-chrome.tsx": {
+    "useEditChrome must be used within an EditChromeProvider": 1
+  },
+  "src/site/index-filter.ts": {
+    "Unhandled sort value: ${…}": 1
+  },
+  "src/site/list-shares.ts": {
+    "Share filter: failed to load ${…}/${…}:": 1,
+    "Share filter: load for ${…} rejected:": 1
+  },
+  "src/site/useCardSearch.ts": {
+    "Card autocomplete failed:": 1,
+    "Card printings fetch failed:": 1
+  },
+  "src/site/useSiteData.ts": {
+    "Failed to load index:": 1,
+    "Failed to load site data: HTTP ${…}": 1,
+    "Failed to refresh index:": 1
+  },
+  "src/site/useTheme.tsx": {
+    "useTheme must be used inside <ThemeProvider>": 1
+  },
+  "src/sync/common.ts": {
+    "cancelled before it started": 1
+  },
+  "src/theme/themes.ts": {
+    "Custom theme must be a JSON object": 1,
+    "Custom theme must define at least one variable": 1,
+    "Custom theme must have a `variables` object": 1,
+    "Custom theme must have a non-empty `name` string": 1,
+    "Custom theme name '${…}' collides with a built-in theme; pick a different name": 1,
+    "Custom theme name '${…}' must be lowercase letters, digits, and hyphens (starting with a letter or digit)": 1,
+    "Custom theme: ${…}": 1,
+    "Unknown theme '${…}'. Choose one of: ${…}.": 1,
+    "Variable '${…}' must be a non-empty string value": 1,
+    "Variable name '${…}' must start with '--'": 1
+  },
+  "src/ui/format.ts": {
+    "Invalid Date": 1
+  },
+  "src/ui/useMediaQuery.ts": {
+    "(hover: none), (pointer: coarse)": 1
+  },
+  "src/update/install.ts": {
+    "exit ${…}: ${…}": 1,
+    "expected a SHA-256 digest followed by a file name": 1,
+    "the digest is for ${…}, not ${…}": 1,
+    "the disk accepted no more bytes": 1,
+    "timed out": 1
+  },
+  "src/update/release.ts": {
+    "'${…}' is not a release version": 1,
+    "assets is not a list": 1,
+    "assets[${…}] is not an object": 1,
+    "assets[${…}].browser_download_url is not an https URL": 1,
+    "assets[${…}].name is missing": 1,
+    "assets[${…}].size is not a byte count": 1,
+    "draft is not a boolean": 1,
+    "prerelease is not a boolean": 1,
+    "release ${…}: ${…}": 1,
+    "tag_name '${…}' is not a release version": 1,
+    "tag_name is missing": 1,
+    "the release is not an object": 1,
+    "the release list is not a list": 1
+  },
+  "src/util/bundled-text.ts": {
+    "Expected text module for ${…}": 1
+  },
+  "src/util/parse-number.ts": {
+    "Invalid limit '${…}'. Use a positive integer.": 1
+  },
+  "src/util/safekeeping.ts": {
+    "moveToTrash needs at least one file": 1
+  },
+  "src/util/user-state.ts": {
+    "migratePrompts must be an object": 1,
+    "the state file must contain a JSON object": 1,
+    "updateCheck must be an object": 1,
+    "updateCheck.channel must be one of: ${…}": 1
+  }
+}
