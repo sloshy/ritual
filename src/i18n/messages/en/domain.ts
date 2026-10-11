@@ -220,6 +220,19 @@ export const domainMessages = {
   'domain.sync.comparing': 'Comparing the collection against the local lists...',
   'domain.sync.cancelled': 'Cancelled: {items} not synced.',
 
+  // ── Sync change details ───────────────────────────────────────────────
+  //
+  // One line per card a sync applies, listed under its `Changes:` summary.
+  // The CLI prints them only under `--verbose`.
+  'domain.sync.detailAdded': '+ {quantity} {card} to {place}',
+  'domain.sync.detailRemoved': '- {quantity} {card} from {place}',
+  'domain.sync.detailQuantity': '~ {card} in {place}: {from} → {to}',
+  'domain.sync.detailMove': '> {quantity} {card}: {from} → {to}',
+  'domain.sync.detailPrinting': '* {card} in {place}: {from} → {to}',
+  'domain.sync.detailCategories': '= {card} categories: {categories}',
+  'domain.sync.detailNoPrinting': 'no printing',
+  'domain.sync.detailNoCategories': 'none',
+
   // ── Site navigation ───────────────────────────────────────────────────
   //
   // The primary destinations, rendered by both the desktop header links and

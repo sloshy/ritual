@@ -55,7 +55,18 @@ import {
   type SellEntryMatch,
 } from '../pricing/sell-report'
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
-import { SYNC_DIRECTIONS } from '../sync/common'
+import { SYNC_DIRECTIONS, SYNC_ITEM_STATUSES } from '../sync/common'
+import { BOARDS } from '../list/deck'
+import type {
+  DeckSyncCardAdded,
+  DeckSyncCardCategories,
+  DeckSyncCardMove,
+  DeckSyncCardPrinting,
+  DeckSyncCardQuantity,
+  DeckSyncCardRemoved,
+  DeckSyncDeckResult,
+  DeckSyncPrinting,
+} from '../deck-sync/types'
 import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
 import {
@@ -950,6 +961,111 @@ const SYNC_SUMMARY: JsonSchemaType = obj(
 
 const SYNC_DIRECTION = enumOf(SYNC_DIRECTIONS)
 
+const SYNC_ITEM_STATUS = enumOf(SYNC_ITEM_STATUSES)
+
+const DECK_BOARD = enumOf(BOARDS)
+
+/** A printing a deck-sync card change is about; every field absent on a bare line. */
+const DECK_SYNC_PRINTING: JsonSchemaType = obj({
+  set: str('Lowercase set code.'),
+  collectorNumber: str(),
+  finish: { ...FINISH, description: 'Absent means nonfoil.' },
+} as const satisfies Record<keyof DeckSyncPrinting, JsonSchemaType>)
+
+/** The optional `printing` the copy-count entries carry on a printing-keyed diff. */
+const DECK_SYNC_CHANGE_PRINTING: JsonSchemaType = {
+  ...DECK_SYNC_PRINTING,
+  description: 'The printing the copies carry; present only on a run syncing printings.',
+}
+
+/*
+ * One property map per `DeckSyncCardChange` arm, each checked against its
+ * engine type: a field added to an arm without a schema here is a compile error.
+ */
+
+const DECK_SYNC_ADDED_PROPS = {
+  kind: literal('added'),
+  name: str(),
+  quantity: int(),
+  board: DECK_BOARD,
+  printing: DECK_SYNC_CHANGE_PRINTING,
+} as const satisfies Record<keyof DeckSyncCardAdded, JsonSchemaType>
+
+const DECK_SYNC_REMOVED_PROPS = {
+  kind: literal('removed'),
+  name: str(),
+  quantity: int(),
+  board: DECK_BOARD,
+  printing: DECK_SYNC_CHANGE_PRINTING,
+} as const satisfies Record<keyof DeckSyncCardRemoved, JsonSchemaType>
+
+const DECK_SYNC_QUANTITY_PROPS = {
+  kind: literal('quantity'),
+  name: str(),
+  board: DECK_BOARD,
+  from: int('Copies before.'),
+  to: int('Copies after.'),
+  printing: DECK_SYNC_CHANGE_PRINTING,
+} as const satisfies Record<keyof DeckSyncCardQuantity, JsonSchemaType>
+
+const DECK_SYNC_MOVE_PROPS = {
+  kind: literal('move'),
+  name: str(),
+  quantity: int('Copies moving; a move adds and removes none.'),
+  from: DECK_BOARD,
+  to: DECK_BOARD,
+  printing: DECK_SYNC_CHANGE_PRINTING,
+} as const satisfies Record<keyof DeckSyncCardMove, JsonSchemaType>
+
+const DECK_SYNC_PRINTING_PROPS = {
+  kind: literal('printing'),
+  name: str(),
+  board: DECK_BOARD,
+  from: DECK_SYNC_PRINTING,
+  to: { ...DECK_SYNC_PRINTING, description: 'The printing the copies end up holding.' },
+} as const satisfies Record<keyof DeckSyncCardPrinting, JsonSchemaType>
+
+const DECK_SYNC_CATEGORIES_PROPS = {
+  kind: literal('categories'),
+  name: str(),
+  categories: arr(str(), 'The card’s categories, primary first; empty clears them.'),
+} as const satisfies Record<keyof DeckSyncCardCategories, JsonSchemaType>
+
+/** One `DeckSyncCardChange`, discriminated by `kind`. */
+const DECK_SYNC_CARD_CHANGE: JsonSchemaType = {
+  type: 'object',
+  description: 'One card change, by `kind`.',
+  oneOf: [
+    obj(DECK_SYNC_ADDED_PROPS, ['kind', 'name', 'quantity', 'board']),
+    obj(DECK_SYNC_REMOVED_PROPS, ['kind', 'name', 'quantity', 'board']),
+    obj(DECK_SYNC_QUANTITY_PROPS, ['kind', 'name', 'board', 'from', 'to']),
+    obj(DECK_SYNC_MOVE_PROPS, ['kind', 'name', 'quantity', 'from', 'to']),
+    obj(DECK_SYNC_PRINTING_PROPS, ['kind', 'name', 'board', 'from', 'to']),
+    obj(DECK_SYNC_CATEGORIES_PROPS, ['kind', 'name', 'categories']),
+  ],
+}
+
+/** One deck's `DeckSyncDeckResult`, checked against the engine type. */
+const DECK_SYNC_DECK_RESULT_PROPS = {
+  name: str(),
+  status: SYNC_ITEM_STATUS,
+  reason: str('Why the deck did not cleanly sync, or a dry run’s summary.'),
+  printingsChanged: int('Printing differences found; only on a run syncing printings.'),
+  printingsUnaligned: arr(str(), 'Cards whose printings disagree and were left alone.'),
+  boardMoves: int('Board moves found; present only when there is one.'),
+  categoriesChanged: int('Cards whose categories changed; only on a run syncing categories.'),
+  changes: arr(
+    DECK_SYNC_CARD_CHANGE,
+    'Every card change the run applied (or would have, on a dry run), narrowed by `only`, ' +
+      'in summary order: added, removed, quantity, move, printing, categories. Lists what ' +
+      'went through; when the push itself failed (nothing was sent), what it attempted — ' +
+      '`reason` says so. ' +
+      'Present only when there is at least one.',
+  ),
+} as const satisfies Record<keyof DeckSyncDeckResult, JsonSchemaType>
+
+const DECK_SYNC_DECK_RESULT: JsonSchemaType = obj(DECK_SYNC_DECK_RESULT_PROPS, ['name', 'status'])
+
 export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
   {
     message: str(),
@@ -957,7 +1073,7 @@ export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(
     report: obj(
       {
         direction: SYNC_DIRECTION,
-        decks: arr(openObject('One deck’s sync outcome.')),
+        decks: arr(DECK_SYNC_DECK_RESULT, 'One sync outcome per deck the run covered.'),
         failedCount: int('Decks that failed; a run with failures still reports success.'),
         unreadable: arr(openObject('A deck file holding lines the parser cannot read.')),
         cancelled: bool(

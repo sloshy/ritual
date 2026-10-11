@@ -256,6 +256,7 @@ export const cliSyncMessages = {
 
   // ── Shared sync surface ───────────────────────────────────────────────
   'cli.sync.syncing': 'Syncing "{name}" ({direction})...',
+  'cli.sync.verboseHint': 'Run with --verbose to list the cards being synced.',
   'cli.sync.notSignedIn': 'Not signed into Archidekt. Run "ritual login archidekt" first.',
   'cli.sync.accountUnnamed':
     'The stored Archidekt login does not name an account. Re-run "ritual login archidekt" to record it.',

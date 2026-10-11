@@ -122,7 +122,7 @@ describe('buildUploadPlan categories', () => {
     expect(result.entries).toMatchObject([
       { deckRelationId: 1, categories: ['Commander', 'Draw, Cantrips', 'Artifacts'] },
     ])
-    expect(result.categoriesChanged).toEqual(['Sol Ring'])
+    expect(result.categoriesChanged).toEqual([{ cardName: 'Sol Ring', categories: ['Artifacts'] }])
   })
 
   test('a card moved to another board lands there with the local categories', async () => {
@@ -134,6 +134,57 @@ describe('buildUploadPlan categories', () => {
     expect(result.entries).toMatchObject([
       { action: 'modify', deckRelationId: 1, categories: ['Sideboard', 'Artifacts'] },
     ])
+    expect(result.categoriesChanged).toEqual([{ cardName: 'Sol Ring', categories: ['Artifacts'] }])
+  })
+
+  test('a rewrite that only reorders the board category is sent but not reported', async () => {
+    const result = await plan(
+      [{ id: 1, name: 'Sol Ring', categories: ['Ramp', 'Commander'] }],
+      [section('Commander', ['Sol Ring'])],
+      { 'Sol Ring': ['Ramp'] },
+    )
+    expect(result.entries).toMatchObject([{ deckRelationId: 1, categories: ['Commander', 'Ramp'] }])
+    expect(result.categoriesChanged).toEqual([])
+  })
+
+  test('an add replacing a removed relation reports the roles it changes', async () => {
+    // A board and printing change at once is a removal plus an add, not a move:
+    // the old relation is zeroed, and the new one carries the local roles.
+    const result = await plan(
+      [{ id: 1, name: 'Sol Ring', categories: ['Ramp'] }],
+      [
+        {
+          name: 'Sideboard',
+          cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270' }],
+        },
+      ],
+      { 'Sol Ring': ['Draw'] },
+      true,
+    )
+    expect(result.entries).toMatchObject([
+      { action: 'remove', deckRelationId: 1 },
+      { action: 'add', categories: ['Sideboard', 'Draw'] },
+    ])
+    expect(result.categoriesChanged).toEqual([{ cardName: 'Sol Ring', categories: ['Draw'] }])
+  })
+
+  test('a new card added to two boards is one category change', async () => {
+    const result = await plan(
+      [],
+      [main(['Counterspell']), section('Sideboard', ['Counterspell'])],
+      {
+        Counterspell: ['Interaction'],
+      },
+    )
+    expect(result.entries).toHaveLength(2)
+    expect(result.categoriesChanged).toEqual([
+      { cardName: 'Counterspell', categories: ['Interaction'] },
+    ])
+  })
+
+  test('a new card whose only local categories are boards reports no category change', async () => {
+    const result = await plan([], [main(['Counterspell'])], { Counterspell: ['Sideboard'] })
+    expect(result.categoriesChanged).toEqual([])
   })
 
   test('a split relation lands on the target board with the local categories, as does the rest', async () => {
@@ -162,6 +213,10 @@ describe('buildUploadPlan categories', () => {
       Counterspell: ['Interaction'],
     })
     expect(result.entries.map((entry) => entry.categories)).toEqual([['Interaction'], ['Removal']])
+    // The new card's categories are a category change; the uncategorized one's default is not.
+    expect(result.categoriesChanged).toEqual([
+      { cardName: 'Counterspell', categories: ['Interaction'] },
+    ])
   })
 
   test('an added printing of an uncategorized card takes only its sibling’s board', async () => {

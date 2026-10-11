@@ -149,6 +149,9 @@ test.describe('Sync Decks Page', () => {
 
   test('a stream that never connects falls back to a plain request', async ({ page }) => {
     const mocks = await openPage(page)
+    mocks.setDeckChanges({
+      [WINOTA!.name]: [{ kind: 'added', name: 'Lightning Bolt', quantity: 1, board: 'Main' }],
+    })
     await deckRow(page, SOLDIERS!.name).locator('input[type="checkbox"]').uncheck()
     await syncButton(page).click()
 
@@ -170,9 +173,11 @@ test.describe('Sync Decks Page', () => {
         },
       ])
     await expect(page.locator('.sync-run-status .alert-success')).toContainText('Pulled')
-    await expect(page.locator('.sync-run-item', { hasText: WINOTA!.name })).toHaveAttribute(
-      'data-status',
-      'synced',
+    const winotaRun = page.locator('.sync-run-item', { hasText: WINOTA!.name })
+    await expect(winotaRun).toHaveAttribute('data-status', 'synced')
+    // The per-card lines the stream would have carried, rendered from the report.
+    await expect(winotaRun.locator('.sync-run-message[data-level="detail"]')).toHaveText(
+      '+ 1 Lightning Bolt to Main',
     )
     await expect(syncButton(page)).toBeEnabled()
   })
@@ -220,6 +225,16 @@ test.describe('Sync Decks Page', () => {
       message: 'Changes: +1 added, -0 removed, ~0 quantity changed',
     })
     await expect(winotaRun.locator('.sync-run-message')).toContainText('+1 added')
+
+    await emitStreamEvent(page, 'progress', {
+      kind: 'log',
+      level: 'detail',
+      item: WINOTA!.name,
+      message: '+ 1 Lightning Bolt to Main',
+    })
+    await expect(winotaRun.locator('.sync-run-message[data-level="detail"]')).toHaveText(
+      '+ 1 Lightning Bolt to Main',
+    )
 
     await emitStreamEvent(page, 'progress', {
       kind: 'item-result',

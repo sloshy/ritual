@@ -18,6 +18,10 @@ export const helpSyncMeta = {
       "`--only` on both sync commands. 'additions' and 'removals' are the literal values the user types.",
   },
   'help.sync.dryRun': { description: '`--dry-run` on both sync commands.' },
+  'help.sync.verbose': {
+    description:
+      '`-v, --verbose` on the sync commands: print one line per card added, removed, changed in quantity, moved between boards, re-pinned to another printing, or given new categories. Branches on which surface is being synced.',
+  },
 
   // ── collection-sync ───────────────────────────────────────────────────
   'help.collectionSync.description': { description: 'Summary of the `collection-sync` command.' },

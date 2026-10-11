@@ -20,6 +20,7 @@ import type { ArchidektCardModifier } from '../../src/importers/archidekt-types'
 import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 import { parseChangelog } from '../../src/changes/changelog-parser'
 import type { ChangeEvent } from '../../src/changes/change-event'
+import type { DeckSyncReport } from '../../src/deck-sync/engine'
 
 /**
  * End-to-end coverage for the `deck-sync` behaviors only the command and engine
@@ -33,6 +34,7 @@ import type { ChangeEvent } from '../../src/changes/change-event'
  */
 
 const DECK_ID = '123456'
+const VERBOSE_HINT = 'Run with --verbose to list the cards being synced.'
 const DECK_URL = `https://archidekt.com/api/decks/${DECK_ID}/`
 const OWN_DECKS_URL = 'https://archidekt.com/api/decks/curated/self/'
 const MODIFY_URL = `https://archidekt.com/api/decks/${DECK_ID}/modifyCards/v2/`
@@ -541,6 +543,53 @@ describe('deck-sync push divergence (Integration)', () => {
   // `--force` is push-only: pinned through the built binary (exit code and
   // stderr) in `deck-sync-cli.test.ts`, where commander's parse failure is
   // observable rather than thrown into the test process.
+})
+
+describe('deck-sync --verbose (Integration)', () => {
+  const BOLT = remoteEntry(22, 'Lightning Bolt', 1, {
+    set: '2xm',
+    collectorNumber: '117',
+    cardId: 601,
+  })
+
+  test('lists the cards only under --verbose, and otherwise says how to see them', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }])
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z', {}, [BOLT]))
+
+    expect(await runDeckSync(['pull', '--dry-run'])).toBe(0)
+    expect(logged()).toContain('Changes: +1 added')
+    expect(logged()).not.toContain('Lightning Bolt')
+    expect(logged()).toContain(VERBOSE_HINT)
+
+    logger.clear()
+    expect(await runDeckSync(['pull', '--dry-run', '-v'])).toBe(0)
+    expect(logged()).toContain('  + 1 Lightning Bolt to Main')
+    expect(logged()).not.toContain(VERBOSE_HINT)
+  })
+
+  test('a run with nothing to list prints no hint', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }])
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z'))
+
+    expect(await runDeckSync(['pull', '--dry-run'])).toBe(0)
+    expect(logged()).toContain('No changes detected.')
+    expect(logged()).not.toContain(VERBOSE_HINT)
+  })
+
+  test('the JSON report carries each deck’s card changes, whatever --verbose says', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }])
+    stubFetch(pushRoutes('2026-08-02T00:00:00.000Z', {}, [BOLT]))
+
+    let exitCode = 1
+    const stdout = await captureStream('stdout', async () => {
+      exitCode = await runDeckSync(['pull', '--dry-run', '--output', 'json'])
+    })
+    expect(exitCode).toBe(0)
+    const report = JSON.parse(stdout) as DeckSyncReport
+    expect(report.decks[0]?.changes).toEqual([
+      { kind: 'added', name: 'Lightning Bolt', quantity: 1, board: 'Main' },
+    ])
+  })
 })
 
 describe('deck-sync empty extras sections (Integration)', () => {
@@ -1166,9 +1215,10 @@ describe('deck-sync --sync-categories (Integration)', () => {
     )
     stubFetch(categorizedRoutes(['Ramp', 'Artifact']))
 
-    expect(await runDeckSync(['pull', '--sync-categories'])).toBe(0)
+    expect(await runDeckSync(['pull', '--sync-categories', '--verbose'])).toBe(0)
 
     expect(logged()).toContain("1 card's categories changed")
+    expect(logged()).toContain('  = Sol Ring categories: Ramp, Artifact')
     expect(await readSidecar()).toEqual({
       order: ['Ramp', 'Artifact'],
       cards: { 'Sol Ring': ['Ramp', 'Artifact'] },
@@ -1256,10 +1306,13 @@ describe('deck-sync --sync-categories (Integration)', () => {
     bolt.categories = ['Removal']
     stubFetch(categorizedRoutes(['Ramp'], [bolt]))
 
-    expect(await runDeckSync(['push', '--sync-categories', '--only', 'additions'])).toBe(0)
+    expect(await runDeckSync(['push', '--sync-categories', '--only', 'additions', '-v'])).toBe(0)
 
     expect(pushedEntries()).toMatchObject([{ deckRelationId: 11, categories: ['Draw'] }])
     expect(pushedEntries()).toHaveLength(1)
+    // The listing names what the run applies: the skipped removal is not in it.
+    expect(logged()).toContain('  = Sol Ring categories: Draw')
+    expect(logged()).not.toContain('Lightning Bolt from')
   })
 
   test('a push from a deck with no local categories leaves Archidekt’s alone', async () => {
@@ -1308,7 +1361,7 @@ describe('deck-sync board moves (Integration)', () => {
     )
     stubFetch(routesWithSolRingIn(['Artifact']))
 
-    expect(await runDeckSync(['push'])).toBe(0)
+    expect(await runDeckSync(['push', '-v'])).toBe(0)
 
     expect(pushedEntries()).toEqual([
       expect.objectContaining({
@@ -1318,6 +1371,7 @@ describe('deck-sync board moves (Integration)', () => {
       }),
     ])
     expect(logged()).toContain('1 board move')
+    expect(logged()).toContain('  > 1 Sol Ring: Main → Sideboard')
   })
 
   /** The events the deck's changelog records, oldest page first. */

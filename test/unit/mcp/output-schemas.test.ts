@@ -596,13 +596,50 @@ describe('MCP output schemas, as authored', () => {
         },
         report: {
           direction: 'pull',
-          decks: [{ name: 'Burn', status: 'synced' }],
+          decks: [
+            { name: 'Burn', status: 'synced' },
+            {
+              name: 'Stax',
+              status: 'synced',
+              // One of every card-change kind, so each `oneOf` arm is exercised.
+              changes: [
+                { kind: 'added', name: 'Sol Ring', quantity: 1, board: 'Main' },
+                {
+                  kind: 'removed',
+                  name: 'Lightning Bolt',
+                  quantity: 1,
+                  board: 'Sideboard',
+                  printing: { set: '2xm', collectorNumber: '117', finish: 'foil' },
+                },
+                { kind: 'quantity', name: 'Island', board: 'Main', from: 2, to: 3 },
+                { kind: 'move', name: 'Island', quantity: 1, from: 'Main', to: 'Sideboard' },
+                {
+                  kind: 'printing',
+                  name: 'Sol Ring',
+                  board: 'Main',
+                  from: {},
+                  to: { set: 'lea', collectorNumber: '270' },
+                },
+                { kind: 'categories', name: 'Sol Ring', categories: ['Ramp'] },
+              ],
+            },
+          ],
           failedCount: 0,
           unreadable: [],
           cancelled: false,
         },
       }
       expect(await validates(SYNC_DECKS_OUTPUT, deckSample)).toBe(true)
+      // A change of no known kind matches no arm.
+      expect(
+        await validates(SYNC_DECKS_OUTPUT, {
+          ...deckSample,
+          report: {
+            ...deckSample.report,
+            decks: [{ name: 'Stax', status: 'synced', changes: [{ kind: 'swap', name: 'X' }] }],
+          },
+        }),
+      ).toBe(false)
 
       const collectionReport: CollectionSyncReport = {
         direction: 'push',

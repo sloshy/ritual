@@ -9,8 +9,8 @@ The same sync runs from the admin site's [Sync Decks](/admin/sync-decks/) page a
 ## Usage
 
 ```bash
-ritual deck-sync pull [decks...] [--sync-printings] [--sync-categories]
-ritual deck-sync push [decks...] [--force] [--sync-printings] [--sync-categories]
+ritual deck-sync pull [decks...] [--sync-printings] [--sync-categories] [-v]
+ritual deck-sync push [decks...] [--force] [--sync-printings] [--sync-categories] [-v]
 ritual deck-sync link <deck> <url>
 ritual deck-sync status
 ```
@@ -44,6 +44,7 @@ Names resolve within decks only, following the usual [list name rules](/list-res
 | `--force`           | **push only** — overwrite a remote deck that changed since its last sync         | `false`     |
 | `--sync-printings`  | Also sync each card's exact printing (set, collector number, foil/etched finish) | `false`     |
 | `--sync-categories` | Also sync each card's [categories](#category-sync---sync-categories) (its role)  | `false`     |
+| `-v, --verbose`     | List every card being synced under its deck (see [Card Listing](#card-listing))  | `false`     |
 | `--output <format>` | Output format: `text`, `json`, or `ndjson`                                       | `text`      |
 | `--quiet`           | Suppress non-essential output                                                    | `false`     |
 
@@ -102,6 +103,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names). A card one side holds with no printing at all never counts as disagreeing.
 - A deck whose diff [moves cards between boards](#board-moves) carries `boardMoves`: the number of moves applied, or previewed on a dry run. It is absent when there are none.
 - Under [`--sync-categories`](#category-sync---sync-categories) each deck also carries `categoriesChanged`: the number of cards whose categories the run changed, or would change on a dry run.
+- A deck with card changes carries `changes`, the [card listing](#card-listing) as data, whether or not `--verbose` was given. It lists what went through: a push leaves out what its plan could not send, or did not need to. When the push itself failed (nothing was sent), it lists what the push attempted, and `reason` says so. Entries are discriminated by `kind`: `added`/`removed` (`name`, `quantity`, `board`), `quantity` (`name`, `board`, `from`, `to`), `move` (`name`, `quantity`, `from`, `to`), `printing` (`name`, `board`, `from`, `to`) and `categories` (`name`, `categories`). On a run syncing printings, the first four also carry `printing` (`set` lowercase, `collectorNumber`, `finish`).
 - `unreadable` lists any deck whose file holds lines the parser could not read, with those lines. See [Unreadable Lines](#unreadable-lines).
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-decks) and the MCP `sync_decks` tool set it when a client cancels between decks.
 
@@ -116,6 +118,33 @@ Synced 4 decks (2 with changes), 1 skipped, 1 failed.
 ```
 
 "with changes" counts decks that actually moved cards, as opposed to decks already in sync. A dry run says `[dry-run] Would sync …` instead. A run that covered no decks prints only `No Archidekt decks found to sync.`
+
+## Card Listing
+
+Each deck with changes prints a one-line `Changes:` count. With `-v, --verbose` the run also lists every card behind those counts, one line each, under the count:
+
+```
+Syncing "Winota Stax" (pull)...
+  Changes: +1 added, -1 removed, ~1 quantity changed, 1 board move, 1 printing changed
+  + 1 Lightning Bolt (2XM:117) [foil] to Main
+  - 1 Brainstorm from Sideboard
+  ~ Counterspell in Main: 2 → 3
+  > 2 Island: Main → Sideboard
+  * Sol Ring in Main: (C21:263) → (LEA:270)
+```
+
+| Marker | Change                                                                          |
+| ------ | ------------------------------------------------------------------------------- |
+| `+`    | Copies added to a board                                                         |
+| `-`    | Copies removed from a board                                                     |
+| `~`    | A card's quantity on a board changes (old → new)                                |
+| `>`    | Copies [move between boards](#board-moves)                                      |
+| `*`    | Copies change [printing](#printing-sync---sync-printings) (old → new)           |
+| `=`    | A card's [categories](#category-sync---sync-categories) are set (primary first) |
+
+Cards carry their printing on `+`, `-`, `~` and `>` lines, and `*` lines appear at all, only under [`--sync-printings`](#printing-sync---sync-printings). Without it the diff compares names and totals only. Likewise `=` lines appear only under `--sync-categories`.
+
+The listing follows [`--only`](#change-filter): it names only what the run applies, or would apply on a dry run. Without `--verbose`, a run that had cards to list ends with `Run with --verbose to list the cards being synced.` The listing is progress output, so `--quiet` and `--output json`/`ndjson` print neither it nor that hint. Under `--output json`/`ndjson` the same cards arrive as data in each deck's [`changes`](#scripted-output), and the MCP `sync_decks` tool reports them the same way. The admin [Sync Decks](/admin/sync-decks/) page always shows the listing under each deck.
 
 ## Divergence Guard (push)
 
@@ -438,6 +467,12 @@ Bring Archidekt's categories down, then push local category edits back:
 ```bash
 ritual deck-sync pull "Winota Stax" --sync-categories
 ritual deck-sync push "Winota Stax" --sync-categories
+```
+
+Preview a pull and see exactly which cards it would change:
+
+```bash
+ritual deck-sync pull "Winota Stax" --dry-run --verbose
 ```
 
 Script a pull and inspect per-deck results:

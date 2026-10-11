@@ -15,6 +15,7 @@ import {
   type SyncDirection,
   type SyncEvent,
   type SyncEventHandler,
+  type SyncLogLevel,
   type SyncSubjectKind,
 } from '../sync/common'
 import { describeUnreadable, type ScopedIndenter, type UnreadableSubject } from './sync-helpers'
@@ -32,15 +33,45 @@ export type SyncEventRendererOptions = {
   direction: SyncDirection
   logger: Logger
   indent: ScopedIndenter
+  /** Print `detail` lines (the per-card change listing). Off by default. */
+  verbose?: boolean
+}
+
+/** A run's console renderer, and what it withheld. */
+export type SyncEventRenderer<TResult> = {
+  onEvent: SyncEventHandler<TResult>
+  /** Whether any `detail` line was withheld because `verbose` was off. */
+  detailHidden(): boolean
+}
+
+/** Which logger method prints each level; `detail` is ordinary progress output. */
+const LOG_METHOD = {
+  info: 'info',
+  warn: 'warn',
+  error: 'error',
+  detail: 'info',
+} as const satisfies Record<SyncLogLevel, 'info' | 'warn' | 'error'>
+
+/**
+ * The run's closing hint, when the renderer withheld per-card lines. An info
+ * line, so `--quiet` and structured output drop it with the rest of the chatter.
+ */
+export function printVerboseHint<TResult>(
+  renderer: SyncEventRenderer<TResult>,
+  logger: Logger,
+): void {
+  if (renderer.detailHidden()) logger.info(t('cli.sync.verboseHint'))
 }
 
 /**
- * Render each sync event as a console line. Item-scoped messages are indented
+ * Render each sync event as a console line, returning the handler plus whether
+ * any `detail` line was withheld (for {@link printVerboseHint}). Item-scoped messages are indented
  * under the `Syncing "…"` line that opened the deck or list — but only when that
  * line actually printed, and only after it did (see `createScopedIndenter`): the
  * per-line cache warnings arrive before any header exists, and `--quiet` drops
  * the headers entirely. Run-level messages (the remote fetch, ambiguous
- * removals, sources that could not be loaded at all) sit flush left. Results
+ * removals, sources that could not be loaded at all) sit flush left. `detail`
+ * lines print as info, but only when `verbose` is on. Results
  * themselves are not printed — the closing tally and the report summarize them.
  */
 export function createSyncEventRenderer<TResult>({
@@ -48,18 +79,21 @@ export function createSyncEventRenderer<TResult>({
   direction,
   logger,
   indent,
-}: SyncEventRendererOptions): SyncEventHandler<TResult> {
-  return (event: SyncEvent<TResult>): void => {
+  verbose = false,
+}: SyncEventRendererOptions): SyncEventRenderer<TResult> {
+  let detailHidden = false
+  const onEvent = (event: SyncEvent<TResult>): void => {
     switch (event.kind) {
       case 'item-start':
         indent.start(event.item)
         logger.info(t('cli.sync.syncing', { name: event.item, direction }))
         return
       case 'log': {
-        const line = indent.line(event.item, event.message)
-        if (event.level === 'warn') logger.warn(line)
-        else if (event.level === 'error') logger.error(line)
-        else logger.info(line)
+        if (event.level === 'detail' && !verbose) {
+          detailHidden = true
+          return
+        }
+        logger[LOG_METHOD[event.level]](indent.line(event.item, event.message))
         return
       }
       case 'item-result':
@@ -81,4 +115,5 @@ export function createSyncEventRenderer<TResult>({
       }
     }
   }
+  return { onEvent, detailHidden: () => detailHidden }
 }

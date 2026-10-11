@@ -560,6 +560,10 @@ export const cliSyncMeta = {
     description:
       'Header line opening one deck or collection list. {direction} is the persisted slug "push" or "pull", never translated. Subsequent lines for the same item are indented under it.',
   },
+  'cli.sync.verboseHint': {
+    description:
+      'Printed once at the end of a sync run that had card changes but was not given --verbose, so the per-card listing was not shown. `--verbose` is a literal flag name and must not be translated.',
+  },
   'cli.sync.notSignedIn': {
     description:
       'Both sync commands refuse an unauthenticated run with this line. The quoted command is typed verbatim and is never translated.',

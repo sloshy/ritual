@@ -9,7 +9,11 @@ import { t } from '../i18n/t'
 import type { Card } from '../card/card'
 import type { Board, DeckSection } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
-import { archidektEntryCategoryNames, archidektEntryPrinting } from '../importers/archidekt-types'
+import {
+  archidektEntryCategoryNames,
+  archidektEntryPrinting,
+  archidektFinish,
+} from '../importers/archidekt-types'
 import type {
   ArchidektCardModifier,
   ArchidektRawDeckResponse,
@@ -22,6 +26,7 @@ import {
   diffPhases,
   normalizeBoard,
   type BoardMove,
+  type CardSummary,
   type DeckDiff,
   type PrintingUpdate,
   type QuantityChange,
@@ -30,7 +35,13 @@ import { distributeQuantity, holdingsAt, samePrintingRef, type DeckPrintingRef }
 import { printingSuffix } from '../card/card-line'
 import { hasSpecificPrinting } from '../card/card-printing'
 import { archidektModifier } from '../importers/archidekt-collection'
-import type { CardCategory } from '../card/card-categories'
+import {
+  foldCategoryCardName,
+  parseCardCategory,
+  sameCardCategories,
+  type CardCategory,
+} from '../card/card-categories'
+import type { CategoryChangeInput } from './card-changes'
 import {
   archidektEntrySection,
   archidektNonBoardCategories,
@@ -158,10 +169,19 @@ export type UploadPlan = {
   entries: ModifyCardEntry[]
   errors: string[]
   /**
-   * Cards already on Archidekt whose role categories the plan rewrites, by their
-   * Archidekt name. Always empty unless the plan was given local categories.
+   * The part of the diff the entries carry out: the input diff less every
+   * entry an error kept out of the plan, with a board move that could only
+   * take some of its copies narrowed to those. What the report lists.
    */
-  categoriesChanged: string[]
+  applied: DeckDiff
+  /**
+   * Cards whose role categories the plan sets, by their Archidekt name, with
+   * the non-board categories it sends (primary first): cards already on
+   * Archidekt whose categories it rewrites, and cards new to Archidekt added
+   * with local categories. Always empty unless the plan was given local
+   * categories.
+   */
+  categoriesChanged: CategoryChangeInput[]
 }
 
 /**
@@ -421,10 +441,31 @@ export async function buildUploadPlan(
   const rawIndex = buildRawCardIndex(rawDeck)
   const categoryIndex = indexArchidektCategories(rawDeck.categories)
   const errors: string[] = []
-  const categoriesChanged: string[] = []
+  const categoriesChanged: CategoryChangeInput[] = []
+  /** Diff entries an error kept out of the plan, by identity. */
+  const failed = new Set<DiffEntry>()
+  /** Copies a board move could not take, for the moves that came up short. */
+  const movesShort = new Map<BoardMove, number>()
+  /** Printing updates that sent nothing: Archidekt already held the target. */
+  const unsent = new Set<DiffEntry>()
+  /** The printing a printing update actually sent, where it differs from the stated one. */
+  const printingsSent = new Map<PrintingUpdate, DeckPrintingRef>()
+  /** A relation's role categories before this push, for deciding what to report. */
+  const rolesBefore = (relation: PlannedRelation): CardCategory[] =>
+    roleCategoriesSet(
+      archidektEntryCategoryNames(relation.raw.categories, rawDeck.categories),
+      categoryIndex,
+    )
+  /** Report a card's categories as set, once per card. */
+  const reportCategories = (cardName: string, categories: CardCategory[]): void => {
+    const key = foldCategoryCardName(cardName)
+    if (categoriesChanged.some((change) => foldCategoryCardName(change.cardName) === key)) return
+    categoriesChanged.push({ cardName, categories })
+  }
 
   /** The relations of a diff entry's card, or the reason there are none to act on. */
   const relationsFor = (
+    entry: DiffEntry,
     name: string,
     board: Board,
     printing: DeckPrintingRef | undefined,
@@ -435,6 +476,7 @@ export async function buildUploadPlan(
     // The diff only asks for these against cards the remote deck holds, so a
     // miss means the raw payload and the parsed deck disagree — report it.
     if (relations.length === 0) {
+      failed.add(entry)
       errors.push(
         `Cannot ${verb} for card not found in Archidekt deck: ${printingLabel(name, printing)}`,
       )
@@ -454,7 +496,7 @@ export async function buildUploadPlan(
   // name-keyed diff that is every relation of the name on the board: the card
   // is gone from that board locally, so no copy of it may survive there.
   for (const card of phases.shrinking.removed) {
-    for (const relation of relationsFor(card.name, card.board, card.printing, 'remove')) {
+    for (const relation of relationsFor(card, card.name, card.board, card.printing, 'remove')) {
       setQuantity(relation, 0)
     }
   }
@@ -463,17 +505,25 @@ export async function buildUploadPlan(
   // own quantity. Re-using the relation rather than adding a new one preserves
   // its Archidekt categories, label, and placement.
   for (const update of diff.printingUpdates) {
-    const relations = relationsFor(update.name, update.board, update.from, 'update the printing')
+    const relations = relationsFor(
+      update,
+      update.name,
+      update.board,
+      update.from,
+      'update the printing',
+    )
     const first = relations[0]
     if (!first) continue
 
     const target = await resolvePrintingTarget(update, first, client, token)
     if (typeof target === 'string') {
+      failed.add(update)
       errors.push(target)
       continue
     }
 
     const printing = appliedPrinting(update.from, update.to)
+    let sent = false
     for (const relation of relations) {
       // A bare local line on a foil-only printing "wants" nonfoil but falls
       // back to the printing's own finish — resolving to what Archidekt
@@ -482,8 +532,19 @@ export async function buildUploadPlan(
         relation.cardid = target.cardid
         relation.modifier = target.modifier
         relation.touched = true
+        sent = true
       }
       relation.printing = printing
+    }
+    // Reporting only: an update that resolved to what Archidekt already holds
+    // sends nothing, and one whose finish fell back reports the finish sent.
+    if (!sent) {
+      unsent.add(update)
+    } else {
+      const sentFinish = archidektFinish(target.modifier)
+      if ((sentFinish ?? 'nonfoil') !== (printing.finish ?? 'nonfoil')) {
+        printingsSent.set(update, { ...printing, finish: sentFinish })
+      }
     }
   }
 
@@ -492,7 +553,13 @@ export async function buildUploadPlan(
   // Decreases run before the board moves and increases after them, matching
   // the quantities the diff states.
   const applyQuantity = (entry: QuantityChange): void => {
-    const relations = relationsFor(entry.name, entry.board, entry.printing, 'update the quantity')
+    const relations = relationsFor(
+      entry,
+      entry.name,
+      entry.board,
+      entry.printing,
+      'update the quantity',
+    )
     const quantities = distributeQuantity(
       relations.map((relation) => relation.quantity),
       entry.newQty,
@@ -503,10 +570,11 @@ export async function buildUploadPlan(
 
   for (const move of phases.boardMoves) {
     const indexed = rawIndex.get(move.name.toLowerCase())
-    const relations = relationsFor(move.name, move.from, move.printing, 'change the board')
+    const relations = relationsFor(move, move.name, move.from, move.printing, 'change the board')
     if (indexed === undefined || relations.length === 0) continue
     const missing = planBoardMove(indexed, relations, move, categoryIndex)
     if (missing > 0) {
+      movesShort.set(move, missing)
       errors.push(
         `Cannot change the board for ${t('domain.count.copies', { count: missing })} of ` +
           `${printingLabel(move.name, move.printing)}: the Archidekt ${move.from} board ` +
@@ -525,16 +593,19 @@ export async function buildUploadPlan(
       const name = indexed.relations[0].raw.card.oracleCard.name
       const local = localCategoriesOf(name)
       if (local === undefined) continue
-      let changed = false
+      let reported: CardCategory[] | undefined
       for (const relation of indexed.relations) {
         if (relation.quantity === 0) continue
         const next = composeArchidektCategories(relation.categories, categoryIndex, local)
         if (sameArchidektCategories(next, relation.categories)) continue
         relation.categories = next
         relation.touched = true
-        changed = true
+        // Sent either way; reported only when the card's roles change — not
+        // for a board reorder, a kept refused name, or a case-only rewrite.
+        const roles = roleCategoriesSet(next, categoryIndex)
+        if (!sameCardCategories(roles, rolesBefore(relation))) reported ??= roles
       }
-      if (changed) categoriesChanged.push(name)
+      if (reported !== undefined) reportCategories(name, reported)
     }
   }
 
@@ -549,6 +620,7 @@ export async function buildUploadPlan(
     const searchSet = diff.byPrinting ? printing?.set : findLocalCard(localSections, card.name)?.set
     const result = await client.searchCards(card.name, searchSet, token, printing?.collectorNumber)
     if (typeof result === 'string') {
+      failed.add(card)
       errors.push(result)
       continue
     }
@@ -560,27 +632,41 @@ export async function buildUploadPlan(
         printingLabel(card.name, printing),
       )
       if (!resolved.ok) {
+        failed.add(card)
         errors.push(resolved.error)
         continue
       }
       modifier = resolved.modifier
     }
     const siblings = rawIndex.get(card.name.toLowerCase())
-    adds.push({
-      cardid: result.id,
-      categories:
-        localCategoriesOf === undefined
-          ? addCategories(siblings, card.board, result.oracleCard.defaultCategory, categoryIndex)
-          : syncedAddCategories(
-              siblings,
-              card.board,
-              result.oracleCard.defaultCategory,
-              categoryIndex,
-              localCategoriesOf(card.name) ?? [],
-            ),
-      quantity: card.totalQuantity,
-      modifier,
-    })
+    const local = localCategoriesOf?.(card.name) ?? []
+    const categories =
+      localCategoriesOf === undefined
+        ? addCategories(siblings, card.board, result.oracleCard.defaultCategory, categoryIndex)
+        : syncedAddCategories(
+            siblings,
+            card.board,
+            result.oracleCard.defaultCategory,
+            categoryIndex,
+            local,
+          )
+    // The added relation's roles are a category change the pass above, which
+    // only sees relations already there, could not report: measured against
+    // the roles the card's surviving relations hold now, or — with none left
+    // (a removal plus an add) — the roles it held before the push. A card new
+    // to Archidekt that the local file leaves uncategorized takes Archidekt's
+    // default, which is not a category Ritual set.
+    if (localCategoriesOf !== undefined && !(siblings === undefined && local.length === 0)) {
+      const live = siblings?.relations.filter((relation) => relation.quantity > 0) ?? []
+      const baseline =
+        live.length > 0
+          ? live.map((relation) => roleCategoriesSet(relation.categories, categoryIndex))
+          : (siblings?.relations ?? []).map(rolesBefore)
+      const before = baseline.find((roles) => roles.length > 0) ?? []
+      const sent = roleCategoriesSet(categories, categoryIndex)
+      if (!sameCardCategories(sent, before)) reportCategories(card.name, sent)
+    }
+    adds.push({ cardid: result.id, categories, quantity: card.totalQuantity, modifier })
   }
 
   const nextPatchId = createPatchIdGenerator()
@@ -637,7 +723,75 @@ export async function buildUploadPlan(
     })
   }
 
-  return { entries, errors, categoriesChanged }
+  return {
+    entries,
+    errors,
+    applied: appliedDiff(diff, { failed, unsent, movesShort, printingsSent }),
+    categoriesChanged,
+  }
+}
+
+/**
+ * The card categories a relation's sent categories set, primary first: its
+ * non-board categories less the names Ritual cannot hold, which the push keeps
+ * from the remote rather than setting.
+ */
+function roleCategoriesSet(sent: readonly string[], index: ArchidektCategoryIndex): CardCategory[] {
+  return archidektNonBoardCategories(sent, index).filter((name) => parseCardCategory(name).ok)
+}
+
+/** A diff entry the plan acts on, tracked by identity when an error keeps it out. */
+type DiffEntry = CardSummary | QuantityChange | BoardMove | PrintingUpdate
+
+/** What the plan recorded about the diff entries it could not, or did not need to, send. */
+type PlanOutcome = {
+  /** Entries an error kept out of the plan. */
+  failed: ReadonlySet<DiffEntry>
+  /** Printing updates that sent nothing. */
+  unsent: ReadonlySet<DiffEntry>
+  /** Copies each short board move could not take. */
+  movesShort: ReadonlyMap<BoardMove, number>
+  /** The printing a printing update sent, where it differs from the stated one. */
+  printingsSent: ReadonlyMap<PrintingUpdate, DeckPrintingRef>
+}
+
+/**
+ * The diff as the plan carries it out: less the entries an error kept out or
+ * that sent nothing, each short move narrowed to the copies it took (dropped
+ * when it took none) and the destination's quantity change starting from
+ * those copies, and each printing update naming the printing it sent.
+ */
+function appliedDiff(diff: DeckDiff, outcome: PlanOutcome): DeckDiff {
+  const kept = <T extends DiffEntry>(entries: readonly T[]): T[] =>
+    entries.filter((entry) => !outcome.failed.has(entry) && !outcome.unsent.has(entry))
+  const boardMoves = kept(diff.boardMoves)
+  return {
+    ...diff,
+    added: kept(diff.added),
+    removed: kept(diff.removed),
+    quantityChanged: kept(diff.quantityChanged).map((entry) => {
+      if (entry.newQty <= entry.oldQty) return entry
+      // A quantity increase on a move's landing board is stated from the
+      // copies the move brought; a move that came up short brought fewer.
+      const short = boardMoves
+        .filter(
+          (move) =>
+            move.to === entry.board &&
+            move.name.toLowerCase() === entry.name.toLowerCase() &&
+            samePrintingRef(move.printing ?? {}, entry.printing ?? {}),
+        )
+        .reduce((total, move) => total + (outcome.movesShort.get(move) ?? 0), 0)
+      return short > 0 ? { ...entry, oldQty: entry.oldQty - short } : entry
+    }),
+    printingUpdates: kept(diff.printingUpdates).map((update) => {
+      const sent = outcome.printingsSent.get(update)
+      return sent === undefined ? update : { ...update, to: sent }
+    }),
+    boardMoves: boardMoves.flatMap((move) => {
+      const moved = move.quantity - (outcome.movesShort.get(move) ?? 0)
+      return moved > 0 ? [{ ...move, quantity: moved }] : []
+    }),
+  }
 }
 
 /**

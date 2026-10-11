@@ -69,6 +69,15 @@ export function addSyncOptions(command: Command, subject: SyncSubject): Command 
 }
 
 /**
+ * Register `-v, --verbose`, which prints the per-card `detail` lines a sync
+ * logs under each change summary (see `createSyncEventRenderer`). `subject`
+ * selects the noun the help text names, as in {@link addSyncOptions}.
+ */
+export function addVerboseOption(command: Command, subject: SyncSubject): Command {
+  return command.option('-v, --verbose', t('help.sync.verbose', { subject }), false)
+}
+
+/**
  * Indentation for the deck/list-scoped lines both sync commands print.
  *
  * A scoped line is indented so it sits under the `Syncing "…"` header that

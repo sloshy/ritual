@@ -6,7 +6,11 @@ import type {
   CollectionSyncRunResponse,
   CollectionSyncStatusResponse,
 } from '../../../src/admin/api/collection-sync'
-import type { SyncableDeck, UnreadableDeck } from '../../../src/deck-sync/engine'
+import type {
+  DeckSyncCardChange,
+  SyncableDeck,
+  UnreadableDeck,
+} from '../../../src/deck-sync/engine'
 import type {
   CollectionSyncCsv,
   CollectionSyncListResult,
@@ -503,6 +507,8 @@ export type DeckSyncMocks = {
   setArchidekt: (status: ArchidektLoginStatus) => void
   /** Decks the non-streaming run reports as holding unreadable lines. */
   setUnreadable: (decks: UnreadableDeck[]) => void
+  /** The card changes the non-streaming run reports for a deck, by deck name. */
+  setDeckChanges: (changes: Record<string, DeckSyncCardChange[]>) => void
   /** How many times the page has loaded the deck list. */
   statusRequests: () => number
   /** Bodies posted to the non-streaming fallback endpoint. */
@@ -522,6 +528,7 @@ export async function mockDeckSyncApi(
   let currentDecks = decks
   let currentArchidekt = archidekt
   let currentUnreadable: UnreadableDeck[] = []
+  let currentChanges: Record<string, DeckSyncCardChange[]> = {}
   let statusCount = 0
   const posted: unknown[] = []
 
@@ -552,7 +559,10 @@ export async function mockDeckSyncApi(
         summary,
         report: {
           direction: 'pull',
-          decks: currentDecks.map((deck) => ({ name: deck.name, status: 'synced' })),
+          decks: currentDecks.map((deck) => {
+            const changes = currentChanges[deck.name]
+            return { name: deck.name, status: 'synced', ...(changes ? { changes } : {}) }
+          }),
           failedCount: 0,
           unreadable: currentUnreadable,
           cancelled: false,
@@ -571,6 +581,9 @@ export async function mockDeckSyncApi(
     },
     setUnreadable: (next: UnreadableDeck[]) => {
       currentUnreadable = next
+    },
+    setDeckChanges: (next: Record<string, DeckSyncCardChange[]>) => {
+      currentChanges = next
     },
     statusRequests: () => statusCount,
     postedRuns: () => posted,

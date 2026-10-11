@@ -281,7 +281,12 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'it — never onto a board already holding the card, where the copies are a quantity ' +
         'change instead. The "only" filter never drops a move (a move adds and removes no ' +
         'copies); each deck entry that moved cards carries boardMoves. Omit decks to sync every ' +
-        'linked deck. A push whose remote deck changed ' +
+        'linked deck. Each deck entry with changes carries changes: every card change the run ' +
+        'applied (or would apply on a dry run), narrowed by only — added, removed, quantity, ' +
+        'move, printing and categories entries, discriminated by kind. It lists what went ' +
+        'through; when the push itself failed (nothing was sent), what it attempted — the ' +
+        'deck’s reason says so. ' +
+        'A push whose remote deck changed ' +
         'since that deck’s recorded lastSynced fails rather than reverting those remote edits ' +
         '— pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
         'a run with failures still reports success — check report.failedCount. ' +

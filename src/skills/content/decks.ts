@@ -296,6 +296,7 @@ ritual deck-sync push --only removals        # push removals only, add nothing r
 ritual deck-sync push "Winota Stax" --force  # overwrite remote edits made since the last sync
 ritual deck-sync push --sync-printings       # also sync each card's exact printing + finish
 ritual deck-sync pull --sync-categories      # also sync each card's categories (its role: Ramp, Draw…)
+ritual deck-sync pull --dry-run -v           # also list every card the run changes, one line each
 ritual deck-sync status --output json        # what is linked, and when each last synced
 ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456  # link an existing remote deck
 \`\`\`
@@ -303,6 +304,19 @@ ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456  # link an
 A text-mode run closes with a tally —
 \`Synced 4 decks (2 with changes), 1 skipped, 1 failed.\` — while
 \`--output json\` emits the full per-deck report instead.
+
+Each deck prints only a \`Changes:\` count by default. \`-v\`/\`--verbose\` lists the
+cards behind it, one line each, under the count: \`+ 1 Lightning Bolt to Main\`,
+\`- 1 Brainstorm from Sideboard\`, \`~ Counterspell in Main: 2 → 3\`,
+\`> 2 Island: Main → Sideboard\` (board move), \`* Sol Ring in Main: (C21:263) → (LEA:270)\`
+(printing), \`= Sol Ring categories: Ramp, Artifacts\`. It honours \`--only\`. A run
+without it that had cards to list ends with a hint to re-run with \`--verbose\`.
+Pair \`--dry-run --verbose\` to review exactly what a sync would change before
+running it. The listing is progress output: \`--quiet\` and \`--output json\` omit
+the lines, but the JSON report carries the same cards as data — each deck with
+changes has a \`changes\` array of entries discriminated by \`kind\` (\`added\`,
+\`removed\`, \`quantity\`, \`move\`, \`printing\`, \`categories\`), narrowed by
+\`--only\` and present with or without \`--verbose\`.
 
 ### Linking and status
 

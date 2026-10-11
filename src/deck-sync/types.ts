@@ -7,7 +7,9 @@
 
 import type { ArchidektClient } from '../clients/ArchidektClient'
 import type { DeckFrontMatter } from '../list/deck-file'
-import type { DeckData } from '../list/deck'
+import type { Board, DeckData } from '../list/deck'
+import type { CardCategory } from '../card/card-categories'
+import type { DeckPrintingRef } from './reconcile'
 import type {
   ConfirmUnreadable,
   SyncChangeFilter,
@@ -23,6 +25,84 @@ import type {
 
 /** What happened to one deck during a sync run. */
 export type DeckSyncStatus = SyncItemStatus
+
+/**
+ * The printing a card change is about. Set codes are lowercase (the data
+ * convention); every field is absent on a line that states no printing.
+ */
+export type DeckSyncPrinting = DeckPrintingRef
+
+/** Copies of a card added to a board on the destination. */
+export type DeckSyncCardAdded = {
+  kind: 'added'
+  name: string
+  quantity: number
+  board: Board
+  /** Present when the run synced printings: the printing the copies carry. */
+  printing?: DeckSyncPrinting
+}
+
+/** Copies of a card removed from a board on the destination. */
+export type DeckSyncCardRemoved = {
+  kind: 'removed'
+  name: string
+  quantity: number
+  board: Board
+  printing?: DeckSyncPrinting
+}
+
+/** A card's quantity on one board changing from `from` to `to`. */
+export type DeckSyncCardQuantity = {
+  kind: 'quantity'
+  name: string
+  board: Board
+  from: number
+  to: number
+  printing?: DeckSyncPrinting
+}
+
+/** Copies of a card moving between boards; no copies are added or removed. */
+export type DeckSyncCardMove = {
+  kind: 'move'
+  name: string
+  quantity: number
+  from: Board
+  to: Board
+  printing?: DeckSyncPrinting
+}
+
+/** A card's copies on one board changing printing (only with `syncPrintings`). */
+export type DeckSyncCardPrinting = {
+  kind: 'printing'
+  name: string
+  board: Board
+  from: DeckSyncPrinting
+  to: DeckSyncPrinting
+}
+
+/** A card's categories set wholesale, primary first; empty clears them (only with `syncCategories`). */
+export type DeckSyncCardCategories = {
+  kind: 'categories'
+  name: string
+  categories: CardCategory[]
+}
+
+/**
+ * One card change a sync applied to a deck (or would have, on a dry run),
+ * after the `only` filter — the structured form of the per-card lines the run
+ * logs under its `Changes:` summary. Lists what went through; when a push
+ * itself failed (nothing was sent), what it attempted — the deck's `reason`
+ * says so.
+ */
+export type DeckSyncCardChange =
+  | DeckSyncCardAdded
+  | DeckSyncCardRemoved
+  | DeckSyncCardQuantity
+  | DeckSyncCardMove
+  | DeckSyncCardPrinting
+  | DeckSyncCardCategories
+
+/** One deck's outcome in a sync report. */
 export type DeckSyncDeckResult = {
   name: string
   status: DeckSyncStatus
@@ -54,6 +134,16 @@ export type DeckSyncDeckResult = {
    * when the run synced categories.
    */
   categoriesChanged?: number
+  /**
+   * Every card change the run applied to this deck (or would have, on a dry
+   * run), narrowed by the `only` filter: additions, removals, quantity
+   * changes, board moves, printing changes and category changes. It lists what
+   * went through (a push leaves out what its plan could not send, or did not
+   * need to); when the push itself failed (nothing was sent), what it
+   * attempted — `reason` says so. Present only when there is at least one.
+   * The log's per-card `detail` lines are rendered from this list.
+   */
+  changes?: DeckSyncCardChange[]
 }
 
 /** The report a run produces: per-deck results plus the failure count. */

@@ -3,6 +3,7 @@ import type { Logger } from '../util/logger'
 import {
   listSyncableDecks,
   runDeckSync,
+  type DeckSyncDeckResult,
   type DeckSyncReport,
   type SyncableDeck,
 } from '../deck-sync/engine'
@@ -12,6 +13,7 @@ import { SYNC_DIRECTIONS, type SyncChangeFilter, type SyncDirection } from '../s
 import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import {
   addSyncOptions,
+  addVerboseOption,
   confirmUnreadableSync,
   createScopedIndenter,
   loggerFor,
@@ -19,7 +21,7 @@ import {
   type UnreadableSource,
   type UnreadableSubject,
 } from './sync-helpers'
-import { createSyncEventRenderer } from './sync-render-event'
+import { createSyncEventRenderer, printVerboseHint } from './sync-render-event'
 import { runCommandAction } from '../cli/action'
 import { addDryRunOption, addOutputOption, addScriptingOptions } from '../cli/options'
 import {
@@ -39,6 +41,7 @@ export type DeckSyncCommandOptions = {
   force?: boolean
   syncPrintings?: boolean
   syncCategories?: boolean
+  verbose?: boolean
 } & Partial<ScriptingOptions>
 
 /** `deck-sync link` options: a dry run plus the scripting flags. */
@@ -272,6 +275,13 @@ async function runSync(
   if (!token) return
 
   const dryRun = options.dryRun ?? false
+  const renderer = createSyncEventRenderer<DeckSyncDeckResult>({
+    subject: 'deck',
+    direction,
+    logger,
+    indent,
+    verbose: options.verbose === true,
+  })
   const { report } = await runDeckSync({
     direction,
     token,
@@ -281,7 +291,7 @@ async function runSync(
     force: options.force === true,
     syncPrintings: options.syncPrintings === true,
     syncCategories: options.syncCategories === true,
-    onEvent: createSyncEventRenderer({ subject: 'deck', direction, logger, indent }),
+    onEvent: renderer.onEvent,
     confirmUnreadable: (unreadable) =>
       confirmUnreadableDecks(unreadable, options.yes === true, scripting, logger),
   })
@@ -291,6 +301,7 @@ async function runSync(
   } else {
     const summary = summarizeDeckRun(report, dryRun)
     if (summary) logger.info(summary)
+    printVerboseHint(renderer, logger)
   }
 
   if (report.failedCount > 0) {
@@ -328,6 +339,7 @@ export function registerDeckSyncCommand(program: Command): void {
     }
     command.option('--sync-printings', t('help.deckSync.syncPrintings'), false)
     command.option('--sync-categories', t('help.deckSync.syncCategories'), false)
+    addVerboseOption(command, 'decks')
     command.action(async (decks: string[], options: DeckSyncCommandOptions) => {
       await runSync(direction, decks, options)
     })

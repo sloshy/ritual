@@ -11,7 +11,7 @@
  */
 
 import { formatDuration } from '../../util/duration'
-import type { SyncEvent, UnreadableSource } from '../../sync/common'
+import type { SyncEvent, SyncLogLevel, UnreadableSource } from '../../sync/common'
 import { t } from '../../i18n/t'
 
 /** How far a run has progressed; drives the button state and the result panel. */
@@ -23,8 +23,11 @@ export type SyncRunPhase = 'idle' | 'running' | 'done' | 'error'
  */
 export type SyncRunStatus = 'running' | 'synced' | 'skipped' | 'failed'
 
-/** The severity both engines label their log lines with. */
-export type SyncRunLevel = 'info' | 'warn' | 'error'
+/**
+ * The severity both engines label their log lines with. The page shows every
+ * level, `detail` included: it has the room the CLI's `--verbose` gate saves.
+ */
+export type SyncRunLevel = SyncLogLevel
 
 export type SyncRunMessage = { level: SyncRunLevel; text: string }
 

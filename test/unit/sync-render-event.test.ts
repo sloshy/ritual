@@ -31,17 +31,41 @@ function capture(): Capture {
 /** One result payload stands in for both engines' — the renderer never reads it. */
 type Result = { name: string }
 
+/** How a test run is rendered: the scripting flags and `--verbose`. */
+type RenderOptions = {
+  scripting?: ScriptingOptions
+  verbose?: boolean
+}
+
+/** What a run printed, and whether the renderer withheld any `detail` line. */
+type Rendered = { lines: CapturedLine[]; detailHidden: boolean }
+
+function renderRun(
+  subject: SyncSubjectKind,
+  direction: SyncDirection,
+  events: SyncEvent<Result>[],
+  { scripting = { output: 'text', quiet: false }, verbose }: RenderOptions = {},
+): Rendered {
+  const { logger, lines } = capture()
+  const indent = createScopedIndenter(scripting)
+  const renderer = createSyncEventRenderer<Result>({
+    subject,
+    direction,
+    logger,
+    indent,
+    verbose,
+  })
+  for (const event of events) renderer.onEvent(event)
+  return { lines, detailHidden: renderer.detailHidden() }
+}
+
 function render(
   subject: SyncSubjectKind,
   direction: SyncDirection,
   events: SyncEvent<Result>[],
-  scripting: ScriptingOptions = { output: 'text', quiet: false },
+  options: RenderOptions = {},
 ): CapturedLine[] {
-  const { logger, lines } = capture()
-  const indent = createScopedIndenter(scripting)
-  const renderEvent = createSyncEventRenderer<Result>({ subject, direction, logger, indent })
-  for (const event of events) renderEvent(event)
-  return lines
+  return renderRun(subject, direction, events, options).lines
 }
 
 const UNREADABLE: SyncEvent<Result> = {
@@ -84,12 +108,47 @@ describe('createSyncEventRenderer', () => {
           { kind: 'item-start', item: 'Alpha', index: 0, total: 1 },
           { kind: 'log', level: 'info', item: 'Alpha', message: 'Changes: +1' },
         ],
-        { output: 'json', quiet: false },
+        { scripting: { output: 'json', quiet: false } },
       ),
     ).toEqual([
       { level: 'info', text: 'Syncing "Alpha" (push)...' },
       { level: 'info', text: 'Changes: +1' },
     ])
+  })
+
+  describe('detail lines', () => {
+    const DETAIL_RUN: SyncEvent<Result>[] = [
+      { kind: 'item-start', item: 'Alpha', index: 0, total: 1 },
+      { kind: 'log', level: 'info', item: 'Alpha', message: 'Changes: +2' },
+      { kind: 'log', level: 'detail', item: 'Alpha', message: '+ 1 Sol Ring to Main' },
+      { kind: 'log', level: 'detail', item: 'Alpha', message: '+ 1 Island to Main' },
+    ]
+
+    test('print indented as info under --verbose', () => {
+      expect(renderRun('deck', 'pull', DETAIL_RUN, { verbose: true })).toEqual({
+        lines: [
+          { level: 'info', text: 'Syncing "Alpha" (pull)...' },
+          { level: 'info', text: '  Changes: +2' },
+          { level: 'info', text: '  + 1 Sol Ring to Main' },
+          { level: 'info', text: '  + 1 Island to Main' },
+        ],
+        detailHidden: false,
+      })
+    })
+
+    test('are withheld without --verbose, and the renderer says so', () => {
+      expect(renderRun('deck', 'pull', DETAIL_RUN)).toEqual({
+        lines: [
+          { level: 'info', text: 'Syncing "Alpha" (pull)...' },
+          { level: 'info', text: '  Changes: +2' },
+        ],
+        detailHidden: true,
+      })
+    })
+
+    test('a run with no detail lines has nothing withheld', () => {
+      expect(renderRun('deck', 'pull', DETAIL_RUN.slice(0, 2)).detailHidden).toBe(false)
+    })
   })
 
   test('warns about unreadable lines in the deck sync’s wording', () => {

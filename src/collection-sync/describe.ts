@@ -9,7 +9,7 @@
  */
 
 import type { CardLanguage } from '../card/card-language'
-import { formatPrintingAnnotation } from '../changes/change-event'
+import { describeSyncCard } from '../sync/describe'
 import { t } from '../i18n/t'
 import type { Condition, Finish } from '../card/finish-condition'
 
@@ -60,7 +60,7 @@ export type AmbiguousRemoval = {
  * codes uppercased exactly as they are everywhere else.
  */
 export function describeCollectionKey(name: string, parts: CollectionKeyParts): string {
-  return `${name}${formatPrintingAnnotation(parts)}`
+  return describeSyncCard(name, parts)
 }
 
 /**

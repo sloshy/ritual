@@ -302,6 +302,38 @@ export const domainMeta = {
     description:
       'Run-level log line ending a sync the caller cancelled part way. {items} is a pre-rendered count of the decks or collection lists the run never started.',
   },
+  'domain.sync.detailAdded': {
+    description:
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card added. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name.',
+  },
+  'domain.sync.detailRemoved': {
+    description:
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card removed. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name.',
+  },
+  'domain.sync.detailQuantity': {
+    description:
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose quantity changes. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name. {from} and {to} are the old and new copy counts.',
+  },
+  'domain.sync.detailMove': {
+    description:
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card moving between deck boards. {quantity} is the number of copies moving. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {from} and {to} are deck board names (Commander, Main, Sideboard, Maybeboard), interpolated untranslated.',
+  },
+  'domain.sync.detailPrinting': {
+    description:
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose copies change printing. {card} is the card name. {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard) or a list name. {from} and {to} are the old and new printings in card-line grammar like "(LEA:270) [foil]" (a finish-only change reads "[nonfoil] → [foil]"), or domain.sync.detailNoPrinting.',
+  },
+  'domain.sync.detailCategories': {
+    description:
+      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose categories the sync sets. {card} is the card name, {categories} a comma-separated list of user-defined category names (primary first) or domain.sync.detailNoCategories.',
+  },
+  'domain.sync.detailNoPrinting': {
+    description:
+      'Stands in for one side of a printing change in domain.sync.detailPrinting when that side states no specific printing (a bare card line).',
+  },
+  'domain.sync.detailNoCategories': {
+    description:
+      "Stands in for the category list in domain.sync.detailCategories when the sync clears all of a card's categories.",
+  },
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },
   'domain.nav.wanted': { description: `${NAV_CONTEXT} The wanted-list index.`, maxLen: 12 },

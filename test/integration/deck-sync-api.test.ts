@@ -8,7 +8,7 @@ import {
   type DeckSyncRunResponse,
   type DeckSyncStatusResponse,
 } from '../../src/admin/api/deck-sync'
-import type { DeckSyncEvent, DeckSyncReport } from '../../src/deck-sync/engine'
+import type { DeckSyncCardChange, DeckSyncEvent, DeckSyncReport } from '../../src/deck-sync/engine'
 import type {
   ArchidektDeckResponse,
   ArchidektRawCardEntry,
@@ -31,6 +31,11 @@ import { readStreamFrames, type SseFrame } from '../helpers/sse'
 const SOURCE_ID = '12345'
 const SOURCE_URL = `https://archidekt.com/decks/${SOURCE_ID}`
 const LAST_SYNCED = '2026-07-01T00:00:00.000Z'
+
+/** The one card change a pull of the stubbed remote makes: its Lightning Bolt arrives. */
+const BOLT_ADDED: DeckSyncCardChange[] = [
+  { kind: 'added', name: 'Lightning Bolt', quantity: 1, board: 'Main' },
+]
 
 /** An Archidekt deck holding one more Sol Ring than the local file does. */
 const REMOTE_DECK: ArchidektDeckResponse = {
@@ -477,7 +482,7 @@ describe('deck-sync API', () => {
     expect(body.report.cancelled).toBe(true)
     expect(body.report.failedCount).toBe(0)
     expect(body.report.decks).toEqual([
-      { name: 'Linked Deck', status: 'synced' },
+      { name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED },
       { name: 'Second Linked Deck', status: 'skipped', reason: 'cancelled before it started' },
     ])
     expect(await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')).toContain(
@@ -588,7 +593,7 @@ describe('deck-sync API', () => {
         status: 'skipped',
         reason: 'has Archidekt sourceUrl but no sourceId',
       },
-      { name: 'Linked Deck', status: 'synced' },
+      { name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED },
     ])
     expect(report.failedCount).toBe(0)
   })
@@ -599,7 +604,13 @@ describe('deck-sync API', () => {
     stubArchidektPush(pushed)
 
     const report = await runReport({ direction: 'push', decks: ['linked'] })
-    expect(report.decks).toEqual([{ name: 'Linked Deck', status: 'synced' }])
+    expect(report.decks).toEqual([
+      {
+        name: 'Linked Deck',
+        status: 'synced',
+        changes: [{ kind: 'removed', name: 'Lightning Bolt', quantity: 1, board: 'Main' }],
+      },
+    ])
     // The local deck lacks the remote's Lightning Bolt, so the push removes it.
     expect(pushed).toEqual(['modifyCards'])
 
@@ -610,6 +621,26 @@ describe('deck-sync API', () => {
     expect(deck).toContain(`sourceUpdatedAt: '${RAW_DECK.updatedAt}'`)
     // A push sends local state; it must not pull the remote card in.
     expect(deck).not.toContain('Lightning Bolt')
+  })
+
+  test('a push Archidekt refuses still reports the changes it attempted', async () => {
+    await signIn()
+    stubFetch({
+      'https://archidekt.com/api/decks/curated/self/': () =>
+        Response.json({ results: [{ id: Number(SOURCE_ID), name: 'Linked Deck' }], count: 1 }),
+      [`https://archidekt.com/api/decks/${SOURCE_ID}/`]: () => Response.json(RAW_DECK),
+      [`https://archidekt.com/api/decks/${SOURCE_ID}/modifyCards/v2/`]: () =>
+        new Response('upstream down', { status: 500 }),
+    })
+
+    const report = await runReport({ direction: 'push', decks: ['linked'] })
+    expect(report.decks).toHaveLength(1)
+    expect(report.decks[0]).toMatchObject({
+      name: 'Linked Deck',
+      status: 'failed',
+      changes: [{ kind: 'removed', name: 'Lightning Bolt', quantity: 1, board: 'Main' }],
+    })
+    expect(report.decks[0]?.reason).toStartWith('Failed to push changes:')
   })
 
   test('a diverged deck fails the push unless force is set', async () => {
@@ -684,7 +715,7 @@ describe('deck-sync API', () => {
       decks: ['linked'],
       ignoreUnreadableLines: true,
     })
-    expect(report.decks).toEqual([{ name: 'Linked Deck', status: 'synced' }])
+    expect(report.decks).toEqual([{ name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED }])
 
     const after = await fs.readFile(deckPath, 'utf-8')
     expect(after).toContain('Lightning Bolt')
@@ -734,9 +765,16 @@ describe('deck-sync API', () => {
       item: 'Linked Deck',
       message: 'Changes: +1 added, -0 removed, ~0 quantity changed',
     })
+    // The per-card lines ride the stream whatever the client shows.
+    expect(progress).toContainEqual({
+      kind: 'log',
+      level: 'detail',
+      item: 'Linked Deck',
+      message: '+ 1 Lightning Bolt to Main',
+    })
     expect(progress.at(-1)).toEqual({
       kind: 'item-result',
-      result: { name: 'Linked Deck', status: 'synced' },
+      result: { name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED },
     })
 
     const done = frames.at(-1)

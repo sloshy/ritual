@@ -37,6 +37,7 @@ import { reconcileListRefs } from '../list/list-refs'
 import { checkDeckDivergence, describeDivergence } from './divergence'
 import { hashPath, writeFileWithHash } from '../changes/content-hash'
 import type {
+  DeckSyncCardChange,
   DeckSyncDeckResult,
   DeckSyncEventHandler,
   DeckSyncOptions,
@@ -58,10 +59,20 @@ import {
   remoteDeckCategories,
 } from './categories'
 import { resolveTargetDecks } from './targets'
+import { describeDeckCardChange } from './describe'
+import { deckSyncCardChanges } from './card-changes'
 
 export { listSyncableDecks } from './targets'
 
 export type {
+  DeckSyncCardAdded,
+  DeckSyncCardCategories,
+  DeckSyncCardChange,
+  DeckSyncCardMove,
+  DeckSyncCardPrinting,
+  DeckSyncCardQuantity,
+  DeckSyncCardRemoved,
+  DeckSyncPrinting,
   DeckSyncStatus,
   DeckSyncDeckResult,
   DeckSyncReport,
@@ -227,15 +238,20 @@ function finish(
   emit({ kind: 'item-result', result })
 }
 
-/** Report a deck as failed: the reason on the log, then the result. */
+/**
+ * Report a deck as failed: the reason on the log, then the result. `fields`
+ * carries what the run had already found or done for the deck, so a failure
+ * after the diff still reports it.
+ */
 function failDeck(
   results: DeckSyncDeckResult[],
   emit: DeckSyncEventHandler,
   name: string,
   reason: string,
+  fields: ResultFields = {},
 ): void {
   emit({ kind: 'log', level: 'error', item: name, message: reason })
-  finish(results, emit, { name, status: 'failed', reason })
+  finish(results, emit, { name, status: 'failed', reason, ...fields })
 }
 
 /**
@@ -270,8 +286,19 @@ type BoardMoveResultFields = Pick<DeckSyncDeckResult, 'boardMoves'>
 /** The report field the category pass adds to a deck's results. */
 type CategoryResultFields = Pick<DeckSyncDeckResult, 'categoriesChanged'>
 
+/** The report field the per-card change list adds to a deck's results. */
+type CardChangeResultFields = Pick<DeckSyncDeckResult, 'changes'>
+
 /** The report fields the diff and the category pass add to a deck's results. */
-type ResultFields = PrintingResultFields & BoardMoveResultFields & CategoryResultFields
+type ResultFields = PrintingResultFields &
+  BoardMoveResultFields &
+  CategoryResultFields &
+  CardChangeResultFields
+
+/** What this deck's results list card by card: present only when there is a change. */
+function cardChangeResultFields(changes: DeckSyncCardChange[]): CardChangeResultFields {
+  return changes.length > 0 ? { changes } : {}
+}
 
 /** What this deck's results say about board moves: a count, only when there is one. */
 function boardMoveResultFields(diff: DeckDiff): BoardMoveResultFields {
@@ -317,6 +344,17 @@ function emitPrintingMismatches(
         `Printings not synced for "${mismatch.name}": the local file and Archidekt hold ` +
         'different printings of it. Re-run with --sync-printings to reconcile them.',
     })
+  }
+}
+
+/** Emit one `detail` line per card change, under the deck's `Changes:` summary. */
+function emitChangeDetails(
+  flow: SyncFlow,
+  deck: string,
+  changes: readonly DeckSyncCardChange[],
+): void {
+  for (const change of changes) {
+    flow.emit({ kind: 'log', level: 'detail', item: deck, message: describeDeckCardChange(change) })
   }
 }
 
@@ -427,10 +465,12 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
 
     // Spread into every result this deck produces, so structured consumers see
     // what the printing and category passes did without reading the log.
+    const cardChanges = deckSyncCardChanges(diff, categoryChanges)
     const report: ResultFields = {
       ...printingResultFields(flow, diff),
       ...boardMoveResultFields(diff),
       ...categoryResultFields(flow, categoryChanges.length),
+      ...cardChangeResultFields(cardChanges),
     }
 
     if (!cardsChanged && categoryChanges.length === 0) {
@@ -457,6 +497,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     const changeSummary = `+${diff.added.length} added, -${diff.removed.length} removed, ~${diff.quantityChanged.length} quantity changed${boardMoveClause(diff)}${printingClause}${categoryClause}`
     if (!isDiffEmpty(diff) || categoryChanges.length > 0) {
       emit({ kind: 'log', level: 'info', item: name, message: `Changes: ${changeSummary}` })
+      emitChangeDetails(flow, name, cardChanges)
     }
     if (formatSync.changed && formatSync.format) {
       const was = formatSync.localFormat ? getDeckFormatLabel(formatSync.localFormat) : 'not set'
@@ -546,11 +587,19 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
       stage([await appendChangelog(target.filePath, target.deck.name, changes)])
     }
     if (categoryError !== undefined) {
+      // The cards were written; the categories were not, so the report lists
+      // the card changes alone.
       failDeck(
         results,
         emit,
         name,
         `Synced the cards, but could not write the categories file: ${categoryError}`,
+        {
+          ...printingResultFields(flow, diff),
+          ...boardMoveResultFields(diff),
+          ...categoryResultFields(flow, 0),
+          ...cardChangeResultFields(deckSyncCardChanges(diff, [])),
+        },
       )
       continue
     }
@@ -711,20 +760,30 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       token,
       localCategoriesOf,
     )
+    // Everything below reports what the plan carries out, not the whole diff:
+    // an entry an error kept out of the plan, or one that sends nothing, is
+    // neither counted nor listed.
+    const applied = plan.applied
+    const cardChanges = deckSyncCardChanges(applied, plan.categoriesChanged)
     const report: ResultFields = {
-      ...printingReport,
+      ...printingResultFields(flow, applied),
+      ...boardMoveResultFields(applied),
       ...categoryResultFields(flow, plan.categoriesChanged.length),
+      ...cardChangeResultFields(cardChanges),
     }
 
-    if (isDiffEmpty(diff) && plan.categoriesChanged.length === 0) {
+    // Nothing to send: an empty diff whose category pass touched no relation.
+    // (Keyed on the entries, not the reported categories, which leave out a
+    // rewrite that changes no card's roles but is still sent.)
+    if (isDiffEmpty(diff) && plan.entries.length === 0) {
       emit({ kind: 'log', level: 'info', item: name, message: 'No changes to upload.' })
       finish(results, emit, { name, status: 'synced', reason: 'no changes', ...report })
       continue
     }
 
     const printingClause =
-      diff.printingUpdates.length > 0
-        ? `, ${t('domain.count.printings', { count: diff.printingUpdates.length })} to change`
+      applied.printingUpdates.length > 0
+        ? `, ${t('domain.count.printings', { count: applied.printingUpdates.length })} to change`
         : ''
     const categoryClause = flow.syncCategories
       ? `, ${t('domain.count.cardCategories', { count: plan.categoriesChanged.length })} to change`
@@ -733,8 +792,9 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
       kind: 'log',
       level: 'info',
       item: name,
-      message: `Changes: +${diff.added.length} to add, -${diff.removed.length} to remove, ~${diff.quantityChanged.length} quantity changes${boardMoveClause(diff)}${printingClause}${categoryClause}`,
+      message: `Changes: +${applied.added.length} to add, -${applied.removed.length} to remove, ~${applied.quantityChanged.length} quantity changes${boardMoveClause(applied)}${printingClause}${categoryClause}`,
     })
+    emitChangeDetails(flow, name, cardChanges)
 
     // Plan errors are partial failures: some cards could not be turned into
     // upload entries, so the deck did not fully sync even if the rest pushes.
@@ -775,7 +835,7 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
           message: `Pushed ${plan.entries.length} card changes to Archidekt.`,
         })
       } catch (error: unknown) {
-        failDeck(results, emit, name, `Failed to push changes: ${getErrorMessage(error)}`)
+        failDeck(results, emit, name, `Failed to push changes: ${getErrorMessage(error)}`, report)
         continue
       }
     }

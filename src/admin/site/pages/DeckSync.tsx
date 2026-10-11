@@ -9,6 +9,7 @@ import type {
 } from '../../api/deck-sync'
 import type { DeckSyncEvent, SyncableDeck, UnreadableDeck } from '../../../deck-sync/engine'
 import { unreadableConsequence, type SyncDirection } from '../../../sync/common'
+import { describeDeckCardChange } from '../../../deck-sync/describe'
 import { useT } from '../../../ui/i18n'
 import { indeterminateRef } from '../../../ui/indeterminate'
 import type { TranslateFn } from '../../../i18n/t'
@@ -216,12 +217,19 @@ export function DeckSync(): JSX.Element {
       // One render for the whole report rather than one per deck.
       batch(() => {
         for (const result of data.report.decks) {
+          // The per-card lines the stream would have carried, rendered from
+          // the report's structured list with the engine's own wording.
+          const details = (result.changes ?? []).map((change): SyncRunMessage => ({
+            level: 'detail',
+            text: describeDeckCardChange(change),
+          }))
+          const reason: SyncRunMessage[] = result.reason
+            ? [{ level: 'info', text: result.reason }]
+            : []
           updateDeck(result.name, (item) => ({
             ...item,
             status: result.status,
-            messages: result.reason
-              ? [...item.messages, { level: 'info', text: result.reason }]
-              : item.messages,
+            messages: [...item.messages, ...reason, ...details],
           }))
         }
         // The report carries the unreadable decks too, so this path offers the

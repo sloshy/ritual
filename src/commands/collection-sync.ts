@@ -233,7 +233,8 @@ export function registerCollectionSyncCommand(program: Command): void {
             log: (message) => log(message),
           }),
         dryRun: options.dryRun ?? false,
-        onEvent: createSyncEventRenderer({ subject: 'collection', direction, logger, indent }),
+        onEvent: createSyncEventRenderer({ subject: 'collection', direction, logger, indent })
+          .onEvent,
         confirmUnreadable: (unreadable) =>
           confirmUnreadableSync({
             sources: unreadable,

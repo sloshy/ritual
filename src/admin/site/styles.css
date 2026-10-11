@@ -864,6 +864,11 @@
   color: var(--text-muted);
 }
 
+/* A per-card change line, listed under its deck's change summary. */
+.sync-run-message[data-level='detail'] {
+  padding-left: 0.75rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .sync-run-item[data-status='running'] .sync-run-icon {
     animation: none;

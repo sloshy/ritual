@@ -31,6 +31,11 @@ export const helpSyncMessages = {
   },
   'help.sync.only': "Apply only 'additions' or 'removals' (relative to the sync destination)",
   'help.sync.dryRun': 'Report what would sync without writing files or pushing changes',
+  'help.sync.verbose': {
+    $select: 'subject',
+    decks: 'List every card being synced under its deck',
+    collectionLists: 'List every card being synced under its collection list',
+  },
 
   // ── collection-sync ───────────────────────────────────────────────────
   'help.collectionSync.description': 'Sync collection changes with Archidekt',

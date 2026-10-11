@@ -26,6 +26,13 @@ release changes a file format or a generated file, it ships the change as a
   repository.
 - Every release binary is published with a build provenance attestation. Check a download
   with `gh attestation verify <file> --repo sloshy/ritual`.
+- `deck-sync pull` and `deck-sync push` take `-v, --verbose` to list every card a run
+  changes under its deck's `Changes:` count: additions, removals, quantity changes, board
+  moves, printing changes and category changes, one line each. A run without it that had
+  cards to list ends with a hint naming the flag. The same cards are available as data:
+  each deck in the `--output json` report, the admin `POST /api/deck-sync` response and the
+  MCP `sync_decks` result carries a `changes` list. The admin Sync Decks page always shows
+  the listing, including when it falls back from the progress stream.
 
 ### Changed
 

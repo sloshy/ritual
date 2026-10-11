@@ -102,11 +102,18 @@ export function describeRateLimitWait(wait: RateLimitWait): string {
 
 // ── Run reporting ─────────────────────────────────────────────────────
 
-/** The severity every sync engine labels its log lines with. */
-export type SyncLogLevel = 'info' | 'warn' | 'error'
+/**
+ * The severity every sync engine labels its log lines with. `detail` is the
+ * per-card listing under a change summary — information a surface may show or
+ * hide as a whole (the CLI prints it only under `--verbose`).
+ */
+export type SyncLogLevel = 'info' | 'warn' | 'error' | 'detail'
+
+/** Every outcome one thing a run covered (a deck, a collection list) can have. */
+export const SYNC_ITEM_STATUSES = ['synced', 'failed', 'skipped'] as const
 
 /** What happened to one thing a run covered (a deck, a collection list). */
-export type SyncItemStatus = 'synced' | 'failed' | 'skipped'
+export type SyncItemStatus = (typeof SYNC_ITEM_STATUSES)[number]
 
 /**
  * The `reason` a skipped item carries when the run was cancelled before that
