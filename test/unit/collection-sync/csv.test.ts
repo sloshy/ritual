@@ -18,6 +18,7 @@ import type { CollectionCsvUploadResult } from '../../../src/importers/archidekt
 import type { CardLanguage } from '../../../src/card/card-language'
 import type { Condition, Finish } from '../../../src/card/finish-condition'
 import { noPrintings, printing, printingId, printingsLookup } from '../../fixtures/archidekt'
+import { english } from '../../helpers/sync-text'
 
 /**
  * The CSV a push uploads: rows resolved from the local Scryfall cache, in
@@ -124,7 +125,7 @@ describe('planCollectionCsv', () => {
     )
 
     expect(plan.csv.split('\n')[1]).toBe(`${printingId('atq', '85a')},1,Normal,NM,EN`)
-    expect(plan.warnings).toEqual([
+    expect(plan.warnings.map((warning) => warning.message)).toEqual([
       'Archidekt cannot represent Phyrexian [ph]; pushing Urza’s Tower (ATQ:85a) as English.',
     ])
   })
@@ -145,7 +146,7 @@ describe('planCollectionCsv', () => {
     expect(missing.uncached).toEqual([KARLACH])
     expect(missing.copies).toBe(2)
     expect(missing.csv.split('\n')).toHaveLength(2)
-    expect(missing.warnings).toEqual([
+    expect(missing.warnings.map((warning) => warning.message)).toEqual([
       'No Scryfall ID for Karlach, Fury of Avernus (CLB:507): the printing is not in the Scryfall cache.',
     ])
   })
@@ -256,7 +257,15 @@ describe('collectionCsvOutcome', () => {
     )
 
     expect(outcome.failures).toEqual([
-      { row: 1, card: 'CSV row 2', ambiguous: true, notFound: false, errors: [] },
+      {
+        row: 1,
+        card: 'CSV row 2',
+        cardKey: 'domain.sync.csvRow',
+        cardParams: { row: 2 },
+        ambiguous: true,
+        notFound: false,
+        errors: [],
+      },
     ])
     // And no create is blamed for it: there is none to blame.
     expect(outcome.failed).toEqual([])
@@ -421,6 +430,9 @@ describe('collectionCsvOutcome', () => {
       {
         row: 0,
         card: 'CSV row 1 ("uid-stranger","1","Normal","NM","EN")',
+        // The English label, plus what a reader renders in its own language.
+        cardKey: 'domain.sync.csvRowEcho',
+        cardParams: { row: 1, line: '"uid-stranger","1","Normal","NM","EN"' },
         ambiguous: false,
         notFound: true,
         errors: [],
@@ -445,13 +457,13 @@ describe('collectionCsvOutcome', () => {
         ]),
       )
 
-      expect(describeCsvFailureReasons(failures)).toBe(
+      expect(english(describeCsvFailureReasons(failures))).toBe(
         '1 not found, 1 ambiguous, 1 rejected, 1 refused without a reason',
       )
-      expect(describeCsvFailureReasons([])).toBe('')
+      expect(english(describeCsvFailureReasons([]))).toBe('')
 
       // And one row at a time, as both the run log and the admin page name them.
-      expect(failures.map(describeCsvFailure)).toEqual([
+      expect(failures.map((failure) => english(describeCsvFailure(failure)))).toEqual([
         'not found on Archidekt',
         'matched more than one printing',
         'bad quantity',
@@ -460,8 +472,8 @@ describe('collectionCsvOutcome', () => {
     })
 
     test('pluralizes cards and rows independently', () => {
-      expect(describeCsvSize(1, 1)).toBe('1 card (1 row)')
-      expect(describeCsvSize(3, 2)).toBe('3 cards (2 rows)')
+      expect(english(describeCsvSize(1, 1))).toBe('1 card (1 row)')
+      expect(english(describeCsvSize(3, 2))).toBe('3 cards (2 rows)')
     })
   })
 })

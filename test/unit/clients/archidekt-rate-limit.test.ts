@@ -453,7 +453,7 @@ describe('createPacedArchidektClient', () => {
       },
     })
     try {
-      const client = createPacedArchidektClient((message) => messages.push(message), {
+      const client = createPacedArchidektClient((message) => messages.push(message.message), {
         minRequestIntervalMs: 0,
         now: timeline.now,
         sleep: timeline.sleep,
@@ -463,6 +463,6 @@ describe('createPacedArchidektClient', () => {
       archidekt.restore()
     }
 
-    expect(messages).toEqual(['Rate limited by Archidekt — waiting 2s before retry 1 of 5.'])
+    expect(messages).toEqual(['Rate limited by Archidekt — waiting 2 seconds before retry 1 of 5.'])
   })
 })

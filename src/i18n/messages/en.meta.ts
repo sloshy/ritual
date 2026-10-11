@@ -13,6 +13,7 @@ import { cliEditMeta } from './en/cli-edit.meta'
 import { cliInfraMeta } from './en/cli-infra.meta'
 import { cliSyncMeta } from './en/cli-sync.meta'
 import { domainMeta } from './en/domain.meta'
+import { domainSyncMeta } from './en/domain-sync.meta'
 import { errorsMeta } from './en/errors.meta'
 import { helpMeta } from './en/help.meta'
 import { helpCardsMeta } from './en/help-cards.meta'
@@ -36,6 +37,7 @@ export const enMeta: Record<MessageKey, MessageMeta> = {
   ...cliInfraMeta,
   ...cliSyncMeta,
   ...domainMeta,
+  ...domainSyncMeta,
   ...errorsMeta,
   ...helpMeta,
   ...helpCardsMeta,

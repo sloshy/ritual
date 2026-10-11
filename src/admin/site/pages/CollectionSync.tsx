@@ -25,9 +25,12 @@ import {
 } from '../../../collection-sync/describe'
 import { normalizeListName } from '../../../list/list-file-name'
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
-import { t as tStatic, type TranslateFn } from '../../../i18n/t'
+import type { TranslateFn } from '../../../i18n/t'
 import { PAGE_DISPLAY } from '../routing'
 import { unreadableConsequence, type SyncDirection } from '../../../sync/common'
+import { reasonMessage, syncRef, type SyncText } from '../../../sync/message'
+import { apiMessage } from '../../../api/result'
+import { doneNotice, noticeMessage, useRunNotice, type RunNotice } from '../sync-text'
 import { AmbiguousRemovalsPanel, RemovalPriorityPicker } from '../components/AmbiguousRemovals'
 import { ArchidektLoginForm, ArchidektSessionAlert } from '../components/ArchidektSession'
 import { NavLink } from '../components/NavLink'
@@ -138,16 +141,13 @@ function offeredTarget(
 }
 
 /**
- * A completed list's tally, shown beside its row. Nothing to say when it changed
- * nothing.
- *
- * Rendered once, as the run reports it, and stored in the run log — the log is a
- * record of what happened rather than live chrome, so it is not re-rendered on a
- * locale switch (the engine's own log lines beside it never could be).
+ * A completed list's tally, shown beside its row, held as a message so the row
+ * relabels on a language switch like the lines under it. Nothing to say when it
+ * changed nothing.
  */
-function resultMeta(result: CollectionSyncListResult): string | undefined {
+function resultMeta(result: CollectionSyncListResult): SyncText | undefined {
   if (result.added === 0 && result.removed === 0) return undefined
-  return tStatic('admin.collectionSync.resultMeta', {
+  return syncRef('admin.collectionSync.resultMeta', {
     added: result.added,
     removed: result.removed,
   })
@@ -165,7 +165,8 @@ export function CollectionSync(): JSX.Element {
   // number, and the CSV control explains itself with it.
   const [csvThreshold, setCsvThreshold] = createSignal(0)
   const [loading, setLoading] = createSignal(true)
-  const [loadError, setLoadError] = createSignal<string | null>(null)
+  // A flag rather than the rendered text, so the alert relabels on a language switch.
+  const [loadFailed, setLoadFailed] = createSignal(false)
 
   const [direction, setDirection] = createSignal<SyncDirection>('pull')
   const [scope, setScope] = createSignal<ScopeChoice>('all')
@@ -185,8 +186,11 @@ export function CollectionSync(): JSX.Element {
   const [phase, setPhase] = createSignal<SyncRunPhase>('idle')
   const [runLists, setRunLists] = createSignal<SyncRunItem[]>([])
   const [runLog, setRunLog] = createSignal<SyncRunMessage[]>([])
-  const [summary, setSummary] = createSignal<string | null>(null)
-  const [runError, setRunError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the banner, so a language switch relabels
+  // a finished run's summary and error too.
+  const [summary, setSummary] = createSignal<RunNotice | null>(null)
+  const [runError, setRunError] = createSignal<RunNotice | null>(null)
+  const notice = useRunNotice()
   // Lists the last run refused to touch because their files hold lines the
   // parser cannot read; cleared when the user accepts the loss and re-runs.
   const [unreadable, setUnreadable] = createSignal<UnreadableList[]>([])
@@ -204,7 +208,7 @@ export function CollectionSync(): JSX.Element {
     try {
       const resp = await fetch('/api/collection-sync', { credentials: 'same-origin' })
       if (!resp.ok) {
-        setLoadError(t('admin.collectionSync.loadFailed'))
+        setLoadFailed(true)
         return
       }
       const data = (await resp.json()) as CollectionSyncStatusResponse
@@ -216,7 +220,7 @@ export function CollectionSync(): JSX.Element {
         setLastSynced(data.lastSynced)
         setPullTarget(data.pullTarget)
         setCsvThreshold(data.csvThreshold)
-        setLoadError(null)
+        setLoadFailed(false)
         // A reload (after a run, or after signing in) keeps whatever the user
         // picked, minus lists that have since gone away.
         setSelected((current) => current.filter((slug) => slugs.includes(slug)))
@@ -234,7 +238,7 @@ export function CollectionSync(): JSX.Element {
         )
       })
     } catch {
-      setLoadError(t('admin.collectionSync.loadFailed'))
+      setLoadFailed(true)
     } finally {
       setLoading(false)
     }
@@ -341,7 +345,7 @@ export function CollectionSync(): JSX.Element {
    * outcome without being a run-level error (the engine fails the lists whose
    * cards the import lost), so it demotes the summary too.
    */
-  const finishRun = (message: string, report?: CollectionSyncReport): void => {
+  const finishRun = (message: RunNotice, report?: CollectionSyncReport): void => {
     const failed =
       report !== undefined && (report.errors.length > 0 || report.csv?.status === 'failed')
     batch(() => {
@@ -360,7 +364,7 @@ export function CollectionSync(): JSX.Element {
     void loadStatus()
   }
 
-  const failRun = (message: string, needsLogin: boolean): void => {
+  const failRun = (message: RunNotice, needsLogin: boolean): void => {
     setPhase('error')
     setRunError(message)
     if (needsLogin) void loadStatus()
@@ -406,7 +410,7 @@ export function CollectionSync(): JSX.Element {
       })
       const data = (await resp.json()) as CollectionSyncRunResponse
       if (!data.success) {
-        failRun(data.message, data.loginRequired)
+        failRun(noticeMessage(data), data.loginRequired)
         return
       }
       // One render for the whole report rather than one per list.
@@ -426,7 +430,7 @@ export function CollectionSync(): JSX.Element {
             ...item,
             status: result.status,
             meta: resultMeta(result),
-            messages: [...item.messages, ...replayResultMessages(lines, result.reason)],
+            messages: [...item.messages, ...replayResultMessages(lines, reasonMessage(result))],
           }))
         }
         // This path never saw the run's own log lines, so the two things it
@@ -450,15 +454,15 @@ export function CollectionSync(): JSX.Element {
             level: 'warn',
             text: describeAmbiguousRemoval(entry),
           })),
-          ...report.errors.map((text): SyncRunMessage => ({ level: 'error', text })),
+          ...report.errorMessages.map((error): SyncRunMessage => ({ level: 'error', text: error })),
         ])
         // The report carries the unreadable lists too, so this path offers the
         // same confirmation the streamed one does.
         if (!ignoreUnreadableLines) setUnreadable(data.report.unreadable)
       })
-      finishRun(data.message, data.report)
+      finishRun(data.summary, data.report)
     } catch {
-      failRun(t('admin.collectionSync.failed'), false)
+      failRun(apiMessage('admin.collectionSync.failed'), false)
     }
   }
 
@@ -501,10 +505,11 @@ export function CollectionSync(): JSX.Element {
       streamUrl(ignoreUnreadableLines),
       {
         progress: (event) => handleSyncEvent(event, ignoreUnreadableLines),
-        done: (event) => finishRun(event?.message ?? t('admin.sync.complete'), event?.report),
+        done: (event) =>
+          finishRun(event ? doneNotice(event) : apiMessage('admin.sync.complete'), event?.report),
         failed: (event) =>
           failRun(
-            event?.message ?? t('admin.collectionSync.failed'),
+            event ? noticeMessage(event) : apiMessage('admin.collectionSync.failed'),
             event?.loginRequired === true,
           ),
         disconnected: (received) => {
@@ -513,7 +518,7 @@ export function CollectionSync(): JSX.Element {
             // The run is already in flight server-side; re-issuing it could push
             // a second time. Report the drop and let the user reload to see
             // where it landed.
-            failRun(t('admin.sync.connectionDropped'), false)
+            failRun(apiMessage('admin.sync.connectionDropped'), false)
             return
           }
           // Never connected: retry once over plain JSON so a proxy that buffers
@@ -546,8 +551,8 @@ export function CollectionSync(): JSX.Element {
           )}
         </Show>
 
-        <Show when={loadError()}>
-          <div class="alert alert-error">{loadError()}</div>
+        <Show when={loadFailed()}>
+          <div class="alert alert-error">{t('admin.collectionSync.loadFailed')}</div>
         </Show>
 
         <p class="sync-last-run">
@@ -683,7 +688,7 @@ export function CollectionSync(): JSX.Element {
 
         {/* Held apart from the Archidekt session banner above, which is also an alert. */}
         <div class="sync-run-status">
-          <StatusAlerts status={summary()} error={runError()} />
+          <StatusAlerts status={notice(summary())} error={notice(runError())} />
         </div>
 
         <button

@@ -564,7 +564,12 @@ export async function mockDeckSyncApi(
           direction: 'pull',
           decks: currentDecks.map((deck) => {
             const changes = currentChanges[deck.name]
-            return { name: deck.name, status: 'synced', ...(changes ? { changes } : {}) }
+            return {
+              name: deck.name,
+              status: 'synced',
+              outcome: 'changed',
+              ...(changes ? { changes } : {}),
+            }
           }),
           failedCount: 0,
           unreadable: currentUnreadable,
@@ -702,6 +707,7 @@ export async function mockCollectionSyncApi(
         return {
           name: list.name,
           status: 'synced',
+          outcome: 'changed',
           added: 1,
           removed: 0,
           pending: 0,
@@ -736,6 +742,7 @@ export async function mockCollectionSyncApi(
           lists: results,
           failedCount: 0,
           errors: currentErrors,
+          errorMessages: currentErrors.map((message) => ({ message })),
           unreadable: currentUnreadable,
           cancelled: false,
           // As the engine reports it: a run that stopped on the ambiguity it found.

@@ -91,6 +91,16 @@ export type ParameterlessKey = {
   [K in MessageKey]: [ParamsOf<K>] extends [never] ? K : never
 }[MessageKey]
 
+/**
+ * The branch names of a `$select` message, read off the catalog: the values its
+ * selector parameter may take. A union a caller derives from this cannot drift
+ * from the catalog — a renamed branch is a compile error rather than a raw key
+ * rendered in production. `never` for a key that is not a select.
+ */
+export type SelectBranch<K extends MessageKey> = EnglishCatalog[K] extends SelectForms
+  ? Exclude<keyof EnglishCatalog[K] & string, '$select'>
+  : never
+
 /** The params object a message requires. */
 export type MessageParams<K extends MessageKey> = Record<ParamsOf<K>, string | number>
 
@@ -116,15 +126,37 @@ export type RenderParams = Record<string, string | number>
  * so a later locale switch can re-render it.
  *
  * Declared once here and composed by everything that defers a message:
- * `ErrorMessageRef` (`src/errors.ts`), `ChangeMessage` (`src/change-message.ts`),
- * the `key` arm of `EditorStatusMessage`, and — flattened onto the wire, because
- * MCP already reads those field names — `ApiMessage`. Carrying a parameterised
- * key *without* its params is the failure this type exists to make obvious: the
- * client re-renders literal `{field}` tokens.
+ * `ErrorMessageRef` (`src/errors.ts`), `ChangeMessage` (`src/change-message.ts`)
+ * and the `key` arm of `EditorStatusMessage`. On the wire the same pair travels
+ * flattened as `messageKey` / `messageParams` beside the rendered English — see
+ * {@link MessageTriple}. Carrying a parameterised key *without* its params is
+ * the failure this type exists to make obvious: the client re-renders literal
+ * `{field}` tokens.
  */
 export type MessageRef = {
   key: MessageKey
   params?: RenderParams
+}
+
+/**
+ * Human text on the wire: the rendered English `message` every reader reads,
+ * plus the key and params it was rendered from, for a reader that renders it in
+ * its own language. `P` is what the params may hold: `ApiMessage` keeps them
+ * flat ({@link RenderParams}); a sync message lets a param nest another message,
+ * a list or a duration (`SyncMessageParams`). Assignability is blocked in one
+ * direction only, and that is the one that matters: a sync message whose params
+ * may nest cannot be used as an `ApiMessage`, so nested params never reach
+ * `renderApiMessage`, which would print them as `[object Object]`. (An
+ * `ApiMessage`'s flat params are valid sync params, so the other direction is
+ * allowed.)
+ */
+export type MessageTriple<P> = {
+  /** Rendered English. Always present — the field every existing reader reads. */
+  message: string
+  /** The catalog key `message` was rendered from, when the prose is localizable. */
+  messageKey?: MessageKey
+  /** What that key interpolates. Absent for a message that takes none. */
+  messageParams?: P
 }
 
 // ---------------------------------------------------------------------------

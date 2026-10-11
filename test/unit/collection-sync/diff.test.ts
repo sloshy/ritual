@@ -106,7 +106,7 @@ describe('sync key canonicalization', () => {
     )
 
     expect(result.index.has('xxx|1|nonfoil|NM|en')).toBe(true)
-    expect(result.warnings).toEqual([
+    expect(result.warnings.map(({ list, message }) => ({ list, message }))).toEqual([
       { list: 'binder', message: notCached('Made Up Card (XXX:1)', '1 copy') },
     ])
   })
@@ -131,7 +131,7 @@ describe('sync key canonicalization', () => {
     )
 
     // First-seen order, each named by its first copy's spelling.
-    expect(result.warnings).toEqual([
+    expect(result.warnings.map(({ list, message }) => ({ list, message }))).toEqual([
       { list: 'binder', message: notCached('Zed Card (XXX:2)', '1 copy') },
       { list: 'binder', message: notCached('Made Up Card (XXX:1a)', '3 copies') },
       { list: 'long-box', message: notCached('Made Up Card (XXX:1a)', '1 copy') },
@@ -284,7 +284,7 @@ describe('remote aggregation', () => {
 
     expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM|en'])
     expect(result.index.get('ltc|284|nonfoil|NM|en')?.parts.language).toBeUndefined()
-    expect(result.warnings).toEqual([
+    expect(result.warnings.map((warning) => warning.message)).toEqual([
       "Archidekt record 7 (Sol Ring) has an unknown language id '42'; treating it as English.",
     ])
   })
@@ -314,9 +314,11 @@ describe('remote aggregation', () => {
 
     expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM|en'])
     expect(result.warnings).toHaveLength(3)
-    expect(result.warnings[0]).toContain("Unknown Archidekt modifier 'Shiny'")
-    expect(result.warnings[1]).toContain("Unknown Archidekt condition id '9'")
-    expect(result.warnings[2]).toContain('does not name a card, set code, and collector number')
+    expect(result.warnings[0]?.message).toContain("Unknown Archidekt modifier 'Shiny'")
+    expect(result.warnings[1]?.message).toContain("Unknown Archidekt condition id '9'")
+    expect(result.warnings[2]?.message).toContain(
+      'does not name a card, set code, and collector number',
+    )
   })
 
   test('skips a record whose nested card object is missing, without throwing', () => {
@@ -331,7 +333,7 @@ describe('remote aggregation', () => {
     ])
 
     expect([...result.index.keys()]).toEqual(['ltc|284|nonfoil|NM|en'])
-    expect(result.warnings).toEqual([
+    expect(result.warnings.map((warning) => warning.message)).toEqual([
       'Skipping Archidekt record 4: it does not name a card, set code, and collector number.',
     ])
   })
@@ -1258,7 +1260,7 @@ describe('upsert bodies', () => {
     const create = planPush(local, new Map()).operations[0] as PushCreate
 
     expect(createRecordBody(create, 4242).language).toBe(1)
-    expect(unmappableLanguageWarning(create.name, create.parts)).toBe(
+    expect(unmappableLanguageWarning(create.name, create.parts)?.message).toBe(
       'Archidekt cannot represent Phyrexian [ph]; pushing Urza’s Mine (ATQ:83a) as English.',
     )
   })

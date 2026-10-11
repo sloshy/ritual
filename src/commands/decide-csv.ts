@@ -17,6 +17,7 @@ import { ARCHIDEKT_IMPORT_URL } from '../collection-sync/csv'
 import type { CsvUploadDecision, CsvUploadQuestion } from '../collection-sync/engine'
 import { ask, type AskPrompt } from '../cli/prompts'
 import { t } from '../i18n/t'
+import { syncMessage, syncRef } from '../sync/message'
 
 export type CsvUploadRequest = {
   /** What the engine is asking about: how many additions, and the threshold they passed. */
@@ -31,11 +32,6 @@ export type CsvUploadRequest = {
   ask?: AskPrompt
   /** Injectable for tests; today's date, used for the default file name. */
   now?: () => Date
-}
-
-/** How to settle the question without a terminal — the two flags that do it. */
-function flagAdvice(): string {
-  return t('cli.csvUpload.flagAdvice')
 }
 
 /** What each answer means, in the order the prompt offers them. */
@@ -60,15 +56,18 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
   const { question, interactive } = request
   const prompt = request.ask ?? ask
   const cards = t('domain.count.cards', { count: question.additions })
+  const cardsRef = syncRef('domain.count.cards', { count: question.additions })
 
   if (!interactive) {
     return {
       kind: 'abort',
-      message: t('cli.csvUpload.tooMany', {
-        cards,
+      // A message, not text: the run's report states it in English, and each
+      // surface renders it in its own language.
+      message: syncMessage('cli.csvUpload.tooMany', {
+        cards: cardsRef,
         threshold: question.threshold,
         searches: question.additions,
-        advice: flagAdvice(),
+        advice: syncRef('cli.csvUpload.flagAdvice'),
       }),
     }
   }
@@ -91,7 +90,10 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
   if (choice === undefined || choice === 'cancel') {
     return {
       kind: 'abort',
-      message: t('cli.csvUpload.cancelled', { cards, advice: flagAdvice() }),
+      message: syncMessage('cli.csvUpload.cancelled', {
+        cards: cardsRef,
+        advice: syncRef('cli.csvUpload.flagAdvice'),
+      }),
     }
   }
   if (choice === 'upload') return { kind: 'upload' }
@@ -106,7 +108,10 @@ export async function decideCsvUpload(request: CsvUploadRequest): Promise<CsvUpl
   if (path === undefined) {
     return {
       kind: 'abort',
-      message: t('cli.csvUpload.cancelled', { cards, advice: flagAdvice() }),
+      message: syncMessage('cli.csvUpload.cancelled', {
+        cards: cardsRef,
+        advice: syncRef('cli.csvUpload.flagAdvice'),
+      }),
     }
   }
   // An empty answer means the suggestion (the prompt shows it prefilled, and

@@ -604,10 +604,37 @@ describe('MCP output schemas, as authored', () => {
         report: {
           direction: 'pull',
           decks: [
-            { name: 'Burn', status: 'synced' },
+            { name: 'Burn', status: 'synced', outcome: 'changed' },
+            {
+              name: 'Borrowed',
+              status: 'skipped',
+              reason: 'you do not own Archidekt deck 1',
+              reasonKey: 'domain.sync.notDeckOwner',
+              reasonParams: { deckId: '1' },
+            },
+            {
+              name: 'Preview',
+              status: 'synced',
+              outcome: 'dry-run',
+              reason: 'dry-run: +1 added, -0 removed, ~0 quantity changed',
+              reasonKey: 'domain.sync.reasonDryRun',
+              // Params nest: a list of clause references, rendered in one locale.
+              reasonParams: {
+                summary: {
+                  list: [
+                    {
+                      messageKey: 'domain.sync.deckCounts',
+                      messageParams: { direction: 'pull', added: 1, removed: 0, quantity: 0 },
+                    },
+                  ],
+                  join: 'concat',
+                },
+              },
+            },
             {
               name: 'Stax',
               status: 'synced',
+              outcome: 'changed',
               // One of every card-change kind, so each `oneOf` arm is exercised.
               changes: [
                 { kind: 'added', name: 'Sol Ring', quantity: 1, board: 'Main' },
@@ -643,7 +670,24 @@ describe('MCP output schemas, as authored', () => {
           ...deckSample,
           report: {
             ...deckSample.report,
-            decks: [{ name: 'Stax', status: 'synced', changes: [{ kind: 'swap', name: 'X' }] }],
+            decks: [
+              {
+                name: 'Stax',
+                status: 'synced',
+                outcome: 'changed',
+                changes: [{ kind: 'swap', name: 'X' }],
+              },
+            ],
+          },
+        }),
+      ).toBe(false)
+      // An outcome outside the fixed set is not a report.
+      expect(
+        await validates(SYNC_DECKS_OUTPUT, {
+          ...deckSample,
+          report: {
+            ...deckSample.report,
+            decks: [{ name: 'Stax', status: 'synced', outcome: 'bogus' }],
           },
         }),
       ).toBe(false)
@@ -662,6 +706,7 @@ describe('MCP output schemas, as authored', () => {
           {
             name: 'Binder',
             status: 'synced',
+            outcome: 'changed',
             added: 1,
             removed: 0,
             pending: 0,
@@ -681,7 +726,14 @@ describe('MCP output schemas, as authored', () => {
         ],
         unlisted: [{ kind: 'removed', name: 'Island', quantity: 3, printing: SOL_RING }],
         failedCount: 0,
-        errors: [],
+        errors: ['Failed to remove Island from Archidekt'],
+        errorMessages: [
+          {
+            message: 'Failed to remove Island from Archidekt',
+            messageKey: 'domain.sync.removeFromArchidektFailed',
+            messageParams: { card: 'Island' },
+          },
+        ],
         unreadable: [],
         cancelled: false,
         unresolvedAmbiguity: false,
@@ -713,6 +765,22 @@ describe('MCP output schemas, as authored', () => {
         await validates(SYNC_COLLECTION_OUTPUT, {
           ...collectionSample,
           report: { ...collectionReport, unlisted: [{ ...removed, kind: 'added' }] },
+        }),
+      ).toBe(false)
+      // A run-level failure always carries its English.
+      expect(
+        await validates(SYNC_COLLECTION_OUTPUT, {
+          ...collectionSample,
+          report: {
+            ...collectionReport,
+            // The key and params of a real failure, with its English missing.
+            errorMessages: [
+              {
+                messageKey: 'domain.sync.removeFromArchidektFailed',
+                messageParams: { card: 'Island' },
+              },
+            ],
+          },
         }),
       ).toBe(false)
     })

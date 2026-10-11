@@ -7,6 +7,9 @@ import {
 } from '../../../src/commands/deck-sync'
 import type { DeckSyncDeckResult, DeckSyncReport } from '../../../src/deck-sync/engine'
 import type { DeckLinkResult } from '../../../src/deck-sync/link'
+import { noChangesReason } from '../../../src/sync/common'
+import { reasonFields, renderSyncMessage } from '../../../src/sync/message'
+import { withSyntheticLocale } from '../../helpers/sync-text'
 
 /**
  * What a text-mode `deck-sync` run prints once the engine is done: the closing
@@ -28,19 +31,53 @@ describe('summarizeDeckRun', () => {
   test('counts synced decks and how many of them actually changed', () => {
     const summary = summarizeDeckRun(
       report([
-        { name: 'A', status: 'synced' },
-        { name: 'B', status: 'synced', reason: 'no changes' },
-        { name: 'C', status: 'synced', reason: 'no changes' },
+        { name: 'A', status: 'synced', outcome: 'changed' },
+        { name: 'B', status: 'synced', outcome: 'unchanged', reason: 'no changes' },
+        { name: 'C', status: 'synced', outcome: 'unchanged', reason: 'no changes' },
       ]),
       false,
     )
     expect(summary).toBe('Synced 3 decks (1 with changes).')
   })
 
+  test('counts a deck unchanged by its outcome alone, with no reason', () => {
+    const summary = summarizeDeckRun(
+      report([
+        { name: 'A', status: 'synced', outcome: 'changed' },
+        { name: 'C', status: 'synced', outcome: 'unchanged' },
+      ]),
+      false,
+    )
+    expect(summary).toContain('(1 with changes)')
+  })
+
+  test('does not count a deck unchanged for carrying the old English reason text', () => {
+    const summary = summarizeDeckRun(
+      report([{ name: 'D', status: 'synced', outcome: 'changed', reason: 'no changes' }]),
+      false,
+    )
+    expect(summary).toContain('(1 with changes)')
+  })
+
+  test('still counts by outcome when the reasons render in another language', () => {
+    withSyntheticLocale('xx', { 'domain.sync.reasonNoChanges': 'xx-no-changes' }, () => {
+      // Vacuity guard: the locale really is in force.
+      expect(renderSyncMessage(noChangesReason())).toBe('xx-no-changes')
+      const summary = summarizeDeckRun(
+        report([
+          { name: 'A', status: 'synced', outcome: 'changed' },
+          { name: 'B', status: 'synced', outcome: 'unchanged', ...reasonFields(noChangesReason()) },
+        ]),
+        false,
+      )
+      expect(summary).toContain('(1 with changes)')
+    })
+  })
+
   test('adds the skipped and failed counts only when there are any', () => {
     const summary = summarizeDeckRun(
       report([
-        { name: 'A', status: 'synced' },
+        { name: 'A', status: 'synced', outcome: 'changed' },
         { name: 'B', status: 'skipped', reason: 'you do not own it' },
         { name: 'C', status: 'failed', reason: 'boom' },
       ]),
@@ -50,9 +87,9 @@ describe('summarizeDeckRun', () => {
   })
 
   test('a dry run says it would sync rather than that it did', () => {
-    expect(summarizeDeckRun(report([{ name: 'A', status: 'synced' }]), true)).toBe(
-      '[dry-run] Would sync 1 deck (1 with changes).',
-    )
+    expect(
+      summarizeDeckRun(report([{ name: 'A', status: 'synced', outcome: 'changed' }]), true),
+    ).toBe('[dry-run] Would sync 1 deck (1 with changes).')
   })
 
   test('a run that covered no decks has no tally to print', () => {

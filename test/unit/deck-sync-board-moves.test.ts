@@ -649,6 +649,11 @@ async function plan(
   return buildUploadPlan(diff, local, raw, searchingClient('Removal'), 'token')
 }
 
+/** A plan's errors as the English text the report carries. */
+function messagesOf(plan: UploadPlan): string[] {
+  return plan.errors.map((error) => error.message)
+}
+
 /** Plan a hand-written diff over a synthetic deck, for the planner's own error paths. */
 async function planDiff(remote: RelationSpec[], diff: DeckDiff): Promise<UploadPlan> {
   const raw = archidektDeck(remote, DEFINITIONS)
@@ -886,11 +891,64 @@ describe('buildUploadPlan board moves', () => {
   })
 
   test('a move the remote cannot cover is a plan error', async () => {
-    expect((await planDiff([], boltMove(1))).errors).toEqual([
-      'Cannot change the board for card not found in Archidekt deck: Bolt',
+    expect(messagesOf(await planDiff([], boltMove(1)))).toEqual([
+      'Cannot change the board of Bolt: the Archidekt deck does not hold it',
     ])
-    expect((await planDiff([{ id: 1, name: 'Bolt', categories: [] }], boltMove(3))).errors).toEqual(
-      ['Cannot change the board for 2 copies of Bolt: the Archidekt Main board does not hold them'],
-    )
+    expect(
+      messagesOf(await planDiff([{ id: 1, name: 'Bolt', categories: [] }], boltMove(3))),
+    ).toEqual([
+      'Cannot change the board for 2 copies of Bolt: the Archidekt Main board does not hold them',
+    ])
   })
+})
+
+describe('buildUploadPlan entries for a card the remote lacks', () => {
+  /** A diff with nothing in it, the base every case below adds one entry to. */
+  const EMPTY_DIFF: DeckDiff = {
+    byPrinting: false,
+    added: [],
+    removed: [],
+    quantityChanged: [],
+    printingUpdates: [],
+    unaligned: [],
+    boardMoves: [],
+  }
+
+  /** A diff carrying only what `extra` adds. */
+  function diffWith(extra: Partial<DeckDiff>): DeckDiff {
+    return { ...EMPTY_DIFF, ...extra }
+  }
+
+  const cases: [action: string, diff: DeckDiff, error: string][] = [
+    [
+      'remove',
+      diffWith({ removed: [{ name: 'Bolt', totalQuantity: 1, board: 'Main' }] }),
+      'Cannot remove Bolt: the Archidekt deck does not hold it',
+    ],
+    [
+      'printing',
+      diffWith({
+        printingUpdates: [
+          {
+            name: 'Bolt',
+            board: 'Main',
+            from: { set: 'lea', collectorNumber: '161' },
+            to: { set: '2xm', collectorNumber: '117' },
+          },
+        ],
+      }),
+      'Cannot update the printing of Bolt (LEA:161): the Archidekt deck does not hold it',
+    ],
+    [
+      'quantity',
+      diffWith({ quantityChanged: [{ name: 'Bolt', oldQty: 3, newQty: 1, board: 'Main' }] }),
+      'Cannot update the quantity of Bolt: the Archidekt deck does not hold it',
+    ],
+  ]
+
+  for (const [action, diff, error] of cases) {
+    test(`a ${action} is a plan error naming what it could not do`, async () => {
+      expect(messagesOf(await planDiff([], diff))).toEqual([error])
+    })
+  }
 })

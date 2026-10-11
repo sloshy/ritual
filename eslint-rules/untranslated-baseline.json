@@ -759,100 +759,6 @@
     "uploadCollectionCsv: ${…}": 1,
     "uploadCollectionCsv: the CSV could not be read — ${…}": 1
   },
-  "src/collection-sync/csv.ts": {
-    "CSV row ${…}${…}": 1,
-    "CSV row ${…}${…} (${…})": 1,
-    "No Archidekt CSV column for the export property '${…}'": 1,
-    "The Archidekt CSV upload has no '${…}' column": 1
-  },
-  "src/collection-sync/describe.ts": {
-    "${…} and ${…}": 1,
-    "${…} not found": 1,
-    "${…} refused without a reason": 1,
-    "Archidekt gave no reason": 1,
-    "Not removing ${…} × ${…}: ambiguous — copies live in ${…}.": 1,
-    "Unhandled card change: ${…}": 1,
-    "matched more than one printing": 1,
-    "not found on Archidekt": 1
-  },
-  "src/collection-sync/diff.ts": {
-    "Archidekt cannot represent ${…} [${…}]; pushing ${…}${…} as English.": 1,
-    "Archidekt record ${…} (${…}) has an unknown language id '${…}'; treating it as English.": 1,
-    "Skipping Archidekt record ${…} (${…}): ${…}": 2,
-    "Skipping Archidekt record ${…}: it does not name a card, set code, and collector number.": 1
-  },
-  "src/collection-sync/engine.ts": {
-    "${…} would be dropped by a sync": 1,
-    "Could not confirm the unreadable lines: ${…}": 1,
-    "Could not read collection list \"${…}\": ${…}": 1,
-    "Could not record the sync timestamp: ${…}": 1,
-    "No collection lists to sync from.": 1,
-    "No readable collection lists to push. Refusing to treat that as an empty collection.": 1,
-    "This preview includes the lists above; a real run holds them back until their unreadable lines are accepted.": 1
-  },
-  "src/collection-sync/pull.ts": {
-    "${…} Nothing was written.": 1,
-    "${…}A real run would refuse to place ${…} until the ambiguity is resolved.": 1,
-    "${…}Removing ${…} × ${…} from \"${…}\" (${…}).": 1,
-    "Cannot use the removal priority: ${…}.": 1,
-    "Could not create the collection list \"${…}\": ${…}": 1,
-    "Could not place ${…}: the removals are ambiguous and were not resolved. Nothing was written.": 1,
-    "Could not place ${…}: the resolution did not say which lists lose those copies. Nothing was written.": 1,
-    "Could not read the Scryfall cache: ${…}": 1,
-    "Could not resolve the ambiguous removals: ${…}. Nothing was written.": 1,
-    "Created collection list \"${…}\" for the cards being added.": 1,
-    "Failed to save: ${…}": 1,
-    "More than one collection list is named \"${…}\": ${…}. Point --into (or collectionSync.pullTarget) at one of them.": 2,
-    "No changes.": 1,
-    "Not adding ${…}: some collection lists in scope could not be read, so cards they already hold would be duplicated into \"${…}\". Fix or accept those lists and run again.": 1,
-    "Saved.": 1,
-    "The removal priority (${…}) cannot place ${…}. Nothing was written.": 1,
-    "[dry-run] Not saved.": 1,
-    "[dry-run] Would create collection list \"${…}\" for the cards being added.": 1,
-    "more than one collection list is named \"${…}\": ${…}": 1,
-    "no changes": 1,
-    "no collection list is named \"${…}\"": 1,
-    "removal priority": 1
-  },
-  "src/collection-sync/push-csv.ts": {
-    "${…} Nothing was pushed.": 2,
-    "${…} cards would be added — more than ${…}, so adding them one at a time would cost ${…} printing searches, and this run was not told to upload them as one CSV import instead. Nothing was pushed.": 1,
-    "${…} could not be imported from the CSV": 1,
-    "${…} could not be matched to a card; the copies they carried are credited on faith — a later push reconciles anything actually missed.": 1,
-    "Archidekt did not import ${…} of ${…} CSV rows{ (${…})|}.": 1,
-    "Could not decide how to add ${…} cards: ${…}. Nothing was pushed.": 1,
-    "Could not prepare the card cache for a CSV upload: ${…}. Nothing was pushed.": 1,
-    "Could not read Archidekt's answer for CSV chunk ${…}: ${…}. Response: ${…}": 1,
-    "Failed to upload ${…} as a CSV import: ${…}": 1,
-    "Failed to write the additions CSV to ${…}: ${…}": 1,
-    "Imported ${…} from the CSV in ${…}.": 1,
-    "No file was named for the additions CSV. Nothing was pushed.": 1,
-    "Not imported: ${…} — ${…}.": 1,
-    "Uploading ${…} as a CSV import...": 1,
-    "Wrote ${…} to ${…}; they were not pushed. Import the file at ${…}.": 1,
-    "[dry-run] Would upload ${…} as a CSV import.": 1,
-    "[dry-run] Would write ${…} to ${…} for a manual upload at ${…}.": 1,
-    "…and ${…} more.": 1
-  },
-  "src/collection-sync/push.ts": {
-    "Failed to add ${…}: ${…}": 1,
-    "Failed to remove ${…} from Archidekt": 1,
-    "Failed to remove ${…}: ${…}": 1,
-    "Failed to update ${…}: ${…}": 1,
-    "No changes.": 1,
-    "Not removing ${…} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.": 1,
-    "no changes": 1
-  },
-  "src/collection-sync/state.ts": {
-    "Collection sync state is missing a 'lastSynced' timestamp": 1,
-    "Collection sync state is missing a 'username'": 1,
-    "Collection sync state is missing a numeric 'userId'": 1,
-    "Collection sync state is not an object": 1,
-    "the file is not valid JSON": 1
-  },
-  "src/collection-sync/store.ts": {
-    "Collection list '${…}' is no longer on disk": 2
-  },
   "src/commands/admin.ts": {
     "Admin": 1,
     "Admin SPA CSS build failed": 1,
@@ -968,70 +874,6 @@
     "site config: \"sellMode\" must be a boolean": 1,
     "site config: ${…}": 1,
     "the file must contain a JSON object": 1
-  },
-  "src/deck-sync/categories.ts": {
-    "Skipped {an Archidekt category|${…} Archidekt categories} Ritual cannot store (${…}): ${…}": 1
-  },
-  "src/deck-sync/describe.ts": {
-    "Changes: ${…}": 1,
-    "Unhandled card change: ${…}": 1
-  },
-  "src/deck-sync/divergence.ts": {
-    "Archidekt reported an unreadable update timestamp (\"${…}\")": 1,
-    "Archidekt reported no update timestamp for this deck": 1,
-    "Remote deck changed since last sync (remote: ${…}, last synced against: ${…}) — pull first, or pass --force to overwrite remote changes.": 1,
-    "The deck's sourceUpdatedAt is not a readable timestamp (\"${…}\")": 1
-  },
-  "src/deck-sync/engine.ts": {
-    "${…} — pushing without the divergence check.": 1,
-    "Could not move ${…} of \"${…}\" from ${…} to ${…}: the local ${…} does not hold them.": 1,
-    "Could not read the categories file: ${…}": 2,
-    "Failed to push changes: ${…}": 1,
-    "Format: ${…} → ${…}": 1,
-    "No Archidekt decks found to sync.": 1,
-    "No changes detected.": 1,
-    "No changes to upload.": 2,
-    "Printings not synced for \"${…}\": the local file and Archidekt hold different printings of it. Re-run with --sync-printings to reconcile them.": 1,
-    "Pushed ${…} card changes to Archidekt.": 1,
-    "Saved.": 1,
-    "Skipping: ${…}": 1,
-    "Synced the cards, but could not write the categories file: ${…}": 1,
-    "The local deck has no categories, so its Archidekt categories are left as they are. Pull with --sync-categories first to bring them down.": 1,
-    "Updated lastSynced.": 1,
-    "[dry-run] Not saved.": 1,
-    "[dry-run] Would push ${…} card changes to Archidekt.": 1,
-    "dry-run: ${…}": 1,
-    "dry-run: would push ${…} card changes": 1,
-    "no changes": 3,
-    "not set": 1,
-    "you do not own Archidekt deck ${…}": 1
-  },
-  "src/deck-sync/link.ts": {
-    "\"${…}\" is not an Archidekt deck URL. Expected something like https://archidekt.com/decks/123456.": 1,
-    "An Archidekt deck URL is required.": 1,
-    "sourceUrl names Archidekt deck ${…} but sourceId is ${…}. A sync addresses the deck by sourceId, so the two must name the same deck.": 1
-  },
-  "src/deck-sync/targets.ts": {
-    "${…} would be dropped by a sync": 1,
-    "Could not confirm the unreadable lines: ${…}": 1,
-    "Could not read deck file for \"${…}\": ${…}": 1,
-    "Could not read deck file: ${…}": 1,
-    "Deck \"${…}\" has Archidekt sourceUrl but no sourceId": 1,
-    "Deck \"${…}\" has unreadable front matter: ${…}": 1,
-    "Deck \"${…}\" is not sourced from Archidekt": 1,
-    "Skipping ${…}: has Archidekt sourceUrl but no sourceId": 1,
-    "Skipping ${…}: unreadable front matter (${…})": 1,
-    "has Archidekt sourceUrl but no sourceId": 2,
-    "not sourced from Archidekt": 1,
-    "unreadable front matter: ${…}": 2
-  },
-  "src/deck-sync/upload-plan.ts": {
-    "Cannot ${…} for card not found in Archidekt deck: ${…}": 1,
-    "Cannot change the board for ${…} of ${…}: the Archidekt ${…} board does not hold them": 1,
-    "Finish \"${…}\" is not offered for ${…} on Archidekt (valid: ${…})": 1,
-    "change the board": 1,
-    "update the printing": 1,
-    "update the quantity": 1
   },
   "src/editor/card-search/key-hints.ts": {
     "Tab": 1
@@ -1595,9 +1437,6 @@
   },
   "src/site/useTheme.tsx": {
     "useTheme must be used inside <ThemeProvider>": 1
-  },
-  "src/sync/common.ts": {
-    "cancelled before it started": 1
   },
   "src/theme/themes.ts": {
     "Custom theme must be a JSON object": 1,

@@ -1,10 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  cancelledReason,
+  countUnstartedItems,
   describeRateLimitWait,
   describeSkippedChanges,
+  noChangesReason,
   unreadableConsequence,
   type SyncChangeFilter,
 } from '../../src/sync/common'
+import { reasonFields, renderSyncMessage } from '../../src/sync/message'
+import { withSyntheticLocale } from '../helpers/sync-text'
 
 /**
  * The vocabulary every sync speaks. The change filter is destination-relative: a
@@ -14,10 +19,10 @@ import {
 
 describe('describeSkippedChanges', () => {
   test('names the side that was left out, pluralized', () => {
-    expect(describeSkippedChanges('additions', 3)).toBe(
+    expect(describeSkippedChanges('additions', 3)?.message).toBe(
       'Skipped 3 removals (applying additions only).',
     )
-    expect(describeSkippedChanges('removals', 1)).toBe(
+    expect(describeSkippedChanges('removals', 1)?.message).toBe(
       'Skipped 1 addition (applying removals only).',
     )
   })
@@ -50,26 +55,64 @@ describe('unreadableConsequence', () => {
 
 describe('describeRateLimitWait', () => {
   test('renders the full sentence', () => {
-    expect(describeRateLimitWait({ waitMs: 250, retry: 1, maxRetries: 5 })).toBe(
-      'Rate limited by Archidekt — waiting 0.3s before retry 1 of 5.',
+    expect(describeRateLimitWait({ waitMs: 250, retry: 1, maxRetries: 5 }).message).toBe(
+      'Rate limited by Archidekt — waiting 0.3 seconds before retry 1 of 5.',
     )
   })
 
-  const waitCases: [waitMs: number, seconds: string][] = [
-    [2000, '2'], // a whole second never renders as 2.0
-    [2440, '2.5'], // round UP, not to nearest
-    [250, '0.3'],
-    [101, '0.2'], // the tenth boundary rounds up…
-    [100, '0.1'], // …and an exact tenth stays put
-    [0, '0.1'], // the floor: a wait never reads as zero seconds
-    [60_000, '60'], // the Retry-After cap still reads sanely
+  const waitCases: [waitMs: number, wait: string][] = [
+    [2000, '2 seconds'], // a whole second never renders as 2.0
+    [2440, '2.5 seconds'], // round UP, not to nearest
+    [250, '0.3 seconds'],
+    [101, '0.2 seconds'], // the tenth boundary rounds up…
+    [100, '0.1 seconds'], // …and an exact tenth stays put
+    [0, '0.1 seconds'], // the floor: a wait never reads as zero seconds
+    [60_000, '1 minute'], // the Retry-After cap reads as the duration it is
   ]
 
-  for (const [waitMs, seconds] of waitCases) {
-    test(`${waitMs}ms reads as ${seconds}s`, () => {
-      expect(describeRateLimitWait({ waitMs, retry: 1, maxRetries: 5 })).toContain(
-        `waiting ${seconds}s `,
+  for (const [waitMs, wait] of waitCases) {
+    test(`${waitMs}ms reads as ${wait}`, () => {
+      expect(describeRateLimitWait({ waitMs, retry: 1, maxRetries: 5 }).message).toContain(
+        `waiting ${wait} before`,
       )
     })
   }
+})
+
+describe('item outcomes', () => {
+  test('pins the English reasons a script used to read', () => {
+    expect(cancelledReason().message).toBe('cancelled before it started')
+    expect(noChangesReason().message).toBe('no changes')
+  })
+
+  test('counts an item the cancellation never reached by its outcome alone', () => {
+    expect(countUnstartedItems([{ status: 'skipped', outcome: 'cancelled' }])).toBe(1)
+  })
+
+  test('does not count an item for carrying the old English reason text', () => {
+    expect(
+      countUnstartedItems([{ status: 'skipped', reason: 'cancelled before it started' }]),
+    ).toBe(0)
+  })
+
+  test('does not count an item a refused run never reached, nor an ordinary skip', () => {
+    expect(
+      countUnstartedItems([
+        { status: 'skipped', outcome: 'not-run' },
+        { status: 'skipped', reason: 'you do not own Archidekt deck 1' },
+        { status: 'synced', outcome: 'changed' },
+      ]),
+    ).toBe(0)
+  })
+
+  test('keeps the wire reason English under a translated UI locale', () => {
+    withSyntheticLocale('xx', { 'domain.sync.reasonCancelled': 'xx-cancelled' }, () => {
+      // Vacuity guard: the locale really is in force.
+      expect(renderSyncMessage(cancelledReason())).toBe('xx-cancelled')
+      expect(reasonFields(cancelledReason())).toEqual({
+        reason: 'cancelled before it started',
+        reasonKey: 'domain.sync.reasonCancelled',
+      })
+    })
+  })
 })

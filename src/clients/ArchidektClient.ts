@@ -32,6 +32,7 @@ import {
 import { parseCsv } from '../importers/csv'
 
 import { describeRateLimitWait, type RateLimitWait } from '../sync/common'
+import type { SyncMessage } from '../sync/message'
 import { getLogger } from '../util/logger'
 
 export { type ArchidektDeckSimple, getArchidektFormat } from '../importers/archidekt-types'
@@ -313,7 +314,8 @@ function backoffMs(retry: number): number {
 
 /**
  * A default-transport client whose 429 waits are reported to `onWait` as the
- * shared {@link describeRateLimitWait} line — the construction both sync
+ * shared {@link describeRateLimitWait} message (English plus key, for each
+ * surface to render in its reader's language) — the construction both sync
  * engines (and any future consumer with a progress channel) share. `options`
  * exists for the seams; an `onRateLimitWait` given there is overridden.
  *
@@ -322,7 +324,7 @@ function backoffMs(retry: number): number {
  * driven end to end without a network.
  */
 export function createPacedArchidektClient(
-  onWait: (message: string) => void,
+  onWait: (message: SyncMessage) => void,
   options?: ArchidektClientOptions,
   httpClient?: HttpClient,
 ): ArchidektClient {

@@ -13,8 +13,14 @@
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import { unreadableLines } from '../list/markdown-fence'
+import {
+  errorMessage,
+  syncMessage,
+  SyncMessageError,
+  syncText,
+  type SyncMessage,
+} from '../sync/message'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
-import { getErrorMessage } from '../util/errors'
 import { createList, isListLifecycleError } from '../list/list-lifecycle'
 import { applyChangesToCollectionFile, type CardMutationChange } from '../list/list-mutate'
 import {
@@ -70,12 +76,12 @@ export interface CollectionListStore {
   allLists(): Promise<string[]>
   /** Resolve a user-supplied name the same way every other command does. */
   resolve(query: string): Promise<ResolveCollectionListResult>
-  /** Read a list; a string is the message explaining why it could not be read. */
-  load(name: string): Promise<LoadedCollectionList | string>
+  /** Read a list, or the message explaining why it could not be read. */
+  load(name: string): Promise<LoadedCollectionList | SyncMessage>
   /** Apply card changes to a list, returning every file the write touched. */
   apply(name: string, changes: CardMutationChange[]): Promise<string[]>
-  /** Create a list; a string is the message explaining why it could not be created. */
-  create(name: string): Promise<CreatedCollectionList | string>
+  /** Create a list, or the message explaining why it could not be created. */
+  create(name: string): Promise<CreatedCollectionList | SyncMessage>
 }
 
 /**
@@ -98,7 +104,7 @@ export function createDiskCollectionListStore(): CollectionListStore {
   /** The path of a list that must exist; the engine only ever names loaded lists. */
   const requirePath = async (name: string): Promise<string> => {
     const location = await locate(name)
-    if (!location) throw new Error(`Collection list '${name}' is no longer on disk`)
+    if (!location) throw new SyncMessageError(syncMessage('domain.sync.listGone', { list: name }))
     return location.filePath
   }
 
@@ -112,14 +118,14 @@ export function createDiskCollectionListStore(): CollectionListStore {
       return isResolveListError(result) ? result : { name: result.name }
     },
 
-    async load(name: string): Promise<LoadedCollectionList | string> {
+    async load(name: string): Promise<LoadedCollectionList | SyncMessage> {
       const location = await locate(name)
-      if (!location) return `Collection list '${name}' is no longer on disk`
+      if (!location) return syncMessage('domain.sync.listGone', { list: name })
       let content: string
       try {
         content = await fs.readFile(location.filePath, 'utf-8')
       } catch (error: unknown) {
-        return getErrorMessage(error)
+        return errorMessage(error)
       }
       const parsed = parseCollectionFile(content)
       return {
@@ -139,12 +145,13 @@ export function createDiskCollectionListStore(): CollectionListStore {
       return result.writtenFiles
     },
 
-    async create(name: string): Promise<CreatedCollectionList | string> {
+    async create(name: string): Promise<CreatedCollectionList | SyncMessage> {
       // Enumerate before creating, so the new list extends the run's locations
       // rather than replacing them.
       const existing = await locations()
       const result = await createList('collection', name)
-      if (isListLifecycleError(result)) return result.message
+      // The lifecycle module words its own refusal, in the active locale.
+      if (isListLifecycleError(result)) return syncText(result.message)
       cached = [...existing, { type: 'collection', name: result.slug, filePath: result.filePath }]
       return { name: result.slug, writtenFiles: result.touchedFiles }
     },

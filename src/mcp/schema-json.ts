@@ -55,7 +55,8 @@ import {
   type SellEntryMatch,
 } from '../pricing/sell-report'
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
-import { SYNC_DIRECTIONS, SYNC_ITEM_STATUSES } from '../sync/common'
+import { SYNC_DIRECTIONS, SYNC_ITEM_OUTCOMES, SYNC_ITEM_STATUSES } from '../sync/common'
+import type { SyncMessage, SyncReasonFields } from '../sync/message'
 import { BOARDS } from '../list/deck'
 import type {
   CollectionSyncCardAdded,
@@ -973,6 +974,56 @@ const SYNC_DIRECTION = enumOf(SYNC_DIRECTIONS)
 
 const SYNC_ITEM_STATUS = enumOf(SYNC_ITEM_STATUSES)
 
+/**
+ * What came of one synced item, as a fixed code — the field to branch on,
+ * rather than the prose in `reason`.
+ */
+const SYNC_ITEM_OUTCOME = enumOf(
+  SYNC_ITEM_OUTCOMES,
+  'What came of the item: "changed" (written or sent — for a collection push with a CSV ' +
+    'file, written there for upload), "unchanged" (already matched, or nothing to send), ' +
+    '"dry-run" (a preview; `reason` summarizes it), "cancelled" (the call was cancelled ' +
+    'before reaching it) or "not-run" (the run refused before reaching it; its error says ' +
+    'why). Tied to `status`: always present on a synced item, and then never "cancelled" ' +
+    'or "not-run"; on a skipped item only ever "cancelled" or "not-run" (absent for any ' +
+    'other skip); never on a failed item. Branch on this, never on `reason` text.',
+)
+
+/**
+ * The reason fields every per-item sync result carries: English `reason`, plus
+ * the key and params it was rendered from — `messageKey` / `messageParams`
+ * under the names of the field they belong to. Keyed by the engine type, so a
+ * renamed field is a compile error here.
+ */
+type SyncReasonProperties = Record<keyof SyncReasonFields, JsonSchemaType>
+
+function syncReasonProps(reason: string): SyncReasonProperties {
+  return {
+    reason: str(`${reason} English prose; never match on it — read \`outcome\`.`),
+    reasonKey: str(
+      'Catalog key `reason` was rendered from, for a client that renders it in its own ' +
+        'language. Absent when the reason is an error raised outside the catalog.',
+    ),
+    reasonParams: openObject(
+      'What `reasonKey` interpolates. A param may itself be a message (`messageKey`, ' +
+        '`messageParams`), a list (`list`, `join`) or a duration (`elapsedMs`).',
+    ),
+  }
+}
+
+/** A sync message's properties, checked against the engine type. */
+const SYNC_MESSAGE_PROPS = {
+  message: str(),
+  messageKey: MESSAGE_PROPS.messageKey,
+  messageParams: openObject(
+    'What `messageKey` interpolates; a param may itself be a message, a list, a duration ' +
+      'or a card language.',
+  ),
+} as const satisfies Record<keyof SyncMessage, JsonSchemaType>
+
+/** One run-level sync failure as a message: English plus key and params. */
+const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])
+
 const DECK_BOARD = enumOf(BOARDS)
 
 /** A printing a deck-sync card change is about; every field absent on a bare line. */
@@ -1059,7 +1110,8 @@ const DECK_SYNC_CARD_CHANGE: JsonSchemaType = {
 const DECK_SYNC_DECK_RESULT_PROPS = {
   name: str(),
   status: SYNC_ITEM_STATUS,
-  reason: str('Why the deck did not cleanly sync, or a dry run’s summary.'),
+  outcome: SYNC_ITEM_OUTCOME,
+  ...syncReasonProps('Why the deck did not cleanly sync, or a dry run’s summary.'),
   printingsChanged: int('Printing differences found; only on a run syncing printings.'),
   printingsUnaligned: arr(str(), 'Cards whose printings disagree and were left alone.'),
   boardMoves: int('Board moves found; present only when there is one.'),
@@ -1163,7 +1215,8 @@ const COLLECTION_SYNC_CARD_CHANGE: JsonSchemaType = {
 const COLLECTION_SYNC_LIST_RESULT_PROPS = {
   name: str(),
   status: SYNC_ITEM_STATUS,
-  reason: str('Why the list did not cleanly sync, or a dry run’s summary.'),
+  outcome: SYNC_ITEM_OUTCOME,
+  ...syncReasonProps('Why the list did not cleanly sync, or a dry run’s summary.'),
   added: int('Copies added: into the list on a pull, to Archidekt on a push.'),
   removed: int('Copies removed: from the list on a pull, from Archidekt on a push.'),
   pending: int('Copies written to a --csv-file rather than pushed (CLI only).'),
@@ -1188,7 +1241,12 @@ const COLLECTION_SYNC_REPORT_PROPS = {
     'One sync outcome per collection list the run covered.',
   ),
   failedCount: int('Lists that failed; a run with failures still reports success.'),
-  errors: arr(str(), 'Run-level failures, as opposed to per-list ones.'),
+  errors: arr(str(), 'Run-level failures, as opposed to per-list ones. English.'),
+  errorMessages: arr(
+    SYNC_MESSAGE,
+    '`errors` as messages, in the same order: English `message` plus `messageKey` / ' +
+      '`messageParams` for a client that renders them in its own language.',
+  ),
   unreadable: arr(openObject('A list file holding lines the parser cannot read.')),
   ambiguous: arr(openObject('A partial removal spanning several lists.')),
   localIncomplete: bool('True when some in-scope list did not make it into the comparison.'),
@@ -1232,6 +1290,7 @@ export const SYNC_COLLECTION_OUTPUT: JsonSchemaType = obj(
       'lists',
       'failedCount',
       'errors',
+      'errorMessages',
       'unreadable',
       'ambiguous',
       'localIncomplete',

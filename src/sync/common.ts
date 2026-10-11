@@ -13,6 +13,14 @@
 
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import {
+  syncElapsed,
+  syncMessage,
+  syncRef,
+  type SyncMessage,
+  type SyncParam,
+  type SyncReasonFields,
+} from './message'
 
 // ── Direction ─────────────────────────────────────────────────────────
 
@@ -61,9 +69,9 @@ const SKIPPED_MESSAGE = {
 export function describeSkippedChanges(
   filter: SyncChangeFilter | undefined,
   skipped: number,
-): string | null {
+): SyncMessage | null {
   if (!filter || skipped <= 0) return null
-  return t(SKIPPED_MESSAGE[filter], { count: skipped })
+  return syncMessage(SKIPPED_MESSAGE[filter], { count: skipped })
 }
 
 // ── Rate limiting ─────────────────────────────────────────────────────
@@ -78,23 +86,24 @@ export type RateLimitWait = {
   maxRetries: number
 }
 
-/**
- * The smallest wait the line will report. Unreachable from real waits (the
- * client's minimum backoff is well above it) — it guards a future producer
- * from emitting a line that claims a zero-second wait.
- */
-const MIN_REPORTED_SECONDS = 0.1
+/** The precision the line reports a wait at: a tenth of a second. */
+const REPORTED_PRECISION_MS = 100
 
 /**
  * The log line for a 429 backoff wait, shared by both sync engines so the CLI,
  * the admin progress panels, and the MCP report all describe it identically.
- * Waits round up to a tenth of a second — never under-reported, and a
- * sub-second wait (a short server-sent Retry-After, a pacing top-up) still
- * reads accurately instead of inflating to a whole second.
+ * The wait is a duration param, so its number and unit follow the reader's
+ * locale (`2 seconds`). It rounds up to a tenth of a second — never
+ * under-reported, and a sub-second wait (a short server-sent Retry-After, a
+ * pacing top-up) still reads accurately instead of inflating to a whole second.
+ * The floor of one tenth is unreachable from real waits (the client's minimum
+ * backoff is well above it); it guards a future producer from a line that
+ * claims a zero-second wait.
  */
-export function describeRateLimitWait(wait: RateLimitWait): string {
-  return t('domain.sync.rateLimitWait', {
-    seconds: Math.max(MIN_REPORTED_SECONDS, Math.ceil(wait.waitMs / 100) / 10),
+export function describeRateLimitWait(wait: RateLimitWait): SyncMessage {
+  const steps = Math.max(1, Math.ceil(wait.waitMs / REPORTED_PRECISION_MS))
+  return syncMessage('domain.sync.rateLimitWait', {
+    wait: syncElapsed(steps * REPORTED_PRECISION_MS),
     retry: wait.retry,
     maxRetries: wait.maxRetries,
   })
@@ -116,34 +125,95 @@ export const SYNC_ITEM_STATUSES = ['synced', 'failed', 'skipped'] as const
 export type SyncItemStatus = (typeof SYNC_ITEM_STATUSES)[number]
 
 /**
- * The `reason` a skipped item carries when the run was cancelled before that
- * item started.
+ * What came of one item a run covered, as a fixed code a script can branch on —
+ * the `reason` beside it is prose, and follows nothing a program should match.
+ *
+ * - `changed` — the item synced and something was written locally or sent to
+ *   Archidekt. For a collection push run with `--csv-file`, that includes
+ *   copies written to the CSV file for a manual upload (`pending`), even though
+ *   they have not reached Archidekt yet.
+ * - `unchanged` — the item already matched; nothing was done to it. That
+ *   includes a deck push whose diff, once planned, had nothing to send (every
+ *   printing change already what Archidekt holds).
+ * - `dry-run` — a preview: `reason` summarizes what a real run would change.
+ * - `cancelled` — the caller cancelled the run before it reached the item.
+ * - `not-run` — the run refused before it reached the item (a bad pull
+ *   destination, an ambiguity nobody decided, additions a push would not send);
+ *   the run's own error says why.
  *
  * Both engines honour cancellation at **item boundaries only**: the item in
  * flight finishes (a deck is never half-pushed, a list never half-written), and
- * every item after it is reported skipped with this reason rather than left out
- * of the report. Cancelling is not a failure, so `failedCount` never counts it.
+ * every item after it is reported `skipped` with the `cancelled` outcome rather
+ * than left out of the report. Cancelling is not a failure, so `failedCount`
+ * never counts it. A failed item, and one skipped for any other reason (a deck
+ * the account does not own), has no outcome: its `status` and `reason` say it
+ * all.
  */
-export const SYNC_CANCELLED_REASON = 'cancelled before it started'
+export const SYNC_ITEM_OUTCOMES = [
+  'changed',
+  'unchanged',
+  'dry-run',
+  'cancelled',
+  'not-run',
+] as const
 
-/** The status-and-reason shape every engine's per-item result shares. */
-export type SyncItemOutcome = { status: SyncItemStatus; reason?: string }
+/** See {@link SYNC_ITEM_OUTCOMES}. */
+export type SyncItemOutcome = (typeof SYNC_ITEM_OUTCOMES)[number]
+
+/** The outcomes only a skipped item can carry: the run never reached it. */
+export type UnreachedOutcome = Extract<SyncItemOutcome, 'cancelled' | 'not-run'>
+
+/** What a synced item came to: every outcome but the two a skip says. */
+export type SyncedOutcome = Exclude<SyncItemOutcome, UnreachedOutcome>
+
+/**
+ * An item's status and outcome together, with the outcome rule in the type: a
+ * synced item always says what came of it, a skipped one says only that the run
+ * never reached it (or nothing, for any other skip), and a failed one says
+ * nothing — its reason does.
+ */
+export type SyncItemStanding =
+  | { status: 'synced'; outcome: SyncedOutcome }
+  | { status: 'skipped'; outcome?: UnreachedOutcome }
+  | { status: 'failed'; outcome?: never }
+
+/** The status, outcome and reason every engine's per-item result shares. */
+export type SyncItemResultBase = SyncReasonFields & SyncItemStanding
+
+/** The reason a skipped item carries when the run was cancelled before it started. */
+export function cancelledReason(): SyncMessage {
+  return syncMessage('domain.sync.reasonCancelled')
+}
+
+/** The reason a synced item carries when it already matched. */
+export function noChangesReason(): SyncMessage {
+  return syncMessage('domain.sync.reasonNoChanges')
+}
+
+/**
+ * The reason a dry run's item carries: what a real run would change. `summary`
+ * is the item's change summary — a deck's or list's `Changes:` counts, or a
+ * push's count of card changes it would send.
+ */
+export function dryRunReason(summary: SyncParam): SyncMessage {
+  return syncMessage('domain.sync.reasonDryRun', { summary })
+}
 
 /**
  * Items a cancellation never reached: skipped, but not "nothing to do" — a
- * summary counts them apart from ordinary skips.
+ * summary counts them apart from ordinary skips. Items a *refused* run never
+ * reached (`not-run`) are not counted: the run's error already says why it
+ * stopped, and "cancelled with N not started" would be the wrong story.
  */
-export function countUnstartedItems(items: readonly SyncItemOutcome[]): number {
-  return items.filter((item) => item.status === 'skipped' && item.reason === SYNC_CANCELLED_REASON)
-    .length
+export function countUnstartedItems(items: readonly SyncItemResultBase[]): number {
+  return items.filter((item) => item.outcome === 'cancelled').length
 }
 
 /** The run-level log line a cancelled run ends on; assignable to any {@link SyncEvent}. */
-export type SyncCancellationLog = {
+export type SyncCancellationLog = SyncMessage & {
   kind: 'log'
   level: 'warn'
   item: null
-  message: string
 }
 
 /** Keys only, resolved at call time — see {@link SKIPPED_MESSAGE}. */
@@ -161,8 +231,8 @@ export function syncCancellationLog(kind: SyncSubjectKind, remaining: number): S
     kind: 'log',
     level: 'warn',
     item: null,
-    message: t('domain.sync.cancelled', {
-      items: t(UNSTARTED_COUNT[kind], { count: remaining }),
+    ...syncMessage('domain.sync.cancelled', {
+      items: syncRef(UNSTARTED_COUNT[kind], { count: remaining }),
     }),
   }
 }
@@ -232,7 +302,7 @@ export function unreadableConsequence(kind: SyncSubjectKind, direction: SyncDire
  */
 export type SyncEvent<TResult> =
   | { kind: 'item-start'; item: string; index: number; total: number }
-  | { kind: 'log'; level: SyncLogLevel; item: string | null; message: string }
+  | (SyncMessage & { kind: 'log'; level: SyncLogLevel; item: string | null })
   | { kind: 'item-result'; result: TResult }
   /** Emitted before anything syncs, when some source has lines the parser cannot read. */
   | { kind: 'unreadable-lines'; items: UnreadableSource[] }

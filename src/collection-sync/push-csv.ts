@@ -4,12 +4,21 @@
  * question the run asks past the threshold, and the upload itself.
  */
 
-import { getErrorMessage } from '../util/errors'
-import { t } from '../i18n/t'
+import {
+  errorParam,
+  isSyncMessage,
+  nestSync,
+  syncMessage,
+  syncRef,
+  syncText,
+  toSyncMessage,
+  type SyncMessage,
+} from '../sync/message'
 import type { CollectionCsvUploadResult } from '../importers/archidekt-collection'
 import {
   archidektPlace,
   describeCollectionCardChange,
+  csvFailureCard,
   describeCsvFailure,
   describeCsvFailureReasons,
   describeCsvSize,
@@ -68,9 +77,9 @@ export type CsvBulkRoute = Exclude<CsvRoute, { kind: 'individual' }>
 export async function routeAdditions(
   flow: SyncFlow,
   creates: readonly PushCreate[],
-): Promise<RoutedAdditions | string> {
+): Promise<RoutedAdditions | SyncMessage> {
   const route = await chooseAdditionsRoute(flow, creates)
-  if (typeof route === 'string') return route
+  if (isSyncMessage(route)) return route
   if (route.kind === 'individual') return { route, refreshed: false }
 
   // The rows are built from the local Scryfall cache, so a cache the surface's
@@ -81,12 +90,14 @@ export async function routeAdditions(
   try {
     ready = await flow.ensureCsvCache({
       additions: creates.length,
-      log: (message) => flow.emit({ kind: 'log', level: 'info', item: null, message }),
+      // The cache's own progress text, carried in its own words.
+      log: (message) => flow.emit({ kind: 'log', level: 'info', item: null, ...syncText(message) }),
     })
   } catch (error: unknown) {
-    return `Could not prepare the card cache for a CSV upload: ${getErrorMessage(error)}. Nothing was pushed.`
+    return syncMessage('domain.sync.csvCachePrepareFailed', { error: errorParam(error) })
   }
-  if (typeof ready === 'string') return `${ready} Nothing was pushed.`
+  // The gate's refusal, in its own words.
+  if (typeof ready === 'string') return syncMessage('domain.sync.nothingPushed', { message: ready })
   return { route, ...ready }
 }
 
@@ -94,7 +105,7 @@ export async function routeAdditions(
 async function chooseAdditionsRoute(
   flow: SyncFlow,
   creates: readonly PushCreate[],
-): Promise<CsvRoute | string> {
+): Promise<CsvRoute | SyncMessage> {
   if (creates.length === 0) return { kind: 'individual' }
   if (flow.csvFile !== undefined) return { kind: 'export', path: flow.csvFile }
   if (flow.csv) return { kind: 'upload' }
@@ -106,7 +117,10 @@ async function chooseAdditionsRoute(
     // decider (the admin API, the MCP tool), where naming CLI flags would be
     // advice the reader cannot take. The CLI's own decider words its refusal with
     // the flags that settle it.
-    return `${creates.length} cards would be added — more than ${CSV_UPLOAD_THRESHOLD}, so adding them one at a time would cost ${creates.length} printing searches, and this run was not told to upload them as one CSV import instead. Nothing was pushed.`
+    return syncMessage('domain.sync.csvUndecided', {
+      count: creates.length,
+      threshold: CSV_UPLOAD_THRESHOLD,
+    })
   }
 
   let decision: CsvUploadDecision
@@ -117,7 +131,10 @@ async function chooseAdditionsRoute(
     })
   } catch (error: unknown) {
     // A decider that throws is a decision that was never made — refuse.
-    return `Could not decide how to add ${creates.length} cards: ${getErrorMessage(error)}. Nothing was pushed.`
+    return syncMessage('domain.sync.csvDeciderFailed', {
+      count: creates.length,
+      error: errorParam(error),
+    })
   }
 
   switch (decision.kind) {
@@ -129,13 +146,13 @@ async function chooseAdditionsRoute(
       // A blank path is not a destination: writing to it would fail after the
       // rest of the push had already gone out.
       const path = decision.path.trim()
-      if (path === '') return 'No file was named for the additions CSV. Nothing was pushed.'
+      if (path === '') return syncMessage('domain.sync.csvNoFile')
       return { kind: 'export', path }
     }
     case 'abort':
       // The decider's own wording — "cancelled" and "no terminal" are different
       // things to be told, and only it knows which happened.
-      return `${decision.message} Nothing was pushed.`
+      return syncMessage('domain.sync.nothingPushed', { message: nestSync(decision.message) })
   }
 }
 
@@ -186,7 +203,7 @@ export async function pushAdditionsAsCsv(
 
   const plan = await planCollectionCsv(creates, flow.lookupPrintings)
   for (const warning of plan.warnings) {
-    emit({ kind: 'log', level: 'warn', item: null, message: warning })
+    emit({ kind: 'log', level: 'warn', item: null, ...warning })
   }
   if (plan.uncached.length > 0) {
     const count = plan.uncached.length
@@ -194,7 +211,7 @@ export async function pushAdditionsAsCsv(
       kind: 'log',
       level: 'warn',
       item: null,
-      message: t('domain.sync.csvUncachedAdditions', { count }),
+      ...syncMessage('domain.sync.csvUncachedAdditions', { count }),
     })
   }
   const counts: CollectionSyncCsvCounts = {
@@ -224,7 +241,7 @@ export async function pushAdditionsAsCsv(
         kind: 'log',
         level: 'detail',
         item: null,
-        message: describeCollectionCardChange(change, archidektPlace()),
+        ...toSyncMessage(describeCollectionCardChange(change, archidektPlace())),
       })
       for (const list of operation.lists) results.record(list, change)
     }
@@ -232,7 +249,7 @@ export async function pushAdditionsAsCsv(
   }
 
   /** Fail every list whose additions the CSV lost, without touching the run. */
-  const failRows = (rows: readonly PushCreate[], reason: string): void => {
+  const failRows = (rows: readonly PushCreate[], reason: SyncMessage): void => {
     for (const operation of rows) {
       for (const list of operation.lists) results.fail(list, reason)
     }
@@ -243,10 +260,13 @@ export async function pushAdditionsAsCsv(
       kind: 'log',
       level: 'info',
       item: null,
-      message:
-        route.kind === 'export'
-          ? `[dry-run] Would write ${size} to ${route.path} for a manual upload at ${ARCHIDEKT_IMPORT_URL}.`
-          : `[dry-run] Would upload ${size} as a CSV import.`,
+      ...(route.kind === 'export'
+        ? syncMessage('domain.sync.dryRunCsvExport', {
+            size,
+            path: route.path,
+            url: ARCHIDEKT_IMPORT_URL,
+          })
+        : syncMessage('domain.sync.dryRunCsvUpload', { size })),
     })
     return {
       csv:
@@ -266,16 +286,23 @@ export async function pushAdditionsAsCsv(
     try {
       await flow.writeCsv(route.path, `${plan.csv}\n`)
     } catch (error: unknown) {
-      const message = `Failed to write the additions CSV to ${route.path}: ${getErrorMessage(error)}`
-      emit({ kind: 'log', level: 'error', item: null, message })
-      failRows(plan.rows, message)
-      return { ...nothing, csv: { ...counts, status: 'failed', message }, carried: plan.rows }
+      const failure = syncMessage('domain.sync.csvWriteFailed', {
+        path: route.path,
+        error: errorParam(error),
+      })
+      emit({ kind: 'log', level: 'error', item: null, ...failure })
+      failRows(plan.rows, failure)
+      return { ...nothing, csv: { ...counts, ...failure, status: 'failed' }, carried: plan.rows }
     }
     emit({
       kind: 'log',
       level: 'info',
       item: null,
-      message: `Wrote ${size} to ${route.path}; they were not pushed. Import the file at ${ARCHIDEKT_IMPORT_URL}.`,
+      ...syncMessage('domain.sync.csvExported', {
+        size,
+        path: route.path,
+        url: ARCHIDEKT_IMPORT_URL,
+      }),
     })
     return {
       csv: { ...counts, status: 'exported', path: route.path },
@@ -286,15 +313,23 @@ export async function pushAdditionsAsCsv(
     }
   }
 
-  emit({ kind: 'log', level: 'info', item: null, message: `Uploading ${size} as a CSV import...` })
+  emit({
+    kind: 'log',
+    level: 'info',
+    item: null,
+    ...syncMessage('domain.sync.csvUploading', { size }),
+  })
   let result: CollectionCsvUploadResult
   try {
     result = await flow.client.uploadCollectionCsv(plan.csv, COLLECTION_CSV_UPLOAD, flow.token)
   } catch (error: unknown) {
-    const message = `Failed to upload ${size} as a CSV import: ${getErrorMessage(error)}`
-    emit({ kind: 'log', level: 'error', item: null, message })
-    failRows(plan.rows, message)
-    return { ...nothing, csv: { ...counts, status: 'failed', message }, carried: plan.rows }
+    const failure = syncMessage('domain.sync.csvUploadFailed', {
+      size,
+      error: errorParam(error),
+    })
+    emit({ kind: 'log', level: 'error', item: null, ...failure })
+    failRows(plan.rows, failure)
+    return { ...nothing, csv: { ...counts, ...failure, status: 'failed' }, carried: plan.rows }
   }
 
   for (const unreadable of result.unreadable) {
@@ -302,7 +337,11 @@ export async function pushAdditionsAsCsv(
       kind: 'log',
       level: 'warn',
       item: null,
-      message: `Could not read Archidekt's answer for CSV chunk ${unreadable.chunk}: ${unreadable.message}. Response: ${unreadable.body}`,
+      ...syncMessage('domain.sync.csvChunkUnreadable', {
+        chunk: unreadable.chunk,
+        error: unreadable.message,
+        body: unreadable.body,
+      }),
     })
   }
 
@@ -314,17 +353,21 @@ export async function pushAdditionsAsCsv(
       kind: 'log',
       level: 'warn',
       item: null,
-      message: `${t('domain.count.refusedRows', { count: unpaired })} could not be matched to a card; the copies they carried are credited on faith — a later push reconciles anything actually missed.`,
+      ...syncMessage('domain.sync.csvRowsUnpaired', { count: unpaired }),
     })
   }
   const refused = new Set<PushCreate>(failed)
   if (failures.length > 0) {
-    const reasons = describeCsvFailureReasons(failures)
+    // Never empty: every failure is counted under one of the four reasons.
     emit({
       kind: 'log',
       level: 'warn',
       item: null,
-      message: `Archidekt did not import ${failures.length} of ${counts.rows} CSV rows${reasons ? ` (${reasons})` : ''}.`,
+      ...syncMessage('domain.sync.csvRowsRefused', {
+        failed: failures.length,
+        count: counts.rows,
+        reasons: describeCsvFailureReasons(failures),
+      }),
     })
     for (const failure of failures.slice(0, CSV_FAILURE_DETAIL_LIMIT)) {
       emit({
@@ -333,7 +376,10 @@ export async function pushAdditionsAsCsv(
         item: null,
         // The describer always has something to say, so there is no empty-reason
         // shape to word around here.
-        message: `  Not imported: ${failure.card} — ${describeCsvFailure(failure)}.`,
+        ...syncMessage('domain.sync.csvRowNotImported', {
+          card: nestSync(csvFailureCard(failure)),
+          reason: describeCsvFailure(failure),
+        }),
       })
     }
     if (failures.length > CSV_FAILURE_DETAIL_LIMIT) {
@@ -341,13 +387,12 @@ export async function pushAdditionsAsCsv(
         kind: 'log',
         level: 'warn',
         item: null,
-        message: `  …and ${failures.length - CSV_FAILURE_DETAIL_LIMIT} more.`,
+        ...syncMessage('domain.sync.csvMoreFailures', {
+          count: failures.length - CSV_FAILURE_DETAIL_LIMIT,
+        }),
       })
     }
-    failRows(
-      failed,
-      `${t('domain.count.cards', { count: failures.length })} could not be imported from the CSV`,
-    )
+    failRows(failed, syncMessage('domain.sync.csvCardsNotImported', { count: failures.length }))
   }
 
   const landed = plan.rows.filter((operation) => !refused.has(operation))
@@ -356,7 +401,10 @@ export async function pushAdditionsAsCsv(
     kind: 'log',
     level: 'info',
     item: null,
-    message: `Imported ${describeCsvSize(imported, landed.length)} from the CSV in ${t('domain.count.requests', { count: result.chunkCount })}.`,
+    ...syncMessage('domain.sync.csvImported', {
+      size: describeCsvSize(imported, landed.length),
+      requests: syncRef('domain.count.requests', { count: result.chunkCount }),
+    }),
   })
 
   return {

@@ -16,6 +16,8 @@
  * comparison is exact.
  */
 
+import { syncMessage, type SyncMessage } from '../sync/message'
+
 /** A remote deck that changed after the local file's recorded sync. */
 export type DeckDivergence = {
   /** The remote deck's `updatedAt`, verbatim. */
@@ -51,7 +53,7 @@ export type DivergenceCheck =
    * asked. The push proceeds — inventing a divergence would block every push
    * against a response shape Ritual does not control — but the caller says so.
    */
-  | { kind: 'unknown'; reason: string }
+  | { kind: 'unknown'; reason: SyncMessage }
   | { kind: 'diverged'; divergence: DeckDivergence }
 
 /** A timestamp's epoch milliseconds, or null when it is absent or unparseable. */
@@ -71,7 +73,7 @@ export function checkDeckDivergence(input: DivergenceInput): DivergenceCheck {
     return { kind: 'unsynced' }
   }
   if (typeof remoteUpdatedAt !== 'string' || remoteUpdatedAt.trim() === '') {
-    return { kind: 'unknown', reason: 'Archidekt reported no update timestamp for this deck' }
+    return { kind: 'unknown', reason: syncMessage('domain.sync.divergenceNoTimestamp') }
   }
 
   const remote = epoch(remoteUpdatedAt)
@@ -79,7 +81,7 @@ export function checkDeckDivergence(input: DivergenceInput): DivergenceCheck {
   if (remote === null) {
     return {
       kind: 'unknown',
-      reason: `Archidekt reported an unreadable update timestamp ("${remoteUpdatedAt}")`,
+      reason: syncMessage('domain.sync.divergenceRemoteUnreadable', { value: remoteUpdatedAt }),
     }
   }
   // A recorded value Ritual itself wrote, so an unreadable one means the front
@@ -87,7 +89,7 @@ export function checkDeckDivergence(input: DivergenceInput): DivergenceCheck {
   if (synced === null) {
     return {
       kind: 'unknown',
-      reason: `The deck's sourceUpdatedAt is not a readable timestamp ("${syncedUpdatedAt}")`,
+      reason: syncMessage('domain.sync.divergenceLocalUnreadable', { value: syncedUpdatedAt }),
     }
   }
   if (remote <= synced) return { kind: 'clean' }
@@ -95,10 +97,9 @@ export function checkDeckDivergence(input: DivergenceInput): DivergenceCheck {
 }
 
 /** The reason a diverged deck fails, and the two ways forward. */
-export function describeDivergence(divergence: DeckDivergence): string {
-  return (
-    `Remote deck changed since last sync (remote: ${divergence.remoteUpdatedAt}, ` +
-    `last synced against: ${divergence.syncedUpdatedAt}) — pull first, or pass --force to ` +
-    'overwrite remote changes.'
-  )
+export function describeDivergence(divergence: DeckDivergence): SyncMessage {
+  return syncMessage('domain.sync.diverged', {
+    remote: divergence.remoteUpdatedAt,
+    synced: divergence.syncedUpdatedAt,
+  })
 }

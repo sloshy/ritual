@@ -2040,12 +2040,12 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 ```json
 {
   "success": true,
-  "message": "Pulled 2 decks, 1 skipped.",
+  "message": "Pushed 2 decks, 1 skipped.",
   "summary": {
     "clauses": [
       {
-        "message": "Pulled 2 decks",
-        "messageKey": "admin.api.deckSync.pulled",
+        "message": "Pushed 2 decks",
+        "messageKey": "admin.api.deckSync.pushed",
         "messageParams": { "count": 2 }
       },
       {
@@ -2056,14 +2056,22 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
     ]
   },
   "report": {
-    "direction": "pull",
+    "direction": "push",
     "decks": [
-      { "name": "Winota Stax", "status": "synced" },
-      { "name": "Oops All Soldiers", "status": "synced", "reason": "no changes" },
+      { "name": "Winota Stax", "status": "synced", "outcome": "changed" },
+      {
+        "name": "Oops All Soldiers",
+        "status": "synced",
+        "outcome": "unchanged",
+        "reason": "no changes",
+        "reasonKey": "domain.sync.reasonNoChanges"
+      },
       {
         "name": "Borrowed Deck",
         "status": "skipped",
-        "reason": "you do not own Archidekt deck 12345"
+        "reason": "you do not own Archidekt deck 12345",
+        "reasonKey": "domain.sync.notDeckOwner",
+        "reasonParams": { "deckId": "12345" }
       }
     ],
     "failedCount": 0,
@@ -2077,12 +2085,14 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 
 `success` reports whether the run could be performed, **not** whether every deck synced. A run with per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so read each deck's `status` and `reason`. Other report fields:
 
+- Each deck carries `outcome`, the code to branch on: `changed` (written or sent), `unchanged` (already matched, or a push that once planned had nothing to send), `dry-run` (a preview, which `reason` summarizes) or `cancelled` (never reached). Collection lists add `not-run` (see [Sync Collection](#sync-collection)). It is absent on a failed deck and on one skipped for another reason. Never match on `reason` text.
+- `reason` is English whatever the operator's UI language — the [message triple](#the-message-triple)'s contract — with `reasonKey` and `reasonParams` beside it, as `messageKey` and `messageParams` are beside `message`. A sync's params may nest: a param is a string or number, another message (`{ messageKey, messageParams }`), a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`) or a duration (`{ elapsedMs }`), all rendered in the same locale as the message around them. A reason raised outside the catalog (a network error) has no key.
 - Each deck carries `printingsChanged` (a count) when the request set `syncPrintings`, or `printingsUnaligned` (the card names whose printings the two sides disagree about) when it did not.
 - Each deck carries `categoriesChanged` (a count of cards) when the request set `syncCategories`.
 - Each deck carries `boardMoves` (a count) when its diff moved cards between boards. Moves bypass `only`: a move adds and removes no copies, so neither filter value drops it. See [Board moves](/commands/deck-sync/#board-moves).
 - Each deck that had card changes carries `changes`: every change the run applied (or would apply on a dry run), narrowed by `only`. It lists what went through: a push leaves out what its plan could not send, or did not need to. When the push itself failed (nothing was sent), it lists what the push attempted, and `reason` says so. Entries are discriminated by `kind`: `added`/`removed` (`name`, `quantity`, `board`), `quantity` (`name`, `board`, `from`, `to`), `move` (`name`, `quantity`, `from`, `to` boards), `printing` (`name`, `board`, `from`, `to` printings) and `categories` (`name`, `categories`, primary first). The first four carry an optional `printing` (`set` lowercase, `collectorNumber`, `finish`) on a run syncing printings. These are the cards the CLI lists under `--verbose`. The SSE stream carries the same cards as `detail` log lines.
 - `report.unreadable` lists any deck whose file holds lines the parser could not read (`{ name, file, warnings }`), so a caller that never sees the stream can still show what a retry with `ignoreUnreadableLines` would delete.
-- `report.cancelled` is `true` when an in-process caller cancelled the run (the MCP `sync_decks` tool, on a client's `notifications/cancelled`). Cancellation is honoured **between decks only**: the deck in flight finishes, every deck the run never reached is reported `skipped` with the reason `cancelled before it started`, and the summary ends on a `cancelled with N decks not started` clause. The response is still `200` with the report. HTTP callers cannot cancel a run: closing the stream leaves it running to completion.
+- `report.cancelled` is `true` when an in-process caller cancelled the run (the MCP `sync_decks` tool, on a client's `notifications/cancelled`). Cancellation is honoured **between decks only**: the deck in flight finishes, every deck the run never reached is reported `skipped` with the `cancelled` outcome (its English `reason` reads `cancelled before it started`), and the summary ends on a `cancelled with N decks not started` clause. The response is still `200` with the report. HTTP callers cannot cancel a run: closing the stream leaves it running to completion.
 
 When git auto-commit is enabled, deck files written by the run are committed (`Sync decks with Archidekt (<direction>)`).
 
@@ -2101,11 +2111,11 @@ The same sync as `POST /api/deck-sync`, streamed as server-sent events. `EventSo
 
 Three event types are emitted:
 
-| Event      | Payload                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the deck being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message }` (`item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail` — one line per card change under a deck's `Changes:` summary), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items: [{ name, file, warnings }] }`. |
-| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                  |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                     |
+| Event      | Payload                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the deck being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message, messageKey?, messageParams? }` (`item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail` — one line per card change under a deck's `Changes:` summary; `message` is English, and the key and params, which may nest as a deck's `reasonParams` do, let the page render the line in the reader's language), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items: [{ name, file, warnings }] }`. |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no response body for a non-2xx open.
 
@@ -2216,6 +2226,7 @@ Without either, or with one that does not cover a removal, the run **fails and w
       {
         "name": "binder",
         "status": "synced",
+        "outcome": "changed",
         "added": 1,
         "removed": 0,
         "pending": 0,
@@ -2236,6 +2247,7 @@ Without either, or with one that does not cover a removal, the run **fails and w
     ],
     "failedCount": 0,
     "errors": [],
+    "errorMessages": [],
     "unreadable": [],
     "ambiguous": [],
     "localIncomplete": false,
@@ -2251,13 +2263,15 @@ Without either, or with one that does not cover a removal, the run **fails and w
 
 `success` reports whether the run could be performed, **not** whether every list synced: a run with per-list failures still returns `200` with `success: true` and a non-zero `report.failedCount`. Report fields:
 
+- `report.lists[].outcome`, `reason`, `reasonKey` and `reasonParams` work as a deck's do in [Sync Decks](#sync-decks): branch on `outcome`; `reason` is English, the key and params render it in the reader's language. Several reasons for one list are joined into one. A run that refuses before reaching its lists (a bad `into` or `removalPriority`, an unresolved ambiguity, or a push's additions it will not send) reports them `skipped` with the outcome `not-run` and the reason `not synced: the run stopped before this list`. `changed` includes copies a CLI push wrote to its `--csv-file` for upload.
 - `report.lists[].changes`, present when a list had any: every card behind its counts, which are its totals. Each entry has a `kind` (`added`, with `via: "csv"` when a push's CSV import created it, or `removed`), `name`, `quantity` in copies, and `printing` (`set` lowercase, `collectorNumber`, `finish`, `condition`, and `language` when not English). There is one entry per card, printing and kind, narrowed by `only`. The `pending` kind comes only from the CLI's `--csv-file` and never appears on this surface. It lists what went through, or would on a dry run: a card whose write failed is left out, and the list's `reason` says what failed. On a push a card held in several lists is one key, so its entry, with the key's whole quantity, is listed under each of them. A list a cancellation skipped may still carry changes an earlier list's turn made for it. The SSE stream carries the same cards as `detail` log lines.
 - `report.unlisted` — a push's deletions of records for cards no in-scope list holds any more (the same shape as a `removed` change), present only when there is at least one; a failed one is in `errors` instead.
-- `report.errors` — failures that belong to the run rather than to one list (the collection fetch, or deleting records for cards no list holds any more).
+- `report.errors` — failures that belong to the run rather than to one list (the collection fetch, or deleting records for cards no list holds any more), in English.
+- `report.errorMessages` — the same failures, in the same order, as `{ message, messageKey?, messageParams? }` messages for a client that renders them in its own language.
 - `report.ambiguous` — every removal a pull could not place on its own, whether a strategy then placed them or the run failed on them. Counts are in copies, not lists.
 - `report.unresolvedAmbiguity` — `true` when the run stopped _because_ of them: no `removalPriority` or `removalAssignments` was given, the priority could not cover a removal, or the assignments did not account for every copy. Nothing was written; rerun with a decision. Branch on this flag rather than the prose in `errors` (the MCP `sync_collection` tool asks the client for the decision when it can).
 - `report.localIncomplete` — `true` when a list in scope did not make it into the comparison: an unresolvable name, a file that could not be read, or one held back for unreadable lines. The local side is then short of cards it really holds, so a pull adds nothing (those cards would be duplicated into the target list) and a push removes nothing (they would be deleted from Archidekt). Fix or accept the listed lists and run again.
-- `report.cancelled` — works as for [Sync Decks](#sync-decks): an in-process caller (the MCP `sync_collection` tool) cancelled the run between lists, or before the remote collection was fetched (either direction). The list in flight finishes, the lists never reached are `skipped` with the reason `cancelled before it started`, the summary ends on a `cancelled with N lists not started` clause, and **no `lastSynced` is recorded**. A cancelled push has still sent every change it made before stopping.
+- `report.cancelled` — works as for [Sync Decks](#sync-decks): an in-process caller (the MCP `sync_collection` tool) cancelled the run between lists, or before the remote collection was fetched (either direction). The list in flight finishes, the lists never reached are `skipped` with the `cancelled` outcome (English `reason` `cancelled before it started`), the summary ends on a `cancelled with N lists not started` clause, and **no `lastSynced` is recorded**. A cancelled push has still sent every change it made before stopping.
 
 When git auto-commit is enabled, list files written by the run are committed (`Sync collection with Archidekt (<direction>)`).
 
@@ -2267,12 +2281,12 @@ When git auto-commit is enabled, list files written by the run are committed (`S
 | ---------- | ------------------------------------------- | -------------------------------------------------------------- |
 | `uploaded` | `chunks`, `failures[]`, `unconfirmedChunks` | Imported; `failures` names the rows Archidekt refused          |
 | `planned`  | `destination` (`upload`)                    | What a `dryRun` would have done — nothing was sent             |
-| `failed`   | `message`                                   | The whole import failed; the rest of the run still applied     |
+| `failed`   | `message`, `messageKey`, `messageParams`    | The whole import failed; the rest of the run still applied     |
 | `empty`    | —                                           | No row could be keyed at all: `uncached` covers every new card |
 
 `unconfirmedChunks` counts chunk responses Ritual could not read. Their rows are counted as imported because nothing said otherwise, so a non-zero value means part of that outcome is assumed rather than confirmed (the run log carries what Archidekt replied).
 
-Each entry of `failures` is `{ row, card, ambiguous, notFound, errors }`: the 0-based row of the uploaded CSV, the card it carried, and why it was dropped. The lists holding those cards are reported as failed. (`exported`, the CLI's `--csv-file` outcome, cannot occur here since the request parser refuses `csvFile`, so `report.totals.pending` stays `0` on this surface.)
+Each entry of `failures` is `{ row, card, ambiguous, notFound, errors }`: the 0-based row of the uploaded CSV, the card it carried, and why it was dropped. A row Ritual cannot match to a card is named by an English label in `card` (`CSV row 3`), with `cardKey` and `cardParams` beside it. The lists holding those cards are reported as failed. (`exported`, the CLI's `--csv-file` outcome, cannot occur here since the request parser refuses `csvFile`, so `report.totals.pending` stays `0` on this surface.)
 
 ## Collection Sync Stream
 
@@ -2292,11 +2306,11 @@ The same sync as `POST /api/collection-sync`, streamed as server-sent events. `E
 
 Three event types are emitted:
 
-| Event      | Payload                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the collection list being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message }` (`item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail`, one line per card under a list's `Changes:` count, while a run-level `detail` line is a card a push's CSV import created or a record it deleted for a card no list holds), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items }`. |
-| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                                                                                                              |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Event      | Payload                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | One step of the run, in the vocabulary both syncs share — `item` is the collection list being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message, messageKey?, messageParams? }` (`message` English, key and params as for Sync Decks; `item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail`, one line per card under a list's `Changes:` count, while a run-level `detail` line is a card a push's CSV import created or a record it deleted for a card no list holds), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items }`. |
+| `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no response body for a non-2xx open.
 

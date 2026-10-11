@@ -289,10 +289,12 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'A push whose remote deck changed ' +
         'since that deck’s recorded lastSynced fails rather than reverting those remote edits ' +
         '— pull first, or pass force: true to overwrite them. Returns a per-deck report; ' +
-        'a run with failures still reports success — check report.failedCount. ' +
+        'a run with failures still reports success — check report.failedCount. Branch on ' +
+        'each deck’s outcome (changed, unchanged, dry-run, cancelled; absent on a failure or ' +
+        'another kind of skip), never on its reason, which is English prose. ' +
         'Emits one progress notification per deck when the call supplies a progressToken, ' +
         'and honours cancellation between decks: the deck in flight finishes, the rest are ' +
-        'reported skipped, and report.cancelled is true.',
+        'reported skipped with outcome cancelled, and report.cancelled is true.',
       inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         decks: z
@@ -402,8 +404,8 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'the sync with them; a client that cannot be asked gets the report back with ' +
         'unresolvedAmbiguity: true instead, having written nothing at all — not even the ' +
         'account’s lastSynced. report.ambiguous lists every ambiguity the planner found ' +
-        'whether or not a strategy went on to place them, so read report.errors to tell a ' +
-        `failed run from a resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
+        'whether or not a strategy went on to place them, so read report.unresolvedAmbiguity ' +
+        `to tell a run that stopped on them from a resolved one. A push adding more than ${CSV_UPLOAD_THRESHOLD} new printings likewise ` +
         'fails without pushing anything unless csv: true lets it upload them as one CSV import ' +
         '(report.csv then says what that import did). Each list entry with changes carries ' +
         'changes: every card it gained or lost (added — via: "csv" when the CSV import ' +
@@ -412,10 +414,14 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'says so. On a push a card held in several lists is one key, listed under each with ' +
         'the key’s whole quantity. A push’s removals of cards no list holds any more are in ' +
         'report.unlisted. Returns a per-list report; a run with ' +
-        'failures still reports success — check report.failedCount. Emits one progress ' +
+        'failures still reports success — check report.failedCount. Branch on each list’s ' +
+        'outcome (changed, unchanged, dry-run, cancelled, not-run — the last for a list a ' +
+        'refused run never reached; absent on a failure or another kind of skip), never on ' +
+        'its reason, which is English prose. Emits one progress ' +
         'notification per list when the call supplies a progressToken, and honours ' +
         'cancellation between lists (the list in flight finishes, the rest are reported ' +
-        'skipped, report.cancelled is true, and no lastSynced is recorded).',
+        'skipped with outcome cancelled, report.cancelled is true, and no lastSynced is ' +
+        'recorded).',
       inputSchema: z.object({
         direction: z.enum(SYNC_DIRECTIONS).describe(SYNC_DIRECTION_DESCRIPTION),
         lists: z

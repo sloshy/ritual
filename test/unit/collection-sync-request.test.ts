@@ -380,7 +380,7 @@ describe('describeRun', () => {
   }
 
   function synced(name: string): CollectionSyncListResult {
-    return { name, status: 'synced', added: 0, removed: 0, pending: 0 }
+    return { name, status: 'synced', outcome: 'changed', added: 0, removed: 0, pending: 0 }
   }
 
   function report(options: ReportOptions = {}): CollectionSyncReport {
@@ -393,6 +393,7 @@ describe('describeRun', () => {
       lists,
       failedCount: lists.filter((list) => list.status === 'failed').length,
       errors: options.errors ?? [],
+      errorMessages: (options.errors ?? []).map((message) => ({ message })),
       unreadable: [],
       cancelled: false,
       unresolvedAmbiguity: false,

@@ -32,6 +32,7 @@ import { runInteractiveLogin } from './login'
 import { stripDeckPrintings } from '../importers/url-dispatch'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
+import { renderSyncMessage, type SyncMessage } from '../sync/message'
 import { importCategoryAdvisories } from '../importers/import-categories'
 
 type ImportAccountOptions = {
@@ -96,7 +97,7 @@ function noDecksMessage(username: string | undefined): string {
  */
 export type ImportAccountDeps = {
   /** Builds the Archidekt client; `onWait` reports a 429 backoff. */
-  createClient?: (onWait: (message: string) => void) => ArchidektClient
+  createClient?: (onWait: (message: SyncMessage) => void) => ArchidektClient
 }
 
 export function registerImportAccountCommand(program: Command, deps: ImportAccountDeps = {}): void {
@@ -172,7 +173,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         // One paced client for the whole import, so a long deck list is fetched
         // politely and a 429 backoff explains itself instead of looking hung.
         const createClient = deps.createClient ?? ((onWait) => createPacedArchidektClient(onWait))
-        const client = createClient((message) => logger.warn(message))
+        const client = createClient((message) => logger.warn(renderSyncMessage(message)))
 
         const currentUser = await auth.getStoredUser()
         let decks: ArchidektDeckSimple[] = []

@@ -1,6 +1,7 @@
-import { listFormat, numberFormat } from '../i18n/format'
+import { formatUnitList, numberFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
 import { t } from '../i18n/t'
+import type { LocaleTag } from '../i18n/types'
 
 /** One component of a rendered duration, before it is given to `Intl`. */
 type DurationPart = {
@@ -30,7 +31,8 @@ export function formatDuration(ms: number): string {
   // Only bother with minute precision when the total is under a day.
   if (minutes > 0 && days === 0) parts.push({ unit: 'minute', value: minutes })
   const locale = currentLocale()
-  return listFormat(locale, { type: 'unit' }).format(
+  return formatUnitList(
+    locale,
     parts.map((part) =>
       numberFormat(locale, { style: 'unit', unit: part.unit, unitDisplay: 'long' }).format(
         part.value,
@@ -44,12 +46,14 @@ export function formatDuration(ms: number): string {
  * seconds to one decimal under a minute ("4.2 seconds"), whole minutes and
  * seconds above it ("2 minutes, 5 seconds").
  *
+ * `locale` defaults to the active UI locale; a caller rendering a message for
+ * someone else's locale (the English half of a sync message) passes its own.
+ *
  * Separate from {@link formatDuration}, whose floor is a minute — right for "the
  * cache is 3 days old", useless for "the local index took 6 seconds", which is
  * exactly the figure that tells a user which phase of a run is the slow one.
  */
-export function formatElapsed(ms: number): string {
-  const locale = currentLocale()
+export function formatElapsed(ms: number, locale: LocaleTag = currentLocale()): string {
   // Rounded to the precision the sub-minute branch prints *before* the branch is
   // chosen, so 59.96 seconds reads "1 minute" rather than "60 seconds".
   const seconds = Math.round(Math.max(0, ms) / 100) / 10
@@ -69,5 +73,5 @@ export function formatElapsed(ms: number): string {
   const rest = whole % 60
   const parts = [unit(minutes, 'minute')]
   if (rest > 0) parts.push(unit(rest, 'second'))
-  return listFormat(locale, { type: 'unit' }).format(parts)
+  return formatUnitList(locale, parts)
 }

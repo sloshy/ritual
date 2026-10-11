@@ -38,6 +38,9 @@ import {
   type SyncRunPhase,
 } from '../sync-run'
 import { openSyncStream, type SyncStream } from '../sync-stream'
+import { reasonMessage } from '../../../sync/message'
+import { apiMessage } from '../../../api/result'
+import { doneNotice, noticeMessage, useRunNotice, type RunNotice } from '../sync-text'
 import { PageHeading } from '../components/PageHeading'
 
 const DIRECTIONS: SyncChoice<SyncDirection>[] = [
@@ -68,7 +71,8 @@ export function DeckSync(): JSX.Element {
   const [decks, setDecks] = createSignal<SyncableDeck[]>([])
   const [archidekt, setArchidekt] = createSignal<ArchidektLoginStatus | null>(null)
   const [loading, setLoading] = createSignal(true)
-  const [loadError, setLoadError] = createSignal<string | null>(null)
+  // A flag rather than the rendered text, so the alert relabels on a language switch.
+  const [loadFailed, setLoadFailed] = createSignal(false)
 
   const [direction, setDirection] = createSignal<SyncDirection>('pull')
   const [changeFilter, setChangeFilter] = createSignal<ChangeFilterChoice>('all')
@@ -80,8 +84,11 @@ export function DeckSync(): JSX.Element {
   const [phase, setPhase] = createSignal<SyncRunPhase>('idle')
   const [runDecks, setRunDecks] = createSignal<SyncRunItem[]>([])
   const [runLog, setRunLog] = createSignal<SyncRunMessage[]>([])
-  const [summary, setSummary] = createSignal<string | null>(null)
-  const [runError, setRunError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the banner, so a language switch relabels
+  // a finished run's summary and error too.
+  const [summary, setSummary] = createSignal<RunNotice | null>(null)
+  const [runError, setRunError] = createSignal<RunNotice | null>(null)
+  const notice = useRunNotice()
   // Decks the last run refused to touch because their files hold lines the
   // parser cannot read; cleared when the user accepts the loss and re-runs.
   const [unreadable, setUnreadable] = createSignal<UnreadableDeck[]>([])
@@ -98,7 +105,7 @@ export function DeckSync(): JSX.Element {
     try {
       const resp = await fetch('/api/deck-sync', { credentials: 'same-origin' })
       if (!resp.ok) {
-        setLoadError(t('admin.deckSync.loadFailed'))
+        setLoadFailed(true)
         return
       }
       const data = (await resp.json()) as DeckSyncStatusResponse
@@ -107,14 +114,14 @@ export function DeckSync(): JSX.Element {
       batch(() => {
         setDecks(data.decks)
         setArchidekt(data.archidekt)
-        setLoadError(null)
+        setLoadFailed(false)
         setSelected((current) =>
           selectionSeeded ? current.filter((slug) => slugs.includes(slug)) : slugs,
         )
       })
       selectionSeeded = true
     } catch {
-      setLoadError(t('admin.deckSync.loadFailed'))
+      setLoadFailed(true)
     } finally {
       setLoading(false)
     }
@@ -167,14 +174,14 @@ export function DeckSync(): JSX.Element {
     })
   }
 
-  const finishRun = (message: string): void => {
+  const finishRun = (outcome: RunNotice): void => {
     setPhase('done')
-    setSummary(message)
+    setSummary(outcome)
     // Refresh the listing so each deck's "last synced" reflects the run.
     void loadStatus()
   }
 
-  const failRun = (message: string, needsLogin: boolean): void => {
+  const failRun = (message: RunNotice, needsLogin: boolean): void => {
     setPhase('error')
     setRunError(message)
     if (needsLogin) void loadStatus()
@@ -213,7 +220,7 @@ export function DeckSync(): JSX.Element {
       })
       const data = (await resp.json()) as DeckSyncRunResponse
       if (!data.success) {
-        failRun(data.message, data.loginRequired)
+        failRun(noticeMessage(data), data.loginRequired)
         return
       }
       // One render for the whole report rather than one per deck.
@@ -230,16 +237,16 @@ export function DeckSync(): JSX.Element {
           updateDeck(result.name, (item) => ({
             ...item,
             status: result.status,
-            messages: [...item.messages, ...replayResultMessages(lines, result.reason)],
+            messages: [...item.messages, ...replayResultMessages(lines, reasonMessage(result))],
           }))
         }
         // The report carries the unreadable decks too, so this path offers the
         // same confirmation the streamed one does.
         if (!request.ignoreUnreadableLines) setUnreadable(data.report.unreadable)
       })
-      finishRun(data.message)
+      finishRun(data.summary)
     } catch {
-      failRun(t('admin.deckSync.failed'), false)
+      failRun(apiMessage('admin.deckSync.failed'), false)
     }
   }
 
@@ -279,16 +286,19 @@ export function DeckSync(): JSX.Element {
       streamUrl(request),
       {
         progress: (event) => handleSyncEvent(event, ignoreUnreadableLines),
-        done: (event) => finishRun(event?.message ?? t('admin.sync.complete')),
+        done: (event) => finishRun(event ? doneNotice(event) : apiMessage('admin.sync.complete')),
         failed: (event) =>
-          failRun(event?.message ?? t('admin.deckSync.failed'), event?.loginRequired === true),
+          failRun(
+            event ? noticeMessage(event) : apiMessage('admin.deckSync.failed'),
+            event?.loginRequired === true,
+          ),
         disconnected: (received) => {
           stream = null
           if (received) {
             // The run is already in flight server-side; re-issuing it could push
             // a second time. Report the drop and let the user reload to see
             // where it landed.
-            failRun(t('admin.sync.connectionDropped'), false)
+            failRun(apiMessage('admin.sync.connectionDropped'), false)
             return
           }
           // Never connected: retry once over plain JSON so a proxy that buffers
@@ -318,8 +328,8 @@ export function DeckSync(): JSX.Element {
           )}
         </Show>
 
-        <Show when={loadError()}>
-          <div class="alert alert-error">{loadError()}</div>
+        <Show when={loadFailed()}>
+          <div class="alert alert-error">{t('admin.deckSync.loadFailed')}</div>
         </Show>
 
         <Show
@@ -418,7 +428,7 @@ export function DeckSync(): JSX.Element {
 
           {/* Held apart from the Archidekt session banner above, which is also an alert. */}
           <div class="sync-run-status">
-            <StatusAlerts status={summary()} error={runError()} />
+            <StatusAlerts status={notice(summary())} error={notice(runError())} />
           </div>
 
           <button

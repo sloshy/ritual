@@ -12,7 +12,20 @@ import {
   pseudoCatalog,
   PSEUDO_LOCALE,
 } from '../helpers/i18n'
-import { mockDecksApi, mockCollectionsApi } from '../helpers/mock-admin'
+import {
+  emitStreamConnectionError,
+  emitStreamEvent,
+  mockCollectionsApi,
+  mockCollectionSyncApi,
+  mockDeckSyncApi,
+  mockDecksApi,
+  MOCK_SYNC_COLLECTION_LISTS,
+  MOCK_SYNC_DECKS,
+} from '../helpers/mock-admin'
+import { apiMessage } from '../../../src/api/result'
+import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
+import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
+import { reasonFields, syncElapsed, syncMessage, syncRef } from '../../../src/sync/message'
 
 /**
  * Switching the admin's UI language at runtime — the twin of
@@ -119,6 +132,176 @@ test.describe('admin language switch', () => {
     // focus out of the page, so this is a re-render in place.
     await expectPseudo(formHeading, true)
     await expectPseudo(tab, true)
+  })
+
+  test('relabels a streaming sync run, nested parts and all, from the keys the engine sent', async ({
+    page,
+  }) => {
+    const [winota] = MOCK_SYNC_DECKS
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockDeckSyncApi(page)
+    await gotoAdminDashboard(page, '#/sync/decks')
+    await markPage(page)
+    await page.locator('.sync-run-btn').click()
+    // The stream is open once the page says the run is under way.
+    await expect(page.locator('.sync-run-btn')).toBeDisabled()
+
+    // As the engine streams them: English `message` plus the key it came from.
+    await emitStreamEvent(page, 'progress', {
+      kind: 'item-start',
+      item: winota!.name,
+      index: 0,
+      total: 1,
+    })
+    await emitStreamEvent(page, 'progress', {
+      kind: 'log',
+      level: 'info',
+      item: winota!.name,
+      ...syncMessage('domain.sync.changesLine', {
+        summary: syncRef('domain.sync.deckCounts', {
+          direction: 'pull',
+          added: 1,
+          removed: 0,
+          quantity: 0,
+        }),
+      }),
+    })
+    await emitStreamEvent(page, 'progress', {
+      kind: 'log',
+      level: 'warn',
+      item: null,
+      ...syncMessage('domain.sync.rateLimitWait', {
+        wait: syncElapsed(2000),
+        retry: 1,
+        maxRetries: 5,
+      }),
+    })
+    const deckLine = page.locator('.sync-run-item .sync-run-message').first()
+    const runLine = page.locator('.sync-run-note').first()
+    await expect(deckLine).toHaveText('Changes: +1 added, -0 removed, ~0 quantity changed')
+    await expect(runLine).toContainText('waiting 2 seconds before retry 1 of 5')
+
+    // The run ends with its keyed summary, as the endpoint sends it.
+    const summary: SyncSummary = {
+      clauses: [apiMessage('admin.api.deckSync.pulled', { count: 1 })],
+    }
+    await emitStreamEvent(page, 'done', {
+      message: renderSyncSummaryEnglish(summary),
+      summary,
+      report: { direction: 'pull', decks: [], failedCount: 0, unreadable: [], cancelled: false },
+    })
+    const banner = page.locator('.sync-run-status .alert-success')
+    await expect(banner).toHaveText('Pulled 1 deck.')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    // Both lines re-render in the new language — the nested count clause too,
+    // so no English joiner survives inside the translated sentence.
+    await expectPseudo(deckLine, true)
+    await expect(deckLine).not.toContainText('added')
+    await expectPseudo(runLine, true)
+    await expect(runLine).not.toContainText('before retry')
+    // The numbers ride along as params, whatever the words around them.
+    await expect(runLine).toContainText(/\b1\b.*\b5\b/)
+    // And the summary banner relabels with them.
+    await expectPseudo(banner, true)
+    await expectNotReloaded(page)
+  })
+
+  test('relabels a finished sync’s summary, its error and a replayed reason', async ({ page }) => {
+    const [winota, soldiers] = MOCK_SYNC_DECKS
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockDeckSyncApi(page)
+    // The non-streaming fallback's answer, carrying a keyed reason to replay.
+    const summary: SyncSummary = {
+      clauses: [apiMessage('admin.api.deckSync.pulled', { count: 1 })],
+    }
+    await fulfillJson(
+      page,
+      '**/api/deck-sync',
+      (): DeckSyncRunResponse => ({
+        success: true,
+        message: renderSyncSummaryEnglish(summary),
+        summary,
+        report: {
+          direction: 'pull',
+          decks: [
+            { name: winota!.name, status: 'synced', outcome: 'changed' },
+            {
+              name: soldiers!.name,
+              status: 'skipped',
+              ...reasonFields(syncMessage('domain.sync.notDeckOwner', { deckId: '222' })),
+            },
+          ],
+          failedCount: 0,
+          unreadable: [],
+          cancelled: false,
+        },
+      }),
+      { method: 'POST' },
+    )
+    await gotoAdminDashboard(page, '#/sync/decks')
+    await page.locator('.sync-run-btn').click()
+    await expect(page.locator('.sync-run-btn')).toBeDisabled()
+    // The stream never connects, so the page replays the report instead.
+    await emitStreamConnectionError(page)
+
+    const banner = page.locator('.sync-run-status .alert-success')
+    const reason = page
+      .locator('.sync-run-item', { hasText: soldiers!.name })
+      .locator('.sync-run-message')
+    await expect(banner).toHaveText('Pulled 1 deck.')
+    await expect(reason).toHaveText('you do not own Archidekt deck 222')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(banner, true)
+    await expectPseudo(reason, true)
+    await expect(reason).toContainText('222')
+
+    // A run that fails relabels its error the same way.
+    await languageSelect(page).selectOption('en')
+    await page.locator('.sync-run-btn').click()
+    await expect(page.locator('.sync-run-btn')).toBeDisabled()
+    await emitStreamEvent(page, 'error', {
+      ...apiMessage('admin.api.deckSync.loginRequired'),
+      loginRequired: false,
+    })
+    const error = page.locator('.sync-run-status .alert-error')
+    await expectPseudo(error, false)
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(error, true)
+  })
+
+  test('relabels a finished collection sync’s list tally and CSV outcome', async ({ page }) => {
+    const [blue] = MOCK_SYNC_COLLECTION_LISTS
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    const mocks = await mockCollectionSyncApi(page)
+    mocks.setCsv({
+      status: 'uploaded',
+      cards: 40,
+      rows: 37,
+      uncached: 0,
+      chunks: 1,
+      failures: [],
+      unconfirmedChunks: 0,
+    })
+    await gotoAdminDashboard(page, '#/sync/collection')
+    await page.locator('.sync-direction .segmented-option:has-text("Push")').click()
+    await page.locator('.sync-run-btn').click()
+    await expect(page.locator('.sync-run-btn')).toBeDisabled()
+    // The stream never connects, so the page replays the finished report.
+    await emitStreamConnectionError(page)
+
+    const meta = page.locator('.sync-run-item', { hasText: blue!.name }).locator('.sync-run-meta')
+    const lead = page.locator('.sync-csv-outcome-lead')
+    await expect(meta).toHaveText('+1 added, -0 removed')
+    await expect(lead).toContainText('40 cards (37 rows)')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(meta, true)
+    await expectPseudo(lead, true)
+    // The size inside the lead is a nested message, relabelled with it.
+    await expect(lead).not.toContainText('cards (37 rows)')
   })
 
   test('stamps the document language and remembers the choice', async ({ page }) => {

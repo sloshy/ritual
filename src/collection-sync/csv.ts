@@ -40,6 +40,7 @@ import { DEFAULT_SECTION } from '../list/deck'
 // filesystem, so it cannot be part of the browser bundle.
 import { type CollectionCsvFailure } from './describe'
 import { describeSyncCard } from '../sync/describe'
+import { prefixedFields, syncMessage, syncText, type SyncMessage } from '../sync/message'
 import { unmappableLanguageWarning, type PushCreate } from './diff'
 
 /**
@@ -78,6 +79,7 @@ export const COLLECTION_CSV_UPLOAD: CollectionCsvUploadOptions = {
   columns: ARCHIDEKT_EXPORT_SETTINGS.columns.map((property) => {
     const column = ARCHIDEKT_COLUMN_BY_PROPERTY[property]
     if (!column) {
+      // i18n-exempt: module-load invariant; the catalog is not registered yet
       throw new Error(`No Archidekt CSV column for the export property '${property}'`)
     }
     return column
@@ -120,7 +122,7 @@ export type CollectionCsvPlan = {
    */
   uncached: PushCreate[]
   /** One message per printing that has no cached Scryfall id, as the export engine words it. */
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 /**
@@ -157,10 +159,12 @@ export async function planCollectionCsv(
   // A language Archidekt cannot model renders `EN` in the CSV (the dialect's
   // fallback); the file must not carry that silently, so the plan warns the
   // same way a per-record push does.
-  const languageWarnings: string[] = []
+  const languageWarnings: SyncMessage[] = []
   for (const operation of creates) {
     const warning = unmappableLanguageWarning(operation.name, operation.parts)
-    if (warning && !languageWarnings.includes(warning)) languageWarnings.push(warning)
+    if (warning && !languageWarnings.some((seen) => seen.message === warning.message)) {
+      languageWarnings.push(warning)
+    }
   }
 
   // One entry out per entry in, in order — which is what lets the split below
@@ -206,7 +210,9 @@ export async function planCollectionCsv(
     rowIds,
     copies: rows.reduce((total, operation) => total + operation.quantity, 0),
     uncached,
-    warnings: [...resolved.warnings, ...languageWarnings],
+    // The export module's warnings are English by construction (it cannot reach
+    // the catalog), so they travel as text.
+    warnings: [...resolved.warnings.map(syncText), ...languageWarnings],
   }
 }
 
@@ -260,6 +266,7 @@ type IdentityCells = {
 const IDENTITY_CELLS: IdentityCells = ((): IdentityCells => {
   const at = (column: ArchidektCsvColumn): number => {
     const index = COLLECTION_CSV_UPLOAD.columns.indexOf(column)
+    // i18n-exempt: module-load invariant; the catalog is not registered yet
     if (index === -1) throw new Error(`The Archidekt CSV upload has no '${column}' column`)
     return index
   }
@@ -382,16 +389,19 @@ export function collectionCsvOutcome(
     } else {
       unpaired += 1
     }
+    // A result Ritual cannot pair with a create means the response described
+    // a row it never sent; name the row (with its echoed line) rather than
+    // inventing a card.
+    const label: SyncMessage =
+      pairing.kind === 'operation'
+        ? syncText(describeSyncCard(pairing.operation.name, pairing.operation.parts))
+        : row.raw === undefined
+          ? syncMessage('domain.sync.csvRow', { row: row.row + 1 })
+          : syncMessage('domain.sync.csvRowEcho', { row: row.row + 1, line: row.raw.trim() })
     failures.push({
       row: row.row,
-      // A result Ritual cannot pair with a create means the response described
-      // a row it never sent; show the echoed line rather than inventing a card.
-      card:
-        pairing.kind === 'operation'
-          ? describeSyncCard(pairing.operation.name, pairing.operation.parts)
-          : row.raw === undefined
-            ? `CSV row ${row.row + 1}`
-            : `CSV row ${row.row + 1} (${row.raw.trim()})`,
+      card: label.message,
+      ...prefixedFields('card', label),
       ambiguous: row.ambiguous,
       notFound: row.notFound,
       errors: row.errors,

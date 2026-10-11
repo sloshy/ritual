@@ -29,6 +29,7 @@ import {
 import { z } from 'zod'
 import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
 import { describeSyncCard } from '../sync/describe'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 
 /**
@@ -71,7 +72,8 @@ export function elicitRemovalAssignments(
     inputRequests[`${REQUEST_KEY_PREFIX}${entry.key}`] = inputRequired.elicit({
       message:
         `${entry.quantity} × ${card} left the Archidekt collection, but the local copies ` +
-        `live in ${describeAmbiguousLists(entry.lists)}. How many copies should each list give ` +
+        // English, like the rest of this model-facing prompt — the list join included.
+        `live in ${describeAmbiguousLists(entry.lists, DEFAULT_LOCALE)}. How many copies should each list give ` +
         `up? The counts must add up to ${entry.quantity}.`,
       requestedSchema: {
         type: 'object',

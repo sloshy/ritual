@@ -19,6 +19,7 @@
 
 import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
 import { describeSyncCard } from '../sync/describe'
+import { syncMessage, syncRef } from '../sync/message'
 import type { AmbiguityResolutionOutcome } from '../collection-sync/engine'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 import type { Logger } from '../util/logger'
@@ -40,11 +41,6 @@ export type AmbiguityResolutionRequest = {
   ask?: AskPrompt
 }
 
-/** How to settle the ambiguity without a terminal — the one actionable hint. */
-function priorityAdvice(): string {
-  return t('cli.resolveAmbiguity.priorityAdvice')
-}
-
 /**
  * Decide where every ambiguous removal's copies come from, or refuse with the
  * reason the decision could not be made — no terminal, a declined confirmation,
@@ -60,9 +56,11 @@ export async function resolveAmbiguousRemovals(
   if (!interactive) {
     return {
       ok: false,
-      message: t('cli.resolveAmbiguity.needsDecision', {
+      // A message, not text: the run's report states it in English, and each
+      // surface renders it in its own language.
+      message: syncMessage('cli.resolveAmbiguity.needsDecision', {
         count: ambiguous.length,
-        advice: priorityAdvice(),
+        advice: syncRef('cli.resolveAmbiguity.priorityAdvice'),
       }),
     }
   }
@@ -75,9 +73,9 @@ export async function resolveAmbiguousRemovals(
   if (confirmed !== true) {
     return {
       ok: false,
-      message: t('cli.resolveAmbiguity.leftUnresolved', {
-        counted: t('domain.count.ambiguousRemovals', { count: ambiguous.length }),
-        advice: priorityAdvice(),
+      message: syncMessage('cli.resolveAmbiguity.leftUnresolved', {
+        counted: syncRef('domain.count.ambiguousRemovals', { count: ambiguous.length }),
+        advice: syncRef('cli.resolveAmbiguity.priorityAdvice'),
       }),
     }
   }
@@ -116,7 +114,7 @@ export async function resolveAmbiguousRemovals(
       if (list === undefined) {
         return {
           ok: false,
-          message: t('cli.resolveAmbiguity.cancelledAfter', {
+          message: syncMessage('cli.resolveAmbiguity.cancelledAfter', {
             done: copy - 1,
             total: entry.quantity,
             card,

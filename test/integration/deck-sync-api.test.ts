@@ -19,7 +19,7 @@ import type { RouteProgress, RouteProgressSink } from '../../src/util/progress'
 import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { bindWorkspace, writeDeckFile, type BoundWorkspace } from '../helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'
-import { readStreamFrames, type SseFrame } from '../helpers/sse'
+import { expectStreamedLinesAgree, readStreamFrames, type SseFrame } from '../helpers/sse'
 
 /**
  * End-to-end coverage for the admin deck-sync endpoints: which decks they list,
@@ -315,7 +315,9 @@ describe('deck-sync API', () => {
     expect(unflagged.decks[0]).toEqual({
       name: 'Linked Deck',
       status: 'synced',
+      outcome: 'unchanged',
       reason: 'no changes',
+      reasonKey: 'domain.sync.reasonNoChanges',
     })
 
     const report = await runReport({ direction: 'pull', decks: ['linked'], syncPrintings: true })
@@ -482,8 +484,14 @@ describe('deck-sync API', () => {
     expect(body.report.cancelled).toBe(true)
     expect(body.report.failedCount).toBe(0)
     expect(body.report.decks).toEqual([
-      { name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED },
-      { name: 'Second Linked Deck', status: 'skipped', reason: 'cancelled before it started' },
+      { name: 'Linked Deck', status: 'synced', outcome: 'changed', changes: BOLT_ADDED },
+      {
+        name: 'Second Linked Deck',
+        status: 'skipped',
+        outcome: 'cancelled',
+        reason: 'cancelled before it started',
+        reasonKey: 'domain.sync.reasonCancelled',
+      },
     ])
     expect(await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')).toContain(
       'Lightning Bolt',
@@ -560,6 +568,8 @@ describe('deck-sync API', () => {
     const { body } = await postRun({ direction: 'pull', decks: ['linked'], dryRun: true })
     expect(body.message).toContain('Previewed')
     expect(body.success && body.report.decks[0]?.reason).toContain('dry-run: +1 added')
+    // The code a script branches on, rather than the prose above.
+    expect(body.success && body.report.decks[0]?.outcome).toBe('dry-run')
 
     expect(await fs.readFile(path.join(tmpDir, 'decks', 'linked.md'), 'utf-8')).toBe(before)
     const changelogWritten = await fs.access(path.join(tmpDir, 'decks', 'linked.changes.md')).then(
@@ -577,6 +587,7 @@ describe('deck-sync API', () => {
       name: 'local-only',
       status: 'failed',
       reason: 'not sourced from Archidekt',
+      reasonKey: 'domain.sync.notArchidekt',
     })
   })
 
@@ -592,8 +603,9 @@ describe('deck-sync API', () => {
         name: 'No Source Id',
         status: 'skipped',
         reason: 'has Archidekt sourceUrl but no sourceId',
+        reasonKey: 'domain.sync.missingSourceId',
       },
-      { name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED },
+      { name: 'Linked Deck', status: 'synced', outcome: 'changed', changes: BOLT_ADDED },
     ])
     expect(report.failedCount).toBe(0)
   })
@@ -608,6 +620,7 @@ describe('deck-sync API', () => {
       {
         name: 'Linked Deck',
         status: 'synced',
+        outcome: 'changed',
         changes: [{ kind: 'removed', name: 'Lightning Bolt', quantity: 1, board: 'Main' }],
       },
     ])
@@ -677,6 +690,8 @@ describe('deck-sync API', () => {
         name: 'Linked Deck',
         status: 'skipped',
         reason: `you do not own Archidekt deck ${SOURCE_ID}`,
+        reasonKey: 'domain.sync.notDeckOwner',
+        reasonParams: { deckId: SOURCE_ID },
       },
     ])
     expect(pushed).toEqual([])
@@ -695,6 +710,8 @@ describe('deck-sync API', () => {
         name: 'Linked Deck',
         status: 'failed',
         reason: '1 unreadable line would be dropped by a sync',
+        reasonKey: 'domain.sync.unreadableDropped',
+        reasonParams: { count: 1 },
       },
     ])
     // Refusing means the file is untouched — the unreadable line survives.
@@ -715,7 +732,9 @@ describe('deck-sync API', () => {
       decks: ['linked'],
       ignoreUnreadableLines: true,
     })
-    expect(report.decks).toEqual([{ name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED }])
+    expect(report.decks).toEqual([
+      { name: 'Linked Deck', status: 'synced', outcome: 'changed', changes: BOLT_ADDED },
+    ])
 
     const after = await fs.readFile(deckPath, 'utf-8')
     expect(after).toContain('Lightning Bolt')
@@ -759,22 +778,27 @@ describe('deck-sync API', () => {
       .map((frame) => frame.data as unknown as DeckSyncEvent)
 
     expect(progress[0]).toEqual({ kind: 'item-start', item: 'Linked Deck', index: 0, total: 1 })
-    expect(progress).toContainEqual({
-      kind: 'log',
+    // English text for a reader without a translator, the key for one with.
+    // Every line is keyed, and its two halves agree — nested params included.
+    const logs = expectStreamedLinesAgree(progress)
+    expect(logs).toContainEqual({
       level: 'info',
       item: 'Linked Deck',
       message: 'Changes: +1 added, -0 removed, ~0 quantity changed',
+      key: 'domain.sync.changesLine',
+      rendered: 'Changes: +1 added, -0 removed, ~0 quantity changed',
     })
     // The per-card lines ride the stream whatever the client shows.
-    expect(progress).toContainEqual({
-      kind: 'log',
+    expect(logs).toContainEqual({
       level: 'detail',
       item: 'Linked Deck',
       message: '+ 1 Lightning Bolt to Main',
+      key: 'domain.sync.detailAdded',
+      rendered: '+ 1 Lightning Bolt to Main',
     })
     expect(progress.at(-1)).toEqual({
       kind: 'item-result',
-      result: { name: 'Linked Deck', status: 'synced', changes: BOLT_ADDED },
+      result: { name: 'Linked Deck', status: 'synced', outcome: 'changed', changes: BOLT_ADDED },
     })
 
     const done = frames.at(-1)

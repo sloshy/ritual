@@ -16,6 +16,7 @@ import { applyDeckMetadata } from '../list/deck-metadata'
 import { matchDeckUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
 import { parseDeckFrontMatter } from '../list/deck-file'
 import { readDeckName } from '../importers/text-file'
+import { t } from '../i18n/t'
 
 /** An Archidekt deck reference, as deck front matter records one. */
 export type ArchidektDeckLink = {
@@ -34,12 +35,12 @@ export type ArchidektDeckLink = {
  */
 export function parseArchidektDeckUrl(value: string): ArchidektDeckLink | string {
   const trimmed = value.trim()
-  if (trimmed === '') return 'An Archidekt deck URL is required.'
+  if (trimmed === '') return t('domain.sync.deckUrlRequired')
 
   const url = resolveImportSourceUrl(trimmed) ?? trimmed
   const match = matchDeckUrl(url)
   if (!match || match.service !== 'archidekt') {
-    return `"${trimmed}" is not an Archidekt deck URL. Expected something like https://archidekt.com/decks/123456.`
+    return t('domain.sync.deckUrlInvalid', { value: trimmed })
   }
   return { sourceId: match.deckId, sourceUrl: `https://archidekt.com/decks/${match.deckId}` }
 }
@@ -70,10 +71,7 @@ export function checkArchidektLink(frontMatter: DeckSourceFields): string | null
   const match = matchDeckUrl(resolveImportSourceUrl(sourceUrl) ?? sourceUrl)
   if (!match || match.service !== 'archidekt') return null
   if (match.deckId === sourceId) return null
-  return (
-    `sourceUrl names Archidekt deck ${match.deckId} but sourceId is ${sourceId}. ` +
-    'A sync addresses the deck by sourceId, so the two must name the same deck.'
-  )
+  return t('domain.sync.linkMismatch', { urlDeckId: match.deckId, sourceId })
 }
 
 /** What a deck was linked to before, when it was linked to anything. */

@@ -126,7 +126,7 @@ describe('checkDeckDivergence', () => {
   })
 
   test('the message names both timestamps and both ways forward', () => {
-    const message = describeDivergence({
+    const { message } = describeDivergence({
       remoteUpdatedAt: '2026-08-02T12:00:00.000Z',
       syncedUpdatedAt: '2026-08-01T12:00:00.000Z',
     })
@@ -181,7 +181,9 @@ describe('checkDeckDivergence', () => {
     })
     expect(result).toEqual({
       kind: 'unknown',
-      reason: `The deck's sourceUpdatedAt is not a readable timestamp ("yesterday")`,
+      reason: expect.objectContaining({
+        message: `The deck's sourceUpdatedAt is not a readable timestamp ("yesterday")`,
+      }),
     })
   })
 

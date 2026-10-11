@@ -4,6 +4,7 @@ import {
   elicitRemovalAssignments,
   readRemovalAssignments,
 } from '../../../src/mcp/removal-elicitation'
+import { withSyntheticLocale } from '../../helpers/sync-text'
 
 /**
  * The form ↔ assignment mapping on its own, without a transport: what each
@@ -56,6 +57,22 @@ describe('elicitRemovalAssignments', () => {
       binder: expect.objectContaining({ type: 'integer', maximum: 1 }),
       longbox: expect.objectContaining({ type: 'integer', maximum: 2 }),
     })
+  })
+
+  test('stays English under a non-English UI locale, the list join included', () => {
+    // The prompt is model-facing English by contract; a translated list share
+    // or a German "und" would leave a mixed-language sentence.
+    const message = withSyntheticLocale(
+      'de',
+      { 'domain.sync.ambiguousListShare': '„{list}“ ({copies})' },
+      () => {
+        const result = elicitRemovalAssignments([
+          { ...BOLT, lists: [...BOLT.lists, { list: 'box', copies: 1 }] },
+        ])
+        return (result.inputRequests as Record<string, Form>)[`removal:${BOLT.key}`]!.params.message
+      },
+    )
+    expect(message).toContain('live in "binder" (1), "longbox" (2), and "box" (1).')
   })
 })
 

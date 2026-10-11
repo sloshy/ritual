@@ -11,6 +11,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getLoginsDir, writePrivateJson } from '../auth/logins-dir'
+import { t } from '../i18n/t'
 
 export type CollectionSyncState = {
   /** ISO timestamp of the last completed (non-dry) sync. */
@@ -38,18 +39,18 @@ export function collectionSyncStatePath(): string {
  */
 export function parseCollectionSyncState(raw: unknown): CollectionSyncState | string {
   if (typeof raw !== 'object' || raw === null) {
-    return 'Collection sync state is not an object'
+    return t('domain.sync.stateNotObject')
   }
   const record = raw as Record<string, unknown>
   const { lastSynced, userId, username } = record
   if (typeof lastSynced !== 'string' || lastSynced === '') {
-    return "Collection sync state is missing a 'lastSynced' timestamp"
+    return t('domain.sync.stateMissingLastSynced')
   }
   if (typeof userId !== 'number' || !Number.isInteger(userId)) {
-    return "Collection sync state is missing a numeric 'userId'"
+    return t('domain.sync.stateMissingUserId')
   }
   if (typeof username !== 'string') {
-    return "Collection sync state is missing a 'username'"
+    return t('domain.sync.stateMissingUsername')
   }
   return { lastSynced, userId, username }
 }
@@ -80,7 +81,7 @@ export async function readCollectionSyncStateFile(): Promise<CollectionSyncState
   try {
     raw = JSON.parse(content)
   } catch {
-    return { kind: 'unreadable', reason: 'the file is not valid JSON' }
+    return { kind: 'unreadable', reason: t('domain.sync.stateInvalidJson') }
   }
   const parsed = parseCollectionSyncState(raw)
   if (typeof parsed === 'string') return { kind: 'unreadable', reason: parsed }

@@ -25,15 +25,10 @@
  * a cache, or the filesystem.
  */
 
-import {
-  displayLanguage,
-  languageDisplayName,
-  storedLanguage,
-  type CardLanguage,
-} from '../card/card-language'
+import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 import { printingSuffix } from '../card/card-line'
 import { printingKey } from '../card/printing-key'
-import { t } from '../i18n/t'
+import { syncLanguage, syncMessage, syncRef, type SyncMessage } from '../sync/message'
 import { findPrinting, type CardPrintingsLookup } from '../card/card-printing'
 import { createAddChange, createRemoveChange } from '../changes/change-event'
 import type { CollectionEntry } from '../list/collection-file'
@@ -123,7 +118,7 @@ export type LocalListEntries = {
 }
 
 /** A canonicalization warning, attributed to the list whose line caused it. */
-export type LocalIndexWarning = { list: string; message: string }
+export type LocalIndexWarning = SyncMessage & { list: string }
 
 export type LocalIndexResult = {
   index: LocalCollectionIndex
@@ -219,9 +214,9 @@ export async function buildLocalIndex(
 
   const warnings = [...guessed.values()].map((guess): LocalIndexWarning => ({
     list: guess.list,
-    message: t('domain.sync.printingNotCached', {
+    ...syncMessage('domain.sync.printingNotCached', {
       card: guess.label,
-      copies: t('domain.count.copies', { count: guess.copies }),
+      copies: syncRef('domain.count.copies', { count: guess.copies }),
     }),
   }))
   return { index, warnings }
@@ -261,7 +256,7 @@ export type RemoteCollectionIndex = Map<string, RemoteKeyGroup>
 export type RemoteIndexResult = {
   index: RemoteCollectionIndex
   /** One message per record that could not be read; those records are skipped. */
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 /**
@@ -278,7 +273,7 @@ export type RemoteIndexResult = {
  */
 export function buildRemoteIndex(records: readonly ArchidektCollectionRecord[]): RemoteIndexResult {
   const index: RemoteCollectionIndex = new Map()
-  const warnings: string[] = []
+  const warnings: SyncMessage[] = []
 
   for (const record of records) {
     // The wire JSON is cast rather than validated by the client, so every nested
@@ -288,28 +283,42 @@ export function buildRemoteIndex(records: readonly ArchidektCollectionRecord[]):
     const set = record.card?.edition?.editioncode?.toLowerCase() ?? ''
     const collectorNumber = record.card?.collectorNumber
     if (!name || !set || !collectorNumber) {
-      warnings.push(
-        `Skipping Archidekt record ${record.id}: it does not name a card, set code, and collector number.`,
-      )
+      warnings.push(syncMessage('domain.sync.recordIncomplete', { recordId: record.id }))
       continue
     }
 
     const finish = parseArchidektModifier(record.modifier)
     if (!finish.ok) {
-      warnings.push(`Skipping Archidekt record ${record.id} (${name}): ${finish.message}`)
+      warnings.push(
+        syncMessage('domain.sync.recordSkipped', {
+          recordId: record.id,
+          card: name,
+          reason: finish.message,
+        }),
+      )
       continue
     }
 
     const condition = parseArchidektCondition(record.condition)
     if (!condition.ok) {
-      warnings.push(`Skipping Archidekt record ${record.id} (${name}): ${condition.message}`)
+      warnings.push(
+        syncMessage('domain.sync.recordSkipped', {
+          recordId: record.id,
+          card: name,
+          reason: condition.message,
+        }),
+      )
       continue
     }
 
     let language = parseArchidektLanguage(record.language)
     if (language === null) {
       warnings.push(
-        `Archidekt record ${record.id} (${name}) has an unknown language id '${record.language}'; treating it as English.`,
+        syncMessage('domain.sync.recordUnknownLanguage', {
+          recordId: record.id,
+          card: name,
+          languageId: String(record.language),
+        }),
       )
       language = 'en'
     }
@@ -959,10 +968,14 @@ export function createRecordBody(
 export function unmappableLanguageWarning(
   name: string,
   parts: CollectionKeyParts,
-): string | undefined {
+): SyncMessage | undefined {
   if (archidektLanguageId(parts.language) !== null) return undefined
   const language = displayLanguage(parts.language)
-  return `Archidekt cannot represent ${languageDisplayName(language)} [${language}]; pushing ${name}${printingSuffix(parts.set, parts.collectorNumber)} as English.`
+  return syncMessage('domain.sync.languageUnmappable', {
+    languageName: syncLanguage(language),
+    language,
+    card: `${name}${printingSuffix(parts.set, parts.collectorNumber)}`,
+  })
 }
 
 /**

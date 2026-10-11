@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   localCategoriesFor,
   pullCategoryChanges,
+  refusedCategoriesMessage,
   remoteDeckCategories,
 } from '../../src/deck-sync/categories'
 import { buildUploadPlan, type UploadPlan } from '../../src/deck-sync/upload-plan'
@@ -239,5 +240,22 @@ describe('buildUploadPlan categories', () => {
       { action: 'modify', deckRelationId: 1, categories: ['Commander'] },
       { action: 'add', categories: ['Commander'] },
     ])
+  })
+})
+
+describe('refusedCategoriesMessage', () => {
+  const RULE =
+    'a category is non-empty plain text that cannot contain a comma or a control character'
+
+  test('names a single refused category without a count', () => {
+    expect(refusedCategoriesMessage(['Ramp, Draw']).message).toBe(
+      `Skipped an Archidekt category Ritual cannot store (${RULE}): "Ramp, Draw"`,
+    )
+  })
+
+  test('counts several and lists each name quoted', () => {
+    expect(refusedCategoriesMessage(['Ramp, Draw', 'A,B']).message).toBe(
+      `Skipped 2 Archidekt categories Ritual cannot store (${RULE}): "Ramp, Draw", "A,B"`,
+    )
   })
 })

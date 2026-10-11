@@ -1,0 +1,471 @@
+/**
+ * The human text a sync engine produces, as **messages** rather than rendered
+ * strings.
+ *
+ * A sync runs on a server (the admin API, `ritual mcp`) as often as in the CLI,
+ * and its text lands in three places that want three different languages: the
+ * JSON report an agent or script reads (English — the contract every
+ * {@link ApiMessage} keeps), the admin page watching the run (the *browser's*
+ * language, relabelled when the reader switches it), and the CLI's console (the
+ * CLI's own UI language). Rendering once, in whatever locale the engine's
+ * process happens to run in, would get at least two of those wrong.
+ *
+ * So the engines build a {@link SyncMessage}: the English `message` every
+ * existing reader reads, plus `messageKey` / `messageParams` — a
+ * {@link MessageTriple}, the same shape an `ApiMessage` has — for a reader that
+ * renders it itself.
+ *
+ * **Why not `ApiMessage` itself.** An `ApiMessage`'s params are flat strings and
+ * numbers. Sync text is built from parts that are themselves translated: a
+ * count rendered with its plural noun (`3 collection lists`), a list of lists
+ * joined with the locale's "and", a duration, a language name, a nested reason.
+ * Pre-rendering those parts in English would leave English fragments inside a
+ * translated sentence, so a param here may itself be a message reference
+ * ({@link SyncMessageRef}), a list ({@link SyncListParam}), a duration
+ * ({@link SyncElapsedParam}) or a card language ({@link SyncLanguageParam}), and
+ * {@link renderSyncMessage} renders the whole tree in one locale. The type is
+ * deliberately not assignable to `ApiMessage`, so a sync message cannot reach
+ * `renderApiMessage`, which would print a nested param as `[object Object]`.
+ *
+ * Browser-safe: the admin SPA renders these, so nothing here may reach for
+ * `node:`.
+ */
+
+import { languageLabel, type CardLanguage } from '../card/card-language'
+import { formatUnitList, listFormat } from '../i18n/format'
+import type { EnglishCatalog, MessageKey } from '../i18n/messages/en'
+import { currentLocale, DEFAULT_LOCALE } from '../i18n/runtime'
+import {
+  isMessageKey,
+  tDynamic,
+  type MessageTriple,
+  type ParamsOf,
+  type RenderParams,
+  type SelectBranch,
+} from '../i18n/t'
+import type { LocaleTag, PluralForms, SelectForms } from '../i18n/types'
+import { formatElapsed } from '../util/duration'
+
+// ── Shapes ────────────────────────────────────────────────────────────
+
+/**
+ * A translated message held unrendered: the key, and what it interpolates.
+ * Used for a message nested inside another, where the English text would be
+ * dead weight on the wire.
+ */
+export type SyncMessageRef = {
+  messageKey: MessageKey
+  messageParams?: SyncMessageParams
+}
+
+/** How a {@link SyncListParam} is joined. */
+export type SyncListJoin =
+  /** The locale's "and" list: `A, B, and C`. */
+  | 'and'
+  /** The locale's unit list — no conjunction: `A, B, C`. Independent items and counts. */
+  | 'unit'
+  /** Independent clauses, joined pairwise through `domain.sync.clauseJoin` (`A; B`). */
+  | 'clauses'
+  /**
+   * Plain concatenation, for clauses that carry their own separator in the
+   * catalog (a deck's `Changes:` count and its `, 2 board moves` tail).
+   */
+  | 'concat'
+
+/** Several parts rendered and joined in the enclosing message's locale. */
+export type SyncListParam = { list: SyncParam[]; join: SyncListJoin }
+
+/** A duration in milliseconds, rendered like `4.2 seconds` in the enclosing message's locale. */
+export type SyncElapsedParam = { elapsedMs: number }
+
+/** A card language, named in the enclosing message's locale (`Japanese`, `Japanisch`). */
+export type SyncLanguageParam = { language: CardLanguage }
+
+/**
+ * One parameter of a sync message. A string is text rendered once and for all —
+ * a card name, a list name, or an error message raised outside the catalog.
+ */
+export type SyncParam =
+  string | number | SyncMessageRef | SyncListParam | SyncElapsedParam | SyncLanguageParam
+
+/** The parameters a sync message interpolates. */
+export type SyncMessageParams = Record<string, SyncParam>
+
+/**
+ * Human text a sync produced: a {@link MessageTriple} whose params may nest.
+ *
+ * `message` is English whenever the text comes from the catalog — the engines
+ * render it with `DEFAULT_LOCALE`, nested parts included. The one exception is
+ * text Ritual did not word itself: an error another module raised (a file it
+ * could not read, an Archidekt client failure, a cache refresh's progress), or
+ * a refusal a caller's callback returned as plain text. That arrives already
+ * rendered — engine errors are worded where they are raised, in the active
+ * locale — and is carried as it is, with no key, inside an otherwise English
+ * message.
+ */
+export type SyncMessage = MessageTriple<SyncMessageParams>
+
+/** Text a surface renders: literal text, or a message to render in the reader's locale. */
+export type SyncText = string | SyncMessageRef
+
+/** A list with at least one element. */
+export type NonEmpty<T> = readonly [T, ...T[]]
+
+/** Whether a list has at least one element — the guard {@link joinSyncMessages} wants. */
+export function isNonEmpty<T>(items: readonly T[]): items is NonEmpty<T> {
+  return items.length > 0
+}
+
+// ── Typed params ──────────────────────────────────────────────────────
+
+/**
+ * `count` on a `$plural` key, `never` otherwise. Distributive over `K` (the
+ * naked `K extends MessageKey` check), so a union of keys yields the union of
+ * their answers rather than collapsing to `never` when they disagree.
+ */
+type PluralCountParam<K extends MessageKey> = K extends MessageKey
+  ? EnglishCatalog[K] extends PluralForms
+    ? 'count'
+    : never
+  : never
+
+/** The selector parameter of a `$select` key, `never` otherwise. Distributive like the above. */
+type SelectorParam<K extends MessageKey> = K extends MessageKey
+  ? EnglishCatalog[K] extends SelectForms
+    ? EnglishCatalog[K]['$select']
+    : never
+  : never
+
+/**
+ * The params a key takes. Any placeholder may be a nested message, list,
+ * duration or language — except the two that steer the message itself: a
+ * plural's `count` must be a number, and a select's selector one of its
+ * branches, or the catalog would pick a form from a value it cannot read.
+ */
+export type SyncMessageParamsFor<K extends MessageKey> = Record<
+  Exclude<ParamsOf<K>, PluralCountParam<K> | SelectorParam<K>>,
+  SyncParam
+> &
+  Record<PluralCountParam<K>, number> &
+  Record<SelectorParam<K>, SelectBranch<K>>
+
+/**
+ * `[]` for a params-free key, `[params]` otherwise — `TranslateArgs` for sync
+ * messages. Not `TranslateArgs` itself (nor its `paramsOf`): those type every
+ * param as flat text, which is exactly what a sync param is not.
+ */
+export type SyncArgs<K extends MessageKey> = [ParamsOf<K>] extends [never]
+  ? []
+  : [params: SyncMessageParamsFor<K>]
+
+// ── Builders ──────────────────────────────────────────────────────────
+
+/** A {@link SyncMessageRef}, its params checked against the key's catalog entry. */
+export function syncRef<K extends MessageKey>(key: K, ...args: SyncArgs<K>): SyncMessageRef {
+  const [params] = args as readonly [SyncMessageParams?]
+  return params === undefined ? { messageKey: key } : { messageKey: key, messageParams: params }
+}
+
+/** A {@link SyncMessage}: the English rendering plus the message it came from. */
+export function syncMessage<K extends MessageKey>(key: K, ...args: SyncArgs<K>): SyncMessage {
+  return toSyncMessage(syncRef(key, ...args))
+}
+
+/** Attach the English rendering to a reference, field by field. */
+export function toSyncMessage(ref: SyncMessageRef): SyncMessage {
+  const message: SyncMessage = {
+    message: renderSyncMessage(ref, DEFAULT_LOCALE),
+    messageKey: ref.messageKey,
+  }
+  if (ref.messageParams !== undefined) message.messageParams = ref.messageParams
+  return message
+}
+
+/**
+ * Text with no catalog entry, carried as it is — see {@link SyncMessage} for
+ * when that is allowed.
+ */
+export function syncText(text: string): SyncMessage {
+  return { message: text }
+}
+
+/** Text to send on as a message: a reference gains its English, literal text stays as it is. */
+export function syncMessageOf(text: SyncText): SyncMessage {
+  return typeof text === 'string' ? syncText(text) : toSyncMessage(text)
+}
+
+/** A message as a param of another: its reference when it has one, its text otherwise. */
+export function nestSync(message: SyncMessage): SyncText {
+  if (message.messageKey === undefined) return message.message
+  return message.messageParams === undefined
+    ? { messageKey: message.messageKey }
+    : { messageKey: message.messageKey, messageParams: message.messageParams }
+}
+
+/** A list param. */
+export function syncList(list: SyncParam[], join: SyncListJoin): SyncListParam {
+  return { list, join }
+}
+
+/** A duration param. */
+export function syncElapsed(elapsedMs: number): SyncElapsedParam {
+  return { elapsedMs }
+}
+
+/** A card-language param. */
+export function syncLanguage(language: CardLanguage): SyncLanguageParam {
+  return { language }
+}
+
+/**
+ * Whether a value is a {@link SyncMessage} — the one discriminant the sync
+ * engines use for "a result, or the message saying why not". Structural: it
+ * holds because no success type a sync function returns carries a string
+ * `message` (a route, a target, a loaded list, a parse result).
+ */
+export function isSyncMessage(value: unknown): value is SyncMessage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'message' in value &&
+    typeof value.message === 'string'
+  )
+}
+
+/**
+ * Several reasons as one — a deck whose plan hit two errors, a list that failed
+ * for two cards. One reason is itself; several are independent clauses joined
+ * pairwise through `domain.sync.clauseJoin` (`A; B`). Takes at least one, so a
+ * caller cannot produce an empty reason.
+ */
+export function joinSyncMessages(messages: NonEmpty<SyncMessage>): SyncMessage {
+  if (messages.length === 1) return messages[0]
+  return syncMessage('domain.sync.reasonList', {
+    reasons: syncList(messages.map(nestSync), 'clauses'),
+  })
+}
+
+// ── Errors ────────────────────────────────────────────────────────────
+
+/**
+ * An error a sync-owned code path throws, carrying its message unrendered so a
+ * report can still state it in English (and a reader in its own language). Its
+ * `Error.message` is the active locale's rendering, as for any engine error.
+ */
+export class SyncMessageError extends Error {
+  readonly syncMessage: SyncMessage
+  constructor(message: SyncMessage) {
+    super(renderSyncMessage(message))
+    this.name = 'SyncMessageError'
+    this.syncMessage = message
+  }
+}
+
+/** A `{ key, params }` pair an error may carry (`CardCommandError.messageRef`). */
+type CarriedMessageRef = { key: MessageKey; params?: RenderParams }
+
+function carriedRef(error: unknown): CarriedMessageRef | undefined {
+  if (typeof error !== 'object' || error === null || !('messageRef' in error)) return undefined
+  const ref = error.messageRef
+  if (typeof ref !== 'object' || ref === null || !('key' in ref)) return undefined
+  return isMessageKey(ref.key) ? (ref as CarriedMessageRef) : undefined
+}
+
+/**
+ * A caught error as a message param: its message unrendered when it carries one
+ * (a {@link SyncMessageError}, or any error with a `messageRef`), so it renders
+ * in the reader's language like the sentence around it — and its text
+ * otherwise, the words it was raised in.
+ */
+export function errorParam(error: unknown): SyncText {
+  if (error instanceof SyncMessageError) return nestSync(error.syncMessage)
+  const ref = carriedRef(error)
+  if (ref !== undefined) {
+    return ref.params === undefined
+      ? { messageKey: ref.key }
+      : { messageKey: ref.key, messageParams: ref.params }
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
+/** A caught error as a whole message — a reason, or a log line — per {@link errorParam}. */
+export function errorMessage(error: unknown): SyncMessage {
+  return syncMessageOf(errorParam(error))
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────
+
+/** The two joins `Intl` provides besides the unit list. */
+const AND_LIST: Intl.ListFormatOptions = { style: 'long', type: 'conjunction' }
+
+function joinRendered(parts: string[], join: SyncListJoin, locale: LocaleTag): string {
+  switch (join) {
+    case 'and':
+      return listFormat(locale, AND_LIST).format(parts)
+    case 'unit':
+      return formatUnitList(locale, parts)
+    case 'clauses':
+      return parts.reduce((joined, part, index) =>
+        index === 0
+          ? part
+          : tDynamic(locale, 'domain.sync.clauseJoin', { first: joined, second: part }),
+      )
+    case 'concat':
+      return parts.join('')
+  }
+}
+
+/**
+ * Render a param. `strict` returns `undefined` as soon as any key in the tree
+ * is not one this surface knows (an older bundle reading a newer server's
+ * report), so the caller can fall back to the English it was sent; otherwise an
+ * unknown key degrades the way `t()` does, to the key itself.
+ */
+function renderParam(
+  param: SyncParam,
+  locale: LocaleTag,
+  strict: boolean,
+): string | number | undefined {
+  if (typeof param === 'string' || typeof param === 'number') return param
+  // The shape is checked, not assumed: a param comes off the wire, and a newer
+  // server may send a kind this bundle has never heard of. An unknown shape
+  // renders as nothing — or, strictly, sends the whole message back to the
+  // English it carries.
+  if (typeof param !== 'object' || param === null) return strict ? undefined : ''
+  if ('messageKey' in param && typeof param.messageKey === 'string') {
+    return renderRef(param, locale, strict)
+  }
+  if ('list' in param && Array.isArray(param.list) && isListJoin(param.join)) {
+    const parts: string[] = []
+    for (const part of param.list) {
+      const rendered = renderParam(part, locale, strict)
+      if (rendered === undefined) return undefined
+      parts.push(String(rendered))
+    }
+    return parts.length === 0 ? '' : joinRendered(parts, param.join, locale)
+  }
+  if ('language' in param && typeof param.language === 'string') {
+    return languageLabel(param.language, locale)
+  }
+  if ('elapsedMs' in param && typeof param.elapsedMs === 'number') {
+    return formatElapsed(param.elapsedMs, locale)
+  }
+  return strict ? undefined : ''
+}
+
+/** Every join a {@link SyncListParam} may name. */
+const LIST_JOINS: readonly string[] = ['and', 'unit', 'clauses', 'concat'] satisfies SyncListJoin[]
+
+function isListJoin(value: unknown): value is SyncListJoin {
+  return typeof value === 'string' && LIST_JOINS.includes(value)
+}
+
+function renderRef(ref: SyncMessageRef, locale: LocaleTag, strict: boolean): string | undefined {
+  if (strict && !isMessageKey(ref.messageKey)) return undefined
+  const params: RenderParams = {}
+  for (const [name, value] of Object.entries(ref.messageParams ?? {})) {
+    const rendered = renderParam(value, locale, strict)
+    if (rendered === undefined) return undefined
+    params[name] = rendered
+  }
+  return tDynamic(locale, ref.messageKey, params)
+}
+
+/**
+ * Render a sync message — or a nested reference, or literal text — in one
+ * locale, nested parts included.
+ *
+ * A message whose tree names a key this surface does not have (its namespace
+ * unregistered, or a newer server's) renders as the English it carries,
+ * whole — never a half-translated sentence with a raw key in it. A bare
+ * reference has no English to fall back on, so an unknown key in it degrades
+ * the way `t()` does.
+ *
+ * `locale` defaults to the active UI locale, and reads it through the
+ * registered reactive source: called inside a Solid component's JSX, the text
+ * re-renders when the reader switches language. The English half of every
+ * {@link SyncMessage} is this with `DEFAULT_LOCALE`.
+ */
+export function renderSyncMessage(
+  message: SyncMessage | SyncText,
+  locale: LocaleTag = currentLocale(),
+): string {
+  if (typeof message === 'string') return message
+  if (message.messageKey === undefined) return 'message' in message ? message.message : ''
+  const ref: SyncMessageRef =
+    message.messageParams === undefined
+      ? { messageKey: message.messageKey }
+      : { messageKey: message.messageKey, messageParams: message.messageParams }
+  if ('message' in message) return renderRef(ref, locale, true) ?? message.message
+  return renderRef(ref, locale, false) ?? ''
+}
+
+/**
+ * Render one param on its own — a list, a duration, a nested message — in
+ * `locale`, for a caller that splices it into text of its own.
+ */
+export function renderSyncParam(param: SyncParam, locale: LocaleTag = currentLocale()): string {
+  return String(renderParam(param, locale, false) ?? '')
+}
+
+// ── Prefixed fields ───────────────────────────────────────────────────
+
+/**
+ * A message flattened onto a wider record under a field name of its own:
+ * `reason` / `reasonKey` / `reasonParams` on a sync result, `card` / `cardKey`
+ * / `cardParams` on a CSV failure. The English stays where every existing
+ * reader looks for it; the key and params ride beside it, named after it.
+ */
+export type PrefixedMessage<P extends string> = { [K in P]?: string } & {
+  [K in `${P}Key`]?: MessageKey
+} & { [K in `${P}Params`]?: SyncMessageParams }
+
+/** A message's fields under `prefix`, ready to spread into a record. */
+export function prefixedFields<P extends string>(
+  prefix: P,
+  message: SyncMessage,
+): PrefixedMessage<P> {
+  // Computed keys erase the template-literal types; the shape is exactly
+  // `PrefixedMessage<P>` by construction.
+  const fields: Record<string, string | SyncMessageParams> = { [prefix]: message.message }
+  if (message.messageKey !== undefined) fields[`${prefix}Key`] = message.messageKey
+  if (message.messageParams !== undefined) fields[`${prefix}Params`] = message.messageParams
+  return fields as PrefixedMessage<P>
+}
+
+/** The message stored under `prefix`, or `undefined` when the record carries none. */
+export function prefixedMessage<P extends string>(
+  prefix: P,
+  record: PrefixedMessage<P>,
+): SyncMessage | undefined {
+  const fields = record as Record<string, unknown>
+  const text = fields[prefix]
+  if (typeof text !== 'string') return undefined
+  const message: SyncMessage = { message: text }
+  // Kept even when this surface does not know the key (a newer server's):
+  // `renderSyncMessage` checks it, and falls back to the English.
+  const key = fields[`${prefix}Key`]
+  if (typeof key === 'string') message.messageKey = key as MessageKey
+  const params = fields[`${prefix}Params`]
+  if (typeof params === 'object' && params !== null) {
+    message.messageParams = params as SyncMessageParams
+  }
+  return message
+}
+
+/**
+ * The `reason` a per-item sync result carries, in the shape the JSON report
+ * keeps: the English `reason` every existing reader reads, plus `reasonKey` /
+ * `reasonParams`.
+ */
+export type SyncReasonFields = PrefixedMessage<'reason'>
+
+/** A result's reason fields, from the message. */
+export function reasonFields(reason: SyncMessage): SyncReasonFields {
+  return prefixedFields('reason', reason)
+}
+
+/** A result's reason as a message, or `undefined` when it has none. */
+export function reasonMessage(fields: SyncReasonFields): SyncMessage | undefined {
+  return prefixedMessage('reason', fields)
+}

@@ -168,9 +168,6 @@ export const domainMeta = {
   'domain.count.cardEntries': {
     description: `${COUNT_CONTEXT} Entries in an imported deck file, counted while parsing.`,
   },
-  'domain.count.unreadableLines': {
-    description: `${COUNT_CONTEXT} Lines of a list file the parser could not understand.`,
-  },
   'domain.count.printings': {
     description: `${COUNT_CONTEXT} Card printings (a specific set/collector-number/finish of a card), e.g. in a deck sync's "2 printings changed".`,
   },
@@ -185,9 +182,6 @@ export const domainMeta = {
   },
   'domain.count.collectionRecords': {
     description: `${COUNT_CONTEXT} Entries in the user's collection on Archidekt, the remote service Ritual syncs with.`,
-  },
-  'domain.count.refusedRows': {
-    description: `${COUNT_CONTEXT} Rows Archidekt rejected from an uploaded CSV.`,
   },
   'domain.count.requests': { description: `${COUNT_CONTEXT} HTTP requests made to a remote API.` },
   'domain.count.ambiguousRemovals': {
@@ -231,145 +225,6 @@ export const domainMeta = {
       'The spelled-out form of "~{price}+ ({count} unpriced)": a total that is both an estimate and at least {price}, because {count} cards have no published price. Read by screen readers and shown as a hover tooltip.',
   },
 
-  'domain.sync.skippedRemovals': {
-    description:
-      'Reported when a sync was restricted to additions, so this many removals were left alone. "additions" and "removals" name the two halves of a sync and appear in the UI controls too.',
-  },
-  'domain.sync.skippedAdditions': {
-    description: 'The mirror of the previous key: a sync restricted to removals skipped additions.',
-  },
-  'domain.sync.csvUncachedAdditions': {
-    description:
-      'Some cards cannot be uploaded in the bulk CSV because Ritual has no cached printing for them, so they are pushed individually instead. Note the pronoun agreement between the singular and plural forms.',
-  },
-  'domain.sync.rateLimitWait': {
-    description:
-      'Warns that Archidekt answered 429 and the sync is pausing before retrying the same request. {seconds} is a number that may carry one decimal place (e.g. 2 or 2.5), {retry} is the 1-based attempt about to be made, {maxRetries} the total budget.',
-  },
-  'domain.sync.unreadableDeckConsequence': {
-    description:
-      'Shown in the CLI prompt and the admin confirmation panel before a deck sync proceeds with lines the parser could not read; the list of those lines follows the colon. A deck sync rewrites the file in either direction, so the sentence does not mention one.',
-  },
-  'domain.sync.unreadablePullConsequence': {
-    description:
-      'The collection-sync counterpart for a pull (Archidekt → local): pulling rewrites the collection list file, dropping the unreadable lines. The list of lines follows the colon.',
-  },
-  'domain.sync.unreadablePushConsequence': {
-    description:
-      "The collection-sync counterpart for a push (local → Archidekt): the file is taken as the truth, so cards on unreadable lines are deleted from the user's Archidekt collection. The list of lines follows the colon.",
-  },
-  'domain.sync.readingLists': {
-    description:
-      'The first progress line of a collection sync, printed before the list files are read.',
-  },
-  'domain.sync.listsRead': {
-    description:
-      'Reports the end of that phase. {lists} is a pre-rendered count of collection lists, {entries} a pre-rendered count of card entries, {elapsed} a pre-rendered duration like "4.2 seconds" — none of the three is a bare number.',
-  },
-  'domain.sync.indexingLocal': {
-    description:
-      'Announces the phase that looks every local card up in the on-disk Scryfall card cache; the parenthetical explains why the first run of it pauses for several seconds. {entries} is a pre-rendered count of card entries.',
-  },
-  'domain.sync.localIndexed': {
-    description:
-      'Reports the end of that phase. {printings} is a pre-rendered count of printings (a card in one specific set), {elapsed} a pre-rendered duration.',
-  },
-  'domain.sync.printingNotCached': {
-    description:
-      'Warning during a collection sync: a card line names no finish, and the printing is missing from the local Scryfall card cache, so its finish (nonfoil/foil/etched) could not be looked up and nonfoil is assumed. {card} is the card name followed by its printing, e.g. "Sol Ring (C21:240)"; {copies} is a pre-rendered count like "2 copies". The backticked text is a CLI command and must stay untranslated.',
-  },
-  'domain.sync.reindexingLocal': {
-    description:
-      'Announces a second pass of the local-cache lookup phase, run when a push had to download a fresh Scryfall card cache partway through (before uploading a CSV): the first pass used the old cache, so its results are recomputed. Followed by the same completion line as the first pass.',
-  },
-  'domain.sync.fetchingCollection': {
-    description:
-      'Announces the phase that downloads the whole Archidekt collection; the parenthetical explains why it is slow — Ritual deliberately spaces the requests out.',
-  },
-  'domain.sync.fetchedPage': {
-    description:
-      'One line per downloaded page of the remote collection, so a long fetch visibly advances. {page} and {totalPages} are bare numbers; {records} is a pre-rendered count of collection records fetched so far.',
-  },
-  'domain.sync.collectionFetched': {
-    description:
-      'Summarizes the downloaded collection. {records} is a pre-rendered count of collection records, {printings} a pre-rendered count of the distinct printings among them (fewer, since several records can share a printing), {elapsed} a pre-rendered duration.',
-  },
-  'domain.sync.comparing': {
-    description:
-      'Announces the phase that diffs the downloaded collection against the local lists, after both sides have been read.',
-  },
-  'domain.sync.cancelled': {
-    description:
-      'Run-level log line ending a sync the caller cancelled part way. {items} is a pre-rendered count of the decks or collection lists the run never started.',
-  },
-  'domain.sync.detailAdded': {
-    description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card added. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt.',
-  },
-  'domain.sync.detailRemoved': {
-    description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card removed. {quantity} is the number of copies. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt.',
-  },
-  'domain.sync.detailQuantity': {
-    description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose quantity changes. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt. {from} and {to} are the old and new copy counts.',
-  },
-  'domain.sync.detailMove': {
-    description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. Copies of a card moving between deck boards. {quantity} is the number of copies moving. {card} is the card name, with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated). {from} and {to} are deck board names (Commander, Main, Sideboard, Maybeboard), interpolated untranslated.',
-  },
-  'domain.sync.detailPrinting': {
-    description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose copies change printing. {card} is the card name. {place} is where the copies are, interpolated untranslated: a deck board name (Commander, Main, Sideboard, Maybeboard), a collection list name, or domain.sync.placeArchidekt. {from} and {to} are the old and new printings in card-line grammar like "(LEA:270) [foil]" (a finish-only change reads "[nonfoil] → [foil]"), or domain.sync.detailNoPrinting.',
-  },
-  'domain.sync.detailCategories': {
-    description:
-      'One per-card detail line a sync lists under its change summary (CLI: only with --verbose; admin sync pages: always). The leading symbol marks the kind of change and keeps the lines scannable in a column; keep it first. A card whose categories the sync sets. {card} is the card name, {categories} a comma-separated list of user-defined category names (primary first) or domain.sync.detailNoCategories.',
-  },
-  'domain.sync.detailPending': {
-    description:
-      'One per-card detail line a collection-sync push lists under the run (CLI: only with --verbose): copies the CLI’s --csv-file wrote to a file the user imports by hand, so they are not on Archidekt yet. Only the CLI writes such a file. The leading symbol marks the kind of change; keep it first. {quantity} is the number of copies, {card} the card name with an optional printing annotation like "(C21:263) [foil]" (card-line grammar, never translated).',
-  },
-  'domain.sync.changesLine': {
-    description:
-      'The per-deck or per-list count line both syncs log (CLI and admin sync pages), above the per-card detail lines. {summary} is a pre-rendered domain.sync.deckCounts or domain.sync.collectionCounts with its clauses.',
-  },
-  'domain.sync.deckCounts': {
-    description:
-      "Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. A deck sync's card-change counts, branched on the persisted direction slug (pull = what the pull changed locally, push = what the push will change on Archidekt). {added}, {removed} and {quantity} are entry counts; the +, - and ~ signs mirror the detail lines' markers. Optional clauses (domain.sync.deckMovesClause, deckPrintingsClause, deckCategoriesClause) are appended after it.",
-  },
-  'domain.sync.deckMovesClause': {
-    description:
-      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.deckCounts when a deck sync moves cards between boards. {moves} is a pre-rendered domain.count.boardMoves. Keep the leading separator.',
-  },
-  'domain.sync.deckPrintingsClause': {
-    description:
-      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.deckCounts when a deck sync changes printings, branched on the direction slug. {printings} is a pre-rendered domain.count.printings. Keep the leading separator.',
-  },
-  'domain.sync.deckCategoriesClause': {
-    description:
-      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.deckCounts when a deck sync syncs categories, branched on the direction slug. {cards} is a pre-rendered domain.count.cardCategories. Keep the leading separator.',
-  },
-  'domain.sync.collectionCounts': {
-    description:
-      "Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. A collection sync's copies added and removed for one list (or on Archidekt for it, on a push). The + and - signs mirror the detail lines' markers.",
-  },
-  'domain.sync.collectionPendingClause': {
-    description:
-      'Part of the per-item count line a sync logs (CLI and the admin sync pages) above its per-card detail lines. Appended to domain.sync.collectionCounts when a CLI push wrote copies to its --csv-file instead of pushing them. {copies} is a pre-rendered domain.count.copies. Keep the leading separator.',
-  },
-  'domain.sync.placeArchidekt': {
-    description:
-      "The {place} of a collection-sync push's detail lines (domain.sync.detailAdded / detailRemoved): the user's Archidekt collection, which the copies are added to or removed from. Archidekt is a product name.",
-  },
-  'domain.sync.detailNoPrinting': {
-    description:
-      'Stands in for one side of a printing change in domain.sync.detailPrinting when that side states no specific printing (a bare card line).',
-  },
-  'domain.sync.detailNoCategories': {
-    description:
-      "Stands in for the category list in domain.sync.detailCategories when the sync clears all of a card's categories.",
-  },
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },
   'domain.nav.wanted': { description: `${NAV_CONTEXT} The wanted-list index.`, maxLen: 12 },

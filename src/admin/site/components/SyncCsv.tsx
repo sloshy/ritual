@@ -1,5 +1,6 @@
 import { type JSX, createMemo, For, Show } from 'solid-js'
 import {
+  csvFailureCard,
   describeCsvFailure,
   describeCsvFailureReasons,
   describeCsvSize,
@@ -8,6 +9,7 @@ import {
 import type { CollectionSyncCsv } from '../../../collection-sync/engine'
 import type { MessageSegment } from '../../../i18n/types'
 import type { TranslateFn } from '../../../i18n/t'
+import { useSyncText } from '../sync-text'
 import { useT, useTSegments } from '../../../ui/i18n'
 
 /**
@@ -138,8 +140,26 @@ type OutcomeLeadProps = { csv: CollectionSyncCsv }
 function OutcomeLead(props: OutcomeLeadProps): JSX.Element {
   const t = useT()
   const tSegments = useTSegments()
-  const csv = props.csv
-  const size = describeCsvSize(csv.cards, csv.rows)
+  const sync = useSyncText()
+  // Built inside a tracked expression rather than in the component body, which
+  // runs once: every string below reads the locale, so the lead relabels when
+  // the reader switches language.
+  const lead = (): JSX.Element => {
+    const csv = props.csv
+    const size = sync(describeCsvSize(csv.cards, csv.rows))
+    return leadFor(csv, size, t, tSegments, sync)
+  }
+  return <>{lead()}</>
+}
+
+/** The lead's content for one outcome; see {@link OutcomeLead}. */
+function leadFor(
+  csv: CollectionSyncCsv,
+  size: string,
+  t: TranslateFn,
+  tSegments: ReturnType<typeof useTSegments>,
+  sync: ReturnType<typeof useSyncText>,
+): JSX.Element {
   switch (csv.status) {
     case 'uploaded':
       return (
@@ -160,7 +180,7 @@ function OutcomeLead(props: OutcomeLeadProps): JSX.Element {
         withCode(tSegments('admin.csvOutcome.plannedExport', { size, path: csv.path }))
       )
     case 'failed':
-      return <>{t('admin.csvOutcome.failed', { message: csv.message })}</>
+      return <>{t('admin.csvOutcome.failed', { message: sync(csv) })}</>
     case 'empty':
       // The count is the whole content of this outcome, so the lead carries it and
       // the uncached note below is suppressed rather than repeating it.
@@ -188,6 +208,7 @@ function OutcomeLead(props: OutcomeLeadProps): JSX.Element {
  */
 export function CsvOutcomePanel(props: CsvOutcomePanelProps): JSX.Element {
   const t = useT()
+  const sync = useSyncText()
   /** Rows Archidekt did not import; only an upload can have any. */
   const failures = createMemo((): readonly CollectionCsvFailure[] =>
     props.csv.status === 'uploaded' ? props.csv.failures : NO_FAILURES,
@@ -209,17 +230,21 @@ export function CsvOutcomePanel(props: CsvOutcomePanelProps): JSX.Element {
 
   /** How many rows Archidekt refused, and why — the run log's own wording. */
   const failuresNote = (): string => {
-    const reasons = describeCsvFailureReasons(failures())
     return t('admin.csvOutcome.failuresLead', {
       dropped: failures().length,
       total: props.csv.rows,
-      reasons: reasons === '' ? '' : ` (${reasons})`,
+      // Never empty: the lead shows only when there are failures, and every
+      // failure counts under one of the reasons.
+      reasons: sync(describeCsvFailureReasons(failures())),
     })
   }
 
   /** One refused row: the card, and Archidekt's reason for it. */
   const failureNote = (failure: CollectionCsvFailure): string =>
-    t('admin.csvOutcome.failure', { card: failure.card, reason: describeCsvFailure(failure) })
+    t('admin.csvOutcome.failure', {
+      card: sync(csvFailureCard(failure)),
+      reason: sync(describeCsvFailure(failure)),
+    })
 
   return (
     <div class="sync-csv-outcome" data-status={props.csv.status}>

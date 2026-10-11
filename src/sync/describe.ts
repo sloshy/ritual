@@ -5,6 +5,7 @@
  */
 
 import { formatPrintingAnnotation, type PrintingAnnotationInput } from '../changes/change-event'
+import type { SyncText } from './message'
 
 /**
  * A card and its variant as a sync line reads it, e.g.
@@ -17,8 +18,11 @@ export function describeSyncCard(name: string, printing?: PrintingAnnotationInpu
   return printing === undefined ? name : `${name}${formatPrintingAnnotation(printing)}`
 }
 
-/** One line of an item's change listing, at the level the run logs it. */
-export type ItemChangeLine = { level: 'info' | 'detail'; text: string }
+/**
+ * One line of an item's change listing, at the level the run logs it — held as
+ * a message, so each surface renders it in its reader's locale.
+ */
+export type ItemChangeLine = { level: 'info' | 'detail'; text: SyncText }
 
 /**
  * An item's change lines in the one order every surface shows them: the
@@ -27,8 +31,8 @@ export type ItemChangeLine = { level: 'info' | 'detail'; text: string }
  * so the order cannot drift between the stream and the fallback.
  */
 export function itemChangeLines(
-  changesLine: string | undefined,
-  details: readonly string[],
+  changesLine: SyncText | undefined,
+  details: readonly SyncText[],
 ): ItemChangeLine[] {
   return [
     ...(changesLine === undefined ? [] : [{ level: 'info' as const, text: changesLine }]),

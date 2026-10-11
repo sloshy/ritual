@@ -25,6 +25,7 @@ import { DEFAULT_LOCALE } from '../i18n/runtime'
 import {
   paramsOf,
   tIn,
+  type MessageTriple,
   type RenderParams,
   type TranslateArgs,
   type TranslateDynamicFn,
@@ -36,16 +37,10 @@ export type ApiMessageParams = RenderParams
 
 /**
  * User-facing prose on a response: rendered English, plus the key and params it
- * was rendered from when the handler has one.
+ * was rendered from when the handler has one — a {@link MessageTriple} with
+ * flat params.
  */
-export type ApiMessage = {
-  /** Rendered English. Always present — the field every existing client reads. */
-  message: string
-  /** The catalog key `message` was rendered from, when the prose is localizable. */
-  messageKey?: MessageKey
-  /** The parameters that key interpolates. Absent for a message that takes none. */
-  messageParams?: ApiMessageParams
-}
+export type ApiMessage = MessageTriple<ApiMessageParams>
 
 /**
  * The shared API response envelope: did it work, and what to tell the user.
@@ -81,10 +76,11 @@ export function apiMessage<K extends MessageKey>(key: K, ...args: TranslateArgs<
  * the message together — and the response body must carry only the message
  * half. Spreading the outcome instead is how `ok` and `status` end up on the
  * wire, so the projection is written once here rather than at each `return`.
+ * Generic over the params, so it serves a sync message's nested params too.
  */
-export function pickMessage(source: ApiMessage): ApiMessage {
+export function pickMessage<P>(source: MessageTriple<P>): MessageTriple<P> {
   const { message, messageKey, messageParams } = source
-  const picked: ApiMessage = { message }
+  const picked: MessageTriple<P> = { message }
   if (messageKey !== undefined) picked.messageKey = messageKey
   if (messageParams !== undefined) picked.messageParams = messageParams
   return picked

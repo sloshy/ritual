@@ -12,14 +12,22 @@ import {
   type DeckParseResult,
 } from '../importers/text-file'
 import { unreadableLines } from '../list/markdown-fence'
-import { getErrorMessage } from '../util/errors'
-import { t } from '../i18n/t'
+import {
+  errorMessage,
+  errorParam,
+  isSyncMessage,
+  nestSync,
+  reasonFields,
+  syncMessage,
+  syncText,
+  type SyncMessage,
+  type SyncText,
+} from '../sync/message'
 import { parseDeckFrontMatter, type DeckFrontMatter } from '../list/deck-file'
 import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import type { ConfirmUnreadable } from '../sync/common'
 import { getDecksDir } from '../config/ritual-config'
 import type {
-  DeckSyncStatus,
   DeckSyncDeckResult,
   DeckSyncLogLevel,
   UnreadableDeck,
@@ -55,7 +63,7 @@ type DeckLink =
   | { kind: 'linked'; deck: SyncableDeck; frontMatter: ArchidektFrontMatter }
   | { kind: 'not-archidekt' }
   | { kind: 'missing-source-id'; name: string }
-  | { kind: 'unreadable'; name: string; message: string }
+  | { kind: 'unreadable'; name: string; error: SyncText }
 
 /** Classify one deck file by reading only its front matter. */
 async function readDeckLink(decksDir: string, file: string): Promise<DeckLink> {
@@ -68,7 +76,7 @@ async function readDeckLink(decksDir: string, file: string): Promise<DeckLink> {
     frontMatter = await parseDeckFrontMatter(filePath)
     name = await readDeckName(filePath)
   } catch (error: unknown) {
-    return { kind: 'unreadable', name: slug, message: getErrorMessage(error) }
+    return { kind: 'unreadable', name: slug, error: errorParam(error) }
   }
 
   if (!isArchidektDeck(frontMatter)) return { kind: 'not-archidekt' }
@@ -125,13 +133,31 @@ export async function listSyncableDecks(): Promise<SyncableDeck[]> {
 /** A loaded target waiting on the caller's decision about the lines it would drop. */
 type HeldTarget = { target: DeckTarget; deck: UnreadableDeck }
 
-/** A deck that could not be loaded: one message on the log, one result in the report. */
+/**
+ * Which deck a problem's log line names: a file found while syncing every
+ * linked deck, or a deck the caller named.
+ */
+type DeckProblemSubject = { scope: 'all'; file: string } | { scope: 'named'; deck: string }
+
+/**
+ * A deck that could not be loaded: one result in the report, and one line on
+ * the log — the reason itself, prefixed with the deck it is about when the
+ * reason does not name it.
+ */
 type DeckProblem = {
   name: string
-  status: DeckSyncStatus
-  reason: string
-  message: string
+  status: 'failed' | 'skipped'
+  reason: SyncMessage
+  subject?: DeckProblemSubject
   level: DeckSyncLogLevel
+}
+
+/** The log line for a problem: its reason, prefixed with the deck it is about. */
+function problemLine(reason: SyncMessage, subject: DeckProblemSubject | undefined): SyncMessage {
+  if (subject === undefined) return reason
+  return subject.scope === 'all'
+    ? syncMessage('domain.sync.skippingDeckFile', { file: subject.file, reason: nestSync(reason) })
+    : syncMessage('domain.sync.deckProblem', { deck: subject.deck, reason: nestSync(reason) })
 }
 
 /**
@@ -139,12 +165,12 @@ type DeckProblem = {
  * skipped-line warnings are returned rather than dropped (as `importFromTextFile`
  * would) — a line the parser cannot read is a line the save would delete.
  */
-async function loadDeckForSync(filePath: string): Promise<DeckParseResult | string> {
+async function loadDeckForSync(filePath: string): Promise<DeckParseResult | SyncMessage> {
   let text: string
   try {
     text = await Bun.file(filePath).text()
   } catch (error: unknown) {
-    return getErrorMessage(error)
+    return errorMessage(error)
   }
   return parseDeckText(text, path.basename(filePath, '.md'))
 }
@@ -161,9 +187,9 @@ export async function resolveTargetDecks(
   /** Targets held back until the unreadable lines they would drop are accepted. */
   const unreadable: HeldTarget[] = []
 
-  const problem = ({ name, status, reason, message, level }: DeckProblem): void => {
-    emit({ kind: 'log', level, item: null, message })
-    const result: DeckSyncDeckResult = { name, status, reason }
+  const problem = ({ name, status, reason, subject, level }: DeckProblem): void => {
+    emit({ kind: 'log', level, item: null, ...problemLine(reason, subject) })
+    const result: DeckSyncDeckResult = { name, status, ...reasonFields(reason) }
     problems.push(result)
     emit({ kind: 'item-result', result })
   }
@@ -176,12 +202,12 @@ export async function resolveTargetDecks(
     name: string,
   ): Promise<void> => {
     const loaded = await loadDeckForSync(filePath)
-    if (typeof loaded === 'string') {
+    if (isSyncMessage(loaded)) {
       problem({
         name,
         status: 'failed',
-        reason: `Could not read deck file: ${loaded}`,
-        message: `Could not read deck file for "${name}": ${loaded}`,
+        reason: syncMessage('domain.sync.deckFileUnreadable', { error: nestSync(loaded) }),
+        subject: { scope: 'named', deck: name },
         level: 'error',
       })
       return
@@ -217,8 +243,8 @@ export async function resolveTargetDecks(
         problem({
           name: link.name,
           status: 'failed',
-          reason: `unreadable front matter: ${link.message}`,
-          message: `Skipping ${file}: unreadable front matter (${link.message})`,
+          reason: syncMessage('domain.sync.frontMatterUnreadable', { error: link.error }),
+          subject: { scope: 'all', file },
           level: 'error',
         })
         continue
@@ -227,8 +253,8 @@ export async function resolveTargetDecks(
         problem({
           name: link.name,
           status: 'skipped',
-          reason: 'has Archidekt sourceUrl but no sourceId',
-          message: `Skipping ${file}: has Archidekt sourceUrl but no sourceId`,
+          reason: syncMessage('domain.sync.missingSourceId'),
+          subject: { scope: 'all', file },
           level: 'warn',
         })
         continue
@@ -244,8 +270,13 @@ export async function resolveTargetDecks(
     for (const name of deckNames) {
       const resolved = await resolveList(name, 'deck')
       if (isResolveListError(resolved)) {
-        const message = formatResolveListError(resolved, 'none')
-        problem({ name, status: 'failed', reason: message, message, level: 'error' })
+        // The resolver's own wording, which names the deck already.
+        problem({
+          name,
+          status: 'failed',
+          reason: syncText(formatResolveListError(resolved, 'none')),
+          level: 'error',
+        })
         continue
       }
 
@@ -257,8 +288,8 @@ export async function resolveTargetDecks(
         problem({
           name,
           status: 'failed',
-          reason: `unreadable front matter: ${link.message}`,
-          message: `Deck "${name}" has unreadable front matter: ${link.message}`,
+          reason: syncMessage('domain.sync.frontMatterUnreadable', { error: link.error }),
+          subject: { scope: 'named', deck: name },
           level: 'error',
         })
         continue
@@ -267,8 +298,8 @@ export async function resolveTargetDecks(
         problem({
           name,
           status: 'failed',
-          reason: 'not sourced from Archidekt',
-          message: `Deck "${name}" is not sourced from Archidekt`,
+          reason: syncMessage('domain.sync.notArchidekt'),
+          subject: { scope: 'named', deck: name },
           level: 'error',
         })
         continue
@@ -277,8 +308,8 @@ export async function resolveTargetDecks(
         problem({
           name,
           status: 'failed',
-          reason: 'has Archidekt sourceUrl but no sourceId',
-          message: `Deck "${name}" has Archidekt sourceUrl but no sourceId`,
+          reason: syncMessage('domain.sync.missingSourceId'),
+          subject: { scope: 'named', deck: name },
           level: 'error',
         })
         continue
@@ -310,7 +341,7 @@ export async function resolveTargetDecks(
           kind: 'log',
           level: 'error',
           item: null,
-          message: `Could not confirm the unreadable lines: ${getErrorMessage(error)}`,
+          ...syncMessage('domain.sync.confirmUnreadableFailed', { error: errorParam(error) }),
         })
       }
     }
@@ -319,12 +350,25 @@ export async function resolveTargetDecks(
         targets.push(entry.target)
         continue
       }
-      const lines = entry.deck.warnings.length
-      const reason = `${t('domain.count.unreadableLines', { count: lines })} would be dropped by a sync`
-      const result: DeckSyncDeckResult = { name: entry.deck.name, status: 'failed', reason }
+      const reason = syncMessage('domain.sync.unreadableDropped', {
+        count: entry.deck.warnings.length,
+      })
+      const result: DeckSyncDeckResult = {
+        name: entry.deck.name,
+        status: 'failed',
+        ...reasonFields(reason),
+      }
       // Logged like every other failure, so a refused deck carries its reason
       // inline rather than only in the list emitted above.
-      emit({ kind: 'log', level: 'warn', item: null, message: `${entry.deck.file}: ${reason}` })
+      emit({
+        kind: 'log',
+        level: 'warn',
+        item: null,
+        ...syncMessage('domain.sync.itemReason', {
+          item: entry.deck.file,
+          reason: nestSync(reason),
+        }),
+      })
       problems.push(result)
       emit({ kind: 'item-result', result })
     }

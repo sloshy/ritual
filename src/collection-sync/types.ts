@@ -16,7 +16,21 @@ import type {
   SyncLogLevel,
   UnreadableSource,
 } from '../sync/common'
-import { syncCancellationLog, SYNC_CANCELLED_REASON } from '../sync/common'
+import { cancelledReason, syncCancellationLog } from '../sync/common'
+import type {
+  SyncedOutcome,
+  SyncItemResultBase,
+  SyncItemStanding,
+  UnreachedOutcome,
+} from '../sync/common'
+import {
+  joinSyncMessages,
+  reasonFields,
+  syncMessage,
+  syncMessageOf,
+  type SyncMessage,
+  type SyncParam,
+} from '../sync/message'
 import { collectionChangeCounts, collectionChangePlace, collectionListLines } from './describe'
 import { recordCardChange } from './card-changes'
 import type { ScryfallCard } from '../scryfall/types'
@@ -80,11 +94,14 @@ export type CollectionSyncCardPending = CollectionSyncCopies<'pending'>
 export type CollectionSyncCardChange =
   CollectionSyncCardAdded | CollectionSyncCardRemoved | CollectionSyncCardPending
 
-/** One collection list's outcome in a sync report. */
-export type CollectionSyncListResult = {
+/**
+ * One collection list's outcome in a sync report. `outcome` is the code a
+ * script branches on; `reason` is English prose, with `reasonKey` /
+ * `reasonParams` for a reader that renders it in its own language (see
+ * `SyncItemResultBase`).
+ */
+export type CollectionSyncListResult = SyncItemResultBase & {
   name: string
-  status: CollectionSyncStatus
-  reason?: string
   /** Copies added: written into this list on a pull, created or grown remotely on a push. */
   added: number
   /** Copies removed: deleted from this list on a pull, trimmed or deleted remotely on a push. */
@@ -192,11 +209,11 @@ export type CollectionSyncCsv =
   | (CollectionSyncCsvCounts & { status: 'planned'; destination: 'upload' })
   /** A dry run's preview of a `csvFile` run, naming the file it would have written. */
   | (CollectionSyncCsvCounts & { status: 'planned'; destination: 'export'; path: string })
-  | (CollectionSyncCsvCounts & {
-      status: 'failed'
-      /** Why the whole CSV failed. The rest of the run went ahead regardless. */
-      message: string
-    })
+  /**
+   * The whole CSV failed; the rest of the run went ahead regardless. `message`
+   * is why, in English, with `messageKey` / `messageParams` beside it.
+   */
+  | (CollectionSyncCsvCounts & SyncMessage & { status: 'failed' })
   /**
    * The CSV path was taken but no row could be built: every addition's printing is
    * missing from the local Scryfall cache ({@link CollectionSyncCsvCounts.uncached}
@@ -216,9 +233,13 @@ export type CollectionSyncReport = {
   /**
    * Failures that belong to the run rather than to one list — the collection
    * fetch, or deleting records for cards that live in no list any more.
-   * Callers deciding an exit code must treat these as failures too.
+   * Callers deciding an exit code must treat these as failures too. English;
+   * {@link errorMessages} holds the same failures, in the same order, as
+   * messages a reader can render in its own language.
    */
   errors: string[]
+  /** {@link errors} as messages: English `message` plus `messageKey` / `messageParams`. */
+  errorMessages: SyncMessage[]
   /**
    * Lists holding lines the parser cannot read, with those lines. Reported
    * whether the run went ahead or refused them, so the JSON report and the
@@ -283,7 +304,7 @@ export type ScryfallIdLookup = (ids: readonly string[]) => Promise<Map<string, S
  * scripted run (`--output json`) carries the reason too.
  */
 export type AmbiguityResolutionOutcome =
-  { ok: true; assignments: RemovalAssignment[] } | { ok: false; message: string }
+  { ok: true; assignments: RemovalAssignment[] } | { ok: false; message: SyncMessage }
 
 /**
  * Decide where every ambiguous removal takes its copies from, in one go.
@@ -323,7 +344,7 @@ export type CsvUploadDecision =
   | { kind: 'upload' }
   | { kind: 'export'; path: string }
   | { kind: 'individual' }
-  | { kind: 'abort'; message: string }
+  | { kind: 'abort'; message: SyncMessage }
 
 /**
  * Decide how a push's additions reach Archidekt when there are more of them than
@@ -465,7 +486,7 @@ export type CollectionSyncOptions = {
   /**
    * Cancel the run. Honoured at list boundaries only — and, on a pull, before
    * the remote collection is fetched: the list in flight finishes, every list
-   * after it is reported `skipped` with `SYNC_CANCELLED_REASON`, and the
+   * after it is reported `skipped` with the `cancelled` outcome, and the
    * report's `cancelled` flag is set. A cancelled run records no sync
    * timestamp: the lists and the account did not agree when it stopped.
    */
@@ -487,12 +508,21 @@ export type CollectionSyncRun = {
 
 // ── Per-list result bookkeeping ───────────────────────────────────────
 
+/**
+ * Where a list's result stands while the run is still adding to it: the
+ * standings a list can reach before its turn ends (failed, skipped), or `open`
+ * — a list whose turn has not ended, and which never becomes `synced` by
+ * default: only {@link ListResults.succeed} says it synced, and with what
+ * outcome.
+ */
+export type ListResultState = { status: 'open' } | Exclude<SyncItemStanding, { status: 'synced' }>
+
 /** A list's result while the run is still adding to it. */
 export type MutableListResult = {
   name: string
-  status: CollectionSyncStatus
+  state: ListResultState
   /** Every reason recorded for the list; joined into the final result. */
-  reasons: string[]
+  reasons: SyncMessage[]
   /** What went through for the list; its counts are derived from these. */
   changes: CollectionSyncCardChange[]
 }
@@ -506,12 +536,31 @@ export type ListResults = {
   track(name: string): MutableListResult
   /** Record a change that went through for a list; see `recordCardChange`. */
   record(name: string, change: CollectionSyncCardChange): void
-  fail(name: string, reason: string): void
-  /** Mark a list stepped over — cancelled before it started, say — without failing it. */
-  skip(name: string, reason: string): void
-  /** Emit a list's result and return it; later calls return the same result. */
-  finish(name: string, reason?: string): CollectionSyncListResult
-  /** Every tracked list's result, finishing any the run left open. */
+  /**
+   * Mark a list failed. Failing wins over everything else said about it, and a
+   * reason the list already holds is not added twice (a CSV import that lost 40
+   * of its rows says why once).
+   */
+  fail(name: string, reason: SyncMessage): void
+  /**
+   * Mark a list stepped over — cancelled before it started, say — without
+   * failing it. A list that already failed stays failed: the failure is what
+   * happened to it, and a later cancellation does not undo it.
+   */
+  skip(name: string, reason: SyncMessage, outcome?: UnreachedOutcome): void
+  /**
+   * End a list's turn as synced, saying what came of it — unless it already
+   * failed or was skipped, which stands. Emits the result and returns it; later
+   * calls return the same result.
+   */
+  succeed(name: string, outcome: SyncedOutcome, reason?: SyncMessage): CollectionSyncListResult
+  /**
+   * Emit a list's result as it stands — for a list that failed or was skipped.
+   * A list still open (its turn never came: the run stopped first) is reported
+   * `skipped` with the "not synced" reason, never as synced.
+   */
+  finish(name: string): CollectionSyncListResult
+  /** Every tracked list's result, finishing any the run left open (see {@link finish}). */
   all(): CollectionSyncListResult[]
 }
 
@@ -522,54 +571,95 @@ export function createListResults(emit: CollectionSyncEventHandler): ListResults
   const track = (name: string): MutableListResult => {
     const existing = tracked.get(name)
     if (existing) return existing
-    const created: MutableListResult = {
-      name,
-      status: 'synced',
-      reasons: [],
-      changes: [],
-    }
+    const created: MutableListResult = { name, state: { status: 'open' }, reasons: [], changes: [] }
     tracked.set(name, created)
     return created
   }
 
-  const finish = (name: string, reason?: string): CollectionSyncListResult => {
-    const already = finished.get(name)
-    if (already) return already
-    const entry = track(name)
-    if (reason) entry.reasons.push(reason)
+  /** Build, record and emit a list's result; the outcome is decided by the caller. */
+  const emitResult = (
+    entry: MutableListResult,
+    standing: SyncItemStanding,
+  ): CollectionSyncListResult => {
+    const [first, ...rest] = entry.reasons
     // The counts are the changes' totals, so the two can never disagree.
     const result: CollectionSyncListResult = {
       name: entry.name,
-      status: entry.status,
-      reason: entry.reasons.length > 0 ? entry.reasons.join('; ') : undefined,
+      ...standing,
+      ...(first === undefined ? {} : reasonFields(joinSyncMessages([first, ...rest]))),
       ...collectionChangeCounts(entry.changes),
       ...(entry.changes.length > 0 ? { changes: [...entry.changes] } : {}),
     }
-    finished.set(name, result)
+    finished.set(entry.name, result)
     emit({ kind: 'item-result', result })
     return result
   }
 
+  /** The standing of a list that did not sync: failed, skipped, or never reached. */
+  const unsynced = (entry: MutableListResult): SyncItemStanding => {
+    switch (entry.state.status) {
+      case 'failed':
+        return { status: 'failed' }
+      case 'skipped':
+        return entry.state.outcome === undefined
+          ? { status: 'skipped' }
+          : { status: 'skipped', outcome: entry.state.outcome }
+      case 'open':
+        // Its turn never came — an earlier refusal stopped the run. Nothing was
+        // done to it, which is not the same as finding it already in sync.
+        entry.reasons.push(notRunReason())
+        return { status: 'skipped', outcome: 'not-run' }
+    }
+  }
+
+  const finish = (name: string): CollectionSyncListResult =>
+    finished.get(name) ?? emitResult(track(name), unsynced(track(name)))
+
+  // `record` and `fail` are never called for a list that already finished: a
+  // push runs each operation at the turn of its *first* holding list
+  // (`operation.lists[0]`, in scope order), so every list it credits or fails
+  // is that one or a later one, still open; the CSV path and a pull's target
+  // resolution run before any list's turn. A call after `finish` would be
+  // lost from the emitted result, which is why the order matters.
   return {
     track,
     record(name: string, change: CollectionSyncCardChange): void {
       recordCardChange(track(name).changes, change)
     },
-    fail(name: string, reason: string): void {
+    fail(name: string, reason: SyncMessage): void {
       const entry = track(name)
-      entry.status = 'failed'
+      entry.state = { status: 'failed' }
+      if (!entry.reasons.some((held) => sameMessage(held, reason))) entry.reasons.push(reason)
+    },
+    skip(name: string, reason: SyncMessage, outcome?: UnreachedOutcome): void {
+      const entry = track(name)
+      if (entry.state.status === 'failed') return
+      entry.state = outcome === undefined ? { status: 'skipped' } : { status: 'skipped', outcome }
       entry.reasons.push(reason)
     },
-    skip(name: string, reason: string): void {
+    succeed(name: string, outcome: SyncedOutcome, reason?: SyncMessage): CollectionSyncListResult {
+      const already = finished.get(name)
+      if (already) return already
       const entry = track(name)
-      entry.status = 'skipped'
-      entry.reasons.push(reason)
+      if (entry.state.status !== 'open') return emitResult(entry, unsynced(entry))
+      if (reason) entry.reasons.push(reason)
+      return emitResult(entry, { status: 'synced', outcome })
     },
     finish,
     all(): CollectionSyncListResult[] {
       return [...tracked.keys()].map((name) => finish(name))
     },
   }
+}
+
+/** Whether two reasons say the same thing: the same English from the same key. */
+function sameMessage(a: SyncMessage, b: SyncMessage): boolean {
+  return a.message === b.message && a.messageKey === b.messageKey
+}
+
+/** The reason a list carries when the run stopped before its turn. */
+function notRunReason(): SyncMessage {
+  return syncMessage('domain.sync.reasonNotRun')
 }
 
 /**
@@ -591,7 +681,7 @@ export function markCancelled(
     // it); its result reports them, so its lines say them too.
     const { changes } = results.track(name)
     emitListLines(emit, name, changes, collectionChangePlace(direction, name))
-    results.skip(name, SYNC_CANCELLED_REASON)
+    results.skip(name, cancelledReason(), 'cancelled')
     results.finish(name)
   }
 }
@@ -606,10 +696,10 @@ export function emitListLines(
   emit: CollectionSyncEventHandler,
   list: string,
   changes: readonly CollectionSyncCardChange[],
-  place: string,
+  place: SyncParam,
 ): void {
   for (const line of collectionListLines(changes, place)) {
-    emit({ kind: 'log', level: line.level, item: list, message: line.text })
+    emit({ kind: 'log', level: line.level, item: list, ...syncMessageOf(line.text) })
   }
 }
 
@@ -654,7 +744,7 @@ export type SyncFlow = {
 /** What one direction's flow produced beyond its per-list results. */
 export type FlowOutcome = {
   writtenFiles: string[]
-  errors: string[]
+  errors: SyncMessage[]
   ambiguous: AmbiguousRemoval[]
   /** What the CSV path did with a push's additions; null when it was not taken. */
   csv: CollectionSyncCsv | null
@@ -681,7 +771,7 @@ export type FlowOutcome = {
  * `unresolvedAmbiguity` says the ambiguity is *why* it stopped.
  */
 export function abortedOutcome(
-  errors: string[],
+  errors: SyncMessage[],
   ambiguous: AmbiguousRemoval[] = [],
   unresolvedAmbiguity = false,
 ): FlowOutcome {

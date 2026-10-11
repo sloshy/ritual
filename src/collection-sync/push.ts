@@ -4,10 +4,21 @@
  * additions through `push-csv`, and recording what landed.
  */
 
-import { getErrorMessage } from '../util/errors'
-import { t } from '../i18n/t'
-import { describeSkippedChanges } from '../sync/common'
-import { archidektPlace, describeCollectionCardChange } from './describe'
+import { describeSkippedChanges, dryRunReason, noChangesReason } from '../sync/common'
+import {
+  errorParam,
+  isSyncMessage,
+  syncMessage,
+  syncText,
+  toSyncMessage,
+  type SyncMessage,
+} from '../sync/message'
+import {
+  archidektPlace,
+  collectionChangeCounts,
+  describeCollectionCardChange,
+  describeCollectionChangeSummary,
+} from './describe'
 import { describeSyncCard } from '../sync/describe'
 import { pushOperationChange, recordCardChange } from './card-changes'
 import {
@@ -42,7 +53,7 @@ export async function pushToArchidekt(
   names: string[],
 ): Promise<FlowOutcome> {
   const { emit, results } = flow
-  const errors: string[] = []
+  const errors: SyncMessage[] = []
 
   // How the additions reach Archidekt is settled *before* the first remote
   // write, the way an ambiguous removal is settled before the first file write: a
@@ -50,8 +61,8 @@ export async function pushToArchidekt(
   // half-pushed.
   let planned = planOperations(flow, local, remote)
   const routed = await routeAdditions(flow, planned.creates)
-  if (typeof routed === 'string') {
-    emit({ kind: 'log', level: 'error', item: null, message: routed })
+  if (isSyncMessage(routed)) {
+    emit({ kind: 'log', level: 'error', item: null, ...routed })
     return abortedOutcome([routed])
   }
   const { route } = routed
@@ -70,13 +81,13 @@ export async function pushToArchidekt(
   const { plan, creates, withheldCopies } = planned
   let { operations } = planned
   const skippedMessage = describeSkippedChanges(flow.only, plan.skipped)
-  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, message: skippedMessage })
+  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, ...skippedMessage })
   if (withheldCopies > 0) {
     emit({
       kind: 'log',
       level: 'error',
       item: null,
-      message: `Not removing ${t('domain.count.copies', { count: withheldCopies })} from Archidekt: some collection lists in scope could not be read, so cards they still hold would look gone. Fix or accept those lists and run again.`,
+      ...syncMessage('domain.sync.pushRemovalsWithheld', { count: withheldCopies }),
     })
   }
 
@@ -149,12 +160,18 @@ export async function pushToArchidekt(
     const entry = results.track(name)
     if (entry.changes.length > 0) {
       emitListLines(emit, name, entry.changes, archidektPlace())
+      if (flow.dryRun) {
+        // Summarized like every other preview: what a real run would change.
+        const summary = describeCollectionChangeSummary(collectionChangeCounts(entry.changes))
+        results.succeed(name, 'dry-run', dryRunReason(summary))
+      } else {
+        results.succeed(name, 'changed')
+      }
+    } else if (entry.state.status === 'failed') {
       results.finish(name)
-    } else if (entry.status !== 'failed' && owned.length === 0) {
-      emit({ kind: 'log', level: 'info', item: name, message: 'No changes.' })
-      results.finish(name, 'no changes')
     } else {
-      results.finish(name)
+      emit({ kind: 'log', level: 'info', item: name, ...syncMessage('domain.sync.noChanges') })
+      results.succeed(name, 'unchanged', noChangesReason())
     }
   }
 
@@ -179,7 +196,7 @@ export async function pushToArchidekt(
       kind: 'log',
       level: 'detail',
       item: null,
-      message: describeCollectionCardChange(change, archidektPlace()),
+      ...toSyncMessage(describeCollectionCardChange(change, archidektPlace())),
     })
   }
 
@@ -243,8 +260,10 @@ function planOperations(
 type PushedChange = CollectionSyncCardAdded | CollectionSyncCardRemoved
 
 /** The reason recorded when an orphaned operation fails; the log carries the detail. */
-function pushFailureReason(operation: PushOperation): string {
-  return `Failed to remove ${describeSyncCard(operation.name, operation.parts)} from Archidekt`
+function pushFailureReason(operation: PushOperation): SyncMessage {
+  return syncMessage('domain.sync.removeFromArchidektFailed', {
+    card: describeSyncCard(operation.name, operation.parts),
+  })
 }
 
 /**
@@ -269,8 +288,8 @@ async function runPushOperation(
   const label = describeSyncCard(operation.name, operation.parts)
   const change = pushOperationChange(operation)
 
-  const fail = (reason: string): null => {
-    emit({ kind: 'log', level: 'error', item: list, message: reason })
+  const fail = (reason: SyncMessage): null => {
+    emit({ kind: 'log', level: 'error', item: list, ...reason })
     for (const name of operation.lists) results.fail(name, reason)
     return null
   }
@@ -282,7 +301,7 @@ async function runPushOperation(
     // Said before anything is sent (and on dry runs too): the record about to be
     // created will not carry the language the local line does.
     const languageWarning = unmappableLanguageWarning(operation.name, operation.parts)
-    if (languageWarning) emit({ kind: 'log', level: 'warn', item: list, message: languageWarning })
+    if (languageWarning) emit({ kind: 'log', level: 'warn', item: list, ...languageWarning })
     // A preview of a CSV-routed run does not resolve the printings the cache
     // could not key (the run-level warning says they go one at a time).
     if (dryRun && csvRouted) return done()
@@ -294,12 +313,12 @@ async function runPushOperation(
       token,
       operation.parts.collectorNumber,
     )
-    if (typeof found === 'string') return fail(found)
+    if (typeof found === 'string') return fail(syncText(found))
     if (dryRun) return done()
     try {
       await client.createCollectionRecord(createRecordBody(operation, found.id), token)
     } catch (error: unknown) {
-      return fail(`Failed to add ${label}: ${getErrorMessage(error)}`)
+      return fail(syncMessage('domain.sync.addFailed', { card: label, error: errorParam(error) }))
     }
     return done()
   }
@@ -309,7 +328,9 @@ async function runPushOperation(
     try {
       await client.updateCollectionRecord(operation.record.id, updateRecordBody(operation), token)
     } catch (error: unknown) {
-      return fail(`Failed to update ${label}: ${getErrorMessage(error)}`)
+      return fail(
+        syncMessage('domain.sync.updateFailed', { card: label, error: errorParam(error) }),
+      )
     }
     return done()
   }
@@ -321,7 +342,7 @@ async function runPushOperation(
       token,
     )
   } catch (error: unknown) {
-    return fail(`Failed to remove ${label}: ${getErrorMessage(error)}`)
+    return fail(syncMessage('domain.sync.removeFailed', { card: label, error: errorParam(error) }))
   }
   return done()
 }

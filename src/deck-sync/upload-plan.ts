@@ -5,7 +5,8 @@
  */
 
 import type { ArchidektClient } from '../clients/ArchidektClient'
-import { t } from '../i18n/t'
+import type { SelectBranch } from '../i18n/t'
+import { isSyncMessage, syncList, syncMessage, syncText, type SyncMessage } from '../sync/message'
 import type { Card } from '../card/card'
 import type { Board, DeckSection } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
@@ -167,7 +168,11 @@ function selectRelations(
 
 export type UploadPlan = {
   entries: ModifyCardEntry[]
-  errors: string[]
+  /**
+   * Why each entry the plan could not build was left out. A failure the
+   * Archidekt client raised is carried as its own text (`syncText`).
+   */
+  errors: SyncMessage[]
   /**
    * The part of the diff the entries carry out: the input diff less every
    * entry an error kept out of the plan, with a board move that could only
@@ -215,7 +220,8 @@ function modificationsFromRaw(
 }
 
 /** The modifier a printing sync sends, or the reason it cannot. */
-type ResolvedModifier = { ok: true; modifier: ArchidektCardModifier } | { ok: false; error: string }
+type ResolvedModifier =
+  { ok: true; modifier: ArchidektCardModifier } | { ok: false; error: SyncMessage }
 
 /**
  * The modifier for a local finish against the printing's valid options. A
@@ -235,7 +241,12 @@ function resolveModifier(
   if (finish !== undefined) {
     return {
       ok: false,
-      error: `Finish "${finish}" is not offered for ${cardLabel} on Archidekt (valid: ${options.join(', ')})`,
+      error: syncMessage('domain.sync.finishNotOffered', {
+        finish,
+        card: cardLabel,
+        // Archidekt's own modifier names (`Normal`, `Foil`), never translated.
+        valid: syncList([...options], 'unit'),
+      }),
     }
   }
   return { ok: true, modifier: options[0] ?? 'Normal' }
@@ -260,7 +271,7 @@ async function resolvePrintingTarget(
   current: PlannedRelation,
   client: ArchidektClient,
   token: string,
-): Promise<ResolvedPrintingTarget | string> {
+): Promise<ResolvedPrintingTarget | SyncMessage> {
   const remoteCard = current.raw.card
   let cardid = remoteCard.id
   let options = remoteCard.options
@@ -279,7 +290,7 @@ async function resolvePrintingTarget(
         token,
         update.to.collectorNumber,
       )
-      if (typeof result === 'string') return result
+      if (typeof result === 'string') return syncText(result)
       cardid = result.id
       options = result.options
     }
@@ -290,8 +301,11 @@ async function resolvePrintingTarget(
   return { cardid, modifier: resolved.modifier }
 }
 
-/** What the plan was trying to do to a card, for the message when it cannot. */
-type PlanVerb = 'remove' | 'update the printing' | 'update the quantity' | 'change the board'
+/**
+ * What the plan was doing to a card when its relations went missing — the
+ * branch of the error's wording, read off the catalog so the two cannot drift.
+ */
+type PlanAction = SelectBranch<'domain.sync.planCardMissing'>
 
 /** A card to add to the remote deck, once its edition has been resolved. */
 type ResolvedAdd = {
@@ -440,7 +454,7 @@ export async function buildUploadPlan(
   // relations, so the state must be this plan's own.
   const rawIndex = buildRawCardIndex(rawDeck)
   const categoryIndex = indexArchidektCategories(rawDeck.categories)
-  const errors: string[] = []
+  const errors: SyncMessage[] = []
   const categoriesChanged: CategoryChangeInput[] = []
   /** Diff entries an error kept out of the plan, by identity. */
   const failed = new Set<DiffEntry>()
@@ -469,7 +483,7 @@ export async function buildUploadPlan(
     name: string,
     board: Board,
     printing: DeckPrintingRef | undefined,
-    verb: PlanVerb,
+    action: PlanAction,
   ): PlannedRelation[] => {
     const indexed = rawIndex.get(name.toLowerCase())
     const relations = indexed ? selectRelations(indexed, board, printing) : []
@@ -478,7 +492,7 @@ export async function buildUploadPlan(
     if (relations.length === 0) {
       failed.add(entry)
       errors.push(
-        `Cannot ${verb} for card not found in Archidekt deck: ${printingLabel(name, printing)}`,
+        syncMessage('domain.sync.planCardMissing', { action, card: printingLabel(name, printing) }),
       )
     }
     return relations
@@ -505,18 +519,12 @@ export async function buildUploadPlan(
   // own quantity. Re-using the relation rather than adding a new one preserves
   // its Archidekt categories, label, and placement.
   for (const update of diff.printingUpdates) {
-    const relations = relationsFor(
-      update,
-      update.name,
-      update.board,
-      update.from,
-      'update the printing',
-    )
+    const relations = relationsFor(update, update.name, update.board, update.from, 'printing')
     const first = relations[0]
     if (!first) continue
 
     const target = await resolvePrintingTarget(update, first, client, token)
-    if (typeof target === 'string') {
+    if (isSyncMessage(target)) {
       failed.add(update)
       errors.push(target)
       continue
@@ -553,13 +561,7 @@ export async function buildUploadPlan(
   // Decreases run before the board moves and increases after them, matching
   // the quantities the diff states.
   const applyQuantity = (entry: QuantityChange): void => {
-    const relations = relationsFor(
-      entry,
-      entry.name,
-      entry.board,
-      entry.printing,
-      'update the quantity',
-    )
+    const relations = relationsFor(entry, entry.name, entry.board, entry.printing, 'quantity')
     const quantities = distributeQuantity(
       relations.map((relation) => relation.quantity),
       entry.newQty,
@@ -570,15 +572,17 @@ export async function buildUploadPlan(
 
   for (const move of phases.boardMoves) {
     const indexed = rawIndex.get(move.name.toLowerCase())
-    const relations = relationsFor(move, move.name, move.from, move.printing, 'change the board')
+    const relations = relationsFor(move, move.name, move.from, move.printing, 'board')
     if (indexed === undefined || relations.length === 0) continue
     const missing = planBoardMove(indexed, relations, move, categoryIndex)
     if (missing > 0) {
       movesShort.set(move, missing)
       errors.push(
-        `Cannot change the board for ${t('domain.count.copies', { count: missing })} of ` +
-          `${printingLabel(move.name, move.printing)}: the Archidekt ${move.from} board ` +
-          'does not hold them',
+        syncMessage('domain.sync.boardMoveShortfall', {
+          count: missing,
+          card: printingLabel(move.name, move.printing),
+          board: move.from,
+        }),
       )
     }
   }
@@ -621,7 +625,7 @@ export async function buildUploadPlan(
     const result = await client.searchCards(card.name, searchSet, token, printing?.collectorNumber)
     if (typeof result === 'string') {
       failed.add(card)
-      errors.push(result)
+      errors.push(syncText(result))
       continue
     }
     let modifier = result.options[0] ?? 'Normal'

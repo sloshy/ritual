@@ -26,8 +26,8 @@ import type {
   CollectionSyncPrinting,
 } from '../../../src/collection-sync/engine'
 import { collectionChangeCounts, collectionRunLines } from '../../../src/collection-sync/describe'
+import { renderSyncMessage, syncText, type SyncMessage } from '../../../src/sync/message'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
-import { SYNC_CANCELLED_REASON } from '../../../src/sync/common'
 import type { UploadCacheReady } from '../../../src/cache/freshness'
 import {
   collectionPage,
@@ -96,10 +96,10 @@ function fakeStore(lists: FakeListInput[], failApplyFor?: string): FakeStore {
       )
     },
 
-    load(name: string): Promise<LoadedCollectionList | string> {
+    load(name: string): Promise<LoadedCollectionList | SyncMessage> {
       store.loaded.push(name)
       const entries = entriesByList.get(name)
-      if (!entries) return Promise.resolve(`no such list '${name}'`)
+      if (!entries) return Promise.resolve(syncText(`no such list '${name}'`))
       return Promise.resolve({
         name,
         file: `${name}.md`,
@@ -115,7 +115,7 @@ function fakeStore(lists: FakeListInput[], failApplyFor?: string): FakeStore {
       return Promise.resolve([`${name}.md`, `${name}.md.sha256`, `${name}.changes.md`])
     },
 
-    create(name: string): Promise<CreatedCollectionList | string> {
+    create(name: string): Promise<CreatedCollectionList | SyncMessage> {
       const slug = name.trim().toLowerCase().replace(/\s+/g, '-')
       store.created.push(slug)
       order.push(slug)
@@ -370,9 +370,9 @@ describe('runCollectionSync (cancellation)', () => {
     // The list in flight is written in full; the one after it never starts.
     expect(store.applied.map((applied) => applied.list)).toEqual(['blue-binder'])
     expect(run.report.cancelled).toBe(true)
-    expect(run.report.lists.map((list) => [list.name, list.status, list.reason])).toEqual([
-      ['blue-binder', 'synced', undefined],
-      ['long-box', 'skipped', SYNC_CANCELLED_REASON],
+    expect(run.report.lists.map((list) => [list.name, list.status, list.outcome])).toEqual([
+      ['blue-binder', 'synced', 'changed'],
+      ['long-box', 'skipped', 'cancelled'],
     ])
     expect(run.report.failedCount).toBe(0)
     expect(run.report.totals.removed).toBe(1)
@@ -401,9 +401,9 @@ describe('runCollectionSync (cancellation)', () => {
     expect(store.applied).toEqual([])
     expect(run.report.cancelled).toBe(true)
     expect(run.report.errors).toEqual([])
-    expect(run.report.lists.map((list) => [list.status, list.reason])).toEqual([
-      ['skipped', SYNC_CANCELLED_REASON],
-      ['skipped', SYNC_CANCELLED_REASON],
+    expect(run.report.lists.map((list) => [list.status, list.outcome])).toEqual([
+      ['skipped', 'cancelled'],
+      ['skipped', 'cancelled'],
     ])
     expect(state.written).toEqual([])
   })
@@ -438,9 +438,9 @@ describe('runCollectionSync (cancellation)', () => {
     expect(creates).toHaveLength(1)
     expect(requests.some((request) => request.url.includes('nameSearch=Lightning'))).toBe(false)
     expect(run.report.cancelled).toBe(true)
-    expect(run.report.lists.map((list) => [list.name, list.status, list.reason])).toEqual([
-      ['blue-binder', 'synced', undefined],
-      ['long-box', 'skipped', SYNC_CANCELLED_REASON],
+    expect(run.report.lists.map((list) => [list.name, list.status, list.outcome])).toEqual([
+      ['blue-binder', 'synced', 'changed'],
+      ['long-box', 'skipped', 'cancelled'],
     ])
     expect(run.report.totals.added).toBe(1)
   })
@@ -473,6 +473,25 @@ describe('runCollectionSync (pull)', () => {
     expect(state.written).toHaveLength(1)
     expect(state.written[0]?.username).toBe(TEST_ACCOUNT.username)
     expect(state.written[0]?.userId).toBe(TEST_ACCOUNT.id)
+  })
+
+  test('a list that already matches the account is unchanged, and says so', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+    ])
+    const { client } = mockArchidekt({
+      pages: [[record({ id: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' })]],
+    })
+
+    const { run } = await sync({ direction: 'pull', client, store, state: fakeState() })
+
+    expect(run.report.lists).toHaveLength(1)
+    expect(run.report.lists[0]).toMatchObject({
+      name: 'blue-binder',
+      status: 'synced',
+      outcome: 'unchanged',
+      reason: 'no changes',
+    })
   })
 
   test('removes surplus copies from the one list holding them', async () => {
@@ -547,6 +566,13 @@ describe('runCollectionSync (pull)', () => {
     expect(logs).toContain(
       '[dry-run] Would create collection list "Inbox" for the cards being added.',
     )
+    // Every list the preview covers says so, with what a real run would change —
+    // the target it would create included.
+    expect(run.report.lists).toHaveLength(2)
+    for (const list of run.report.lists) {
+      expect(list.outcome).toBe('dry-run')
+      expect(list.reason).toStartWith('dry-run: ')
+    }
   })
 
   test('--only additions leaves local-only cards alone and says what it skipped', async () => {
@@ -629,6 +655,9 @@ describe('runCollectionSync (pull)', () => {
 
     expect(run.report.failedCount).toBe(1)
     expect(run.report.lists[0]?.reason).toContain('disk is full')
+    // A failure says nothing about the outcome — its reason does.
+    expect(run.report.lists[0]?.status).toBe('failed')
+    expect(run.report.lists[0]?.outcome).toBeUndefined()
     expect(run.report.totals.removed).toBe(0)
     // Nothing went through, so nothing is listed — in the report or the log.
     expect(run.report.lists[0]?.changes).toBeUndefined()
@@ -741,6 +770,13 @@ describe('runCollectionSync (ambiguous removals)', () => {
     expect(logs).toContain(
       'Not removing 2 × Sol Ring (LTC:284): ambiguous — copies live in "blue-binder" (1) and "long-box" (2).',
     )
+    // The lists the refused run never reached are not passed off as unchanged.
+    expect(
+      run.report.lists.map((list) => [list.name, list.status, list.outcome, list.reason]),
+    ).toEqual([
+      ['blue-binder', 'skipped', 'not-run', 'not synced: the run stopped before this list'],
+      ['long-box', 'skipped', 'not-run', 'not synced: the run stopped before this list'],
+    ])
   })
 
   test('a removal priority places the copies and says which list lost them', async () => {
@@ -809,6 +845,28 @@ describe('runCollectionSync (ambiguous removals)', () => {
     // The names are local facts, so the refusal costs no network at all — a
     // typo must not be paid for with a full collection fetch first.
     expect(requests).toEqual([])
+    // Every list in scope is reported as one the refused run never reached.
+    expect(run.report.lists.map((list) => [list.name, list.status, list.outcome])).toEqual([
+      ['blue-binder', 'skipped', 'not-run'],
+      ['long-box', 'skipped', 'not-run'],
+    ])
+  })
+
+  test('every problem with a priority is reported at once, as joined clauses', async () => {
+    const store = ambiguousStore()
+    const { client } = oneSolRing()
+
+    const { run } = await sync({
+      direction: 'pull',
+      client,
+      store,
+      state: fakeState(),
+      removalPriority: ['card-shop', 'shoebox'],
+    })
+
+    expect(run.report.errors).toEqual([
+      'Cannot use the removal priority: no collection list is named "card-shop"; no collection list is named "shoebox".',
+    ])
   })
 
   test('a priority naming two lists at once says which they are', async () => {
@@ -901,7 +959,7 @@ describe('runCollectionSync (ambiguous removals)', () => {
       removalPriority: ['long-box'],
       resolveAmbiguous: () => {
         asked = true
-        return { ok: false, message: 'asked anyway.' }
+        return { ok: false, message: syncText('asked anyway.') }
       },
     })
 
@@ -915,7 +973,7 @@ describe('runCollectionSync (ambiguous removals)', () => {
     const { client } = oneSolRing()
     const calls: number[] = []
 
-    const { run } = await sync({
+    const { run, logs } = await sync({
       direction: 'pull',
       client,
       store,
@@ -937,6 +995,9 @@ describe('runCollectionSync (ambiguous removals)', () => {
 
     expect(calls).toEqual([1])
     expect(run.report.errors).toEqual([])
+    // Each placement says it came from the resolver, not from a priority.
+    expect(logs).toContain('Removing 1 × Sol Ring (LTC:284) from "blue-binder" (resolved).')
+    expect(logs).toContain('Removing 1 × Sol Ring (LTC:284) from "long-box" (resolved).')
     // One copy from each binder, plus the Black Lotus that was never ambiguous.
     expect(store.applied.map((applied) => [applied.list, removedIds(applied.changes)])).toEqual([
       ['blue-binder', [2, 1]],
@@ -955,7 +1016,7 @@ describe('runCollectionSync (ambiguous removals)', () => {
       client,
       store,
       state,
-      resolveAmbiguous: () => ({ ok: false, message: 'Cancelled after 1 of 2 copies.' }),
+      resolveAmbiguous: () => ({ ok: false, message: syncText('Cancelled after 1 of 2 copies.') }),
     })
 
     expect(store.applied).toEqual([])
@@ -1002,7 +1063,7 @@ describe('runCollectionSync (ambiguous removals)', () => {
       dryRun: true,
       resolveAmbiguous: () => {
         asked = true
-        return { ok: false, message: 'asked anyway.' }
+        return { ok: false, message: syncText('asked anyway.') }
       },
     })
 
@@ -1373,7 +1434,7 @@ describe('runCollectionSync (push)', () => {
       {
         name: 'blue-binder',
         status: 'synced',
-        reason: undefined,
+        outcome: 'changed',
         added: 2,
         removed: 0,
         pending: 0,
@@ -1383,7 +1444,7 @@ describe('runCollectionSync (push)', () => {
       {
         name: 'long-box',
         status: 'synced',
-        reason: undefined,
+        outcome: 'changed',
         added: 2,
         removed: 0,
         pending: 0,
@@ -1477,6 +1538,12 @@ describe('runCollectionSync (push)', () => {
     expect(state.written).toEqual([])
     expect(run.report.totals.added).toBe(1)
     expect(logs).toContain('+ 1 Sol Ring (LTC:284) to Archidekt')
+    // Summarized like a pull's preview: the outcome, and what a real run would send.
+    expect(run.report.lists[0]).toMatchObject({
+      outcome: 'dry-run',
+      reason: 'dry-run: +1 added, -0 removed',
+      reasonKey: 'domain.sync.reasonDryRun',
+    })
   })
 
   test('refuses to push when nothing local could be read', async () => {
@@ -1720,7 +1787,9 @@ describe('runCollectionSync (push CSV additions)', () => {
       '+ 1 Card 3 (LTC:3) to Archidekt',
     ])
     expect(run.report.lists.map((list) => list.name)).toEqual(['a', 'b', 'c'])
-    expect(collectionRunLines(run.report.lists, []).map((line) => line.text)).toEqual(streamed)
+    expect(
+      collectionRunLines(run.report.lists, []).map((line) => renderSyncMessage(line.text)),
+    ).toEqual(streamed)
   })
 
   test('a printing the cache does not hold falls back to the per-card path', async () => {
@@ -1895,7 +1964,11 @@ describe('runCollectionSync (push CSV additions)', () => {
     })
 
     expect(run.writtenFiles).toEqual([])
-    expect(run.report.csv).toMatchObject({ status: 'failed', cards: 1 })
+    expect(run.report.csv).toMatchObject({
+      status: 'failed',
+      cards: 1,
+      messageKey: 'domain.sync.csvWriteFailed',
+    })
     expect(run.report.failedCount).toBe(1)
     expect(run.report.lists[0]?.reason).toContain('permission denied')
     expect(run.report.totals).toEqual({ added: 0, removed: 0, skipped: 0, pending: 0 })
@@ -1989,7 +2062,7 @@ describe('runCollectionSync (push CSV additions)', () => {
     test('abort leaves the account exactly as it was, quoting the reason', async () => {
       const { run, requests, state } = await decided(() => ({
         kind: 'abort',
-        message: 'Cancelled before adding 26 cards.',
+        message: syncText('Cancelled before adding 26 cards.'),
       }))
 
       // Not even the delete of the record no list holds went out.
@@ -2463,6 +2536,37 @@ describe('runCollectionSync (push CSV additions)', () => {
       expect(logs).toContain('  Not imported: Black Lotus (LEA:232) — not found on Archidekt.')
     })
 
+    test('a list whose rows were all refused says why once, not once per row', async () => {
+      const store = fakeStore([
+        {
+          name: 'blue-binder',
+          entries: [
+            entry('Sol Ring', 'ltc', '284', { cardId: 1 }),
+            entry('Black Lotus', 'lea', '232', { cardId: 2 }),
+          ],
+        },
+      ])
+      const { client } = mockArchidekt({
+        pages: [[]],
+        uploadRow: () => ({ notFound: true }),
+      })
+      const { run } = await sync({
+        direction: 'push',
+        client,
+        store,
+        state: fakeState(),
+        csv: true,
+        lookupPrintings: printingsLookup([
+          printing('Sol Ring', 'ltc', '284', ['nonfoil']),
+          printing('Black Lotus', 'lea', '232', ['nonfoil']),
+        ]),
+      })
+
+      const [binder] = run.report.lists
+      expect(binder?.status).toBe('failed')
+      expect(binder?.reason).toBe('2 cards could not be imported from the CSV')
+    })
+
     test('a per-row error message is carried through as Archidekt worded it', async () => {
       const { run, logs } = await uploaded({
         uploadRow: (row) => (row === 0 ? { errors: ['quantity must be positive'] } : {}),
@@ -2638,11 +2742,16 @@ describe('runCollectionSync (pull target)', () => {
     expect(store.applied).toEqual([])
     expect(requests).toEqual([])
     expect(run.report.errors[0]).toContain('More than one collection list is named "Inbox"')
+    // The lists in scope are still reported — as never reached, not left out.
+    expect(run.report.lists.map((list) => [list.name, list.status, list.outcome])).toEqual([
+      ['inbox', 'skipped', 'not-run'],
+      ['InBox', 'skipped', 'not-run'],
+    ])
   })
 
   test('a target that cannot be created fails under the requested name', async () => {
     const store = fakeStore([{ name: 'blue-binder' }])
-    store.create = (): Promise<string> => Promise.resolve('permission denied')
+    store.create = (): Promise<SyncMessage> => Promise.resolve(syncText('permission denied'))
     const { client } = remote()
 
     const { run } = await sync({ direction: 'pull', client, store, state: fakeState() })

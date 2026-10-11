@@ -23,7 +23,7 @@
  * `node:`.
  */
 
-import { listFormat } from '../../i18n/format'
+import { formatUnitList } from '../../i18n/format'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import type { TranslateDynamicFn } from '../../i18n/t'
 import type { LocaleTag } from '../../i18n/types'
@@ -46,13 +46,6 @@ export type SyncSummary = {
   clauses: SyncSummaryClause[]
 }
 
-/**
- * How clauses are joined. `type: 'unit'` is the one that does *not* insert a
- * conjunction — an English "and" before the last clause would be wrong for a
- * list of independent counts, and would change the bytes MCP already reads.
- */
-const LIST_OPTIONS: Intl.ListFormatOptions = { style: 'long', type: 'unit' }
-
 /** The terminator the joined clauses end on. */
 const TERMINATOR = '.'
 
@@ -70,7 +63,7 @@ export function renderSyncSummary(
   locale: LocaleTag,
 ): string {
   const parts = summary.clauses.map((clause) => renderApiMessage(t, clause))
-  return `${listFormat(locale, LIST_OPTIONS).format(parts)}${TERMINATOR}`
+  return `${formatUnitList(locale, parts)}${TERMINATOR}`
 }
 
 /**
@@ -82,5 +75,5 @@ export function renderSyncSummary(
  */
 export function renderSyncSummaryEnglish(summary: SyncSummary): string {
   const parts = summary.clauses.map((clause) => clause.message)
-  return `${listFormat(DEFAULT_LOCALE, LIST_OPTIONS).format(parts)}${TERMINATOR}`
+  return `${formatUnitList(DEFAULT_LOCALE, parts)}${TERMINATOR}`
 }

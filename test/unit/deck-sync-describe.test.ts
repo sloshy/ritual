@@ -12,7 +12,7 @@ import type { ArchidektClient } from '../../src/clients/ArchidektClient'
 import type { DeckSection } from '../../src/list/deck'
 import { archidektDeck, archidektDeckSections, searchingClient } from '../helpers/archidekt-deck'
 import type { DeckSyncCardChange } from '../../src/deck-sync/types'
-import '../../src/i18n/register/cli'
+import { english, englishLines } from '../helpers/sync-text'
 
 /**
  * A deck sync's per-card change list: the structured entries every deck
@@ -33,7 +33,7 @@ const EMPTY_DIFF: DeckDiff = {
 
 /** Every line a list of changes renders to. */
 function lines(changes: readonly DeckSyncCardChange[]): string[] {
-  return changes.map(describeDeckCardChange)
+  return changes.map((change) => english(describeDeckCardChange(change)))
 }
 
 describe('deckSyncCardChanges', () => {
@@ -158,13 +158,15 @@ describe('describeDeckCardChange', () => {
 
   test('a printing change from a bare line says so rather than printing nothing', () => {
     expect(
-      describeDeckCardChange({
-        kind: 'printing',
-        name: 'Sol Ring',
-        board: 'Commander',
-        from: {},
-        to: { set: 'c21', collectorNumber: '263' },
-      }),
+      english(
+        describeDeckCardChange({
+          kind: 'printing',
+          name: 'Sol Ring',
+          board: 'Commander',
+          from: {},
+          to: { set: 'c21', collectorNumber: '263' },
+        }),
+      ),
     ).toBe('* Sol Ring in Commander: no printing → (C21:263)')
   })
 
@@ -351,25 +353,25 @@ describe('deck change count lines', () => {
 
   // The exact strings the engine logged before its builders moved here.
   test('a pull and a push word every clause as the run log always has', () => {
-    expect(describeDeckChangesLine('pull', deckChangeCounts(CHANGES, true))).toBe(
+    expect(english(describeDeckChangesLine('pull', deckChangeCounts(CHANGES, true)))).toBe(
       "Changes: +1 added, -2 removed, ~1 quantity changed, 1 board move, 2 printings changed, 1 card's categories changed",
     )
-    expect(describeDeckChangesLine('push', deckChangeCounts(CHANGES, true))).toBe(
+    expect(english(describeDeckChangesLine('push', deckChangeCounts(CHANGES, true)))).toBe(
       "Changes: +1 to add, -2 to remove, ~1 quantity changes, 1 board move, 2 printings to change, 1 card's categories to change",
     )
   })
 
   test('a run not syncing categories has no categories clause, and no moves no move clause', () => {
-    expect(describeDeckChangesLine('pull', deckChangeCounts(CHANGES.slice(0, 2), false))).toBe(
-      'Changes: +1 added, -1 removed, ~0 quantity changed',
-    )
-    expect(describeDeckChangesLine('pull', deckChangeCounts([], true))).toBe(
+    expect(
+      english(describeDeckChangesLine('pull', deckChangeCounts(CHANGES.slice(0, 2), false))),
+    ).toBe('Changes: +1 added, -1 removed, ~0 quantity changed')
+    expect(english(describeDeckChangesLine('pull', deckChangeCounts([], true)))).toBe(
       "Changes: +0 added, -0 removed, ~0 quantity changed, 0 cards' categories changed",
     )
   })
 
   test('a deck replays its count line, then a line per card', () => {
-    expect(deckItemLines('pull', CHANGES.slice(0, 1), false)).toEqual([
+    expect(englishLines(deckItemLines('pull', CHANGES.slice(0, 1), false))).toEqual([
       { level: 'info', text: 'Changes: +1 added, -0 removed, ~0 quantity changed' },
       { level: 'detail', text: '+ 4 Brainstorm to Main' },
     ])

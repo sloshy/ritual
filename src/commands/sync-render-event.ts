@@ -20,6 +20,7 @@ import {
 } from '../sync/common'
 import { describeUnreadable, type ScopedIndenter, type UnreadableSubject } from './sync-helpers'
 import { t } from '../i18n/t'
+import { renderSyncMessage } from '../sync/message'
 
 /** What each engine calls the things it syncs, in the unreadable-lines warning. */
 const UNREADABLE_SUBJECT = {
@@ -93,7 +94,9 @@ export function createSyncEventRenderer<TResult>({
           detailHidden = true
           return
         }
-        logger[LOG_METHOD[event.level]](indent.line(event.item, event.message))
+        // Rendered here, in the CLI's own UI language — the event carries the
+        // English text for structured readers, and the key for this.
+        logger[LOG_METHOD[event.level]](indent.line(event.item, renderSyncMessage(event)))
         return
       }
       case 'item-result':

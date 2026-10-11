@@ -18,6 +18,7 @@ import { cliEditMessages } from './en/cli-edit'
 import { cliInfraMessages } from './en/cli-infra'
 import { cliSyncMessages } from './en/cli-sync'
 import { domainMessages } from './en/domain'
+import { domainSyncMessages } from './en/domain-sync'
 import { errorMessages } from './en/errors'
 import { helpMessages } from './en/help'
 import { helpCardsMessages } from './en/help-cards'
@@ -34,9 +35,11 @@ import { uiMessages } from './en/ui'
 /**
  * The merged English catalog.
  *
- * Three namespaces are authored across several files so independent surfaces can
+ * Four namespaces are authored across several files so independent surfaces can
  * be converted without contending for one file:
  *
+ * - `domain` — `domain` (shared) plus `domain-sync`, the sync engines' text,
+ *   which only the CLI and the admin SPA register;
  * - `site` — `site` (shared) plus the four surface fragments;
  * - `cli` — `cli` (the shared CLI core) plus one fragment per command family;
  * - `help` — `help` (global options and the shared scripting flags) plus the
@@ -53,6 +56,7 @@ export const en = {
   ...cliInfraMessages,
   ...cliSyncMessages,
   ...domainMessages,
+  ...domainSyncMessages,
   ...errorMessages,
   ...helpMessages,
   ...helpCardsMessages,

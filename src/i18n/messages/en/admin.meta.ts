@@ -1352,7 +1352,7 @@ export const adminMeta = {
   },
   'admin.csvOutcome.failuresLead': {
     description:
-      'How many rows Archidekt refused. {reasons} is either empty or a parenthesised summary, so no punctuation belongs before it.',
+      'How many rows Archidekt refused. {reasons} is a pre-rendered breakdown of why, like "2 not found, 1 ambiguous".',
   },
   'admin.csvOutcome.failure': { description: 'One refused row: the card and Archidekt’s reason.' },
 

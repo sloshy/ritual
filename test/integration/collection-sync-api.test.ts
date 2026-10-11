@@ -36,7 +36,7 @@ import {
 } from './helpers/archidekt'
 import { bindWorkspace, writeCollectionFile, type BoundWorkspace } from '../helpers/workspace'
 import { expectMonotonicProgress } from '../test-utils'
-import { readStreamFrames, type SseFrame } from '../helpers/sse'
+import { expectStreamedLinesAgree, readStreamFrames, type SseFrame } from '../helpers/sse'
 
 /**
  * End-to-end coverage for the admin collection-sync endpoints: what the status
@@ -242,6 +242,21 @@ describe('collection-sync API', () => {
     expect(body.success && body.report.errors).toEqual([
       'Could not place 1 × Sol Ring (C21:240): the removals are ambiguous and were not resolved. Nothing was written.',
     ])
+    // The same failures as messages, in the same order, each with its key.
+    const errorMessages = body.success ? body.report.errorMessages : []
+    expect(errorMessages.map((error) => error.message)).toEqual(
+      body.success ? body.report.errors : [],
+    )
+    expect(errorMessages.map((error) => error.messageKey)).toEqual([
+      'domain.sync.ambiguityUnresolved',
+    ])
+    // The lists it never reached are not reported as synced: nothing compared them.
+    expect(
+      (body.success ? body.report.lists : []).map((list) => [list.status, list.outcome]),
+    ).toEqual([
+      ['skipped', 'not-run'],
+      ['skipped', 'not-run'],
+    ])
     // The flag a client that can ask the user branches on, rather than the prose.
     expect(body.success && body.report.unresolvedAmbiguity).toBe(true)
     const [ambiguous] = body.success ? body.report.ambiguous : []
@@ -373,15 +388,26 @@ describe('collection-sync API', () => {
       },
     ]
     // The per-card line rides the stream whatever the client shows.
-    expect(progress).toContainEqual({
-      kind: 'log',
+    // Every line is keyed, and its two halves agree — nested params included.
+    const logs = expectStreamedLinesAgree(progress)
+    expect(logs).toContainEqual({
       level: 'detail',
       item: 'binder',
       message: '+ 1 Lightning Bolt (LEA:161) to binder',
+      key: 'domain.sync.detailAdded',
+      rendered: '+ 1 Lightning Bolt (LEA:161) to binder',
     })
     expect(progress.at(-1)).toEqual({
       kind: 'item-result',
-      result: { name: 'binder', status: 'synced', added: 1, removed: 0, pending: 0, changes },
+      result: {
+        name: 'binder',
+        status: 'synced',
+        outcome: 'changed',
+        added: 1,
+        removed: 0,
+        pending: 0,
+        changes,
+      },
     })
 
     const done = frames.at(-1)

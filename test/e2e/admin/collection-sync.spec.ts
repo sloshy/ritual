@@ -43,6 +43,7 @@ const DONE_REPORT: CollectionSyncReport = {
   lists: [],
   failedCount: 0,
   errors: [],
+  errorMessages: [],
   unreadable: [],
   cancelled: false,
   unresolvedAmbiguity: false,
@@ -206,7 +207,14 @@ test.describe('Sync Collection Page', () => {
     await emitStreamEvent(
       page,
       'progress',
-      itemResult({ name: BLUE!.name, status: 'synced', added: 2, removed: 0, pending: 0 }),
+      itemResult({
+        name: BLUE!.name,
+        status: 'synced',
+        outcome: 'changed',
+        added: 2,
+        removed: 0,
+        pending: 0,
+      }),
     )
     await expect(runRow(page, BLUE!.name)).toHaveAttribute('data-status', 'synced')
     await expect(runRow(page, BLUE!.name).locator('.sync-run-meta')).toHaveText(
@@ -298,7 +306,14 @@ test.describe('Sync Collection Page', () => {
     await emitStreamEvent(
       page,
       'progress',
-      itemResult({ name: BLUE!.name, status: 'synced', added: 0, removed: 3, pending: 0 }),
+      itemResult({
+        name: BLUE!.name,
+        status: 'synced',
+        outcome: 'changed',
+        added: 0,
+        removed: 3,
+        pending: 0,
+      }),
     )
     await expect(runRow(page, BLUE!.name).locator('.sync-run-meta')).toHaveText(
       '+0 added, -3 removed',

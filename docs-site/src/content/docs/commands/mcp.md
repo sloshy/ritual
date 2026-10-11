@@ -143,7 +143,7 @@ All four also honour cancellation (a client's `notifications/cancelled`, which t
 
 - `build_site` kills the child build. The build publishes atomically, so the live site is untouched: `dist/` still holds the previous site, and the next `build_site` is accepted immediately. The cancelled call answers with a tool error saying the site build was cancelled.
 - `refresh_cache` stops the download and writes nothing. The previous card cache stands, the cache lock is released, and the call answers with a tool error saying the refresh was cancelled.
-- `sync_decks` and `sync_collection` stop **between items**. The deck or list in flight finishes (nothing is half-pushed or half-written), and every item the run never reached is reported `skipped` with the reason `cancelled before it started`. The result is the ordinary report with `report.cancelled: true` (and, for the collection, no `lastSynced` recorded), because the items already synced are real. A client that cancels should still read it. A cancelled push has already sent whatever it pushed before stopping.
+- `sync_decks` and `sync_collection` stop **between items**. The deck or list in flight finishes (nothing is half-pushed or half-written), and every item the run never reached is reported `skipped` with the `outcome` `cancelled` (its English `reason` reads `cancelled before it started`). The result is the ordinary report with `report.cancelled: true` (and, for the collection, no `lastSynced` recorded), because the items already synced are real. A client that cancels should still read it. A cancelled push has already sent whatever it pushed before stopping.
 
 ## Tools
 
@@ -461,7 +461,7 @@ Under `syncCategories`, a pull makes the local categories file hold Archidekt's 
 
 Each deck's report entry that had card changes carries `changes`: every change the run applied (or would apply on a dry run), narrowed by `only`. It lists what went through: a push leaves out what its plan could not send, or did not need to. When the push itself failed (nothing was sent), it lists what the push attempted, and `reason` says so. Entries are discriminated by `kind`: `added`/`removed` (`name`, `quantity`, `board`), `quantity` (`name`, `board`, `from`, `to`), `move` (`name`, `quantity`, `from`, `to` boards), `printing` (`name`, `board`, `from`, `to` printings) and `categories` (`name`, `categories`, primary first). The first four carry an optional `printing` (`set` lowercase, `collectorNumber`, `finish`) on a run syncing printings. These are the cards the CLI lists under `--verbose`.
 
-It needs an Archidekt login stored by `ritual login archidekt` or the admin site; check `get_sync_status`'s `decks.archidekt.loginRequired` first. A run that completes reports `success` even when individual decks failed; read `report.failedCount` and each deck's `status`/`reason`.
+It needs an Archidekt login stored by `ritual login archidekt` or the admin site; check `get_sync_status`'s `decks.archidekt.loginRequired` first. A run that completes reports `success` even when individual decks failed; read `report.failedCount` and each deck's `status` and `outcome` (`changed`, `unchanged`, `dry-run` or `cancelled`; branch on it, not on the prose). `reason` is English, with `reasonKey`/`reasonParams` beside it for a client that renders it in its own language.
 
 A **push** whose remote deck changed since that deck's recorded `sourceUpdatedAt` fails with `Remote deck changed since last sync (…) — pull first, or pass --force to overwrite remote changes.` rather than reverting those remote edits. `force: true` overwrites them deliberately, and a `dryRun` reports the same refusal without needing it. Pulling that deck first also clears it, since a pull records the baseline even when it finds no card changes. See [Divergence Guard](/commands/deck-sync/#divergence-guard-push). Only decks that pushed cleanly get fresh stamps, so `get_sync_status` never reports a sync that failed.
 
@@ -496,7 +496,7 @@ It needs the same Archidekt login (`get_sync_status`'s `collection.archidekt.log
 - `totals.skipped`: what `only` left out.
 - `localIncomplete`: true when a list in scope did not make it into the comparison (an unresolvable name, an unreadable file, or one refused for unreadable lines). The local side is then short of cards it really holds, so the run withholds the changes that shortfall would have produced: a pull adds nothing and a push removes nothing.
 
-`report.failedCount` and each list's `status`/`reason` carry per-list failures.
+`report.failedCount` and each list's `status`/`reason` carry per-list failures; each list's `outcome` says what came of it, as for `sync_decks`. `report.errors` is English, and `report.errorMessages` holds the same failures as messages with their keys.
 
 #### Other destructive hints
 

@@ -13,6 +13,8 @@
 import { formatDuration } from '../../util/duration'
 import type { SyncEvent, SyncLogLevel, UnreadableSource } from '../../sync/common'
 import type { ItemChangeLine } from '../../sync/describe'
+import { pickMessage } from '../../api/result'
+import type { SyncMessage, SyncText } from '../../sync/message'
 import { t } from '../../i18n/t'
 
 /** How far a run has progressed; drives the button state and the result panel. */
@@ -30,15 +32,22 @@ export type SyncRunStatus = 'running' | 'synced' | 'skipped' | 'failed'
  */
 export type SyncRunLevel = SyncLogLevel
 
-export type SyncRunMessage = { level: SyncRunLevel; text: string }
+/**
+ * One line the run panel shows. `text` is held unrendered — the engine's whole
+ * message (English plus key and params, so the English is there for a key
+ * this bundle does not know), a reference the page built itself, or literal
+ * text — and rendered in JSX (`useSyncText`), so the line follows the reader's
+ * language and is relabelled when they switch it, finished runs included.
+ */
+export type SyncRunMessage = { level: SyncRunLevel; text: SyncMessage | SyncText }
 
 /** One deck or collection list, as the progress list shows it. */
 export type SyncRunItem = {
   /** The name the engine reported, which is what the row is matched by. */
   name: string
   status: SyncRunStatus
-  /** A short tally shown beside the name, e.g. `+2 added, -1 removed`. */
-  meta?: string
+  /** A short tally shown beside the name, e.g. `+2 added, -1 removed` — rendered in JSX. */
+  meta?: SyncText
   messages: SyncRunMessage[]
 }
 
@@ -98,7 +107,7 @@ export type ApplySyncEventOptions<TResult extends SyncRunResult> = {
    */
   confirmed: boolean
   /** A short tally to show beside the row, e.g. `+2 added, -1 removed`. */
-  meta?: (result: TResult) => string | undefined
+  meta?: (result: TResult) => SyncText | undefined
 }
 
 /**
@@ -115,7 +124,7 @@ export function applySyncEvent<TResult extends SyncRunResult>(
       update(event.item, (item) => ({ ...item, status: 'running' }))
       return
     case 'log': {
-      const message: SyncRunMessage = { level: event.level, text: event.message }
+      const message: SyncRunMessage = { level: event.level, text: pickMessage(event) }
       // A line with no item belongs to the run: the remote fetch, the change
       // filter's tally, removals that could not be placed.
       if (event.item === null) appendLog(message)
@@ -152,8 +161,8 @@ type NamedChange = { name: string }
  * failing the whole replay of a run that completed.
  */
 export function replayDescribe<C extends NamedChange, A extends unknown[]>(
-  describe: (change: C, ...rest: A) => string,
-): (change: C, ...rest: A) => string {
+  describe: (change: C, ...rest: A) => SyncText,
+): (change: C, ...rest: A) => SyncText {
   return (change, ...rest) => {
     try {
       return describe(change, ...rest)
@@ -170,7 +179,7 @@ export function replayDescribe<C extends NamedChange, A extends unknown[]>(
  */
 export function replayResultMessages(
   lines: readonly ItemChangeLine[],
-  reason: string | undefined,
+  reason: SyncMessage | undefined,
 ): SyncRunMessage[] {
   return [
     ...lines.map((line): SyncRunMessage => ({ level: line.level, text: line.text })),

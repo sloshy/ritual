@@ -393,6 +393,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
     {
       "name": "binder",
       "status": "synced",
+      "outcome": "changed",
       "added": 0,
       "removed": 1,
       "pending": 0,
@@ -413,7 +414,9 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
     {
       "name": "long-box",
       "status": "synced",
+      "outcome": "unchanged",
       "reason": "no changes",
+      "reasonKey": "domain.sync.reasonNoChanges",
       "added": 0,
       "removed": 0,
       "pending": 0
@@ -421,6 +424,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
     {
       "name": "Inbox",
       "status": "synced",
+      "outcome": "changed",
       "added": 3,
       "removed": 0,
       "pending": 0,
@@ -441,6 +445,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
   ],
   "failedCount": 0,
   "errors": [],
+  "errorMessages": [],
   "unreadable": [],
   "ambiguous": [
     {
@@ -465,9 +470,12 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - `into` is the list a pull adds to, and `null` on a push.
 - `cancelled` is always `false` on the CLI. The [admin API](/admin/api/#sync-collection) and the MCP `sync_collection` tool set it when a client cancels between lists; the lists never reached are then `skipped`, and no `lastSynced` is recorded.
 - Each list's `status` is `synced`, `failed`, or `skipped`. `added`, `removed`, and `pending` count **copies**, not lines. A printing held in several lists counts for each of them.
+- `outcome` is the code to branch on: `changed` (written, or pushed — including copies a push wrote to a `--csv-file` for upload), `unchanged` (already matched), `dry-run` (a preview, which `reason` summarizes), `cancelled` (the run was cancelled before reaching it) or `not-run` (the run refused before reaching it). It is absent on a failed list. Scripts should read `outcome`, not the text of `reason`.
+- A run that refuses before reaching its lists (a bad `--into` or `--removal-priority`, an [unresolved ambiguous removal](#ambiguous-removals), or additions a push would not send) reports those lists `skipped` with the outcome `not-run` and the reason `not synced: the run stopped before this list`. The run's own error is in `errors`.
+- `reason` is English prose whatever the UI language, with `reasonKey` and `reasonParams` beside it for a client that renders it in its own language (a param may itself be a message, a list or a duration). A reason raised outside the message catalog, such as a network error, has no key; several reasons for one list are joined into one.
 - `changes` lists, per list, every card behind `added`, `removed` and `pending` (the counts are its totals), present when there is at least one. Entries are discriminated by `kind` (`added`, `removed`, or `pending` for a `--csv-file`), each with `name`, `quantity` (copies) and `printing` (`set` lowercase, `collectorNumber`, `finish`, `condition`, and `language` when not English). An `added` entry carries `via: "csv"` when the CSV import created it. There is one entry per card, printing and kind, so a push that trims one record and deletes another lists one removal. It lists what went through, or would on a dry run, narrowed by `--only`. A card whose write failed is left out, and the list's `reason` says what failed. On a push a card held in several lists is one key: its entry, with the key's whole quantity, is listed under each, like the counts. A list a cancellation skipped may still carry changes an earlier list's turn made for it.
 - `unlisted`, on a push, lists the records deleted for cards no in-scope list holds any more, in the same shape as a `removed` change. It is present only when there is at least one; a failed one is in `errors` instead.
-- `errors` holds failures that belong to the run rather than to one list: the collection fetch, or records for cards that live in no list any more. They fail the run like a failed list does.
+- `errors` holds failures that belong to the run rather than to one list: the collection fetch, or records for cards that live in no list any more. They fail the run like a failed list does. They are English; `errorMessages` holds the same failures in the same order as messages (`message`, plus `messageKey` and `messageParams` when the text comes from the catalog).
 - `localIncomplete` is `true` when a list in scope did not make it into the comparison (see [When a list in scope cannot be read](#when-a-list-in-scope-cannot-be-read)).
 - `ambiguous` holds the removals a pull could not place by itself, with the lists holding copies and how many each holds. They are reported whether or not a [resolution strategy](#ambiguous-removals) placed them. When none could, `errors` says so, `unresolvedAmbiguity` is `true`, and the run wrote nothing. A client that can ask the user branches on that flag rather than parsing `errors`.
 - `totals.skipped` counts the changes `--only` left out. `totals.pending` counts copies written to a `--csv-file` rather than pushed; they are **not** part of `added`.
@@ -478,7 +486,7 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
   | `uploaded` | `chunks`, `failures[]`                                    | Imported; `failures` names the rows dropped       |
   | `exported` | `path`                                                    | Written to `path`, awaiting a manual upload       |
   | `planned`  | `destination` (`upload`/`export`), `path` when applicable | What `--dry-run` would have done                  |
-  | `failed`   | `message`                                                 | The whole CSV failed; the rest of the run applied |
+  | `failed`   | `message`, `messageKey`, `messageParams`                  | The whole CSV failed; the rest of the run applied |
 
   ```json
   {
@@ -498,6 +506,8 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
     ]
   }
   ```
+
+  A row Archidekt reported that Ritual cannot match to a card is named by an English row label in `card` (`CSV row 3`), with `cardKey` and `cardParams` beside it for a client that renders it in its own language.
 
 Top-level failures (for example, not being signed in) are emitted as a structured error on stderr.
 
@@ -535,7 +545,7 @@ An [unresolved ambiguous removal](#ambiguous-removals) is different. It stops th
 
 Archidekt allows about 80 requests per minute per IP. Ritual spaces requests at least 1.5 s apart (40 per minute). The budget is shared process-wide, so two syncs in the same server pace against each other.
 
-When Archidekt answers `429 Too Many Requests`, the request is retried up to 5 times. Each retry waits out the server's `Retry-After` (capped at 60s) when given, otherwise backs off exponentially (2s, 4s, 8s, 16s, 32s). Each wait is reported as a warning like `Rate limited by Archidekt — waiting 4s before retry 2 of 5.` A 429 that outlives the retries fails that card's operation like any other HTTP error. Re-running the sync later is safe, because only the remaining differences are pushed.
+When Archidekt answers `429 Too Many Requests`, the request is retried up to 5 times. Each retry waits out the server's `Retry-After` (capped at 60s) when given, otherwise backs off exponentially (2s, 4s, 8s, 16s, 32s). Each wait is reported as a warning like `Rate limited by Archidekt — waiting 4 seconds before retry 2 of 5.` A 429 that outlives the retries fails that card's operation like any other HTTP error. Re-running the sync later is safe, because only the remaining differences are pushed.
 
 Tune the spacing with the `RITUAL_ARCHIDEKT_MIN_INTERVAL_MS` environment variable (`0` disables it). The 429 handling is always on.
 

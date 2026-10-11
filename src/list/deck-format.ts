@@ -1,5 +1,4 @@
-import type { MessageKey } from '../i18n/messages/en'
-import { t } from '../i18n/t'
+import { t, type ParameterlessKey } from '../i18n/t'
 import { DEFAULT_SECTION, type DeckData, type DeckSection } from './deck'
 
 import type { DeckFormatKey } from './deck'
@@ -7,11 +6,11 @@ export type { DeckFormatKey }
 
 interface FormatInfo {
   /**
-   * The format's display name, as a {@link MessageKey} rather than rendered
+   * The format's display name, as a {@link ParameterlessKey} rather than rendered
    * text: this table is evaluated once at module load, so a string would freeze
    * every deck cover and format picker in the boot-time language.
    */
-  label: MessageKey
+  label: ParameterlessKey
   /**
    * The card count expected for a "standard" deck in this format. Counts only
    * the main deck (commander/oathbreaker/signature included; sideboard,
@@ -112,7 +111,15 @@ const FORMAT_ALIASES: Record<string, DeckFormatKey> = {
 }
 
 export function getDeckFormatLabel(format: DeckFormatKey): string {
-  return t(FORMAT_INFO[format].label)
+  return t(deckFormatLabelKey(format))
+}
+
+/**
+ * The catalog key of a format's display name — for a message that renders the
+ * name later, in its reader's locale (a sync's log line), rather than now.
+ */
+export function deckFormatLabelKey(format: DeckFormatKey): ParameterlessKey {
+  return FORMAT_INFO[format].label
 }
 
 /** Whether decks of this format have a command zone. */

@@ -255,7 +255,11 @@ ${wrapProse(
     '`name`, `quantity` in copies, `printing`; an `added` entry the CSV import ' +
     'created carries `via: "csv"`), plus `unlisted` for records a push deleted ' +
     'for cards no list holds. Only what went through is listed; a failed card ' +
-    "is left out and the list's `reason` says why. On a push a card held in " +
+    "is left out and the list's `reason` says why. Branch on each list's " +
+    '`outcome` (`changed`, `unchanged`, `dry-run`, `cancelled`, or `not-run` for a list ' +
+    'a refused run never reached; absent on a failure or other skip), ' +
+    'never on `reason` text; run-level failures are in ' +
+    '`errors` (English) and `errorMessages` (with keys). On a push a card held in ' +
     'several lists is one record: it is listed under each holding list with its ' +
     'whole quantity, so do not sum `changes` across lists. `--verbose` prints ' +
     'the CSV import’s cards once, under the run rather than under each list.',

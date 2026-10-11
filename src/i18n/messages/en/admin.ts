@@ -817,7 +817,7 @@ export const adminMessages = {
     'No CSV was built: not one of the {count} new cards has a printing in your Scryfall cache, so no row could be keyed by a Scryfall ID. Refresh the cache ({command}) and run again.',
   'admin.csvOutcome.emptyCommand': 'ritual cache preload-all',
   'admin.csvOutcome.failuresLead':
-    'Archidekt did not import {dropped} of {total} rows{reasons}. The lists holding those cards are reported as failed.',
+    'Archidekt did not import {dropped} of {total} rows ({reasons}). The lists holding those cards are reported as failed.',
   'admin.csvOutcome.failure': '{card} — {reason}',
 
   // ── Settings ──────────────────────────────────────────────────────────

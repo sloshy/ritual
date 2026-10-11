@@ -26,13 +26,21 @@
 
 import type { SyncDirection } from '../sync/common'
 import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
-import { getErrorMessage } from '../util/errors'
-import { t } from '../i18n/t'
+import {
+  errorMessage,
+  errorParam,
+  isSyncMessage,
+  nestSync,
+  syncElapsed,
+  syncMessage,
+  syncRef,
+  syncText,
+  type SyncMessage,
+} from '../sync/message'
 import type { ArchidektCollectionRecord } from '../importers/archidekt-collection'
 import { formatResolveListError } from '../list/resolve-list'
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { getCachedCardPrintings } from '../scryfall'
-import { formatElapsed } from '../util/duration'
 import {
   buildLocalIndex,
   buildRemoteIndex,
@@ -109,9 +117,7 @@ export async function runCollectionSync(
   const dryRun = options.dryRun ?? false
   const client =
     options.client ??
-    createPacedArchidektClient((message) =>
-      emit({ kind: 'log', level: 'warn', item: null, message }),
-    )
+    createPacedArchidektClient((wait) => emit({ kind: 'log', level: 'warn', item: null, ...wait }))
   const store = options.store ?? createDiskCollectionListStore()
   // Cache-only by design: names are "resolved against the local card cache"
   // (docs), and a miss takes the documented nonfoil-with-warning path. The
@@ -133,7 +139,8 @@ export async function runCollectionSync(
         dryRun,
         lists,
         failedCount: lists.filter((list) => list.status === 'failed').length,
-        errors: outcome.errors,
+        errors: outcome.errors.map((error) => error.message),
+        errorMessages: outcome.errors,
         unreadable: loaded.unreadable,
         ambiguous: outcome.ambiguous,
         localIncomplete: !loaded.complete,
@@ -149,7 +156,7 @@ export async function runCollectionSync(
     }
   }
 
-  const empty = (errors: string[]): FlowOutcome => abortedOutcome(errors)
+  const empty = (errors: SyncMessage[]): FlowOutcome => abortedOutcome(errors)
 
   /**
    * A run-level progress line. Every phase below announces itself before it
@@ -157,25 +164,32 @@ export async function runCollectionSync(
    * card cache to key them by, and paging in the remote collection each take
    * long enough that silence reads as a hang.
    */
-  const progress = (message: string): void => {
-    emit({ kind: 'log', level: 'info', item: null, message })
+  const progress = (message: SyncMessage): void => {
+    emit({ kind: 'log', level: 'info', item: null, ...message })
   }
 
   // 1. Scope: the named lists, or every collection list.
-  progress(t('domain.sync.readingLists'))
+  progress(syncMessage('domain.sync.readingLists'))
   const scoped = await resolveScope(options.lists ?? [], store, emit, results)
 
   // 2. Load them, holding back any whose lines the parser could not read.
   const loaded = await loadLists(scoped, store, emit, results, options.confirmUnreadable, dryRun)
+  const names = loaded.lists.map((list) => list.name)
+  // Tracked as soon as they are known, so the report lists them in scope order
+  // whatever order a flow credits them in — a push's CSV import credits lists
+  // before any of their turns — and so a run refused before it reaches them (a
+  // bad pull destination, an ambiguity nobody decided) still reports each one,
+  // as not run, rather than leaving them out of the report.
+  for (const name of names) results.track(name)
   // The tally covers the lists that made it into the comparison, so it is short
   // by any list held back or unreadable — which is exactly what the run goes on
   // to treat as the local truth.
   const entryCount = loaded.lists.reduce((total, list) => total + list.entries.length, 0)
   progress(
-    t('domain.sync.listsRead', {
-      lists: t('domain.count.collectionLists', { count: loaded.lists.length }),
-      entries: t('domain.count.cardEntries', { count: entryCount }),
-      elapsed: formatElapsed(loaded.readElapsedMs),
+    syncMessage('domain.sync.listsRead', {
+      lists: syncRef('domain.count.collectionLists', { count: loaded.lists.length }),
+      entries: syncRef('domain.count.cardEntries', { count: entryCount }),
+      elapsed: syncElapsed(loaded.readElapsedMs),
     }),
   )
 
@@ -184,12 +198,16 @@ export async function runCollectionSync(
     // empty" and delete the account's records, so it is refused outright. A
     // pull is fine — an empty local side is how a first pull starts.
     if (direction === 'push') {
-      const reason =
-        'No readable collection lists to push. Refusing to treat that as an empty collection.'
-      emit({ kind: 'log', level: 'error', item: null, message: reason })
+      const reason = syncMessage('domain.sync.noReadableListsToPush')
+      emit({ kind: 'log', level: 'error', item: null, ...reason })
       return report(empty([reason]), loaded)
     }
-    emit({ kind: 'log', level: 'info', item: null, message: 'No collection lists to sync from.' })
+    emit({
+      kind: 'log',
+      level: 'info',
+      item: null,
+      ...syncMessage('domain.sync.noCollectionLists'),
+    })
   }
 
   // 3. Index both sides. The first printings lookup loads the whole card cache
@@ -198,8 +216,8 @@ export async function runCollectionSync(
   //    narrate work it never does.
   if (entryCount > 0) {
     progress(
-      t('domain.sync.indexingLocal', {
-        entries: t('domain.count.cardEntries', { count: entryCount }),
+      syncMessage('domain.sync.indexingLocal', {
+        entries: syncRef('domain.count.cardEntries', { count: entryCount }),
       }),
     )
   }
@@ -211,9 +229,9 @@ export async function runCollectionSync(
     const local = await buildLocalIndex(loaded.lists, lookupPrintings)
     if (entryCount > 0) {
       progress(
-        t('domain.sync.localIndexed', {
-          printings: t('domain.count.printings', { count: local.index.size }),
-          elapsed: formatElapsed(Date.now() - indexingStartedAt),
+        syncMessage('domain.sync.localIndexed', {
+          printings: syncRef('domain.count.printings', { count: local.index.size }),
+          elapsed: syncElapsed(Date.now() - indexingStartedAt),
         }),
       )
     }
@@ -222,7 +240,8 @@ export async function runCollectionSync(
       (warning) => !reportedWarnings.has(warningKey(warning)),
     )
     for (const warning of unreported) {
-      emit({ kind: 'log', level: 'warn', item: warning.list, message: warning.message })
+      const { list, ...message } = warning
+      emit({ kind: 'log', level: 'warn', item: list, ...message })
     }
     for (const warning of local.warnings) reportedWarnings.add(warningKey(warning))
     return local.index
@@ -236,7 +255,7 @@ export async function runCollectionSync(
   if (direction === 'pull') {
     const invalid = await validatePullDestinations(store, into, options.removalPriority ?? [])
     if (invalid !== null) {
-      emit({ kind: 'log', level: 'error', item: null, message: invalid })
+      emit({ kind: 'log', level: 'error', item: null, ...invalid })
       return report(empty([invalid]), loaded)
     }
   }
@@ -255,37 +274,38 @@ export async function runCollectionSync(
     )
   }
 
-  progress(t('domain.sync.fetchingCollection'))
+  progress(syncMessage('domain.sync.fetchingCollection'))
   const fetchStartedAt = Date.now()
   const fetched = await fetchCollection(client, userId, token, (fetchedPage) => {
     progress(
-      t('domain.sync.fetchedPage', {
+      syncMessage('domain.sync.fetchedPage', {
         page: fetchedPage.page,
         totalPages: fetchedPage.totalPages,
-        records: t('domain.count.collectionRecords', { count: fetchedPage.recordsSoFar }),
+        records: syncRef('domain.count.collectionRecords', { count: fetchedPage.recordsSoFar }),
       }),
     )
   })
-  if (typeof fetched === 'string') {
-    emit({ kind: 'log', level: 'error', item: null, message: fetched })
+  if (isSyncMessage(fetched)) {
+    const failure = fetched
+    emit({ kind: 'log', level: 'error', item: null, ...failure })
     // Nothing can be compared without the remote side; every in-scope list is
     // unsynced rather than unchanged.
-    for (const list of loaded.lists) results.fail(list.name, fetched)
-    return report(empty([fetched]), loaded)
+    for (const list of loaded.lists) results.fail(list.name, failure)
+    return report(empty([failure]), loaded)
   }
 
   const remote = buildRemoteIndex(fetched.records)
   for (const warning of remote.warnings) {
-    emit({ kind: 'log', level: 'warn', item: null, message: warning })
+    emit({ kind: 'log', level: 'warn', item: null, ...warning })
   }
   progress(
-    t('domain.sync.collectionFetched', {
-      records: t('domain.count.collectionRecords', { count: fetched.records.length }),
-      printings: t('domain.count.printings', { count: remote.index.size }),
-      elapsed: formatElapsed(Date.now() - fetchStartedAt),
+    syncMessage('domain.sync.collectionFetched', {
+      records: syncRef('domain.count.collectionRecords', { count: fetched.records.length }),
+      printings: syncRef('domain.count.printings', { count: remote.index.size }),
+      elapsed: syncElapsed(Date.now() - fetchStartedAt),
     }),
   )
-  progress(t('domain.sync.comparing'))
+  progress(syncMessage('domain.sync.comparing'))
 
   // 4. Plan and apply.
   const flow: SyncFlow = {
@@ -305,7 +325,7 @@ export async function runCollectionSync(
     results,
     lookupPrintings,
     reindexLocal: () => {
-      progress(t('domain.sync.reindexingLocal'))
+      progress(syncMessage('domain.sync.reindexingLocal'))
       return indexLocal()
     },
     lookupByScryfallId,
@@ -313,11 +333,6 @@ export async function runCollectionSync(
     localComplete: loaded.complete,
     signal: options.signal,
   }
-  const names = loaded.lists.map((list) => list.name)
-  // Tracked up front, so the report lists them in scope order whatever order a
-  // flow credits them in — a push's CSV import credits lists before any of
-  // their turns — and a replay of the report reads them back in that order.
-  for (const name of names) results.track(name)
   const outcome =
     direction === 'pull'
       ? await pullFromArchidekt(flow, localIndex, remote.index, names)
@@ -341,7 +356,7 @@ export async function runCollectionSync(
         kind: 'log',
         level: 'warn',
         item: null,
-        message: `Could not record the sync timestamp: ${getErrorMessage(error)}`,
+        ...syncMessage('domain.sync.stateWriteFailed', { error: errorParam(error) }),
       })
     }
   }
@@ -392,8 +407,9 @@ async function resolveScope(
   for (const name of names) {
     const location = await store.resolve(name)
     if (isResolveFailure(location)) {
-      const message = formatResolveListError(location, 'none')
-      emit({ kind: 'log', level: 'error', item: null, message })
+      // The resolver's own wording, which names the list already.
+      const message = syncText(formatResolveListError(location, 'none'))
+      emit({ kind: 'log', level: 'error', item: null, ...message })
       results.fail(name, message)
       results.finish(name)
       complete = false
@@ -444,9 +460,12 @@ async function loadLists(
 
   for (const name of scope.names) {
     const loaded = await store.load(name)
-    if (typeof loaded === 'string') {
-      const reason = `Could not read collection list "${name}": ${loaded}`
-      emit({ kind: 'log', level: 'error', item: null, message: reason })
+    if (isSyncMessage(loaded)) {
+      const reason = syncMessage('domain.sync.listUnreadable', {
+        list: name,
+        error: nestSync(loaded),
+      })
+      emit({ kind: 'log', level: 'error', item: null, ...reason })
       results.fail(name, reason)
       results.finish(name)
       complete = false
@@ -456,7 +475,7 @@ async function loadLists(
     // whether or not the list is held back for unreadable lines, and never
     // decide anything.
     for (const advisory of loaded.advisories) {
-      emit({ kind: 'log', level: 'warn', item: loaded.name, message: advisory })
+      emit({ kind: 'log', level: 'warn', item: loaded.name, ...syncText(advisory) })
     }
     if (loaded.warnings.length > 0) held.push(loaded)
     else lists.push(loaded)
@@ -484,7 +503,7 @@ async function loadLists(
         kind: 'log',
         level: 'error',
         item: null,
-        message: `Could not confirm the unreadable lines: ${getErrorMessage(error)}`,
+        ...syncMessage('domain.sync.confirmUnreadableFailed', { error: errorParam(error) }),
       })
     }
   }
@@ -494,9 +513,13 @@ async function loadLists(
       lists.push(list)
       continue
     }
-    const count = list.warnings.length
-    const reason = `${t('domain.count.unreadableLines', { count })} would be dropped by a sync`
-    emit({ kind: 'log', level: 'warn', item: null, message: `${list.file}: ${reason}` })
+    const reason = syncMessage('domain.sync.unreadableDropped', { count: list.warnings.length })
+    emit({
+      kind: 'log',
+      level: 'warn',
+      item: null,
+      ...syncMessage('domain.sync.itemReason', { item: list.file, reason: nestSync(reason) }),
+    })
     results.fail(list.name, reason)
     results.finish(list.name)
     complete = false
@@ -509,8 +532,7 @@ async function loadLists(
       kind: 'log',
       level: 'info',
       item: null,
-      message:
-        'This preview includes the lists above; a real run holds them back until their unreadable lines are accepted.',
+      ...syncMessage('domain.sync.previewIncludesUnreadable'),
     })
   }
 
@@ -549,7 +571,7 @@ async function fetchCollection(
   userId: number,
   token: string,
   onPage: (progress: CollectionPageProgress) => void,
-): Promise<FetchedCollection | string> {
+): Promise<FetchedCollection | SyncMessage> {
   const records: ArchidektCollectionRecord[] = []
   // Every page names the owner; the loop always reads at least one before
   // returning, so this is only undefined on a path that returns an error.
@@ -568,7 +590,7 @@ async function fetchCollection(
     } catch (error: unknown) {
       // No outer prefix: the client's error already names the page and account
       // it could not fetch ("Failed to fetch collection page 1 for user 12345: …").
-      return getErrorMessage(error)
+      return errorMessage(error)
     }
   }
 

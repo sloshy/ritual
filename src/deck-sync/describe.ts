@@ -4,8 +4,10 @@
  * the admin Sync Decks page renders the same text from a finished report when
  * it ran without the progress stream.
  *
- * Side-effect free, and a browser-safe leaf (the admin bundle imports it); the
- * output follows the active locale.
+ * Side-effect free, and a browser-safe leaf (the admin bundle imports it). Each
+ * describer returns a message reference rather than text: the engine sends it
+ * on as English plus key, and every surface renders it in its reader's locale
+ * (`renderSyncMessage`).
  */
 
 import { formatCardCategories } from '../card/card-categories'
@@ -13,6 +15,13 @@ import { formatPrintingAnnotation } from '../changes/change-event'
 import { t } from '../i18n/t'
 import { describeSyncCard, itemChangeLines, type ItemChangeLine } from '../sync/describe'
 import type { SyncDirection } from '../sync/common'
+import {
+  syncList,
+  syncRef,
+  type SyncMessageRef,
+  type SyncParam,
+  type SyncText,
+} from '../sync/message'
 import type { DeckSyncCardChange, DeckSyncPrinting } from './types'
 
 /** An absent finish is the bare-line default. */
@@ -26,7 +35,7 @@ function finishOf(printing: DeckSyncPrinting): string {
  * so a finish-only change reads `[nonfoil] → [foil]` rather than as a change
  * from no printing at all. A side stating nothing reads as a placeholder.
  */
-function describePrintingSide(printing: DeckSyncPrinting, finishChanged: boolean): string {
+function describePrintingSide(printing: DeckSyncPrinting, finishChanged: boolean): SyncParam {
   const set = formatPrintingAnnotation({
     set: printing.set,
     collectorNumber: printing.collectorNumber,
@@ -34,33 +43,34 @@ function describePrintingSide(printing: DeckSyncPrinting, finishChanged: boolean
   const finish = finishOf(printing)
   const parts = [set]
   if (finishChanged || finish !== 'nonfoil') parts.push(`[${finish}]`)
-  return parts.filter((part) => part !== '').join(' ') || t('domain.sync.detailNoPrinting')
+  // Card-line grammar (`(LEA:270) [foil]`), never translated; only the placeholder is.
+  return parts.filter((part) => part !== '').join(' ') || syncRef('domain.sync.detailNoPrinting')
 }
 
 /** The detail line for one card change, e.g. `+ 2 Sol Ring (C21:263) to Main`. */
-export function describeDeckCardChange(change: DeckSyncCardChange): string {
+export function describeDeckCardChange(change: DeckSyncCardChange): SyncMessageRef {
   switch (change.kind) {
     case 'added':
-      return t('domain.sync.detailAdded', {
+      return syncRef('domain.sync.detailAdded', {
         quantity: change.quantity,
         card: describeSyncCard(change.name, change.printing),
         place: change.board,
       })
     case 'removed':
-      return t('domain.sync.detailRemoved', {
+      return syncRef('domain.sync.detailRemoved', {
         quantity: change.quantity,
         card: describeSyncCard(change.name, change.printing),
         place: change.board,
       })
     case 'quantity':
-      return t('domain.sync.detailQuantity', {
+      return syncRef('domain.sync.detailQuantity', {
         card: describeSyncCard(change.name, change.printing),
         place: change.board,
         from: change.from,
         to: change.to,
       })
     case 'move':
-      return t('domain.sync.detailMove', {
+      return syncRef('domain.sync.detailMove', {
         quantity: change.quantity,
         card: describeSyncCard(change.name, change.printing),
         from: change.from,
@@ -68,7 +78,7 @@ export function describeDeckCardChange(change: DeckSyncCardChange): string {
       })
     case 'printing': {
       const finishChanged = finishOf(change.from) !== finishOf(change.to)
-      return t('domain.sync.detailPrinting', {
+      return syncRef('domain.sync.detailPrinting', {
         card: change.name,
         place: change.board,
         from: describePrintingSide(change.from, finishChanged),
@@ -76,13 +86,14 @@ export function describeDeckCardChange(change: DeckSyncCardChange): string {
       })
     }
     case 'categories':
-      return t('domain.sync.detailCategories', {
+      return syncRef('domain.sync.detailCategories', {
         card: change.name,
-        categories: formatCardCategories(change.categories) || t('domain.sync.detailNoCategories'),
+        categories:
+          formatCardCategories(change.categories) || syncRef('domain.sync.detailNoCategories'),
       })
     default: {
       const unhandled: never = change
-      throw new Error(`Unhandled card change: ${JSON.stringify(unhandled)}`)
+      throw new Error(t('domain.sync.unhandledCardChange', { change: JSON.stringify(unhandled) }))
     }
   }
 }
@@ -129,42 +140,51 @@ export function deckChangeCounts(
 export function describeDeckChangeSummary(
   direction: SyncDirection,
   counts: DeckChangeCounts,
-): string {
-  const moves =
-    counts.moves > 0
-      ? t('domain.sync.deckMovesClause', {
-          moves: t('domain.count.boardMoves', { count: counts.moves }),
-        })
-      : ''
-  const printings =
-    counts.printings > 0
-      ? t('domain.sync.deckPrintingsClause', {
-          direction,
-          printings: t('domain.count.printings', { count: counts.printings }),
-        })
-      : ''
-  const categories =
-    counts.categories === undefined
-      ? ''
-      : t('domain.sync.deckCategoriesClause', {
-          direction,
-          cards: t('domain.count.cardCategories', { count: counts.categories }),
-        })
-  const base = t('domain.sync.deckCounts', {
-    direction,
-    added: counts.added,
-    removed: counts.removed,
-    quantity: counts.quantity,
-  })
-  return `${base}${moves}${printings}${categories}`
+): SyncParam {
+  // The clauses carry their own leading separator in the catalog, so they are
+  // concatenated as they are.
+  const clauses: SyncParam[] = [
+    syncRef('domain.sync.deckCounts', {
+      direction,
+      added: counts.added,
+      removed: counts.removed,
+      quantity: counts.quantity,
+    }),
+  ]
+  if (counts.moves > 0) {
+    clauses.push(
+      syncRef('domain.sync.deckMovesClause', {
+        moves: syncRef('domain.count.boardMoves', { count: counts.moves }),
+      }),
+    )
+  }
+  if (counts.printings > 0) {
+    clauses.push(
+      syncRef('domain.sync.deckPrintingsClause', {
+        direction,
+        printings: syncRef('domain.count.printings', { count: counts.printings }),
+      }),
+    )
+  }
+  if (counts.categories !== undefined) {
+    clauses.push(
+      syncRef('domain.sync.deckCategoriesClause', {
+        direction,
+        cards: syncRef('domain.count.cardCategories', { count: counts.categories }),
+      }),
+    )
+  }
+  return syncList(clauses, 'concat')
 }
 
 /** The `Changes: …` line a deck sync logs for a deck with changes. */
 export function describeDeckChangesLine(
   direction: SyncDirection,
   counts: DeckChangeCounts,
-): string {
-  return `Changes: ${describeDeckChangeSummary(direction, counts)}`
+): SyncMessageRef {
+  return syncRef('domain.sync.changesLine', {
+    summary: describeDeckChangeSummary(direction, counts),
+  })
 }
 
 /**
@@ -178,7 +198,7 @@ export function deckItemLines(
   direction: SyncDirection,
   changes: readonly DeckSyncCardChange[],
   syncCategories: boolean,
-  describe: (change: DeckSyncCardChange) => string = describeDeckCardChange,
+  describe: (change: DeckSyncCardChange) => SyncText = describeDeckCardChange,
 ): ItemChangeLine[] {
   if (changes.length === 0) return []
   return itemChangeLines(

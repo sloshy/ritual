@@ -728,6 +728,59 @@ describe('deck-sync --sync-printings (Integration)', () => {
     expect(changelog).toContain('Set "Sol Ring" printing to C21:240 [foil] &1')
   })
 
+  test('a printing change that resolves to what Archidekt holds sends nothing, and is unchanged', async () => {
+    // A bare line wants nonfoil; this printing is offered in foil only, so the
+    // finish falls back to the one Archidekt already records.
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT, { modifier: 'Foil', options: ['Foil'] }))
+
+    let exitCode = 1
+    const stdout = await captureStream('stdout', async () => {
+      exitCode = await runDeckSync(['push', '--sync-printings', '--output', 'json'])
+    })
+    expect(exitCode).toBe(0)
+    expect(pushedToArchidekt()).toBe(false)
+    // The diff was not empty — the run planned it, had nothing to send, and
+    // stamped the sync (an empty diff stops before that, writing nothing).
+    expect(await readDeck()).toContain('lastSynced:')
+    const report = JSON.parse(stdout) as DeckSyncReport
+    // Nothing reached Archidekt, so the deck does not claim a change — nor list one.
+    expect(report.decks[0]).toMatchObject({
+      status: 'synced',
+      outcome: 'unchanged',
+      reason: 'no changes',
+    })
+    expect(report.decks[0]?.changes).toBeUndefined()
+  })
+
+  test('previewing that push says the same — unchanged — and stamps nothing', async () => {
+    await writeLinkedDeck(
+      [{ quantity: 1, name: 'Sol Ring', set: 'c21', collectorNumber: '240' }],
+      synced,
+    )
+    stubFetch(pushRoutes(UPDATED_AT, { modifier: 'Foil', options: ['Foil'] }))
+
+    let exitCode = 1
+    const stdout = await captureStream('stdout', async () => {
+      exitCode = await runDeckSync(['push', '--sync-printings', '--dry-run', '--output', 'json'])
+    })
+    expect(exitCode).toBe(0)
+    expect(pushedToArchidekt()).toBe(false)
+    const report = JSON.parse(stdout) as DeckSyncReport
+    // A preview and a real run agree: nothing would be sent, so nothing would change.
+    expect(report.decks[0]).toMatchObject({
+      status: 'synced',
+      outcome: 'unchanged',
+      reason: 'no changes',
+    })
+    expect(report.decks[0]?.changes).toBeUndefined()
+    // Only the real run records the sync.
+    expect(await readDeck()).not.toContain('lastSynced:')
+  })
+
   test('a push without the flag reports nothing to upload', async () => {
     await writeLinkedDeck(
       [{ quantity: 1, name: 'Sol Ring', set: 'ltc', collectorNumber: '284', finish: 'foil' }],

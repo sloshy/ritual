@@ -2,6 +2,7 @@ import { type JSX, createMemo, For, Match, Show, Switch } from 'solid-js'
 import type { CollectionSyncList } from '../../api/collection-sync'
 import { describeAmbiguousRemoval, type AmbiguousRemoval } from '../../../collection-sync/describe'
 import { useT, useTSegments } from '../../../ui/i18n'
+import { useSyncText } from '../sync-text'
 
 /**
  * The Sync Collection page's two surfaces for the one thing a pull cannot work
@@ -153,6 +154,7 @@ export type AmbiguousRemovalsPanelProps = {
 export function AmbiguousRemovalsPanel(props: AmbiguousRemovalsPanelProps): JSX.Element {
   const t = useT()
   const tSegments = useTSegments()
+  const sync = useSyncText()
   return (
     <div class="sync-ambiguous">
       <p class="sync-ambiguous-lead">
@@ -176,7 +178,9 @@ export function AmbiguousRemovalsPanel(props: AmbiguousRemovalsPanelProps): JSX.
       </p>
       <ul class="sync-ambiguous-list">
         <For each={props.removals}>
-          {(removal) => <li class="sync-ambiguous-item">{describeAmbiguousRemoval(removal)}</li>}
+          {(removal) => (
+            <li class="sync-ambiguous-item">{sync(describeAmbiguousRemoval(removal))}</li>
+          )}
         </For>
       </ul>
     </div>

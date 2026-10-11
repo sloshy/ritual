@@ -11,6 +11,7 @@ import {
   type SyncRunMessage,
 } from '../../../src/admin/site/sync-run'
 import type { SyncEvent, UnreadableSource } from '../../../src/sync/common'
+import { syncMessage } from '../../../src/sync/message'
 
 /**
  * The bookkeeping behind the two sync pages' progress lists. The pages
@@ -119,15 +120,19 @@ describe('applySyncEvent', () => {
         name: 'Blue Binder',
         status: 'synced',
         meta: '+2 added',
-        messages: [{ level: 'info', text: 'Changes' }],
+        // Held whole — English and all — so the panel can fall back on it.
+        messages: [{ level: 'info', text: { message: 'Changes' } }],
       },
     ])
     expect(state.log).toEqual([])
   })
 
   test('a line with no item belongs to the run, not to any row', () => {
-    const state = fold([{ kind: 'log', level: 'warn', item: null, message: 'Fetching…' }])
-    expect(state.log).toEqual([{ level: 'warn', text: 'Fetching…' }])
+    const fetching = syncMessage('domain.sync.fetchingCollection')
+    const state = fold([{ kind: 'log', level: 'warn', item: null, ...fetching }])
+    // The key rides along with the English, for the panel to render in its language.
+    expect(state.log).toEqual([{ level: 'warn', text: fetching }])
+    expect(fetching.messageKey).toBe('domain.sync.fetchingCollection')
     expect(state.items).toEqual([])
   })
 
@@ -161,12 +166,12 @@ describe('replay helpers', () => {
           { level: 'info', text: 'Changes: +1 added, -0 removed' },
           { level: 'detail', text: '+ 1 Sol Ring to Main' },
         ],
-        'dry-run: +1 added',
+        { message: 'dry-run: +1 added' },
       ),
     ).toEqual([
       { level: 'info', text: 'Changes: +1 added, -0 removed' },
       { level: 'detail', text: '+ 1 Sol Ring to Main' },
-      { level: 'info', text: 'dry-run: +1 added' },
+      { level: 'info', text: { message: 'dry-run: +1 added' } },
     ])
     expect(replayResultMessages([], undefined)).toEqual([])
   })

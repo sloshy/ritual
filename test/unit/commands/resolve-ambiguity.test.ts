@@ -69,8 +69,11 @@ describe('resolveAmbiguousRemovals', () => {
     // scripted run carries the reason and the terminal prints it once.
     expect(outcome).toEqual({
       ok: false,
-      message:
-        '1 ambiguous removal needs a decision. Pass --removal-priority <list> (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one.',
+      message: expect.objectContaining({
+        message:
+          '1 ambiguous removal needs a decision. Pass --removal-priority <list> (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one.',
+        messageKey: 'cli.resolveAmbiguity.needsDecision',
+      }),
     })
     expect(logger.entries).toEqual([])
   })
@@ -92,7 +95,7 @@ describe('resolveAmbiguousRemovals', () => {
     // Default No: a destructive choice is never the one the Enter key makes.
     expect(asked[0]?.initial).toBe(false)
     expect(outcome.ok).toBe(false)
-    expect(outcome.ok ? '' : outcome.message).toBe(
+    expect(outcome.ok ? '' : outcome.message.message).toBe(
       '1 ambiguous removal left unresolved. Pass --removal-priority <list> (repeatable, in priority order) to say which lists may lose copies, or run in a terminal to resolve them one by one.',
     )
   })
@@ -168,7 +171,10 @@ describe('resolveAmbiguousRemovals', () => {
     // written." to it.
     expect(outcome).toEqual({
       ok: false,
-      message: 'Cancelled after 1 of 2 copies of Lightning Bolt (LEA:161).',
+      message: expect.objectContaining({
+        message: 'Cancelled after 1 of 2 copies of Lightning Bolt (LEA:161).',
+        messageKey: 'cli.resolveAmbiguity.cancelledAfter',
+      }),
     })
   })
 

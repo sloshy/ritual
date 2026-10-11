@@ -12,6 +12,7 @@ import {
   type CardCategory,
 } from '../card/card-categories'
 import { createSetCategoriesChange, type SetCategoriesChange } from '../changes/change-event'
+import { syncList, syncMessage, type SyncMessage } from '../sync/message'
 import type { ArchidektDeckCategories } from '../importers/archidekt-categories'
 import {
   parseArchidektDeckCategories,
@@ -87,6 +88,14 @@ export function localCategoriesFor(
 }
 
 /** The log line for Archidekt category names Ritual's name rule refused. */
-export function refusedCategoriesMessage(refused: readonly string[]): string {
-  return `Skipped ${refused.length === 1 ? 'an Archidekt category' : `${refused.length} Archidekt categories`} Ritual cannot store (${CARD_CATEGORY_SHAPE_CLAUSE}): ${refused.map((name) => JSON.stringify(name)).join(', ')}`
+export function refusedCategoriesMessage(refused: readonly string[]): SyncMessage {
+  return syncMessage('domain.sync.categoriesRefused', {
+    count: refused.length,
+    rule: CARD_CATEGORY_SHAPE_CLAUSE,
+    // The names exactly as Archidekt holds them, quoted so a stray space shows.
+    names: syncList(
+      refused.map((name) => JSON.stringify(name)),
+      'unit',
+    ),
+  })
 }

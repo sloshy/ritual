@@ -16,6 +16,7 @@ import type {
   SyncDirection,
   SyncEvent,
   SyncEventHandler,
+  SyncItemResultBase,
   SyncItemStatus,
   SyncLogLevel,
   UnreadableSource,
@@ -102,11 +103,13 @@ export type DeckSyncCardChange =
   | DeckSyncCardPrinting
   | DeckSyncCardCategories
 
-/** One deck's outcome in a sync report. */
-export type DeckSyncDeckResult = {
+/**
+ * One deck's outcome in a sync report. `outcome` is the code a script branches
+ * on; `reason` is English prose, with `reasonKey` / `reasonParams` for a reader
+ * that renders it in its own language (see `SyncItemResultBase`).
+ */
+export type DeckSyncDeckResult = SyncItemResultBase & {
   name: string
-  status: DeckSyncStatus
-  reason?: string
   /**
    * Printing differences the run found for this deck — applied, unless the run
    * was a dry run or the deck failed. Present only when the run synced printings, so
@@ -245,8 +248,8 @@ export type DeckSyncOptions = {
   client?: ArchidektClient
   /**
    * Cancel the run. Honoured at deck boundaries only: the deck in flight
-   * finishes, every deck after it is reported `skipped` with
-   * `SYNC_CANCELLED_REASON`, and the report's `cancelled` flag is set. Nothing
+   * finishes, every deck after it is reported `skipped` with the `cancelled`
+   * outcome, and the report's `cancelled` flag is set. Nothing
    * is ever left half-synced, which is what makes a cancelled run safe to rerun.
    */
   signal?: AbortSignal

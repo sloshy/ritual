@@ -10,6 +10,8 @@ import {
 import { linkDeckToArchidekt, parseArchidektDeckUrl, type DeckLinkResult } from '../deck-sync/link'
 import { readCollectionSyncStateFile, type CollectionSyncState } from '../collection-sync/state'
 import { SYNC_DIRECTIONS, type SyncChangeFilter, type SyncDirection } from '../sync/common'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
 import {
   addSyncOptions,
@@ -94,7 +96,7 @@ export function summarizeDeckRun(report: DeckSyncReport, dryRun: boolean): strin
   if (report.decks.length === 0) return undefined
 
   const synced = report.decks.filter((deck) => deck.status === 'synced')
-  const unchanged = synced.filter((deck) => deck.reason === 'no changes').length
+  const unchanged = synced.filter((deck) => deck.outcome === 'unchanged').length
   const skipped = report.decks.filter((deck) => deck.status === 'skipped').length
 
   const changed = synced.length - unchanged
@@ -107,7 +109,9 @@ export function summarizeDeckRun(report: DeckSyncReport, dryRun: boolean): strin
   ]
   if (skipped > 0) parts.push(t('cli.deckSync.skipped', { count: skipped }))
   if (report.failedCount > 0) parts.push(t('cli.deckSync.failed', { count: report.failedCount }))
-  return `${parts.join(', ')}.`
+  // Independent counts: the locale's unit list (no "and"), as the admin
+  // summary joins its clauses.
+  return `${formatUnitList(currentLocale(), parts)}.`
 }
 
 /** Ask whether decks with unreadable lines may sync anyway; see {@link confirmUnreadableSync}. */

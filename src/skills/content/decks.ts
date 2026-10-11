@@ -303,7 +303,10 @@ ritual deck-sync link "Alpha Deck" https://archidekt.com/decks/123456  # link an
 
 A text-mode run closes with a tally —
 \`Synced 4 decks (2 with changes), 1 skipped, 1 failed.\` — while
-\`--output json\` emits the full per-deck report instead.
+\`--output json\` emits the full per-deck report instead. Branch on each deck's
+\`outcome\` (\`changed\`, \`unchanged\`, \`dry-run\`, \`cancelled\`; absent on a
+failure or other skip) rather than on \`reason\`, which is English prose with
+\`reasonKey\`/\`reasonParams\` beside it.
 
 Each deck prints only a \`Changes:\` count by default. \`-v\`/\`--verbose\` lists the
 cards behind it, one line each, under the count: \`+ 1 Lightning Bolt to Main\`,

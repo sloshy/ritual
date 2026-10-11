@@ -5,10 +5,22 @@
  * is written.
  */
 
-import { getErrorMessage } from '../util/errors'
-import { t } from '../i18n/t'
+import type { SelectBranch } from '../i18n/t'
 import { normalizeListName } from '../list/resolve-list'
-import { describeSkippedChanges } from '../sync/common'
+import { describeSkippedChanges, dryRunReason, noChangesReason } from '../sync/common'
+import {
+  errorParam,
+  isNonEmpty,
+  isSyncMessage,
+  joinSyncMessages,
+  nestSync,
+  syncList,
+  syncMessage,
+  syncRef,
+  toSyncMessage,
+  type SyncListParam,
+  type SyncMessage,
+} from '../sync/message'
 import type { ScryfallCard } from '../scryfall/types'
 import {
   collectionChangeCounts,
@@ -52,7 +64,7 @@ export async function pullFromArchidekt(
 
   const plan = planPull(local, remote, flow.only)
   const skippedMessage = describeSkippedChanges(flow.only, plan.skipped)
-  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, message: skippedMessage })
+  if (skippedMessage) emit({ kind: 'log', level: 'info', item: null, ...skippedMessage })
 
   let target = flow.into
   let applicable = plan
@@ -62,8 +74,8 @@ export async function pullFromArchidekt(
    * list, not the target list a pull creates, not the sync timestamp — which is
    * what `aborted` tells `runCollectionSync`.
    */
-  const abort = (message: string, unresolvedAmbiguity = false): FlowOutcome => {
-    emit({ kind: 'log', level: 'error', item: null, message })
+  const abort = (message: SyncMessage, unresolvedAmbiguity = false): FlowOutcome => {
+    emit({ kind: 'log', level: 'error', item: null, ...message })
     return abortedOutcome([message], plan.ambiguous, unresolvedAmbiguity)
   }
 
@@ -71,17 +83,22 @@ export async function pullFromArchidekt(
   // every ambiguous removal writes nothing at all, so a half-made decision can
   // never reach a list file.
   const priority = await resolveRemovalPriority(flow.store, flow.removalPriority)
-  if (typeof priority === 'string') return abort(priority)
+  if (isSyncMessage(priority)) return abort(priority)
 
   for (const ambiguous of plan.ambiguous) {
-    emit({ kind: 'log', level: 'warn', item: null, message: describeAmbiguousRemoval(ambiguous) })
+    emit({
+      kind: 'log',
+      level: 'warn',
+      item: null,
+      ...toSyncMessage(describeAmbiguousRemoval(ambiguous)),
+    })
   }
 
   if (plan.ambiguous.length > 0) {
     const placed = await placeAmbiguous(flow, local, plan.ambiguous, priority)
     // Every way `placeAmbiguous` refuses is the same thing to a caller: the
     // ambiguity is still open, and a rerun carrying a decision is the fix.
-    if (typeof placed === 'string') return abort(placed, true)
+    if (isSyncMessage(placed)) return abort(placed, true)
     if (placed.length > 0) applicable = { ...plan, removals: [...plan.removals, ...placed] }
   }
 
@@ -95,7 +112,7 @@ export async function pullFromArchidekt(
       kind: 'log',
       level: 'error',
       item: null,
-      message: `Not adding ${t('domain.count.copies', { count: copies })}: some collection lists in scope could not be read, so cards they already hold would be duplicated into "${flow.into}". Fix or accept those lists and run again.`,
+      ...syncMessage('domain.sync.pullAdditionsWithheld', { count: copies, target: flow.into }),
     })
     applicable = { ...applicable, additions: [] }
   }
@@ -105,8 +122,8 @@ export async function pullFromArchidekt(
   // dropped (they have nowhere to go) and the removals still apply.
   if (applicable.additions.length > 0) {
     const resolved = await resolveTarget(flow)
-    if (typeof resolved === 'string') {
-      emit({ kind: 'log', level: 'error', item: null, message: resolved })
+    if (isSyncMessage(resolved)) {
+      emit({ kind: 'log', level: 'error', item: null, ...resolved })
       results.fail(flow.into, resolved)
       results.finish(flow.into)
       applicable = { ...applicable, additions: [] }
@@ -139,8 +156,8 @@ export async function pullFromArchidekt(
     emit({ kind: 'item-start', item: name, index, total: ordered.length })
     const changes = changesByList.get(name)
     if (!changes || changes.changes.length === 0) {
-      emit({ kind: 'log', level: 'info', item: name, message: 'No changes.' })
-      results.finish(name, 'no changes')
+      emit({ kind: 'log', level: 'info', item: name, ...syncMessage('domain.sync.noChanges') })
+      results.succeed(name, 'unchanged', noChangesReason())
       continue
     }
 
@@ -161,19 +178,19 @@ export async function pullFromArchidekt(
 
     if (dryRun) {
       landed()
-      emit({ kind: 'log', level: 'info', item: name, message: '[dry-run] Not saved.' })
-      results.finish(name, `dry-run: ${describeCollectionChangeSummary(counts)}`)
+      emit({ kind: 'log', level: 'info', item: name, ...syncMessage('domain.sync.dryRunNotSaved') })
+      results.succeed(name, 'dry-run', dryRunReason(describeCollectionChangeSummary(counts)))
       continue
     }
 
     try {
       writtenFiles.push(...(await store.apply(name, changes.changes)))
       landed()
-      emit({ kind: 'log', level: 'info', item: name, message: 'Saved.' })
-      results.finish(name)
+      emit({ kind: 'log', level: 'info', item: name, ...syncMessage('domain.sync.saved') })
+      results.succeed(name, 'changed')
     } catch (error: unknown) {
-      const reason = `Failed to save: ${getErrorMessage(error)}`
-      emit({ kind: 'log', level: 'error', item: name, message: reason })
+      const reason = syncMessage('domain.sync.saveFailed', { error: errorParam(error) })
+      emit({ kind: 'log', level: 'error', item: name, ...reason })
       results.fail(name, reason)
       results.finish(name)
     }
@@ -198,6 +215,17 @@ export async function pullFromArchidekt(
 // ── Ambiguous removals ────────────────────────────────────────────────
 
 /**
+ * How an ambiguous removal's list was chosen: by the removal priority, or by the
+ * resolver — the branch of its log line, read off the catalog.
+ */
+type RemovalPlacement = SelectBranch<'domain.sync.removingAmbiguous'>
+
+/** List names in a message, joined without a conjunction (`A, B, C`). */
+function listNames(names: readonly string[]): SyncListParam {
+  return syncList([...names], 'unit')
+}
+
+/**
  * Resolve the run's removal priority to canonical list names, or the message
  * explaining why it cannot be used.
  *
@@ -209,30 +237,42 @@ export async function pullFromArchidekt(
 async function resolveRemovalPriority(
   store: CollectionListStore,
   removalPriority: readonly string[],
-): Promise<string[] | string> {
+): Promise<string[] | SyncMessage> {
   if (removalPriority.length === 0) return []
 
   const resolved: string[] = []
-  const problems: string[] = []
+  const problems: SyncMessage[] = []
   for (const name of removalPriority) {
     const matches = await listsNamed(store, name)
     if (matches.length === 0) {
-      problems.push(`no collection list is named "${name}"`)
+      problems.push(syncMessage('domain.sync.priorityNoList', { name }))
     } else if (matches.length > 1) {
-      problems.push(`more than one collection list is named "${name}": ${matches.join(', ')}`)
+      problems.push(
+        syncMessage('domain.sync.priorityAmbiguousList', { name, matches: listNames(matches) }),
+      )
     } else if (!resolved.includes(matches[0]!)) {
       resolved.push(matches[0]!)
     }
   }
 
-  return problems.length > 0 ? `Cannot use the removal priority: ${problems.join('; ')}.` : resolved
+  return isNonEmpty(problems)
+    ? syncMessage('domain.sync.priorityUnusable', {
+        problems: nestSync(joinSyncMessages(problems)),
+      })
+    : resolved
 }
 
 /** The cards an unplaceable set of removals is about, for the failure message. */
-function describeUnplaceable(unresolved: readonly AmbiguousRemoval[]): string {
-  return unresolved
-    .map((entry) => `${entry.quantity} × ${describeSyncCard(entry.name, entry.parts)}`)
-    .join(', ')
+function describeUnplaceable(unresolved: readonly AmbiguousRemoval[]): SyncListParam {
+  return syncList(
+    unresolved.map((entry) =>
+      syncRef('domain.sync.unplacedCopies', {
+        quantity: entry.quantity,
+        card: describeSyncCard(entry.name, entry.parts),
+      }),
+    ),
+    'and',
+  )
 }
 
 /**
@@ -250,17 +290,26 @@ async function placeAmbiguous(
   local: LocalCollectionIndex,
   ambiguous: readonly AmbiguousRemoval[],
   priority: readonly string[],
-): Promise<PullRemoval[] | string> {
+): Promise<PullRemoval[] | SyncMessage> {
   const { emit, dryRun } = flow
-  const preview = dryRun ? '[dry-run] ' : ''
+  /** A line as a preview prints it: tagged, so it is never read as done. */
+  const preview = (line: SyncMessage): SyncMessage =>
+    dryRun ? syncMessage('domain.sync.dryRunLine', { line: nestSync(line) }) : line
 
-  const announce = (removals: readonly PullRemoval[], reason: string): void => {
+  const announce = (removals: readonly PullRemoval[], via: RemovalPlacement): void => {
     for (const removal of removals) {
       emit({
         kind: 'log',
         level: 'info',
         item: null,
-        message: `${preview}Removing ${removal.copies.length} × ${describeSyncCard(removal.name, removal.parts)} from "${removal.list}" (${reason}).`,
+        ...preview(
+          syncMessage('domain.sync.removingAmbiguous', {
+            via,
+            quantity: removal.copies.length,
+            card: describeSyncCard(removal.name, removal.parts),
+            list: removal.list,
+          }),
+        ),
       })
     }
   }
@@ -268,12 +317,15 @@ async function placeAmbiguous(
   if (priority.length > 0) {
     const resolution = resolveAmbiguousByPriority(local, ambiguous, priority)
     if (resolution.ok) {
-      announce(resolution.removals, 'removal priority')
+      announce(resolution.removals, 'priority')
       return resolution.removals
     }
-    const message = `The removal priority (${priority.join(', ')}) cannot place ${describeUnplaceable(resolution.unresolved)}. Nothing was written.`
+    const message = syncMessage('domain.sync.priorityCannotPlace', {
+      priority: listNames(priority),
+      cards: describeUnplaceable(resolution.unresolved),
+    })
     if (!dryRun) return message
-    emit({ kind: 'log', level: 'warn', item: null, message: `${preview}${message}` })
+    emit({ kind: 'log', level: 'warn', item: null, ...preview(message) })
     return []
   }
 
@@ -283,13 +335,15 @@ async function placeAmbiguous(
       kind: 'log',
       level: 'warn',
       item: null,
-      message: `${preview}A real run would refuse to place ${describeUnplaceable(ambiguous)} until the ambiguity is resolved.`,
+      ...preview(
+        syncMessage('domain.sync.ambiguityPreview', { cards: describeUnplaceable(ambiguous) }),
+      ),
     })
     return []
   }
 
   if (!flow.resolveAmbiguous) {
-    return `Could not place ${describeUnplaceable(ambiguous)}: the removals are ambiguous and were not resolved. Nothing was written.`
+    return syncMessage('domain.sync.ambiguityUnresolved', { cards: describeUnplaceable(ambiguous) })
   }
 
   let outcome: AmbiguityResolutionOutcome
@@ -297,15 +351,18 @@ async function placeAmbiguous(
     outcome = await flow.resolveAmbiguous(ambiguous)
   } catch (error: unknown) {
     // A resolver that throws is a decision that was never made — refuse.
-    return `Could not resolve the ambiguous removals: ${getErrorMessage(error)}. Nothing was written.`
+    return syncMessage('domain.sync.ambiguityResolverFailed', { error: errorParam(error) })
   }
   // The resolver's own wording — which of "no terminal", "declined", and
   // "cancelled" happened is the actionable part, and only it knows.
-  if (!outcome.ok) return `${outcome.message} Nothing was written.`
+  if (!outcome.ok)
+    return syncMessage('domain.sync.nothingWritten', { message: nestSync(outcome.message) })
 
   const resolution = applyRemovalAssignments(local, ambiguous, outcome.assignments)
   if (!resolution.ok) {
-    return `Could not place ${describeUnplaceable(resolution.unresolved)}: the resolution did not say which lists lose those copies. Nothing was written.`
+    return syncMessage('domain.sync.ambiguityResolutionIncomplete', {
+      cards: describeUnplaceable(resolution.unresolved),
+    })
   }
   announce(resolution.removals, 'resolved')
   return resolution.removals
@@ -343,13 +400,16 @@ export async function validatePullDestinations(
   store: CollectionListStore,
   into: string,
   removalPriority: readonly string[],
-): Promise<string | null> {
+): Promise<SyncMessage | null> {
   const priority = await resolveRemovalPriority(store, removalPriority)
-  if (typeof priority === 'string') return priority
+  if (isSyncMessage(priority)) return priority
 
   const matches = await listsNamed(store, into)
   if (matches.length > 1) {
-    return `More than one collection list is named "${into}": ${matches.join(', ')}. Point --into (or collectionSync.pullTarget) at one of them.`
+    return syncMessage('domain.sync.pullTargetAmbiguous', {
+      name: into,
+      matches: listNames(matches),
+    })
   }
   return null
 }
@@ -357,7 +417,7 @@ export async function validatePullDestinations(
 /** The pull target, created when it does not exist yet, or the reason it could not be. */
 type PullTarget = { name: string; writtenFiles: string[] }
 
-async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
+async function resolveTarget(flow: SyncFlow): Promise<PullTarget | SyncMessage> {
   const { store, emit, dryRun, into } = flow
   // The target is a destination rather than a lookup, so it is matched by name
   // only — never by the substring rule `store.resolve` applies. The default
@@ -371,7 +431,10 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
     // `runCollectionSync` has already refused this at
     // {@link validatePullDestinations}; the branch stands because the store is
     // injectable and this function must not depend on that gate having run.
-    return `More than one collection list is named "${into}": ${matches.join(', ')}. Point --into (or collectionSync.pullTarget) at one of them.`
+    return syncMessage('domain.sync.pullTargetAmbiguous', {
+      name: into,
+      matches: listNames(matches),
+    })
   }
 
   if (dryRun) {
@@ -379,20 +442,20 @@ async function resolveTarget(flow: SyncFlow): Promise<PullTarget | string> {
       kind: 'log',
       level: 'info',
       item: null,
-      message: `[dry-run] Would create collection list "${into}" for the cards being added.`,
+      ...syncMessage('domain.sync.dryRunCreateTarget', { name: into }),
     })
     return { name: into, writtenFiles: [] }
   }
 
   const created = await store.create(into)
-  if (typeof created === 'string') {
-    return `Could not create the collection list "${into}": ${created}`
+  if (isSyncMessage(created)) {
+    return syncMessage('domain.sync.createTargetFailed', { name: into, error: nestSync(created) })
   }
   emit({
     kind: 'log',
     level: 'info',
     item: null,
-    message: `Created collection list "${created.name}" for the cards being added.`,
+    ...syncMessage('domain.sync.createdTarget', { name: created.name }),
   })
   return { name: created.name, writtenFiles: created.writtenFiles }
 }
@@ -419,7 +482,7 @@ async function pulledNameResolver(
       kind: 'log',
       level: 'warn',
       item: null,
-      message: `Could not read the Scryfall cache: ${getErrorMessage(error)}`,
+      ...syncMessage('domain.sync.scryfallCacheUnreadable', { error: errorParam(error) }),
     })
     return (addition) => addition.name
   }

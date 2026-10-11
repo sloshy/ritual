@@ -8,11 +8,12 @@ import { summarizeRun as summarizeDeckRun } from '../../../src/admin/api/deck-sy
 import { summarizeRun as summarizeCollectionRun } from '../../../src/admin/api/collection-sync'
 import type { DeckSyncReport } from '../../../src/deck-sync/engine'
 import type { CollectionSyncReport } from '../../../src/collection-sync/engine'
-import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
 import { tDynamic, type TranslateDynamicFn } from '../../../src/i18n/t'
-import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
-import { localeTag } from '../../../src/i18n/locale-tag'
-import { SYNC_CANCELLED_REASON } from '../../../src/sync/common'
+import type { LocaleTag } from '../../../src/i18n/types'
+import { withSyntheticLocale } from '../../helpers/sync-text'
+
+/** The English reason a cancelled item carries, pinned once. */
+const CANCELLED = 'cancelled before it started'
 
 /**
  * A sync run's summary has no single catalog key — it is a list of clauses — so
@@ -30,12 +31,6 @@ function translatorFor(locale: LocaleTag): TranslateDynamicFn {
   return (key, params) => tDynamic(locale, key, params)
 }
 
-/** Register a synthetic dictionary, so no shipped translation is under test. */
-function withDictionary(tag: LocaleTag, catalog: LocaleCatalog): void {
-  resetI18nRuntime()
-  loadDictionary(tag, catalog)
-}
-
 describe('renderSyncSummary', () => {
   const summary: SyncSummary = {
     clauses: [
@@ -49,31 +44,33 @@ describe('renderSyncSummary', () => {
   })
 
   test('re-renders every clause in the reader locale', () => {
-    withDictionary(localeTag('xx'), {
-      'admin.api.deckSync.pulled': { $plural: 'count', other: 'Gezogen: {count}' },
-      'admin.api.deckSync.failed': 'Fehlgeschlagen: {count}',
-    })
-    try {
-      const localized: SyncSummary = {
-        clauses: [
-          {
-            message: 'Pulled 2 decks',
-            messageKey: 'admin.api.deckSync.pulled',
-            messageParams: { count: 2 },
-          },
-          {
-            message: '1 failed',
-            messageKey: 'admin.api.deckSync.failed',
-            messageParams: { count: 1 },
-          },
-        ],
-      }
-      expect(renderSyncSummary(translatorFor(localeTag('xx')), localized, localeTag('xx'))).toBe(
-        'Gezogen: 2, Fehlgeschlagen: 1.',
-      )
-    } finally {
-      resetI18nRuntime()
-    }
+    // A synthetic dictionary, so no shipped translation is under test.
+    withSyntheticLocale(
+      'xx',
+      {
+        'admin.api.deckSync.pulled': { $plural: 'count', other: 'Gezogen: {count}' },
+        'admin.api.deckSync.failed': 'Fehlgeschlagen: {count}',
+      },
+      (xx) => {
+        const localized: SyncSummary = {
+          clauses: [
+            {
+              message: 'Pulled 2 decks',
+              messageKey: 'admin.api.deckSync.pulled',
+              messageParams: { count: 2 },
+            },
+            {
+              message: '1 failed',
+              messageKey: 'admin.api.deckSync.failed',
+              messageParams: { count: 1 },
+            },
+          ],
+        }
+        expect(renderSyncSummary(translatorFor(xx), localized, xx)).toBe(
+          'Gezogen: 2, Fehlgeschlagen: 1.',
+        )
+      },
+    )
   })
 
   test('a one-clause summary gets no separator', () => {
@@ -92,7 +89,7 @@ describe('summarizeRun', () => {
     return {
       direction: 'pull',
       decks: [
-        { name: 'Burn', status: 'synced' },
+        { name: 'Burn', status: 'synced', outcome: 'changed' },
         { name: 'Elves', status: 'skipped' },
         { name: 'Storm', status: 'failed' },
       ],
@@ -107,9 +104,12 @@ describe('summarizeRun', () => {
       direction: 'pull',
       into: 'Inbox',
       dryRun: false,
-      lists: [{ name: 'Binder', status: 'synced', added: 2, removed: 1, pending: 0 }],
+      lists: [
+        { name: 'Binder', status: 'synced', outcome: 'changed', added: 2, removed: 1, pending: 0 },
+      ],
       failedCount: 0,
       errors: ['Archidekt returned 500'],
+      errorMessages: [{ message: 'Archidekt returned 500' }],
       unreadable: [],
       cancelled: false,
       unresolvedAmbiguity: false,
@@ -124,10 +124,10 @@ describe('summarizeRun', () => {
     const report: DeckSyncReport = {
       ...deckReport(),
       decks: [
-        { name: 'Burn', status: 'synced' },
+        { name: 'Burn', status: 'synced', outcome: 'changed' },
         { name: 'Elves', status: 'skipped', reason: 'you do not own Archidekt deck 1' },
-        { name: 'Storm', status: 'skipped', reason: SYNC_CANCELLED_REASON },
-        { name: 'Tron', status: 'skipped', reason: SYNC_CANCELLED_REASON },
+        { name: 'Storm', status: 'skipped', outcome: 'cancelled', reason: CANCELLED },
+        { name: 'Tron', status: 'skipped', outcome: 'cancelled', reason: CANCELLED },
       ],
       failedCount: 0,
       cancelled: true,
@@ -147,17 +147,19 @@ describe('summarizeRun', () => {
     const report: CollectionSyncReport = {
       ...collectionReport(),
       lists: [
-        { name: 'Binder', status: 'synced', added: 2, removed: 1, pending: 0 },
+        { name: 'Binder', status: 'synced', outcome: 'changed', added: 2, removed: 1, pending: 0 },
         {
           name: 'Long Box',
           status: 'skipped',
-          reason: SYNC_CANCELLED_REASON,
+          outcome: 'cancelled',
+          reason: CANCELLED,
           added: 0,
           removed: 0,
           pending: 0,
         },
       ],
       errors: [],
+      errorMessages: [],
       cancelled: true,
     }
     const summary = summarizeCollectionRun(report)

@@ -81,11 +81,6 @@ export const domainMessages = {
     one: '{count} card entry',
     other: '{count} card entries',
   },
-  'domain.count.unreadableLines': {
-    $plural: 'count',
-    one: '{count} unreadable line',
-    other: '{count} unreadable lines',
-  },
   'domain.count.printings': {
     $plural: 'count',
     one: '{count} printing',
@@ -110,11 +105,6 @@ export const domainMessages = {
     $plural: 'count',
     one: '{count} collection record',
     other: '{count} collection records',
-  },
-  'domain.count.refusedRows': {
-    $plural: 'count',
-    one: '{count} refused row',
-    other: '{count} refused rows',
   },
   'domain.count.requests': { $plural: 'count', one: '{count} request', other: '{count} requests' },
   'domain.count.ambiguousRemovals': {
@@ -164,96 +154,6 @@ export const domainMessages = {
     one: 'Estimated at least {price}, {count} card has no price',
     other: 'Estimated at least {price}, {count} cards have no price',
   },
-
-  // ── Sync engines ──────────────────────────────────────────────────────
-  //
-  // Emitted by `src/collection-sync/` and `src/deck-sync/`, which render their
-  // log lines once and hand them to the CLI, the admin site over SSE, and the
-  // MCP report alike.
-  'domain.sync.skippedRemovals': {
-    $plural: 'count',
-    one: 'Skipped {count} removal (applying additions only).',
-    other: 'Skipped {count} removals (applying additions only).',
-  },
-  'domain.sync.skippedAdditions': {
-    $plural: 'count',
-    one: 'Skipped {count} addition (applying removals only).',
-    other: 'Skipped {count} additions (applying removals only).',
-  },
-  'domain.sync.csvUncachedAdditions': {
-    $plural: 'count',
-    one: '{count} addition cannot ride the CSV (the printing is not in the Scryfall cache); it is added one at a time instead.',
-    other:
-      '{count} additions cannot ride the CSV (the printing is not in the Scryfall cache); they are added one at a time instead.',
-  },
-  'domain.sync.rateLimitWait':
-    'Rate limited by Archidekt — waiting {seconds}s before retry {retry} of {maxRetries}.',
-  // What accepting a source's unreadable lines costs, shown above the list of
-  // those lines before the user agrees to sync it anyway.
-  'domain.sync.unreadableDeckConsequence':
-    'Syncing rewrites the deck file, so these lines would be removed:',
-  'domain.sync.unreadablePullConsequence':
-    'A pull rewrites the list file, so these lines would be removed:',
-  'domain.sync.unreadablePushConsequence':
-    'A push treats the list file as the truth, so the cards on these lines would be removed from your Archidekt collection:',
-
-  // ── Collection-sync progress ──────────────────────────────────────────
-  //
-  // A collection sync spends most of its wall clock in three phases that used
-  // to say nothing at all — reading the list files, loading the Scryfall cache
-  // to key them by, and paging in the remote collection — so each one announces
-  // itself before it starts and reports what it cost when it ends.
-  'domain.sync.readingLists': 'Reading collection lists...',
-  'domain.sync.listsRead': 'Read {lists} holding {entries} in {elapsed}.',
-  'domain.sync.indexingLocal':
-    'Matching {entries} against the local card cache (loading the cache the first time, which can take a while)...',
-  'domain.sync.localIndexed': 'Indexed {printings} across the local lists in {elapsed}.',
-  'domain.sync.printingNotCached':
-    '{card} is not in the Scryfall card cache; syncing {copies} as nonfoil. If the cache is out of date, refreshing it (`ritual cache preload-all`) lets its finish be read.',
-  'domain.sync.reindexingLocal':
-    'The card cache was just refreshed, so matching the local lists against it again (this replaces any cache warnings above)...',
-  'domain.sync.fetchingCollection':
-    'Fetching the Archidekt collection (paced to stay under the rate limit)...',
-  'domain.sync.fetchedPage': 'Fetched page {page} of {totalPages} — {records} so far.',
-  'domain.sync.collectionFetched':
-    'Archidekt collection: {records} covering {printings}, fetched in {elapsed}.',
-  'domain.sync.comparing': 'Comparing the collection against the local lists...',
-  'domain.sync.cancelled': 'Cancelled: {items} not synced.',
-
-  // ── Sync change details ───────────────────────────────────────────────
-  //
-  // One line per card a sync applies, listed under its `Changes:` summary.
-  // The CLI prints them only under `--verbose`.
-  'domain.sync.detailAdded': '+ {quantity} {card} to {place}',
-  'domain.sync.detailRemoved': '- {quantity} {card} from {place}',
-  'domain.sync.detailQuantity': '~ {card} in {place}: {from} → {to}',
-  'domain.sync.detailMove': '> {quantity} {card}: {from} → {to}',
-  'domain.sync.detailPrinting': '* {card} in {place}: {from} → {to}',
-  'domain.sync.detailCategories': '= {card} categories: {categories}',
-  'domain.sync.detailNoPrinting': 'no printing',
-  'domain.sync.detailPending': '+ {quantity} {card} to the CSV file, not pushed yet',
-  'domain.sync.placeArchidekt': 'Archidekt',
-  // The per-item count line both syncs log above their detail lines.
-  'domain.sync.changesLine': 'Changes: {summary}',
-  'domain.sync.deckCounts': {
-    $select: 'direction',
-    pull: '+{added} added, -{removed} removed, ~{quantity} quantity changed',
-    push: '+{added} to add, -{removed} to remove, ~{quantity} quantity changes',
-  },
-  'domain.sync.deckMovesClause': ', {moves}',
-  'domain.sync.deckPrintingsClause': {
-    $select: 'direction',
-    pull: ', {printings} changed',
-    push: ', {printings} to change',
-  },
-  'domain.sync.deckCategoriesClause': {
-    $select: 'direction',
-    pull: ', {cards} changed',
-    push: ', {cards} to change',
-  },
-  'domain.sync.collectionCounts': '+{added} added, -{removed} removed',
-  'domain.sync.collectionPendingClause': ', {copies} pending',
-  'domain.sync.detailNoCategories': 'none',
 
   // ── Site navigation ───────────────────────────────────────────────────
   //

@@ -56,8 +56,11 @@ describe('decideCsvUpload', () => {
     // scripted run carries the reason and the terminal prints it once.
     expect(decision).toEqual({
       kind: 'abort',
-      message:
-        '26 cards would be added — more than 25, so adding them one at a time would cost 26 printing searches. Pass --csv to upload them as one CSV import, or --csv-file <path> to write the CSV for a manual upload.',
+      message: expect.objectContaining({
+        message:
+          '26 cards would be added — more than 25, so adding them one at a time would cost 26 printing searches. Pass --csv to upload them as one CSV import, or --csv-file <path> to write the CSV for a manual upload.',
+        messageKey: 'cli.csvUpload.tooMany',
+      }),
     })
   })
 
@@ -120,8 +123,11 @@ describe('decideCsvUpload', () => {
 
     expect(await decideCsvUpload({ question: QUESTION, interactive: true, ask })).toEqual({
       kind: 'abort',
-      message:
-        'Cancelled before adding 26 cards. Pass --csv to upload them as one CSV import, or --csv-file <path> to write the CSV for a manual upload.',
+      message: expect.objectContaining({
+        message:
+          'Cancelled before adding 26 cards. Pass --csv to upload them as one CSV import, or --csv-file <path> to write the CSV for a manual upload.',
+        messageKey: 'cli.csvUpload.cancelled',
+      }),
     })
   })
 

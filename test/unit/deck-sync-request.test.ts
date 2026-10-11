@@ -243,7 +243,7 @@ describe('describeRun', () => {
   test('counts skipped and failed decks alongside the synced ones', () => {
     const summary = describeRun(
       report([
-        { name: 'A', status: 'synced' },
+        { name: 'A', status: 'synced', outcome: 'changed' },
         { name: 'B', status: 'skipped', reason: 'not yours' },
         { name: 'C', status: 'failed', reason: 'boom' },
       ]),
@@ -256,7 +256,7 @@ describe('describeRun', () => {
     // The engine owns failedCount; the summary must not second-guess it.
     const value: DeckSyncReport = {
       direction: 'pull',
-      decks: [{ name: 'A', status: 'synced' }],
+      decks: [{ name: 'A', status: 'synced', outcome: 'changed' }],
       failedCount: 2,
       unreadable: [],
       cancelled: false,
@@ -266,8 +266,8 @@ describe('describeRun', () => {
 
   test('names the direction, and says "previewed" for a dry run', () => {
     const decks: DeckSyncReport['decks'] = [
-      { name: 'A', status: 'synced' },
-      { name: 'B', status: 'synced' },
+      { name: 'A', status: 'synced', outcome: 'changed' },
+      { name: 'B', status: 'synced', outcome: 'changed' },
     ]
     expect(describeRun(report(decks, 'push'), false)).toBe('Pushed 2 decks.')
     expect(describeRun(report(decks, 'push'), true)).toBe('Previewed 2 decks.')

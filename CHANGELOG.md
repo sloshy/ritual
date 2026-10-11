@@ -50,6 +50,44 @@ release changes a file format or a generated file, it ships the change as a
 - The admin Sync Decks and Sync Collection pages' fallback for when the progress stream
   cannot connect now shows each deck's or list's `Changes:` count and per-card lines, as
   the stream does.
+- Deck-sync and collection-sync output follows the UI language: the CLI prints it in yours,
+  and the admin Sync Decks and Sync Collection pages show it in the browser's, relabelling
+  a finished run when you switch. JSON reports, the admin API and MCP results stay in
+  English.
+- **Sync reports carry an `outcome` code; scripts should branch on it, not on `reason`.**
+  Each deck and collection list in a `deck-sync` or `collection-sync` report (CLI
+  `--output json`, the admin API, MCP `sync_decks`/`sync_collection`) now has `outcome`:
+  `changed`, `unchanged`, `dry-run`, `cancelled` or `not-run` (absent on a failure or
+  another kind of skip). `changed` includes copies a push wrote to its `--csv-file` for
+  upload; a deck push whose changes all turned out to be what Archidekt already holds is
+  `unchanged` (its `--dry-run` preview too, which used to say "would push 0 card changes"). `reason` stays English, with `reasonKey` and `reasonParams` beside it, and a
+  collection report adds `errorMessages` beside `errors`. The same key and params ride
+  beside the English on the admin API's streamed `log` events, on a CSV import's `failed`
+  outcome (`messageKey`, `messageParams`), and on a CSV failure row Ritual could not match
+  to a card (`cardKey`, `cardParams`). Update any script that matched `reason` against
+  `no changes`, `cancelled before it started` or `dry-run:`.
+- A collection sync that stops before reaching its lists (a bad `--into` or
+  `--removal-priority`, an unresolved ambiguous removal, or additions a push will not
+  send) now reports those lists `skipped` with the outcome `not-run` and the reason "not
+  synced: the run stopped before this list", instead of `synced` as if they had been
+  compared and found unchanged, or (for a bad destination) leaving them out. A list's
+  reason no longer repeats once per CSV row Archidekt refused. A list that failed stays
+  `failed` when the run is then cancelled, and a push preview's lists carry the same "dry-run: …" summary a pull's
+  do.
+- Some sync wording changed:
+  - A count of one reads in the singular: "Pushed 1 card change to Archidekt", and "did
+    not import 1 of 1 CSV row".
+  - A list of collection lists, or of removals a pull could not place, ends with a serial
+    comma and "and", in the UI language's own list style ("A, B, and C"). Unplaced
+    removals used to be joined by commas alone.
+  - A deck that cannot be synced is named before the reason, as in "Deck "Name": not
+    sourced from Archidekt" (or "Skipping file.md: …" in an all-decks run), and a deck file
+    that cannot be read reports "could not read the deck file: …".
+  - A push that cannot find a card on Archidekt says "Cannot remove Sol Ring: the
+    Archidekt deck does not hold it" instead of "Cannot remove for card not found in
+    Archidekt deck: Sol Ring".
+  - The rate-limit notice spells its wait out: "waiting 2 seconds before retry 1 of 5"
+    instead of "waiting 2s", and a minute or more reads as minutes.
 - **`deck-sync push` now moves cards between boards.** A push diffs per board the way a pull
   does, so a card that is in Main locally but in the Maybeboard on Archidekt (or any other
   board pair) is moved there on Archidekt, instead of the push doing nothing. The existing
