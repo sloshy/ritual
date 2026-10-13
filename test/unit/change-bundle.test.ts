@@ -1,3 +1,4 @@
+import { outcome } from '../helpers/change-problem'
 import { describe, it, expect } from 'bun:test'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from '../../src/changes/change-event'
 import type { ListType } from '../../src/list/list-type'
@@ -62,9 +63,12 @@ function bundle(lists: ChangeBundleList[], moves: ChangeBundleMove[] = []): Chan
   return buildChangeBundle({ lists, moves, exportedAt: EXPORTED_AT })
 }
 
-/** Serialize an arbitrary (possibly malformed) object and parse it as a bundle. */
+/**
+ * Serialize an arbitrary (possibly malformed) object and parse it as a bundle:
+ * the bundle, or its refusal's English.
+ */
 function parseRaw(raw: unknown): ChangeBundle | string {
-  return parseChangeBundle(JSON.stringify(raw))
+  return outcome(parseChangeBundle(JSON.stringify(raw)))
 }
 
 function parseOk(raw: unknown): ChangeBundle {
@@ -104,7 +108,7 @@ function sampleBundle(): ChangeBundle {
 describe('change-bundle round trip', () => {
   it('serializes and parses back to an equivalent bundle, moves included', () => {
     const parsed = parseChangeBundle(serializeChangeBundle(sampleBundle()))
-    expect(parsed).toEqual(sampleBundle())
+    expect(outcome(parsed)).toEqual(sampleBundle())
   })
 
   it('canonicalizes a move’s tags on parse, folding an empty set to absent', () => {
@@ -162,12 +166,12 @@ describe('change-bundle round trip', () => {
     [
       'an unknown label',
       { labels: ['gift'] },
-      `Move #1 Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
+      `Move #1: Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
     ],
     [
       'an exclusive label combination',
       { labels: ['proxy', 'sale'] },
-      "Move #1 'proxy' cannot be combined with other labels.",
+      "Move #1: 'proxy' cannot be combined with other labels.",
     ],
     ['a non-string note', { note: 5 }, 'Move #1 has an invalid "note".'],
   ])('rejects a move carrying %s', (_, extra, message) => {
@@ -220,8 +224,8 @@ describe('change-bundle round trip', () => {
 
 describe('parseChangeBundle validation', () => {
   it('rejects non-JSON and non-object payloads', () => {
-    expect(parseChangeBundle('not json{')).toContain('JSON')
-    expect(parseChangeBundle('42')).toContain('object')
+    expect(outcome(parseChangeBundle('not json{'))).toBe('Not valid JSON.')
+    expect(outcome(parseChangeBundle('42'))).toBe('Expected a JSON object.')
   })
 
   it.each<[string, unknown, string]>([
@@ -328,7 +332,7 @@ describe('parseChangeBundle validation', () => {
     [
       'a move carrying a malformed tag',
       { ...bundle([]), moves: [move('m', 1, DECK, BINDER, { tags: ['a,b'] })] },
-      'Move #1 Invalid tag "a,b"',
+      'Move #1: Invalid tag "a,b"',
     ],
     [
       'a move whose tags are not an array',
@@ -336,7 +340,7 @@ describe('parseChangeBundle validation', () => {
         ...bundle([]),
         moves: [move('m', 1, DECK, BINDER, { tags: 'ramp' as unknown as string[] })],
       },
-      'Move #1 "tags" must be an array of tags',
+      'Move #1: "tags" must be an array of tags',
     ],
     ['version 1 (pre-normalized moves)', { ...sampleBundle(), version: 1 }, 'version'],
     // Version 2 labels replaced the list default; version 3 labels adjust it.

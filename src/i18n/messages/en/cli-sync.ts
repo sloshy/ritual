@@ -214,6 +214,12 @@ export const cliSyncMessages = {
   'cli.detectChanges.noCardChanges': '{label}: no card changes detected',
   'cli.detectChanges.changeCount': '{label}: {count} change(s)',
   'cli.detectChanges.gitProbeFailed': 'Failed to check for a git repository',
+  'cli.detectChanges.gitRepoCheckFailed': 'Failed to check whether {dir} is a git repository',
+  'cli.detectChanges.gitResolveFailed': 'Failed to resolve "{commit}" in {dir}',
+  'cli.detectChanges.gitDiffFailed':
+    'Failed to read the git diff between {commit} and HEAD in {dir}',
+  'cli.detectChanges.gitReadFailed': 'Failed to read {file} at {commit} in {dir}',
+  'cli.detectChanges.gitMissing': 'git is not installed or not on PATH',
   'cli.detectChanges.notGitRepo':
     'Not a git repository: {path}\n  Detection reads git history. Use "ritual detect-changes --hash-only" to stamp .sha256 sidecars without git.',
   'cli.detectChanges.resolveRefFailed': 'Failed to resolve {commit}',

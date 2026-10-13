@@ -4,6 +4,8 @@ import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { expectPseudo, languageSelect, offerLocales, PSEUDO_LOCALE } from '../helpers/i18n'
 import { apiMessage } from '../../../src/api/result'
+import { describeUnmatchedChanges } from '../../../src/changes/apply-batch'
+import { createAddChange } from '../../../src/changes/change-event'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
@@ -294,6 +296,42 @@ test.describe('Collection Editor sections', () => {
     )
     await languageSelect(page).selectOption(PSEUDO_LOCALE)
     await expectPseudo(toast, true)
+  })
+
+  test('a save refusal whose params nest relabels whole on a language switch', async ({ page }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await page.reload()
+    await openListEditor(page, 'collection')
+    await selectList(page, 'collection', 'test-sections')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    // The route's own builder: the summary nests each reason, and each reason
+    // the change descriptions it names.
+    await fulfillJson(
+      page,
+      '**/api/collection/test-sections/save',
+      () => ({
+        success: false,
+        ...describeUnmatchedChanges(
+          [{ change: createAddChange('Ghost Card', { cardId: 9 }), reason: 'no-target' }],
+          { type: 'collection', slug: 'test-sections' },
+        ),
+        unmatched: ['Add Ghost Card &9 (no-target)'],
+      }),
+      { status: 400 },
+    )
+
+    await stageASectionAdd(page)
+    await page.locator('.btn-save').click()
+    const toast = page.locator('.toast-stack .alert-error')
+    await expect(toast).toContainText('1 change matched no card in collection "test-sections"')
+    await expect(toast).toContainText('"Add Ghost Card &9"')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(toast, true)
+    // The nested change description relabels with the sentence around it.
+    await expect(toast).not.toContainText('1 change matched')
+    await expect(toast).not.toContainText('Add Ghost Card')
+    await expect(toast).toContainText('Ghost Card')
   })
 })
 

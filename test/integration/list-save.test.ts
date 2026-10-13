@@ -108,6 +108,8 @@ describe('POST /api/:type/:slug/save', () => {
     const body = (await resp.json()) as ListSaveRefusal
     expect(body.unmatched).toHaveLength(1)
     expect(body.unmatched[0]).toContain('Black Lotus')
+    expect(body.messageKey).toBe('domain.changes.unmatched.summary')
+    expect(body.message).toMatch(/^1 change matched no card in deck "burn": /)
     expect(await snapshotTree(ws.dir)).toEqual(before)
   })
 

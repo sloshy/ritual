@@ -35,6 +35,7 @@
 import { type ChangeEvent, areOppositeChanges, formatChangeCore } from './change-event'
 import { decodeChangeEvent, encodeChangeEvent } from './change-event-decode'
 import { createFenceTracker } from '../list/markdown-fence'
+import { documentProblem, type ChangeProblem } from './change-problem'
 
 /** The info string of the fenced block that carries an entry's events. */
 export const CHANGES_BLOCK_INFO = 'ritual-changes'
@@ -74,8 +75,9 @@ export type Changelog = {
 
 /**
  * Something a reader should know about an entry the parser could not fully
- * read. Small and structured (no raw content) so it costs baked site data
- * nothing to carry and a caller can name the file and entry in its own words.
+ * read. Structured — a kind, the entry, and for an undecodable line the
+ * validator's problem (whose params may quote a fragment of the line) — so a
+ * caller can name the file and entry in its own words and language.
  */
 export type ChangelogAdvisory =
   | {
@@ -92,8 +94,8 @@ export type ChangelogAdvisory =
       /** A line inside the entry's `ritual-changes` block did not decode; it was dropped. */
       kind: 'invalid-event'
       timestamp: string
-      /** The decoder's reason (English by contract, like every JSON-format diagnostic). */
-      error: string
+      /** Why the line was refused, for the surface reporting it to word. */
+      problem: ChangeProblem
     }
 
 /** What {@link parseChangeSets} reads: the changelog plus the advisories raised reading it. */
@@ -242,7 +244,7 @@ export function parseChangeSets(content: string, fallbackName: string): ParsedCh
         advisories.push({
           kind: 'invalid-event',
           timestamp: setTimestamp,
-          error: 'Not valid JSON.',
+          problem: documentProblem('json-invalid'),
         })
         continue
       }
@@ -257,12 +259,12 @@ export function parseChangeSets(content: string, fallbackName: string): ParsedCh
         const { id: _id, timestamp: _ts, ...payload } = raw as Record<string, unknown>
         withEnvelope = { ...payload, ...envelope }
       }
-      const event = decodeChangeEvent(withEnvelope, '')
-      if (typeof event === 'string') {
-        advisories.push({ kind: 'invalid-event', timestamp: setTimestamp, error: event.trim() })
+      const event = decodeChangeEvent(withEnvelope, { kind: 'change' })
+      if (!event.ok) {
+        advisories.push({ kind: 'invalid-event', timestamp: setTimestamp, problem: event.problem })
         continue
       }
-      current.events.push(event)
+      current.events.push(event.value)
       continue
     }
 
@@ -295,6 +297,7 @@ export function parseChangeSets(content: string, fallbackName: string): ParsedCh
   }
   closeSet()
 
+  // i18n-exempt: the `.changes.md` header line, persisted data written back on serialize
   let header = headerLines.join('\n').trim() || `# Changelog for ${fallbackName}`
   // Drop sets that ended up with nothing — they carry no information and the
   // writer never emits them. Prose attached to a dropped set is reattached to

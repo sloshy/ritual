@@ -12,6 +12,7 @@ import {
   PSEUDO_LOCALE,
 } from '../helpers/i18n'
 import { localeTag } from '../../../src/i18n/locale-tag'
+import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
 import type { LocaleTag } from '../../../src/i18n/types'
 import {
   makeDeckSummary,
@@ -120,6 +121,28 @@ test.describe('public site language switch', () => {
     await expectPseudo(matchModeButton, true)
 
     await expectNotReloaded(page)
+  })
+
+  test('relabels a change bundle’s refusal in the Load Changes dialog, the move it names included', async ({
+    page,
+  }) => {
+    await page.goto(DECK_HASH)
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.locator('.btn-edit').click()
+    await page.locator('.edit-banner').getByRole('button', { name: 'Load Changes' }).click()
+    const dialog = page.locator('.import-dialog')
+    // The bundle is validated in the browser; its refusal is a structured
+    // problem the dialog holds unrendered and words in the JSX.
+    await dialog.locator('.import-dialog-textarea').fill(JSON.stringify(MALFORMED_MOVE_BUNDLE))
+    await dialog.getByRole('button', { name: 'Import', exact: true }).click()
+    const error = dialog.locator('.form-error')
+    await expect(error).toHaveText(MALFORMED_MOVE_ENGLISH)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(error, true)
+    // The record it is about relabels with the sentence around it.
+    await expect(error).not.toContainText('Move #1')
+    await expect(error).not.toContainText('is not an object')
   })
 
   test('stamps the document language and remembers the choice', async ({ page }) => {

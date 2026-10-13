@@ -2,8 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { BundleImportResponse } from '../../../src/admin/api/import-changes'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { ImportDeckResponse } from '../../../src/admin/api/import-deck'
-import { prefixedMessage } from '../../../src/sync/message'
+import { prefixedMessage, renderSyncMessage, syncRef } from '../../../src/sync/message'
 import { keyedMessage } from '../../helpers/api-message'
+import { withSyntheticLocaleAsync } from '../../helpers/sync-text'
+import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -1515,6 +1517,26 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(deckOnDisk).toMatch(/Counterspell &\d+/)
   })
 
+  test('import_change_bundle refuses a malformed bundle in English', async () => {
+    // The validator's refusal is a structured problem; the tool words it in
+    // English for the agent, whatever language the server process speaks.
+    const result = await withSyntheticLocaleAsync(
+      'xx',
+      { 'domain.changes.problem.notObject': '{subject} ist kein Objekt.' },
+      () => {
+        // Vacuity guard: the process really speaks the synthetic language.
+        expect(
+          renderSyncMessage(syncRef('domain.changes.problem.notObject', { subject: 'X' })),
+        ).toBe('X ist kein Objekt.')
+        return callTool(client, 'import_change_bundle', {
+          json: JSON.stringify(MALFORMED_MOVE_BUNDLE),
+        })
+      },
+    )
+    expect(result.isError).toBe(true)
+    expect(firstText(result)).toContain(`Invalid change bundle: ${MALFORMED_MOVE_ENGLISH}`)
+  })
+
   test('import_change_bundle reports a partly-failed bundle instead of erroring', async () => {
     // The per-list report is the whole point of this tool, and a partial failure
     // is exactly when it matters — so a list that could not be resolved must
@@ -1732,7 +1754,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     })
     expect(result.isError).toBe(true)
     // The reason must not read as a name mismatch — the action can never apply.
-    expect(firstText(result)).toContain('never apply to a wanted list')
+    expect(firstText(result)).toContain('1 change never applies to a wanted list')
   })
 
   test('apply_changes can target a card added earlier in the same batch', async () => {

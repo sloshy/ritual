@@ -13,7 +13,7 @@ import {
 import type { ListInfo } from '../../../list/list-info'
 import type { ChangeEvent } from '../../../changes/change-event'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
-import type { ApiErrorResponse } from '../../../api/http'
+import type { ApiErrorResponse, NestedRefusalResponse } from '../../../api/http'
 import type { ListsResponse } from '../../api/lists'
 import { apiMessage } from '../../../api/result'
 import type { ApiActionMessage } from '../../../api/result'
@@ -226,7 +226,8 @@ export function useHistorySession(): UseHistorySessionResult {
           body: JSON.stringify({ sets: sets() }),
         },
       )
-      const data = (await resp.json()) as HistorySaveResponse | ApiErrorResponse
+      const data = (await resp.json()) as
+        HistorySaveResponse | ApiErrorResponse | NestedRefusalResponse
       if (!data.success) {
         setError(readSyncMessage(data) ?? apiMessage('admin.app.requestFailed'))
         return

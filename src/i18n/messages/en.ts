@@ -19,6 +19,7 @@ import { cliEditMessages } from './en/cli-edit'
 import { cliInfraMessages } from './en/cli-infra'
 import { cliSyncMessages } from './en/cli-sync'
 import { domainMessages } from './en/domain'
+import { domainChangesMessages } from './en/domain-changes'
 import { domainSyncMessages } from './en/domain-sync'
 import { errorMessages } from './en/errors'
 import { helpMessages } from './en/help'
@@ -60,6 +61,7 @@ export const en = {
   ...cliInfraMessages,
   ...cliSyncMessages,
   ...domainMessages,
+  ...domainChangesMessages,
   ...domainSyncMessages,
   ...errorMessages,
   ...helpMessages,

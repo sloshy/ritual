@@ -23,6 +23,11 @@ import type { DeckData } from '../../src/list/deck'
 import type { EntryRef } from '../../src/list/entry-ref'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import { makeCollectionEntry } from '../test-utils'
+import { A_CHANGE, accepted, outcome } from '../helpers/change-problem'
+
+/** Decode one raw event: the event, or its refusal's English. */
+const decodeText = (raw: Record<string, unknown>): unknown =>
+  outcome(decodeChangeEvent(raw, A_CHANGE))
 
 /**
  * The category events end to end through the engine layer: how they consolidate,
@@ -124,11 +129,10 @@ describe('prose, colouring and codec', () => {
         cardName: 'Sol Ring',
         categories: [' Ramp ', 'ramp', 'Card  Draw'],
       },
-      'change 1: ',
+      A_CHANGE,
     )
-    expect(typeof decoded === 'string' ? decoded : decoded.action).toBe('set-categories')
-    if (typeof decoded === 'string') return
-    expect(decoded.action === 'set-categories' && decoded.categories).toEqual(['Ramp', 'Card Draw'])
+    const event = accepted(decoded)
+    expect(event.action === 'set-categories' && event.categories).toEqual(['Ramp', 'Card Draw'])
   })
 
   test('a cardId is refused on every category action, and a cardName on the two list-level ones', () => {
@@ -136,40 +140,37 @@ describe('prose, colouring and codec', () => {
     // rewrite, so a smuggled id would be persisted into this list's changelog
     // prose — naming a line in some other list.
     expect(
-      decodeChangeEvent(
-        {
-          id: 'a',
-          timestamp: 1,
-          action: 'set-categories',
-          cardName: 'Sol Ring',
-          cardId: 12,
-          categories: ['Ramp'],
-        },
-        'change 1: ',
-      ),
-    ).toBe('change 1: (set-categories) is keyed by card name and must not carry a "cardId".')
+      decodeText({
+        id: 'a',
+        timestamp: 1,
+        action: 'set-categories',
+        cardName: 'Sol Ring',
+        cardId: 12,
+        categories: ['Ramp'],
+      }),
+    ).toBe('The change (set-categories) is keyed by card name and must not carry a "cardId".')
 
     expect(
-      decodeChangeEvent(
-        { id: 'a', timestamp: 1, action: 'set-category-order', cardId: 3, order: ['Ramp'] },
-        'change 1: ',
-      ),
-    ).toBe('change 1: (set-category-order) is keyed by card name and must not carry a "cardId".')
+      decodeText({
+        id: 'a',
+        timestamp: 1,
+        action: 'set-category-order',
+        cardId: 3,
+        order: ['Ramp'],
+      }),
+    ).toBe('The change (set-category-order) is keyed by card name and must not carry a "cardId".')
 
     expect(
-      decodeChangeEvent(
-        {
-          id: 'a',
-          timestamp: 1,
-          action: 'rename-category',
-          cardName: 'Sol Ring',
-          category: 'Draw',
-          newCategory: 'Card Draw',
-        },
-        'change 1: ',
-      ),
+      decodeText({
+        id: 'a',
+        timestamp: 1,
+        action: 'rename-category',
+        cardName: 'Sol Ring',
+        category: 'Draw',
+        newCategory: 'Card Draw',
+      }),
     ).toBe(
-      'change 1: (rename-category) targets the list, not a card, and must not carry a "cardName".',
+      'The change (rename-category) targets the list, not a card, and must not carry a "cardName".',
     )
   })
 
@@ -182,11 +183,10 @@ describe('prose, colouring and codec', () => {
         cardName: 'Sol Ring',
         categories: [],
       },
-      'change 1: ',
+      A_CHANGE,
     )
-    expect(typeof decoded).not.toBe('string')
-    if (typeof decoded === 'string') return
-    expect(decoded.action === 'set-categories' && decoded.categories).toEqual([])
+    const event = accepted(decoded)
+    expect(event.action === 'set-categories' && event.categories).toEqual([])
   })
 
   test.each([
@@ -204,9 +204,7 @@ describe('prose, colouring and codec', () => {
     ['a malformed rename target', { action: 'rename-category', category: 'A', newCategory: 'a,b' }],
     ['a non-array order', { action: 'set-category-order', order: 'Ramp' }],
   ])('decodeChangeEvent refuses %s', (_label, fields) => {
-    expect(typeof decodeChangeEvent({ id: 'a', timestamp: 1, ...fields }, 'change 1: ')).toBe(
-      'string',
-    )
+    expect(decodeChangeEvent({ id: 'a', timestamp: 1, ...fields }, A_CHANGE).ok).toBe(false)
   })
 
   test('the two list-level actions decode with no cardName', () => {
@@ -214,9 +212,7 @@ describe('prose, colouring and codec', () => {
       { action: 'rename-category', category: 'Draw', newCategory: 'Card Draw' },
       { action: 'set-category-order', order: ['Ramp'] },
     ]) {
-      expect(typeof decodeChangeEvent({ id: 'a', timestamp: 1, ...fields }, 'change 1: ')).not.toBe(
-        'string',
-      )
+      expect(decodeChangeEvent({ id: 'a', timestamp: 1, ...fields }, A_CHANGE).ok).toBe(true)
     }
   })
 

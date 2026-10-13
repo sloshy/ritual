@@ -17,6 +17,9 @@ import {
 } from '../../src/i18n/runtime'
 import type { LocaleCatalog } from '../../src/i18n/types'
 import { localeTag } from '../../src/i18n/locale-tag'
+import { changeProblemMessage } from '../../src/changes/change-problem-message'
+import { locatedProblem } from '../../src/changes/change-problem'
+import { withSyntheticLocale } from '../helpers/sync-text'
 
 /** The dynamic translator a component gets from `useTDynamic()`, in the active locale. */
 const t = (key: MessageKey, params?: RenderParams): string => tDynamic(currentLocale(), key, params)
@@ -58,6 +61,36 @@ describe('editor status messages', () => {
     expect(rendered('deck')).toBe('Failed to load deck')
     expect(rendered('collection')).toBe('Failed to load collection')
     expect(rendered('wanted')).toBe('Failed to load wanted list')
+  })
+
+  it('renders a server message in the reader’s language, nested parts included, English for an unknown key', () => {
+    const sent = changeProblemMessage(
+      locatedProblem(
+        'field-invalid',
+        { subject: { kind: 'save-change', index: 2 } },
+        { field: 'set' },
+      ),
+    )
+    const message: EditorStatusMessage = { kind: 'message', message: sent }
+    expect(renderStatus(t, message)).toBe('changes[2] has an invalid "set".')
+    withSyntheticLocale(
+      'xx',
+      {
+        'domain.changes.problem.fieldInvalid': '{subject}: „{field}“ ungültig.',
+        'domain.changes.subject.saveChange': 'Änderung {index}',
+      },
+      () => {
+        expect(renderStatus(t, message)).toBe('Änderung 2: „set“ ungültig.')
+        const unknown: EditorStatusMessage = {
+          kind: 'message',
+          message: {
+            message: 'From a newer server',
+            messageKey: 'domain.changes.nope' as MessageKey,
+          },
+        }
+        expect(renderStatus(t, unknown)).toBe('From a newer server')
+      },
+    )
   })
 
   it('passes server-authored prose through untouched', () => {

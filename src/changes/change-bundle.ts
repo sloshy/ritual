@@ -22,6 +22,16 @@ import { sameListName } from '../list/list-file-name'
 import type { ListType } from '../list/list-type'
 import { LIST_TYPES } from '../list/list-type'
 import { findLineBreak } from '../util/single-line'
+import {
+  documentProblem,
+  locatedProblem,
+  partOf,
+  refuse,
+  type ChangeFieldName,
+  type ChangeProblemResult,
+  type ChangeProblemSite,
+  type ChangeProblemSubject,
+} from './change-problem'
 
 /** The `format` marker every change bundle carries — what tells it from unrelated JSON. */
 export const CHANGE_BUNDLE_FORMAT = 'ritual-change-bundle'
@@ -503,178 +513,216 @@ export function movesTouching(
 }
 
 /**
- * Validate a raw `changes` value as an ordered {@link ChangeEvent} array. Returns
- * the array on success or a human-readable error string prefixed with the list's
- * position (e.g. `List #2: `). Move events are refused here: a bundle records
- * moves once, in its top-level `moves` array. Each event is judged by the
- * shared {@link decodeChangeEvent}, with labels checked against the list type.
+ * Validate a raw `changes` value as an ordered {@link ChangeEvent} array, for
+ * the bundle's 1-based list `list`. Move events are refused here: a bundle
+ * records moves once, in its top-level `moves` array. Each event is judged by
+ * the shared {@link decodeChangeEvent}, with labels checked against the list
+ * type.
  */
-function validateChanges(raw: unknown, where: string, kind: ListType): ChangeEvent[] | string {
-  if (!Array.isArray(raw)) return `${where}Missing or invalid "changes" array.`
+function validateChanges(
+  raw: unknown,
+  list: number,
+  kind: ListType,
+): ChangeProblemResult<ChangeEvent[]> {
+  if (!Array.isArray(raw)) {
+    return refuse(documentProblem('bundle-list-array-invalid', { list, field: 'changes' }))
+  }
   const changes: ChangeEvent[] = []
   for (const [i, change] of raw.entries()) {
-    const here = `${where}Change #${i + 1} `
-    const event = decodeChangeEvent(change, here, { listType: kind })
-    if (typeof event === 'string') return event
-    if (event.action === 'move-from' || event.action === 'move-to') {
-      return `${here}is a ${event.action}; moves belong in the top-level "moves" array.`
+    const subject: ChangeProblemSubject = { kind: 'bundle-change', list, change: i + 1 }
+    const event = decodeChangeEvent(change, subject, { listType: kind })
+    if (!event.ok) return event
+    if (event.value.action === 'move-from' || event.value.action === 'move-to') {
+      return refuse(locatedProblem('move-in-changes', { subject }, { action: event.value.action }))
     }
-    changes.push(event)
+    changes.push(event.value)
   }
-  return changes
+  return { ok: true, value: changes }
 }
 
-/** Validate one entry of a bundle's `lists` array, or return an error string. */
-function validateList(obj: Record<string, unknown>, where: string): ChangeBundleList | string {
+/** Validate one entry of a bundle's `lists` array — 1-based position `list`. */
+function validateList(
+  obj: Record<string, unknown>,
+  list: number,
+): ChangeProblemResult<ChangeBundleList> {
   if (typeof obj.kind !== 'string' || !(LIST_TYPES as readonly string[]).includes(obj.kind)) {
-    return `${where}Invalid list kind: ${String(obj.kind)} (expected deck, collection, or wanted).`
+    return refuse(documentProblem('bundle-list-kind-invalid', { list, kind: String(obj.kind) }))
   }
-  if (typeof obj.slug !== 'string') return `${where}Missing or invalid "slug".`
-  if (typeof obj.name !== 'string') return `${where}Missing or invalid "name".`
+  if (typeof obj.slug !== 'string') {
+    return refuse(documentProblem('bundle-list-field-invalid', { list, field: 'slug' }))
+  }
+  if (typeof obj.name !== 'string') {
+    return refuse(documentProblem('bundle-list-field-invalid', { list, field: 'name' }))
+  }
   if (obj.baseContentHash !== undefined && typeof obj.baseContentHash !== 'string') {
-    return `${where}Invalid "baseContentHash".`
+    return refuse(
+      documentProblem('bundle-list-field-malformed', { list, field: 'baseContentHash' }),
+    )
   }
   const kind = obj.kind as ListType
-  const changes = validateChanges(obj.changes, where, kind)
-  if (typeof changes === 'string') return changes
+  const changes = validateChanges(obj.changes, list, kind)
+  if (!changes.ok) return changes
   return {
-    kind,
-    slug: obj.slug,
-    name: obj.name,
-    baseContentHash: obj.baseContentHash,
-    changes,
+    ok: true,
+    value: {
+      kind,
+      slug: obj.slug,
+      name: obj.name,
+      baseContentHash: obj.baseContentHash,
+      changes: changes.value,
+    },
   }
 }
 
-/** Validate one end of a move (`from` / `to`), or return an error string. */
-function validateMoveRef(raw: unknown, where: string): ChangeBundleListRef | string {
-  if (typeof raw !== 'object' || raw === null) return `${where}is not an object.`
+/** Validate one end of a move (`from` / `to`, the move's `part`). */
+function validateMoveRef(
+  raw: unknown,
+  move: ChangeProblemSite,
+  part: 'from' | 'to',
+): ChangeProblemResult<ChangeBundleListRef> {
+  const site = partOf(move, part)
+  if (typeof raw !== 'object' || raw === null) return refuse(locatedProblem('not-object', site))
   const obj = raw as Record<string, unknown>
   if (typeof obj.kind !== 'string' || !(LIST_TYPES as readonly string[]).includes(obj.kind)) {
-    return `${where}has an invalid list kind: ${String(obj.kind)} (expected deck, collection, or wanted).`
+    return refuse(locatedProblem('list-kind-invalid', site, { value: String(obj.kind) }))
   }
-  if (typeof obj.name !== 'string') return `${where}is missing its "name".`
-  if (obj.slug !== undefined && typeof obj.slug !== 'string')
-    return `${where}has an invalid "slug".`
+  if (typeof obj.name !== 'string') {
+    return refuse(locatedProblem('field-missing', site, { field: 'name' }))
+  }
+  if (obj.slug !== undefined && typeof obj.slug !== 'string') {
+    return refuse(locatedProblem('field-invalid', site, { field: 'slug' }))
+  }
   const kind = obj.kind as ListType
-  return obj.slug === undefined
-    ? { kind, name: obj.name }
-    : { kind, slug: obj.slug, name: obj.name }
+  return {
+    ok: true,
+    value:
+      obj.slug === undefined ? { kind, name: obj.name } : { kind, slug: obj.slug, name: obj.name },
+  }
 }
 
-/** Validate a raw `moves` value as an ordered {@link ChangeBundleMove} array, or return an error string. */
-function validateMoves(raw: unknown): ChangeBundleMove[] | string {
-  if (!Array.isArray(raw)) return 'Missing or invalid "moves" array.'
+/** Validate a raw `moves` value as an ordered {@link ChangeBundleMove} array. */
+function validateMoves(raw: unknown): ChangeProblemResult<ChangeBundleMove[]> {
+  if (!Array.isArray(raw)) {
+    return refuse(documentProblem('bundle-array-invalid', { field: 'moves' }))
+  }
   const moves: ChangeBundleMove[] = []
   for (const [i, move] of raw.entries()) {
-    const where = `Move #${i + 1} `
-    if (typeof move !== 'object' || move === null) return `${where}is not an object.`
+    const site: ChangeProblemSite = { subject: { kind: 'bundle-move', move: i + 1 } }
+    const fieldProblem = (code: 'field-missing' | 'field-invalid', field: ChangeFieldName) =>
+      refuse(locatedProblem(code, site, { field }))
+    if (typeof move !== 'object' || move === null) return refuse(locatedProblem('not-object', site))
     const obj = move as Record<string, unknown>
-    if (typeof obj.id !== 'string') return `${where}is missing its "id".`
-    if (typeof obj.timestamp !== 'number') return `${where}is missing its "timestamp".`
-    if (typeof obj.cardName !== 'string') return `${where}is missing its "cardName".`
-    const from = validateMoveRef(obj.from, `${where}"from" `)
-    if (typeof from === 'string') return from
-    const to = validateMoveRef(obj.to, `${where}"to" `)
-    if (typeof to === 'string') return to
+    if (typeof obj.id !== 'string') return fieldProblem('field-missing', 'id')
+    if (typeof obj.timestamp !== 'number') return fieldProblem('field-missing', 'timestamp')
+    if (typeof obj.cardName !== 'string') return fieldProblem('field-missing', 'cardName')
+    const from = validateMoveRef(obj.from, site, 'from')
+    if (!from.ok) return from
+    const to = validateMoveRef(obj.to, site, 'to')
+    if (!to.ok) return to
     if (obj.cardId !== undefined && !isCardIdValue(obj.cardId)) {
-      return `${where}has an invalid "cardId".`
+      return fieldProblem('field-invalid', 'cardId')
     }
     if (obj.toCardId !== undefined && !isCardIdValue(obj.toCardId)) {
-      return `${where}has an invalid "toCardId".`
+      return fieldProblem('field-invalid', 'toCardId')
     }
-    if (sameBundleList(from, to)) {
-      return `${where}names the same list as source and destination.`
+    if (sameBundleList(from.value, to.value)) {
+      return refuse(locatedProblem('move-same-list', site))
     }
     if (obj.section !== undefined && typeof obj.section !== 'string') {
-      return `${where}has an invalid "section".`
+      return fieldProblem('field-invalid', 'section')
     }
     if (obj.pinsCardId !== undefined && !isCardIdValue(obj.pinsCardId)) {
-      return `${where}has an invalid "pinsCardId".`
+      return fieldProblem('field-invalid', 'pinsCardId')
     }
     // Without the landing id a pin would read as a split (a copy off the line
     // onto a fresh id) rather than the in-place conversion it may have been.
     if (obj.pinsCardId !== undefined && obj.toCardId === undefined) {
-      return `${where}has a "pinsCardId" but no "toCardId"; a pinning move must name the line the copy lands on.`
+      return refuse(locatedProblem('move-pin-without-target', site))
     }
     // A replacement is the pinning move's option: any other move handing a
     // source list a printing would be a free card.
     if (obj.replacement !== undefined && obj.pinsCardId === undefined) {
-      return `${where}has a "replacement" but no "pinsCardId"; only a pinning move carries one.`
+      return refuse(locatedProblem('move-replacement-unpinned', site))
     }
-    const printing = validatePrintingFields(obj, where, { conditionClearAllowed: false })
-    if (!printing.ok) return printing.error
-    const replacement = validateReplacement(obj.replacement, where)
-    if (typeof replacement === 'string') return replacement
-    const moved = validateMovedCopyFields(obj, where)
-    if (!moved.ok) return moved.error
+    const printing = validatePrintingFields(obj, site, { conditionClearAllowed: false })
+    if (!printing.ok) return printing
+    const replacement = validateReplacement(obj.replacement, site)
+    if (!replacement.ok) return replacement
+    const moved = validateMovedCopyFields(obj, site)
+    if (!moved.ok) return moved
     moves.push({
       id: obj.id,
       timestamp: obj.timestamp,
       cardName: obj.cardName,
-      from,
-      to,
-      ...printing.fields,
-      ...moved.fields,
+      from: from.value,
+      to: to.value,
+      ...printing.value,
+      ...moved.value,
       cardId: obj.cardId,
       toCardId: obj.toCardId,
       section: obj.section,
       pinsCardId: obj.pinsCardId,
-      replacement,
+      replacement: replacement.value,
     })
   }
-  return moves
+  return { ok: true, value: moves }
 }
 
 /**
- * Parse and validate a {@link ChangeBundle} from JSON text. Returns the bundle
- * on success or a human-readable error string describing why it was rejected —
- * the caller surfaces it to the importer. Card IDs referenced by the changes are
- * NOT resolved here; re-targeting against the live lists happens at import time.
- *
- * The rejection strings are **English by contract**: they name JSON field names
- * and index positions in a file the user is expected to inspect, and the same
- * text is what `ritual import-changes` and the MCP import tool report. They are
- * a diagnostic vocabulary for a data format, like the format marker itself, not
- * UI prose.
+ * Parse and validate a {@link ChangeBundle} from JSON text: the bundle, or the
+ * {@link ChangeProblem} saying why it was rejected — the caller words it for
+ * its reader (`change-problem-message.ts`). Card IDs referenced by the changes
+ * are NOT resolved here; re-targeting against the live lists happens at import
+ * time.
  */
-export function parseChangeBundle(text: string): ChangeBundle | string {
+export function parseChangeBundle(text: string): ChangeProblemResult<ChangeBundle> {
   let raw: unknown
   try {
     raw = JSON.parse(text)
   } catch {
-    return 'Not valid JSON.'
+    return refuse(documentProblem('json-invalid'))
   }
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return 'Expected a JSON object.'
+    return refuse(documentProblem('json-not-object'))
   }
   const obj = raw as Record<string, unknown>
   if (obj.format !== CHANGE_BUNDLE_FORMAT) {
-    return `Not a ritual change bundle (missing "format": "${CHANGE_BUNDLE_FORMAT}").`
+    return refuse(documentProblem('bundle-format-missing', { format: CHANGE_BUNDLE_FORMAT }))
   }
   if (obj.version !== CHANGE_BUNDLE_VERSION) {
-    return `Unsupported change-bundle version: ${String(obj.version)}.`
+    return refuse(documentProblem('bundle-version-unsupported', { version: String(obj.version) }))
   }
-  if (typeof obj.exportedAt !== 'string') return 'Missing or invalid "exportedAt".'
-  if (!Array.isArray(obj.lists)) return 'Missing or invalid "lists" array.'
+  if (typeof obj.exportedAt !== 'string') {
+    return refuse(documentProblem('bundle-field-invalid', { field: 'exportedAt' }))
+  }
+  if (!Array.isArray(obj.lists)) {
+    return refuse(documentProblem('bundle-array-invalid', { field: 'lists' }))
+  }
   const lists: ChangeBundleList[] = []
   for (const [i, entry] of obj.lists.entries()) {
-    if (typeof entry !== 'object' || entry === null) return `List #${i + 1} is not an object.`
-    const list = validateList(entry as Record<string, unknown>, `List #${i + 1}: `)
-    if (typeof list === 'string') return list
-    lists.push(list)
+    if (typeof entry !== 'object' || entry === null) {
+      return refuse(documentProblem('bundle-list-not-object', { list: i + 1 }))
+    }
+    const list = validateList(entry as Record<string, unknown>, i + 1)
+    if (!list.ok) return list
+    lists.push(list.value)
   }
   // Moves are validated here rather than through `decodeChangeEvent` (which
   // refuses line breaks for every list's changes), so they get the same check.
   const brokenMove = findLineBreak(obj.moves, 'moves')
-  if (brokenMove !== null) return `A line break in "${brokenMove}".`
+  if (brokenMove !== null) {
+    return refuse(documentProblem('bundle-line-break', { path: brokenMove }))
+  }
   const moves = validateMoves(obj.moves)
-  if (typeof moves === 'string') return moves
+  if (!moves.ok) return moves
   return {
-    format: CHANGE_BUNDLE_FORMAT,
-    version: CHANGE_BUNDLE_VERSION,
-    exportedAt: obj.exportedAt,
-    lists,
-    moves,
+    ok: true,
+    value: {
+      format: CHANGE_BUNDLE_FORMAT,
+      version: CHANGE_BUNDLE_VERSION,
+      exportedAt: obj.exportedAt,
+      lists,
+      moves: moves.value,
+    },
   }
 }

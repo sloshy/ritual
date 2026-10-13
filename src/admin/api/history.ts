@@ -11,6 +11,8 @@ import {
 import { isStringArray } from '../../util/json'
 import { buildDefaultChangeEventsForList } from '../../changes/list-snapshot'
 import { decodeChangeEvent } from '../../changes/change-event-decode'
+import { changeProblemMessage } from '../../changes/change-problem-message'
+import { isSyncMessage, type SyncMessage } from '../../sync/message'
 import type { ChangeEvent } from '../../changes/change-event'
 import type { ListType } from '../../list/list-type'
 import { changelogSidecarPath } from '../../list/list-sidecars'
@@ -19,7 +21,7 @@ import { listSlug } from '../../list/list-file-name'
 import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import { autoCommitAndPush } from './save-helpers'
 import { categoriesUnreadableWarning } from './categories'
-import { apiError, badRequest, errorResponse, readJsonObjectBody } from '../../api/http'
+import { apiError, errorResponse, nestedRefusal, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
 import { createFenceTracker } from '../../list/markdown-fence'
@@ -105,7 +107,7 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
  * explaining the refusal. A parser, per the project convention — the HTTP status
  * and envelope belong to the handler, not here.
  */
-function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | ApiMessage {
+function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | SyncMessage {
   if (!Array.isArray(raw.sets)) return apiMessage('admin.api.history.setsRequired')
   const sets: ChangeSet[] = []
   for (const [setIndex, item] of (raw.sets as unknown[]).entries()) {
@@ -130,18 +132,16 @@ function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | ApiMessa
     if (!Array.isArray(events)) return apiMessage('admin.api.history.eventsMissing')
     const decoded: ChangeEvent[] = []
     for (const [eventIndex, rawEvent] of (events as unknown[]).entries()) {
-      // The decoder (persistence-fenced, so English and keyless) words its
-      // refusal as a predicate of whatever `where` names; naming the event here
-      // instead keeps the position in the translated sentence around it.
-      const event = decodeChangeEvent(rawEvent, '', { listType })
-      if (typeof event === 'string') {
-        return apiMessage('admin.api.history.eventInvalid', {
-          set: setIndex + 1,
-          event: eventIndex + 1,
-          problem: event,
-        })
-      }
-      decoded.push(event)
+      // The decoder (persistence-fenced) returns a structured problem about the
+      // record it is told it is reading — here, this set's event — worded as
+      // English plus its key for the response.
+      const event = decodeChangeEvent(
+        rawEvent,
+        { kind: 'history-event', set: setIndex + 1, event: eventIndex + 1 },
+        { listType },
+      )
+      if (!event.ok) return changeProblemMessage(event.problem)
+      decoded.push(event.value)
     }
     if (decoded.length !== 0 && decoded.length !== trimmedLines.length) {
       return apiMessage('admin.api.history.eventCountMismatch')
@@ -189,7 +189,7 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     if (!parsedBody.ok) return parsedBody.response
     const raw: RawSaveBody = parsedBody.body
     const sets = parseSets(raw, target.type)
-    if (isApiMessage(sets)) return badRequest(sets)
+    if (isSyncMessage(sets)) return nestedRefusal(sets)
 
     const filePath = await resolveListFile(target.type, target.slug)
     if (!filePath)

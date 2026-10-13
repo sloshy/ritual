@@ -67,12 +67,13 @@ export function loadEditSession(kind: ListType, slug: string): ChangeBundleList 
   }
   if (raw === null) return null
   const parsed = parseChangeBundle(raw)
-  if (typeof parsed === 'string') return null
+  if (!parsed.ok) return null
+  const bundle = parsed.value
   // Exact kind + slug on purpose (not `bundleRefMatches`): the storage key IS
   // the slug, so a saved session can only ever be this list's own.
-  const list = parsed.lists.find((l) => l.kind === kind && l.slug === slug)
+  const list = bundle.lists.find((l) => l.kind === kind && l.slug === slug)
   if (!list) return null
-  return { ...list, changes: listChangesFromBundle(parsed, list) ?? [] }
+  return { ...list, changes: listChangesFromBundle(bundle, list) ?? [] }
 }
 
 /** Whether a saved session exists for a list (without parsing it fully). */

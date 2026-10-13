@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 import {
   apiMessage,
   parseEnumParam,
-  readApiMessage,
   renderApiMessage,
   type ApiMessage,
   type NotAMessage,
@@ -141,30 +140,6 @@ describe('request parsers answer in English whatever the process locale', () => 
   })
 })
 
-describe('readApiMessage', () => {
-  test('keeps a known key and its flat params', () => {
-    const sent = apiMessage('admin.api.list.created', { listType: 'deck', name: 'Burn' })
-    expect(readApiMessage({ success: false, ...sent })).toEqual(sent)
-  })
-
-  test('keeps only the English for a key this surface does not know, or for nested params', () => {
-    expect(readApiMessage({ message: 'Hi', messageKey: 'admin.api.nope' })).toEqual({
-      message: 'Hi',
-    })
-    // A sync message's nested params would render flat as `[object Object]`.
-    const nested = syncMessage('admin.api.importChanges.applied', {
-      changes: syncRef('domain.count.changes', { count: 2 }),
-      lists: syncRef('domain.count.lists', { count: 1 }),
-    })
-    expect(readApiMessage(nested)).toEqual({ message: nested.message })
-  })
-
-  test('is null for a body without a message', () => {
-    expect(readApiMessage({ success: false })).toBeNull()
-    expect(readApiMessage('nope')).toBeNull()
-  })
-})
-
 describe('readSyncMessage', () => {
   test('keeps nested params, which the admin page renders whole', () => {
     const sent = syncMessage('admin.api.importChanges.applied', {
@@ -175,8 +150,8 @@ describe('readSyncMessage', () => {
   })
 
   test('keeps a key it cannot vouch for, which rendering falls back from', () => {
-    // Unlike `readApiMessage`, the check is the renderer's: `renderSyncMessage`
-    // hands back the English for a key this surface does not know.
+    // The check is the renderer's: `renderSyncMessage` hands back the English
+    // for a key this surface does not know.
     const read = readSyncMessage({ message: 'Hi', messageKey: 'admin.api.nope' })
     expect(read?.messageKey as string | undefined).toBe('admin.api.nope')
     expect(renderSyncMessage(read!, DEFAULT_LOCALE)).toBe('Hi')

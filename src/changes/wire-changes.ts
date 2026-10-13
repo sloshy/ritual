@@ -17,6 +17,7 @@ import { decodeChangeEvent, pickPersistedFields } from './change-event-decode'
 import type { ListType } from '../list/list-type'
 import { isRecord } from '../util/json'
 import { MAX_SAVE_CHANGES } from './save-limits'
+import { documentProblem, refuse, type ChangeProblemResult } from './change-problem'
 
 /** An event in its wire form. */
 export type WireChange = ChangeInput
@@ -65,7 +66,7 @@ export function listSaveRequest(
 }
 
 /** {@link decodeWireChanges}' outcome: the stamped events, or why the batch was refused. */
-export type WireChangesResult = { ok: true; changes: ChangeEvent[] } | { ok: false; error: string }
+export type WireChangesResult = ChangeProblemResult<ChangeEvent[]>
 
 /**
  * Validate a save request's `changes` and stamp each with a fresh envelope.
@@ -87,22 +88,23 @@ export function decodeWireChanges(
   listType: ListType,
   stampedAt: number,
 ): WireChangesResult {
-  if (!Array.isArray(raw)) return { ok: false, error: '"changes" must be an array.' }
+  if (!Array.isArray(raw)) {
+    return refuse(documentProblem('save-changes-not-array'))
+  }
   const items: readonly unknown[] = raw
   if (items.length > MAX_SAVE_CHANGES) {
-    return {
-      ok: false,
-      error: `A save may carry at most ${MAX_SAVE_CHANGES} changes (got ${items.length}). Save in smaller batches.`,
-    }
+    return refuse(
+      documentProblem('save-too-many', { count: MAX_SAVE_CHANGES, received: items.length }),
+    )
   }
   const changes: ChangeEvent[] = []
   for (const [index, item] of items.entries()) {
     const stamped = isRecord(item)
       ? { ...pickPersistedFields(item), id: `${stampedAt}-${index}`, timestamp: stampedAt + index }
       : item
-    const decoded = decodeChangeEvent(stamped, `changes[${index}] `, { listType })
-    if (typeof decoded === 'string') return { ok: false, error: decoded }
-    changes.push(decoded)
+    const decoded = decodeChangeEvent(stamped, { kind: 'save-change', index }, { listType })
+    if (!decoded.ok) return decoded
+    changes.push(decoded.value)
   }
-  return { ok: true, changes }
+  return { ok: true, value: changes }
 }

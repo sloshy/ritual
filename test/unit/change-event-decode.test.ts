@@ -1,5 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import { decodeChangeEvent, pickPersistedFields } from '../../src/changes/change-event-decode'
+import { A_CHANGE, accepted, outcome } from '../helpers/change-problem'
 
 const add = (fields: Record<string, unknown>): Record<string, unknown> => ({
   id: 'x',
@@ -13,9 +14,9 @@ const add = (fields: Record<string, unknown>): Record<string, unknown> => ({
 // and every string an event carries lands in a card line or changelog prose.
 describe('decodeChangeEvent line breaks', () => {
   test('refuses a card name holding a line break', () => {
-    expect(decodeChangeEvent(add({ cardName: 'Sol Ring\n- 1 Black Lotus &3' }), 'Change #1 ')).toBe(
-      'Change #1 has a line break in "change.cardName".',
-    )
+    expect(
+      outcome(decodeChangeEvent(add({ cardName: 'Sol Ring\n- 1 Black Lotus &3' }), A_CHANGE)),
+    ).toBe('The change has a line break in "change.cardName".')
   })
 
   test('refuses a nested list name holding a line break', () => {
@@ -26,17 +27,19 @@ describe('decodeChangeEvent line breaks', () => {
       cardName: 'Sol Ring',
       to: { type: 'deck', name: 'Burn\r## 2020-01-01T00:00:00.000Z' },
     }
-    expect(decodeChangeEvent(event, '')).toBe('has a line break in "change.to.name".')
+    expect(outcome(decodeChangeEvent(event, A_CHANGE))).toBe(
+      'The change has a line break in "change.to.name".',
+    )
   })
 
   test('refuses a field no validator lists, since the whole event is walked', () => {
-    expect(decodeChangeEvent(add({ futureField: 'a\u2028b' }), '')).toBe(
-      'has a line break in "change.futureField".',
+    expect(outcome(decodeChangeEvent(add({ futureField: 'a\u2028b' }), A_CHANGE))).toBe(
+      'The change has a line break in "change.futureField".',
     )
   })
 
   test('keeps an event whose string holds a tab: it cannot forge a line', () => {
-    expect(decodeChangeEvent(add({ cardName: 'Sol\tRing' }), '')).toMatchObject({
+    expect(outcome(decodeChangeEvent(add({ cardName: 'Sol\tRing' }), A_CHANGE))).toMatchObject({
       cardName: 'Sol\tRing',
     })
   })
@@ -58,15 +61,22 @@ const moveTo = (fields: Record<string, unknown>): Record<string, unknown> => ({
 describe('decodeChangeEvent move replacements', () => {
   test('a replacement with no replacesCardId is refused: there is no line for it to replace', () => {
     expect(
-      decodeChangeEvent(moveTo({ replacement: { set: 'C19', collectorNumber: '221' } }), 'C '),
-    ).toBe('C carries a "replacement" but pins no line ("replacesCardId").')
+      outcome(
+        decodeChangeEvent(
+          moveTo({ replacement: { set: 'C19', collectorNumber: '221' } }),
+          A_CHANGE,
+        ),
+      ),
+    ).toBe('The change carries a "replacement" but pins no line ("replacesCardId").')
   })
 
   test('a replacement on a pinning move is kept, its set folded to lowercase', () => {
     expect(
-      decodeChangeEvent(
-        moveTo({ replacesCardId: 4, replacement: { set: 'C19', collectorNumber: '221' } }),
-        'C ',
+      outcome(
+        decodeChangeEvent(
+          moveTo({ replacesCardId: 4, replacement: { set: 'C19', collectorNumber: '221' } }),
+          A_CHANGE,
+        ),
       ),
     ).toMatchObject({ replacesCardId: 4, replacement: { set: 'c19', collectorNumber: '221' } })
   })
@@ -74,13 +84,15 @@ describe('decodeChangeEvent move replacements', () => {
 
 describe('decodeChangeEvent languages', () => {
   test('an optional language is folded to lowercase where present and stays absent where not', () => {
-    expect(decodeChangeEvent(add({ language: 'JA' }), '')).toMatchObject({ language: 'ja' })
-    expect(decodeChangeEvent(add({}), '')).not.toHaveProperty('language')
+    expect(outcome(decodeChangeEvent(add({ language: 'JA' }), A_CHANGE))).toMatchObject({
+      language: 'ja',
+    })
+    expect(accepted(decodeChangeEvent(add({}), A_CHANGE))).not.toHaveProperty('language')
   })
 
   test('an unknown language is refused on an action where the field is optional', () => {
-    expect(decodeChangeEvent(add({ language: 'klingon' }), 'C ')).toBe(
-      'C has an unknown language: "klingon".',
+    expect(outcome(decodeChangeEvent(add({ language: 'klingon' }), A_CHANGE))).toBe(
+      'The change has an unknown language: "klingon".',
     )
   })
 })
@@ -91,20 +103,24 @@ describe('decodeChangeEvent card ids', () => {
   const badIds: unknown[] = [0, -1, 1.5, '3']
 
   test.each(badIds)('refuses %p as a cardId', (id) => {
-    expect(decodeChangeEvent(add({ cardId: id }), 'C ')).toBe('C has an invalid "cardId".')
+    expect(outcome(decodeChangeEvent(add({ cardId: id }), A_CHANGE))).toBe(
+      'The change has an invalid "cardId".',
+    )
   })
 
   test.each(badIds)("refuses %p as a move-to's sourceCardId or replacesCardId", (id) => {
-    expect(decodeChangeEvent(moveTo({ sourceCardId: id }), 'C ')).toBe(
-      'C has an invalid "sourceCardId".',
+    expect(outcome(decodeChangeEvent(moveTo({ sourceCardId: id }), A_CHANGE))).toBe(
+      'The change has an invalid "sourceCardId".',
     )
-    expect(decodeChangeEvent(moveTo({ replacesCardId: id }), 'C ')).toBe(
-      'C has an invalid "replacesCardId".',
+    expect(outcome(decodeChangeEvent(moveTo({ replacesCardId: id }), A_CHANGE))).toBe(
+      'The change has an invalid "replacesCardId".',
     )
   })
 
   test('keeps positive integer ids', () => {
-    expect(decodeChangeEvent(moveTo({ sourceCardId: 2, replacesCardId: 5 }), '')).toMatchObject({
+    expect(
+      outcome(decodeChangeEvent(moveTo({ sourceCardId: 2, replacesCardId: 5 }), A_CHANGE)),
+    ).toMatchObject({
       cardId: 9,
       sourceCardId: 2,
       replacesCardId: 5,

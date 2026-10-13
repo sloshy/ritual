@@ -10,6 +10,7 @@
  * The on-disk move paths are pinned in `test/integration/move-save.test.ts`.
  */
 
+import { A_CHANGE, MOVE_1, accepted, outcome } from '../helpers/change-problem'
 import { describe, expect, test } from 'bun:test'
 import {
   createMoveFromChange,
@@ -133,31 +134,34 @@ describe('movedCopyOf', () => {
 describe('validateMovedCopyFields', () => {
   test('returns the payload in its stored form', () => {
     expect(
-      validateMovedCopyFields({ tags: ['Ramp'], labels: ['TRADE', 'sale'], note: 'mint' }, 'M '),
-    ).toEqual({ ok: true, fields: { tags: ['Ramp'], labels: ['sale', 'trade'], note: 'mint' } })
+      validateMovedCopyFields({ tags: ['Ramp'], labels: ['TRADE', 'sale'], note: 'mint' }, MOVE_1),
+    ).toEqual({ ok: true, value: { tags: ['Ramp'], labels: ['sale', 'trade'], note: 'mint' } })
   })
 
   test.each<[string, Record<string, unknown>, string]>([
     [
       'an unknown label',
       { labels: ['gift'] },
-      `M Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
+      `Move #1: Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
     ],
     [
       'a labels value that is not an array',
       { labels: 'sale' },
-      'M "labels" must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
+      'Move #1: "labels" must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
     ],
     [
       'an exclusive label combination',
       { labels: ['keep', 'sale'] },
-      "M 'keep' cannot be combined with other labels.",
+      "Move #1: 'keep' cannot be combined with other labels.",
     ],
-    ['a tags value that is not an array', { tags: 'Ramp' }, 'M "tags" must be an array of tags.'],
-    ['a non-string note', { note: 3 }, 'M has an invalid "note".'],
-  ])('refuses %s, in English whatever the UI locale', (_, fields, message) => {
-    const result = validateMovedCopyFields(fields, 'M ')
-    expect(result.ok ? '' : result.error).toBe(message)
+    [
+      'a tags value that is not an array',
+      { tags: 'Ramp' },
+      'Move #1: "tags" must be an array of tags.',
+    ],
+    ['a non-string note', { note: 3 }, 'Move #1 has an invalid "note".'],
+  ])('refuses %s', (_, fields, message) => {
+    expect(outcome(validateMovedCopyFields(fields, MOVE_1))).toBe(message)
   })
 })
 
@@ -355,16 +359,17 @@ describe('decodeChangeEvent on a move’s payload', () => {
     (action) => {
       // A `sale` copy moving into a deck is expected: the deck filters on arrival.
       expect(
-        decodeChangeEvent(raw(action, { labels: ['TRADE', 'sale'], note: 'mint' }), '', {
-          listType: 'deck',
-        }),
+        outcome(
+          decodeChangeEvent(raw(action, { labels: ['TRADE', 'sale'], note: 'mint' }), A_CHANGE, {
+            listType: 'deck',
+          }),
+        ),
       ).toMatchObject({ labels: ['sale', 'trade'], note: 'mint' })
     },
   )
 
   test('folds an empty override and an empty note to absent', () => {
-    const decoded = decodeChangeEvent(raw('move-to', { labels: [], note: '' }), '')
-    if (typeof decoded === 'string') throw new Error(decoded)
+    const decoded = accepted(decodeChangeEvent(raw('move-to', { labels: [], note: '' }), A_CHANGE))
     if (decoded.action !== 'move-to') throw new Error('expected a move-to')
     expect(decoded.labels).toBeUndefined()
     expect(decoded.note).toBeUndefined()
@@ -374,29 +379,27 @@ describe('decodeChangeEvent on a move’s payload', () => {
     [
       'an unknown label',
       { labels: ['gift'] },
-      `C Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
+      `The change: Invalid "labels" 'gift'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.`,
     ],
     [
       'a labels value that is not an array',
       { labels: 'sale' },
-      'C "labels" must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
+      'The change: "labels" must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
     ],
     [
       'an exclusive label combination',
       { labels: ['keep', 'sale'] },
-      "C 'keep' cannot be combined with other labels.",
+      "The change: 'keep' cannot be combined with other labels.",
     ],
-    ['a non-string note', { note: 3 }, 'C has an invalid "note".'],
-    ['a note with a line break', { note: 'a\nb' }, 'C has a line break in "change.note".'],
+    ['a non-string note', { note: 3 }, 'The change has an invalid "note".'],
+    ['a note with a line break', { note: 'a\nb' }, 'The change has a line break in "change.note".'],
   ]
   test.each(
     (['move-from', 'move-to'] as const).flatMap((action) =>
       refusals.map(([what, fields, message]) => [action, what, fields, message] as const),
     ),
   )('%s refuses %s', (action, _, fields, message) => {
-    const decoded = decodeChangeEvent(raw(action, fields), 'C ')
-    expect(typeof decoded).toBe('string')
-    expect(decoded as string).toContain(message)
+    expect(outcome(decodeChangeEvent(raw(action, fields), A_CHANGE))).toBe(message)
   })
 })
 

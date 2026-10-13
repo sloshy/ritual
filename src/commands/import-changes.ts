@@ -1,8 +1,8 @@
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
-import { formatChange } from '../changes/change-message'
-import { listRefLabel } from '../changes/change-event'
-import { t } from '../i18n/t'
+import { formatChange, listRefDisplay } from '../changes/change-message'
+import { renderChangeProblem } from '../changes/change-problem-message'
+import { t, type MessageParams } from '../i18n/t'
 import { prefixedMessage, renderSyncMessage } from '../sync/message'
 import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list/list-type'
 import {
@@ -31,7 +31,8 @@ import {
   emitOutput,
   normalizeScriptingOptions,
 } from '../cli/output'
-import { fail } from '../cli/action'
+import { fail, failWith } from '../cli/action'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { addScriptingOptions } from '../cli/options'
 import { ExitCode } from '../util/errors'
 
@@ -87,7 +88,7 @@ function printPreview(bundle: ChangeBundle): void {
       console.log(
         `  • ${t('cli.importChanges.moveLine', {
           change: formatChange(from),
-          from: listRefLabel({ type: move.from.kind, name: move.from.name }),
+          from: listRefDisplay({ type: move.from.kind, name: move.from.name }),
         })}`,
       )
       // The printing the source gets back for the copy, when the move carries one.
@@ -96,7 +97,7 @@ function printPreview(bundle: ChangeBundle): void {
         console.log(
           `    ↩ ${t('cli.importChanges.replacementLine', {
             change: formatChange(replacement),
-            list: listRefLabel({ type: move.from.kind, name: move.from.name }),
+            list: listRefDisplay({ type: move.from.kind, name: move.from.name }),
           })}`,
         )
       }
@@ -206,13 +207,22 @@ export function registerImportChangesCommand(program: Command): void {
       return
     }
 
-    const bundle = parseChangeBundle(text)
-    if (typeof bundle === 'string') {
-      fail(scripting, 'usage_error', 'cli.importChanges.invalidBundle', {
-        reason: bundle,
-      })
+    const parsed = parseChangeBundle(text)
+    if (!parsed.ok) {
+      // Printed in the CLI's language; the `--output json` envelope's params
+      // stay locale-invariant, so its `reason` is the English.
+      const englishReason: MessageParams<'cli.importChanges.invalidBundle'> = {
+        reason: renderChangeProblem(parsed.problem, DEFAULT_LOCALE),
+      }
+      failWith(
+        scripting,
+        'usage_error',
+        t('cli.importChanges.invalidBundle', { reason: renderChangeProblem(parsed.problem) }),
+        { key: 'cli.importChanges.invalidBundle', params: englishReason },
+      )
       return
     }
+    const bundle = parsed.value
 
     const total = bundleChangeCount(bundle)
     if (total === 0) {

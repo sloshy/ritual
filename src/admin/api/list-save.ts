@@ -50,9 +50,12 @@ import {
   apiError,
   badRequest,
   errorResponse,
+  nestedRefusal,
   readJsonObjectBody,
-  type ApiErrorResponse,
+  type NestedRefusalResponse,
 } from '../../api/http'
+import { changeProblemMessage } from '../../changes/change-problem-message'
+import { isNonEmpty, type SyncMessage } from '../../sync/message'
 import {
   validateContentHash,
   finishListSave,
@@ -113,10 +116,12 @@ export type ListSaveResponse = ApiMessage & {
 
 /**
  * The 400 a save answers when a change does not apply to the list as it stands:
- * nothing is written, and `unmatched` names each change that missed (as
- * `formatChange` text plus the reason), so a client can say which edit is stale.
+ * nothing is written, and `unmatched` names each change that missed (described
+ * in English, plus the reason), so a client can say which edit is stale. The
+ * summary's params nest (each change description is a message of its own), so
+ * this is the nested refusal envelope.
  */
-export interface ListSaveRefusal extends ApiErrorResponse {
+export type ListSaveRefusal = NestedRefusalResponse & {
   unmatched: string[]
 }
 
@@ -171,7 +176,7 @@ interface ListSaveAdapter<TData> {
   /** Assign ids to every line, reporting what each line ended up with. */
   finalize: (before: TData, after: TData) => FinalizedList<TData>
   /** Refuse a batch this list type cannot take before any file is read. */
-  refuseChanges?: (changes: readonly ChangeEvent[]) => string | null
+  refuseChanges?: (changes: readonly ChangeEvent[]) => SyncMessage | null
   /**
    * The note an incoming change would discard landing on the list as it stands
    * (a deck quantity-merge keeps the line's own note); flat lists never merge.
@@ -268,7 +273,7 @@ type FlatListSpec<TParsedEntry, TEntry extends FlatEntry> = {
     frontMatter?: FlatListFrontMatter,
   ) => string
   apply: ApplyChange<TEntry[], ChangeEvent>
-  refuseChanges?: (changes: readonly ChangeEvent[]) => string | null
+  refuseChanges?: (changes: readonly ChangeEvent[]) => SyncMessage | null
 }
 
 function entryCardNames(entries: readonly FlatEntry[]): string[] {
@@ -431,10 +436,10 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
   if (lineBreakError) return lineBreakError
 
   const decoded = decodeWireChanges(body.changes, type, Date.now())
-  if (!decoded.ok) return apiError(plainMessage(decoded.error), 400)
-  const changes = decoded.changes
+  if (!decoded.ok) return nestedRefusal(changeProblemMessage(decoded.problem))
+  const changes = decoded.value
   const refusal = adapter.refuseChanges?.(changes) ?? null
-  if (refusal) return apiError(plainMessage(refusal), 400)
+  if (refusal) return nestedRefusal(refusal)
 
   const resolved = await resolveListFileOrRefuse(adapter.resolveFile, {
     slug,
@@ -487,10 +492,10 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
       if (dropped !== undefined) replayDrops.push(dropped)
     },
   })
-  if (replayed.unmatched.length > 0) {
+  if (isNonEmpty(replayed.unmatched)) {
     const refused: ListSaveRefusal = {
       success: false,
-      message: describeUnmatchedChanges(replayed.unmatched, { type, slug }),
+      ...describeUnmatchedChanges(replayed.unmatched, { type, slug }),
       unmatched: listUnmatchedChanges(replayed.unmatched),
     }
     return Response.json(refused, { status: 400 })

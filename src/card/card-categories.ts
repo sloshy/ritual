@@ -38,7 +38,6 @@
  * data-format rule) and browser-safe.
  */
 
-import { compareDisplay } from '../i18n/collate'
 // Type-only, so the value-level import cycle (ritual-config parses this
 // module's config key) never materializes at runtime.
 import type { ConfigParseError } from '../config/ritual-config'
@@ -281,15 +280,6 @@ export function primaryCardCategory(
  */
 export function foldCategoryCardName(name: string): string {
   return foldText(name)
-}
-
-/**
- * How two category names sort when nothing else decides — the tail of the
- * resolved display order. Wrapped so the collation choice (locale-aware, because
- * these are names a person reads) lives in one place.
- */
-export function compareCategoriesForDisplay(a: CardCategory, b: CardCategory): number {
-  return compareDisplay(a, b)
 }
 
 /**

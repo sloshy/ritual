@@ -8,6 +8,7 @@ import { applyConditionUpdate } from '../card/finish-condition'
 import { canSetFinish, finishMatchesPrinting } from '../card/card-printing'
 import { removeTarget, updateTarget } from './entry-targeting.js'
 import type { ApplyChangeOptions } from './apply-batch'
+import { syncMessage, type SyncMessage } from '../sync/message'
 
 type CollectionChangeInput = ChangeInput & {
   /** When provided, targets the exact entry by fileOrder for precise removal. */
@@ -18,12 +19,13 @@ type CollectionChangeInput = ChangeInput & {
  * Collection entries always carry a printing, so a change that introduces or
  * rewrites one (`add`, `move-to`, `set-printing`) must name both a set code and
  * a collector number — applying one without them would serialize a malformed
- * `- Name (:)` line that no longer parses. Returns an error message naming the
- * first offending change, or null when every change is valid. Callers that
+ * `- Name (:)` line that no longer parses. Returns the refusal naming the first
+ * offending change — English plus its key, for the save route to answer with
+ * and the CLI to re-render — or null when every change is valid. Callers that
  * write collection files (admin save, one-shot CLI mutations) check this before
  * applying; the move engine enforces the same rule in `applyAddToStaged`.
  */
-export function findCollectionPrintingError(changes: readonly ChangeInput[]): string | null {
+export function findCollectionPrintingError(changes: readonly ChangeInput[]): SyncMessage | null {
   for (const change of changes) {
     if (
       change.action !== 'add' &&
@@ -34,8 +36,8 @@ export function findCollectionPrintingError(changes: readonly ChangeInput[]): st
     }
     if (!change.set || !change.collectorNumber) {
       return change.action === 'set-printing'
-        ? `Cannot set printing on "${change.cardName}" without set and collector number`
-        : `Cannot add "${change.cardName}" to a collection without set and collector number`
+        ? syncMessage('domain.changes.collectionPrinting.setPrinting', { name: change.cardName })
+        : syncMessage('domain.changes.collectionPrinting.add', { name: change.cardName })
     }
   }
   return null

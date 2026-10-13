@@ -5,9 +5,8 @@ import {
   type EditorStatusActions,
   type EditorStatusMessage,
   statusMessage,
-  statusText,
 } from './useEditorStatus'
-import { readApiMessage } from '../api/result'
+import { readSyncMessage } from '../sync/message'
 
 type SaveResponse = {
   success: boolean
@@ -64,9 +63,10 @@ export async function saveEditorChanges(
       )
       return data
     }
-    // `data.message` is prose the server authored: English, plus the key it was
-    // rendered from when it has one this bundle knows, which is then what the
-    // status holds — so it relabels on a language switch like the editor's own.
+    // `data.message` is prose the server authored: English, plus the key and
+    // (possibly nested) params it was rendered from. The status holds the whole
+    // message, so it relabels on a language switch like the editor's own, and
+    // falls back to the English for a key this bundle does not know.
     if (resp.status === 409 || data.conflict) {
       statusActions.saveError(serverStatus(data) ?? statusMessage('ui.editor.saveConflict'))
       return data
@@ -79,10 +79,14 @@ export async function saveEditorChanges(
   }
 }
 
-/** The server's own sentence as a status: by its key when this bundle knows it, else as text. */
+/**
+ * The server's own sentence as a status, held as the message it sent — a save
+ * refusal's params may nest (each change it names is a message of its own), so
+ * it is rendered by `renderSyncMessage`, which falls back to the English for a
+ * key this bundle does not know.
+ */
 function serverStatus(data: SaveResponse): EditorStatusMessage | null {
-  const carried = readApiMessage(data)
+  const carried = readSyncMessage(data)
   if (carried === null || carried.message === '') return null
-  if (carried.messageKey === undefined) return statusText(carried.message)
-  return { kind: 'key', key: carried.messageKey, params: carried.messageParams }
+  return { kind: 'message', message: carried }
 }

@@ -11,6 +11,7 @@ import {
   type ChangeEvent,
 } from '../../src/changes/change-event'
 import { decodeChangeEvent, encodeChangeEvent } from '../../src/changes/change-event-decode'
+import { A_CHANGE, accepted, outcome } from '../helpers/change-problem'
 import { changeSetFromEvents, combineSetsInto } from '../../src/changes/changelog-blocks'
 import { applyChangeToCollection } from '../../src/changes/collection-changes'
 import { applyChangeToDeck } from '../../src/changes/deck-changes'
@@ -149,62 +150,88 @@ describe('prose, colouring and codec', () => {
   })
 
   test('decodeChangeEvent canonicalizes a tag event and refuses a malformed tag', () => {
-    const decoded = decodeChangeEvent(
-      { id: 'x', timestamp: 1, action: 'add-tag', cardName: 'Sol Ring', cardId: 3, tag: ' Ramp ' },
-      'Change #1 ',
-    )
-    expect(decoded).toMatchObject({ action: 'add-tag', tag: 'Ramp' })
-    expect(
-      decodeChangeEvent(
-        { id: 'x', timestamp: 1, action: 'remove-tag', cardName: 'Sol Ring', tag: 'a,b' },
-        'Change #1 ',
-      ),
-    ).toMatch(/^Change #1 Invalid tag/)
-    expect(
-      decodeChangeEvent({ id: 'x', timestamp: 1, action: 'add-tag', cardName: 'Sol Ring' }, 'C '),
-    ).toBe('C (add-tag) is missing its "tag".')
-  })
-
-  test('decodeChangeEvent canonicalizes an add’s tags and refuses a bad set', () => {
-    const decoded = decodeChangeEvent(
-      { id: 'x', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: ['Zebra', ' apple'] },
-      '',
-    )
-    expect(decoded).toMatchObject({ tags: ['apple', 'Zebra'] })
-    expect(
-      decodeChangeEvent(
-        { id: 'x', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: 'a' },
-        '',
-      ),
-    ).toBe('tags must be an array of tags.')
-  })
-
-  test('decodeChangeEvent folds an empty tag set to absent and refuses a non-string tag', () => {
-    const empty = decodeChangeEvent(
-      { id: 'x', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: [] },
-      '',
-    )
-    expect(typeof empty === 'object' && 'tags' in empty).toBe(false)
-    expect(
-      decodeChangeEvent(
-        { id: 'x', timestamp: 1, action: 'add-tag', cardName: 'Sol Ring', tag: 5 },
-        'C ',
-      ),
-    ).toBe('C has an invalid "tag".')
-    // Judged per field: a stray tag on an unrelated action is validated, not kept verbatim.
-    expect(
+    const decoded = outcome(
       decodeChangeEvent(
         {
           id: 'x',
           timestamp: 1,
-          action: 'set-note',
+          action: 'add-tag',
           cardName: 'Sol Ring',
-          note: 'n',
-          tag: 'no&way',
+          cardId: 3,
+          tag: ' Ramp ',
         },
-        'C ',
+        A_CHANGE,
       ),
-    ).toMatch(/^C Invalid tag/)
+    )
+    expect(decoded).toMatchObject({ action: 'add-tag', tag: 'Ramp' })
+    expect(
+      outcome(
+        decodeChangeEvent(
+          { id: 'x', timestamp: 1, action: 'remove-tag', cardName: 'Sol Ring', tag: 'a,b' },
+          A_CHANGE,
+        ),
+      ),
+    ).toMatch(/^The change: Invalid tag/)
+    expect(
+      outcome(
+        decodeChangeEvent(
+          { id: 'x', timestamp: 1, action: 'add-tag', cardName: 'Sol Ring' },
+          A_CHANGE,
+        ),
+      ),
+    ).toBe('The change (add-tag) is missing its "tag".')
+  })
+
+  test('decodeChangeEvent canonicalizes an add’s tags and refuses a bad set', () => {
+    const decoded = outcome(
+      decodeChangeEvent(
+        { id: 'x', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: ['Zebra', ' apple'] },
+        A_CHANGE,
+      ),
+    )
+    expect(decoded).toMatchObject({ tags: ['apple', 'Zebra'] })
+    expect(
+      outcome(
+        decodeChangeEvent(
+          { id: 'x', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: 'a' },
+          A_CHANGE,
+        ),
+      ),
+    ).toBe('The change: tags must be an array of tags.')
+  })
+
+  test('decodeChangeEvent folds an empty tag set to absent and refuses a non-string tag', () => {
+    const empty = accepted(
+      decodeChangeEvent(
+        { id: 'x', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: [] },
+        A_CHANGE,
+      ),
+    )
+    expect(empty).not.toHaveProperty('tags')
+    expect(
+      outcome(
+        decodeChangeEvent(
+          { id: 'x', timestamp: 1, action: 'add-tag', cardName: 'Sol Ring', tag: 5 },
+          A_CHANGE,
+        ),
+      ),
+    ).toBe('The change has an invalid "tag".')
+    // Judged per field: a stray tag on an unrelated action is validated, not kept verbatim.
+    expect(
+      outcome(
+        decodeChangeEvent(
+          {
+            id: 'x',
+            timestamp: 1,
+            action: 'set-note',
+            cardName: 'Sol Ring',
+            note: 'n',
+            tag: 'no&way',
+          },
+          A_CHANGE,
+        ),
+      ),
+    ).toMatch(/^The change: Invalid tag/)
   })
 
   test('encode writes the tag fields in the declared key order', () => {

@@ -5,10 +5,11 @@
  * serializer that writes an event as one deterministic JSON line.
  *
  * **Persistence fence — this module must never import `src/i18n`.** The JSON
- * keys are a machine contract (they are what `changelog-blocks.ts` re-reads),
- * and the rejection strings name JSON field names in a file the user inspects;
- * both are English by contract, like the change-bundle format marker. Asserted
- * by `test/unit/i18n-conventions.test.ts`.
+ * keys are a machine contract (they are what `changelog-blocks.ts` re-reads).
+ * A refusal is a structured {@link ChangeProblem} — a code, the field or value
+ * it names, and the record it is about — which the surface showing it words in
+ * its reader's language (`change-problem-message.ts`). Asserted by
+ * `test/unit/i18n-conventions.test.ts`.
  */
 
 import { type Condition, type Finish, isCondition, isFinish } from '../card/finish-condition'
@@ -33,6 +34,17 @@ import type {
 } from './change-event'
 import { CATEGORY_ACTIONS, CHANGE_ACTIONS, movedCopyOf } from './change-event'
 import { findLineBreak } from '../util/single-line'
+import {
+  locatedProblem,
+  partOf,
+  refuse,
+  type ChangeFieldName,
+  type ChangeProblemRefusal,
+  type ChangeProblemResult,
+  type ChangeProblemSite,
+  type ChangeProblemSubject,
+  type UnknownValueField,
+} from './change-problem'
 
 // ── Validation ────────────────────────────────────────────────────────
 
@@ -73,14 +85,14 @@ const STRING_CHANGE_FIELDS: ReadonlySet<string> = new Set([
   'newCategory',
 ])
 
+/** The three category actions, as a membership test. */
+const CATEGORY_ACTION_SET: ReadonlySet<ChangeAction> = new Set<ChangeAction>(CATEGORY_ACTIONS)
+
 /**
  * The actions that target a section, or the list's category vocabulary, rather
  * than a card — so they carry no `cardName`. `set-categories` is deliberately
  * absent: it names a card (by name, never by `&N`).
  */
-/** The three category actions, as a membership test. */
-const CATEGORY_ACTION_SET: ReadonlySet<ChangeAction> = new Set<ChangeAction>(CATEGORY_ACTIONS)
-
 const SECTION_META_ACTIONS: ReadonlySet<ChangeAction> = new Set<ChangeAction>([
   'add-section',
   'remove-section',
@@ -90,14 +102,13 @@ const SECTION_META_ACTIONS: ReadonlySet<ChangeAction> = new Set<ChangeAction>([
 ])
 
 /** {@link validateMovedCopyFields}' outcome: the payload in its stored form, or why it was refused. */
-export type MovedCopyFieldsResult =
-  { ok: true; fields: MovedCopyFields } | { ok: false; error: string }
+export type MovedCopyFieldsResult = ChangeProblemResult<MovedCopyFields>
 
 /**
  * Validate the payload riding with a moved copy ({@link MovedCopyFields}) on a
  * move event or a change bundle's move, and return it in its stored form
- * (`movedCopyOf`: canonical, empty folded to absent). `where` prefixes every
- * error.
+ * (`movedCopyOf`: canonical, empty folded to absent). Every refusal is about
+ * the record at `site`.
  *
  * Labels (signed, as the source states them) are checked against the
  * vocabulary and the conflict rules only,
@@ -108,24 +119,34 @@ export type MovedCopyFieldsResult =
  */
 export function validateMovedCopyFields(
   obj: Record<string, unknown>,
-  where: string,
+  site: ChangeProblemSite,
 ): MovedCopyFieldsResult {
   let tags: CardTag[] | undefined
   if (obj.tags !== undefined) {
     const parsed = parseCardTagsValue(obj.tags, '"tags"')
-    if (!parsed.ok) return { ok: false, error: `${where}${parsed.message}` }
+    if (!parsed.ok) return rejected(site, parsed.message)
     tags = parsed.tags
   }
   let labels: LabelOverride | undefined
   if (obj.labels !== undefined) {
     const parsed = parseLabelOverrideData(obj.labels, '"labels"')
-    if (!parsed.ok) return { ok: false, error: `${where}${parsed.message}` }
+    if (!parsed.ok) return rejected(site, parsed.message)
     labels = parsed.labels
   }
   if (obj.note !== undefined && typeof obj.note !== 'string') {
-    return { ok: false, error: `${where}has an invalid "note".` }
+    return invalidField(site, 'note')
   }
-  return { ok: true, fields: movedCopyOf({ tags, labels, note: obj.note }) }
+  return { ok: true, value: movedCopyOf({ tags, labels, note: obj.note }) }
+}
+
+/** The refusal for a `field` of the record at `site` that holds an unusable value. */
+function invalidField(site: ChangeProblemSite, field: ChangeFieldName): ChangeProblemRefusal {
+  return refuse(locatedProblem('field-invalid', site, { field }))
+}
+
+/** The refusal another module's parser worded (a label, tag or category rule), carried as it came. */
+function rejected(site: ChangeProblemSite, detail: string): ChangeProblemRefusal {
+  return refuse(locatedProblem('field-rejected', site, { detail }))
 }
 
 /**
@@ -168,15 +189,23 @@ export type ValidatedPrintingFields = {
   language?: CardLanguage
 }
 
-export type PrintingFieldsResult =
-  { ok: true; fields: ValidatedPrintingFields } | { ok: false; error: string }
+export type PrintingFieldsResult = ChangeProblemResult<ValidatedPrintingFields>
+
+/** The refusal for a closed-vocabulary `field` holding a value outside it. */
+function unknownValue(
+  site: ChangeProblemSite,
+  field: UnknownValueField,
+  raw: unknown,
+): ChangeProblemRefusal {
+  return refuse(locatedProblem('value-unknown', site, { field, value: JSON.stringify(raw) }))
+}
 
 /**
  * Validate the printing-ish fields shared by changes and moves (`set`,
  * `collectorNumber`, `language`, `finish`, `condition`), normalizing set codes
- * and language codes to lowercase. `where` prefixes every error. This is the
- * parse boundary for externally-authored JSON, so every closed vocabulary is
- * checked here — an invalid value must never reach a serializer.
+ * and language codes to lowercase. Every refusal is about the record at `site`.
+ * This is the parse boundary for externally-authored JSON, so every closed
+ * vocabulary is checked here — an invalid value must never reach a serializer.
  *
  * Casing is by contract: `set` and `language` fold (a printing is identified
  * case-insensitively project-wide, and language codes are lowercase tokens),
@@ -185,42 +214,34 @@ export type PrintingFieldsResult =
  */
 export function validatePrintingFields(
   obj: Record<string, unknown>,
-  where: string,
+  site: ChangeProblemSite,
   opts: PrintingFieldRules,
 ): PrintingFieldsResult {
   const fields: ValidatedPrintingFields = {}
   if (obj.set !== undefined) {
-    if (typeof obj.set !== 'string') return { ok: false, error: `${where}has an invalid "set".` }
+    if (typeof obj.set !== 'string') return invalidField(site, 'set')
     fields.set = obj.set.toLowerCase()
   }
   if (obj.collectorNumber !== undefined) {
-    if (typeof obj.collectorNumber !== 'string') {
-      return { ok: false, error: `${where}has an invalid "collectorNumber".` }
-    }
+    if (typeof obj.collectorNumber !== 'string') return invalidField(site, 'collectorNumber')
     fields.collectorNumber = obj.collectorNumber
   }
   // A set code or a collector number alone pins nothing (`hasSpecificPrinting`
   // needs both), and a line written from half a printing would read as a
   // name-only line — so the half is refused rather than silently dropped.
   if ((fields.set !== undefined) !== (fields.collectorNumber !== undefined)) {
-    return {
-      ok: false,
-      error: `${where}names half a printing; "set" and "collectorNumber" must both be present or both absent.`,
-    }
+    return refuse(locatedProblem('printing-half', site))
   }
   if (obj.language !== undefined) {
     const language = typeof obj.language === 'string' ? obj.language.toLowerCase() : null
     if (language === null || !isCardLanguage(language)) {
-      return {
-        ok: false,
-        error: `${where}has an unknown language: ${JSON.stringify(obj.language)}.`,
-      }
+      return unknownValue(site, 'language', obj.language)
     }
     fields.language = language
   }
   if (obj.finish !== undefined) {
     if (typeof obj.finish !== 'string' || !isFinish(obj.finish)) {
-      return { ok: false, error: `${where}has an unknown finish: ${JSON.stringify(obj.finish)}.` }
+      return unknownValue(site, 'finish', obj.finish)
     }
     fields.finish = obj.finish
   }
@@ -230,49 +251,57 @@ export function validatePrintingFields(
     } else if (!(opts.conditionClearAllowed && obj.condition === 'NONE')) {
       // `set-printing` alone accepts the `NONE` clear sentinel (ConditionUpdate),
       // which is left on the raw change rather than copied into the tuple.
-      return {
-        ok: false,
-        error: `${where}has an unknown condition: ${JSON.stringify(obj.condition)}.`,
-      }
+      return unknownValue(site, 'condition', obj.condition)
     }
   }
-  return { ok: true, fields }
+  return { ok: true, value: fields }
 }
 
-/** Validate a move's optional `replacement`: a full printing (set + collector number, optional finish/language). */
+/**
+ * Validate a move's optional `replacement`: a full printing (set + collector
+ * number, optional finish/language). `site` is the move the replacement rides
+ * on; `value` is `undefined` when the move carries none.
+ */
 export function validateReplacement(
   raw: unknown,
-  where: string,
-): MoveReplacement | undefined | string {
-  if (raw === undefined) return undefined
-  if (typeof raw !== 'object' || raw === null) return `${where}has an invalid "replacement".`
-  const here = `${where}"replacement" `
+  site: ChangeProblemSite,
+): ChangeProblemResult<MoveReplacement | undefined> {
+  if (raw === undefined) return { ok: true, value: undefined }
+  if (typeof raw !== 'object' || raw === null) return invalidField(site, 'replacement')
+  const here = partOf(site, 'replacement')
   if ((raw as Record<string, unknown>).condition !== undefined) {
-    return `${here}must not name a "condition" (a replacement carries no grade).`
+    return refuse(locatedProblem('replacement-condition', here))
   }
   const printing = validatePrintingFields(raw as Record<string, unknown>, here, {
     conditionClearAllowed: false,
   })
-  if (!printing.ok) return printing.error
-  const { set, collectorNumber, finish, language } = printing.fields
+  if (!printing.ok) return printing
+  const { set, collectorNumber, finish, language } = printing.value
   if (set === undefined || collectorNumber === undefined) {
-    return `${here}must name a printing ("set" and "collectorNumber").`
+    return refuse(locatedProblem('replacement-printing-missing', here))
   }
   const replacement: MoveReplacement = { set, collectorNumber }
   if (finish !== undefined) replacement.finish = finish
   if (language !== undefined) replacement.language = language
-  return replacement
+  return { ok: true, value: replacement }
 }
 
-/** Validate a cross-list move's other end (`to` / `from`) as a {@link ListRef}, or return an error string. */
-function validateListRef(raw: unknown, where: string): ListRef | string {
-  if (typeof raw !== 'object' || raw === null) return `${where}is not an object.`
+/** Validate a cross-list move's other end (`to` / `from`, the record's `part`) as a {@link ListRef}. */
+function validateListRef(
+  raw: unknown,
+  site: ChangeProblemSite,
+  part: 'to' | 'from',
+): ChangeProblemResult<ListRef> {
+  const here = partOf(site, part)
+  if (typeof raw !== 'object' || raw === null) return refuse(locatedProblem('not-object', here))
   const obj = raw as Record<string, unknown>
   if (typeof obj.type !== 'string' || !(LIST_TYPES as readonly string[]).includes(obj.type)) {
-    return `${where}has an invalid list type: ${String(obj.type)} (expected deck, collection, or wanted).`
+    return refuse(locatedProblem('list-type-invalid', here, { value: String(obj.type) }))
   }
-  if (typeof obj.name !== 'string') return `${where}is missing its "name".`
-  return { type: obj.type as ListType, name: obj.name }
+  if (typeof obj.name !== 'string') {
+    return refuse(locatedProblem('field-missing', here, { field: 'name' }))
+  }
+  return { ok: true, value: { type: obj.type as ListType, name: obj.name } }
 }
 
 /** What a caller can tell {@link decodeChangeEvent} about the event's destination. */
@@ -289,8 +318,9 @@ export type DecodeChangeEventOptions = {
 
 /**
  * Validate one raw JSON value as a {@link ChangeEvent}. Returns the event (its
- * `set` / `language` folded to lowercase, its `labels` normalized) or a
- * human-readable error string prefixed with `where` (e.g. `List #2: Change #3 `).
+ * `set` / `language` folded to lowercase, its `labels` normalized) or the
+ * {@link ChangeProblem} saying why it was refused, located at `subject` — the
+ * position the caller's input gives the event (`List #2: Change #3`).
  *
  * Every closed vocabulary is checked here — action, finish, condition,
  * language, labels, board, list type — so nothing this returns can reach a
@@ -299,35 +329,36 @@ export type DecodeChangeEventOptions = {
  */
 export function decodeChangeEvent(
   raw: unknown,
-  where: string,
+  subject: ChangeProblemSubject,
   opts: DecodeChangeEventOptions = {},
-): ChangeEvent | string {
-  if (typeof raw !== 'object' || raw === null) return `${where}is not an object.`
+): ChangeProblemResult<ChangeEvent> {
+  const site: ChangeProblemSite = { subject }
+  if (typeof raw !== 'object' || raw === null) return refuse(locatedProblem('not-object', site))
   const obj = raw as Record<string, unknown>
   if (
     typeof obj.action !== 'string' ||
     !(CHANGE_ACTIONS as readonly string[]).includes(obj.action)
   ) {
-    return `${where}has an unknown action: ${String(obj.action)}.`
+    return refuse(locatedProblem('action-unknown', site, { action: String(obj.action) }))
   }
   const action = obj.action as ChangeAction
   // The envelope every change carries: its id, its time, and — for every
   // card-bearing action — the card it names.
-  if (typeof obj.id !== 'string') return `${where}is missing its "id".`
-  if (typeof obj.timestamp !== 'number') return `${where}is missing its "timestamp".`
+  if (typeof obj.id !== 'string') return missingField(site, 'id')
+  if (typeof obj.timestamp !== 'number') return missingField(site, 'timestamp')
   // Every string an event carries lands in a card line or a changelog prose
   // line, both line-oriented: a break inside one (a card name, a section, a
   // list name) would write forged lines, so it is refused, never folded.
   const broken = findLineBreak(obj, 'change')
-  if (broken !== null) return `${where}has a line break in "${broken}".`
+  if (broken !== null) return refuse(locatedProblem('line-break', site, { path: broken }))
   if (obj.cardName !== undefined && typeof obj.cardName !== 'string') {
-    return `${where}has an invalid "cardName".`
+    return invalidField(site, 'cardName')
   }
   if (!SECTION_META_ACTIONS.has(action) && obj.cardName === undefined) {
-    return `${where}is missing its "cardName".`
+    return missingField(site, 'cardName')
   }
   if (obj.cardId !== undefined && !isCardIdValue(obj.cardId)) {
-    return `${where}has an invalid "cardId".`
+    return invalidField(site, 'cardId')
   }
   // Categories are keyed by card NAME in one list, so none of the three actions
   // has a card line to point at. Refuse the id here rather than keeping it (this
@@ -336,60 +367,62 @@ export function decodeChangeEvent(
   // prose, since `retargetImportedChanges` passes these actions through
   // untouched. Symmetrically, the two list-level actions name no card at all.
   if (CATEGORY_ACTION_SET.has(action) && obj.cardId !== undefined) {
-    return `${where}(${action}) is keyed by card name and must not carry a "cardId".`
+    return refuse(locatedProblem('category-card-id', site, { action }))
   }
   if (SECTION_META_ACTIONS.has(action) && obj.cardName !== undefined) {
-    return `${where}(${action}) targets the list, not a card, and must not carry a "cardName".`
+    return refuse(locatedProblem('list-action-card-name', site, { action }))
   }
   for (const field of REQUIRED_CHANGE_FIELDS[action]) {
-    if (obj[field] === undefined) return `${where}(${action}) is missing its "${field}".`
+    if (obj[field] === undefined) {
+      return refuse(locatedProblem('action-field-missing', site, { action, field }))
+    }
     if (STRING_CHANGE_FIELDS.has(field) && typeof obj[field] !== 'string') {
-      return `${where}has an invalid "${field}".`
+      return invalidField(site, field)
     }
   }
-  const printing = validatePrintingFields(obj, where, {
+  const printing = validatePrintingFields(obj, site, {
     conditionClearAllowed: action === 'set-printing',
   })
-  if (!printing.ok) return printing.error
+  if (!printing.ok) return printing
   // Only the fields present on the input are rewritten (normalized), so an
   // absent field stays absent rather than becoming an explicit `undefined`.
   let normalized: Record<string, unknown> = { ...obj }
-  if (printing.fields.set !== undefined) normalized.set = printing.fields.set
-  if (printing.fields.language !== undefined) normalized.language = printing.fields.language
+  if (printing.value.set !== undefined) normalized.set = printing.value.set
+  if (printing.value.language !== undefined) normalized.language = printing.value.language
 
   if (action === 'add' || action === 'remove') {
     if (obj.board !== undefined) {
       if (typeof obj.board !== 'string' || !(BOARDS as readonly string[]).includes(obj.board)) {
-        return `${where}has an unknown board: ${JSON.stringify(obj.board)}.`
+        return unknownValue(site, 'board', obj.board)
       }
     }
   }
   if ((action === 'add' || action === 'move-to') && obj.section !== undefined) {
-    if (typeof obj.section !== 'string') return `${where}has an invalid "section".`
+    if (typeof obj.section !== 'string') return invalidField(site, 'section')
   }
   if (action === 'move-from') {
-    const to = validateListRef(obj.to, `${where}"to" `)
-    if (typeof to === 'string') return to
-    normalized.to = to
+    const to = validateListRef(obj.to, site, 'to')
+    if (!to.ok) return to
+    normalized.to = to.value
   }
   if (action === 'move-to') {
-    const from = validateListRef(obj.from, `${where}"from" `)
-    if (typeof from === 'string') return from
-    normalized.from = from
+    const from = validateListRef(obj.from, site, 'from')
+    if (!from.ok) return from
+    normalized.from = from.value
     for (const field of MOVE_TO_ID_FIELDS) {
       if (obj[field] !== undefined && !isCardIdValue(obj[field])) {
-        return `${where}has an invalid "${field}".`
+        return invalidField(site, field)
       }
     }
-    const replacement = validateReplacement(obj.replacement, where)
-    if (typeof replacement === 'string') return replacement
-    if (replacement !== undefined) {
+    const replacement = validateReplacement(obj.replacement, site)
+    if (!replacement.ok) return replacement
+    if (replacement.value !== undefined) {
       // The printing the source line gets back replaces *that* line; with no
       // line pinned there is nothing for it to replace.
       if (obj.replacesCardId === undefined) {
-        return `${where}carries a "replacement" but pins no line ("replacesCardId").`
+        return refuse(locatedProblem('replacement-unpinned', site))
       }
-      normalized.replacement = replacement
+      normalized.replacement = replacement.value
     }
   }
   // A labels payload is a closed signed vocabulary with conflict rules —
@@ -402,10 +435,12 @@ export function decodeChangeEvent(
     ((action === 'add' || action === 'remove') && obj.labels !== undefined)
   ) {
     const labels = parseLabelOverrideData(obj.labels, 'labels')
-    if (!labels.ok) return `${where}${labels.message}`
+    if (!labels.ok) return rejected(site, labels.message)
     if (opts.listType !== undefined) {
       const check = checkLabelsForListType(opts.listType, labels.labels)
-      if (!check.ok) return `${where}${unsupportedLabelsMessage(opts.listType, check.unsupported)}`
+      if (!check.ok) {
+        return rejected(site, unsupportedLabelsMessage(opts.listType, check.unsupported))
+      }
     }
     // An add or remove with an empty override carries none: drop the key, as
     // the tags branch folds an empty tag set, so it never re-encodes as `[]`.
@@ -419,10 +454,10 @@ export function decodeChangeEvent(
   // Either half of a move carries the moved copy's payload (tags, carried
   // labels, note), validated by the one rule a bundle's moves share.
   if (action === 'move-from' || action === 'move-to') {
-    const moved = validateMovedCopyFields(obj, where)
-    if (!moved.ok) return moved.error
+    const moved = validateMovedCopyFields(obj, site)
+    if (!moved.ok) return moved
     const { tags: _t, labels: _l, note: _n, ...rest } = normalized
-    normalized = { ...rest, ...definedFields(moved.fields) }
+    normalized = { ...rest, ...definedFields(moved.value) }
   }
   // Tags are an open vocabulary validated by shape: a tag event names one
   // tag-shaped string (`tag`), and an add, a remove, or either half of a move
@@ -431,15 +466,15 @@ export function decodeChangeEvent(
   // on any action must be valid or refused. Both land canonical — lowercase,
   // deduplicated, sorted, no sigil.
   if (obj.tag !== undefined) {
-    if (typeof obj.tag !== 'string') return `${where}has an invalid "tag".`
+    if (typeof obj.tag !== 'string') return invalidField(site, 'tag')
     const tag = parseCardTag(obj.tag)
-    if (!tag.ok) return `${where}${tag.message}`
+    if (!tag.ok) return rejected(site, tag.message)
     normalized = { ...normalized, tag: tag.tag }
   }
   // (A move's `tags` were validated with the rest of its payload above.)
   if (obj.tags !== undefined && action !== 'move-from' && action !== 'move-to') {
     const tags = parseCardTagsValue(obj.tags, 'tags')
-    if (!tags.ok) return `${where}${tags.message}`
+    if (!tags.ok) return rejected(site, tags.message)
     // An empty set is no set: the stored form is absent (`normalizedTags`), so
     // a decoded add never carries a `[]` the serializers would have to fold.
     const { tags: _dropped, ...withoutTags } = normalized
@@ -451,20 +486,20 @@ export function decodeChangeEvent(
   // card's primary category.
   if (obj.categories !== undefined) {
     const categories = parseCardCategoriesValue(obj.categories, '"categories"')
-    if (!categories.ok) return `${where}${categories.message}`
+    if (!categories.ok) return rejected(site, categories.message)
     normalized = { ...normalized, categories: categories.categories }
   }
   if (obj.order !== undefined) {
     const order = parseCardCategoriesValue(obj.order, '"order"')
-    if (!order.ok) return `${where}${order.message}`
+    if (!order.ok) return rejected(site, order.message)
     normalized = { ...normalized, order: order.categories }
   }
   for (const field of ['category', 'newCategory'] as const) {
     const value = obj[field]
     if (value === undefined) continue
-    if (typeof value !== 'string') return `${where}has an invalid "${field}".`
+    if (typeof value !== 'string') return invalidField(site, field)
     const parsed = parseCardCategory(value)
-    if (!parsed.ok) return `${where}${parsed.message}`
+    if (!parsed.ok) return rejected(site, parsed.message)
     normalized = { ...normalized, [field]: parsed.category }
   }
   // Every field a variant requires has been checked above (envelope, the
@@ -472,7 +507,12 @@ export function decodeChangeEvent(
   // tags);
   // the cast only restates that for the compiler, since the object was built
   // field by field.
-  return normalized as unknown as ChangeEvent
+  return { ok: true, value: normalized as unknown as ChangeEvent }
+}
+
+/** The refusal for a record at `site` that lacks a `field` it must carry. */
+function missingField(site: ChangeProblemSite, field: ChangeFieldName): ChangeProblemRefusal {
+  return refuse(locatedProblem('field-missing', site, { field }))
 }
 
 // ── Serialization ─────────────────────────────────────────────────────

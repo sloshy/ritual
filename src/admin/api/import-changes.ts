@@ -39,7 +39,7 @@ import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import { toWantedCardEntries } from '../../list/wanted-entries'
 import { buildSyntheticRequest } from '../../util/synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
-import { apiMessage, plainMessage } from '../../api/result'
+import { apiMessage } from '../../api/result'
 import { ExitCode, localizedCommandError } from '../../util/errors'
 import {
   prefixedFields,
@@ -50,7 +50,8 @@ import {
   type SyncMessage,
 } from '../../sync/message'
 import { apiHandler } from '../utils'
-import { badRequest, readBodyText } from '../../api/http'
+import { nestedRefusal, readBodyText } from '../../api/http'
+import { changeProblemMessage } from '../../changes/change-problem-message'
 import { handleDeckLoad } from './deck-load'
 import { handleCollectionLoad } from './collection-load'
 import { handleWantedListLoad } from './wanted-load'
@@ -640,10 +641,10 @@ export function handleImportChanges(req: Request): Promise<Response> {
     const read = await readBodyText(req, MAX_UPLOAD_BODY_SIZE)
     if (!read.ok) return read.response
 
-    const bundle = parseChangeBundle(read.text)
-    if (typeof bundle === 'string') return badRequest(plainMessage(bundle))
+    const parsed = parseChangeBundle(read.text)
+    if (!parsed.ok) return nestedRefusal(changeProblemMessage(parsed.problem))
 
-    const result = await applyChangeBundle(bundle)
+    const result = await applyChangeBundle(parsed.value)
     const body: BundleImportResponse = {
       success: true,
       ...result,

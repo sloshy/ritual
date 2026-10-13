@@ -75,6 +75,10 @@ describe('POST /api/collection/:slug/save', () => {
     expect(body.message).toBe(
       'Cannot add "Sol Ring" to a collection without set and collector number',
     )
+    expect(body).toMatchObject({
+      messageKey: 'domain.changes.collectionPrinting.add',
+      messageParams: { name: 'Sol Ring' },
+    })
     expect(await snapshotTree(ws.dir)).toEqual(before)
   })
 

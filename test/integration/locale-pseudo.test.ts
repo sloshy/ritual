@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { LOCALE_ENV, ensureBinary, repoRoot, runCli, withTempDir } from './helpers/cli'
 import { en } from '../../src/i18n/messages/en'
+import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../helpers/change-problem'
 import type { LocaleCatalog } from '../../src/i18n/types'
 
 /**
@@ -256,6 +257,41 @@ describe('pseudo-locale (Integration)', () => {
       }
       const reason = String(forms.wanted)
       expect(unwrap(result.stderr)).toContain(unwrap(reason))
+    })
+  })
+
+  test('import-changes words an invalid bundle in the CLI’s language, key kept for json', async () => {
+    await withTempDir(async (dir) => {
+      // The validator returns a structured problem; the CLI words it — the move
+      // it is about included — in its own language.
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(MALFORMED_MOVE_BUNDLE))
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(2)
+      const subject = (await pseudoText('domain.changes.subject.part'))
+        .replace(
+          '{subject}',
+          (await pseudoText('domain.changes.subject.bundleMove')).replace('{move}', '1'),
+        )
+        .replace('{part}', 'from')
+      const reason = (await pseudoText('domain.changes.problem.notObject')).replace(
+        '{subject}',
+        subject,
+      )
+      expect(unwrap(result.stderr)).toContain(unwrap(reason))
+
+      const json = await runFailing(
+        ['import-changes', 'edits.json', '--yes', '--output', 'json'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(json.error.messageKey).toBe('cli.importChanges.invalidBundle')
+      // Its `message` follows the CLI's language, reason included…
+      expect(unwrap(json.error.message)).toContain(unwrap(reason))
+      // The params are locale-invariant: the reason is the English sentence.
+      expect(json.error).toMatchObject({
+        messageParams: { reason: MALFORMED_MOVE_ENGLISH },
+      })
     })
   })
 })

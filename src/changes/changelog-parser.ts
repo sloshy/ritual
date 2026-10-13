@@ -45,8 +45,7 @@ export type ParsedChangelog = {
   /**
    * One advisory per legacy (block-less) entry and per undecodable block line.
    * Never silent: a writer/parser drift would otherwise render an emptier
-   * history with no error. Small structured records (no raw content) so they
-   * cost the baked site data nothing.
+   * history with no error. Structured records, never baked into site data.
    */
   advisories: ChangelogAdvisory[]
 }

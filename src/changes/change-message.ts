@@ -24,17 +24,31 @@
 import {
   formatFinishConditionTail,
   formatPrintingAnnotation,
-  listRefLabel,
   type ChangeAction,
   type ChangeEvent,
+  type ListRef,
+  unhandledChangeAction,
 } from './change-event'
 import { formatLabelOverride } from '../card/card-labels'
 import { formatCardCategories } from '../card/card-categories'
-import { languageLabel } from '../card/card-language'
 import { currentLocale } from '../i18n/runtime'
-import { tSegmentsDynamic, type MessageParams, type MessageRef, type RenderParams } from '../i18n/t'
+import {
+  tIn,
+  tSegmentsDynamic,
+  type MessageParams,
+  type MessageRef,
+  type RenderParams,
+} from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import type { LocaleTag, MessageSegment } from '../i18n/types'
+import {
+  renderSyncParam,
+  syncLanguage,
+  syncRef,
+  type SyncLanguageParam,
+  type SyncMessageParams,
+  type SyncMessageRef,
+} from '../sync/message'
 
 // ---------------------------------------------------------------------------
 // The normalized input
@@ -236,8 +250,7 @@ export function changeMessage(change: DisplayChange): ChangeMessage {
         ? buildMessage('domain.change.setCategoryOrder', { order: change.order })
         : buildMessage('domain.change.clearCategoryOrder', { tense })
     default:
-      change.action satisfies never
-      throw new Error(`Unhandled change action (this is a bug)`)
+      return unhandledChangeAction(change.action)
   }
 }
 
@@ -273,6 +286,20 @@ function boardOf(board: string | undefined): string | undefined {
   return board !== undefined && board !== '' && board.toLowerCase() !== 'main' ? board : undefined
 }
 
+/**
+ * The other list of a move, named for display (`Deck 'Standard Burn'`) in
+ * `locale`. The display counterpart of `listRefLabel`, whose English is spliced
+ * into persisted changelog lines and must never follow the UI locale.
+ */
+export function listRefDisplay(ref: ListRef, locale: LocaleTag = currentLocale()): string {
+  return tIn(locale, 'domain.change.listRef', { type: ref.type, name: ref.name })
+}
+
+/** {@link listRefDisplay} unrendered, for a message that nests it. */
+function listRefMessage(ref: ListRef): SyncMessageRef {
+  return syncRef('domain.change.listRef', { type: ref.type, name: ref.name })
+}
+
 /** The `NEO:234 [foil] [ja]` descriptor, or `undefined` for "no specific printing". */
 function printingDescriptor(
   set: string | undefined,
@@ -287,15 +314,59 @@ function printingDescriptor(
 }
 
 /**
- * Normalize a live {@link ChangeEvent}. Defaults to the present tense: these
- * are pending changes a user is deciding whether to save.
+ * The parts of a {@link DisplayChange} that depend on the reader's locale, held
+ * unrendered: the language name of a `set-language`, the other list of a move.
+ * Each key is also the catalog placeholder it fills, so {@link changeRef} can
+ * hand them on as nested params and {@link displayChangeFromEvent} can render
+ * them — the one list of what a description renders in a locale.
  */
-export function displayChangeFromEvent(
-  change: ChangeEvent,
-  tense: ChangeTense = 'present',
-): DisplayChange {
-  const locale = currentLocale()
-  const base: DisplayChange = {
+type LocaleParts = {
+  language?: SyncLanguageParam
+  list?: SyncMessageRef
+}
+
+/** Every {@link LocaleParts} key — what {@link splitLocaleParts} takes out. */
+const LOCALE_PART_KEYS = ['language', 'list'] as const satisfies readonly (keyof LocaleParts)[]
+
+/** A locale part missing from {@link LOCALE_PART_KEYS} is a compile error here. */
+type UnlistedLocalePart = Exclude<keyof LocaleParts, (typeof LOCALE_PART_KEYS)[number]>
+const LOCALE_PART_KEYS_COMPLETE: [UnlistedLocalePart] extends [never] ? true : UnlistedLocalePart =
+  true
+void LOCALE_PART_KEYS_COMPLETE
+
+/** The fields of a description that read no locale. */
+type PlainParts = Omit<DisplayChange, keyof LocaleParts>
+
+/** A change normalized with its locale-dependent parts still unrendered. */
+type ChangeParts = PlainParts & LocaleParts
+
+/** {@link ChangeParts} split into the plain fields and the deferred locale parts. */
+type SplitParts = { plain: PlainParts; deferred: LocaleParts }
+
+/**
+ * Take every locale part out of `parts`, by {@link LOCALE_PART_KEYS} — the one
+ * place both consumers learn which fields are deferred, so a new locale part can
+ * never ride along in the plain fields unrendered or be dropped.
+ */
+function splitLocaleParts(parts: ChangeParts): SplitParts {
+  const plain: Record<string, unknown> = { ...parts }
+  const deferred: LocaleParts = {}
+  const take = <K extends keyof LocaleParts>(key: K): void => {
+    delete plain[key]
+    if (parts[key] !== undefined) deferred[key] = parts[key]
+  }
+  for (const key of LOCALE_PART_KEYS) take(key)
+  // `plain` is `parts` less exactly the keys `LocaleParts` declares.
+  return { plain: plain as PlainParts, deferred }
+}
+
+/**
+ * The one adapter from a {@link ChangeEvent} to what its description
+ * interpolates. Reads no locale: every part that would follow one is a
+ * {@link LocaleParts} entry, which {@link splitLocaleParts} hands both consumers.
+ */
+function changeParts(change: ChangeEvent, tense: ChangeTense): ChangeParts {
+  const base: ChangeParts = {
     action: change.action,
     tense,
     cardName: 'cardName' in change ? change.cardName : '',
@@ -322,7 +393,7 @@ export function displayChangeFromEvent(
         ),
       }
     case 'set-language':
-      return { ...base, language: languageLabel(change.language, locale) }
+      return { ...base, language: syncLanguage(change.language) }
     case 'set-note':
       return { ...base, note: change.note }
     case 'set-label':
@@ -334,13 +405,13 @@ export function displayChangeFromEvent(
       return {
         ...base,
         annotation: formatPrintingAnnotation(change),
-        list: listRefLabel(change.to),
+        list: listRefMessage(change.to),
       }
     case 'move-to':
       return {
         ...base,
         annotation: formatPrintingAnnotation(change),
-        list: listRefLabel(change.from),
+        list: listRefMessage(change.from),
       }
     case 'add-section':
     case 'remove-section':
@@ -359,9 +430,32 @@ export function displayChangeFromEvent(
     case 'unset-commander':
       return base
     default:
-      change satisfies never
-      throw new Error(`Unhandled change action (this is a bug)`)
+      return unhandledChangeAction(change)
   }
+}
+
+/** {@link LocaleParts} rendered in `locale`, as the display fields they fill. */
+type RenderedLocaleParts = { [K in keyof LocaleParts]: string }
+
+function renderLocaleParts(parts: LocaleParts, locale: LocaleTag): RenderedLocaleParts {
+  const rendered: RenderedLocaleParts = {}
+  for (const key of LOCALE_PART_KEYS) {
+    const part = parts[key]
+    if (part !== undefined) rendered[key] = renderSyncParam(part, locale)
+  }
+  return rendered
+}
+
+/**
+ * Normalize a live {@link ChangeEvent}. Defaults to the present tense: these
+ * are pending changes a user is deciding whether to save.
+ */
+export function displayChangeFromEvent(
+  change: ChangeEvent,
+  tense: ChangeTense = 'present',
+): DisplayChange {
+  const { plain, deferred } = splitLocaleParts(changeParts(change, tense))
+  return { ...plain, ...renderLocaleParts(deferred, currentLocale()) }
 }
 
 /**
@@ -372,6 +466,25 @@ export function displayChangeFromEvent(
  */
 export function displayHistoryChange(change: ChangeEvent): DisplayChange {
   return { ...displayChangeFromEvent(change, 'past'), idSuffix: '' }
+}
+
+/**
+ * A pending change described as an unrendered message, for text that nests it
+ * and is rendered later, in a locale of its own (an API refusal's English, the
+ * reader's language in the admin). Its {@link LocaleParts} ride as nested
+ * params, so the whole description follows the locale it is rendered in.
+ */
+export function changeRef(change: ChangeEvent): SyncMessageRef {
+  const { plain, deferred } = splitLocaleParts(changeParts(change, 'present'))
+  // No locale part steers which key `changeMessage` picks (a language or a move's
+  // other list never selects a variant), so the plain fields alone choose it.
+  const message = changeMessage(plain)
+  const params: SyncMessageParams = { ...message.params }
+  for (const key of LOCALE_PART_KEYS) {
+    const part = deferred[key]
+    if (part !== undefined) params[key] = part
+  }
+  return { messageKey: message.key, messageParams: params }
 }
 
 /**

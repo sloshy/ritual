@@ -814,7 +814,7 @@ export const adminMeta = {
   },
   'admin.importChanges.invalid': {
     description:
-      'Error when the supplied text is not a valid bundle. {reason} is the parser’s own message.',
+      'Error when the supplied text is not a valid bundle. {reason} is why, already translated (a domain.changes.problem.* sentence).',
   },
   'admin.importChanges.pendingLabel': {
     description:

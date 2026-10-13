@@ -1,3 +1,4 @@
+import { keyedMessage } from '../helpers/api-message'
 import { describe, expect, it } from 'bun:test'
 import {
   applyChangeToCollection,
@@ -298,26 +299,34 @@ describe('findCollectionPrintingError', () => {
 
   it('rejects an add missing its printing, naming the card', () => {
     const error = findCollectionPrintingError([{ action: 'add', cardName: 'Sol Ring' }])
-    expect(error).toBe('Cannot add "Sol Ring" to a collection without set and collector number')
+    expect(error === null ? null : keyedMessage(error)).toBe(
+      'Cannot add "Sol Ring" to a collection without set and collector number',
+    )
   })
 
   it('rejects an add with a set but no collector number', () => {
     const error = findCollectionPrintingError([{ action: 'add', cardName: 'Sol Ring', set: 'c21' }])
-    expect(error).toBe('Cannot add "Sol Ring" to a collection without set and collector number')
+    expect(error === null ? null : keyedMessage(error)).toBe(
+      'Cannot add "Sol Ring" to a collection without set and collector number',
+    )
   })
 
   it('rejects a move-to missing its printing', () => {
     const error = findCollectionPrintingError([
       { action: 'move-to', cardName: 'Tarmogoyf', from: { type: 'deck', name: 'Jund' } },
     ])
-    expect(error).toBe('Cannot add "Tarmogoyf" to a collection without set and collector number')
+    expect(error === null ? null : keyedMessage(error)).toBe(
+      'Cannot add "Tarmogoyf" to a collection without set and collector number',
+    )
   })
 
   it('rejects a set-printing missing its printing, with its own wording', () => {
     const error = findCollectionPrintingError([
       { action: 'set-printing', cardName: 'Sol Ring', cardId: 5 },
     ])
-    expect(error).toBe('Cannot set printing on "Sol Ring" without set and collector number')
+    expect(error === null ? null : keyedMessage(error)).toBe(
+      'Cannot set printing on "Sol Ring" without set and collector number',
+    )
   })
 
   it('ignores actions that never carry a printing', () => {

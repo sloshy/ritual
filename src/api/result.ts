@@ -29,7 +29,6 @@
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { parseEnumField } from '../util/parse-enum'
 import {
-  isMessageKey,
   paramsOf,
   tDynamic,
   tIn,
@@ -156,30 +155,6 @@ export function isFlatParams(value: unknown): value is ApiMessageParams {
   return Object.values(value).every(
     (param) => typeof param === 'string' || typeof param === 'number',
   )
-}
-
-/**
- * The message triple a response body carries, read off untyped JSON — or
- * `null` when the body has no `message` string.
- *
- * A key is kept only when this surface knows it (`isMessageKey`): a server
- * ahead of (or behind) the reader may send one the catalog lacks, and rendering
- * it would print the raw key, or throw under `RITUAL_I18N_STRICT`. The English
- * `message` covers the gap, which is the fallback the design already relies on
- * for a handler that sends no key at all. So does a message whose params nest:
- * this reader is for flat `ApiMessage`s, and `readSyncMessage` for the rest.
- */
-export function readApiMessage(raw: unknown): ApiMessage | null {
-  if (typeof raw !== 'object' || raw === null || !('message' in raw)) return null
-  if (typeof raw.message !== 'string') return null
-  const read: ApiMessage = { message: raw.message }
-  if (!('messageKey' in raw) || !isMessageKey(raw.messageKey)) return read
-  const params = 'messageParams' in raw ? raw.messageParams : undefined
-  if (params === undefined) return { ...read, messageKey: raw.messageKey }
-  // Nested params (a sync message's) are not an `ApiMessage`'s: rendered flat
-  // they would print `[object Object]`, so such a message keeps its English only.
-  if (!isFlatParams(params)) return read
-  return { ...read, messageKey: raw.messageKey, messageParams: params }
 }
 
 /**

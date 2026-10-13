@@ -1,3 +1,5 @@
+import { changeProblemMessage } from '../../../src/changes/change-problem-message'
+import { locatedProblem } from '../../../src/changes/change-problem'
 import { describe, it, expect, afterEach, beforeEach } from 'bun:test'
 import { saveEditorChanges } from '../../../src/editor/saveEditorChanges'
 import {
@@ -175,7 +177,7 @@ describe('saveEditorChanges', () => {
     expect(result?.conflict).toBe(true)
   })
 
-  it('stores its own wording and a keyed refusal unrendered, and keyless prose as text', async () => {
+  it('stores its own wording and every server refusal unrendered', async () => {
     const recorded: EditorStatusMessage[] = []
     const capture: EditorStatusActions = {
       ...statusActions,
@@ -189,16 +191,28 @@ describe('saveEditorChanges', () => {
     stubSave({ success: false, message: 'Bad request data' }, 400)
     await saveEditorChanges('/api/test/save', {}, capture)
 
-    // A refusal carrying a key this bundle knows is held by its key, so a
-    // language switch relabels it like the editor's own wording.
+    // A refusal carrying a key is held as the whole message it sent, so a
+    // language switch relabels it like the editor's own wording — nested
+    // params (a decode problem's record) included.
     const conflict = apiMessage('admin.api.save.conflict', { listType: 'deck' })
     stubSave({ success: false, conflict: true, ...conflict }, 409)
     await saveEditorChanges('/api/test/save', {}, capture)
 
+    const problem = changeProblemMessage(
+      locatedProblem(
+        'field-invalid',
+        { subject: { kind: 'save-change', index: 0 } },
+        { field: 'set' },
+      ),
+    )
+    stubSave({ success: false, ...problem }, 400)
+    await saveEditorChanges('/api/test/save', {}, capture)
+
     expect(recorded).toEqual([
       { kind: 'key', key: 'ui.editor.saveSuccess', params: undefined },
-      { kind: 'text', text: 'Bad request data' },
-      { kind: 'key', key: 'admin.api.save.conflict', params: { listType: 'deck' } },
+      { kind: 'message', message: { message: 'Bad request data' } },
+      { kind: 'message', message: conflict },
+      { kind: 'message', message: problem },
     ])
   })
 })

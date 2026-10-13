@@ -408,7 +408,8 @@ export const cliSyncMeta = {
     description: 'The change-bundle file could not be read; {reason} is the filesystem error.',
   },
   'cli.importChanges.invalidBundle': {
-    description: 'The file is not a valid change bundle; {reason} is the parser detail.',
+    description:
+      'The file is not a valid change bundle; {reason} is why, already translated (a domain.changes.problem.* sentence).',
   },
   'cli.importChanges.empty': { description: 'The bundle parsed but holds no changes.' },
   'cli.importChanges.confirmationRequired': {
@@ -486,6 +487,26 @@ export const cliSyncMeta = {
   'cli.detectChanges.gitProbeFailed': {
     description:
       'Prefix for a failure to even ask git whether this is a repository. git’s own detail follows on the next line.',
+  },
+  'cli.detectChanges.gitRepoCheckFailed': {
+    description:
+      "detect-changes could not ask git whether a directory is a repository. {dir} is the directory path. Printed first, with git's own error on a second line.",
+  },
+  'cli.detectChanges.gitResolveFailed': {
+    description:
+      "detect-changes could not ask git to resolve the commit it compares against. {commit} is the commit or ref the user gave (keep its quotes); {dir} is the repository path. Printed first, with git's own error on a second line.",
+  },
+  'cli.detectChanges.gitDiffFailed': {
+    description:
+      "detect-changes could not read the list of files changed since a commit. {commit} is the commit or ref; HEAD is git's name for the current commit and is not translated; {dir} is the repository path.",
+  },
+  'cli.detectChanges.gitReadFailed': {
+    description:
+      'detect-changes could not read a list file as it was at an earlier commit. {file} is the file path, {commit} the commit or ref, {dir} the repository path.',
+  },
+  'cli.detectChanges.gitMissing': {
+    description:
+      'Why a git command failed: the git program could not be started. Shown on the line after the failed operation. "git" and PATH are not translated.',
   },
   'cli.detectChanges.notGitRepo': {
     description:

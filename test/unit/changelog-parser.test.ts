@@ -133,7 +133,11 @@ describe('parseChangelog', () => {
     expect(advisories.map((a) => a.kind)).toEqual(['invalid-event', 'invalid-event'])
     expect(advisories[0]).toMatchObject({ timestamp: '2026-01-01T00:00:00.000Z' })
     const first = advisories[0]!
-    expect(first.kind === 'invalid-event' ? first.error : '').toContain('frobnicate')
+    expect(first.kind === 'invalid-event' ? first.problem : null).toMatchObject({
+      code: 'action-unknown',
+      params: { action: 'frobnicate' },
+    })
+    expect(advisories[1]).toMatchObject({ problem: { code: 'json-invalid' } })
     expect(pages[0]!.changes.map((c) => ('cardName' in c ? c.cardName : ''))).toEqual([
       'Sol Ring',
       'Forest',

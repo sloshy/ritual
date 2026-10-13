@@ -868,6 +868,16 @@ export function mirrorMoveFrom(line: DepartingLine, to: ListRef): MoveFromChange
   return createMoveFromChange(line.name, { ...printingOptionsFrom(line), ...movedCopyOf(line), to })
 }
 
+/**
+ * Fail an exhaustive `switch` over {@link ChangeAction} that met a value the
+ * compiler ruled out — a bug, never input: every event crossing a boundary has
+ * passed `decodeChangeEvent`, which refuses an unknown action. The message is a
+ * code identifier, not prose, so this fenced module stays clear of `src/i18n`.
+ */
+export function unhandledChangeAction(_change: never): never {
+  throw new Error('unhandled_change_action')
+}
+
 /** Whether two list refs name the same list (same type and name). */
 export function sameListRef(a: ListRef, b: ListRef): boolean {
   return a.type === b.type && a.name === b.name
@@ -1446,6 +1456,10 @@ export function formatBoardAnnotation(
   return ` ${preposition} ${board}`
 }
 
+/** What a `set-printing` line says when the change pins no printing. */
+// i18n-exempt: a `.changes.md` prose fragment — persisted English, hashed by its `.sha256` sidecar
+const NO_SPECIFIC_PRINTING = 'no specific printing'
+
 type FormatChangeOptions = {
   tense: 'present' | 'past'
   /**
@@ -1505,79 +1519,99 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
       return `${verb} ${name}${ann}${boardInfo}${idInfo}`
     }
     case 'set-commander':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set ${name} as commander${idInfo}`
     case 'unset-commander':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Unset ${name} as commander${idInfo}`
     case 'set-finish':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set ${name} finish to ${change.finish}${idInfo}`
     case 'set-printing': {
       const printingDesc =
         change.set && change.collectorNumber
           ? `${printingLabel(change.set, change.collectorNumber)}${formatFinishConditionTail(change.finish, change.condition, change.language)}`
-          : 'no specific printing'
+          : NO_SPECIFIC_PRINTING
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set ${name} printing to ${printingDesc}${idInfo}`
     }
     case 'set-language':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set language of ${name} to ${languageDisplayName(change.language)}${idInfo}`
     case 'set-note': {
       if (change.note === '') {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
+        // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
         return `${clearVerb} note on ${name}${idInfo}`
       }
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set note on ${name}${idInfo} to "${change.note}"`
     }
     case 'set-label': {
       if (change.labels.length === 0) {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
+        // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
         return `${clearVerb} labels on ${name}${idInfo}`
       }
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set labels on ${name}${idInfo} to [${formatLabelOverride(change.labels)}]`
     }
     case 'add-tag': {
       const verb = tense === 'past' ? 'Added' : 'Add'
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${verb} tag "${change.tag}" to ${name}${idInfo}`
     }
     case 'remove-tag': {
       const verb = tense === 'past' ? 'Removed' : 'Remove'
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${verb} tag "${change.tag}" from ${name}${idInfo}`
     }
     case 'move-from': {
       const ann = formatPrintingAnnotation(change)
       const verb = tense === 'past' ? 'Moved' : 'Move'
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${verb} ${name}${ann}${idInfo} to ${listRefLabel(change.to)}`
     }
     case 'move-to': {
       const ann = formatPrintingAnnotation(change)
       const verb = tense === 'past' ? 'Moved' : 'Move'
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${verb} ${name}${ann}${idInfo} from ${listRefLabel(change.from)}`
     }
     case 'add-section':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${tense === 'past' ? 'Added' : 'Add'} section "${change.section}"`
     case 'remove-section':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${tense === 'past' ? 'Removed' : 'Remove'} section "${change.section}"`
     case 'rename-section':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${tense === 'past' ? 'Renamed' : 'Rename'} section "${change.section}" to "${change.newSection}"`
     case 'set-section':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${tense === 'past' ? 'Moved' : 'Move'} ${name} to section "${change.section}"${idInfo}`
     case 'set-categories': {
       if (change.categories.length === 0) {
         const clearVerb = tense === 'past' ? 'Cleared' : 'Clear'
+        // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
         return `${clearVerb} categories of ${name}`
       }
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set categories of ${name} to ${formatCardCategories(change.categories)}`
     }
     case 'rename-category':
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `${tense === 'past' ? 'Renamed' : 'Rename'} category "${change.category}" to "${change.newCategory}"`
     case 'set-category-order': {
       if (change.order.length === 0) {
+        // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
         return `${tense === 'past' ? 'Cleared' : 'Clear'} category order`
       }
+      // i18n-exempt: a `.changes.md` prose line — persisted English, hashed by its `.sha256` sidecar
       return `Set category order to ${formatCardCategories(change.order)}`
     }
-    default: {
-      change satisfies never
-      throw new Error(`Unhandled change action (this is a bug)`)
-    }
+    default:
+      return unhandledChangeAction(change)
   }
 }
 
@@ -1588,7 +1622,10 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
  * spliced into persisted `Moved "X" to Deck 'Y'` lines.
  */
 export function listRefLabel(ref: ListRef): string {
+  // i18n-exempt: spliced into a persisted `.changes.md` move line (see formatChangeCore)
   if (ref.type === 'deck') return `Deck '${ref.name}'`
+  // i18n-exempt: spliced into a persisted `.changes.md` move line (see formatChangeCore)
   if (ref.type === 'collection') return `Collection '${ref.name}'`
+  // i18n-exempt: spliced into a persisted `.changes.md` move line (see formatChangeCore)
   return `Wanted list '${ref.name}'`
 }

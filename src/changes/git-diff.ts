@@ -4,6 +4,7 @@ import { getBaseDir } from '../config/base-dir'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
 import { hasErrorCode } from '../util/errors'
 import { CATEGORIES_SIDECAR_SUFFIX } from '../list/card-categories-sidecar'
+import { t } from '../i18n/t'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -107,9 +108,11 @@ export function gitStderrSummary(error: unknown): string | null {
 
 /**
  * Run `git` and return its stdout, converting any failure into a
- * {@link GitCommandError} carrying `operation` as the human-facing message.
+ * {@link GitCommandError} carrying `operation` as the human-facing message —
+ * worded by the caller in the CLI's UI language (`detect-changes` is the only
+ * consumer), and only when the command fails.
  */
-function runGit(args: readonly string[], cwd: string, operation: string): string {
+function runGit(args: readonly string[], cwd: string, operation: () => string): string {
   try {
     return execFileSync('git', [...args], {
       cwd,
@@ -121,10 +124,8 @@ function runGit(args: readonly string[], cwd: string, operation: string): string
     // A spawn failure produces no stderr at all, so name the one cause worth
     // naming; every other silent failure stays `null` (a probe reads that as
     // git's own quiet "no").
-    const spawnFailure = hasErrorCode(error, 'ENOENT')
-      ? 'git is not installed or not on PATH'
-      : null
-    throw new GitCommandError(operation, gitStderrSummary(error) ?? spawnFailure)
+    const spawnFailure = hasErrorCode(error, 'ENOENT') ? t('cli.detectChanges.gitMissing') : null
+    throw new GitCommandError(operation(), gitStderrSummary(error) ?? spawnFailure)
   }
 }
 
@@ -149,7 +150,9 @@ const NOT_A_REPO_PATTERN = /^fatal: not a git repository/i
  */
 export function probeGitRepository(cwd: string): GitProbeResult {
   try {
-    runGit(['rev-parse', '--git-dir'], cwd, `Failed to check whether ${cwd} is a git repository`)
+    runGit(['rev-parse', '--git-dir'], cwd, () =>
+      t('cli.detectChanges.gitRepoCheckFailed', { dir: cwd }),
+    )
     return { ok: true, present: true }
   } catch (error) {
     if (!(error instanceof GitCommandError)) throw error
@@ -169,10 +172,8 @@ export function probeGitRepository(cwd: string): GitProbeResult {
  */
 export function probeGitRef(commit: string, cwd: string): GitProbeResult {
   try {
-    runGit(
-      ['rev-parse', '--verify', '--quiet', `${commit}^{commit}`],
-      cwd,
-      `Failed to resolve "${commit}" in ${cwd}`,
+    runGit(['rev-parse', '--verify', '--quiet', `${commit}^{commit}`], cwd, () =>
+      t('cli.detectChanges.gitResolveFailed', { commit, dir: cwd }),
     )
     return { ok: true, present: true }
   } catch (error) {
@@ -191,10 +192,8 @@ export function probeGitRef(commit: string, cwd: string): GitProbeResult {
  * Uses `-M` to enable rename detection.
  */
 export function getChangedFiles(commit: string, cwd: string): FileChange[] {
-  const raw = runGit(
-    ['diff', '--name-status', '-M', commit, 'HEAD'],
-    cwd,
-    `Failed to read the git diff between ${commit} and HEAD in ${cwd}`,
+  const raw = runGit(['diff', '--name-status', '-M', commit, 'HEAD'], cwd, () =>
+    t('cli.detectChanges.gitDiffFailed', { commit, dir: cwd }),
   )
 
   return parseNameStatus(raw)
@@ -253,9 +252,7 @@ export function parseNameStatus(raw: string): FileChange[] {
  * `.sha256` sidecar.
  */
 export function getFileAtCommit(commit: string, filePath: string, cwd: string): string {
-  return runGit(
-    ['show', `${commit}:${filePath}`],
-    cwd,
-    `Failed to read ${filePath} at ${commit} in ${cwd}`,
+  return runGit(['show', `${commit}:${filePath}`], cwd, () =>
+    t('cli.detectChanges.gitReadFailed', { file: filePath, commit, dir: cwd }),
   )
 }

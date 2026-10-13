@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import { Glob } from 'bun'
 import fs from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import { compareData } from '../../src/i18n/collate'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { scanNamespaceBoundaries, scanRegistrationBoundaries } from '../../scripts/check-locales'
@@ -75,6 +77,8 @@ const PERSISTENCE_FENCE = [
   'src/changes/change-event-decode.ts',
   'src/changes/csv.ts',
   'src/changes/change-bundle.ts',
+  // The fenced validators' refusal type: codes and values, never words.
+  'src/changes/change-problem.ts',
   'src/changes/list-snapshot.ts',
   'src/changes/diff-categories.ts',
   'src/changes/wire-changes.ts',
@@ -83,6 +87,92 @@ const PERSISTENCE_FENCE = [
   'src/buylist/cart-csv.ts',
   ...[...new Glob('src/export/**/*.ts').scanSync(ROOT)].map((file) => file.replace(/\\/g, '/')),
 ]
+
+/**
+ * The modules a fenced file reaches that import `src/i18n`, each with why it is
+ * safe: what it takes from the catalog either orders data with the pinned
+ * English collation, or is prose returned to (or thrown at) a caller — a
+ * refusal, a display label — never text a fenced writer puts in a file.
+ */
+const I18N_ROUTE_LEDGER: Record<string, string> = {
+  'src/card/card-labels.ts':
+    'label refusals and display labels returned to callers; the label tokens a line carries are literals',
+  'src/card/card-language.ts':
+    'collation only; persisted language names come from LANGUAGE_PARSE_NAMES, not the catalog',
+  'src/card/card-tags.ts': 'collation only (compareData) to order a tag set',
+  'src/card/finish-condition.ts':
+    'display-only conditionLabel / finishLabel / finishSuffix and refusals for callers; the persisted tokens are literals',
+  'src/config/ritual-config.ts':
+    'parseLocaleTag and DEFAULT_LOCALE only, no catalog text; writes nothing but its own config file',
+  'src/list/card-categories-record.ts': 'collation only, to order category names',
+  'src/list/deck-format.ts':
+    'display labels for deck formats; the persisted format slugs are literals',
+  'src/list/list-type.ts': 'display labels for list types; the persisted kinds are literals',
+  'src/list/resolve-list.ts': 'refusals for a list that does not resolve, returned to callers',
+  'src/pricing/price-currency.ts': 'formats prices for display; export rows carry raw numbers',
+  'src/scryfall/card-utils.ts': 'collation only, to order printings',
+  'src/sync/message.ts': 'renders messages for a reader at a boundary; persists nothing',
+  'src/util/duration.ts': 'formats durations for display',
+  'src/util/errors.ts': 'error text thrown to callers (localizedCommandError)',
+  'src/util/parse-enum.ts': 'enum refusals returned to callers',
+}
+
+/**
+ * The transpiler's own import scan: runtime imports only (type-only ones are
+ * erased), including side-effect imports, re-exports (`export * from`,
+ * `export { x } from`) and dynamic `import()` — the self-tests below pin each.
+ */
+const IMPORT_SCANNER = new Bun.Transpiler({ loader: 'tsx' })
+
+/** The runtime import specifiers of a source text. */
+function runtimeImports(source: string): string[] {
+  return IMPORT_SCANNER.scanImports(source).map((entry) => entry.path)
+}
+
+/** The source-file extensions a relative specifier may name or omit. */
+const SOURCE_EXTENSION = /\.(?:[cm]?[jt]sx?)$/
+
+/**
+ * A relative specifier as a repo path to a source file, or null for a package.
+ * Throws on a relative specifier that resolves to nothing: a walk that skipped
+ * it could miss a whole subtree of routes.
+ */
+function resolveRelative(from: string, specifier: string): string | null {
+  if (!specifier.startsWith('.')) return null
+  const base = path.posix.normalize(path.posix.join(path.posix.dirname(from), specifier))
+  const stem = base.replace(SOURCE_EXTENSION, '')
+  for (const candidate of [`${stem}.ts`, `${stem}.tsx`, `${stem}/index.ts`, `${stem}/index.tsx`]) {
+    if (existsSync(path.join(ROOT, candidate))) return candidate
+  }
+  throw new Error(`${from}: cannot resolve the relative import "${specifier}"`)
+}
+
+/**
+ * Every module reached from `entries` by runtime relative imports,
+ * transitively (the entries included), that imports `src/i18n` itself — sorted.
+ * The walk stops at `src/i18n`: what is past it is the catalog, not a route.
+ */
+function i18nRoutes(entries: readonly string[]): string[] {
+  const routes = new Set<string>()
+  const seen = new Set<string>(entries)
+  const queue = [...entries]
+  for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
+    const source = readFileSync(path.join(ROOT, file), 'utf-8')
+    for (const specifier of runtimeImports(source)) {
+      const target = resolveRelative(file, specifier)
+      if (target === null) continue
+      if (target.startsWith('src/i18n/')) {
+        routes.add(file)
+        continue
+      }
+      if (!seen.has(target)) {
+        seen.add(target)
+        queue.push(target)
+      }
+    }
+  }
+  return [...routes].sort(compareData)
+}
 
 type Violation = {
   file: string
@@ -148,12 +238,50 @@ describe('i18n persistence fence', () => {
    * These modules write or re-parse `.changes.md`, CSV exports, the
    * ritual-change-bundle envelope, and the Archidekt/Moxfield dialect headers.
    * All of it is English by contract, so none of them may import
-   * the message catalog directly. (The scan is direct-import only; a transitive
-   * route through e.g. `card-labels` returns prose to callers rather than
-   * writing it into the file, which is the line the fence protects.)
+   * the message catalog directly. Transitive routes are judged by the ledger
+   * test below.
    */
   test('changelog, CSV, and export modules never import src/i18n', async () => {
     expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: PERSISTENCE_FENCE })).toEqual([])
+  })
+
+  /**
+   * Every module a fenced file reaches at runtime (following relative value
+   * imports, transitively) that itself imports `src/i18n` is a route into the
+   * catalog, and each must be in {@link I18N_ROUTE_LEDGER} with the reason it
+   * cannot put localized text into a persisted file. A new route fails here
+   * until someone writes that reason down; a route that is no longer reached
+   * fails as stale, so the ledger stays exactly the set of edges that exist.
+   */
+  test('every i18n route a fenced module reaches is in the ledger', () => {
+    const routes = i18nRoutes(PERSISTENCE_FENCE)
+    // A fenced module is never a route itself — not even through a side-effect
+    // or a dynamic import, which the direct scan above does not see.
+    expect(routes.filter((file) => PERSISTENCE_FENCE.includes(file))).toEqual([])
+    expect(routes).toEqual(Object.keys(I18N_ROUTE_LEDGER).sort(compareData))
+  })
+
+  /** The scanner the walk trusts, on the shapes a regex scan gets wrong. */
+  test.each([
+    [
+      'an import after a quote-free type alias',
+      "export type X = Y\nimport { t } from '../i18n/t'\n",
+    ],
+    ['an import after a type-only re-export', "export type { A }\nimport { t } from '../i18n/t'\n"],
+    ['a side-effect import', "import '../i18n/t'\n"],
+    ['a dynamic import', "const m = await import('../i18n/t')\nexport { m }\n"],
+    ['a star re-export', "export * from '../i18n/t'\n"],
+    ['a named re-export', "export { t } from '../i18n/t'\n"],
+    [
+      'an import after a quote inside braces',
+      "const q = { 'a': 1 }; import { t } from '../i18n/t'\nvoid q\n",
+    ],
+  ])('the import scan sees %s', (_shape, source) => {
+    expect(runtimeImports(source)).toContain('../i18n/t')
+  })
+
+  test('the import scan skips a type-only import, which loads nothing', () => {
+    expect(runtimeImports("import type { MessageKey } from '../i18n/messages/en'\n")).toEqual([])
   })
 
   /**
@@ -192,17 +320,22 @@ describe('i18n persistence fence', () => {
    * The persistence writer's *own* module must not reach the display renderer
    * either. `changeMessage` follows the active UI locale; one call to it from
    * `formatChangeCore` would put translated prose into a file that
-   * the migration reads back on English verbs.
+   * the migration reads back on English verbs. Nor may a fenced validator word
+   * its own refusal through `change-problem-message`: it returns the structured
+   * problem, and the surface showing it words it.
    */
-  test('the changelog writer never reaches the display renderer', async () => {
+  test('the changelog writer and validators never reach a renderer', async () => {
     expect(
-      await scan(/from\s+['"][^'"]*\bchange-message\b/, {
+      await scan(/from\s+['"][^'"]*\bchange-(?:problem-)?message\b/, {
         files: [
           'src/changes/change-event.ts',
           'src/changes/changelog-writer.ts',
           'src/changes/changelog-parser.ts',
           'src/changes/changelog-blocks.ts',
           'src/changes/change-event-decode.ts',
+          'src/changes/change-bundle.ts',
+          'src/changes/wire-changes.ts',
+          'src/changes/change-problem.ts',
         ],
       }),
     ).toEqual([])

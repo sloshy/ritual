@@ -2,6 +2,7 @@ import { createStore } from 'solid-js/store'
 import { saveSuccessSuffix, type SaveSuccessNotices } from './save-notices'
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn } from '../i18n/t'
+import { renderSyncMessage, type SyncMessage } from '../sync/message'
 
 /**
  * A status line the editor is holding on to, stored **unrendered**.
@@ -12,12 +13,21 @@ import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn 
  * stale sentence. Holding the key and its parameters instead lets the shell
  * re-render it in whatever locale is current.
  *
- * The `text` variant carries prose that arrives already rendered: a server
- * response's English when it has no key this bundle knows. A save refusal that
- * carries a known `messageKey` is held by key instead (`saveEditorChanges`).
+ * The `text` variant carries prose that is already rendered and has no key
+ * (the server's categories-sidecar warnings, English sentences). A server
+ * response's sentence is held as the `message` triple it carried — English plus
+ * its key and (possibly nested) params — and rendered by `renderSyncMessage`,
+ * which words it in the reader's language and falls back to the English for a
+ * key this bundle does not know (`saveEditorChanges`).
  */
 export type EditorStatusMessage =
-  ({ kind: 'key' } & MessageRef) | { kind: 'text'; text: string } | SavedWithNotices
+  | ({ kind: 'key' } & MessageRef)
+  | { kind: 'text'; text: string }
+  | ServerStatusMessage
+  | SavedWithNotices
+
+/** A server's own sentence, held as the message it sent. */
+export type ServerStatusMessage = { kind: 'message'; message: SyncMessage }
 
 /**
  * A save that had more to say than "saved" — held as the notices themselves, so
@@ -39,7 +49,7 @@ export function statusMessage<K extends MessageKey>(
   return { kind: 'key', key, params: paramsOf(args) }
 }
 
-/** Wrap already-rendered prose (a server response) as a status message. */
+/** Wrap already-rendered prose that has no key as a status message. */
 export function statusText(text: string): EditorStatusMessage {
   return { kind: 'text', text }
 }
@@ -54,6 +64,9 @@ export function renderStatus(t: TranslateDynamicFn, message: EditorStatusMessage
   switch (message.kind) {
     case 'text':
       return message.text
+    case 'message':
+      // Reads the locale through the same reactive source `t` does.
+      return renderSyncMessage(message.message)
     case 'key':
       return t(message.key, message.params)
     case 'saved': {

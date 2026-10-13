@@ -50,6 +50,26 @@ export function withSyntheticLocale<T>(
   }
 }
 
+/**
+ * {@link withSyntheticLocale} for an async `body`: the locale stays applied
+ * until the promise settles, so a handler that awaits before it renders is
+ * still judged in the synthetic language.
+ */
+export async function withSyntheticLocaleAsync<T>(
+  tag: string,
+  catalog: LocaleCatalog,
+  body: (locale: LocaleTag) => Promise<T>,
+): Promise<T> {
+  const locale = localeTag(tag)
+  loadDictionary(locale, catalog)
+  setLocale(locale)
+  try {
+    return await body(locale)
+  } finally {
+    resetI18nRuntime()
+  }
+}
+
 /** Load a synthetic dictionary for `tag` without applying it; reset with `resetI18nRuntime`. */
 export function loadSyntheticLocale(tag: string, catalog: LocaleCatalog): LocaleTag {
   const locale = localeTag(tag)

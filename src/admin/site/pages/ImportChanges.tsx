@@ -12,8 +12,10 @@ import {
   parseChangeBundle,
 } from '../../../changes/change-bundle'
 import { useT, useTKey } from '../../../ui/i18n'
+import type { ChangeProblem, ChangeProblemResult } from '../../../changes/change-problem'
+import { renderChangeProblem } from '../../../changes/change-problem-message'
 import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
-import type { ApiErrorResponse } from '../../../api/http'
+import type { ApiErrorResponse, NestedRefusalResponse } from '../../../api/http'
 import { PageHeading } from '../components/PageHeading'
 import { apiMessage } from '../../../api/result'
 import { useApiText } from '../hooks/useApiAction'
@@ -37,7 +39,7 @@ const METHODS: MethodOption[] = [
  * A partial import answers 200 with `success: true` and a non-zero
  * `failedCount`, so the per-list report survives to be rendered.
  */
-type ApplyResponse = BundleImportResponse | ApiErrorResponse
+type ApplyResponse = BundleImportResponse | ApiErrorResponse | NestedRefusalResponse
 
 /**
  * Admin page to apply a change bundle exported from the public site's
@@ -63,17 +65,19 @@ export function ImportChanges(): JSX.Element {
 
   const content = createMemo((): string => (method() === 'upload' ? fileContent() : text()))
 
-  const parsed = createMemo((): ChangeBundle | string | null => {
+  const parsed = createMemo((): ChangeProblemResult<ChangeBundle> | null => {
     const value = content().trim()
     return value === '' ? null : parseChangeBundle(value)
   })
-  const parseError = createMemo((): string | null => {
-    const bundle = parsed()
-    return typeof bundle === 'string' ? bundle : null
+  // Held as the structured problem and worded in the JSX, so a language
+  // switch relabels it.
+  const parseError = createMemo((): ChangeProblem | null => {
+    const result = parsed()
+    return result !== null && !result.ok ? result.problem : null
   })
   const bundle = createMemo((): ChangeBundle | null => {
-    const value = parsed()
-    return value !== null && typeof value !== 'string' ? value : null
+    const result = parsed()
+    return result !== null && result.ok ? result.value : null
   })
   const totalChanges = createMemo((): number => {
     const value = bundle()
@@ -240,9 +244,11 @@ export function ImportChanges(): JSX.Element {
         </Switch>
 
         <Show when={parseError()}>
-          <div class="alert alert-error">
-            {t('admin.importChanges.invalid', { reason: parseError() ?? '' })}
-          </div>
+          {(problem) => (
+            <div class="alert alert-error">
+              {t('admin.importChanges.invalid', { reason: renderChangeProblem(problem()) })}
+            </div>
+          )}
         </Show>
 
         <Show when={bundle()}>

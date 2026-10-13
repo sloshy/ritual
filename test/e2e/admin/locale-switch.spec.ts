@@ -25,6 +25,7 @@ import {
   MOCK_SYNC_DECKS,
 } from '../helpers/mock-admin'
 import { apiMessage } from '../../../src/api/result'
+import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
 import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
 import {
@@ -362,6 +363,26 @@ test.describe('admin language switch', () => {
     await expect(banner).not.toContainText('2 changes')
     await expectPseudo(failure, true)
     await expect(failure).toContainText('Binder')
+  })
+
+  test('relabels a bundle the Import Changes page refuses, the move it names included', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await gotoAdminDashboard(page, '#/import/changes')
+    const main = page.locator('main')
+    await main.locator('.segmented-option:has-text("Paste Text")').click()
+    await main.locator('textarea.form-textarea').fill(JSON.stringify(MALFORMED_MOVE_BUNDLE))
+
+    // Parsed in the browser: the refusal is held as the structured problem and
+    // worded in the JSX.
+    const alert = main.locator('.alert-error')
+    await expect(alert).toHaveText(`Invalid change bundle: ${MALFORMED_MOVE_ENGLISH}`)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(alert, true)
+    await expect(alert).not.toContainText('Move #1')
+    await expect(alert).not.toContainText('is not an object')
   })
 
   test('relabels a flat API alert held by useApiAction', async ({ page }) => {

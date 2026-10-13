@@ -109,6 +109,7 @@ export async function appendChangelog(
     }
   }
 
+  // i18n-exempt: the `.changes.md` header line, persisted data hashed by the `.sha256` sidecar
   const baseContent = existingContent ?? `# Changelog for ${singleLineText(entityName)}\n`
   await writeFileAtomic(changelogPath, baseContent + serializeChangeSet(fresh))
   return changelogPath

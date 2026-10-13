@@ -4,6 +4,9 @@ import path from 'node:path'
 import { applyChangesToCollectionFile } from '../../src/list/list-mutate'
 import { createAddChange, createRemoveChange } from '../../src/changes/change-event'
 import { withTempDir } from './helpers/cli'
+import { errorParam, syncMessageOf } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
+import { withSyntheticLocaleAsync } from '../helpers/sync-text'
 import { artSidecarPath, loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-art'
 
 async function writeList(dir: string, relative: string, content: string): Promise<string> {
@@ -35,6 +38,48 @@ describe('applyChangesToCollectionFile (Integration)', () => {
       expect(await fs.readFile(filePath, 'utf-8')).toBe(before)
       expect(await fs.exists(`${filePath}.sha256`)).toBe(false)
       expect(await fs.exists(path.join(dir, 'collections/Binder.changes.md'))).toBe(false)
+    })
+  })
+
+  test('a refusal reaches a sync report as English plus its key, whatever the process locale', async () => {
+    await withTempDir(async (dir) => {
+      const filePath = await writeList(
+        dir,
+        'collections/Binder.md',
+        '# Binder\n\n- Lightning Bolt (LEA:161) &1\n',
+      )
+      const catalog = {
+        'domain.changes.unmatched.summary': '{reasons}. Nichts gespeichert.',
+        'domain.changes.collectionPrinting.add': '„{name}“ braucht eine Druckversion',
+      }
+      // A collection-sync pull reports a failed list through `errorParam`; run
+      // in another language, the way a server's process might be.
+      const [miss, printing] = await withSyntheticLocaleAsync('xx', catalog, async () => {
+        const caught = async (run: () => Promise<unknown>): Promise<unknown> => {
+          try {
+            await run()
+          } catch (error) {
+            return error
+          }
+          throw new Error('expected the mutation to be refused')
+        }
+        return [
+          await caught(() =>
+            applyChangesToCollectionFile(filePath, [createRemoveChange('Sol Ring')]),
+          ),
+          await caught(() => applyChangesToCollectionFile(filePath, [createAddChange('Sol Ring')])),
+        ]
+      })
+      // Vacuity guard: the error's own text is the process's language.
+      expect(String(miss)).toContain('Nichts gespeichert.')
+      expect(String(printing)).toContain('braucht eine Druckversion')
+
+      const reported = syncMessageOf(errorParam(miss))
+      expect(reported.messageKey).toBe('domain.changes.unmatched.summary')
+      expect(keyedMessage(reported)).toMatch(/^1 change matched no card in collection "Binder": /)
+      expect(keyedMessage(syncMessageOf(errorParam(printing)))).toBe(
+        'Cannot add "Sol Ring" to a collection without set and collector number',
+      )
     })
   })
 

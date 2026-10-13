@@ -106,6 +106,32 @@ release changes a file format or a generated file, it ships the change as a
   rest in English), and their `--output json` error envelopes carry its `messageKey` and
   `messageParams`; `ritual import-changes` prints a failed list's reason in the CLI's
   language too.
+- Why a change bundle, a save or a history rewrite was refused now follows the UI
+  language. `ritual import-changes` prints an invalid bundle's reason
+  (`Move #1 "from" is not an object.`) in the CLI's language, and the admin Import
+  Changes page and the editors' Load Changes dialog show it in the browser's,
+  relabelling it when you switch.
+  The admin `POST /api/import-changes` refusal of a malformed bundle, a list save refused
+  for a change it cannot decode, for a collection change missing its printing, or for
+  changes that did not apply, and a history rewrite refused for an event it cannot decode
+  now carry `messageKey` and `messageParams` beside the same English `message`; the
+  params nest (the change or move a problem is about is a message of its own), and the
+  admin editors show the save refusals in the browser's language (a collection-sync pull
+  that aborts on them reports them in the CLI's). The API's `message` and MCP results
+  stay English, and `import-changes --output json` keeps its `messageParams` English
+  while its `message` follows the CLI's language.
+- A save refused because its changes did not apply counts them in the singular when
+  there is one: "1 change matched no card in deck "burn": …", "1 change never applies to
+  a collection list: …" (they read `1 change(s) …`). The change descriptions inside it
+  and in its `unmatched` list are always English now, where they followed the server's
+  UI language. A label, tag or category rule a change or move broke is set off from the
+  record by a colon: `Move #1: 'keep' cannot be combined with other labels.` (it read
+  `Move #1 'keep' cannot …`). Update any script that matched `change(s)` or these
+  sentences, or match on `messageKey`.
+- A move's description in the CLI and both web apps names the other list in the UI
+  language (`Deck 'Burn'` was always English). The `.changes.md` line it is recorded as
+  is unchanged.
+- `ritual detect-changes` reports a failed git command in the CLI's language.
 - **The admin server refuses in the shared error envelope.** A `401` (no session), a `403`
   (before the first account exists, or from the IP/User-Agent allow and deny lists), a
   `404` for a path with no route or file, and an unexpected `500` now answer

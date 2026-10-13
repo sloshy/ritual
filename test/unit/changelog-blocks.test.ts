@@ -156,7 +156,11 @@ describe('parseChangeSets', () => {
       {
         kind: 'invalid-event',
         timestamp: '2026-01-01T00:00:00.000Z',
-        error: 'has an invalid "cardName".',
+        problem: {
+          code: 'field-invalid',
+          site: { subject: { kind: 'change' } },
+          params: { field: 'cardName' },
+        },
       },
     ])
   })
@@ -171,7 +175,11 @@ describe('parseChangeSets', () => {
       {
         kind: 'invalid-event',
         timestamp: '2026-01-01T00:00:00.000Z',
-        error: 'has an unknown action: nope.',
+        problem: {
+          code: 'action-unknown',
+          site: { subject: { kind: 'change' } },
+          params: { action: 'nope' },
+        },
       },
     ])
   })

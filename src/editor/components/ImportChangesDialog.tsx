@@ -12,6 +12,8 @@ import { type ListType, listTypeLabel } from '../../list/list-type'
 import type { ImportResult } from '../editor-config'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
+import { changeProblemRef } from '../../changes/change-problem-message'
+import { renderSyncMessage, syncList, syncRef, type SyncMessageRef } from '../../sync/message'
 
 type ImportChangesDialogProps = {
   open: boolean
@@ -36,7 +38,8 @@ type ImportChangesDialogProps = {
  */
 export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) => {
   const [text, setText] = createSignal('')
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and worded in the JSX, so a language switch relabels it.
+  const [error, setError] = createSignal<SyncMessageRef | null>(null)
   const [result, setResult] = createSignal<ImportResult | null>(null)
   const t = useT()
 
@@ -50,11 +53,11 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
   /**
    * Pick the changes for the list being edited out of the bundle — its own
    * entry plus the moves leaving or arriving at it, denormalized back into
-   * `move-from` / `move-to` events — or an error message. A bundle that names
+   * `move-from` / `move-to` events — or why not, as an unrendered message. A bundle that names
    * exactly one list of this kind is taken to mean this one even when its slug
    * differs (the public site slugifies names; the admin keys by basename).
    */
-  const matchList = (bundle: ChangeBundle): ChangeEvent[] | string => {
+  const matchList = (bundle: ChangeBundle): ChangeEvent[] | SyncMessageRef => {
     const self: ChangeBundleListRef = {
       kind: props.expectedKind,
       slug: props.expectedSlug,
@@ -69,10 +72,10 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
       // name: it has no localized counterpart yet (the `domain.*` list-type
       // messages are capitalized titles, wrong mid-sentence), so this enumeration
       // stays English until one exists.
-      const kinds = [...new Set(bundle.lists.map((l) => listTypeLabel(l.kind)))].join(', ')
-      return t('ui.editor.importWrongKind', { listType: props.expectedKind, kinds })
+      const kinds = syncList([...new Set(bundle.lists.map((l) => listTypeLabel(l.kind)))], 'unit')
+      return syncRef('ui.editor.importWrongKind', { listType: props.expectedKind, kinds })
     }
-    return t('ui.editor.importAmbiguous', {
+    return syncRef('ui.editor.importAmbiguous', {
       listType: props.expectedKind,
       count: rest.length + 1,
       command: '`ritual import-changes`',
@@ -83,12 +86,12 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
     setError(null)
     setResult(null)
     const parsed = parseChangeBundle(text())
-    if (typeof parsed === 'string') {
-      setError(parsed)
+    if (!parsed.ok) {
+      setError(changeProblemRef(parsed.problem))
       return
     }
-    const matched = matchList(parsed)
-    if (typeof matched === 'string') {
+    const matched = matchList(parsed.value)
+    if (!Array.isArray(matched)) {
       setError(matched)
       return
     }
@@ -124,7 +127,7 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
           onInput={(e) => setText(e.currentTarget.value)}
         />
         <Show when={error()}>
-          <p class="form-error">{error()}</p>
+          {(message) => <p class="form-error">{renderSyncMessage(message())}</p>}
         </Show>
         <div class="confirm-dialog-actions">
           <button type="button" class="btn btn-secondary" onClick={props.onClose}>

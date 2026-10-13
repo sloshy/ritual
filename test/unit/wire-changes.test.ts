@@ -9,19 +9,22 @@ import {
 } from '../../src/changes/wire-changes'
 import { MAX_SAVE_CHANGES } from '../../src/changes/save-limits'
 import { MAX_EDIT_BODY_SIZE } from '../../src/admin/validation'
+import { problemEnglish } from '../helpers/change-problem'
 
 const STAMPED_AT = 1_700_000_000_000
 
 /** The stamped events of an accepted batch, failing the test on a refusal. */
 function accepted(result: WireChangesResult): ChangeEvent[] {
-  if (!result.ok) throw new Error(`expected the batch to decode, got: ${result.error}`)
-  return result.changes
+  if (!result.ok) {
+    throw new Error(`expected the batch to decode, got: ${problemEnglish(result.problem)}`)
+  }
+  return result.value
 }
 
-/** The refusal of a refused batch, failing the test if it decoded. */
+/** The refusal of a refused batch as its English, failing the test if it decoded. */
 function refused(result: WireChangesResult): string {
   if (result.ok) throw new Error('expected a refusal, got decoded changes')
-  return result.error
+  return problemEnglish(result.problem)
 }
 
 /** The cheapest valid wire event: a name-only add. */
@@ -89,7 +92,7 @@ describe('decodeWireChanges', () => {
     }
     expect(accepted(decodeWireChanges([relabel], 'collection', STAMPED_AT))).toHaveLength(1)
     expect(refused(decodeWireChanges([relabel], 'deck', STAMPED_AT))).toBe(
-      'changes[0] labels [sale] are not supported on a deck; supported: proxy.',
+      'changes[0]: labels [sale] are not supported on a deck; supported: proxy.',
     )
   })
 })

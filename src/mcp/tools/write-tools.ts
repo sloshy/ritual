@@ -10,6 +10,7 @@ import {
   type ChangeEvent,
 } from '../../changes/change-event'
 import { parseChangeBundle } from '../../changes/change-bundle'
+import { changeProblemMessage } from '../../changes/change-problem-message'
 import {
   isToSectionInvalid,
   toSectionDeckOnlyMessage,
@@ -573,14 +574,18 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
       runTool(async (): Promise<ImportChangeBundleResult> => {
         // Validate locally so a malformed payload surfaces as a clear message
         // instead of a generic HTTP 400; the route re-validates the same way.
-        const bundle = parseChangeBundle(json)
-        if (typeof bundle === 'string') {
+        const parsed = parseChangeBundle(json)
+        if (!parsed.ok) {
           throw new ProtocolError(
             ProtocolErrorCode.InvalidParams,
-            `Invalid change bundle: ${bundle}`,
+            `Invalid change bundle: ${changeProblemMessage(parsed.problem).message}`,
           )
         }
-        const data = await callApiData<BundleImportResponse>('POST', '/api/import-changes', bundle)
+        const data = await callApiData<BundleImportResponse>(
+          'POST',
+          '/api/import-changes',
+          parsed.value,
+        )
         return data
       }),
   )

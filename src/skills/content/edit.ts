@@ -474,7 +474,10 @@ is emitted on stdout; \`--yes\` is required there too, since the confirmation pr
 only exists in text mode. \`success\` is always \`true\` on a report that was produced
 at all — read \`failedCount\`, and each list's own \`error\` (English, with
 \`errorKey\`/\`errorParams\` beside it when it has a catalog key — match on the key),
-to tell a clean import from a partial one.
+to tell a clean import from a partial one. A file that is not a valid bundle exits 2
+before anything is applied, naming what is wrong and where (\`Move #1 "from" is not an
+object.\`); its \`--output json\` envelope's \`messageKey\` is
+\`cli.importChanges.invalidBundle\`.
 
 Changes are re-targeted to each list's current \`&N\` card IDs (by ID when it still
 exists, else by card name); changes whose target card no longer exists are skipped

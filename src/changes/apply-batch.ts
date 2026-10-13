@@ -1,5 +1,16 @@
 import type { ChangeEvent } from './change-event'
-import { formatChange } from './change-message'
+import { changeRef } from './change-message'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import {
+  renderSyncMessage,
+  syncList,
+  syncMessage,
+  syncRef,
+  type NonEmpty,
+  type SyncListParam,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../sync/message'
 import type { ListType } from '../list/list-type'
 import type { CardLabel } from '../card/card-labels'
 
@@ -11,7 +22,10 @@ import type { CardLabel } from '../card/card-labels'
  * - `needs-printing` — a `set-finish` would put a foil/etched token on an entry
  *   that pins no printing. See `canSetFinish` in `src/card-printing.ts`.
  */
-export type MissReason = 'no-target' | 'not-applicable' | 'needs-printing'
+export type MissReason = (typeof MISS_REASONS)[number]
+
+/** Every {@link MissReason}, in the order a refusal names them. */
+export const MISS_REASONS = ['no-target', 'not-applicable', 'needs-printing'] as const
 
 /** Options accepted by the change-apply engines beyond the change itself. */
 export type ApplyChangeOptions = {
@@ -84,28 +98,37 @@ export type BatchApplyOptions<TData, TChange> = {
 }
 
 /**
- * One entry per unapplied change: the change as text, and why it did not apply.
+ * One entry per unapplied change: the change described in English, and why it
+ * did not apply (the machine reason).
  *
- * The itemised counterpart of {@link describeUnmatchedChanges}' one-line
- * summary, for surfaces that report a structured list (the MCP tools' error
- * payload) rather than prose.
+ * The itemised counterpart of {@link describeUnmatchedChanges}' summary, for
+ * surfaces that report a structured list (the save route's `unmatched`, which
+ * the MCP tools pass on) rather than prose. English, like every API field an
+ * agent reads, whatever the server's own UI language.
  */
 export function listUnmatchedChanges(unmatched: readonly UnmatchedChange<ChangeEvent>[]): string[] {
-  return unmatched.map((item) => `${formatChange(item.change)} (${item.reason})`)
+  return unmatched.map(
+    (item) => `${renderSyncMessage(changeRef(item.change), DEFAULT_LOCALE)} (${item.reason})`,
+  )
 }
 
 /** The list a batch of unmatched changes was aimed at, for the error message. */
 export type UnmatchedTarget = { type: ListType; slug: string }
 
-/** One clause per reason, rendered from the changes that carry it. */
+/** One reason's clause, built from the changes that carry it. */
 type MissDescriber = (
   items: readonly UnmatchedChange<ChangeEvent>[],
   target: UnmatchedTarget,
-) => string
+) => SyncMessageRef
 
-/** The changes in a clause, quoted and comma-joined. */
-const listChanges = (items: readonly UnmatchedChange<ChangeEvent>[]): string =>
-  items.map((item) => `"${formatChange(item.change)}"`).join(', ')
+/** The changes in a clause, each quoted, in the locale's plain (unit) list. */
+const listChanges = (items: readonly UnmatchedChange<ChangeEvent>[]): SyncListParam =>
+  syncList(
+    items.map((item) =>
+      syncRef('domain.changes.unmatched.quotedChange', { change: changeRef(item.change) }),
+    ),
+    'unit',
+  )
 
 /**
  * `satisfies Record<MissReason, …>` rather than a chain of ifs: a new refusal
@@ -114,37 +137,49 @@ const listChanges = (items: readonly UnmatchedChange<ChangeEvent>[]): string =>
  */
 const MISS_DESCRIBERS = {
   'no-target': (items, target) =>
-    `${items.length} change(s) matched no card in ${target.type} "${target.slug}": ` +
-    `${listChanges(items)} — card names match exactly (case-sensitive)`,
+    syncRef('domain.changes.unmatched.noTarget', {
+      count: items.length,
+      list: syncRef('domain.changes.unmatched.namedList', {
+        type: target.type,
+        slug: target.slug,
+      }),
+      changes: listChanges(items),
+    }),
   'not-applicable': (items, target) =>
-    `${items.length} change(s) never apply to a ${target.type} list: ${listChanges(items)}`,
+    syncRef('domain.changes.unmatched.notApplicable', {
+      count: items.length,
+      list: syncRef('domain.changes.unmatched.listOfType', { type: target.type }),
+      changes: listChanges(items),
+    }),
   'needs-printing': (items) =>
-    `${items.length} change(s) would set a finish on a card with no printing: ` +
-    `${listChanges(items)} — set the printing first, then the finish`,
+    syncRef('domain.changes.unmatched.needsPrinting', {
+      count: items.length,
+      changes: listChanges(items),
+    }),
 } as const satisfies Record<MissReason, MissDescriber>
 
 /**
  * One shared wording for "these changes did not apply", used by every surface
  * that rejects a batch — the list save route (which the editors, the MCP
- * mutations and the bundle import all go through) and the one-shot CLI path —
- * so the phrasing cannot drift. Surfaces append their own recovery hints; this
- * text stays client-neutral.
+ * mutations and the bundle import all go through) and the collection-sync
+ * apply path — so the phrasing cannot drift. Surfaces append their own
+ * recovery hints; this text stays client-neutral.
  *
- * **English by contract, deliberately not routed through `t()`.** It lives
- * inside the persistence fence, and MCP result prose is English regardless of
- * the operator's UI locale. The editors show the *rendered* `message`
- * the save route returned, as `statusText`. It becomes localizable when the
- * route answers with a `messageKey`, which is where the split between "what the
- * agent reads" and "what the human reads" is introduced.
+ * A message, not a string: English plus its key and nested params, so the
+ * save route answers an agent in English while the admin editor words the same
+ * refusal — each change description included — in its reader's language.
  */
 export function describeUnmatchedChanges(
-  unmatched: readonly UnmatchedChange<ChangeEvent>[],
+  unmatched: NonEmpty<UnmatchedChange<ChangeEvent>>,
   target: UnmatchedTarget,
-): string {
-  const parts: string[] = []
-  for (const reason of Object.keys(MISS_DESCRIBERS) as MissReason[]) {
+): SyncMessage {
+  const clauses: SyncMessageRef[] = []
+  for (const reason of MISS_REASONS) {
     const items = unmatched.filter((item) => item.reason === reason)
-    if (items.length > 0) parts.push(MISS_DESCRIBERS[reason](items, target))
+    if (items.length > 0) clauses.push(MISS_DESCRIBERS[reason](items, target))
   }
-  return `${parts.join('; ')}. Nothing was saved.`
+  // Independent clauses, joined pairwise in the reader's locale (`A; B`).
+  return syncMessage('domain.changes.unmatched.summary', {
+    reasons: syncList(clauses, 'clauses'),
+  })
 }

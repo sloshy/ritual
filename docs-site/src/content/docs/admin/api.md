@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do; every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`. Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -1117,7 +1117,7 @@ What the route takes from the file rather than the request:
 - `continueSession` (optional boolean) merges this save into the previous save's changelog entry, bumping its timestamp, instead of opening a new one. The editor sets it on every save after the first within an editing session.
 - [`validateCardNames`](#validatecardnames) (optional boolean) checks every named card against the card cache.
 
-**Validation.** Each change is decoded with the same rules the changelog and [change bundles](#import-changes) use, before the file is read. Any failure is a `400` naming the change (`changes[2] …`), and nothing is written:
+**Validation.** Each change is decoded with the same rules the changelog and [change bundles](#import-changes) use, before the file is read. Any failure is a `400` naming the change (`changes[2] has an invalid "set".`), and nothing is written. A decode refusal is keyed `domain.changes.problem.*`, with the change it names nested as the `subject` param (see [the message triple](#the-message-triple)). Two checks answer differently: a line break is refused first, keyed `admin.api.save.lineBreak` with the JSON path as `field` (see [Line breaks](#line-breaks)), and a collection change missing its printing names the card, keyed `domain.changes.collectionPrinting.add` or `.setPrinting` with a flat `name`:
 
 - Actions, finishes, conditions, boards and [languages](/list-format/#card-language) must be known values. A `set-language` change requires its `language`.
 - Labels are signed (`["trade", "no-sale"]`; see [Card labels](/list-format/#card-labels)) and must be ones the list type carries: `proxy`/`no-proxy` alone on a deck, none on a wanted list. The `keep`/`proxy` exclusivity rule applies, and no label may be both set and negated. A `move-from`/`move-to` is the exception: its `labels` describe the moving copy as its source states them, so only the vocabulary and the conflict rules are checked, and the destination lands them on arrival.
@@ -1125,7 +1125,7 @@ What the route takes from the file rather than the request:
 - No string may contain a line break (see [Line breaks](#line-breaks)).
 - A collection change that adds a line (`add`, `move-to`, `set-printing`) must carry a printing.
 
-**All or nothing.** A change that does not apply to the list as it stands (its card is not there, or it needs a printing pinned first) refuses the whole batch with a `400`. The body names each change that missed in an `unmatched` array, and nothing is written. A save never reports success while dropping changes.
+**All or nothing.** A change that does not apply to the list as it stands (its card is not there, or it needs a printing pinned first) refuses the whole batch with a `400`. The body names each change that missed in an `unmatched` array (each described in English, followed by its reason in parentheses: `no-target`, `not-applicable` or `needs-printing`), and nothing is written. Its `message` (`1 change matched no card in deck "burn": "Add Sol Ring &3" — card names match exactly (case-sensitive). Nothing was saved.`) is keyed `domain.changes.unmatched.summary`, and its params nest: each reason, and each change description inside it, is a message of its own, so the editor shows the whole refusal in the reader's language. A save never reports success while dropping changes.
 
 **Cross-list moves** in `changes` write the other list too, each with its own changelog entry:
 
@@ -1796,7 +1796,7 @@ Overwrite the list's change log with the supplied change sets. Each set needs:
 
 - a valid ISO-8601 `timestamp`;
 - a `lines` array of strings, each starting with `- `;
-- an `events` array of typed change events, one per line in the same order, echoed back from `GET` (empty only for a legacy set that had none). An event that does not decode is a `400`.
+- an `events` array of typed change events, one per line in the same order, echoed back from `GET` (empty only for a legacy set that had none). An event that does not decode is a `400` naming it (`Set #1 event #2 is missing its "id".`), keyed `domain.changes.problem.*` with the event nested as its `subject`.
 - optionally a `trailing` array of preserved hand-written lines. These must **not** start with `- ` or `## ` (they would be re-parsed as change lines or set headers on the next load) and are written back verbatim after the set's change lines.
 
 Only the `.changes.md` file is written; the list's own `.md` is never touched, and the existing header is preserved. When git auto-commit is enabled, the change log is committed (`Rewrite change history for <slug>`).
@@ -2536,7 +2536,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 
 **Dropped notes.** Each list's `droppedNotes` gathers its saves' own `droppedNotes` (see [Save a List](#save-a-list)): a moved card that merged onto a deck line already holding a different note keeps the line's note. Each distinct note is listed once. Empty when none.
 
-**Failures.** A list that fails to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`. When the failure has a catalog entry — the load or save route's own keyed refusal, such as `admin.api.list.notFoundListRoute` — `errorKey` and `errorParams` ride beside it, as `messageKey` and `messageParams` do beside `message`. The failing batch applied nothing, that list's later batches are skipped, and batches already applied stay applied and counted; the other lists continue. `success` stays `true` on a partial import, so read `failedCount` (and each list's `error`), not the envelope. Every list that received changes gets a changelog entry, through the same save path as the editors. The response is `400` when the body is not a valid change bundle.
+**Failures.** A list that fails to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`. When the failure has a catalog entry — the load or save route's own keyed refusal, such as `admin.api.list.notFoundListRoute` — `errorKey` and `errorParams` ride beside it, as `messageKey` and `messageParams` do beside `message`. The failing batch applied nothing, that list's later batches are skipped, and batches already applied stay applied and counted; the other lists continue. `success` stays `true` on a partial import, so read `failedCount` (and each list's `error`), not the envelope. Every list that received changes gets a changelog entry, through the same save path as the editors. The response is `400` when the body is not a valid change bundle; its `message` says why (`Move #1 "from" is not an object.`, `List #2: Missing or invalid "slug".`), keyed `domain.changes.problem.*`, and when the problem is about one change or move that record is nested as the `subject` param.
 
 ## Export Cards
 

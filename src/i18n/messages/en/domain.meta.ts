@@ -524,6 +524,10 @@ export const domainMeta = {
   'domain.change.removeTag': {
     description: `${CHANGE_CONTEXT} One tag was taken off a card. {tag} is the user's own tag exactly as they wrote it (e.g. Card Draw) and is never translated; keep the surrounding quotes. ${ID_CONTEXT}`,
   },
+  'domain.change.listRef': {
+    description:
+      "The other list of a move, as the {list} of domain.change.moveToList / domain.change.moveFromList. One branch per list type ({type} is deck, collection or wanted) so the noun can carry its own article and agreement; {name} is the list's name and is never translated.",
+  },
   'domain.change.moveToList': {
     description: `${CHANGE_CONTEXT} A card moved out of this list into another one. {list} is the destination's rendered name, e.g. Deck 'Standard Burn'. ${ANNOTATION_CONTEXT}`,
   },

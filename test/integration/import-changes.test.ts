@@ -13,6 +13,7 @@ import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
 import { getDefaultRitualConfig } from '../../src/config/ritual-config'
 import { applyChangeBundle } from '../../src/admin/api/import-changes'
 import { parseChangeBundle, type ChangeBundle } from '../../src/changes/change-bundle'
+import { problemEnglish } from '../helpers/change-problem'
 import { MAX_SAVE_CHANGES } from '../../src/changes/save-limits'
 import { runCli, withTempDir } from './helpers/cli'
 import { OFFLINE_ENV } from './helpers/offline-env'
@@ -562,11 +563,11 @@ describe('import-changes command (Integration)', () => {
           ],
         }),
       )
-      if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
+      if (!bundle.ok) throw new Error(`invalid fixture bundle: ${problemEnglish(bundle.problem)}`)
 
       // Called directly (as the admin route and MCP tool do), with no CLI
       // suppression wrapper: the save handler's auto-commit must fire.
-      const result = await applyChangeBundle(bundle)
+      const result = await applyChangeBundle(bundle.value)
       expect(result.failedCount).toBe(0)
 
       const subject = execSync('git log -1 --pretty=%s', { cwd: ws.dir, encoding: 'utf-8' }).trim()
@@ -630,9 +631,9 @@ describe('import-changes command (Integration)', () => {
           ],
         }),
       )
-      if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
+      if (!bundle.ok) throw new Error(`invalid fixture bundle: ${problemEnglish(bundle.problem)}`)
 
-      const result = await applyChangeBundle(bundle)
+      const result = await applyChangeBundle(bundle.value)
       expect(result.failedCount).toBe(0)
 
       // The commit landed in the deck repo, covering the rewritten deck file...
@@ -722,8 +723,8 @@ function bundleOf(lists: unknown[], moves: unknown[]): ChangeBundle {
       moves,
     }),
   )
-  if (typeof bundle === 'string') throw new Error(`invalid fixture bundle: ${bundle}`)
-  return bundle
+  if (!bundle.ok) throw new Error(`invalid fixture bundle: ${problemEnglish(bundle.problem)}`)
+  return bundle.value
 }
 
 const DECK_REF = { kind: 'deck', slug: 'test-deck', name: 'Test Deck' }

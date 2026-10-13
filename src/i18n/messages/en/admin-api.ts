@@ -344,7 +344,6 @@ export const adminApiMessages = {
   'admin.api.history.linesEmpty': 'Each change set must have at least one change line',
   'admin.api.history.lineInvalid': 'Every change line must start with "- " and be a single line',
   'admin.api.history.eventsMissing': 'Each change set needs an events array',
-  'admin.api.history.eventInvalid': 'Set #{set} event #{event} {problem}',
   'admin.api.history.eventCountMismatch':
     'Each change set needs one event per change line (or none, for a legacy set)',
   'admin.api.history.trailingInvalid': 'A change set trailing field must be an array of strings',

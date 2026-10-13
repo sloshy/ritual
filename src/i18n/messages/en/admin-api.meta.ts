@@ -540,10 +540,6 @@ export const adminApiMeta = {
     description:
       'Refusal of a change-history rewrite with a change set that has no events list (the machine-readable record of its changes).',
   },
-  'admin.api.history.eventInvalid': {
-    description:
-      'Refusal of a change-history rewrite with an unreadable change event. {set} and {event} are 1-based positions; {problem} is untranslated engine prose that begins with a verb phrase, e.g. is missing its "id".',
-  },
   'admin.api.history.eventCountMismatch': {
     description:
       'Refusal of a change-history rewrite with a change set whose events do not pair one-to-one with its change lines. A "legacy set" is one written before events were recorded.',

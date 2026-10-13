@@ -36,7 +36,7 @@ import { writeFileWithHash, hashPath } from '../changes/content-hash'
 import { appendChangelog } from '../changes/changelog-writer'
 import { allocateId, collectExistingIds, createIdPool, type EntryWithCardId } from '../card/card-id'
 import { reconcileListRefs } from './list-refs'
-import { CardCommandError, ExitCode } from '../util/errors'
+import { isNonEmpty, SyncMessageError } from '../sync/message'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from '../changes/change-event'
 import {
   applyChangesCollectingMisses,
@@ -102,12 +102,13 @@ function assertAllApplied(
   unmatched: UnmatchedChange<CardMutationChange>[],
   target: UnmatchedTarget,
 ): void {
-  if (unmatched.length === 0) return
-  throw new CardCommandError(
-    'not_found',
-    describeUnmatchedChanges(unmatched, target),
-    ExitCode.NotFound,
-  )
+  if (!isNonEmpty(unmatched)) return
+  // Thrown as the message itself, not as text: the collection-sync pull that
+  // reaches here reports the reason through `errorParam`, which keeps a
+  // `SyncMessageError`'s key and nested params — so its report stays English
+  // plus the key, and the CLI words it in its own language. (`Error.message`
+  // is the active locale's rendering, as for any engine error.)
+  throw new SyncMessageError(describeUnmatchedChanges(unmatched, target))
 }
 
 /**
@@ -167,9 +168,8 @@ async function applyToCollection(
   changes: CardMutationChange[],
 ): Promise<AppliedCollectionChanges> {
   const printingError = findCollectionPrintingError(changes)
-  if (printingError) {
-    throw new CardCommandError('usage_error', printingError, ExitCode.UsageError)
-  }
+  // A message, like the miss above, so a pull's report keeps it English plus its key.
+  if (printingError) throw new SyncMessageError(printingError)
   const content = await fs.readFile(filePath, 'utf-8')
   const parsed = parseCollectionFile(content)
   const entries = toCollectionCardEntries(parsed.entries)

@@ -340,6 +340,12 @@ export const domainMessages = {
     present: 'Remove tag "{tag}" from {name}{id}',
     past: 'Removed tag "{tag}" from {name}{id}',
   },
+  'domain.change.listRef': {
+    $select: 'type',
+    deck: "Deck '{name}'",
+    collection: "Collection '{name}'",
+    wanted: "Wanted list '{name}'",
+  },
   'domain.change.moveToList': {
     $select: 'tense',
     present: 'Move {name}{annotation}{id} to {list}',

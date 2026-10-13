@@ -3,7 +3,8 @@
  *
  * Four namespaces: `site` (its own chrome and pages), `ui` (the shared
  * `src/ui` / `src/editor` components), `domain` (the vocabulary all three
- * surfaces share) and `errors`. Not `cli`/`help` — that boundary is the whole
+ * surfaces share, with its `domain-changes` fragment — the editors validate an
+ * imported change bundle in the browser and word its refusal) and `errors`. Not `cli`/`help` — that boundary is the whole
  * point: those two namespaces are 49% of the catalog and no browser can reach
  * a single one of their keys.
  *
@@ -13,6 +14,7 @@
  */
 
 import { domainMessages } from '../messages/en/domain'
+import { domainChangesMessages } from '../messages/en/domain-changes'
 import { errorMessages } from '../messages/en/errors'
 import { siteMessages } from '../messages/en/site'
 import { siteCardsMessages } from '../messages/en/site-cards'
@@ -34,6 +36,7 @@ import { registerMessages } from '../runtime'
 export function registerSiteMessages(): void {
   registerMessages(
     domainMessages,
+    domainChangesMessages,
     errorMessages,
     siteMessages,
     siteCardsMessages,
