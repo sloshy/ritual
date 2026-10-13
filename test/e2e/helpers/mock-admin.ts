@@ -416,18 +416,28 @@ export async function streamUrl(page: Page): Promise<string> {
   })
 }
 
+/** What {@link mockCacheRefreshApi} lets a test observe: how many fallback POSTs were sent. */
+export type CacheRefreshMocks = { postedRefreshes: () => number }
+
 /**
- * Mock the cache refresh SSE stream, plus the POST fallback endpoint for
- * completeness. Events are driven from the test via {@link emitStreamEvent}.
+ * Mock the cache refresh SSE stream, plus the POST fallback endpoint. Events are
+ * driven from the test via {@link emitStreamEvent}; `postedRefreshes` counts the
+ * fallback POSTs, so a test can prove a dropped stream did not start a second
+ * refresh.
  */
-export async function mockCacheRefreshApi(page: Page): Promise<void> {
+export async function mockCacheRefreshApi(page: Page): Promise<CacheRefreshMocks> {
   await installMockEventSource(page)
+  let posted = 0
   await fulfillJson(
     page,
     '**/api/cache/refresh',
-    { success: true, ...apiMessage('admin.api.cache.refreshed') },
+    () => {
+      posted++
+      return { success: true, ...apiMessage('admin.api.cache.refreshed') }
+    },
     { method: 'POST' },
   )
+  return { postedRefreshes: () => posted }
 }
 
 /**

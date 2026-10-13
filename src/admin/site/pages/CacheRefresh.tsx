@@ -1,11 +1,15 @@
-import { type JSX, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
+import { type JSX, batch, createSignal, createMemo, onCleanup, Show, For } from 'solid-js'
 import { useT, useTKey } from '../../../ui/i18n'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { PageHeading } from '../components/PageHeading'
 import { BuylistRefreshCard } from '../components/BuylistRefreshCard'
 import { sellModeEnabled } from '../sell-enabled'
+import { useApiAction, useApiText } from '../hooks/useApiAction'
 import type { CacheRefreshEvent } from '../../../scryfall/progress'
 import type { ParameterlessKey } from '../../../i18n/t'
+import { apiMessage, type ApiActionMessage } from '../../../api/result'
+import { readSyncMessage, type SyncMessage } from '../../../sync/message'
+import { openSyncStream, type SyncStream } from '../sync-stream'
 
 type Stage = 'idle' | 'connecting' | 'download' | 'save' | 'done' | 'error'
 
@@ -19,10 +23,6 @@ interface StageInfo {
   labelKey: ParameterlessKey
   icon: string
 }
-
-type CacheActionResponse = { success: boolean; message: string }
-type CacheDoneEventData = { message: string }
-type CacheErrorEventData = { message: string }
 
 /**
  * The refresh stages this page renders as a step of its own. The engine reports
@@ -65,102 +65,103 @@ function stageStatus(info: StageInfo, current: Stage): 'pending' | 'active' | 'd
 export function CacheRefresh(): JSX.Element {
   const t = useT()
   const tKey = useTKey()
+  const heldText = useApiText()
+  // The alerts hold what the server said unrendered (`useApiAction`): a keyed
+  // message — a lock time-out, the refreshed notice — renders in the reader's
+  // language and relabels when it switches.
+  const { status, error, run, setStatus, setError } = useApiAction()
   const [stage, setStage] = createSignal<Stage>('idle')
   const [percentage, setPercentage] = createSignal(0)
-  const [progressMessage, setProgressMessage] = createSignal('')
-  const [status, setStatus] = createSignal<string | null>(null)
-  const [error, setError] = createSignal<string | null>(null)
-  let eventSourceRef: EventSource | null = null
-  onCleanup(() => {
-    eventSourceRef?.close()
-  })
-  const fallbackRefresh = async () => {
-    setStage('download')
-    setProgressMessage(t('admin.cache.fallbackProgress'))
-    try {
-      const resp = await fetch('/api/cache/refresh', {
-        method: 'POST',
-        credentials: 'same-origin',
-      })
-      const data = (await resp.json()) as CacheActionResponse
-      if (data.success) {
-        setStage('done')
-        setPercentage(100)
-        setStatus(data.message)
-      } else {
-        setStage('error')
-        setError(data.message)
-      }
-    } catch {
-      setStage('error')
-      setError(t('admin.cache.refreshFailed'))
-    }
+  // The engine's progress lines arrive as text; the fallback's own line is a
+  // key, held unrendered for the same reason as the alerts.
+  const [progressMessage, setProgressMessage] = createSignal<ApiActionMessage>('')
+  let stream: SyncStream | null = null
+  onCleanup(() => stream?.close())
+
+  const finish = (message: ApiActionMessage | null): void => {
+    batch(() => {
+      setStage('done')
+      setPercentage(100)
+      setStatus(message ?? apiMessage('admin.cache.refreshed'))
+    })
   }
 
-  const handleRefresh = async () => {
-    setStage('connecting')
-    setPercentage(0)
-    setProgressMessage('')
-    setError(null)
-    setStatus(null)
+  const fail = (message: ApiActionMessage | null): void => {
+    batch(() => {
+      setStage('error')
+      setError(message ?? apiMessage('admin.cache.streamFailed'))
+    })
+  }
 
-    try {
-      const es = new EventSource('/api/cache/refresh/stream')
-      eventSourceRef = es
-
-      es.addEventListener('progress', (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data as string) as CacheRefreshEvent
-          if (isRenderedStage(data.stage)) {
-            setStage(data.stage)
-          }
-          if (data.percentage !== undefined) {
-            setPercentage(data.percentage)
-          }
-          setProgressMessage(data.message)
-        } catch {
-          // ignore parse errors
-        }
-      })
-
-      es.addEventListener('done', (e: MessageEvent) => {
-        try {
-          const data = JSON.parse(e.data as string) as CacheDoneEventData
-          setStage('done')
-          setPercentage(100)
-          setStatus(data.message)
-        } catch {
-          setStage('done')
-          setStatus(t('admin.cache.refreshed'))
-        }
-        es.close()
-        eventSourceRef = null
-      })
-
-      es.addEventListener('error', (e: Event) => {
-        // Check if it's an SSE error event with data
-        const msgEvent = e as MessageEvent
-        if (msgEvent.data) {
-          try {
-            const data = JSON.parse(msgEvent.data as string) as CacheErrorEventData
-            setError(data.message)
-          } catch {
-            setError(t('admin.cache.streamFailed'))
-          }
-        } else {
-          // Connection error — fall back to POST
-          es.close()
-          eventSourceRef = null
-          void fallbackRefresh()
-          return
-        }
-        setStage('error')
-        es.close()
-        eventSourceRef = null
-      })
-    } catch {
-      void fallbackRefresh()
+  /** The refresh without a stream: one blocking request, no progress. */
+  const fallbackRefresh = async (): Promise<void> => {
+    batch(() => {
+      setStage('download')
+      setProgressMessage(apiMessage('admin.cache.fallbackProgress'))
+    })
+    const ok = await run(
+      '/api/cache/refresh',
+      { method: 'POST' },
+      apiMessage('admin.cache.refreshFailed'),
+    )
+    if (!ok) {
+      setStage('error')
+      return
     }
+    batch(() => {
+      setStage('done')
+      setPercentage(100)
+      // The same notice the stream path shows when the server said nothing.
+      if (status() === null) setStatus(apiMessage('admin.cache.refreshed'))
+    })
+  }
+
+  const handleRefresh = (): void => {
+    stream?.close()
+    stream = null
+    batch(() => {
+      setStage('connecting')
+      setPercentage(0)
+      setProgressMessage('')
+      setError(null)
+      setStatus(null)
+    })
+
+    stream = openSyncStream<CacheRefreshEvent, SyncMessage, SyncMessage>(
+      '/api/cache/refresh/stream',
+      {
+        progress: (event) => {
+          batch(() => {
+            if (isRenderedStage(event.stage)) setStage(event.stage)
+            if (event.percentage !== undefined) setPercentage(event.percentage)
+            // Untyped JSON: a frame without a string `message` must not crash the render.
+            setProgressMessage(typeof event.message === 'string' ? event.message : '')
+          })
+        },
+        // Read through `readSyncMessage`: a frame is untyped JSON, and one with no
+        // `message` string falls back to the page's own wording.
+        done: (event) => {
+          stream = null
+          finish(readSyncMessage(event))
+        },
+        failed: (event) => {
+          stream = null
+          fail(readSyncMessage(event))
+        },
+        disconnected: (received) => {
+          stream = null
+          if (received) {
+            // The refresh is still running server-side; a second one would only
+            // wait on its cache lock and time out.
+            fail(apiMessage('admin.cache.connectionDropped'))
+            return
+          }
+          void fallbackRefresh()
+        },
+      },
+    )
+    // `EventSource` could not even be constructed — the same fallback applies.
+    if (!stream) void fallbackRefresh()
   }
 
   const isRunning = createMemo(() => {
@@ -185,8 +186,8 @@ export function CacheRefresh(): JSX.Element {
               <div class="progress-track">
                 <div class="progress-fill" style={`width: ${percentage()}%;`} />
               </div>
-              <Show when={progressMessage()}>
-                <p class="progress-message">{progressMessage()}</p>
+              <Show when={heldText(progressMessage())}>
+                {(line) => <p class="progress-message">{line()}</p>}
               </Show>
             </div>
           </Show>
@@ -209,11 +210,7 @@ export function CacheRefresh(): JSX.Element {
         </div>
       </Show>
 
-      <button
-        class="btn btn-primary btn-lg"
-        onClick={() => void handleRefresh()}
-        disabled={isRunning()}
-      >
+      <button class="btn btn-primary btn-lg" onClick={handleRefresh} disabled={isRunning()}>
         {isRunning() ? t('admin.cache.refreshing') : t('admin.cache.refresh')}
       </button>
 

@@ -149,14 +149,6 @@ export function isApiMessage(value: unknown): value is ApiMessage {
   )
 }
 
-/** Whether a value is a flat params bag: every param a string or a number. */
-export function isFlatParams(value: unknown): value is ApiMessageParams {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false
-  return Object.values(value).every(
-    (param) => typeof param === 'string' || typeof param === 'number',
-  )
-}
-
 /**
  * Narrow a wider value down to just its message triple.
  *

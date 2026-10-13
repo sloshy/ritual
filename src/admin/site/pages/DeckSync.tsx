@@ -220,7 +220,8 @@ export function DeckSync(): JSX.Element {
       })
       const data = (await resp.json()) as DeckSyncRunResponse
       if (!data.success) {
-        failRun(noticeMessage(data), data.loginRequired)
+        // A run that threw answers the plain error body, with no `loginRequired`.
+        failRun(noticeMessage(data), 'loginRequired' in data && data.loginRequired)
         return
       }
       // One render for the whole report rather than one per deck.

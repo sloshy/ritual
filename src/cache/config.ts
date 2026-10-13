@@ -1,4 +1,5 @@
 import { resolveStringOverride } from '../config/env-override'
+import { t } from '../i18n/t'
 
 const CACHE_SERVER_PROTOCOL_RE = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//
 
@@ -35,7 +36,7 @@ export function isCacheServerAddressError(
 export function parseCacheServerBaseUrl(address: string): string | CacheServerAddressError {
   const normalizedAddress = normalizeCacheServerAddress(address)
   if (!normalizedAddress) {
-    return { error: 'Cache server must be a non-empty hostname and port (example: localhost:4000).' }
+    return { error: t('cli.cacheServer.addressEmpty') }
   }
 
   const withProtocol = CACHE_SERVER_PROTOCOL_RE.test(normalizedAddress)
@@ -45,16 +46,10 @@ export function parseCacheServerBaseUrl(address: string): string | CacheServerAd
   try {
     parsed = new URL(withProtocol)
   } catch {
-    return {
-      error:
-        'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
-    }
+    return { error: t('cli.cacheServer.addressInvalid') }
   }
   if (!parsed.hostname || !parsed.port) {
-    return {
-      error:
-        'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
-    }
+    return { error: t('cli.cacheServer.addressInvalid') }
   }
 
   return `${parsed.protocol}//${parsed.host}`

@@ -8,8 +8,22 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import fs from 'node:fs/promises'
+import { existsSync, readFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { handleCacheRefresh, type CacheRefreshResponse } from '../../src/admin/api/cache'
 import { cardCache } from '../../src/cache'
+import {
+  CACHE_LOCK_FILENAME,
+  CacheLockTimeoutError,
+  type CacheLockInfo,
+} from '../../src/cache/lock'
+import type { SyncMessage, SyncMessageParams } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
+import { foreignLocales, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import { readStreamFrames } from '../helpers/sse'
+import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 import type { RouteProgress } from '../../src/util/progress'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { stubScryfallBulk } from './helpers/scryfall-bulk'
@@ -80,4 +94,112 @@ describe('handleCacheRefresh', () => {
     expect(resp.status).toBe(500)
     expect(((await resp.json()) as { success: boolean }).success).toBe(false)
   })
+})
+
+describe('handleCacheRefresh behind another process’s cache lock', () => {
+  /** A synthetic UI language for the server process; a leak of it is unmistakable. */
+  const SYNTHETIC = { 'domain.cache.lockTimedOut': 'ZEIT UM {timeout}' }
+
+  beforeEach(async () => {
+    await ws.dispose()
+    // The shortest wait the config allows. The acquirer polls once a second, so
+    // each refresh below spends about 1–2 s waiting before it times out.
+    ws = await bindWorkspace({
+      clearCardCache: true,
+      init: true,
+      config: { cacheLockTimeoutSeconds: 1 },
+    })
+    setLogger(new MemoryLogger())
+    stubbed = stubScryfallBulk({ cards: [bulkCard()] })
+    // A live holder on this host: this very process, so it is never stale.
+    const holder: CacheLockInfo = {
+      pid: process.pid,
+      hostname: os.hostname(),
+      createdAt: Date.now(),
+      operation: 'bulk card cache download',
+    }
+    const cacheDir = path.join(ws.dir, 'cache')
+    await fs.mkdir(cacheDir, { recursive: true })
+    await fs.writeFile(path.join(cacheDir, CACHE_LOCK_FILENAME), JSON.stringify(holder))
+  })
+
+  afterEach(() => {
+    resetLogger()
+  })
+
+  /** The time-out's params as the route sends them: a duration and a nested holder. */
+  const TIMED_OUT_PARAMS: SyncMessageParams = {
+    timeout: { durationMs: 1000 },
+    holder: {
+      messageKey: 'domain.cache.lockHolder',
+      messageParams: {
+        operation: 'bulk card cache download',
+        pid: process.pid,
+        hostname: os.hostname(),
+      },
+    },
+  }
+
+  test('answers the time-out in English plus its key, whatever the server’s language', async () => {
+    const resp = await withSyntheticLocaleAsync('xx', SYNTHETIC, async () => {
+      // Vacuity guard: this process words the error in the synthetic language.
+      expect(new CacheLockTimeoutError(null, 0).message).toStartWith('ZEIT UM')
+      return handleCacheRefresh()
+    })
+
+    expect(resp.status).toBe(500)
+    const body = (await resp.json()) as SyncMessage & { success: boolean }
+    expect(body.success).toBe(false)
+    expect(body.messageKey).toBe('domain.cache.lockTimedOut')
+    expect(body.messageParams).toEqual(TIMED_OUT_PARAMS)
+    // English, and exactly what its key and params re-render to.
+    keyedMessage(body)
+    expect(body.message).not.toContain('ZEIT UM')
+  })
+
+  test('streams the time-out as a keyed error frame, and a later refresh’s done frame keyed', async () => {
+    const frames = await withSyntheticLocaleAsync('xx', SYNTHETIC, () =>
+      readStreamFrames('/api/cache/refresh/stream'),
+    )
+
+    const error = frames.find((frame) => frame.event === 'error')?.data as SyncMessage
+    expect(error.messageKey).toBe('domain.cache.lockTimedOut')
+    expect(error.messageParams).toEqual(TIMED_OUT_PARAMS)
+    keyedMessage(error)
+
+    // The holder goes away; the next refresh runs to completion.
+    await fs.rm(path.join(ws.dir, 'cache', CACHE_LOCK_FILENAME))
+    const next = await readStreamFrames('/api/cache/refresh/stream')
+    expect(next.at(-1)).toEqual({
+      event: 'done',
+      data: { message: 'Cache refreshed successfully', messageKey: 'admin.api.cache.refreshed' },
+    })
+  })
+})
+
+describe('the lock a refresh holds', () => {
+  test.each(foreignLocales())(
+    'names its operation in the English literal under $tag',
+    async ({ tag, catalog }) => {
+      stubbed = stubScryfallBulk({ cards: [bulkCard()] })
+      const lockPath = path.join(ws.dir, 'cache', CACHE_LOCK_FILENAME)
+      const seen = new Set<string>()
+
+      // Read while the refresh holds it: another process reads this very file.
+      const resp = await withSyntheticLocaleAsync(tag, catalog, () =>
+        handleCacheRefresh(() => {
+          if (!existsSync(lockPath)) return
+          seen.add((JSON.parse(readFileSync(lockPath, 'utf-8')) as CacheLockInfo).operation)
+        }),
+      )
+
+      expect(resp.status).toBe(200)
+      expect(seen.size).toBeGreaterThan(0)
+      for (const operation of seen) {
+        expect(['tag refresh', 'bulk card cache download', 'bulk card cache ingest']).toContain(
+          operation,
+        )
+      }
+    },
+  )
 })

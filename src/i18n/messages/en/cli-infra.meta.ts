@@ -122,6 +122,292 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.stopping': { description: 'Ctrl+C was pressed; the seeder is shutting down.' },
 
+  // ── cache feed client ─────────────────────────────────────────────────
+  'cli.cacheFeed.ignoringState': {
+    description:
+      'A feed client\'s saved state file was malformed and is ignored (the next sync downloads everything again). {file} is the file name; {reason} is the already-worded reason, one of the "Invalid feed-client state" messages.',
+  },
+  'cli.cacheFeed.ignoringUnreadable': {
+    description:
+      "A feed client's saved state file is not valid JSON and is ignored. {file} is the file name.",
+  },
+  'cli.cacheFeed.fetchFailed': {
+    description:
+      'The feed document could not be downloaded. {url} is its address. The HTTP status is appended after a colon.',
+  },
+  'cli.cacheFeed.missingEntry': {
+    description:
+      'The feed document does not list an artifact this client needs. {kind} is the artifact kind, a literal such as "oracle-tags".',
+  },
+  'cli.cacheFeed.missingAllCardsEntry': {
+    description:
+      'The feed lacks the every-language card artifact the configured card language needs. {kind} is the literal "all-cards". `defaultLanguage`, `all_cards`, the command and the flag are literal and are not translated.',
+  },
+  'cli.cacheFeed.reusing': {
+    description:
+      'A feed artifact is already on disk with the right checksum, so it is not downloaded again. {file} is its file name.',
+  },
+  'cli.cacheFeed.restoring': {
+    description:
+      'A feed artifact the cache already ingested is missing from disk and is being downloaded again. {file} is its file name.',
+  },
+  'cli.cacheFeed.stoppedSeeding': {
+    description:
+      'A long-running client stopped sharing an artifact the feed no longer lists. {name} is its file name; {infoHash} is its BitTorrent info hash.',
+  },
+  'cli.cacheFeed.hashMismatch': {
+    description:
+      'A downloaded artifact failed its checksum check and was deleted. {file} is its file name; {hash} is the checksum it actually had. "sha256" is the checksum algorithm and is not translated.',
+  },
+  'cli.cacheFeed.downloadingHttp': {
+    description: 'A feed artifact is being downloaded over plain HTTP. {file} is its file name.',
+  },
+  'cli.cacheFeed.downloadFailed': {
+    description:
+      'A feed artifact could not be downloaded over HTTP. {file} is its file name. The HTTP status is appended after a colon.',
+  },
+  'cli.cacheFeed.downloadNoBody': {
+    description:
+      'The server answered a feed artifact download with an empty response. {file} is its file name.',
+  },
+  'cli.cacheFeed.downloadingTorrent': {
+    description: 'A feed artifact is being downloaded over BitTorrent. {file} is its file name.',
+  },
+  'cli.cacheFeed.torrentTimedOut': {
+    description:
+      'A BitTorrent download of a feed artifact gave up after waiting too long. {file} is its file name.',
+  },
+  'cli.cacheFeed.completed': {
+    description:
+      'A BitTorrent download of a feed artifact finished. {file} is its file name; {count} is how many peers it was downloaded from (may be zero).',
+  },
+  'cli.cacheFeed.torrentFetchFailed': {
+    description:
+      "The .torrent file for a feed artifact could not be downloaded. {file} is the artifact's file name. The HTTP status is appended after a colon.",
+  },
+  'cli.cacheFeed.torrentClientError': {
+    description: "The BitTorrent client reported an error. {error} is the client's own text.",
+  },
+  'cli.cacheFeed.torrentNotReady': {
+    description:
+      'An artifact already on disk could not be verified for sharing in time. {infoHash} is its BitTorrent info hash.',
+  },
+  'cli.cacheFeed.feedNotObject': {
+    description: 'A fetched or saved feed document is not a JSON object.',
+  },
+  'cli.cacheFeed.feedVersionUnsupported': {
+    description:
+      'A feed document has a format version this Ritual cannot read. {version} is the version it has; {expected} is the one Ritual reads.',
+  },
+  'cli.cacheFeed.feedMissingGeneratedAt': {
+    description: 'A feed document lacks its "generatedAt" text field (a literal field name).',
+  },
+  'cli.cacheFeed.feedMissingEntries': {
+    description: 'A feed document lacks its "entries" list (a literal field name).',
+  },
+  'cli.cacheFeed.feedEntryNotObject': {
+    description:
+      'One entry of a feed document is not a JSON object. {index} is its 0-based position.',
+  },
+  'cli.cacheFeed.feedEntryUnknownKind': {
+    description:
+      'One entry of a feed document names an artifact kind Ritual does not know. {index} is its 0-based position; {kind} is the value it has.',
+  },
+  'cli.cacheFeed.feedEntryMissingField': {
+    description:
+      'One entry of a feed document lacks a required text field. {index} is its 0-based position; {field} is the literal field name (e.g. "fileName").',
+  },
+  'cli.cacheFeed.feedEntryBadLength': {
+    description:
+      'One entry of a feed document lacks a positive file size in its "length" field (a literal field name). {index} is its 0-based position.',
+  },
+  'cli.cacheFeed.stateNotObject': {
+    description: "A feed client's saved state file is not a JSON object.",
+  },
+  'cli.cacheFeed.stateMissingIngested': {
+    description:
+      'A feed client\'s saved state file lacks its "ingested" record of downloaded artifacts (a literal field name).',
+  },
+  'cli.cacheFeed.stateUnknownKind': {
+    description:
+      "A feed client's saved state file records an artifact kind Ritual does not know. {kind} is the value it has.",
+  },
+  'cli.cacheFeed.stateEntryInvalid': {
+    description:
+      'A feed client\'s saved state file has a malformed record for one artifact kind. {kind} is the kind; "infoHash" and "ingestedAt" are literal field names.',
+  },
+
+  // ── cache freshness gates ─────────────────────────────────────────────
+  'cli.cacheGate.emptyAdvice': {
+    description:
+      'Appended to a command\'s own "the card cache is empty" sentence ({lead}) to say how to fill it. The command and the flag are literal.',
+  },
+  'cli.cacheGate.bulkMismatch': {
+    description:
+      'The card cache was downloaded for a different card language setting than the configured one. {recorded} is the Scryfall bulk it was built from ("default_cards" or "all_cards", literal); {language} is the configured card language code (e.g. "ja"). The form is chosen by {required}, the bulk the configuration needs ("all_cards" or "default_cards"), which is not itself printed; {language} appears only in the all_cards form. "defaultLanguage" is a config key and the quoted bulk names are literal. Followed by a question or a progress note.',
+  },
+  'cli.cacheGate.bulkMismatchConfirm': {
+    description:
+      'Yes/no prompt. {reason} is the "The card cache was built from…" sentence; this asks whether to download the cache again now.',
+  },
+  'cli.cacheGate.bulkMismatchRefreshing': {
+    description:
+      'Progress line. {reason} is the "The card cache was built from…" sentence; this says the cache is being downloaded again.',
+  },
+  'cli.cacheGate.staleConfirm': {
+    description:
+      'Yes/no prompt: the card cache is more than a week old. {age} is a whole number of days, already worded with its unit (e.g. "9 days").',
+  },
+  'cli.cacheGate.emptyForAutocomplete': {
+    description:
+      'Before an interactive card entry session: the card cache holds nothing, and typing card names needs it.',
+  },
+  'cli.cacheGate.downloadDatabaseConfirm': {
+    description: 'Yes/no prompt following the previous message: download the card cache now?',
+  },
+  'cli.cacheGate.pricesStaleRefreshing': {
+    description:
+      'Progress line: card prices in the cache are over a day old, so the whole cache is being downloaded again from Scryfall (a card database).',
+  },
+  'cli.cacheGate.uploadConfirm': {
+    description:
+      'Yes/no prompt before a collection-sync CSV upload. {reason} is the "Archidekt CSV uploads are configured…" sentence; "it" is the card cache.',
+  },
+  'cli.cacheGate.emptyWithRequirement': {
+    description:
+      'The card cache holds nothing. {requirement} is one sentence from the command saying why it needs the cache (e.g. "Pricing requires the Scryfall card database.").',
+  },
+  'cli.cacheGate.downloadNowConfirm': {
+    description: 'Yes/no prompt following the previous message: download the card cache now?',
+  },
+  'cli.cacheGate.pricingRequirement': {
+    description:
+      'Why `ritual price` needs the card cache — the sentence placed in "Card cache is empty. {requirement}".',
+  },
+  'cli.cacheGate.stalePriceCount': {
+    description:
+      'Before building a site or warming the live server: {stale} of the {count} cards about to be priced have prices more than 24 hours old. {count} is the total number of cards.',
+  },
+  'cli.cacheGate.bulkFasterHint': {
+    description:
+      'Follows the previous message: downloading the whole cache again is faster than refreshing card by card.',
+  },
+  'cli.cacheGate.redownloadConfirm': {
+    description: 'Yes/no prompt following the previous two messages.',
+  },
+  'cli.cacheGate.continuingWithExisting': {
+    description:
+      'Printed after an offered cache download failed. {reason} is the "Card cache download failed: …" sentence; the run carries on with the older cache.',
+  },
+  'cli.cacheGate.tagsConfirm': {
+    description:
+      'Yes/no prompt before building or serving a site. "Oracle/art tags" are Scryfall\'s community card tags, which power the site\'s tag filters.',
+  },
+  'cli.cacheGate.tagsSkipped': {
+    description: 'The tag download was declined. The command is literal.',
+  },
+  'cli.cacheGate.tagsFetching': { description: 'Progress line: the tag download has started.' },
+  'cli.cacheGate.tagsFailed': {
+    description: 'The tag download failed; the site will be built without tag filters.',
+  },
+  'cli.cacheGate.tagsAdded': {
+    description: 'The tag download finished and was saved into the card cache.',
+  },
+  'cli.cacheGate.pricesAgeConfirm': {
+    description:
+      'Yes/no prompt before `ritual price`: the cached prices are over a day old. {age} is a rendered duration such as "2 days, 3 hours".',
+  },
+
+  // ── cache lock ────────────────────────────────────────────────────────
+  'cli.cacheLock.invalidJson': {
+    description:
+      'Why an existing cache lock file was considered abandoned: it is not valid JSON. Shown inside "Breaking stale cache lock (…)."',
+  },
+  'cli.cacheLock.notObject': {
+    description:
+      'Why an existing cache lock file was considered abandoned: it is not a JSON object. Shown inside "Breaking stale cache lock (…)."',
+  },
+  'cli.cacheLock.missingField': {
+    description:
+      'Why an existing cache lock file was considered abandoned: it lacks one field. One branch per field; the field names (pid, hostname, createdAt, operation) are literal, and "numeric"/"string" name the type it should have. Shown inside "Breaking stale cache lock (…)."',
+  },
+  'cli.cacheLock.breakingStale': {
+    description:
+      'A warning: a lock left behind by another Ritual process is being removed. {reason} is why it counts as abandoned — another message, lowercase or an "Invalid cache lock" sentence.',
+  },
+  'cli.cacheLock.holderGone': {
+    description:
+      'Lowercase clause inside "Breaking stale cache lock (…)." {pid} is the process id that held the lock; "pid" is the technical abbreviation for process id.',
+  },
+  'cli.cacheLock.waiting': {
+    description:
+      'Another Ritual process holds the cache lock, so this one waits. {operation} is what the other process is doing, recorded in English by it; {pid} is its process id; {timeout} is a rendered duration such as "5 minutes".',
+  },
+
+  // ── cache store ───────────────────────────────────────────────────────
+  'cli.cacheStore.oldSchemaReset': {
+    description:
+      'The cache file is in an outdated layout, so its cards section is discarded and rebuilt.',
+  },
+  'cli.cacheStore.invalidFormatReset': {
+    description: 'The cache file is malformed, so it is discarded and rebuilt.',
+  },
+  'cli.cacheStore.loadFailed': {
+    description:
+      'The cache file could not be read; an empty cache is used instead. The error is printed after this line.',
+  },
+  'cli.cacheStore.saveFailed': {
+    description: 'The cache file could not be written. The error is printed after this line.',
+  },
+  'cli.cacheStore.blocklisted': {
+    description:
+      'A card name Scryfall does not know is skipped for a week. {name} is the card name; {expires} is a timestamp in ISO 8601 form (machine format).',
+  },
+  'cli.cacheStore.unblocklisted': {
+    description:
+      "A skipped card name's week is up, so it will be looked up again. {name} is the card name.",
+  },
+  'cli.cacheStore.bulkWeekOld': {
+    description:
+      "Progress line: the cache's last full download is over a week old, so it is downloaded again.",
+  },
+  'cli.cacheStore.bulkNever': {
+    description:
+      'Progress line: the cache was never fully downloaded, so it is downloaded now from Scryfall (a card database).',
+  },
+  'cli.cacheStore.manyMissing': {
+    description:
+      'Progress line: more than {threshold} of the cards needed are missing from the cache, so the whole cache is downloaded instead of fetching them one by one. {threshold} is a number.',
+  },
+  'cli.cacheStore.feedUnchanged': {
+    description: 'A cache refresh from the peer-to-peer cache feed found nothing new.',
+  },
+  'cli.cacheStore.feedFallback': {
+    description:
+      'A cache refresh from the peer-to-peer cache feed failed, so the cache is downloaded straight from Scryfall instead. {reason} is the error, already worded.',
+  },
+  'cli.cacheStore.provenanceNotObject': {
+    description:
+      'The small file recording which Scryfall bulk built the card cache is not a JSON object (it is then treated as missing).',
+  },
+  'cli.cacheStore.provenanceUnknownBulk': {
+    description:
+      'That file names a bulk Ritual does not know. {bulkType} is the value it has; "bulkType" is a literal field name.',
+  },
+  'cli.cacheStore.provenanceMissingRecordedAt': {
+    description: 'That file lacks its "recordedAt" timestamp (a literal field name).',
+  },
+
+  // ── --cache-server ────────────────────────────────────────────────────
+  'cli.cacheServer.addressEmpty': {
+    description:
+      'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is blank. The example address is literal.',
+  },
+  'cli.cacheServer.addressInvalid': {
+    description:
+      'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is not a host name with a port. The example addresses are literal.',
+  },
+
   // ── config ────────────────────────────────────────────────────────────
   'cli.config.set': {
     description: '`config set` succeeded. {property} and {value} are machine values.',

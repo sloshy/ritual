@@ -18,6 +18,10 @@ import {
   PRICE_MAX_AGE_MS,
 } from '../../src/cache/constants'
 import type { TagIndex } from '../../src/scryfall/tags'
+import { isSyncMessage, type SyncMessage } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
+import { withSyntheticLocaleAsync } from '../helpers/sync-text'
+import { CacheLockTimeoutError } from '../../src/cache/lock'
 import {
   headlessPolicy,
   type BulkRefreshPrompt,
@@ -401,9 +405,15 @@ describe('ensureFreshPriceData', () => {
 describe('ensureCardCacheForUpload', () => {
   const DAY_OLD = (): number => Date.now() - PRICE_MAX_AGE_MS - 1
 
+  /** The gate's refusal as English, after checking it agrees with its key. */
+  function refusalText(ready: SyncMessage | { refreshed: boolean }): string {
+    if (!isSyncMessage(ready)) throw new Error(`expected a refusal, got ${JSON.stringify(ready)}`)
+    return keyedMessage(ready)
+  }
+
   test('a cache refreshed within the day is used as it is', async () => {
     const h = harness(true)
-    const logged: string[] = []
+    const logged: SyncMessage[] = []
 
     const ready = await ensureCardCacheForUpload(policy('ask', h), {
       cache: stubCacheFor(h, { lastRefreshedAt: Date.now() - 60_000 }),
@@ -433,7 +443,7 @@ describe('ensureCardCacheForUpload', () => {
 
   test('auto refreshes an empty cache without asking, reporting it through the log', async () => {
     const h = harness()
-    const logged: string[] = []
+    const logged: SyncMessage[] = []
     let empty = true
 
     const ready = await ensureCardCacheForUpload(policy('auto', h), {
@@ -448,7 +458,7 @@ describe('ensureCardCacheForUpload', () => {
     expect(ready).toEqual({ refreshed: true })
     expect(h.confirmCalls).toHaveLength(0)
     expect(h.preloadCalls).toBe(1)
-    expect(logged).toEqual([
+    expect(logged.map(keyedMessage)).toEqual([
       'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Refreshing it from Scryfall first...',
     ])
   })
@@ -497,7 +507,20 @@ describe('ensureCardCacheForUpload', () => {
     })
 
     expect(h.preloadCalls).toBe(0)
-    expect(ready).toContain('Run `ritual cache preload-all`, or re-run with --refresh auto.')
+    // The stale cache's age is a duration param, rendered with the sentence…
+    expect(refusalText(ready)).toBe(
+      'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is 1 day old. Run `ritual cache preload-all`, or re-run with --refresh auto.',
+    )
+    // …and travels as one, nested in the refusal, for a reader to render.
+    expect(ready).toMatchObject({
+      messageKey: 'domain.cache.uploadRemedy',
+      messageParams: {
+        reason: {
+          messageKey: 'domain.cache.uploadNeedsFreshCache',
+          messageParams: { age: { durationMs: expect.any(Number) } },
+        },
+      },
+    })
   })
 
   test.each(['no-bulk', 'never'] as const)(
@@ -513,7 +536,7 @@ describe('ensureCardCacheForUpload', () => {
 
       expect(h.confirmCalls).toHaveLength(0)
       expect(h.preloadCalls).toBe(0)
-      expect(ready).toBe(
+      expect(refusalText(ready)).toBe(
         'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Run `ritual cache preload-all`, or re-run with --refresh auto.',
       )
     },
@@ -531,9 +554,84 @@ describe('ensureCardCacheForUpload', () => {
     })
 
     expect(h.preloadCalls).toBe(1)
-    expect(ready).toBe(
+    expect(refusalText(ready)).toBe(
       'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.',
     )
+  })
+
+  test('a failed download is the refusal, its error nested in the message', async () => {
+    const h = harness()
+
+    const ready = await ensureCardCacheForUpload(policy('auto', h), {
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
+      log: () => {},
+      preload: () => Promise.reject(new Error('socket hang up')),
+    })
+
+    expect(refusalText(ready)).toBe(
+      'Card cache download failed: socket hang up Run `ritual cache preload-all`, or re-run with --refresh auto.',
+    )
+    expect(ready).toMatchObject({
+      messageKey: 'domain.cache.uploadRemedy',
+      messageParams: {
+        reason: {
+          messageKey: 'domain.cache.downloadFailed',
+          messageParams: { error: 'socket hang up' },
+        },
+      },
+    })
+  })
+
+  test('a keyed download failure keeps its key three levels down', async () => {
+    const h = harness()
+
+    const ready = await ensureCardCacheForUpload(policy('auto', h), {
+      cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
+      log: () => {},
+      preload: () => Promise.reject(new CacheLockTimeoutError(null, 60_000)),
+    })
+
+    // remedy → download failed → the lock time-out, each a message a reader
+    // renders in its own language — never the time-out flattened to text.
+    expect(ready).toEqual({
+      message: refusalText(ready),
+      messageKey: 'domain.cache.uploadRemedy',
+      messageParams: {
+        reason: {
+          messageKey: 'domain.cache.downloadFailed',
+          messageParams: {
+            error: {
+              messageKey: 'domain.cache.lockTimedOut',
+              messageParams: {
+                timeout: { durationMs: 60_000 },
+                holder: { messageKey: 'domain.cache.lockHolderUnknown' },
+              },
+            },
+          },
+        },
+      },
+    })
+  })
+
+  test('the ask prompt is worded in the CLI language', async () => {
+    const h = harness(false)
+
+    await withSyntheticLocaleAsync(
+      'xx',
+      {
+        'cli.cacheGate.uploadConfirm': '{reason} AKTUALISIEREN?',
+        'domain.cache.uploadNeedsEmptyCache': 'CACHE LEER.',
+      },
+      () =>
+        ensureCardCacheForUpload(policy('ask', h), {
+          cache: stubCacheFor(h, { empty: true, lastRefreshedAt: null }),
+          log: () => {},
+          ...h,
+        }),
+    )
+
+    // A prompt is only ever the CLI's: the sentence it nests is rendered there too.
+    expect(h.confirmCalls).toEqual([{ message: 'CACHE LEER. AKTUALISIEREN?', initial: true }])
   })
 })
 

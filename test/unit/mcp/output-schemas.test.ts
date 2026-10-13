@@ -554,8 +554,12 @@ describe('MCP output schemas, as authored', () => {
         durationMs: 42_000,
       }
       expect(await validates(BUILD_SITE_OUTPUT, buildSample)).toBe(true)
-      expect(await validates(REFRESH_CACHE_OUTPUT, { message: 'Cache refreshed successfully' })) //
-        .toBe(true)
+      expect(
+        await validates(REFRESH_CACHE_OUTPUT, {
+          message: 'Cache refreshed successfully',
+          messageKey: 'admin.api.cache.refreshed',
+        }),
+      ).toBe(true)
       // And reject one missing its required fields.
       expect(await validates(BUILD_SITE_OUTPUT, {})).toBe(false)
       expect(await validates(BUILD_SITE_OUTPUT, { message: 'Site built successfully' })).toBe(false)
@@ -803,6 +807,43 @@ describe('MCP output schemas, as authored', () => {
         report: collectionReport,
       }
       expect(await validates(SYNC_COLLECTION_OUTPUT, collectionSample)).toBe(true)
+      // A run-level failure whose params nest three deep — a push the card-cache
+      // check refused because the download hit another process's lock — is the
+      // shape the report really carries, and the schema takes it.
+      expect(
+        await validates(SYNC_COLLECTION_OUTPUT, {
+          ...collectionSample,
+          report: {
+            ...collectionReport,
+            errors: ['Card cache download failed: … Nothing was pushed.'],
+            errorMessages: [
+              {
+                message: 'Card cache download failed: … Nothing was pushed.',
+                messageKey: 'domain.sync.nothingPushed',
+                messageParams: {
+                  message: {
+                    messageKey: 'domain.cache.uploadRemedy',
+                    messageParams: {
+                      reason: {
+                        messageKey: 'domain.cache.downloadFailed',
+                        messageParams: {
+                          error: {
+                            messageKey: 'domain.cache.lockTimedOut',
+                            messageParams: {
+                              timeout: { durationMs: 300_000 },
+                              holder: { messageKey: 'domain.cache.lockHolderUnknown' },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            ],
+          },
+        }),
+      ).toBe(true)
       // A change of no known kind matches no arm, and `unlisted` holds removals only.
       const removed = { kind: 'removed', name: 'Island', quantity: 1, printing: SOL_RING }
       expect(

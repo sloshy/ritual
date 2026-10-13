@@ -4,6 +4,9 @@ import {
   SCRYFALL_PAGE_SIZE,
   parseCardSearchParams,
 } from '../../../src/api/card-search'
+import { keyedRefusal, refusal } from '../../helpers/api-message'
+import { withSyntheticLocale } from '../../helpers/sync-text'
+import { t } from '../../../src/i18n/t'
 
 /**
  * `GET /api/card-search`'s query-string parser. It validates and returns a
@@ -11,8 +14,9 @@ import {
  * 400 without knowing which field was wrong.
  */
 
-function parse(query: string): ReturnType<typeof parseCardSearchParams> {
-  return parseCardSearchParams(new URLSearchParams(query))
+/** The parsed params, or a refusal's English `message`. */
+function parse(query: string): unknown {
+  return refusal(parseCardSearchParams(new URLSearchParams(query)))
 }
 
 describe('parseCardSearchParams', () => {
@@ -59,6 +63,15 @@ describe('parseCardSearchParams', () => {
     expect(parse('q=bolt&warm=false')).toEqual({ query: 'bolt', page: 1, warm: false })
     expect(parse('q=bolt&warm=1')).toBe("Invalid warm '1'. Use one of: true, false.")
     expect(parse('q=bolt&warm=yes')).toBe("Invalid warm 'yes'. Use one of: true, false.")
+  })
+
+  test('a bad warm is refused in English with its key, whatever the server’s language', () => {
+    const refused = withSyntheticLocale('xx', { 'errors.enum.invalid': 'FALSCH {value}' }, () => {
+      // Vacuity guard: the server's own language really is the synthetic one.
+      expect(t('errors.enum.invalid', { field: 'warm', value: '1', choices: '' })).toBe('FALSCH 1')
+      return parseCardSearchParams(new URLSearchParams('q=bolt&warm=1'))
+    })
+    expect(keyedRefusal(refused)).toBe("Invalid warm '1'. Use one of: true, false.")
   })
 
   test('an explicit limit overrides the warm default', () => {

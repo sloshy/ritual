@@ -19,6 +19,7 @@ import {
   mockDeckSyncApi,
   mockDecksApi,
   mockAuditLogApi,
+  mockCacheRefreshApi,
   mockImportChangesApi,
   mockMoveCardsApi,
   MOCK_SYNC_COLLECTION_LISTS,
@@ -31,6 +32,7 @@ import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/a
 import {
   prefixedFields,
   reasonFields,
+  syncDuration,
   syncElapsed,
   syncMessage,
   syncRef,
@@ -409,6 +411,51 @@ test.describe('admin language switch', () => {
     await languageSelect(page).selectOption(PSEUDO_LOCALE)
     await expectPseudo(created, true)
     await expect(created).toContainText('Burn')
+  })
+
+  test('relabels a cache refresh’s failure, its nested duration and holder included', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockCacheRefreshApi(page)
+    await gotoAdminDashboard(page, '#/cache')
+    await page.locator('main button:has-text("Refresh Cache")').click()
+    // A lock time-out exactly as the route sends it: English plus the key, its
+    // timeout a duration and its holder a message of their own.
+    await emitStreamEvent(
+      page,
+      'error',
+      syncMessage('domain.cache.lockTimedOut', {
+        timeout: syncDuration(30_000),
+        holder: syncRef('domain.cache.lockHolder', {
+          operation: 'bulk card cache download',
+          pid: 4242,
+          hostname: 'build-box',
+        }),
+      }),
+    )
+    const error = page.locator('main .alert-error')
+    await expect(error).toHaveText(
+      'Timed out after less than a minute waiting for the cache lock held by "bulk card cache download" (pid 4242 on build-box). If no other ritual process is running, delete the lock file manually.',
+    )
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(error, true)
+    // The holder and the duration are nested messages: each relabelled with the
+    // sentence, the holder's data kept.
+    await expect(error).not.toContainText('(pid 4242 on build-box)')
+    await expect(error).not.toContainText('less than a minute')
+    await expect(error).toContainText('bulk card cache download')
+    await expect(error).toContainText('4242')
+
+    // A finished refresh's notice relabels the same way.
+    await languageSelect(page).selectOption('en')
+    await page.locator('main button:has-text("Refresh Cache")').click()
+    await emitStreamEvent(page, 'done', apiMessage('admin.api.cache.refreshed'))
+    const done = page.locator('main .alert-success')
+    await expect(done).toHaveText('Cache refreshed successfully')
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(done, true)
   })
 
   test('relabels the Move Cards commit banner, held as the commit’s outcome', async ({ page }) => {

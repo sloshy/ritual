@@ -8,14 +8,15 @@
  * refuse the same way. Anything that reads a list file, talks to git, or knows
  * what a save is stays in `src/admin/api/save-helpers.ts`.
  *
- * Browser-safe: it reaches only `src/util/json` and `src/api/result`, so the
- * SPAs may import these types without dragging a provider in behind them.
+ * Browser-safe: it reaches only `src/util/json`, `src/util/errors`,
+ * `src/sync/message` and `src/api/result`, so the SPAs may import these types
+ * without dragging a provider in behind them.
  */
 
 import { isRecord } from '../util/json'
-import { apiMessageOf, plainMessage, type ApiMessage } from './result'
+import { apiMessageOf, pickMessage, plainMessage, type ApiMessage } from './result'
 import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
-import type { SyncMessage } from '../sync/message'
+import { SyncMessageError, type SyncMessage } from '../sync/message'
 
 /**
  * The body size (bytes) allowed on routes whose body is bounded by its own
@@ -35,8 +36,13 @@ export const MAX_BODY_SIZE = 10 * 1024
  * `AutocompleteResponse` and `CardPrintingsResponse`, which fold success and
  * failure into one shape) keep their own declarations — those extra fields are
  * a wire contract, not duplication.
+ *
+ * A {@link SyncMessage}, not an `ApiMessage`: most refusals carry flat params,
+ * but any route's last-resort error (`errorResponse`) may carry an engine's
+ * nested ones — a cache-lock time-out's duration, a list resolver's ambiguous
+ * matches — so a client must not assume `messageParams` is flat.
  */
-export interface ApiErrorResponse extends ApiMessage {
+export interface ApiErrorResponse extends SyncMessage {
   success: false
 }
 
@@ -67,22 +73,28 @@ export function apiError(reason: ApiMessage, status: number): Response {
   return Response.json(body, { status })
 }
 
+/**
+ * A route's refusal as a message triple, whether its handler worded it with no
+ * catalog entry (plain English text, which goes through `plainMessage`) or holds
+ * a message — keyed English, its params possibly nested. The one normalizer the
+ * routes whose failure bodies carry extra fields (`card: null`, paging) share.
+ */
+export function refusalOf(reason: string | SyncMessage): SyncMessage {
+  return typeof reason === 'string' ? plainMessage(reason) : pickMessage(reason)
+}
+
 /** {@link apiError} at the status a refusal almost always carries. */
 export function badRequest(reason: ApiMessage): Response {
   return apiError(reason, 400)
 }
 
 /**
- * The shared refusal body for a message whose params nest — a list that did not
- * resolve, whose ambiguous matches are a list of messages of their own. Same
- * fields as {@link ApiErrorResponse}; only `messageParams` may hold more than
- * strings and numbers (see `src/sync/message.ts`).
+ * {@link apiError} for a message whose params nest — a list that did not
+ * resolve, whose ambiguous matches are a list of messages of their own (see
+ * `src/sync/message.ts`). The body is the same {@link ApiErrorResponse}.
  */
-export type NestedRefusalResponse = SyncMessage & { success: false }
-
-/** {@link apiError} for a message whose params nest; see {@link NestedRefusalResponse}. */
 export function nestedRefusal(reason: SyncMessage, status: number = 400): Response {
-  const body: NestedRefusalResponse = { success: false, ...reason }
+  const body: ApiErrorResponse = { success: false, ...reason }
   return Response.json(body, { status })
 }
 
@@ -108,10 +120,14 @@ export function statusForError(error: unknown): number {
  * {@link CardCommandError} raised from a catalog key (`localizedCommandError`)
  * was worded in the process's locale; the response re-renders its key in
  * English and carries the key, as every keyed refusal does, so MCP and scripts
- * read English and the admin page reads its own language. Anything else is
- * reported as the text it was raised with.
+ * read English and the admin page reads its own language. A
+ * {@link SyncMessageError} (a sync engine's, the card cache's) already carries
+ * its English beside the key — with params that may nest, a duration or a
+ * message inside the message — and answers with that. Anything else is reported
+ * as the text it was raised with.
  */
-export function caughtMessage(error: unknown): ApiMessage {
+export function caughtMessage(error: unknown): SyncMessage {
+  if (error instanceof SyncMessageError) return pickMessage(error.syncMessage)
   if (error instanceof CardCommandError && error.messageRef !== undefined) {
     return apiMessageOf(error.messageRef.key, error.messageRef.params)
   }
@@ -126,7 +142,7 @@ export function caughtMessage(error: unknown): ApiMessage {
  * it surfaced through.
  */
 export function errorResponse(error: unknown): Response {
-  return apiError(caughtMessage(error), statusForError(error))
+  return nestedRefusal(caughtMessage(error), statusForError(error))
 }
 
 /** The outcome of {@link readBodyText}: the body as text, or the response to return. */

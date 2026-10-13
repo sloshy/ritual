@@ -35,7 +35,6 @@ import {
   nestedRefusal,
   readJsonObjectBody,
   type ApiErrorResponse,
-  type NestedRefusalResponse,
 } from '../../api/http'
 import {
   apiMessage,
@@ -112,7 +111,7 @@ export type ExportFileResponse = {
 export type ExportResponseBody = ExportContentResponse | ExportFileResponse
 
 /** Every body `POST /api/export` can return. */
-export type ExportResponse = ExportResponseBody | ApiErrorResponse | NestedRefusalResponse
+export type ExportResponse = ExportResponseBody | ApiErrorResponse
 
 /** Validate the body's output-shape fields into settings flags, or the refusal. */
 function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | ApiMessage {

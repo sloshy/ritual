@@ -6,15 +6,21 @@ import { getCacheLockTimeoutSeconds } from '../config/ritual-config'
 import { hasErrorCode } from '../util/errors'
 import { getLogger } from '../util/logger'
 import { formatDuration } from '../util/duration'
+import { t } from '../i18n/t'
+import { syncDuration, syncMessage, SyncMessageError, syncRef } from '../sync/message'
 
 export const CACHE_LOCK_FILENAME = '.ritual-cache-lock'
 
-/** The JSON payload written into the cache lock file by its holder. */
+/**
+ * The JSON payload written into the cache lock file by its holder — a machine
+ * contract another Ritual process reads back, so its bytes never depend on the
+ * UI language: numbers, the host name, and `operation` as the caller passed it.
+ */
 export interface CacheLockInfo {
   pid: number
   hostname: string
   createdAt: number
-  /** Human-readable description of the holder, e.g. "bulk card preload". */
+  /** What the holder is doing, as its caller worded it, e.g. "bulk card preload". */
   operation: string
 }
 
@@ -36,18 +42,31 @@ export type CacheLockOptions = {
   sleep?: (ms: number) => Promise<void>
 }
 
-/** Thrown when the lock is still held by a live process after the wait timeout. */
-export class CacheLockTimeoutError extends Error {
+/**
+ * Thrown when the lock is still held by a live process after the wait timeout.
+ *
+ * A {@link SyncMessageError}: a refresh that times out may be running for the
+ * admin API or MCP (`POST /api/cache/refresh`, a collection-sync push's cache
+ * check), which answer in English plus the key, and the CLI prints it in its
+ * own language — so the message travels unrendered, its timeout a duration
+ * param rendered in whichever locale reads it.
+ */
+export class CacheLockTimeoutError extends SyncMessageError {
   constructor(
     readonly holder: CacheLockInfo | null,
     timeoutMs: number,
   ) {
-    const holderText = holder
-      ? `"${holder.operation}" (pid ${holder.pid} on ${holder.hostname})`
-      : 'another process'
     super(
-      `Timed out after ${formatDuration(timeoutMs)} waiting for the cache lock held by ${holderText}. ` +
-        `If no other ritual process is running, delete the lock file manually.`,
+      syncMessage('domain.cache.lockTimedOut', {
+        timeout: syncDuration(timeoutMs),
+        holder: holder
+          ? syncRef('domain.cache.lockHolder', {
+              operation: holder.operation,
+              pid: holder.pid,
+              hostname: holder.hostname,
+            })
+          : syncRef('domain.cache.lockHolderUnknown'),
+      }),
     )
     this.name = 'CacheLockTimeoutError'
   }
@@ -59,24 +78,31 @@ const DEFAULT_POLL_INTERVAL_MS = 1000
 const DEFAULT_STALE_MAX_AGE_MS = 60 * 60 * 1000
 
 /**
- * Parse the contents of a cache lock file. Returns an error string when the
- * payload is malformed (a malformed lock is treated as stale by the acquirer).
+ * Parse the contents of a cache lock file. Returns an error string, worded in
+ * the UI language, when the payload is malformed (a malformed lock is treated
+ * as stale by the acquirer, which logs the reason).
  */
 export function parseCacheLockInfo(raw: string): CacheLockInfo | string {
   let json: unknown
   try {
     json = JSON.parse(raw)
   } catch {
-    return 'Invalid cache lock: not valid JSON'
+    return t('cli.cacheLock.invalidJson')
   }
   if (!json || typeof json !== 'object' || Array.isArray(json)) {
-    return 'Invalid cache lock: expected an object'
+    return t('cli.cacheLock.notObject')
   }
   const info = json as Record<string, unknown>
-  if (typeof info['pid'] !== 'number') return 'Invalid cache lock: missing numeric pid'
-  if (typeof info['hostname'] !== 'string') return 'Invalid cache lock: missing string hostname'
-  if (typeof info['createdAt'] !== 'number') return 'Invalid cache lock: missing numeric createdAt'
-  if (typeof info['operation'] !== 'string') return 'Invalid cache lock: missing string operation'
+  if (typeof info['pid'] !== 'number') return t('cli.cacheLock.missingField', { field: 'pid' })
+  if (typeof info['hostname'] !== 'string') {
+    return t('cli.cacheLock.missingField', { field: 'hostname' })
+  }
+  if (typeof info['createdAt'] !== 'number') {
+    return t('cli.cacheLock.missingField', { field: 'createdAt' })
+  }
+  if (typeof info['operation'] !== 'string') {
+    return t('cli.cacheLock.missingField', { field: 'operation' })
+  }
   return json as CacheLockInfo
 }
 
@@ -163,11 +189,9 @@ export async function acquireCacheLock(
     }
 
     if (typeof parsed === 'string' || isLockStale(parsed, isPidAlive, staleMaxAgeMs)) {
-      const description =
-        typeof parsed === 'string'
-          ? parsed
-          : `holder pid ${parsed.pid} is no longer running or exceeded the stale age`
-      getLogger().warn(`Breaking stale cache lock (${description}).`)
+      const reason =
+        typeof parsed === 'string' ? parsed : t('cli.cacheLock.holderGone', { pid: parsed.pid })
+      getLogger().warn(t('cli.cacheLock.breakingStale', { reason }))
       await fs.unlink(lockPath)
       continue
     }
@@ -178,8 +202,11 @@ export async function acquireCacheLock(
     if (!announcedWait) {
       announcedWait = true
       getLogger().info(
-        `Cache is locked by "${parsed.operation}" (pid ${parsed.pid}). ` +
-          `Waiting up to ${formatDuration(timeoutMs)} for it to finish...`,
+        t('cli.cacheLock.waiting', {
+          operation: parsed.operation,
+          pid: parsed.pid,
+          timeout: formatDuration(timeoutMs),
+        }),
       )
     }
     await sleep(pollIntervalMs)

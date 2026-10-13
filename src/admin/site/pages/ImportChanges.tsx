@@ -15,7 +15,7 @@ import { useT, useTKey } from '../../../ui/i18n'
 import type { ChangeProblem, ChangeProblemResult } from '../../../changes/change-problem'
 import { renderChangeProblem } from '../../../changes/change-problem-message'
 import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
-import type { ApiErrorResponse, NestedRefusalResponse } from '../../../api/http'
+import type { ApiErrorResponse } from '../../../api/http'
 import { PageHeading } from '../components/PageHeading'
 import { apiMessage } from '../../../api/result'
 import { useApiText } from '../hooks/useApiAction'
@@ -39,7 +39,7 @@ const METHODS: MethodOption[] = [
  * A partial import answers 200 with `success: true` and a non-zero
  * `failedCount`, so the per-list report survives to be rendered.
  */
-type ApplyResponse = BundleImportResponse | ApiErrorResponse | NestedRefusalResponse
+type ApplyResponse = BundleImportResponse | ApiErrorResponse
 
 /**
  * Admin page to apply a change bundle exported from the public site's

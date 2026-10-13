@@ -491,8 +491,7 @@ async function performSync(
     // upload's rows are only as good as it is — so freshness is treated as
     // `auto`: an empty or day-old cache is refreshed before the upload is built,
     // and the refresh is reported through the run's own progress events.
-    ensureCsvCache: ({ log }) =>
-      ensureCardCacheForUpload(headlessPolicy('auto'), { log: (m) => log(m) }),
+    ensureCsvCache: ({ log }) => ensureCardCacheForUpload(headlessPolicy('auto'), { log }),
     // No interactive `resolveAmbiguous`: an HTTP caller cannot be walked
     // through the copies one at a time, so a removal neither the priority nor
     // the assignments (if any) place fails the run — the reason lands in

@@ -324,7 +324,7 @@ A build gets card data and prices in four steps, in order:
 2. **Bulk price-refresh prompt**: otherwise, if more than 100 cards have prices older than 24 hours, the build offers a bulk redownload instead of refreshing each card individually:
 
    ```
-   287 of 320 card(s) have prices older than 24 hours.
+   287 of 320 cards have prices older than 24 hours.
    Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.
    Redownload the latest Scryfall card cache now? [y/N]
    ```

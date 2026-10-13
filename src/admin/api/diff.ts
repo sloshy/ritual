@@ -16,12 +16,7 @@ import {
   type ListLocation,
 } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
-import {
-  badRequest,
-  nestedRefusal,
-  type ApiErrorResponse,
-  type NestedRefusalResponse,
-} from '../../api/http'
+import { badRequest, nestedRefusal, type ApiErrorResponse } from '../../api/http'
 import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
 
 /** `GET /api/diff` success body — the CLI `diff --output json` shape plus `success`. */
@@ -39,9 +34,9 @@ export type DiffResponseBody = {
 /**
  * Every body `GET /api/diff` can return: the comparison, the shared refusal,
  * or — for a side that names no single list — the list resolver's refusal,
- * whose params may nest (see {@link NestedRefusalResponse}).
+ * whose params may nest (see {@link ApiErrorResponse}).
  */
-export type DiffResponse = DiffResponseBody | ApiErrorResponse | NestedRefusalResponse
+export type DiffResponse = DiffResponseBody | ApiErrorResponse
 
 /**
  * Resolve one side's `[type:]name` query value to a list file, or a 400 response.

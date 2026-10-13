@@ -1,15 +1,19 @@
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
-import { getErrorMessage } from '../util/errors'
+import { caughtMessage } from './http'
+import type { SyncMessage } from '../sync/message'
 import type { ScryfallCard } from '../scryfall/types'
 
 /** Upper bound on IDs per request, so one call can't ask for the whole cache. */
 export const MAX_CARD_IDS = 200
 
-export type CardsResponse = {
+/**
+ * `GET /api/cards` body. A failure carries the message triple; one raised with a
+ * catalog key (a cache error) carries its key and possibly nested params.
+ */
+export type CardsResponse = Partial<SyncMessage> & {
   success: boolean
   /** The cards found, in no particular order. IDs the cache doesn't hold are omitted. */
   cards: ScryfallCard[]
-  message?: string
 }
 
 /** Parse the `ids` query param into unique IDs, or an error message. */
@@ -43,7 +47,7 @@ export async function handleCards(req: Request): Promise<Response> {
     const resp: CardsResponse = { success: true, cards: [...found.values()] }
     return Response.json(resp)
   } catch (error) {
-    const resp: CardsResponse = { success: false, cards: [], message: getErrorMessage(error) }
+    const resp: CardsResponse = { success: false, cards: [], ...caughtMessage(error) }
     return Response.json(resp, { status: 500 })
   }
 }

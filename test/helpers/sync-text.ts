@@ -5,6 +5,9 @@
  */
 
 import { localeTag } from '../../src/i18n/locale-tag'
+import { en } from '../../src/i18n/messages/en'
+import { enMeta } from '../../src/i18n/messages/en.meta'
+import { pseudoLocalize } from '../../scripts/generate-locales'
 import { DEFAULT_LOCALE, loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
 import type { LocaleCatalog, LocaleTag } from '../../src/i18n/types'
 import type { ItemChangeLine } from '../../src/sync/describe'
@@ -75,4 +78,33 @@ export function loadSyntheticLocale(tag: string, catalog: LocaleCatalog): Locale
   const locale = localeTag(tag)
   loadDictionary(locale, catalog)
   return locale
+}
+
+let pseudoCatalogMemo: LocaleCatalog | null = null
+
+/**
+ * The whole English catalog pseudo-localized (`en-XA`): every message changes
+ * under it, so text that leaks into something meant to be language-neutral — a
+ * persisted file, an English API message — is unmissable. Memoized: generating
+ * it walks ~4,000 keys.
+ */
+export function pseudoCatalog(): LocaleCatalog {
+  pseudoCatalogMemo ??= pseudoLocalize(en, enMeta)
+  return pseudoCatalogMemo
+}
+
+/** A foreign UI language a persistence pin runs under, and the dictionary it loads. */
+export type ForeignLocale = { tag: string; catalog: LocaleCatalog }
+
+/**
+ * The languages a "these bytes never move" pin runs under: the full pseudo
+ * catalog, which changes every message, and real German with no dictionary at
+ * all, which changes everything routed through `Intl` (numbers, durations,
+ * lists) — the half a synthetic tag that resolves to `en-US` cannot reach.
+ */
+export function foreignLocales(): ForeignLocale[] {
+  return [
+    { tag: 'en-XA', catalog: pseudoCatalog() },
+    { tag: 'de', catalog: {} },
+  ]
 }

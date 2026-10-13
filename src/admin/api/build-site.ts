@@ -29,6 +29,7 @@ import {
   STALE_BUILD_DIR_MAX_AGE_MS,
 } from '../../site-build/publish'
 import type { RouteProgress, RouteProgressSink } from '../../util/progress'
+import type { SyncMessage } from '../../sync/message'
 
 // Re-exported: the sweep's age rule is shared with the CLI builder now, but this
 // route is where its tests and callers have always addressed it.
@@ -307,7 +308,8 @@ function isBuildSiteSuccess(body: unknown): body is BuildSiteResponse {
 type BuildSiteStreamEvents = {
   progress: BuildSiteStreamEvent
   done: BuildSiteDoneEvent
-  error: ApiMessage
+  /** A refusal or failure; an error the build raised may carry nested params. */
+  error: SyncMessage
 }
 
 /**

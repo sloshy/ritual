@@ -132,6 +132,51 @@ release changes a file format or a generated file, it ships the change as a
   language (`Deck 'Burn'` was always English). The `.changes.md` line it is recorded as
   is unchanged.
 - `ritual detect-changes` reports a failed git command in the CLI's language.
+- The card cache's own messages follow the UI language. The CLI prints the cache offers
+  and progress before `add-card`, `edit`, `price`, `sell`, `build-site` and `serve --api`
+  (and `admin` at startup), a cache-lock wait or time-out, a cache-feed sync's progress
+  and errors, and a malformed `--cache-server` / `RITUAL_CACHE_SERVER` in yours; so do the
+  cache server's, the feed host's and the admin server's consoles. In `--output json` the
+  error envelope's `message` for a cache-lock time-out, a failed `--cache-server` request
+  or a malformed cache-server address follows the UI language too. Lock files, feed state
+  and the card-bulk record are unchanged bytes.
+- **More `--output json` error envelopes carry a `messageKey`.** Any keyed engine error a
+  command fails with now carries its key and params beside `code` — a cache-lock time-out
+  (`domain.cache.lockTimedOut`), a failed `--cache-server` request
+  (`domain.cache.serverRequestFailed`, …), and the sync engines' own keyed failures (a
+  `deck-sync link` that cannot write the deck, a collection list that disappeared mid-run,
+  …). A param that nests (a duration, a message inside the message) is given as its English
+  rendering, so `messageParams` stays flat strings and numbers in English whatever the UI
+  language, while `message` follows it. Match on `code` and `messageKey`.
+- **A cache-lock time-out reaches the admin API in English, keyed.** When a refresh gives up
+  on another process's cache lock, `POST /api/cache/refresh`, the cache refresh stream's
+  `error` event and any other route that refreshes the cache now answer in English with
+  `messageKey: "domain.cache.lockTimedOut"`; it used to be unkeyed English with only its
+  duration in the server's UI language. A failed request to a `--cache-server` is keyed
+  the same way (`domain.cache.serverRequestFailed`, …) wherever it surfaces, the card routes
+  (`/api/card-details`, `/api/card-printings`, `/api/card-price`, `/api/cards`,
+  `/api/card-search`) included, which used to answer it in the server's UI language. Their
+  `messageParams` nest: the time-out's `timeout` is a new duration param `{ durationMs }`
+  and its `holder` is a message of its own. Any route's error body, and the sync and build
+  streams' `error` events, may now carry nested `messageParams`; a script reading them must
+  accept objects, not only strings and numbers. MCP tool errors (`refresh_cache`,
+  `get_card_details`, …) carry only `{ error, code, message }`: their `message` is now
+  English for these errors too, but has no key, so branch on `code`. `GET /api/card-search`
+  also refuses an invalid `warm` in English keyed `errors.enum.invalid` (it followed the
+  server's UI language). On the admin Refresh Cache page the card-cache refresh's outcome
+  shows in the browser's language and relabels when you switch (the Card Kingdom buylist
+  card does not yet), and a progress stream that drops mid-refresh now says so instead of
+  starting a second refresh.
+- A collection-sync push's CSV cache check is keyed: its "Refreshing it from Scryfall
+  first..." line carries `messageKey` on the run log (the admin stream's `log` events,
+  the Sync Collection page), and its refusal in `errors` / `errorMessages` (CLI
+  `--output json`, `POST /api/collection-sync`, MCP `sync_collection`) is
+  `domain.sync.nothingPushed` with the `domain.cache.*` reason nested as `message`, where
+  it was unkeyed text. The English is unchanged; match on the keys.
+- Two cache messages count their nouns properly: the stale-price notice before a site build
+  or `serve --api` says "150 of 300 cards have prices older than 24 hours." (it read
+  `card(s)`), and a feed download from one peer ends "(1 peer)." (it read "1 peers").
+  Update any script that matched `card(s)`.
 - **The admin server refuses in the shared error envelope.** A `401` (no session), a `403`
   (before the first account exists, or from the IP/User-Agent allow and deny lists), a
   `404` for a path with no route or file, and an unexpected `500` now answer

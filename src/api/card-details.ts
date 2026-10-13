@@ -3,7 +3,8 @@
 // on the admin server only.
 import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card/card-printing'
-import { getErrorMessage } from '../util/errors'
+import { caughtMessage, refusalOf } from './http'
+import type { SyncMessage } from '../sync/message'
 import { detailCard, type CardDetails } from './card-summary'
 
 /** The card was found. */
@@ -12,18 +13,21 @@ export type CardDetailsSuccess = {
   card: CardDetails
 }
 
-/** No such card, or the lookup failed. `card` is still present, as null. */
-export type CardDetailsFailure = {
+/**
+ * No such card, or the lookup failed. `card` is still present, as null. A
+ * failure raised with a catalog key (a cache error) carries it, its params
+ * possibly nested — see the message triple.
+ */
+export type CardDetailsFailure = SyncMessage & {
   success: false
   card: null
-  message: string
 }
 
 /** `GET /api/card-details` body. */
 export type CardDetailsResponse = CardDetailsSuccess | CardDetailsFailure
 
-function errorResponse(message: string, status: number): Response {
-  const body: CardDetailsFailure = { success: false, card: null, message }
+function cardRefusal(message: string | SyncMessage, status: number): Response {
+  const body: CardDetailsFailure = { success: false, card: null, ...refusalOf(message) }
   return Response.json(body, { status })
 }
 
@@ -49,12 +53,12 @@ export async function handleCardDetails(req: Request): Promise<Response> {
     // Trimmed at the parse boundary, not just for the emptiness check: the name
     // is a cache key, and `?name=%20Sol+Ring` must resolve like `Sol Ring`.
     const name = new URL(req.url).searchParams.get('name')?.trim()
-    if (!name) return errorResponse('name is required.', 400)
+    if (!name) return cardRefusal('name is required.', 400)
 
     const result = await getCardPrintingsResult(name)
     const printings = result.printings
     if (printings.length === 0) {
-      return errorResponse(
+      return cardRefusal(
         `No card named '${name}'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).`,
         404,
       )
@@ -66,6 +70,6 @@ export async function handleCardDetails(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), 500)
+    return cardRefusal(caughtMessage(error), 500)
   }
 }

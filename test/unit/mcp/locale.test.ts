@@ -6,6 +6,9 @@ import { enMeta } from '../../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
 import { t } from '../../../src/i18n/t'
 import { buildMcpServer } from '../../../src/mcp/server'
+import { toToolErrorPayload } from '../../../src/mcp/result'
+import { CacheLockTimeoutError } from '../../../src/cache/lock'
+import { withSyntheticLocale } from '../../helpers/sync-text'
 import { PSEUDO_LOCALE, pseudoLocalize } from '../../../scripts/generate-locales'
 
 /**
@@ -84,5 +87,21 @@ describe('MCP prose is English whatever the UI locale', () => {
     expect(t('help.locale.summary')).not.toBe(en['help.locale.summary'])
 
     expect(await captureProse()).toEqual(english)
+  })
+
+  test('a keyed engine error thrown in a tool body reaches the client in English', () => {
+    // A cache-lock time-out raised under the server's own (non-English) UI
+    // language: its Error.message is that language, the tool error is not.
+    const payload = withSyntheticLocale('xx', { 'domain.cache.lockTimedOut': 'ZEIT UM' }, () => {
+      const thrown = new CacheLockTimeoutError(null, 5 * 60_000)
+      expect(thrown.message).toBe('ZEIT UM')
+      return toToolErrorPayload(thrown)
+    })
+    expect(payload).toEqual({
+      error: true,
+      code: 'internal',
+      message:
+        'Timed out after 5 minutes waiting for the cache lock held by another process. If no other ritual process is running, delete the lock file manually.',
+    })
   })
 })

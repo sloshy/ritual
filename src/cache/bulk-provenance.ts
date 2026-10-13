@@ -3,6 +3,7 @@ import { createDefaultFileSystemClient, type FileSystemClient } from '../util/in
 import { isCardBulkType, type CardBulkType } from '../scryfall/bulk-manifest'
 import { getCacheDir } from './file-cache'
 import { writeFileAtomic } from '../util/atomic-write'
+import { t } from '../i18n/t'
 
 /**
  * Card-cache bulk provenance: which Scryfall bulk (`default_cards` or
@@ -42,14 +43,14 @@ function provenancePath(): string {
  */
 export function parseCardBulkProvenance(json: unknown): CardBulkProvenance | string {
   if (!json || typeof json !== 'object' || Array.isArray(json)) {
-    return 'Invalid card-bulk provenance: expected an object'
+    return t('cli.cacheStore.provenanceNotObject')
   }
   const record = json as Record<string, unknown>
   if (typeof record['bulkType'] !== 'string' || !isCardBulkType(record['bulkType'])) {
-    return `Invalid card-bulk provenance: unknown bulkType '${String(record['bulkType'])}'`
+    return t('cli.cacheStore.provenanceUnknownBulk', { bulkType: String(record['bulkType']) })
   }
   if (typeof record['recordedAt'] !== 'string') {
-    return 'Invalid card-bulk provenance: missing string recordedAt'
+    return t('cli.cacheStore.provenanceMissingRecordedAt')
   }
   return { bulkType: record['bulkType'], recordedAt: record['recordedAt'] }
 }

@@ -6,6 +6,7 @@ import { apiHandler } from '../utils'
 import { collectCacheStatus, type CacheStatusResult } from '../../cache/status'
 import { apiMessage, type ApiMessage } from '../../api/result'
 import { caughtMessage } from '../../api/http'
+import type { SyncMessage } from '../../sync/message'
 
 /** `POST /api/cache/refresh` — the card cache was rebuilt from Scryfall. */
 export interface CacheRefreshResponse extends ApiMessage {
@@ -105,7 +106,8 @@ export function handleCacheRefresh(
 type CacheRefreshStreamEvents = {
   progress: CacheRefreshEvent
   done: ApiMessage
-  error: ApiMessage
+  /** Why the refresh failed; a cache-lock time-out's params nest (its duration). */
+  error: SyncMessage
 }
 
 export function handleCacheRefreshStream(): Promise<Response> {

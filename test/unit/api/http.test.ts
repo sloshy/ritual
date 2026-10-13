@@ -8,6 +8,9 @@ import {
 } from '../../../src/api/http'
 
 import { ExitCode, localizedCommandError } from '../../../src/util/errors'
+import { CacheLockTimeoutError } from '../../../src/cache/lock'
+import type { SyncMessage } from '../../../src/sync/message'
+import { keyedMessage } from '../../helpers/api-message'
 import { withSyntheticLocale } from '../../helpers/sync-text'
 /**
  * The shared JSON-body route prologue. Its two refusal messages are pinned here
@@ -217,6 +220,37 @@ describe('errorResponse', () => {
       message: 'Admin user already exists',
       messageKey: 'admin.api.setup.userExists',
     })
+  })
+
+  test('answers a SyncMessageError in English with its key and nested params', async () => {
+    // A cache lock's time-out, thrown under the process's own language: its
+    // timeout and its holder are params that nest, and both survive the route.
+    const resp = withSyntheticLocale(
+      'xx',
+      { 'domain.cache.lockTimedOut': 'ZEIT UM {timeout}' },
+      () => {
+        const thrown = new CacheLockTimeoutError(
+          { pid: 7, hostname: 'build-box', createdAt: 0, operation: 'tag refresh' },
+          5 * 60_000,
+        )
+        expect(thrown.message).toBe('ZEIT UM 5 minutes')
+        return errorResponse(thrown)
+      },
+    )
+    expect(resp.status).toBe(500)
+    const body = (await resp.json()) as SyncMessage & { success: boolean }
+    expect(body.success).toBe(false)
+    expect(body.messageKey).toBe('domain.cache.lockTimedOut')
+    // The params survive the trip as the nested tree they are…
+    expect(body.messageParams).toEqual({
+      timeout: { durationMs: 300_000 },
+      holder: {
+        messageKey: 'domain.cache.lockHolder',
+        messageParams: { operation: 'tag refresh', pid: 7, hostname: 'build-box' },
+      },
+    })
+    // …and `message` is English, the same sentence they re-render to.
+    expect(keyedMessage(body)).toStartWith('Timed out after 5 minutes waiting')
   })
 
   test('answers anything else with its own text at 500', async () => {

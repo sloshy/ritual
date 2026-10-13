@@ -663,10 +663,14 @@ English no matter what \`--locale\` / \`RITUAL_LOCALE\` / \`uiLocale\` say — t
 settings move the CLI's own terminal output and the two web UIs, never this
 surface. Results that come from an admin handler carry \`messageKey\` (plus
 \`messageParams\` when the sentence interpolates) beside the English \`message\`: a
-stable, locale-invariant identifier to match on instead of matching prose. In the
-\`import_csv\`, \`import_deck\` and \`import_change_bundle\` results a param may
-itself be a message (a count with its noun), and each failed list of
-\`import_change_bundle\` carries \`errorKey\`/\`errorParams\` beside \`error\`.
+stable, locale-invariant identifier to match on instead of matching prose. Params
+may nest — a param may itself be a message, a list, a duration (\`elapsedMs\`, or
+\`durationMs\` for an age or a time-out) or a card language: in the \`import_csv\`,
+\`import_deck\` and \`import_change_bundle\` results (a count with its noun), in
+the sync tools' per-item \`reasonParams\`, and in their run-level
+\`report.errorMessages[].messageParams\`. Each failed list of
+\`import_change_bundle\` carries \`errorKey\`/\`errorParams\` beside \`error\`. A
+tool *error* carries only \`{error, code, message}\` — branch on \`code\`.
 
 The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
 (\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only —

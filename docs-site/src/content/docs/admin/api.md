@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`. Every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, and an [error a route did not expect](#error-responses), such as a cache-lock time-out. Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -35,6 +35,8 @@ Every route refuses a request with the same body, whatever the status — and so
 ```
 
 `messageKey` and `messageParams` follow [the message triple](#the-message-triple): present on a keyed refusal, absent when the prose has no catalog entry. A refusal naming a list that does not resolve ([Diff Lists](#diff-lists), [Export Cards](#export-cards)) carries the list resolver's `errors.resolveList.*` key, and its params may nest (the ambiguous matches are a list of messages).
+
+An error a route did not expect — one raised deep in an engine — is answered the same way, in English plus its key whenever it has one. A card-cache error is one: a cache-lock time-out (`domain.cache.lockTimedOut`, whose `timeout` param is a duration `{ durationMs }` and whose `holder` is a message of its own) or a failed request to a [`--cache-server`](/commands/cache/) (`domain.cache.serverRequestFailed`, …). These params nest the way a [sync's](#sync-decks) do.
 
 `499` is the status a route answers when an **in-process** caller cancels the request part way (the MCP tools do this on a client's `notifications/cancelled`). HTTP requests are never cancelled this way: closing the connection leaves the handler running to completion.
 
@@ -528,6 +530,8 @@ There is no `includePrices` parameter; each client drops the price block itself 
 
 `complete` is `false` when the card cache holds no printing list for the name and the response came from the single-card Scryfall fallback. The one printing returned is whatever that lookup found, **not** the card's only printing, so do not present the list as exhaustive. Run [`ritual cache preload-all`](/commands/cache/) to get a real one.
 
+A refusal keeps the shape — `success: false`, `printings: []` — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
+
 ## Card Price
 
 ```
@@ -562,6 +566,8 @@ Get price data for a card, including representative and cheapest printings for a
 | `lowestPriceCardEur` | The cheapest EUR printing                            |
 | `lowestPriceCardTix` | The cheapest MTGO Tix printing                       |
 
+A failure answers `success: false`, `printings: []` and the three printing fields `null`, plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
+
 ## Card Details
 
 ```
@@ -580,7 +586,7 @@ Oracle fields are the same on every printing, so the response describes _the car
 | --------- | --------------- | -------- |
 | `name`    | Exact card name | Yes      |
 
-A name that matches nothing returns `404` with a message pointing at [`/api/autocomplete`](#card-autocomplete). A missing or blank `name` is a `400`. Every error response keeps the success shape — `success: false` and `card: null` — plus a `message`.
+A name that matches nothing returns `404` with a message pointing at [`/api/autocomplete`](#card-autocomplete). A missing or blank `name` is a `400`. Every error response keeps the success shape — `success: false` and `card: null` — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
 
 **Response:**
 
@@ -654,7 +660,7 @@ Error handling:
 - A query Scryfall itself refuses (a syntax error, an unknown filter) is a `400` whose `message` carries Scryfall's explanation.
 - A failure on Scryfall's side (a `5xx`, a network error) is a `500` — in `warm=true` mode too, never an empty `200`.
 
-Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus a `message`.
+Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do. An invalid `warm` is keyed too (`errors.enum.invalid`).
 
 **Response:**
 
@@ -2100,7 +2106,7 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 `success` reports whether the run could be performed, **not** whether every deck synced. A run with per-deck failures still returns `200` with `success: true` and a non-zero `report.failedCount`, so read each deck's `status` and `reason`. Other report fields:
 
 - Each deck carries `outcome`, the code to branch on: `changed` (written or sent), `unchanged` (already matched, or a push that once planned had nothing to send), `dry-run` (a preview, which `reason` summarizes) or `cancelled` (never reached). Collection lists add `not-run` (see [Sync Collection](#sync-collection)). It is absent on a failed deck and on one skipped for another reason. Never match on `reason` text.
-- `reason` is English whatever the operator's UI language — the [message triple](#the-message-triple)'s contract — with `reasonKey` and `reasonParams` beside it, as `messageKey` and `messageParams` are beside `message`. A sync's params may nest: a param is a string or number, another message (`{ messageKey, messageParams }`), a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`) or a duration (`{ elapsedMs }`), all rendered in the same locale as the message around them. A reason raised outside the catalog (a network error) has no key.
+- `reason` is English whatever the operator's UI language — the [message triple](#the-message-triple)'s contract — with `reasonKey` and `reasonParams` beside it, as `messageKey` and `messageParams` are beside `message`. A sync's params may nest: a param is a string or number, another message (`{ messageKey, messageParams }`), a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), a duration (`{ elapsedMs }` for how long something took, `{ durationMs }` for an age or a time-out, such as the card cache's age in a push's CSV cache check) or a card language (`{ language }`), all rendered in the same locale as the message around them. A reason raised outside the catalog (a network error) has no key.
 - Each deck carries `printingsChanged` (a count) when the request set `syncPrintings`, or `printingsUnaligned` (the card names whose printings the two sides disagree about) when it did not.
 - Each deck carries `categoriesChanged` (a count of cards) when the request set `syncCategories`.
 - Each deck carries `boardMoves` (a count) when its diff moved cards between boards. Moves bypass `only`: a move adds and removes no copies, so neither filter value drops it. See [Board moves](/commands/deck-sync/#board-moves).
@@ -2129,7 +2135,7 @@ Three event types are emitted:
 | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `progress` | One step of the run, in the vocabulary both syncs share — `item` is the deck being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message, messageKey?, messageParams? }` (`item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail` — one line per card change under a deck's `Changes:` summary; `message` is English, and the key and params, which may nest as a deck's `reasonParams` do, let the page render the line in the reader's language), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items: [{ name, file, warnings }] }`. |
 | `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `error`    | `{ message, messageKey?, messageParams?, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure); a [message triple](#the-message-triple) whose params may nest.                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no response body for a non-2xx open.
 
@@ -2324,7 +2330,7 @@ Three event types are emitted:
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `progress` | One step of the run, in the vocabulary both syncs share — `item` is the collection list being worked on: `{ kind: "item-start", item, index, total }`, `{ kind: "log", level, item, message, messageKey?, messageParams? }` (`message` English, key and params as for Sync Decks; `item` is `null` for run-level lines; `level` is `info`, `warn`, `error`, or `detail`, one line per card under a list's `Changes:` count, while a run-level `detail` line is a card a push's CSV import created or a record it deleted for a card no list holds), `{ kind: "item-result", result }`, or `{ kind: "unreadable-lines", items }`. |
 | `done`     | `{ message, messageKey?, messageParams?, summary, report }` — the same [message triple](#the-message-triple), keyed `summary`, and report the JSON route returns.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `error`    | `{ message, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `error`    | `{ message, messageKey?, messageParams?, loginRequired }` for a run that produced no report (bad parameters, no Archidekt login, or an unexpected failure); a [message triple](#the-message-triple) whose params may nest.                                                                                                                                                                                                                                                                                                                                                                                                       |
 
 Failures are reported inside the stream rather than as an HTTP status, since `EventSource` exposes no response body for a non-2xx open.
 
@@ -2362,11 +2368,11 @@ GET /api/build-site/stream
 
 The same build as `POST /api/build-site`, streamed as server-sent events. The admin **Build Site** page's progress bar and live log read it. It takes no parameters.
 
-| Event      | Payload                                                                                                                                                                                                                                                |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `progress` | `{ kind: "step", progress, total, message }` for one of the build's structural steps on a 0–3 scale (starting → building → publishing → done), or `{ kind: "output", line }` for one line of the child's stdout or stderr, forwarded as it is printed. |
-| `done`     | `{ message, messageKey?, messageParams?, outDir, durationMs }` — the same [message triple](#the-message-triple) and publish details the JSON route returns.                                                                                            |
-| `error`    | `{ message, messageKey?, messageParams? }` for a build that was refused (one is already running) or failed; `message` carries the same text the JSON route would.                                                                                      |
+| Event      | Payload                                                                                                                                                                                                                                                                                               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `progress` | `{ kind: "step", progress, total, message }` for one of the build's structural steps on a 0–3 scale (starting → building → publishing → done), or `{ kind: "output", line }` for one line of the child's stdout or stderr, forwarded as it is printed.                                                |
+| `done`     | `{ message, messageKey?, messageParams?, outDir, durationMs }` — the same [message triple](#the-message-triple) and publish details the JSON route returns.                                                                                                                                           |
+| `error`    | `{ message, messageKey?, messageParams? }` for a build that was refused (one is already running) or failed; `message` carries the same text the JSON route would, and it is a [message triple](#the-message-triple) whose params may nest (an error the build raised, such as a cache-lock time-out). |
 
 Failures ride the stream rather than an HTTP status, since `EventSource` exposes no response body for a non-2xx open. Closing the stream does **not** cancel the build: it runs to completion and publishes on its own, as a dropped sync stream leaves its run in flight.
 
@@ -2730,7 +2736,8 @@ Download and cache all Scryfall card data — the Scryfall half of `ritual cache
 ```json
 {
   "success": true,
-  "message": "Cache refreshed successfully"
+  "message": "Cache refreshed successfully",
+  "messageKey": "admin.api.cache.refreshed"
 }
 ```
 
@@ -2744,11 +2751,13 @@ Stream cache refresh progress as Server-Sent Events (SSE). The UI uses it for it
 
 **Response:** `text/event-stream` with the following event types:
 
-| Event      | Data Fields                       | Description                    |
-| ---------- | --------------------------------- | ------------------------------ |
-| `progress` | `stage`, `percentage?`, `message` | Progress update during refresh |
-| `done`     | `message`                         | Refresh completed successfully |
-| `error`    | `message`                         | Refresh failed                 |
+| Event      | Data Fields                                | Description                    |
+| ---------- | ------------------------------------------ | ------------------------------ |
+| `progress` | `stage`, `percentage?`, `message`          | Progress update during refresh |
+| `done`     | `message`, `messageKey`                    | Refresh completed successfully |
+| `error`    | `message`, `messageKey?`, `messageParams?` | Refresh failed                 |
+
+`done` and `error` are [message triples](#the-message-triple): `message` is English, and an `error` with a catalog entry (a cache-lock time-out) carries its key and params as an [error response](#error-responses) does. A `progress` line's `message` is English text with no key.
 
 **Stage values:** `metadata`, `tags`, `download`, `save`, `done`, `info`. Parsing and processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them. The stages come from the refresh engine itself, and `percentage` is present on a `download` event whenever the compressed download size is known.
 
@@ -2762,7 +2771,7 @@ event: progress
 data: {"stage":"save","message":"Saving to cache..."}
 
 event: done
-data: {"message":"Cache refreshed successfully"}
+data: {"message":"Cache refreshed successfully","messageKey":"admin.api.cache.refreshed"}
 ```
 
 ## Archidekt Login

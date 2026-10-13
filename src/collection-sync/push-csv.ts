@@ -10,10 +10,10 @@ import {
   nestSync,
   syncMessage,
   syncRef,
-  syncText,
   toSyncMessage,
   type SyncMessage,
 } from '../sync/message'
+import { pickMessage } from '../api/result'
 import type { CollectionCsvUploadResult } from '../importers/archidekt-collection'
 import {
   archidektPlace,
@@ -86,18 +86,21 @@ export async function routeAdditions(
   // policy will not vouch for stops the run here — before the first remote write,
   // and without falling back to a search per card.
   if (!flow.ensureCsvCache) return { route, refreshed: false }
-  let ready: UploadCacheReady | string
+  let ready: UploadCacheReady | SyncMessage
   try {
     ready = await flow.ensureCsvCache({
       additions: creates.length,
-      // The cache's own progress text, carried in its own words.
-      log: (message) => flow.emit({ kind: 'log', level: 'info', item: null, ...syncText(message) }),
+      // The cache's own progress line, keyed like the run's own.
+      log: (message) =>
+        flow.emit({ kind: 'log', level: 'info', item: null, ...pickMessage(message) }),
     })
   } catch (error: unknown) {
     return syncMessage('domain.sync.csvCachePrepareFailed', { error: errorParam(error) })
   }
-  // The gate's refusal, in its own words.
-  if (typeof ready === 'string') return syncMessage('domain.sync.nothingPushed', { message: ready })
+  // The gate's refusal, nested so it renders in the reader's language too.
+  if (isSyncMessage(ready)) {
+    return syncMessage('domain.sync.nothingPushed', { message: nestSync(ready) })
+  }
   return { route, ...ready }
 }
 

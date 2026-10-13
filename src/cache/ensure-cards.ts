@@ -1,6 +1,7 @@
 import { cardCache } from './index'
 import { refreshCardCache } from './refresh-source'
 import { getLogger } from '../util/logger'
+import { t } from '../i18n/t'
 import { BULK_CACHE_MAX_AGE_MS, BULK_FETCH_THRESHOLD } from './constants'
 import type { CacheManager } from '../util/interfaces'
 import type { ScryfallCard } from '../scryfall/types'
@@ -46,9 +47,7 @@ export async function ensureCacheForCards(
   const lastBulkRefresh = await cache.getLastRefreshedAt?.()
   if (lastBulkRefresh == null || Date.now() - lastBulkRefresh > BULK_CACHE_MAX_AGE_MS) {
     getLogger().info(
-      lastBulkRefresh != null
-        ? 'Card cache bulk download is more than a week old. Refreshing...'
-        : 'Card cache has never been bulk-downloaded. Downloading from Scryfall...',
+      lastBulkRefresh != null ? t('cli.cacheStore.bulkWeekOld') : t('cli.cacheStore.bulkNever'),
     )
     await runPreload(preload)
     return { refreshed: true }
@@ -66,9 +65,7 @@ export async function ensureCacheForCards(
   }
 
   if (missingCount > BULK_FETCH_THRESHOLD) {
-    getLogger().info(
-      `Over ${BULK_FETCH_THRESHOLD} cards not found in cache. Triggering bulk cache refresh...`,
-    )
+    getLogger().info(t('cli.cacheStore.manyMissing', { threshold: BULK_FETCH_THRESHOLD }))
     await runPreload(preload)
     return { refreshed: true }
   }

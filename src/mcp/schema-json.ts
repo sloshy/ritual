@@ -745,8 +745,9 @@ const SYNC_MESSAGE_PROPS = {
   message: str(),
   messageKey: MESSAGE_PROPS.messageKey,
   messageParams: openObject(
-    'What `messageKey` interpolates; a param may itself be a message, a list, a duration ' +
-      'or a card language.',
+    'What `messageKey` interpolates; a param may itself be a message (`messageKey`, ' +
+      '`messageParams`), a list (`list`, `join`), a duration (`elapsedMs`, or `durationMs` for ' +
+      'an age or a time-out) or a card language (`language`).',
   ),
 } as const satisfies Record<keyof SyncMessage, JsonSchemaType>
 
@@ -1020,7 +1021,8 @@ function syncReasonProps(reason: string): SyncReasonProperties {
     ),
     reasonParams: openObject(
       'What `reasonKey` interpolates. A param may itself be a message (`messageKey`, ' +
-        '`messageParams`), a list (`list`, `join`) or a duration (`elapsedMs`).',
+        '`messageParams`), a list (`list`, `join`), a duration (`elapsedMs`, or `durationMs` ' +
+        'for an age or a time-out) or a card language (`language`).',
     ),
   }
 }

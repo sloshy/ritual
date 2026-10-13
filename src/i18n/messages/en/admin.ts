@@ -180,6 +180,8 @@ export const adminMessages = {
   'admin.cache.refreshFailed': 'Failed to refresh cache',
   'admin.cache.streamFailed': 'Cache refresh failed',
   'admin.cache.refreshed': 'Cache refreshed successfully',
+  'admin.cache.connectionDropped':
+    'Lost the connection to the cache refresh. It is still running on the server; reload the page in a few minutes before refreshing again.',
   'admin.cache.downloading': 'Downloading',
   'admin.cache.refreshing': 'Refreshing...',
   'admin.cache.refresh': 'Refresh Cache',

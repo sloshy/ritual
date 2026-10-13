@@ -9,6 +9,7 @@
  */
 
 import { isRecord } from '../util/json'
+import { t } from '../i18n/t'
 import type { CardBulkType } from '../scryfall/bulk-manifest'
 
 export const FEED_VERSION = 1
@@ -91,11 +92,11 @@ function isFeedKind(value: unknown): value is CacheFeedKind {
 
 function parseFeedEntry(value: unknown, index: number): CacheFeedEntry | string {
   if (!isRecord(value)) {
-    return `Invalid cache feed: entry ${index} is not an object`
+    return t('cli.cacheFeed.feedEntryNotObject', { index })
   }
   const entry = value
   if (!isFeedKind(entry['kind'])) {
-    return `Invalid cache feed: entry ${index} has unknown kind '${String(entry['kind'])}'`
+    return t('cli.cacheFeed.feedEntryUnknownKind', { index, kind: String(entry['kind']) })
   }
   for (const field of [
     'fileName',
@@ -108,11 +109,11 @@ function parseFeedEntry(value: unknown, index: number): CacheFeedEntry | string 
     'torrentUrl',
   ]) {
     if (typeof entry[field] !== 'string' || entry[field].length === 0) {
-      return `Invalid cache feed: entry ${index} is missing a string ${field}`
+      return t('cli.cacheFeed.feedEntryMissingField', { index, field })
     }
   }
   if (typeof entry['length'] !== 'number' || entry['length'] <= 0) {
-    return `Invalid cache feed: entry ${index} is missing a positive numeric length`
+    return t('cli.cacheFeed.feedEntryBadLength', { index })
   }
   return value as CacheFeedEntry
 }
@@ -124,17 +125,20 @@ function parseFeedEntry(value: unknown, index: number): CacheFeedEntry | string 
  */
 export function parseCacheFeed(json: unknown): CacheFeedDocument | string {
   if (!isRecord(json)) {
-    return 'Invalid cache feed: expected an object'
+    return t('cli.cacheFeed.feedNotObject')
   }
   const doc = json
   if (doc['version'] !== FEED_VERSION) {
-    return `Invalid cache feed: unsupported version ${String(doc['version'])} (expected ${FEED_VERSION})`
+    return t('cli.cacheFeed.feedVersionUnsupported', {
+      version: String(doc['version']),
+      expected: FEED_VERSION,
+    })
   }
   if (typeof doc['generatedAt'] !== 'string') {
-    return 'Invalid cache feed: missing string generatedAt'
+    return t('cli.cacheFeed.feedMissingGeneratedAt')
   }
   if (!Array.isArray(doc['entries'])) {
-    return 'Invalid cache feed: missing entries array'
+    return t('cli.cacheFeed.feedMissingEntries')
   }
   const entries: CacheFeedEntry[] = []
   for (let i = 0; i < doc['entries'].length; i++) {

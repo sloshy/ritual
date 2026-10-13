@@ -31,9 +31,11 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   English by contract, whatever UI locale the user configured (that setting moves Ritual's own
   terminal output and its web UIs, never this surface). Results authored by the admin API carry
   a "messageKey" (plus "messageParams" when it interpolates) beside the English "message" — a
-  locale-invariant identifier to match on instead of matching prose. Import results' params may
-  nest (a count is a message of its own), and a failed import_change_bundle list carries
-  "errorKey"/"errorParams" beside "error".
+  locale-invariant identifier to match on instead of matching prose. Those params may nest — a
+  param is then a message ({ messageKey, messageParams }), a list ({ list, join }), a duration
+  ({ elapsedMs } or { durationMs }) or a card language ({ language }): import results' counts,
+  the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams".
+  A failed import_change_bundle list carries "errorKey"/"errorParams" beside "error".
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
 - Card labels are per list type: a collection takes the whole vocabulary ("sale"/"trade" combine,

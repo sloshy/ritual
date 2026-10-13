@@ -5,6 +5,7 @@ import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openAdminPage, openDeckWithCards } from '../helpers/editor-nav'
 import {
   mockCacheRefreshApi,
+  emitStreamConnectionError,
   emitStreamEvent,
   mockBuylistApi,
   mockStatusApi,
@@ -52,6 +53,34 @@ test.describe('Cache Refresh Page', () => {
     // Completion collapses the progress UI and re-enables the button.
     await expect(main.locator('.progress-stages')).toHaveCount(0)
     await expect(main.locator('button:has-text("Refresh Cache")')).toBeEnabled()
+  })
+
+  test('a stream that drops mid-refresh reports it instead of starting another', async ({
+    page,
+  }) => {
+    const mocks = await mockCacheRefreshApi(page)
+    const main = page.locator('main')
+    await main.locator('button:has-text("Refresh Cache")').click()
+    await emitStreamEvent(page, 'progress', { stage: 'download', percentage: 10, message: 'x' })
+
+    // A frame arrived, so the refresh is running server-side: the drop must not
+    // re-issue it (a second refresh would only time out on the first's lock).
+    await emitStreamConnectionError(page)
+    await expect(main.locator('.alert-error')).toHaveText(
+      'Lost the connection to the cache refresh. It is still running on the server; reload the page in a few minutes before refreshing again.',
+    )
+    expect(mocks.postedRefreshes()).toBe(0)
+    await expect(main.locator('button:has-text("Refresh Cache")')).toBeEnabled()
+  })
+
+  test('a stream that never connects falls back to one plain refresh', async ({ page }) => {
+    const mocks = await mockCacheRefreshApi(page)
+    const main = page.locator('main')
+    await main.locator('button:has-text("Refresh Cache")').click()
+
+    await emitStreamConnectionError(page)
+    await expect(main.locator('.alert-success')).toHaveText('Cache refreshed successfully')
+    expect(mocks.postedRefreshes()).toBe(1)
   })
 })
 

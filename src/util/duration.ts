@@ -1,6 +1,6 @@
 import { formatUnitList, numberFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
-import { t } from '../i18n/t'
+import { tIn } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 
 /** One component of a rendered duration, before it is given to `Intl`. */
@@ -18,10 +18,13 @@ type DurationPart = {
  * nor the separator is hardcoded — `', '` is a comma in English and something
  * else in plenty of languages. Only the sub-minute floor has no `Intl`
  * equivalent, so that one case comes from the catalog.
+ *
+ * `locale` defaults to the active UI locale; a caller rendering a message for
+ * someone else's locale (the English half of a sync message) passes its own.
  */
-export function formatDuration(ms: number): string {
+export function formatDuration(ms: number, locale: LocaleTag = currentLocale()): string {
   const totalMinutes = Math.floor(ms / 60000)
-  if (totalMinutes < 1) return t('domain.duration.lessThanMinute')
+  if (totalMinutes < 1) return tIn(locale, 'domain.duration.lessThanMinute')
   const days = Math.floor(totalMinutes / 1440)
   const hours = Math.floor((totalMinutes % 1440) / 60)
   const minutes = totalMinutes % 60
@@ -30,7 +33,6 @@ export function formatDuration(ms: number): string {
   if (hours > 0) parts.push({ unit: 'hour', value: hours })
   // Only bother with minute precision when the total is under a day.
   if (minutes > 0 && days === 0) parts.push({ unit: 'minute', value: minutes })
-  const locale = currentLocale()
   return formatUnitList(
     locale,
     parts.map((part) =>

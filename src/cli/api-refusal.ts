@@ -10,25 +10,46 @@
  * `--output json` keeps the locale-invariant `messageKey`.
  */
 
-import { isFlatParams, type ApiMessage } from '../api/result'
-import { renderSyncMessage, type SyncMessage } from '../sync/message'
+import type { ApiMessage } from '../api/result'
+import { DEFAULT_LOCALE } from '../i18n/runtime'
+import type { MessageRef, RenderParams } from '../i18n/t'
+import { renderSyncMessage, renderSyncParam, type SyncMessage } from '../sync/message'
 import { CardCommandError, ExitCode } from '../util/errors'
+
+/**
+ * The `--output json` envelope's `messageKey`/`messageParams` for a message, or
+ * `undefined` when it has no key. The envelope's params are flat strings and
+ * numbers, so a nested param — a message inside the message, a list, a duration
+ * — is flattened to its **English** rendering: locale-invariant like the key, and
+ * enough for a client to re-render the key whole (the same convention as
+ * `import-changes --output json`).
+ */
+export function envelopeRef(message: ApiMessage | SyncMessage): MessageRef | undefined {
+  const key = message.messageKey
+  if (key === undefined) return undefined
+  const params = message.messageParams
+  if (params === undefined) return { key }
+  const flat: RenderParams = {}
+  for (const [name, param] of Object.entries(params)) {
+    flat[name] =
+      typeof param === 'string' || typeof param === 'number'
+        ? param
+        : renderSyncParam(param, DEFAULT_LOCALE)
+  }
+  return { key, params: flat }
+}
 
 /** A parser's refusal as a usage error (exit 2), worded in the CLI's language. */
 export function apiRefusalError(refusal: ApiMessage | SyncMessage): CardCommandError {
-  const key = refusal.messageKey
-  if (key === undefined) {
+  const ref = envelopeRef(refusal)
+  if (ref === undefined) {
     return new CardCommandError('usage_error', refusal.message, ExitCode.UsageError)
   }
-  const params = refusal.messageParams
-  // The error envelope's params are flat; a nested message keeps its key and
-  // drops params it could not carry (the rendered `message` has them all).
-  const flat = params === undefined || !isFlatParams(params) ? undefined : params
   return new CardCommandError(
     'usage_error',
     renderSyncMessage(refusal),
     ExitCode.UsageError,
     undefined,
-    flat === undefined ? { key } : { key, params: flat },
+    ref,
   )
 }

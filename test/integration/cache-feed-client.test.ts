@@ -6,6 +6,8 @@ import { FEED_VERSION, type CacheFeedDocument, type CacheFeedEntry } from '../..
 import type { BulkCacheFiles } from '../../src/scryfall/client'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { foreignLocales, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import { en } from '../../src/i18n/messages/en'
 
 const FEED_URL = 'https://feed.example/feed.json'
 
@@ -136,6 +138,56 @@ describe('CacheFeedClient (HTTP download path)', () => {
     )
     expect(typeof state).not.toBe('string')
   })
+
+  test.each(foreignLocales())(
+    'a sync under $tag logs in it and writes the same state bytes',
+    async ({ tag, catalog }) => {
+      const { feed } = await mockFeed(http, '20260705')
+      const lines: string[] = []
+      const localized = new CacheFeedClient({
+        feedUrl: FEED_URL,
+        dataDir,
+        http,
+        p2p: false,
+        ingest: async () => {},
+        log: (line) => lines.push(line),
+      })
+
+      await withSyntheticLocaleAsync(tag, catalog, () => localized.sync())
+
+      // The operator's log follows the UI language, behind the untranslated prefix…
+      const form = catalog['cli.cacheFeed.downloadingHttp'] ?? en['cli.cacheFeed.downloadingHttp']
+      if (typeof form !== 'string') throw new Error('downloadingHttp is a plain-string message')
+      const downloading = form.replace('{file}', 'default-cards-20260705.jsonl.gz')
+      expect(lines).toContain(`[cache-feed] ${downloading}`)
+      // …while state.json, which the next run reads back, is the same bytes in any language.
+      const written = await fs.readFile(path.join(dataDir, 'state.json'), 'utf-8')
+      const ingestedAt = /"ingestedAt": "([^"]+)"/.exec(written)?.[1] ?? ''
+      const hashOf = (kind: CacheFeedEntry['kind']): string =>
+        feed.entries.find((entry) => entry.kind === kind)?.infoHash ?? ''
+      expect(written).toBe(
+        [
+          '{',
+          '  "ingested": {',
+          '    "default-cards": {',
+          `      "infoHash": "${hashOf('default-cards')}",`,
+          `      "ingestedAt": "${ingestedAt}"`,
+          '    },',
+          '    "oracle-tags": {',
+          `      "infoHash": "${hashOf('oracle-tags')}",`,
+          `      "ingestedAt": "${ingestedAt}"`,
+          '    },',
+          '    "art-tags": {',
+          `      "infoHash": "${hashOf('art-tags')}",`,
+          `      "ingestedAt": "${ingestedAt}"`,
+          '    }',
+          '  }',
+          '}',
+        ].join('\n'),
+      )
+      expect(ingestedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/)
+    },
+  )
 
   test('a second sync with an unchanged feed ingests nothing', async () => {
     await mockFeed(http, '20260705')

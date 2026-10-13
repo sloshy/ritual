@@ -7,7 +7,7 @@ import {
   type InputRequiredResult,
   type StandardSchemaWithJSON,
 } from '@modelcontextprotocol/server'
-import { getErrorMessage } from '../util/errors'
+import { caughtMessage } from '../api/http'
 import { isCancelledError, isConflictError, mcpErrorDetail } from './errors'
 import { TOOL_ERROR_CODES } from './error-codes'
 import { TOOL_OUTPUT_SCHEMAS } from './schema-json'
@@ -89,9 +89,14 @@ export function structuredError(payload: ToolErrorPayload): CallToolResult {
   }
 }
 
-/** Classify a thrown error into the payload a client branches on. */
+/**
+ * Classify a thrown error into the payload a client branches on. Its `message`
+ * is English whatever the server's UI language: an error raised from a catalog
+ * key (a `SyncMessageError` such as a cache-lock time-out, or a keyed
+ * `CardCommandError`) is re-read in English, as a route's refusal is.
+ */
 export function toToolErrorPayload(error: unknown): ToolErrorPayload {
-  const message = getErrorMessage(error)
+  const { message } = caughtMessage(error)
   if (isConflictError(error)) {
     return {
       error: true,

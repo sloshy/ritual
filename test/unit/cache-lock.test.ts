@@ -9,6 +9,9 @@ import {
   withCacheLock,
 } from '../../src/cache/lock'
 import { MemoryFileSystemClient, MemoryLogger, resetLogger, setLogger } from '../test-utils'
+import { keyedMessage } from '../helpers/api-message'
+import { foreignLocales, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import type { LocaleCatalog } from '../../src/i18n/types'
 
 const LOCK_DIR = '/cache'
 const LOCK_PATH = `${LOCK_DIR}/${CACHE_LOCK_FILENAME}`
@@ -36,9 +39,11 @@ function writeHolder(fs: MemoryFileSystemClient, overrides: Partial<CacheLockInf
 
 describe('cache lock', () => {
   let fs: MemoryFileSystemClient
+  let logger: MemoryLogger
 
   beforeEach(() => {
-    setLogger(new MemoryLogger())
+    logger = new MemoryLogger()
+    setLogger(logger)
     fs = new MemoryFileSystemClient()
   })
 
@@ -154,6 +159,96 @@ describe('cache lock', () => {
     const result = await withCacheLock(fs, 'op', async () => 42, fastOptions())
     expect(result).toBe(42)
     expect(fs.files.has(LOCK_PATH)).toBeFalse()
+  })
+
+  /**
+   * The lock in a non-English UI. Two readers want two different things: the
+   * time-out error reaches the admin API and MCP (English plus its key) as well
+   * as the CLI (its own language), and the lock file is read back by *another*
+   * process, so its bytes must not move with anyone's language.
+   */
+  describe('under a non-English UI', () => {
+    /** A synthetic language: anything rendered through it is unmistakable. */
+    const SYNTHETIC: LocaleCatalog = {
+      'domain.cache.lockTimedOut': 'ZEIT UM {timeout} / {holder}',
+      'domain.cache.lockHolder': 'HALTER {operation} {pid} {hostname}',
+      'domain.duration.lessThanMinute': 'WENIGER ALS EINE MINUTE',
+      'cli.cacheLock.breakingStale': 'SPERRE GEBROCHEN ({reason})',
+      'cli.cacheLock.invalidJson': 'KEIN JSON',
+    }
+
+    test('a time-out is keyed: English for an API reader, the UI language as its text', async () => {
+      writeHolder(fs, { pid: 12345, hostname: 'build-box', operation: 'long refresh' })
+
+      const error = await withSyntheticLocaleAsync('xx', SYNTHETIC, () =>
+        acquireCacheLock(
+          fs,
+          'blocked',
+          fastOptions({ timeoutMs: 40, isPidAlive: () => true }),
+        ).catch((e: unknown) => e),
+      )
+
+      if (!(error instanceof CacheLockTimeoutError)) {
+        throw new Error(`no time-out: ${String(error)}`)
+      }
+      // Vacuity guard: the process really was speaking the synthetic language,
+      // nested duration and holder included.
+      expect(error.message).toBe(
+        'ZEIT UM WENIGER ALS EINE MINUTE / HALTER long refresh 12345 build-box',
+      )
+      // …while the message a route answers with is English, and agrees with its
+      // key — the nested duration too, which the process rendered differently.
+      expect(keyedMessage(error.syncMessage)).toBe(
+        'Timed out after less than a minute waiting for the cache lock held by "long refresh" (pid 12345 on build-box). If no other ritual process is running, delete the lock file manually.',
+      )
+      expect(error.syncMessage.messageParams).toEqual({
+        timeout: { durationMs: 40 },
+        holder: {
+          messageKey: 'domain.cache.lockHolder',
+          messageParams: { operation: 'long refresh', pid: 12345, hostname: 'build-box' },
+        },
+      })
+    })
+
+    test('breaking a stale lock is logged in the UI language', async () => {
+      fs.files.set(LOCK_PATH, 'not json at all')
+
+      await withSyntheticLocaleAsync('xx', SYNTHETIC, async () => {
+        const lock = await acquireCacheLock(fs, 'next', fastOptions())
+        await lock.release()
+      })
+
+      expect(logger.entries).toContainEqual({
+        level: 'warn',
+        args: ['SPERRE GEBROCHEN (KEIN JSON)'],
+      })
+    })
+
+    test.each(foreignLocales())(
+      'the lock file it writes is byte-identical under $tag',
+      async ({ tag, catalog }) => {
+        const written = await withSyntheticLocaleAsync(tag, catalog, async () => {
+          const lock = await acquireCacheLock(fs, 'bulk card cache download', fastOptions())
+          const content = fs.files.get(LOCK_PATH)
+          await lock.release()
+          return content
+        })
+
+        if (written === undefined) throw new Error('no lock file was written')
+        const { createdAt } = JSON.parse(written) as CacheLockInfo
+        // Pinned as bytes, not parsed: another process reads this file.
+        expect(written).toBe(
+          [
+            '{',
+            `  "pid": ${process.pid},`,
+            `  "hostname": ${JSON.stringify(os.hostname())},`,
+            `  "createdAt": ${createdAt},`,
+            '  "operation": "bulk card cache download"',
+            '}',
+          ].join('\n'),
+        )
+      },
+    )
   })
 })
 

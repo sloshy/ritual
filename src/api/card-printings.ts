@@ -3,7 +3,8 @@
 // the admin server and the public/hosted site server.
 import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card/card-printing'
-import { getErrorMessage } from '../util/errors'
+import { caughtMessage, refusalOf } from './http'
+import type { SyncMessage } from '../sync/message'
 import { invalidLimitMessage, parsePositiveInteger } from '../util/parse-number'
 import { printingKey } from '../card/printing-key'
 import { scryfallCardLanguage, sortLanguages } from '../card/card-language'
@@ -49,10 +50,9 @@ export type CardPrintingsSuccess = {
  * an empty array, so a client that renders the list unconditionally does not
  * have to branch on `success` first.
  */
-export type CardPrintingsFailure = {
+export type CardPrintingsFailure = SyncMessage & {
   success: false
   printings: []
-  message: string
 }
 
 /** `GET /api/card-printings` body. */
@@ -62,8 +62,8 @@ export type CardPrintingsResponse = CardPrintingsSuccess | CardPrintingsFailure
 export type CardPrintingsParams = { name: string; limit?: number }
 
 /** The one refusal body for this route, at `status`. */
-function failure(message: string, status: number): Response {
-  const body: CardPrintingsFailure = { success: false, printings: [], message }
+function failure(message: string | SyncMessage, status: number): Response {
+  const body: CardPrintingsFailure = { success: false, printings: [], ...refusalOf(message) }
   return Response.json(body, { status })
 }
 
@@ -137,6 +137,6 @@ export async function handleCardPrintings(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (error) {
-    return failure(getErrorMessage(error), 500)
+    return failure(caughtMessage(error), 500)
   }
 }

@@ -26,7 +26,13 @@ import type {
   CollectionSyncPrinting,
 } from '../../../src/collection-sync/engine'
 import { collectionChangeCounts, collectionRunLines } from '../../../src/collection-sync/describe'
-import { renderSyncMessage, syncText, type SyncMessage } from '../../../src/sync/message'
+import {
+  renderSyncMessage,
+  syncMessage,
+  syncRef,
+  syncText,
+  type SyncMessage,
+} from '../../../src/sync/message'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
 import type { UploadCacheReady } from '../../../src/cache/freshness'
 import {
@@ -2260,7 +2266,7 @@ describe('runCollectionSync (push CSV additions)', () => {
   describe('the cache-freshness gate', () => {
     /** A `--csv` push of one addition, with the gate answering `answer`. */
     async function gated(
-      answer: UploadCacheReady | string,
+      answer: UploadCacheReady | SyncMessage,
     ): Promise<Harness & { requests: RecordedRequest[]; asked: number[] }> {
       const store = fakeStore([
         { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
@@ -2279,7 +2285,11 @@ describe('runCollectionSync (push CSV additions)', () => {
         lookupPrintings: printingsLookup([printing('Sol Ring', 'ltc', '284', ['nonfoil'])]),
         ensureCsvCache: ({ additions, log }) => {
           asked.push(additions)
-          log('Refreshing the card cache...')
+          log(
+            syncMessage('domain.cache.uploadRefreshing', {
+              reason: syncRef('domain.cache.uploadNeedsEmptyCache'),
+            }),
+          )
           return answer
         },
       })
@@ -2287,10 +2297,18 @@ describe('runCollectionSync (push CSV additions)', () => {
     }
 
     test('is asked once with the additions, and its log lines join the run', async () => {
-      const { run, requests, asked, logs } = await gated({ refreshed: false })
+      const { run, requests, asked, logs, events } = await gated({ refreshed: false })
 
       expect(asked).toEqual([1])
-      expect(logs).toContain('Refreshing the card cache...')
+      // The gate's line joins the run keyed, like the run's own lines.
+      const gateLine = events.find(
+        (event) => event.kind === 'log' && event.messageKey === 'domain.cache.uploadRefreshing',
+      )
+      expect(gateLine).toMatchObject({
+        message:
+          'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty. Refreshing it from Scryfall first...',
+        messageParams: { reason: { messageKey: 'domain.cache.uploadNeedsEmptyCache' } },
+      })
       // A gate that did not refresh leaves the plan as it was.
       expect(logs.some((message) => message.startsWith('The card cache was just refreshed'))).toBe(
         false,
@@ -2300,12 +2318,23 @@ describe('runCollectionSync (push CSV additions)', () => {
     })
 
     test('a refusal fails the run before any remote write, quoting the reason', async () => {
-      const { run, requests } = await gated('The card cache is empty.')
+      const { run, requests } = await gated(syncMessage('domain.cache.uploadStillEmpty'))
 
       // Only the collection read went out: no upload, and not even the delete of
       // the record no list holds.
       expect(requests.map((request) => request.method)).toEqual(['GET'])
-      expect(run.report.errors).toEqual(['The card cache is empty. Nothing was pushed.'])
+      expect(run.report.errors).toEqual([
+        'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id. Nothing was pushed.',
+      ])
+      // Nested, not flattened: a reader renders the gate's reason in its own language.
+      expect(run.report.errorMessages).toEqual([
+        {
+          message:
+            'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id. Nothing was pushed.',
+          messageKey: 'domain.sync.nothingPushed',
+          messageParams: { message: { messageKey: 'domain.cache.uploadStillEmpty' } },
+        },
+      ])
       expect(run.report.csv).toBeNull()
       expect(run.report.totals).toEqual({ added: 0, removed: 0, skipped: 0, pending: 0 })
     })

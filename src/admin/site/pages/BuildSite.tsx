@@ -2,6 +2,7 @@ import { type JSX, batch, createEffect, createSignal, onCleanup, Show, For } fro
 import { useT } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'
 import type { ApiMessage } from '../../../api/result'
+import type { SyncMessage } from '../../../sync/message'
 import type { BuildSiteDoneEvent, BuildSiteStreamEvent } from '../../api/build-site'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
@@ -82,7 +83,8 @@ export function BuildSite(): JSX.Element {
     })
   }
 
-  const fail = (message: ApiMessage | string | null): void => {
+  // A refusal or failure; an error the build raised may carry nested params.
+  const fail = (message: SyncMessage | string | null): void => {
     batch(() => {
       setStreaming(false)
       // The alert carries the news; a bar frozen part way would read as "still going".
@@ -123,7 +125,7 @@ export function BuildSite(): JSX.Element {
       setStatus(null)
       setError(null)
     })
-    stream = openSyncStream<BuildSiteStreamEvent, BuildSiteDoneEvent, ApiMessage>(
+    stream = openSyncStream<BuildSiteStreamEvent, BuildSiteDoneEvent, SyncMessage>(
       '/api/build-site/stream',
       {
         progress: handleFrame,

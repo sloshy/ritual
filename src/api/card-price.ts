@@ -5,7 +5,8 @@ import {
   computeRepresentativePrints,
   getCardPrintings,
 } from '../scryfall'
-import { getErrorMessage } from '../util/errors'
+import { caughtMessage } from './http'
+import type { SyncMessage } from '../sync/message'
 import { getBannedPrintings } from '../config/ritual-config'
 import type { ScryfallCard } from '../scryfall/types'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
@@ -19,14 +20,17 @@ export function isPriceStale(timestamp: number | null, now: number = Date.now())
   return timestamp === null || now - timestamp > PRICE_STALENESS_THRESHOLD_MS
 }
 
-export type CardPriceResponse = {
+/**
+ * `GET /api/card-price` body. A failure carries the message triple; one raised
+ * with a catalog key (a cache error) carries its key and possibly nested params.
+ */
+export type CardPriceResponse = Partial<SyncMessage> & {
   success: boolean
   printings: ScryfallCard[]
   representative: ScryfallCard | null
   lowestPriceCard: ScryfallCard | null
   lowestPriceCardEur: ScryfallCard | null
   lowestPriceCardTix: ScryfallCard | null
-  message?: string
 }
 
 export async function handleCardPrice(req: Request): Promise<Response> {
@@ -111,7 +115,7 @@ export async function handleCardPrice(req: Request): Promise<Response> {
       lowestPriceCard: null,
       lowestPriceCardEur: null,
       lowestPriceCardTix: null,
-      message: getErrorMessage(error),
+      ...caughtMessage(error),
     }
     return Response.json(resp, { status: 500 })
   }

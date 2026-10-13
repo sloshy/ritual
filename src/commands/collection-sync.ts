@@ -245,9 +245,7 @@ export function registerCollectionSyncCommand(program: Command): void {
         // for, or refused, according to `--refresh`. The refresh line goes through
         // the run's log so it reads in order with the rest of the run.
         ensureCsvCache: ({ log }) =>
-          ensureCardCacheForUpload(cliRefreshPolicy(options.refresh ?? 'ask'), {
-            log: (message) => log(message),
-          }),
+          ensureCardCacheForUpload(cliRefreshPolicy(options.refresh ?? 'ask'), { log }),
         dryRun: options.dryRun ?? false,
         onEvent: renderer.onEvent,
         confirmUnreadable: (unreadable) =>

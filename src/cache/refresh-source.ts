@@ -7,6 +7,7 @@ import { CacheFeedClient, DEFAULT_FEED_URL } from './feed-client'
 import { defaultHttpClient } from '../util/http'
 import { getLogger } from '../util/logger'
 import { getErrorMessage } from '../util/errors'
+import { t } from '../i18n/t'
 
 /** Resolve the feed URL: explicit flag > `cacheFeedUrl` config > built-in default. */
 export function resolveFeedUrl(explicit?: string): string {
@@ -53,7 +54,7 @@ export async function refreshCardCacheFromFeed(
   try {
     const { outcome } = await client.sync({ force })
     if (outcome === 'unchanged') {
-      getLogger().info('Cache feed is unchanged; card cache is current.')
+      getLogger().info(t('cli.cacheStore.feedUnchanged'))
       await cardCache.bulkSet({})
     }
     return outcome
@@ -91,7 +92,7 @@ export async function refreshCardCache(options: RefreshCardCacheOptions = {}): P
       await feedRefresh(options.url, options.force ?? false)
       return
     } catch (e) {
-      getLogger().warn(`Feed refresh failed (${getErrorMessage(e)}); falling back to Scryfall.`)
+      getLogger().warn(t('cli.cacheStore.feedFallback', { reason: getErrorMessage(e) }))
     }
   }
   await scryfallPreload()

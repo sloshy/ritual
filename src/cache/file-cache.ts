@@ -9,6 +9,7 @@ import {
 } from '../util/interfaces'
 import { writeFileAtomic } from '../util/atomic-write'
 import { getLogger } from '../util/logger'
+import { t } from '../i18n/t'
 import { getBaseDir } from '../config/base-dir'
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 
@@ -123,18 +124,18 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
           if (sampleCardKey) {
             const sampleData = json.cards[sampleCardKey]?.data
             if (!Array.isArray(sampleData)) {
-              getLogger().info('Detected old cache schema (single objects). Resetting cards cache.')
+              getLogger().info(t('cli.cacheStore.oldSchemaReset'))
               json.cards = {}
             }
           }
 
           result = json as CacheSchema
         } else {
-          getLogger().warn('Detected invalid cache format. Resetting cache.')
+          getLogger().warn(t('cli.cacheStore.invalidFormatReset'))
         }
       }
     } catch (e) {
-      getLogger().error('Failed to load cache, starting fresh.', e)
+      getLogger().error(t('cli.cacheStore.loadFailed'), e)
     }
     this.memoryCache = result
     return result
@@ -147,7 +148,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
       await mkdir(path.dirname(filePath), { recursive: true })
       await writeFileAtomic(filePath, JSON.stringify(this.memoryCache, null, 2))
     } catch (e) {
-      getLogger().error('Failed to save cache:', e)
+      getLogger().error(t('cli.cacheStore.saveFailed'), e)
     }
   }
 
@@ -297,7 +298,12 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     const cache = await this.load()
     cache.cardBlocklist = cache.cardBlocklist ?? {}
     cache.cardBlocklist[normalized] = expiry
-    getLogger().info(`Card '${normalized}' added to blocklist (expires ${new Date(expiry).toISOString()}).`)
+    getLogger().info(
+      t('cli.cacheStore.blocklisted', {
+        name: normalized,
+        expires: new Date(expiry).toISOString(),
+      }),
+    )
     await this.save()
   }
 
@@ -317,7 +323,7 @@ export class FileCacheManager<K extends CacheSection> implements CacheManager<Da
     for (const [name, expiry] of Object.entries(cache.cardBlocklist)) {
       if (expiry <= now) {
         delete cache.cardBlocklist[name]
-        getLogger().info(`Card '${name}' removed from blocklist (expired).`)
+        getLogger().info(t('cli.cacheStore.unblocklisted', { name }))
         changed = true
       }
     }

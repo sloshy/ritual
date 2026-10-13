@@ -10,7 +10,7 @@ import { MAX_EDIT_BODY_SIZE } from '../validation'
  * in) is declared once here so the two endpoints cannot answer differently.
  */
 
-import { caughtMessage, readJsonObjectBody } from '../../api/http'
+import { caughtMessage, readJsonObjectBody, type ApiErrorResponse } from '../../api/http'
 import { apiHandler } from '../utils'
 import {
   apiText,
@@ -22,6 +22,7 @@ import {
 import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../util/progress'
 import { sseResponse } from '../../util/sse'
 import type { SyncEvent, SyncEventHandler } from '../../sync/common'
+import type { SyncMessage } from '../../sync/message'
 import { renderSyncSummaryEnglish, type SyncSummary } from './sync-summary'
 
 /** The outcome of a run attempt: either a finished report or a reason it never started. */
@@ -38,12 +39,19 @@ export type SyncRunOutcome<TReport> =
 export type SyncRunResponse<TReport> =
   | (ApiMessage & { success: true; report: TReport; summary: SyncSummary })
   | (ApiMessage & { success: false; loginRequired: boolean })
+  // A run that threw: the route's last-resort `errorResponse` body, whose
+  // params may nest and which carries no `loginRequired`.
+  | ApiErrorResponse
 
 /** `event: done` payload — the same shape the JSON endpoint returns. */
 export type SyncDoneEvent<TReport> = ApiMessage & { report: TReport; summary: SyncSummary }
 
-/** `event: error` payload for a run that never produced a report. */
-export type SyncErrorEvent = ApiMessage & { loginRequired: boolean }
+/**
+ * `event: error` payload for a run that never produced a report. A
+ * {@link SyncMessage}: an error the run raised may carry nested params (a cache
+ * lock's time-out, a sync engine's own refusal).
+ */
+export type SyncErrorEvent = SyncMessage & { loginRequired: boolean }
 
 /** The event vocabulary of a sync stream, name paired with payload. */
 type SyncStreamEvents<TReport, TResult> = {

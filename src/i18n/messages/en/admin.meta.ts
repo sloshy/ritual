@@ -519,6 +519,10 @@ export const adminMeta = {
     description:
       'Fallback success message when the refresh finished but its own message could not be read.',
   },
+  'admin.cache.connectionDropped': {
+    description:
+      "Error on the Refresh Cache page when the event stream dropped mid-refresh. The refresh keeps running server-side, so the user is told to check back rather than to start another (which would wait on the first one's cache lock).",
+  },
   'admin.cache.downloading': { description: 'Label beside the download progress bar.' },
   'admin.cache.refreshing': { description: 'Button label while a refresh is running.' },
   'admin.cache.refresh': { description: 'Button that starts a cache refresh.' },

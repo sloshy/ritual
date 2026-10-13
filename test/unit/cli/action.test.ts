@@ -7,6 +7,9 @@ import {
   type ScriptingOptions,
 } from '../../../src/cli/output'
 import { CardCommandError, ExitCode } from '../../../src/util/errors'
+import { CacheLockTimeoutError } from '../../../src/cache/lock'
+import { syncMessage, SyncMessageError } from '../../../src/sync/message'
+import { withSyntheticLocaleAsync } from '../../helpers/sync-text'
 import { captureStream } from '../../helpers/capture'
 import { captureExitCode } from '../../helpers/cli'
 
@@ -68,6 +71,46 @@ describe('runCommandAction', () => {
     expect(ran).toBe(true)
     expect(stderr).toBe('')
     expect(exitCode).toBe(0)
+  })
+
+  test('a keyed engine error carries its key in the envelope, prose in the UI language', async () => {
+    const { stderr, exitCode } = await withSyntheticLocaleAsync(
+      'xx',
+      { 'domain.cache.serverRequestFailed': 'KAPUTT {status}' },
+      () =>
+        runThrowing(
+          JSON_OUT,
+          new SyncMessageError(
+            syncMessage('domain.cache.serverRequestFailed', {
+              status: 502,
+              method: 'GET',
+              url: 'http://cache.test/cache/cards/keys',
+            }),
+          ),
+        ),
+    )
+    expect(exitCode).toBe(ExitCode.RuntimeError)
+    expect(envelopeOf(stderr)).toEqual({
+      code: 'runtime_error',
+      messageKey: 'domain.cache.serverRequestFailed',
+      messageParams: { status: 502, method: 'GET', url: 'http://cache.test/cache/cards/keys' },
+      message: 'KAPUTT 502',
+      details: undefined,
+    })
+  })
+
+  test('a keyed engine error whose params nest carries them flattened to English', async () => {
+    const { stderr } = await withSyntheticLocaleAsync(
+      'xx',
+      { 'domain.cache.lockHolderUnknown': 'JEMAND' },
+      () => runThrowing(JSON_OUT, new CacheLockTimeoutError(null, 60_000)),
+    )
+    const envelope = envelopeOf(stderr)
+    expect(envelope.messageKey).toBe('domain.cache.lockTimedOut')
+    // Locale-invariant like the key: the nested holder renders in English, not
+    // the CLI's language — which `message` does follow.
+    expect(envelope.messageParams).toEqual({ timeout: '1 minute', holder: 'another process' })
+    expect(envelope.message).toContain('JEMAND')
   })
 
   test('a broken pipe latches stdout closed and keeps the code the body recorded', async () => {

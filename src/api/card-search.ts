@@ -2,8 +2,9 @@
 // server owns", not "handlers both servers mount". This one is currently mounted
 // on the admin server only.
 import { cacheRealPrintings, fetchSearchPage } from '../scryfall'
-import { getErrorMessage } from '../util/errors'
-import { parseEnumField } from '../util/parse-enum'
+import { caughtMessage, refusalOf } from './http'
+import { isApiMessage, parseEnumParam, plainMessage, type ApiMessage } from './result'
+import type { SyncMessage } from '../sync/message'
 import { invalidLimitMessage, parsePositiveInteger } from '../util/parse-number'
 import { promoteFullNameMatches } from '../card/term-match'
 import { summarizeCard, type CardSummary } from './card-summary'
@@ -29,12 +30,11 @@ export type CardSearchSuccess = {
 }
 
 /** A rejected query or a failed Scryfall call. The empty arrays keep the wire shape stable. */
-export type CardSearchFailure = {
+export type CardSearchFailure = SyncMessage & {
   success: false
   page: number
   hasMore: false
   cards: []
-  message: string
 }
 
 /** `GET /api/card-search` body. */
@@ -52,7 +52,8 @@ export type CardSearchParams = {
 
 /**
  * Parse the query string of `GET /api/card-search` into {@link CardSearchParams},
- * or return the error message explaining why it is not usable. Values are
+ * or return the refusal explaining why it is not usable — English, keyed when it
+ * has a catalog entry (an invalid `warm`). Values are
  * trimmed first, since a query string carries whatever whitespace the caller
  * encoded; `page` and `limit` are then held to {@link parsePositiveInteger}, the
  * same rule every other positive-integer input in Ritual uses. A blank value
@@ -65,25 +66,28 @@ export type CardSearchParams = {
  * on and no `limit` was given, `limit` defaults to {@link DEFAULT_WARM_LIMIT} —
  * the cap the folded-in `POST /api/search-cards` always applied.
  */
-export function parseCardSearchParams(params: URLSearchParams): CardSearchParams | string {
+export function parseCardSearchParams(params: URLSearchParams): CardSearchParams | ApiMessage {
   const rawQuery = params.get('q')
-  if (rawQuery === null || rawQuery.trim() === '') return 'q is required.'
+  if (rawQuery === null || rawQuery.trim() === '') return plainMessage('q is required.')
   const query = rawQuery.trim()
 
   let page = 1
   const rawPage = params.get('page')
   if (rawPage !== null && rawPage.trim() !== '') {
     const parsed = parsePositiveInteger(rawPage.trim())
-    if (parsed === undefined) return `page must be a positive integer, got '${rawPage}'.`
+    if (parsed === undefined) {
+      return plainMessage(`page must be a positive integer, got '${rawPage}'.`)
+    }
     page = parsed
   }
 
   let warm = false
   const rawWarm = params.get('warm')
   if (rawWarm !== null && rawWarm.trim() !== '') {
-    const parsed = parseEnumField(rawWarm.trim(), ['true', 'false'] as const, 'warm')
-    if (!parsed.ok) return parsed.message
-    warm = parsed.value === 'true'
+    // English plus its key, never the server's own UI language.
+    const parsed = parseEnumParam(rawWarm.trim(), ['true', 'false'] as const, 'warm')
+    if (isApiMessage(parsed)) return parsed
+    warm = parsed === 'true'
   }
 
   const parsed: CardSearchParams = { query, page, warm }
@@ -91,9 +95,11 @@ export function parseCardSearchParams(params: URLSearchParams): CardSearchParams
   const rawLimit = params.get('limit')
   if (rawLimit !== null && rawLimit.trim() !== '') {
     const limit = parsePositiveInteger(rawLimit.trim())
-    if (limit === undefined) return invalidLimitMessage(rawLimit)
+    if (limit === undefined) return plainMessage(invalidLimitMessage(rawLimit))
     if (limit > SCRYFALL_PAGE_SIZE) {
-      return `limit must be at most ${SCRYFALL_PAGE_SIZE} (one Scryfall page), got '${rawLimit}'.`
+      return plainMessage(
+        `limit must be at most ${SCRYFALL_PAGE_SIZE} (one Scryfall page), got '${rawLimit}'.`,
+      )
     }
     parsed.limit = limit
   } else if (warm) {
@@ -103,8 +109,14 @@ export function parseCardSearchParams(params: URLSearchParams): CardSearchParams
   return parsed
 }
 
-function errorResponse(message: string, page: number, status: number): Response {
-  const body: CardSearchFailure = { success: false, page, hasMore: false, cards: [], message }
+function searchRefusal(message: string | SyncMessage, page: number, status: number): Response {
+  const body: CardSearchFailure = {
+    success: false,
+    page,
+    hasMore: false,
+    cards: [],
+    ...refusalOf(message),
+  }
   return Response.json(body, { status })
 }
 
@@ -131,7 +143,7 @@ function errorResponse(message: string, page: number, status: number): Response 
  */
 export async function handleCardSearch(req: Request): Promise<Response> {
   const parsed = parseCardSearchParams(new URL(req.url).searchParams)
-  if (typeof parsed === 'string') return errorResponse(parsed, 1, 400)
+  if (isApiMessage(parsed)) return searchRefusal(parsed, 1, 400)
 
   try {
     const result = await fetchSearchPage(parsed.query, parsed.page, 'json')
@@ -139,7 +151,7 @@ export async function handleCardSearch(req: Request): Promise<Response> {
       // Scryfall blames the query for a 4xx (a syntax error, an unknown filter);
       // anything else is its problem, not the caller's.
       const status = result.status >= 400 && result.status < 500 ? 400 : 500
-      return errorResponse(result.message, parsed.page, status)
+      return searchRefusal(result.message, parsed.page, status)
     }
     if (result.data === null) {
       const empty: CardSearchSuccess = {
@@ -172,6 +184,6 @@ export async function handleCardSearch(req: Request): Promise<Response> {
     if (result.data.total_cards !== undefined) body.totalCards = result.data.total_cards
     return Response.json(body)
   } catch (error) {
-    return errorResponse(getErrorMessage(error), parsed.page, 500)
+    return searchRefusal(caughtMessage(error), parsed.page, 500)
   }
 }

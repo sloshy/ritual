@@ -218,6 +218,35 @@ describe('pseudo-locale (Integration)', () => {
     })
   })
 
+  test('a card-cache gate words its advice in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      // An empty cache under `--refresh never`: the price command's own lead-in,
+      // then the cache layer's shared remedy, both through the catalog.
+      const result = await runCli(['price', '--refresh', 'never'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(1)
+      const advice = (await pseudoText('cli.cacheGate.emptyAdvice')).replace(
+        '{lead}',
+        await pseudoText('cli.price.emptyCache'),
+      )
+      expect(unwrap(result.stderr)).toContain(unwrap(advice))
+    })
+  })
+
+  test('a malformed cache-server address is refused in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['cache', 'status'], dir, {
+        ...PSEUDO_ENV,
+        RITUAL_CACHE_SERVER: 'localhost',
+      })
+
+      expect(result.exitCode).toBe(2)
+      expect(unwrap(result.stderr)).toContain(
+        unwrap(await pseudoText('cli.cacheServer.addressInvalid')),
+      )
+    })
+  })
+
   test('exit codes are locale-invariant', async () => {
     await withTempDir(async (dir) => {
       const english = await runCli(['diff', 'a', 'b'], dir, LOCALE_ENV)

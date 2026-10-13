@@ -12,13 +12,28 @@ import type { TagIndex } from '../scryfall/tags'
 import type { CacheManager } from '../util/interfaces'
 import type { ScryfallCard } from '../scryfall/types'
 import { formatDuration } from '../util/duration'
-import { getErrorMessage } from '../util/errors'
 import { getLogger } from '../util/logger'
+import { t } from '../i18n/t'
+import {
+  errorParam,
+  nestSync,
+  renderSyncMessage,
+  syncDuration,
+  syncMessage,
+  syncRef,
+  type SyncMessage,
+  type SyncMessageRef,
+  type SyncText,
+} from '../sync/message'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 /**
  * Run a bulk preload, reporting a cold network as a message instead of throwing.
+ *
+ * The message is held unrendered ({@link SyncMessage}): the CSV-upload gate
+ * hands it to a sync report the admin API and MCP read in English, while the
+ * console gates render it in the CLI's language.
  *
  * `refreshCardCache` propagates its failures now (that is the point of the
  * change — a refresh that did not happen must be learnable), but every gate in
@@ -30,22 +45,23 @@ const ONE_DAY_MS = 24 * 60 * 60 * 1000
  *
  * @returns `null` when the preload succeeded, else the reason it did not.
  */
-async function tryPreload(preload: () => Promise<void>): Promise<string | null> {
+async function tryPreload(preload: () => Promise<void>): Promise<SyncMessage | null> {
   try {
     await preload()
     return null
   } catch (e) {
-    return `Card cache download failed: ${getErrorMessage(e)}`
+    return syncMessage('domain.cache.downloadFailed', { error: errorParam(e) })
   }
 }
 
 /**
  * {@link tryPreload} for the callers that report to the user: the failure is
- * printed to stderr, and the result says whether the download happened.
+ * printed to stderr in the CLI's language, and the result says whether the
+ * download happened.
  */
 async function preloadOrReport(preload: () => Promise<void>): Promise<boolean> {
   const failure = await tryPreload(preload)
-  if (failure !== null) console.error(failure)
+  if (failure !== null) console.error(renderSyncMessage(failure))
   return failure === null
 }
 
@@ -54,7 +70,7 @@ async function preloadOrReport(preload: () => Promise<void>): Promise<boolean> {
  * caller-specific lead-in so every command surfaces the same advice.
  */
 export function emptyCacheAdvice(lead: string): string {
-  return `${lead} Run \`ritual cache preload-all\` first, or re-run with --refresh auto to download it.`
+  return t('cli.cacheGate.emptyAdvice', { lead })
 }
 
 type CacheFreshnessResult = {
@@ -87,11 +103,11 @@ export async function detectCardBulkTypeMismatch(): Promise<BulkTypeMismatch | n
 
 /** One sentence saying what is mismatched and why, shared by every prompt that offers the fix. */
 export function bulkTypeMismatchMessage(mismatch: BulkTypeMismatch): string {
-  const need =
-    mismatch.required === 'all_cards'
-      ? `the configured defaultLanguage '${getDefaultLanguage()}' needs the every-language 'all_cards' bulk`
-      : "the configured defaultLanguage 'en' only needs the English-only 'default_cards' bulk"
-  return `The card cache was built from Scryfall's '${mismatch.recorded}' bulk, but ${need}.`
+  return t('cli.cacheGate.bulkMismatch', {
+    required: mismatch.required,
+    recorded: mismatch.recorded,
+    language: getDefaultLanguage(),
+  })
 }
 
 /** Test seam: how freshness gates detect a bulk-type mismatch. */
@@ -117,13 +133,14 @@ async function handleBulkTypeMismatch(
   // promises), and the mismatch still consumed the decision — a staleness
   // refresh under `no-bulk` could not happen either.
   if (!bulkAllowed(policy.mode)) return true
+  const reason = bulkTypeMismatchMessage(mismatch)
   const accepted = await decideBulkRefresh(policy, {
-    message: `${bulkTypeMismatchMessage(mismatch)} Redownload the card cache now?`,
+    message: t('cli.cacheGate.bulkMismatchConfirm', { reason }),
     initial: true,
   })
   if (!accepted) return true
   if (policy.mode === 'auto') {
-    console.log(`${bulkTypeMismatchMessage(mismatch)} Redownloading the card cache...`)
+    console.log(t('cli.cacheGate.bulkMismatchRefreshing', { reason }))
   }
   await preloadOrReport(preload)
   return true
@@ -140,7 +157,7 @@ async function promptStaleCacheRefresh(
   age: number,
   policy: RefreshPolicy,
   preload: () => Promise<void>,
-): Promise<string | null> {
+): Promise<SyncMessage | null> {
   if (age <= BULK_CACHE_MAX_AGE_MS) return null
   const days = Math.floor(age / ONE_DAY_MS)
   // Whole days, so `Intl`'s unit style says it without a hardcoded plural `s`.
@@ -150,7 +167,7 @@ async function promptStaleCacheRefresh(
     unitDisplay: 'long',
   }).format(days)
   const accepted = await decideBulkRefresh(policy, {
-    message: `Card cache is ${dayCount} old. Would you like to update it?`,
+    message: t('cli.cacheGate.staleConfirm', { age: dayCount }),
     initial: false,
   })
   if (!accepted) return null
@@ -187,9 +204,9 @@ export async function ensureFreshCardCache(
   const empty = await cardCache.isEmpty()
 
   if (empty) {
-    console.log('Card cache is empty. A preloaded cache is required for card autocomplete.')
+    console.log(t('cli.cacheGate.emptyForAutocomplete'))
     const shouldPreload = await decideBulkRefresh(policy, {
-      message: 'Would you like to download the card database now?',
+      message: t('cli.cacheGate.downloadDatabaseConfirm'),
       initial: true,
     })
 
@@ -205,7 +222,7 @@ export async function ensureFreshCardCache(
 
     if (lastRefreshed !== null) {
       const failure = await promptStaleCacheRefresh(Date.now() - lastRefreshed, policy, preload)
-      if (failure !== null) console.error(failure)
+      if (failure !== null) console.error(renderSyncMessage(failure))
     }
   }
 
@@ -263,21 +280,23 @@ export async function refreshCardCacheForSession(
   const age = Date.now() - lastRefreshed
 
   if (policy.mode === 'auto' && age > PRICE_MAX_AGE_MS) {
-    console.log('Cached prices are more than a day old. Refreshing the card cache from Scryfall...')
+    console.log(t('cli.cacheGate.pricesStaleRefreshing'))
     await preloadOrReport(preload)
     return
   }
 
   if (policy.mode !== 'ask') return
   const failure = await promptStaleCacheRefresh(age, policy, preload)
-  if (failure !== null) console.error(failure)
+  if (failure !== null) console.error(renderSyncMessage(failure))
 }
 
 /**
- * Report a refresh this gate is performing. Defaults to the console; callers with
- * a run log of their own (a sync's event stream) pass their own sink.
+ * Report a refresh this gate is performing. Defaults to the console (in the
+ * CLI's language); callers with a run log of their own (a sync's event stream)
+ * pass their own sink, which gets the message unrendered so a report can carry
+ * it in English plus its key.
  */
-export type CacheRefreshLog = (message: string) => void
+export type CacheRefreshLog = (message: SyncMessage) => void
 
 /** Injectable dependencies for {@link ensureCardCacheForUpload}. */
 export type UploadCacheDeps = SessionCacheDeps & { log?: CacheRefreshLog }
@@ -308,49 +327,52 @@ export type UploadCacheReady = { refreshed: boolean }
  * was filled by something other than a bulk download rather than an old one.
  *
  * @returns An {@link UploadCacheReady} when the cache may be used, else the
- *   reason it may not — worded for the caller to report verbatim.
+ *   reason it may not — a message for the caller to report as it is.
  */
 export async function ensureCardCacheForUpload(
   policy: RefreshPolicy,
   deps: UploadCacheDeps = {},
-): Promise<UploadCacheReady | string> {
+): Promise<UploadCacheReady | SyncMessage> {
   const cache = deps.cache ?? cardCache
   const preload = deps.preload ?? refreshCardCache
-  const log = deps.log ?? ((message: string) => console.log(message))
+  const log = deps.log ?? ((message: SyncMessage) => console.log(renderSyncMessage(message)))
 
   const empty = await cache.isEmpty()
   const lastRefreshed = empty ? null : await cache.getLastRefreshedAt()
   const age = lastRefreshed === null ? null : Date.now() - lastRefreshed
   if (!empty && (age === null || age <= PRICE_MAX_AGE_MS)) return { refreshed: false }
 
-  const state = empty ? 'empty' : `${formatDuration(age ?? 0)} old`
-  const because = `Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is ${state}.`
-  const remedy = 'Run `ritual cache preload-all`, or re-run with --refresh auto.'
+  const because: SyncMessageRef = empty
+    ? syncRef('domain.cache.uploadNeedsEmptyCache')
+    : syncRef('domain.cache.uploadNeedsFreshCache', { age: syncDuration(age ?? 0) })
+  // The refusal appends the remedy to why: the requirement, or the failed download.
+  const refusal = (reason: SyncText): SyncMessage =>
+    syncMessage('domain.cache.uploadRemedy', { reason })
+  const failed = (failure: SyncMessage): SyncMessage => refusal(nestSync(failure))
 
   if (policy.mode === 'auto') {
-    log(`${because} Refreshing it from Scryfall first...`)
+    log(syncMessage('domain.cache.uploadRefreshing', { reason: because }))
     // A download that failed leaves the same cache the requirement just refused,
     // so the failure *is* the refusal rather than an exception past the caller.
     const failure = await tryPreload(preload)
-    if (failure !== null) return `${failure} ${remedy}`
+    if (failure !== null) return failed(failure)
   } else if (policy.mode === 'ask') {
     const accepted = await policy.confirm({
-      message: `${because} Update it before uploading?`,
+      // A prompt is only ever the CLI's, so it is worded in the CLI's language.
+      message: t('cli.cacheGate.uploadConfirm', { reason: renderSyncMessage(because) }),
       initial: true,
     })
     // Declining is an answer, not a fall-through: uploading from this cache is
     // exactly what the freshness requirement forbids.
-    if (!accepted) return `${because} ${remedy}`
+    if (!accepted) return refusal(because)
     const failure = await tryPreload(preload)
-    if (failure !== null) return `${failure} ${remedy}`
+    if (failure !== null) return failed(failure)
   } else {
     // `no-bulk` and `never` forbid the only way this cache is ever filled.
-    return `${because} ${remedy}`
+    return refusal(because)
   }
 
-  if (await cache.isEmpty()) {
-    return 'The card cache is still empty after a refresh, so no CSV row could be keyed by a Scryfall id.'
-  }
+  if (await cache.isEmpty()) return syncMessage('domain.cache.uploadStillEmpty')
   return { refreshed: true }
 }
 
@@ -380,15 +402,15 @@ export async function ensureCardCachePresent(
   // The cache can only be filled by a bulk download, so modes that forbid one
   // leave an empty cache simply unusable — never download, stay quiet.
   if (!bulkAllowed(policy.mode)) return false
-  getLogger().info(`Card cache is empty. ${requirement}`)
+  getLogger().info(t('cli.cacheGate.emptyWithRequirement', { requirement }))
   const accepted = await decideBulkRefresh(policy, {
-    message: 'Would you like to download it now?',
+    message: t('cli.cacheGate.downloadNowConfirm'),
     initial: true,
   })
   if (!accepted) return false
   const failure = await tryPreload(preload)
   if (failure !== null) {
-    getLogger().error(failure)
+    getLogger().error(renderSyncMessage(failure))
     return false
   }
   return !(await cache.isEmpty())
@@ -457,13 +479,13 @@ export async function offerBulkPriceRefresh(
 
   if (stalePriceCount <= BULK_FETCH_THRESHOLD) return
 
-  console.log(`\n${stalePriceCount} of ${cardNames.length} card(s) have prices older than 24 hours.`)
   console.log(
-    `Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.`,
+    `\n${t('cli.cacheGate.stalePriceCount', { stale: stalePriceCount, count: cardNames.length })}`,
   )
+  console.log(t('cli.cacheGate.bulkFasterHint'))
 
   const shouldPreload = await decideBulkRefresh(policy, {
-    message: 'Redownload the latest Scryfall card cache now?',
+    message: t('cli.cacheGate.redownloadConfirm'),
     initial: false,
   })
 
@@ -471,7 +493,11 @@ export async function offerBulkPriceRefresh(
     // Best-effort warm: `refreshCardCache` propagates now, and a cold network
     // must not fail a run that can still work against the existing cache.
     const failure = await tryPreload(preload)
-    if (failure !== null) console.error(`${failure} Continuing with the existing cache.`)
+    if (failure !== null) {
+      console.error(
+        t('cli.cacheGate.continuingWithExisting', { reason: renderSyncMessage(failure) }),
+      )
+    }
   }
 }
 
@@ -494,28 +520,24 @@ export async function offerTagDownload(
   const bake = deps.bake ?? refreshTags
 
   const accepted = await decideBulkRefresh(policy, {
-    message:
-      'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
+    message: t('cli.cacheGate.tagsConfirm'),
     initial: true,
   })
   if (!accepted) {
-    console.log(
-      "Skipping tag download; the site's tag filters will be empty. " +
-        'Run `ritual cache refresh-tags` later to add them.',
-    )
+    console.log(t('cli.cacheGate.tagsSkipped'))
     return null
   }
 
-  console.log('Fetching oracle/art tags from Scryfall...')
+  console.log(t('cli.cacheGate.tagsFetching'))
   const tagIndex = await download()
   if (!tagIndex) {
-    console.warn("Could not download tags; the site's tag filters will be empty.")
+    console.warn(t('cli.cacheGate.tagsFailed'))
     return null
   }
   // Bake into the cache so future builds and CLI features have them too — the
   // index is passed through, so this never re-downloads.
   await bake(tagIndex)
-  console.log('Added oracle/art tags to the card cache.')
+  console.log(t('cli.cacheGate.tagsAdded'))
   return tagIndex
 }
 
@@ -547,11 +569,10 @@ export async function ensureFreshPriceData(
 
   if (await cache.isEmpty()) {
     // The cache was empty, so a download that failed leaves nothing to price.
-    const ready = await ensureCardCachePresent(
-      policy,
-      'Pricing requires the Scryfall card database.',
-      { cache, preload },
-    )
+    const ready = await ensureCardCachePresent(policy, t('cli.cacheGate.pricingRequirement'), {
+      cache,
+      preload,
+    })
     return ready
       ? { ready: true, lastRefreshedAt: await cache.getLastRefreshedAt() }
       : { ready: false, lastRefreshedAt: null }
@@ -564,13 +585,11 @@ export async function ensureFreshPriceData(
       // A stale-price refresh that failed still leaves usable (older) prices, so
       // it is reported and the run continues.
       if (policy.mode === 'auto') {
-        console.log(
-          'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
-        )
+        console.log(t('cli.cacheGate.pricesStaleRefreshing'))
         await preloadOrReport(preload)
       } else if (policy.mode === 'ask') {
         const accepted = await policy.confirm({
-          message: `Prices were last updated ${formatDuration(age)} ago. Update now?`,
+          message: t('cli.cacheGate.pricesAgeConfirm', { age: formatDuration(age) }),
           initial: false,
         })
         if (accepted) {

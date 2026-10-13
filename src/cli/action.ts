@@ -19,6 +19,8 @@ import {
   type ExitCodeValue,
 } from '../util/errors'
 import { emitError, markStdoutClosed, type ScriptingOptions } from './output'
+import { SyncMessageError } from '../sync/message'
+import { envelopeRef } from './api-refusal'
 
 /**
  * Run a one-shot command's action body — the standard action-handler shell
@@ -47,6 +49,14 @@ export async function runCommandAction(
       // carries a locale-invariant discriminator alongside `error.code`.
       emitError(err.code, err.message, scripting, err.details, err.messageRef)
       process.exitCode = err.exitCode
+      return
+    }
+    if (err instanceof SyncMessageError) {
+      // An engine failure raised from a catalog key (a cache-lock time-out, a
+      // failed cache-server request): its prose is already in the CLI's
+      // language, and its key rides along as a refusal's does.
+      emitError('runtime_error', err.message, scripting, undefined, envelopeRef(err.syncMessage))
+      process.exitCode = ExitCode.RuntimeError
       return
     }
     // A bug rather than a refusal: there is no catalog key behind it, and the

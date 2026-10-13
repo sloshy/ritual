@@ -19,6 +19,7 @@ import { cliEditMessages } from './en/cli-edit'
 import { cliInfraMessages } from './en/cli-infra'
 import { cliSyncMessages } from './en/cli-sync'
 import { domainMessages } from './en/domain'
+import { domainCacheMessages } from './en/domain-cache'
 import { domainChangesMessages } from './en/domain-changes'
 import { domainSyncMessages } from './en/domain-sync'
 import { errorMessages } from './en/errors'
@@ -42,8 +43,10 @@ import { uiMessages } from './en/ui'
  *
  * - `admin` — `admin` (the admin SPA's own chrome) plus `admin-api`, the prose
  *   the admin HTTP API authors;
- * - `domain` — `domain` (shared) plus `domain-sync`, the sync engines' text,
- *   which only the CLI and the admin SPA register;
+ * - `domain` — `domain` (shared), `domain-changes` (the change engine's
+ *   refusals), and `domain-sync` and `domain-cache` — the sync engines' text and
+ *   the card cache's server-facing text — which only the CLI and the admin SPA
+ *   register;
  * - `site` — `site` (shared) plus the four surface fragments;
  * - `cli` — `cli` (the shared CLI core) plus one fragment per command family;
  * - `help` — `help` (global options and the shared scripting flags) plus the
@@ -61,6 +64,7 @@ export const en = {
   ...cliInfraMessages,
   ...cliSyncMessages,
   ...domainMessages,
+  ...domainCacheMessages,
   ...domainChangesMessages,
   ...domainSyncMessages,
   ...errorMessages,

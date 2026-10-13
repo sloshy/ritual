@@ -37,7 +37,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import type { CardPrintingsLookup } from '../card/card-printing'
 import type { AmbiguousRemoval, CollectionCsvFailure, CollectionKeyParts } from './describe'
 import type { LocalCollectionIndex, RemovalAssignment } from './diff'
-import type { UploadCacheReady } from '../cache/freshness'
+import type { CacheRefreshLog, UploadCacheReady } from '../cache/freshness'
 import type { CsvFileWriter } from './csv'
 import type { CollectionListStore } from './store'
 import type { CollectionSyncStateStore } from './state'
@@ -363,8 +363,11 @@ export type DecideCsvUpload = (
 export type CsvCacheRequest = {
   /** Printings whose Scryfall id the CSV needs from the local cache. */
   additions: number
-  /** Report a refresh in progress through the run's own log. */
-  log: (message: string) => void
+  /**
+   * Report a refresh in progress through the run's own log — a message, so the
+   * line reaches the report and the admin page keyed like every other.
+   */
+  log: CacheRefreshLog
 }
 
 /**
@@ -374,7 +377,7 @@ export type CsvCacheRequest = {
  * printing, so an empty or stale cache means rows that quietly go missing and
  * additions that fall back to one paced search each — the rate-limit trap the CSV
  * path exists to avoid. Consulted once, after the route is settled and **before
- * any remote write**, so a refusal (the string) leaves the account untouched.
+ * any remote write**, so a refusal (the message) leaves the account untouched.
  *
  * A gate that refreshed the cache says so (`refreshed: true`): the local index
  * the push was planned from was keyed against the old cache, so the run
@@ -386,7 +389,7 @@ export type CsvCacheRequest = {
  */
 export type EnsureCsvCache = (
   request: CsvCacheRequest,
-) => Promise<UploadCacheReady | string> | UploadCacheReady | string
+) => Promise<UploadCacheReady | SyncMessage> | UploadCacheReady | SyncMessage
 
 export type CollectionSyncOptions = {
   direction: SyncDirection

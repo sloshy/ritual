@@ -75,6 +75,152 @@ export const cliInfraMessages = {
   'cli.cacheFeed.feedChanged': 'Feed changed; card cache updated.',
   'cli.cacheFeed.stopping': 'Stopping seeding...',
 
+  // ── cache feed client ─────────────────────────────────────────────────
+  //
+  // What a fetching client (`cache feed sync`, a feed-backed refresh, the cache
+  // server) prints behind the same `[cache-feed]` prefix, and the errors its
+  // download raises. File names, info hashes, sha256 digests, URLs and feed
+  // kinds (`all-cards`, `default-cards`) are machine values.
+  'cli.cacheFeed.ignoringState': 'Ignoring {file}: {reason}',
+  'cli.cacheFeed.ignoringUnreadable': 'Ignoring unreadable {file} (not valid JSON).',
+  'cli.cacheFeed.fetchFailed': 'Failed to fetch cache feed {url}',
+  'cli.cacheFeed.missingEntry': "Cache feed has no '{kind}' entry",
+  'cli.cacheFeed.missingAllCardsEntry':
+    "Cache feed has no '{kind}' entry (the configured defaultLanguage needs the all_cards bulk, which this feed's host does not publish — host with `cache feed host --cards all` or refresh with --source scryfall)",
+  'cli.cacheFeed.reusing': 'Reusing already-downloaded {file}.',
+  'cli.cacheFeed.restoring': 'Restoring missing artifact {file}...',
+  'cli.cacheFeed.stoppedSeeding': 'Stopped seeding superseded artifact {name} ({infoHash})',
+  'cli.cacheFeed.hashMismatch': "Downloaded {file} does not match the feed's sha256 (got {hash})",
+  'cli.cacheFeed.downloadingHttp': 'Downloading {file} over HTTP...',
+  'cli.cacheFeed.downloadFailed': 'Failed to download {file}',
+  'cli.cacheFeed.downloadNoBody': 'Download of {file} has no body',
+  'cli.cacheFeed.downloadingTorrent': 'Downloading {file} over BitTorrent...',
+  'cli.cacheFeed.torrentTimedOut': 'Torrent download of {file} timed out',
+  'cli.cacheFeed.completed': {
+    $plural: 'count',
+    one: 'Completed {file} ({count} peer).',
+    other: 'Completed {file} ({count} peers).',
+  },
+  'cli.cacheFeed.torrentFetchFailed': 'Failed to fetch torrent for {file}',
+  'cli.cacheFeed.torrentClientError': 'Torrent client error: {error}',
+  'cli.cacheFeed.torrentNotReady': 'Torrent {infoHash} did not become ready in time',
+
+  // Why a fetched feed document, or a client's saved `state.json`, was
+  // rejected. JSON field names (`generatedAt`, `entries`, `ingested`,
+  // `infoHash`, `ingestedAt`, `length`) are machine vocabulary.
+  'cli.cacheFeed.feedNotObject': 'Invalid cache feed: expected an object',
+  'cli.cacheFeed.feedVersionUnsupported':
+    'Invalid cache feed: unsupported version {version} (expected {expected})',
+  'cli.cacheFeed.feedMissingGeneratedAt': 'Invalid cache feed: missing string generatedAt',
+  'cli.cacheFeed.feedMissingEntries': 'Invalid cache feed: missing entries array',
+  'cli.cacheFeed.feedEntryNotObject': 'Invalid cache feed: entry {index} is not an object',
+  'cli.cacheFeed.feedEntryUnknownKind':
+    "Invalid cache feed: entry {index} has unknown kind '{kind}'",
+  'cli.cacheFeed.feedEntryMissingField':
+    'Invalid cache feed: entry {index} is missing a string {field}',
+  'cli.cacheFeed.feedEntryBadLength':
+    'Invalid cache feed: entry {index} is missing a positive numeric length',
+  'cli.cacheFeed.stateNotObject': 'Invalid feed-client state: expected an object',
+  'cli.cacheFeed.stateMissingIngested': 'Invalid feed-client state: missing ingested map',
+  'cli.cacheFeed.stateUnknownKind': "Invalid feed-client state: unknown kind '{kind}'",
+  'cli.cacheFeed.stateEntryInvalid':
+    "Invalid feed-client state: entry for '{kind}' is missing a string infoHash/ingestedAt",
+
+  // ── cache freshness gates ─────────────────────────────────────────────
+  //
+  // The prompts and progress lines the commands that need the card cache print
+  // before they run (`add-card`, `edit`, `price`, `sell`, `build-site`,
+  // `serve --api`, `admin` at startup). Commands, flags, config keys and
+  // Scryfall bulk names (`default_cards`, `all_cards`) are machine vocabulary.
+  'cli.cacheGate.emptyAdvice':
+    '{lead} Run `ritual cache preload-all` first, or re-run with --refresh auto to download it.',
+  'cli.cacheGate.bulkMismatch': {
+    $select: 'required',
+    all_cards:
+      "The card cache was built from Scryfall's '{recorded}' bulk, but the configured defaultLanguage '{language}' needs the every-language 'all_cards' bulk.",
+    default_cards:
+      "The card cache was built from Scryfall's '{recorded}' bulk, but the configured defaultLanguage 'en' only needs the English-only 'default_cards' bulk.",
+  },
+  'cli.cacheGate.bulkMismatchConfirm': '{reason} Redownload the card cache now?',
+  'cli.cacheGate.bulkMismatchRefreshing': '{reason} Redownloading the card cache...',
+  'cli.cacheGate.staleConfirm': 'Card cache is {age} old. Would you like to update it?',
+  'cli.cacheGate.emptyForAutocomplete':
+    'Card cache is empty. A preloaded cache is required for card autocomplete.',
+  'cli.cacheGate.downloadDatabaseConfirm': 'Would you like to download the card database now?',
+  'cli.cacheGate.pricesStaleRefreshing':
+    'Cached prices are more than a day old. Refreshing the card cache from Scryfall...',
+  'cli.cacheGate.uploadConfirm': '{reason} Update it before uploading?',
+  'cli.cacheGate.emptyWithRequirement': 'Card cache is empty. {requirement}',
+  'cli.cacheGate.downloadNowConfirm': 'Would you like to download it now?',
+  'cli.cacheGate.pricingRequirement': 'Pricing requires the Scryfall card database.',
+  'cli.cacheGate.stalePriceCount': {
+    $plural: 'count',
+    one: '{stale} of {count} card has prices older than 24 hours.',
+    other: '{stale} of {count} cards have prices older than 24 hours.',
+  },
+  'cli.cacheGate.bulkFasterHint':
+    'Redownloading the Scryfall bulk card cache (includes fresh prices) would be faster than refreshing each card individually.',
+  'cli.cacheGate.redownloadConfirm': 'Redownload the latest Scryfall card cache now?',
+  'cli.cacheGate.continuingWithExisting': '{reason} Continuing with the existing cache.',
+  'cli.cacheGate.tagsConfirm':
+    'The card cache has no oracle/art tags (used by the site’s tag filters). Download them now?',
+  'cli.cacheGate.tagsSkipped':
+    "Skipping tag download; the site's tag filters will be empty. Run `ritual cache refresh-tags` later to add them.",
+  'cli.cacheGate.tagsFetching': 'Fetching oracle/art tags from Scryfall...',
+  'cli.cacheGate.tagsFailed': "Could not download tags; the site's tag filters will be empty.",
+  'cli.cacheGate.tagsAdded': 'Added oracle/art tags to the card cache.',
+  'cli.cacheGate.pricesAgeConfirm': 'Prices were last updated {age} ago. Update now?',
+
+  // ── cache lock ────────────────────────────────────────────────────────
+  //
+  // The cache-write lock (`.ritual-cache-lock`) one Ritual process holds while
+  // it writes the card cache. Printed by the CLI and in the cache server's and
+  // admin server's console. The lock file's fields (`pid`, `hostname`,
+  // `createdAt`, `operation`) are machine vocabulary.
+  'cli.cacheLock.invalidJson': 'Invalid cache lock: not valid JSON',
+  'cli.cacheLock.notObject': 'Invalid cache lock: expected an object',
+  'cli.cacheLock.missingField': {
+    $select: 'field',
+    pid: 'Invalid cache lock: missing numeric pid',
+    hostname: 'Invalid cache lock: missing string hostname',
+    createdAt: 'Invalid cache lock: missing numeric createdAt',
+    operation: 'Invalid cache lock: missing string operation',
+  },
+  'cli.cacheLock.breakingStale': 'Breaking stale cache lock ({reason}).',
+  'cli.cacheLock.holderGone': 'holder pid {pid} is no longer running or exceeded the stale age',
+  'cli.cacheLock.waiting':
+    'Cache is locked by "{operation}" (pid {pid}). Waiting up to {timeout} for it to finish...',
+
+  // ── cache store ───────────────────────────────────────────────────────
+  //
+  // The local card cache's own housekeeping, printed by the CLI and in the
+  // servers' consoles.
+  'cli.cacheStore.oldSchemaReset':
+    'Detected old cache schema (single objects). Resetting cards cache.',
+  'cli.cacheStore.invalidFormatReset': 'Detected invalid cache format. Resetting cache.',
+  'cli.cacheStore.loadFailed': 'Failed to load cache, starting fresh.',
+  'cli.cacheStore.saveFailed': 'Failed to save cache:',
+  'cli.cacheStore.blocklisted': "Card '{name}' added to blocklist (expires {expires}).",
+  'cli.cacheStore.unblocklisted': "Card '{name}' removed from blocklist (expired).",
+  'cli.cacheStore.bulkWeekOld': 'Card cache bulk download is more than a week old. Refreshing...',
+  'cli.cacheStore.bulkNever':
+    'Card cache has never been bulk-downloaded. Downloading from Scryfall...',
+  'cli.cacheStore.manyMissing':
+    'Over {threshold} cards not found in cache. Triggering bulk cache refresh...',
+  'cli.cacheStore.feedUnchanged': 'Cache feed is unchanged; card cache is current.',
+  'cli.cacheStore.feedFallback': 'Feed refresh failed ({reason}); falling back to Scryfall.',
+  'cli.cacheStore.provenanceNotObject': 'Invalid card-bulk provenance: expected an object',
+  'cli.cacheStore.provenanceUnknownBulk':
+    "Invalid card-bulk provenance: unknown bulkType '{bulkType}'",
+  'cli.cacheStore.provenanceMissingRecordedAt':
+    'Invalid card-bulk provenance: missing string recordedAt',
+
+  // ── --cache-server ────────────────────────────────────────────────────
+  'cli.cacheServer.addressEmpty':
+    'Cache server must be a non-empty hostname and port (example: localhost:4000).',
+  'cli.cacheServer.addressInvalid':
+    'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
+
   // ── config ────────────────────────────────────────────────────────────
   //
   // The property name and the rendered value are machine vocabulary; only the

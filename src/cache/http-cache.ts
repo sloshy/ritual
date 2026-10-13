@@ -1,5 +1,6 @@
 import type { BulkSetOptions, CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
 import type { CacheSection, DataType } from './file-cache'
+import { syncMessage, SyncMessageError } from '../sync/message'
 
 interface CacheServerGetResponse<T> {
   value: T | null
@@ -42,6 +43,27 @@ interface CacheServerStreamEntry<T> {
 
 const MAX_SSE_BUFFER_SIZE = 10 * 1024 * 1024 // 10MB
 
+/**
+ * A failed cache-server request, as the error to throw. Keyed (a
+ * {@link SyncMessageError}) because the cache is read by the admin API and MCP
+ * as well as the CLI: a route answers it in English plus the key, the CLI
+ * prints it in its own language. `body` is the server's own reply, quoted as it
+ * came.
+ */
+async function requestFailure(
+  response: Response,
+  method: string,
+  url: string,
+): Promise<SyncMessageError> {
+  const body = await response.text().catch(() => '')
+  const status = response.status
+  return new SyncMessageError(
+    body
+      ? syncMessage('domain.cache.serverRequestFailedWithBody', { status, method, url, body })
+      : syncMessage('domain.cache.serverRequestFailed', { status, method, url }),
+  )
+}
+
 export class HttpCacheManager<K extends CacheSection> implements CacheManager<DataType<K>> {
   constructor(
     private baseUrl: string,
@@ -55,10 +77,7 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
   private async requestJson<T>(pathSuffix: string, init?: RequestInit): Promise<T> {
     const response = await fetch(this.buildPath(pathSuffix), init)
     if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      throw new Error(
-        `Cache server request failed (${response.status}) ${init?.method ?? 'GET'} ${this.buildPath(pathSuffix)}${body ? `: ${body}` : ''}`,
-      )
+      throw await requestFailure(response, init?.method ?? 'GET', this.buildPath(pathSuffix))
     }
     if (response.status === 204) {
       return undefined as T
@@ -90,7 +109,7 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
     onEntry: (key: string, value: DataType<K>, meta: CacheStreamEntryMeta) => void,
   ): Promise<Record<string, DataType<K>>> {
     if (this.section !== 'prices') {
-      throw new Error('streamGetMany is only supported for prices cache.')
+      throw new SyncMessageError(syncMessage('domain.cache.serverStreamPricesOnly'))
     }
 
     if (keys.length === 0) return {}
@@ -102,14 +121,11 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
     })
 
     if (!response.ok) {
-      const body = await response.text().catch(() => '')
-      throw new Error(
-        `Cache server request failed (${response.status}) POST ${this.buildPath('/stream')}${body ? `: ${body}` : ''}`,
-      )
+      throw await requestFailure(response, 'POST', this.buildPath('/stream'))
     }
 
     if (!response.body) {
-      throw new Error('Cache server stream response body is missing.')
+      throw new SyncMessageError(syncMessage('domain.cache.serverStreamNoBody'))
     }
 
     const decoder = new TextDecoder()
@@ -135,7 +151,7 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
 
       if (eventType === 'done') return
       if (eventType === 'error') {
-        throw new Error(`Cache server stream error: ${data}`)
+        throw new SyncMessageError(syncMessage('domain.cache.serverStreamError', { error: data }))
       }
       if (eventType !== 'price') return
 
@@ -171,7 +187,7 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
       if (done) break
       buffer += decoder.decode(value, { stream: true })
       if (buffer.length > MAX_SSE_BUFFER_SIZE) {
-        throw new Error('Cache server stream buffer exceeded maximum size')
+        throw new SyncMessageError(syncMessage('domain.cache.serverStreamTooLarge'))
       }
       processBuffer(false)
     }

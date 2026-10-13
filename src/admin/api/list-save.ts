@@ -52,7 +52,7 @@ import {
   errorResponse,
   nestedRefusal,
   readJsonObjectBody,
-  type NestedRefusalResponse,
+  type ApiErrorResponse,
 } from '../../api/http'
 import { changeProblemMessage } from '../../changes/change-problem-message'
 import { isNonEmpty, type SyncMessage } from '../../sync/message'
@@ -121,7 +121,7 @@ export type ListSaveResponse = ApiMessage & {
  * summary's params nest (each change description is a message of its own), so
  * this is the nested refusal envelope.
  */
-export type ListSaveRefusal = NestedRefusalResponse & {
+export type ListSaveRefusal = ApiErrorResponse & {
   unmatched: string[]
 }
 

@@ -7,6 +7,7 @@ import { createDefaultFileSystemClient, type HttpClient } from '../util/interfac
 import { writeFileAtomic } from '../util/atomic-write'
 import { throwHttpError } from '../util/errors'
 import { isRecord } from '../util/json'
+import { t } from '../i18n/t'
 import type { BulkCacheFiles } from '../scryfall/client'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import {
@@ -49,22 +50,22 @@ export type CacheFeedClientState = {
  */
 export function parseCacheFeedClientState(json: unknown): CacheFeedClientState | string {
   if (!isRecord(json)) {
-    return 'Invalid feed-client state: expected an object'
+    return t('cli.cacheFeed.stateNotObject')
   }
   const ingested = json['ingested']
   if (!isRecord(ingested)) {
-    return 'Invalid feed-client state: missing ingested map'
+    return t('cli.cacheFeed.stateMissingIngested')
   }
   for (const [kind, entry] of Object.entries(ingested)) {
     if (!(FEED_KINDS as readonly string[]).includes(kind)) {
-      return `Invalid feed-client state: unknown kind '${kind}'`
+      return t('cli.cacheFeed.stateUnknownKind', { kind })
     }
     if (
       !isRecord(entry) ||
       typeof entry['infoHash'] !== 'string' ||
       typeof entry['ingestedAt'] !== 'string'
     ) {
-      return `Invalid feed-client state: entry for '${kind}' is missing a string infoHash/ingestedAt`
+      return t('cli.cacheFeed.stateEntryInvalid', { kind })
     }
   }
   return json as CacheFeedClientState
@@ -163,12 +164,12 @@ export class CacheFeedClient {
     try {
       const parsed = parseCacheFeedClientState(JSON.parse(raw))
       if (typeof parsed === 'string') {
-        this.log(`Ignoring ${STATE_FILENAME}: ${parsed}`)
+        this.log(t('cli.cacheFeed.ignoringState', { file: STATE_FILENAME, reason: parsed }))
         return { ingested: {} }
       }
       return parsed
     } catch {
-      this.log(`Ignoring unreadable ${STATE_FILENAME} (not valid JSON).`)
+      this.log(t('cli.cacheFeed.ignoringUnreadable', { file: STATE_FILENAME }))
       return { ingested: {} }
     }
   }
@@ -200,7 +201,9 @@ export class CacheFeedClient {
   /** Fetch and validate the feed document. */
   async fetchFeed(): Promise<CacheFeedDocument> {
     const response = await this.options.http.fetch(this.options.feedUrl)
-    if (!response.ok) throwHttpError(response, `Failed to fetch cache feed ${this.options.feedUrl}`)
+    if (!response.ok) {
+      throwHttpError(response, t('cli.cacheFeed.fetchFailed', { url: this.options.feedUrl }))
+    }
     const parsed = parseCacheFeed(await response.json())
     if (typeof parsed === 'string') throw new Error(parsed)
     return parsed
@@ -225,11 +228,11 @@ export class CacheFeedClient {
     for (const kind of this.requiredKinds()) {
       const entry = feed.entries.find((candidate) => candidate.kind === kind)
       if (!entry) {
-        const hint =
+        throw new Error(
           kind === 'all-cards'
-            ? " (the configured defaultLanguage needs the all_cards bulk, which this feed's host does not publish — host with `cache feed host --cards all` or refresh with --source scryfall)"
-            : ''
-        throw new Error(`Cache feed has no '${kind}' entry${hint}`)
+            ? t('cli.cacheFeed.missingAllCardsEntry', { kind })
+            : t('cli.cacheFeed.missingEntry', { kind }),
+        )
       }
 
       const filePath = path.join(this.filesDir, entry.fileName)
@@ -239,7 +242,7 @@ export class CacheFeedClient {
       if (!alreadyIngested) changedKinds.push(kind)
 
       if (await this.haveVerifiedFile(filePath, entry)) {
-        if (!alreadyIngested) this.log(`Reusing already-downloaded ${entry.fileName}.`)
+        if (!alreadyIngested) this.log(t('cli.cacheFeed.reusing', { file: entry.fileName }))
         continue
       }
       if (alreadyIngested) {
@@ -247,7 +250,7 @@ export class CacheFeedClient {
         // is gone (deleted, or renamed upstream) — restore it so seeding and
         // any future forced ingest have a file to work with, and so the prune
         // below can never leave a live entry with no artifact.
-        this.log(`Restoring missing artifact ${entry.fileName}...`)
+        this.log(t('cli.cacheFeed.restoring', { file: entry.fileName }))
       }
 
       if (this.options.p2p === false) {
@@ -280,7 +283,9 @@ export class CacheFeedClient {
     const live = new Set(feed.entries.map((entry) => entry.infoHash))
     for (const torrent of [...client.torrents]) {
       if (!live.has(torrent.infoHash)) {
-        this.log(`Stopped seeding superseded artifact ${torrent.name} (${torrent.infoHash})`)
+        this.log(
+          t('cli.cacheFeed.stoppedSeeding', { name: torrent.name, infoHash: torrent.infoHash }),
+        )
         client.remove(torrent.infoHash)
       }
     }
@@ -313,16 +318,20 @@ export class CacheFeedClient {
     const hash = await sha256OfFile(filePath)
     if (hash !== entry.sha256) {
       await unlink(filePath).catch(() => {})
-      throw new Error(`Downloaded ${entry.fileName} does not match the feed's sha256 (got ${hash})`)
+      throw new Error(t('cli.cacheFeed.hashMismatch', { file: entry.fileName, hash }))
     }
   }
 
   /** Plain-HTTP download from the feed's file URL (the `--no-p2p` path). */
   private async downloadOverHttp(entry: CacheFeedEntry, filePath: string): Promise<void> {
-    this.log(`Downloading ${entry.fileName} over HTTP...`)
+    this.log(t('cli.cacheFeed.downloadingHttp', { file: entry.fileName }))
     const response = await this.options.http.fetch(entry.fileUrl)
-    if (!response.ok) throwHttpError(response, `Failed to download ${entry.fileName}`)
-    if (!response.body) throw new Error(`Download of ${entry.fileName} has no body`)
+    if (!response.ok) {
+      throwHttpError(response, t('cli.cacheFeed.downloadFailed', { file: entry.fileName }))
+    }
+    if (!response.body) {
+      throw new Error(t('cli.cacheFeed.downloadNoBody', { file: entry.fileName }))
+    }
     await streamToFile(response.body, filePath)
   }
 
@@ -336,14 +345,14 @@ export class CacheFeedClient {
     const client = await this.ensureTorrentClient()
     const torrentBuf = await this.fetchTorrentFile(entry)
 
-    this.log(`Downloading ${entry.fileName} over BitTorrent...`)
+    this.log(t('cli.cacheFeed.downloadingTorrent', { file: entry.fileName }))
     await new Promise<void>((resolve, reject) => {
       const torrent: Torrent = client.add(torrentBuf, { path: this.filesDir })
       // A torrent whose web seed and peers are all unreachable would otherwise
       // hang forever; fail instead so the caller (and its fallback) can react.
       const timer = setTimeout(() => {
         client.remove(entry.infoHash)
-        reject(new Error(`Torrent download of ${entry.fileName} timed out`))
+        reject(new Error(t('cli.cacheFeed.torrentTimedOut', { file: entry.fileName })))
       }, TORRENT_DOWNLOAD_TIMEOUT_MS)
       torrent.on('error', (err) => {
         clearTimeout(timer)
@@ -351,7 +360,7 @@ export class CacheFeedClient {
       })
       torrent.on('done', () => {
         clearTimeout(timer)
-        this.log(`Completed ${entry.fileName} (${torrent.numPeers} peers).`)
+        this.log(t('cli.cacheFeed.completed', { file: entry.fileName, count: torrent.numPeers }))
         resolve()
       })
     })
@@ -359,7 +368,9 @@ export class CacheFeedClient {
 
   private async fetchTorrentFile(entry: CacheFeedEntry): Promise<Uint8Array> {
     const response = await this.options.http.fetch(entry.torrentUrl)
-    if (!response.ok) throwHttpError(response, `Failed to fetch torrent for ${entry.fileName}`)
+    if (!response.ok) {
+      throwHttpError(response, t('cli.cacheFeed.torrentFetchFailed', { file: entry.fileName }))
+    }
     return new Uint8Array(await response.arrayBuffer())
   }
 
@@ -372,7 +383,11 @@ export class CacheFeedClient {
       ...(this.options.torrentPort !== undefined ? { torrentPort: this.options.torrentPort } : {}),
     })
     this.torrentClient.on('error', (err) => {
-      this.log(`Torrent client error: ${err instanceof Error ? err.message : String(err)}`)
+      this.log(
+        t('cli.cacheFeed.torrentClientError', {
+          error: err instanceof Error ? err.message : String(err),
+        }),
+      )
     })
     return this.torrentClient
   }
@@ -396,7 +411,7 @@ export class CacheFeedClient {
         const torrent: Torrent = client.add(torrentBuf, { path: this.filesDir })
         const timer = setTimeout(() => {
           client.remove(entry.infoHash)
-          reject(new Error(`Torrent ${entry.infoHash} did not become ready in time`))
+          reject(new Error(t('cli.cacheFeed.torrentNotReady', { infoHash: entry.infoHash })))
         }, TORRENT_READY_TIMEOUT_MS)
         torrent.on('ready', () => {
           clearTimeout(timer)

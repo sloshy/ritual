@@ -7,6 +7,11 @@ import {
   recordCardBulkType,
 } from '../../../src/cache/bulk-provenance'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
+import {
+  foreignLocales,
+  withSyntheticLocale,
+  withSyntheticLocaleAsync,
+} from '../../helpers/sync-text'
 
 let ws: BoundWorkspace
 
@@ -40,6 +45,15 @@ describe('parseCardBulkProvenance', () => {
     const result = parseCardBulkProvenance({ bulkType: 'default_cards' })
     expect(result as string).toContain('recordedAt')
   })
+
+  test('words its refusal in the UI language', () => {
+    const result = withSyntheticLocale(
+      'xx',
+      { 'cli.cacheStore.provenanceNotObject': 'KEIN OBJEKT' },
+      () => parseCardBulkProvenance(null),
+    )
+    expect(result).toBe('KEIN OBJEKT')
+  })
 })
 
 describe('readRecordedCardBulkType / recordCardBulkType', () => {
@@ -60,6 +74,19 @@ describe('readRecordedCardBulkType / recordCardBulkType', () => {
     // A later ingest from the other bulk overwrites the record.
     await recordCardBulkType('default_cards')
     expect(await readRecordedCardBulkType()).toBe('default_cards')
+  })
+
+  test.each(foreignLocales())('the sidecar is byte-identical under $tag', async ({ tag, catalog }) => {
+    await withSyntheticLocaleAsync(tag, catalog, () =>
+      recordCardBulkType('all_cards', { now: () => new Date('2026-08-06T12:00:00Z') }),
+    )
+
+    // Pinned as bytes: a later run (in any language) reads this file back.
+    expect(await fs.readFile(path.join(ws.dir, 'cache', 'card-bulk.json'), 'utf-8')).toBe(
+      ['{', '  "bulkType": "all_cards",', '  "recordedAt": "2026-08-06T12:00:00.000Z"', '}'].join(
+        '\n',
+      ),
+    )
   })
 
   test('a malformed sidecar reads as unrecorded rather than throwing', async () => {

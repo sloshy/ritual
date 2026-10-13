@@ -10,8 +10,8 @@
  */
 
 import { renderSyncSummary, type SyncSummary } from '../api/sync-summary'
-import { pickMessage, renderApiMessage, type ApiMessage } from '../../api/result'
-import { isMessageKey } from '../../i18n/t'
+import { pickMessage, type ApiMessage } from '../../api/result'
+import { isMessageKey, type MessageTriple } from '../../i18n/t'
 import { useI18n } from '../../ui/i18n'
 import {
   renderSyncMessage,
@@ -35,24 +35,25 @@ export function useSyncText(): (text: SyncMessage | SyncParam) => string {
 
 /**
  * What a sync page's result banner holds once a run ends: the run's summary
- * (keyed clauses), or a keyed message — the endpoint's refusal, or the page's
- * own fallback (`admin.sync.complete`, `admin.sync.connectionDropped`, …) built
- * with `apiMessage`. Never rendered text, so it relabels like the rest.
+ * (keyed clauses), or a keyed message — the endpoint's refusal (whose params
+ * may nest: an error the run raised, such as a cache lock's time-out), or the
+ * page's own fallback (`admin.sync.complete`, `admin.sync.connectionDropped`,
+ * …) built with `apiMessage`. Never rendered text, so it relabels like the rest.
  */
-export type RunNotice = SyncSummary | ApiMessage
+export type RunNotice = SyncSummary | SyncMessage
 
 /**
  * Drop a key this bundle does not know (a newer server's), and its params, so
  * the text falls back to the English it was sent rather than printing the raw
- * key.
+ * key. Generic over the params, so a summary clause stays flat.
  */
-export function withKnownKey(message: ApiMessage): ApiMessage {
+export function withKnownKey<P>(message: MessageTriple<P>): MessageTriple<P> {
   if (message.messageKey === undefined || isMessageKey(message.messageKey)) return message
   return { message: message.message }
 }
 
 /** The message half of an event or response that carries one — with a known key only. */
-export function noticeMessage(source: ApiMessage): ApiMessage {
+export function noticeMessage<P>(source: MessageTriple<P>): MessageTriple<P> {
   return withKnownKey(pickMessage(source))
 }
 
@@ -78,6 +79,8 @@ export function useRunNotice(): (notice: RunNotice | null) => string | null {
       const clauses = notice.clauses.map(noticeMessage)
       return renderSyncSummary(tDynamic, { clauses }, locale())
     }
-    return renderApiMessage(tDynamic, noticeMessage(notice))
+    // The whole tree is checked: a nested key this bundle does not know sends
+    // the banner back to the English it was sent.
+    return renderSyncMessage(noticeMessage(notice), locale())
   }
 }

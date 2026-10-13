@@ -22,7 +22,8 @@
  * Pre-rendering those parts in English would leave English fragments inside a
  * translated sentence, so a param here may itself be a message reference
  * ({@link SyncMessageRef}), a list ({@link SyncListParam}), a duration
- * ({@link SyncElapsedParam}) or a card language ({@link SyncLanguageParam}), and
+ * ({@link SyncElapsedParam} for how long something took, {@link SyncDurationParam}
+ * for an age or a timeout) or a card language ({@link SyncLanguageParam}), and
  * {@link renderSyncMessage} renders the whole tree in one locale. The type is
  * deliberately not assignable to `ApiMessage`, so a sync message cannot reach
  * `renderApiMessage`, which would print a nested param as `[object Object]`.
@@ -44,7 +45,7 @@ import {
   type SelectBranch,
 } from '../i18n/t'
 import type { LocaleTag, PluralForms, SelectForms } from '../i18n/types'
-import { formatElapsed } from '../util/duration'
+import { formatDuration, formatElapsed } from '../util/duration'
 
 // ── Shapes ────────────────────────────────────────────────────────────
 
@@ -78,6 +79,13 @@ export type SyncListParam = { list: SyncParam[]; join: SyncListJoin }
 /** A duration in milliseconds, rendered like `4.2 seconds` in the enclosing message's locale. */
 export type SyncElapsedParam = { elapsedMs: number }
 
+/**
+ * A coarser duration in milliseconds — an age or a timeout — rendered like
+ * `2 days, 3 hours` or `less than a minute` in the enclosing message's locale
+ * (`formatDuration`). {@link SyncElapsedParam} is the one to second precision.
+ */
+export type SyncDurationParam = { durationMs: number }
+
 /** A card language, named in the enclosing message's locale (`Japanese`, `Japanisch`). */
 export type SyncLanguageParam = { language: CardLanguage }
 
@@ -86,7 +94,13 @@ export type SyncLanguageParam = { language: CardLanguage }
  * a card name, a list name, or an error message raised outside the catalog.
  */
 export type SyncParam =
-  string | number | SyncMessageRef | SyncListParam | SyncElapsedParam | SyncLanguageParam
+  | string
+  | number
+  | SyncMessageRef
+  | SyncListParam
+  | SyncElapsedParam
+  | SyncDurationParam
+  | SyncLanguageParam
 
 /** The parameters a sync message interpolates. */
 export type SyncMessageParams = Record<string, SyncParam>
@@ -97,10 +111,10 @@ export type SyncMessageParams = Record<string, SyncParam>
  * `message` is English whenever the text comes from the catalog — the engines
  * render it with `DEFAULT_LOCALE`, nested parts included. The one exception is
  * text Ritual did not word itself: an error another module raised (a file it
- * could not read, an Archidekt client failure, a cache refresh's progress), or
- * a refusal a caller's callback returned as plain text. That arrives already
- * rendered — engine errors are worded where they are raised, in the active
- * locale — and is carried as it is, with no key, inside an otherwise English
+ * could not read, an Archidekt client failure), or a refusal a caller's
+ * callback returned as plain text. That arrives already rendered — engine
+ * errors are worded where they are raised, in the active locale — and is
+ * carried as it is, with no key, inside an otherwise English
  * message.
  */
 export type SyncMessage = MessageTriple<SyncMessageParams>
@@ -210,6 +224,11 @@ export function syncList(list: SyncParam[], join: SyncListJoin): SyncListParam {
 /** A duration param. */
 export function syncElapsed(elapsedMs: number): SyncElapsedParam {
   return { elapsedMs }
+}
+
+/** An age or timeout param — see {@link SyncDurationParam}. */
+export function syncDuration(durationMs: number): SyncDurationParam {
+  return { durationMs }
 }
 
 /** A card-language param. */
@@ -349,6 +368,9 @@ function renderParam(
   }
   if ('elapsedMs' in param && typeof param.elapsedMs === 'number') {
     return formatElapsed(param.elapsedMs, locale)
+  }
+  if ('durationMs' in param && typeof param.durationMs === 'number') {
+    return formatDuration(param.durationMs, locale)
   }
   return strict ? undefined : ''
 }

@@ -11,6 +11,7 @@ import {
   reasonMessage,
   renderSyncMessage,
   renderSyncParam,
+  syncDuration,
   syncElapsed,
   syncLanguage,
   syncList,
@@ -109,6 +110,21 @@ describe('rendering in the reader’s locale', () => {
     })
     expect(language.message).toContain('cannot represent Japanese [ja]')
     expect(renderSyncMessage(language, de)).toContain('Japanisch [ja]')
+  })
+
+  test('an age or time-out param renders in the locale reading it, not the active one', () => {
+    // Built while real German is the UI language: `Intl` resolves `de` for real,
+    // so a duration rendered in the active locale would put German in the English half.
+    const timedOut = withSyntheticLocale('de', {}, (de) => {
+      const message = syncMessage('domain.cache.lockTimedOut', {
+        timeout: syncDuration(5 * 60_000),
+        holder: syncRef('domain.cache.lockHolderUnknown'),
+      })
+      return { message, de }
+    })
+    expect(timedOut.message.message).toContain('Timed out after 5 minutes waiting')
+    expect(timedOut.message.message).not.toContain('Minuten')
+    expect(renderSyncMessage(timedOut.message, timedOut.de)).toContain('5 Minuten')
   })
 
   test('the English half is the catalog English whatever the active locale', () => {
