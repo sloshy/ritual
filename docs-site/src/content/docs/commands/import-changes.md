@@ -158,13 +158,20 @@ With `--output json` (or `ndjson`), the preview and glyph lines are replaced by 
       "droppedNotes": [{ "cardName": "Sol Ring", "cardId": 3, "note": "from trade" }]
     }
   ],
-  "message": "Applied 2 changes across 1 list"
+  "message": "Applied 2 changes across 1 list",
+  "messageKey": "admin.api.importChanges.applied",
+  "messageParams": {
+    "changes": { "messageKey": "domain.count.changes", "messageParams": { "count": 2 } },
+    "lists": { "messageKey": "domain.count.lists", "messageParams": { "count": 1 } }
+  }
 }
 ```
 
+`message` is English; `messageKey` and `messageParams` carry the same sentence unrendered, its counts nested as messages of their own (see [the message triple](/admin/api/#the-message-triple)).
+
 - `lists` has one entry per list the bundle touched: the bundle's own entries plus any list named only as a move destination (whose `slug` is the file basename it resolved to). Moves count toward `applied` on their destination list.
 - `droppedNotes` lists the notes the list's saves discarded, as `{ cardName, cardId?, note }` (`cardId` is the source line's): a moved card that merged onto a deck line already holding a different note keeps the line's note. Empty when none. Text mode prints each one as a warning, even with `--quiet`.
-- A list that failed to resolve, load, or save carries an `error` string and is counted in `failedCount`. Its later batches are skipped; anything already applied is still counted.
+- A list that failed to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`; `errorKey` and `errorParams` ride beside it when the failure has a catalog entry. Text mode prints that reason in the CLI's language. Its later batches are skipped; anything already applied is still counted.
 - `success` stays `true` even then. It is the envelope flag and means the run was processed; `failedCount` and each list's `error` report the failures. The exit code is `1`, as in text mode.
 
 ## Exit Codes

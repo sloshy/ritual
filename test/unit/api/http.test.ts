@@ -1,11 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  errorResponse,
   readBodyText,
   readJsonObjectBody,
   type ApiErrorResponse,
   type BodyText,
 } from '../../../src/api/http'
 
+import { ExitCode, localizedCommandError } from '../../../src/util/errors'
+import { withSyntheticLocale } from '../../helpers/sync-text'
 /**
  * The shared JSON-body route prologue. Its two refusal messages are pinned here
  * rather than in each adopting handler's suite: they are the *shared* wording,
@@ -192,5 +195,33 @@ describe('readBodyText', () => {
     const text = '🂡🂢🂣'
     expect(await readBodyText(postBody(text), 12)).toEqual({ ok: true, text })
     expect(refusedStatus(await readBodyText(postBody(text), 11))).toBe(413)
+  })
+})
+
+describe('errorResponse', () => {
+  test('answers a keyed command error in English with its key, at its status', async () => {
+    // Thrown in the process's own language, deep in an engine: the response is
+    // still English plus the key, whatever route it surfaced through.
+    const resp = withSyntheticLocale('xx', { 'admin.api.setup.userExists': 'Schon da' }, () => {
+      const thrown = localizedCommandError(
+        'usage_error',
+        ExitCode.UsageError,
+        'admin.api.setup.userExists',
+      )
+      expect(thrown.message).toBe('Schon da')
+      return errorResponse(thrown)
+    })
+    expect(resp.status).toBe(400)
+    expect(await resp.json()).toEqual({
+      success: false,
+      message: 'Admin user already exists',
+      messageKey: 'admin.api.setup.userExists',
+    })
+  })
+
+  test('answers anything else with its own text at 500', async () => {
+    const resp = errorResponse(new Error('disk on fire'))
+    expect(resp.status).toBe(500)
+    expect(await resp.json()).toEqual({ success: false, message: 'disk on fire' })
   })
 })

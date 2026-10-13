@@ -3,6 +3,7 @@ import { createList, isListLifecycleError } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { lifecycleErrorResponse, type ListCreateResponse } from './list-lifecycle'
 import { apiError, readJsonObjectBody } from '../../api/http'
+import { apiMessage } from '../../api/result'
 import { autoCommitAndPush } from './save-helpers'
 
 export interface DeckCreateRequest {
@@ -22,7 +23,7 @@ export function handleDeckCreate(req: Request): Promise<Response> {
     const { name, format } = parsed.body as unknown as DeckCreateRequest
 
     if (!name || typeof name !== 'string' || name.trim().length === 0) {
-      return apiError('Deck name is required', 400)
+      return apiError(apiMessage('admin.api.list.nameRequired', { listType: 'deck' }), 400)
     }
 
     const trimmedName = name.trim()
@@ -33,7 +34,7 @@ export function handleDeckCreate(req: Request): Promise<Response> {
 
     const resp: ListCreateResponse = {
       success: true,
-      message: `Created deck '${trimmedName}'`,
+      ...apiMessage('admin.api.list.created', { listType: 'deck', name: trimmedName }),
       slug: result.slug,
     }
     return Response.json(resp)

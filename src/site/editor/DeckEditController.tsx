@@ -494,7 +494,7 @@ export function DeckEditorBody(props: DeckEditorBodyProps): JSX.Element {
   const editor = ctrl.editor
   return (
     <EditorShell
-      entityLabel="deck"
+      listType="deck"
       selectorId="deck-select"
       editor={editor}
       cardData={ctrl.cardData}

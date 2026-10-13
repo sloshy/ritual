@@ -7,7 +7,11 @@ import type { CollectionCardEntry, WantedListCardEntry } from '../../../list/sit
 import { createChangeId } from '../../../changes/change-event'
 import { formatPrunedCategoriesSuffix } from '../../../editor/save-notices'
 import { formatDroppedNotesSuffix } from '../../../list/dropped-notes'
+import type { DroppedNote } from '../../../list/move-staging'
 import { t } from '../../../i18n/t'
+import { apiMessage } from '../../../api/result'
+import type { ApiActionMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
 import type { MoveCommitResponse } from '../../api/move'
 import type { MovePhysicalCard } from '../../../card/card-index-types'
 import type { CardIndexResponse } from '../../api/card-index'
@@ -63,10 +67,37 @@ type EntryLoadResponse = MoveCardData & {
 }
 type CardPrintingsResponse = { success: boolean; printings: ScryfallCard[] }
 
+/**
+ * What a committed batch of moves did, held as **data** rather than as the
+ * sentence reporting it, so the banner relabels on a language switch.
+ */
+export type MoveCommitStatus = {
+  moved: number
+  skipped: number
+  droppedNotes: readonly DroppedNote[]
+  /** Card names whose categories the move dropped with the list's last line of that name. */
+  prunedCategories: readonly string[]
+}
+
+/**
+ * The commit banner's sentence, in the active locale. The same channel the
+ * editor's save tail and the CLI's `move` report: dropped notes and pruned
+ * categories ride after the count. Call it in JSX so it tracks the locale.
+ */
+export function moveStatusText(status: MoveCommitStatus): string {
+  const skippedNote =
+    status.skipped > 0 ? t('admin.move.skippedSuffix', { count: status.skipped }) : ''
+  const droppedNote = formatDroppedNotesSuffix(status.droppedNotes)
+  const prunedNote = formatPrunedCategoriesSuffix(status.prunedCategories)
+  return `${t('admin.api.move.moved', { count: status.moved })}${skippedNote}${droppedNote}${prunedNote}`
+}
+
 export type UseMoveSessionResult = {
   loaded: Accessor<boolean>
-  error: Accessor<string | null>
-  status: Accessor<string | null>
+  /** Held unrendered; render with `useApiText()` so a language switch relabels it. */
+  error: Accessor<ApiActionMessage | null>
+  /** The last commit's outcome, held as data; render it with {@link moveStatusText}. */
+  status: Accessor<MoveCommitStatus | null>
   saving: Accessor<boolean>
 
   lists: Accessor<ListInfo[]>
@@ -168,8 +199,8 @@ function indexPrintings(
 
 export function useMoveSession(): UseMoveSessionResult {
   const [loaded, setLoaded] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
-  const [status, setStatus] = createSignal<string | null>(null)
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const [status, setStatus] = createSignal<MoveCommitStatus | null>(null)
   const [saving, setSaving] = createSignal(false)
 
   const [lists, setLists] = createSignal<ListInfo[]>([])
@@ -211,14 +242,14 @@ export function useMoveSession(): UseMoveSessionResult {
       const resp = await fetch('/api/card-index', { credentials: 'same-origin' })
       const data = (await resp.json()) as CardIndexResponse | ApiErrorResponse
       if (!data.success) {
-        setError(data.message)
+        setError(readSyncMessage(data) ?? apiMessage('admin.app.requestFailed'))
         return
       }
       setLists(data.lists)
       setAllCards(data.cards)
       setLoaded(true)
     } catch (err) {
-      setError(t('admin.move.loadListsFailed', { reason: errorMessage(err) }))
+      setError(apiMessage('admin.move.loadListsFailed', { reason: errorMessage(err) }))
     }
   }
 
@@ -246,7 +277,7 @@ export function useMoveSession(): UseMoveSessionResult {
       const resp = await fetch(endpoint, { credentials: 'same-origin' })
       const json = (await resp.json()) as DeckLoadResponse | EntryLoadResponse
       if (!json.success) {
-        setError(t('admin.move.loadListFailed', { name: list.name }))
+        setError(apiMessage('admin.move.loadListFailed', { name: list.name }))
         return
       }
       if (list.type === 'deck') {
@@ -266,7 +297,12 @@ export function useMoveSession(): UseMoveSessionResult {
         setRichCache((prev) => ({ ...prev, [id]: entry }))
       }
     } catch (err) {
-      setError(t('admin.move.loadListFailedReason', { name: list.name, reason: errorMessage(err) }))
+      setError(
+        apiMessage('admin.move.loadListFailedReason', {
+          name: list.name,
+          reason: errorMessage(err),
+        }),
+      )
     } finally {
       setViewedLoading(false)
     }
@@ -460,7 +496,7 @@ export function useMoveSession(): UseMoveSessionResult {
       })
       const json = (await resp.json()) as MoveCommitResponse | ApiErrorResponse
       if (!json.success) {
-        setError(json.message)
+        setError(readSyncMessage(json) ?? apiMessage('admin.app.requestFailed'))
         return
       }
       setPending([])
@@ -470,17 +506,14 @@ export function useMoveSession(): UseMoveSessionResult {
       await reloadBulk()
       // Force the viewed list (unchanged id) to reload now that its cache is cleared.
       setRefreshKey((k) => k + 1)
-      const skippedNote =
-        json.skipped > 0 ? t('admin.move.skippedSuffix', { count: json.skipped }) : ''
-      const droppedNote = formatDroppedNotesSuffix(json.droppedNotes)
-      // The same channel the editor's save tail and the CLI's `move` report:
-      // categories dropped because the move took the list's last line of a name.
-      const prunedNote = formatPrunedCategoriesSuffix(json.prunedCategories ?? [])
-      setStatus(
-        `${t('admin.api.move.moved', { count: json.moved })}${skippedNote}${droppedNote}${prunedNote}`,
-      )
+      setStatus({
+        moved: json.moved,
+        skipped: json.skipped,
+        droppedNotes: json.droppedNotes,
+        prunedCategories: json.prunedCategories ?? [],
+      })
     } catch (err) {
-      setError(t('admin.move.saveFailed', { reason: errorMessage(err) }))
+      setError(apiMessage('admin.move.saveFailed', { reason: errorMessage(err) }))
     } finally {
       setSaving(false)
     }

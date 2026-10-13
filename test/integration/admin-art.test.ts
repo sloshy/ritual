@@ -14,6 +14,7 @@ import {
   createSetLabelChange,
   type ChangeEvent,
 } from '../../src/changes/change-event'
+import { keyedRefusal } from '../helpers/api-message'
 import { artSidecarPath, saveCardArt } from '../../src/list/card-art'
 import {
   bindWorkspace,
@@ -209,13 +210,9 @@ describe('handleArtSave', () => {
 })
 
 describe('parseCardArtSaveBody', () => {
-  /** The refusal message, or a thrown failure naming what parsed instead. */
+  /** The keyed refusal's English, or a thrown failure naming what parsed instead. */
   function refusal(raw: Record<string, unknown>): string {
-    const parsed = parseCardArtSaveBody(raw)
-    if (typeof parsed !== 'string') {
-      throw new Error(`expected a refusal, got: ${JSON.stringify(parsed)}`)
-    }
-    return parsed
+    return keyedRefusal(parseCardArtSaveBody(raw))
   }
 
   test('refuses an unknown top-level field rather than dropping it', () => {

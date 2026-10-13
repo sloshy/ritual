@@ -7,7 +7,7 @@ import { getWantedDir } from '../../config/ritual-config'
 import { handleFlatListLoad, type FlatListLoadConfig, type FlatListParseResult } from './list-load'
 
 const WANTED_LOAD_CFG: FlatListLoadConfig<ParsedWantedEntry> = {
-  label: 'wanted list',
+  listType: 'wanted',
   getDir: getWantedDir,
   // Name-only entries are a wanted list's own state, and the only lines a price
   // store's printing pick can apply to.

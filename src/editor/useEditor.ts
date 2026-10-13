@@ -38,7 +38,6 @@ import type { ChangeEvent, CardPrintingOptions } from '../changes/change-event'
 import { retargetImportedChanges } from './import-changes'
 import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
 import { statusMessage, statusText, useEditorStatus } from './useEditorStatus'
-import { entityListType } from './entity'
 import type { ListType } from '../list/list-type'
 import { useT } from '../ui/i18n'
 import { useDialogState } from './useDialogState'
@@ -105,7 +104,7 @@ export function useEditor<TData, TCardEntry = unknown>(
 
   const [status, statusActions] = useEditorStatus()
   const t = useT()
-  const listType = (): ListType => entityListType(config.entityLabel)
+  const listType = (): ListType => config.listType
   const dialogs = useDialogState()
   const pool = useCardIdPool()
   const changes = useCardChanges<TCardEntry>()

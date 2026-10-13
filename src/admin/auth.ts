@@ -3,6 +3,7 @@ import path from 'node:path'
 import { getLoginsDir, writePrivateJson } from '../auth/logins-dir'
 import { secretsEqual } from '../util/secret-compare'
 import { MIN_PASSWORD_LENGTH } from './validation'
+import { ExitCode, localizedCommandError } from '../util/errors'
 
 interface AdminCredentials {
   username: string
@@ -30,11 +31,18 @@ export async function adminUserExists(): Promise<boolean> {
 
 export async function createAdminUser(username: string, password: string): Promise<void> {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'admin.api.setup.passwordTooShort',
+      {
+        count: MIN_PASSWORD_LENGTH,
+      },
+    )
   }
 
   if (await adminUserExists()) {
-    throw new Error('Admin user already exists')
+    throw localizedCommandError('usage_error', ExitCode.UsageError, 'admin.api.setup.userExists')
   }
 
   const passwordHash = await Bun.password.hash(password, { algorithm: 'bcrypt', cost: 10 })
@@ -51,7 +59,14 @@ export async function createAdminUser(username: string, password: string): Promi
  */
 export async function resetAdminPassword(password: string, username?: string): Promise<string> {
   if (password.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`)
+    throw localizedCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      'admin.api.setup.passwordTooShort',
+      {
+        count: MIN_PASSWORD_LENGTH,
+      },
+    )
   }
 
   const credentials = await readCredentials()

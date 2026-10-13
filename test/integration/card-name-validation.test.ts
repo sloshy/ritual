@@ -110,7 +110,7 @@ describe('a save route with validateCardNames', () => {
       },
     )
     expect(status).toBe(400)
-    expect(body.message).toBe('"validateCardNames" must be a boolean.')
+    expect(body.message).toBe('validateCardNames must be a boolean.')
   })
 })
 

@@ -193,7 +193,7 @@ function leadFor(
     default: {
       // Every outcome must be worded; a new status is a compile error.
       const unhandled: never = csv
-      throw new Error(`Unhandled CSV outcome: ${JSON.stringify(unhandled)}`)
+      throw new Error(t('admin.app.unhandledCsvOutcome', { outcome: JSON.stringify(unhandled) }))
     }
   }
 }

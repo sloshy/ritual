@@ -7,21 +7,36 @@ import {
   buildExpiredSessionCookie,
 } from '../session'
 import { appendAuditLog, createAuditEntry } from '../audit-log'
+import { AUDIT_REASONS } from '../audit-reasons'
 import { loadRitualConfig } from '../../config/ritual-config'
 import { globalRateLimiter } from '../rate-limit'
-import { readJsonObjectBody } from '../../api/http'
+import { apiError, readJsonObjectBody, type ApiErrorResponse } from '../../api/http'
+import { apiMessage, type ApiMessage } from '../../api/result'
 import { MAX_USERNAME_LENGTH, MAX_PASSWORD_LENGTH } from '../validation'
 
-interface LoginResponse {
-  success: boolean
-  message?: string
-  totpRequired?: boolean
+/** `POST /api/login` when the password was right but a two-factor code is still needed. */
+interface TotpRequiredResponse extends ApiErrorResponse {
+  totpRequired: true
 }
 
-interface RateLimitResponse {
-  success: false
-  error: string
+/** `POST /api/login` on a successful sign-in; the session rides in `Set-Cookie`. */
+interface LoginSuccessResponse {
+  success: true
+}
+
+/**
+ * `POST /api/login` (429) while sign-in is locked for this address: the shared
+ * refusal plus how long the lock has left, which the `Retry-After` header also
+ * carries.
+ */
+interface RateLimitResponse extends ApiErrorResponse {
   retryAfterSeconds: number
+}
+
+/** The refusal at `status`, plus the header that tells the login form to ask for a code. */
+function totpRefusal(message: ApiMessage, status: number): Response {
+  const resp: TotpRequiredResponse = { success: false, ...message, totpRequired: true }
+  return Response.json(resp, { status, headers: { 'X-TOTP-Required': 'true' } })
 }
 
 export async function handleLogin(req: Request, clientIp: string): Promise<Response> {
@@ -33,7 +48,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
     const remaining = globalRateLimiter.getRemainingLockSeconds(clientIp)
     const resp: RateLimitResponse = {
       success: false,
-      error: 'Too many failed attempts. Try again later.',
+      ...apiMessage('admin.api.login.rateLimited'),
       retryAfterSeconds: remaining,
     }
     return Response.json(resp, { status: 429, headers: { 'Retry-After': String(remaining) } })
@@ -47,10 +62,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
   const password = typeof body.password === 'string' ? body.password : ''
   const totpCode = typeof body.totpCode === 'string' ? body.totpCode : undefined
   if (!username || !password) {
-    return Response.json(
-      { success: false, message: 'Username and password are required' },
-      { status: 400 },
-    )
+    return apiError(apiMessage('admin.api.login.credentialsRequired'), 400)
   }
 
   if (
@@ -58,10 +70,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
     password.length > MAX_PASSWORD_LENGTH ||
     (totpCode && (totpCode.length !== 6 || !/^\d{6}$/.test(totpCode)))
   ) {
-    return Response.json(
-      { success: false, message: 'Input exceeds maximum length' },
-      { status: 400 },
-    )
+    return apiError(apiMessage('admin.api.login.inputTooLong'), 400)
   }
 
   const valid = await verifyAdminUser(username, password)
@@ -74,31 +83,19 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
       )
     }
     await appendAuditLog(
-      createAuditEntry(clientIp, username, false, 'Invalid credentials', userAgent),
+      createAuditEntry(clientIp, username, false, AUDIT_REASONS.invalidCredentials, userAgent),
     )
     await Bun.sleep(config.admin.failedAuthDelayMs)
-    return Response.json(
-      { success: false, message: 'Invalid username or password' },
-      { status: 401 },
-    )
+    return apiError(apiMessage('admin.api.login.invalidCredentials'), 401)
   }
 
   // TOTP verification
   const totpEnabled = await isTotpEnabled()
   if (totpEnabled) {
-    if (!totpCode) {
-      const resp: LoginResponse = {
-        success: false,
-        message: 'TOTP code required',
-        totpRequired: true,
-      }
-      return Response.json(resp, { status: 401, headers: { 'X-TOTP-Required': 'true' } })
-    }
+    if (!totpCode) return totpRefusal(apiMessage('admin.api.login.totpRequired'), 401)
 
     const secret = await getTotpSecret()
-    if (!secret) {
-      return Response.json({ success: false, message: 'TOTP configuration error' }, { status: 500 })
-    }
+    if (!secret) return apiError(apiMessage('admin.api.login.totpMisconfigured'), 500)
 
     const totpValid = await verifyTotp(secret, totpCode)
     if (!totpValid) {
@@ -110,22 +107,21 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
         )
       }
       await appendAuditLog(
-        createAuditEntry(clientIp, username, false, 'Invalid TOTP code', userAgent),
+        createAuditEntry(clientIp, username, false, AUDIT_REASONS.invalidTotp, userAgent),
       )
       await Bun.sleep(config.admin.failedAuthDelayMs)
-      return Response.json(
-        { success: false, message: 'Invalid TOTP code', totpRequired: true },
-        { status: 401, headers: { 'X-TOTP-Required': 'true' } },
-      )
+      return totpRefusal(apiMessage('admin.api.login.totpInvalid'), 401)
     }
   }
 
   // Auth succeeded
   globalRateLimiter.recordSuccess(clientIp)
   const session = createSession(username, clientIp)
-  await appendAuditLog(createAuditEntry(clientIp, username, true, 'Login successful', userAgent))
+  await appendAuditLog(
+    createAuditEntry(clientIp, username, true, AUDIT_REASONS.loginSucceeded, userAgent),
+  )
 
-  const resp: LoginResponse = { success: true }
+  const resp: LoginSuccessResponse = { success: true }
   return Response.json(resp, {
     headers: { 'Set-Cookie': buildSessionCookie(session.token, config.admin.secureCookies) },
   })

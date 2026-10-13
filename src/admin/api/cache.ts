@@ -1,11 +1,11 @@
 import { preloadCache } from '../../scryfall'
 import type { CacheRefreshEvent, CacheRefreshProgressHandler } from '../../scryfall'
-import { getErrorMessage } from '../../util/errors'
 import { sseResponse } from '../../util/sse'
 import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
 import { collectCacheStatus, type CacheStatusResult } from '../../cache/status'
 import { apiMessage, type ApiMessage } from '../../api/result'
+import { caughtMessage } from '../../api/http'
 
 /** `POST /api/cache/refresh` — the card cache was rebuilt from Scryfall. */
 export interface CacheRefreshResponse extends ApiMessage {
@@ -115,7 +115,7 @@ export function handleCacheRefreshStream(): Promise<Response> {
       send('done', apiMessage('admin.api.cache.refreshed'))
     } catch (error) {
       // EventSource cannot read a non-2xx body, so a failure rides the stream.
-      send('error', { message: getErrorMessage(error) })
+      send('error', caughtMessage(error))
     }
   })
   return Promise.resolve(response)

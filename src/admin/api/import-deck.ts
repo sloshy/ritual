@@ -7,7 +7,14 @@ import { saveDeck } from '../../importers/save-list'
 import { autoCommitAndPush } from './save-helpers'
 import { badRequest, readJsonObjectBody } from '../../api/http'
 import { apiHandler } from '../utils'
-import type { ApiMessage } from '../../api/result'
+import { apiMessage, apiText, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
+import {
+  syncList,
+  syncMessage,
+  syncRef,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../../sync/message'
 import type { DeckData } from '../../list/deck'
 import { getDecksDir } from '../../config/ritual-config'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
@@ -35,7 +42,7 @@ export type ImportDeckRequest =
   | { mode: 'text'; content: string; name?: string; overwrite?: boolean }
 
 /** `POST /api/import-deck` — the deck that was written. */
-export interface ImportDeckResponse extends ApiMessage {
+export interface ImportDeckResponse extends SyncMessage {
   success: true
   /** Name of the imported deck, which is also its slug. */
   deckName: string
@@ -61,43 +68,77 @@ export interface ImportDeckResponse extends ApiMessage {
   syncPrintings: boolean
 }
 
-const MODE_REQUIRED = 'Invalid request: expected mode "url" (with url) or "text" (with content)'
-
 /**
  * Parse a request body into an {@link ImportDeckRequest}, or return why it is
  * not one. A parser rather than a validator-plus-cast: every field the
  * handler reads is checked here, so the shape and the checks cannot drift.
  */
-function parseImportDeckRequest(record: Record<string, unknown>): ImportDeckRequest | string {
+function parseImportDeckRequest(record: Record<string, unknown>): ImportDeckRequest | ApiMessage {
   const overwrite = record.overwrite
   if (overwrite !== undefined && typeof overwrite !== 'boolean') {
-    return 'overwrite must be a boolean'
+    return apiMessage('admin.api.field.notBoolean', { field: 'overwrite' })
   }
   if (record.mode === 'url') {
-    if (typeof record.url !== 'string') return 'url is required for mode "url"'
+    if (typeof record.url !== 'string') return apiMessage('admin.api.importDeck.urlRequiredForMode')
     if (typeof record.syncPrintings !== 'boolean') {
       // The CLI's stand-in for this field is an interactive prompt; over HTTP
       // the caller must decide, so an absent or mistyped value is refused
       // rather than silently defaulted.
-      return (
-        'syncPrintings is required for a URL import and must be a boolean: true keeps the ' +
-        'exact printings (set, collector number, finish) the source lists, false imports ' +
-        'bare card names'
-      )
+      return apiMessage('admin.api.importDeck.syncPrintingsRequired')
     }
     return { mode: 'url', url: record.url, overwrite, syncPrintings: record.syncPrintings }
   }
   if (record.mode === 'text') {
-    if (typeof record.content !== 'string') return 'content is required for mode "text"'
+    if (typeof record.content !== 'string') {
+      return apiMessage('admin.api.importDeck.contentRequiredForMode')
+    }
     if (record.syncPrintings !== undefined) {
-      return 'syncPrintings only applies to URL imports; pasted text states its own printings'
+      return apiMessage('admin.api.importDeck.syncPrintingsUrlOnly')
     }
     if (record.name !== undefined && typeof record.name !== 'string') {
-      return 'name must be a string'
+      return apiMessage('admin.api.field.notString', { field: 'name' })
     }
     return { mode: 'text', content: record.content, name: record.name, overwrite }
   }
-  return MODE_REQUIRED
+  return apiMessage('admin.api.importDeck.modeRequired')
+}
+
+/** What a finished import's summary notes, beyond the deck's name. */
+type ImportNotes = {
+  /** Pasted lines the parser could not read and skipped. */
+  skipped: number
+  /** Card lines imported without the labels they carried. */
+  labelsDropped: number
+  /** Advisories: category notices for a URL import, probable misreads for pasted text. */
+  advisories: number
+  mode: ImportDeckRequest['mode']
+}
+
+/**
+ * The import's summary, with a note per kind of loss or doubt. The admin UI
+ * surfaces only `message`, so a lossy text import says so there too; API
+ * clients get the individual lines in `warnings` and `advisories`. Each note is
+ * a plural count of its own, nested as a param, which is why this is a
+ * {@link SyncMessage}.
+ */
+function importDeckMessage(name: string, notes: ImportNotes): SyncMessage {
+  const parts: SyncMessageRef[] = []
+  if (notes.skipped > 0) {
+    parts.push(syncRef('admin.api.importDeck.skippedNote', { count: notes.skipped }))
+  }
+  if (notes.labelsDropped > 0) {
+    parts.push(syncRef('admin.api.importDeck.labelsDroppedNote', { count: notes.labelsDropped }))
+  }
+  // Advisories are not loss, but they mean a line was probably misread, so the
+  // one-line message mentions them too rather than only the API clients.
+  if (notes.advisories > 0) {
+    parts.push(
+      notes.mode === 'url'
+        ? syncRef('admin.api.importDeck.categoryNotesNote', { count: notes.advisories })
+        : syncRef('admin.api.importDeck.misreadNote', { count: notes.advisories }),
+    )
+  }
+  return syncMessage('admin.api.importDeck.imported', { name, notes: syncList(parts, 'concat') })
 }
 
 export function handleImportDeck(req: Request): Promise<Response> {
@@ -105,7 +146,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
     const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const request = parseImportDeckRequest(parsedBody.body)
-    if (typeof request === 'string') return badRequest(request)
+    if (isApiMessage(request)) return badRequest(request)
     const overwrite = request.overwrite ?? false
 
     let deckData: DeckData
@@ -121,16 +162,18 @@ export function handleImportDeck(req: Request): Promise<Response> {
 
     if (request.mode === 'url') {
       const url = request.url.trim()
-      if (!url) return badRequest('url is required')
+      if (!url) return badRequest(apiMessage('admin.api.importDeck.urlRequired'))
       const result = await fetchDeckFromUrl(url)
-      if (typeof result === 'string') return badRequest(result)
+      if (typeof result === 'string') return badRequest(plainMessage(result))
       deckData = request.syncPrintings ? result.deck : stripDeckPrintings(result.deck)
       categories = result.categories
       refusedCategories = result.refusedCategories
     } else {
       const content = request.content.trim()
-      if (!content) return badRequest('content is required')
-      const fallbackName = request.name?.trim() || 'Imported Deck'
+      if (!content) return badRequest(apiMessage('admin.api.importDeck.contentRequired'))
+      // English, as everything the API writes on a caller's behalf: a localized
+      // default would make a file name and slug in the operator's language.
+      const fallbackName = request.name?.trim() || apiText('admin.api.importDeck.defaultName')
       // Pasted text is an import surface, so it reads exactly what the CLI's
       // text path reads: the Arena/MTGO dialect (`4 Lightning Bolt (M10) 146`
       // becomes a printing, not a card name) and the inside of a ``` fence,
@@ -144,7 +187,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       // be able to report them (the CLI's text path exits 1 on the same class).
       warnings = parsed.warnings
       if (deckData.sections.length === 0) {
-        return badRequest('No valid card lines found in the provided text.')
+        return badRequest(apiMessage('admin.api.importDeck.noCardLines'))
       }
     }
 
@@ -159,7 +202,9 @@ export function handleImportDeck(req: Request): Promise<Response> {
     })
     // Only a resolver can cancel, and this call injects none; still, the
     // outcome is honoured rather than assumed so the contract cannot drift.
-    if (outcome.status === 'cancelled') return badRequest('Import cancelled')
+    if (outcome.status === 'cancelled') {
+      return badRequest(apiMessage('admin.api.importDeck.cancelled'))
+    }
     // A URL import's category notes join the advisories: news, not loss.
     advisories = [
       ...advisories,
@@ -174,26 +219,16 @@ export function handleImportDeck(req: Request): Promise<Response> {
       `Import deck: ${outcome.name}`,
     )
 
-    // The admin UI surfaces only `message`, so a lossy text import says so
-    // there too; API clients get the individual lines in `warnings`.
     // A card kept with its labels dropped arrived; only its labels did not.
-    const skippedCount = warnings.filter((warning) => !labelsDropped.includes(warning)).length
-    const skippedNote =
-      (skippedCount > 0 ? ` — ${skippedCount} line(s) could not be parsed and were skipped` : '') +
-      (labelsDropped.length > 0
-        ? ` — ${labelsDropped.length} line(s) were imported without their labels`
-        : '')
-    // Advisories are not loss, but they mean a line was probably misread, so the
-    // UI's one-line message mentions them too rather than only the API clients.
-    const advisoryNote =
-      advisories.length === 0
-        ? ''
-        : request.mode === 'url'
-          ? ` — ${advisories.length} note(s) about its categories`
-          : ` — ${advisories.length} line(s) may not have been understood`
+    const skipped = warnings.filter((warning) => !labelsDropped.includes(warning)).length
     const resp: ImportDeckResponse = {
       success: true,
-      message: `Successfully imported '${outcome.name}'${skippedNote}${advisoryNote}`,
+      ...importDeckMessage(outcome.name, {
+        skipped,
+        labelsDropped: labelsDropped.length,
+        advisories: advisories.length,
+        mode: request.mode,
+      }),
       deckName: outcome.name,
       warnings,
       advisories,

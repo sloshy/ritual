@@ -6,6 +6,7 @@
 import type { ListInfo } from '../../list/list-info'
 import type { NamedListRef } from '../../list-view/combined-list'
 import { isAbortError } from '../../util/errors'
+import { t } from '../../i18n/t'
 import type {
   SwapSourceList,
   SwapSourceLoad,
@@ -65,7 +66,10 @@ export function createAdminSwapSourceProvider(
             return toSwapSourceList(ref, body)
           } catch (e) {
             if (isAbortError(e)) throw e
-            console.error(`Swap printings: failed to load ${ref.type}/${ref.slug}:`, e)
+            console.error(
+              t('admin.app.swapSourceLoadFailed', { list: `${ref.type}/${ref.slug}` }),
+              e,
+            )
             return null
           }
         }),

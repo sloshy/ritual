@@ -226,4 +226,36 @@ describe('pseudo-locale (Integration)', () => {
       expect(english.exitCode).not.toBe(0)
     })
   })
+
+  test('import-changes prints a failed list’s reason in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      // The reason comes back from the admin save path as English plus its key;
+      // text mode re-renders the key, so it is bracketed like the rest.
+      const bundle = {
+        format: 'ritual-change-bundle',
+        version: 3,
+        exportedAt: '2026-06-04T00:00:00.000Z',
+        moves: [],
+        lists: [
+          {
+            kind: 'wanted',
+            slug: 'gone',
+            name: 'Gone',
+            changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Brainstorm' }],
+          },
+        ],
+      }
+      await fs.writeFile(path.join(dir, 'edits.json'), JSON.stringify(bundle))
+      const result = await runCli(['import-changes', 'edits.json', '--yes'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(1)
+      // The workspace holds no wanted lists at all, so the resolver says so.
+      const forms = (await pseudo())['errors.resolveList.noListsOfType']
+      if (typeof forms !== 'object' || forms === null || !('wanted' in forms)) {
+        throw new Error('errors.resolveList.noListsOfType has no wanted branch in en-XA')
+      }
+      const reason = String(forms.wanted)
+      expect(unwrap(result.stderr)).toContain(unwrap(reason))
+    })
+  })
 })

@@ -2,20 +2,18 @@ import { isTotpEnabled, getTotpSecret, setTotpSecret, getAdminUsername } from '.
 import { generateTotpSecret, verifyTotp, buildTotpUri } from '../totp'
 import { apiHandler } from '../utils'
 import { readJsonObjectBody } from '../../api/http'
+import { apiMessage, type ApiMessage } from '../../api/result'
 
-interface TotpSetupResponse {
-  success: boolean
-  secret?: string
-  uri?: string
-  message?: string
-}
+/** `POST /api/totp/setup`: the new secret and its URI, or the refusal. */
+type TotpSetupResponse =
+  { success: true; secret: string; uri: string } | (ApiMessage & { success: false })
 
 export function handleTotpSetup(): Promise<Response> {
   return apiHandler(async () => {
     if (await isTotpEnabled()) {
       const resp: TotpSetupResponse = {
         success: false,
-        message: 'TOTP is already enabled. Disable it first to reconfigure.',
+        ...apiMessage('admin.api.totp.alreadyEnabled'),
       }
       return Response.json(resp, { status: 409 })
     }
@@ -32,9 +30,8 @@ export function handleTotpSetup(): Promise<Response> {
   })
 }
 
-interface TotpVerifySetupResponse {
+interface TotpVerifySetupResponse extends ApiMessage {
   success: boolean
-  message: string
 }
 
 export function handleTotpVerifySetup(req: Request): Promise<Response> {
@@ -44,7 +41,10 @@ export function handleTotpVerifySetup(req: Request): Promise<Response> {
     const code = typeof parsed.body.code === 'string' ? parsed.body.code : ''
 
     if (!code) {
-      const resp: TotpVerifySetupResponse = { success: false, message: 'code is required' }
+      const resp: TotpVerifySetupResponse = {
+        success: false,
+        ...apiMessage('admin.api.totp.codeRequired'),
+      }
       return Response.json(resp, { status: 400 })
     }
 
@@ -52,7 +52,7 @@ export function handleTotpVerifySetup(req: Request): Promise<Response> {
     if (!storedSecret || !storedSecret.startsWith('pending:')) {
       const resp: TotpVerifySetupResponse = {
         success: false,
-        message: 'No pending TOTP setup. Call /api/totp/setup first.',
+        ...apiMessage('admin.api.totp.noPendingSetup'),
       }
       return Response.json(resp, { status: 400 })
     }
@@ -63,7 +63,7 @@ export function handleTotpVerifySetup(req: Request): Promise<Response> {
     if (!valid) {
       const resp: TotpVerifySetupResponse = {
         success: false,
-        message: 'Invalid TOTP code. Check your authenticator app and try again.',
+        ...apiMessage('admin.api.totp.codeInvalid'),
       }
       return Response.json(resp, { status: 400 })
     }
@@ -72,26 +72,28 @@ export function handleTotpVerifySetup(req: Request): Promise<Response> {
     await setTotpSecret(secret)
     const resp: TotpVerifySetupResponse = {
       success: true,
-      message: 'TOTP enabled successfully',
+      ...apiMessage('admin.api.totp.enabled'),
     }
     return Response.json(resp)
   })
 }
 
-interface TotpDisableResponse {
+interface TotpDisableResponse extends ApiMessage {
   success: boolean
-  message: string
 }
 
 export function handleTotpDisable(): Promise<Response> {
   return apiHandler(async () => {
     if (!(await isTotpEnabled())) {
-      const resp: TotpDisableResponse = { success: false, message: 'TOTP is not enabled' }
+      const resp: TotpDisableResponse = {
+        success: false,
+        ...apiMessage('admin.api.totp.notEnabled'),
+      }
       return Response.json(resp, { status: 400 })
     }
 
     await setTotpSecret(null)
-    const resp: TotpDisableResponse = { success: true, message: 'TOTP disabled successfully' }
+    const resp: TotpDisableResponse = { success: true, ...apiMessage('admin.api.totp.disabled') }
     return Response.json(resp)
   })
 }

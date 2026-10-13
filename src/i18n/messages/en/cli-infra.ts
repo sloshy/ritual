@@ -110,6 +110,8 @@ export const cliInfraMessages = {
   'cli.admin.mcpPortConflict': '--mcp-port must differ from the admin --port.',
   'cli.admin.preparing': 'Preparing admin interface...',
   'cli.admin.ready': 'Admin interface ready.',
+  'cli.admin.serverRunning': 'Ritual Admin running at {url}',
+  'cli.admin.serverError': 'Unhandled server error:',
   'cli.admin.setupRequired':
     'No admin account yet. Create it at:\n  {url}\n(or run `ritual admin setup` in this workspace)',
   'cli.admin.teardownFailed': '{label} teardown failed:',

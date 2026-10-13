@@ -1,7 +1,6 @@
 import { cardCache } from '../cache'
 import { compareData } from '../i18n/collate'
-import { apiError } from './http'
-import { getErrorMessage } from '../util/errors'
+import { errorResponse } from './http'
 import {
   matchesNameTerms,
   normalizeCardName,
@@ -44,6 +43,6 @@ export async function handleAutocomplete(req: Request): Promise<Response> {
     const names = rankNameMatches(matches, rawQuery, (name) => name).slice(0, MAX_SUGGESTIONS)
     return Response.json(namesResponse(names))
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

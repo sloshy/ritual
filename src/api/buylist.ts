@@ -13,7 +13,7 @@
  * so an unauthenticated public route can never be made to pull ~70 MB.
  */
 
-import { apiError, readJsonObjectBody } from './http'
+import { apiError, errorResponse, readJsonObjectBody } from './http'
 import {
   DEFAULT_BUYER,
   isBuyerId,
@@ -32,10 +32,10 @@ import {
   quoteForPrinting,
   type LoadedCardKingdomFeed,
 } from '../cardkingdom'
-import { getErrorMessage } from '../util/errors'
 import { invalidLanguageMessage, isCardLanguage } from '../card/card-language'
 import { isFinish } from '../card/finish-condition'
 import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
+import { plainMessage } from './result'
 
 /**
  * The cached buyer feed, or a 503 naming every way to download it. The buylist
@@ -46,7 +46,7 @@ import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
  */
 export async function requireBuylistFeed(): Promise<LoadedCardKingdomFeed | Response> {
   const feed = await getCardKingdomFeed()
-  if (feed === null) return apiError(missingFeedApiAdvice(), 503)
+  if (feed === null) return apiError(plainMessage(missingFeedApiAdvice()), 503)
   return feed
 }
 
@@ -141,7 +141,7 @@ export async function handleBuylistQuotes(req: Request): Promise<Response> {
     const parsed = await readJsonObjectBody(req, MAX_QUOTE_BODY_BYTES)
     if (!parsed.ok) return parsed.response
     const body = parseBuylistQuoteBody(parsed.body)
-    if (typeof body === 'string') return apiError(body, 400)
+    if (typeof body === 'string') return apiError(plainMessage(body), 400)
 
     const feed = await requireBuylistFeed()
     if (feed instanceof Response) return feed
@@ -162,7 +162,7 @@ export async function handleBuylistQuotes(req: Request): Promise<Response> {
     }
     return Response.json(response)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }
 
@@ -183,7 +183,7 @@ export async function handleBuylistStatus(_req: Request): Promise<Response> {
     }
     return Response.json(response)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }
 
@@ -219,7 +219,7 @@ export function withBuylistFeedGate(handler: BuylistRouteHandler): BuylistRouteH
     // The `cardkingdom` price source opens these routes too: the admin editors
     // quote live to display CK retail prices, whether or not sell mode is on.
     if (!wantsCardKingdomFeed(config)) {
-      return apiError('Not found', 404)
+      return apiError(plainMessage('Not found'), 404)
     }
     return handler(req)
   }

@@ -4,6 +4,7 @@ import {
   parseCardIndexFilters,
   type CardIndexFilters,
 } from '../../../src/admin/api/card-index'
+import { keyedRefusal } from '../../helpers/api-message'
 import type { MovePhysicalCard } from '../../../src/admin/api/move'
 
 /**
@@ -53,13 +54,13 @@ describe('parseCardIndexFilters', () => {
   })
 
   test('an unknown list type is refused', () => {
-    expect(parseCardIndexFilters(new URLSearchParams('listType=binder'))).toBe(
+    expect(keyedRefusal(parseCardIndexFilters(new URLSearchParams('listType=binder')))).toBe(
       "Invalid list type 'binder'. Use one of: deck, collection, wanted.",
     )
   })
 
   test('a slug carrying a path separator is refused', () => {
-    expect(parseCardIndexFilters(new URLSearchParams('slug=..%2Fetc'))).toBe(
+    expect(keyedRefusal(parseCardIndexFilters(new URLSearchParams('slug=..%2Fetc')))).toBe(
       "Invalid list slug '../etc'.",
     )
   })

@@ -4,9 +4,7 @@ import {
   getCardKingdomFeed,
   missingFeedApiAdvice,
 } from '../../cardkingdom'
-import { getErrorMessage } from '../../util/errors'
 import { isListType, type ListType } from '../../list/list-type'
-import { parseEnumField } from '../../util/parse-enum'
 import type {
   PriceListDetailPayload,
   PriceSummaryPayload,
@@ -17,7 +15,8 @@ import { loadAndBuildPriceReport } from '../../pricing/price-runtime'
 import { getDefaultPriceSource } from '../../config/ritual-config'
 import { listLocationForSlug } from './list-info'
 import { parseListTarget } from './target'
-import { apiError, badRequest } from '../../api/http'
+import { apiError, badRequest, errorResponse } from '../../api/http'
+import { apiMessage, isApiMessage, parseEnumParam, plainMessage } from '../../api/result'
 import { requireCardCache } from './save-helpers'
 
 /**
@@ -53,13 +52,13 @@ async function parsePricingParam(url: URL): Promise<ReportPricing | Response> {
   const raw = url.searchParams.get('source')
   let source: PriceSource = getDefaultPriceSource()
   if (raw) {
-    const parsed = parseEnumField(raw, VALID_PRICE_SOURCES, 'source')
-    if (!parsed.ok) return badRequest(parsed.message)
-    source = parsed.value
+    const parsed = parseEnumParam(raw, VALID_PRICE_SOURCES, 'source')
+    if (isApiMessage(parsed)) return badRequest(parsed)
+    source = parsed
   }
   if (source !== 'cardkingdom') return { source }
   const feed = await getCardKingdomFeed()
-  if (!feed) return apiError(missingFeedApiAdvice(), 503)
+  if (!feed) return apiError(plainMessage(missingFeedApiAdvice()), 503)
   return cardKingdomReportPricing(feed)
 }
 
@@ -74,13 +73,15 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     const rawType = url.searchParams.get('type')
     let type: ListType | undefined
     if (rawType) {
-      if (!isListType(rawType)) return apiError(`Invalid list type '${rawType}'`, 400)
+      if (!isListType(rawType)) {
+        return apiError(apiMessage('admin.api.listTypeInvalid', { type: rawType }), 400)
+      }
       type = rawType
     }
     const pricing = await parsePricingParam(url)
     if (pricing instanceof Response) return pricing
 
-    const unavailable = await requireCardCache('prices are unavailable')
+    const unavailable = await requireCardCache('prices')
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
@@ -104,7 +105,7 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }
 
@@ -116,14 +117,19 @@ export async function handlePriceSummary(req: Request): Promise<Response> {
 export async function handlePriceList(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (typeof target === 'string') return apiError(target, 400)
+    if (isApiMessage(target)) return apiError(target, 400)
     const pricing = await parsePricingParam(new URL(req.url))
     if (pricing instanceof Response) return pricing
 
     const location = await listLocationForSlug(target.type, target.slug)
-    if (!location) return apiError(`List '${target.slug}' not found`, 404)
+    if (!location) {
+      return apiError(
+        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        404,
+      )
+    }
 
-    const unavailable = await requireCardCache('prices are unavailable')
+    const unavailable = await requireCardCache('prices')
     if (unavailable) return unavailable
 
     const lastRefreshedAt = await cardCache.getLastRefreshedAt()
@@ -142,6 +148,6 @@ export async function handlePriceList(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }

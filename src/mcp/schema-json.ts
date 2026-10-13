@@ -736,9 +736,23 @@ export const CREATE_LIST_OUTPUT: JsonSchemaType = obj(
   ['message', 'slug'],
 )
 
+/**
+ * The message triple of a response whose params may nest — a sync message
+ * (`src/sync/message.ts`): an import summary built from counted nouns, a refusal
+ * naming ambiguous lists. Checked against the engine type.
+ */
+const SYNC_MESSAGE_PROPS = {
+  message: str(),
+  messageKey: MESSAGE_PROPS.messageKey,
+  messageParams: openObject(
+    'What `messageKey` interpolates; a param may itself be a message, a list, a duration ' +
+      'or a card language.',
+  ),
+} as const satisfies Record<keyof SyncMessage, JsonSchemaType>
+
 export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
   {
-    message: str(),
+    ...SYNC_MESSAGE_PROPS,
     deckName: str('Name of the imported deck, which is also its slug.'),
     warnings: arr(
       str(),
@@ -758,7 +772,7 @@ export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
 export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
-      message: str(),
+      ...SYNC_MESSAGE_PROPS,
       cardCount: int(
         'Copies imported (sum of row quantities); 0 when every row failed validation.',
       ),
@@ -777,7 +791,7 @@ export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
 export const IMPORT_CHANGE_BUNDLE_OUTPUT: JsonSchemaType = withDefs(
   obj(
     {
-      message: str(),
+      ...SYNC_MESSAGE_PROPS,
       lists: arr(ref('ListImportResult')),
       failedCount: int(
         'Lists with an `error` (could not be resolved, loaded, or saved); the other lists still applied.',
@@ -1010,16 +1024,6 @@ function syncReasonProps(reason: string): SyncReasonProperties {
     ),
   }
 }
-
-/** A sync message's properties, checked against the engine type. */
-const SYNC_MESSAGE_PROPS = {
-  message: str(),
-  messageKey: MESSAGE_PROPS.messageKey,
-  messageParams: openObject(
-    'What `messageKey` interpolates; a param may itself be a message, a list, a duration ' +
-      'or a card language.',
-  ),
-} as const satisfies Record<keyof SyncMessage, JsonSchemaType>
 
 /** One run-level sync failure as a message: English plus key and params. */
 const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])

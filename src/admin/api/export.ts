@@ -1,5 +1,4 @@
 import { MAX_EDIT_BODY_SIZE } from '../validation'
-import { getErrorMessage } from '../../util/errors'
 import {
   buildExportSelection,
   parseConditionFilterValues,
@@ -21,17 +20,30 @@ import { EXPORT_DIALECTS, parseExportColumns } from '../../export/render'
 import { listExistingExports, writeExportFile } from '../../export/file'
 import { VALID_FINISHES } from '../../card/finish-condition'
 import { isListType } from '../../list/list-type'
-import { parseEnumField } from '../../util/parse-enum'
 import { parseSetCode } from '../../card/set-codes'
 import {
-  formatResolveListError,
+  resolveListErrorMessage,
   isResolveListError,
   listLocations,
   resolveList,
   type ListLocation,
 } from '../../list/resolve-list'
 import { getExportPresets } from '../../config/ritual-config'
-import { apiError, badRequest, readJsonObjectBody, type ApiErrorResponse } from '../../api/http'
+import {
+  badRequest,
+  errorResponse,
+  nestedRefusal,
+  readJsonObjectBody,
+  type ApiErrorResponse,
+  type NestedRefusalResponse,
+} from '../../api/http'
+import {
+  apiMessage,
+  isApiMessage,
+  parseEnumParam,
+  plainMessage,
+  type ApiMessage,
+} from '../../api/result'
 
 /** One list selection in the request body. */
 export type ExportRequestListRef = { type?: string; name: string }
@@ -100,83 +112,87 @@ export type ExportFileResponse = {
 export type ExportResponseBody = ExportContentResponse | ExportFileResponse
 
 /** Every body `POST /api/export` can return. */
-export type ExportResponse = ExportResponseBody | ApiErrorResponse
+export type ExportResponse = ExportResponseBody | ApiErrorResponse | NestedRefusalResponse
 
-/** Validate the body's output-shape fields into settings flags, or an error string. */
-function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | string {
+/** Validate the body's output-shape fields into settings flags, or the refusal. */
+function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | ApiMessage {
   const flags: ExportSettingsFlags = {}
   if (body.header !== undefined) {
-    if (typeof body.header !== 'boolean') return 'header must be a boolean.'
+    if (typeof body.header !== 'boolean') {
+      return apiMessage('admin.api.field.notBoolean', { field: 'header' })
+    }
     flags.header = body.header
   }
   if (body.quoteAll !== undefined) {
-    if (typeof body.quoteAll !== 'boolean') return 'quoteAll must be a boolean.'
+    if (typeof body.quoteAll !== 'boolean') {
+      return apiMessage('admin.api.field.notBoolean', { field: 'quoteAll' })
+    }
     flags.quoteAll = body.quoteAll
   }
   if (body.format !== undefined) {
-    const format = parseEnumField(body.format, EXPORT_FORMATS, 'format')
-    if (!format.ok) return format.message
-    flags.format = format.value
+    const format = parseEnumParam(body.format, EXPORT_FORMATS, 'format')
+    if (isApiMessage(format)) return format
+    flags.format = format
   }
   if (body.columns !== undefined) {
-    if (!Array.isArray(body.columns)) return 'columns must be an array of property names.'
+    if (!Array.isArray(body.columns)) return apiMessage('admin.api.export.columnsNotArray')
     const columns = parseExportColumns(body.columns)
-    if (typeof columns === 'string') return columns
+    if (typeof columns === 'string') return plainMessage(columns)
     flags.columns = columns
   }
   if (body.dialect !== undefined) {
-    const dialect = parseEnumField(body.dialect, EXPORT_DIALECTS, 'dialect')
-    if (!dialect.ok) return dialect.message
-    flags.dialect = dialect.value
+    const dialect = parseEnumParam(body.dialect, EXPORT_DIALECTS, 'dialect')
+    if (isApiMessage(dialect)) return dialect
+    flags.dialect = dialect
   }
   return flags
 }
 
-/** Validate the body's filters, or an error string. */
-function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | string {
+/** Validate the body's filters, or the refusal. */
+function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | ApiMessage {
   const filters: ExportFilters = {}
   if (raw === undefined) return filters
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return 'filters must be an object.'
+    return apiMessage('admin.api.export.filtersNotObject')
   }
   if (raw.name !== undefined) {
-    if (typeof raw.name !== 'string') return 'filters.name must be a string.'
+    if (typeof raw.name !== 'string') {
+      return apiMessage('admin.api.field.notString', { field: 'filters.name' })
+    }
     filters.name = raw.name
   }
   if (raw.set !== undefined) {
-    if (typeof raw.set !== 'string') return 'filters.set must be a string.'
+    if (typeof raw.set !== 'string') {
+      return apiMessage('admin.api.field.notString', { field: 'filters.set' })
+    }
     // Through the canonical set-code parser so a malformed code is a refusal
     // rather than a filter that silently matches nothing, and so the stored
     // value is lowercase like every other in-memory set code.
     const set = parseSetCode(raw.set)
-    if (!set.ok) return set.error
+    if (!set.ok) return plainMessage(set.error)
     filters.set = set.code
   }
   if (raw.finish !== undefined) {
-    const finish = parseEnumField(raw.finish, VALID_FINISHES, 'filters.finish')
-    if (!finish.ok) return finish.message
-    filters.finish = finish.value
+    const finish = parseEnumParam(raw.finish, VALID_FINISHES, 'filters.finish')
+    if (isApiMessage(finish)) return finish
+    filters.finish = finish
   }
   if (raw.conditions !== undefined) {
-    if (!Array.isArray(raw.conditions)) {
-      return 'filters.conditions must be an array of condition values.'
-    }
+    if (!Array.isArray(raw.conditions)) return apiMessage('admin.api.export.conditionsNotArray')
     const conditions = parseConditionFilterValues(raw.conditions)
-    if (typeof conditions === 'string') return conditions
+    if (typeof conditions === 'string') return plainMessage(conditions)
     filters.conditions = conditions
   }
   if (raw.labels !== undefined) {
-    if (!Array.isArray(raw.labels)) {
-      return 'filters.labels must be an array of label values.'
-    }
+    if (!Array.isArray(raw.labels)) return apiMessage('admin.api.export.labelsNotArray')
     const labels = parseLabelFilterValues(raw.labels)
-    if (typeof labels === 'string') return labels
+    if (typeof labels === 'string') return plainMessage(labels)
     filters.labels = labels
   }
   if (raw.tags !== undefined) {
     // The parser refuses a non-array itself, naming the body path.
     const tags = parseTagFilterValues(raw.tags, 'filters.tags')
-    if (typeof tags === 'string') return tags
+    if (typeof tags === 'string') return plainMessage(tags)
     filters.tags = tags
   }
   return filters
@@ -204,49 +220,57 @@ export async function handleExport(req: Request): Promise<Response> {
 
     let preset: ExportPreset | undefined
     if (body.preset !== undefined) {
-      if (typeof body.preset !== 'string') return badRequest('preset must be a string.')
+      if (typeof body.preset !== 'string') {
+        return badRequest(apiMessage('admin.api.field.notString', { field: 'preset' }))
+      }
       const saved = getExportPresets()
       preset = findExportPreset(body.preset, saved)
       if (!preset) {
         return badRequest(
-          `No export preset named '${body.preset}'. Available presets: ${exportPresetNames(saved).join(', ')}.`,
+          apiMessage('admin.api.export.presetUnknown', {
+            name: body.preset,
+            presets: exportPresetNames(saved).join(', '),
+          }),
         )
       }
     }
     const flags = parseSettingsFlags(body)
-    if (typeof flags === 'string') return badRequest(flags)
+    if (isApiMessage(flags)) return badRequest(flags)
     const settings = resolveExportSettings(preset, flags)
 
     const filters = parseFilters(body.filters)
-    if (typeof filters === 'string') return badRequest(filters)
+    if (isApiMessage(filters)) return badRequest(filters)
 
     if (body.write !== undefined && typeof body.write !== 'boolean') {
-      return badRequest('write must be a boolean.')
+      return badRequest(apiMessage('admin.api.field.notBoolean', { field: 'write' }))
     }
 
-    if (body.cards !== undefined && !Array.isArray(body.cards)) {
-      return badRequest('cards must be an array of search-term strings.')
-    }
     const cards = body.cards ?? []
-    if (cards.some((terms) => typeof terms !== 'string')) {
-      return badRequest('cards must be an array of search-term strings.')
+    if (!Array.isArray(cards) || cards.some((terms) => typeof terms !== 'string')) {
+      return badRequest(apiMessage('admin.api.export.cardsInvalid'))
     }
 
     if (body.lists !== undefined && !Array.isArray(body.lists)) {
-      return badRequest('lists must be an array of { type?, name } objects.')
+      // i18n-exempt: a JSON shape, wire vocabulary spliced into the sentence (catalog text cannot hold braces)
+      const shape = '{ type?, name }'
+      return badRequest(apiMessage('admin.api.export.listsNotArray', { shape }))
     }
     const listRefs = body.lists ?? []
     const selected: ListLocation[] = []
     for (const list of listRefs) {
-      if (typeof list?.name !== 'string') return badRequest('Each list needs a name.')
+      if (typeof list?.name !== 'string') {
+        return badRequest(apiMessage('admin.api.export.listNameMissing'))
+      }
       if (list.type !== undefined && (typeof list.type !== 'string' || !isListType(list.type))) {
-        return badRequest(`Invalid list type '${String(list.type)}'.`)
+        return badRequest(
+          apiMessage('admin.api.export.listTypeInvalid', { type: String(list.type) }),
+        )
       }
       const resolved = await resolveList(list.name, list.type)
       // Each ref carries its own optional `type`, so that field — not a longer
       // name — is what resolves a cross-type ambiguity here.
       if (isResolveListError(resolved))
-        return badRequest(formatResolveListError(resolved, 'type-field'))
+        return nestedRefusal(resolveListErrorMessage(resolved, 'type-field'))
       if (!selected.some((s) => s.type === resolved.type && s.name === resolved.name)) {
         selected.push(resolved)
       }
@@ -296,6 +320,6 @@ export async function handleExport(req: Request): Promise<Response> {
     }
     return Response.json(payload)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

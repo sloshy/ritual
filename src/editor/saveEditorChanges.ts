@@ -1,11 +1,16 @@
 import type { DroppedNote } from '../list/move-staging'
 import type { SaveEffect } from '../changes/save-effects'
-import { saveSuccessSuffix } from './save-notices'
-import { type EditorStatusActions, statusMessage, statusText } from './useEditorStatus'
+import { saveSuccessSuffix, type SaveSuccessNotices } from './save-notices'
+import {
+  type EditorStatusActions,
+  type EditorStatusMessage,
+  statusMessage,
+  statusText,
+} from './useEditorStatus'
+import { readApiMessage } from '../api/result'
 
 type SaveResponse = {
   success: boolean
-  error?: string
   message?: string
   conflict?: boolean
   contentHash?: string
@@ -44,34 +49,40 @@ export async function saveEditorChanges(
     })
     const data = (await resp.json()) as SaveResponse
     if (data.success) {
-      // Every notice is already a rendered sentence (they splice card names and
-      // server prose), so they ride in as one parameter rather than being
-      // concatenated onto a second message.
-      const notices = saveSuccessSuffix({
+      // The notices are held as data and rendered with the status, so a
+      // language switch relabels them with the sentence around them. The
+      // server's own sidecar warnings arrive as English sentences and stay so.
+      const notices: SaveSuccessNotices = {
         droppedNotes: data.droppedNotes,
         prunedCategories: data.prunedCategories,
         categoryWarnings: data.categoryWarnings,
-      })
+      }
       statusActions.saveSuccess(
-        notices
-          ? statusMessage('ui.editor.saveSuccessNotices', { notes: notices })
+        saveSuccessSuffix(notices)
+          ? { kind: 'saved', notices }
           : statusMessage('ui.editor.saveSuccess'),
       )
       return data
     }
-    // `data.message` / `data.error` are prose the server authored; they arrive
-    // rendered and stay as they are until the API carries a `messageKey`.
+    // `data.message` is prose the server authored: English, plus the key it was
+    // rendered from when it has one this bundle knows, which is then what the
+    // status holds — so it relabels on a language switch like the editor's own.
     if (resp.status === 409 || data.conflict) {
-      statusActions.saveError(
-        data.message ? statusText(data.message) : statusMessage('ui.editor.saveConflict'),
-      )
+      statusActions.saveError(serverStatus(data) ?? statusMessage('ui.editor.saveConflict'))
       return data
     }
-    const failure = data.error ?? data.message
-    statusActions.saveError(failure ? statusText(failure) : statusMessage('ui.editor.saveFailed'))
+    statusActions.saveError(serverStatus(data) ?? statusMessage('ui.editor.saveFailed'))
     return data
   } catch {
     statusActions.saveError(statusMessage('ui.editor.saveRequestFailed'))
     return undefined
   }
+}
+
+/** The server's own sentence as a status: by its key when this bundle knows it, else as text. */
+function serverStatus(data: SaveResponse): EditorStatusMessage | null {
+  const carried = readApiMessage(data)
+  if (carried === null || carried.message === '') return null
+  if (carried.messageKey === undefined) return statusText(carried.message)
+  return { kind: 'key', key: carried.messageKey, params: carried.messageParams }
 }

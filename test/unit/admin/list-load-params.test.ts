@@ -10,6 +10,7 @@ import {
   type ListLoadParams,
 } from '../../../src/admin/api/list-load-params'
 import type { DeckData } from '../../../src/list/deck'
+import { keyedRefusal } from '../../helpers/api-message'
 
 /**
  * The list load routes' query parameters and the filtering they drive. Pure, so
@@ -68,7 +69,7 @@ describe('parseListLoadParams', () => {
   })
 
   test('an unknown view is refused, naming the choices', () => {
-    expect(parse('view=everything')).toBe(
+    expect(keyedRefusal(parse('view=everything'))).toBe(
       "Invalid view 'everything'. Use one of: full, cards, summary.",
     )
   })
@@ -92,16 +93,20 @@ describe('parseListLoadParams', () => {
 
   test('limit must be a positive integer', () => {
     expect(parse('limit=5')).toEqual({ view: 'full', offset: 0, limit: 5 })
-    expect(parse('limit=0')).toBe("Invalid limit '0'. Use a positive integer.")
-    expect(parse('limit=-1')).toBe("Invalid limit '-1'. Use a positive integer.")
-    expect(parse('limit=1.5')).toBe("Invalid limit '1.5'. Use a positive integer.")
+    expect(keyedRefusal(parse('limit=0'))).toBe("Invalid limit '0'. Use a positive integer.")
+    expect(keyedRefusal(parse('limit=-1'))).toBe("Invalid limit '-1'. Use a positive integer.")
+    expect(keyedRefusal(parse('limit=1.5'))).toBe("Invalid limit '1.5'. Use a positive integer.")
   })
 
   test('offset accepts 0 — the ordinary "start at the beginning" value', () => {
     expect(parse('offset=0')).toEqual({ view: 'full', offset: 0 })
     expect(parse('offset=7')).toEqual({ view: 'full', offset: 7 })
-    expect(parse('offset=-1')).toBe("Invalid offset '-1'. Use a non-negative integer.")
-    expect(parse('offset=01')).toBe("Invalid offset '01'. Use a non-negative integer.")
+    expect(keyedRefusal(parse('offset=-1'))).toBe(
+      "Invalid offset '-1'. Use a non-negative integer.",
+    )
+    expect(keyedRefusal(parse('offset=01'))).toBe(
+      "Invalid offset '01'. Use a non-negative integer.",
+    )
   })
 })
 

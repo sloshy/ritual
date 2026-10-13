@@ -62,7 +62,7 @@ export const DeckEditView: Component<DeckEditViewProps> = (props) => {
     showSelector: false,
     // The public editor exports via the banner, not a save button — commit is unused.
     commit: () => Promise.resolve(undefined),
-    entityLabel: 'deck',
+    listType: 'deck',
     moveTargets: () => props.moveTargets?.() ?? [],
     swapSources: createPublicSwapSourceProvider(() => props.shareLists ?? []),
 

@@ -184,6 +184,37 @@ describe('metadata CLI (Integration)', () => {
     expect(unknown.exitCode).toBe(2)
     expect(unknown.stderr).toContain("Unknown metadata field 'bogus'")
 
+    // A refusal the admin route's parser words carries its catalog key into the
+    // CLI's error envelope, so a script matches on the key, not the prose.
+    const badUrl = await runCli(
+      ['metadata', 'set', 'burn', 'sourceUrl', 'ftp://x', '--output', 'json'],
+      dir,
+    )
+    expect(badUrl.exitCode).toBe(2)
+    const envelope = JSON.parse(badUrl.stderr) as {
+      error: { messageKey?: string; message: string }
+    }
+    expect(envelope.error.messageKey).toBe('admin.api.metadata.sourceUrlInvalid')
+    expect(envelope.error.message).toBe('sourceUrl must be an http(s) URL.')
+
+    // A refusal with params carries them too: the link rule, checked on the
+    // merged front matter, names both deck ids.
+    await writeDeckFile(dir, 'linked', {
+      name: 'Linked',
+      frontMatter: { sourceUrl: 'https://archidekt.com/decks/123', sourceId: '123' },
+      cards: [],
+    })
+    const mismatch = await runCli(
+      ['metadata', 'set', 'linked', 'sourceId', '999', '--output', 'json'],
+      dir,
+    )
+    expect(mismatch.exitCode).toBe(2)
+    const mismatchEnvelope = JSON.parse(mismatch.stderr) as {
+      error: { messageKey?: string; messageParams?: Record<string, unknown> }
+    }
+    expect(mismatchEnvelope.error.messageKey).toBe('domain.sync.linkMismatch')
+    expect(mismatchEnvelope.error.messageParams).toEqual({ urlDeckId: '123', sourceId: '999' })
+
     // The HTTP route's concurrency token is not a CLI property, and `name` is
     // not front matter at all any more (the title is the H1, changed by
     // `ritual rename`) — both refuse instead of no-op writes.

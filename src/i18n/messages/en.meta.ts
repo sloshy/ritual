@@ -7,6 +7,7 @@
 
 import type { MessageMeta } from '../types'
 import { adminMeta } from './en/admin.meta'
+import { adminApiMeta } from './en/admin-api.meta'
 import { cliMeta } from './en/cli.meta'
 import { cliCardsMeta } from './en/cli-cards.meta'
 import { cliEditMeta } from './en/cli-edit.meta'
@@ -31,6 +32,7 @@ import type { MessageKey } from './en'
 /** Per-key description (and optional length budget) for every English message. */
 export const enMeta: Record<MessageKey, MessageMeta> = {
   ...adminMeta,
+  ...adminApiMeta,
   ...cliMeta,
   ...cliCardsMeta,
   ...cliEditMeta,

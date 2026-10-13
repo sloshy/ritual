@@ -12,6 +12,7 @@
 
 import type { MessageCatalogShape } from '../types'
 import { adminMessages } from './en/admin'
+import { adminApiMessages } from './en/admin-api'
 import { cliMessages } from './en/cli'
 import { cliCardsMessages } from './en/cli-cards'
 import { cliEditMessages } from './en/cli-edit'
@@ -35,9 +36,11 @@ import { uiMessages } from './en/ui'
 /**
  * The merged English catalog.
  *
- * Four namespaces are authored across several files so independent surfaces can
+ * Five namespaces are authored across several files so independent surfaces can
  * be converted without contending for one file:
  *
+ * - `admin` — `admin` (the admin SPA's own chrome) plus `admin-api`, the prose
+ *   the admin HTTP API authors;
  * - `domain` — `domain` (shared) plus `domain-sync`, the sync engines' text,
  *   which only the CLI and the admin SPA register;
  * - `site` — `site` (shared) plus the four surface fragments;
@@ -50,6 +53,7 @@ import { uiMessages } from './en/ui'
  */
 export const en = {
   ...adminMessages,
+  ...adminApiMessages,
   ...cliMessages,
   ...cliCardsMessages,
   ...cliEditMessages,

@@ -23,6 +23,9 @@ import {
   type CardLabel,
 } from '../card/card-labels'
 import { parseDeckMetadataBody, parseFlatListMetadataBody } from '../admin/api/metadata'
+import { isApiMessage } from '../api/result'
+import { apiRefusalError } from '../cli/api-refusal'
+import { isSyncMessage } from '../sync/message'
 import { checkArchidektLink } from '../deck-sync/link'
 import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
@@ -328,6 +331,7 @@ async function applyPatch(apply: MetadataApply): Promise<void> {
     apply.type === 'deck'
       ? await applyDeckMetadata(apply.filePath, apply.patch, checkArchidektLink)
       : await applyFlatListMetadata(apply.filePath, apply.patch)
+  if (isSyncMessage(outcome)) throw apiRefusalError(outcome)
   if (typeof outcome === 'string') {
     throw new CardCommandError('usage_error', outcome, ExitCode.UsageError)
   }
@@ -378,9 +382,7 @@ function registerSetSubcommand(metadata: Command): void {
             throw new CardCommandError('usage_error', body, ExitCode.UsageError)
           }
           const parsed = parseDeckMetadataBody(body)
-          if (typeof parsed === 'string') {
-            throw new CardCommandError('usage_error', parsed, ExitCode.UsageError)
-          }
+          if (isApiMessage(parsed)) throw apiRefusalError(parsed)
           await applyPatch({ type: 'deck', filePath: target.filePath, patch: parsed.patch })
           emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
           return
@@ -398,9 +400,7 @@ function registerSetSubcommand(metadata: Command): void {
           throw new CardCommandError('usage_error', body, ExitCode.UsageError)
         }
         const parsed = parseFlatListMetadataBody(body, target.type)
-        if (typeof parsed === 'string') {
-          throw new CardCommandError('usage_error', parsed, ExitCode.UsageError)
-        }
+        if (isApiMessage(parsed)) throw apiRefusalError(parsed)
         await applyPatch({ type: target.type, filePath: target.filePath, patch: parsed.patch })
         emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
       })

@@ -33,7 +33,7 @@ export function WantedEditorBody(props: WantedEditorBodyProps): JSX.Element {
     <FlatEditorBody
       {...props}
       shell={{
-        entityLabel: 'wanted list',
+        listType: 'wanted',
         selectorId: 'wanted-list-select',
         requirePrinting: false,
         importKind: 'wanted',

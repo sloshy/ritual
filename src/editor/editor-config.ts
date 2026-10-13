@@ -15,6 +15,7 @@ import type { LabelOverride } from '../card/card-labels'
 import type { CardArtRef } from '../list/card-art'
 import type { SaveEffect } from '../changes/save-effects'
 import type { PriceCurrency } from '../pricing/price-currency'
+import type { ListType } from '../list/list-type'
 import type {
   ChangeEvent,
   ChangeInput,
@@ -25,7 +26,6 @@ import type {
 import type { ImportConflict } from './import-changes'
 import type { ContextMenuState, CardContextInfo } from '../list-view/card-context'
 import type { EditorStatus, EditorStatusActions } from './useEditorStatus'
-import type { EditorEntity } from './entity'
 import type { DialogState } from './useDialogState'
 import type { UseCardIdPoolResult } from './useCardIdPool'
 import type { AddCardOptions, UseCardChangesResult } from './useCardChanges'
@@ -161,7 +161,7 @@ export type EditorConfig<TData> = {
    * ("Loading deck…") by selecting a per-type message rather than splicing a
    * noun into a frame.
    */
-  entityLabel: EditorEntity
+  listType: ListType
 
   /** Process the load payload into editor state. Return null on failure. */
   processLoadResponse: (response: unknown) => LoadResult<TData> | null

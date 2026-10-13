@@ -1,4 +1,5 @@
 import { createStore } from 'solid-js/store'
+import { saveSuccessSuffix, type SaveSuccessNotices } from './save-notices'
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn } from '../i18n/t'
 
@@ -11,11 +12,20 @@ import { paramsOf, type MessageRef, type TranslateArgs, type TranslateDynamicFn 
  * stale sentence. Holding the key and its parameters instead lets the shell
  * re-render it in whatever locale is current.
  *
- * The `text` variant carries prose the server authored (`ApiResult.message`),
- * which arrives already rendered. Once those responses carry a `messageKey` as
- * well, this variant becomes the exception rather than the common case.
+ * The `text` variant carries prose that arrives already rendered: a server
+ * response's English when it has no key this bundle knows. A save refusal that
+ * carries a known `messageKey` is held by key instead (`saveEditorChanges`).
  */
-export type EditorStatusMessage = ({ kind: 'key' } & MessageRef) | { kind: 'text'; text: string }
+export type EditorStatusMessage =
+  ({ kind: 'key' } & MessageRef) | { kind: 'text'; text: string } | SavedWithNotices
+
+/**
+ * A save that had more to say than "saved" — held as the notices themselves, so
+ * the dropped-note and pruned-category sentences relabel with the frame around
+ * them on a language switch instead of freezing in the language they were
+ * first rendered in.
+ */
+export type SavedWithNotices = { kind: 'saved'; notices: SaveSuccessNotices }
 
 /**
  * Build a {@link EditorStatusMessage} from a message key. Generic over the key
@@ -41,8 +51,18 @@ export function statusText(text: string): EditorStatusMessage {
  * literal key; `tDynamic` owns the erasure.
  */
 export function renderStatus(t: TranslateDynamicFn, message: EditorStatusMessage): string {
-  if (message.kind === 'text') return message.text
-  return t(message.key, message.params)
+  switch (message.kind) {
+    case 'text':
+      return message.text
+    case 'key':
+      return t(message.key, message.params)
+    case 'saved': {
+      // The notices render through the module translator, which reads the same
+      // locale signal, so they track the switch the frame does.
+      const notes = saveSuccessSuffix(message.notices)
+      return notes ? t('ui.editor.saveSuccessNotices', { notes }) : t('ui.editor.saveSuccess')
+    }
+  }
 }
 
 export type EditorStatus = {

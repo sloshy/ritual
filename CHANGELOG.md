@@ -88,6 +88,48 @@ release changes a file format or a generated file, it ships the change as a
     Archidekt deck: Sol Ring".
   - The rate-limit notice spells its wait out: "waiting 2 seconds before retry 1 of 5"
     instead of "waiting 2s", and a minute or more reads as minutes.
+- The admin API's messages follow the admin site's language. Every admin API refusal and
+  success message that has a catalog entry now carries its `messageKey` (and
+  `messageParams`), so the admin pages show it in the browser's language and relabel it
+  when you switch, as they already did for sync runs; the rest (an engine's own wording,
+  such as a malformed set code or CSV column spec) are English text and gain a key as
+  their modules are converted. `message` stays English for MCP clients and scripts,
+  including a keyed error a route raises internally, which used to follow the server's UI
+  language. Such an error now also answers with its own status (`400` for a usage error,
+  `404` for a missing list) where some routes answered `500`. A network failure in the
+  card-art and metadata dialogs reads "Save failed: …" instead of the bare browser
+  error. `diff` and `export` refuse a list that does not resolve with the list
+  resolver's own keyed message, and `import-changes` reports it as that list's keyed
+  `error`. The Audit Log page shows each stored reason in the browser's language; the log
+  file keeps the same English. `ritual metadata set` and `ritual set-list-image`, which
+  share the admin route's validation, print its keyed refusals in the CLI's language (the
+  rest in English), and their `--output json` error envelopes carry its `messageKey` and
+  `messageParams`; `ritual import-changes` prints a failed list's reason in the CLI's
+  language too.
+- **The admin server refuses in the shared error envelope.** A `401` (no session), a `403`
+  (before the first account exists, or from the IP/User-Agent allow and deny lists), a
+  `404` for a path with no route or file, and an unexpected `500` now answer
+  `{ "success": false, "message", "messageKey" }` instead of `{ "error": "…" }` or a plain
+  text body. A locked-out sign-in's `429` carries `message` instead of `error`, beside
+  `retryAfterSeconds`. Update any script that read `error` off these responses.
+- The import results build their summary from counted nouns, so a client pluralizes them
+  in its own language: `POST /api/import-csv`, `POST /api/import-deck` and
+  `POST /api/import-changes` (and the MCP `import_csv`, `import_deck` and
+  `import_change_bundle` results, and `import-changes --output json`) carry `messageKey`
+  and `messageParams` whose params may nest. A change-bundle import's failed list carries
+  `errorKey` and `errorParams` beside `error`.
+- Some admin import wording changed. In the summary `message` of the import routes and
+  tools, a count of one reads in the singular and the `(s)` plurals are gone: "Imported 1 card into collection 'Binder'; 1 row failed validation",
+  "Successfully imported 'Burn' — 1 line could not be parsed and was skipped". A CSV
+  import into a wanted list names it as one: "into wanted list 'Wishlist'" (it read "into
+  wanted 'Wishlist'"). Update any script that matched `card(s)`, `row(s)`, `line(s)` or
+  `note(s)` in these messages — or, better, match on `messageKey`.
+- Some admin refusals are worded more consistently: a field that must be true or false
+  reads "`<field>` must be a boolean." everywhere (the sync routes and a deck import's
+  `overwrite` gain the period; a list save's `"continueSession"` and `"validateCardNames"`
+  lose their quotes), a deck import's non-text `name` reads "name must be a string.", and
+  a history or price request for a list that does not exist names its type ("Deck 'burn'
+  not found") instead of "List 'burn' not found".
 - **`deck-sync push` now moves cards between boards.** A push diffs per board the way a pull
   does, so a card that is in Main locally but in the Maybeboard on Archidekt (or any other
   board pair) is moved there on Archidekt, instead of the push doing nothing. The existing

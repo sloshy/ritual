@@ -35,7 +35,17 @@ import {
 import { isPathWithinDir } from '../util/path-validation'
 import { isListMarkdownFile, listFileName, normalizeListName } from './list-file-name'
 import { t, type MessageParams } from '../i18n/t'
-import { LIST_TYPES, isListType, listTypeSingularTitle, type ListType } from './list-type'
+import { LIST_TYPES, LIST_TYPE_SINGULAR, isListType, type ListType } from './list-type'
+import {
+  renderSyncMessage,
+  syncList,
+  syncMessage,
+  syncRef,
+  type SyncListParam,
+  type SyncMessage,
+  type SyncMessageRef,
+  type SyncParam,
+} from '../sync/message'
 
 /**
  * The folding every tier below the byte-exact one matches in. Defined in
@@ -308,7 +318,7 @@ export type ResolveHint = (typeof RESOLVE_HINTS)[number]
  * - Only when the matches are byte-identical (the same basename under two list
  *   types) can no name break the tie, and no example is offered.
  */
-function typeMoreAdvice(matches: ListLocation[]): string {
+function typeMoreAdvice(matches: ListLocation[]): SyncMessageRef {
   const byteUnique = matches.filter(
     (m) => matches.filter((other) => other.name === m.name).length === 1,
   )
@@ -317,10 +327,10 @@ function typeMoreAdvice(matches: ListLocation[]): string {
       matches.filter((other) => normalizeListName(other.name) === normalizeListName(m.name))
         .length === 1,
   )
-  if (narrowing) return t('errors.resolveList.adviceNarrowExample', { name: narrowing.name })
+  if (narrowing) return syncRef('errors.resolveList.adviceNarrowExample', { name: narrowing.name })
   const exact = byteUnique[0]
-  if (exact) return t('errors.resolveList.adviceExactName', { name: exact.name })
-  return t('errors.resolveList.adviceNarrow')
+  if (exact) return syncRef('errors.resolveList.adviceExactName', { name: exact.name })
+  return syncRef('errors.resolveList.adviceNarrow')
 }
 
 /**
@@ -333,25 +343,25 @@ function resolvingTypes(error: AmbiguousError): ListType[] {
 }
 
 /** The remedy line printed under the list of ambiguous matches. */
-function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): string {
+function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): SyncMessageRef {
   const sameType = error.matches.every((m) => m.type === error.matches[0]?.type)
   // A pinned-type resolution can only produce same-type matches, so this covers it.
   if (sameType) return typeMoreAdvice(error.matches)
   switch (hint) {
     case 'type-flags':
-      return t('errors.resolveList.adviceTypeFlags')
+      return syncRef('errors.resolveList.adviceTypeFlags')
     case 'type-prefix': {
       const types = resolvingTypes(error)
       if (types.length === 0) return typeMoreAdvice(error.matches)
       // Quoted: a name with a space must survive being pasted into a shell.
-      return t('errors.resolveList.adviceTypePrefix', {
+      return syncRef('errors.resolveList.adviceTypePrefix', {
         prefixes: joinAlternatives(types.map((type) => `'${type}:${error.query}'`)),
       })
     }
     case 'type-field': {
       const types = resolvingTypes(error)
       if (types.length === 0) return typeMoreAdvice(error.matches)
-      return t('errors.resolveList.adviceTypeField', {
+      return syncRef('errors.resolveList.adviceTypeField', {
         types: joinAlternatives(types.map((type) => `'${type}'`)),
       })
     }
@@ -374,34 +384,52 @@ function joinAlternatives(items: readonly string[]): string {
   return items.join(' or ')
 }
 
+/** The block of ambiguous matches: one indented line each, separated by newlines. */
+function ambiguousMatches(matches: readonly ListLocation[]): SyncListParam {
+  const lines: SyncParam[] = []
+  for (const [index, m] of matches.entries()) {
+    if (index > 0) lines.push('\n')
+    lines.push(
+      syncRef('errors.resolveList.match', {
+        type: syncRef(LIST_TYPE_SINGULAR[m.type]),
+        name: m.name,
+      }),
+    )
+  }
+  return syncList(lines, 'concat')
+}
+
 /**
- * Render a {@link ResolveListError} as a user-facing message. `hint` declares the
- * caller's disambiguation mechanism so the ambiguity remedy names something the
- * user can actually do — see {@link ResolveHint}.
+ * A {@link ResolveListError} as a message: English, plus the key and (nested)
+ * params a reader renders in its own language — what an API response carries.
+ * `hint` declares the caller's disambiguation mechanism so the ambiguity remedy
+ * names something the user can actually do — see {@link ResolveHint}.
  */
-export function formatResolveListError(error: ResolveListError, hint: ResolveHint): string {
+export function resolveListErrorMessage(error: ResolveListError, hint: ResolveHint): SyncMessage {
   switch (error.kind) {
     case 'no-lists':
       return error.type
-        ? t('errors.resolveList.noListsOfType', { type: error.type })
-        : t('errors.resolveList.noLists')
+        ? syncMessage('errors.resolveList.noListsOfType', { type: error.type })
+        : syncMessage('errors.resolveList.noLists')
     case 'not-found':
       return error.type
-        ? t('errors.resolveList.notFoundOfType', { type: error.type, query: error.query })
-        : t('errors.resolveList.notFound', { query: error.query })
-    case 'ambiguous': {
-      const matches = error.matches
-        .map((m) =>
-          t('errors.resolveList.match', { type: listTypeSingularTitle(m.type), name: m.name }),
-        )
-        .join('\n')
-      return t('errors.resolveList.ambiguous', {
+        ? syncMessage('errors.resolveList.notFoundOfType', { type: error.type, query: error.query })
+        : syncMessage('errors.resolveList.notFound', { query: error.query })
+    case 'ambiguous':
+      return syncMessage('errors.resolveList.ambiguous', {
         query: error.query,
-        matches,
+        matches: ambiguousMatches(error.matches),
         advice: ambiguityAdvice(error, hint),
       })
-    }
   }
+}
+
+/**
+ * Render a {@link ResolveListError} as a user-facing message in the active UI
+ * locale — {@link resolveListErrorMessage}, rendered.
+ */
+export function formatResolveListError(error: ResolveListError, hint: ResolveHint): string {
+  return renderSyncMessage(resolveListErrorMessage(error, hint))
 }
 
 /** A list argument's prefix contradicted the command's type flag. */

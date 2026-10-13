@@ -18,7 +18,7 @@ import { listTypeLabel, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
 import { resolveListFile } from './list-info'
-import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, apiText, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
 import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
 import { autoCommitAndPush } from './save-helpers'
 import { parseListTarget } from './target'
@@ -56,21 +56,21 @@ export type CardArtSaveResponse = ApiMessage & {
  * return the message explaining the refusal. Unknown keys are refused so a
  * typo cannot look like a successful write that changed nothing.
  */
-export function parseCardArtSaveBody(raw: Record<string, unknown>): CardArtSaveRequest | string {
+export function parseCardArtSaveBody(
+  raw: Record<string, unknown>,
+): CardArtSaveRequest | ApiMessage {
   for (const key of Object.keys(raw)) {
     if (key !== 'cardId' && key !== 'art') {
-      return `Unknown field '${key}'. Accepted fields: cardId, art.`
+      return apiMessage('admin.api.art.unknownField', { field: key })
     }
   }
   if (typeof raw.cardId !== 'number' || !Number.isSafeInteger(raw.cardId) || raw.cardId < 1) {
-    return 'cardId must be a card line’s &N id (a positive integer).'
+    return apiMessage('admin.api.art.cardIdInvalid')
   }
-  if (!('art' in raw)) {
-    return 'art is required — an object with a "file" or "url", or null to clear the card’s art.'
-  }
+  if (!('art' in raw)) return apiMessage('admin.api.art.artRequired')
   if (raw.art === null) return { cardId: raw.cardId, art: null }
   const ref = parseCardArtRef(raw.art)
-  if (isCardArtRefError(ref)) return ref.error
+  if (isCardArtRefError(ref)) return plainMessage(ref.error)
   return { cardId: raw.cardId, art: ref }
 }
 
@@ -133,10 +133,13 @@ export async function listArtRecord(
 ): Promise<ListArtRecord> {
   const loaded = await loadCardArt(filePath, { knownCardIds: options.knownCardIds })
   if (!loaded.ok) return { artWarnings: [loaded.message] }
-  const artWarnings = loaded.warnings.map(
-    (warning) =>
-      `${artSidecarPath(filePath)}: custom art is set for cards that are no longer in this list: ` +
-      `${warning.ids.join(', ')}.`,
+  // English, like every warning a load body carries: the field is a list of
+  // sentences with no room for a key, and MCP reads it as it stands.
+  const artWarnings = loaded.warnings.map((warning) =>
+    apiText('admin.api.art.staleIds', {
+      file: artSidecarPath(filePath),
+      ids: warning.ids.join(', '),
+    }),
   )
   const record: ListArtRecord = artWarnings.length > 0 ? { artWarnings } : {}
   if (loaded.art.size === 0) return record
@@ -153,22 +156,29 @@ export async function listArtRecord(
 export function handleArtSave(req: Request): Promise<Response> {
   return apiHandler(async () => {
     const target = parseListTarget(req)
-    if (typeof target === 'string') return badRequest(target)
+    if (isApiMessage(target)) return badRequest(target)
 
     const read = await readJsonObjectBody(req)
     if (!read.ok) return read.response
     const parsed = parseCardArtSaveBody(read.body)
-    if (typeof parsed === 'string') return badRequest(parsed)
+    if (isApiMessage(parsed)) return badRequest(parsed)
 
     const filePath = await resolveListFile(target.type, target.slug)
     if (!filePath) {
-      return apiError(`No ${listTypeLabel(target.type)} named '${target.slug}'`, 404)
+      return apiError(
+        apiMessage('admin.api.art.listNotFound', { listType: target.type, slug: target.slug }),
+        404,
+      )
     }
 
     const cardIds = await listCardIds(target.type, filePath)
     if (!cardIds.has(parsed.cardId)) {
       return badRequest(
-        `Card ${parsed.cardId} is not in ${listTypeLabel(target.type)} '${target.slug}'.`,
+        apiMessage('admin.api.art.cardNotInList', {
+          listType: target.type,
+          cardId: parsed.cardId,
+          slug: target.slug,
+        }),
       )
     }
 
@@ -177,7 +187,7 @@ export function handleArtSave(req: Request): Promise<Response> {
     if (parsed.art !== null && 'file' in parsed.art) {
       const source = cardArtFilePath(getArtDir(), parsed.art)
       if (!(await Bun.file(source).exists())) {
-        return badRequest(`No image at ${source}.`)
+        return badRequest(apiMessage('admin.api.art.imageMissing', { path: source }))
       }
     }
 
@@ -185,7 +195,7 @@ export function handleArtSave(req: Request): Promise<Response> {
     // would erase custom art the user still has, for cards this request never
     // mentioned.
     const loaded = await loadCardArt(filePath)
-    if (!loaded.ok) return apiError(loaded.message, 400)
+    if (!loaded.ok) return apiError(plainMessage(loaded.message), 400)
     if (parsed.art === null) loaded.art.delete(parsed.cardId)
     else loaded.art.set(parsed.cardId, parsed.art)
 

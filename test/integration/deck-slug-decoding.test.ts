@@ -9,7 +9,6 @@ import { getDecksDir } from '../../src/config/ritual-config'
 const DECK_CFG: ListLifecycleConfig = {
   kind: 'deck',
   getDir: getDecksDir,
-  label: 'deck',
   resolveFile: resolveDeckFile,
 }
 

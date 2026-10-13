@@ -8,6 +8,7 @@ import {
 import { tDynamic } from '../../../src/i18n/t'
 import { currentLocale } from '../../../src/i18n/runtime'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
+import { apiMessage } from '../../../src/api/result'
 
 describe('saveEditorChanges', () => {
   type Call = { method: string; args: unknown[] }
@@ -80,13 +81,12 @@ describe('saveEditorChanges', () => {
     ])
   })
 
-  it('resolves saveError message via error ?? message ?? fallback on failure responses', async () => {
+  it('resolves saveError message via message ?? fallback on failure responses', async () => {
     type SaveErrorCase = {
-      response: { success: boolean; error?: string; message?: string }
+      response: { success: boolean; message?: string }
       expected: string
     }
     const cases: SaveErrorCase[] = [
-      { response: { success: false, error: 'Conflict' }, expected: 'Conflict' },
       { response: { success: false, message: 'Bad request data' }, expected: 'Bad request data' },
       { response: { success: false }, expected: 'Save failed' },
     ]
@@ -175,7 +175,7 @@ describe('saveEditorChanges', () => {
     expect(result?.conflict).toBe(true)
   })
 
-  it('stores its own wording unrendered, and server prose as text', async () => {
+  it('stores its own wording and a keyed refusal unrendered, and keyless prose as text', async () => {
     const recorded: EditorStatusMessage[] = []
     const capture: EditorStatusActions = {
       ...statusActions,
@@ -186,12 +186,19 @@ describe('saveEditorChanges', () => {
     stubSave({ success: true })
     await saveEditorChanges('/api/test/save', {}, capture)
 
-    stubSave({ success: false, error: 'Bad request data' }, 400)
+    stubSave({ success: false, message: 'Bad request data' }, 400)
+    await saveEditorChanges('/api/test/save', {}, capture)
+
+    // A refusal carrying a key this bundle knows is held by its key, so a
+    // language switch relabels it like the editor's own wording.
+    const conflict = apiMessage('admin.api.save.conflict', { listType: 'deck' })
+    stubSave({ success: false, conflict: true, ...conflict }, 409)
     await saveEditorChanges('/api/test/save', {}, capture)
 
     expect(recorded).toEqual([
       { kind: 'key', key: 'ui.editor.saveSuccess', params: undefined },
       { kind: 'text', text: 'Bad request data' },
+      { kind: 'key', key: 'admin.api.save.conflict', params: { listType: 'deck' } },
     ])
   })
 })

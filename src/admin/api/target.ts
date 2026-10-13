@@ -1,4 +1,5 @@
 import { isListType, type ListType } from '../../list/list-type'
+import { apiMessage, type ApiMessage } from '../../api/result'
 
 /** The validated `:type` / `:slug` path target of a `/api/<area>/:type/:slug` route. */
 export type ListTarget = { type: ListType; slug: string }
@@ -20,23 +21,23 @@ export function isValidListSlug(slug: string): boolean {
  * history and price routes. Reports a refusal as the message explaining it, per
  * the project's parser convention; the caller owns the status and envelope.
  */
-export function parseListTarget(req: Request): ListTarget | string {
+export function parseListTarget(req: Request): ListTarget | ApiMessage {
   const parts = new URL(req.url).pathname.split('/')
   const rawType = parts[3]
   const rawSlug = parts[4]
-  if (!rawType || !isListType(rawType)) return 'Invalid or missing list type'
-  if (!rawSlug) return 'List slug is required'
+  if (!rawType || !isListType(rawType)) return apiMessage('admin.api.target.typeInvalid')
+  if (!rawSlug) return apiMessage('admin.api.target.slugRequired')
   const slug = decodeURIComponent(rawSlug)
-  if (!isValidListSlug(slug)) return 'Invalid list slug'
+  if (!isValidListSlug(slug)) return apiMessage('admin.api.target.slugInvalid')
   return { type: rawType, slug }
 }
 
 /**
- * The outcome of {@link parseSlugFromUrl}. Structured rather than a
- * `string | string` union because the slug and the message refusing it are both
- * strings — the caller must not have to guess which it was handed.
+ * The outcome of {@link parseSlugFromUrl}: the slug, or the message refusing it.
+ * Structured rather than a `string | ApiMessage` union so the caller branches on
+ * `ok` instead of on the shape of what it was handed.
  */
-export type SlugParse = { ok: true; slug: string } | { ok: false; message: string }
+export type SlugParse = { ok: true; slug: string } | { ok: false; refusal: ApiMessage }
 
 /**
  * Parse the `:slug` path segment of a `/api/<area>/:slug` route (path
@@ -46,8 +47,9 @@ export type SlugParse = { ok: true; slug: string } | { ok: false; message: strin
  */
 export function parseSlugFromUrl(req: Request): SlugParse {
   const raw = new URL(req.url).pathname.split('/')[3]
-  if (!raw) return { ok: false, message: 'List slug is required' }
+  if (!raw) return { ok: false, refusal: apiMessage('admin.api.target.slugRequired') }
   const slug = decodeURIComponent(raw)
-  if (!isValidListSlug(slug)) return { ok: false, message: 'Invalid list slug' }
+  if (!isValidListSlug(slug))
+    return { ok: false, refusal: apiMessage('admin.api.target.slugInvalid') }
   return { ok: true, slug }
 }

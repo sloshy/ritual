@@ -1,4 +1,4 @@
-import { getErrorMessage } from '../../util/errors'
+import { isSyncMessage } from '../../sync/message'
 import { getBaseDir } from '../../config/base-dir'
 import {
   applyDeckMetadata,
@@ -25,7 +25,8 @@ import { checkArchidektLink } from '../../deck-sync/link'
 import { invalidDeckFormatMessage, parseDeckFormat } from '../../list/deck-format'
 import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
-import { apiError, readJsonObjectBody } from '../../api/http'
+import { apiError, errorResponse, nestedRefusal, readJsonObjectBody } from '../../api/http'
+import { apiMessage, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
 import { autoCommitAndPush, validateContentHash } from './save-helpers'
 import { MAX_METADATA_BODY_SIZE } from '../validation'
 
@@ -106,19 +107,14 @@ export type MetadataResponse = {
   contentHash: string
 }
 
-/** Keys that exist in deck front matter but are not user-editable metadata. */
-const REJECTED_KEYS: Record<string, string> = {
-  lastSynced: 'lastSynced is stamped by deck sync and cannot be edited.',
-}
-
 /**
- * How each flat list type is named in this route's refusals — capitalized
- * English, the same labels the collection and wanted save routes hand
- * {@link validateContentHash}, so a 404 and a 409 on the same list agree.
+ * Keys that exist in deck front matter but are not user-editable metadata, each
+ * with the refusal that says why. Thunks, so the message is rendered when a
+ * request is refused rather than when this module loads — before the catalog
+ * is registered.
  */
-const FLAT_LIST_LABELS: Record<FlatListType, string> = {
-  collection: 'Collection',
-  wanted: 'Wanted list',
+const REJECTED_KEYS: Record<string, () => ApiMessage> = {
+  lastSynced: () => apiMessage('admin.api.metadata.lastSyncedReadOnly'),
 }
 
 /** The envelope every metadata body shares: the optional concurrency token. */
@@ -134,18 +130,23 @@ type MetadataEnvelope = { contentHash?: string }
 function parseMetadataEnvelope(
   raw: Record<string, unknown>,
   acceptedKeys: readonly string[],
-  rejectedKeys?: Record<string, string>,
-): MetadataEnvelope | string {
+  rejectedKeys?: Record<string, () => ApiMessage>,
+): MetadataEnvelope | ApiMessage {
   for (const key of Object.keys(raw)) {
     if (key === 'contentHash') continue
     const rejected = rejectedKeys?.[key]
-    if (rejected !== undefined) return rejected
+    if (rejected !== undefined) return rejected()
     if (!acceptedKeys.includes(key)) {
-      return `Unknown metadata field '${key}'. Accepted fields: ${acceptedKeys.join(', ')}.`
+      return apiMessage('admin.api.metadata.unknownField', {
+        field: key,
+        fields: acceptedKeys.join(', '),
+      })
     }
   }
   if (raw.contentHash !== undefined) {
-    if (typeof raw.contentHash !== 'string') return 'contentHash must be a string.'
+    if (typeof raw.contentHash !== 'string') {
+      return apiMessage('admin.api.field.notString', { field: 'contentHash' })
+    }
     return { contentHash: raw.contentHash }
   }
   return {}
@@ -158,12 +159,12 @@ function parseMetadataEnvelope(
  * the refusal. Shared by both body parsers so a deck and a collection refuse an
  * illegal label set identically.
  */
-function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | null | string {
+function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | null | ApiMessage {
   if (raw === null) return null
   const labels = parseCardLabelsValue(raw, 'labels')
-  if (!labels.ok) return labels.message
+  if (!labels.ok) return plainMessage(labels.message)
   const unsupported = unsupportedLabelsFor(type, labels.labels)
-  if (unsupported.length > 0) return unsupportedLabelsMessage(type, unsupported)
+  if (unsupported.length > 0) return plainMessage(unsupportedLabelsMessage(type, unsupported))
   // An empty array says "no default"; clear the key rather than writing `[]`.
   return labels.labels.length === 0 ? null : labels.labels
 }
@@ -173,7 +174,7 @@ function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | nul
  * or the message explaining the refusal. A discriminated pair rather than
  * `string | null | string` because the value and the refusal are both strings.
  */
-type DescriptionField = { ok: true; value: string | null } | { ok: false; error: string }
+type DescriptionField = { ok: true; value: string | null } | { ok: false; refusal: ApiMessage }
 
 /**
  * Validate a request body's `description` value: `null` — or a string that is
@@ -185,7 +186,7 @@ type DescriptionField = { ok: true; value: string | null } | { ok: false; error:
  */
 function parseDescriptionField(raw: unknown): DescriptionField {
   const parsed = parseListDescription(raw)
-  if (isListDescriptionError(parsed)) return { ok: false, error: parsed.error }
+  if (isListDescriptionError(parsed)) return { ok: false, refusal: plainMessage(parsed.error) }
   return { ok: true, value: parsed }
 }
 
@@ -199,9 +200,9 @@ function parseDescriptionField(raw: unknown): DescriptionField {
  * The reference's *validity* is checked here; whether a `card` id exists is
  * checked in the handler, which is the only place holding the file it names.
  */
-function parseListImageField(raw: unknown): ListImageRef | null | string {
+function parseListImageField(raw: unknown): ListImageRef | null | ApiMessage {
   const parsed = parseListImage(raw)
-  if (parsed !== null && isListImageRefError(parsed)) return parsed.error
+  if (parsed !== null && isListImageRefError(parsed)) return plainMessage(parsed.error)
   return parsed
 }
 
@@ -213,16 +214,16 @@ function parseListImageField(raw: unknown): ListImageRef | null | string {
  */
 export function parseDeckMetadataBody(
   raw: Record<string, unknown>,
-): ParsedDeckMetadataBody | string {
+): ParsedDeckMetadataBody | ApiMessage {
   const patch: DeckMetadataPatch = {}
 
   const envelope = parseMetadataEnvelope(raw, DECK_METADATA_KEYS, REJECTED_KEYS)
-  if (typeof envelope === 'string') return envelope
+  if (isApiMessage(envelope)) return envelope
   const { contentHash } = envelope
 
   if ('description' in raw) {
     const description = parseDescriptionField(raw.description)
-    if (!description.ok) return description.error
+    if (!description.ok) return description.refusal
     patch.description = description.value
   }
 
@@ -230,11 +231,11 @@ export function parseDeckMetadataBody(
     if (raw.tags === null) {
       patch.tags = null
     } else {
-      if (!Array.isArray(raw.tags)) return 'tags must be an array of strings or null.'
+      if (!Array.isArray(raw.tags)) return apiMessage('admin.api.metadata.tagsInvalid')
       const tags: string[] = []
       for (const tag of raw.tags) {
         if (typeof tag !== 'string' || tag.trim() === '') {
-          return 'tags must be an array of non-empty strings.'
+          return apiMessage('admin.api.metadata.tagsBlank')
         }
         const trimmed = tag.trim()
         if (!tags.includes(trimmed)) tags.push(trimmed)
@@ -251,20 +252,20 @@ export function parseDeckMetadataBody(
       patch.format = null
     } else {
       const format = parseDeckFormat(raw.format)
-      if (!format) return invalidDeckFormatMessage(raw.format)
+      if (!format) return plainMessage(invalidDeckFormatMessage(raw.format))
       patch.format = format
     }
   }
 
   if ('labels' in raw) {
     const labels = parseListDefaultLabels(raw.labels, 'deck')
-    if (typeof labels === 'string') return labels
+    if (isApiMessage(labels)) return labels
     patch.labels = labels
   }
 
   if ('image' in raw) {
     const image = parseListImageField(raw.image)
-    if (typeof image === 'string') return image
+    if (isApiMessage(image)) return image
     patch.image = image
   }
 
@@ -273,7 +274,7 @@ export function parseDeckMetadataBody(
       patch.sourceId = null
     } else {
       if (typeof raw.sourceId !== 'string' || raw.sourceId.trim() === '') {
-        return 'sourceId must be a non-empty string or null.'
+        return apiMessage('admin.api.metadata.sourceIdInvalid')
       }
       patch.sourceId = raw.sourceId.trim()
     }
@@ -283,16 +284,17 @@ export function parseDeckMetadataBody(
     if (raw.sourceUrl === null) {
       patch.sourceUrl = null
     } else {
-      if (typeof raw.sourceUrl !== 'string') return 'sourceUrl must be an http(s) URL.'
+      if (typeof raw.sourceUrl !== 'string')
+        return apiMessage('admin.api.metadata.sourceUrlInvalid')
       const trimmed = raw.sourceUrl.trim()
       let parsed: URL
       try {
         parsed = new URL(trimmed)
       } catch {
-        return 'sourceUrl must be an http(s) URL.'
+        return apiMessage('admin.api.metadata.sourceUrlInvalid')
       }
       if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return 'sourceUrl must be an http(s) URL.'
+        return apiMessage('admin.api.metadata.sourceUrlInvalid')
       }
       patch.sourceUrl = trimmed
     }
@@ -316,28 +318,28 @@ export function parseDeckMetadataBody(
 export function parseFlatListMetadataBody(
   raw: Record<string, unknown>,
   type: FlatListType,
-): ParsedFlatListMetadataBody | string {
+): ParsedFlatListMetadataBody | ApiMessage {
   const patch: FlatListMetadataPatch = {}
 
   const envelope = parseMetadataEnvelope(raw, FLAT_LIST_METADATA_KEYS[type])
-  if (typeof envelope === 'string') return envelope
+  if (isApiMessage(envelope)) return envelope
   const { contentHash } = envelope
 
   if ('description' in raw) {
     const description = parseDescriptionField(raw.description)
-    if (!description.ok) return description.error
+    if (!description.ok) return description.refusal
     patch.description = description.value
   }
 
   if ('labels' in raw) {
     const labels = parseListDefaultLabels(raw.labels, type)
-    if (typeof labels === 'string') return labels
+    if (isApiMessage(labels)) return labels
     patch.labels = labels
   }
 
   if ('image' in raw) {
     const image = parseListImageField(raw.image)
-    if (typeof image === 'string') return image
+    if (isApiMessage(image)) return image
     patch.image = image
   }
 
@@ -371,7 +373,7 @@ export function parseFlatListMetadataBody(
 export async function handleMetadataSave(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (typeof target === 'string') return apiError(target, 400)
+    if (isApiMessage(target)) return apiError(target, 400)
 
     const read = await readJsonObjectBody(req, MAX_METADATA_BODY_SIZE)
     if (!read.ok) return read.response
@@ -380,27 +382,26 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       // One branch for both flat list types: they differ only in which keys
       // their vocabulary admits, which `parseFlatListMetadataBody` already knows.
       const parsed = parseFlatListMetadataBody(read.body, target.type)
-      if (typeof parsed === 'string') return apiError(parsed, 400)
+      if (isApiMessage(parsed)) return apiError(parsed, 400)
 
       const filePath = await resolveListFile(target.type, target.slug)
       if (!filePath) {
-        return apiError(`${FLAT_LIST_LABELS[target.type]} '${target.slug}' not found`, 404)
+        return apiError(
+          apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+          404,
+        )
       }
 
       if (parsed.contentHash !== undefined) {
-        const validation = await validateContentHash(
-          filePath,
-          parsed.contentHash,
-          FLAT_LIST_LABELS[target.type],
-        )
+        const validation = await validateContentHash(filePath, parsed.contentHash, target.type)
         if (!validation.valid) return validation.response
       }
 
       const badCardRef = await checkListImageCardId(filePath, parsed.patch.image)
-      if (badCardRef !== null) return apiError(badCardRef, 400)
+      if (badCardRef !== null) return apiError(plainMessage(badCardRef), 400)
 
       const write = await applyFlatListMetadata(filePath, parsed.patch)
-      if (typeof write === 'string') return apiError(write, 400)
+      if (typeof write === 'string') return apiError(plainMessage(write), 400)
 
       await autoCommitAndPush(
         getBaseDir(),
@@ -418,23 +419,28 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     }
 
     const parsed = parseDeckMetadataBody(read.body)
-    if (typeof parsed === 'string') return apiError(parsed, 400)
+    if (isApiMessage(parsed)) return apiError(parsed, 400)
 
     const filePath = await resolveListFile('deck', target.slug)
-    if (!filePath) return apiError(`Deck '${target.slug}' not found`, 404)
+    if (!filePath) {
+      return apiError(
+        apiMessage('admin.api.list.notFound', { listType: 'deck', slug: target.slug }),
+        404,
+      )
+    }
 
     if (parsed.contentHash !== undefined) {
-      const validation = await validateContentHash(filePath, parsed.contentHash, 'Deck')
+      const validation = await validateContentHash(filePath, parsed.contentHash, 'deck')
       if (!validation.valid) return validation.response
     }
 
     const badCardRef = await checkListImageCardId(filePath, parsed.patch.image)
-    if (badCardRef !== null) return apiError(badCardRef, 400)
+    if (badCardRef !== null) return apiError(plainMessage(badCardRef), 400)
 
     // The merged result is what is validated, not the patch: a body that sets
     // only `sourceId` still has to agree with the `sourceUrl` already on the file.
     const write = await applyDeckMetadata(filePath, parsed.patch, checkArchidektLink)
-    if (typeof write === 'string') return apiError(write, 400)
+    if (isSyncMessage(write)) return nestedRefusal(write)
     const { frontMatter: merged, contentHash } = write
 
     await autoCommitAndPush(
@@ -451,6 +457,6 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     }
     return Response.json(response)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

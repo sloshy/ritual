@@ -16,7 +16,9 @@ import { handleTotpVerifySetup } from '../../src/admin/api/totp'
 import { handleArchidektLogin } from '../../src/admin/api/login'
 import type { ApiErrorResponse } from '../../src/api/http'
 import { createSession, getSessionCookieName } from '../../src/admin/session'
-import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
+import { keyedRefusal } from '../helpers/api-message'
+import { globalRateLimiter } from '../../src/admin/rate-limit'
 
 /**
  * The auth helpers write a real credentials file, so they belong here rather
@@ -231,6 +233,98 @@ describe('admin server shutdown (Integration)', () => {
 
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(fetch(url)).rejects.toThrow()
+  })
+})
+
+describe('admin server refusals (Integration)', () => {
+  beforeEach(async () => {
+    ws = await bindWorkspace({ dirs: [], config: false })
+  })
+
+  afterEach(async () => {
+    await ws.dispose()
+  })
+
+  // The server refuses before any route runs in the same envelope every route
+  // uses — English `message` plus the key it was rendered from — so the admin
+  // page renders the refusal in its reader's language and a script can match on
+  // the key instead of the prose.
+  test('a signed-in route refuses with the shared keyed envelope, before and after setup', async () => {
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    try {
+      const url = `http://127.0.0.1:${server.port}/api/lists`
+      const beforeSetup = await fetch(url)
+      expect(beforeSetup.status).toBe(403)
+      const setupBody = (await beforeSetup.json()) as ApiErrorResponse
+      expect(setupBody.success).toBe(false)
+      expect(setupBody.messageKey).toBe('admin.api.server.setupRequired')
+      expect(keyedRefusal(setupBody)).toBe('Setup required. Create an admin account first.')
+
+      await createAdminUser('admin', 'test1234')
+      const anonymous = await fetch(url)
+      expect(anonymous.status).toBe(401)
+      const body = (await anonymous.json()) as ApiErrorResponse
+      expect(body.messageKey).toBe('admin.api.server.unauthorized')
+      expect(keyedRefusal(body)).toBe('Unauthorized')
+    } finally {
+      await server.stop(true)
+    }
+  })
+
+  test('a path with no route and no built site answers 404 in the shared envelope', async () => {
+    // `ws.dir` holds no `index.html`, so nothing serves the SPA fallback either.
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    try {
+      const resp = await fetch(`http://127.0.0.1:${server.port}/api/no-such-route`)
+      expect(resp.status).toBe(404)
+      const body = (await resp.json()) as ApiErrorResponse
+      expect(body.messageKey).toBe('admin.api.server.notFound')
+      expect(keyedRefusal(body)).toBe('Not Found')
+    } finally {
+      await server.stop(true)
+    }
+  })
+
+  test('an address the deny list turns away answers 403 in the shared envelope', async () => {
+    await writeConfig(ws.dir, { admin: { ipDenyList: ['127.0.0.1'] } })
+    const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: ws.dir })
+    try {
+      const resp = await fetch(`http://127.0.0.1:${server.port}/api/status`)
+      expect(resp.status).toBe(403)
+      const body = (await resp.json()) as ApiErrorResponse
+      expect(body.messageKey).toBe('admin.api.server.forbidden')
+      expect(keyedRefusal(body)).toBe('Forbidden')
+    } finally {
+      await server.stop(true)
+    }
+  })
+
+  // The Bun `error` hook's 500 answers with the same envelope
+  // (`admin.api.server.internalError`) but is left untested: no route can be
+  // made to throw past `apiHandler` from outside without a test-only seam.
+
+  test('a locked-out sign-in answers 429 in the shared envelope, with the lock it has left', async () => {
+    // An address no other suite uses: the login rate limiter is process-wide.
+    const ip = '10.99.0.3'
+    for (let attempt = 0; attempt < 5; attempt += 1) globalRateLimiter.recordFailure(ip, 5, 5)
+    try {
+      const resp = await handleLogin(
+        new Request('http://localhost/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: 'admin', password: 'test1234' }),
+        }),
+        ip,
+      )
+      expect(resp.status).toBe(429)
+      const body = (await resp.json()) as ApiErrorResponse & { retryAfterSeconds: number }
+      expect(body.success).toBe(false)
+      expect(keyedRefusal(body)).toBe('Too many failed attempts. Try again later.')
+      expect(body.retryAfterSeconds).toBeGreaterThan(0)
+      expect(resp.headers.get('Retry-After')).toBe(String(body.retryAfterSeconds))
+    } finally {
+      globalRateLimiter.recordSuccess(ip)
+    }
   })
 })
 

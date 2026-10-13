@@ -3,6 +3,7 @@ import { canCombineSets, isValidIso8601 } from '../../../changes/changelog-block
 import { useT, useTKey, useTSegments } from '../../../ui/i18n'
 import { groupListsByType, listInfoId, type ListId } from '../list-grouping'
 import { useHistorySession } from '../hooks/useHistorySession'
+import { useApiText } from '../hooks/useApiAction'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
@@ -31,6 +32,7 @@ export function History(): JSX.Element {
   const tKey = useTKey()
   const tSegments = useTSegments()
   const session = useHistorySession()
+  const heldText = useApiText()
   const guard = useNavigationGuard()
 
   const [expanded, setExpanded] = createSignal<ReadonlySet<number>>(new Set())
@@ -235,7 +237,7 @@ export function History(): JSX.Element {
         </Show>
       </div>
 
-      <StatusAlerts status={session.status()} error={session.error()} />
+      <StatusAlerts status={heldText(session.status())} error={heldText(session.error())} />
 
       <Show
         when={session.loaded()}

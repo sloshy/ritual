@@ -1,11 +1,11 @@
 import { cardCache } from '../cache'
-import { apiError, readJsonObjectBody } from './http'
+import { apiError, errorResponse, readJsonObjectBody } from './http'
 import { fetchRepresentativePrints } from '../scryfall'
-import { getErrorMessage } from '../util/errors'
 import type { ScryfallCard } from '../scryfall/types'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { isPriceStale } from './card-price'
+import { plainMessage } from './result'
 
 const ALL_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
 
@@ -49,7 +49,7 @@ export async function handleCardPrices(req: Request): Promise<Response> {
     const parsed = await readJsonObjectBody(req, MAX_PRICE_BODY_BYTES)
     if (!parsed.ok) return parsed.response
     const names = parseNamesBody(parsed.body)
-    if (typeof names === 'string') return apiError(names, 400)
+    if (typeof names === 'string') return apiError(plainMessage(names), 400)
 
     const cards: ScryfallCard[] = []
     for (const name of [...new Set(names)]) {
@@ -71,6 +71,6 @@ export async function handleCardPrices(req: Request): Promise<Response> {
     const resp: CardPricesResponse = { success: true, cards }
     return Response.json(resp)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

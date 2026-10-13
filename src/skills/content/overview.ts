@@ -453,7 +453,7 @@ release exists, and nothing changed. Mention it if relevant, but never run
   file format or destination. \`json\` emits exactly one document per run (a
   card batch or a multi-page search is still one array); \`ndjson\` streams one
   object per line. Errors go to stderr as
-  \`{"error":{"code","messageKey?","message","details?"}}\` in the structured
+  \`{"error":{"code","messageKey?","messageParams?","message","details?"}}\` in the structured
   modes — \`code\` and \`messageKey\` are locale-invariant (match on those, never
   on prose), while \`message\` follows the UI locale. An unexpected internal
   failure uses the same envelope with \`code: "runtime_error"\` and exit \`1\`,

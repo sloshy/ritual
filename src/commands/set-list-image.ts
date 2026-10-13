@@ -18,6 +18,9 @@ import {
   type DeckMetadataRequest,
   type FlatListMetadataRequest,
 } from '../admin/api/metadata'
+import { isApiMessage } from '../api/result'
+import { apiRefusalError } from '../cli/api-refusal'
+import { isSyncMessage } from '../sync/message'
 import { checkArchidektLink } from '../deck-sync/link'
 import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
@@ -216,19 +219,13 @@ async function applyListImage(
   }
   if (type === 'deck') {
     const parsed = parseDeckMetadataBody(body)
-    if (typeof parsed === 'string') {
-      throw new CardCommandError('usage_error', parsed, ExitCode.UsageError)
-    }
+    if (isApiMessage(parsed)) throw apiRefusalError(parsed)
     const write = await applyDeckMetadata(filePath, parsed.patch, checkArchidektLink)
-    if (typeof write === 'string') {
-      throw new CardCommandError('usage_error', write, ExitCode.UsageError)
-    }
+    if (isSyncMessage(write)) throw apiRefusalError(write)
     return
   }
   const parsed = parseFlatListMetadataBody(body, type)
-  if (typeof parsed === 'string') {
-    throw new CardCommandError('usage_error', parsed, ExitCode.UsageError)
-  }
+  if (isApiMessage(parsed)) throw apiRefusalError(parsed)
   const write = await applyFlatListMetadata(filePath, parsed.patch)
   if (typeof write === 'string') {
     throw new CardCommandError('usage_error', write, ExitCode.UsageError)

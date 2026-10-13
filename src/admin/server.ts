@@ -68,28 +68,27 @@ import {
   handleListDelete,
   type ListLifecycleConfig,
 } from './api/list-lifecycle'
-import type { ApiErrorResponse } from '../api/http'
+import { apiError, type ApiErrorResponse } from '../api/http'
+import { apiMessage } from '../api/result'
+import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
 import { startServerOrThrow } from '../util/start-server'
 
 const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
   getDir: getCollectionsDir,
-  label: 'collection',
   resolveFile: resolveFlatListFile,
 }
 
 const WANTED_CFG: ListLifecycleConfig = {
   kind: 'wanted',
   getDir: getWantedDir,
-  label: 'wanted list',
   resolveFile: resolveFlatListFile,
 }
 
 const DECK_CFG: ListLifecycleConfig = {
   kind: 'deck',
   getDir: getDecksDir,
-  label: 'deck',
   resolveFile: resolveDeckFile,
 }
 
@@ -572,23 +571,15 @@ async function handleRequest(
   const userAgent = req.headers.get('User-Agent') ?? ''
 
   // IP and User-Agent filtering
-  if (config.admin.ipDenyList.length > 0 && matchesList(clientIp, config.admin.ipDenyList)) {
-    return new Response('Forbidden', { status: 403 })
-  }
-  if (config.admin.ipAllowList.length > 0 && !matchesList(clientIp, config.admin.ipAllowList)) {
-    return new Response('Forbidden', { status: 403 })
-  }
   if (
-    config.admin.userAgentDenyList.length > 0 &&
-    matchesList(userAgent, config.admin.userAgentDenyList)
+    (config.admin.ipDenyList.length > 0 && matchesList(clientIp, config.admin.ipDenyList)) ||
+    (config.admin.ipAllowList.length > 0 && !matchesList(clientIp, config.admin.ipAllowList)) ||
+    (config.admin.userAgentDenyList.length > 0 &&
+      matchesList(userAgent, config.admin.userAgentDenyList)) ||
+    (config.admin.userAgentAllowList.length > 0 &&
+      !matchesList(userAgent, config.admin.userAgentAllowList))
   ) {
-    return new Response('Forbidden', { status: 403 })
-  }
-  if (
-    config.admin.userAgentAllowList.length > 0 &&
-    !matchesList(userAgent, config.admin.userAgentAllowList)
-  ) {
-    return new Response('Forbidden', { status: 403 })
+    return apiError(apiMessage('admin.api.server.forbidden'), 403)
   }
 
   // Match API routes
@@ -598,16 +589,11 @@ async function handleRequest(
   if (route) {
     if (route.requiresAuth) {
       const hasAdmin = await adminUserExists()
-      if (!hasAdmin) {
-        return Response.json(
-          { error: 'Setup required. Create an admin account first.' },
-          { status: 403 },
-        )
-      }
+      if (!hasAdmin) return apiError(apiMessage('admin.api.server.setupRequired'), 403)
 
       // Session-based auth: validate the session cookie
       if (!sessionToken || !validateSession(sessionToken)) {
-        return Response.json({ error: 'Unauthorized' }, { status: 401 })
+        return apiError(apiMessage('admin.api.server.unauthorized'), 401)
       }
     }
 
@@ -622,7 +608,7 @@ async function handleRequest(
     // there an abort is an explicit `notifications/cancelled` rather than a
     // socket closing. Wiring this would be a behaviour change, not a fix.
     const result = await dispatchRoute(req, { clientIp, sessionToken })
-    return result.matched ? result.response : new Response('Not Found', { status: 404 })
+    return result.matched ? result.response : notFound()
   }
 
   // Serve static SPA files
@@ -638,7 +624,12 @@ async function handleRequest(
     return new Response(indexFile)
   }
 
-  return new Response('Not Found', { status: 404 })
+  return notFound()
+}
+
+/** The 404 for a path the server has no route or file for, in the shared refusal body. */
+function notFound(): Response {
+  return apiError(apiMessage('admin.api.server.notFound'), 404)
 }
 
 /**
@@ -679,13 +670,14 @@ export async function startAdminServer(options: AdminServerOptions): Promise<Adm
         return withSecurityHeaders(response)
       },
       error(error) {
-        console.error('Unhandled server error:', error)
-        return Response.json({ error: 'Internal server error' }, { status: 500 })
+        console.error(t('cli.admin.serverError'), error)
+        return apiError(apiMessage('admin.api.server.internalError'), 500)
       },
     }),
   )
 
-  console.log(`Ritual Admin running at http://${host === '0.0.0.0' ? 'localhost' : host}:${port}`)
+  const displayHost = host === '0.0.0.0' ? 'localhost' : host
+  console.log(t('cli.admin.serverRunning', { url: `http://${displayHost}:${port}` }))
 
   const stop = async (closeActiveConnections?: boolean): Promise<void> => {
     await server.stop(closeActiveConnections)

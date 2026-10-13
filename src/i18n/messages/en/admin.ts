@@ -11,6 +11,11 @@ export const adminMessages = {
   // ── App shell and layout ──────────────────────────────────────────────
   'admin.app.loading': 'Loading...',
   'admin.app.requestFailed': 'Request failed',
+  'admin.app.routingOutsideProvider': 'useRouting called outside of a RoutingProvider',
+  'admin.app.unhandledSyncEvent': 'Unhandled sync event: {event}',
+  'admin.app.unhandledCsvOutcome': 'Unhandled CSV outcome: {outcome}',
+  'admin.app.shareFilterLoadFailed': 'Share filter: failed to load {list}:',
+  'admin.app.swapSourceLoadFailed': 'Swap printings: failed to load {list}:',
   'admin.layout.title': 'Ritual Admin',
   'admin.layout.logout': 'Logout',
   'admin.layout.about': 'Ritual {version} · {source} · {license}',
@@ -142,6 +147,12 @@ export const adminMessages = {
   'admin.auditLog.colUserAgent': 'User Agent',
   'admin.auditLog.success': 'Success',
   'admin.auditLog.failed': 'Failed',
+  'admin.auditLog.reason.loginSucceeded': 'Login successful',
+  'admin.auditLog.reason.invalidCredentials': 'Invalid credentials',
+  'admin.auditLog.reason.invalidTotp': 'Invalid TOTP code',
+  'admin.auditLog.reason.accountCreatedViaCli': 'Admin account created via CLI',
+  'admin.auditLog.reason.passwordResetViaCli': 'Admin password reset via CLI',
+  'admin.auditLog.reason.totpDisabledViaCli': 'TOTP disabled via CLI',
 
   // ── Build Site ────────────────────────────────────────────────────────
   'admin.buildSite.desc':
@@ -205,6 +216,7 @@ export const adminMessages = {
 
   // ── Front-matter writes (shared by every metadata dialog) ─────────────
   'admin.metadata.saveFailed': 'Save failed ({status})',
+  'admin.metadata.requestFailed': 'Save failed: {reason}',
 
   // ── List cover-image dialog ───────────────────────────────────────────
   'admin.listImage.title': 'Cover Image',
@@ -237,6 +249,7 @@ export const adminMessages = {
   'admin.art.previewFailed': 'That image could not be loaded.',
   'admin.art.invalid': 'That custom art is not usable: {reason}',
   'admin.art.saveFailed': 'Save failed ({status})',
+  'admin.art.requestFailed': 'Save failed: {reason}',
   'admin.art.saving': 'Saving…',
   'admin.art.save': 'Save',
   'admin.art.clear': 'Remove art',
@@ -288,12 +301,14 @@ export const adminMessages = {
   'admin.history.loadListsFailed': 'Failed to load lists: {reason}',
   'admin.history.loadFailed': 'Failed to load {name}: {reason}',
   'admin.history.saveFailed': 'Failed to save: {reason}',
+  'admin.history.saved': 'Change history saved',
 
   // ── Import Changes ────────────────────────────────────────────────────
   'admin.importChanges.desc':
     'Apply a change bundle exported from the site editor, covering one or more lists. Review the pending changes below, then apply them to your list files.',
   'admin.importChanges.applyFailed': 'Failed to apply changes',
   'admin.importChanges.applied': 'Changes applied',
+  'admin.importChanges.partlyFailed': 'Some lists could not be updated; see each list below.',
   'admin.importChanges.appliedCount': {
     $plural: 'count',
     one: 'applied {count} change',
@@ -397,6 +412,7 @@ export const adminMessages = {
   'admin.importCsv.appendCards': 'Append Cards',
   'admin.importCsv.import': 'Import CSV',
   'admin.importCsv.failed': 'Failed to import CSV',
+  'admin.importCsv.imported': 'CSV imported',
 
   // ── Manage Lists ──────────────────────────────────────────────────────
   //
@@ -589,11 +605,6 @@ export const adminMessages = {
     $plural: 'count',
     one: '{count} queued move has not been saved, and will be lost.',
     other: '{count} queued moves have not been saved, and will be lost.',
-  },
-  'admin.api.move.moved': {
-    $plural: 'count',
-    one: 'Moved {count} card.',
-    other: 'Moved {count} cards.',
   },
   'admin.move.matches': {
     $plural: 'count',
@@ -931,147 +942,4 @@ export const adminMessages = {
   'admin.settings.printingsExample': 'SLD:123',
   'admin.settings.bannedPrintings': 'Banned default printings',
   'admin.settings.bannedPrintingsPlaceholder': 'e.g. SLD:123',
-
-  // ══ admin.api.* ══════════════════════════════════════════════════════
-  //
-  // Prose the admin API *authors*. Every one of these is rendered to English
-  // at the handler (that is what `message` carries, unchanged, for MCP and
-  // curl) and re-rendered in the reader's locale from `messageKey` +
-  // `messageParams` by `useApiAction`.
-
-  // ── First-run setup ───────────────────────────────────────────────────
-  'admin.api.setup.tokenInvalid':
-    'That setup token is not right. Use the setup link `ritual admin` printed when it started, or run `ritual admin setup`.',
-
-  // ── List lifecycle ────────────────────────────────────────────────────
-  //
-  // Verb + noun concatenation does not survive case or gender, so the list
-  // type selects a whole sentence rather than splicing a noun in.
-  'admin.api.list.created': {
-    $select: 'listType',
-    deck: "Created deck '{name}'",
-    collection: "Created collection '{name}'",
-    wanted: "Created wanted list '{name}'",
-    other: "Created list '{name}'",
-  },
-  'admin.api.list.renamed': {
-    $select: 'listType',
-    deck: "Renamed deck to '{name}'",
-    collection: "Renamed collection to '{name}'",
-    wanted: "Renamed wanted list to '{name}'",
-    other: "Renamed list to '{name}'",
-  },
-  'admin.api.list.deleted': {
-    $select: 'listType',
-    deck: "Deleted deck '{name}'; its files are in {trash}",
-    collection: "Deleted collection '{name}'; its files are in {trash}",
-    wanted: "Deleted wanted list '{name}'; its files are in {trash}",
-    other: "Deleted list '{name}'; its files are in {trash}",
-  },
-
-  // ── One-shot operations ───────────────────────────────────────────────
-  'admin.api.save.saved': 'Saved {count} changes to {name}',
-  'admin.api.save.artUnreconciled':
-    "The list's custom art was left as it is — it could not be read: {reason}",
-  'admin.api.save.lineBreak':
-    'The request field "{field}" contains a line break; card names, printings, sections, and list names must be single-line text.',
-  'admin.api.save.categoriesUnreconciled':
-    'The card lines were saved, but the categories sidecar could not be updated: {reason}',
-  'admin.api.load.categoriesUnreadable':
-    'The list’s categories sidecar could not be read, so no categories are reported: {reason}',
-  'admin.api.load.categoriesStaleNames':
-    'Categories are recorded for cards this list no longer holds: {names}.',
-  'admin.api.art.set': "Set custom art on '{name}'",
-  'admin.api.art.cleared': "Cleared custom art on '{name}'",
-  'admin.api.buildSite.built': 'Site built successfully',
-  'admin.api.buildSite.cancelled': 'The site build was cancelled.',
-  'admin.api.cache.refreshed': 'Cache refreshed successfully',
-  'admin.api.history.saved': {
-    $plural: 'count',
-    one: 'Saved {count} change set.',
-    other: 'Saved {count} change sets.',
-  },
-  'admin.api.move.removed': {
-    $plural: 'count',
-    one: 'Removed {count} card.',
-    other: 'Removed {count} cards.',
-  },
-
-  // ── Archidekt session ─────────────────────────────────────────────────
-  'admin.api.archidekt.loggedIn': 'Logged in as {username}',
-  'admin.api.archidekt.credentialsRequired': 'username and password are required',
-
-  // ── Deck sync run summary ─────────────────────────────────────────────
-  //
-  // A run summary is assembled from clauses joined with `Intl.ListFormat` and
-  // terminated by the renderer, so **no clause carries final punctuation** —
-  // see `src/admin/api/sync-summary.ts`.
-  'admin.api.deckSync.loginRequired':
-    'Not signed into Archidekt. Sign in to sync decks with Archidekt.',
-  'admin.api.deckSync.noDecks': 'No Archidekt decks found to sync',
-  'admin.api.deckSync.previewed': {
-    $plural: 'count',
-    one: 'Previewed {count} deck',
-    other: 'Previewed {count} decks',
-  },
-  'admin.api.deckSync.pulled': {
-    $plural: 'count',
-    one: 'Pulled {count} deck',
-    other: 'Pulled {count} decks',
-  },
-  'admin.api.deckSync.pushed': {
-    $plural: 'count',
-    one: 'Pushed {count} deck',
-    other: 'Pushed {count} decks',
-  },
-  'admin.api.deckSync.skipped': '{count} skipped',
-  'admin.api.deckSync.failed': '{count} failed',
-  'admin.api.deckSync.cancelled': {
-    $plural: 'count',
-    one: 'cancelled with {count} deck not started',
-    other: 'cancelled with {count} decks not started',
-  },
-
-  // ── Collection sync run summary ───────────────────────────────────────
-  'admin.api.collectionSync.loginRequired':
-    'Not signed into Archidekt. Sign in to sync your collection with Archidekt.',
-  'admin.api.collectionSync.accountRequired':
-    'The stored Archidekt login does not name an account. Sign in to Archidekt again to record it.',
-  'admin.api.collectionSync.noLists': 'No collection lists found to sync',
-  'admin.api.collectionSync.totals': {
-    $select: 'action',
-    previewed: 'Previewed +{added} added, -{removed} removed',
-    pulled: 'Pulled +{added} added, -{removed} removed',
-    pushed: 'Pushed +{added} added, -{removed} removed',
-    other: 'Synced +{added} added, -{removed} removed',
-  },
-  'admin.api.collectionSync.totalsInto': {
-    $select: 'action',
-    previewed: 'Previewed +{added} added, -{removed} removed into "{into}"',
-    pulled: 'Pulled +{added} added, -{removed} removed into "{into}"',
-    pushed: 'Pushed +{added} added, -{removed} removed into "{into}"',
-    other: 'Synced +{added} added, -{removed} removed into "{into}"',
-  },
-  'admin.api.collectionSync.pending': '{count} awaiting a manual CSV upload',
-  'admin.api.collectionSync.filtered': '{count} filtered out',
-  'admin.api.collectionSync.ambiguous': {
-    $plural: 'count',
-    one: '{count} ambiguous removal',
-    other: '{count} ambiguous removals',
-  },
-  'admin.api.collectionSync.listsFailed': {
-    $plural: 'count',
-    one: '{count} list failed',
-    other: '{count} lists failed',
-  },
-  'admin.api.collectionSync.errors': {
-    $plural: 'count',
-    one: '{count} error',
-    other: '{count} errors',
-  },
-  'admin.api.collectionSync.cancelled': {
-    $plural: 'count',
-    one: 'cancelled with {count} list not started',
-    other: 'cancelled with {count} lists not started',
-  },
 } as const satisfies MessageCatalogShape

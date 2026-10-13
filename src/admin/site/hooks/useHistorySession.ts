@@ -15,13 +15,17 @@ import type { ChangeEvent } from '../../../changes/change-event'
 import type { HistoryLoadResponse, HistorySaveResponse } from '../../api/history'
 import type { ApiErrorResponse } from '../../../api/http'
 import type { ListsResponse } from '../../api/lists'
-import { t } from '../../../i18n/t'
+import { apiMessage } from '../../../api/result'
+import type { ApiActionMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
 import { type ListId, listInfoId } from '../list-grouping'
 
 export type UseHistorySessionResult = {
   loaded: Accessor<boolean>
-  error: Accessor<string | null>
-  status: Accessor<string | null>
+  /** Held unrendered; render with `useApiText()` so a language switch relabels it. */
+  error: Accessor<ApiActionMessage | null>
+  /** Held unrendered, like {@link UseHistorySessionResult.error}. */
+  status: Accessor<ApiActionMessage | null>
   saving: Accessor<boolean>
 
   lists: Accessor<ListInfo[]>
@@ -58,8 +62,8 @@ function errorMessage(err: unknown): string {
 
 export function useHistorySession(): UseHistorySessionResult {
   const [loaded, setLoaded] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
-  const [status, setStatus] = createSignal<string | null>(null)
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const [status, setStatus] = createSignal<ApiActionMessage | null>(null)
   const [saving, setSaving] = createSignal(false)
 
   const [lists, setLists] = createSignal<ListInfo[]>([])
@@ -104,13 +108,13 @@ export function useHistorySession(): UseHistorySessionResult {
       const resp = await fetch('/api/lists', { credentials: 'same-origin' })
       const data = (await resp.json()) as ListsResponse | ApiErrorResponse
       if (!data.success) {
-        setError(data.message)
+        setError(readSyncMessage(data) ?? apiMessage('admin.app.requestFailed'))
         return
       }
       setLists(data.lists)
       setLoaded(true)
     } catch (err) {
-      setError(t('admin.history.loadListsFailed', { reason: errorMessage(err) }))
+      setError(apiMessage('admin.history.loadListsFailed', { reason: errorMessage(err) }))
     }
   }
 
@@ -127,7 +131,7 @@ export function useHistorySession(): UseHistorySessionResult {
       )
       const data = (await resp.json()) as HistoryLoadResponse | ApiErrorResponse
       if (!data.success) {
-        setError(data.message)
+        setError(readSyncMessage(data) ?? apiMessage('admin.app.requestFailed'))
         return
       }
       const loadedSets = sortNewestFirst(data.sets)
@@ -137,7 +141,9 @@ export function useHistorySession(): UseHistorySessionResult {
       setOriginalSerialized(serializeChangeSets({ header: data.header, sets: loadedSets }))
       setUndoStack([])
     } catch (err) {
-      setError(t('admin.history.loadFailed', { name: list.name, reason: errorMessage(err) }))
+      setError(
+        apiMessage('admin.history.loadFailed', { name: list.name, reason: errorMessage(err) }),
+      )
     } finally {
       setDetailLoading(false)
     }
@@ -222,15 +228,15 @@ export function useHistorySession(): UseHistorySessionResult {
       )
       const data = (await resp.json()) as HistorySaveResponse | ApiErrorResponse
       if (!data.success) {
-        setError(data.message)
+        setError(readSyncMessage(data) ?? apiMessage('admin.app.requestFailed'))
         return
       }
       // The saved state is the new baseline; keep the in-memory sets as-is.
       setOriginalSerialized(serializeChangeSets({ header: header(), sets: sets() }))
       setUndoStack([])
-      setStatus(data.message)
+      setStatus(readSyncMessage(data) ?? apiMessage('admin.history.saved'))
     } catch (err) {
-      setError(t('admin.history.saveFailed', { reason: errorMessage(err) }))
+      setError(apiMessage('admin.history.saveFailed', { reason: errorMessage(err) }))
     } finally {
       setSaving(false)
     }

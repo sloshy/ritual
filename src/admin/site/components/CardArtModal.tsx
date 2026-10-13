@@ -4,6 +4,8 @@ import { useT } from '../../../ui/i18n'
 import type { CardArtRef } from '../../../list/card-art'
 import type { CardArtPrompt } from '../card-art-prompt'
 import { putCardArt } from '../editor-backend'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
 import { ArtRefField, createArtRefField, type CardArtMode } from './ArtRefField'
 
 type CardArtModalProps = {
@@ -33,7 +35,9 @@ export const CardArtModal: Component<CardArtModalProps> = (props) => {
     initial !== null && 'url' in initial ? 'url' : 'file',
   )
   const [saving, setSaving] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX, so a language switch relabels it.
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
   const field = createArtRefField(
     mode,
     initial === null ? '' : 'file' in initial ? initial.file : initial.url,
@@ -95,7 +99,7 @@ export const CardArtModal: Component<CardArtModalProps> = (props) => {
       <Show when={props.prompt.staged === true}>
         <p class="dialog-message text-muted">{t('admin.art.pendingNote')}</p>
       </Show>
-      <Show when={error()}>{(message) => <p class="form-error">{message()}</p>}</Show>
+      <Show when={error()}>{(message) => <p class="form-error">{heldText(message())}</p>}</Show>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onClose}>
           {t('ui.dialog.cancel')}

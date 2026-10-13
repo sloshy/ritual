@@ -22,7 +22,6 @@ import type { CategoryManagerRow } from './EditorActionBar'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { StatusToast } from '../../ui/StatusToast'
 import { useEditorShortcuts } from '../useEditorShortcuts'
-import { type EditorEntity, entityListType } from '../entity'
 import { renderStatus } from '../useEditorStatus'
 import { hasSpecificPrinting } from '../../card/card-printing'
 import { useT, useTDynamic } from '../../ui/i18n'
@@ -35,7 +34,7 @@ type BaseCardData = {
 
 type EditorShellProps<TData, TCardEntry> = {
   /** Which kind of list is being edited; names it in the loading placeholder. */
-  entityLabel: EditorEntity
+  listType: ListType
   selectorId: string
   editor: UseEditorResult<TData, TCardEntry>
   cardData: BaseCardData
@@ -93,7 +92,7 @@ export function EditorShell<TData, TCardEntry>(
   const editor = props.editor
   const t = useT()
   const tDyn = useTDynamic()
-  const listType = (): ListType => entityListType(props.entityLabel)
+  const listType = (): ListType => props.listType
   let actionBarEl: HTMLDivElement | undefined
   const [showShortcuts, setShowShortcuts] = createSignal(false)
 

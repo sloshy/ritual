@@ -86,7 +86,7 @@ export function DeckEditor(props: EditorSlugProps): JSX.Element {
     extractListItems: (r) => (r as DeckListResponse).decks ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/deck/${slug}`, signal),
     commit: createApiCommit('deck'),
-    entityLabel: 'deck',
+    listType: 'deck',
 
     processLoadResponse: (response) => {
       const r = response as DeckDataResponse

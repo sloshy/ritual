@@ -5,6 +5,8 @@ import { enMeta } from '../../../src/i18n/messages/en.meta'
 import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import type { LocaleOverride } from '../../../src/i18n/runtime'
 import { localeTag } from '../../../src/i18n/locale-tag'
+import type { AdminLocalesOverride } from '../../../src/admin/site/hooks/useAdminLocale'
+import { fulfillJson } from './fulfill'
 
 /**
  * Pin the page's UI locale through the `__ritualLocale__` seam
@@ -94,4 +96,21 @@ export async function markPage(page: Page): Promise<void> {
 /** Assert the marker {@link markPage} set is still there. */
 export async function expectNotReloaded(page: Page): Promise<void> {
   expect(await page.evaluate(() => (window as unknown as SpecMarker).__localeSpecMarker__)).toBe(1)
+}
+
+/**
+ * Advertise a locale set to the admin app and answer for its dictionary.
+ *
+ * The admin's locale list is baked into the bundle from
+ * `src/generated/locales.ts` (the same module that decides which files
+ * `ritual admin` writes into `.admin-dist/locales/`), so a spec exercising the
+ * *switcher* has to widen it through the `__ritualAdminLocales__` seam. The
+ * dictionary itself is served by route interception, exactly as the public
+ * spec serves `locales/en-XA.json`.
+ */
+export async function offerLocales(page: Page, tags: string[]): Promise<void> {
+  await page.addInitScript((locales: string[]) => {
+    ;(window as unknown as AdminLocalesOverride).__ritualAdminLocales__ = locales
+  }, tags)
+  await fulfillJson(page, `**/locales/${PSEUDO_LOCALE}.json`, pseudoCatalog())
 }

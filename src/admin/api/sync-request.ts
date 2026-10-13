@@ -15,12 +15,13 @@
  *   are written and unreadable lines deleted, so an unrecognized value is
  *   refused rather than quietly read as "no".
  *
- * Every function reports a refusal as the message explaining it, per the
- * project's parser convention.
+ * Every function reports a refusal as the message explaining it — English plus
+ * its key — per the project's parser convention.
  */
 
 import { isRecord } from '../../util/json'
-import { parseEnumField, type EnumFieldResult } from '../../util/parse-enum'
+import { apiMessage, isApiMessage, parseEnumParam, type ApiMessage } from '../../api/result'
+import type { SelectBranch } from '../../i18n/t'
 import {
   SYNC_CHANGE_FILTERS,
   SYNC_DIRECTIONS,
@@ -31,14 +32,6 @@ import {
 // The only shape a request body may take. Re-exported rather than restated so
 // this module and the wire parsers narrow unknown JSON the same way.
 export { isRecord }
-
-// The case-insensitive enum matcher now lives in `src/parse-enum.ts`, beside
-// `parse-number.ts`, so the CLI's `parseEnumFlag` and every handler share one
-// acceptance rule (an uppercase `format` means the same thing on both). Kept
-// re-exported here because the two sync routes and their tests import it from
-// this module.
-export { parseEnumField }
-export type { EnumFieldResult }
 
 /** The fields every sync request carries, whichever engine it drives. */
 export type SyncRequestCore = {
@@ -62,35 +55,31 @@ export type SyncRequestCore = {
  * established that the body is an object, and validates its own name list (and
  * anything else it accepts) on top of this.
  */
-export function parseSyncRequestCore(value: Record<string, unknown>): SyncRequestCore | string {
+export function parseSyncRequestCore(value: Record<string, unknown>): SyncRequestCore | ApiMessage {
   const rawDirection = value.direction
   if (typeof rawDirection !== 'string' || rawDirection.length === 0) {
-    return `direction is required (${SYNC_DIRECTIONS.join(' or ')})`
+    const [first, second] = SYNC_DIRECTIONS
+    return apiMessage('admin.api.sync.directionRequired', { first, second })
   }
-  const direction = parseEnumField(rawDirection, SYNC_DIRECTIONS, 'direction')
-  if (!direction.ok) return direction.message
+  const direction = parseEnumParam(rawDirection, SYNC_DIRECTIONS, 'direction')
+  if (isApiMessage(direction)) return direction
 
   // The filter is optional, and an omitted one — including the empty string an
   // unset query param or form control produces — means "apply everything".
   let only: SyncChangeFilter | undefined
   if (value.only !== undefined && value.only !== null && value.only !== '') {
-    const parsed = parseEnumField(value.only, SYNC_CHANGE_FILTERS, 'only')
-    if (!parsed.ok) return parsed.message
-    only = parsed.value
+    const parsed = parseEnumParam(value.only, SYNC_CHANGE_FILTERS, 'only')
+    if (isApiMessage(parsed)) return parsed
+    only = parsed
   }
 
-  if (value.dryRun !== undefined && typeof value.dryRun !== 'boolean') {
-    return 'dryRun must be a boolean'
-  }
-  if (
-    value.ignoreUnreadableLines !== undefined &&
-    typeof value.ignoreUnreadableLines !== 'boolean'
-  ) {
-    return 'ignoreUnreadableLines must be a boolean'
+  for (const field of ['dryRun', 'ignoreUnreadableLines'] as const) {
+    const refusal = refuseNonBoolean(value, field)
+    if (refusal !== null) return refusal
   }
 
   const core: SyncRequestCore = {
-    direction: direction.value,
+    direction,
     dryRun: value.dryRun === true,
     ignoreUnreadableLines: value.ignoreUnreadableLines === true,
   }
@@ -100,6 +89,17 @@ export function parseSyncRequestCore(value: Record<string, unknown>): SyncReques
   return core
 }
 
+/**
+ * The refusal for an optional boolean field holding anything but `true` or
+ * `false`, or null when it is absent or a boolean. Flags are validated, never
+ * coerced — see the module comment.
+ */
+export function refuseNonBoolean(value: Record<string, unknown>, field: string): ApiMessage | null {
+  const raw = value[field]
+  if (raw === undefined || typeof raw === 'boolean') return null
+  return apiMessage('admin.api.field.notBoolean', { field })
+}
+
 /** What an array of names does with an entry that is blank once trimmed. */
 export type BlankNamePolicy = 'drop' | 'reject'
 
@@ -107,8 +107,8 @@ export type BlankNamePolicy = 'drop' | 'reject'
 export type NameArrayRules = {
   /** The field's name, as a refusal message spells it. */
   field: string
-  /** What its entries are (`'deck names'`, `'collection list names'`). */
-  noun: string
+  /** What its entries name — decks or collection lists; the refusal's wording follows it. */
+  names: SelectBranch<'admin.api.sync.namesNotArray'>
   /**
    * What a blank entry means. `'drop'` suits an unordered selection, where a
    * form control may well submit an empty row; `'reject'` suits an ordered one
@@ -128,10 +128,10 @@ export type NameArrayRules = {
  * Order is preserved either way: for a removal priority the order *is* the
  * meaning, and for the others it costs nothing to keep.
  */
-export function parseNameArray(raw: unknown, rules: NameArrayRules): string[] | string {
+export function parseNameArray(raw: unknown, rules: NameArrayRules): string[] | ApiMessage {
   const values = raw ?? []
   if (!Array.isArray(values) || !values.every((name): name is string => typeof name === 'string')) {
-    return `${rules.field} must be an array of ${rules.noun}`
+    return apiMessage('admin.api.sync.namesNotArray', { field: rules.field, names: rules.names })
   }
   const names = values.map((name) => name.trim())
   if (rules.blanks === 'drop') {
@@ -139,31 +139,33 @@ export function parseNameArray(raw: unknown, rules: NameArrayRules): string[] | 
     // An empty list means "all of them", so names that were all blank must not
     // quietly widen a request for some to a request for every one.
     if (kept.length === 0 && names.length > 0) {
-      return `${rules.field} must not hold only blank names`
+      return apiMessage('admin.api.sync.namesAllBlank', { field: rules.field })
     }
     return kept
   }
-  if (names.some((name) => name.length === 0)) return `${rules.field} must not contain blank names`
+  if (names.some((name) => name.length === 0)) {
+    return apiMessage('admin.api.sync.namesBlank', { field: rules.field })
+  }
   return names
 }
 
 /**
- * The outcome of {@link parseOptionalText}. Structured rather than a
- * `string | undefined` union because the field's value and the message refusing
- * it are both strings — the caller must not have to guess which it was handed.
+ * The outcome of {@link parseOptionalText}: the field's value (`undefined` when
+ * unset), or the message refusing it.
  */
 export type OptionalTextResult =
-  { ok: true; value: string | undefined } | { ok: false; message: string }
+  { ok: true; value: string | undefined } | { ok: false; refusal: ApiMessage }
 
 /**
  * Validate an optional free-text field (the pull target's `into`). An absent,
  * null, or blank value means "unset" — the same thing an omitted query param and
  * an untouched form control mean — so it reads as `undefined` rather than being
- * refused; anything that is not a string is refused.
+ * refused; anything that is not a string is refused with `refusal`, which names
+ * the field and what it should hold.
  */
-export function parseOptionalText(raw: unknown, field: string, noun: string): OptionalTextResult {
+export function parseOptionalText(raw: unknown, refusal: () => ApiMessage): OptionalTextResult {
   if (raw === undefined || raw === null) return { ok: true, value: undefined }
-  if (typeof raw !== 'string') return { ok: false, message: `${field} must be ${noun}` }
+  if (typeof raw !== 'string') return { ok: false, refusal: refusal() }
   const trimmed = raw.trim()
   return { ok: true, value: trimmed === '' ? undefined : trimmed }
 }
@@ -194,12 +196,12 @@ export type BooleanFieldsOf<T> = {
 export function readBooleanFlags<F extends string>(
   params: URLSearchParams,
   flags: Record<F, true>,
-): Record<F, boolean> | string {
+): Record<F, boolean> | ApiMessage {
   const values = {} as Record<F, boolean>
   for (const flag of Object.keys(flags) as F[]) {
     const raw = params.get(flag)
     if (raw !== null && raw !== 'true' && raw !== 'false') {
-      return `${flag} must be 'true' or 'false'`
+      return apiMessage('admin.api.sync.queryFlagInvalid', { field: flag })
     }
     values[flag] = raw === 'true'
   }

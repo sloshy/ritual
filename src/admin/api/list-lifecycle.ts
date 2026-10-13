@@ -1,5 +1,4 @@
-import { capitalize } from '../../util/strings'
-import type { ListType } from '../../list/list-type'
+import { listTypeLabel, type ListType } from '../../list/list-type'
 import {
   createList,
   deleteList,
@@ -13,7 +12,7 @@ import {
 } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { resolveListFileOrRefuse, type ListFileResult, type ResolveListFile } from './list-file'
-import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, plainMessage, type ApiMessage } from '../../api/result'
 import { apiError, readJsonObjectBody } from '../../api/http'
 import { autoCommitAndPush } from './save-helpers'
 import { parseSlugFromUrl } from './target'
@@ -35,8 +34,6 @@ import { workspaceRelative } from '../../config/base-dir'
 /** Everything a lifecycle route differs by, per list type. */
 export interface ListLifecycleConfig {
   kind: ListType
-  /** Singular lowercase label, e.g. `deck`, `collection`, `wanted list`. */
-  label: string
   getDir: () => string
   resolveFile: ResolveListFile
 }
@@ -65,12 +62,16 @@ export interface ListDeleteResponse extends ApiMessage, DeleteListSuccess {
 /** Map a lifecycle-engine refusal onto the shared error envelope. */
 export function lifecycleErrorResponse(error: ListLifecycleError): Response {
   const { status, message } = listLifecycleErrorStatus(error)
-  return apiError(message, status)
+  return apiError(plainMessage(message), status)
 }
 
 /** Resolve an already-validated slug to a file, or the response refusing it. */
 function resolveTargetFile(slug: string, cfg: ListLifecycleConfig): Promise<ListFileResult> {
-  return resolveListFileOrRefuse(cfg.resolveFile, { slug, dir: cfg.getDir(), label: cfg.label })
+  return resolveListFileOrRefuse(cfg.resolveFile, {
+    slug,
+    dir: cfg.getDir(),
+    listType: cfg.kind,
+  })
 }
 
 export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promise<Response> {
@@ -82,7 +83,7 @@ export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promis
     const { name } = parsed.body
 
     if (typeof name !== 'string' || name.trim().length === 0) {
-      return apiError(`${capitalize(cfg.label)} name is required`, 400)
+      return apiError(apiMessage('admin.api.list.nameRequired', { listType: cfg.kind }), 400)
     }
 
     const trimmedName = name.trim()
@@ -92,7 +93,7 @@ export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promis
     await autoCommitAndPush(
       cfg.getDir(),
       result.touchedFiles,
-      `Create ${cfg.label}: ${trimmedName}`,
+      `Create ${listTypeLabel(cfg.kind)}: ${trimmedName}`,
     )
 
     const resp: ListCreateResponse = {
@@ -107,14 +108,14 @@ export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promis
 export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promise<Response> {
   return apiHandler(async () => {
     const parsedSlug = parseSlugFromUrl(req)
-    if (!parsedSlug.ok) return apiError(parsedSlug.message, 400)
+    if (!parsedSlug.ok) return apiError(parsedSlug.refusal, 400)
 
     const parsed = await readJsonObjectBody(req)
     if (!parsed.ok) return parsed.response
     const { newName } = parsed.body
 
     if (typeof newName !== 'string' || newName.trim().length === 0) {
-      return apiError(`New ${cfg.label} name is required`, 400)
+      return apiError(apiMessage('admin.api.list.newNameRequired', { listType: cfg.kind }), 400)
     }
 
     const target = await resolveTargetFile(parsedSlug.slug, cfg)
@@ -127,7 +128,7 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
     await autoCommitAndPush(
       cfg.getDir(),
       result.touchedFiles,
-      `Rename ${cfg.label}: ${result.oldName} → ${trimmedName}`,
+      `Rename ${listTypeLabel(cfg.kind)}: ${result.oldName} → ${trimmedName}`,
     )
 
     const resp: ListRenameResponse = {
@@ -144,14 +145,14 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
 export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promise<Response> {
   return apiHandler(async () => {
     const parsedSlug = parseSlugFromUrl(req)
-    if (!parsedSlug.ok) return apiError(parsedSlug.message, 400)
+    if (!parsedSlug.ok) return apiError(parsedSlug.refusal, 400)
 
     const parsed = await readJsonObjectBody(req)
     if (!parsed.ok) return parsed.response
     const { confirmName } = parsed.body
 
     if (typeof confirmName !== 'string' || confirmName.length === 0) {
-      return apiError('confirmName is required', 400)
+      return apiError(apiMessage('admin.api.list.confirmNameRequired'), 400)
     }
 
     const target = await resolveTargetFile(parsedSlug.slug, cfg)
@@ -160,7 +161,7 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
     const displayName = await listDisplayName(cfg.kind, target.filePath)
 
     const mismatch = requireDeleteConfirmation(confirmName, displayName)
-    if (mismatch) return apiError(mismatch, 400)
+    if (mismatch) return apiError(plainMessage(mismatch), 400)
 
     const result = await deleteList(cfg.kind, target.filePath)
     if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
@@ -169,7 +170,7 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
     await autoCommitAndPush(
       cfg.getDir(),
       result.deletedFiles,
-      `Delete ${cfg.label}: ${displayName}`,
+      `Delete ${listTypeLabel(cfg.kind)}: ${displayName}`,
     )
 
     const resp: ListDeleteResponse = {

@@ -1,4 +1,8 @@
 import type { Page, Route } from '@playwright/test'
+import type { ImportCsvRequest } from '../../../src/admin/api/import-csv'
+import type { MoveCommitResponse } from '../../../src/admin/api/move'
+import { syncList, syncMessage, syncRef } from '../../../src/sync/message'
+import { AUDIT_REASONS } from '../../../src/admin/audit-reasons'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
 import type {
@@ -82,7 +86,7 @@ export const MOCK_AUDIT_ENTRIES: AuditEntry[] = [
     success: true,
     username: 'testadmin',
     ip: '127.0.0.1',
-    reason: 'Login successful',
+    reason: AUDIT_REASONS.loginSucceeded,
     userAgent: 'Mozilla/5.0 Playwright',
   },
   {
@@ -215,8 +219,19 @@ export async function mockImportDeckApi(
   onRequest?: (body: unknown) => void,
 ): Promise<void> {
   await fulfillJson(page, '**/api/import-deck', (route: Route) => {
-    onRequest?.(route.request().postDataJSON())
-    return { success: true, message: 'Deck imported', deckName: 'Imported Deck' }
+    const body = route.request().postDataJSON() as { name?: string } | null
+    onRequest?.(body)
+    // Keyed and nested like the route's own summary, naming what the page sent,
+    // so the page's keyed path (not only its English fallback) is observable.
+    const deckName = body?.name ?? 'Imported Deck'
+    return {
+      success: true,
+      ...syncMessage('admin.api.importDeck.imported', {
+        name: deckName,
+        notes: syncList([], 'concat'),
+      }),
+      deckName,
+    }
   })
 }
 
@@ -231,7 +246,8 @@ export async function mockImportCsvApi(
   warnings?: string[],
 ): Promise<void> {
   await fulfillJson(page, '**/api/import-csv', (route: Route) => {
-    onRequest?.(route.request().postDataJSON())
+    const body = route.request().postDataJSON() as ImportCsvRequest
+    onRequest?.(body)
     // `failures`/`failedCount` are always present on the real response: a
     // partially-failed import is a success whose per-row report is the point.
     // `warnings` likewise — the non-fatal channel (a refused category value, a
@@ -239,7 +255,16 @@ export async function mockImportCsvApi(
     const rows = failures ?? []
     return {
       success: true,
-      message: 'Imported 3 card(s)',
+      // Keyed and nested like the route's own summary, naming what the page
+      // sent, so the page's keyed path is observable.
+      ...syncMessage(
+        body.mode === 'append' ? 'admin.api.importCsv.appended' : 'admin.api.importCsv.imported',
+        {
+          listType: body.listType,
+          cards: syncRef('domain.count.cards', { count: 3 }),
+          name: body.name,
+        },
+      ),
       cardCount: 3,
       failures: rows,
       failedCount: rows.length,
@@ -270,7 +295,7 @@ export async function mockImportChangesApi(
     const body: BundleImportResponse = {
       success: true,
       ...result,
-      message: bundleImportMessage(result),
+      ...bundleImportMessage(result),
     }
     return body
   })
@@ -434,7 +459,7 @@ export async function mockBuylistApi(
           stale: false,
           productCount: 149978,
         }
-      : { error: 'No Card Kingdom buylist has been downloaded yet.' },
+      : { success: false, message: 'No Card Kingdom buylist has been downloaded yet.' },
     { status: status === 'present' ? 200 : 503 },
   )
   await fulfillJson(
@@ -927,12 +952,16 @@ export async function mockMoveCardsApi(
     // Echo the requested count rather than a hardcoded 1: a multi-copy commit
     // would otherwise get a response that contradicts what it sent.
     const moved = Array.isArray(body?.moves) ? body.moves.length : 0
-    return {
+    const response: MoveCommitResponse = {
       success: true,
       moved,
+      requested: moved,
       skipped: 0,
+      droppedNotes: [],
+      warnings: [],
       ...apiMessage('admin.api.move.moved', { count: moved }),
     }
+    return response
   })
 
   const binder: CollectionFullLoadResult = {

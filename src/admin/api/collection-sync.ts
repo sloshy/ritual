@@ -39,7 +39,7 @@ import { listLocations } from '../../list/resolve-list'
 import { getCollectionSyncPullTarget, getCollectionsDir } from '../../config/ritual-config'
 import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
-import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
 import {
   runSyncRoute,
@@ -57,6 +57,7 @@ import {
   parseOptionalText,
   parseSyncRequestCore,
   readBooleanFlags,
+  refuseNonBoolean,
   type BooleanFieldsOf,
   type SyncRequestCore,
 } from './sync-request'
@@ -178,21 +179,15 @@ export type CollectionSyncRequest = SyncRequestCore & {
   csv?: boolean
 }
 
-/**
- * Why a request naming a CSV file is refused. `--csv-file` is a CLI affordance:
- * the path is the user's own filesystem, and a server writing a file wherever a
- * request names is not something this API offers. `csv: true` is the field that
- * gets a large batch of additions to Archidekt over HTTP.
- */
-export const CSV_FILE_UNSUPPORTED_MESSAGE =
-  'csvFile is not supported over HTTP: use the CLI’s --csv-file to write a CSV, or csv: true to upload the additions.'
+// The JSON shapes the removal refusals name. Wire vocabulary spliced into the
+// sentence as a param: catalog text cannot hold literal braces.
+// i18n-exempt: a JSON shape — wire vocabulary, not prose
+const ASSIGNMENT_SHAPE = '{ key, choices }'
+// i18n-exempt: a JSON shape — wire vocabulary, not prose
+const CHOICE_SHAPE = '{ list, copies }'
 
 /** `POST /api/collection-sync`: the run's outcome — see {@link SyncRunResponse}. */
 export type CollectionSyncRunResponse = SyncRunResponse<CollectionSyncReport>
-
-/** Why a request carrying both ambiguity strategies is refused. */
-export const REMOVAL_STRATEGY_CONFLICT_MESSAGE =
-  'removalPriority and removalAssignments are two ways to settle the same removals; send one or the other.'
 
 // ── Request parsing ───────────────────────────────────────────────────
 
@@ -201,13 +196,13 @@ export const REMOVAL_STRATEGY_CONFLICT_MESSAGE =
  * positive whole number of copies. Zero would be a list that keeps its copies,
  * which is spelled by leaving the list out.
  */
-function parseRemovalChoice(value: unknown, at: string): RemovalChoice | string {
-  if (!isRecord(value)) return `${at} must be an object with list and copies`
+function parseRemovalChoice(value: unknown, at: string): RemovalChoice | ApiMessage {
+  if (!isRecord(value)) return apiMessage('admin.api.collectionSync.choiceNotObject', { field: at })
   if (typeof value.list !== 'string' || value.list.trim().length === 0) {
-    return `${at}.list must be a collection list name`
+    return apiMessage('admin.api.collectionSync.listNameInvalid', { field: `${at}.list` })
   }
   if (typeof value.copies !== 'number' || !Number.isInteger(value.copies) || value.copies < 1) {
-    return `${at}.copies must be a whole number of at least 1`
+    return apiMessage('admin.api.collectionSync.copiesInvalid', { field: `${at}.copies` })
   }
   return { list: value.list.trim(), copies: value.copies }
 }
@@ -218,23 +213,30 @@ function parseRemovalChoice(value: unknown, at: string): RemovalChoice | string 
  * shape is checked here — whether a key exists, a list holds copies, or the
  * counts add up is the engine's verdict, reported through the run.
  */
-export function parseRemovalAssignments(raw: unknown): RemovalAssignment[] | string {
+export function parseRemovalAssignments(raw: unknown): RemovalAssignment[] | ApiMessage {
   if (raw === undefined || raw === null) return []
-  if (!Array.isArray(raw)) return 'removalAssignments must be an array of { key, choices }'
+  if (!Array.isArray(raw)) {
+    return apiMessage('admin.api.collectionSync.assignmentsNotArray', { shape: ASSIGNMENT_SHAPE })
+  }
   const assignments: RemovalAssignment[] = []
   for (const [index, entry] of raw.entries()) {
     const at = `removalAssignments[${index}]`
-    if (!isRecord(entry)) return `${at} must be an object with key and choices`
+    if (!isRecord(entry)) {
+      return apiMessage('admin.api.collectionSync.assignmentNotObject', { field: at })
+    }
     if (typeof entry.key !== 'string' || entry.key.length === 0) {
-      return `${at}.key must be the ambiguous removal's key`
+      return apiMessage('admin.api.collectionSync.assignmentKeyInvalid', { field: `${at}.key` })
     }
     if (!Array.isArray(entry.choices) || entry.choices.length === 0) {
-      return `${at}.choices must be a non-empty array of { list, copies }`
+      return apiMessage('admin.api.collectionSync.choicesInvalid', {
+        field: `${at}.choices`,
+        shape: CHOICE_SHAPE,
+      })
     }
     const choices: RemovalChoice[] = []
     for (const [choiceIndex, choice] of entry.choices.entries()) {
       const parsed = parseRemovalChoice(choice, `${at}.choices[${choiceIndex}]`)
-      if (typeof parsed === 'string') return parsed
+      if (isApiMessage(parsed)) return parsed
       choices.push(parsed)
     }
     assignments.push({ key: entry.key, choices })
@@ -246,47 +248,51 @@ export function parseRemovalAssignments(raw: unknown): RemovalAssignment[] | str
  * Validate a `POST /api/collection-sync` body. Returns the request or a message
  * describing why it is not one.
  */
-export function parseCollectionSyncBody(value: unknown): CollectionSyncRequest | string {
-  if (!isRecord(value)) return 'Invalid request body'
+export function parseCollectionSyncBody(value: unknown): CollectionSyncRequest | ApiMessage {
+  if (!isRecord(value)) return apiMessage('admin.api.sync.invalidBody')
 
   const core = parseSyncRequestCore(value)
-  if (typeof core === 'string') return core
+  if (isApiMessage(core)) return core
 
-  const lists = parseNameArray(value.lists, {
-    field: 'lists',
-    noun: 'collection list names',
-    blanks: 'drop',
-  })
-  if (typeof lists === 'string') return lists
+  const lists = parseNameArray(value.lists, { field: 'lists', names: 'collection', blanks: 'drop' })
+  if (isApiMessage(lists)) return lists
 
-  const into = parseOptionalText(value.into, 'into', 'a collection list name')
-  if (!into.ok) return into.message
+  const into = parseOptionalText(value.into, () =>
+    apiMessage('admin.api.collectionSync.listNameInvalid', { field: 'into' }),
+  )
+  if (!into.ok) return into.refusal
 
   // The order is the priority, so a blank entry is refused rather than dropped:
   // silently shortening this array would change which binder loses a card.
   const removalPriority = parseNameArray(value.removalPriority, {
     field: 'removalPriority',
-    noun: 'collection list names',
+    names: 'collection',
     blanks: 'reject',
   })
-  if (typeof removalPriority === 'string') return removalPriority
+  if (isApiMessage(removalPriority)) return removalPriority
 
   const removalAssignments = parseRemovalAssignments(value.removalAssignments)
-  if (typeof removalAssignments === 'string') return removalAssignments
+  if (isApiMessage(removalAssignments)) return removalAssignments
   // Refused rather than ranked: the engine consults a priority *instead of* a
   // resolver, so a request carrying both would have its assignments ignored
   // without a word.
   if (removalPriority.length > 0 && removalAssignments.length > 0) {
-    return REMOVAL_STRATEGY_CONFLICT_MESSAGE
+    return apiMessage('admin.api.collectionSync.strategyConflict')
   }
 
   // Validated rather than coerced, like every other flag: it decides whether a
   // large batch of additions reaches Archidekt as one import or not at all.
-  if (value.csv !== undefined && typeof value.csv !== 'boolean') return 'csv must be a boolean'
+  const csvRefusal = refuseNonBoolean(value, 'csv')
+  if (csvRefusal !== null) return csvRefusal
   // Refused rather than ignored: a caller mirroring the CLI's flags deserves to
   // be told this one is not available here, not to watch its additions be
-  // uploaded when it asked for a file.
-  if (value.csvFile !== undefined && value.csvFile !== null) return CSV_FILE_UNSUPPORTED_MESSAGE
+  // uploaded when it asked for a file. `--csv-file` is a CLI affordance — the
+  // path is the user's own filesystem, and a server writing a file wherever a
+  // request names is not something this API offers; `csv: true` is the field
+  // that gets a large batch of additions to Archidekt over HTTP.
+  if (value.csvFile !== undefined && value.csvFile !== null) {
+    return apiMessage('admin.api.collectionSync.csvFileUnsupported')
+  }
 
   const request: CollectionSyncRequest = { ...core, lists }
   // Left off entirely when unset, so the configured pull target applies rather
@@ -334,9 +340,11 @@ const BOOLEAN_FLAGS = {
  * here too: a caller reaching for the CLI's flag is told it does not apply
  * instead of having its additions uploaded anyway.
  */
-export function parseCollectionSyncQuery(params: URLSearchParams): CollectionSyncRequest | string {
+export function parseCollectionSyncQuery(
+  params: URLSearchParams,
+): CollectionSyncRequest | ApiMessage {
   const flags = readBooleanFlags(params, BOOLEAN_FLAGS)
-  if (typeof flags === 'string') return flags
+  if (isApiMessage(flags)) return flags
   // A structure a query string cannot spell one param at a time, so it rides as
   // one JSON-encoded param and is validated by the same body parser.
   const rawAssignments = params.get('removalAssignments')
@@ -345,7 +353,7 @@ export function parseCollectionSyncQuery(params: URLSearchParams): CollectionSyn
     try {
       removalAssignments = JSON.parse(rawAssignments)
     } catch {
-      return 'removalAssignments must be a JSON-encoded array of { key, choices }'
+      return apiMessage('admin.api.collectionSync.assignmentsNotJson', { shape: ASSIGNMENT_SHAPE })
     }
   }
   return parseCollectionSyncBody({

@@ -72,7 +72,7 @@ export function WantedListEditor(props: EditorSlugProps): JSX.Element {
     extractListItems: (r) => (r as WantedListListResponse).wantedLists ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/wanted/${slug}`, signal),
     commit: createApiCommit('wanted'),
-    entityLabel: 'wanted list',
+    listType: 'wanted',
 
     processLoadResponse: (response) => {
       const r = response as WantedListDataResponse

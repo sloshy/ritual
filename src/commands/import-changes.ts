@@ -3,6 +3,7 @@ import fs from 'node:fs/promises'
 import { formatChange } from '../changes/change-message'
 import { listRefLabel } from '../changes/change-event'
 import { t } from '../i18n/t'
+import { prefixedMessage, renderSyncMessage } from '../sync/message'
 import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list/list-type'
 import {
   type ChangeBundle,
@@ -138,7 +139,11 @@ function printResults(result: BundleImportResult, quiet: boolean): void {
       }
     }
     if (list.error !== undefined) {
-      console.error(`✗ ${t('cli.importChanges.listFailed', { heading, reason: list.error })}`)
+      // The failure arrives as the admin route's English plus its key; the CLI
+      // speaks its own UI language, so a keyed reason is rendered here.
+      const failure = prefixedMessage('error', list)
+      const reason = failure === undefined ? list.error : renderSyncMessage(failure)
+      console.error(`✗ ${t('cli.importChanges.listFailed', { heading, reason })}`)
       printDroppedNotes()
       continue
     }
@@ -250,7 +255,7 @@ export function registerImportChangesCommand(program: Command): void {
       const report: ImportChangesReport = {
         success: true,
         ...result,
-        message: bundleImportMessage(result),
+        ...bundleImportMessage(result),
       }
       emitOutput(report, scripting)
     }

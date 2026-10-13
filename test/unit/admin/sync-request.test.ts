@@ -1,12 +1,14 @@
 import { describe, expect, test } from 'bun:test'
+import { parseEnumField } from '../../../src/util/parse-enum'
 import {
-  parseEnumField,
   parseNameArray,
   parseOptionalText,
   parseSyncRequestCore,
   readBooleanFlags,
   type NameArrayRules,
 } from '../../../src/admin/api/sync-request'
+import { keyedRefusal } from '../../helpers/api-message'
+import { apiMessage, isApiMessage, type ApiMessage } from '../../../src/api/result'
 
 /**
  * The rules both admin sync endpoints share, tested once at the layer that owns
@@ -52,7 +54,7 @@ describe('parseSyncRequestCore', () => {
 
   test.each([null, '', undefined])('reads %p as an unfiltered run', (only) => {
     const parsed = parseSyncRequestCore({ direction: 'pull', only })
-    expect(typeof parsed === 'string' ? parsed : parsed.only).toBeUndefined()
+    expect(isApiMessage(parsed) ? parsed : parsed.only).toBeUndefined()
   })
 
   test.each<[string, Record<string, unknown>, string]>([
@@ -61,25 +63,19 @@ describe('parseSyncRequestCore', () => {
     ['an unknown direction', { direction: 'sideways' }, "Invalid direction 'sideways'"],
     ['an unknown filter', { direction: 'pull', only: 'both' }, "Invalid only 'both'"],
     ['a non-string filter', { direction: 'pull', only: 7 }, 'only must be one of'],
-    ['a non-boolean dryRun', { direction: 'pull', dryRun: 'yes' }, 'dryRun must be a boolean'],
+    ['a non-boolean dryRun', { direction: 'pull', dryRun: 'yes' }, 'dryRun must be a boolean.'],
     [
       'a non-boolean ignoreUnreadableLines',
       { direction: 'pull', ignoreUnreadableLines: 1 },
-      'ignoreUnreadableLines must be a boolean',
+      'ignoreUnreadableLines must be a boolean.',
     ],
   ])('refuses %s', (_label, body, message) => {
-    const parsed = parseSyncRequestCore(body)
-    expect(typeof parsed).toBe('string')
-    expect(parsed).toContain(message)
+    expect(keyedRefusal(parseSyncRequestCore(body))).toContain(message)
   })
 })
 
 describe('parseNameArray', () => {
-  const dropping: NameArrayRules = {
-    field: 'lists',
-    noun: 'collection list names',
-    blanks: 'drop',
-  }
+  const dropping: NameArrayRules = { field: 'lists', names: 'collection', blanks: 'drop' }
   const rejecting: NameArrayRules = { ...dropping, field: 'removalPriority', blanks: 'reject' }
 
   test('reads a missing field as "everything"', () => {
@@ -98,12 +94,14 @@ describe('parseNameArray', () => {
   })
 
   test('refuses names that were all blank, which would otherwise read as "all of them"', () => {
-    expect(parseNameArray(['', '   '], dropping)).toBe('lists must not hold only blank names')
+    expect(keyedRefusal(parseNameArray(['', '   '], dropping))).toBe(
+      'lists must not hold only blank names',
+    )
   })
 
   test('refuses a blank entry where the order is the meaning', () => {
     // Dropping it would silently promote every name after it.
-    expect(parseNameArray(['long-box', '  '], rejecting)).toBe(
+    expect(keyedRefusal(parseNameArray(['long-box', '  '], rejecting))).toBe(
       'removalPriority must not contain blank names',
     )
   })
@@ -111,31 +109,27 @@ describe('parseNameArray', () => {
   test.each([['not-an-array'], [{ 0: 'binder' }], [[1, 2]], [['ok', null]]])(
     'refuses %p',
     (raw: unknown) => {
-      expect(parseNameArray(raw, dropping)).toBe('lists must be an array of collection list names')
+      expect(keyedRefusal(parseNameArray(raw, dropping))).toBe(
+        'lists must be an array of collection list names',
+      )
     },
   )
 })
 
 describe('parseOptionalText', () => {
+  const refusalOf = (): ApiMessage =>
+    apiMessage('admin.api.collectionSync.listNameInvalid', { field: 'into' })
+
   test.each([undefined, null, '', '   '])('reads %p as unset', (raw) => {
-    expect(parseOptionalText(raw, 'into', 'a collection list name')).toEqual({
-      ok: true,
-      value: undefined,
-    })
+    expect(parseOptionalText(raw, refusalOf)).toEqual({ ok: true, value: undefined })
   })
 
   test('trims a value it accepts', () => {
-    expect(parseOptionalText('  Inbox ', 'into', 'a collection list name')).toEqual({
-      ok: true,
-      value: 'Inbox',
-    })
+    expect(parseOptionalText('  Inbox ', refusalOf)).toEqual({ ok: true, value: 'Inbox' })
   })
 
-  test('refuses a non-string', () => {
-    expect(parseOptionalText(7, 'into', 'a collection list name')).toEqual({
-      ok: false,
-      message: 'into must be a collection list name',
-    })
+  test('refuses a non-string with the refusal it was given', () => {
+    expect(parseOptionalText(7, refusalOf)).toEqual({ ok: false, refusal: refusalOf() })
   })
 })
 
@@ -156,7 +150,7 @@ describe('readBooleanFlags', () => {
   })
 
   test.each(['1', 'yes', 'TRUE', ''])('refuses %p rather than reading it as "no"', (raw) => {
-    expect(readBooleanFlags(new URLSearchParams([['dryRun', raw]]), flags)).toBe(
+    expect(keyedRefusal(readBooleanFlags(new URLSearchParams([['dryRun', raw]]), flags))).toBe(
       "dryRun must be 'true' or 'false'",
     )
   })

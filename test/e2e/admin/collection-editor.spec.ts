@@ -2,6 +2,8 @@ import { test, expect, type Page, type Route } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
+import { expectPseudo, languageSelect, offerLocales, PSEUDO_LOCALE } from '../helpers/i18n'
+import { apiMessage } from '../../../src/api/result'
 import { makeMockScryfallCard } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
 
@@ -249,7 +251,7 @@ test.describe('Collection Editor sections', () => {
     // Re-registered after the beforeEach route, so this one answers first.
     await fulfillJson(page, '**/api/collection/test-sections/save', {
       success: false,
-      error: 'Collection is locked',
+      message: 'Collection is locked',
     })
 
     await stageASectionAdd(page)
@@ -263,6 +265,35 @@ test.describe('Collection Editor sections', () => {
     // going silent because the message never changed.
     await page.locator('.btn-save').click()
     await expect(errorToast).toHaveText('Collection is locked')
+  })
+
+  test('a keyed save conflict relabels on a language switch', async ({ page }) => {
+    // The switcher only appears once more than one locale is offered, which
+    // takes a reload; the editor is reopened on the same mocks.
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await page.reload()
+    await openListEditor(page, 'collection')
+    await selectList(page, 'collection', 'test-sections')
+    await page.locator('.card-item').first().waitFor({ state: 'visible', timeout: 15_000 })
+    await fulfillJson(
+      page,
+      '**/api/collection/test-sections/save',
+      () => ({
+        success: false,
+        conflict: true,
+        ...apiMessage('admin.api.save.conflict', { listType: 'collection' }),
+      }),
+      { status: 409 },
+    )
+
+    await stageASectionAdd(page)
+    await page.locator('.btn-save').click()
+    const toast = page.locator('.toast-stack .alert-error')
+    await expect(toast).toHaveText(
+      'Collection has been modified since you loaded it. Please reload.',
+    )
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(toast, true)
   })
 })
 

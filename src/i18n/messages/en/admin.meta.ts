@@ -12,10 +12,6 @@ export const adminMeta = {
     description:
       'Shown when leaving the Move Cards page with moves queued but not committed. A "move" is one card sent from one list to another.',
   },
-  'admin.api.move.moved': {
-    description:
-      'Result of committing queued moves. {count} counts copies. Further clauses (how many were skipped, which notes were dropped) are appended after it.',
-  },
   'admin.move.matches': {
     description:
       'How many cards the Move Cards search turned up. A "match" is one card name found in the enabled source lists.',
@@ -144,6 +140,26 @@ export const adminMeta = {
   // ── App shell and layout ──────────────────────────────────────────────
   'admin.app.loading': {
     description: 'Placeholder while the admin app checks whether it is set up and signed in.',
+  },
+  'admin.app.routingOutsideProvider': {
+    description:
+      'Internal error that only a programming mistake can produce: a page component was mounted outside the router. useRouting and RoutingProvider are code names and stay verbatim.',
+  },
+  'admin.app.unhandledSyncEvent': {
+    description:
+      'Internal error that only a programming mistake can produce: a sync page received a kind of progress event it has no handling for. {event} is the event as untranslated JSON.',
+  },
+  'admin.app.unhandledCsvOutcome': {
+    description:
+      'Internal error that only a programming mistake can produce: the Sync Collection page met a CSV upload outcome it has no wording for. {outcome} is the outcome as untranslated JSON.',
+  },
+  'admin.app.shareFilterLoadFailed': {
+    description:
+      'Browser-console line when the "shares with" list filter could not load one of the lists it compares against. {list} is the list as type/slug; the error follows on the same line.',
+  },
+  'admin.app.swapSourceLoadFailed': {
+    description:
+      'Browser-console line when the Swap Printings wizard could not load one of the lists it takes replacement printings from. {list} is the list as type/slug; the error follows on the same line.',
   },
   'admin.app.requestFailed': {
     description:
@@ -439,6 +455,28 @@ export const adminMeta = {
     description: 'Table column: the browser or tool that made the attempt.',
   },
   'admin.auditLog.success': { description: 'Badge on a sign-in that worked.' },
+  'admin.auditLog.reason.loginSucceeded': {
+    description: 'Audit Log "Reason" cell: a sign-in that succeeded.',
+  },
+  'admin.auditLog.reason.invalidCredentials': {
+    description: 'Audit Log "Reason" cell: a sign-in refused for a wrong username or password.',
+  },
+  'admin.auditLog.reason.invalidTotp': {
+    description:
+      'Audit Log "Reason" cell: a sign-in refused because its two-factor (TOTP) code was wrong.',
+  },
+  'admin.auditLog.reason.accountCreatedViaCli': {
+    description:
+      'Audit Log "Reason" cell: the admin account was created with the `ritual admin` command rather than the web form. CLI stands for the command line.',
+  },
+  'admin.auditLog.reason.passwordResetViaCli': {
+    description:
+      'Audit Log "Reason" cell: the admin password was reset with the `ritual admin` command.',
+  },
+  'admin.auditLog.reason.totpDisabledViaCli': {
+    description:
+      'Audit Log "Reason" cell: two-factor authentication (TOTP) was turned off with the `ritual admin` command.',
+  },
   'admin.auditLog.failed': { description: 'Badge on a sign-in that was refused.' },
 
   // ── Build Site ────────────────────────────────────────────────────────
@@ -537,6 +575,10 @@ export const adminMeta = {
   'admin.labels.save': { description: 'Button that saves the chosen default labels.' },
 
   // ── Front-matter writes (shared by every metadata dialog) ─────────────
+  'admin.metadata.requestFailed': {
+    description:
+      "Error under a list-metadata dialog (labels, cover image) when the request never got an answer. {reason} is the browser's own untranslated error text.",
+  },
   'admin.metadata.saveFailed': {
     description:
       'Error shown by any dialog that writes a list’s front matter (default labels, cover image) when the write failed. {status} is an HTTP status code.',
@@ -620,6 +662,10 @@ export const adminMeta = {
   'admin.art.invalid': {
     description:
       'Shown under the field when what was typed is not a usable image reference, so Save stays disabled. {reason} is untranslated engine prose from the art parser (e.g. \'"../x.png" escapes the art directory\').',
+  },
+  'admin.art.requestFailed': {
+    description:
+      "Error under the custom-art dialog when the request never got an answer. {reason} is the browser's own untranslated error text.",
   },
   'admin.art.saveFailed': {
     description: 'Error when the art could not be saved. {status} is an HTTP status code.',
@@ -727,6 +773,10 @@ export const adminMeta = {
   'admin.history.loadFailed': {
     description: 'Error when one list’s change history could not be fetched. {name} is the list.',
   },
+  'admin.history.saved': {
+    description:
+      'Fallback success banner after a change history is rewritten, when the server sent no summary of its own.',
+  },
   'admin.history.saveFailed': {
     description: 'Error when the edited change history could not be written.',
   },
@@ -737,6 +787,10 @@ export const adminMeta = {
       'Lead paragraph of the Import Changes page. A "change bundle" is a JSON file exported from the site editor.',
   },
   'admin.importChanges.applyFailed': { description: 'Error when the bundle could not be applied.' },
+  'admin.importChanges.partlyFailed': {
+    description:
+      "Fallback banner after a change-bundle import in which some lists failed, when the server sent no summary of its own. Each list's result is listed below the banner.",
+  },
   'admin.importChanges.applied': {
     description: 'Fallback success message when the import worked but reported no summary.',
   },
@@ -822,7 +876,8 @@ export const adminMeta = {
     description: 'Field label for the name the imported deck will take.',
   },
   'admin.importDeck.namePlaceholder': {
-    description: 'Placeholder name used when none is supplied.',
+    description:
+      'Placeholder of the deck-name field on the Import Deck page: the name the server gives a pasted deck when the field is left empty and the text has no "# Title" line. Display only — the server always names such a deck in English.',
   },
   'admin.importDeck.nameHint': {
     description: 'Hint saying the typed name is a fallback: a name inside the text wins.',
@@ -927,6 +982,10 @@ export const adminMeta = {
     description: 'Submit button when appending to an existing list.',
   },
   'admin.importCsv.import': { description: 'Submit button when creating a new list.' },
+  'admin.importCsv.imported': {
+    description:
+      'Fallback success banner after a CSV import, when the server sent no summary of its own.',
+  },
   'admin.importCsv.failed': {
     description: 'Error when the CSV import request failed without a message.',
   },
@@ -1590,156 +1649,4 @@ export const adminMeta = {
     description: 'Field label: the banned default printings themselves.',
   },
   'admin.settings.bannedPrintingsPlaceholder': { description: 'Example banned printing.' },
-
-  // ── admin.api.* ───────────────────────────────────────────────────────
-  'admin.api.setup.tokenInvalid': {
-    description:
-      'Refusal when the first-run account form was submitted without the one-time setup token the server printed, or with a wrong one. `ritual admin` and `ritual admin setup` are command names and stay verbatim.',
-  },
-  'admin.api.list.created': {
-    description:
-      'Success alert after a list is created, one branch per list type. {name} is the title the user typed. Translate each branch as a whole sentence — do not assemble it from a verb plus a noun.',
-  },
-  'admin.api.list.renamed': {
-    description:
-      'Success alert after a list is renamed. {name} is the new title. One branch per list type; see admin.api.list.created.',
-  },
-  'admin.api.list.deleted': {
-    description:
-      'Success alert after a list is deleted. {name} is the title it had; {trash} is the workspace-relative trash folder (e.g. ".trash/2026-10-05T14-03-22Z-deck-Burn") its files were moved into. One branch per list type; see admin.api.list.created.',
-  },
-  'admin.api.save.saved': {
-    description:
-      'Success alert after an editor save. {count} is how many individual changes were written, {name} the list they were written to. Deliberately not a plural table: the English wording is fixed by the response MCP clients already read.',
-  },
-  'admin.api.save.artUnreconciled': {
-    description:
-      "Warning in an editor save's response when the list's (or a move destination's) <list>.art.json custom-art sidecar could not be read, so the &N ids the save freed or renumbered could not be re-filed. {reason} is untranslated engine prose naming the file and the parse failure. A warning, never a failure: the card lines were written correctly.",
-  },
-  'admin.api.save.lineBreak': {
-    description:
-      'Refusal (HTTP 400) when a list save or move request carries a string with a line break (newline, carriage return, or Unicode line separator) in its card data, which would otherwise write extra lines into the list file. {field} is the untranslated JSON path of the offending value, e.g. changes[2].cardName.',
-  },
-  'admin.api.save.categoriesUnreconciled': {
-    description:
-      "Warning in an editor save's response when the list's <list>.categories.json sidecar could not be read or written, so the save's category assignments were not recorded. {reason} is untranslated engine prose naming the file and the failure. A warning, never a failure: the card lines were written correctly.",
-  },
-  'admin.api.load.categoriesUnreadable': {
-    description:
-      'Warning on a list load body when the list’s <list>.categories.json sidecar exists but could not be read or parsed. {reason} is untranslated engine prose naming the file and the failure. The load still returns the list: bad categories block nothing.',
-  },
-  'admin.api.load.categoriesStaleNames': {
-    description:
-      'Warning on a list load body naming sidecar entries whose card the list no longer holds. {names} is a comma-joined list of stored card names. A read reports them and never removes them; the next save prunes them.',
-  },
-  'admin.api.art.set': {
-    description:
-      "Success alert after a card's custom art is set from the editor. {name} is the list's slug. The card is not named: card ids are internal, and the alert appears beside the card that was just edited.",
-  },
-  'admin.api.art.cleared': {
-    description:
-      "Success alert after a card's custom art is removed, so it shows its real printing again. {name} is the list's slug.",
-  },
-  'admin.api.buildSite.built': {
-    description: 'Success alert after the public site finishes building and is published.',
-  },
-  'admin.api.buildSite.cancelled': {
-    description:
-      'Error body (HTTP 499) when the caller cancelled a site build part way; the published site was left untouched.',
-  },
-  'admin.api.cache.refreshed': {
-    description: 'Success alert after the local Scryfall card cache is rebuilt from bulk data.',
-  },
-  'admin.api.history.saved': {
-    description:
-      'Success alert after a change log is rewritten. A "change set" is one timestamped group of change lines in a list’s .changes.md file.',
-  },
-  'admin.api.move.removed': {
-    description:
-      'Result of committing a batch of cross-list removals. {count} counts copies. Further clauses (how many were skipped) are appended after it.',
-  },
-  'admin.api.archidekt.loggedIn': {
-    description:
-      'Success alert after signing in to Archidekt. {username} is the account name Archidekt reported.',
-  },
-  'admin.api.archidekt.credentialsRequired': {
-    description:
-      'Refusal when the Archidekt sign-in form was submitted without a username or a password. Lowercase "username" and "password" name the request fields.',
-  },
-  'admin.api.deckSync.loginRequired': {
-    description:
-      'Why a deck sync run never started: no usable Archidekt token is stored. Shown in place of a run summary.',
-  },
-  'admin.api.deckSync.noDecks': {
-    description:
-      'Whole summary of a deck sync run that found nothing linked to Archidekt. **No final punctuation** — the renderer terminates the sentence.',
-  },
-  'admin.api.deckSync.previewed': {
-    description:
-      'First clause of a dry-run deck sync summary: how many decks the run would have synced. **No final punctuation**, and further clauses may be joined after it.',
-  },
-  'admin.api.deckSync.pulled': {
-    description:
-      'First clause of a summary for a run that applied Archidekt’s changes to local deck files. See admin.api.deckSync.previewed.',
-  },
-  'admin.api.deckSync.pushed': {
-    description:
-      'First clause of a summary for a run that sent local deck changes to Archidekt. See admin.api.deckSync.previewed.',
-  },
-  'admin.api.deckSync.skipped': {
-    description:
-      'Summary clause: decks the run stepped over (nothing to do, or excluded by a filter). **No final punctuation.**',
-  },
-  'admin.api.deckSync.failed': {
-    description:
-      'Summary clause: decks the run could not sync. Each deck’s own reason is listed separately. **No final punctuation.**',
-  },
-  'admin.api.deckSync.cancelled': {
-    description:
-      'Summary clause of a run the caller cancelled part way; {count} is how many decks it never started (they are reported as skipped). **No final punctuation.**',
-  },
-  'admin.api.collectionSync.loginRequired': {
-    description:
-      'Why a collection sync run never started: no usable Archidekt token is stored. Shown in place of a run summary.',
-  },
-  'admin.api.collectionSync.accountRequired': {
-    description:
-      'Why a collection sync run never started: a token is stored but predates recording which Archidekt account it belongs to, and a collection is fetched by account.',
-  },
-  'admin.api.collectionSync.noLists': {
-    description:
-      'Whole summary of a collection sync run that found no lists to sync. **No final punctuation** — the renderer terminates the sentence.',
-  },
-  'admin.api.collectionSync.totals': {
-    description:
-      'First clause of a collection sync summary: copies added and removed. {action} selects the tense/direction (previewed = dry run, pulled = Archidekt → local, pushed = local → Archidekt). The + and - are literal signs on the counts. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.totalsInto': {
-    description:
-      'admin.api.collectionSync.totals for a pull that added cards, naming the list they landed in. {into} is a list name shown in quotes. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.pending': {
-    description:
-      'Summary clause: copies written to a CSV file instead of being pushed, so they reach Archidekt only once a human imports that file. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.filtered': {
-    description:
-      'Summary clause: copies the run’s change filter excluded. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.ambiguous': {
-    description:
-      'Summary clause: removals that matched copies in more than one list, so the run could not tell which list should lose the card. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.listsFailed': {
-    description:
-      'Summary clause: collection lists the run could not sync. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.errors': {
-    description:
-      'Summary clause: failures of the run as a whole, as opposed to failures of one list. **No final punctuation.**',
-  },
-  'admin.api.collectionSync.cancelled': {
-    description:
-      'Summary clause of a run the caller cancelled part way; {count} is how many lists it never started (they are reported as skipped). **No final punctuation.**',
-  },
 } as const satisfies MetaFor<typeof adminMessages>

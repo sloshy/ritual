@@ -12,7 +12,7 @@ import {
 import { parseChangeBundle } from '../../changes/change-bundle'
 import {
   isToSectionInvalid,
-  TO_SECTION_DECK_ONLY_MESSAGE,
+  toSectionDeckOnlyMessage,
   type RemoveCommitItem,
   type RemoveCommitRequest,
   type SelectedMoveItem,
@@ -187,7 +187,7 @@ const moveItemSchema = z
   })
   .superRefine((val, ctx) => {
     if (isToSectionInvalid(val.toSection, val.toListType)) {
-      ctx.addIssue({ code: 'custom', message: TO_SECTION_DECK_ONLY_MESSAGE })
+      ctx.addIssue({ code: 'custom', message: toSectionDeckOnlyMessage().message })
     }
   })
 

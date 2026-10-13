@@ -26,6 +26,7 @@ import { parseDefaultCategories } from '../../card/card-categories'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import { badRequest, readJsonObjectBody } from '../../api/http'
+import { apiMessage, plainMessage } from '../../api/result'
 import { getBaseDir } from '../../config/base-dir'
 
 /**
@@ -148,7 +149,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     // reset to its default (with only a console.warn) on the next config load.
     for (const key of Object.keys(raw)) {
       if (!KNOWN_CONFIG_KEYS.has(key)) {
-        return badRequest(`Unknown config key "${key}"`)
+        return badRequest(apiMessage('admin.api.config.unknownKey', { key }))
       }
     }
 
@@ -156,7 +157,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
 
     for (const key of DIRECTORY_CONFIG_KEYS) {
       if (raw[key] !== undefined && typeof raw[key] !== 'string') {
-        return badRequest(`"${key}" must be a string`)
+        return badRequest(apiMessage('admin.api.config.notString', { key }))
       }
     }
 
@@ -177,7 +178,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       applyParsedUpdate(raw, updates, 'priceSources', parsePriceSources) ??
       applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategories)
     if (scalarError !== null) {
-      return badRequest(scalarError)
+      return badRequest(plainMessage(scalarError))
     }
 
     // An empty string clears the default store (the first enabled store then
@@ -187,7 +188,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.defaultPriceSource !== undefined) {
       const parsed =
         raw.defaultPriceSource === '' ? undefined : parseDefaultPriceSource(raw.defaultPriceSource)
-      if (isConfigParseError(parsed)) return badRequest(parsed.error)
+      if (isConfigParseError(parsed)) return badRequest(plainMessage(parsed.error))
       if (parsed === undefined) {
         // `updates` aliases the raw body; never leave a `''` typed as a store.
         clearDefaultPriceSource = true
@@ -207,7 +208,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       } else {
         const parsed = parseCacheFeedUrl(raw.cacheFeedUrl)
         if (isConfigParseError(parsed)) {
-          return badRequest(parsed.error)
+          return badRequest(plainMessage(parsed.error))
         }
         updates.cacheFeedUrl = parsed
       }
@@ -223,12 +224,12 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.admin !== undefined) {
       const parsed = parseAdminConfig(raw.admin)
       if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
+        return badRequest(plainMessage(parsed.error))
       }
       if (typeof raw.admin === 'object' && raw.admin !== null) {
         for (const key of Object.keys(raw.admin)) {
           if (!KNOWN_ADMIN_CONFIG_KEYS.has(key)) {
-            return badRequest(`Unknown admin config key "${key}"`)
+            return badRequest(apiMessage('admin.api.config.unknownAdminKey', { key }))
           }
         }
       }
@@ -240,7 +241,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.collectionSync !== undefined) {
       const parsed = parseCollectionSyncConfig(raw.collectionSync)
       if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
+        return badRequest(plainMessage(parsed.error))
       }
       updates.collectionSync = parsed
     }
@@ -254,7 +255,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.site !== undefined) {
       const parsed = parseSiteConfig(raw.site)
       if (isConfigParseError(parsed)) {
-        return badRequest(parsed.error)
+        return badRequest(plainMessage(parsed.error))
       }
       updates.site = parsed
     }
@@ -262,7 +263,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.exportPresets !== undefined) {
       const parsed = parseExportPresets(raw.exportPresets)
       if (typeof parsed === 'string') {
-        return badRequest(parsed)
+        return badRequest(plainMessage(parsed))
       }
       updates.exportPresets = parsed
     }

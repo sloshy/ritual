@@ -10,10 +10,15 @@ import { MAX_EDIT_BODY_SIZE } from '../validation'
  * in) is declared once here so the two endpoints cannot answer differently.
  */
 
-import { getErrorMessage } from '../../util/errors'
-import { readJsonObjectBody } from '../../api/http'
+import { caughtMessage, readJsonObjectBody } from '../../api/http'
 import { apiHandler } from '../utils'
-import { pickMessage, type ApiMessage } from '../../api/result'
+import {
+  apiText,
+  isApiMessage,
+  pickMessage,
+  type ApiMessage,
+  type NotAMessage,
+} from '../../api/result'
 import { itemStartProgress, itemsDoneProgress, type RouteProgressSink } from '../../util/progress'
 import { sseResponse } from '../../util/sse'
 import type { SyncEvent, SyncEventHandler } from '../../sync/common'
@@ -48,11 +53,11 @@ type SyncStreamEvents<TReport, TResult> = {
 }
 
 /** What one endpoint contributes: its validation, its run, and its summary. */
-export type SyncRouteConfig<TRequest, TReport, TResult> = {
+export type SyncRouteConfig<TRequest extends NotAMessage<TRequest>, TReport, TResult> = {
   /** Validate a POST body: the request, or a message saying why it is not one. */
-  parseBody: (value: unknown) => TRequest | string
+  parseBody: (value: unknown) => TRequest | ApiMessage
   /** Validate the query string an `EventSource` opens the stream with. */
-  parseQuery: (params: URLSearchParams) => TRequest | string
+  parseQuery: (params: URLSearchParams) => TRequest | ApiMessage
   /**
    * Run the sync. `signal` is an in-process caller's cancellation (the MCP
    * adapter's); the engines honour it at item boundaries and report what they
@@ -100,7 +105,8 @@ function progressMapping<TResult>(sink: RouteProgressSink): SyncProgressMapping<
     onEvent: (event: SyncEvent<TResult>): void => {
       if (event.kind !== 'item-start') return
       total = event.total
-      sink(itemStartProgress(`Syncing ${event.item}`, event.index, event.total))
+      const label = apiText('admin.api.sync.progressItem', { item: event.item })
+      sink(itemStartProgress(label, event.index, event.total))
     },
     scale: () => total,
   }
@@ -114,7 +120,7 @@ function progressMapping<TResult>(sink: RouteProgressSink): SyncProgressMapping<
  * an error — the items already synced are real and the caller needs to see
  * them.
  */
-export function runSyncRoute<TRequest, TReport, TResult>(
+export function runSyncRoute<TRequest extends NotAMessage<TRequest>, TReport, TResult>(
   req: Request,
   onProgress: RouteProgressSink | undefined,
   config: SyncRouteConfig<TRequest, TReport, TResult>,
@@ -125,9 +131,7 @@ export function runSyncRoute<TRequest, TReport, TResult>(
     if (!parsedBody.ok) return parsedBody.response
 
     const parsed = config.parseBody(parsedBody.body)
-    // A validation message is composed from the caller's own field names, so it
-    // carries no catalog key — the English text is the whole of it.
-    if (typeof parsed === 'string') return refused<TReport>({ message: parsed }, 400)
+    if (isApiMessage(parsed)) return refused<TReport>(parsed, 400)
 
     const mapping = onProgress === undefined ? undefined : progressMapping<TResult>(onProgress)
     const outcome = await config.perform(parsed, mapping?.onEvent, signal)
@@ -156,7 +160,7 @@ export function runSyncRoute<TRequest, TReport, TResult>(
  * Failures are reported *inside* the stream rather than as an HTTP status,
  * because `EventSource` exposes no response body for a non-2xx open.
  */
-export function streamSyncRoute<TRequest, TReport, TResult>(
+export function streamSyncRoute<TRequest extends NotAMessage<TRequest>, TReport, TResult>(
   req: Request,
   config: SyncRouteConfig<TRequest, TReport, TResult>,
 ): Promise<Response> {
@@ -164,8 +168,8 @@ export function streamSyncRoute<TRequest, TReport, TResult>(
 
   const response = sseResponse<SyncStreamEvents<TReport, TResult>>(async (send) => {
     try {
-      if (typeof parsed === 'string') {
-        send('error', { message: parsed, loginRequired: false })
+      if (isApiMessage(parsed)) {
+        send('error', { ...pickMessage(parsed), loginRequired: false })
         return
       }
       const outcome = await config.perform(parsed, (event) => send('progress', event))
@@ -177,7 +181,7 @@ export function streamSyncRoute<TRequest, TReport, TResult>(
       const message = renderSyncSummaryEnglish(summary)
       send('done', { message, summary, report: outcome.report })
     } catch (error) {
-      send('error', { message: getErrorMessage(error), loginRequired: false })
+      send('error', { ...caughtMessage(error), loginRequired: false })
     }
   })
   return Promise.resolve(response)

@@ -4,7 +4,7 @@ import type { DeckData } from '../../list/deck'
 import type { ListType } from '../../list/list-type'
 import {
   dirForType,
-  formatResolveListError,
+  resolveListErrorMessage,
   isResolveListError,
   resolveList,
 } from '../../list/resolve-list'
@@ -19,7 +19,6 @@ import {
 import {
   type ChangeBundle,
   type ChangeBundleListRef,
-  countLabel,
   parseChangeBundle,
 } from '../../changes/change-bundle'
 import { planImportBatches, type ImportBatch } from './import-batches'
@@ -40,7 +39,16 @@ import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import { toWantedCardEntries } from '../../list/wanted-entries'
 import { buildSyntheticRequest } from '../../util/synthetic-request'
 import type { CollectionLoadResult, DeckLoadResult, WantedLoadResult } from './load-results'
-import type { ApiMessage } from '../../api/result'
+import { apiMessage, plainMessage } from '../../api/result'
+import { ExitCode, localizedCommandError } from '../../util/errors'
+import {
+  prefixedFields,
+  readSyncMessage,
+  syncMessage,
+  syncRef,
+  type PrefixedMessage,
+  type SyncMessage,
+} from '../../sync/message'
 import { apiHandler } from '../utils'
 import { badRequest, readBodyText } from '../../api/http'
 import { handleDeckLoad } from './deck-load'
@@ -61,7 +69,7 @@ const SYNTHETIC_ORIGIN = 'http://ritual-import'
  * changes plus every move arriving in it — aggregated across the batches the
  * timestamp order split them into.
  */
-export type ListImportResult = {
+export type ListImportOutcome = {
   kind: ListType
   /**
    * The bundle's slug for the list, or the file basename it resolved to when
@@ -87,14 +95,19 @@ export type ListImportResult = {
    * route's own `droppedNotes`, gathered across the list's batches.
    */
   droppedNotes: DroppedNote[]
-  /**
-   * Human-readable failure when the list could not be resolved, loaded, or
-   * saved. The failing batch applied nothing and the list's later batches were
-   * skipped (they would replay onto a file the earlier batch left unchanged);
-   * batches already applied stay applied and are counted.
-   */
-  error?: string
 }
+
+/**
+ * The failure of a list that could not be resolved, loaded, or saved: English
+ * `error`, plus `errorKey` / `errorParams` when it has a catalog entry. The
+ * failing batch applied nothing and the list's later batches were skipped (they
+ * would replay onto a file the earlier batch left unchanged); batches already
+ * applied stay applied and are counted.
+ */
+export type ListImportFailure = PrefixedMessage<'error'>
+
+/** A list's outcome: what applied, plus its failure fields when it failed. */
+export type ListImportResult = ListImportOutcome & ListImportFailure
 
 /** The outcome of applying a whole change bundle. */
 export type BundleImportResult = {
@@ -120,9 +133,9 @@ export type BundleImportResult = {
  * flag every admin route carries and is always `true` here — read `failedCount`
  * (and each list's `error`) to tell a clean import from a partial one.
  */
-export type BundleImportResponse = BundleImportResult & ApiMessage & { success: true }
+export type BundleImportResponse = BundleImportResult & SyncMessage & { success: true }
 
-type ApiCallResult<T> = { ok: true; data: T } | { ok: false; error: string }
+type ApiCallResult<T> = { ok: true; data: T } | { ok: false; error: SyncMessage }
 
 /**
  * Invoke an admin route handler in-process with a synthetic request and return
@@ -143,9 +156,10 @@ async function call<T>(
   const response = await handler(buildSyntheticRequest(SYNTHETIC_ORIGIN, method, path, body))
   const data = (await response.json()) as Record<string, unknown>
   if (!response.ok || data.success === false) {
-    const message =
-      typeof data.message === 'string' ? data.message : `Request failed (HTTP ${response.status})`
-    return { ok: false, error: message }
+    const error =
+      readSyncMessage(data) ??
+      apiMessage('admin.api.importChanges.requestFailed', { status: response.status })
+    return { ok: false, error }
   }
   return { ok: true, data: data as T }
 }
@@ -174,7 +188,7 @@ type ApplyOutcome = {
   conflicts: ImportConflict[]
   /** What the batch's saves reported in `droppedNotes`. */
   droppedNotes: DroppedNote[]
-  error?: string
+  error?: SyncMessage
 }
 
 type SplitApplicableResult<TData> = {
@@ -276,7 +290,7 @@ function mergeTargetOf(
 }
 
 /** How many of a list's changes landed, the notes their saves dropped, and why the rest did not. */
-type SaveChangesOutcome = { applied: number; droppedNotes: DroppedNote[]; error?: string }
+type SaveChangesOutcome = { applied: number; droppedNotes: DroppedNote[]; error?: SyncMessage }
 
 /**
  * Split `changes` into save-sized batches: no more events than one save may
@@ -481,7 +495,11 @@ function applyByKind(
       return applyToList(WANTED_TARGET, slug, changes, state)
     default: {
       kind satisfies never
-      throw new Error('Unhandled list kind (this is a bug)')
+      throw localizedCommandError(
+        'runtime_error',
+        ExitCode.RuntimeError,
+        'admin.api.importChanges.unhandledKind',
+      )
     }
   }
 }
@@ -508,7 +526,7 @@ async function resolveListBasename(list: ChangeBundleListRef): Promise<ApiCallRe
 
   const resolved = await resolveList(list.name, list.kind)
   if (isResolveListError(resolved))
-    return { ok: false, error: formatResolveListError(resolved, 'none') }
+    return { ok: false, error: resolveListErrorMessage(resolved, 'none') }
   return { ok: true, data: resolved.name }
 }
 
@@ -539,7 +557,7 @@ async function applyBatch(progress: TargetProgress, batch: ImportBatch): Promise
   progress.basename ??= await resolveListBasename(progress.ref)
   const resolved = progress.basename
   if (!resolved.ok) {
-    result.error = resolved.error
+    Object.assign(result, prefixedFields('error', resolved.error))
     return
   }
   if (result.slug === '') result.slug = resolved.data
@@ -548,7 +566,7 @@ async function applyBatch(progress: TargetProgress, batch: ImportBatch): Promise
   result.applied += outcome.error ? 0 : outcome.retargeted.length
   result.conflicts.push(...outcome.conflicts)
   result.droppedNotes = dedupeDroppedNotes([...result.droppedNotes, ...outcome.droppedNotes])
-  if (outcome.error) result.error = outcome.error
+  if (outcome.error) Object.assign(result, prefixedFields('error', outcome.error))
 }
 
 /**
@@ -585,19 +603,29 @@ export async function applyChangeBundle(bundle: ChangeBundle): Promise<BundleImp
 }
 
 /**
- * Build the one-line human summary of a bundle import ("Applied 3 changes
- * across 2 lists"). Shared verbatim by the admin `POST /api/import-changes`
- * response, the MCP `import_change_bundle` tool (which calls that route), and the
- * CLI's `--output json` payload, so all three surfaces report identically.
+ * Build the one-line summary of a bundle import ("Applied 3 changes across 2
+ * lists"). Shared verbatim by the admin `POST /api/import-changes` response, the
+ * MCP `import_change_bundle` tool (which calls that route), and the CLI's
+ * `--output json` payload, so all three surfaces report identically.
+ *
+ * A {@link SyncMessage}, not an `ApiMessage`: each count is a plural noun of its
+ * own, nested as a param so a reader's locale pluralizes it rather than English
+ * being glued into a translated sentence.
  */
-export function bundleImportMessage(result: BundleImportResult): string {
-  const applied = countLabel(
-    result.lists.reduce((sum, l) => sum + l.applied, 0),
-    'change',
-  )
-  return result.failedCount === 0
-    ? `Applied ${applied} across ${countLabel(result.lists.length, 'list')}`
-    : `Applied ${applied}; ${countLabel(result.failedCount, 'list')} failed`
+export function bundleImportMessage(result: BundleImportResult): SyncMessage {
+  const changes = syncRef('domain.count.changes', {
+    count: result.lists.reduce((sum, l) => sum + l.applied, 0),
+  })
+  if (result.failedCount === 0) {
+    return syncMessage('admin.api.importChanges.applied', {
+      changes,
+      lists: syncRef('domain.count.lists', { count: result.lists.length }),
+    })
+  }
+  return syncMessage('admin.api.importChanges.appliedWithFailures', {
+    changes,
+    count: result.failedCount,
+  })
 }
 
 /**
@@ -613,13 +641,13 @@ export function handleImportChanges(req: Request): Promise<Response> {
     if (!read.ok) return read.response
 
     const bundle = parseChangeBundle(read.text)
-    if (typeof bundle === 'string') return badRequest(bundle)
+    if (typeof bundle === 'string') return badRequest(plainMessage(bundle))
 
     const result = await applyChangeBundle(bundle)
     const body: BundleImportResponse = {
       success: true,
       ...result,
-      message: bundleImportMessage(result),
+      ...bundleImportMessage(result),
     }
     return Response.json(body)
   })

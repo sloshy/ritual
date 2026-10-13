@@ -2,12 +2,7 @@ import { computeHash } from '../../changes/content-hash'
 import { collectExistingIds } from '../../card/card-id'
 import { apiHandler } from '../utils'
 import { addChangelogCardNames, fetchSymbolMap, loadEntryCardData } from './card-data-loader'
-import {
-  LIST_LOAD_NOT_FOUND_HINT,
-  resolveFlatListFile,
-  resolveListFileOrRefuse,
-  type ResolveListFile,
-} from './list-file'
+import { resolveFlatListFile, resolveListFileOrRefuse, type ResolveListFile } from './list-file'
 import {
   countEntries,
   filterEntries,
@@ -17,6 +12,9 @@ import {
   type ListLoadParams,
 } from './list-load-params'
 import type { CardLabel } from '../../card/card-labels'
+import type { ListType } from '../../list/list-type'
+import type { FlatListType } from '../../list/flat-list-metadata'
+import { isApiMessage } from '../../api/result'
 import type { ListImageRef } from '../../list/list-image'
 import type {
   FlatCardsLoadResult,
@@ -60,23 +58,23 @@ export type ListLoadPrologueResult =
 export async function readListLoadRequest(
   req: Request,
   dir: string,
-  label: string,
+  listType: ListType,
   resolveFile: ResolveListFile,
 ): Promise<ListLoadPrologueResult> {
   const parsedSlug = parseSlugFromUrl(req)
-  if (!parsedSlug.ok) return { ok: false, response: apiError(parsedSlug.message, 400) }
+  if (!parsedSlug.ok) return { ok: false, response: apiError(parsedSlug.refusal, 400) }
   const { slug } = parsedSlug
 
   const resolved = await resolveListFileOrRefuse(resolveFile, {
     slug,
     dir,
-    label,
-    notFoundHint: LIST_LOAD_NOT_FOUND_HINT,
+    listType,
+    pointToListRoute: true,
   })
   if (!resolved.ok) return { ok: false, response: resolved.response }
 
   const params = parseListLoadParams(new URL(req.url).searchParams)
-  if (typeof params === 'string') return { ok: false, response: apiError(params, 400) }
+  if (isApiMessage(params)) return { ok: false, response: apiError(params, 400) }
 
   return { ok: true, value: { slug, filePath: resolved.filePath, params } }
 }
@@ -137,8 +135,8 @@ export interface FlatLoadEntry {
 
 /** Everything a flat (collection | wanted) load differs by. */
 export interface FlatListLoadConfig<T extends FlatLoadEntry> {
-  /** Singular lowercase label, used verbatim in refusals. */
-  label: string
+  /** Which flat list type this is; its refusals are worded per type. */
+  listType: FlatListType
   getDir: () => string
   /** The list type's file parser. The collection's implementation lowercases `set`. */
   parse: (content: string) => FlatListParseResult<T>
@@ -166,7 +164,7 @@ export function handleFlatListLoad<T extends FlatLoadEntry>(
   cfg: FlatListLoadConfig<T>,
 ): Promise<Response> {
   return apiHandler(async () => {
-    const prologue = await readListLoadRequest(req, cfg.getDir(), cfg.label, resolveFlatListFile)
+    const prologue = await readListLoadRequest(req, cfg.getDir(), cfg.listType, resolveFlatListFile)
     if (!prologue.ok) return prologue.response
     const { slug, filePath, params } = prologue.value
 

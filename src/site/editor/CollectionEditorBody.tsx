@@ -51,7 +51,7 @@ export function CollectionEditorBody(props: CollectionEditorBodyProps): JSX.Elem
     <FlatEditorBody
       {...props}
       shell={{
-        entityLabel: 'collection',
+        listType: 'collection',
         selectorId: 'collection-select',
         requirePrinting: true,
         importKind: 'collection',

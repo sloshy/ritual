@@ -12,6 +12,7 @@ import { CARD_LABELS, SIGNED_CARD_LABELS } from '../card/card-labels'
 import { CARD_CATEGORY_SHAPE_CLAUSE } from '../card/card-categories'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { UNPRICED_REASONS, type PriceTotals } from '../pricing/price-report'
+import type { ListImportResult } from '../admin/api/import-changes'
 
 // ── Builders ──────────────────────────────────────────────────────────
 
@@ -509,9 +510,15 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
         "Notes this list's saves discarded: a moved card that merged onto a deck line already holding a different note keeps the line's note. Empty when none.",
       ),
       error: str(
-        "Present when the list could not be resolved, loaded, or saved. The failing batch applied nothing and the list's later batches were skipped; batches already applied stay applied and are counted in `applied`.",
+        "Present when the list could not be resolved, loaded, or saved (English). The failing batch applied nothing and the list's later batches were skipped; batches already applied stay applied and are counted in `applied`.",
       ),
-    },
+      errorKey: str(
+        'Catalog key `error` was rendered from, for a client that renders it in its own language. Absent when the failure has no catalog entry.',
+      ),
+      errorParams: openObject(
+        'What `errorKey` interpolates; a param may itself be a message (`messageKey`, `messageParams`) or a list (`list`, `join`).',
+      ),
+    } satisfies Record<keyof ListImportResult, JsonSchemaType>,
     ['kind', 'slug', 'name', 'applied', 'conflicts', 'droppedNotes'],
   ),
 

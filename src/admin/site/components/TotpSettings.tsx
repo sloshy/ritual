@@ -1,6 +1,10 @@
 import type { Component } from 'solid-js'
 import { createSignal, Match, onMount, Show, Switch } from 'solid-js'
 import { useT } from '../../../ui/i18n'
+import { apiMessage } from '../../../api/result'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
 
 interface TotpSetupData {
   secret: string
@@ -12,9 +16,8 @@ type TotpSetupResponse = {
   success: boolean
   secret?: string
   uri?: string
-  message?: string
 }
-type TotpActionResponse = { success: boolean; message: string }
+type TotpActionResponse = { success: boolean }
 
 export const TotpSettings: Component = () => {
   const t = useT()
@@ -22,8 +25,10 @@ export const TotpSettings: Component = () => {
   const [totpSetup, setTotpSetup] = createSignal<TotpSetupData | null>(null)
   const [totpCode, setTotpCode] = createSignal('')
   const [loading, setLoading] = createSignal(false)
-  const [message, setMessage] = createSignal<string | null>(null)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX, so a language switch relabels them.
+  const [message, setMessage] = createSignal<ApiActionMessage | null>(null)
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
 
   onMount(() => {
     fetch('/api/totp/status', { credentials: 'same-origin' })
@@ -45,10 +50,10 @@ export const TotpSettings: Component = () => {
       if (data.success && data.secret && data.uri) {
         setTotpSetup({ secret: data.secret, uri: data.uri })
       } else {
-        setError(data.message ?? t('admin.totp.setupFailed'))
+        setError(readSyncMessage(data) ?? apiMessage('admin.totp.setupFailed'))
       }
     } catch {
-      setError(t('admin.totp.startFailed'))
+      setError(apiMessage('admin.totp.startFailed'))
     } finally {
       setLoading(false)
     }
@@ -70,12 +75,12 @@ export const TotpSettings: Component = () => {
         setTotpEnabled(true)
         setTotpSetup(null)
         setTotpCode('')
-        setMessage(t('admin.totp.enabled'))
+        setMessage(apiMessage('admin.totp.enabled'))
       } else {
-        setError(data.message)
+        setError(readSyncMessage(data) ?? apiMessage('admin.totp.verifyFailed'))
       }
     } catch {
-      setError(t('admin.totp.verifyFailed'))
+      setError(apiMessage('admin.totp.verifyFailed'))
     } finally {
       setLoading(false)
     }
@@ -92,12 +97,12 @@ export const TotpSettings: Component = () => {
       const data = (await resp.json()) as TotpActionResponse
       if (data.success) {
         setTotpEnabled(false)
-        setMessage(t('admin.totp.disabled'))
+        setMessage(apiMessage('admin.totp.disabled'))
       } else {
-        setError(data.message)
+        setError(readSyncMessage(data) ?? apiMessage('admin.totp.disableFailed'))
       }
     } catch {
-      setError(t('admin.totp.disableFailed'))
+      setError(apiMessage('admin.totp.disableFailed'))
     } finally {
       setLoading(false)
     }
@@ -106,10 +111,10 @@ export const TotpSettings: Component = () => {
   return (
     <>
       <Show when={message()}>
-        <div class="alert alert-success">{message()}</div>
+        <div class="alert alert-success">{heldText(message())}</div>
       </Show>
       <Show when={error()}>
-        <div class="alert alert-error">{error()}</div>
+        <div class="alert alert-error">{heldText(error())}</div>
       </Show>
 
       <Switch>

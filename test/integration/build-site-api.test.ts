@@ -245,7 +245,10 @@ describe('handleBuildSite (Integration)', () => {
       expect(frames).toEqual([
         {
           event: 'error',
-          data: { message: 'A site build is already running; wait for it to finish.' },
+          data: {
+            message: 'A site build is already running; wait for it to finish.',
+            messageKey: 'admin.api.buildSite.busy',
+          },
         },
       ])
       expect((await holding).status).toBe(200)

@@ -42,7 +42,10 @@ test.describe('Import CSV Page', () => {
     await expect(button).toBeEnabled()
     await button.click()
 
-    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    await expect(main.locator('.alert-success')).toHaveText(
+      "Imported 3 cards into collection 'Red Binder'",
+      { timeout: 5000 },
+    )
     expect(captured).toBeDefined()
     expect(captured?.listType).toBe('collection')
     expect(captured?.mode).toBe('create')

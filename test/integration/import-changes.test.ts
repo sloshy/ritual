@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { BundleImportResponse } from '../../src/admin/api/import-changes'
+import { keyedMessage } from '../helpers/api-message'
 import { execSync } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
@@ -419,6 +421,8 @@ describe('import-changes command (Integration)', () => {
       const report = JSON.parse(result.stdout)
       expect(report.success).toBe(true)
       expect(report.message).toBe('Applied 3 changes across 2 lists')
+      expect(report.messageKey).toBe('admin.api.importChanges.applied')
+      expect(keyedMessage(report as BundleImportResponse)).toBe('Applied 3 changes across 2 lists')
       expect(report.lists).toHaveLength(2)
 
       const [deck, wanted] = report.lists

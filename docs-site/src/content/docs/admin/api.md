@@ -19,9 +19,11 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do; every other response's params are plain strings and numbers.
+
 ## Error responses
 
-Every route refuses a request with the same body, whatever the status:
+Every route refuses a request with the same body, whatever the status — and so does the server itself when it refuses a request before any route runs (an address or User-Agent its allow/deny lists turn away, a signed-in route before the first account exists or without a session, a path with no route or file when no admin site is built, an unexpected failure):
 
 ```json
 {
@@ -32,7 +34,7 @@ Every route refuses a request with the same body, whatever the status:
 }
 ```
 
-`messageKey` and `messageParams` follow [the message triple](#the-message-triple): present on a keyed refusal, absent when the prose has no catalog entry.
+`messageKey` and `messageParams` follow [the message triple](#the-message-triple): present on a keyed refusal, absent when the prose has no catalog entry. A refusal naming a list that does not resolve ([Diff Lists](#diff-lists), [Export Cards](#export-cards)) carries the list resolver's `errors.resolveList.*` key, and its params may nest (the ambiguous matches are a list of messages).
 
 `499` is the status a route answers when an **in-process** caller cancels the request part way (the MCP tools do this on a client's `notifications/cancelled`). HTTP requests are never cancelled this way: closing the connection leaves the handler running to completion.
 
@@ -63,8 +65,8 @@ Beneath the per-route caps, the server refuses any body larger than 16 MiB plus 
 The admin uses **session-based authentication**. Send `POST /api/login` with your credentials (and a TOTP code if TOTP is enabled). The response sets a session cookie in a `Set-Cookie` header, and later requests authenticate with that cookie.
 
 - Sessions expire after 24 hours. `POST /api/logout` ends one early.
-- Unauthenticated requests to protected routes receive `401 Unauthorized` as JSON.
-- Rate-limited requests receive `429 Too Many Requests` with a `Retry-After` header giving the remaining lockout seconds.
+- Unauthenticated requests to protected routes receive `401` with the shared [error envelope](#error-responses) (`messageKey: admin.api.server.unauthorized`). Before the first admin account exists they receive `403` (`admin.api.server.setupRequired`).
+- Rate-limited sign-ins receive `429 Too Many Requests`: the shared error envelope (`messageKey: admin.api.login.rateLimited`) plus `retryAfterSeconds`, the remaining lockout, which the `Retry-After` header also carries.
 
 ## Server Status
 
@@ -166,7 +168,19 @@ The response includes a `Set-Cookie` header with the session token.
 {
   "success": false,
   "message": "TOTP code required",
+  "messageKey": "admin.api.login.totpRequired",
   "totpRequired": true
+}
+```
+
+**Response (locked out, `429`):**
+
+```json
+{
+  "success": false,
+  "message": "Too many failed attempts. Try again later.",
+  "messageKey": "admin.api.login.rateLimited",
+  "retryAfterSeconds": 240
 }
 ```
 
@@ -2394,7 +2408,19 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
 ```json
 {
   "success": true,
-  "message": "Appended 2 card(s) to collection 'Red Binder'",
+  "message": "Appended 2 cards to collection 'Red Binder'; 1 row failed validation",
+  "messageKey": "admin.api.importCsv.partial",
+  "messageParams": {
+    "result": {
+      "messageKey": "admin.api.importCsv.appended",
+      "messageParams": {
+        "listType": "collection",
+        "cards": { "messageKey": "domain.count.cards", "messageParams": { "count": 2 } },
+        "name": "Red Binder"
+      }
+    },
+    "failed": { "messageKey": "admin.api.importCsv.rowsFailed", "messageParams": { "count": 1 } }
+  },
   "cardCount": 2,
   "failures": [
     {
@@ -2407,6 +2433,8 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
   "warnings": ["Skipped header row: Name,Set,Collector Number,Quantity"]
 }
 ```
+
+`message`'s counts are nested messages (see [the message triple](#the-message-triple)), so a client renders them in its reader's language. A partial import names the failed rows in the same sentence.
 
 **Merging.** In a **deck**, rows naming the same card **and** the same printing merge into one line with their quantities summed, in every mode. **Collections and wanted lists** keep one line per physical copy in every mode, so N rows of the same printing stay N lines.
 
@@ -2473,6 +2501,11 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 {
   "success": true,
   "message": "Applied 2 changes across 2 lists",
+  "messageKey": "admin.api.importChanges.applied",
+  "messageParams": {
+    "changes": { "messageKey": "domain.count.changes", "messageParams": { "count": 2 } },
+    "lists": { "messageKey": "domain.count.lists", "messageParams": { "count": 2 } }
+  },
   "failedCount": 0,
   "lists": [
     {
@@ -2503,7 +2536,7 @@ Apply a change bundle exported from the site editor to the underlying lists. Use
 
 **Dropped notes.** Each list's `droppedNotes` gathers its saves' own `droppedNotes` (see [Save a List](#save-a-list)): a moved card that merged onto a deck line already holding a different note keeps the line's note. Each distinct note is listed once. Empty when none.
 
-**Failures.** A list that fails to resolve, load, or save carries an `error` string and is counted in `failedCount`. The failing batch applied nothing, that list's later batches are skipped, and batches already applied stay applied and counted; the other lists continue. `success` stays `true` on a partial import, so read `failedCount` (and each list's `error`), not the envelope. Every list that received changes gets a changelog entry, through the same save path as the editors. The response is `400` when the body is not a valid change bundle.
+**Failures.** A list that fails to resolve, load, or save carries an `error` string (English) and is counted in `failedCount`. When the failure has a catalog entry — the load or save route's own keyed refusal, such as `admin.api.list.notFoundListRoute` — `errorKey` and `errorParams` ride beside it, as `messageKey` and `messageParams` do beside `message`. The failing batch applied nothing, that list's later batches are skipped, and batches already applied stay applied and counted; the other lists continue. `success` stays `true` on a partial import, so read `failedCount` (and each list's `error`), not the envelope. Every list that received changes gets a changelog entry, through the same save path as the editors. The response is `400` when the body is not a valid change bundle.
 
 ## Export Cards
 
@@ -2663,6 +2696,8 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 {
   "success": true,
   "message": "Successfully imported 'My Deck'",
+  "messageKey": "admin.api.importDeck.imported",
+  "messageParams": { "name": "My Deck", "notes": { "list": [], "join": "concat" } },
   "deckName": "My Deck",
   "syncPrintings": true,
   "warnings": [],
@@ -2672,7 +2707,7 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 
 - `warnings` lists text lines the parser skipped — content that was **not** imported (always empty for URL imports).
 - `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. On a URL import it carries notes about the source's [categories](/commands/import/#categories-from-a-url-import): names Ritual refused, or a categories file that could not be written.
-- When either array is non-empty, `message` notes the count.
+- When either array is non-empty, `message` notes the count, as a nested message per kind of note (see [the message triple](#the-message-triple)).
 
 A URL import from Archidekt or Moxfield also writes the deck's `<deck>.categories.json` (and its `.sha256`), replacing the file a replaced deck had; with git auto-commit enabled, the categories and primer files are committed with the deck.
 

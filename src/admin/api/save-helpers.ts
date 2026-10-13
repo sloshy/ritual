@@ -4,7 +4,6 @@ import {
   type ParsedListContent,
 } from '../../list/markdown-fence'
 import { cardCache } from '../../cache'
-import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import { computeHash, hashPath, writeFileWithHash } from '../../changes/content-hash'
 import type { CardArtMap, CardArtRef, CardArtReconcileInput } from '../../list/card-art'
 import { reconcileListRefs } from '../../list/list-refs'
@@ -20,22 +19,23 @@ import { apiError, badRequest, type ApiConflictResponse } from '../../api/http'
 import type { ChangeEvent } from '../../changes/change-event'
 import type { DroppedNote } from '../../list/move-staging'
 import type { SaveEffect } from '../../changes/save-effects'
-import { t } from '../../i18n/t'
-import { apiMessage } from '../../api/result'
+import type { SelectBranch } from '../../i18n/t'
+import { apiMessage, apiText, plainMessage } from '../../api/result'
 import { findLineBreak } from '../../util/single-line'
 import type { ListSaveResponse } from './list-save'
 import type { MovesOutcome } from '../../list/move-prepare'
+
+/** What a cache-only route needs the card cache for — the refusal's wording follows it. */
+export type CardCacheNeed = SelectBranch<'admin.api.cache.empty'>
 
 /**
  * 503 when the card cache is empty, null when the handler may proceed. The
  * shared guard for routes that read strictly from the local cache (`price`,
  * `sell`): a handler must never prompt for or trigger a bulk download the way
- * the CLI freshness gates do. `requirement` names what the cache is needed for.
+ * the CLI freshness gates do. `need` names what the cache is needed for.
  */
-export async function requireCardCache(requirement: string): Promise<Response | null> {
-  if (await cardCache.isEmpty()) {
-    return apiError(`The card cache is empty; ${requirement}. ${CACHE_REFRESH_REMEDY}.`, 503)
-  }
+export async function requireCardCache(need: CardCacheNeed): Promise<Response | null> {
+  if (await cardCache.isEmpty()) return apiError(apiMessage('admin.api.cache.empty', { need }), 503)
   return null
 }
 
@@ -59,7 +59,7 @@ export type HashValidationResult = HashValidationSuccess | HashValidationConflic
 export async function validateContentHash(
   filePath: string,
   clientHash: string,
-  entityLabel: string,
+  listType: ListType,
 ): Promise<HashValidationResult> {
   const content = await Bun.file(filePath).text()
   // Hashed from the content itself, matching what the load routes handed the
@@ -69,7 +69,7 @@ export async function validateContentHash(
   if (existingHash !== clientHash) {
     const body: ApiConflictResponse = {
       success: false,
-      message: `${entityLabel} has been modified since you loaded it. Please reload.`,
+      ...apiMessage('admin.api.save.conflict', { listType }),
       conflict: true,
     }
     return { valid: false, response: Response.json(body, { status: 409 }) }
@@ -104,7 +104,7 @@ export function refuseUnreadableBaseline(
 ): Response | null {
   const lines = unreadableLines(parsed)
   if (lines.length === 0) return null
-  return apiError(unreadableContentMessage(filePath, lines, 'saving'), 400)
+  return apiError(plainMessage(unreadableContentMessage(filePath, lines, 'saving')), 400)
 }
 
 /**
@@ -352,7 +352,7 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
  * is news to report rather than a save to undo.
  */
 export function unreconciledArtWarning(reason: string): string {
-  return t('admin.api.save.artUnreconciled', { reason })
+  return apiText('admin.api.save.artUnreconciled', { reason })
 }
 
 /**
@@ -361,7 +361,7 @@ export function unreconciledArtWarning(reason: string): string {
  * first, so this is news to report rather than a save to undo.
  */
 export function categoriesUnreconciledWarning(reason: string): string {
-  return t('admin.api.save.categoriesUnreconciled', { reason })
+  return apiText('admin.api.save.categoriesUnreconciled', { reason })
 }
 
 /**

@@ -13,6 +13,7 @@ import {
   setTotpSecret,
 } from '../admin/auth'
 import { appendAuditLog, createAuditEntry } from '../admin/audit-log'
+import { AUDIT_REASONS, type AuditReason } from '../admin/audit-reasons'
 import { MAX_PASSWORD_LENGTH, MAX_USERNAME_LENGTH, MIN_PASSWORD_LENGTH } from '../admin/validation'
 import { runHttpServer } from '../mcp/run'
 import { resolveMcpToken } from '../mcp/token'
@@ -357,7 +358,7 @@ function validatePassword(password: string): void {
 }
 
 /** Append an admin-account event to the same audit log the login endpoint writes. */
-async function auditAccountEvent(username: string, reason: string): Promise<void> {
+async function auditAccountEvent(username: string, reason: AuditReason): Promise<void> {
   await appendAuditLog(createAuditEntry('cli', username, true, reason, 'ritual-cli'))
 }
 
@@ -397,7 +398,7 @@ function registerSetupSubcommand(admin: Command): void {
       validatePassword(password)
 
       await createAdminUser(username, password)
-      await auditAccountEvent(username, 'Admin account created via CLI')
+      await auditAccountEvent(username, AUDIT_REASONS.accountCreatedViaCli)
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {
@@ -431,7 +432,7 @@ function registerResetPasswordSubcommand(admin: Command): void {
       validatePassword(password)
 
       const username = await resetAdminPassword(password, options.username)
-      await auditAccountEvent(username, 'Admin password reset via CLI')
+      await auditAccountEvent(username, AUDIT_REASONS.passwordResetViaCli)
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {
@@ -468,7 +469,7 @@ function registerDisableTotpSubcommand(admin: Command): void {
 
       await setTotpSecret(null)
       const username = (await getAdminUsername()) ?? 'admin'
-      await auditAccountEvent(username, 'TOTP disabled via CLI')
+      await auditAccountEvent(username, AUDIT_REASONS.totpDisabledViaCli)
 
       if (scripting.output === 'text') {
         if (!scripting.quiet) {

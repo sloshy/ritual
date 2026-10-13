@@ -17,7 +17,6 @@ let decksDir: string
 const DECK_CFG: ListLifecycleConfig = {
   kind: 'deck',
   getDir: () => decksDir,
-  label: 'deck',
   resolveFile: resolveDeckFile,
 }
 

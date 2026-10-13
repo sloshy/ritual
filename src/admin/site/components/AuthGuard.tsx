@@ -1,8 +1,12 @@
 import type { Component } from 'solid-js'
 import { createSignal, Show } from 'solid-js'
 import { FlameIcon } from '../../../site/FlameIcon'
-import { useT, useTDynamic } from '../../../ui/i18n'
-import { renderApiMessage, type ApiResult } from '../../../api/result'
+import { useT } from '../../../ui/i18n'
+import { apiMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
+import { isRecord } from '../../../util/json'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
 import { MIN_PASSWORD_LENGTH, SETUP_TOKEN_PARAM } from '../../validation'
 
 interface AuthGuardSetupProps {
@@ -21,7 +25,6 @@ interface AuthGuardLoginProps {
 
 type AuthGuardProps = AuthGuardSetupProps | AuthGuardLoginProps
 
-type LoginErrorResponse = { totpRequired?: boolean; message?: string }
 type RateLimitResponse = { retryAfterSeconds?: number }
 /**
  * The setup token from the link `ritual admin` printed, removed from the address
@@ -38,9 +41,18 @@ function takeSetupTokenFromUrl(): string {
   return token
 }
 
+/** A refused response's own message, or `fallback` when its body says nothing usable. */
+async function refusalOf(resp: Response, fallback: ApiActionMessage): Promise<ApiActionMessage> {
+  try {
+    return readSyncMessage(await resp.json()) ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
 export const AuthGuard: Component<AuthGuardProps> = (props) => {
   const t = useT()
-  const tDynamic = useTDynamic()
+  const heldText = useApiText()
   const [username, setUsername] = createSignal('')
   const [password, setPassword] = createSignal('')
   const [totpCode, setTotpCode] = createSignal('')
@@ -49,7 +61,9 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
   const urlSetupToken = takeSetupTokenFromUrl()
   const [setupToken, setSetupToken] = createSignal(props.isLogin ? '' : urlSetupToken)
   const [showTotp, setShowTotp] = createSignal(props.totpEnabled === true)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX, so a language switch relabels an
+  // error already on screen — the server's (keyed) refusal and the form's own.
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
   const [loading, setLoading] = createSignal(false)
 
   const handleSubmit = async (e: Event) => {
@@ -57,17 +71,17 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
     setError(null)
 
     if (!username() || !password()) {
-      setError(t('admin.auth.credentialsRequired'))
+      setError(apiMessage('admin.auth.credentialsRequired'))
       return
     }
 
     if (!props.isLogin && !setupToken().trim()) {
-      setError(t('admin.auth.setupTokenRequired'))
+      setError(apiMessage('admin.auth.setupTokenRequired'))
       return
     }
 
     if (!props.isLogin && password().length < MIN_PASSWORD_LENGTH) {
-      setError(t('admin.auth.passwordTooShort', { count: MIN_PASSWORD_LENGTH }))
+      setError(apiMessage('admin.auth.passwordTooShort', { count: MIN_PASSWORD_LENGTH }))
       return
     }
 
@@ -91,28 +105,32 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           props.onLogin()
         } else if (resp.status === 401) {
           try {
-            const data = (await resp.json()) as LoginErrorResponse
-            if (data.totpRequired && !showTotp()) {
+            const raw: unknown = await resp.json()
+            const totpRequired = isRecord(raw) && raw.totpRequired === true
+            if (totpRequired && !showTotp()) {
               setShowTotp(true)
-              setError(t('admin.auth.totpRequired'))
-            } else if (data.totpRequired) {
-              setError(t('admin.auth.totpInvalid'))
+              setError(apiMessage('admin.auth.totpRequired'))
+            } else if (totpRequired) {
+              setError(apiMessage('admin.auth.totpInvalid'))
             } else {
-              setError(data.message ?? t('admin.auth.invalidCredentials'))
+              setError(readSyncMessage(raw) ?? apiMessage('admin.auth.invalidCredentials'))
             }
           } catch {
-            setError(t('admin.auth.invalidCredentials'))
+            setError(apiMessage('admin.auth.invalidCredentials'))
           }
         } else if (resp.status === 429) {
           try {
             const data = (await resp.json()) as RateLimitResponse
             const secs = data.retryAfterSeconds ?? 300
-            setError(t('admin.auth.rateLimited', { count: Math.ceil(secs / 60) }))
+            setError(apiMessage('admin.auth.rateLimited', { count: Math.ceil(secs / 60) }))
           } catch {
-            setError(t('admin.auth.rateLimitedLater'))
+            setError(apiMessage('admin.auth.rateLimitedLater'))
           }
         } else {
-          setError(t('admin.auth.invalidCredentials'))
+          // A refusal the server words itself — a missing field (400), an
+          // address its allow/deny lists turn away (403) — says so in its own
+          // words rather than as a credentials failure.
+          setError(await refusalOf(resp, apiMessage('admin.auth.invalidCredentials')))
         }
       } else {
         const resp = await fetch('/api/setup', {
@@ -125,10 +143,10 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           }),
           credentials: 'same-origin',
         })
-        // Keyed by the server (a wrong token), so it renders in the UI locale.
-        // A 403 from the IP/User-Agent lists is plain text and lands in `catch`.
-        const data = (await resp.json()) as ApiResult
-        if (data.success) {
+        // Keyed by the server (a wrong token, an account that already exists),
+        // so it renders in the UI locale.
+        const raw: unknown = await resp.json()
+        if (isRecord(raw) && raw.success === true) {
           // After setup, log in to create a session
           const loginResp = await fetch('/api/login', {
             method: 'POST',
@@ -139,14 +157,14 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           if (loginResp.ok) {
             props.onSetupComplete()
           } else {
-            setError(t('admin.auth.setupLoginFailed'))
+            setError(apiMessage('admin.auth.setupLoginFailed'))
           }
         } else {
-          setError(renderApiMessage(tDynamic, data))
+          setError(readSyncMessage(raw) ?? apiMessage('admin.app.requestFailed'))
         }
       }
     } catch {
-      setError(t('admin.auth.connectionFailed'))
+      setError(apiMessage('admin.auth.connectionFailed'))
     } finally {
       setLoading(false)
     }
@@ -163,9 +181,11 @@ export const AuthGuard: Component<AuthGuardProps> = (props) => {
           {props.isLogin ? t('admin.auth.signInSubtitle') : t('admin.auth.createSubtitle')}
         </p>
         <Show when={error()}>
-          <div class="alert alert-error" role="alert">
-            {error()}
-          </div>
+          {(current) => (
+            <div class="alert alert-error" role="alert">
+              {heldText(current())}
+            </div>
+          )}
         </Show>
         <form onSubmit={(e) => void handleSubmit(e)}>
           <div class="form-group">

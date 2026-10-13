@@ -1,3 +1,4 @@
+import { t } from '../../i18n/t'
 import { fetchAdminJson } from './editor-backend'
 import {
   buildListShareKeys,
@@ -47,7 +48,7 @@ export function createAdminListShareSource(
         if (result.success !== true) return null
         return buildListShareKeys(result.entries, result.cards)
       } catch (e) {
-        console.error(`Share filter: failed to load ${ref.type}/${ref.slug}:`, e)
+        console.error(t('admin.app.shareFilterLoadFailed', { list: `${ref.type}/${ref.slug}` }), e)
         return null
       }
     },

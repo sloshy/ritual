@@ -29,14 +29,12 @@ let wantedDir: string
 const COLLECTION_CFG: ListLifecycleConfig = {
   kind: 'collection',
   getDir: () => collectionsDir,
-  label: 'collection',
   resolveFile: resolveFlatListFile,
 }
 
 const WANTED_CFG: ListLifecycleConfig = {
   kind: 'wanted',
   getDir: () => wantedDir,
-  label: 'wanted list',
   resolveFile: resolveFlatListFile,
 }
 

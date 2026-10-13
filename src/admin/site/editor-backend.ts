@@ -3,7 +3,9 @@ import { createBuylistFetcher, type BuylistFetcher } from '../../list-view/buyli
 import type { CardPriceResponse } from '../../api/card-price'
 import type { CardArtRef } from '../../list/card-art'
 import type { ListType } from '../../list/list-type'
-import { t } from '../../i18n/t'
+import { apiMessage } from '../../api/result'
+import type { ApiActionMessage } from '../../api/result'
+import { readSyncMessage } from '../../sync/message'
 import type { CardArtSaveResponse } from '../api/art'
 import type {
   DeckMetadataRequest,
@@ -30,13 +32,21 @@ export const adminBuylistFetcher: BuylistFetcher = createBuylistFetcher({
   credentials: 'same-origin',
 })
 
+/** A caught browser error's own text (a network failure, a body that was not JSON). */
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 /** Fetch and parse a JSON payload from an admin API endpoint (same-origin credentials). */
 export function fetchAdminJson(url: string, signal?: AbortSignal): Promise<unknown> {
   return fetch(url, { credentials: 'same-origin', signal }).then((r) => r.json())
 }
 
-/** What a custom-art write did: nothing more to say, or the sentence explaining the refusal. */
-export type CardArtWriteResult = { ok: true } | { ok: false; message: string }
+/**
+ * What a custom-art write did: nothing more to say, or the sentence explaining
+ * the refusal — held unrendered, so it relabels on a language switch.
+ */
+export type CardArtWriteResult = { ok: true } | { ok: false; message: ApiActionMessage }
 
 /**
  * `PUT /api/art/:type/:slug` — set (or, with `null`, clear) one card's custom
@@ -64,14 +74,13 @@ export async function putCardArt(
       return {
         ok: false,
         message:
-          body.success === false
-            ? body.message
-            : t('admin.art.saveFailed', { status: resp.status }),
+          (body.success === false ? readSyncMessage(body) : null) ??
+          apiMessage('admin.art.saveFailed', { status: resp.status }),
       }
     }
     return { ok: true }
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    return { ok: false, message: apiMessage('admin.art.requestFailed', { reason: errorText(e) }) }
   }
 }
 
@@ -81,7 +90,7 @@ export async function putCardArt(
  */
 export type ListMetadataWriteResult =
   | { ok: true; frontMatter: Record<string, unknown>; contentHash: string }
-  | { ok: false; message: string }
+  | { ok: false; message: ApiActionMessage }
 
 /**
  * The body a metadata write sends, typed as the route's own request shapes so a
@@ -118,14 +127,16 @@ export async function putListMetadata(
       return {
         ok: false,
         message:
-          parsed.success === false
-            ? parsed.message
-            : t('admin.metadata.saveFailed', { status: resp.status }),
+          (parsed.success === false ? readSyncMessage(parsed) : null) ??
+          apiMessage('admin.metadata.saveFailed', { status: resp.status }),
       }
     }
     return { ok: true, frontMatter: parsed.frontMatter, contentHash: parsed.contentHash }
   } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message : String(e) }
+    return {
+      ok: false,
+      message: apiMessage('admin.metadata.requestFailed', { reason: errorText(e) }),
+    }
   }
 }
 

@@ -1,4 +1,3 @@
-import { getErrorMessage } from '../../util/errors'
 import { getBaseDir } from '../../config/base-dir'
 import type { Finish, Condition } from '../../card/finish-condition'
 import { isCardLanguage, storedLanguage, type CardLanguage } from '../../card/card-language'
@@ -22,7 +21,7 @@ import { apiMessage, type ApiMessage } from '../../api/result'
 import { DEFAULT_LOCALE } from '../../i18n/runtime'
 import { tIn } from '../../i18n/t'
 import { autoCommitAndPush, refuseLineBreaks } from './save-helpers'
-import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
+import { badRequest, errorResponse, readJsonObjectBody } from '../../api/http'
 import { MAX_EDIT_BODY_SIZE } from '../validation'
 
 // The index vocabulary lives in `src/card/card-index-types.ts` — the index is the
@@ -35,8 +34,9 @@ export type { MovePhysicalCard }
  * The one message for a `toSection` aimed at a non-deck destination, shared by
  * the admin endpoints and the MCP `move_selected_cards` schema so the wording never drifts.
  */
-export const TO_SECTION_DECK_ONLY_MESSAGE =
-  'toSection is only valid when the destination is a deck.'
+export function toSectionDeckOnlyMessage(): ApiMessage {
+  return apiMessage('admin.api.move.toSectionDeckOnly')
+}
 
 /** True when a move item carries a `toSection` but its destination is not a deck. */
 export function isToSectionInvalid(toSection: unknown, toType: unknown): boolean {
@@ -149,7 +149,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawCommitBody
     if (!Array.isArray(raw.moves)) {
-      return badRequest('moves array is required')
+      return badRequest(apiMessage('admin.api.move.movesRequired'))
     }
     for (const m of raw.moves as unknown[]) {
       const item = m as Record<string, unknown>
@@ -162,10 +162,10 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
           (typeof item.toSection !== 'string' || item.toSection.trim() === '')) ||
         isMoveLanguageInvalid(item.language)
       ) {
-        return badRequest('Invalid move request')
+        return badRequest(apiMessage('admin.api.move.invalidMove'))
       }
       if (isToSectionInvalid(item.toSection, item.toType)) {
-        return badRequest(TO_SECTION_DECK_ONLY_MESSAGE)
+        return badRequest(toSectionDeckOnlyMessage())
       }
     }
     const body = raw as MoveCommitRequest
@@ -231,7 +231,7 @@ export async function handleMoveCommit(req: Request): Promise<Response> {
     }
     return Response.json(responseBody)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }
 
@@ -292,7 +292,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawRemoveBody
     if (!Array.isArray(raw.removes)) {
-      return badRequest('removes array is required')
+      return badRequest(apiMessage('admin.api.move.removesRequired'))
     }
     for (const r of raw.removes as unknown[]) {
       const item = r as Record<string, unknown>
@@ -304,7 +304,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
         (item.cardId !== undefined && typeof item.cardId !== 'number') ||
         (item.copyIndex !== undefined && typeof item.copyIndex !== 'number')
       ) {
-        return badRequest('Invalid remove request')
+        return badRequest(apiMessage('admin.api.move.invalidRemove'))
       }
     }
     const body = raw as RemoveCommitRequest
@@ -353,7 +353,7 @@ export async function handleRemoveCommit(req: Request): Promise<Response> {
     }
     return Response.json(responseBody)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }
 
@@ -408,7 +408,7 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
     if (!parsedBody.ok) return parsedBody.response
     const raw = parsedBody.body as unknown as RawSelectedMoveBody
     if (!Array.isArray(raw.moves)) {
-      return badRequest('moves array is required')
+      return badRequest(apiMessage('admin.api.move.movesRequired'))
     }
     for (const m of raw.moves as unknown[]) {
       const item = m as Record<string, unknown>
@@ -426,10 +426,10 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
         (item.copyIndex !== undefined && typeof item.copyIndex !== 'number') ||
         isMoveLanguageInvalid(item.language)
       ) {
-        return badRequest('Invalid move request')
+        return badRequest(apiMessage('admin.api.move.invalidMove'))
       }
       if (isToSectionInvalid(item.toSection, item.toType)) {
-        return badRequest(TO_SECTION_DECK_ONLY_MESSAGE)
+        return badRequest(toSectionDeckOnlyMessage())
       }
     }
     const body = raw as SelectedMoveRequest
@@ -494,6 +494,6 @@ export async function handleSelectedMove(req: Request): Promise<Response> {
     }
     return Response.json(responseBody)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

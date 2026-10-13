@@ -33,7 +33,7 @@ function parseSetupRequest(raw: Record<string, unknown>): SetupRequest {
 
 export function handleSetup(req: Request): Promise<Response> {
   return apiHandler(async () => {
-    if (await adminUserExists()) return apiError('Admin user already exists', 409)
+    if (await adminUserExists()) return apiError(apiMessage('admin.api.setup.userExists'), 409)
 
     const parsed = await readJsonObjectBody(req)
     if (!parsed.ok) return parsed.response
@@ -45,15 +45,24 @@ export function handleSetup(req: Request): Promise<Response> {
     }
 
     const { username, password } = body
-    if (!username || !password) return apiError('username and password are required', 400)
-    if (username.length > MAX_USERNAME_LENGTH) return apiError('Username is too long', 400)
-    if (password.length > MAX_PASSWORD_LENGTH) return apiError('Password is too long', 400)
+    if (!username || !password) {
+      return apiError(apiMessage('admin.api.setup.credentialsRequired'), 400)
+    }
+    if (username.length > MAX_USERNAME_LENGTH) {
+      return apiError(apiMessage('admin.api.setup.usernameTooLong'), 400)
+    }
+    if (password.length > MAX_PASSWORD_LENGTH) {
+      return apiError(apiMessage('admin.api.setup.passwordTooLong'), 400)
+    }
     if (password.length < MIN_PASSWORD_LENGTH) {
-      return apiError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters`, 400)
+      return apiError(
+        apiMessage('admin.api.setup.passwordTooShort', { count: MIN_PASSWORD_LENGTH }),
+        400,
+      )
     }
 
     await createAdminUser(username, password)
-    const resp: SetupResponse = { success: true, message: 'Admin account created successfully' }
+    const resp: SetupResponse = { success: true, ...apiMessage('admin.api.setup.created') }
     return Response.json(resp)
   })
 }

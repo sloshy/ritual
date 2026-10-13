@@ -1,4 +1,5 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
+import { AUDIT_REASONS } from '../../../src/admin/audit-reasons'
 import { appendAuditLog, createAuditEntry, readAuditLog } from '../../../src/admin/audit-log'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 
@@ -14,18 +15,30 @@ describe('audit log', () => {
   })
 
   test('createAuditEntry creates a well-formed entry', () => {
-    const entry = createAuditEntry('1.2.3.4', 'admin', true, 'Login successful', 'Mozilla/5.0')
+    const entry = createAuditEntry(
+      '1.2.3.4',
+      'admin',
+      true,
+      AUDIT_REASONS.loginSucceeded,
+      'Mozilla/5.0',
+    )
     expect(entry.ip).toBe('1.2.3.4')
     expect(entry.username).toBe('admin')
     expect(entry.success).toBe(true)
-    expect(entry.reason).toBe('Login successful')
+    expect(entry.reason).toBe(AUDIT_REASONS.loginSucceeded)
     expect(entry.userAgent).toBe('Mozilla/5.0')
     expect(entry.timestamp).toBeString()
   })
 
   test('appendAuditLog and readAuditLog round-trip', async () => {
-    const entry1 = createAuditEntry('1.2.3.4', 'admin', true, 'Login successful', 'Agent')
-    const entry2 = createAuditEntry('5.6.7.8', 'admin', false, 'Invalid credentials', 'Bot')
+    const entry1 = createAuditEntry('1.2.3.4', 'admin', true, AUDIT_REASONS.loginSucceeded, 'Agent')
+    const entry2 = createAuditEntry(
+      '5.6.7.8',
+      'admin',
+      false,
+      AUDIT_REASONS.invalidCredentials,
+      'Bot',
+    )
 
     await appendAuditLog(entry1)
     await appendAuditLog(entry2)
@@ -44,7 +57,9 @@ describe('audit log', () => {
 
   test('readAuditLog respects limit', async () => {
     for (let i = 0; i < 5; i++) {
-      await appendAuditLog(createAuditEntry(`10.0.0.${i}`, 'admin', true, 'ok', 'Agent'))
+      await appendAuditLog(
+        createAuditEntry(`10.0.0.${i}`, 'admin', true, AUDIT_REASONS.loginSucceeded, 'Agent'),
+      )
     }
     const entries = await readAuditLog(3)
     expect(entries.length).toBe(3)

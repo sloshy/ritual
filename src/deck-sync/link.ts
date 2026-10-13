@@ -17,6 +17,7 @@ import { matchDeckUrl, resolveImportSourceUrl } from '../importers/url-dispatch'
 import { parseDeckFrontMatter } from '../list/deck-file'
 import { readDeckName } from '../importers/text-file'
 import { t } from '../i18n/t'
+import { isSyncMessage, syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 
 /** An Archidekt deck reference, as deck front matter records one. */
 export type ArchidektDeckLink = {
@@ -53,7 +54,8 @@ export type DeckSourceFields = {
 
 /**
  * Whether a deck's front matter names a coherent Archidekt link, or the message
- * saying why it does not.
+ * saying why it does not — English plus its key, so an API response stays
+ * English and a CLI re-renders it in its own language.
  *
  * `deck-sync` addresses the remote deck by `sourceId` but every surface *shows*
  * the user `sourceUrl`, so a pair naming two different decks pushes one deck's
@@ -65,13 +67,13 @@ export type DeckSourceFields = {
  * Only Archidekt URLs are constrained: a deck imported from another service
  * carries whatever `sourceId` that service uses, which no URL here can predict.
  */
-export function checkArchidektLink(frontMatter: DeckSourceFields): string | null {
+export function checkArchidektLink(frontMatter: DeckSourceFields): SyncMessage | null {
   const { sourceId, sourceUrl } = frontMatter
   if (typeof sourceUrl !== 'string' || typeof sourceId !== 'string') return null
   const match = matchDeckUrl(resolveImportSourceUrl(sourceUrl) ?? sourceUrl)
   if (!match || match.service !== 'archidekt') return null
   if (match.deckId === sourceId) return null
-  return t('domain.sync.linkMismatch', { urlDeckId: match.deckId, sourceId })
+  return syncMessage('domain.sync.linkMismatch', { urlDeckId: match.deckId, sourceId })
 }
 
 /** What a deck was linked to before, when it was linked to anything. */
@@ -141,6 +143,6 @@ export async function linkDeckToArchidekt(options: LinkDeckOptions): Promise<Dec
     { sourceId: link.sourceId, sourceUrl: link.sourceUrl },
     checkArchidektLink,
   )
-  if (typeof write === 'string') throw new Error(write)
+  if (isSyncMessage(write)) throw new SyncMessageError(write)
   return { ...result, writtenFiles: write.writtenFiles }
 }

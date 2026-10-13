@@ -14,7 +14,7 @@ import {
 import { countUnstartedItems, type SyncDirection } from '../../sync/common'
 import type { RouteProgressSink } from '../../util/progress'
 import { apiHandler } from '../utils'
-import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import { renderSyncSummaryEnglish, type SyncSummary, type SyncSummaryClause } from './sync-summary'
 import {
   runSyncRoute,
@@ -31,6 +31,7 @@ import {
   parseNameArray,
   parseSyncRequestCore,
   readBooleanFlags,
+  refuseNonBoolean,
   type BooleanFieldsOf,
   type SyncRequestCore,
 } from './sync-request'
@@ -99,23 +100,18 @@ export type DeckSyncRunResponse = SyncRunResponse<DeckSyncReport>
  * validated the same way the collection sync validates them
  * ({@link parseSyncRequestCore}); only the list of decks is this request's own.
  */
-export function parseDeckSyncBody(value: unknown): DeckSyncRequest | string {
-  if (!isRecord(value)) return 'Invalid request body'
+export function parseDeckSyncBody(value: unknown): DeckSyncRequest | ApiMessage {
+  if (!isRecord(value)) return apiMessage('admin.api.sync.invalidBody')
 
   const core = parseSyncRequestCore(value)
-  if (typeof core === 'string') return core
+  if (isApiMessage(core)) return core
 
-  const decks = parseNameArray(value.decks, { field: 'decks', noun: 'deck names', blanks: 'drop' })
-  if (typeof decks === 'string') return decks
+  const decks = parseNameArray(value.decks, { field: 'decks', names: 'deck', blanks: 'drop' })
+  if (isApiMessage(decks)) return decks
 
-  if (value.force !== undefined && typeof value.force !== 'boolean') {
-    return 'force must be a boolean'
-  }
-  if (value.syncPrintings !== undefined && typeof value.syncPrintings !== 'boolean') {
-    return 'syncPrintings must be a boolean'
-  }
-  if (value.syncCategories !== undefined && typeof value.syncCategories !== 'boolean') {
-    return 'syncCategories must be a boolean'
+  for (const field of ['force', 'syncPrintings', 'syncCategories'] as const) {
+    const refusal = refuseNonBoolean(value, field)
+    if (refusal !== null) return refusal
   }
 
   return {
@@ -152,9 +148,9 @@ const BOOLEAN_FLAGS = {
  * as-is and validated there — an absent param and an empty one both mean
  * "apply everything".
  */
-export function parseDeckSyncQuery(params: URLSearchParams): DeckSyncRequest | string {
+export function parseDeckSyncQuery(params: URLSearchParams): DeckSyncRequest | ApiMessage {
   const flags = readBooleanFlags(params, BOOLEAN_FLAGS)
-  if (typeof flags === 'string') return flags
+  if (isApiMessage(flags)) return flags
   return parseDeckSyncBody({
     direction: params.get('direction') ?? undefined,
     decks: params.getAll('deck'),

@@ -1,6 +1,10 @@
 import { type JSX, createSignal, onMount, Show, For } from 'solid-js'
 import type { AuditEntry } from '../../audit-log'
-import { useT } from '../../../ui/i18n'
+import { useT, useTKey } from '../../../ui/i18n'
+import { auditReasonKey } from '../../audit-reasons'
+import { apiMessage, type ApiActionMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
+import { useApiText } from '../hooks/useApiAction'
 import { PageHeading } from '../components/PageHeading'
 import { formatDateTime } from '../../../ui/format'
 
@@ -16,20 +20,33 @@ function formatDate(ts: string): string {
 
 export function AuditLog(): JSX.Element {
   const t = useT()
+  const tKey = useTKey()
+  /** A stored reason in the reader's language; one this version does not know, as stored. */
+  const reasonText = (reason: string): string => {
+    const key = auditReasonKey(reason)
+    return key === undefined ? reason : tKey(key)
+  }
   const [entries, setEntries] = createSignal<AuditEntry[]>([])
   const [loading, setLoading] = createSignal(true)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered: the server's refusal (a session that expired answers 401)
+  // or the page's own failure, rendered in the JSX so it relabels.
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
 
   const fetchLog = async () => {
     setLoading(true)
     try {
       const resp = await fetch('/api/audit-log?limit=200', { credentials: 'same-origin' })
-      const data = (await resp.json()) as AuditLogResponse
+      const raw: unknown = await resp.json()
+      const data = raw as AuditLogResponse
       if (data.success) {
+        setError(null)
         setEntries(data.entries)
+      } else {
+        setError(readSyncMessage(raw) ?? apiMessage('admin.auditLog.loadFailed'))
       }
     } catch {
-      setError(t('admin.auditLog.loadFailed'))
+      setError(apiMessage('admin.auditLog.loadFailed'))
     } finally {
       setLoading(false)
     }
@@ -57,7 +74,7 @@ export function AuditLog(): JSX.Element {
         </div>
 
         <Show when={error()}>
-          <div class="alert alert-error">{error()}</div>
+          <div class="alert alert-error">{heldText(error())}</div>
         </Show>
 
         <Show
@@ -88,7 +105,7 @@ export function AuditLog(): JSX.Element {
                       </td>
                       <td>{entry.username}</td>
                       <td class="audit-cell-mono">{entry.ip}</td>
-                      <td class="audit-responsive-md">{entry.reason}</td>
+                      <td class="audit-responsive-md">{reasonText(entry.reason)}</td>
                       <td class="audit-responsive-lg text-ellipsis-sm">{entry.userAgent}</td>
                     </tr>
                   )}

@@ -79,7 +79,7 @@ export function CollectionEditor(props: EditorSlugProps): JSX.Element {
     extractListItems: (r) => (r as CollectionListResponse).collections ?? [],
     fetchData: (slug, signal) => fetchAdminJson(`/api/collection/${slug}`, signal),
     commit: createApiCommit('collection'),
-    entityLabel: 'collection',
+    listType: 'collection',
 
     processLoadResponse: (response) => {
       const r = response as CollectionDataResponse

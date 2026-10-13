@@ -240,7 +240,7 @@ The TOTP secret is stored in `.logins/admin-auth.json` alongside the password ha
 
 Control which IP addresses can access the admin interface:
 
-- **Allow list**: if non-empty, only IPs matching a pattern can connect. All others get `403 Forbidden`.
+- **Allow list**: if non-empty, only IPs matching a pattern can connect. All others get `403 Forbidden`, answered in the API's shared [error envelope](/admin/api/#error-responses) (`messageKey: admin.api.server.forbidden`).
 - **Deny list**: IPs matching any pattern are blocked. Deny is checked before allow.
 
 Patterns support simple wildcards: `192.168.1.*`, `10.0.*`, `*` (match all).
@@ -251,6 +251,8 @@ Control which browsers and clients can access the admin interface:
 
 - **Allow list**: if non-empty, only matching User-Agent strings can connect.
 - **Deny list**: matching User-Agent strings are blocked.
+
+A blocked client gets the same `403` [error envelope](/admin/api/#error-responses) as a blocked IP.
 
 Patterns support wildcards: `*bot*` (blocks common bots), `Mozilla*` (allows browsers).
 

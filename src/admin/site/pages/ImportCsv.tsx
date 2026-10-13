@@ -33,6 +33,10 @@ import {
 import type { ImportCsvResponse } from '../../api/import-csv'
 import type { ApiErrorResponse } from '../../../api/http'
 import { PageHeading } from '../components/PageHeading'
+import { apiMessage } from '../../../api/result'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
 import type { ParameterlessKey } from '../../../i18n/t'
 
 type SourceMethod = 'upload' | 'text'
@@ -121,8 +125,11 @@ export function ImportCsv(): JSX.Element {
   const [hasHeader, setHasHeader] = createSignal(true)
   const [selections, setSelections] = createSignal<ColumnSelections>(emptySelections())
 
-  const [status, setStatus] = createSignal<string | null>(null)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX (see `ApiActionMessage`), so a
+  // language switch relabels the result already on screen.
+  const [status, setStatus] = createSignal<ApiActionMessage | null>(null)
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
   const [failures, setFailures] = createSignal<CsvRowFailure[]>([])
   // Non-fatal news the route reports on its own channel: a category value the
   // grammar refused, a category value that named a board, a categories sidecar
@@ -279,10 +286,11 @@ export function ImportCsv(): JSX.Element {
       // report is rendered either way; a partially-failed import is a success
       // whose failures are the point.
       const data = (await resp.json()) as ImportCsvResult
+      const carried = readSyncMessage(data)
       if (!resp.ok) {
         setFailures([])
         setWarnings([])
-        setError(data.message || t('admin.importCsv.failed'))
+        setError(carried ?? apiMessage('admin.importCsv.failed'))
         return
       }
       const imported = data as ImportCsvResponse
@@ -291,10 +299,11 @@ export function ImportCsv(): JSX.Element {
       // An import that wrote nothing is not a success to banner in green, even
       // though the *request* succeeded: every row failed, and the message says
       // so. Anything that landed at least one copy reads as a status.
-      if (imported.cardCount === 0 && imported.failedCount > 0) setError(imported.message)
-      else setStatus(imported.message)
+      if (imported.cardCount === 0 && imported.failedCount > 0) {
+        setError(carried ?? apiMessage('admin.importCsv.failed'))
+      } else setStatus(carried ?? apiMessage('admin.importCsv.imported'))
     } catch {
-      setError(t('admin.importCsv.failed'))
+      setError(apiMessage('admin.importCsv.failed'))
     } finally {
       setLoading(false)
     }
@@ -303,7 +312,7 @@ export function ImportCsv(): JSX.Element {
   return (
     <div>
       <PageHeading page="import-csv" />
-      <StatusAlerts status={status()} error={error()} />
+      <StatusAlerts status={heldText(status())} error={heldText(error())} />
       <Show when={failures().length > 0}>
         <div class="alert alert-error csv-failures">
           <p>{t('admin.importCsv.failuresLead', { count: failures().length })}</p>

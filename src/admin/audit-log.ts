@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { ensureLoginsDir, getLoginsDir } from '../auth/logins-dir'
+import type { AuditReason } from './audit-reasons'
 
 export interface AuditEntry {
   timestamp: string
@@ -25,7 +26,7 @@ export function createAuditEntry(
   ip: string,
   username: string,
   success: boolean,
-  reason: string,
+  reason: AuditReason,
   userAgent: string,
 ): AuditEntry {
   return {

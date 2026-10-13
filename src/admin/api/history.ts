@@ -1,4 +1,3 @@
-import { getErrorMessage } from '../../util/errors'
 import { getBaseDir } from '../../config/base-dir'
 import {
   isChangeLine,
@@ -17,10 +16,10 @@ import type { ListType } from '../../list/list-type'
 import { changelogSidecarPath } from '../../list/list-sidecars'
 import { resolveListFile } from './list-info'
 import { listSlug } from '../../list/list-file-name'
-import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import { autoCommitAndPush } from './save-helpers'
 import { categoriesUnreadableWarning } from './categories'
-import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
+import { apiError, badRequest, errorResponse, readJsonObjectBody } from '../../api/http'
 import { parseListTarget } from './target'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
 import { createFenceTracker } from '../../list/markdown-fence'
@@ -58,10 +57,14 @@ type RawChangeSet = { timestamp?: unknown; lines?: unknown; events?: unknown; tr
 export async function handleHistoryLoad(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (typeof target === 'string') return apiError(target, 400)
+    if (isApiMessage(target)) return apiError(target, 400)
 
     const filePath = await resolveListFile(target.type, target.slug)
-    if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
+    if (!filePath)
+      return apiError(
+        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        404,
+      )
 
     const changesPath = changelogSidecarPath(filePath)
     let content = ''
@@ -93,7 +96,7 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }
 
@@ -102,37 +105,46 @@ export async function handleHistoryLoad(req: Request): Promise<Response> {
  * explaining the refusal. A parser, per the project convention — the HTTP status
  * and envelope belong to the handler, not here.
  */
-function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | string {
-  if (!Array.isArray(raw.sets)) return 'sets array is required'
+function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | ApiMessage {
+  if (!Array.isArray(raw.sets)) return apiMessage('admin.api.history.setsRequired')
   const sets: ChangeSet[] = []
   for (const [setIndex, item] of (raw.sets as unknown[]).entries()) {
-    if (item === null || typeof item !== 'object') return 'Each change set must be an object'
+    if (item === null || typeof item !== 'object') {
+      return apiMessage('admin.api.history.setNotObject')
+    }
     const { timestamp, lines, events, trailing } = item as RawChangeSet
     if (typeof timestamp !== 'string' || !isValidIso8601(timestamp.trim())) {
-      return 'Each change set needs a valid ISO-8601 timestamp'
+      return apiMessage('admin.api.history.timestampInvalid')
     }
-    if (!isStringArray(lines)) return 'Each change set needs a lines array of strings'
-    if (lines.length === 0) return 'Each change set must have at least one change line'
+    if (!isStringArray(lines)) return apiMessage('admin.api.history.linesInvalid')
+    if (lines.length === 0) return apiMessage('admin.api.history.linesEmpty')
     // Lines are stored trimmed by parseChangeSets, and an embedded line break
     // would smuggle a fabricated header or change line past these checks.
     const trimmedLines = lines.map((l) => l.trim())
     if (!trimmedLines.every((l) => isChangeLine(l) && !hasLineBreak(l))) {
-      return 'Every change line must start with "- " and be a single line'
+      return apiMessage('admin.api.history.lineInvalid')
     }
     // `events` is the set's typed record — one per change line, in order — and
     // is judged by the same decoder every other JSON-authored event goes
     // through. An empty array is a legacy (block-less) set echoed back as-is.
-    if (!Array.isArray(events)) return 'Each change set needs an events array'
+    if (!Array.isArray(events)) return apiMessage('admin.api.history.eventsMissing')
     const decoded: ChangeEvent[] = []
     for (const [eventIndex, rawEvent] of (events as unknown[]).entries()) {
-      const event = decodeChangeEvent(rawEvent, `Set #${setIndex + 1} event #${eventIndex + 1} `, {
-        listType,
-      })
-      if (typeof event === 'string') return event
+      // The decoder (persistence-fenced, so English and keyless) words its
+      // refusal as a predicate of whatever `where` names; naming the event here
+      // instead keeps the position in the translated sentence around it.
+      const event = decodeChangeEvent(rawEvent, '', { listType })
+      if (typeof event === 'string') {
+        return apiMessage('admin.api.history.eventInvalid', {
+          set: setIndex + 1,
+          event: eventIndex + 1,
+          problem: event,
+        })
+      }
       decoded.push(event)
     }
     if (decoded.length !== 0 && decoded.length !== trimmedLines.length) {
-      return 'Each change set needs one event per change line (or none, for a legacy set)'
+      return apiMessage('admin.api.history.eventCountMismatch')
     }
     // `trailing` carries a set's preserved hand-written prose. A line outside
     // a fence that looks like a change line or a `## ` header would be
@@ -141,18 +153,16 @@ function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | string {
     // same tracker it uses decides which lines are exposed; an unclosed fence
     // would swallow the rest of the file on reload, so it is refused too.
     if (trailing !== undefined) {
-      if (!isStringArray(trailing)) {
-        return 'A change set trailing field must be an array of strings'
-      }
-      if (trailing.some(hasLineBreak)) return 'Trailing lines must each be a single line'
+      if (!isStringArray(trailing)) return apiMessage('admin.api.history.trailingInvalid')
+      if (trailing.some(hasLineBreak)) return apiMessage('admin.api.history.trailingMultiline')
       const fence = createFenceTracker()
       for (const line of trailing) {
         if (fence.feed(line).opaque) continue
         if (isChangeLine(line.trim()) || isSetHeaderLine(line.trim())) {
-          return 'Trailing lines must not look like change lines or "## " headers'
+          return apiMessage('admin.api.history.trailingLooksLikeChange')
         }
       }
-      if (fence.isOpen) return 'Trailing lines must not leave a code fence open'
+      if (fence.isOpen) return apiMessage('admin.api.history.trailingOpenFence')
     }
     sets.push({
       timestamp: timestamp.trim(),
@@ -173,16 +183,20 @@ function parseSets(raw: RawSaveBody, listType: ListType): ChangeSet[] | string {
 export async function handleHistorySave(req: Request): Promise<Response> {
   try {
     const target = parseListTarget(req)
-    if (typeof target === 'string') return apiError(target, 400)
+    if (isApiMessage(target)) return apiError(target, 400)
 
     const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
     if (!parsedBody.ok) return parsedBody.response
     const raw: RawSaveBody = parsedBody.body
     const sets = parseSets(raw, target.type)
-    if (typeof sets === 'string') return badRequest(sets)
+    if (isApiMessage(sets)) return badRequest(sets)
 
     const filePath = await resolveListFile(target.type, target.slug)
-    if (!filePath) return apiError(`List '${target.slug}' not found`, 404)
+    if (!filePath)
+      return apiError(
+        apiMessage('admin.api.list.notFound', { listType: target.type, slug: target.slug }),
+        404,
+      )
 
     const changesPath = changelogSidecarPath(filePath)
     let existing = ''
@@ -204,6 +218,6 @@ export async function handleHistorySave(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }

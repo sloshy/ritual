@@ -7,13 +7,24 @@
 
 import type { DroppedNote } from '../list/move-staging'
 import { formatDroppedNotesSuffix } from '../list/dropped-notes'
+import { apiMessage, type ApiMessage } from '../api/result'
 import { t } from '../i18n/t'
 
 /**
- * Format the pruned-category report as a status-message suffix (empty when
- * none), e.g. ` Categories dropped for cards the list no longer holds: Sol Ring.`
- * Renders `ui.editor.prunedCategories` with **both** parameters: `count` (the
- * plural selector, without which `t()` throws in strict mode) and `items`.
+ * The pruned-category report as a message held unrendered (`null` when none),
+ * e.g. `Categories dropped for cards the list no longer holds: Sol Ring.` Built
+ * with **both** parameters: `count` (the plural selector, without which `t()`
+ * throws in strict mode) and `items`.
+ */
+export function prunedCategoriesMessage(names: readonly string[]): ApiMessage | null {
+  if (names.length === 0) return null
+  return apiMessage('ui.editor.prunedCategories', { count: names.length, items: names.join(', ') })
+}
+
+/**
+ * The same sentence as {@link prunedCategoriesMessage}, rendered in the active
+ * locale as a status-message suffix: `''` when none, else the sentence after a
+ * space.
  */
 export function formatPrunedCategoriesSuffix(names: readonly string[]): string {
   if (names.length === 0) return ''
@@ -24,7 +35,7 @@ export function formatPrunedCategoriesSuffix(names: readonly string[]): string {
 export type SaveSuccessNotices = {
   droppedNotes?: readonly DroppedNote[]
   prunedCategories?: readonly string[]
-  /** Sidecar trouble, arriving as finished sentences localized server-side. */
+  /** Sidecar trouble, arriving from the server as finished English sentences. */
   categoryWarnings?: readonly string[]
 }
 

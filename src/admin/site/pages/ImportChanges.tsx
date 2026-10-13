@@ -15,6 +15,10 @@ import { useT, useTKey } from '../../../ui/i18n'
 import type { BundleImportResponse, BundleImportResult } from '../../api/import-changes'
 import type { ApiErrorResponse } from '../../../api/http'
 import { PageHeading } from '../components/PageHeading'
+import { apiMessage } from '../../../api/result'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
+import { prefixedMessage, readSyncMessage } from '../../../sync/message'
 import type { ParameterlessKey } from '../../../i18n/t'
 
 type SourceMethod = 'upload' | 'text'
@@ -50,8 +54,11 @@ export function ImportChanges(): JSX.Element {
   const [fileContent, setFileContent] = createSignal('')
   const [text, setText] = createSignal('')
   const [loading, setLoading] = createSignal(false)
-  const [status, setStatus] = createSignal<string | null>(null)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX (see `ApiActionMessage`), so a
+  // language switch relabels the summary — and each list's failure — on screen.
+  const [status, setStatus] = createSignal<ApiActionMessage | null>(null)
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
   const [result, setResult] = createSignal<BundleImportResult | null>(null)
 
   const content = createMemo((): string => (method() === 'upload' ? fileContent() : text()))
@@ -98,17 +105,18 @@ export function ImportChanges(): JSX.Element {
         body: content(),
       })
       const data = (await resp.json()) as ApplyResponse
+      const carried = readSyncMessage(data)
       if (!data.success) {
-        setError(data.message || t('admin.importChanges.applyFailed'))
+        setError(carried ?? apiMessage('admin.importChanges.applyFailed'))
         return
       }
       setResult(data)
       // A list that failed to load or save still leaves a report worth showing,
       // so the banner is the only thing that changes.
-      if (data.failedCount > 0) setError(data.message)
-      else setStatus(data.message || t('admin.importChanges.applied'))
+      if (data.failedCount > 0) setError(carried ?? apiMessage('admin.importChanges.partlyFailed'))
+      else setStatus(carried ?? apiMessage('admin.importChanges.applied'))
     } catch {
-      setError(t('admin.importChanges.applyFailed'))
+      setError(apiMessage('admin.importChanges.applyFailed'))
     } finally {
       setLoading(false)
     }
@@ -118,7 +126,7 @@ export function ImportChanges(): JSX.Element {
     <div>
       <PageHeading page="import-changes" />
       <p class="text-muted">{t('admin.importChanges.desc')}</p>
-      <StatusAlerts status={status()} error={error()} />
+      <StatusAlerts status={heldText(status())} error={heldText(error())} />
 
       <Show when={result()}>
         {(r) => (
@@ -131,7 +139,11 @@ export function ImportChanges(): JSX.Element {
                   </span>
                   <Show
                     when={!list.error}
-                    fallback={<span class="import-changes-result-error">{list.error}</span>}
+                    fallback={
+                      <span class="import-changes-result-error">
+                        {heldText(prefixedMessage('error', list) ?? null)}
+                      </span>
+                    }
                   >
                     <span>{t('admin.importChanges.appliedCount', { count: list.applied })}</span>
                   </Show>

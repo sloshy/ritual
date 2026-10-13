@@ -1,24 +1,8 @@
 import { type Accessor, createMemo, createSignal } from 'solid-js'
-import {
-  apiMessage,
-  renderApiMessage,
-  type ApiMessage,
-  type ApiMessageParams,
-} from '../../../api/result'
-import { isMessageKey } from '../../../i18n/t'
-import { useTDynamic } from '../../../ui/i18n'
-
-/**
- * A status or error line held by {@link useApiAction}: either prose a caller
- * handed in already rendered, or the message triple a response carried.
- *
- * Held **unrendered**. An alert can sit on screen for minutes, so storing the
- * formatted string would freeze it in the language that was active when the
- * request came back — a locale switch would relabel the page around a stale
- * sentence. This is the same reason `useEditorStatus` stores its status as a
- * key.
- */
-export type ApiActionMessage = string | ApiMessage
+import { apiMessage, type ApiActionMessage } from '../../../api/result'
+import { isRecord } from '../../../util/json'
+import { useI18n } from '../../../ui/i18n'
+import { readSyncMessage, renderSyncMessage, type SyncMessage } from '../../../sync/message'
 
 export type UseApiActionResult = {
   status: Accessor<string | null>
@@ -37,50 +21,49 @@ export type UseApiActionResult = {
 /**
  * Narrow one action response off the wire.
  *
- * A response is untyped JSON, and asserting it into shape would let a server
- * ahead of (or behind) this bundle put a `messageKey` the catalog does not have
- * into an alert — rendering the raw key, or throwing under `RITUAL_I18N_STRICT`.
- * `isMessageKey` is the gate; a key this build does not know is dropped and the
- * English `message` covers the gap, which is the fallback the design already
- * relies on for an unconverted handler.
+ * A response is untyped JSON, and a server ahead of (or behind) this bundle may
+ * put a `messageKey` (or a nested param's key) the catalog does not have into an
+ * alert. `renderSyncMessage` is the gate: a message whose tree names a key this
+ * build does not know renders as the English `message` it carries, whole —
+ * the fallback the design already relies on for an unconverted handler.
  */
 function readApiResponse(raw: unknown): ApiActionParsed {
-  const body = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>
-  const success = body.success === true
-  if (typeof body.message !== 'string') return { success, carried: null }
-  const carried: ApiMessage = { message: body.message }
-  if (isMessageKey(body.messageKey)) {
-    carried.messageKey = body.messageKey
-    if (typeof body.messageParams === 'object' && body.messageParams !== null) {
-      carried.messageParams = body.messageParams as ApiMessageParams
-    }
-  }
-  return { success, carried }
+  const success = isRecord(raw) && raw.success === true
+  return { success, carried: readSyncMessage(raw) }
 }
 
 /** What {@link readApiResponse} extracts: the verdict and the prose, if any. */
 type ApiActionParsed = {
   success: boolean
-  carried: ApiMessage | null
+  carried: SyncMessage | null
+}
+
+/**
+ * `const text = useApiText()` at the top of a component, then `text(held)` in
+ * JSX: a held message rendered in the reader's language, tracking the locale
+ * signal so a switch relabels it on screen.
+ */
+export function useApiText(): (message: ApiActionMessage | null) => string | null {
+  const { locale } = useI18n()
+  return (message) => {
+    if (message === null) return null
+    return typeof message === 'string' ? message : renderSyncMessage(message, locale())
+  }
 }
 
 export function useApiAction(): UseApiActionResult {
-  const t = useTDynamic()
+  const text = useApiText()
   const [statusMessage, setStatus] = createSignal<ApiActionMessage | null>(null)
   const [errorMessage, setError] = createSignal<ApiActionMessage | null>(null)
   const [loading, setLoading] = createSignal(false)
 
   /**
-   * Render a held message in the active locale. A `createMemo` rather than a
-   * plain function so the translator's locale signal is read reactively: that
-   * is what relabels an alert already on screen when the language changes.
+   * Render a held message in the active locale. `text` reads the locale signal,
+   * so reading these in JSX relabels an alert already on screen when the
+   * language changes; the memo only shares one render between readers.
    */
   const rendered = (message: Accessor<ApiActionMessage | null>): Accessor<string | null> =>
-    createMemo(() => {
-      const held = message()
-      if (held === null) return null
-      return typeof held === 'string' ? held : renderApiMessage(t, held)
-    })
+    createMemo(() => text(message()))
 
   const status = rendered(statusMessage)
   const error = rendered(errorMessage)

@@ -4,7 +4,6 @@ import {
   ensureCardKingdomFeed,
   type LoadedCardKingdomFeed,
 } from '../../cardkingdom'
-import { getErrorMessage } from '../../util/errors'
 import { isListType, type ListType } from '../../list/list-type'
 import type { ListLocation } from '../../list/resolve-list'
 import type { BuylistFeedStamp, SellCartCsv } from '../../buylist'
@@ -22,7 +21,8 @@ import { loadAndBuildSellReport } from '../../pricing/sell-runtime'
 import { parseSetCodesInput } from '../../card/set-codes'
 import { parseTagFilterInput } from '../../card/card-tags'
 import { listLocationForSlug } from './list-info'
-import { apiError, badRequest } from '../../api/http'
+import { apiError, badRequest, errorResponse } from '../../api/http'
+import { apiMessage, plainMessage } from '../../api/result'
 import { requireBuylistFeed } from '../../api/buylist'
 import { requireCardCache } from './save-helpers'
 
@@ -61,15 +61,15 @@ async function parseListsParam(url: URL): Promise<ListLocation[] | undefined | R
     const type = separator > 0 ? trimmed.slice(0, separator) : ''
     const slug = separator > 0 ? trimmed.slice(separator + 1) : ''
     if (!isListType(type) || slug === '') {
-      return badRequest(`Invalid list reference '${trimmed}' (expected type:slug)`)
+      return badRequest(apiMessage('admin.api.sell.refInvalid', { ref: trimmed }))
     }
     const location = await listLocationForSlug(type, slug)
-    if (!location) return apiError(`List '${trimmed}' not found`, 404)
+    if (!location) return apiError(apiMessage('admin.api.listNotFound', { list: trimmed }), 404)
     locations.push(location)
   }
   // `?lists=` was given but named nothing: refusing beats silently widening
   // the scope to every collection.
-  if (locations.length === 0) return badRequest(`No list references in 'lists'`)
+  if (locations.length === 0) return badRequest(apiMessage('admin.api.sell.noRefs'))
   return locations
 }
 
@@ -92,7 +92,7 @@ function queryParam<T>(
   const raw = url.searchParams.get(name)
   if (raw === null || raw.trim() === '') return undefined
   const parsed = parse(raw)
-  return typeof parsed === 'string' ? badRequest(parsed) : parsed
+  return typeof parsed === 'string' ? badRequest(plainMessage(parsed)) : parsed
 }
 
 /**
@@ -103,7 +103,9 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   const rawType = url.searchParams.get('type')
   let type: ListType | undefined
   if (rawType) {
-    if (!isListType(rawType)) return badRequest(`Invalid list type '${rawType}'`)
+    if (!isListType(rawType)) {
+      return badRequest(apiMessage('admin.api.listTypeInvalid', { type: rawType }))
+    }
     type = rawType
   }
   const locations = await parseListsParam(url)
@@ -139,7 +141,7 @@ type BuiltSellView = {
 
 /** Build the filtered sell view for a parsed query; a Response on a 503. */
 async function buildSellView(query: SellQuery): Promise<BuiltSellView | Response> {
-  const unavailable = await requireCardCache('buylist matching requires it')
+  const unavailable = await requireCardCache('buylist')
   if (unavailable) return unavailable
   const feed = await requireBuylistFeed()
   if (feed instanceof Response) return feed
@@ -186,7 +188,7 @@ export async function handleSellReport(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }
 
@@ -208,7 +210,7 @@ export async function handleSellCart(req: Request): Promise<Response> {
     const body: SellCartResponse = { success: true, ...buildSellCartCsv(built.view.entries) }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }
 
@@ -225,7 +227,7 @@ export async function handleSellRefresh(req: Request): Promise<Response> {
     const force = new URL(req.url).searchParams.get('force') === 'true'
     const result = await ensureCardKingdomFeed(headlessPolicy('auto'), { force })
     if (typeof result === 'string') {
-      return apiError(result, 502)
+      return apiError(plainMessage(result), 502)
     }
     // Index the feed we just wrote rather than leaving the memo to re-read it.
     if (result.refreshed) await adoptCardKingdomFeed(result)
@@ -239,6 +241,6 @@ export async function handleSellRefresh(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (err) {
-    return apiError(getErrorMessage(err), 500)
+    return errorResponse(err)
   }
 }

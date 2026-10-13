@@ -9,7 +9,7 @@ import {
 } from '../../list/card-categories-sidecar'
 import { loadDefaultCategories } from '../../config/ritual-config'
 import type { WithCardCategories } from '../../card/card-categories'
-import { t } from '../../i18n/t'
+import { apiText } from '../../api/result'
 
 /**
  * The read side of a list's categories, in the shape the load routes hand out.
@@ -23,13 +23,14 @@ import { t } from '../../i18n/t'
  */
 
 /**
- * A categories sidecar that could not be read, as a read route's warning. The
+ * A categories sidecar that could not be read, as a read route's warning —
+ * English, like every sentence a response carries without a key. The
  * save-side sibling is `categoriesUnreconciledWarning` in `save-helpers.ts`;
  * the two say different things on purpose — a read changed nothing, so it must
  * not claim the card lines were saved.
  */
 export function categoriesUnreadableWarning(reason: string): string {
-  return t('admin.api.load.categoriesUnreadable', { reason })
+  return apiText('admin.api.load.categoriesUnreadable', { reason })
 }
 
 /** {@link listCategories}' inputs. */
@@ -120,7 +121,7 @@ export async function listCategories(
     }
   }
   const categoryWarnings = loaded.warnings.map((warning) =>
-    t('admin.api.load.categoriesStaleNames', { names: warning.names.join(', ') }),
+    apiText('admin.api.load.categoriesStaleNames', { names: warning.names.join(', ') }),
   )
   const body: ListCategoriesFields = categoryWarnings.length > 0 ? { categoryWarnings } : {}
   if (isEmptyCardCategoriesRecord(loaded.categories)) return { body, record: loaded.categories }

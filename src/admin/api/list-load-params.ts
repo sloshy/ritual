@@ -10,18 +10,14 @@
  * fetch, which is the expensive part of a load and which such a client discards
  * anyway. Filtering after those steps would save bytes and no work at all.
  *
- * Everything here is pure and layer-neutral: parsing reports a refusal as the
- * message explaining it, per the project's parser convention.
+ * Everything here is pure: parsing reports a refusal as the message explaining
+ * it (English plus its key), per the project's parser convention.
  */
 
 import { DEFAULT_SECTION, type DeckData, type DeckSection } from '../../list/deck'
-import { parseEnumField } from '../../util/parse-enum'
-import {
-  invalidLimitMessage,
-  parseNonNegativeInteger,
-  parsePositiveInteger,
-} from '../../util/parse-number'
+import { parseNonNegativeInteger, parsePositiveInteger } from '../../util/parse-number'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
+import { apiMessage, isApiMessage, parseEnumParam, type ApiMessage } from '../../api/result'
 
 /** The accepted `view` values, in the order an error message lists them. */
 export const LIST_LOAD_VIEWS = ['full', 'cards', 'summary'] as const
@@ -79,15 +75,15 @@ export interface FilteredEntries<T> {
  * does not exist yields zero matches rather than an error — a filter naming
  * nothing is an empty result, not a bad request.
  */
-export function parseListLoadParams(params: URLSearchParams): ListLoadParams | string {
+export function parseListLoadParams(params: URLSearchParams): ListLoadParams | ApiMessage {
   const rawView = params.get('view')?.trim()
   let view: ListLoadView = 'full'
   if (rawView) {
     // Through the shared enum parser, so `?view=Cards` is accepted here exactly
     // as `--output JSON` is on the CLI, and the refusal reads the same.
-    const parsedView = parseEnumField(rawView, LIST_LOAD_VIEWS, 'view')
-    if (!parsedView.ok) return parsedView.message
-    view = parsedView.value
+    const parsedView = parseEnumParam(rawView, LIST_LOAD_VIEWS, 'view')
+    if (isApiMessage(parsedView)) return parsedView
+    view = parsedView
   }
 
   const parsed: ListLoadParams = { view, offset: 0 }
@@ -104,14 +100,15 @@ export function parseListLoadParams(params: URLSearchParams): ListLoadParams | s
   const rawLimit = params.get('limit')?.trim()
   if (rawLimit) {
     const limit = parsePositiveInteger(rawLimit)
-    if (limit === undefined) return invalidLimitMessage(rawLimit)
+    if (limit === undefined) return apiMessage('admin.api.load.limitInvalid', { value: rawLimit })
     parsed.limit = limit
   }
 
   const rawOffset = params.get('offset')?.trim()
   if (rawOffset) {
     const offset = parseNonNegativeInteger(rawOffset)
-    if (offset === undefined) return `Invalid offset '${rawOffset}'. Use a non-negative integer.`
+    if (offset === undefined)
+      return apiMessage('admin.api.load.offsetInvalid', { value: rawOffset })
     parsed.offset = offset
   }
 

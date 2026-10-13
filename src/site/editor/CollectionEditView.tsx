@@ -50,7 +50,7 @@ export const CollectionEditView: Component<CollectionEditViewProps> = (props) =>
     fetchData: () => Promise.resolve(props.detail),
     showSelector: false,
     commit: () => Promise.resolve(undefined),
-    entityLabel: 'collection',
+    listType: 'collection',
     moveTargets: () => props.moveTargets?.() ?? [],
     swapSources: createPublicSwapSourceProvider(() => props.shareLists ?? []),
 

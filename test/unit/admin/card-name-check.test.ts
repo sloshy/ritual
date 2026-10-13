@@ -1,6 +1,5 @@
 import { describe, expect, test, beforeAll, afterAll, beforeEach } from 'bun:test'
 import {
-  COLD_CACHE_MESSAGE,
   MAX_CANDIDATES,
   changeCardNames,
   checkCardNames,
@@ -13,6 +12,7 @@ import {
   createSetNoteChange,
 } from '../../../src/changes/change-event'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
+import { keyedRefusal } from '../../helpers/api-message'
 import { makeScryfallCard, seedCardNames } from '../../test-utils'
 
 /**
@@ -89,6 +89,21 @@ describe('checkCardNames', () => {
     expect(result.unknown[0]?.candidates).toContain('Lightning Bolt')
     expect(result.message).toContain('Lightning Bolz')
     expect(result.message).toContain('Did you mean')
+    // One rejected name is one keyed sentence, so a client can re-render it.
+    expect(result.messageKey).toBe('admin.api.cardNames.unknownSuggested')
+    expect(keyedRefusal(result)).toBe(result.message)
+  })
+
+  test('several rejected names are one sentence each, sent without a key', async () => {
+    // Flat params cannot hold a sentence per name: a key would re-render only
+    // the first, so the refusal carries its English alone.
+    await seedCardNames('Sol Ring')
+    const result = await checkCardNames({ names: ['Zzzzyx', 'Qqqqyx'], known: [] })
+    if (result.ok) throw new Error('expected a refusal')
+    expect(result.message).toBe(
+      "'Zzzzyx' is not a card name the local cache knows. 'Qqqqyx' is not a card name the local cache knows.",
+    )
+    expect(result.messageKey).toBeUndefined()
   })
 
   test('candidates are ranked, closest first — not left in cache order', async () => {
@@ -134,9 +149,10 @@ describe('checkCardNames', () => {
     const result = await checkCardNames({ names: ['Anything'], known: [] })
     if (result.ok) throw new Error('expected a refusal')
     expect(result.reason).toBe('cold-cache')
-    expect(result.message).toBe(COLD_CACHE_MESSAGE)
-    expect(result.message).toContain('refresh_cache')
-    expect(result.message).toContain('ritual cache preload-all')
+    expect(result.message).toBe(
+      'The local card cache is empty, so card names cannot be validated. Refresh it first (MCP: the refresh_cache tool; CLI: `ritual cache preload-all`), or omit validateCardNames.',
+    )
+    expect(result.messageKey).toBe('admin.api.cardNames.coldCache')
   })
 
   test('a name in the list short-circuits even when the cache would reject it', async () => {
@@ -162,7 +178,11 @@ describe('parseValidateCardNames', () => {
     for (const raw of ['true', 1]) {
       expect(parseValidateCardNames(raw)).toEqual({
         ok: false,
-        message: 'validateCardNames must be a boolean.',
+        refusal: {
+          message: 'validateCardNames must be a boolean.',
+          messageKey: 'admin.api.field.notBoolean',
+          messageParams: { field: 'validateCardNames' },
+        },
       })
     }
   })

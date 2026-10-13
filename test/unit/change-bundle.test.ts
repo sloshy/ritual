@@ -10,7 +10,6 @@ import {
   bundleChangeCount,
   bundleListCount,
   bundleTargets,
-  countLabel,
   listChangesFromBundle,
   moveFromEventOf,
   moveToEventOf,
@@ -810,14 +809,6 @@ describe('movesTouching', () => {
     expect(movesTouching(moves, [DECK]).map((m) => m.id)).toEqual(['m1', 'm2'])
     expect(movesTouching(moves, [DECK, BINDER]).map((m) => m.id)).toEqual(['m1', 'm2', 'm3'])
     expect(movesTouching(moves, [{ kind: 'deck', name: 'Other' }])).toEqual([])
-  })
-})
-
-describe('countLabel', () => {
-  it('pluralizes with a trailing s except for exactly one', () => {
-    expect(countLabel(0, 'change')).toBe('0 changes')
-    expect(countLabel(1, 'change')).toBe('1 change')
-    expect(countLabel(2, 'list')).toBe('2 lists')
   })
 })
 

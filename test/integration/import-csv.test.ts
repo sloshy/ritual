@@ -4,6 +4,7 @@ import path from 'node:path'
 import { handleImportCsv, type ImportCsvResponse } from '../../src/admin/api/import-csv'
 import type { ApiErrorResponse } from '../../src/api/http'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
 import { readCategoriesSidecar } from '../helpers/card-categories'
 
 /**
@@ -127,7 +128,7 @@ describe('admin import-csv handler (Integration)', () => {
       hasHeader: false,
     })
     expect(status).toBe(200)
-    expect(data.message).toContain('Appended 1 card(s)')
+    expect(data.message).toContain('Appended 1 card to wanted list')
 
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content).toContain('- Mox Ruby &1')
@@ -197,15 +198,19 @@ describe('admin import-csv handler (Integration)', () => {
 
   test('a partial import says so in its message, not only in failedCount', async () => {
     // `message` is what the admin banner shows and what an agent reads back, so
-    // "Imported 1 card(s)" alone reads as a clean run.
+    // "Imported 1 card" alone reads as a clean run.
     const { data } = await importCsv({
       listType: 'collection',
       name: 'Mixed',
       content: ['Name,Set,Collector Number', 'Sol Ring,C19,221', 'No Printing,,'].join('\n'),
       columns: 'name=1,set=2,collector-number=3',
     })
-    expect(data.message).toBe(
-      "Imported 1 card(s) into collection 'Mixed'; 1 row(s) failed validation",
+    expect(data.message).toBe("Imported 1 card into collection 'Mixed'; 1 row failed validation")
+    // The counts ride as nested messages, so the admin page pluralizes them in
+    // its reader's language; their English is exactly the `message` above.
+    expect(data.messageKey).toBe('admin.api.importCsv.partial')
+    expect(keyedMessage(data)).toBe(
+      "Imported 1 card into collection 'Mixed'; 1 row failed validation",
     )
   })
 

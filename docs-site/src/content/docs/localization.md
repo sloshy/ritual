@@ -167,10 +167,21 @@ Two consequences may surprise you:
 The structured error envelope carries a stable `messageKey` beside its `code`:
 
 ```json
-{ "error": { "code": "usage_error", "messageKey": "errors.enum.invalid", "message": "…" } }
+{
+  "error": {
+    "code": "usage_error",
+    "messageKey": "errors.enum.invalid",
+    "messageParams": {
+      "field": "--refresh",
+      "value": "sometimes",
+      "choices": "ask, auto, no-bulk, never"
+    },
+    "message": "…"
+  }
+}
 ```
 
-`code` and `messageKey` never change with the locale; only `message` does. Match on the keys, never on the prose.
+`code`, `messageKey` and `messageParams` never change with the locale; only `message` does. Match on the keys, never on the prose.
 
 ## Shipping locales with a built site
 

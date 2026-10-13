@@ -9,6 +9,8 @@ import {
 import type { ListType } from '../../../list/list-type'
 import { useT, useTKey } from '../../../ui/i18n'
 import { putListMetadata } from '../editor-backend'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
 
 type ListLabelsModalProps = {
   open: boolean
@@ -42,7 +44,9 @@ export const ListLabelsModal: Component<ListLabelsModalProps> = (props) => {
   const tKey = useTKey()
   const [selected, setSelected] = createSignal<CardLabel[]>([])
   const [saving, setSaving] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX, so a language switch relabels it.
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
 
   // Re-seed the radio state each time the modal opens (or the list changes).
   createEffect(
@@ -96,7 +100,7 @@ export const ListLabelsModal: Component<ListLabelsModalProps> = (props) => {
           )}
         </For>
       </div>
-      <Show when={error()}>{(message) => <p class="form-error">{message()}</p>}</Show>
+      <Show when={error()}>{(message) => <p class="form-error">{heldText(message())}</p>}</Show>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onClose}>
           {t('ui.dialog.cancel')}

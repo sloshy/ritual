@@ -14,7 +14,9 @@ import {
   GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
+  IMPORT_CHANGE_BUNDLE_OUTPUT,
   IMPORT_CSV_OUTPUT,
+  IMPORT_DECK_OUTPUT,
   MOVE_SELECTED_CARDS_OUTPUT,
   MUTATION_OUTPUT,
   REFRESH_CACHE_OUTPUT,
@@ -40,6 +42,7 @@ import type {
   DeckSyncResult,
 } from '../../../src/mcp/tools/destructive-tools'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
+import type { BundleImportResponse } from '../../../src/admin/api/import-changes'
 import type {
   CollectionSyncPrinting,
   CollectionSyncReport,
@@ -429,6 +432,8 @@ describe('MCP output schemas, as authored', () => {
     // so the assumption the handler made about the first row must always be there.
     expect(Object.keys(importCsv.properties ?? {})).toEqual([
       'message',
+      'messageKey',
+      'messageParams',
       'cardCount',
       'failures',
       'failedCount',
@@ -574,7 +579,20 @@ describe('MCP output schemas, as authored', () => {
       // route returns — including a non-empty `failures`, which is the only thing
       // that exercises the `CsvRowFailure` $def at runtime.
       const sample: Omit<ImportCsvResponse, 'success'> = {
-        message: "Imported 2 card(s) into collection 'Binder'; 1 row(s) failed validation",
+        message: "Imported 2 cards into collection 'Binder'; 1 row failed validation",
+        // The summary's counts are plural nouns of their own, nested as params.
+        messageKey: 'admin.api.importCsv.partial',
+        messageParams: {
+          result: {
+            messageKey: 'admin.api.importCsv.imported',
+            messageParams: {
+              listType: 'collection',
+              cards: { messageKey: 'domain.count.cards', messageParams: { count: 2 } },
+              name: 'Binder',
+            },
+          },
+          failed: { messageKey: 'admin.api.importCsv.rowsFailed', messageParams: { count: 1 } },
+        },
         cardCount: 2,
         failures: [{ lineNumber: 4, raw: 'Arcane Signet,,', reason: 'Missing set code' }],
         failedCount: 1,
@@ -588,6 +606,41 @@ describe('MCP output schemas, as authored', () => {
           failures: [{ lineNumber: 4, raw: 'Arcane Signet,,' }],
         }),
       ).toBe(false)
+    })
+
+    test('import_change_bundle accepts a per-list failure carrying its key', async () => {
+      const sample: Omit<BundleImportResponse, 'success'> = {
+        message: 'Applied 0 changes; 1 list failed',
+        messageKey: 'admin.api.importChanges.appliedWithFailures',
+        messageParams: {
+          changes: { messageKey: 'domain.count.changes', messageParams: { count: 0 } },
+          count: 1,
+        },
+        failedCount: 1,
+        lists: [
+          {
+            kind: 'collection',
+            // What a bundle naming a list that is gone gets back: the list
+            // resolver's own refusal, keyed.
+            slug: '',
+            name: 'Binder',
+            applied: 0,
+            conflicts: [],
+            droppedNotes: [],
+            error: "No collection named 'Binder' found.",
+            errorKey: 'errors.resolveList.notFoundOfType',
+            errorParams: { type: 'collection', query: 'Binder' },
+          },
+        ],
+      }
+      expect(await validates(IMPORT_CHANGE_BUNDLE_OUTPUT, sample)).toBe(true)
+      // The pair is advertised on each list, and optional: a list that applied
+      // cleanly carries neither.
+      const item = defsFor('ListImportResult').ListImportResult as unknown as SchemaNode
+      const listFields = Object.keys(item.properties ?? {})
+      for (const field of ['error', 'errorKey', 'errorParams']) expect(listFields).toContain(field)
+      expect(item.required ?? []).not.toContain('errorKey')
+      expect(item.required ?? []).not.toContain('errorParams')
     })
 
     test('the sync tools accept a representative report', async () => {
@@ -803,6 +856,9 @@ describe('MCP output schemas, as authored', () => {
       REMOVE_SELECTED_CARDS_OUTPUT,
       MUTATION_OUTPUT,
       SET_CARD_ART_OUTPUT,
+      IMPORT_CSV_OUTPUT,
+      IMPORT_DECK_OUTPUT,
+      IMPORT_CHANGE_BUNDLE_OUTPUT,
     ]
     for (const schema of keyed) {
       const node = schema as unknown as SchemaNode

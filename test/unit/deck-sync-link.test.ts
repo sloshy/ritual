@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { withSyntheticLocale } from '../helpers/sync-text'
 import { checkArchidektLink, parseArchidektDeckUrl } from '../../src/deck-sync/link'
 import { checkDeckDivergence, describeDivergence } from '../../src/deck-sync/divergence'
 
@@ -92,8 +93,22 @@ describe('checkArchidektLink', () => {
       sourceId: '123',
       sourceUrl: 'https://archidekt.com/decks/999',
     })
-    expect(message).toContain('999')
-    expect(message).toContain('123')
+    // Keyed and English, so an API response stays English whatever the
+    // server's locale and a CLI re-renders it in its own.
+    expect(message?.messageKey).toBe('domain.sync.linkMismatch')
+    expect(message?.message).toBe(
+      'sourceUrl names Archidekt deck 999 but sourceId is 123. A sync addresses the deck by sourceId, so the two must name the same deck.',
+    )
+    withSyntheticLocale(
+      'xx',
+      { 'domain.sync.linkMismatch': 'Falsch {urlDeckId} {sourceId}' },
+      () => {
+        expect(
+          checkArchidektLink({ sourceId: '123', sourceUrl: 'https://archidekt.com/decks/999' })
+            ?.message,
+        ).toContain('A sync addresses the deck by sourceId')
+      },
+    )
   })
 
   test('leaves a non-Archidekt source alone: its id follows another service', () => {

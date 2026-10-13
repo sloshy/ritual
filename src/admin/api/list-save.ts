@@ -2,11 +2,11 @@ import path from 'node:path'
 import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import type { CardLabel } from '../../card/card-labels'
 import type { SaveEffect } from '../../changes/save-effects'
-import type { ApiMessage } from '../../api/result'
+import { apiMessage, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
 import type { ChangeAction, ChangeEvent } from '../../changes/change-event'
 import type { DeckData } from '../../list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../list/site-data'
-import { listTypeLabel, type ListType } from '../../list/list-type'
+import type { ListType } from '../../list/list-type'
 import type { LineQuantities } from '../../changes/line-copies'
 import type { ParsedListContent } from '../../list/markdown-fence'
 import type { FlatListFrontMatter } from '../../list/flat-list-front-matter'
@@ -19,8 +19,6 @@ import {
 import { serializeDeckToMarkdown, validateDeckFrontMatter } from '../../list/deck-file'
 import { readFrontMatterMapping } from '../../list/front-matter-write'
 import { computeDeckSaveEffects, computeEntrySaveEffects } from '../../changes/save-effects'
-import { getErrorMessage } from '../../util/errors'
-import { capitalize } from '../../util/strings'
 import { isRecord } from '../../util/json'
 import { dirForType } from '../../list/resolve-list'
 import { parseDeckText } from '../../importers/text-file'
@@ -48,7 +46,13 @@ import { decodeWireChanges } from '../../changes/wire-changes'
 import { normalizeNote } from '../../card/note-helpers'
 import { changeCardNames, refuseUnknownCardNames } from './card-name-check'
 import { applyCrossListMoves } from '../../list/move-prepare'
-import { apiError, badRequest, readJsonObjectBody, type ApiErrorResponse } from '../../api/http'
+import {
+  apiError,
+  badRequest,
+  errorResponse,
+  readJsonObjectBody,
+  type ApiErrorResponse,
+} from '../../api/http'
 import {
   validateContentHash,
   finishListSave,
@@ -115,16 +119,6 @@ export type ListSaveResponse = ApiMessage & {
 export interface ListSaveRefusal extends ApiErrorResponse {
   unmatched: string[]
 }
-
-/**
- * Why a save may have arrived without a `contentHash`, appended to the
- * "required fields" refusal. A filtered or paged load carries no hash, because
- * only a full load shows the whole list the changes are replayed over; a client
- * that did not realise its load was narrowed is told how to get one.
- */
-const MISSING_HASH_HINT =
-  'A filtered or paged load returns "partial": true and no contentHash — reload the list ' +
-  'without section/nameContains/limit/offset to get one.'
 
 /** The list on disk, parsed: the baseline the events are replayed over. */
 type ListBaseline<TData> = {
@@ -207,13 +201,11 @@ const deckAdapter: ListSaveAdapter<DeckData> = {
     // which is what re-serializing without it would do.
     const frontMatter = readFrontMatterMapping(content)
     if (!frontMatter.ok) {
-      const reason = frontMatter.reason === 'invalid-yaml' ? frontMatter.detail : 'not a mapping'
-      return {
-        ok: false,
-        response: badRequest(
-          `The deck's front matter could not be read (${reason}). Fix it before saving.`,
-        ),
-      }
+      const refusal =
+        frontMatter.reason === 'invalid-yaml'
+          ? apiMessage('admin.api.save.frontMatterUnreadable', { reason: frontMatter.detail })
+          : apiMessage('admin.api.save.frontMatterNotMapping')
+      return { ok: false, response: badRequest(refusal) }
     }
     const validated = validateDeckFrontMatter(frontMatter.data)
     const parsed = parseDeckText(content, fallbackName)
@@ -348,13 +340,17 @@ const wantedAdapter: ListSaveAdapter<WantedListCardEntry[]> = flatListAdapter({
 /** The fields of a save request that are not the events themselves, checked. */
 type SaveOptions = { contentHash: string; continueSession: boolean; validateCardNames: boolean }
 
-function readSaveOptions(body: Record<string, unknown>): SaveOptions | string {
+function readSaveOptions(body: Record<string, unknown>): SaveOptions | ApiMessage {
+  // The refusal says why a client may have no hash: a filtered or paged load
+  // carries none, because only a full load shows the whole list the changes are
+  // replayed over, so a client that did not realise its load was narrowed is
+  // told how to get one.
   if (body.changes === undefined || typeof body.contentHash !== 'string') {
-    return `changes and contentHash are required. ${MISSING_HASH_HINT}`
+    return apiMessage('admin.api.save.fieldsRequired')
   }
   for (const flag of ['continueSession', 'validateCardNames'] as const) {
     if (body[flag] !== undefined && typeof body[flag] !== 'boolean') {
-      return `"${flag}" must be a boolean.`
+      return apiMessage('admin.api.field.notBoolean', { field: flag })
     }
   }
   return {
@@ -388,7 +384,7 @@ function normalizeRawNotes(changes: unknown): Response | null {
       continue
     }
     const result = normalizeNote(change.note)
-    if (!result.ok) return badRequest(result.error)
+    if (!result.ok) return badRequest(plainMessage(result.error))
     change.note = result.note
   }
   return null
@@ -400,12 +396,15 @@ function normalizeRawNotes(changes: unknown): Response | null {
  * honour, and the id pool fills every number up to the highest one in the file,
  * so `&2000000000` would cost the next load of this list that many entries.
  */
-function refuseRunawayIds(changes: readonly ChangeEvent[], baselineIds: number[]): string | null {
+function refuseRunawayIds(
+  changes: readonly ChangeEvent[],
+  baselineIds: number[],
+): ApiMessage | null {
   const ceiling = Math.max(0, ...baselineIds) + changes.length
   for (const [index, change] of changes.entries()) {
     if (change.action !== 'add' && change.action !== 'move-to') continue
     if (change.cardId !== undefined && change.cardId > ceiling) {
-      return `changes[${index}] claims &${change.cardId}, past the ${ceiling} this save could allocate.`
+      return apiMessage('admin.api.save.idPastCeiling', { index, id: change.cardId, ceiling })
     }
   }
   return null
@@ -414,14 +413,14 @@ function refuseRunawayIds(changes: readonly ChangeEvent[], baselineIds: number[]
 async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): Promise<Response> {
   const { type } = adapter
   const parsedSlug = parseSlugFromUrl(req)
-  if (!parsedSlug.ok) return apiError(parsedSlug.message, 400)
+  if (!parsedSlug.ok) return apiError(parsedSlug.refusal, 400)
   const { slug } = parsedSlug
 
   const parsedBody = await readJsonObjectBody(req, MAX_EDIT_BODY_SIZE)
   if (!parsedBody.ok) return parsedBody.response
   const body = parsedBody.body
   const options = readSaveOptions(body)
-  if (typeof options === 'string') return apiError(options, 400)
+  if (isApiMessage(options)) return apiError(options, 400)
 
   // Over the raw events, before decoding: the decoder refuses a line break
   // too, but in plain words, and this refusal carries a message key and the
@@ -432,21 +431,20 @@ async function saveList<TData>(req: Request, adapter: ListSaveAdapter<TData>): P
   if (lineBreakError) return lineBreakError
 
   const decoded = decodeWireChanges(body.changes, type, Date.now())
-  if (!decoded.ok) return apiError(decoded.error, 400)
+  if (!decoded.ok) return apiError(plainMessage(decoded.error), 400)
   const changes = decoded.changes
   const refusal = adapter.refuseChanges?.(changes) ?? null
-  if (refusal) return apiError(refusal, 400)
+  if (refusal) return apiError(plainMessage(refusal), 400)
 
-  const label = listTypeLabel(type)
   const resolved = await resolveListFileOrRefuse(adapter.resolveFile, {
     slug,
     dir: dirForType(type),
-    label,
+    listType: type,
   })
   if (!resolved.ok) return resolved.response
   const { filePath } = resolved
 
-  const hashCheck = await validateContentHash(filePath, options.contentHash, capitalize(label))
+  const hashCheck = await validateContentHash(filePath, options.contentHash, type)
   if (!hashCheck.valid) return hashCheck.response
 
   const read = adapter.readBaseline({
@@ -555,6 +553,6 @@ export async function handleListSave(req: Request, type: ListType): Promise<Resp
         return await saveList(req, wantedAdapter)
     }
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

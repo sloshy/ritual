@@ -9,15 +9,20 @@ import {
   type DiffOnly,
 } from '../../changes/list-diff'
 import {
-  formatResolveListError,
+  resolveListErrorMessage,
   isResolveListError,
   parseListArgument,
   resolveList,
   type ListLocation,
 } from '../../list/resolve-list'
-import { parseEnumField } from '../../util/parse-enum'
 import { apiHandler } from '../utils'
-import { badRequest } from '../../api/http'
+import {
+  badRequest,
+  nestedRefusal,
+  type ApiErrorResponse,
+  type NestedRefusalResponse,
+} from '../../api/http'
+import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
 
 /** `GET /api/diff` success body — the CLI `diff --output json` shape plus `success`. */
 export type DiffResponseBody = {
@@ -32,6 +37,13 @@ export type DiffResponseBody = {
 }
 
 /**
+ * Every body `GET /api/diff` can return: the comparison, the shared refusal,
+ * or — for a side that names no single list — the list resolver's refusal,
+ * whose params may nest (see {@link NestedRefusalResponse}).
+ */
+export type DiffResponse = DiffResponseBody | ApiErrorResponse | NestedRefusalResponse
+
+/**
  * Resolve one side's `[type:]name` query value to a list file, or a 400 response.
  * Like the CLI `diff`, each side carries its own `type:` prefix — that prefix is
  * the disambiguation mechanism this grammar offers, so an ambiguity error names it.
@@ -40,7 +52,7 @@ async function resolveSide(raw: string): Promise<ListLocation | Response> {
   const arg = parseListArgument(raw)
   const resolved = await resolveList(arg.name, arg.type)
   if (isResolveListError(resolved))
-    return badRequest(formatResolveListError(resolved, 'type-prefix'))
+    return nestedRefusal(resolveListErrorMessage(resolved, 'type-prefix'))
   return resolved
 }
 
@@ -57,13 +69,13 @@ export function handleDiff(req: Request): Promise<Response> {
     const rawA = url.searchParams.get('a')
     const rawB = url.searchParams.get('b')
     if (!rawA || !rawB) {
-      return badRequest("Query parameters 'a' and 'b' are required ([type:]name).")
+      return badRequest(apiMessage('admin.api.diff.sidesRequired'))
     }
 
     // Through the shared enum parser so `?by=Printing` is accepted here exactly
     // as `--by Printing` is on the CLI, and the refusal reads the same.
-    const parsedBy = parseEnumField(url.searchParams.get('by') ?? 'name', DIFF_BY_MODES, 'by')
-    if (!parsedBy.ok) return badRequest(parsedBy.message)
+    const by = parseEnumParam(url.searchParams.get('by') ?? 'name', DIFF_BY_MODES, 'by')
+    if (isApiMessage(by)) return badRequest(by)
 
     const locationA = await resolveSide(rawA)
     if (locationA instanceof Response) return locationA
@@ -75,7 +87,7 @@ export function handleDiff(req: Request): Promise<Response> {
       loadExportEntries([locationA]),
       loadExportEntries([locationB]),
     ])
-    const result = diffLists(sideA.entries, sideB.entries, parsedBy.value)
+    const result = diffLists(sideA.entries, sideB.entries, by)
 
     const body: DiffResponseBody = {
       success: true,

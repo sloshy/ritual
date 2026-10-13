@@ -62,7 +62,10 @@ test.describe('Import Deck Page', () => {
     await expect(button).toBeEnabled()
     await button.click()
 
-    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    await expect(main.locator('.alert-success')).toHaveText(
+      "Successfully imported 'My Pasted Deck'",
+      { timeout: 5000 },
+    )
     expect(captured).toBeDefined()
     expect(captured?.mode).toBe('text')
     expect(captured?.content).toContain('4 Lightning Bolt')

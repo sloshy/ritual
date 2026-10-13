@@ -19,7 +19,6 @@ import type { SelectedCard } from '../list-view/useCardSelection'
 import type { CardContextInfo } from '../list-view/card-context'
 import type { BulkEditBundle } from '../list-view/selection-edit-actions'
 import type { ListPageConfig, UseEditorResult } from './editor-config'
-import type { EditorEntity } from './entity'
 import type { ListType } from '../list/list-type'
 import {
   bulkMoveToList,
@@ -40,7 +39,6 @@ import { findEntryByIdOrName } from '../changes/entry-targeting'
 import { EditorShell } from './components/EditorShell'
 import type { ApplyChange } from '../changes/apply-batch'
 import type { SwapPrintingsWizardProps } from './components/SwapPrintingsWizard'
-import { entityListType } from './entity'
 import { createSwapController, type SwapController } from './swap-controller'
 import { flatSwapTargets } from './swap-targets'
 import { cardNamesById } from '../card/card-id'
@@ -163,7 +161,7 @@ export function useFlatListEditController<E extends FlatEntry>(
 
   const swap = createSwapController({
     editor,
-    listType: entityListType(pageConfig.entityLabel),
+    listType: pageConfig.listType,
     kind: 'flat',
     targetsOf: (entries) => flatSwapTargets(entries, cardData, params.listLabels()),
     applyChange: applyFlat,
@@ -582,7 +580,7 @@ export function FlatListContextMenu<E extends FlatEntry>(
 
 export type FlatListEditorShellProps<E extends FlatEntry> = {
   ctrl: FlatListController<E>
-  entityLabel: EditorEntity
+  listType: ListType
   selectorId: string
   defaults: UseEditorDefaultsResult
   search: SearchProvider

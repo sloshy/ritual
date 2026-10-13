@@ -1,10 +1,13 @@
 /**
  * Message registration for the **admin** SPA.
  *
- * Everything the public site registers, plus `admin` and the `domain-sync`
- * fragment. The public site's set is reused rather than re-listed because the
- * admin embeds the shared `src/site/**` views wholesale — a fragment the public
- * site needs is one the admin bundle already contains. `domain-sync` is the
+ * Everything the public site registers, plus `admin`, its `admin-api` fragment
+ * and the `domain-sync` fragment. `admin-api` is the prose the admin HTTP API
+ * authors: every response carries it as English plus its key and params, and the
+ * admin re-renders that key in the reader's language. The public site's set is
+ * reused rather than re-listed because the admin embeds the shared `src/site/**`
+ * views wholesale — a fragment the public site needs is one the admin bundle
+ * already contains. `domain-sync` is the
  * sync engines' text: the engines send every log line and result reason as
  * English plus its key and params, and the admin's Sync Decks and Sync
  * Collection pages render those keys — streamed or from a finished report — in
@@ -16,6 +19,7 @@
  */
 
 import { adminMessages } from '../messages/en/admin'
+import { adminApiMessages } from '../messages/en/admin-api'
 import { domainSyncMessages } from '../messages/en/domain-sync'
 import { registerMessages } from '../runtime'
 import { registerSiteMessages } from './site'
@@ -26,5 +30,5 @@ import { registerSiteMessages } from './site'
  */
 export function registerAdminMessages(): void {
   registerSiteMessages()
-  registerMessages(adminMessages, domainSyncMessages)
+  registerMessages(adminMessages, adminApiMessages, domainSyncMessages)
 }

@@ -1,6 +1,5 @@
 import { createMemo, type Accessor, type JSX } from 'solid-js'
 import { withEntryArt, type CardArtRefs } from '../../editor/card-art-view'
-import type { EditorEntity } from '../../editor/entity'
 import {
   FlatListEditorShell,
   type FlatEntry,
@@ -17,7 +16,7 @@ import type { PriceCurrency } from '../../pricing/price-currency'
 
 /** The four literals that make the shared shell a collection's or a wanted list's. */
 export type FlatEditorShellConfig = {
-  entityLabel: EditorEntity
+  listType: ListType
   selectorId: string
   /** Whether adding a card must pin a printing (collections yes, wanted lists no). */
   requirePrinting: boolean

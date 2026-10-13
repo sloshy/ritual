@@ -663,7 +663,10 @@ English no matter what \`--locale\` / \`RITUAL_LOCALE\` / \`uiLocale\` say — t
 settings move the CLI's own terminal output and the two web UIs, never this
 surface. Results that come from an admin handler carry \`messageKey\` (plus
 \`messageParams\` when the sentence interpolates) beside the English \`message\`: a
-stable, locale-invariant identifier to match on instead of matching prose.
+stable, locale-invariant identifier to match on instead of matching prose. In the
+\`import_csv\`, \`import_deck\` and \`import_change_bundle\` results a param may
+itself be a message (a count with its noun), and each failed list of
+\`import_change_bundle\` carries \`errorKey\`/\`errorParams\` beside \`error\`.
 
 The HTTP transport binds \`--host\` (default \`127.0.0.1\`). Without a token
 (\`--token\` or \`RITUAL_MCP_TOKEN\`) it serves unauthenticated on loopback only —

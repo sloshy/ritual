@@ -454,6 +454,17 @@ export function prefixedMessage<P extends string>(
 }
 
 /**
+ * The message triple a response body carries, read off untyped JSON with its
+ * params kept as they came (nested or flat) — or `null` when the body has no
+ * `message` string. The key is kept on trust: {@link renderSyncMessage} checks
+ * every key in the tree and falls back to the English for one it does not know.
+ */
+export function readSyncMessage(raw: unknown): SyncMessage | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  return prefixedMessage('message', raw as PrefixedMessage<'message'>) ?? null
+}
+
+/**
  * The `reason` a per-item sync result carries, in the shape the JSON report
  * keeps: the English `reason` every existing reader reads, plus `reasonKey` /
  * `reasonParams`.

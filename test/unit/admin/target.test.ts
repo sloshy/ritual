@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { isValidListSlug, parseListTarget, parseSlugFromUrl } from '../../../src/admin/api/target'
+import { keyedRefusal } from '../../helpers/api-message'
 
 /**
  * The shared slug predicate. A slug names a single file inside its list
@@ -26,17 +27,13 @@ describe('parseSlugFromUrl', () => {
   test('a missing segment is refused', () => {
     // `isValidListSlug('')` is deliberately true — an empty slug is caught by
     // the presence guard, not the character check, so this pins the guard.
-    expect(parseSlugFromUrl(get('/api/deck/'))).toEqual({
-      ok: false,
-      message: 'List slug is required',
-    })
+    const parsed = parseSlugFromUrl(get('/api/deck/'))
+    expect(parsed.ok ? parsed : keyedRefusal(parsed.refusal)).toBe('List slug is required')
   })
 
   test('a slug carrying a path separator is refused', () => {
-    expect(parseSlugFromUrl(get(`/api/deck/${encodeURIComponent('../secret')}`))).toEqual({
-      ok: false,
-      message: 'Invalid list slug',
-    })
+    const parsed = parseSlugFromUrl(get(`/api/deck/${encodeURIComponent('../secret')}`))
+    expect(parsed.ok ? parsed : keyedRefusal(parsed.refusal)).toBe('Invalid list slug')
   })
 })
 
@@ -57,7 +54,7 @@ describe('parseListTarget', () => {
       'Invalid list slug',
     ],
   ])('%s is refused with its own message', (_label, path, message) => {
-    expect(parseListTarget(get(path))).toBe(message)
+    expect(keyedRefusal(parseListTarget(get(path)))).toBe(message)
   })
 })
 

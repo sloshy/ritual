@@ -15,6 +15,8 @@ import { statusMessage, type EditorStatusActions } from '../../../editor/useEdit
 import type { ListType } from '../../../list/list-type'
 import { promptCardArt } from '../card-art-prompt'
 import { putCardArt } from '../editor-backend'
+import type { ApiActionMessage } from '../../../api/result'
+import { renderSyncMessage } from '../../../sync/message'
 
 /**
  * The custom-art half of an admin editor page: the references the load body
@@ -71,6 +73,11 @@ export type UseCardArtResult = {
 type ArtWriteFailure = {
   cardId: number
   reason: string
+}
+
+/** A held message as text in the active locale (literal prose as it is). */
+function heldMessageText(message: ApiActionMessage): string {
+  return typeof message === 'string' ? message : renderSyncMessage(message)
 }
 
 export function useCardArt(type: ListType): UseCardArtResult {
@@ -162,7 +169,10 @@ export function useCardArt(type: ListType): UseCardArtResult {
       for (const write of writes) {
         const result = await putCardArt(type, listSlug, write.cardId, write.art)
         if (result.ok) landed.push(write)
-        else failures.push({ cardId: write.cardId, reason: result.message })
+        // The editor's status carries flat params, so the refusal rides in as a
+        // sentence rendered now, in the active language; it does not relabel on
+        // a later switch, though the status around it does.
+        else failures.push({ cardId: write.cardId, reason: heldMessageText(result.message) })
       }
 
       if (writes.length > 0) {

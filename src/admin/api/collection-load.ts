@@ -8,7 +8,7 @@ import type { CollectionEntry } from './load-results'
 import { effectiveLabels } from '../../card/card-labels'
 
 const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
-  label: 'collection',
+  listType: 'collection',
   getDir: getCollectionsDir,
   parse: (content): FlatListParseResult<CollectionEntry> => {
     const parsed = parseCollectionFile(content)

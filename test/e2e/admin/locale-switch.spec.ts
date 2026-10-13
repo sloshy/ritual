@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { LOCALE_STORAGE_KEY } from '../../../src/i18n/runtime'
-import type { AdminLocalesOverride } from '../../../src/admin/site/hooks/useAdminLocale'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
 import {
@@ -9,7 +8,7 @@ import {
   expectPseudo,
   languageSelect,
   markPage,
-  pseudoCatalog,
+  offerLocales,
   PSEUDO_LOCALE,
 } from '../helpers/i18n'
 import {
@@ -19,13 +18,44 @@ import {
   mockCollectionSyncApi,
   mockDeckSyncApi,
   mockDecksApi,
+  mockAuditLogApi,
+  mockImportChangesApi,
+  mockMoveCardsApi,
   MOCK_SYNC_COLLECTION_LISTS,
   MOCK_SYNC_DECKS,
 } from '../helpers/mock-admin'
 import { apiMessage } from '../../../src/api/result'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
 import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
-import { reasonFields, syncElapsed, syncMessage, syncRef } from '../../../src/sync/message'
+import {
+  prefixedFields,
+  reasonFields,
+  syncElapsed,
+  syncMessage,
+  syncRef,
+} from '../../../src/sync/message'
+
+/** A two-list change bundle the Import Changes page previews and applies. */
+const IMPORT_BUNDLE = {
+  format: 'ritual-change-bundle',
+  version: 3,
+  moves: [],
+  exportedAt: '2026-06-04T00:00:00.000Z',
+  lists: [
+    {
+      kind: 'deck',
+      slug: 'my-deck',
+      name: 'My Deck',
+      changes: [{ id: 'a1', timestamp: 1, action: 'add', cardName: 'Counterspell' }],
+    },
+    {
+      kind: 'collection',
+      slug: 'binder',
+      name: 'Binder',
+      changes: [{ id: 'a2', timestamp: 2, action: 'add', cardName: 'Sol Ring' }],
+    },
+  ],
+}
 
 /**
  * Switching the admin's UI language at runtime — the twin of
@@ -47,25 +77,6 @@ import { reasonFields, syncElapsed, syncMessage, syncRef } from '../../../src/sy
  * Selection is by CSS class throughout, never by accessible name: the names are
  * exactly what these tests change.
  */
-
-/** The pseudo-locale dictionary, derived from the live catalog rather than a fixture. */
-
-/**
- * Advertise a locale set to the admin app and answer for its dictionary.
- *
- * The admin's locale list is baked into the bundle from
- * `src/generated/locales.ts` (the same module that decides which files
- * `ritual admin` writes into `.admin-dist/locales/`), so a spec exercising the
- * *switcher* has to widen it through the `__ritualAdminLocales__` seam. The
- * dictionary itself is served by route interception, exactly as the public
- * spec serves `locales/en-XA.json`.
- */
-async function offerLocales(page: Page, tags: string[]): Promise<void> {
-  await page.addInitScript((locales: string[]) => {
-    ;(window as unknown as AdminLocalesOverride).__ritualAdminLocales__ = locales
-  }, tags)
-  await fulfillJson(page, `**/locales/${PSEUDO_LOCALE}.json`, pseudoCatalog())
-}
 
 /** Every string this spec watches, by CSS class — one per module-level table. */
 function chromeTexts(page: Page) {
@@ -302,6 +313,116 @@ test.describe('admin language switch', () => {
     await expectPseudo(lead, true)
     // The size inside the lead is a nested message, relabelled with it.
     await expect(lead).not.toContainText('cards (37 rows)')
+  })
+
+  test('relabels an admin API result whose counts nest, and a per-list failure', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    // A partly-failed import: the summary's counts are nested messages and the
+    // failed list's reason is keyed, both straight from the route's own builders.
+    await mockImportChangesApi(page, [
+      {
+        kind: 'deck',
+        slug: 'my-deck',
+        name: 'My Deck',
+        applied: 2,
+        conflicts: [],
+        droppedNotes: [],
+      },
+      {
+        kind: 'collection',
+        slug: 'binder',
+        name: 'Binder',
+        applied: 0,
+        conflicts: [],
+        droppedNotes: [],
+        // What a bundle naming a list that is gone gets back: the list
+        // resolver's own refusal, keyed.
+        ...prefixedFields(
+          'error',
+          syncMessage('errors.resolveList.notFoundOfType', { type: 'collection', query: 'Binder' }),
+        ),
+      },
+    ])
+    await gotoAdminDashboard(page, '#/import/changes')
+    const main = page.locator('main')
+    await main.locator('.segmented-option:has-text("Paste Text")').click()
+    await main.locator('textarea.form-textarea').fill(JSON.stringify(IMPORT_BUNDLE))
+    await main.locator('button', { hasText: 'Apply 2 changes to 2 lists' }).click()
+
+    const banner = main.locator('.alert-error')
+    const failure = main.locator('.import-changes-result-error')
+    await expect(banner).toHaveText('Applied 2 changes; 1 list failed')
+    await expect(failure).toHaveText("No collection named 'Binder' found.")
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(banner, true)
+    // The nested count relabels with the sentence around it.
+    await expect(banner).not.toContainText('2 changes')
+    await expectPseudo(failure, true)
+    await expect(failure).toContainText('Binder')
+  })
+
+  test('relabels a flat API alert held by useApiAction', async ({ page }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockDecksApi(page)
+    await mockCollectionsApi(page)
+    await fulfillJson(
+      page,
+      '**/api/deck/create',
+      () => ({
+        success: true,
+        ...apiMessage('admin.api.list.created', { listType: 'deck', name: 'Burn' }),
+        slug: 'Burn',
+      }),
+      { method: 'POST' },
+    )
+    await gotoAdminDashboard(page, '#/lists')
+    await page.locator('.btn-primary:has-text("New Deck")').click()
+    await page.locator('input.form-input').first().fill('Burn')
+    await page.locator('.btn-primary:has-text("Create Deck")').click()
+    const created = page.locator('main .alert-success')
+    await expect(created).toHaveText("Created deck 'Burn'")
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(created, true)
+    await expect(created).toContainText('Burn')
+  })
+
+  test('relabels the Move Cards commit banner, held as the commit’s outcome', async ({ page }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockMoveCardsApi(page)
+    await gotoAdminDashboard(page, '#/move')
+    await expect(page.locator('.section-heading')).toContainText('Move Cards')
+    await page.locator('#move-list-select').selectOption('collection:move-binder')
+    await expect(page.locator('.edit-btn-move')).toHaveCount(1)
+    await page.locator('.edit-btn-move').first().click()
+    await page
+      .locator('.move-destination-menu .card-context-menu-item', { hasText: 'Move Deck' })
+      .click()
+    await expect(page.locator('.changes-badge')).toHaveText('1')
+    await page.locator('.btn-save').click()
+    const banner = page.locator('main .alert-success')
+    await expect(banner).toHaveText('Moved 1 card.')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(banner, true)
+  })
+
+  test('labels a stored audit reason from the catalog, and shows an unknown one as stored', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockAuditLogApi(page)
+    await gotoAdminDashboard(page, '#/audit')
+    const reasons = page.locator('td.audit-responsive-md')
+    await expect(reasons.first()).toHaveText('Login successful')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(reasons.first(), true)
+    // A reason this version does not know is a stored identifier it cannot label.
+    await expect(reasons.nth(1)).toHaveText('Invalid password')
   })
 
   test('stamps the document language and remembers the choice', async ({ page }) => {

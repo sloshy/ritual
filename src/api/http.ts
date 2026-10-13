@@ -13,7 +13,9 @@
  */
 
 import { isRecord } from '../util/json'
-import type { ApiMessage } from './result'
+import { apiMessageOf, plainMessage, type ApiMessage } from './result'
+import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
+import type { SyncMessage } from '../sync/message'
 
 /**
  * The body size (bytes) allowed on routes whose body is bounded by its own
@@ -55,22 +57,76 @@ export interface ApiConflictResponse extends ApiErrorResponse {
 /**
  * Build the shared refusal body at `status`.
  *
- * Takes either bare English — the common case, since most refusals are composed
- * from the caller's own field names and have no catalog entry — or the whole
- * {@link ApiMessage} triple, which is how a keyed refusal keeps its key on the
- * way out.
+ * Takes the whole {@link ApiMessage} triple, which is how a keyed refusal keeps
+ * its key on the way out. Text with no catalog entry (an engine's refusal not
+ * yet converted) goes through `plainMessage`, so a keyless refusal is a visible
+ * choice at the call site rather than the default.
  */
-export function apiError(reason: string | ApiMessage, status: number): Response {
-  const body: ApiErrorResponse = {
-    success: false,
-    ...(typeof reason === 'string' ? { message: reason } : reason),
-  }
+export function apiError(reason: ApiMessage, status: number): Response {
+  const body: ApiErrorResponse = { success: false, ...reason }
   return Response.json(body, { status })
 }
 
 /** {@link apiError} at the status a refusal almost always carries. */
-export function badRequest(reason: string | ApiMessage): Response {
+export function badRequest(reason: ApiMessage): Response {
   return apiError(reason, 400)
+}
+
+/**
+ * The shared refusal body for a message whose params nest — a list that did not
+ * resolve, whose ambiguous matches are a list of messages of their own. Same
+ * fields as {@link ApiErrorResponse}; only `messageParams` may hold more than
+ * strings and numbers (see `src/sync/message.ts`).
+ */
+export type NestedRefusalResponse = SyncMessage & { success: false }
+
+/** {@link apiError} for a message whose params nest; see {@link NestedRefusalResponse}. */
+export function nestedRefusal(reason: SyncMessage, status: number = 400): Response {
+  const body: NestedRefusalResponse = { success: false, ...reason }
+  return Response.json(body, { status })
+}
+
+/**
+ * HTTP status for an error that reached the top of a handler. A
+ * {@link CardCommandError} classifies itself — a client-correctable refusal
+ * (e.g. an import conflict that needs `overwrite`) is a 400 or 404, not the 500
+ * every unexpected throw gets — so the admin UI and the MCP tools that share
+ * these handlers can tell "you asked wrong" from "the server broke". A
+ * cancellation is neither: it answers 499 (the client closed the request), the
+ * status the site build already used for the same outcome.
+ */
+export function statusForError(error: unknown): number {
+  if (isCancellation(error)) return 499
+  if (!(error instanceof CardCommandError)) return 500
+  if (error.exitCode === ExitCode.NotFound) return 404
+  if (error.exitCode === ExitCode.UsageError) return 400
+  return 500
+}
+
+/**
+ * An error that reached the top of a handler, as the refusal's message. A
+ * {@link CardCommandError} raised from a catalog key (`localizedCommandError`)
+ * was worded in the process's locale; the response re-renders its key in
+ * English and carries the key, as every keyed refusal does, so MCP and scripts
+ * read English and the admin page reads its own language. Anything else is
+ * reported as the text it was raised with.
+ */
+export function caughtMessage(error: unknown): ApiMessage {
+  if (error instanceof CardCommandError && error.messageRef !== undefined) {
+    return apiMessageOf(error.messageRef.key, error.messageRef.params)
+  }
+  return plainMessage(getErrorMessage(error))
+}
+
+/**
+ * An error that reached the top of a handler, as the shared refusal: its
+ * message per {@link caughtMessage}, at {@link statusForError}'s status. Every
+ * route's last-resort `catch` answers through this, so a keyed refusal thrown
+ * deep in an engine reaches the client as English plus its key whichever route
+ * it surfaced through.
+ */
+export function errorResponse(error: unknown): Response {
+  return apiError(caughtMessage(error), statusForError(error))
 }
 
 /** The outcome of {@link readBodyText}: the body as text, or the response to return. */
@@ -81,7 +137,7 @@ export type JsonObjectBody =
   { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
 
 function tooLarge(maxBytes: number): Response {
-  return apiError(`Request body too large (limit ${maxBytes} bytes)`, 413)
+  return apiError(plainMessage(`Request body too large (limit ${maxBytes} bytes)`), 413)
 }
 
 /**
@@ -144,10 +200,13 @@ export async function readJsonObjectBody(req: Request, maxBytes?: number): Promi
   try {
     raw = JSON.parse(read.text)
   } catch {
-    return { ok: false, response: apiError('Request body must be JSON.', 400) }
+    return { ok: false, response: apiError(plainMessage('Request body must be JSON.'), 400) }
   }
   if (!isRecord(raw)) {
-    return { ok: false, response: apiError('Request body must be a JSON object.', 400) }
+    return {
+      ok: false,
+      response: apiError(plainMessage('Request body must be a JSON object.'), 400),
+    }
   }
   return { ok: true, body: raw }
 }

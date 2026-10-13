@@ -18,6 +18,7 @@ import { batch, createContext, createSignal, onCleanup, useContext } from 'solid
 import type { Accessor } from 'solid-js'
 import { isListType, type ListType } from '../../list/list-type'
 import type { MessageKey } from '../../i18n/messages/en'
+import { t } from '../../i18n/t'
 import type { NavigationAttempt } from '../../editor/navigation-guard'
 
 export type Page =
@@ -271,6 +272,6 @@ export const RoutingProvider = RoutingContext.Provider
 /** The router, from any component mounted under the app's {@link RoutingProvider}. */
 export function useRouting(): RoutingController {
   const routing = useContext(RoutingContext)
-  if (!routing) throw new Error('useRouting called outside of a RoutingProvider')
+  if (!routing) throw new Error(t('admin.app.routingOutsideProvider'))
   return routing
 }

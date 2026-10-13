@@ -6,6 +6,8 @@ import {
   type DeckSyncRequest,
 } from '../../src/admin/api/deck-sync'
 import type { DeckSyncReport } from '../../src/deck-sync/engine'
+import { keyedRefusal } from '../helpers/api-message'
+import { isApiMessage } from '../../src/api/result'
 
 /**
  * Validation and summary text for the admin sync endpoints. The sync itself is
@@ -79,7 +81,7 @@ describe('parseDeckSyncBody', () => {
     // arrive here as nothing to filter by rather than as a bad value.
     for (const only of [undefined, null, '']) {
       const parsed = parseDeckSyncBody({ direction: 'pull', only })
-      expect(typeof parsed).not.toBe('string')
+      expect(isApiMessage(parsed)).toBe(false)
       expect((parsed as DeckSyncRequest).only).toBeUndefined()
     }
   })
@@ -111,27 +113,27 @@ describe('parseDeckSyncBody', () => {
     {
       label: 'a non-boolean dryRun',
       body: { direction: 'pull', dryRun: 'yes' },
-      expected: 'dryRun must be a boolean',
+      expected: 'dryRun must be a boolean.',
     },
     {
       label: 'a non-boolean ignoreUnreadableLines',
       body: { direction: 'pull', ignoreUnreadableLines: 'yes' },
-      expected: 'ignoreUnreadableLines must be a boolean',
+      expected: 'ignoreUnreadableLines must be a boolean.',
     },
     {
       label: 'a non-boolean force',
       body: { direction: 'push', force: 'yes' },
-      expected: 'force must be a boolean',
+      expected: 'force must be a boolean.',
     },
     {
       label: 'a non-boolean syncPrintings',
       body: { direction: 'push', syncPrintings: 'yes' },
-      expected: 'syncPrintings must be a boolean',
+      expected: 'syncPrintings must be a boolean.',
     },
     {
       label: 'a non-boolean syncCategories',
       body: { direction: 'push', syncCategories: 'yes' },
-      expected: 'syncCategories must be a boolean',
+      expected: 'syncCategories must be a boolean.',
     },
     {
       label: 'an unknown change filter',
@@ -147,7 +149,7 @@ describe('parseDeckSyncBody', () => {
 
   for (const { label, body, expected } of rejected) {
     test(`rejects ${label}`, () => {
-      expect(parseDeckSyncBody(body)).toBe(expected)
+      expect(keyedRefusal(parseDeckSyncBody(body))).toBe(expected)
     })
   }
 })
@@ -182,9 +184,9 @@ describe('parseDeckSyncQuery', () => {
   })
 
   test('rejects an unknown change filter rather than syncing everything', () => {
-    expect(parseDeckSyncQuery(new URLSearchParams('direction=pull&only=everything'))).toBe(
-      "Invalid only 'everything'. Use one of: additions, removals.",
-    )
+    expect(
+      keyedRefusal(parseDeckSyncQuery(new URLSearchParams('direction=pull&only=everything'))),
+    ).toBe("Invalid only 'everything'. Use one of: additions, removals.")
   })
 
   test('treats missing flags as a live run over every deck, refusing unreadable lines', () => {
@@ -200,7 +202,7 @@ describe('parseDeckSyncQuery', () => {
   })
 
   test('rejects a query with no direction', () => {
-    expect(parseDeckSyncQuery(new URLSearchParams('deck=one'))).toBe(
+    expect(keyedRefusal(parseDeckSyncQuery(new URLSearchParams('deck=one')))).toBe(
       'direction is required (push or pull)',
     )
   })
@@ -216,9 +218,9 @@ describe('parseDeckSyncQuery', () => {
   ] as const
   for (const flag of booleanFlags) {
     test(`rejects a ${flag} value it cannot read rather than running for real`, () => {
-      expect(parseDeckSyncQuery(new URLSearchParams(`direction=pull&${flag}=1`))).toBe(
-        `${flag} must be 'true' or 'false'`,
-      )
+      expect(
+        keyedRefusal(parseDeckSyncQuery(new URLSearchParams(`direction=pull&${flag}=1`))),
+      ).toBe(`${flag} must be 'true' or 'false'`)
     })
   }
 })

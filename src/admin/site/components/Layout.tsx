@@ -1,4 +1,7 @@
 import type { JSX, ParentComponent } from 'solid-js'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
+import { readSyncMessage } from '../../../sync/message'
 import { usePriceView } from '../hooks/usePriceView'
 import { PriceStoreSelect } from '../../../list-view/PriceStoreSelect'
 import { useDefaultLanguage } from '../hooks/useDefaultLanguage'
@@ -27,7 +30,9 @@ import {
 import { moveSelectedAdmin, removeSelectedAdmin } from '../remove-selected'
 import { useAdminLists, listInfosToNamedRefs } from '../move-targets'
 import type { DroppedNote } from '../../../list/move-staging'
-import { formatPrunedCategoriesSuffix } from '../../../editor/save-notices'
+import { apiMessage } from '../../../api/result'
+import { prunedCategoriesMessage } from '../../../editor/save-notices'
+import type { ParameterlessKey } from '../../../i18n/t'
 
 /** Sidebar order. Names and icons come from {@link PAGE_DISPLAY}. */
 const NAV_PAGES: readonly Page[] = [
@@ -64,10 +69,11 @@ interface LayoutProps {
  * tab.
  */
 type LayoutNotice = {
-  title: string
-  message: string
+  /** Every part is held unrendered and rendered in the dialog, so a language switch relabels it. */
+  title: ParameterlessKey
+  message: ApiActionMessage
   /** Extra lines listed under the message, one per row. */
-  details?: string[]
+  details?: ApiActionMessage[]
 }
 
 type NoticeDialogProps = {
@@ -83,16 +89,18 @@ type NoticeDialogProps = {
  */
 function NoticeDialog(props: NoticeDialogProps): JSX.Element {
   const t = useT()
+  const tKey = useTKey()
+  const heldText = useApiText()
   return (
     <Modal open onClose={props.onClose} size="md" panelClass="modal-panel--prompt">
-      <h3>{props.notice.title}</h3>
-      <p class="dialog-message">{props.notice.message}</p>
+      <h3>{tKey(props.notice.title)}</h3>
+      <p class="dialog-message">{heldText(props.notice.message)}</p>
       {/* Reuses the editor's scrolling change-list chrome, so a long list of
           dropped notes is bounded rather than pushing the buttons off screen. */}
       <Show when={props.notice.details}>
         {(details) => (
           <div class="changes-dialog changes-list-box">
-            <For each={details()}>{(line) => <div class="change-item">{line}</div>}</For>
+            <For each={details()}>{(line) => <div class="change-item">{heldText(line)}</div>}</For>
           </div>
         )}
       </Show>
@@ -156,21 +164,21 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
     droppedNotes: readonly DroppedNote[],
     prunedCategories: readonly string[] | undefined,
   ) => {
-    const pruned = formatPrunedCategoriesSuffix(prunedCategories ?? []).trim()
+    const pruned = prunedCategoriesMessage(prunedCategories ?? [])
     if (droppedNotes.length > 0) {
       setNotice({
-        title: t('admin.layout.notesDroppedTitle'),
-        message: t('admin.layout.notesDropped', { count: droppedNotes.length }),
+        title: 'admin.layout.notesDroppedTitle',
+        message: apiMessage('admin.layout.notesDropped', { count: droppedNotes.length }),
         details: [
           ...droppedNotes.map((d) =>
-            t('admin.layout.droppedNote', { name: d.cardName, note: d.note }),
+            apiMessage('admin.layout.droppedNote', { name: d.cardName, note: d.note }),
           ),
           ...(pruned ? [pruned] : []),
         ],
       })
       return
     }
-    if (pruned) setNotice({ title: t('admin.layout.categoriesPrunedTitle'), message: pruned })
+    if (pruned) setNotice({ title: 'admin.layout.categoriesPrunedTitle', message: pruned })
   }
 
   const confirmRemoveAll = () => {
@@ -179,7 +187,10 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
     if (target === null) return
     void removeSelectedAdmin(target.cards).then((res) => {
       if (!res.success) {
-        setNotice({ title: t('admin.layout.actionFailedTitle'), message: res.message })
+        setNotice({
+          title: 'admin.layout.actionFailedTitle',
+          message: readSyncMessage(res) ?? apiMessage('admin.app.requestFailed'),
+        })
         return
       }
       deselectCards(target.cards)
@@ -190,7 +201,10 @@ export const Layout: ParentComponent<LayoutProps> = (props) => {
   const handleMoveAll = (dest: NamedListRef, cards: SelectedCard[]) => {
     void moveSelectedAdmin(cards, dest).then((res) => {
       if (!res.success) {
-        setNotice({ title: t('admin.layout.actionFailedTitle'), message: res.message })
+        setNotice({
+          title: 'admin.layout.actionFailedTitle',
+          message: readSyncMessage(res) ?? apiMessage('admin.app.requestFailed'),
+        })
         return
       }
       deselectCards(cards)

@@ -1,11 +1,9 @@
 import { describe, expect, test } from 'bun:test'
 import {
-  CSV_FILE_UNSUPPORTED_MESSAGE,
   describeRun,
   parseCollectionSyncBody,
   parseCollectionSyncQuery,
   type CollectionSyncRequest,
-  REMOVAL_STRATEGY_CONFLICT_MESSAGE,
 } from '../../src/admin/api/collection-sync'
 import type { AmbiguousRemoval } from '../../src/collection-sync/describe'
 import type {
@@ -14,6 +12,8 @@ import type {
   CollectionSyncReport,
   CollectionSyncTotals,
 } from '../../src/collection-sync/engine'
+import { keyedRefusal } from '../helpers/api-message'
+import { isApiMessage } from '../../src/api/result'
 
 /**
  * Validation and summary text for the admin collection-sync endpoints. The sync
@@ -23,6 +23,10 @@ import type {
  */
 
 type RejectedCase = { label: string; body: unknown; expected: string }
+
+/** The refusal of a request asking for a CSV file, which only the CLI writes. */
+const CSV_FILE_UNSUPPORTED =
+  'csvFile is not supported over HTTP: use the CLI’s --csv-file to write a CSV, or csv: true to upload the additions.'
 
 /** A request with nothing set beyond the required direction. */
 function defaults(direction: 'pull' | 'push' = 'pull'): CollectionSyncRequest {
@@ -66,7 +70,7 @@ describe('parseCollectionSyncBody', () => {
     // arrive here as nothing to filter by rather than as a bad value.
     for (const only of [undefined, null, '']) {
       const parsed = parseCollectionSyncBody({ direction: 'pull', only })
-      expect(typeof parsed).not.toBe('string')
+      expect(isApiMessage(parsed)).toBe(false)
       expect((parsed as CollectionSyncRequest).only).toBeUndefined()
     }
   })
@@ -97,7 +101,7 @@ describe('parseCollectionSyncBody', () => {
     // run — there is no prompt to fall back to.
     for (const removalPriority of [undefined, null, []]) {
       const parsed = parseCollectionSyncBody({ direction: 'pull', removalPriority })
-      expect(typeof parsed).not.toBe('string')
+      expect(isApiMessage(parsed)).toBe(false)
       expect((parsed as CollectionSyncRequest).removalPriority).toBeUndefined()
     }
   })
@@ -121,7 +125,7 @@ describe('parseCollectionSyncBody', () => {
   test('treats an absent or empty removal assignment list as "no strategy"', () => {
     for (const removalAssignments of [undefined, null, []]) {
       const parsed = parseCollectionSyncBody({ direction: 'pull', removalAssignments })
-      expect(typeof parsed).not.toBe('string')
+      expect(isApiMessage(parsed)).toBe(false)
       expect((parsed as CollectionSyncRequest).removalAssignments).toBeUndefined()
     }
   })
@@ -139,7 +143,7 @@ describe('parseCollectionSyncBody', () => {
     // off rather than echoed, so the two spellings produce the same request.
     for (const csv of [undefined, false]) {
       const parsed = parseCollectionSyncBody({ direction: 'push', csv })
-      expect(typeof parsed).not.toBe('string')
+      expect(isApiMessage(parsed)).toBe(false)
       expect((parsed as CollectionSyncRequest).csv).toBeUndefined()
     }
   })
@@ -149,7 +153,7 @@ describe('parseCollectionSyncBody', () => {
     // unset rather than as a list called "".
     for (const into of [undefined, null, '', '   ']) {
       const parsed = parseCollectionSyncBody({ direction: 'pull', into })
-      expect(typeof parsed).not.toBe('string')
+      expect(isApiMessage(parsed)).toBe(false)
       expect((parsed as CollectionSyncRequest).into).toBeUndefined()
     }
   })
@@ -230,25 +234,26 @@ describe('parseCollectionSyncBody', () => {
         removalPriority: ['Long Box'],
         removalAssignments: [{ key: 'k', choices: [{ list: 'Binder', copies: 1 }] }],
       },
-      expected: REMOVAL_STRATEGY_CONFLICT_MESSAGE,
+      expected:
+        'removalPriority and removalAssignments are two ways to settle the same removals; send one or the other.',
     },
     {
       label: 'a csv flag that is not a boolean',
       // Validated like the other flags: it decides whether a large batch of
       // additions is uploaded, so a truthy string must not read as "yes".
       body: { direction: 'push', csv: 'true' },
-      expected: 'csv must be a boolean',
+      expected: 'csv must be a boolean.',
     },
     {
       label: 'a request naming a CSV file, which only the CLI can write',
       body: { direction: 'push', csvFile: 'archidekt-import.csv' },
-      expected: CSV_FILE_UNSUPPORTED_MESSAGE,
+      expected: CSV_FILE_UNSUPPORTED,
     },
   ]
 
   for (const { label, body, expected } of rejected) {
     test(`rejects ${label}`, () => {
-      expect(parseCollectionSyncBody(body)).toBe(expected)
+      expect(keyedRefusal(parseCollectionSyncBody(body))).toBe(expected)
     })
   }
 })
@@ -294,14 +299,18 @@ describe('parseCollectionSyncQuery', () => {
 
   test('refuses a removalAssignments param that is not JSON', () => {
     expect(
-      parseCollectionSyncQuery(new URLSearchParams('direction=pull&removalAssignments=binder')),
+      keyedRefusal(
+        parseCollectionSyncQuery(new URLSearchParams('direction=pull&removalAssignments=binder')),
+      ),
     ).toBe('removalAssignments must be a JSON-encoded array of { key, choices }')
   })
 
   test('rejects a blank removalPriority param rather than dropping it', () => {
     expect(
-      parseCollectionSyncQuery(
-        new URLSearchParams('direction=pull&removalPriority=long-box&removalPriority='),
+      keyedRefusal(
+        parseCollectionSyncQuery(
+          new URLSearchParams('direction=pull&removalPriority=long-box&removalPriority='),
+        ),
       ),
     ).toBe('removalPriority must not contain blank names')
   })
@@ -314,9 +323,9 @@ describe('parseCollectionSyncQuery', () => {
   })
 
   test('rejects an unknown change filter rather than syncing everything', () => {
-    expect(parseCollectionSyncQuery(new URLSearchParams('direction=pull&only=everything'))).toBe(
-      "Invalid only 'everything'. Use one of: additions, removals.",
-    )
+    expect(
+      keyedRefusal(parseCollectionSyncQuery(new URLSearchParams('direction=pull&only=everything'))),
+    ).toBe("Invalid only 'everything'. Use one of: additions, removals.")
   })
 
   test('reads the csv flag, which the stream carries like any other flag', () => {
@@ -330,15 +339,17 @@ describe('parseCollectionSyncQuery', () => {
     // The shared reader owns the spelling rule; what this proves is that `csv` is
     // one of the flags handed to it — a missing entry there would silently read
     // an unspelled flag as "no".
-    expect(parseCollectionSyncQuery(new URLSearchParams('direction=push&csv=1'))).toBe(
-      "csv must be 'true' or 'false'",
-    )
+    expect(
+      keyedRefusal(parseCollectionSyncQuery(new URLSearchParams('direction=push&csv=1'))),
+    ).toBe("csv must be 'true' or 'false'")
   })
 
   test('rejects a csvFile param instead of quietly uploading the additions', () => {
-    expect(parseCollectionSyncQuery(new URLSearchParams('direction=push&csvFile=import.csv'))).toBe(
-      CSV_FILE_UNSUPPORTED_MESSAGE,
-    )
+    expect(
+      keyedRefusal(
+        parseCollectionSyncQuery(new URLSearchParams('direction=push&csvFile=import.csv')),
+      ),
+    ).toBe(CSV_FILE_UNSUPPORTED)
   })
 
   test('treats an empty into param as the configured pull target', () => {
@@ -352,7 +363,7 @@ describe('parseCollectionSyncQuery', () => {
   })
 
   test('rejects a query with no direction', () => {
-    expect(parseCollectionSyncQuery(new URLSearchParams('list=binder'))).toBe(
+    expect(keyedRefusal(parseCollectionSyncQuery(new URLSearchParams('list=binder')))).toBe(
       'direction is required (push or pull)',
     )
   })
@@ -361,9 +372,9 @@ describe('parseCollectionSyncQuery', () => {
     // `readBooleanFlags` owns the spelling rules (pinned in
     // test/unit/admin/sync-request.test.ts); what this endpoint can get wrong is
     // handing it the wrong flag names, which one unreadable value proves.
-    expect(parseCollectionSyncQuery(new URLSearchParams('direction=pull&dryRun=1'))).toBe(
-      "dryRun must be 'true' or 'false'",
-    )
+    expect(
+      keyedRefusal(parseCollectionSyncQuery(new URLSearchParams('direction=pull&dryRun=1'))),
+    ).toBe("dryRun must be 'true' or 'false'")
   })
 })
 

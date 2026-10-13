@@ -12,6 +12,9 @@ import {
 } from '../../../list/list-image'
 import type { ListImageCardOption } from '../list-image-cards'
 import { putListMetadata } from '../editor-backend'
+import { useApiText } from '../hooks/useApiAction'
+import type { ApiActionMessage } from '../../../api/result'
+import { apiMessage } from '../../../api/result'
 import { ArtRefField, createArtRefField, type CardArtMode } from './ArtRefField'
 
 type ListImageModalProps = {
@@ -57,7 +60,9 @@ export const ListImageModal: Component<ListImageModalProps> = (props) => {
   const [mode, setMode] = createSignal<ListImageMode>('default')
   const [cardId, setCardId] = createSignal<number | null>(null)
   const [saving, setSaving] = createSignal(false)
-  const [error, setError] = createSignal<string | null>(null)
+  // Held unrendered and rendered in the JSX, so a language switch relabels it.
+  const [error, setError] = createSignal<ApiActionMessage | null>(null)
+  const heldText = useApiText()
   // The file/url half is shared with the custom-art dialog; it reads the same
   // text through whichever of the two modes is selected.
   const artMode = (): CardArtMode => (mode() === 'url' ? 'url' : 'file')
@@ -124,7 +129,7 @@ export const ListImageModal: Component<ListImageModalProps> = (props) => {
     // and URL halves, and this covers the card branch by the same grammar.
     const parsed = image === null ? null : parseListImage(image)
     if (parsed !== null && isListImageRefError(parsed)) {
-      setError(t('admin.listImage.invalid', { reason: parsed.error }))
+      setError(apiMessage('admin.listImage.invalid', { reason: parsed.error }))
       return
     }
     setSaving(true)
@@ -221,7 +226,7 @@ export const ListImageModal: Component<ListImageModalProps> = (props) => {
           invalidMessage={(reason) => t('admin.listImage.invalid', { reason })}
         />
       </Show>
-      <Show when={error()}>{(message) => <p class="form-error">{message()}</p>}</Show>
+      <Show when={error()}>{(message) => <p class="form-error">{heldText(message())}</p>}</Show>
       <div class="confirm-dialog-actions">
         <button type="button" class="btn btn-secondary" onClick={props.onClose}>
           {t('ui.dialog.cancel')}

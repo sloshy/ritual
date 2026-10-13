@@ -147,7 +147,7 @@ export function applySyncEvent<TResult extends SyncRunResult>(
     default: {
       // Every event kind must be handled somewhere; a new one is a compile error.
       const unhandled: never = event
-      throw new Error(`Unhandled sync event: ${JSON.stringify(unhandled)}`)
+      throw new Error(t('admin.app.unhandledSyncEvent', { event: JSON.stringify(unhandled) }))
     }
   }
 }

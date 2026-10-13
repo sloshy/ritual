@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
+import type { BundleImportResponse } from '../../../src/admin/api/import-changes'
+import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
+import type { ImportDeckResponse } from '../../../src/admin/api/import-deck'
+import { prefixedMessage } from '../../../src/sync/message'
+import { keyedMessage } from '../../helpers/api-message'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
@@ -566,13 +571,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
   })
 
   test('import_deck writes a deck from pasted decklist text and reports skipped lines', async () => {
-    const data = toolData<{
-      message: string
-      deckName: string
-      warnings: string[]
-      advisories: string[]
-      syncPrintings: boolean
-    }>(
+    const data = toolData<ImportDeckResponse>(
       await callTool(client, 'import_deck', {
         mode: 'text',
         name: 'Imported Deck',
@@ -585,7 +584,12 @@ describe('Ritual MCP server (in-memory transport)', () => {
     // A line the parser skipped is content the import lost — reported, never silent.
     expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
     expect(data.advisories).toEqual([])
-    expect(data.message).toContain('1 line(s) could not be parsed')
+    expect(data.message).toContain('1 line could not be parsed')
+    expect(data.messageKey).toBe('admin.api.importDeck.imported')
+    // Re-rendered from its nested notes, joined as they arrived.
+    expect(keyedMessage(data)).toBe(
+      "Successfully imported 'Imported Deck' — 1 line could not be parsed and was skipped",
+    )
     // A text import's printings are the pasted lines' own, so the payload
     // reports them as kept.
     expect(data.syncPrintings).toBe(true)
@@ -608,7 +612,22 @@ describe('Ritual MCP server (in-memory transport)', () => {
     expect(data.warnings).toEqual([])
     expect(data.advisories).toHaveLength(1)
     expect(data.advisories[0]).toContain('still contains a printing token')
-    expect(data.message).toContain('1 line(s) may not have been understood')
+    expect(data.message).toContain('1 line may not have been understood')
+  })
+
+  test('import_deck joins several notes into one keyed summary', async () => {
+    // A skipped line and a probable misread: two notes nested in one message,
+    // concatenated in order — the join a client re-renders.
+    const data = toolData<ImportDeckResponse>(
+      await callTool(client, 'import_deck', {
+        mode: 'text',
+        name: 'Noted Deck',
+        content: '4 Lightning Bolt (M10) 146\n4 (M10) 146\nnot a card line\n',
+      }),
+    )
+    expect(keyedMessage(data)).toBe(
+      "Successfully imported 'Noted Deck' — 1 line could not be parsed and was skipped — 1 line may not have been understood",
+    )
   })
 
   test('import_deck refuses a URL import that does not state syncPrintings', async () => {
@@ -1422,8 +1441,10 @@ describe('Ritual MCP server (in-memory transport)', () => {
       columns: 'name=1',
     })
     expect(result.isError).toBeFalsy()
-    const data = toolData<{ cardCount: number }>(result)
+    const data = toolData<ImportCsvResponse>(result)
     expect(data.cardCount).toBe(1)
+    expect(data.messageKey).toBe('admin.api.importCsv.imported')
+    expect(keyedMessage(data)).toBe("Imported 1 card into wanted list 'csv-wants'")
 
     const onDisk = await fs.readFile(path.join(env.dir, 'wanted', 'csv-wants.md'), 'utf-8')
     expect(onDisk).toContain('- Brainstorm &1')
@@ -1521,14 +1542,18 @@ describe('Ritual MCP server (in-memory transport)', () => {
     }
     const result = await callTool(client, 'import_change_bundle', { json: JSON.stringify(bundle) })
     expect(result.isError).toBeFalsy()
-    const data = toolData<{
-      failedCount: number
-      lists: { slug: string; applied: number; error?: string }[]
-    }>(result)
+    const data = toolData<BundleImportResponse>(result)
     expect(data.failedCount).toBe(1)
     expect(data.lists.map((l) => l.applied)).toEqual([1, 0])
     expect(data.lists[0]?.error).toBeUndefined()
-    expect(data.lists[1]?.error).toBeTruthy()
+    // The summary and the failed list's reason both arrive keyed, for a client
+    // that renders them in its reader's language.
+    expect(data.messageKey).toBe('admin.api.importChanges.appliedWithFailures')
+    expect(keyedMessage(data)).toBe('Applied 1 change; 1 list failed')
+    const failure = prefixedMessage('error', data.lists[1]!)
+    if (failure === undefined) throw new Error('expected the second list to fail')
+    expect(failure.messageKey).toBe('errors.resolveList.notFoundOfType')
+    expect(keyedMessage(failure)).toBe("No wanted list named 'No Such List' found.")
   })
 
   test('import_change_bundle passes through the notes a deck merge discarded', async () => {

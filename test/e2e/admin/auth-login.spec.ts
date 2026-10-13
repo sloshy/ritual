@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { setupAdminViaApi, TEST_USER, TEST_PASS, ADMIN_URL } from '../helpers/auth-helper'
+import { fulfillJson } from '../helpers/fulfill'
+import { apiMessage } from '../../../src/api/result'
 
 // This spec exercises the login flow itself, so it must start logged out
 // rather than with the admin project's saved storage state.
@@ -24,6 +26,23 @@ test.describe('Auth Login', () => {
     await page.fill('input[type="password"]', 'wrongpass')
     await page.click('button[type="submit"]')
     await expect(page.locator('.alert-error')).toBeVisible({ timeout: 5000 })
+  })
+
+  test('a refusal the server words itself shows its own message', async ({ page }) => {
+    // An address the deny list turns away is not a credentials failure, and the
+    // form must not say it is.
+    await fulfillJson(
+      page,
+      '**/api/login',
+      { success: false, ...apiMessage('admin.api.server.forbidden') },
+      { status: 403, method: 'POST' },
+    )
+    await page.goto(ADMIN_URL)
+    await page.waitForSelector('text=Sign in to continue')
+    await page.fill('input[type="text"]', TEST_USER)
+    await page.fill('input[type="password"]', TEST_PASS)
+    await page.click('button[type="submit"]')
+    await expect(page.locator('.alert-error')).toHaveText('Forbidden', { timeout: 5000 })
   })
 
   test('logout returns to login form', async ({ page }) => {

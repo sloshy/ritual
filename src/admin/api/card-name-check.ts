@@ -17,7 +17,6 @@
  */
 
 import { cardCache } from '../../cache'
-import { CACHE_REFRESH_REMEDY } from '../../cache/status'
 import type { ChangeEvent } from '../../changes/change-event'
 import { getFrontFaceName } from '../../scryfall/card-utils'
 import {
@@ -27,6 +26,7 @@ import {
   splitNameTerms,
 } from '../../card/term-match'
 import { apiError } from '../../api/http'
+import { apiMessage, pickMessage, type ApiMessage } from '../../api/result'
 
 /** How many close cached names a refusal offers per rejected name. */
 export const MAX_CANDIDATES = 3
@@ -36,7 +36,9 @@ export const MAX_CANDIDATES = 3
  * than projecting per client (an MCP agent cannot run a CLI command, and a CLI
  * user has no `refresh_cache` tool).
  */
-export const COLD_CACHE_MESSAGE = `The local card cache is empty, so card names cannot be validated. ${CACHE_REFRESH_REMEDY}, or omit validateCardNames.`
+export function coldCacheMessage(): ApiMessage {
+  return apiMessage('admin.api.cardNames.coldCache')
+}
 
 /** One rejected name plus the closest cached names. */
 export interface UnknownCardName {
@@ -45,11 +47,11 @@ export interface UnknownCardName {
   candidates: string[]
 }
 
-/** The outcome of {@link checkCardNames}. */
+/** The outcome of {@link checkCardNames}: a refusal carries its message triple. */
 export type CardNameCheck =
   | { ok: true }
-  | { ok: false; reason: 'cold-cache'; message: string }
-  | { ok: false; reason: 'unknown-names'; unknown: UnknownCardName[]; message: string }
+  | (ApiMessage & { ok: false; reason: 'cold-cache' })
+  | (ApiMessage & { ok: false; reason: 'unknown-names'; unknown: UnknownCardName[] })
 
 /** Names a request may write, and names already present in the lists it touches. */
 export interface CardNameCheckInput {
@@ -112,14 +114,29 @@ function closestNames(allNames: readonly CachedName[], name: string): string[] {
   return rankNameMatches(matches, name, (candidate) => candidate).slice(0, MAX_CANDIDATES)
 }
 
-/** Format the refusal so an agent reading only `message` still sees the candidates. */
-function describeUnknown(unknown: readonly UnknownCardName[]): string {
-  const parts = unknown.map((entry) => {
-    const suffix =
-      entry.candidates.length > 0 ? ` Did you mean: ${entry.candidates.join(', ')}?` : ''
-    return `'${entry.name}' is not a card name the local cache knows.${suffix}`
+/** One rejected name's sentence, with its closest cached spellings when there are any. */
+function unknownNameMessage(entry: UnknownCardName): ApiMessage {
+  if (entry.candidates.length === 0) {
+    return apiMessage('admin.api.cardNames.unknown', { name: entry.name })
+  }
+  return apiMessage('admin.api.cardNames.unknownSuggested', {
+    name: entry.name,
+    candidates: entry.candidates.join(', '),
   })
-  return parts.join(' ')
+}
+
+/**
+ * Format the refusal so an agent reading only `message` still sees the
+ * candidates. One rejected name is one keyed sentence. Several are one sentence
+ * each, joined with a space — and then the refusal carries no key, because the
+ * flat params of an API message cannot hold a sentence per name: a client shows
+ * the English as it is.
+ */
+function describeUnknown(unknown: readonly UnknownCardName[]): ApiMessage {
+  const sentences = unknown.map(unknownNameMessage)
+  const [only] = sentences
+  if (sentences.length === 1 && only !== undefined) return only
+  return { message: sentences.map((sentence) => sentence.message).join(' ') }
 }
 
 /**
@@ -137,7 +154,7 @@ export async function checkCardNames(input: CardNameCheckInput): Promise<CardNam
   if (toResolve.length === 0) return { ok: true }
 
   if (await cardCache.isEmpty()) {
-    return { ok: false, reason: 'cold-cache', message: COLD_CACHE_MESSAGE }
+    return { ok: false, reason: 'cold-cache', ...coldCacheMessage() }
   }
 
   const unknown: UnknownCardName[] = []
@@ -167,11 +184,12 @@ export async function checkCardNames(input: CardNameCheckInput): Promise<CardNam
   }
 
   if (unknown.length === 0) return { ok: true }
-  return { ok: false, reason: 'unknown-names', unknown, message: describeUnknown(unknown) }
+  return { ok: false, reason: 'unknown-names', unknown, ...describeUnknown(unknown) }
 }
 
 /** The outcome of {@link parseValidateCardNames}: the flag, or why it was refused. */
-export type ValidateCardNamesFlag = { ok: true; value: boolean } | { ok: false; message: string }
+export type ValidateCardNamesFlag =
+  { ok: true; value: boolean } | { ok: false; refusal: ApiMessage }
 
 /**
  * Read the opt-in `validateCardNames` request field. Validated, never coerced —
@@ -180,8 +198,12 @@ export type ValidateCardNamesFlag = { ok: true; value: boolean } | { ok: false; 
  */
 export function parseValidateCardNames(raw: unknown): ValidateCardNamesFlag {
   if (raw === undefined) return { ok: true, value: false }
-  if (typeof raw !== 'boolean')
-    return { ok: false, message: 'validateCardNames must be a boolean.' }
+  if (typeof raw !== 'boolean') {
+    return {
+      ok: false,
+      refusal: apiMessage('admin.api.field.notBoolean', { field: 'validateCardNames' }),
+    }
+  }
   return { ok: true, value: raw }
 }
 
@@ -202,8 +224,8 @@ export async function refuseUnknownCardNames(
   known: () => Iterable<string>,
 ): Promise<Response | null> {
   const flag = parseValidateCardNames(raw)
-  if (!flag.ok) return apiError(flag.message, 400)
+  if (!flag.ok) return apiError(flag.refusal, 400)
   if (!flag.value) return null
   const check = await checkCardNames({ names, known: known() })
-  return check.ok ? null : apiError(check.message, 400)
+  return check.ok ? null : apiError(pickMessage(check), 400)
 }

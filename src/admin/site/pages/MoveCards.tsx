@@ -1,4 +1,5 @@
 import { type JSX, Show, Switch, Match, For, createSignal, createMemo, onCleanup } from 'solid-js'
+import { useApiText } from '../hooks/useApiAction'
 import { useNavigationGuard } from '../../../editor/navigation-guard'
 import { useT, useTKey } from '../../../ui/i18n'
 import { ConfirmDialog } from '../../../ui/ConfirmDialog'
@@ -18,7 +19,7 @@ import {
 } from '../move-overlay'
 import { listInfoId, groupListsByType } from '../list-grouping'
 import { listInfosToNamedRefs } from '../move-targets'
-import { useMoveSession } from '../hooks/useMoveSession'
+import { moveStatusText, useMoveSession } from '../hooks/useMoveSession'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { MoveDestinationMenu } from '../components/MoveDestinationMenu'
 import { MoveFiltersPanel } from '../components/MoveFiltersPanel'
@@ -54,6 +55,12 @@ export function MoveCards(): JSX.Element {
   const { currency: priceCurrency } = usePriceView()
   useAdminConfigDefaults()
   const session = useMoveSession()
+  const heldText = useApiText()
+  /** The commit banner, rendered where it is read so a language switch relabels it. */
+  const statusText = (): string | null => {
+    const status = session.status()
+    return status === null ? null : moveStatusText(status)
+  }
   // One conversion for the three list views' share filters, so the array keeps
   // its identity (and downstream option memos stay warm) across re-renders.
   const shareLists = createMemo(() => listInfosToNamedRefs(session.lists()))
@@ -308,7 +315,7 @@ export function MoveCards(): JSX.Element {
         </div>
       </Show>
 
-      <StatusAlerts status={session.status()} error={session.error()} />
+      <StatusAlerts status={statusText()} error={heldText(session.error())} />
 
       <Show
         when={session.loaded()}

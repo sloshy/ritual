@@ -17,7 +17,15 @@ import {
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
-import type { ApiMessage } from '../../api/result'
+import { apiMessage, apiText, plainMessage } from '../../api/result'
+import {
+  syncMessage,
+  syncRef,
+  toSyncMessage,
+  type SyncMessage,
+  type SyncMessageParamsFor,
+  type SyncMessageRef,
+} from '../../sync/message'
 import { autoCommitAndPush } from './save-helpers'
 import { badRequest, readJsonObjectBody } from '../../api/http'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
@@ -53,7 +61,7 @@ export interface ImportCsvRequest {
  * `import-changes.ts` records for the bundle import). A 400 here means the
  * *request* was malformed, never that some rows were.
  */
-export interface ImportCsvResponse extends ApiMessage {
+export interface ImportCsvResponse extends SyncMessage {
   success: true
   /**
    * **Copies** imported — the sum of the accepted rows' quantities, not the row
@@ -107,6 +115,38 @@ function isImportCsvRequest(value: unknown): value is ImportCsvRequest {
   )
 }
 
+/** What a CSV import wrote, as its summary names it. */
+type CsvImportOutcome = {
+  listType: ListType
+  name: string
+  /** Whether the rows were added to an existing list rather than creating or replacing one. */
+  appended: boolean
+  /** Copies written. */
+  cardCount: number
+}
+
+/**
+ * The import's summary. A partial import says so in the same message: `message`
+ * is what the admin UI banners and what an agent reads back, and a count of what
+ * worked reads as "it all worked" unless the rest is named beside it. A
+ * {@link SyncMessage} because the counts are plural nouns nested as params.
+ */
+function csvImportMessage(outcome: CsvImportOutcome, failedRows: number): SyncMessage {
+  const params: SyncMessageParamsFor<'admin.api.importCsv.imported'> = {
+    listType: outcome.listType,
+    cards: syncRef('domain.count.cards', { count: outcome.cardCount }),
+    name: outcome.name,
+  }
+  const result: SyncMessageRef = outcome.appended
+    ? syncRef('admin.api.importCsv.appended', params)
+    : syncRef('admin.api.importCsv.imported', params)
+  if (failedRows === 0) return toSyncMessage(result)
+  return syncMessage('admin.api.importCsv.partial', {
+    result,
+    failed: syncRef('admin.api.importCsv.rowsFailed', { count: failedRows }),
+  })
+}
+
 export function handleImportCsv(req: Request): Promise<Response> {
   return apiHandler(async () => {
     const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
@@ -114,55 +154,58 @@ export function handleImportCsv(req: Request): Promise<Response> {
     const body: unknown = parsedBody.body
     if (!isImportCsvRequest(body)) {
       return badRequest(
-        `Invalid request: expected listType (${LIST_TYPES.join(', ')}), name, content, and columns ` +
-          `(with optional mode [${MODES.join('|')}], format, hasHeader)`,
+        apiMessage('admin.api.importCsv.invalidRequest', {
+          types: LIST_TYPES.join(', '),
+          modes: MODES.join('|'),
+        }),
       )
     }
     const listType = body.listType
     const mode = body.mode ?? 'create'
 
     const name = body.name.trim()
-    if (name === '') return badRequest('name is required')
+    if (name === '') return badRequest(apiMessage('admin.api.importCsv.nameRequired'))
 
     let format: DeckFormatKey | undefined
     if (body.format !== undefined) {
       const normalized = parseDeckFormat(body.format)
       if (normalized === null) {
-        return badRequest(invalidDeckFormatMessage(body.format))
+        return badRequest(plainMessage(invalidDeckFormatMessage(body.format)))
       }
       format = normalized
     }
     if (listType === 'deck' && mode !== 'append' && format === undefined) {
-      return badRequest('format is required when creating or overwriting a deck')
+      return badRequest(apiMessage('admin.api.importCsv.formatRequired'))
     }
 
     const parsed = parseCsv(body.content)
-    if ('error' in parsed) return badRequest(`Failed to parse CSV: ${parsed.error}`)
+    if ('error' in parsed) {
+      return badRequest(apiMessage('admin.api.importCsv.parseFailed', { reason: parsed.error }))
+    }
 
     const mapping = parseColumnsSpec(body.columns, listType)
-    if (typeof mapping === 'string') return badRequest(mapping)
+    if (typeof mapping === 'string') return badRequest(plainMessage(mapping))
 
     // A mapped column the file has no column for is one bad *request*, not a
     // per-row 'Missing card name' for every row — the CLI exits 2 on the same
     // check (see `validateMappingWidth`), and this is the shared engine's rule.
     const columnCount = Math.max(...parsed.rows.map((row) => row.cells.length))
     const widthError = validateMappingWidth(mapping, columnCount)
-    if (widthError !== null) return badRequest(widthError)
+    if (widthError !== null) return badRequest(plainMessage(widthError))
 
     const hasHeader = body.hasHeader ?? true
     const warnings: string[] = []
     const firstRow = parsed.rows[0]
     if (hasHeader && firstRow !== undefined) {
-      warnings.push(`Skipped header row: ${firstRow.raw}`)
+      // English, like every entry of `warnings`: a list of sentences with no
+      // room for a key, which MCP and the admin page show as they are.
+      warnings.push(apiText('admin.api.importCsv.headerSkipped', { row: firstRow.raw }))
       if (!guessHasHeader(firstRow.cells)) {
-        warnings.push(
-          `The first row does not look like a header but was skipped as one: ${firstRow.raw}` +
-            ' — set hasHeader to false to import it as a card.',
-        )
+        warnings.push(apiText('admin.api.importCsv.headerSuspicious', { row: firstRow.raw }))
       }
     }
     const dataRows = hasHeader ? parsed.rows.slice(1) : parsed.rows
-    if (dataRows.length === 0) return badRequest('CSV contains no data rows')
+    if (dataRows.length === 0) return badRequest(apiMessage('admin.api.importCsv.noDataRows'))
 
     const { entries, failures, warnings: rowWarnings } = convertCsvRows(dataRows, mapping, listType)
     warnings.push(...rowWarnings.map(formatCsvRowWarning))
@@ -171,7 +214,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
       // report is the answer, and there is nothing to write.
       const empty: ImportCsvResponse = {
         success: true,
-        message: `Imported 0 card(s) into ${listType} '${name}'; ${failures.length} row(s) failed validation`,
+        ...csvImportMessage({ listType, name, appended: false, cardCount: 0 }, failures.length),
         cardCount: 0,
         failures,
         failedCount: failures.length,
@@ -184,7 +227,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
       sourceHadLanguageColumn: mapping.language !== undefined,
       sourceHadCategoriesColumn: mapping.categories !== undefined,
     })
-    if ('error' in result) return badRequest(result.error)
+    if ('error' in result) return badRequest(plainMessage(result.error))
     warnings.push(...result.categoryNotices)
     if (result.categoryError !== undefined) warnings.push(result.categoryError)
 
@@ -199,15 +242,12 @@ export function handleImportCsv(req: Request): Promise<Response> {
       `Import CSV into ${listType}: ${name} (${result.cardCount} cards)`,
     )
 
-    const verb = result.mode === 'append' ? 'Appended' : 'Imported'
-    const preposition = result.mode === 'append' ? 'to' : 'into'
-    // A partial import says so in the same sentence: `message` is what the admin
-    // UI banners and what an agent reads back, and a count of what worked reads
-    // as "it all worked" unless the rest is named beside it.
-    const shortfall = failures.length > 0 ? `; ${failures.length} row(s) failed validation` : ''
     const resp: ImportCsvResponse = {
       success: true,
-      message: `${verb} ${result.cardCount} card(s) ${preposition} ${listType} '${name}'${shortfall}`,
+      ...csvImportMessage(
+        { listType, name, appended: result.mode === 'append', cardCount: result.cardCount },
+        failures.length,
+      ),
       cardCount: result.cardCount,
       failures,
       failedCount: failures.length,

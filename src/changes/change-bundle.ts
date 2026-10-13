@@ -503,22 +503,6 @@ export function movesTouching(
 }
 
 /**
- * Format a count with a simple pluralized noun (`1 change`, `3 lists`).
- *
- * **Being retired.** A runtime noun with an English `s` glued on has no string
- * a translator can edit, and is wrong in every language with more than two
- * plural categories — which is why `ritual/no-inline-plural` flags the body.
- * The browser surfaces now render `ui.count.changes` / `ui.count.lists`
- * instead; the one remaining caller is `src/admin/api/import-changes.ts`, whose
- * server-authored prose is still to be restructured. This function goes away
- * with it.
- */
-export function countLabel(count: number, noun: string): string {
-  // eslint-disable-next-line ritual/no-inline-plural -- see the retirement note above
-  return `${count} ${noun}${count === 1 ? '' : 's'}`
-}
-
-/**
  * Validate a raw `changes` value as an ordered {@link ChangeEvent} array. Returns
  * the array on success or a human-readable error string prefixed with the list's
  * position (e.g. `List #2: `). Move events are refused here: a bundle records

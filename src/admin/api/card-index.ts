@@ -1,6 +1,4 @@
-import { getErrorMessage } from '../../util/errors'
-import { parseEnumField } from '../../util/parse-enum'
-import { LIST_TYPES, type ListType } from '../../list/list-type'
+import { isListType, LIST_TYPES, type ListType } from '../../list/list-type'
 import { loadAllLists } from '../../list/list-info'
 import { loadPhysicalCards } from '../../list/move-commit'
 import { listSlug } from '../../list/list-file-name'
@@ -8,7 +6,8 @@ import type { ListInfo } from '../../list/list-info'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
 import { moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { isValidListSlug } from './target'
-import { apiError, badRequest } from '../../api/http'
+import { badRequest, errorResponse } from '../../api/http'
+import { apiMessage, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
 import { parseSetCode } from '../../card/set-codes'
 
 /**
@@ -43,7 +42,7 @@ export type CardIndexFilters = {
  * message explaining why it is not usable. Blank values are treated as absent
  * rather than as "match nothing".
  */
-export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters | string {
+export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters | ApiMessage {
   const filters: CardIndexFilters = {}
 
   const name = params.get('name')?.trim()
@@ -54,16 +53,22 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
 
   const listType = params.get('listType')?.trim()
   if (listType) {
-    // Through the shared enum parser, so `?listType=Deck` is accepted here as
-    // every other surface accepts it.
-    const parsed = parseEnumField(listType, LIST_TYPES, 'list type')
-    if (!parsed.ok) return parsed.message
-    filters.listType = parsed.value
+    // Case-insensitive, as every enum is on every surface (`?listType=Deck`):
+    // the list types are lowercase, so lowering the value is the whole rule.
+    // The refusal is this route's own sentence, naming the field in words.
+    const normalized = listType.toLowerCase()
+    if (!isListType(normalized)) {
+      return apiMessage('admin.api.cardIndex.listTypeInvalid', {
+        value: listType,
+        choices: LIST_TYPES.join(', '),
+      })
+    }
+    filters.listType = normalized
   }
 
   const slug = params.get('slug')?.trim()
   if (slug) {
-    if (!isValidListSlug(slug)) return `Invalid list slug '${slug}'.`
+    if (!isValidListSlug(slug)) return apiMessage('admin.api.cardIndex.slugInvalid', { slug })
     filters.slug = slug
   }
 
@@ -73,7 +78,7 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
   // matching nothing.
   if (set) {
     const parsed = parseSetCode(set)
-    if (!parsed.ok) return parsed.error
+    if (!parsed.ok) return plainMessage(parsed.error)
     filters.set = parsed.code
   }
 
@@ -141,7 +146,7 @@ export function filterCardIndex(
 export async function handleCardIndex(req: Request): Promise<Response> {
   try {
     const filters = parseCardIndexFilters(new URL(req.url).searchParams)
-    if (typeof filters === 'string') return badRequest(filters)
+    if (isApiMessage(filters)) return badRequest(filters)
 
     const index = await loadCardIndex()
     const body: CardIndexResponse = {
@@ -150,6 +155,6 @@ export async function handleCardIndex(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (error) {
-    return apiError(getErrorMessage(error), 500)
+    return errorResponse(error)
   }
 }

@@ -6,7 +6,6 @@ import {
   useEditorStatus,
   type EditorStatusMessage,
 } from '../../src/editor/useEditorStatus'
-import { entityListType } from '../../src/editor/entity'
 import { tDynamic, type RenderParams } from '../../src/i18n/t'
 import type { MessageKey } from '../../src/i18n/messages/en'
 import {
@@ -99,13 +98,5 @@ describe('useEditorStatus transitions', () => {
     actions.saveStart()
     expect(state.error).toBeNull()
     expect(state.saving).toBe(true)
-  })
-})
-
-describe('entityListType', () => {
-  it('maps each editor entity noun onto its list type', () => {
-    expect(entityListType('deck')).toBe('deck')
-    expect(entityListType('collection')).toBe('collection')
-    expect(entityListType('wanted list')).toBe('wanted')
   })
 })

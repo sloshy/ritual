@@ -16,10 +16,9 @@
 
 import fs from 'node:fs/promises'
 import { apiHandler } from '../utils'
-import { apiMessage, pickMessage, type ApiMessage } from '../../api/result'
-import { apiError, type ApiErrorResponse } from '../../api/http'
+import { apiMessage, apiText, pickMessage, type ApiMessage } from '../../api/result'
+import { apiError, caughtMessage, type ApiErrorResponse } from '../../api/http'
 import { isRecord } from '../../util/json'
-import { getErrorMessage } from '../../util/errors'
 import { sseResponse } from '../../util/sse'
 import { getBaseDir } from '../../config/base-dir'
 import { getSiteSellMode } from '../../config/ritual-config'
@@ -175,7 +174,7 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
   const buildArgv = options.buildArgv ?? defaultBuildArgv
   return apiHandler(async () => {
     if (buildInFlight) {
-      return apiError('A site build is already running; wait for it to finish.', 503)
+      return apiError(apiMessage('admin.api.buildSite.busy'), 503)
     }
     buildInFlight = true
 
@@ -198,7 +197,13 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
       // helper sweeps abandoned scratch directories from earlier runs first.
       tmpDir = await createBuildScratchDir(distDir)
 
-      onProgress?.({ progress: 0, total: BUILD_STEPS, message: 'Starting site build…' })
+      // The step notes are English: an in-process caller (MCP) shows them as they
+      // are, and the admin page names the step from its position, not its text.
+      onProgress?.({
+        progress: 0,
+        total: BUILD_STEPS,
+        message: apiText('admin.api.buildSite.stepStarting'),
+      })
 
       const proc = Bun.spawn(buildArgv(tmpDir), {
         cwd: baseDir,
@@ -218,7 +223,11 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
         else signal.addEventListener('abort', onAbort, { once: true })
       }
 
-      onProgress?.({ progress: 1, total: BUILD_STEPS, message: 'Building…' })
+      onProgress?.({
+        progress: 1,
+        total: BUILD_STEPS,
+        message: apiText('admin.api.buildSite.stepBuilding'),
+      })
       // Drained concurrently with the wait, not after it: a build prints far more
       // than a pipe buffer holds, and a child blocked writing to a full pipe
       // never exits. The `catch` keeps an early return below from leaving an
@@ -240,18 +249,26 @@ export function handleBuildSite(options: BuildSiteRunOptions = {}): Promise<Resp
         Bun.sleep(PIPE_DRAIN_GRACE_MS).then((): [string, string] => ['', '']),
       ])
       if (exitCode !== 0) {
-        const tail = stderr.trim().slice(-STDERR_TAIL_CHARS)
-        return apiError(`Site build failed (exit ${exitCode}). ${tail}`.trim(), 500)
+        const output = stderr.trim().slice(-STDERR_TAIL_CHARS)
+        const failure =
+          output === ''
+            ? apiMessage('admin.api.buildSite.failed', { code: exitCode })
+            : apiMessage('admin.api.buildSite.failedWithOutput', { code: exitCode, output })
+        return apiError(failure, 500)
       }
 
-      onProgress?.({ progress: 2, total: BUILD_STEPS, message: 'Publishing to dist/…' })
+      onProgress?.({
+        progress: 2,
+        total: BUILD_STEPS,
+        message: apiText('admin.api.buildSite.stepPublishing'),
+      })
       await publishAtomically(tmpDir, distDir)
 
       const durationMs = Date.now() - startedAt
       onProgress?.({
         progress: BUILD_STEPS,
         total: BUILD_STEPS,
-        message: 'Site built successfully',
+        message: apiText('admin.api.buildSite.built'),
       })
       const resp: BuildSiteResponse = {
         success: true,
@@ -322,7 +339,7 @@ export function handleBuildSiteStream(buildArgv?: BuildSiteArgv): Promise<Respon
       }
       send('done', { ...pickMessage(body), outDir: body.outDir, durationMs: body.durationMs })
     } catch (error) {
-      send('error', { message: getErrorMessage(error) })
+      send('error', caughtMessage(error))
     }
   })
   return Promise.resolve(response)

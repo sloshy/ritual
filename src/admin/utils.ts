@@ -1,29 +1,13 @@
-import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
+import { errorResponse } from '../api/http'
 
 /**
- * HTTP status for an error that reached the top of a handler. A
- * {@link CardCommandError} classifies itself — a client-correctable refusal
- * (e.g. an import conflict that needs `overwrite`) is a 400 or 404, not the 500
- * every unexpected throw gets — so the admin UI and the MCP tools that share
- * these handlers can tell "you asked wrong" from "the server broke". A
- * cancellation is neither: it answers 499 (the client closed the request), the
- * status the site build already used for the same outcome.
+ * Run a route handler, answering whatever it throws with the shared refusal
+ * (see `errorResponse`).
  */
-function statusForError(error: unknown): number {
-  if (isCancellation(error)) return 499
-  if (!(error instanceof CardCommandError)) return 500
-  if (error.exitCode === ExitCode.NotFound) return 404
-  if (error.exitCode === ExitCode.UsageError) return 400
-  return 500
-}
-
 export async function apiHandler(handler: () => Promise<Response>): Promise<Response> {
   try {
     return await handler()
   } catch (error) {
-    return Response.json(
-      { success: false, message: getErrorMessage(error) },
-      { status: statusForError(error) },
-    )
+    return errorResponse(error)
   }
 }

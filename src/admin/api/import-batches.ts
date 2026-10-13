@@ -1,3 +1,4 @@
+import { ExitCode, localizedCommandError } from '../../util/errors'
 import type { ChangeEvent } from '../../changes/change-event'
 import {
   bundleRefMatches,
@@ -64,7 +65,14 @@ export function planImportBatches(bundle: ChangeBundle): ImportPlan {
     matches: (a: ChangeBundleListRef, b: ChangeBundleListRef) => boolean,
   ): number => {
     const found = targets.findIndex((target) => matches(ref, target))
-    if (found === -1) throw new Error(`bundleTargets omitted ${ref.kind} '${ref.name}'`)
+    if (found === -1) {
+      throw localizedCommandError(
+        'runtime_error',
+        ExitCode.RuntimeError,
+        'admin.api.importChanges.targetOmitted',
+        { kind: ref.kind, name: ref.name },
+      )
+    }
     return found
   }
 

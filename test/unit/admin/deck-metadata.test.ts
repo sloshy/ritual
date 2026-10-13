@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
-import { parseDeckMetadataBody, type ParsedDeckMetadataBody } from '../../../src/admin/api/metadata'
+import { parseDeckMetadataBody } from '../../../src/admin/api/metadata'
 import type { DeckMetadataPatch } from '../../../src/list/deck-metadata'
 import { invalidDeckFormatMessage } from '../../../src/list/deck-format'
+import { keyedRefusal, refusal } from '../../helpers/api-message'
+import { isApiMessage } from '../../../src/api/result'
 
 /**
  * `PUT /api/metadata/:type/:slug`'s body validator. It returns a message rather
@@ -16,19 +18,21 @@ import { invalidDeckFormatMessage } from '../../../src/list/deck-format'
 /** The parsed patch, failing the test if validation rejected the body instead. */
 function patchOf(body: Record<string, unknown>): DeckMetadataPatch {
   const parsed = parseDeckMetadataBody(body)
-  if (typeof parsed === 'string') throw new Error(`expected a patch, got: ${parsed}`)
+  if (isApiMessage(parsed)) throw new Error(`expected a patch, got: ${parsed.message}`)
   return parsed.patch
 }
 
 describe('parseDeckMetadataBody', () => {
   test('an unknown field names the fields that are accepted', () => {
-    expect(parseDeckMetadataBody({ colour: 'blue' })).toBe(
+    expect(keyedRefusal(parseDeckMetadataBody({ colour: 'blue' }))).toBe(
       "Unknown metadata field 'colour'. Accepted fields: description, tags, format, labels, image, sourceId, sourceUrl.",
     )
   })
 
   test('lastSynced is stamped by Ritual, not editable', () => {
-    expect(parseDeckMetadataBody({ lastSynced: '2026-01-01' })).toContain('cannot be edited')
+    expect(keyedRefusal(parseDeckMetadataBody({ lastSynced: '2026-01-01' }))).toContain(
+      'cannot be edited',
+    )
   })
 
   test('contentHash is parsed as the concurrency token, not as a metadata field', () => {
@@ -39,13 +43,14 @@ describe('parseDeckMetadataBody', () => {
   })
 
   test('a non-string contentHash is refused rather than silently skipping the check', () => {
-    expect(parseDeckMetadataBody({ contentHash: 42, description: 'Hi' })).toBe(
+    expect(keyedRefusal(parseDeckMetadataBody({ contentHash: 42, description: 'Hi' }))).toBe(
       'contentHash must be a string.',
     )
   })
 
   test('a body without a contentHash omits the key entirely', () => {
-    const parsed = parseDeckMetadataBody({ description: 'Hi' }) as ParsedDeckMetadataBody
+    const parsed = parseDeckMetadataBody({ description: 'Hi' })
+    if (isApiMessage(parsed)) throw new Error(`expected a body, got: ${parsed.message}`)
     expect('contentHash' in parsed).toBeFalse()
   })
 
@@ -56,7 +61,7 @@ describe('parseDeckMetadataBody', () => {
   })
 
   test('a label a deck cannot carry is refused, naming what it can', () => {
-    const message = parseDeckMetadataBody({ labels: ['sale'] })
+    const message = refusal(parseDeckMetadataBody({ labels: ['sale'] }))
     expect(message).toContain('labels [sale] are not supported on a deck')
     expect(message).toContain('supported: proxy')
   })
@@ -77,13 +82,13 @@ describe('parseDeckMetadataBody', () => {
   })
 
   test('tags must be an array', () => {
-    expect(parseDeckMetadataBody({ tags: 'aggro' })).toBe(
+    expect(keyedRefusal(parseDeckMetadataBody({ tags: 'aggro' }))).toBe(
       'tags must be an array of strings or null.',
     )
   })
 
   test('a blank tag is refused rather than silently dropped', () => {
-    expect(parseDeckMetadataBody({ tags: ['aggro', '  '] })).toBe(
+    expect(keyedRefusal(parseDeckMetadataBody({ tags: ['aggro', '  '] }))).toBe(
       'tags must be an array of non-empty strings.',
     )
   })
@@ -97,7 +102,7 @@ describe('parseDeckMetadataBody', () => {
   })
 
   test('an unparseable format is refused in the shared wording', () => {
-    expect(parseDeckMetadataBody({ format: 'kitchen-table' })).toBe(
+    expect(refusal(parseDeckMetadataBody({ format: 'kitchen-table' }))).toBe(
       invalidDeckFormatMessage('kitchen-table'),
     )
   })
@@ -111,7 +116,9 @@ describe('parseDeckMetadataBody', () => {
     ['a non-http scheme', 'ftp://archidekt.com/decks/1'],
     ['a non-string', 42],
   ])('a sourceUrl that is %s is refused', (_label, value) => {
-    expect(parseDeckMetadataBody({ sourceUrl: value })).toBe('sourceUrl must be an http(s) URL.')
+    expect(keyedRefusal(parseDeckMetadataBody({ sourceUrl: value }))).toBe(
+      'sourceUrl must be an http(s) URL.',
+    )
   })
 
   test('an https sourceUrl is accepted', () => {
@@ -121,7 +128,7 @@ describe('parseDeckMetadataBody', () => {
   })
 
   test('an empty sourceId is refused; null clears it', () => {
-    expect(parseDeckMetadataBody({ sourceId: '  ' })).toBe(
+    expect(keyedRefusal(parseDeckMetadataBody({ sourceId: '  ' }))).toBe(
       'sourceId must be a non-empty string or null.',
     )
     expect(patchOf({ sourceId: null }).sourceId).toBeNull()

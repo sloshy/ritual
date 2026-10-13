@@ -10,6 +10,7 @@
  * what lives here is the vocabulary of writable keys and how a patch merges.
  */
 
+import type { SyncMessage } from '../sync/message'
 import type { CardLabel } from '../card/card-labels'
 import { serializeListImageRef, type ListImageRef } from './list-image'
 import { parseDeckFrontMatter, writeDeckFrontMatter, type DeckFrontMatter } from './deck-file'
@@ -99,11 +100,11 @@ export type DeckMetadataWrite = {
 
 /**
  * A rule the *merged* front matter has to satisfy, returning the message
- * explaining why it does not. Validating the merge rather than the patch is what
+ * explaining why it does not (English plus its key). Validating the merge rather than the patch is what
  * lets a cross-field rule hold under a partial update: a patch that sets only
  * `sourceId` still has to agree with the `sourceUrl` already on the file.
  */
-export type DeckMetadataValidator = (frontMatter: DeckFrontMatter) => string | null
+export type DeckMetadataValidator = (frontMatter: DeckFrontMatter) => SyncMessage | null
 
 /**
  * Merge `patch` into the deck file's front matter and write it back, leaving
@@ -119,7 +120,7 @@ export async function applyDeckMetadata(
   filePath: string,
   patch: DeckMetadataPatch,
   validate?: DeckMetadataValidator,
-): Promise<DeckMetadataWrite | string> {
+): Promise<DeckMetadataWrite | SyncMessage> {
   const existing = await parseDeckFrontMatter(filePath)
   const merged = mergeDeckMetadata(existing, patch)
   const invalid = validate?.(merged)

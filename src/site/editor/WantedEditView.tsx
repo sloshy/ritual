@@ -49,7 +49,7 @@ export const WantedEditView: Component<WantedEditViewProps> = (props) => {
     fetchData: () => Promise.resolve(props.detail),
     showSelector: false,
     commit: () => Promise.resolve(undefined),
-    entityLabel: 'wanted list',
+    listType: 'wanted',
     moveTargets: () => props.moveTargets?.() ?? [],
 
     processLoadResponse: () => ({
