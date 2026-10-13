@@ -76,16 +76,16 @@ export interface ArchidektDeckSimple {
 export const ARCHIDEKT_FORMATS: Record<number, string> = {
   1: 'Standard',
   2: 'Modern',
-  3: 'Commander / EDH',
+  3: 'Commander / EDH', // i18n-exempt: Archidekt's own format name, matched by parseDeckFormat
   4: 'Legacy',
   5: 'Vintage',
   6: 'Pauper',
   7: 'Custom',
   8: 'Frontier',
-  9: 'Future Standard',
-  10: 'Penny Dreadful',
+  9: 'Future Standard', // i18n-exempt: Archidekt's own format name, matched by parseDeckFormat
+  10: 'Penny Dreadful', // i18n-exempt: Archidekt's own format name, matched by parseDeckFormat
   11: '1v1 Commander',
-  12: 'Dual Commander',
+  12: 'Dual Commander', // i18n-exempt: Archidekt's own format name, matched by parseDeckFormat
   13: 'Brawl',
   14: 'Pioneer',
   15: 'Oathbreaker',
@@ -318,7 +318,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
   if (unnamedEntries > 0) {
     getLogger().warn(
-      `Archidekt deck ${deckId}: skipped ${t('domain.count.cardEntries', { count: unnamedEntries })} with no card name.`,
+      t('domain.import.archidektUnnamedEntries', { deckId: String(deckId), count: unnamedEntries }),
     )
   }
 
@@ -341,6 +341,7 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   })
 
   return {
+    // i18n-exempt: a fallback deck name, written into the list file as its title and file name — workspace data, the same in every locale
     name: json.name || `Archidekt Deck ${deckId}`,
     format: archidektDeckFormat(json.deckFormat) ?? undefined,
     sourceId: deckId.toString(),

@@ -1,6 +1,7 @@
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, t, type MessageRef, type RenderParams, type TranslateArgs } from '../i18n/t'
 import { hasErrorCode } from './errno'
+import { envelopeRef, renderSyncMessage, type SyncMessage } from '../sync/message'
 
 export { hasErrorCode, type ErrnoCode } from './errno'
 
@@ -104,6 +105,23 @@ export function localizedCommandError<K extends MessageKey>(
 ): CardCommandError {
   const params = paramsOf(args)
   return new CardCommandError(code, t(key, ...args), exitCode, undefined, { key, params })
+}
+
+/**
+ * {@link localizedCommandError} for a message an engine already built — English
+ * plus its key, params possibly nested (`src/sync/message.ts`): worded in the
+ * active UI locale, with the key and English-flattened params (`envelopeRef`)
+ * riding along. A keyless message (text another module worded) is carried as it
+ * is, with no key.
+ */
+export function messageCommandError(
+  code: ErrorCode,
+  exitCode: ExitCodeValue,
+  message: SyncMessage,
+): CardCommandError {
+  const ref = envelopeRef(message)
+  if (ref === undefined) return new CardCommandError(code, message.message, exitCode)
+  return new CardCommandError(code, renderSyncMessage(message), exitCode, undefined, ref)
 }
 
 /**

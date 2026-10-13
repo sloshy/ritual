@@ -19,8 +19,8 @@ import { extractPrimerCardNames } from '../list/primer-parser'
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
 import type { ListSummary } from '../list/site-data'
-import { getErrorMessage } from '../util/errors'
 import { fetchDeckFromUrl } from '../importers/url-dispatch'
+import { errorMessage, isSyncMessage, renderSyncMessage } from '../sync/message'
 import { buildDeckArtifacts, loadDeckSource, type LoadedDeck } from './deck'
 import { buildCollectionArtifacts, loadCollectionSource, type LoadedCollection } from './collection'
 import { buildWantedArtifacts, loadWantedSource, type LoadedWanted } from './wanted'
@@ -194,10 +194,11 @@ export async function collectSiteLists(input: CollectListsInput): Promise<Collec
     try {
       result = await fetchDeckFromUrl(url, { moxfieldUserAgent: input.moxfieldUserAgent })
     } catch (e) {
-      result = getErrorMessage(e)
+      result = errorMessage(e)
     }
-    if (typeof result === 'string') {
-      skipSource({ kind: 'deck', name: url, reason: result, explicit: true })
+    // Console output, worded in the CLI's language like the rest of the build's.
+    if (isSyncMessage(result)) {
+      skipSource({ kind: 'deck', name: url, reason: renderSyncMessage(result), explicit: true })
       continue
     }
     await collectDeck(

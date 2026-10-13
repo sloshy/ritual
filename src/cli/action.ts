@@ -19,8 +19,7 @@ import {
   type ExitCodeValue,
 } from '../util/errors'
 import { emitError, markStdoutClosed, type ScriptingOptions } from './output'
-import { SyncMessageError } from '../sync/message'
-import { envelopeRef } from './api-refusal'
+import { envelopeRef, renderSyncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 
 /**
  * Run a one-shot command's action body — the standard action-handler shell
@@ -111,6 +110,20 @@ export function failWith(
 ): void {
   emitError(code, message, scripting, undefined, messageRef)
   process.exitCode = exitCodeFor(code)
+}
+
+/**
+ * {@link failWith} for a message an engine built — English plus its catalog key,
+ * params possibly nested (`src/sync/message.ts`): worded in the CLI's language,
+ * with the key and English-flattened params (`envelopeRef`) in the envelope. A
+ * keyless message (text another module worded) goes out as it is.
+ */
+export function failWithMessage(
+  scripting: ScriptingOptions,
+  code: ErrorCode,
+  message: SyncMessage,
+): void {
+  failWith(scripting, code, renderSyncMessage(message), envelopeRef(message))
 }
 
 /**

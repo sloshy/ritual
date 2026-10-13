@@ -5,6 +5,7 @@ import { aggregateQuantities } from '../card/card-line'
 import { displayLanguage } from '../card/card-language'
 import type { Card } from '../card/card'
 import type { DeckData, DeckSection, ImportedDeck } from '../list/deck'
+import { syncMessage, type SyncMessage } from '../sync/message'
 
 /**
  * Whether any card in the deck states a printing or finish — what a URL import
@@ -163,41 +164,38 @@ export async function withMoxfieldUserAgent<T>(
 export type FetchDeckFromUrlOptions = {
   /** Explicit Moxfield user-agent (e.g. a CLI flag); falls back to the env var. */
   moxfieldUserAgent?: string
-  /** Called with a human-readable progress message before each fetch. */
-  onProgress?: (message: string) => void
+  /** Called with a progress message (English plus key) before each fetch. */
+  onProgress?: (message: SyncMessage) => void
 }
 
 /**
  * Fetch a deck from a supported URL (Archidekt, Moxfield, MTGGoldfish).
  *
  * Returns the parsed deck and the categories the service states for it (see
- * {@link ImportedDeck}) on success, or a string error message for
- * recoverable problems (unsupported URL, missing Moxfield user-agent). Network
- * or parse failures from the underlying clients are thrown.
+ * {@link ImportedDeck}) on success, or the refusal (English plus key — tell the
+ * two apart with `isSyncMessage`) for recoverable problems (unsupported URL,
+ * missing Moxfield user-agent). Network or parse failures from the underlying
+ * clients are thrown.
  */
 export async function fetchDeckFromUrl(
   url: string,
   options: FetchDeckFromUrlOptions = {},
-): Promise<ImportedDeck | string> {
+): Promise<ImportedDeck | SyncMessage> {
   const match = matchDeckUrl(url)
-  if (!match) {
-    return 'URL not supported. Use Archidekt, Moxfield, or MTGGoldfish URLs.'
-  }
+  if (!match) return syncMessage('domain.import.url.unsupported')
 
   switch (match.service) {
     case 'archidekt':
-      options.onProgress?.(`Fetching deck ID ${match.deckId} from Archidekt...`)
+      options.onProgress?.(syncMessage('domain.import.url.fetchingArchidekt', { id: match.deckId }))
       return new ArchidektClient().fetchImportedDeck(match.deckId)
     case 'moxfield': {
       const userAgent = resolveMoxfieldUserAgent(options.moxfieldUserAgent)
-      if (!userAgent) {
-        return 'Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.'
-      }
-      options.onProgress?.(`Fetching deck ID ${match.deckId} from Moxfield...`)
+      if (!userAgent) return syncMessage('domain.import.url.moxfieldUserAgent')
+      options.onProgress?.(syncMessage('domain.import.url.fetchingMoxfield', { id: match.deckId }))
       return withMoxfieldUserAgent(userAgent, () => fetchMoxfieldDeck(match.deckId))
     }
     case 'mtggoldfish':
-      options.onProgress?.('Fetching deck from MTGGoldfish...')
+      options.onProgress?.(syncMessage('domain.import.url.fetchingMtgGoldfish'))
       // MTGGoldfish has no notion of categories, so an import leaves them alone.
       return { deck: await fetchMtgGoldfishDeck(match.url) }
   }

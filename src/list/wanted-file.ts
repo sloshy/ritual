@@ -97,10 +97,10 @@ export function parseWantedListFile(
     entries: scan.entries,
     sectionOrder: scan.sectionOrder,
     frontMatter: scan.front.frontMatter,
-    warnings: scan.report.warnings,
+    warnings: [...scan.report.warnings],
     fencedLines: scan.fencedLines,
-    advisories: scan.report.advisories,
-    diagnostics: scan.report.diagnostics,
+    advisories: [...scan.report.advisories],
+    diagnostics: [...scan.report.diagnostics],
   }
 }
 

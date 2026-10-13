@@ -584,7 +584,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
     )
     expect(data.deckName).toBe('Imported Deck')
     // A line the parser skipped is content the import lost — reported, never silent.
-    expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
+    expect(data.warnings.map(keyedMessage)).toEqual(['Skipped malformed line: not a card line'])
     expect(data.advisories).toEqual([])
     expect(data.message).toContain('1 line could not be parsed')
     expect(data.messageKey).toBe('admin.api.importDeck.imported')
@@ -604,7 +604,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
   test('import_deck reports advisories in the payload and in the message', async () => {
     // The non-empty advisory leg: a line that WAS imported but whose shape says
     // the dialect was not understood. Not loss, so it must not read as one.
-    const data = toolData<{ message: string; warnings: string[]; advisories: string[] }>(
+    const data = toolData<ImportDeckResponse>(
       await callTool(client, 'import_deck', {
         mode: 'text',
         name: 'Advised Deck',
@@ -613,7 +613,8 @@ describe('Ritual MCP server (in-memory transport)', () => {
     )
     expect(data.warnings).toEqual([])
     expect(data.advisories).toHaveLength(1)
-    expect(data.advisories[0]).toContain('still contains a printing token')
+    // The card-line grammar words this one itself, so it rides keyless.
+    expect(data.advisories[0]!.message).toContain('still contains a printing token')
     expect(data.message).toContain('1 line may not have been understood')
   })
 

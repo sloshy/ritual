@@ -302,6 +302,9 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `always pass \`--type ${options.typeFlag}\`. A body line that is neither a ` +
       `section header nor a card line is skipped, listed on stderr, carried in ` +
       `the JSON \`warnings\` array, and exits 1 — the import is still written. ` +
+      `Each \`warnings\`/\`advisories\` entry is an object: the English ` +
+      `\`message\`, plus a \`messageKey\` to match on when present (never the ` +
+      `prose; text Ritual words outside its catalog has no key). ` +
       `Ritual's own format and the MTG Arena/MTGO export dialect ` +
       `(\`4 Lightning Bolt (M10) 146\`, bare \`Deck\`/\`Sideboard\` markers, a ` +
       `\`*F*\`/\`*E*\` foil marker either trailing or between the set and the ` +
@@ -350,7 +353,8 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
       `as \`Ramp, Artifacts\`, first is primary — a value that is not ` +
       `category-shaped (one holding a control character such as a tab) is ignored with a warning and the card ` +
       `still imports — the refusal prints on stderr and rides the \`--output json\` ` +
-      `payload's \`advisories\` array, and never changes the exit code; and on a ` +
+      `payload's \`advisories\` array (objects: English \`message\`, plus ` +
+      `\`messageKey\` when present), and never changes the exit code; and on a ` +
       `deck a value naming a board (\`Sideboard\`, ` +
       `\`Commander\`, \`Tokens\`, ...) sets the row's section instead, so an ` +
       `Archidekt \`Ramp,Sideboard\` cell means section Sideboard + category Ramp; ` +
@@ -368,7 +372,8 @@ export function csvImportSection(options: CsvImportSectionOptions): string {
       `append agree), and a \`--columns\` number the file has no column for is a ` +
       `usage error (exit 2) instead of a per-row failure. Failed rows are reported ` +
       `with line numbers on stderr and the rest still import (exit code 1 on ` +
-      `partial failure).`,
+      `partial failure); under \`--output json\` each \`failures\` entry carries ` +
+      `its English \`reason\`, plus a \`reasonKey\` to match on when present.`,
   )
   return `${intro}\n\n\`\`\`bash\n${options.examples}\n\`\`\`\n\n${closing}`
 }

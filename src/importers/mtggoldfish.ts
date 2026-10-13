@@ -1,7 +1,8 @@
 import type { DeckData, DeckSection } from '../list/deck'
 import type { HttpClient } from '../util/interfaces'
 import { defaultHttpClient } from '../util/http'
-import { throwHttpError } from '../util/errors'
+import { syncMessage, SyncMessageError } from '../sync/message'
+import { throwFetchFailure } from './fetch-failure'
 
 export async function fetchMtgGoldfishDeck(
   url: string,
@@ -9,27 +10,30 @@ export async function fetchMtgGoldfishDeck(
 ): Promise<DeckData> {
   const response = await http.fetch(url)
   if (!response.ok) {
-    throwHttpError(response, 'Failed to fetch MTGGoldfish page')
+    throwFetchFailure(response, 'domain.import.url.mtgGoldfishPageFailed')
   }
   const html = await response.text()
 
   // Extract deck ID from the download link, which serves as the canonical ID.
   const downloadMatch = html.match(/href="\/deck\/download\/(\d+)"/)
   if (!downloadMatch || !downloadMatch[1]) {
-    throw new Error('Could not find deck download link on MTGGoldfish page')
+    throw new SyncMessageError(syncMessage('domain.import.url.mtgGoldfishNoDownloadLink'))
   }
   const deckId = downloadMatch[1]
   const downloadUrl = `https://www.mtggoldfish.com/deck/download/${deckId}`
 
   // Attempt to extract title from h1 tag or fallback to page title.
+  // i18n-exempt: a fallback deck name, written into the list file as its title and file name — workspace data, the same in every locale
   let name = 'MTGGoldfish Deck'
   const titleMatch = html.match(/<h1[^>]*>(.*?)<\/h1>/s)
   if (titleMatch && titleMatch[1]) {
     // Clean up HTML tags in title if any
     name = titleMatch[1].replace(/<[^>]+>/g, '').trim()
     // Remove " by Author" if present, keeping everything before the last " by "
+    // i18n-exempt: MTGGoldfish's own page markup, which is English
     const parts = name.split(' by ')
     if (parts.length > 1) {
+      // i18n-exempt: MTGGoldfish's own page markup, which is English
       name = parts.slice(0, -1).join(' by ').trim()
     }
   } else {
@@ -43,7 +47,7 @@ export async function fetchMtgGoldfishDeck(
   // Fetch text list
   const listResponse = await http.fetch(downloadUrl)
   if (!listResponse.ok) {
-    throwHttpError(listResponse, 'Failed to fetch deck list text')
+    throwFetchFailure(listResponse, 'domain.import.url.mtgGoldfishListFailed')
   }
   const listText = await listResponse.text()
 

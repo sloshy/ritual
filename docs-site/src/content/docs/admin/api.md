@@ -2432,29 +2432,38 @@ Import cards from CSV text into a deck, collection, or wanted list. Used by the 
     {
       "lineNumber": 3,
       "raw": "No Printing,,",
-      "reason": "Missing set code (required for collections)"
+      "reason": "Missing set code (required for collections)",
+      "reasonKey": "domain.import.csv.missingSet"
     }
   ],
   "failedCount": 1,
-  "warnings": ["Skipped header row: Name,Set,Collector Number,Quantity"]
+  "warnings": [
+    {
+      "message": "Skipped header row: Name,Set,Collector Number,Quantity",
+      "messageKey": "admin.api.importCsv.headerSkipped",
+      "messageParams": { "row": "Name,Set,Collector Number,Quantity" }
+    }
+  ]
 }
 ```
 
 `message`'s counts are nested messages (see [the message triple](#the-message-triple)), so a client renders them in its reader's language. A partial import names the failed rows in the same sentence.
 
+**`failures`.** Each row's `reason` is English — several reasons joined with `; ` — with `reasonKey`/`reasonParams` beside it, the [message triple](#the-message-triple) under the field's own name. A row failing for several reasons carries `reasonKey: "domain.sync.reasonList"` and the reasons nested as `reasonParams.reasons` (`{ list: [{ messageKey, messageParams }, …], join: "clauses" }`), so a client joins them in its reader's language. A reason worded outside the catalog (a [tag](/list-format/#card-tags) refusal) carries no key.
+
 **Merging.** In a **deck**, rows naming the same card **and** the same printing merge into one line with their quantities summed, in every mode. **Collections and wanted lists** keep one line per physical copy in every mode, so N rows of the same printing stay N lines.
 
-**`warnings`** reports:
+**`warnings`** is a list of message triples — the English `message`, plus `messageKey`/`messageParams` (which may nest) when the notice has a catalog entry. It reports:
 
-- the row that was skipped as a header, plus a second entry when that row does not look like one (`… — set hasHeader to false to import it as a card.`);
-- category values a row's `categories` cell refused (the row still imported), and, on a deck, values that named a board and set the row's section instead;
+- the row that was skipped as a header, plus a second entry when that row does not look like one (`… — set hasHeader to false to import it as a card.`). A row looks like a header when a cell matches a known column name: the English ones, plus the spellings of every language this build ships — never just the server's own interface language, so the answer, and `warnings`, are the same bytes whoever runs the server;
+- category values a row's `categories` cell refused (the row still imported), and, on a deck, values that named a board and set the row's section instead (`domain.import.csv.rowNotice`, whose `notice` param nests what happened to the value);
 - anything that went wrong writing the list's [categories sidecar](/list-format/#categories-namecategoriesjson), including the card names whose entries an overwrite pruned.
 
 It is empty when `hasHeader` is `false` and nothing else had news.
 
 **Categories.** A mapped `categories` column (headers `category` or `categories`) writes the list's `<name>.categories.json` sidecar: comma-separated values, the first primary. On a **deck**, a cell value that names a board (`Sideboard`, `Commander`, `Tokens`, …) sets the row's section instead of becoming a category, and an explicit non-empty `section` cell wins. The sidecar and its `.sha256` join the auto-commit set.
 
-**Status codes.** `cardCount`, `failures`, `failedCount`, and `warnings` are **always** present. Rows that fail validation are returned in `failures` while the valid rows still import, and `success` is a pure envelope flag: a request where _every_ row failed is still a `200` carrying `cardCount: 0` and the per-row report. The response is `400` only when the **request** is invalid: bad body shape, unknown `listType`/`format`, an unparseable column spec, a mapped column number the file has no column for (`Column 99 (mapped to 'name') does not exist: the file has 6 column(s)`), an unparseable CSV, no data rows, or an append to a list that does not exist. Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
+**Status codes.** `cardCount`, `failures`, `failedCount`, and `warnings` are **always** present. Rows that fail validation are returned in `failures` while the valid rows still import, and `success` is a pure envelope flag: a request where _every_ row failed is still a `200` carrying `cardCount: 0` and the per-row report. The response is `400` only when the **request** is invalid: bad body shape, unknown `listType`/`format`, an unparseable column spec, a mapped column number the file has no column for (`Column 99 (mapped to 'name') does not exist: the file has 6 columns`), an unparseable CSV, no data rows, or an append to a list that does not exist. Each of those refusals is keyed; an unparseable CSV's (`admin.api.importCsv.parseFailed`) nests the CSV reader's own message as its `reason` param. Appends record each added card in the list's changelog. When git auto-commit is enabled, the list file (and changelog) are committed.
 
 ## Import Changes
 
@@ -2711,7 +2720,7 @@ Import a deck from a supported URL, or from decklist text supplied directly (pas
 }
 ```
 
-- `warnings` lists text lines the parser skipped — content that was **not** imported (always empty for URL imports).
+- `warnings` lists text lines the parser skipped — content that was **not** imported (always empty for URL imports). Like `advisories`, it is a list of message triples: the English `message`, plus `messageKey`/`messageParams` when the text has a catalog entry (a line the card-line grammar refused is still worded outside the catalog, and carries no key). A warning whose card **was** imported, only without the labels it carried, has `"labelsDropped": true`; the others are lines that were skipped.
 - `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped MTG Arena `About` line, or an empty `## Maybeboard`/`## Tokens` header the write drops. On a URL import it carries notes about the source's [categories](/commands/import/#categories-from-a-url-import): names Ritual refused, or a categories file that could not be written.
 - When either array is non-empty, `message` notes the count, as a nested message per kind of note (see [the message triple](#the-message-triple)).
 

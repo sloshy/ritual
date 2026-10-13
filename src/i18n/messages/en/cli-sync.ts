@@ -6,10 +6,10 @@
  * begins with `cli.`, and a translator sees one flat catalog.
  *
  * Nothing here crosses into an interchange format. CSV and export *headers*,
- * the Archidekt/Moxfield dialect spellings, `EXPORT_PROPERTY_LABELS`,
- * `CSV_FIELD_LABELS`, list-type slugs, set codes, and `--output json` payload
- * keys are English by contract and are spliced in as parameters
- * rather than translated.
+ * the Archidekt/Moxfield dialect spellings, `EXPORT_PROPERTY_LABELS`, list-type
+ * slugs, set codes, and `--output json` payload keys are English by contract
+ * and are spliced in as parameters rather than translated. (The CSV import's
+ * column labels are translated: `domain.import.csv.field.*`.)
  */
 
 import type { MessageCatalogShape } from '../../types'
@@ -70,8 +70,12 @@ export const cliSyncMessages = {
   'cli.import.dryRunOverwriteList': '[dry-run] Would overwrite {label}: {path}',
   'cli.import.dryRunSaveList': '[dry-run] Would save {label} to: {path}',
   'cli.import.savedList': 'Successfully imported {label} to: {path}',
-  'cli.import.collectionNeedsPrinting':
-    'Cannot import as a collection: {count} card line(s) have no printing (set and collector number required): {names}{more}',
+  'cli.import.collectionNeedsPrinting': {
+    $plural: 'count',
+    one: 'Cannot import as a collection: {count} card line has no printing (set and collector number required): {names}{more}',
+    other:
+      'Cannot import as a collection: {count} card lines have no printing (set and collector number required): {names}{more}',
+  },
   'cli.import.andMore': ', and {count} more',
 
   // ── `import` — source and flag validation ─────────────────────────────
@@ -102,10 +106,22 @@ export const cliSyncMessages = {
   'cli.import.failed': 'Failed to import: {reason}',
 
   // ── `import` — parse diagnostics ──────────────────────────────────────
-  'cli.import.linesNotImported': '{count} line(s) could not be imported:',
-  'cli.import.linesWithoutLabels': '{count} line(s) were imported without their labels:',
+  'cli.import.linesNotImported': {
+    $plural: 'count',
+    one: '{count} line could not be imported:',
+    other: '{count} lines could not be imported:',
+  },
+  'cli.import.linesWithoutLabels': {
+    $plural: 'count',
+    one: '{count} line was imported without its labels:',
+    other: '{count} lines were imported without their labels:',
+  },
   'cli.import.advisory': 'Warning: {message}',
-  'cli.import.rowsFailed': '{count} row(s) failed to import:',
+  'cli.import.rowsFailed': {
+    $plural: 'count',
+    one: '{count} row failed to import:',
+    other: '{count} rows failed to import:',
+  },
   'cli.import.failureLine': 'Line {line}: {raw}',
 
   // ── `import` — CSV flow ───────────────────────────────────────────────
@@ -140,18 +156,18 @@ export const cliSyncMessages = {
   'cli.import.promptWhichColumn': 'Which column holds: {field}?',
   'cli.import.promptWhichColumnOptional': 'Which column holds: {field}? (optional)',
   'cli.import.dryRunOverwriteCsv':
-    "[dry-run] Would overwrite {listType} '{name}' with {count} card(s): {path}",
+    "[dry-run] Would overwrite {listType} '{name}' with {cards}: {path}",
   'cli.import.dryRunApplyCsv': {
     $select: 'mode',
-    append: "[dry-run] Would append {count} card(s) to {listType} '{name}': {path}",
-    create: "[dry-run] Would import {count} card(s) into {listType} '{name}': {path}",
-    overwrite: "[dry-run] Would import {count} card(s) into {listType} '{name}': {path}",
+    append: "[dry-run] Would append {cards} to {listType} '{name}': {path}",
+    create: "[dry-run] Would import {cards} into {listType} '{name}': {path}",
+    overwrite: "[dry-run] Would import {cards} into {listType} '{name}': {path}",
   },
   'cli.import.appliedCsv': {
     $select: 'mode',
-    append: "Appended {count} card(s) to {listType} '{name}': {path}",
-    create: "Imported {count} card(s) into {listType} '{name}': {path}",
-    overwrite: "Imported {count} card(s) into {listType} '{name}': {path}",
+    append: "Appended {cards} to {listType} '{name}': {path}",
+    create: "Imported {cards} into {listType} '{name}': {path}",
+    overwrite: "Imported {cards} into {listType} '{name}': {path}",
   },
 
   // ── `import-account` ──────────────────────────────────────────────────

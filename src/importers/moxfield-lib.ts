@@ -5,6 +5,7 @@ import { moxfieldDeckCategories } from './import-categories'
 import type { Finish } from '../card/finish-condition'
 import { parseDeckFormat } from '../list/deck-format'
 import { getLogger } from '../util/logger'
+import { t } from '../i18n/t'
 import { resolvePrinting } from '../card/card-line'
 
 /**
@@ -107,7 +108,7 @@ export async function fetchMoxfieldDeck(
       refusedCategories: categories.refused,
     }
   } catch (error) {
-    getLogger().error('Moxfield Lib Error:', error)
+    getLogger().error(t('domain.import.moxfieldFailed'), error)
     throw error
   }
 }

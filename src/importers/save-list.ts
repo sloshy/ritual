@@ -25,7 +25,13 @@ import { findCollidingList } from '../list/list-lifecycle'
 import { reconcileListRefs } from '../list/list-refs'
 import { collectDeckCardIds } from '../card/card-id'
 import { listTypeLabel, type ListType } from '../list/list-type'
-import { CardCommandError, ExitCode, hasErrorCode, localizedCommandError } from '../util/errors'
+import {
+  CardCommandError,
+  ExitCode,
+  hasErrorCode,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
 import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import { foldCategoryCardName } from '../card/card-categories'
@@ -567,9 +573,7 @@ export async function saveFlatList(
   // The settled path is handed down so an overwrite replaces the file the
   // notice named, never a folded twin the writer would name from the import.
   const result = await applyCsvImport({ listType, name, mode, filePath: target.filePath }, entries)
-  if ('error' in result) {
-    throw new CardCommandError('usage_error', result.error, ExitCode.UsageError)
-  }
+  if ('error' in result) throw messageCommandError('usage_error', ExitCode.UsageError, result.error)
 
   saveInfo(resolvedOptions, t('cli.import.savedList', { label, path: result.filePath }))
   return {

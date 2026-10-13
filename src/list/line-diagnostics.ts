@@ -14,14 +14,23 @@
  * - `diagnostics` — the same events as {@link CardLineDiagnostic} values, for
  *   callers that want the code, the offending token and its column rather than
  *   a rendered sentence.
+ * - `notices` — every warning and advisory as a message (English plus its
+ *   catalog key, `src/sync/message.ts`) with its severity, in the order they
+ *   were recorded, for a caller that reports them to a reader in another
+ *   language: an import surface's JSON, the admin API, MCP. A notice whose text
+ *   has no catalog entry yet is carried keyless, its English as it was.
  *
  * Routing between the two string channels is the whole reason this is a shared
  * object rather than three arrays per parser: the severity split is a promise
  * about data loss, and three parsers deciding it separately is exactly how one
  * of them starts blocking saves over an advisory.
  *
- * English by construction, like the grammar it renders: card-line diagnostics
- * are not prose (AGENTS.md, "Card-line grammar is not prose").
+ * The two string channels are English by construction: the gates and the
+ * reports built on them read one language whatever the reader's. A parser
+ * records through {@link LineDiagnostics.warn} / {@link LineDiagnostics.advise}
+ * (or {@link LineDiagnostics.record} for a card-line diagnostic) — the channels
+ * are read-only to it — so `notices` always holds everything the string
+ * channels do.
  */
 
 import {
@@ -30,6 +39,7 @@ import {
   type CardLineAdvisoryKind,
   type CardLineDiagnostic,
 } from '../card/card-line-grammar'
+import { syncText, type SyncMessage } from '../sync/message'
 
 /** What every list-file parser accepts about the content it is handed. */
 export type ListFileParseOptions = {
@@ -41,19 +51,36 @@ export type ListFileParseOptions = {
   file?: string
 }
 
-/** The three diagnostic channels a list parse fills, plus the one way to fill them. */
+/** Which string channel a {@link ParseNotice} rides: lost content, or a word about read content. */
+export type ParseNoticeSeverity = 'warning' | 'advisory'
+
+/** One warning or advisory as a message, with the channel it belongs to. */
+export type ParseNotice = {
+  severity: ParseNoticeSeverity
+  /** English plus the catalog key, or keyless text another module worded. */
+  message: SyncMessage
+}
+
+/** The diagnostic channels a list parse fills, plus the ways to fill them. */
 export type LineDiagnostics = {
   /** Content the parser could not read; the whole-file-rewrite gates read these. */
-  readonly warnings: string[]
+  readonly warnings: readonly string[]
   /** Content the parser read, with a word about how; never a rewrite gate. */
-  readonly advisories: string[]
-  /** Every diagnostic in structured form, in the order they were recorded. */
-  readonly diagnostics: CardLineDiagnostic[]
+  readonly advisories: readonly string[]
+  /** Every card-line diagnostic in structured form, in the order they were recorded. */
+  readonly diagnostics: readonly CardLineDiagnostic[]
+  /** Every warning and advisory as a message, in the order they were recorded. */
+  readonly notices: readonly ParseNotice[]
   /**
    * Record one diagnostic found at 1-based file line `line`, routing it to the
-   * channel its severity demands.
+   * channel its severity demands. Returns the notice it recorded, or
+   * `undefined` for a diagnostic kept in structured form only.
    */
-  record(diagnostic: CardLineDiagnostic, line: number): void
+  record(diagnostic: CardLineDiagnostic, line: number): ParseNotice | undefined
+  /** Record content the parser could not read; returns the notice recorded. */
+  warn(message: SyncMessage): ParseNotice
+  /** Record a word about content the parser did read; returns the notice recorded. */
+  advise(message: SyncMessage): ParseNotice
 }
 
 /**
@@ -74,16 +101,35 @@ export function createLineDiagnostics(file?: string): LineDiagnostics {
   const warnings: string[] = []
   const advisories: string[] = []
   const diagnostics: CardLineDiagnostic[] = []
+  const notices: ParseNotice[] = []
+  const warn = (message: SyncMessage): ParseNotice => {
+    const notice: ParseNotice = { severity: 'warning', message }
+    warnings.push(message.message)
+    notices.push(notice)
+    return notice
+  }
+  const advise = (message: SyncMessage): ParseNotice => {
+    const notice: ParseNotice = { severity: 'advisory', message }
+    advisories.push(message.message)
+    notices.push(notice)
+    return notice
+  }
   return {
     warnings,
     advisories,
     diagnostics,
+    notices,
     record(diagnostic, line) {
       diagnostics.push(diagnostic)
-      if (!isCardLineError(diagnostic) && diagnostic.kind === STRUCTURED_ONLY_ADVISORY) return
-      const text = formatCardLineDiagnostic(diagnostic, { file, line })
-      if (isCardLineError(diagnostic)) warnings.push(text)
-      else advisories.push(text)
+      if (!isCardLineError(diagnostic) && diagnostic.kind === STRUCTURED_ONLY_ADVISORY) {
+        return undefined
+      }
+      // The grammar words its diagnostics itself (`formatCardLineDiagnostic`),
+      // so they ride keyless until it hands back messages of its own.
+      const text = syncText(formatCardLineDiagnostic(diagnostic, { file, line }))
+      return isCardLineError(diagnostic) ? warn(text) : advise(text)
     },
+    warn,
+    advise,
   }
 }

@@ -57,6 +57,7 @@ import {
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
 import { SYNC_DIRECTIONS, SYNC_ITEM_OUTCOMES, SYNC_ITEM_STATUSES } from '../sync/common'
 import type { SyncMessage, SyncReasonFields } from '../sync/message'
+import type { ImportParseWarning } from '../importers/text-file'
 import { BOARDS } from '../list/deck'
 import type {
   CollectionSyncCardAdded,
@@ -751,17 +752,31 @@ const SYNC_MESSAGE_PROPS = {
   ),
 } as const satisfies Record<keyof SyncMessage, JsonSchemaType>
 
+/** One message on its own — a run-level sync failure, an import warning: English plus key and params. */
+const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])
+
 export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
   {
     ...SYNC_MESSAGE_PROPS,
     deckName: str('Name of the imported deck, which is also its slug.'),
     warnings: arr(
-      str(),
-      'Text-import lines the parser skipped — content that was NOT imported. Empty for URL imports.',
+      obj(
+        {
+          ...SYNC_MESSAGE_PROPS,
+          labelsDropped: {
+            type: 'boolean',
+            const: true,
+            description:
+              'Present (always true) when the line WAS imported, only without the labels it carried; absent when the line was skipped.',
+          },
+        } as const satisfies Record<keyof ImportParseWarning, JsonSchemaType>,
+        ['message'],
+      ),
+      'Text-import lines the parser skipped — content that was NOT imported — or kept without their labels (`labelsDropped`). Empty for URL imports. Each is a message: English `message`, plus `messageKey`/`messageParams` when it has a catalog entry.',
     ),
     advisories: arr(
-      str(),
-      'Non-fatal notices about content that WAS imported: for text, e.g. a card name still carrying a printing token, or an empty Maybeboard/Tokens section the write drops; for a URL import, source category names Ritual refused or a categories file that could not be written.',
+      SYNC_MESSAGE,
+      'Non-fatal notices about content that WAS imported: for text, e.g. a card name still carrying a printing token, or an empty Maybeboard/Tokens section the write drops; for a URL import, source category names Ritual refused or a categories file that could not be written. Messages, like `warnings`.',
     ),
     syncPrintings: bool(
       'Whether the written deck kept the exact printings the source listed. Always true for a text import, whose printings are the pasted lines’ own.',
@@ -780,8 +795,8 @@ export const IMPORT_CSV_OUTPUT: JsonSchemaType = withDefs(
       failures: arr(ref('CsvRowFailure'), 'Rows that failed validation; the rest still imported.'),
       failedCount: int('failures.length, so a client can branch without walking the array.'),
       warnings: arr(
-        str(),
-        "Import-level notices, not per-row validation failures (those are in failures): what hasHeader caused (the header row that was skipped, and whether it actually looked like a header), category values a row's categories cell refused (the row still imported), and anything that went wrong writing the list's categories sidecar.",
+        SYNC_MESSAGE,
+        "Import-level notices, not per-row validation failures (those are in failures): what hasHeader caused (the header row that was skipped, and whether it actually looked like a header), category values a row's categories cell refused (the row still imported), and anything that went wrong writing the list's categories sidecar. Each is a message: English `message`, plus `messageKey`/`messageParams` when it has a catalog entry.",
       ),
     },
     ['message', 'cardCount', 'failures', 'failedCount', 'warnings'],
@@ -1026,9 +1041,6 @@ function syncReasonProps(reason: string): SyncReasonProperties {
     ),
   }
 }
-
-/** One run-level sync failure as a message: English plus key and params. */
-const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])
 
 const DECK_BOARD = enumOf(BOARDS)
 

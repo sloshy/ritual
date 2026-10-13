@@ -5,11 +5,8 @@
  * must first tell boards from roles, is `./archidekt-categories.ts`.
  */
 
-import {
-  CARD_CATEGORY_SHAPE_CLAUSE,
-  foldCategoryCardName,
-  parseCardCategoryNames,
-} from '../card/card-categories'
+import { foldCategoryCardName, parseCardCategoryNames } from '../card/card-categories'
+import { syncList, syncMessage, type SyncMessage } from '../sync/message'
 import { deckCardNames } from '../list/card-names'
 import type { CardCategoryEntry } from '../list/card-categories-record'
 import type { DeckSection } from '../list/deck'
@@ -54,24 +51,28 @@ export function moxfieldDeckCategories(
  * The advisories a deck import's categories produced: the source's category
  * names Ritual refused, and a categories file that could not be written. Not
  * loss of cards — the deck imported — so they ride the non-fatal `advisories`
- * channel every import surface already reports. English by contract, like the
- * CSV importer's category notices.
+ * channel every import surface already reports. Messages (English plus key),
+ * like the CSV importer's category notices; each refused name is quoted as a
+ * JSON string, so a control character shows as its escape.
  */
 export function importCategoryAdvisories(
   refused: readonly string[] | undefined,
   categoryError: string | undefined,
-): string[] {
-  const advisories: string[] = []
+): SyncMessage[] {
+  const advisories: SyncMessage[] = []
   if (refused !== undefined && refused.length > 0) {
     advisories.push(
-      `Skipped categories Ritual cannot store (${CARD_CATEGORY_SHAPE_CLAUSE}): ` +
-        refused.map((name) => JSON.stringify(name)).join(', '),
+      syncMessage('domain.import.categoriesRefused', {
+        names: syncList(
+          refused.map((name) => JSON.stringify(name)),
+          'unit',
+        ),
+      }),
     )
   }
   if (categoryError !== undefined) {
-    advisories.push(
-      `The deck was imported, but its categories could not be saved: ${categoryError}`,
-    )
+    // Worded by the categories sidecar module, carried as it is.
+    advisories.push(syncMessage('domain.import.categoriesNotSaved', { error: categoryError }))
   }
   return advisories
 }

@@ -1,16 +1,19 @@
 import { describe, expect, test } from 'bun:test'
-import { apiMessage, plainMessage } from '../../../src/api/result'
-import { apiRefusalError } from '../../../src/cli/api-refusal'
-import { ExitCode } from '../../../src/util/errors'
-import { withSyntheticLocale } from '../../helpers/sync-text'
+import { apiMessage, plainMessage } from '../../src/api/result'
+import { ExitCode, messageCommandError, type CardCommandError } from '../../src/util/errors'
+import { withSyntheticLocale } from '../helpers/sync-text'
 
 /**
- * A command that validates through an admin route's parser raises that parser's
- * refusal as a usage error. The route answers in English; the CLI speaks its own
- * language, so a keyed refusal is re-rendered in the active locale and keeps its
- * key for `--output json`.
+ * A command that validates through an admin route's parser (or an engine that
+ * builds a message) raises that refusal as a usage error. The route answers in
+ * English; the CLI speaks its own language, so a keyed refusal is re-rendered in
+ * the active locale and keeps its key for `--output json`.
  */
-describe('apiRefusalError', () => {
+function apiRefusalError(refusal: Parameters<typeof messageCommandError>[2]): CardCommandError {
+  return messageCommandError('usage_error', ExitCode.UsageError, refusal)
+}
+
+describe('messageCommandError', () => {
   test('re-renders a keyed refusal in the CLI’s locale and keeps its key', () => {
     const refusal = apiMessage('admin.api.metadata.sourceUrlInvalid')
     withSyntheticLocale('xx', { 'admin.api.metadata.sourceUrlInvalid': 'Schlechte URL' }, () => {

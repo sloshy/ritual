@@ -163,6 +163,7 @@ Two consequences may surprise you:
 
 - **`.changes.md` on disk stays English while the UI shows it translated.** The file is data. The change history in the CLI, the admin **Change History** page, and the site's **View Changes** modal is rendered from that data in your language.
 - **Prices in CSV and export output never use a localized decimal separator.** A comma decimal separator inside a comma-delimited file would corrupt it, so exports format prices invariantly even when on-screen prices follow your locale.
+- **The CSV headers Ritual writes are always English, but an import also reads yours.** The [`import`](/commands/import/#header-rows) column wizard and the admin **Import CSV** page recognize the English column headings in every language, plus the spellings the active interface language's translation lists (`domain.import.csv.headers.*`, a `|`-separated list per field that is never displayed). The admin API's header-row check recognizes every language the build ships, so its answer does not depend on the server's language. A translator should list only words that cannot also be a cell value: no finish words, condition or language codes, or bare numbers.
 
 The structured error envelope carries a stable `messageKey` beside its `code`:
 
@@ -238,16 +239,17 @@ Placeholders are named, not positional, so you can **reorder them freely**.
 
 `check-locales.ts` runs as part of `bun run test` and `bun run verify`, and enforces:
 
-| Check                                                                            | Severity                                                   |
-| -------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| A key in English that your file is missing                                       | **Warning** — a partial locale must stay shippable         |
-| A key your file has that English does not                                        | Error — stale or dead weight                               |
-| Placeholder set differs from English                                             | Error — the placeholder would render as literal text       |
-| A `$plural` entry whose categories are not exactly the ones the language has     | Error — Russian without `few` is wrong for 2–4             |
-| A `$select` entry switching on a different parameter, or with different branches | Error                                                      |
-| Unbalanced or literal `{` / `}`                                                  | Error                                                      |
-| An invalid BCP-47 tag                                                            | Error                                                      |
-| A value exceeding its `maxLen` budget                                            | Error — the interactive session menu has a hard row budget |
+| Check                                                                                               | Severity                                                      |
+| --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| A key in English that your file is missing                                                          | **Warning** — a partial locale must stay shippable            |
+| A key your file has that English does not                                                           | Error — stale or dead weight                                  |
+| Placeholder set differs from English                                                                | Error — the placeholder would render as literal text          |
+| A `$plural` entry whose categories are not exactly the ones the language has                        | Error — Russian without `few` is wrong for 2–4                |
+| A `$select` entry switching on a different parameter, or with different branches                    | Error                                                         |
+| Unbalanced or literal `{` / `}`                                                                     | Error                                                         |
+| An invalid BCP-47 tag                                                                               | Error                                                         |
+| A value exceeding its `maxLen` budget                                                               | Error — the interactive session menu has a hard row budget    |
+| A CSV header spelling list (`domain.import.csv.headers.*`) with an empty or space-padded `\|` entry | Error — the importer splits it on `\|` and matches each entry |
 
 Missing keys are only a warning because **`t()` falls back to English per key**. A pull request with 200 of 2,000 keys translated ships and renders correctly. Coverage is a number, not a gate.
 

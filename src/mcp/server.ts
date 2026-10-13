@@ -36,6 +36,10 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   ({ elapsedMs } or { durationMs }) or a card language ({ language }): import results' counts,
   the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams".
   A failed import_change_bundle list carries "errorKey"/"errorParams" beside "error".
+  import_deck's and import_csv's "warnings"/"advisories" are message objects, not strings
+  ({ message, messageKey?, messageParams? }; an import_deck warning whose card was kept without
+  its labels adds "labelsDropped": true), and each import_csv "failures" row carries
+  "reasonKey"/"reasonParams" beside its English "reason".
 - Card names on writes are validated against the local cache; an unknown one is rejected with the
   closest cached names, and a cold cache says to run refresh_cache.
 - Card labels are per list type: a collection takes the whole vocabulary ("sale"/"trade" combine,

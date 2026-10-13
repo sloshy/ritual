@@ -6,6 +6,7 @@ import {
   type Finish,
 } from '../card/finish-condition'
 import { isRecord } from '../util/json'
+import { syncMessage, type SyncMessage } from '../sync/message'
 import type { ArchidektCard, ArchidektCardModifier } from './archidekt-types'
 
 /**
@@ -231,7 +232,7 @@ const FINISHES_BY_MODIFIER = new Map<string, Finish>(
  * nothing would stop a caller from using the error message as a value. The
  * `ok` discriminant makes the guard impossible to skip.
  */
-export type ArchidektEnumResult<T> = { ok: true; value: T } | { ok: false; message: string }
+export type ArchidektEnumResult<T> = { ok: true; value: T } | { ok: false; message: SyncMessage }
 
 /**
  * Parse an Archidekt condition id into a Ritual {@link Condition}. Anything that
@@ -242,7 +243,10 @@ export function parseArchidektCondition(conditionId: number): ArchidektEnumResul
   if (condition === undefined) {
     return {
       ok: false,
-      message: `Unknown Archidekt condition id '${conditionId}'. Expected one of: ${[...CONDITIONS_BY_ID.keys()].join(', ')}.`,
+      message: syncMessage('domain.import.archidekt.unknownCondition', {
+        id: String(conditionId),
+        expected: [...CONDITIONS_BY_ID.keys()].join(', '),
+      }),
     }
   }
   return { ok: true, value: condition }
@@ -271,7 +275,10 @@ export function parseArchidektModifier(modifier: string): ArchidektEnumResult<Fi
   if (finish === undefined) {
     return {
       ok: false,
-      message: `Unknown Archidekt modifier '${modifier}'. Expected one of: ${Object.values(MODIFIERS).join(', ')}.`,
+      message: syncMessage('domain.import.archidekt.unknownModifier', {
+        modifier,
+        expected: Object.values(MODIFIERS).join(', '),
+      }),
     }
   }
   return { ok: true, value: finish }
@@ -318,10 +325,13 @@ export const ARCHIDEKT_CSV_MAX_COLUMNS = 20
  */
 export function validateArchidektCsvColumns(
   columns: readonly ArchidektCsvColumn[],
-): string | undefined {
-  if (columns.length === 0) return 'A CSV upload needs at least one column.'
+): SyncMessage | undefined {
+  if (columns.length === 0) return syncMessage('domain.import.archidekt.csvNoColumns')
   if (columns.length > ARCHIDEKT_CSV_MAX_COLUMNS) {
-    return `A CSV upload takes at most ${ARCHIDEKT_CSV_MAX_COLUMNS} columns, got ${columns.length}.`
+    return syncMessage('domain.import.archidekt.csvTooManyColumns', {
+      max: ARCHIDEKT_CSV_MAX_COLUMNS,
+      count: columns.length,
+    })
   }
   if (columns.includes('uid')) return undefined
   const byName =
@@ -329,11 +339,9 @@ export function validateArchidektCsvColumns(
     columns.includes('collectorNumber') &&
     (columns.includes('edition__editionname') || columns.includes('edition__editioncode'))
   if (byName) return undefined
-  return (
-    "A CSV upload's columns must include 'uid', or 'oracleCard__name' plus " +
-    "'collectorNumber' plus 'edition__editionname' or 'edition__editioncode'; " +
-    `got: ${columns.join(', ')}.`
-  )
+  return syncMessage('domain.import.archidekt.csvNoPrintingColumns', {
+    columns: columns.join(', '),
+  })
 }
 
 /**
@@ -395,8 +403,8 @@ export type CollectionCsvRowResult = {
 export type CollectionCsvUnreadableResponse = {
   /** 1-based chunk index, as sent in the `chunk` form field. */
   chunk: number
-  /** What could not be read. Never the body itself. */
-  message: string
+  /** What could not be read (English plus key). Never the body itself. */
+  message: SyncMessage
   /** The response body, truncated to {@link UNREADABLE_BODY_LIMIT} characters. */
   body: string
 }
@@ -461,7 +469,7 @@ export function parseCollectionCsvUploadResponse(
   context: CollectionCsvChunkContext,
 ): CollectionCsvChunkResult {
   const unreadable: CollectionCsvUnreadableResponse[] = []
-  const report = (message: string): void => {
+  const report = (message: SyncMessage): void => {
     unreadable.push({ chunk: context.chunk, message, body: truncateBody(body) })
   }
 
@@ -469,13 +477,13 @@ export function parseCollectionCsvUploadResponse(
   try {
     payload = JSON.parse(body)
   } catch {
-    report('the response was not JSON')
+    report(syncMessage('domain.import.archidekt.responseNotJson'))
     return { rows: [], unreadable }
   }
 
   const data: unknown = isRecord(payload) ? payload.data : undefined
   if (!Array.isArray(data)) {
-    report('the response carried no "data" array of per-row results')
+    report(syncMessage('domain.import.archidekt.responseNoData'))
     return { rows: [], unreadable }
   }
 
@@ -496,10 +504,20 @@ export function parseCollectionCsvUploadResponse(
     })
   })
   if (malformed > 0) {
-    report(`${malformed} of ${data.length} row results in "data" were not objects`)
+    report(
+      syncMessage('domain.import.archidekt.rowsNotObjects', {
+        malformed,
+        total: data.length,
+      }),
+    )
   }
   if (data.length !== context.rowCount) {
-    report(`the response reported ${data.length} row results for ${context.rowCount} uploaded rows`)
+    report(
+      syncMessage('domain.import.archidekt.rowCountMismatch', {
+        reported: data.length,
+        uploaded: context.rowCount,
+      }),
+    )
   }
 
   return { rows, unreadable }

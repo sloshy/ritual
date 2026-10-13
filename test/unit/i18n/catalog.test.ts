@@ -195,6 +195,29 @@ describe('checkCatalogs', () => {
     expect(issuesOfKind(cjk, 'max-len')).toHaveLength(1)
   })
 
+  test('11. a header spelling list must be "|"-separated with no empty or padded entry', () => {
+    const key = 'domain.import.csv.headers.name'
+    const english: MessageCatalogShape = { ...ENGLISH, [key]: 'Name|Card name' }
+    const meta: MessageMetaShape = { ...META, [key]: { description: 'Header spellings.' } }
+    const spellings = (value: unknown): CatalogIssue[] =>
+      issuesOfKind(
+        checkCatalogs({ english, meta, translations: [withKey('de', key, value)] }),
+        'spelling-list',
+      )
+    expect(spellings('Kartenname|Name der Karte')).toEqual([])
+    expect(spellings('Kartenname||Karte')).toHaveLength(1)
+    expect(spellings('Kartenname|')).toHaveLength(1)
+    expect(spellings('Kartenname | Karte')).toHaveLength(1)
+    expect(spellings({ $select: 'kind', a: 'Karte' })).toHaveLength(1)
+    // English is checked too.
+    const badEnglish = checkCatalogs({
+      english: { ...english, [key]: 'Name||Card' },
+      meta,
+      translations: [],
+    })
+    expect(issuesOfKind(badEnglish, 'spelling-list')).toHaveLength(1)
+  })
+
   test('9. dead keys fail by default and are downgraded by --allow-dead-keys', () => {
     // `check-locales.ts` passes `deadKeySeverity: 'error'` unless `--allow-dead-keys`
     // is given, so error is the production default; `checkCatalogs`'s own default

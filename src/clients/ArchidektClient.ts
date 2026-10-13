@@ -700,11 +700,11 @@ export class ArchidektClient {
     token: string,
   ): Promise<CollectionCsvUploadResult> {
     const columnError = validateArchidektCsvColumns(options.columns)
-    if (columnError) throw new Error(`uploadCollectionCsv: ${columnError}`)
+    if (columnError) throw new Error(`uploadCollectionCsv: ${columnError.message}`)
 
     const parsed = parseCsv(csvText)
     if ('error' in parsed) {
-      throw new Error(`uploadCollectionCsv: the CSV could not be read — ${parsed.error}`)
+      throw new Error(`uploadCollectionCsv: the CSV could not be read — ${parsed.error.message}`)
     }
     // Records, not lines: a quoted cell may span lines, and a chunk boundary must
     // never fall inside one.

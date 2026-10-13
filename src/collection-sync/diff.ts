@@ -28,7 +28,7 @@
 import { displayLanguage, storedLanguage, type CardLanguage } from '../card/card-language'
 import { printingSuffix } from '../card/card-line'
 import { printingKey } from '../card/printing-key'
-import { syncLanguage, syncMessage, syncRef, type SyncMessage } from '../sync/message'
+import { nestSync, syncLanguage, syncMessage, syncRef, type SyncMessage } from '../sync/message'
 import { findPrinting, type CardPrintingsLookup } from '../card/card-printing'
 import { createAddChange, createRemoveChange } from '../changes/change-event'
 import type { CollectionEntry } from '../list/collection-file'
@@ -293,7 +293,7 @@ export function buildRemoteIndex(records: readonly ArchidektCollectionRecord[]):
         syncMessage('domain.sync.recordSkipped', {
           recordId: record.id,
           card: name,
-          reason: finish.message,
+          reason: nestSync(finish.message),
         }),
       )
       continue
@@ -305,7 +305,7 @@ export function buildRemoteIndex(records: readonly ArchidektCollectionRecord[]):
         syncMessage('domain.sync.recordSkipped', {
           recordId: record.id,
           card: name,
-          reason: condition.message,
+          reason: nestSync(condition.message),
         }),
       )
       continue

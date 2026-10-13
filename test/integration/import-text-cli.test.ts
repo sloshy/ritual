@@ -4,6 +4,8 @@ import path from 'node:path'
 import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
+import type { SyncMessage } from '../../src/sync/message'
 
 /**
  * CLI wiring for text-file imports with unparseable lines: the skipped lines
@@ -22,7 +24,7 @@ describe('import text file skipped-line reporting (Integration)', () => {
       const result = await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
 
       expect(result.exitCode).toBe(ExitCode.RuntimeError)
-      expect(result.stderr).toContain('2 line(s) could not be imported:')
+      expect(result.stderr).toContain('2 lines could not be imported:')
       expect(result.stderr).toContain('Skipped malformed line: Lightning Bolt')
       expect(result.stderr).toContain('Skipped malformed line: Monastery Swiftspear')
       const deck = await fs.readFile(path.join(dir, 'decks', 'decklist.md'), 'utf-8')
@@ -42,13 +44,19 @@ describe('import text file skipped-line reporting (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(ExitCode.RuntimeError)
-      type Payload = { action: string; warnings: string[] }
+      type Payload = { action: string; warnings: SyncMessage[] }
       const payload = JSON.parse(result.stdout) as Payload
       expect(payload.action).toBe('created')
-      expect(payload.warnings).toEqual([
+      // English plus the key, whatever the CLI's own language.
+      expect(payload.warnings.map(keyedMessage)).toEqual([
         'Skipped malformed line: Lightning Bolt',
         'Skipped malformed line: Monastery Swiftspear',
       ])
+      expect(payload.warnings[0]).toEqual({
+        message: 'Skipped malformed line: Lightning Bolt',
+        messageKey: 'domain.import.text.malformedLine',
+        messageParams: { line: 'Lightning Bolt', hint: '' },
+      })
     })
   })
 
@@ -63,7 +71,7 @@ describe('import text file skipped-line reporting (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(0)
-      type Payload = { warnings: string[] }
+      type Payload = { warnings: SyncMessage[] }
       expect((JSON.parse(result.stdout) as Payload).warnings).toEqual([])
     })
   })
@@ -123,7 +131,7 @@ describe('import Arena-dialect text file (Integration)', () => {
       // The card is written, so the run is clean — but the line is called out.
       expect(result.exitCode).toBe(0)
       expect(result.stderr).toContain('still contains a printing token')
-      type Payload = { warnings: string[]; advisories: string[] }
+      type Payload = { warnings: SyncMessage[]; advisories: SyncMessage[] }
       const payload = JSON.parse(result.stdout) as Payload
       expect(payload.warnings).toEqual([])
       expect(payload.advisories).toHaveLength(1)
@@ -179,7 +187,7 @@ describe('import Arena-dialect text file (Integration)', () => {
 
       // The dropped label is reported, under its own heading: the card arrived.
       expect(result.exitCode).toBe(ExitCode.RuntimeError)
-      expect(result.stderr).toContain('1 line(s) were imported without their labels:')
+      expect(result.stderr).toContain('1 line was imported without its labels:')
       expect(result.stderr).not.toContain('could not be imported')
       const written = await fs.readFile(path.join(dir, 'decks', 'proxies.md'), 'utf-8')
       expect(written).toContain('1 Sol Ring (C19:221) &1')
@@ -288,7 +296,7 @@ describe('import Arena-dialect text file (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(0)
-      type Payload = { warnings: string[]; advisories: string[] }
+      type Payload = { warnings: SyncMessage[]; advisories: SyncMessage[] }
       const payload = JSON.parse(result.stdout) as Payload
       expect(payload).toMatchObject({ warnings: [], advisories: [] })
       const deck = await fs.readFile(path.join(dir, 'decks', 'moxtext.md'), 'utf-8')
@@ -308,7 +316,7 @@ describe('import Arena-dialect text file (Integration)', () => {
 
       // An advisory is not loss, so the run still succeeds.
       expect(result.exitCode).toBe(0)
-      type Payload = { advisories: string[] }
+      type Payload = { advisories: SyncMessage[] }
       const payload = JSON.parse(result.stdout) as Payload
       expect(payload.advisories).toHaveLength(1)
       const deck = await fs.readFile(path.join(dir, 'decks', 'tricky.md'), 'utf-8')

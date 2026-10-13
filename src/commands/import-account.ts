@@ -32,7 +32,14 @@ import { runInteractiveLogin } from './login'
 import { stripDeckPrintings } from '../importers/url-dispatch'
 import { promptsUnavailable, promptsUnavailableReason } from '../util/no-input'
 import { t } from '../i18n/t'
-import { renderSyncMessage, type SyncMessage } from '../sync/message'
+import {
+  errorMessage,
+  prefixedFields,
+  renderSyncMessage,
+  syncMessage,
+  type PrefixedMessage,
+  type SyncMessage,
+} from '../sync/message'
 import { importCategoryAdvisories } from '../importers/import-categories'
 
 type ImportAccountOptions = {
@@ -47,21 +54,25 @@ type ImportAccountOptions = {
 /** What importing one of the account's decks did. */
 type DeckImportStatus = 'imported' | 'planned' | 'skipped' | 'failed'
 
-/** One deck's outcome in the structured result. */
-type DeckImportResult = {
+/**
+ * One deck's outcome in the structured result. Why it failed or was skipped
+ * rides as `error` (English) plus `errorKey` / `errorParams` when the reason has
+ * a catalog entry — the same triple every other JSON surface carries; absent on
+ * success.
+ */
+type DeckImportResult = PrefixedMessage<'error'> & {
   id: number
   name: string
   status: DeckImportStatus
   /** How the save resolved the target; absent when the deck was not written. */
   action?: SaveListAction
   filePath?: string
-  /** Why the deck failed or was skipped; absent on success. */
-  error?: string
   /**
    * Non-fatal notes about the deck's categories (names Ritual refused, a
    * categories file that could not be written); absent when there are none.
+   * Messages: English `message`, plus `messageKey` / `messageParams`.
    */
-  advisories?: string[]
+  advisories?: SyncMessage[]
 }
 
 /** Structured `--output json`/`ndjson` payload for a whole `import-account` run. */
@@ -298,7 +309,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
                 id: deck.id,
                 name: deck.name,
                 status: 'skipped',
-                error: t('cli.importAccount.skippedAtPrompt'),
+                ...prefixedFields('error', syncMessage('cli.importAccount.skippedAtPrompt')),
               })
               continue
             }
@@ -314,8 +325,8 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
               filePath: outcome.filePath,
               ...(advisories.length > 0 ? { advisories } : {}),
             })
-            for (const message of advisories) {
-              getLogger().warn(t('cli.import.advisory', { message }))
+            for (const advisory of advisories) {
+              getLogger().warn(t('cli.import.advisory', { message: renderSyncMessage(advisory) }))
             }
             info(
               `  - ${t('cli.importAccount.deckDone', {
@@ -325,7 +336,13 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
             )
           } catch (e: unknown) {
             const msg = getErrorMessage(e)
-            results.push({ id: deck.id, name: deck.name, status: 'failed', error: msg })
+            results.push({
+              id: deck.id,
+              name: deck.name,
+              status: 'failed',
+              // English plus its key for the payload, whatever the CLI speaks.
+              ...prefixedFields('error', errorMessage(e)),
+            })
             logger.error(
               `  - ${t('cli.importAccount.deckFailed', { name: deck.name, reason: msg })}`,
             )

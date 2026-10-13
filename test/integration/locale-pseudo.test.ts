@@ -257,6 +257,125 @@ describe('pseudo-locale (Integration)', () => {
     })
   })
 
+  test('import words a skipped line in the CLI’s language, and keeps --output json English', async () => {
+    await withTempDir(async (dir) => {
+      await fs.writeFile(path.join(dir, 'decklist.txt'), 'Lightning Bolt\n2 Mountain\n')
+      const skipped = (await pseudoText('domain.import.text.malformedLine'))
+        .replace('{line}', 'Lightning Bolt')
+        .replace('{hint}', '')
+
+      const text = await runCli(
+        ['import', 'decklist.txt', '--type', 'deck', '--no-input'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(text.exitCode).toBe(1)
+      expect(unwrap(text.stderr)).toContain(unwrap(skipped))
+
+      // The payload is for scripts: English plus the key, whatever the CLI speaks.
+      const json = await runCli(
+        ['import', 'decklist.txt', '--type', 'deck', '--no-input', '--yes', '--output', 'json'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(json.exitCode).toBe(1)
+      const payload = JSON.parse(json.stdout) as { warnings: unknown[] }
+      expect(payload.warnings).toEqual([
+        {
+          message: 'Skipped malformed line: Lightning Bolt',
+          messageKey: 'domain.import.text.malformedLine',
+          messageParams: { line: 'Lightning Bolt', hint: '' },
+        },
+      ])
+    })
+  })
+
+  test('import words a CSV refusal in the CLI’s language, its key kept for json', async () => {
+    await withTempDir(async (dir) => {
+      await fs.writeFile(path.join(dir, 'cards.csv'), 'Name,Set\nSol Ring,C19\n')
+      const args = ['import', 'cards.csv', '--type', 'deck', '--name', 'Cards']
+      const spec = ['--deck-format', 'commander', '--columns', 'name=1,quantity=9']
+      const forms = (await pseudo())['domain.import.csv.columnMissing']
+      if (typeof forms !== 'object' || forms === null || !('other' in forms)) {
+        throw new Error('domain.import.csv.columnMissing has no other form in en-XA')
+      }
+      const refusal = String(forms.other)
+        .replace('{column}', '9')
+        .replace('{field}', 'quantity')
+        .replace('{count}', '2')
+
+      const text = await runCli([...args, ...spec], dir, PSEUDO_ENV)
+      expect(text.exitCode).toBe(2)
+      expect(unwrap(text.stderr)).toContain(unwrap(refusal))
+
+      const json = await runFailing([...args, ...spec, '--output', 'json'], dir, PSEUDO_ENV)
+      expect(json.error.messageKey).toBe('domain.import.csv.columnMissing')
+      expect(json.error).toMatchObject({
+        messageParams: { column: 9, field: 'quantity', count: 2 },
+      })
+    })
+  })
+
+  test('import keeps a nested refusal’s params English in the json envelope', async () => {
+    await withTempDir(async (dir) => {
+      // An unparseable CSV: the parser's own refusal nests inside the command's.
+      await fs.writeFile(path.join(dir, 'bad.csv'), 'Name\nSol Ring,"unclosed\n')
+      const json = await runFailing(
+        [
+          'import',
+          'bad.csv',
+          '--type',
+          'wanted',
+          '--name',
+          'Bad',
+          '--columns',
+          'name=1',
+          '--output',
+          'json',
+        ],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(json.error.messageKey).toBe('cli.import.csvParseFailed')
+      // The nested refusal is flattened to its English, like the key: invariant.
+      expect(json.error).toMatchObject({
+        messageParams: { reason: 'Unterminated quoted field starting on line 2' },
+      })
+      expect(unwrap(json.error.message)).toContain(
+        unwrap((await pseudoText('domain.import.csv.unterminatedQuote')).replace('{line}', '2')),
+      )
+    })
+  })
+
+  test('import nests a deck service’s keyed failure, its English kept for json', async () => {
+    // A stand-in deck service: any URL naming mtggoldfish.com is dispatched to
+    // the MTGGoldfish importer, and this one answers every page with a 404.
+    const server = Bun.serve({
+      port: 0,
+      fetch: () => new Response('', { status: 404, statusText: 'Not Found' }),
+    })
+    try {
+      await withTempDir(async (dir) => {
+        const url = `http://127.0.0.1:${server.port}/mtggoldfish.com/deck/1`
+        const json = await runFailing(
+          ['import', url, '--no-input', '--sync-printings', '--quiet', '--output', 'json'],
+          dir,
+          PSEUDO_ENV,
+        )
+        expect(json.error.messageKey).toBe('cli.import.failed')
+        expect(json.error).toMatchObject({
+          messageParams: { reason: 'Failed to fetch MTGGoldfish page: 404 Not Found' },
+        })
+        const reason = (await pseudoText('domain.import.url.mtgGoldfishPageFailed'))
+          .replace('{status}', '404')
+          .replace('{statusText}', 'Not Found')
+        expect(unwrap(json.error.message)).toContain(unwrap(reason))
+      })
+    } finally {
+      await server.stop(true)
+    }
+  })
+
   test('import-changes prints a failed list’s reason in the CLI’s language', async () => {
     await withTempDir(async (dir) => {
       // The reason comes back from the admin save path as English plus its key;

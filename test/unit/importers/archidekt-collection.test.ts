@@ -17,6 +17,7 @@ import {
   validateArchidektCsvColumns,
   type ArchidektCsvColumn,
 } from '../../../src/importers/archidekt-collection'
+import { keyedMessage } from '../../helpers/api-message'
 import type { ArchidektCardModifier } from '../../../src/importers/archidekt-types'
 import {
   CARD_LANGUAGES,
@@ -24,6 +25,12 @@ import {
   type CardLanguage,
 } from '../../../src/card/card-language'
 import type { Condition, Finish } from '../../../src/card/finish-condition'
+
+/** Why a column set was refused, as its English (checked against its key); '' when accepted. */
+function columnRefusal(columns: readonly ArchidektCsvColumn[]): string {
+  const refusal = validateArchidektCsvColumns(columns)
+  return refusal === undefined ? '' : keyedMessage(refusal)
+}
 
 describe('Archidekt collection enums', () => {
   test.each<[number, Condition]>([
@@ -53,7 +60,9 @@ describe('Archidekt collection enums', () => {
     for (const bad of [0, 6, -1, 1.5, Number.NaN]) {
       const result = parseArchidektCondition(bad)
       expect(result.ok).toBe(false)
-      expect(result.ok ? '' : result.message).toContain(`Unknown Archidekt condition id '${bad}'`)
+      expect(result.ok ? '' : keyedMessage(result.message)).toContain(
+        `Unknown Archidekt condition id '${bad}'`,
+      )
     }
   })
 
@@ -79,7 +88,9 @@ describe('Archidekt collection enums', () => {
     for (const bad of ['', 'Glossy', 'foil-etched']) {
       const result = parseArchidektModifier(bad)
       expect(result.ok).toBe(false)
-      expect(result.ok ? '' : result.message).toContain(`Unknown Archidekt modifier '${bad}'`)
+      expect(result.ok ? '' : keyedMessage(result.message)).toContain(
+        `Unknown Archidekt modifier '${bad}'`,
+      )
     }
   })
 
@@ -212,7 +223,7 @@ describe('validateArchidektCsvColumns', () => {
       "must include 'uid'",
     ],
   ])('rejects %s', (_label, columns, message) => {
-    expect(validateArchidektCsvColumns(columns)).toContain(message)
+    expect(columnRefusal(columns)).toContain(message)
   })
 
   test('rejects more columns than Archidekt accepts', () => {
@@ -220,7 +231,7 @@ describe('validateArchidektCsvColumns', () => {
       'uid',
       ...Array.from({ length: ARCHIDEKT_CSV_MAX_COLUMNS }, (): ArchidektCsvColumn => 'ignore'),
     ]
-    expect(validateArchidektCsvColumns(columns)).toContain(
+    expect(columnRefusal(columns)).toContain(
       `at most ${ARCHIDEKT_CSV_MAX_COLUMNS} columns, got ${columns.length}`,
     )
   })

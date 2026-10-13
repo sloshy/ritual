@@ -165,7 +165,7 @@ export const cliSyncMeta = {
   },
   'cli.import.collectionNeedsPrinting': {
     description:
-      'A collection line must name a printing, so an import whose lines do not is refused. {names} is a comma-separated sample of up to five card names; {more} is either empty or cli.import.andMore.',
+      'A collection line must name a printing, so an import whose lines do not is refused. {count} is how many card lines lack one; {names} is a comma-separated sample of up to five card names; {more} is either empty or cli.import.andMore.',
   },
   'cli.import.andMore': {
     description:
@@ -216,18 +216,18 @@ export const cliSyncMeta = {
   // ── `import` — parse diagnostics ──────────────────────────────────────
   'cli.import.linesNotImported': {
     description:
-      'Heading over the list of source lines the parser could not read. Content was lost, so the run also exits non-zero.',
+      'Heading over the list of source lines the parser could not read; {count} is how many. Content was lost, so the run also exits non-zero.',
   },
   'cli.import.linesWithoutLabels': {
     description:
-      'Heading over the source lines whose card WAS imported but whose labels were dropped (a conflicting labels token, or a label the destination list type cannot carry). The labels were lost, so the run also exits non-zero.',
+      'Heading over the source lines whose card WAS imported but whose labels were dropped (a conflicting labels token, or a label the destination list type cannot carry); {count} is how many. The labels were lost, so the run also exits non-zero.',
   },
   'cli.import.advisory': {
     description:
       'Prefix for a line that WAS imported but whose shape suggests the file dialect was not fully understood. Nothing was lost.',
   },
   'cli.import.rowsFailed': {
-    description: 'Heading over the list of CSV rows that failed validation.',
+    description: 'Heading over the list of CSV rows that failed validation; {count} is how many.',
   },
   'cli.import.failureLine': {
     description:
@@ -317,15 +317,15 @@ export const cliSyncMeta = {
   },
   'cli.import.dryRunOverwriteCsv': {
     description:
-      'Dry-run preview of a CSV import that would replace an existing list. {listType} is a persisted slug.',
+      'Dry-run preview of a CSV import that would replace an existing list. {listType} is a persisted slug; {cards} is the card count with its noun, already worded (domain.count.cards, e.g. "3 cards").',
   },
   'cli.import.dryRunApplyCsv': {
     description:
-      'Dry-run preview of a CSV import that creates or appends. Branch on the resolved import mode ("append", "create" or "overwrite"); {listType} is a persisted slug.',
+      'Dry-run preview of a CSV import that creates or appends. Branch on the resolved import mode ("append", "create" or "overwrite"); {listType} is a persisted slug; {cards} is the card count with its noun, already worded (domain.count.cards, e.g. "3 cards").',
   },
   'cli.import.appliedCsv': {
     description:
-      'Confirmation after a CSV import. Branch on the resolved import mode ("append", "create" or "overwrite"); {listType} is a persisted slug.',
+      'Confirmation after a CSV import. Branch on the resolved import mode ("append", "create" or "overwrite"); {listType} is a persisted slug; {cards} is the card count with its noun, already worded (domain.count.cards, e.g. "3 cards").',
   },
 
   // ── `import-account` ──────────────────────────────────────────────────

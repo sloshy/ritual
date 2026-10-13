@@ -201,6 +201,51 @@ release changes a file format or a generated file, it ships the change as a
   lose their quotes), a deck import's non-text `name` reads "name must be a string.", and
   a history or price request for a list that does not exist names its type ("Deck 'burn'
   not found") instead of "List 'burn' not found".
+- **Import warnings, advisories and row failures are messages, not strings.** In
+  `POST /api/import-csv` and `POST /api/import-deck` (and the MCP `import_csv` and
+  `import_deck` results), `ritual import --output json` and
+  `ritual import-account --output json`, each entry of `warnings` and `advisories` is now
+  `{ "message", "messageKey", "messageParams" }` instead of a bare string; `message` is the
+  English it always was. The key is absent for text Ritual still words outside its catalog:
+  a card-line grammar refusal and the printing-token advisory, a tag refusal, the
+  front-matter `labels:` warning, a categories-file error, and the unusable-name and
+  unreadable-content refusals. A text import's warning whose card was imported without its
+  labels carries `labelsDropped: true`, so a client can tell it from a skipped line. Each
+  CSV `failures` entry keeps its English `reason` and gains `reasonKey` and
+  `reasonParams`; a row failing for several reasons nests them as a list. Update any
+  script that read these arrays as strings to read `.message`, and match on `messageKey`
+  where it is present.
+- In a `collection-sync` report (`--output json`, the admin `POST /api/collection-sync`
+  response and the MCP `sync_collection` result), the `domain.sync.recordSkipped` warning's
+  `reason` param and the `domain.sync.csvChunkUnreadable` log line's `error` param are now
+  nested message objects (`{ "messageKey", "messageParams" }`) instead of English strings.
+  The English `message` beside them is unchanged; a script that read those params as
+  strings should render the key or read `message` instead.
+- `ritual import-account --output json` reports a deck's `error` in English, with
+  `errorKey`/`errorParams` beside it, whatever the CLI's language (it followed the CLI's
+  language before).
+- Import text follows the UI language. `ritual import` prints its CSV refusals, row
+  reasons, skipped lines, URL-import progress and deck-service failures in yours, and the
+  admin Import CSV page shows its column labels, a pasted file's parse and mapping problems,
+  the row reasons and the warnings in the browser's, relabelling them when you switch. The
+  import routes' refusals (an unparseable CSV, a bad column spec, a column the file does
+  not have, an unsupported URL, a missing Moxfield user agent, a list that already exists)
+  and a deck service's error replies now carry `messageKey`; the API, MCP and JSON output
+  stay English.
+- CSV imports can recognize column headings in other languages, once a translation lists
+  them. The `ritual import` wizard and the admin Import CSV page recognize the English
+  headings plus the spellings of the interface language; the admin API's header-row check
+  recognizes the English headings plus those of every language the build ships, so its
+  `warnings` do not depend on the server's language. Column guesses take English headings
+  first and let a translation's spellings fill only fields still unpicked, so every English
+  heading keeps its English field in every language.
+- Some import wording counts its nouns properly: "the file has 6 columns" (it read
+  `column(s)`), "2 lines could not be imported:", "1 line was imported without its
+  labels:", "1 row failed to import:", "Imported 3 cards into collection 'Binder': …" and
+  the matching `[dry-run]` lines, "Dropped categories for cards no longer in the list: …",
+  "Categories are recorded for a card the list does not hold: …", and "Cannot import as a
+  collection: 1 card line has no printing …". Update any script that matched `card(s)`,
+  `column(s)`, `line(s)` or `row(s)` in import output.
 - **`deck-sync push` now moves cards between boards.** A push diffs per board the way a pull
   does, so a card that is in Main locally but in the Maybeboard on Archidekt (or any other
   board pair) is moved there on Archidekt, instead of the push doing nothing. The existing

@@ -39,6 +39,7 @@ import { currentLocale, DEFAULT_LOCALE } from '../i18n/runtime'
 import {
   isMessageKey,
   tDynamic,
+  type MessageRef,
   type MessageTriple,
   type ParamsOf,
   type RenderParams,
@@ -428,6 +429,31 @@ export function renderSyncMessage(
  */
 export function renderSyncParam(param: SyncParam, locale: LocaleTag = currentLocale()): string {
   return String(renderParam(param, locale, false) ?? '')
+}
+
+// ── Flat references ───────────────────────────────────────────────────
+
+/**
+ * A message's key and params with every nested param flattened to its
+ * **English** rendering, or `undefined` when it has no key — for a channel
+ * whose params must be flat strings and numbers: the CLI's `--output json`
+ * error envelope, a `CardCommandError`'s `messageRef`. Locale-invariant like
+ * the key, and enough for a client to re-render the key whole (the same
+ * convention as `import-changes --output json`).
+ */
+export function envelopeRef(message: SyncMessage): MessageRef | undefined {
+  const key = message.messageKey
+  if (key === undefined) return undefined
+  const params = message.messageParams
+  if (params === undefined) return { key }
+  const flat: RenderParams = {}
+  for (const [name, param] of Object.entries(params)) {
+    flat[name] =
+      typeof param === 'string' || typeof param === 'number'
+        ? param
+        : renderSyncParam(param, DEFAULT_LOCALE)
+  }
+  return { key, params: flat }
 }
 
 // ── Prefixed fields ───────────────────────────────────────────────────

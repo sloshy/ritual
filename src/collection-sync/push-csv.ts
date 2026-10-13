@@ -342,7 +342,7 @@ export async function pushAdditionsAsCsv(
       item: null,
       ...syncMessage('domain.sync.csvChunkUnreadable', {
         chunk: unreadable.chunk,
-        error: unreadable.message,
+        error: nestSync(unreadable.message),
         body: unreadable.body,
       }),
     })

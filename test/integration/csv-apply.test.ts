@@ -9,6 +9,8 @@ import {
   type CsvConversionResult,
 } from '../../src/importers/csv'
 import type { CardPrintingsLookup } from '../../src/card/card-printing'
+import { isSyncMessage } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
 import type { ListType } from '../../src/list/list-type'
 import { makeScryfallCard } from '../test-utils'
 import {
@@ -27,9 +29,9 @@ import {
 
 function prepareEntries(csv: string, spec: string, listType: ListType): CsvConversionResult {
   const parsed = parseCsv(csv)
-  if ('error' in parsed) throw new Error(parsed.error)
+  if ('error' in parsed) throw new Error(parsed.error.message)
   const mapping = parseColumnsSpec(spec, listType)
-  if (typeof mapping === 'string') throw new Error(`Bad columns spec in test: ${mapping}`)
+  if (isSyncMessage(mapping)) throw new Error(`Bad columns spec in test: ${mapping.message}`)
   return convertCsvRows(parsed.rows, mapping, listType)
 }
 
@@ -69,7 +71,7 @@ describe('applyCsvImport', () => {
       { listType: 'collection', name: 'Binder', mode: 'append' },
       entries,
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.cardCount).toBe(2)
     expect(result.changelogPath).toBe(path.join(tmpDir, 'collections', 'Binder.changes.md'))
 
@@ -106,7 +108,7 @@ describe('applyCsvImport', () => {
       { listType: 'collection', name: 'Binder', mode: 'overwrite' },
       entries,
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
 
     const content = await fs.readFile(result.filePath, 'utf-8')
     expect(content).toBe(
@@ -140,7 +142,7 @@ describe('applyCsvImport', () => {
         labels: ['trade', 'no-sale'],
       },
     ])
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(await fs.readFile(result.filePath, 'utf-8')).toContain(
       '- Lightning Bolt (LEA:161) [trade] &2',
     )
@@ -160,7 +162,7 @@ describe('applyCsvImport', () => {
         labels: ['proxy'],
       },
     ])
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content).toContain('- 1 Sol Ring (C19:221) &1')
     expect(content).toContain('- 1 Sol Ring (C19:221) [proxy] &2')
@@ -195,7 +197,7 @@ describe('applyCsvImport', () => {
       entries,
       { defaultLanguage: 'ja', lookupPrintings: lookup },
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
 
     const content = await fs.readFile(result.filePath, 'utf-8')
     expect(content).toBe(
@@ -227,7 +229,7 @@ describe('applyCsvImport', () => {
         },
       },
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
 
     const content = await fs.readFile(result.filePath, 'utf-8')
     expect(content).toContain('- Lightning Bolt (LEA:161) [de] &1')
@@ -256,7 +258,7 @@ describe('applyCsvImport', () => {
         },
       },
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
 
     const content = await fs.readFile(result.filePath, 'utf-8')
     // Both written bare: an explicit en column is a statement, not silence.
@@ -280,7 +282,7 @@ describe('applyCsvImport', () => {
         },
       },
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     const content = await fs.readFile(result.filePath, 'utf-8')
     expect(content).toContain('- Lightning Bolt (LEA:161) &1')
   })
@@ -298,7 +300,7 @@ describe('applyCsvImport', () => {
       'deck',
     )
     const result = await applyCsvImport({ listType: 'deck', name: 'Burn', mode: 'append' }, entries)
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.cardCount).toBe(5)
 
     const content = await fs.readFile(filePath, 'utf-8')
@@ -330,7 +332,7 @@ describe('applyCsvImport', () => {
       { listType: 'deck', name: 'Burn', mode: 'create', format: 'modern' },
       entries,
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.cardCount).toBe(9)
 
     const content = await fs.readFile(result.filePath, 'utf-8')
@@ -348,7 +350,7 @@ describe('applyCsvImport', () => {
       entries,
       { dryRun: true },
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.cardCount).toBe(2)
     expect(result.mode).toBe('create')
     expect(result.filePath).toBe(path.join(tmpDir, 'wanted', 'To Buy.md'))
@@ -371,7 +373,7 @@ describe('applyCsvImport', () => {
       entries,
       { dryRun: true },
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.cardCount).toBe(2)
     expect(result.mode).toBe('append')
     expect(result.changelogPath).toBeUndefined()
@@ -396,7 +398,8 @@ describe('applyCsvImport', () => {
       entries,
       { dryRun: true },
     )
-    expect('error' in result && result.error).toContain('File already exists')
+    if (!('error' in result)) throw new Error('expected the create to be refused')
+    expect(keyedMessage(result.error)).toContain('File already exists')
   })
 
   describe('imported categories', () => {
@@ -411,7 +414,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(await readCategoriesSidecar(result.filePath)).toEqual({
         'Sol Ring': ['Ramp', 'Artifacts'],
       })
@@ -441,7 +444,7 @@ describe('applyCsvImport', () => {
         { listType: 'collection', name: 'Binder', mode: 'overwrite' },
         entries,
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(result.writtenFiles).toEqual([])
       expect(await fs.readFile(categoriesSidecarPath(filePath), 'utf-8')).toBe(before)
     })
@@ -465,7 +468,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(await readCategoriesSidecar(filePath)).toEqual({ 'Sol Ring': ['Ramp'] })
     })
 
@@ -485,7 +488,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       // Nothing was pruned: an append cannot enumerate the surviving names.
       expect(await readCategoriesSidecar(filePath)).toEqual({
         'Lightning Bolt': ['Burn'],
@@ -511,7 +514,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(await readCategoriesSidecar(result.filePath)).toEqual({ 'Sol Ring': ['Ramp'] })
     })
 
@@ -527,7 +530,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(await fs.readFile(result.filePath, 'utf-8')).toContain('Sol Ring')
       expect(await readCategoriesSidecar(result.filePath)).toBeNull()
       expect(result.writtenFiles).toEqual([])
@@ -544,7 +547,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true, dryRun: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(result.writtenFiles).toEqual([])
       expect(await readCategoriesSidecar(result.filePath)).toBeNull()
     })
@@ -565,8 +568,8 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
-      expect(result.categoryError).toContain('.categories.json')
+      if ('error' in result) throw new Error(result.error.message)
+      expect(result.categoryError?.message).toContain('.categories.json')
       expect(result.writtenFiles).toEqual([])
       expect(await fs.readFile(categoriesSidecarPath(filePath), 'utf-8')).toBe('{ not json')
       expect(await fs.readFile(filePath, 'utf-8')).toContain('Lightning Bolt')
@@ -587,7 +590,7 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(await readCategoriesSidecar(result.filePath)).toEqual({ 'Sol Ring': ['Ramp'] })
       expect(result.writtenFiles).toEqual([
         categoriesSidecarPath(result.filePath),
@@ -619,11 +622,11 @@ describe('applyCsvImport', () => {
         entries,
         { sourceHadCategoriesColumn: true },
       )
-      if ('error' in result) throw new Error(result.error)
+      if ('error' in result) throw new Error(result.error.message)
       expect(await readCategoriesSidecar(filePath)).toEqual({})
       expect(result.writtenFiles).toEqual([categoriesSidecarPath(filePath)])
-      expect(result.categoryNotices).toEqual([
-        'Dropped categories for card(s) no longer in the list: Lightning Bolt, Sol Ring',
+      expect(result.categoryNotices.map(keyedMessage)).toEqual([
+        'Dropped categories for cards no longer in the list: Lightning Bolt, Sol Ring',
       ])
     })
   })

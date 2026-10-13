@@ -19,7 +19,7 @@
  * bun run scripts/check-locales.ts --emit-template de   # write locales/de.json
  * ```
  *
- * The ten validations, and why each one has the severity it has:
+ * The eleven validations, and why each one has the severity it has:
  *
  * | # | Check | Severity |
  * |---|---|---|
@@ -33,6 +33,7 @@
  * | 8 | `maxLen` overrun | error — guards `SESSION_MENU_LIMIT` and toolbar chips |
  * | 9 | dead key (no `t('…')` reference in `src/`) | error — the catalog is fully wired; `--allow-dead-keys` downgrades it |
  * | 10 | namespace-boundary violation (`src/site/**` using a `cli.*` key, or a browser surface *registering* the `cli` namespace) | error |
+ * | 11 | a spelling-list key (`domain.import.csv.headers.*`) that is not a plain `\|`-separated list with no empty or space-padded entry | error — the importer splits it on `\|` and matches each entry |
  */
 
 // Node's stdlib only, no `bun` import: the pure exports here (`messagePlaceholders`,
@@ -78,6 +79,7 @@ export type IssueKind =
   | 'max-len'
   | 'dead-key'
   | 'namespace-boundary'
+  | 'spelling-list'
 
 /** One validation failure. `key` is null for whole-file problems. */
 export type CatalogIssue = {
@@ -284,6 +286,24 @@ function issue(
   return { locale, key, kind, severity, message }
 }
 
+/**
+ * The keys whose value is not prose but a `|`-separated list of spellings the
+ * CSV importer recognizes as column headings (`src/importers/csv.ts`).
+ */
+const SPELLING_LIST_PREFIX = 'domain.import.csv.headers.'
+
+/** Why a spelling-list value is malformed, or null when it is well formed. */
+function spellingListError(value: MessageValue): string | null {
+  if (typeof value !== 'string') return 'a spelling list must be a plain string, not a table'
+  for (const entry of value.split('|')) {
+    if (entry === '') return 'a spelling list must not hold an empty entry (a stray or doubled "|")'
+    if (entry.trim() !== entry) {
+      return `entry "${entry}" has spaces around it — write the entries "|"-separated with no padding`
+    }
+  }
+  return null
+}
+
 /** Checks that apply to any catalog, English or translated. */
 function checkValue(
   locale: string,
@@ -292,6 +312,10 @@ function checkValue(
   maxLen: number | undefined,
   issues: CatalogIssue[],
 ): void {
+  if (key.startsWith(SPELLING_LIST_PREFIX)) {
+    const listError = spellingListError(value)
+    if (listError !== null) issues.push(issue(locale, key, 'spelling-list', 'error', listError))
+  }
   for (const form of messageForms(value)) {
     const braceError = validateBraces(form)
     if (braceError !== null) {

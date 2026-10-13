@@ -199,6 +199,16 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
 - `action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution).
 - `warnings` lists text-file lines the parser skipped (always empty for URL imports). A non-empty array means content was lost and the command exits `1` (see [Partial Failures](#partial-failures)).
 - `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped Arena `About` line, or an empty extras section (`## Maybeboard`, `## Tokens`) dropped because it holds nothing. Advisories print on stderr (even under `--quiet`) and never change the exit code, so a file whose only oddity is a bare `## Maybeboard` exits `0`.
+- Each entry of `warnings` and `advisories` is a message object: the English `message`, plus `messageKey` and `messageParams` when the text has a catalog entry. They stay English whatever the CLI's language; text mode prints them in it. Match on `messageKey` when it is present, never on the prose (text Ritual still words outside its catalog, such as a card-line grammar refusal, carries no key). A warning whose card **was** imported, only without the labels it carried, has `"labelsDropped": true`:
+
+  ```json
+  {
+    "message": "Skipped malformed line: Lightning Bolt",
+    "messageKey": "domain.import.text.malformedLine",
+    "messageParams": { "line": "Lightning Bolt", "hint": "" }
+  }
+  ```
+
 - A URL import's payload also carries `syncPrintings`: whether the deck kept the [exact printings the source listed](#printings-from-a-url-import).
 
 A CSV import emits a different result:
@@ -207,7 +217,14 @@ A CSV import emits a different result:
 {
   "imported": 4,
   "failed": 1,
-  "failures": [{ "line": 3, "reason": "Invalid quantity 'x'" }],
+  "failures": [
+    {
+      "line": 3,
+      "reason": "Invalid quantity 'x'",
+      "reasonKey": "domain.import.csv.invalidQuantity",
+      "reasonParams": { "value": "x" }
+    }
+  ],
   "filePath": "collections/Red Binder.md",
   "mode": "create",
   "dryRun": false,
@@ -216,13 +233,13 @@ A CSV import emits a different result:
 }
 ```
 
-- `imported` counts copies written. `failures` lists rejected rows by CSV line number.
+- `imported` counts copies written. `failures` lists rejected rows by CSV line number. Each `reason` is English (several reasons joined with `; `), with `reasonKey`/`reasonParams` beside it; several reasons nest as a list under `reasonParams.reasons`.
 - `mode` is the resolved `create`/`overwrite`/`append`.
 - `replacesExisting` is `true` when the import replaced (or, under `--dry-run`, would replace) an existing list.
-- `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. In text mode these print on stderr as `Warning: ...` (even under `--quiet`). They never change the exit code.
+- `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. Each is a message object, as on a text import. In text mode these print on stderr as `Warning: ...` (even under `--quiet`). They never change the exit code.
 - A CSV import has no `warnings` key. On a URL or text-file import that key means content was **lost**, which exits `1`.
 
-Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes. A partial failure still exits `1` even though the payload was emitted.
+Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes, with `messageKey`/`messageParams` when the refusal has a catalog entry (a bad `--columns` spec, an unparseable CSV, an unsupported URL). A partial failure still exits `1` even though the payload was emitted.
 
 ## Deck Format
 
@@ -251,7 +268,7 @@ The wizard asks for the list type, a name (and deck format for decks), whether t
 
 In a **deck**, rows naming the same card **and** the same printing merge into one line with summed quantities, in every mode, so the same file produces the same list either way. A different printing (set, collector number, finish, or condition) stays its own line. **Collections and wanted lists** keep one bullet line per physical copy in every mode, so N rows of the same printing stay N lines, each with its own `&N` id.
 
-Replacing an existing list prints `Overwriting <file>...` on stderr, even under `--quiet`, for every source kind. Under `--dry-run` the preview line says it instead (`[dry-run] Would overwrite collection 'Red Binder' with 12 card(s): ...`), and the JSON payload carries `replacesExisting: true`.
+Replacing an existing list prints `Overwriting <file>...` on stderr, even under `--quiet`, for every source kind. Under `--dry-run` the preview line says it instead (`[dry-run] Would overwrite collection 'Red Binder' with 12 cards: ...`), and the JSON payload carries `replacesExisting: true`.
 
 By default the import **creates** a new list and refuses to touch an existing one, including a list whose name merely [folds onto](/list-resolution/#names-that-would-collide-are-refused-at-creation) the imported one. Pass `--overwrite` to replace it or `--append` to add the cards to it; the two are mutually exclusive. `--yes` auto-answers the conflict with overwrite. Interactively, the wizard asks whether to append, overwrite, or cancel; cancelling exits `2` with `Cancelled.` on stderr. In a scripted run (prompts unavailable, or any run with `--columns`) the conflict is a usage error (exit `2`) naming `--append`, `--overwrite`, and `--yes`.
 
@@ -267,7 +284,7 @@ A `--dry-run` CSV import performs every validation and resolution step, includin
 
 ### Header Rows
 
-The wizard asks whether the first row is a header. A scripted run (`--columns`) does not ask: the first row is a header unless `--no-header` is given. Because that drops a row, a scripted run always says which one (`Skipping header row: ...`). When the dropped row does **not** look like a header (none of its cells match a known column name), an extra warning names `--no-header`:
+The wizard asks whether the first row is a header. A scripted run (`--columns`) does not ask: the first row is a header unless `--no-header` is given. Because that drops a row, a scripted run always says which one (`Skipping header row: ...`). When the dropped row does **not** look like a header (none of its cells match a known column name), an extra warning names `--no-header`. The known column names are the English ones (`Name`, `Set`, `Collector Number`, `Qty`, …) plus any spellings the translation for the CLI's [interface language](/configuration/#interface-language) lists. The same names pre-select the wizard's column picks, in two passes: every field an English heading names is picked first, and a translation's spellings only fill fields still unpicked, so they never take a field from an English heading and every English heading keeps its English field in every language. A header row of English headings is therefore read the same whatever language Ritual speaks; a row the translation recognizes, but English does not, counts as a header only in that language:
 
 ```
 Warning: the first row does not look like a header but was skipped as one: Lightning Bolt,lea,161,4 — pass --no-header to import it as a card.
@@ -297,7 +314,7 @@ ritual import cards.csv --type collection --name "Red Binder" \
 | `tags`             | Card tags (headers `tags` or `tag`), comma-separated: `Ramp, Card Draw` is two tags. A malformed tag fails only that row. |
 | `categories`       | Card categories (headers `category` or `categories`), comma-separated: `Ramp, Artifacts` is two, the first primary.       |
 
-Every mapped column number is checked against the file's width before any row is converted. `--columns name=99` on a 6-column file is a single usage error (exit `2`), `Column 99 (mapped to 'name') does not exist: the file has 6 column(s)`, rather than a `Missing card name` failure per row.
+Every mapped column number is checked against the file's width before any row is converted. `--columns name=99` on a 6-column file is a single usage error (exit `2`), `Column 99 (mapped to 'name') does not exist: the file has 6 columns`, rather than a `Missing card name` failure per row.
 
 After the wizard completes, the command prints a ready-to-run `ritual import ... --columns ...` line with the same answers, so you can repeat the import without the wizard (including `--csv` when the extension alone would not trigger CSV detection).
 
@@ -317,7 +334,7 @@ CSV exports differ between tools, so cell values are normalized on import. All m
 
 Rows that fail validation (missing name, missing printing for a collection, unrecognized condition/finish/quantity) do **not** abort the import. Every valid row is imported, and each failed row is reported with its line number, raw text, and reason. When any row fails, the command exits `1` even though the import was written. Check stderr for the failed lines.
 
-Text-file imports behave the same way. A body line that is neither a section header nor a card line (see [Local Text File Format](#local-text-file-format)) is skipped and reported: on stderr in text mode (`N line(s) could not be imported:` followed by each `Skipped malformed line: ...`), or in the JSON `warnings` array. The command exits `1` in every mode even though the import was written. `--dry-run` reports the same warnings, so a preview reveals the loss too.
+Text-file imports behave the same way. A body line that is neither a section header nor a card line (see [Local Text File Format](#local-text-file-format)) is skipped and reported: on stderr in text mode (`2 lines could not be imported:` followed by each `Skipped malformed line: ...`), or in the JSON `warnings` array. The command exits `1` in every mode even though the import was written. `--dry-run` reports the same warnings, so a preview reveals the loss too.
 
 ## Exit Codes
 

@@ -1,7 +1,13 @@
 import { Command } from 'commander'
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { IMPORT_TEXT_PARSE_OPTIONS, loadDeckFile } from '../importers/text-file'
+import {
+  IMPORT_TEXT_PARSE_OPTIONS,
+  importParseAdvisories,
+  importParseWarnings,
+  loadDeckFile,
+  type ImportParseWarning,
+} from '../importers/text-file'
 import {
   saveDeck,
   saveFlatList,
@@ -21,11 +27,12 @@ import { importCategoryAdvisories } from '../importers/import-categories'
 import { applyCsvImport, type CsvImportMode } from '../importers/csv-apply'
 import {
   CSV_FIELDS,
-  CSV_FIELD_LABELS,
+  CSV_FIELD_LABEL_KEYS,
   FIELD_TO_KEY,
   convertCsvRows,
+  csvFailureReason,
+  csvRowWarningMessage,
   formatColumnsSpec,
-  formatCsvRowWarning,
   guessColumns,
   guessHasHeader,
   isRequiredCsvField,
@@ -61,8 +68,8 @@ import {
   type OutputFormat,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail } from '../cli/action'
-import { ExitCode, CardCommandError, getErrorMessage, isBrokenPipeError } from '../util/errors'
+import { fail, failWithMessage } from '../cli/action'
+import { ExitCode, CardCommandError, isBrokenPipeError } from '../util/errors'
 import { getLogger } from '../util/logger'
 import { getDecksDir } from '../config/ritual-config'
 import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list/list-type'
@@ -70,6 +77,16 @@ import { ask, promptListType, resolveImportPrintings } from '../cli/prompts'
 import { cliConflictResolver } from '../cli/import-prompts'
 import { isNoInput, promptsUnavailable } from '../util/no-input'
 import { t, type MessageParams } from '../i18n/t'
+import { currentLocale } from '../i18n/runtime'
+import {
+  errorParam,
+  isSyncMessage,
+  nestSync,
+  renderSyncMessage,
+  syncMessage,
+  type PrefixedMessage,
+  type SyncMessage,
+} from '../sync/message'
 
 type ImportCommandOptions = {
   type?: string
@@ -104,16 +121,19 @@ type ImportJsonResult = {
    * empty section (an empty *extras* section is an advisory instead; nothing is
    * lost by dropping it). Always present; URL imports have nothing to parse and
    * carry an empty array. Any entry means content was lost, and the command
-   * exits 1.
+   * exits 1. Each is a message: English `message`, plus `messageKey` /
+   * `messageParams` when the text has a catalog entry, and `labelsDropped: true`
+   * when its card was imported without the labels it carried.
    */
-  warnings: string[]
+  warnings: ImportParseWarning[]
   /**
    * Non-fatal notices about content that WAS read — a card name that still
    * carries a parenthesized printing token (an export dialect the parser does
    * not know), a skipped Arena `About` line, or an empty extras section the
    * write drops. Nothing was lost, so these do not affect the exit code.
+   * Messages, like `warnings`.
    */
-  advisories: string[]
+  advisories: SyncMessage[]
   /**
    * Whether the written deck kept the exact printings the source listed. Only
    * a URL import can decline them (via prompt or flag), so the field appears
@@ -122,8 +142,11 @@ type ImportJsonResult = {
   syncPrintings?: boolean
 }
 
-/** One failed CSV row in the `--output json`/`ndjson` result. */
-type ImportCsvFailureOutput = { line: number; reason: string }
+/**
+ * One failed CSV row in the `--output json`/`ndjson` result: the English
+ * `reason`, plus `reasonKey` / `reasonParams` when it has a catalog entry.
+ */
+type ImportCsvFailureOutput = PrefixedMessage<'reason'> & { line: number; reason: string }
 
 /** Success payload for a CSV import under `--output json`/`ndjson` (also emitted on partial failure). */
 type ImportCsvJsonResult = {
@@ -140,9 +163,9 @@ type ImportCsvJsonResult = {
    * a board, and anything that went wrong writing the categories sidecar. Named
    * `advisories` like the URL/text payload's own channel, because this command's
    * `warnings` key means content was LOST and the run exits 1 — these never
-   * change the exit code.
+   * change the exit code. Messages, like the URL/text payload's.
    */
-  advisories: string[]
+  advisories: SyncMessage[]
 }
 
 /** Resolve the target list type for a text-file import: flag, prompt, or deck default. */
@@ -209,10 +232,10 @@ function rejectedFlagForSource(
  * transposition the compiler cannot catch must not be possible.
  */
 type ImportSummaryDiagnostics = {
-  /** Lines the parser could not read at all. */
-  warnings: string[]
+  /** Lines the parser could not read at all, or kept without their labels. */
+  warnings: ImportParseWarning[]
   /** Lines that WERE imported but whose shape deserves a word. */
-  advisories: string[]
+  advisories: SyncMessage[]
 }
 
 /** Emit the structured summary for a URL/text import. Text mode already logged its lines. */
@@ -250,26 +273,26 @@ function emitImportSummary(
  * Report a text-file source's parse warnings — lines the parser skipped are
  * content the import silently lost, so they are listed on stderr (mirroring
  * the CSV path's per-row failure report) and the run exits 1 even though the
- * import was written. Lines imported with labels dropped (`labelsDropped`, a
- * subset of `warnings`) are listed under their own heading: the card arrived,
- * only its labels did not.
+ * import was written. Lines imported with labels dropped (the warnings marked
+ * `labelsDropped`) are listed under their own heading: the card arrived, only
+ * its labels did not.
  */
 function reportSkippedLines(
-  warnings: string[],
-  labelsDropped: readonly string[],
+  warnings: readonly ImportParseWarning[],
   scripting: ScriptingOptions,
 ): void {
   if (warnings.length === 0) return
   if (scripting.output === 'text') {
     const logger = getLogger()
-    const skipped = warnings.filter((warning) => !labelsDropped.includes(warning))
+    const skipped = warnings.filter((warning) => warning.labelsDropped !== true)
+    const labelsDropped = warnings.filter((warning) => warning.labelsDropped === true)
     if (skipped.length > 0) {
       logger.error(t('cli.import.linesNotImported', { count: skipped.length }))
-      for (const warning of skipped) logger.error(`  ${warning}`)
+      for (const warning of skipped) logger.error(`  ${renderSyncMessage(warning)}`)
     }
     if (labelsDropped.length > 0) {
       logger.error(t('cli.import.linesWithoutLabels', { count: labelsDropped.length }))
-      for (const warning of labelsDropped) logger.error(`  ${warning}`)
+      for (const warning of labelsDropped) logger.error(`  ${renderSyncMessage(warning)}`)
     }
   }
   // A partial import still writes the list, but the run must not look clean.
@@ -277,16 +300,16 @@ function reportSkippedLines(
 }
 
 /**
- * Report a text source's parse advisories: lines that WERE imported but whose
- * shape suggests the file's dialect was not understood. Essential output (they
- * survive `--quiet`, and JSON modes carry them in the payload as well), but not
- * a failure — nothing was lost, so the exit code is untouched.
+ * Report an import's advisories: lines that WERE imported but whose shape
+ * suggests the file's dialect was not understood, or what became of a source's
+ * categories. Essential output (they survive `--quiet`, and JSON modes carry
+ * them in the payload as well), but not a failure — nothing was lost, so the
+ * exit code is untouched.
  */
-function reportAdvisories(advisories: string[]): void {
-  if (advisories.length === 0) return
+function reportAdvisories(advisories: readonly SyncMessage[]): void {
   const logger = getLogger()
   for (const advisory of advisories) {
-    logger.warn(t('cli.import.advisory', { message: advisory }))
+    logger.warn(t('cli.import.advisory', { message: renderSyncMessage(advisory) }))
   }
 }
 
@@ -354,7 +377,7 @@ type WizardMappingResult =
   | { status: 'cancelled' }
   | { status: 'mapped'; mapping: ColumnMapping }
   /** The answers do not make a usable mapping for this list type. */
-  | { status: 'invalid'; message: string }
+  | { status: 'invalid'; message: SyncMessage }
 
 /** Interactively map CSV columns to card fields. */
 async function promptColumnMapping(
@@ -366,7 +389,7 @@ async function promptColumnMapping(
   const headerCells = hasHeader ? (rows[0]?.cells ?? null) : null
   const sampleCells = (hasHeader ? rows[1]?.cells : rows[0]?.cells) ?? []
   const columnCount = Math.max(...rows.map((row) => row.cells.length))
-  const guessed = headerCells ? guessColumns(headerCells) : {}
+  const guessed = headerCells ? guessColumns(headerCells, [currentLocale()]) : {}
 
   const mapping: Partial<ColumnMapping> = {}
   const usedColumns = new Set<number>()
@@ -387,8 +410,8 @@ async function promptColumnMapping(
     const selection = await ask<number>({
       type: 'select',
       message: required
-        ? t('cli.import.promptWhichColumn', { field: CSV_FIELD_LABELS[field] })
-        : t('cli.import.promptWhichColumnOptional', { field: CSV_FIELD_LABELS[field] }),
+        ? t('cli.import.promptWhichColumn', { field: t(CSV_FIELD_LABEL_KEYS[field]) })
+        : t('cli.import.promptWhichColumnOptional', { field: t(CSV_FIELD_LABEL_KEYS[field]) }),
       choices,
       initial: initial === -1 ? 0 : initial,
     })
@@ -401,13 +424,17 @@ async function promptColumnMapping(
   // The same checked exit `--columns` takes, rather than an assertion that the
   // required-field loop above happened to fill everything in.
   const finalized = finalizeMapping(mapping, listType)
-  if (typeof finalized === 'string') return { status: 'invalid', message: finalized }
+  if (isSyncMessage(finalized)) return { status: 'invalid', message: finalized }
   return { status: 'mapped', mapping: finalized }
 }
 
 /** Map an engine row failure onto the JSON output shape. */
 function toFailureOutput(failure: CsvRowFailure): ImportCsvFailureOutput {
-  return { line: failure.lineNumber, reason: failure.reason }
+  const { lineNumber, reason, reasonKey, reasonParams } = failure
+  const output: ImportCsvFailureOutput = { line: lineNumber, reason }
+  if (reasonKey !== undefined) output.reasonKey = reasonKey
+  if (reasonParams !== undefined) output.reasonParams = reasonParams
+  return output
 }
 
 function reportFailures(failures: CsvRowFailure[]): void {
@@ -415,7 +442,7 @@ function reportFailures(failures: CsvRowFailure[]): void {
   logger.error(t('cli.import.rowsFailed', { count: failures.length }))
   for (const failure of failures) {
     logger.error(`  ${t('cli.import.failureLine', { line: failure.lineNumber, raw: failure.raw })}`)
-    logger.error(`    ${failure.reason}`)
+    logger.error(`    ${renderSyncMessage(csvFailureReason(failure))}`)
   }
 }
 
@@ -450,9 +477,11 @@ async function runCsvImport(
 
   const parsed = parseCsv(content)
   if ('error' in parsed) {
-    fail(scripting, 'runtime_error', 'cli.import.csvParseFailed', {
-      reason: parsed.error,
-    })
+    failWithMessage(
+      scripting,
+      'runtime_error',
+      syncMessage('cli.import.csvParseFailed', { reason: nestSync(parsed.error) }),
+    )
     return
   }
   if (parsed.rows.length === 0) {
@@ -588,9 +617,8 @@ async function runCsvImport(
   let wizardRan = false
   if (options.columns !== undefined) {
     const result = parseColumnsSpec(options.columns, listType)
-    if (typeof result === 'string') {
-      emitError('usage_error', result, scripting)
-      process.exitCode = ExitCode.UsageError
+    if (isSyncMessage(result)) {
+      failWithMessage(scripting, 'usage_error', result)
       return
     }
     mapping = result
@@ -600,7 +628,7 @@ async function runCsvImport(
     const headerAnswer = await ask<boolean>({
       type: 'confirm',
       message: t('cli.import.promptHasHeader'),
-      initial: guessHasHeader(firstRow.cells),
+      initial: guessHasHeader(firstRow.cells, [currentLocale()]),
     })
     if (headerAnswer === undefined) return cancelled()
     hasHeader = headerAnswer
@@ -613,8 +641,7 @@ async function runCsvImport(
     const wizardResult = await promptColumnMapping(listType, parsed.rows, hasHeader)
     if (wizardResult.status === 'cancelled') return cancelled()
     if (wizardResult.status === 'invalid') {
-      emitError('usage_error', wizardResult.message, scripting)
-      process.exitCode = ExitCode.UsageError
+      failWithMessage(scripting, 'usage_error', wizardResult.message)
       return
     }
     mapping = wizardResult.mapping
@@ -625,8 +652,7 @@ async function runCsvImport(
   const columnCount = Math.max(...parsed.rows.map((row) => row.cells.length))
   const widthError = validateMappingWidth(mapping, columnCount)
   if (widthError !== null) {
-    emitError('usage_error', widthError, scripting)
-    process.exitCode = ExitCode.UsageError
+    failWithMessage(scripting, 'usage_error', widthError)
     return
   }
 
@@ -636,7 +662,7 @@ async function runCsvImport(
   if (hasHeader && options.columns !== undefined) {
     const firstRow = parsed.rows[0]!
     if (!scripting.quiet) logger.info(t('cli.import.skippingHeader', { row: firstRow.raw }))
-    if (!guessHasHeader(firstRow.cells)) {
+    if (!guessHasHeader(firstRow.cells, [currentLocale()])) {
       logger.warn(t('cli.import.headerLooksLikeData', { row: firstRow.raw }))
     }
   }
@@ -692,15 +718,14 @@ async function runCsvImport(
     },
   )
   if ('error' in result) {
-    emitError('runtime_error', result.error, scripting)
-    process.exitCode = ExitCode.RuntimeError
+    failWithMessage(scripting, 'runtime_error', result.error)
     return
   }
 
   const replacing = result.mode === 'overwrite' && existingPath !== null
   // The import worked; these are things it did differently than the file said.
-  const advisories = [
-    ...rowWarnings.map(formatCsvRowWarning),
+  const advisories: SyncMessage[] = [
+    ...rowWarnings.map(csvRowWarningMessage),
     ...result.categoryNotices,
     ...(result.categoryError === undefined ? [] : [result.categoryError]),
   ]
@@ -709,9 +734,10 @@ async function runCsvImport(
     if (!scripting.quiet) {
       // Both the dry-run preview and the confirmation take the same parameters,
       // so the bag is built once and typed by the message it feeds.
+      const cards = t('domain.count.cards', { count: result.cardCount })
       const applied: MessageParams<'cli.import.appliedCsv'> = {
         mode: result.mode,
-        count: result.cardCount,
+        cards,
         listType,
         name,
         path: result.filePath,
@@ -721,19 +747,14 @@ async function runCsvImport(
         // mode whose purpose is previewing destructive effects.
         logger.info(
           replacing
-            ? t('cli.import.dryRunOverwriteCsv', {
-                listType,
-                name,
-                count: result.cardCount,
-                path: result.filePath,
-              })
+            ? t('cli.import.dryRunOverwriteCsv', { listType, name, cards, path: result.filePath })
             : t('cli.import.dryRunApplyCsv', applied),
         )
       } else {
         logger.info(t('cli.import.appliedCsv', applied))
       }
     }
-    for (const message of advisories) logger.warn(t('cli.import.advisory', { message }))
+    reportAdvisories(advisories)
     if (failures.length > 0) reportFailures(failures)
   } else {
     const payload: ImportCsvJsonResult = {
@@ -841,12 +862,11 @@ export function registerImportCommand(program: Command): void {
         const result = await fetchDeckFromUrl(sourceUrl, {
           moxfieldUserAgent: options.moxfieldUserAgent,
           onProgress: (message) => {
-            if (!scripting.quiet) logger.info(message)
+            if (!scripting.quiet) logger.info(renderSyncMessage(message))
           },
         })
-        if (typeof result === 'string') {
-          emitError('usage_error', result, scripting)
-          process.exitCode = ExitCode.UsageError
+        if (isSyncMessage(result)) {
+          failWithMessage(scripting, 'usage_error', result)
           return
         }
         // The exact printings the source lists are opt-in, mirroring
@@ -906,11 +926,11 @@ export function registerImportCommand(program: Command): void {
       // neither. See ParseDeckTextOptions.
       const {
         deck: deckData,
-        warnings,
-        advisories,
+        notices,
         defaultLabels,
-        labelsDropped,
       } = await loadDeckFile(source, { ...IMPORT_TEXT_PARSE_OPTIONS, listType })
+      const warnings = importParseWarnings(notices)
+      const advisories = importParseAdvisories(notices)
 
       // The file's own default rides along, so each line's labels land as the
       // file states them (a move's rule) rather than as a bare token.
@@ -925,7 +945,7 @@ export function registerImportCommand(program: Command): void {
       })
       if (outcome.status === 'saved') {
         reportAdvisories(advisories)
-        reportSkippedLines(warnings, labelsDropped, scripting)
+        reportSkippedLines(warnings, scripting)
       }
     } catch (error) {
       // The prompt guards throw a structured usage error when input is
@@ -941,9 +961,13 @@ export function registerImportCommand(program: Command): void {
         markStdoutClosed()
         return
       }
-      fail(scripting, 'runtime_error', 'cli.import.failed', {
-        reason: getErrorMessage(error),
-      })
+      // An importer's own failure (a deck service answering an error) carries
+      // its key, nested so the envelope keeps it; anything else, its text.
+      failWithMessage(
+        scripting,
+        'runtime_error',
+        syncMessage('cli.import.failed', { reason: errorParam(error) }),
+      )
     }
   })
 }

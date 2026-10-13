@@ -470,101 +470,6 @@
     "message \"${…}\" needs a numeric \"${…}\" param": 1,
     "missing message key \"${…}\" — is its namespace registered?": 1
   },
-  "src/importers/archidekt-collection.ts": {
-    "${…} of ${…} row results in \"data\" were not objects": 1,
-    "A CSV upload needs at least one column.": 1,
-    "A CSV upload takes at most ${…} columns, got ${…}.": 1,
-    "A CSV upload's columns must include 'uid', or 'oracleCard__name' plus 'collectorNumber' plus 'edition__editionname' or 'edition__editioncode'; got: ${…}.": 1,
-    "Unknown Archidekt condition id '${…}'. Expected one of: ${…}.": 1,
-    "Unknown Archidekt modifier '${…}'. Expected one of: ${…}.": 1,
-    "the response carried no \"data\" array of per-row results": 1,
-    "the response reported ${…} row results for ${…} uploaded rows": 1,
-    "the response was not JSON": 1
-  },
-  "src/importers/archidekt-types.ts": {
-    "Archidekt Deck ${…}": 1,
-    "Archidekt deck ${…}: skipped ${…} with no card name.": 1,
-    "Commander / EDH": 1,
-    "Dual Commander": 1,
-    "Future Standard": 1,
-    "Penny Dreadful": 1
-  },
-  "src/importers/csv-apply.ts": {
-    "${…} Use overwrite or append mode to change it.": 1,
-    "Categories are recorded for card(s) the list does not hold: ${…}": 1,
-    "Creating a deck from CSV requires a format": 1,
-    "Dropped categories for card(s) no longer in the list: ${…}": 1,
-    "File already exists: ${…}. Use overwrite or append mode to change it.": 1
-  },
-  "src/importers/csv.ts": {
-    "Card name": 1,
-    "Categories": 1,
-    "Collection imports require both a set and a collector-number column": 1,
-    "Collector number": 1,
-    "Column ${…}${…} (mapped to '${…}') does not exist: the file has ${…} column(s)": 1,
-    "Condition": 1,
-    "Field '${…}' is mapped more than once": 1,
-    "Fields '${…}' and '${…}' are mapped to the same column ${…}${…}": 1,
-    "Finish": 1,
-    "Invalid column assignment '${…}': expected field=column": 1,
-    "Invalid column number '${…}' for field '${…}': expected a 1-based column number": 1,
-    "Invalid quantity '${…}'": 1,
-    "Invalid quantity '${…}': must be at least 1": 1,
-    "Language": 1,
-    "Line ${…}: ${…} on \"${…}\"": 1,
-    "Line break inside the card name, set code, or collector number": 1,
-    "Missing card name": 1,
-    "Missing collector number (required for collections)": 1,
-    "Missing required field 'name' in column mapping": 1,
-    "Missing set code (required for collections)": 1,
-    "Quantity": 1,
-    "Section": 1,
-    "Set code": 1,
-    "Tags": 1,
-    "Unknown field '${…}'. Valid fields: ${…}": 1,
-    "Unrecognized condition '${…}'": 1,
-    "Unrecognized finish '${…}'": 1,
-    "Unrecognized language '${…}'": 1,
-    "Unterminated quoted field starting on line ${…}": 1,
-    "Wanted lists do not track condition; remove the condition column": 1,
-    "category ${…} names a board — dropped from the categories, and the row's section is '${…}'": 1,
-    "ignored category ${…}": 1
-  },
-  "src/importers/import-categories.ts": {
-    "Skipped categories Ritual cannot store (${…}): ${…}": 1,
-    "The deck was imported, but its categories could not be saved: ${…}": 1
-  },
-  "src/importers/moxfield-client.ts": {
-    "Failed to fetch Moxfield deck": 1,
-    "Failed to fetch Moxfield primer": 1
-  },
-  "src/importers/moxfield-lib.ts": {
-    "Moxfield Lib Error:": 1
-  },
-  "src/importers/mtggoldfish.ts": {
-    "Could not find deck download link on MTGGoldfish page": 1,
-    "Failed to fetch MTGGoldfish page": 1,
-    "Failed to fetch deck list text": 1,
-    "MTGGoldfish Deck": 1,
-    "by": 1
-  },
-  "src/importers/text-file.ts": {
-    "Dropped empty section: ${…}": 1,
-    "File not found: ${…}": 1,
-    "Front matter 'image' ignored: ${…} A rewrite would drop the key.": 1,
-    "Labels [${…}] on '${…}' are not supported on a ${…}. The labels were ignored, and a rewrite would drop them: ${…}": 1,
-    "Skipped About line: ${…}": 1,
-    "Skipped extra title line: ${…}": 1,
-    "Skipped malformed line: ${…}": 1,
-    "Skipped malformed line: ${…}${…}": 1
-  },
-  "src/importers/url-dispatch.ts": {
-    "Fetching deck ID ${…} from Archidekt...": 1,
-    "Fetching deck ID ${…} from Moxfield...": 1,
-    "Fetching deck from MTGGoldfish...": 1,
-    "Moxfield imports require a unique Moxfield-approved user agent string. Set MOXFIELD_USER_AGENT or pass --moxfield-user-agent <agent>. Contact Moxfield support if you need one.": 1,
-    "URL not supported. Use Archidekt, Moxfield, or MTGGoldfish URLs.": 1
-  },
   "src/list-view/buylist-quotes.ts": {
     "Buylist quotes failed: HTTP ${…}": 1
   },
@@ -655,9 +560,6 @@
     "The file's front matter ${…}, so a metadata write would overwrite it. Fix the block by hand first.": 1,
     "could not be read as YAML": 1,
     "is not a key/value mapping": 1
-  },
-  "src/list/flat-list-scan.ts": {
-    "Skipped malformed line: ${…}": 1
   },
   "src/list/line-mutate.ts": {
     "applyDeckAddToContent needs at least one copy to add (got ${…}).": 1,

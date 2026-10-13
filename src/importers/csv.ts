@@ -10,14 +10,35 @@ import {
 import { canonicalSectionName, sectionRole } from '../list/deck-format'
 import type { ListType } from '../list/list-type'
 import { hasLineBreak } from '../util/single-line'
+import { tIn, type ParameterlessKey } from '../i18n/t'
+import type { LocaleTag } from '../i18n/types'
+import {
+  isNonEmpty,
+  joinSyncMessages,
+  reasonFields,
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+  syncText,
+  type PrefixedMessage,
+  type SyncMessage,
+} from '../sync/message'
 
 /**
  * CSV import support: a validating CSV parser plus the column-mapping and
  * value-normalization logic that turns arbitrary third-party CSV exports
  * (Moxfield, Deckbox, ManaBox, TCGplayer, ...) into Ritual card entries.
  *
- * Everything in this module is pure so it can be unit tested; the file I/O and
- * interactive wizard live in `src/commands/import.ts`.
+ * Nothing here touches the filesystem or the network, so it can be unit tested;
+ * the file I/O and interactive wizard live in `src/commands/import.ts`. The one
+ * outside state it reads is the message catalog: the header-guessing functions
+ * look up the column-heading spellings of the languages their caller names.
+ *
+ * Its refusals and row reasons are messages — English plus the catalog key —
+ * rather than rendered text: the same module runs under the CLI (which renders
+ * them in its own language), the admin import route and MCP (which answer with
+ * the English and the key), and the admin Import CSV page (which renders them
+ * in the reader's language).
  */
 
 /** One parsed CSV record, with enough source info to report failures usefully. */
@@ -29,7 +50,7 @@ export type CsvRow = {
   raw: string
 }
 
-export type CsvParseResult = { rows: CsvRow[] } | { error: string }
+export type CsvParseResult = { rows: CsvRow[] } | { error: SyncMessage }
 
 /**
  * Parse RFC-4180-style CSV text: comma separators, optional double-quoted
@@ -99,7 +120,7 @@ export function parseCsv(content: string): CsvParseResult {
   }
 
   if (inQuotes) {
-    return { error: `Unterminated quoted field starting on line ${quoteStartLine}` }
+    return { error: syncMessage('domain.import.csv.unterminatedQuote', { line: quoteStartLine }) }
   }
   if (cell !== '' || cells.length > 0 || raw !== '') {
     endRow()
@@ -123,19 +144,22 @@ export const CSV_FIELDS = [
 ] as const
 export type CsvField = (typeof CSV_FIELDS)[number]
 
-/** Human-readable labels for each CSV field, shared by the CLI wizard and the admin page. */
-export const CSV_FIELD_LABELS: Record<CsvField, string> = {
-  name: 'Card name',
-  set: 'Set code',
-  'collector-number': 'Collector number',
-  condition: 'Condition',
-  finish: 'Finish',
-  language: 'Language',
-  tags: 'Tags',
-  categories: 'Categories',
-  section: 'Section',
-  quantity: 'Quantity',
-}
+/**
+ * The catalog key of each CSV field's human-readable label, shared by the CLI
+ * wizard and the admin page — each renders it in its own reader's language.
+ */
+export const CSV_FIELD_LABEL_KEYS = {
+  name: 'domain.import.csv.field.name',
+  set: 'domain.import.csv.field.set',
+  'collector-number': 'domain.import.csv.field.collectorNumber',
+  condition: 'domain.import.csv.field.condition',
+  finish: 'domain.import.csv.field.finish',
+  language: 'domain.import.csv.field.language',
+  tags: 'domain.import.csv.field.tags',
+  categories: 'domain.import.csv.field.categories',
+  section: 'domain.import.csv.field.section',
+  quantity: 'domain.import.csv.field.quantity',
+} as const satisfies Record<CsvField, ParameterlessKey>
 
 /**
  * Whether a field must be mapped to a column for the given list type: the card
@@ -181,16 +205,16 @@ export const FIELD_TO_KEY: Record<CsvField, keyof ColumnMapping> = {
 /**
  * Validate a column mapping against a list type: collections require a
  * printing (set + collector number), and wanted lists carry no condition.
- * Returns an error message, or null when the mapping is valid.
+ * Returns the refusal, or null when the mapping is valid.
  */
-export function validateMapping(mapping: ColumnMapping, listType: ListType): string | null {
+export function validateMapping(mapping: ColumnMapping, listType: ListType): SyncMessage | null {
   if (listType === 'collection') {
     if (mapping.set === undefined || mapping.collectorNumber === undefined) {
-      return 'Collection imports require both a set and a collector-number column'
+      return syncMessage('domain.import.csv.collectionNeedsPrinting')
     }
   }
   if (listType === 'wanted' && mapping.condition !== undefined) {
-    return 'Wanted lists do not track condition; remove the condition column'
+    return syncMessage('domain.import.csv.wantedNoCondition')
   }
   const used = new Map<number, CsvField>()
   for (const field of CSV_FIELDS) {
@@ -198,7 +222,11 @@ export function validateMapping(mapping: ColumnMapping, listType: ListType): str
     if (index === undefined) continue
     const existing = used.get(index)
     if (existing !== undefined) {
-      return `Fields '${existing}' and '${field}' are mapped to the same column ${index + 1}`
+      return syncMessage('domain.import.csv.sameColumn', {
+        first: existing,
+        second: field,
+        column: index + 1,
+      })
     }
     used.set(index, field)
   }
@@ -207,25 +235,30 @@ export function validateMapping(mapping: ColumnMapping, listType: ListType): str
 
 /**
  * Parse a `--columns` flag value like `name=1,set=2,collector-number=3` into a
- * column mapping (1-based in the flag, 0-based in the result). Returns an error
- * message string when the spec is malformed or invalid for the list type.
+ * column mapping (1-based in the flag, 0-based in the result). Returns the
+ * refusal when the spec is malformed or invalid for the list type — tell the
+ * two apart with `isSyncMessage`.
  */
-export function parseColumnsSpec(spec: string, listType: ListType): ColumnMapping | string {
+export function parseColumnsSpec(spec: string, listType: ListType): ColumnMapping | SyncMessage {
   const partial: Partial<ColumnMapping> = {}
   for (const token of spec.split(',')) {
     const trimmed = token.trim()
     if (trimmed === '') continue
     const eq = trimmed.indexOf('=')
-    if (eq === -1) return `Invalid column assignment '${trimmed}': expected field=column`
+    if (eq === -1) {
+      return syncMessage('domain.import.csv.invalidAssignment', { assignment: trimmed })
+    }
     const field = trimmed.slice(0, eq).trim().toLowerCase()
     const value = trimmed.slice(eq + 1).trim()
     if (!(CSV_FIELDS as readonly string[]).includes(field)) {
-      return `Unknown field '${field}'. Valid fields: ${CSV_FIELDS.join(', ')}`
+      return syncMessage('domain.import.csv.unknownField', { field, fields: CSV_FIELDS.join(', ') })
     }
     const key = FIELD_TO_KEY[field as CsvField]
-    if (partial[key] !== undefined) return `Field '${field}' is mapped more than once`
+    if (partial[key] !== undefined) {
+      return syncMessage('domain.import.csv.fieldMappedTwice', { field })
+    }
     if (!/^\d+$/.test(value) || Number.parseInt(value, 10) < 1) {
-      return `Invalid column number '${value}' for field '${field}': expected a 1-based column number`
+      return syncMessage('domain.import.csv.invalidColumnNumber', { value, field })
     }
     partial[key] = Number.parseInt(value, 10) - 1
   }
@@ -238,14 +271,14 @@ export function parseColumnsSpec(spec: string, listType: ListType): ColumnMappin
  * `--columns` parsing and the interactive wizard so both reach `ColumnMapping`
  * through the same guard rather than an assertion.
  *
- * @returns the mapping, or an error message.
+ * @returns the mapping, or the refusal.
  */
 export function finalizeMapping(
   partial: Partial<ColumnMapping>,
   listType: ListType,
-): ColumnMapping | string {
+): ColumnMapping | SyncMessage {
   const { name } = partial
-  if (name === undefined) return `Missing required field 'name' in column mapping`
+  if (name === undefined) return syncMessage('domain.import.csv.nameUnmapped')
   // Constructed rather than asserted, so a second required field added to
   // `ColumnMapping` becomes a compile error here instead of a silent hole.
   const mapping: ColumnMapping = { ...partial, name }
@@ -256,17 +289,24 @@ export function finalizeMapping(
  * Validate a column mapping against the file's actual width: a mapped column
  * the file does not have would otherwise read as an empty cell for every row
  * and fail each one with `Missing card name`, pointing at the data instead of
- * at the column number. Returns an error message, or null when every mapped
- * index exists.
+ * at the column number. Returns the refusal, or null when every mapped index
+ * exists.
  *
  * `columnCount` is the widest row's cell count, so a ragged file's short rows
  * do not reject a column its other rows do have.
  */
-export function validateMappingWidth(mapping: ColumnMapping, columnCount: number): string | null {
+export function validateMappingWidth(
+  mapping: ColumnMapping,
+  columnCount: number,
+): SyncMessage | null {
   for (const field of CSV_FIELDS) {
     const index = mapping[FIELD_TO_KEY[field]]
     if (index === undefined || index < columnCount) continue
-    return `Column ${index + 1} (mapped to '${field}') does not exist: the file has ${columnCount} column(s)`
+    return syncMessage('domain.import.csv.columnMissing', {
+      column: index + 1,
+      field,
+      count: columnCount,
+    })
   }
   return null
 }
@@ -281,16 +321,24 @@ export function formatColumnsSpec(mapping: ColumnMapping): string {
   return parts.join(',')
 }
 
-/** Lowercase and strip spaces, hyphens, and underscores for alias matching. */
+/**
+ * Lowercase and strip spaces, hyphens, and underscores for alias matching. NFC
+ * first, so a heading typed with a precomposed accent matches one written with
+ * a combining one (ASCII is unchanged by it).
+ */
 function squash(value: string): string {
-  return value.toLowerCase().replace(/[\s\-_]+/g, '')
+  return value
+    .normalize('NFC')
+    .toLowerCase()
+    .replace(/[\s\-_]+/g, '')
 }
 
 /**
  * The result of normalizing one CSV cell: a valid value (`undefined` meaning
- * "not specified" for an empty cell), or an error describing the bad input.
+ * "not specified" for an empty cell), or why the input was refused.
  */
-export type NormalizedField<T> = { ok: true; value: T | undefined } | { ok: false; error: string }
+export type NormalizedField<T> =
+  { ok: true; value: T | undefined } | { ok: false; error: SyncMessage }
 
 const CONDITION_ALIASES: Record<string, Condition> = {
   nm: 'NM',
@@ -327,7 +375,12 @@ export function normalizeCondition(rawValue: string): NormalizedField<Condition>
   const key = squash(rawValue)
   if (key === '') return { ok: true, value: undefined }
   const condition = CONDITION_ALIASES[key]
-  if (condition === undefined) return { ok: false, error: `Unrecognized condition '${rawValue}'` }
+  if (condition === undefined) {
+    return {
+      ok: false,
+      error: syncMessage('domain.import.csv.unknownCondition', { value: rawValue }),
+    }
+  }
   return { ok: true, value: condition }
 }
 
@@ -357,7 +410,8 @@ const FINISH_ALIASES: Record<string, Finish> = {
  */
 export function normalizeTags(rawValue: string): NormalizedField<CardTag[]> {
   const parsed = parseCardTagsInput(rawValue)
-  if (!parsed.ok) return { ok: false, error: parsed.message }
+  // The tag grammar words its own refusal (`src/card/card-tags.ts`), carried as it is.
+  if (!parsed.ok) return { ok: false, error: syncText(parsed.message) }
   return { ok: true, value: normalizedTags(parsed.tags) }
 }
 
@@ -371,7 +425,9 @@ export function normalizeFinish(rawValue: string): NormalizedField<Finish> {
   const key = squash(rawValue)
   if (key === '') return { ok: true, value: undefined }
   const finish = FINISH_ALIASES[key]
-  if (finish === undefined) return { ok: false, error: `Unrecognized finish '${rawValue}'` }
+  if (finish === undefined) {
+    return { ok: false, error: syncMessage('domain.import.csv.unknownFinish', { value: rawValue }) }
+  }
   return { ok: true, value: finish }
 }
 
@@ -390,7 +446,12 @@ export function normalizeLanguage(rawValue: string): NormalizedField<CardLanguag
   const trimmed = rawValue.trim()
   if (trimmed === '') return { ok: true, value: undefined }
   const language = normalizeLanguageValue(trimmed)
-  if (language === null) return { ok: false, error: `Unrecognized language '${rawValue}'` }
+  if (language === null) {
+    return {
+      ok: false,
+      error: syncMessage('domain.import.csv.unknownLanguage', { value: rawValue }),
+    }
+  }
   return { ok: true, value: storedLanguage(language) }
 }
 
@@ -516,11 +577,18 @@ export function normalizeQuantity(rawValue: string): NormalizedField<number> {
   if (trimmed === '') return { ok: true, value: undefined }
   const digits = trimmed.replace(/^[xX]/, '').replace(/[xX]$/, '')
   if (!/^\d+$/.test(digits)) {
-    return { ok: false, error: `Invalid quantity '${rawValue}'` }
+    return {
+      ok: false,
+      error: syncMessage('domain.import.csv.invalidQuantity', { value: rawValue }),
+    }
   }
   const quantity = Number.parseInt(digits, 10)
-  if (quantity < 1)
-    return { ok: false, error: `Invalid quantity '${rawValue}': must be at least 1` }
+  if (quantity < 1) {
+    return {
+      ok: false,
+      error: syncMessage('domain.import.csv.quantityTooSmall', { value: rawValue }),
+    }
+  }
   return { ok: true, value: quantity }
 }
 
@@ -546,37 +614,74 @@ export type CsvCardEntry = {
   section: string
 }
 
-/** A row that could not be imported, with its source location and reason. */
-export type CsvRowFailure = {
+/**
+ * A row that could not be imported, with its source location and reason.
+ *
+ * `reason` is the English every reader reads (several reasons joined with `; `),
+ * and `reasonKey` / `reasonParams` the message it was rendered from, for a
+ * reader that renders it in its own language — the same three fields a sync
+ * result's reason carries. The key is absent only when the one reason is text
+ * another module worded (a tag refusal).
+ */
+export type CsvRowFailure = PrefixedMessage<'reason'> & {
   lineNumber: number
   raw: string
   reason: string
 }
 
 /**
+ * A row failure's reason as a message: the English `reason`, with its key and
+ * params when the engine had them — what a reader in another language renders.
+ */
+export function csvFailureReason(failure: CsvRowFailure): SyncMessage {
+  const reason: SyncMessage = { message: failure.reason }
+  if (failure.reasonKey !== undefined) reason.messageKey = failure.reasonKey
+  if (failure.reasonParams !== undefined) reason.messageParams = failure.reasonParams
+  return reason
+}
+
+/** What a {@link CsvRowWarning} is about. */
+export type CsvRowWarningKind =
+  /** A categories-cell value the category grammar refused; the row imported without it. */
+  | { kind: 'category-ignored' }
+  /** A categories-cell value that named a deck board, and so is not a category. */
+  | {
+      kind: 'category-is-board'
+      /** The section the row landed in — the board's, or an explicit section cell's. */
+      section: string
+    }
+
+/**
  * A notice about a row that **did** import — today, a category value the grammar
  * refused, and a category value that named a board and became the row's section.
  * Structured like its sibling {@link CsvRowFailure} so a consumer can link to the
- * row, group by card or count values without re-parsing a sentence;
- * {@link formatCsvRowWarning} is the one English rendering.
+ * row, group by card or count values without re-parsing a sentence, and branch
+ * on `kind` rather than on wording; {@link csvRowWarningMessage} is its message.
  */
-export type CsvRowWarning = {
+export type CsvRowWarning = CsvRowWarningKind & {
   lineNumber: number
   /** The card the row named; empty only when the row named none. */
   cardName: string
   /** The cell value the notice is about, exactly as written. */
   value: string
-  /** What happened to it. English by contract, like `CsvRowFailure.reason`. */
-  reason: string
 }
 
 /**
- * The one English rendering of a {@link CsvRowWarning}, shared by the CLI, the
- * admin route and MCP so the same notice reads the same everywhere. English by
- * contract: this module produces no localized prose.
+ * A {@link CsvRowWarning} as a message, shared by the CLI, the admin route and
+ * MCP so the same notice reads the same everywhere: `Line 4: ignored category
+ * "\t" on "Sol Ring"`. The value is quoted as a JSON string, so an invisible
+ * control character shows as its escape.
  */
-export function formatCsvRowWarning(warning: CsvRowWarning): string {
-  return `Line ${warning.lineNumber}: ${warning.reason} on "${warning.cardName}"`
+export function csvRowWarningMessage(warning: CsvRowWarning): SyncMessage {
+  const value = JSON.stringify(warning.value)
+  return syncMessage('domain.import.csv.rowNotice', {
+    line: warning.lineNumber,
+    notice:
+      warning.kind === 'category-ignored'
+        ? syncRef('domain.import.csv.categoryIgnored', { value })
+        : syncRef('domain.import.csv.categoryIsBoard', { value, section: warning.section }),
+    card: warning.cardName,
+  })
 }
 
 export type CsvConversionResult = {
@@ -607,22 +712,22 @@ export function convertCsvRows(
     const cellAt = (index: number | undefined): string =>
       index === undefined ? '' : (row.cells[index] ?? '').trim()
 
-    const problems: string[] = []
+    const problems: SyncMessage[] = []
 
     const name = cellAt(mapping.name)
-    if (name === '') problems.push('Missing card name')
+    if (name === '') problems.push(syncMessage('domain.import.csv.missingName'))
 
     const set = cellAt(mapping.set).toLowerCase()
     const collectorNumber = cellAt(mapping.collectorNumber)
     // A quoted CSV cell may legally span lines, but a card line may not: the
     // rest of the cell would be written as forged lines of its own.
     if ([name, set, collectorNumber].some(hasLineBreak)) {
-      problems.push('Line break inside the card name, set code, or collector number')
+      problems.push(syncMessage('domain.import.csv.lineBreak'))
     }
     if (listType === 'collection') {
-      if (set === '') problems.push('Missing set code (required for collections)')
+      if (set === '') problems.push(syncMessage('domain.import.csv.missingSet'))
       if (collectorNumber === '') {
-        problems.push('Missing collector number (required for collections)')
+        problems.push(syncMessage('domain.import.csv.missingCollectorNumber'))
       }
     }
 
@@ -646,30 +751,31 @@ export function convertCsvRows(
     const quantity = normalizeQuantity(cellAt(mapping.quantity))
     if (!quantity.ok) problems.push(quantity.error)
 
-    // The `ok` checks are implied by `problems.length` but narrow the
-    // normalized result types for the success path below.
-    if (
-      problems.length > 0 ||
-      !condition.ok ||
-      !finish.ok ||
-      !language.ok ||
-      !tags.ok ||
-      !quantity.ok
-    ) {
-      failures.push({ lineNumber: row.lineNumber, raw: row.raw, reason: problems.join('; ') })
+    // A rejected row is always reported: any problem fails it.
+    if (isNonEmpty(problems)) {
+      const reason = joinSyncMessages(problems)
+      failures.push({
+        lineNumber: row.lineNumber,
+        raw: row.raw,
+        ...reasonFields(reason),
+        reason: reason.message,
+      })
       continue
+    }
+    // Every failed check above recorded a problem, so these only narrow the
+    // normalized types for the success path — reaching the throw is a bug, and
+    // a row is never dropped without a word.
+    if (!condition.ok || !finish.ok || !language.ok || !tags.ok || !quantity.ok) {
+      throw new SyncMessageError(
+        syncMessage('domain.import.csv.rowUnexplained', { line: row.lineNumber }),
+      )
     }
 
     // Reported only now the row is known to have imported: a warning about a
     // row that failed would name a decision about a card no one has, and on a
     // nameless row it would name an empty card.
     for (const value of categories.refused) {
-      warnings.push({
-        lineNumber: row.lineNumber,
-        cardName: name,
-        value,
-        reason: `ignored category ${JSON.stringify(value)}`,
-      })
+      warnings.push({ kind: 'category-ignored', lineNumber: row.lineNumber, cardName: name, value })
     }
     // A board value is dropped from the categories whether or not it won the
     // section (an explicit `section` cell outranks it), and `Tokens` is both a
@@ -677,10 +783,11 @@ export function convertCsvRows(
     const section = resolveRowSection(cellAt(mapping.section), categories.section, listType)
     if (categories.routedFrom !== undefined) {
       warnings.push({
+        kind: 'category-is-board',
         lineNumber: row.lineNumber,
         cardName: name,
         value: categories.routedFrom,
-        reason: `category ${JSON.stringify(categories.routedFrom)} names a board — dropped from the categories, and the row's section is '${section}'`,
+        section,
       })
     }
 
@@ -701,7 +808,13 @@ export function convertCsvRows(
   return { entries, failures, warnings }
 }
 
-const HEADER_ALIASES: Record<string, CsvField> = {
+/**
+ * The English column headings the wizard recognizes, squashed (see
+ * {@link squash}). A contract with the CSV files already out there: these are
+ * recognized in every UI language, and a translation's own spellings
+ * ({@link CSV_HEADER_ALIAS_KEYS}) are only ever added beside them.
+ */
+const HEADER_ALIASES: Readonly<Record<string, CsvField>> = {
   name: 'name',
   cardname: 'name',
   card: 'name',
@@ -733,24 +846,105 @@ const HEADER_ALIASES: Record<string, CsvField> = {
 }
 
 /**
- * Guess whether the first CSV row is a header by checking its cells against
- * known column-header names.
+ * The catalog entry listing, per field, the column headings a CSV export in the
+ * reader's language uses — `|`-separated, never shown. The English entries
+ * repeat {@link HEADER_ALIASES}' spellings, so they add nothing; a translation's
+ * add its language's.
  */
-export function guessHasHeader(firstRowCells: string[]): boolean {
-  return firstRowCells.some((cell) => HEADER_ALIASES[squash(cell)] !== undefined)
+export const CSV_HEADER_ALIAS_KEYS = {
+  name: 'domain.import.csv.headers.name',
+  set: 'domain.import.csv.headers.set',
+  'collector-number': 'domain.import.csv.headers.collectorNumber',
+  condition: 'domain.import.csv.headers.condition',
+  finish: 'domain.import.csv.headers.finish',
+  language: 'domain.import.csv.headers.language',
+  tags: 'domain.import.csv.headers.tags',
+  categories: 'domain.import.csv.headers.categories',
+  section: 'domain.import.csv.headers.section',
+  quantity: 'domain.import.csv.headers.quantity',
+} as const satisfies Record<CsvField, ParameterlessKey>
+
+/** The separator between the spellings in a {@link CSV_HEADER_ALIAS_KEYS} entry. */
+export const HEADER_ALIAS_SEPARATOR = '|'
+
+/** The column headings the wizard recognizes, squashed (see {@link squash}), in two tiers. */
+export type CsvHeaderAliases = {
+  /** The English headings: a contract with the files already out there, consulted first. */
+  english: ReadonlyMap<string, CsvField>
+  /**
+   * The headings the named languages' translations add — never one the English
+   * tier already has, so an English heading always keeps its English field.
+   */
+  localized: ReadonlyMap<string, CsvField>
+}
+
+/**
+ * The column headings recognized for `locales`: the English ones, plus each
+ * named language's own spellings ({@link CSV_HEADER_ALIAS_KEYS}).
+ *
+ * A translation only ever adds: a spelling English already has is skipped, so
+ * it keeps its English field in every language. Between two added spellings
+ * that collide — two of one translation's, or the same word in two languages —
+ * the first wins: the language listed first, then the field listed first in
+ * {@link CSV_FIELDS}. A language without a dictionary falls back to the English
+ * catalog entries, which add nothing.
+ */
+export function csvHeaderAliases(locales: readonly LocaleTag[]): CsvHeaderAliases {
+  const english = new Map<string, CsvField>(Object.entries(HEADER_ALIASES))
+  const localized = new Map<string, CsvField>()
+  for (const locale of locales) {
+    for (const field of CSV_FIELDS) {
+      const spellings = tIn(locale, CSV_HEADER_ALIAS_KEYS[field]).split(HEADER_ALIAS_SEPARATOR)
+      for (const spelling of spellings) {
+        const alias = squash(spelling)
+        if (alias === '' || english.has(alias) || localized.has(alias)) continue
+        localized.set(alias, field)
+      }
+    }
+  }
+  return { english, localized }
+}
+
+/**
+ * Guess whether the first CSV row is a header: whether any cell is a known
+ * column heading — an English one, or one of `locales`' spellings (see
+ * {@link csvHeaderAliases}). The caller names the languages, so the answer
+ * never depends on whatever UI language happens to be active.
+ */
+export function guessHasHeader(
+  firstRowCells: readonly string[],
+  locales: readonly LocaleTag[],
+): boolean {
+  const { english, localized } = csvHeaderAliases(locales)
+  return firstRowCells.some((cell) => {
+    const alias = squash(cell)
+    return english.has(alias) || localized.has(alias)
+  })
 }
 
 /**
  * Guess a column mapping from header cells. Used only to pre-select wizard
- * defaults; the user always confirms. The first matching column wins per field.
+ * defaults; the user always confirms.
+ *
+ * Two passes, so a translation can only fill a gap: every field an **English**
+ * heading names is mapped first (the first matching column per field), and only
+ * then are the fields still unmapped filled from `locales`' spellings. A
+ * localized spelling therefore never takes a field from an English heading
+ * further right — `Edition Name` added for the set cannot beat `Edition Code`.
  */
-export function guessColumns(headerCells: string[]): Partial<ColumnMapping> {
+export function guessColumns(
+  headerCells: readonly string[],
+  locales: readonly LocaleTag[],
+): Partial<ColumnMapping> {
+  const { english, localized } = csvHeaderAliases(locales)
   const guessed: Partial<ColumnMapping> = {}
-  headerCells.forEach((cell, index) => {
-    const field = HEADER_ALIASES[squash(cell)]
-    if (field === undefined) return
-    const key = FIELD_TO_KEY[field]
-    if (guessed[key] === undefined) guessed[key] = index
-  })
+  for (const tier of [english, localized]) {
+    headerCells.forEach((cell, index) => {
+      const field = tier.get(squash(cell))
+      if (field === undefined) return
+      const key = FIELD_TO_KEY[field]
+      if (guessed[key] === undefined) guessed[key] = index
+    })
+  }
   return guessed
 }

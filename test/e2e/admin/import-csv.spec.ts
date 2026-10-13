@@ -2,6 +2,16 @@ import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { fulfillJson } from '../helpers/fulfill'
 import { mockImportCsvApi } from '../helpers/mock-admin'
+import { csvRowWarningMessage } from '../../../src/importers/csv'
+import { reasonFields, syncMessage } from '../../../src/sync/message'
+
+/** A failed row as the route reports it: its reason keyed, like the engine's. */
+const MISSING_SET_ROW = {
+  lineNumber: 3,
+  raw: 'Arcane Signet,,',
+  ...reasonFields(syncMessage('domain.import.csv.missingSet')),
+  reason: 'Missing set code (required for collections)',
+}
 
 type ImportCsvPayload = {
   listType?: string
@@ -58,7 +68,12 @@ test.describe('Import CSV Page', () => {
   test('a Category header maps to the categories field, not the section', async ({ page }) => {
     let captured: ImportCsvPayload | undefined
     await mockImportCsvApi(page, (b) => (captured = b as ImportCsvPayload), undefined, [
-      'Line 2: ignored category "Ramp\\tRocks" on "Sol Ring"',
+      csvRowWarningMessage({
+        kind: 'category-ignored',
+        lineNumber: 2,
+        cardName: 'Sol Ring',
+        value: 'Ramp\tRocks',
+      }),
     ])
     const main = page.locator('main')
 
@@ -105,9 +120,7 @@ test.describe('Import CSV Page', () => {
   })
 
   test('row failures from the server are listed with line numbers', async ({ page }) => {
-    await mockImportCsvApi(page, undefined, [
-      { lineNumber: 3, raw: 'Arcane Signet,,', reason: 'Missing set code' },
-    ])
+    await mockImportCsvApi(page, undefined, [MISSING_SET_ROW])
     const main = page.locator('main')
 
     await main.locator('.segmented-option:has-text("Paste Text")').click()
@@ -126,9 +139,7 @@ test.describe('Import CSV Page', () => {
     // The banner and the failure list describe the CSV that was submitted, so
     // loading a different one has to retire them — otherwise the page reports
     // the previous file's result above the new one.
-    await mockImportCsvApi(page, undefined, [
-      { lineNumber: 3, raw: 'Arcane Signet,,', reason: 'Missing set code' },
-    ])
+    await mockImportCsvApi(page, undefined, [MISSING_SET_ROW])
     const main = page.locator('main')
 
     await main.locator('.segmented-option:has-text("Paste Text")').click()

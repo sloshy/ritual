@@ -7,7 +7,7 @@ import {
 } from '../../list/deck-format'
 import {
   convertCsvRows,
-  formatCsvRowWarning,
+  csvRowWarningMessage,
   guessHasHeader,
   parseColumnsSpec,
   parseCsv,
@@ -17,8 +17,10 @@ import {
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
-import { apiMessage, apiText, plainMessage } from '../../api/result'
+import { apiMessage, plainMessage } from '../../api/result'
 import {
+  isSyncMessage,
+  nestSync,
   syncMessage,
   syncRef,
   toSyncMessage,
@@ -27,8 +29,9 @@ import {
   type SyncMessageRef,
 } from '../../sync/message'
 import { autoCommitAndPush } from './save-helpers'
-import { badRequest, readJsonObjectBody } from '../../api/http'
+import { badRequest, nestedRefusal, readJsonObjectBody } from '../../api/http'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
+import { bakedLocales } from '../../i18n/runtime'
 
 /**
  * CSV import request from the admin site (and, through the in-process dispatch,
@@ -68,7 +71,10 @@ export interface ImportCsvResponse extends SyncMessage {
    * count. Always present; `0` when every row failed validation.
    */
   cardCount: number
-  /** Rows that failed validation; the rest were still imported. Always present. */
+  /**
+   * Rows that failed validation; the rest were still imported. Always present.
+   * Each carries its English `reason` plus `reasonKey` / `reasonParams`.
+   */
   failures: CsvRowFailure[]
   /**
    * `failures.length` — a **row** count, unlike `cardCount`'s copies. Named so a
@@ -81,9 +87,10 @@ export interface ImportCsvResponse extends SyncMessage {
    * wrong writing the list's categories sidecar. A client has no wizard to ask
    * the header question with, so the assumption is stated out loud — dropping a
    * data row as a header is a lost card that would otherwise look like a clean
-   * import. Always present.
+   * import. Always present. Each is a message: English `message`, plus
+   * `messageKey` / `messageParams` (which may nest) when it has a catalog entry.
    */
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 const MODES: readonly CsvImportMode[] = ['create', 'overwrite', 'append']
@@ -180,35 +187,39 @@ export function handleImportCsv(req: Request): Promise<Response> {
 
     const parsed = parseCsv(body.content)
     if ('error' in parsed) {
-      return badRequest(apiMessage('admin.api.importCsv.parseFailed', { reason: parsed.error }))
+      return nestedRefusal(
+        syncMessage('admin.api.importCsv.parseFailed', { reason: nestSync(parsed.error) }),
+      )
     }
 
     const mapping = parseColumnsSpec(body.columns, listType)
-    if (typeof mapping === 'string') return badRequest(plainMessage(mapping))
+    if (isSyncMessage(mapping)) return nestedRefusal(mapping)
 
     // A mapped column the file has no column for is one bad *request*, not a
     // per-row 'Missing card name' for every row — the CLI exits 2 on the same
     // check (see `validateMappingWidth`), and this is the shared engine's rule.
     const columnCount = Math.max(...parsed.rows.map((row) => row.cells.length))
     const widthError = validateMappingWidth(mapping, columnCount)
-    if (widthError !== null) return badRequest(plainMessage(widthError))
+    if (widthError !== null) return nestedRefusal(widthError)
 
     const hasHeader = body.hasHeader ?? true
-    const warnings: string[] = []
+    const warnings: SyncMessage[] = []
     const firstRow = parsed.rows[0]
     if (hasHeader && firstRow !== undefined) {
-      // English, like every entry of `warnings`: a list of sentences with no
-      // room for a key, which MCP and the admin page show as they are.
-      warnings.push(apiText('admin.api.importCsv.headerSkipped', { row: firstRow.raw }))
-      if (!guessHasHeader(firstRow.cells)) {
-        warnings.push(apiText('admin.api.importCsv.headerSuspicious', { row: firstRow.raw }))
+      warnings.push(syncMessage('admin.api.importCsv.headerSkipped', { row: firstRow.raw }))
+      // English plus every language this build ships, never the server's own
+      // UI language: the answer — and so `warnings` — is the same bytes whoever
+      // runs the server, and a reader's localized headings are not called
+      // suspicious because the operator speaks another language.
+      if (!guessHasHeader(firstRow.cells, bakedLocales())) {
+        warnings.push(syncMessage('admin.api.importCsv.headerSuspicious', { row: firstRow.raw }))
       }
     }
     const dataRows = hasHeader ? parsed.rows.slice(1) : parsed.rows
     if (dataRows.length === 0) return badRequest(apiMessage('admin.api.importCsv.noDataRows'))
 
     const { entries, failures, warnings: rowWarnings } = convertCsvRows(dataRows, mapping, listType)
-    warnings.push(...rowWarnings.map(formatCsvRowWarning))
+    warnings.push(...rowWarnings.map(csvRowWarningMessage))
     if (entries.length === 0) {
       // A well-formed request whose every row failed validation: the per-row
       // report is the answer, and there is nothing to write.
@@ -227,7 +238,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
       sourceHadLanguageColumn: mapping.language !== undefined,
       sourceHadCategoriesColumn: mapping.categories !== undefined,
     })
-    if ('error' in result) return badRequest(plainMessage(result.error))
+    if ('error' in result) return nestedRefusal(result.error)
     warnings.push(...result.categoryNotices)
     if (result.categoryError !== undefined) warnings.push(result.categoryError)
 

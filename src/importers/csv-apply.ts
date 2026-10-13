@@ -56,10 +56,11 @@ import { appendChangelog } from '../changes/changelog-writer'
 import {
   dirForType,
   listFilePath,
-  formatResolveListError,
   isResolveListError,
   resolveList,
+  resolveListErrorMessage,
 } from '../list/resolve-list'
+import { syncList, syncMessage, syncText, type SyncMessage } from '../sync/message'
 
 /**
  * Applies converted card entries to a list on disk: creating a new list file,
@@ -167,18 +168,22 @@ export type CsvImportSuccess = {
   /**
    * News about the categories sidecar the import wrote: entries pruned because
    * the replaced list no longer holds the card, and stale names the sidecar
-   * already carried. English by contract, like `categoryError` — the caller
-   * reports them on its own non-fatal channel. Empty when there is none.
+   * already carried. Messages (English plus key), like `categoryError` — the
+   * caller reports them on its own non-fatal channel. Empty when there is none.
    */
-  categoryNotices: string[]
+  categoryNotices: SyncMessage[]
   /**
    * Why the categories sidecar was not written, when it was not. The list file
    * itself imported fine — this is a warning channel, never a failure.
    */
-  categoryError?: string
+  categoryError?: SyncMessage
 }
 
-export type CsvImportError = { error: string }
+/**
+ * Why an import wrote nothing: English plus the catalog key, so the admin
+ * route and MCP answer in English and the CLI renders it in its own language.
+ */
+export type CsvImportError = { error: SyncMessage }
 
 export type CsvImportOutcome = CsvImportSuccess | CsvImportError
 
@@ -243,11 +248,14 @@ async function commitImportedCategories(
   })
 }
 
-/** A sidecar load warning as English prose. A `switch` so a new kind is a compile error. */
-function formatCategoryWarning(warning: CardCategoriesWarning): string {
+/** A sidecar load warning as a message. A `switch` so a new kind is a compile error. */
+function categoryWarningMessage(warning: CardCategoriesWarning): SyncMessage {
   switch (warning.kind) {
     case 'unknown-card-names':
-      return `Categories are recorded for card(s) the list does not hold: ${warning.names.join(', ')}`
+      return syncMessage('domain.import.categoriesForMissingCards', {
+        count: warning.names.length,
+        names: syncList(warning.names, 'unit'),
+      })
   }
 }
 
@@ -265,12 +273,18 @@ function importedCategoryFields(
   // once as news and once as an outcome. The outcome wins.
   const categoryNotices =
     result.pruned.length > 0
-      ? [`Dropped categories for card(s) no longer in the list: ${result.pruned.join(', ')}`]
-      : result.warnings.map(formatCategoryWarning)
+      ? [
+          syncMessage('domain.import.categoriesPruned', {
+            count: result.pruned.length,
+            names: syncList(result.pruned, 'unit'),
+          }),
+        ]
+      : result.warnings.map(categoryWarningMessage)
   return {
     writtenFiles: result.writtenFiles,
     categoryNotices,
-    ...(result.error === undefined ? {} : { categoryError: result.error }),
+    // The sidecar module words its own failure (`src/list/card-categories-sidecar.ts`).
+    ...(result.error === undefined ? {} : { categoryError: syncText(result.error) }),
   }
 }
 
@@ -428,21 +442,20 @@ async function createList(
   const targetDir = dirForType(target.listType)
   const filePath = target.filePath ?? listFilePath(target.listType, target.name)
   if (filePath === null) {
-    return { error: unusableFileNameMessage(target.name) }
+    // Worded by the file-name module (`src/list/list-file-name.ts`), carried as it is.
+    return { error: syncText(unusableFileNameMessage(target.name)) }
   }
 
   if (target.mode === 'create') {
     if (await Bun.file(filePath).exists()) {
-      return {
-        error: `File already exists: ${filePath}. Use overwrite or append mode to change it.`,
-      }
+      return { error: syncMessage('domain.import.fileExists', { path: filePath }) }
     }
     // A name that merely *folds* onto an existing list would leave the two
     // mutually unaddressable by every name-resolving command — the same refusal
     // `new`, `rename`, and the editors give.
     const collision = await listNameCollision(target.listType, target.name)
     if (collision) {
-      return { error: `${collision.message} Use overwrite or append mode to change it.` }
+      return { error: syncMessage('domain.import.nameTaken', { reason: collision.message }) }
     }
   }
 
@@ -455,7 +468,7 @@ async function createList(
   let content: string
   if (target.listType === 'deck') {
     if (target.format === undefined) {
-      return { error: 'Creating a deck from CSV requires a format' }
+      return { error: syncMessage('domain.import.deckNeedsFormat') }
     }
     content = buildDeckMarkdown(
       target.name,
@@ -650,7 +663,7 @@ async function appendToList(
 ): Promise<CsvImportOutcome> {
   const location = await resolveList(target.name, target.listType)
   if (isResolveListError(location)) {
-    return { error: formatResolveListError(location, 'none') }
+    return { error: resolveListErrorMessage(location, 'none') }
   }
 
   const content = await Bun.file(location.filePath).text()
@@ -660,7 +673,10 @@ async function appendToList(
       : appendToFlatList(target.listType, content, location.name, entries)
 
   if ('unreadable' in result) {
-    return { error: unreadableContentMessage(location.filePath, result.unreadable, 'appending') }
+    // Worded by the shared rewrite gate (`src/list/markdown-fence.ts`), carried as it is.
+    return {
+      error: syncText(unreadableContentMessage(location.filePath, result.unreadable, 'appending')),
+    }
   }
 
   if (dryRun) {

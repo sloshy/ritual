@@ -27,6 +27,8 @@ type FakeClientOptions = {
   decks: ArchidektDeckSimple[]
   /** Deck payload per Archidekt deck id; a missing id throws, i.e. a failed deck. */
   decksById?: Record<string, DeckData>
+  /** Category names the source states that Ritual refuses, for every deck. */
+  refusedCategories?: string[]
 }
 
 function fakeClient(options: FakeClientOptions): ArchidektClient {
@@ -36,7 +38,7 @@ function fakeClient(options: FakeClientOptions): ArchidektClient {
     fetchImportedDeck: async (deckId: string): Promise<ImportedDeck> => {
       const deck = options.decksById?.[deckId]
       if (deck === undefined) throw new Error(`Deck ${deckId} is private`)
-      return { deck, categories: [] }
+      return { deck, categories: [], refusedCategories: options.refusedCategories ?? [] }
     },
   }
   return client as unknown as ArchidektClient
@@ -142,6 +144,40 @@ describe('import-account past its flag validation (Integration)', () => {
     // A partial run must not look clean to a script.
     expect(exit).toBe(ExitCode.RuntimeError)
     expect(await Bun.file(path.join(workspace.dir, 'decks', 'Burn.md')).exists()).toBeTrue()
+  })
+
+  test('a deck’s advisories and error are English plus their keys in the payload', async () => {
+    // A conflict on one deck (its file is already there) and refused category
+    // names on the other: both reach the payload as message triples.
+    await fs.mkdir(path.join(workspace.dir, 'decks'), { recursive: true })
+    await fs.writeFile(path.join(workspace.dir, 'decks', 'Burn.md'), '# Burn\n\n## Main\n')
+    const client = fakeClient({
+      decks: [listedDeck(1, 'Burn'), listedDeck(2, 'Ramp')],
+      decksById: { '1': deckData('Burn'), '2': deckData('Ramp') },
+      refusedCategories: ['Mana, Rocks'],
+    })
+
+    const { stdout } = await run(client, ['someuser', '--all', '--output', 'json'])
+
+    type Payload = { decks: Record<string, unknown>[] }
+    const [burn, ramp] = (JSON.parse(stdout) as Payload).decks
+    expect(burn).toMatchObject({
+      status: 'failed',
+      error: "Import conflict for 'Burn.md'. Re-run with --overwrite or --yes to replace it.",
+      errorKey: 'cli.import.conflict',
+      errorParams: { target: 'Burn.md' },
+    })
+    expect(ramp).toMatchObject({
+      status: 'imported',
+      advisories: [
+        {
+          message:
+            'Skipped categories Ritual cannot store (a category is non-empty plain text that cannot contain a comma or a control character): "Mana, Rocks"',
+          messageKey: 'domain.import.categoriesRefused',
+          messageParams: { names: { list: ['"Mana, Rocks"'], join: 'unit' } },
+        },
+      ],
+    })
   })
 
   test('--no-sync-printings strips the printings Archidekt states', async () => {

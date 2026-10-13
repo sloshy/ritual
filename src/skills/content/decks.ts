@@ -239,6 +239,10 @@ Lines the parser cannot read are skipped and reported (exit 1); content that
 imports but is worth a word — a name still holding a printing token, or an empty
 \`## Maybeboard\`/\`## Tokens\` header the write drops — prints an advisory on
 stderr and appears in the JSON \`advisories\` array without changing the exit code.
+Under \`--output json\` each \`warnings\`/\`advisories\` entry is an object — the
+English \`message\`, plus \`messageKey\`/\`messageParams\` when present (match on
+the key when it is there, never on the prose); a warning whose card was imported
+without its labels carries \`labelsDropped: true\`.
 
 \`--moxfield-user-agent\` applies to URL imports only — passing it with a CSV or
 text-file source is a usage error (exit 2).
@@ -278,6 +282,9 @@ The printing question above applies here too, asked **once for the whole run**
 Existing decks conflict unless \`--overwrite\`/\`--yes\` says what to do. The whole
 account is fetched (every page), and \`--output json\` reports
 \`found\`/\`selected\`/\`imported\`/\`failed\`/\`skipped\` plus a per-deck array.
+Each deck carries \`status\`, its English \`error\` (with \`errorKey\`/\`errorParams\`
+when present) when it failed or was skipped, and \`advisories\` — message objects
+like the import's — when Ritual could not keep all of its categories.
 A username with no results is reported honestly: Archidekt cannot distinguish an
 unknown user from an account with no public decks, so check the spelling.
 

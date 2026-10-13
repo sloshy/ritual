@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { keyedMessage } from '../../helpers/api-message'
+import { CARD_CATEGORY_SHAPE_CLAUSE } from '../../../src/card/card-categories'
 import {
   importCategoryAdvisories,
   moxfieldDeckCategories,
@@ -54,8 +56,19 @@ describe('importCategoryAdvisories', () => {
   test('names the refused categories and a failed write; nothing when there is neither', () => {
     expect(importCategoryAdvisories(undefined, undefined)).toEqual([])
     expect(importCategoryAdvisories([], undefined)).toEqual([])
-    const [refused, failed] = importCategoryAdvisories(['a,b'], 'EACCES')
-    expect(refused).toContain('"a,b"')
-    expect(failed).toContain('EACCES')
+    const [refused, failed] = importCategoryAdvisories(['a,b', 'c\td'], 'EACCES')
+    expect(keyedMessage(refused!)).toBe(
+      'Skipped categories Ritual cannot store (a category is non-empty plain text that cannot contain a comma or a control character): "a,b", "c\\td"',
+    )
+    expect(keyedMessage(failed!)).toBe(
+      'The deck was imported, but its categories could not be saved: EACCES',
+    )
+    // The catalog spells out the category rule itself; it must say what the
+    // grammar enforces, word for word.
+    expect(refused!.message).toContain(`(${CARD_CATEGORY_SHAPE_CLAUSE})`)
+    // The names nest as a list, so a reader's language joins them its own way.
+    expect(refused!.messageParams).toEqual({
+      names: { list: ['"a,b"', '"c\\td"'], join: 'unit' },
+    })
   })
 })

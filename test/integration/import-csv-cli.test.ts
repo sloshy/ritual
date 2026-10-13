@@ -4,6 +4,8 @@ import path from 'node:path'
 import { ExitCode } from '../../src/util/errors'
 import { runCli } from './helpers/cli'
 import { withWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
+import type { SyncMessage } from '../../src/sync/message'
 import { readCategoriesSidecar } from '../helpers/card-categories'
 
 /**
@@ -117,7 +119,7 @@ describe('import CSV scripted path (Integration)', () => {
 
       expect(result.exitCode).toBe(ExitCode.UsageError)
       expect(result.stderr).toContain("Column 99 (mapped to 'name') does not exist")
-      expect(result.stderr).toContain('the file has 4 column(s)')
+      expect(result.stderr).toContain('the file has 4 columns')
       // Not a single per-row complaint about the data.
       expect(result.stderr).not.toContain('Missing card name')
     })
@@ -138,7 +140,9 @@ describe('import CSV scripted path (Integration)', () => {
         columns,
         '--no-header',
       ]
-      await runCli(args, dir)
+      const created = await runCli(args, dir)
+      // The counts are rendered nouns: a literal `{cards}` or `card(s)` would show here.
+      expect(created.stdout).toContain("Imported 6 cards into wanted 'ToBuy': ")
 
       const preview = await runCli([...args, '--yes', '--dry-run', '--output', 'json'], dir)
       expect(preview.exitCode).toBe(0)
@@ -147,7 +151,12 @@ describe('import CSV scripted path (Integration)', () => {
       expect(payload).toMatchObject({ mode: 'overwrite', dryRun: true, replacesExisting: true })
 
       const previewText = await runCli([...args, '--yes', '--dry-run'], dir)
-      expect(previewText.stdout).toContain("[dry-run] Would overwrite wanted 'ToBuy'")
+      expect(previewText.stdout).toContain(
+        "[dry-run] Would overwrite wanted 'ToBuy' with 6 cards: ",
+      )
+      const otherArgs = args.map((arg) => (arg === 'ToBuy' ? 'Other' : arg))
+      const previewCreate = await runCli([...otherArgs, '--dry-run'], dir)
+      expect(previewCreate.stdout).toContain("[dry-run] Would import 6 cards into wanted 'Other': ")
 
       const overwrite = await runCli([...args, '--yes'], dir)
       expect(overwrite.exitCode).toBe(0)
@@ -182,6 +191,37 @@ describe('import CSV scripted path (Integration)', () => {
       expect(path.basename(payload.filePath)).toBe('Trade Binder.md')
       const files = (await fs.readdir(path.join(dir, 'wanted'))).filter((f) => f.endsWith('.md'))
       expect(files).toEqual(['Trade Binder.md'])
+    })
+  })
+
+  test('a failed row is reported in the CLI’s words and keyed in the payload', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'cards.csv')
+      await fs.writeFile(source, 'Lightning Bolt,lea,161,4\nShock,m20,160,x\n')
+      const args = ['import', source, '--type', 'wanted', '--name', 'Rows', '--columns', columns]
+      const text = await runCli([...args, '--no-header'], dir)
+      expect(text.exitCode).toBe(1)
+      expect(text.stderr).toContain('1 row failed to import:')
+      expect(text.stderr).toContain("Invalid quantity 'x'")
+
+      const json = await runCli(
+        [
+          ...args.map((arg) => (arg === 'Rows' ? 'Rows 2' : arg)),
+          '--no-header',
+          '--output',
+          'json',
+        ],
+        dir,
+      )
+      type Payload = { failures: unknown[] }
+      expect((JSON.parse(json.stdout) as Payload).failures).toEqual([
+        {
+          line: 2,
+          reason: "Invalid quantity 'x'",
+          reasonKey: 'domain.import.csv.invalidQuantity',
+          reasonParams: { value: 'x' },
+        },
+      ])
     })
   })
 
@@ -291,8 +331,10 @@ describe('import CSV scripted path (Integration)', () => {
         ],
         dir,
       )
-      const payload = JSON.parse(json.stdout) as { advisories: string[]; failed: number }
-      expect(payload.advisories).toEqual(['Line 1: ignored category "Ramp\\tRocks" on "Sol Ring"'])
+      const payload = JSON.parse(json.stdout) as { advisories: SyncMessage[]; failed: number }
+      expect(payload.advisories.map(keyedMessage)).toEqual([
+        'Line 1: ignored category "Ramp\\tRocks" on "Sol Ring"',
+      ])
       expect(payload.failed).toBe(0)
     })
   })

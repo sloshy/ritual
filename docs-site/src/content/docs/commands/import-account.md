@@ -64,13 +64,15 @@ With `--output json` (or `ndjson`) the run emits one structured result:
       "id": 7031487,
       "name": "Burn",
       "status": "failed",
-      "error": "Import conflict for 'Burn.md'..."
+      "error": "Import conflict for 'Burn.md'. Re-run with --overwrite or --yes to replace it.",
+      "errorKey": "cli.import.conflict",
+      "errorParams": { "target": "Burn.md" }
     }
   ]
 }
 ```
 
-Each deck's `status` is `imported`, `planned` (a `--dry-run` preview), `failed`, or `skipped` (a conflict prompt that was cancelled). `action` is the save resolution (`created`, `overwritten`, `renamed`) and is absent when nothing was written. Errors are emitted on stderr as `{ "error": { "code", "message" } }`.
+Each deck's `status` is `imported`, `planned` (a `--dry-run` preview), `failed`, or `skipped` (a conflict prompt that was cancelled). `action` is the save resolution (`created`, `overwritten`, `renamed`) and is absent when nothing was written. A failed or skipped deck's `error` is English whatever the CLI's language, with `errorKey`/`errorParams` beside it when the reason has a catalog entry; match on the key, not the prose. A deck whose categories Ritual could not fully keep also carries `advisories`: message objects with the English `message` plus `messageKey`/`messageParams` (for example `domain.import.categoriesRefused`), English whatever the CLI's language. Errors are emitted on stderr as `{ "error": { "code", "message" } }`.
 
 ## Empty Results
 

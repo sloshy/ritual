@@ -1,4 +1,5 @@
 import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { keyedMessage } from '../../helpers/api-message'
 import {
   ArchidektClient,
   DEFAULT_CSV_UPLOAD_FILE_NAME,
@@ -779,7 +780,8 @@ describe('ArchidektClient.uploadCollectionCsv', () => {
     const result = await client.uploadCollectionCsv(csvWithRows(2), UID_COLUMNS, 'mytoken')
 
     expect(result.rows).toEqual([])
-    expect(result.unreadable).toEqual([{ chunk: 1, message, body }])
+    expect(result.unreadable).toEqual([{ chunk: 1, message: expect.anything(), body }])
+    expect(result.unreadable.map((entry) => keyedMessage(entry.message))).toEqual([message])
     // The upload still happened, so the caller must not read this as "nothing sent".
     expect(result.rowCount).toBe(2)
     expect(result.chunkCount).toBe(1)
@@ -804,7 +806,9 @@ describe('ArchidektClient.uploadCollectionCsv', () => {
         errors: ['one bad row'],
       },
     ])
-    expect(result.unreadable).toEqual([
+    expect(
+      result.unreadable.map((entry) => ({ ...entry, message: keyedMessage(entry.message) })),
+    ).toEqual([
       { chunk: 1, message: '1 of 2 row results in "data" were not objects', body },
       { chunk: 1, message: 'the response reported 2 row results for 3 uploaded rows', body },
     ])

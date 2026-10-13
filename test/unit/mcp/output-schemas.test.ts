@@ -42,6 +42,7 @@ import type {
   DeckSyncResult,
 } from '../../../src/mcp/tools/destructive-tools'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
+import type { ImportDeckResponse } from '../../../src/admin/api/import-deck'
 import type { BundleImportResponse } from '../../../src/admin/api/import-changes'
 import type {
   CollectionSyncPrinting,
@@ -598,16 +599,93 @@ describe('MCP output schemas, as authored', () => {
           failed: { messageKey: 'admin.api.importCsv.rowsFailed', messageParams: { count: 1 } },
         },
         cardCount: 2,
-        failures: [{ lineNumber: 4, raw: 'Arcane Signet,,', reason: 'Missing set code' }],
+        failures: [
+          {
+            lineNumber: 4,
+            raw: 'Arcane Signet,,',
+            reason:
+              'Missing set code (required for collections); Missing collector number (required for collections)',
+            // Several reasons nest as a list of messages.
+            reasonKey: 'domain.sync.reasonList',
+            reasonParams: {
+              reasons: {
+                list: [
+                  { messageKey: 'domain.import.csv.missingSet' },
+                  { messageKey: 'domain.import.csv.missingCollectorNumber' },
+                ],
+                join: 'clauses',
+              },
+            },
+          },
+        ],
         failedCount: 1,
-        warnings: ['Skipped header row: name,set,collector_number'],
+        warnings: [
+          {
+            message: 'Skipped header row: name,set,collector_number',
+            messageKey: 'admin.api.importCsv.headerSkipped',
+            messageParams: { row: 'name,set,collector_number' },
+          },
+        ],
       }
       expect(await validates(IMPORT_CSV_OUTPUT, sample)).toBe(true)
+      // A warning is a message object now, never a bare string.
+      expect(
+        await validates(IMPORT_CSV_OUTPUT, {
+          ...sample,
+          warnings: ['Skipped header row: name,set,collector_number'],
+        }),
+      ).toBe(false)
       // A failure row missing its `reason` is not a report a client can render.
       expect(
         await validates(IMPORT_CSV_OUTPUT, {
           ...sample,
           failures: [{ lineNumber: 4, raw: 'Arcane Signet,,' }],
+        }),
+      ).toBe(false)
+    })
+
+    test('import_deck accepts its warnings and advisories as messages', async () => {
+      const sample: Omit<ImportDeckResponse, 'success'> = {
+        message: "Successfully imported 'Burn' — 1 line could not be parsed and was skipped",
+        messageKey: 'admin.api.importDeck.imported',
+        messageParams: {
+          name: 'Burn',
+          notes: {
+            list: [{ messageKey: 'admin.api.importDeck.skippedNote', messageParams: { count: 1 } }],
+            join: 'concat',
+          },
+        },
+        deckName: 'Burn',
+        warnings: [
+          {
+            message: 'Skipped malformed line: not a card line',
+            messageKey: 'domain.import.text.malformedLine',
+            messageParams: { line: 'not a card line', hint: '' },
+          },
+          // A card kept without its labels says so, so a client need not read prose.
+          { message: 'line 3: Conflicting labels [sale,no-sale]', labelsDropped: true },
+        ],
+        advisories: [
+          // Text another module worded rides keyless.
+          { message: 'line 2: Card name still contains a printing token' },
+        ],
+        syncPrintings: true,
+      }
+      expect(await validates(IMPORT_DECK_OUTPUT, sample)).toBe(true)
+      expect(await validates(IMPORT_DECK_OUTPUT, { ...sample, warnings: ['not a card'] })).toBe(
+        false,
+      )
+      expect(
+        await validates(IMPORT_DECK_OUTPUT, {
+          ...sample,
+          warnings: [{ message: 'line 3', labelsDropped: 'yes' }],
+        }),
+      ).toBe(false)
+      // The flag is a mark, present only when true: `false` would be a second way to say "skipped".
+      expect(
+        await validates(IMPORT_DECK_OUTPUT, {
+          ...sample,
+          warnings: [{ message: 'line 3', labelsDropped: false }],
         }),
       ).toBe(false)
     })

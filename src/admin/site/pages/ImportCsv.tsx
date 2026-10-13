@@ -1,6 +1,7 @@
 import {
   type JSX,
   For,
+  Index,
   Match,
   Show,
   Switch,
@@ -13,11 +14,13 @@ import {
 } from 'solid-js'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { LIST_TYPES, LIST_TYPE_DISPLAY, type ListType } from '../../../list/list-type'
-import { useT, useTKey, useTSegments } from '../../../ui/i18n'
+import { useI18n, useT, useTKey, useTSegments } from '../../../ui/i18n'
+import type { LocaleTag } from '../../../i18n/types'
 import { DECK_FORMAT_KEYS, getDeckFormatLabel } from '../../../list/deck-format'
 import {
   CSV_FIELDS,
-  CSV_FIELD_LABELS,
+  CSV_FIELD_LABEL_KEYS,
+  csvFailureReason,
   FIELD_TO_KEY,
   formatColumnsSpec,
   guessColumns,
@@ -36,8 +39,9 @@ import { PageHeading } from '../components/PageHeading'
 import { apiMessage } from '../../../api/result'
 import { useApiText } from '../hooks/useApiAction'
 import type { ApiActionMessage } from '../../../api/result'
-import { readSyncMessage } from '../../../sync/message'
+import { readSyncMessage, syncMessage, type SyncMessage } from '../../../sync/message'
 import type { ParameterlessKey } from '../../../i18n/t'
+import { useSyncText } from '../sync-text'
 
 type SourceMethod = 'upload' | 'text'
 
@@ -89,10 +93,17 @@ function emptySelections(): ColumnSelections {
   }
 }
 
-function guessSelections(headerCells: string[] | null): ColumnSelections {
+/**
+ * The wizard's column picks guessed from the header row — English headings
+ * plus the reader's language's (`locales`), English first.
+ */
+function guessSelections(
+  headerCells: string[] | null,
+  locales: readonly LocaleTag[],
+): ColumnSelections {
   const selections = emptySelections()
   if (!headerCells) return selections
-  const guessed = guessColumns(headerCells)
+  const guessed = guessColumns(headerCells, locales)
   for (const field of CSV_FIELDS) {
     const index = guessed[FIELD_TO_KEY[field]]
     if (index !== undefined) selections[field] = index
@@ -110,6 +121,14 @@ async function fetchLists(listType: ListType): Promise<ListSummary[]> {
 
 export function ImportCsv(): JSX.Element {
   const t = useT()
+  const { locale } = useI18n()
+  /**
+   * The languages whose column headings the guesses recognize besides English:
+   * the reader's. Read only where a guess is made (on new content, or the
+   * header checkbox), never tracked — a language switch must not re-guess over
+   * the picks the user already adjusted.
+   */
+  const headerLocales = (): LocaleTag[] => [locale()]
   const tKey = useTKey()
   const tSegments = useTSegments()
   const [method, setMethod] = createSignal<SourceMethod>('upload')
@@ -130,11 +149,13 @@ export function ImportCsv(): JSX.Element {
   const [status, setStatus] = createSignal<ApiActionMessage | null>(null)
   const [error, setError] = createSignal<ApiActionMessage | null>(null)
   const heldText = useApiText()
+  const messageText = useSyncText()
   const [failures, setFailures] = createSignal<CsvRowFailure[]>([])
   // Non-fatal news the route reports on its own channel: a category value the
   // grammar refused, a category value that named a board, a categories sidecar
-  // that could not be written. English by contract, like a row's `reason`.
-  const [warnings, setWarnings] = createSignal<string[]>([])
+  // that could not be written. Held as the route's messages (English plus key)
+  // and rendered in the JSX, like a row's `reason`, so they relabel too.
+  const [warnings, setWarnings] = createSignal<SyncMessage[]>([])
   const [loading, setLoading] = createSignal(false)
 
   const content = createMemo((): string => (method() === 'upload' ? fileContent() : text()))
@@ -143,7 +164,8 @@ export function ImportCsv(): JSX.Element {
     const value = content().trim()
     return value === '' ? null : parseCsv(value)
   })
-  const parseError = createMemo((): string | null => {
+  // Held unrendered, like everything the importer says: rendered in the JSX.
+  const parseError = createMemo((): SyncMessage | null => {
     const result = parsed()
     return result && 'error' in result ? result.error : null
   })
@@ -160,16 +182,16 @@ export function ImportCsv(): JSX.Element {
       rows,
       (currentRows) => {
         if (currentRows.length === 0) return
-        const header = guessHasHeader(currentRows[0]!.cells)
+        const header = guessHasHeader(currentRows[0]!.cells, headerLocales())
         setHasHeader(header)
-        setSelections(guessSelections(header ? currentRows[0]!.cells : null))
+        setSelections(guessSelections(header ? currentRows[0]!.cells : null, headerLocales()))
       },
       { defer: true },
     ),
   )
 
   // The outcome describes the CSV that was submitted, so new content retires it.
-  // Otherwise a green "Imported 40 card(s)" (or a red failure list) stays on
+  // Otherwise a green "Imported 40 cards" (or a red failure list) stays on
   // screen above a file the user has just swapped in, describing the previous one.
   createEffect(
     on(
@@ -217,10 +239,10 @@ export function ImportCsv(): JSX.Element {
     return result
   })
 
-  const mappingProblem = createMemo((): string | null => {
+  const mappingProblem = createMemo((): SyncMessage | null => {
     if (rows().length === 0) return null
     const partial = mapping()
-    if (partial.name === undefined) return t('admin.importCsv.chooseNameColumn')
+    if (partial.name === undefined) return syncMessage('admin.importCsv.chooseNameColumn')
     return validateMapping(partial as ColumnMapping, listType())
   })
 
@@ -326,7 +348,7 @@ export function ImportCsv(): JSX.Element {
                     each={tSegments('admin.importCsv.failureRow', {
                       line: failure.lineNumber,
                       raw: failure.raw,
-                      reason: failure.reason,
+                      reason: messageText(csvFailureReason(failure)),
                     })}
                   >
                     {(segment) =>
@@ -347,7 +369,7 @@ export function ImportCsv(): JSX.Element {
         <div class="alert alert-warning csv-warnings">
           <p>{t('admin.importCsv.warningsLead', { count: warnings().length })}</p>
           <ul>
-            <For each={warnings()}>{(warning) => <li>{warning}</li>}</For>
+            <For each={warnings()}>{(warning) => <li>{messageText(warning)}</li>}</For>
           </ul>
         </div>
       </Show>
@@ -403,9 +425,11 @@ export function ImportCsv(): JSX.Element {
         </Switch>
 
         <Show when={parseError()}>
-          <div class="alert alert-error">
-            {t('admin.importCsv.parseFailed', { reason: parseError() ?? '' })}
-          </div>
+          {(parseFailure) => (
+            <div class="alert alert-error">
+              {t('admin.importCsv.parseFailed', { reason: messageText(parseFailure()) })}
+            </div>
+          )}
         </Show>
 
         <Show when={rows().length > 0 && !parseError()}>
@@ -416,7 +440,10 @@ export function ImportCsv(): JSX.Element {
               onChange={(e) => {
                 setHasHeader(e.currentTarget.checked)
                 setSelections(
-                  guessSelections(e.currentTarget.checked ? (rows()[0]?.cells ?? null) : null),
+                  guessSelections(
+                    e.currentTarget.checked ? (rows()[0]?.cells ?? null) : null,
+                    headerLocales(),
+                  ),
                 )
               }}
             />
@@ -430,7 +457,7 @@ export function ImportCsv(): JSX.Element {
                 {(field) => (
                   <>
                     <span class="csv-mapping-label">
-                      {CSV_FIELD_LABELS[field]}
+                      {tKey(CSV_FIELD_LABEL_KEYS[field])}
                       <Show when={!requiredFields().has(field)}>
                         <span class="csv-mapping-optional"> {t('admin.importCsv.optional')}</span>
                       </Show>
@@ -452,16 +479,22 @@ export function ImportCsv(): JSX.Element {
                       <Show when={requiredFields().has(field) && selections()[field] === -1}>
                         <option value="-1">{t('admin.importCsv.selectColumn')}</option>
                       </Show>
-                      <For each={columnOptions()}>
-                        {(option) => <option value={option.value}>{option.label}</option>}
-                      </For>
+                      {/* By index, not by item: a language switch rebuilds the option
+                          objects (their labels are worded), and recreating the
+                          <option>s would reset the select's shown choice while
+                          `value` — which did not change — never re-applies. */}
+                      <Index each={columnOptions()}>
+                        {(option) => <option value={option().value}>{option().label}</option>}
+                      </Index>
                     </select>
                   </>
                 )}
               </For>
             </div>
             <Show when={mappingProblem()}>
-              <p class="form-hint form-hint-top csv-mapping-problem">{mappingProblem()}</p>
+              {(problem) => (
+                <p class="form-hint form-hint-top csv-mapping-problem">{messageText(problem())}</p>
+              )}
             </Show>
             <p class="form-hint form-hint-top">
               {t('admin.importCsv.rowsHint', { count: dataRowCount() })}

@@ -13,6 +13,7 @@ import { CARD_CATEGORY_SHAPE_CLAUSE } from '../card/card-categories'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { UNPRICED_REASONS, type PriceTotals } from '../pricing/price-report'
 import type { ListImportResult } from '../admin/api/import-changes'
+import type { CsvRowFailure as CsvRowFailureType } from '../importers/csv'
 
 // ── Builders ──────────────────────────────────────────────────────────
 
@@ -653,11 +654,22 @@ export const SHARED_DEFS: Readonly<Record<SharedDefName, JsonSchemaType>> = {
     ['lists', 'archidekt', 'lastSynced', 'pullTarget', 'csvThreshold'],
   ),
 
-  CsvRowFailure: obj({ lineNumber: int(), raw: str(), reason: str() }, [
-    'lineNumber',
-    'raw',
-    'reason',
-  ]),
+  CsvRowFailure: obj(
+    {
+      lineNumber: int(),
+      raw: str(),
+      reason: str(
+        'Why the row failed, in English; several reasons are joined with "; ". Never match on it — read `reasonKey`.',
+      ),
+      reasonKey: str(
+        'Catalog key `reason` was rendered from, for a client that renders it in its own language. Absent when the reason is text another part of Ritual worded (a tag refusal).',
+      ),
+      reasonParams: openObject(
+        'What `reasonKey` interpolates; a param may itself be a message (`messageKey`, `messageParams`) or a list (`list`, `join`) — several reasons are a list of messages.',
+      ),
+    } as const satisfies Record<keyof CsvRowFailureType, JsonSchemaType>,
+    ['lineNumber', 'raw', 'reason'],
+  ),
 }
 
 const DEF_REF_RE = /"\$ref":"#\/\$defs\/([A-Za-z]+)"/g

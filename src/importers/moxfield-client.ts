@@ -1,6 +1,6 @@
 import type { HttpClient } from '../util/interfaces'
 import { defaultHttpClient } from '../util/http'
-import { throwHttpError } from '../util/errors'
+import { throwFetchFailure } from './fetch-failure'
 
 const MOXFIELD_BASE_URL = 'https://api2.moxfield.com'
 
@@ -63,7 +63,7 @@ export class MoxfieldClient {
     const url = `${MOXFIELD_BASE_URL}/v3/decks/all/${encodeURIComponent(publicId)}`
     const response = await this.http.fetch(url)
     if (!response.ok) {
-      throwHttpError(response, 'Failed to fetch Moxfield deck')
+      throwFetchFailure(response, 'domain.import.url.moxfieldDeckFailed')
     }
     return response.json() as Promise<MoxfieldDeckResponse>
   }
@@ -75,7 +75,7 @@ export class MoxfieldClient {
     const response = await this.http.fetch(url)
     if (response.status === 404 || response.status === 401 || response.status === 403) return null
     if (!response.ok) {
-      throwHttpError(response, 'Failed to fetch Moxfield primer')
+      throwFetchFailure(response, 'domain.import.url.moxfieldPrimerFailed')
     }
     return response.json() as Promise<MoxfieldPrimerResponse>
   }

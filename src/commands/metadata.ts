@@ -24,10 +24,14 @@ import {
 } from '../card/card-labels'
 import { parseDeckMetadataBody, parseFlatListMetadataBody } from '../admin/api/metadata'
 import { isApiMessage } from '../api/result'
-import { apiRefusalError } from '../cli/api-refusal'
 import { isSyncMessage } from '../sync/message'
 import { checkArchidektLink } from '../deck-sync/link'
-import { CardCommandError, localizedCommandError, ExitCode } from '../util/errors'
+import {
+  CardCommandError,
+  localizedCommandError,
+  messageCommandError,
+  ExitCode,
+} from '../util/errors'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import {
@@ -331,7 +335,7 @@ async function applyPatch(apply: MetadataApply): Promise<void> {
     apply.type === 'deck'
       ? await applyDeckMetadata(apply.filePath, apply.patch, checkArchidektLink)
       : await applyFlatListMetadata(apply.filePath, apply.patch)
-  if (isSyncMessage(outcome)) throw apiRefusalError(outcome)
+  if (isSyncMessage(outcome)) throw messageCommandError('usage_error', ExitCode.UsageError, outcome)
   if (typeof outcome === 'string') {
     throw new CardCommandError('usage_error', outcome, ExitCode.UsageError)
   }
@@ -382,7 +386,8 @@ function registerSetSubcommand(metadata: Command): void {
             throw new CardCommandError('usage_error', body, ExitCode.UsageError)
           }
           const parsed = parseDeckMetadataBody(body)
-          if (isApiMessage(parsed)) throw apiRefusalError(parsed)
+          if (isApiMessage(parsed))
+            throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
           await applyPatch({ type: 'deck', filePath: target.filePath, patch: parsed.patch })
           emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
           return
@@ -400,7 +405,8 @@ function registerSetSubcommand(metadata: Command): void {
           throw new CardCommandError('usage_error', body, ExitCode.UsageError)
         }
         const parsed = parseFlatListMetadataBody(body, target.type)
-        if (isApiMessage(parsed)) throw apiRefusalError(parsed)
+        if (isApiMessage(parsed))
+          throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
         await applyPatch({ type: target.type, filePath: target.filePath, patch: parsed.patch })
         emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
       })

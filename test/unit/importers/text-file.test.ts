@@ -868,3 +868,58 @@ describe('readDeckName', () => {
     expect(await readDeckName(filePath)).toBe(path.basename(filePath, '.md'))
   })
 })
+
+/**
+ * `notices` is the parse's warnings and advisories again, as messages: an
+ * import surface reports from it, the rewrite gates from the strings, and the
+ * two must never disagree. A warning about a card that was KEPT, only without
+ * its labels, is marked — on both paths that keep one.
+ */
+describe('parseDeckText — notices', () => {
+  const content = [
+    'About',
+    'Format: commander',
+    '',
+    '## Main',
+    '1 Sol Ring [keep]',
+    'not a card line',
+    '1 Arcane Signet [sale,no-sale]',
+    '',
+    '## Maybeboard',
+    '',
+  ].join('\n')
+
+  test('the notices are the warnings and advisories, severity for severity, in order', () => {
+    const parsed = parseDeckText(content, 'Deck', undefined, IMPORT_TEXT_PARSE_OPTIONS)
+    expect(parsed.warnings).toHaveLength(3)
+    expect(parsed.advisories).toHaveLength(2)
+    for (const severity of ['warning', 'advisory'] as const) {
+      expect(
+        parsed.notices
+          .filter((notice) => notice.severity === severity)
+          .map((notice) => notice.message.message),
+      ).toEqual(severity === 'warning' ? parsed.warnings : parsed.advisories)
+    }
+  })
+
+  test('labelsDropped marks exactly the cards kept without their labels', () => {
+    const parsed = parseDeckText(content, 'Deck', undefined, IMPORT_TEXT_PARSE_OPTIONS)
+    const warnings = parsed.notices.filter((notice) => notice.severity === 'warning')
+    expect(
+      warnings.map((notice) => [notice.message.messageKey ?? null, notice.labelsDropped]),
+    ).toEqual([
+      // A label the deck cannot carry: kept, labels dropped.
+      ['domain.import.text.labelsUnsupported', true],
+      // Not a card at all: skipped.
+      ['domain.import.text.malformedLine', false],
+      // A conflicting labels token (worded by the card-line grammar): kept too.
+      [null, true],
+    ])
+    // Both kept cards are on the deck.
+    const names = parsed.deck.sections.flatMap((section) => section.cards.map((card) => card.name))
+    expect(names).toEqual(['Sol Ring', 'Arcane Signet'])
+    expect(
+      parsed.notices.every((notice) => notice.severity === 'warning' || !notice.labelsDropped),
+    ).toBe(true)
+  })
+})

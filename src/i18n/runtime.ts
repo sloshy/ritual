@@ -171,6 +171,32 @@ export function getDictionary(tag: LocaleTag): LocaleCatalog | undefined {
   return dictionaries.get(tag)
 }
 
+/**
+ * The locales this build ships baked dictionaries for, as the CLI process
+ * recorded them at boot ({@link registerBakedLocales}) — a fact of the build,
+ * not of the language anyone picked. Empty in a browser, which fetches its
+ * dictionaries instead, and in a process that never booted the CLI.
+ */
+let bakedTags: readonly LocaleTag[] = []
+
+/**
+ * Record the locales whose dictionaries this build bakes in. Called where the
+ * CLI registers them (`loadBundledDictionaries` in `src/cli/locale.ts`), and by
+ * tests that simulate a build shipping a language.
+ */
+export function registerBakedLocales(tags: readonly LocaleTag[]): void {
+  bakedTags = [...tags]
+}
+
+/**
+ * The locales this build ships, for a server-side answer that must not depend
+ * on the UI language in force — the admin import route's header-row check reads
+ * every shipped language's column headings, whoever runs the server.
+ */
+export function bakedLocales(): readonly LocaleTag[] {
+  return bakedTags
+}
+
 /** Every locale a dictionary is loaded for, English first. */
 export function loadedLocales(): LocaleTag[] {
   return [...dictionaries.keys()]
@@ -180,6 +206,7 @@ export function loadedLocales(): LocaleTag[] {
 export function resetI18nRuntime(): void {
   resetLocale()
   registerLocaleSource(null)
+  bakedTags = []
   for (const tag of dictionaries.keys()) {
     if (tag !== DEFAULT_LOCALE) dictionaries.delete(tag)
   }

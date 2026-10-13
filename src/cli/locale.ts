@@ -27,7 +27,13 @@ import { prescanArgs } from '../i18n/argv-prescan'
 import { prereadUiLocale } from '../i18n/config-preread'
 import { detectOsLocale, type LocaleEnv } from '../i18n/detect'
 import { matchLocale } from '../i18n/negotiate'
-import { DEFAULT_LOCALE, loadDictionary, loadedLocales, setLocale } from '../i18n/runtime'
+import {
+  DEFAULT_LOCALE,
+  loadDictionary,
+  loadedLocales,
+  registerBakedLocales,
+  setLocale,
+} from '../i18n/runtime'
 import { t } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 import { bakedDictionaries } from '../generated/locales'
@@ -157,6 +163,7 @@ function loadBundledDictionaries(): void {
   for (const { tag, catalog } of bakedDictionaries) {
     loadDictionary(tag, catalog)
   }
+  registerBakedLocales(bakedDictionaries.map(({ tag }) => tag))
 }
 
 /** The last resolution applied to the runtime, for `ritual locale` to report. */

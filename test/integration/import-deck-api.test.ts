@@ -1,7 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { handleImportDeck } from '../../src/admin/api/import-deck'
+import { handleImportDeck, type ImportDeckResponse } from '../../src/admin/api/import-deck'
+import { renderSyncMessage, syncMessage } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
+import { pseudoCatalog, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import { apiRequest } from './helpers/request'
 import type { ApiMessage } from '../../src/api/result'
 import {
   ARCHIDEKT_DECK_ID,
@@ -26,6 +30,9 @@ let dir: string
 let stub: StubbedFetch
 
 type PostResult = { status: number; message: string }
+
+/** A whole import-deck answer: the status, and the body (a success or a refusal). */
+type ImportDeckReply = { status: number; body: ImportDeckResponse }
 
 async function postImport(body: unknown): Promise<PostResult> {
   const resp = await handleImportDeck(
@@ -124,5 +131,65 @@ describe('POST /api/import-deck printings (Integration)', () => {
     expect(status).toBe(400)
     expect(message).toContain('only applies to URL imports')
     expect(await fs.readdir(path.join(dir, 'decks')).catch(() => [])).toEqual([])
+  })
+})
+
+describe('POST /api/import-deck reporting (Integration)', () => {
+  /** The route's full answer, parsed. */
+  async function importDeck(body: unknown): Promise<ImportDeckReply> {
+    const resp = await handleImportDeck(apiRequest('POST', '/api/import-deck', body))
+    return { status: resp.status, body: (await resp.json()) as ImportDeckResponse }
+  }
+
+  test('tells a line imported without its labels from a line it skipped', async () => {
+    // One skipped line, one label the deck cannot carry, one conflicting labels
+    // token: the two kept cards are counted apart from the lost line, by the
+    // parser's mark rather than by comparing warning text.
+    const { status, body } = await importDeck({
+      mode: 'text',
+      name: 'Mixed',
+      content: '1 Sol Ring [keep]\nnot a card line\n1 Arcane Signet [sale,no-sale]\n',
+    })
+    expect(status).toBe(200)
+    expect(body.messageParams).toEqual({
+      name: 'Mixed',
+      notes: {
+        list: [
+          { messageKey: 'admin.api.importDeck.skippedNote', messageParams: { count: 1 } },
+          { messageKey: 'admin.api.importDeck.labelsDroppedNote', messageParams: { count: 2 } },
+        ],
+        join: 'concat',
+      },
+    })
+    expect(body.warnings.map((warning) => warning.labelsDropped === true)).toEqual([
+      true,
+      false,
+      true,
+    ])
+    expect(body.warnings[1]?.messageKey).toBe('domain.import.text.malformedLine')
+  })
+
+  test('a deck service’s error reply answers English plus its key, whatever the server speaks', async () => {
+    stub.restore()
+    stub = stubFetch({
+      'https://www.mtggoldfish.com/deck/404': () =>
+        new Response('', { status: 404, statusText: 'Not Found' }),
+    })
+    const { status, body } = await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), (locale) => {
+      // Vacuity guard: the pseudo-locale is in force and words this differently.
+      const english = syncMessage('domain.import.url.mtgGoldfishPageFailed', {
+        status: 404,
+        statusText: 'Not Found',
+      })
+      expect(renderSyncMessage(english, locale)).not.toBe(english.message)
+      return importDeck({
+        mode: 'url',
+        url: 'https://www.mtggoldfish.com/deck/404',
+        syncPrintings: true,
+      })
+    })
+    expect(status).toBe(500)
+    expect(body.messageKey).toBe('domain.import.url.mtgGoldfishPageFailed')
+    expect(keyedMessage(body)).toBe('Failed to fetch MTGGoldfish page: 404 Not Found')
   })
 })

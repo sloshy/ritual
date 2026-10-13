@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  CSV_FIELDS,
+  CSV_HEADER_ALIAS_KEYS,
   convertCsvRows,
+  csvHeaderAliases,
+  csvRowWarningMessage,
   formatColumnsSpec,
-  formatCsvRowWarning,
   guessColumns,
   guessHasHeader,
+  HEADER_ALIAS_SEPARATOR,
   normalizeCondition,
   normalizeFinish,
   normalizeLanguage,
@@ -16,15 +20,56 @@ import {
   validateMappingWidth,
   type ColumnMapping,
   type CsvRow,
+  type CsvRowFailure,
+  type NormalizedField,
 } from '../../src/importers/csv'
+import { isSyncMessage, type SyncMessage } from '../../src/sync/message'
+import { DEFAULT_LOCALE, resetI18nRuntime } from '../../src/i18n/runtime'
+import { tIn } from '../../src/i18n/t'
+import { en } from '../../src/i18n/messages/en'
+import type { LocaleCatalog, LocaleTag } from '../../src/i18n/types'
+import { keyedMessage } from '../helpers/api-message'
+import { loadSyntheticLocale, pseudoCatalog, withSyntheticLocale } from '../helpers/sync-text'
 import { formatScriptingCommand } from '../../src/commands/import'
 import type { CardLanguage } from '../../src/card/card-language'
 import { invalidCardTagMessage } from '../../src/card/card-tags'
 import type { Condition, Finish } from '../../src/card/finish-condition'
 
 function rowsOf(result: ReturnType<typeof parseCsv>): CsvRow[] {
-  if ('error' in result) throw new Error(`Unexpected parse error: ${result.error}`)
+  if ('error' in result) throw new Error(`Unexpected parse error: ${result.error.message}`)
   return result.rows
+}
+
+/** A refusal's English, after checking it agrees with its key and params. */
+function refusalText(value: ColumnMapping | SyncMessage | null): string {
+  if (value === null || !isSyncMessage(value)) {
+    throw new Error(`expected a refusal, got ${JSON.stringify(value)}`)
+  }
+  return keyedMessage(value)
+}
+
+/** A cell normalizer's refusal as English, checked against its key. */
+function refusedWith<T>(result: NormalizedField<T>): string {
+  if (result.ok) throw new Error(`expected a refusal, got ${JSON.stringify(result)}`)
+  return keyedMessage(result.error)
+}
+
+/** A row failure as the English a reader sees. */
+type FailureView = { lineNumber: number; raw: string; reason: string }
+
+/**
+ * A row failure's English, after checking a keyed reason agrees with its key
+ * and params. A keyless reason is text another module worded (a tag refusal).
+ */
+function failureView(failure: CsvRowFailure): FailureView {
+  if (failure.reasonKey !== undefined) {
+    keyedMessage({
+      message: failure.reason,
+      messageKey: failure.reasonKey,
+      messageParams: failure.reasonParams,
+    })
+  }
+  return { lineNumber: failure.lineNumber, raw: failure.raw, reason: failure.reason }
 }
 
 describe('parseCsv', () => {
@@ -65,7 +110,8 @@ describe('parseCsv', () => {
 
   test('reports an unterminated quoted field with its starting line', () => {
     const result = parseCsv('a,b\nc,"unclosed\nstill going')
-    expect(result).toEqual({ error: 'Unterminated quoted field starting on line 2' })
+    if (!('error' in result)) throw new Error('expected the parse to fail')
+    expect(keyedMessage(result.error)).toBe('Unterminated quoted field starting on line 2')
   })
 })
 
@@ -76,21 +122,25 @@ describe('parseColumnsSpec', () => {
   })
 
   test('rejects unknown fields', () => {
-    expect(parseColumnsSpec('name=1,rarity=2', 'deck')).toMatch(/Unknown field 'rarity'/)
+    expect(refusalText(parseColumnsSpec('name=1,rarity=2', 'deck'))).toMatch(
+      /Unknown field 'rarity'/,
+    )
   })
 
   test('rejects duplicate fields and missing name', () => {
-    expect(parseColumnsSpec('name=1,name=2', 'deck')).toMatch(/mapped more than once/)
-    expect(parseColumnsSpec('set=1', 'deck')).toMatch(/Missing required field 'name'/)
+    expect(refusalText(parseColumnsSpec('name=1,name=2', 'deck'))).toMatch(/mapped more than once/)
+    expect(refusalText(parseColumnsSpec('set=1', 'deck'))).toMatch(/Missing required field 'name'/)
   })
 
   test('rejects non-numeric and zero column numbers', () => {
-    expect(parseColumnsSpec('name=first', 'deck')).toMatch(/Invalid column number/)
-    expect(parseColumnsSpec('name=0', 'deck')).toMatch(/Invalid column number/)
+    expect(refusalText(parseColumnsSpec('name=first', 'deck'))).toMatch(/Invalid column number/)
+    expect(refusalText(parseColumnsSpec('name=0', 'deck'))).toMatch(/Invalid column number/)
   })
 
   test('requires set and collector-number for collections', () => {
-    expect(parseColumnsSpec('name=1', 'collection')).toMatch(/require both a set and a collector/)
+    expect(refusalText(parseColumnsSpec('name=1', 'collection'))).toMatch(
+      /require both a set and a collector/,
+    )
   })
 })
 
@@ -190,18 +240,24 @@ describe('validateMapping', () => {
   })
 
   test('requires a printing for collections', () => {
-    expect(validateMapping({ name: 0, set: 1 }, 'collection')).toMatch(
+    expect(refusalText(validateMapping({ name: 0, set: 1 }, 'collection'))).toMatch(
       /require both a set and a collector/,
     )
   })
 
   test('rejects a condition column for wanted lists', () => {
-    expect(validateMapping({ name: 0, condition: 1 }, 'wanted')).toMatch(/do not track condition/)
+    expect(refusalText(validateMapping({ name: 0, condition: 1 }, 'wanted'))).toMatch(
+      /do not track condition/,
+    )
   })
 
   test('rejects two fields mapped to the same column', () => {
-    expect(validateMapping({ name: 0, finish: 0 }, 'deck')).toMatch(/same column 1/)
-    expect(validateMapping({ name: 0, categories: 1, section: 1 }, 'deck')).toMatch(/same column 2/)
+    expect(refusalText(validateMapping({ name: 0, finish: 0 }, 'deck'))).toBe(
+      "Fields 'name' and 'finish' are mapped to the same column 1",
+    )
+    expect(refusalText(validateMapping({ name: 0, categories: 1, section: 1 }, 'deck'))).toMatch(
+      /same column 2/,
+    )
   })
 })
 
@@ -211,13 +267,17 @@ describe('validateMappingWidth', () => {
   })
 
   test('names the out-of-range column, its field, and the file width', () => {
-    expect(validateMappingWidth({ name: 98 }, 6)).toBe(
-      "Column 99 (mapped to 'name') does not exist: the file has 6 column(s)",
+    expect(refusalText(validateMappingWidth({ name: 98 }, 6))).toBe(
+      "Column 99 (mapped to 'name') does not exist: the file has 6 columns",
+    )
+    // The width is a count, so the noun follows it.
+    expect(refusalText(validateMappingWidth({ name: 0, set: 1 }, 1))).toBe(
+      "Column 2 (mapped to 'set') does not exist: the file has 1 column",
     )
   })
 
   test('rejects the first out-of-range field in canonical order', () => {
-    expect(validateMappingWidth({ name: 0, set: 9, quantity: 8 }, 2)).toMatch(
+    expect(refusalText(validateMappingWidth({ name: 0, set: 9, quantity: 8 }, 2))).toMatch(
       /Column 10 \(mapped to 'set'\)/,
     )
   })
@@ -251,10 +311,7 @@ describe('normalizeCondition', () => {
   })
 
   test('rejects unrecognized values', () => {
-    expect(normalizeCondition('shiny')).toEqual({
-      ok: false,
-      error: "Unrecognized condition 'shiny'",
-    })
+    expect(refusedWith(normalizeCondition('shiny'))).toBe("Unrecognized condition 'shiny'")
   })
 })
 
@@ -286,7 +343,7 @@ describe('normalizeFinish', () => {
   })
 
   test('rejects unrecognized values', () => {
-    expect(normalizeFinish('glossy')).toEqual({ ok: false, error: "Unrecognized finish 'glossy'" })
+    expect(refusedWith(normalizeFinish('glossy'))).toBe("Unrecognized finish 'glossy'")
   })
 })
 
@@ -327,11 +384,8 @@ describe('normalizeQuantity', () => {
   })
 
   test('rejects zero and non-numeric values', () => {
-    expect(normalizeQuantity('0')).toEqual({
-      ok: false,
-      error: "Invalid quantity '0': must be at least 1",
-    })
-    expect(normalizeQuantity('many')).toEqual({ ok: false, error: "Invalid quantity 'many'" })
+    expect(refusedWith(normalizeQuantity('0'))).toBe("Invalid quantity '0': must be at least 1")
+    expect(refusedWith(normalizeQuantity('many'))).toBe("Invalid quantity 'many'")
   })
 })
 
@@ -362,10 +416,7 @@ describe('normalizeLanguage', () => {
   })
 
   test('rejects a value naming no language', () => {
-    expect(normalizeLanguage('klingon')).toEqual({
-      ok: false,
-      error: "Unrecognized language 'klingon'",
-    })
+    expect(refusedWith(normalizeLanguage('klingon'))).toBe("Unrecognized language 'klingon'")
   })
 })
 
@@ -415,13 +466,26 @@ describe('convertCsvRows', () => {
       'collection',
     )
     expect(entries).toHaveLength(1)
-    expect(failures).toEqual([
+    expect(failures.map(failureView)).toEqual([
       { lineNumber: 3, raw: ',C19,5', reason: 'Missing card name' },
       {
         lineNumber: 4,
         raw: 'Arcane Signet,,',
         reason:
           'Missing set code (required for collections); Missing collector number (required for collections)',
+      },
+    ])
+  })
+
+  test('a row failing for one reason carries that reason’s own key', () => {
+    const mapping: ColumnMapping = { name: 0, set: 1 }
+    const { failures } = convertCsvRows([row(['', 'C19'], 2)], mapping, 'deck')
+    expect(failures).toEqual([
+      {
+        lineNumber: 2,
+        raw: ',C19',
+        reason: 'Missing card name',
+        reasonKey: 'domain.import.csv.missingName',
       },
     ])
   })
@@ -436,7 +500,7 @@ describe('convertCsvRows', () => {
       mapping,
       'deck',
     )
-    expect(failures).toEqual([
+    expect(failures.map(failureView)).toEqual([
       {
         lineNumber: 7,
         raw: 'Sol Ring,pristine,glossy,lots',
@@ -517,7 +581,7 @@ describe('convertCsvRows', () => {
       'deck',
     )
     expect(entries.map((entry) => entry.language)).toEqual(['de'])
-    expect(failures).toEqual([
+    expect(failures.map(failureView)).toEqual([
       { lineNumber: 4, raw: 'Sol Ring,klingon', reason: "Unrecognized language 'klingon'" },
     ])
   })
@@ -541,6 +605,7 @@ describe('convertCsvRows', () => {
       'deck',
     )
     expect(entries.map((entry) => entry.tags)).toEqual([['edh']])
+    // The tag grammar words its own refusal; it rides keyless.
     expect(failures).toEqual([
       { lineNumber: 4, raw: 'Sol Ring,R&D', reason: invalidCardTagMessage('R&D') },
     ])
@@ -588,14 +653,9 @@ describe('convertCsvRows', () => {
       expect(failures).toEqual([])
       expect(entries[0]!.categories).toEqual(['Draw'])
       expect(warnings).toEqual([
-        {
-          lineNumber: 7,
-          cardName: 'Sol Ring',
-          value: 'Ramp\tRocks',
-          reason: 'ignored category "Ramp\\tRocks"',
-        },
+        { kind: 'category-ignored', lineNumber: 7, cardName: 'Sol Ring', value: 'Ramp\tRocks' },
       ])
-      expect(warnings.map(formatCsvRowWarning)).toEqual([
+      expect(warnings.map(csvRowWarningMessage).map(keyedMessage)).toEqual([
         'Line 7: ignored category "Ramp\\tRocks" on "Sol Ring"',
       ])
     })
@@ -622,7 +682,16 @@ describe('convertCsvRows', () => {
       expect(entries[0]!.categories).toEqual(['Ramp'])
       // A board value is a board, never a refusal — but it silently stopped
       // being a category, so the row says what became of it.
-      expect(warnings.map(formatCsvRowWarning)).toEqual([
+      expect(warnings).toEqual([
+        {
+          kind: 'category-is-board',
+          lineNumber: 7,
+          cardName: 'Sol Ring',
+          value: 'Sideboard',
+          section: 'Sideboard',
+        },
+      ])
+      expect(warnings.map(csvRowWarningMessage).map(keyedMessage)).toEqual([
         `Line 7: category "Sideboard" names a board — dropped from the categories,` +
           ` and the row's section is 'Sideboard' on "Sol Ring"`,
       ])
@@ -668,7 +737,7 @@ describe('convertCsvRows', () => {
       expect(entries[0]!.section).toBe('Main')
       expect(entries[0]!.categories).toEqual(['Ramp'])
       // The routing notice reports the section the row actually landed in.
-      expect(warnings.map(formatCsvRowWarning)).toEqual([
+      expect(warnings.map(csvRowWarningMessage).map(keyedMessage)).toEqual([
         `Line 7: category "Sideboard" names a board — dropped from the categories,` +
           ` and the row's section is 'Main' on "Sol Ring"`,
       ])
@@ -700,15 +769,20 @@ describe('convertCsvRows', () => {
   })
 })
 
+/** English alone: the languages a guess recognizes besides English, none. */
+const ENGLISH_ONLY: readonly LocaleTag[] = [DEFAULT_LOCALE]
+
 describe('header guessing', () => {
   test('guessHasHeader recognizes common header names', () => {
-    expect(guessHasHeader(['Name', 'Set', 'Collector Number', 'Finish'])).toBe(true)
-    expect(guessHasHeader(['Count', 'Card Name', 'Edition'])).toBe(true)
-    expect(guessHasHeader(['Sol Ring', 'C19', '221'])).toBe(false)
+    expect(guessHasHeader(['Name', 'Set', 'Collector Number', 'Finish'], ENGLISH_ONLY)).toBe(true)
+    expect(guessHasHeader(['Count', 'Card Name', 'Edition'], ENGLISH_ONLY)).toBe(true)
+    expect(guessHasHeader(['Sol Ring', 'C19', '221'], ENGLISH_ONLY)).toBe(false)
   })
 
   test('guessColumns maps header cells to fields', () => {
-    expect(guessColumns(['Quantity', 'Name', 'Set Code', 'Collector Number', 'Foil'])).toEqual({
+    expect(
+      guessColumns(['Quantity', 'Name', 'Set Code', 'Collector Number', 'Foil'], ENGLISH_ONLY),
+    ).toEqual({
       quantity: 0,
       name: 1,
       set: 2,
@@ -718,22 +792,186 @@ describe('header guessing', () => {
   })
 
   test('recognizes language headers, long and short', () => {
-    expect(guessHasHeader(['Language', 'Something'])).toBe(true)
-    expect(guessColumns(['Name', 'Language'])).toEqual({ name: 0, language: 1 })
-    expect(guessColumns(['Name', 'Lang'])).toEqual({ name: 0, language: 1 })
+    expect(guessHasHeader(['Language', 'Something'], ENGLISH_ONLY)).toBe(true)
+    expect(guessColumns(['Name', 'Language'], ENGLISH_ONLY)).toEqual({ name: 0, language: 1 })
+    expect(guessColumns(['Name', 'Lang'], ENGLISH_ONLY)).toEqual({ name: 0, language: 1 })
   })
 
   test('recognizes a tags header, plural and singular', () => {
-    expect(guessColumns(['Name', 'Tags'])).toEqual({ name: 0, tags: 1 })
-    expect(guessColumns(['Name', 'Tag'])).toEqual({ name: 0, tags: 1 })
+    expect(guessColumns(['Name', 'Tags'], ENGLISH_ONLY)).toEqual({ name: 0, tags: 1 })
+    expect(guessColumns(['Name', 'Tag'], ENGLISH_ONLY)).toEqual({ name: 0, tags: 1 })
   })
 
   // `Category` used to mean the section; it is the categories field now, and
   // `Section`/`Board` are the section headers.
   test('recognizes a categories header, and keeps Section/Board as the section', () => {
-    expect(guessColumns(['Name', 'Category'])).toEqual({ name: 0, categories: 1 })
-    expect(guessColumns(['Name', 'Categories'])).toEqual({ name: 0, categories: 1 })
-    expect(guessColumns(['Name', 'Section'])).toEqual({ name: 0, section: 1 })
-    expect(guessColumns(['Name', 'Board'])).toEqual({ name: 0, section: 1 })
+    expect(guessColumns(['Name', 'Category'], ENGLISH_ONLY)).toEqual({ name: 0, categories: 1 })
+    expect(guessColumns(['Name', 'Categories'], ENGLISH_ONLY)).toEqual({ name: 0, categories: 1 })
+    expect(guessColumns(['Name', 'Section'], ENGLISH_ONLY)).toEqual({ name: 0, section: 1 })
+    expect(guessColumns(['Name', 'Board'], ENGLISH_ONLY)).toEqual({ name: 0, section: 1 })
+  })
+})
+
+/**
+ * The header spellings a translation adds (`domain.import.csv.headers.*`). The
+ * English ones are a contract with the files already out there: a translation
+ * only ever adds to them, and only fills a field no English heading named.
+ */
+describe('localized header spellings', () => {
+  /** A German-like translation's spellings, one of them colliding with English. */
+  const GERMAN: LocaleCatalog = {
+    'domain.import.csv.headers.name': 'Kartenname|Name der Karte',
+    'domain.import.csv.headers.quantity': 'Anzahl',
+    // `Number` is English for the collector number; the translation's claim on
+    // it for the set must lose.
+    'domain.import.csv.headers.set': 'Edition|Number',
+  }
+
+  const ENGLISH_EXPORT = ['Count', 'Name', 'Edition', 'Collector Number', 'Foil', 'Language']
+  const ENGLISH_GUESS: Partial<ColumnMapping> = {
+    quantity: 0,
+    name: 1,
+    set: 2,
+    collectorNumber: 3,
+    finish: 4,
+    language: 5,
+  }
+
+  test('a translation’s spellings are recognized for its language', () => {
+    const german = loadSyntheticLocale('de', GERMAN)
+    try {
+      expect(guessHasHeader(['Kartenname', 'Sol Ring'], [german])).toBe(true)
+      expect(guessColumns(['Anzahl', 'Name der Karte'], [german])).toEqual({
+        quantity: 0,
+        name: 1,
+      })
+    } finally {
+      resetI18nRuntime()
+    }
+  })
+
+  test('…and only there: English does not know them', () => {
+    // Vacuity guard for the test above: the spellings come from the catalog.
+    expect(guessHasHeader(['Kartenname', 'Anzahl'], ENGLISH_ONLY)).toBe(false)
+    expect(guessColumns(['Anzahl', 'Name der Karte'], ENGLISH_ONLY)).toEqual({})
+  })
+
+  test('the languages named are the ones read, whatever language is applied', () => {
+    // Loaded but not applied: named explicitly, it is honoured…
+    const german = loadSyntheticLocale('de', GERMAN)
+    try {
+      expect(guessColumns(['Anzahl'], [german])).toEqual({ quantity: 0 })
+      expect(guessColumns(['Anzahl'], ENGLISH_ONLY)).toEqual({})
+    } finally {
+      resetI18nRuntime()
+    }
+    // …and applied but not named, it is not: the ambient language never leaks in.
+    withSyntheticLocale('de', GERMAN, () => {
+      expect(guessColumns(['Anzahl'], ENGLISH_ONLY)).toEqual({})
+      expect(guessHasHeader(['Anzahl'], ENGLISH_ONLY)).toBe(false)
+    })
+  })
+
+  test('English headings keep their fields under every language', () => {
+    expect(guessColumns(ENGLISH_EXPORT, ENGLISH_ONLY)).toEqual(ENGLISH_GUESS)
+    for (const [tag, catalog] of [
+      ['en-XA', pseudoCatalog()],
+      ['de', GERMAN],
+    ] as const) {
+      const locale = loadSyntheticLocale(tag, catalog)
+      try {
+        expect(guessHasHeader(ENGLISH_EXPORT, [locale])).toBe(true)
+        expect(guessColumns(ENGLISH_EXPORT, [locale])).toEqual(ENGLISH_GUESS)
+        // The colliding spelling stays English's: collector number, not set.
+        expect(guessColumns(['Name', 'Number'], [locale])).toEqual({ name: 0, collectorNumber: 1 })
+      } finally {
+        resetI18nRuntime()
+      }
+    }
+  })
+
+  test('a translation only fills fields no English heading named', () => {
+    // `Edition Name` added for the set must not beat the English `Edition Code`
+    // further right: accepting that default would write set *names* as codes.
+    const locale = loadSyntheticLocale('de', {
+      'domain.import.csv.headers.set': 'Edition Name',
+      'domain.import.csv.headers.quantity': 'Anzahl',
+    })
+    try {
+      expect(guessColumns(['Name', 'Edition Name', 'Edition Code'], [locale])).toEqual({
+        name: 0,
+        set: 2,
+      })
+      // With no English heading for the field, the translation's fills it.
+      expect(guessColumns(['Name', 'Edition Name', 'Anzahl'], [locale])).toEqual({
+        name: 0,
+        set: 1,
+        quantity: 2,
+      })
+    } finally {
+      resetI18nRuntime()
+    }
+  })
+
+  test('between a translation’s own colliding spellings, the earlier field wins', () => {
+    // `Karte` listed for both the name and the set: name comes first in CSV_FIELDS.
+    const locale = loadSyntheticLocale('de', {
+      'domain.import.csv.headers.name': 'Karte',
+      'domain.import.csv.headers.set': 'Karte|Edition',
+    })
+    try {
+      expect(guessColumns(['Karte', 'Kartenzahl'], [locale])).toEqual({ name: 0 })
+      expect(csvHeaderAliases([locale]).localized.get('karte')).toBe('name')
+    } finally {
+      resetI18nRuntime()
+    }
+  })
+
+  test('a heading matches whether its accent is precomposed or combining', () => {
+    const locale = loadSyntheticLocale('es', {
+      'domain.import.csv.headers.collectorNumber': 'N\u00famero',
+    })
+    try {
+      // U+0301 COMBINING ACUTE after a plain `u`: the same word, decomposed.
+      expect(guessColumns(['Nombre', 'Nu\u0301mero'], [locale])).toEqual({ collectorNumber: 1 })
+    } finally {
+      resetI18nRuntime()
+    }
+  })
+
+  test('every English catalog spelling is already an English heading, for its field', () => {
+    // The English catalog entries are examples for translators, never a source:
+    // each must name its own field in the built-in English table.
+    const { english, localized } = csvHeaderAliases(ENGLISH_ONLY)
+    for (const field of CSV_FIELDS) {
+      const value = en[CSV_HEADER_ALIAS_KEYS[field]]
+      for (const spelling of value.split(HEADER_ALIAS_SEPARATOR)) {
+        expect({
+          spelling,
+          field: english.get(spelling.toLowerCase().replace(/[\s\-_]+/g, '')),
+        }).toEqual({ spelling, field })
+      }
+    }
+    expect(localized.size).toBe(0)
+  })
+
+  test('the English catalog entries add nothing beyond the English contract', () => {
+    // With every spelling key emptied, only the built-in English table is left;
+    // the English catalog must recognize exactly that — so an edit to the
+    // catalog's English can never change what an import reads.
+    const emptied: LocaleCatalog = Object.fromEntries(
+      CSV_FIELDS.map((field) => [CSV_HEADER_ALIAS_KEYS[field], '']),
+    )
+    const locale = loadSyntheticLocale('en-ZZ', emptied)
+    try {
+      // Vacuity guard: the emptied dictionary really is what is read.
+      expect(tIn(locale, 'domain.import.csv.headers.name')).toBe('')
+      const builtIn = csvHeaderAliases([locale])
+      expect(builtIn.localized.size).toBe(0)
+      expect(csvHeaderAliases(ENGLISH_ONLY)).toEqual(builtIn)
+      expect(builtIn.english.size).toBeGreaterThan(CSV_FIELDS.length)
+    } finally {
+      resetI18nRuntime()
+    }
   })
 })

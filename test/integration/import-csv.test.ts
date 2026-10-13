@@ -5,6 +5,14 @@ import { handleImportCsv, type ImportCsvResponse } from '../../src/admin/api/imp
 import type { ApiErrorResponse } from '../../src/api/http'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { keyedMessage } from '../helpers/api-message'
+import {
+  foreignLocales,
+  loadSyntheticLocale,
+  pseudoCatalog,
+  withSyntheticLocaleAsync,
+} from '../helpers/sync-text'
+import { registerBakedLocales, resetI18nRuntime } from '../../src/i18n/runtime'
+import { renderSyncMessage, syncMessage } from '../../src/sync/message'
 import { readCategoriesSidecar } from '../helpers/card-categories'
 
 /**
@@ -156,6 +164,74 @@ describe('admin import-csv handler (Integration)', () => {
     expect(data.failures[0]!.lineNumber).toBe(3)
   })
 
+  test('answers in English plus keys whatever the server’s own language', async () => {
+    // The route serves MCP and scripts (which read the English) and the admin
+    // page (which renders the keys), so the server's UI language must reach
+    // neither the English nor the shape — the full pseudo-locale changes every
+    // message, so a leak cannot hide.
+    const { data } = await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), async (locale) => {
+      // Vacuity guard: the locale really is in force and really is not English.
+      expect(renderSyncMessage(syncMessage('domain.import.csv.missingSet'), locale)).not.toBe(
+        'Missing set code (required for collections)',
+      )
+      return importCsv({
+        listType: 'collection',
+        name: 'Partial',
+        content: [
+          'Name,Set,Collector Number,Categories',
+          'Sol Ring,C19,221,Ramp\tRocks',
+          'No Printing,,,',
+        ].join('\n'),
+        columns: 'name=1,set=2,collector-number=3,categories=4',
+      })
+    })
+
+    expect(keyedMessage(data)).toBe(
+      "Imported 1 card into collection 'Partial'; 1 row failed validation",
+    )
+    // A row's reasons nest: one keyed clause per problem, joined in the
+    // reader's language — and in English, exactly the `; ` the reason reads.
+    const [failure] = data.failures
+    expect(failure).toEqual({
+      lineNumber: 3,
+      raw: 'No Printing,,,',
+      reason:
+        'Missing set code (required for collections); Missing collector number (required for collections)',
+      reasonKey: 'domain.sync.reasonList',
+      reasonParams: {
+        reasons: {
+          list: [
+            { messageKey: 'domain.import.csv.missingSet' },
+            { messageKey: 'domain.import.csv.missingCollectorNumber' },
+          ],
+          join: 'clauses',
+        },
+      },
+    })
+    expect(
+      keyedMessage({
+        message: failure!.reason,
+        messageKey: failure!.reasonKey,
+        messageParams: failure!.reasonParams,
+      }),
+    ).toBe(failure!.reason)
+    expect(data.warnings.map(keyedMessage)).toEqual([
+      'Skipped header row: Name,Set,Collector Number,Categories',
+      'Line 2: ignored category "Ramp\\tRocks" on "Sol Ring"',
+    ])
+    expect(data.warnings[1]).toMatchObject({
+      messageKey: 'domain.import.csv.rowNotice',
+      messageParams: {
+        line: 2,
+        notice: {
+          messageKey: 'domain.import.csv.categoryIgnored',
+          messageParams: { value: '"Ramp\\tRocks"' },
+        },
+        card: 'Sol Ring',
+      },
+    })
+  })
+
   test('a request whose every row fails is a 200 carrying the per-row report', async () => {
     // The request itself was well formed; the rows were not. Folding that into
     // the envelope is what made clients that treat `success: false` as "throw"
@@ -246,7 +322,9 @@ describe('admin import-csv handler (Integration)', () => {
       columns: 'name=1,rarity=2',
     })
     expect(badColumns.status).toBe(400)
-    expect(badColumns.error.message).toContain("Unknown field 'rarity'")
+    expect(keyedMessage(badColumns.error)).toBe(
+      "Unknown field 'rarity'. Valid fields: name, set, collector-number, condition, finish, language, tags, categories, section, quantity",
+    )
   })
 
   test('a mapped column the file does not have is one 400, not every row failing', async () => {
@@ -260,9 +338,50 @@ describe('admin import-csv handler (Integration)', () => {
     })
 
     expect(result.status).toBe(400)
-    expect(result.error.message).toBe(
-      "Column 99 (mapped to 'name') does not exist: the file has 6 column(s)",
+    expect(keyedMessage(result.error)).toBe(
+      "Column 99 (mapped to 'name') does not exist: the file has 6 columns",
     )
+  })
+
+  test('judges a header row by every language the build ships, never the server’s own', async () => {
+    // A French export on a server whose build ships French: the headings are a
+    // header row whatever language the operator runs the server in, and the
+    // answer — `warnings` — is the same bytes in every one of them.
+    const FRENCH = { 'domain.import.csv.headers.name': 'Nom de la carte' }
+    const request = {
+      listType: 'wanted',
+      name: 'Souhaits',
+      content: 'Nom de la carte,Quantité\nSol Ring,1',
+      columns: 'name=1',
+    }
+    const run = async (): Promise<string> => {
+      const resp = await handleImportCsv(makeRequest(request))
+      const body = (await resp.json()) as ImportCsvResponse
+      await fs.rm(path.join(testDir, 'wanted', 'Souhaits.md'))
+      return JSON.stringify(body.warnings)
+    }
+
+    // Not shipped: nothing recognizes `Nom de la carte`, so the row is suspicious.
+    const unshipped = await run()
+    expect(unshipped).toContain('admin.api.importCsv.headerSuspicious')
+
+    /** Simulate a build that bakes French in, as the CLI's boot records it. */
+    const shipFrench = (): void => registerBakedLocales([loadSyntheticLocale('fr', FRENCH)])
+    shipFrench()
+    try {
+      const shipped = await run()
+      expect(shipped).not.toContain('admin.api.importCsv.headerSuspicious')
+      for (const { tag, catalog } of foreignLocales()) {
+        const localized = await withSyntheticLocaleAsync(tag, catalog, async () => {
+          // Each synthetic locale's reset drops every dictionary, so ship French again.
+          shipFrench()
+          return run()
+        })
+        expect(localized).toBe(shipped)
+      }
+    } finally {
+      resetI18nRuntime()
+    }
   })
 
   test('states which row `hasHeader` skipped, and flags one that does not look like a header', async () => {
@@ -281,8 +400,10 @@ describe('admin import-csv handler (Integration)', () => {
 
     expect(result.status).toBe(200)
     expect(result.data.warnings).toHaveLength(2)
-    expect(result.data.warnings[0]).toBe('Skipped header row: Sol Ring,c19,221,F,Near Mint,2')
-    expect(result.data.warnings[1]).toContain('set hasHeader to false')
+    expect(keyedMessage(result.data.warnings[0]!)).toBe(
+      'Skipped header row: Sol Ring,c19,221,F,Near Mint,2',
+    )
+    expect(keyedMessage(result.data.warnings[1]!)).toContain('set hasHeader to false')
   })
 
   test('a real header row is reported as skipped, with no second-guessing', async () => {
@@ -293,7 +414,7 @@ describe('admin import-csv handler (Integration)', () => {
       columns: COLLECTION_COLUMNS,
     })
 
-    expect(result.data.warnings).toEqual([
+    expect(result.data.warnings.map(keyedMessage)).toEqual([
       'Skipped header row: Name,Set,Collector Number,Finish,Condition,Quantity',
     ])
   })
@@ -319,7 +440,9 @@ describe('admin import-csv handler (Integration)', () => {
       columns: 'name=1,set=2,collector-number=3,categories=4',
     })
     expect(status).toBe(200)
-    expect(data.warnings).toEqual(['Skipped header row: Name,Set,Collector Number,Categories'])
+    expect(data.warnings.map(keyedMessage)).toEqual([
+      'Skipped header row: Name,Set,Collector Number,Categories',
+    ])
     expect(await readCategoriesSidecar(path.join(testDir, 'collections', 'Binder.md'))).toEqual({
       'Sol Ring': ['Ramp', 'Artifacts'],
     })
@@ -339,6 +462,8 @@ describe('admin import-csv handler (Integration)', () => {
     expect(status).toBe(200)
     expect(data.failedCount).toBe(0)
     expect(data.cardCount).toBe(1)
-    expect(data.warnings).toContain('Line 2: ignored category "Ramp\\tRocks" on "Sol Ring"')
+    expect(data.warnings.map(keyedMessage)).toContain(
+      'Line 2: ignored category "Ramp\\tRocks" on "Sol Ring"',
+    )
   })
 })

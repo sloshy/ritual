@@ -19,7 +19,12 @@ import {
   type LineTokens,
 } from '../card/card-line-grammar'
 import { isCardCandidate, readCardLine } from '../card/card-line-read'
-import { createLineDiagnostics, type ListFileParseOptions } from '../list/line-diagnostics'
+import {
+  createLineDiagnostics,
+  type LineDiagnostics,
+  type ListFileParseOptions,
+  type ParseNotice,
+} from '../list/line-diagnostics'
 import { listDescriptionOrUndefined } from '../list/list-description'
 import { readListImage } from '../list/list-image'
 import {
@@ -31,7 +36,8 @@ import {
 import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence'
 import { isListMarkdownFile } from '../list/list-file-name'
 import { parseHeading, parseTitleFromContent } from '../list/section-format'
-import { listTypeLabel, type ListType } from '../list/list-type'
+import type { ListType } from '../list/list-type'
+import { syncMessage, SyncMessageError, syncText, type SyncMessage } from '../sync/message'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
 export const isDeckFile = isListMarkdownFile
@@ -124,6 +130,36 @@ export const IMPORT_TEXT_PARSE_OPTIONS: ParseDeckTextOptions = {
   keepWholeLabels: true,
 }
 
+/**
+ * A {@link ParseNotice} of a deck parse, marked when it is about a card that was
+ * KEPT with some or all of its labels dropped (a conflicting token, a label the
+ * destination type cannot carry) rather than skipped — so a report can say
+ * "imported without its labels" instead of "could not be imported".
+ */
+export type DeckParseNotice = ParseNotice & { labelsDropped: boolean }
+
+/**
+ * A parse warning as an import reports it: the message, marked `labelsDropped:
+ * true` when its card WAS imported, only without the labels it carried — so a
+ * client can tell "imported without its labels" from "skipped" without reading
+ * the prose.
+ */
+export type ImportParseWarning = SyncMessage & { labelsDropped?: true }
+
+/** A parse's warnings as an import surface reports them, in recording order. */
+export function importParseWarnings(notices: readonly DeckParseNotice[]): ImportParseWarning[] {
+  return notices
+    .filter((notice) => notice.severity === 'warning')
+    .map((notice) =>
+      notice.labelsDropped ? { ...notice.message, labelsDropped: true } : notice.message,
+    )
+}
+
+/** A parse's advisories as an import surface reports them, in recording order. */
+export function importParseAdvisories(notices: readonly DeckParseNotice[]): SyncMessage[] {
+  return notices.filter((notice) => notice.severity === 'advisory').map((notice) => notice.message)
+}
+
 /** A parsed deck plus a warning for every body line the parser had to skip. */
 export type DeckParseResult = {
   deck: DeckData
@@ -155,12 +191,12 @@ export type DeckParseResult = {
    */
   defaultLabels?: CardLabel[]
   /**
-   * The members of {@link warnings} about a card that was KEPT with some or all
-   * of its labels dropped (a conflicting token, a label the destination type
-   * cannot carry) rather than skipped — so a report can say "imported without
-   * its labels" instead of "could not be imported".
+   * {@link warnings} and {@link advisories} again, in recording order, as
+   * messages (English plus the catalog key) — what an import surface reports
+   * to a reader who may not read English. See {@link DeckParseNotice} for the
+   * labels-dropped mark.
    */
-  labelsDropped: string[]
+  notices: DeckParseNotice[]
   /**
    * Every card-line diagnostic above in structured form — code, offending
    * token, column. The strings in {@link warnings} and {@link advisories} are
@@ -175,7 +211,7 @@ export type DeckParseResult = {
  * the destination keeps (absent when the line carries no token), plus the
  * warning explaining a token that was dropped.
  */
-type DeckLineLabels = { labels?: LabelOverride } | { labels?: undefined; warning: string }
+type DeckLineLabels = { labels?: LabelOverride } | { labels?: undefined; warning: SyncMessage }
 
 /**
  * Narrow a card line's labels to the ones `listType` carries. The grammar has
@@ -196,12 +232,27 @@ function deckLineLabels(
   const unsupported = unsupportedLabelsFor(listType, labels)
   if (unsupported.length > 0) {
     return {
-      warning:
-        `Labels [${unsupported.join(',')}] on '${cardName}' are not supported on a ${listTypeLabel(listType)}. ` +
-        `The labels were ignored, and a rewrite would drop them: ${line}`,
+      warning: syncMessage('domain.import.text.labelsUnsupported', {
+        listType,
+        labels: unsupported.join(','),
+        card: cardName,
+        line,
+      }),
     }
   }
   return { labels: [...labels] }
+}
+
+/**
+ * Record a warning about a card that was kept with its labels dropped, marking
+ * its notice so a report can tell it from a skipped line.
+ */
+function warnLabelsDropped(
+  report: LineDiagnostics,
+  labelsDropped: Set<ParseNotice>,
+  message: SyncMessage,
+): void {
+  labelsDropped.add(report.warn(message))
 }
 
 /**
@@ -214,15 +265,12 @@ function deckCard(
   tokens: LineTokens,
   line: string,
   listType: ListType,
-  warnings: string[],
-  labelsDropped: string[],
+  report: LineDiagnostics,
+  labelsDropped: Set<ParseNotice>,
   keepWholeLabels: boolean,
 ): Card {
   const narrowed = deckLineLabels(tokens.labels, tokens.name, line, listType)
-  if ('warning' in narrowed) {
-    warnings.push(narrowed.warning)
-    labelsDropped.push(narrowed.warning)
-  }
+  if ('warning' in narrowed) warnLabelsDropped(report, labelsDropped, narrowed.warning)
   const labels: DeckLineLabels =
     keepWholeLabels && tokens.labels !== undefined ? { labels: [...tokens.labels] } : narrowed
   return {
@@ -309,8 +357,8 @@ export function parseDeckText(
 
   const lines = parsed.content.split(/\r?\n/)
   const report = createLineDiagnostics(options?.file)
-  const { warnings, advisories } = report
-  const labelsDropped: string[] = []
+  /** The notices about a card kept with its labels dropped — by identity, never by text. */
+  const labelsDropped = new Set<ParseNotice>()
   // A `labels:` default the deck cannot carry is dropped by
   // `validateDeckFrontMatter`, so the next save deletes the key outright — the
   // same loss a refused card-line token would cause, and a warning for the same
@@ -320,16 +368,15 @@ export function parseDeckText(
   // (`defaultLabels` below), against which its lines' labels are carried.
   if (listType === 'deck' && 'labels' in parsed.data) {
     const defaultLabels = readListDefaultLabels('deck', parsed.data.labels)
-    if (defaultLabels.warning) warnings.push(defaultLabels.warning)
+    // Worded by the label module (`src/card/card-labels.ts`), carried as it is.
+    if (defaultLabels.warning) report.warn(syncText(defaultLabels.warning))
   }
   // And the same for an unreadable `image:` cover, for the same reason: users
   // are told to hand-edit this key, so a save that silently deletes it would be
   // the worst possible outcome.
   const listImage = readListImage(parsed.data)
   if (listImage.advisory) {
-    warnings.push(
-      `Front matter 'image' ignored: ${listImage.advisory} A rewrite would drop the key.`,
-    )
+    report.warn(syncMessage('domain.import.text.imageIgnored', { reason: listImage.advisory }))
   }
   // Fenced code blocks are prose: a card-looking line or a `## Heading` inside
   // one is an example, not deck data, and must not warn either.
@@ -386,9 +433,9 @@ export function parseDeckText(
       // is not a title either: it must not rename a deck already named by an
       // `About` block or the caller.
       if (titled) {
-        warnings.push(`Skipped extra title line: ${trimmed}`)
+        report.warn(syncMessage('domain.import.text.extraTitle', { line: trimmed }))
       } else if (sawCard) {
-        warnings.push(`Skipped malformed line: ${trimmed}`)
+        report.warn(syncMessage('domain.import.text.malformedLine', { line: trimmed, hint: '' }))
       } else {
         name = heading.text
         titled = true
@@ -419,7 +466,7 @@ export function parseDeckText(
       if (aboutName && !titled) {
         name = aboutName
       } else if (!aboutName) {
-        advisories.push(`Skipped About line: ${trimmed}`)
+        report.advise(syncMessage('domain.import.text.aboutLineSkipped', { line: trimmed }))
       }
       continue
     }
@@ -431,7 +478,7 @@ export function parseDeckText(
       // labels it read the destination can keep.
       const card = parseCardLine('deck', trimmed)
       if (!card.ok) {
-        report.record(card, bodyOffset + index + 1)
+        const recorded = report.record(card, bodyOffset + index + 1)
         // A conflicting labels token keeps its card with the labels dropped,
         // like an unsupported `[sale]`: the warning still blocks whole-file
         // rewrites, and the line stays findable by the `set-card --label` that
@@ -439,30 +486,28 @@ export function parseDeckText(
         const recovered =
           card.code === 'conflicting-labels' ? readCardLine('deck', trimmed) : undefined
         if (recovered !== undefined) {
-          const recorded = report.warnings.at(-1)
-          if (recorded !== undefined) labelsDropped.push(recorded)
+          if (recorded !== undefined) labelsDropped.add(recorded)
           currentSection.cards.push(
-            deckCard(
-              recovered.tokens,
-              trimmed,
-              listType,
-              report.warnings,
-              labelsDropped,
-              keepWholeLabels,
-            ),
+            deckCard(recovered.tokens, trimmed, listType, report, labelsDropped, keepWholeLabels),
           )
         }
         continue
       }
       for (const advisory of card.advisories) report.record(advisory, bodyOffset + index + 1)
       currentSection.cards.push(
-        deckCard(card.tokens, trimmed, listType, report.warnings, labelsDropped, keepWholeLabels),
+        deckCard(card.tokens, trimmed, listType, report, labelsDropped, keepWholeLabels),
       )
       continue
     }
 
     // A recognizable-but-misspelled language token ([JA], [jp]) names its fix.
-    warnings.push(`Skipped malformed line: ${trimmed}${malformedLanguageTokenHint(trimmed)}`)
+    // The hint is worded by the language module (`src/card/card-language.ts`).
+    report.warn(
+      syncMessage('domain.import.text.malformedLine', {
+        line: trimmed,
+        hint: malformedLanguageTokenHint(trimmed),
+      }),
+    )
   }
 
   // A section header with no card lines under it is kept, so re-serializing the
@@ -487,7 +532,11 @@ export function parseDeckText(
   const validSections = sections.filter((s) => s.cards.length > 0 || isKeptEmpty(s))
   if (hasCards) {
     for (const section of sections) {
-      if (isDroppedEmptySection(section)) advisories.push(`Dropped empty section: ${section.name}`)
+      if (isDroppedEmptySection(section)) {
+        report.advise(
+          syncMessage('domain.import.text.emptySectionDropped', { section: section.name }),
+        )
+      }
     }
   }
 
@@ -503,12 +552,15 @@ export function parseDeckText(
   const defaultLabels = listDefaultLabels('collection', parsed.data)
   return {
     deck,
-    warnings,
+    warnings: [...report.warnings],
     fencedLines,
-    advisories,
+    advisories: [...report.advisories],
     ...(defaultLabels !== undefined ? { defaultLabels } : {}),
-    labelsDropped,
-    diagnostics: report.diagnostics,
+    notices: report.notices.map((notice) => ({
+      ...notice,
+      labelsDropped: labelsDropped.has(notice),
+    })),
+    diagnostics: [...report.diagnostics],
   }
 }
 
@@ -526,7 +578,7 @@ export async function loadDeckFile(
 ): Promise<DeckParseResult> {
   const file = Bun.file(filePath)
   if (!(await file.exists())) {
-    throw new Error(`File not found: ${filePath}`)
+    throw new SyncMessageError(syncMessage('domain.import.fileNotFound', { path: filePath }))
   }
 
   const rawText = await file.text()

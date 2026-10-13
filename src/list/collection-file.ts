@@ -105,9 +105,9 @@ export function parseCollectionFile(
     sectionOrder: scan.sectionOrder,
     frontMatter: scan.front.frontMatter,
     labels: scan.front.labels,
-    warnings: scan.report.warnings,
+    warnings: [...scan.report.warnings],
     fencedLines: scan.fencedLines,
-    advisories: scan.report.advisories,
-    diagnostics: scan.report.diagnostics,
+    advisories: [...scan.report.advisories],
+    diagnostics: [...scan.report.diagnostics],
   }
 }

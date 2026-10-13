@@ -27,6 +27,9 @@ Import cards from a CSV export (Moxfield, Deckbox, ManaBox, and others) into a d
 
 The page parses the CSV in the browser, guesses whether the first row is a header, and pre-selects which column holds each card field for you to confirm: name, set, collector number, condition, finish, language, tags, categories, section, and quantity.
 
+- The guesses recognize the English column headings plus the spellings the page language's translation lists. Every field an English heading names is picked first; a translation's spellings only fill fields still unpicked, so an English heading keeps its English field in every language.
+- The field labels, a pasted file's parse and mapping problems, the per-row failure reasons and the import's notices follow the page language, and relabel when you switch it — your picks stay as they were.
+
 - A `Category`/`Categories` header maps to the **categories** field, written to the list's [`<name>.categories.json`](/list-format/#categories-namecategoriesjson) file. `Section`/`Board` remain the section headers.
 - Values are normalized on import (`Near Mint` → `NM`, `F` → foil, `side` → `Sideboard`), exactly like the [`import`](/commands/import/#csv-imports) command's CSV mode.
 

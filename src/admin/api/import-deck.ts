@@ -1,14 +1,22 @@
-import { IMPORT_TEXT_PARSE_OPTIONS, parseDeckText } from '../../importers/text-file'
+import {
+  IMPORT_TEXT_PARSE_OPTIONS,
+  importParseAdvisories,
+  importParseWarnings,
+  parseDeckText,
+  type DeckParseNotice,
+  type ImportParseWarning,
+} from '../../importers/text-file'
 import type { CardLabel } from '../../card/card-labels'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
 import type { CardCategoryEntry } from '../../list/card-categories-record'
 import { importCategoryAdvisories } from '../../importers/import-categories'
 import { saveDeck } from '../../importers/save-list'
 import { autoCommitAndPush } from './save-helpers'
-import { badRequest, readJsonObjectBody } from '../../api/http'
+import { badRequest, nestedRefusal, readJsonObjectBody } from '../../api/http'
 import { apiHandler } from '../utils'
-import { apiMessage, apiText, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, apiText, isApiMessage, type ApiMessage } from '../../api/result'
 import {
+  isSyncMessage,
   syncList,
   syncMessage,
   syncRef,
@@ -50,16 +58,20 @@ export interface ImportDeckResponse extends SyncMessage {
    * Parse warnings from a text import — one per skipped line or dropped empty
    * section, meaning content from the pasted text was NOT imported. An empty
    * *extras* section is an advisory instead: dropping it loses nothing. Always
-   * present; URL imports have nothing to parse and carry an empty array.
+   * present; URL imports have nothing to parse and carry an empty array. Each
+   * is a message: English `message`, plus `messageKey` / `messageParams` when
+   * the text has a catalog entry. A line whose card WAS imported, only without
+   * the labels it carried, is marked `labelsDropped: true`.
    */
-  warnings: string[]
+  warnings: ImportParseWarning[]
   /**
    * Non-fatal notices about text that WAS read — a card name that still carries
    * a parenthesized printing token (an export dialect the parser does not
    * know), a skipped Arena `About` line, or an empty extras section the write
-   * drops. Always present; empty for URL imports.
+   * drops — and, for a URL import, what became of the source's categories.
+   * Always present. Messages, like `warnings`.
    */
-  advisories: string[]
+  advisories: SyncMessage[]
   /**
    * Whether the written deck kept the exact printings the source listed.
    * `true` for a text import, whose printings are the pasted lines' own —
@@ -153,18 +165,16 @@ export function handleImportDeck(req: Request): Promise<Response> {
     /** The source's categories; only a URL import from a service that has them sets it. */
     let categories: CardCategoryEntry[] | undefined
     let refusedCategories: string[] | undefined
-    let warnings: string[] = []
-    let advisories: string[] = []
+    /** A text import's parse notices; a URL import has nothing to parse. */
+    let notices: DeckParseNotice[] = []
     /** A pasted file's own front-matter default, which its lines' labels are measured against. */
     let sourceLabels: CardLabel[] | undefined
-    /** The members of `warnings` about a card imported with its labels dropped. */
-    let labelsDropped: string[] = []
 
     if (request.mode === 'url') {
       const url = request.url.trim()
       if (!url) return badRequest(apiMessage('admin.api.importDeck.urlRequired'))
       const result = await fetchDeckFromUrl(url)
-      if (typeof result === 'string') return badRequest(plainMessage(result))
+      if (isSyncMessage(result)) return nestedRefusal(result)
       deckData = request.syncPrintings ? result.deck : stripDeckPrintings(result.deck)
       categories = result.categories
       refusedCategories = result.refusedCategories
@@ -180,12 +190,10 @@ export function handleImportDeck(req: Request): Promise<Response> {
       // which is how a decklist pasted from Discord or GitHub arrives.
       const parsed = parseDeckText(content, fallbackName, undefined, IMPORT_TEXT_PARSE_OPTIONS)
       deckData = parsed.deck
-      advisories = parsed.advisories
       sourceLabels = parsed.defaultLabels
-      labelsDropped = parsed.labelsDropped
       // Skipped lines are content the import silently lost — the client must
       // be able to report them (the CLI's text path exits 1 on the same class).
-      warnings = parsed.warnings
+      notices = parsed.notices
       if (deckData.sections.length === 0) {
         return badRequest(apiMessage('admin.api.importDeck.noCardLines'))
       }
@@ -205,9 +213,10 @@ export function handleImportDeck(req: Request): Promise<Response> {
     if (outcome.status === 'cancelled') {
       return badRequest(apiMessage('admin.api.importDeck.cancelled'))
     }
+    const warnings = importParseWarnings(notices)
     // A URL import's category notes join the advisories: news, not loss.
-    advisories = [
-      ...advisories,
+    const advisories: SyncMessage[] = [
+      ...importParseAdvisories(notices),
       ...importCategoryAdvisories(refusedCategories, outcome.categoryError),
     ]
 
@@ -220,12 +229,12 @@ export function handleImportDeck(req: Request): Promise<Response> {
     )
 
     // A card kept with its labels dropped arrived; only its labels did not.
-    const skipped = warnings.filter((warning) => !labelsDropped.includes(warning)).length
+    const labelsDropped = warnings.filter((warning) => warning.labelsDropped === true).length
     const resp: ImportDeckResponse = {
       success: true,
       ...importDeckMessage(outcome.name, {
-        skipped,
-        labelsDropped: labelsDropped.length,
+        skipped: warnings.length - labelsDropped,
+        labelsDropped,
         advisories: advisories.length,
         mode: request.mode,
       }),

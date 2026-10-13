@@ -24,6 +24,7 @@ import {
 import { createFenceTracker } from './markdown-fence'
 import { matchSectionHeader } from './section-format'
 import { parseFlatListFrontMatter, type FlatListFrontMatterParse } from './flat-list-front-matter'
+import { syncMessage, syncText } from '../sync/message'
 
 /** The list types that hold one line per physical card. */
 export type FlatListType = 'collection' | 'wanted'
@@ -84,7 +85,8 @@ export function scanFlatListFile<E>(
 
   const lines = content.split('\n')
   const front = parseFlatListFrontMatter(lines, { validateLabels: type === 'collection' })
-  report.advisories.push(...front.advisories)
+  // The front-matter reader words its own notes; they ride keyless.
+  for (const advisory of front.advisories) report.advise(syncText(advisory))
 
   for (let lineIndex = front.bodyStart; lineIndex < lines.length; lineIndex++) {
     const line = lines[lineIndex]!
@@ -116,7 +118,7 @@ export function scanFlatListFile<E>(
         titleSeen = true
         continue
       }
-      report.warnings.push(`Skipped malformed line: ${trimmed}`)
+      report.warn(syncMessage('domain.import.text.malformedLine', { line: trimmed, hint: '' }))
       continue
     }
 

@@ -1,7 +1,8 @@
 import type { Page, Route } from '@playwright/test'
-import type { ImportCsvRequest } from '../../../src/admin/api/import-csv'
+import type { ImportCsvRequest, ImportCsvResponse } from '../../../src/admin/api/import-csv'
+import type { CsvRowFailure } from '../../../src/importers/csv'
 import type { MoveCommitResponse } from '../../../src/admin/api/move'
-import { syncList, syncMessage, syncRef } from '../../../src/sync/message'
+import { syncList, syncMessage, syncRef, type SyncMessage } from '../../../src/sync/message'
 import { AUDIT_REASONS } from '../../../src/admin/audit-reasons'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
@@ -237,13 +238,15 @@ export async function mockImportDeckApi(
 
 /**
  * Mock the import-csv API endpoint. Pass `onRequest` to capture the parsed
- * request body, and `failures` to simulate rows that failed to import.
+ * request body, `failures` to simulate rows that failed to import and `warnings`
+ * for the route's non-fatal notices — both built with the importer's own
+ * message builders, so the page's keyed path is the one exercised.
  */
 export async function mockImportCsvApi(
   page: Page,
   onRequest?: (body: unknown) => void,
-  failures?: { lineNumber: number; raw: string; reason: string }[],
-  warnings?: string[],
+  failures?: CsvRowFailure[],
+  warnings?: SyncMessage[],
 ): Promise<void> {
   await fulfillJson(page, '**/api/import-csv', (route: Route) => {
     const body = route.request().postDataJSON() as ImportCsvRequest
@@ -253,7 +256,7 @@ export async function mockImportCsvApi(
     // `warnings` likewise — the non-fatal channel (a refused category value, a
     // categories sidecar that could not be written) is always an array.
     const rows = failures ?? []
-    return {
+    const response: ImportCsvResponse = {
       success: true,
       // Keyed and nested like the route's own summary, naming what the page
       // sent, so the page's keyed path is observable.
@@ -270,6 +273,7 @@ export async function mockImportCsvApi(
       failedCount: rows.length,
       warnings: warnings ?? [],
     }
+    return response
   })
 }
 

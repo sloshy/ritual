@@ -21,6 +21,7 @@ import {
   mockAuditLogApi,
   mockCacheRefreshApi,
   mockImportChangesApi,
+  mockImportCsvApi,
   mockMoveCardsApi,
   MOCK_SYNC_COLLECTION_LISTS,
   MOCK_SYNC_DECKS,
@@ -29,7 +30,9 @@ import { apiMessage } from '../../../src/api/result'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
 import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
+import { csvRowWarningMessage } from '../../../src/importers/csv'
 import {
+  joinSyncMessages,
   prefixedFields,
   reasonFields,
   syncDuration,
@@ -365,6 +368,83 @@ test.describe('admin language switch', () => {
     await expect(banner).not.toContainText('2 changes')
     await expectPseudo(failure, true)
     await expect(failure).toContainText('Binder')
+  })
+
+  test('relabels an Import CSV result — a row’s nested reasons, a notice — and the column labels', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    // Built by the importer's own builders: a row failing for two reasons (a
+    // list of nested messages) and a notice nesting the clause it reports.
+    const reason = joinSyncMessages([
+      syncMessage('domain.import.csv.missingSet'),
+      syncMessage('domain.import.csv.missingCollectorNumber'),
+    ])
+    await mockImportCsvApi(
+      page,
+      undefined,
+      [{ lineNumber: 3, raw: 'Arcane Signet,,', ...reasonFields(reason), reason: reason.message }],
+      [
+        csvRowWarningMessage({
+          kind: 'category-is-board',
+          lineNumber: 2,
+          cardName: 'Sol Ring',
+          value: 'Sideboard',
+          section: 'Sideboard',
+        }),
+      ],
+    )
+    await gotoAdminDashboard(page, '#/import/csv')
+    await markPage(page)
+    const main = page.locator('main')
+    await main.locator('.segmented-option:has-text("Paste Text")').click()
+    await main
+      .locator('textarea.form-textarea')
+      .fill('Name,Set,Collector Number\nSol Ring,C19,221\nArcane Signet,,')
+    await main.locator('input.form-input').fill('Red Binder')
+    await main.locator('button[type="submit"]').click()
+
+    const failure = main.locator('.csv-failures li')
+    const notice = main.locator('.csv-warnings li')
+    const label = main.locator('.csv-mapping-label').first()
+    await expect(failure).toContainText(
+      'Missing set code (required for collections); Missing collector number (required for collections)',
+    )
+    await expect(notice).toContainText('names a board')
+    await expect(label).toContainText('Card name')
+    // The column picks the page guessed from the header row.
+    const picks = {
+      name: main.locator('select[data-field="name"]'),
+      set: main.locator('select[data-field="set"]'),
+      collectorNumber: main.locator('select[data-field="collector-number"]'),
+      quantity: main.locator('select[data-field="quantity"]'),
+    }
+    await expect(picks.name).toHaveValue('0')
+    await expect(picks.set).toHaveValue('1')
+    await expect(picks.collectorNumber).toHaveValue('2')
+    await expect(picks.quantity).toHaveValue('-1')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(failure, true)
+    // Both nested reasons relabel with the sentence around them…
+    await expect(failure).not.toContainText('Missing set code')
+    await expect(failure).not.toContainText('Missing collector number')
+    // …the raw row stays the user's data…
+    await expect(failure).toContainText('Arcane Signet,,')
+    await expectPseudo(notice, true)
+    await expect(notice).not.toContainText('names a board')
+    await expect(notice).toContainText('Sol Ring')
+    // …and the column labels come from the importer's keys, not a fixed table.
+    await expectPseudo(label, true)
+    await expect(label).not.toContainText('Card name')
+    // The relabelled column options still show the picks the state holds: a
+    // switch rewords the options, it must not reset what each select shows.
+    await expectPseudo(picks.name.locator('option').first(), true)
+    await expect(picks.name).toHaveValue('0')
+    await expect(picks.set).toHaveValue('1')
+    await expect(picks.collectorNumber).toHaveValue('2')
+    await expect(picks.quantity).toHaveValue('-1')
+    await expectNotReloaded(page)
   })
 
   test('relabels a bundle the Import Changes page refuses, the move it names included', async ({
