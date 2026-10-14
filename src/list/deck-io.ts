@@ -20,7 +20,7 @@ import { writeFileWithHash } from '../changes/content-hash'
 import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from './deck-file'
 import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds } from '../card/card-id'
-import { unreadableLines } from './markdown-fence'
+import { unreadableLines } from './unreadable-content'
 
 /**
  * Deck file I/O for the interactive sessions and the commands that share them:

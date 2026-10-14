@@ -104,11 +104,14 @@ const I18N_ROUTE_LEDGER: Record<string, string> = {
     'display-only conditionLabel / finishLabel / finishSuffix and refusals for callers; the persisted tokens are literals',
   'src/config/ritual-config.ts':
     'parseLocaleTag and DEFAULT_LOCALE only, no catalog text; writes nothing but its own config file',
-  'src/list/card-categories-record.ts': 'collation only, to order category names',
+  'src/list/card-categories-record.ts':
+    'collation only (compareData, pinned English) to order category names; its parse refusals are messages returned to callers, never sidecar bytes',
   'src/list/deck-format.ts':
-    'display labels for deck formats; the persisted format slugs are literals',
-  'src/list/list-type.ts': 'display labels for list types; the persisted kinds are literals',
-  'src/list/resolve-list.ts': 'refusals for a list that does not resolve, returned to callers',
+    'display labels for deck formats and the invalid-format refusal returned to callers; the persisted format slugs and section-role spellings are literals',
+  'src/list/list-type.ts':
+    'display labels and nouns for list types; the persisted kinds and the English workspaceListTypeNoun commit messages use are literals',
+  'src/list/resolve-list.ts':
+    'refusals for a list that does not resolve (their remedies included), returned to callers',
   'src/pricing/price-currency.ts': 'formats prices for display; export rows carry raw numbers',
   'src/scryfall/card-utils.ts': 'collation only, to order printings',
   'src/sync/message.ts': 'renders messages for a reader at a boundary; persists nothing',

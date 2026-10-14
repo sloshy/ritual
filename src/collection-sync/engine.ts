@@ -34,11 +34,10 @@ import {
   syncElapsed,
   syncMessage,
   syncRef,
-  syncText,
   type SyncMessage,
 } from '../sync/message'
 import type { ArchidektCollectionRecord } from '../importers/archidekt-collection'
-import { formatResolveListError } from '../list/resolve-list'
+import { resolveListErrorMessage } from '../list/resolve-list'
 import { scryfallIdIndex } from '../cache/scryfall-id-index'
 import { getCachedCardPrintings } from '../scryfall'
 import {
@@ -407,8 +406,8 @@ async function resolveScope(
   for (const name of names) {
     const location = await store.resolve(name)
     if (isResolveFailure(location)) {
-      // The resolver's own wording, which names the list already.
-      const message = syncText(formatResolveListError(location, 'none'))
+      // The resolver's own message, which names the list already.
+      const message = resolveListErrorMessage(location, 'none')
       emit({ kind: 'log', level: 'error', item: null, ...message })
       results.fail(name, message)
       results.finish(name)
@@ -475,7 +474,7 @@ async function loadLists(
     // whether or not the list is held back for unreadable lines, and never
     // decide anything.
     for (const advisory of loaded.advisories) {
-      emit({ kind: 'log', level: 'warn', item: loaded.name, ...syncText(advisory) })
+      emit({ kind: 'log', level: 'warn', item: loaded.name, ...advisory })
     }
     if (loaded.warnings.length > 0) held.push(loaded)
     else lists.push(loaded)

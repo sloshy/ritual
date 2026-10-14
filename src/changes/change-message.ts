@@ -296,7 +296,7 @@ export function listRefDisplay(ref: ListRef, locale: LocaleTag = currentLocale()
 }
 
 /** {@link listRefDisplay} unrendered, for a message that nests it. */
-function listRefMessage(ref: ListRef): SyncMessageRef {
+export function listRefMessage(ref: ListRef): SyncMessageRef {
   return syncRef('domain.change.listRef', { type: ref.type, name: ref.name })
 }
 

@@ -35,6 +35,7 @@ import { menuRow, type MenuChoice, type MenuSentinel } from './menu'
 import type { CardSessionContext } from './strategy'
 import { promptCategoryOrder, promptCategoryRename } from './prompts'
 import { t } from '../../i18n/t'
+import { renderSyncMessage } from '../../sync/message'
 
 /** A CLI edit session's pending category edits. */
 export type SessionCategoryChanges = {
@@ -78,7 +79,8 @@ export async function currentSessionCategories(
 ): Promise<SessionCategoriesLookup> {
   if (state.baseline === null) {
     const loaded = await loadCardCategories(listFilePath)
-    if (!loaded.ok) return { ok: false, message: loaded.message }
+    // Rendered for the session's own console, in the CLI's language.
+    if (!loaded.ok) return { ok: false, message: renderSyncMessage(loaded.message) }
     state.baseline = loaded.categories
   }
   const baseline = state.baseline
@@ -155,7 +157,9 @@ export async function commitSessionCategories(
  */
 export function warnUnreconciledCategories(result: CommitCategoryChangesResult): void {
   if (result.error !== undefined) {
-    console.warn(t('cli.session.categoriesSidecarUnreadable', { reason: result.error }))
+    console.warn(
+      t('cli.session.categoriesSidecarUnreadable', { reason: renderSyncMessage(result.error) }),
+    )
   }
   if (result.pruned.length > 0) {
     console.warn(t('cli.session.categoriesPruned', { names: result.pruned.join(', ') }))

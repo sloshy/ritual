@@ -18,11 +18,16 @@
  */
 
 import fs from 'node:fs/promises'
-import { readFrontMatterMapping, writeListFrontMatter } from './front-matter-write'
+import {
+  readFrontMatterMapping,
+  unreadableReason,
+  writeListFrontMatter,
+} from './front-matter-write'
 import { normalizeCardLabels, type CardLabel } from '../card/card-labels'
 import { isListDescriptionError, parseListDescription } from './list-description'
 import { serializeListImageRef, type ListImageRef } from './list-image'
 import type { ListType } from './list-type'
+import { syncMessage, type SyncMessage } from '../sync/message'
 
 /** The list types whose files carry a flat card list rather than deck sections. */
 export type FlatListType = Extract<ListType, 'collection' | 'wanted'>
@@ -116,9 +121,9 @@ export type FlatListMetadataWrite = {
 
 /**
  * Merge `patch` into the list file's front matter and write it back, leaving the
- * body untouched. Returns an error string — and writes nothing — when the file's
- * existing front matter cannot be read as a YAML mapping: a merge over keys we
- * cannot see would clobber them.
+ * body untouched. Returns the refusal (English plus its key) — and writes
+ * nothing — when the file's existing front matter cannot be read as a YAML
+ * mapping: a merge over keys we cannot see would clobber them.
  *
  * Fields are folded in sequence rather than assembled in one literal, so a patch
  * naming several keys applies each key's own merge rule (an empty label set
@@ -127,18 +132,16 @@ export type FlatListMetadataWrite = {
 export async function applyFlatListMetadata(
   filePath: string,
   patch: FlatListMetadataPatch,
-): Promise<FlatListMetadataWrite | string> {
+): Promise<FlatListMetadataWrite | SyncMessage> {
   const original = await fs.readFile(filePath, 'utf-8')
 
   // A merge over keys we cannot see would clobber them, so both read failures
   // refuse the write.
   const mapping = readFrontMatterMapping(original)
   if (!mapping.ok) {
-    const problem =
-      mapping.reason === 'not-a-mapping'
-        ? 'is not a key/value mapping'
-        : 'could not be read as YAML'
-    return `The file's front matter ${problem}, so a metadata write would overwrite it. Fix the block by hand first.`
+    return syncMessage('domain.list.metadata.frontMatterUnreadable', {
+      reason: unreadableReason(mapping),
+    })
   }
   let data = mapping.data
   if (patch.description !== undefined) data = applyDescriptionPatch(data, patch.description)

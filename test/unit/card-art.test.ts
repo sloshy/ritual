@@ -17,25 +17,43 @@ import {
   serializeCardArtSidecar,
   type CardArtMap,
   type CardArtRef,
+  type CardArtRefError,
 } from '../../src/list/card-art'
+import { keyedMessage } from '../helpers/api-message'
+import type { SyncMessage } from '../../src/sync/message'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 
 let testDir: string
 
 const exists = (p: string): Promise<boolean> => Bun.file(p).exists()
 
+/** A parse, load or reconcile outcome: whatever it holds on success, the refusal otherwise. */
+type ArtOutcome = { ok: true } | { ok: false; message: SyncMessage }
+
+/**
+ * A failed parse's or load's refusal as its English, after asserting it is keyed
+ * and re-renders to that English — or a thrown failure when it did not fail.
+ */
+function failureText(result: ArtOutcome): string {
+  if (result.ok) throw new Error('expected a refusal')
+  return keyedMessage(result.message)
+}
+
 /** The parsed art map, or a thrown failure naming the parse error. */
 function unwrapArt(result: ReturnType<typeof parseCardArtSidecar>): CardArtMap {
-  if (!result.ok) throw new Error(`expected a parse, got: ${result.message}`)
+  if (!result.ok) throw new Error(`expected a parse, got: ${result.message.message}`)
   return result.art
 }
 
-/** The rejection message of a single-reference parse, or a thrown failure. */
-function refError(result: CardArtRef | { error: string }): string {
+/**
+ * The rejection of a single-reference parse as its English, after asserting it
+ * is keyed and re-renders to that English — or a thrown failure.
+ */
+function refError(result: CardArtRef | CardArtRefError): string {
   if (!isCardArtRefError(result)) {
     throw new Error(`expected a rejection, got: ${JSON.stringify(result)}`)
   }
-  return result.error
+  return keyedMessage(result.error)
 }
 
 describe('artSidecarPath', () => {
@@ -72,50 +90,42 @@ describe('parseCardArtSidecar', () => {
 
   test('rejects a file path that escapes the art directory', () => {
     const result = parseCardArtSidecar('{"1":{"file":"../../etc/passwd"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('escapes the art directory')
+    expect(failureText(result)).toContain('escapes the art directory')
   })
 
   test('rejects a path that only escapes after normalization', () => {
     const result = parseCardArtSidecar('{"1":{"file":"proxies/../../secrets.png"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('escapes the art directory')
+    expect(failureText(result)).toContain('escapes the art directory')
   })
 
   test('rejects an absolute file path', () => {
     const result = parseCardArtSidecar('{"1":{"file":"/var/art/bolt.png"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('not absolute')
+    expect(failureText(result)).toContain('not absolute')
   })
 
   test('rejects a Windows drive-letter path, which is absolute too', () => {
     const result = parseCardArtSidecar('{"1":{"file":"C:/art/bolt.png"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('not absolute')
+    expect(failureText(result)).toContain('not absolute')
   })
 
   test('rejects backslash separators, so one spelling stays canonical', () => {
     const result = parseCardArtSidecar('{"1":{"file":"proxies\\\\bolt.png"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('forward slashes')
+    expect(failureText(result)).toContain('forward slashes')
   })
 
   test('rejects a file whose extension is not an image the art route serves', () => {
     const result = parseCardArtSidecar('{"1":{"file":"notes.txt"}}')
-    expect(result.ok).toBe(false)
     // The message names the whole allowlist: "not an image" alone leaves the
     // user guessing which formats are in.
-    if (!result.ok) {
-      expect(result.message).toContain('not an image file')
-      expect(result.message).toContain('.png')
-      expect(result.message).toContain('.webp')
-    }
+    const text = failureText(result)
+    expect(text).toContain('not an image file')
+    expect(text).toContain('.png')
+    expect(text).toContain('.webp')
   })
 
   test('rejects a file with no extension at all', () => {
     const result = parseCardArtSidecar('{"1":{"file":"proxies/bolt"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('not an image file')
+    expect(failureText(result)).toContain('not an image file')
   })
 
   test('accepts an image extension whatever its casing', () => {
@@ -126,8 +136,7 @@ describe('parseCardArtSidecar', () => {
 
   test('rejects SVG, which can carry script on a same-origin route', () => {
     const result = parseCardArtSidecar('{"1":{"file":"bolt.svg"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('not an image file')
+    expect(failureText(result)).toContain('not an image file')
   })
 
   test('a url needs no extension — the browser decides what it can render', () => {
@@ -137,27 +146,23 @@ describe('parseCardArtSidecar', () => {
 
   test('rejects a non-http(s) url', () => {
     const result = parseCardArtSidecar('{"1":{"url":"file:///etc/passwd"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('http(s)')
+    expect(failureText(result)).toContain('http(s)')
   })
 
   test('rejects an entry carrying both a file and a url', () => {
     const result = parseCardArtSidecar('{"1":{"file":"a.png","url":"https://example.test/a.png"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('not both')
+    expect(failureText(result)).toContain('not both')
   })
 
   test('rejects a key that is not a card id', () => {
     const result = parseCardArtSidecar('{"sol-ring":{"file":"a.png"}}')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain('&N')
+    expect(failureText(result)).toContain('&N')
   })
 
   test('rejects malformed JSON and a non-object document', () => {
     expect(parseCardArtSidecar('{').ok).toBe(false)
     const array = parseCardArtSidecar('[{"file":"a.png"}]')
-    expect(array.ok).toBe(false)
-    if (!array.ok) expect(array.message).toContain('JSON object')
+    expect(failureText(array)).toContain('JSON object')
   })
 
   test('warns about ids the list no longer has, keeping the entries', () => {
@@ -317,11 +322,9 @@ describe('loadCardArt / saveCardArt', () => {
     await fs.writeFile(artSidecarPath(listPath), '{"1":{"file":"../escape.png"}}\n')
 
     const result = await loadCardArt(listPath)
-    expect(result.ok).toBe(false)
-    if (!result.ok) {
-      expect(result.message).toContain(artSidecarPath(listPath))
-      expect(result.message).toContain('escapes the art directory')
-    }
+    const text = failureText(result)
+    expect(text).toContain(artSidecarPath(listPath))
+    expect(text).toContain('escapes the art directory')
   })
 
   test('a read that fails for anything but absence is reported, not read as no art', async () => {
@@ -332,8 +335,7 @@ describe('loadCardArt / saveCardArt', () => {
     await fs.mkdir(artSidecarPath(listPath), { recursive: true })
 
     const result = await loadCardArt(listPath)
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain(artSidecarPath(listPath))
+    expect(failureText(result)).toContain(artSidecarPath(listPath))
   })
 
   test('passes the known-id check through to the parser', async () => {
@@ -487,8 +489,7 @@ describe('reconcileCardArt', () => {
 
     const result = await reconcileCardArt(listPath, { removed: [1] })
 
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toContain(artSidecarPath(listPath))
+    expect(failureText(result)).toContain(artSidecarPath(listPath))
     expect(await fs.readFile(artSidecarPath(listPath), 'utf-8')).toBe('{ not json')
   })
 })

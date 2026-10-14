@@ -114,7 +114,10 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
     // is deliberately not passed: an export never prunes, and the stale-name
     // report belongs to the read API, which gates it on a lossless parse.
     const loadedCategories = await loadCardCategories(location.filePath)
-    if (!loadedCategories.ok) warnings.push(`${location.name}: ${loadedCategories.message}`)
+    // English, like every export warning.
+    if (!loadedCategories.ok) {
+      warnings.push(`${location.name}: ${loadedCategories.message.message}`)
+    }
     const categoriesRecord: CardCategoriesRecord = loadedCategories.ok
       ? loadedCategories.categories
       : emptyCardCategoriesRecord()

@@ -12,14 +12,8 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { unreadableLines } from '../list/markdown-fence'
-import {
-  errorMessage,
-  syncMessage,
-  SyncMessageError,
-  syncText,
-  type SyncMessage,
-} from '../sync/message'
+import { unreadableLines } from '../list/unreadable-content'
+import { errorMessage, syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { createList, isListLifecycleError } from '../list/list-lifecycle'
 import { applyChangesToCollectionFile, type CardMutationChange } from '../list/list-mutate'
@@ -56,11 +50,13 @@ export type LoadedCollectionList = {
   warnings: string[]
   /**
    * Lines that parsed with something worth saying about them — copies a save
-   * will write out as their own lines, or a name that still looks like it
-   * holds a printing. Reported, never a reason to hold the list back: nothing
-   * the line said was lost.
+   * will write out as their own lines, a name that still looks like it holds a
+   * printing, a front-matter block whose keys were ignored. Reported, never a
+   * reason to hold the list back: nothing the line said was lost. Messages
+   * (English plus their key), so the run log renders them in its reader's
+   * language.
    */
-  advisories: string[]
+  advisories: SyncMessage[]
 }
 
 /** A newly created list: its slug (which may differ from the requested name) and what was written. */
@@ -135,7 +131,9 @@ export function createDiskCollectionListStore(): CollectionListStore {
         // Both sync directions re-serialize the whole file, so a fenced code
         // block is as much at risk as a line the parser could not read.
         warnings: unreadableLines(parsed),
-        advisories: parsed.advisories,
+        advisories: parsed.notices
+          .filter((notice) => notice.severity === 'advisory')
+          .map((notice) => notice.message),
       }
     },
 
@@ -150,8 +148,8 @@ export function createDiskCollectionListStore(): CollectionListStore {
       // rather than replacing them.
       const existing = await locations()
       const result = await createList('collection', name)
-      // The lifecycle module words its own refusal, in the active locale.
-      if (isListLifecycleError(result)) return syncText(result.message)
+      // The lifecycle module's refusal is already English plus its key.
+      if (isListLifecycleError(result)) return result.message
       cached = [...existing, { type: 'collection', name: result.slug, filePath: result.filePath }]
       return { name: result.slug, writtenFiles: result.touchedFiles }
     },

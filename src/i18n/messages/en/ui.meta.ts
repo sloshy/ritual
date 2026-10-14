@@ -431,7 +431,7 @@ export const uiMeta = {
   },
   'ui.editor.importWrongKind': {
     description:
-      "Rejection when the change file targets other kinds of list than the one open. {listType} is the open list's kind; {kinds} is a comma-separated list of the kinds the file does target.",
+      "Rejection when the change file targets other kinds of list than the one open. {listType} is the open list's kind; {kinds} is a comma-separated list of the kinds the file does target, each already translated as a lowercase noun (domain.listType.noun).",
   },
   'ui.editor.importAmbiguous': {
     description:

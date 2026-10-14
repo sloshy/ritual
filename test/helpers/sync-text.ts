@@ -4,16 +4,25 @@
  * to prove a message really renders in the reader's language.
  */
 
+import { expect } from 'bun:test'
 import { localeTag } from '../../src/i18n/locale-tag'
 import { en } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { pseudoLocalize } from '../../scripts/generate-locales'
-import { DEFAULT_LOCALE, loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
+import {
+  currentLocale,
+  DEFAULT_LOCALE,
+  loadDictionary,
+  resetI18nRuntime,
+  setLocale,
+} from '../../src/i18n/runtime'
 import type { LocaleCatalog, LocaleTag } from '../../src/i18n/types'
 import type { ItemChangeLine } from '../../src/sync/describe'
 import {
   renderSyncMessage,
   renderSyncParam,
+  syncList,
+  syncRef,
   type SyncMessage,
   type SyncParam,
 } from '../../src/sync/message'
@@ -107,4 +116,19 @@ export function foreignLocales(): ForeignLocale[] {
     { tag: 'en-XA', catalog: pseudoCatalog() },
     { tag: 'de', catalog: {} },
   ]
+}
+
+/**
+ * Vacuity guard for a "same bytes in every language" pin: `locale` is the one in
+ * force, and a probe renders differently in it than in English. The probe is a
+ * catalog message holding an `Intl` list, so it catches both kinds of foreign
+ * locale {@link foreignLocales} supplies — the pseudo-locale changes the
+ * catalog text, German with no dictionary changes how `Intl` joins the list.
+ * Call it before a run and again after, so a run that reset the locale part way
+ * cannot pass by comparing English with English.
+ */
+export function expectLocaleInForce(locale: LocaleTag): void {
+  expect(currentLocale()).toBe(locale)
+  const probe = syncRef('domain.list.art.unknownKeys', { keys: syncList(['a', 'b', 'c'], 'and') })
+  expect(renderSyncParam(probe, locale)).not.toBe(renderSyncParam(probe, DEFAULT_LOCALE))
 }

@@ -128,9 +128,11 @@ release changes a file format or a generated file, it ships the change as a
   record by a colon: `Move #1: 'keep' cannot be combined with other labels.` (it read
   `Move #1 'keep' cannot …`). Update any script that matched `change(s)` or these
   sentences, or match on `messageKey`.
-- A move's description in the CLI and both web apps names the other list in the UI
-  language (`Deck 'Burn'` was always English). The `.changes.md` line it is recorded as
-  is unchanged.
+- Moves name their lists in the UI language (`Deck 'Burn'` was always English): a move's
+  description in the CLI and both web apps, the web apps' **Move to list…** picker, the
+  CLI's `move` prompts, pickers, progress and result lines, and a move's refusals (a list
+  that is gone, holds no copy to take, or cannot be read). The `.changes.md` line a move is
+  recorded as is unchanged.
 - `ritual detect-changes` reports a failed git command in the CLI's language.
 - The card cache's own messages follow the UI language. The CLI prints the cache offers
   and progress before `add-card`, `edit`, `price`, `sell`, `build-site` and `serve --api`
@@ -207,9 +209,8 @@ release changes a file format or a generated file, it ships the change as a
   `ritual import-account --output json`, each entry of `warnings` and `advisories` is now
   `{ "message", "messageKey", "messageParams" }` instead of a bare string; `message` is the
   English it always was. The key is absent for text Ritual still words outside its catalog:
-  a card-line grammar refusal and the printing-token advisory, a tag refusal, the
-  front-matter `labels:` warning, a categories-file error, and the unusable-name and
-  unreadable-content refusals. A text import's warning whose card was imported without its
+  a card-line grammar refusal and the printing-token advisory, a tag refusal, and a deck's
+  front-matter `labels:` warning. A text import's warning whose card was imported without its
   labels carries `labelsDropped: true`, so a client can tell it from a skipped line. Each
   CSV `failures` entry keeps its English `reason` and gains `reasonKey` and
   `reasonParams`; a row failing for several reasons nests them as a list. Update any
@@ -333,6 +334,58 @@ release changes a file format or a generated file, it ships the change as a
   bundles carry a move's `labels` and `note`.
 - The Docker image creates `/app/wanted`, keeps `/app/.logins` private (mode 0700), and exposes the default ports of `admin` (8080)
   and `cache server` (4000) as well as `serve` (3000).
+- List-file messages follow the UI language. The CLI prints in yours the refusals of
+  `new`, `rename` and `delete` (a name that collides with another list, has no usable
+  file-name characters, or a confirmation that does not match), an unknown deck format, a
+  custom-art reference, cover image or description that is not usable, a metadata or cover
+  write over front matter it cannot read, a save or move that would delete content the
+  parser cannot write back, and an unreadable `.art.json` or `.categories.json`. The admin
+  site shows these refusals, a custom-art or cover reference it refuses as you type, and a
+  staged custom-art write that failed on save, in the browser's language and relabels them
+  when you switch. List files, their front matter and sidecars, the changelog's move lines
+  and the admin server's commit messages stay English.
+- **More `--output json` error envelopes carry a `messageKey`.** The refusals of `new`,
+  `rename`, `delete`, `import` (a list name with no usable file-name characters, an unknown
+  `--deck-format`, a URL import with `--type collection` or `wanted`), `add-card` creating a
+  list, `metadata set`, `metadata get` and `set-list-image` now carry `messageKey` and
+  English-flattened `messageParams`; their `message` follows the CLI's language. Scripts
+  should match on `messageKey`, not on `message`.
+- **`cleanup --output json` warnings are messages, not strings.** Each entry of a file's
+  `warnings` is now `{ "message", "messageKey", "messageParams" }`, and the payload's
+  flattened `warnings` are the same objects with a `file` field, instead of
+  `"<file>: <warning>"` strings. `message` is English whatever the CLI's language (it
+  followed the CLI's language before); the key is absent for a card line the grammar
+  refused. Update any script that read these as strings to read `.message` and `.file`, and
+  match on `messageKey`.
+- **More admin API refusals carry a `messageKey`.** The create, rename and delete routes,
+  `PUT /api/metadata/:type/:slug`, `PUT /api/art/:type/:slug`, the list save routes'
+  unreadable-content refusal and their cross-list moves' refusals (a list that is gone,
+  holds no copy to take, or cannot be staged), and these Import CSV refusals: a new list
+  name with no usable characters, an append to an unreadable file, and an unknown `format`.
+  So does the categories-file error among an import's warnings (`POST /api/import-csv`,
+  `POST /api/import-deck`, the MCP `import_csv` and `import_deck` results,
+  `ritual import --output json`). They now answer in English plus
+  `messageKey`/`messageParams` (`domain.list.*`), where they were unkeyed English. An
+  Import CSV whose new list name collides nests the collision as its `reason` param, and a
+  text import's ignored `image:` its reason. Some params nest: the keys a cover or art
+  reference does not accept and an unknown format's valid `formats` are a
+  `{ list, join: "unit" }`, an unreadable `.art.json`'s `reason` is the parse problem as a
+  message, and the unreadable-content refusal's `problems` is a `{ list, join: "clauses" }`
+  holding the parser's warnings and, for a fenced code block, a nested message. A deck
+  sync's categories-file failure nests its reason the same way. The English is unchanged;
+  MCP tool errors keep `{ error, code, message }`. Match on `messageKey`.
+- A list-resolution refusal's remedy (`errors.resolveList.adviceTypePrefix`,
+  `errors.resolveList.adviceTypeField`) words its "or" in the reader's language: when two
+  or more alternatives are offered, its `prefixes` / `types` param is a nested
+  `errors.resolveList.alternative` message (`{ messageKey, messageParams }`) instead of a
+  pre-joined English string. The English is unchanged; a script reading those params as
+  strings should render the key or read `message`.
+- The fenced-code-block entry of an unreadable-file warning or refusal counts its lines
+  properly: "Fenced code block content (1 line) — …" and "(3 lines)" (it read `line(s)`). A
+  collection or wanted list read by a collection sync reports a front-matter problem (an
+  unreadable block, an unusable `labels:`) on the run log keyed, and an internal engine
+  error a list operation raises answers the admin API in English with its key. Update any
+  script that matched `line(s)`.
 
 ### Fixed
 

@@ -428,23 +428,6 @@ export const cliCardsMessages = {
   'cli.move.listUnreadable':
     '{file}: could not be read or parsed; its cards are missing from the index.',
   'cli.move.listWarning': '{file}: {warning}',
-  'cli.move.destinationNotFound': 'Cannot move "{name}": destination {list} not found',
-  'cli.move.sourceNotFound': 'Cannot move "{name}": source {list} not found',
-  'cli.move.sourceCopyNotFound': 'Cannot move "{name}" from {list}: no matching copy found there',
-  'cli.move.artUnfiled':
-    'the custom art of "{name}" (moved from {list}) has no destination line to follow onto',
-  'cli.move.abortDestinationMissing': 'Destination file not found, aborting move: {file}',
-  'cli.move.abortSourceUnreadable': 'Source file not readable, aborting move: {file}',
-  'cli.move.abortMove': 'Aborting move: {reason}',
-  'cli.move.abortRemoveSourceUnreadable': 'Source file not readable, aborting remove: {file}',
-  'cli.move.abortRemove': 'Aborting remove: {reason}',
-  'cli.move.cannotReadDeck': 'Cannot read deck file: {file}',
-  'cli.move.cannotReadFile': 'Cannot read file: {file}',
-  'cli.move.collectionNeedsPrinting':
-    'Cannot add "{name}" to a collection without set and collector number',
-  'cli.move.appendIntoOpenFence':
-    'Cannot add "{name}": the destination file ends inside an unclosed code fence, so the new card line would be read as prose. Close the fence first.',
-
   // ── List lifecycle: new / rename / delete ─────────────────────────────
   'cli.new.invalidType': "Invalid list type '{value}'. Use 'deck', 'collection', or 'wanted'.",
   'cli.new.formatDecksOnly': '--format only applies to decks.',

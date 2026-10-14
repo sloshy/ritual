@@ -9,19 +9,17 @@
  * string — is how a list says "no description"), exactly as `list-image.ts`
  * does for covers.
  *
- * **Grammar only**: no `node:*`, no gray-matter, no `src/i18n`. Both SPAs bundle
+ * **Grammar only**: no `node:*`, no gray-matter, no direct `src/i18n` import. Both SPAs bundle
  * it (the public editor re-emits the key on download), so the same rule
- * `flat-list-front-matter.ts` states applies here, and the message below is
- * plain English for the same reason `list-image.ts`'s are — the surface
- * reporting the failure owns its wording and wraps this as an untranslated
- * reason.
+ * `flat-list-front-matter.ts` states applies here, and its refusal is a message —
+ * English plus its catalog key — for the same reason `list-image.ts`'s are: each
+ * surface reports it in its own reader's language.
  */
 
-/** The rejection branch of {@link parseListDescription}. Mirrors `ListImageRefError`. */
-export type ListDescriptionError = { error: string }
+import { syncMessage, type SyncMessage } from '../sync/message'
 
-/** The one refusal: a `description:` that is not text at all. */
-const TYPE_ERROR = 'a list description must be text'
+/** The rejection branch of {@link parseListDescription}. Mirrors `ListImageRefError`. */
+export type ListDescriptionError = { error: SyncMessage }
 
 /** True when a description parser returned its error branch. */
 export function isListDescriptionError(
@@ -41,7 +39,8 @@ export function isListDescriptionError(
  */
 export function parseListDescription(value: unknown): string | null | ListDescriptionError {
   if (value === null || value === undefined) return null
-  if (typeof value !== 'string') return { error: TYPE_ERROR }
+  // The one refusal: a `description:` that is not text at all.
+  if (typeof value !== 'string') return { error: syncMessage('domain.list.description.notText') }
   const trimmed = value.trim()
   return trimmed === '' ? null : trimmed
 }
@@ -62,10 +61,11 @@ export type ListDescriptionRead = {
   /** The description; absent when the key is missing, blank, or unusable. */
   description?: string
   /**
-   * Why a present `description:` key was ignored. Non-fatal by construction: the
-   * raw text round-trips, so the list still loads and simply shows no blurb.
+   * Why a present `description:` key was ignored, as English plus its key.
+   * Non-fatal by construction: the raw text round-trips, so the list still loads
+   * and simply shows no blurb.
    */
-  advisory?: string
+  advisory?: SyncMessage
 }
 
 /**

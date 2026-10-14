@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
 import { isRitualClean, sameFileContent, writeListFile } from '../changes/content-hash'
-import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
+import { listFileName } from '../list/list-file-name'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
 import {
@@ -18,10 +18,10 @@ import {
   type DeckFrontMatter,
 } from '../list/deck-file'
 import type { DeckData } from '../list/deck'
-import { unreadableLines } from '../list/markdown-fence'
+import { advisoryMessages, unreadableMessages } from '../list/unreadable-content'
 import { parseTitleFromContent } from '../list/section-format'
 import { parseDeckText } from '../importers/text-file'
-import { listNameCollision } from '../list/list-lifecycle'
+import { listNameCollision, unusableFileNameMessage } from '../list/list-lifecycle'
 import { moveListFileAndSidecars, renameListThroughTemp } from '../list/list-sidecars'
 import {
   applyCategoryChangesToRecord,
@@ -38,7 +38,7 @@ import { loadDefaultCategories } from '../config/ritual-config'
 import { listCardNameSet } from '../list/card-names'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { collectionToMarkdown, wantedToMarkdown } from '../list/list-export'
-import { getErrorMessage, localizedCommandError, ExitCode } from '../util/errors'
+import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { promptDeckFormat } from './session/deck-prompts'
 import { readCollectionFile, readWantedFile } from '../list/flat-list-read'
@@ -51,6 +51,14 @@ import {
 import { addDryRunOption, addScriptingOptions } from '../cli/options'
 import { t } from '../i18n/t'
 import { compareData } from '../i18n/collate'
+import {
+  errorMessage,
+  errorParam,
+  nestSync,
+  renderSyncMessage,
+  syncMessage,
+  type SyncMessage,
+} from '../sync/message'
 
 /**
  * The `ritual cleanup` command: one pass over every deck, collection, and wanted
@@ -140,7 +148,12 @@ export type CleanupResult = {
    * canonically ordered, or canonically serialized.
    */
   categoriesRewritten?: boolean
-  warnings: string[]
+  /**
+   * What to tell the user about this file, as messages: English plus the catalog
+   * key where Ritual words it (a parser's card-line refusal has none). The CLI
+   * renders them in its language; `--output json` carries them as they are.
+   */
+  warnings: SyncMessage[]
 }
 
 /** True when the result carries something worth reporting. */
@@ -166,14 +179,14 @@ type ListDocument = {
   /** The file re-emitted through the canonical serializer. */
   canonical: string
   /** Parse warnings; a file that produced any is not rewritten (see below). */
-  parseWarnings: string[]
+  parseWarnings: SyncMessage[]
   /**
    * Notices about content that parsed but is worth saying out loud: a card name
    * starting with a quantity (which the re-emit preserves exactly), or a deck's
    * empty extras section (which the re-emit drops — the one advisory that names
    * something cleanup removes). Reported alongside the warnings, never blocking.
    */
-  advisories: string[]
+  advisories: SyncMessage[]
   /** Format stamped onto a deck that had none. */
   formatSet?: DeckFormatKey
   /** True for a deck left without a format (no answer, or dry-run). */
@@ -214,8 +227,8 @@ type ParsedDeckDocument = {
   original: string
   deck: DeckData
   frontMatter: DeckFrontMatter
-  parseWarnings: string[]
-  advisories: string[]
+  parseWarnings: SyncMessage[]
+  advisories: SyncMessage[]
   foldedNames: string[]
 }
 
@@ -224,10 +237,11 @@ async function readDeckDocument(location: ListLocation): Promise<ParsedDeckDocum
   // Parsed directly (not via `loadDeck`) for the skipped-line warnings, which
   // gate the rewrite below — a re-emit would drop what the parser skipped.
   const parsedDeck = parseDeckText(original, location.name)
-  const { deck, advisories } = parsedDeck
+  const { deck } = parsedDeck
+  const advisories = advisoryMessages(parsedDeck)
   // Fenced code blocks join the parse warnings: the canonical re-emit would
   // delete them, exactly like a line the parser could not read.
-  const warnings = unreadableLines(parsedDeck)
+  const warnings = unreadableMessages(parsedDeck)
   // Copy before mutating: gray-matter caches parses by content string, so the
   // parsed front matter object is shared between byte-identical files.
   const frontMatter = { ...(await parseDeckFrontMatter(location.filePath)) }
@@ -310,8 +324,8 @@ async function readCollectionDocument(location: ListLocation): Promise<ListDocum
     displayName: file.title,
     original: file.content,
     canonical: collectionToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
-    parseWarnings: file.warnings,
-    advisories: file.advisories,
+    parseWarnings: file.warningMessages,
+    advisories: file.advisoryMessages,
     foldedNames,
   }
 }
@@ -323,8 +337,8 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
     displayName: file.title,
     original: file.content,
     canonical: wantedToMarkdown(file.title, file.entries, file.sectionOrder, file.frontMatter),
-    parseWarnings: file.warnings,
-    advisories: file.advisories,
+    parseWarnings: file.warningMessages,
+    advisories: file.advisoryMessages,
     foldedNames,
   }
 }
@@ -332,8 +346,8 @@ async function readWantedDocument(location: ListLocation): Promise<ListDocument>
 /** Record a file the cleanup could not read, and skip it. */
 function markUnreadable(result: CleanupResult, error: unknown): CleanupResult {
   result.unreadable = true
-  result.warnings.push(t('cli.cleanup.couldNotRead', { reason: getErrorMessage(error) }))
-  result.warnings.push(t('cli.cleanup.skipped'))
+  result.warnings.push(syncMessage('cli.cleanup.couldNotRead', { reason: errorParam(error) }))
+  result.warnings.push(syncMessage('cli.cleanup.skipped'))
   return result
 }
 
@@ -401,10 +415,13 @@ export async function cleanupList(
       ? null
       : await listNameCollision(location.type, document.displayName, location.filePath, sameFile)
     if (occupied) {
-      result.warnings.push(t('cli.cleanup.notRenamedOccupied', { file: targetBase }))
+      result.warnings.push(syncMessage('cli.cleanup.notRenamedOccupied', { file: targetBase }))
     } else if (collision) {
       result.warnings.push(
-        t('cli.cleanup.notRenamedCollision', { file: targetBase, reason: collision.message }),
+        syncMessage('cli.cleanup.notRenamedCollision', {
+          file: targetBase,
+          reason: nestSync(collision.message),
+        }),
       )
     } else {
       targetPath = candidate
@@ -425,7 +442,7 @@ export async function cleanupList(
   if (document.parseWarnings.length > 0) {
     result.rewriteBlocked = true
     result.warnings.push(...document.parseWarnings)
-    result.warnings.push(t('cli.cleanup.notRewritten'))
+    result.warnings.push(syncMessage('cli.cleanup.notRewritten'))
   } else {
     result.rewritten = !sameFileContent(document.canonical, document.original)
     if (document.foldedNames.length > 0) result.cardNamesFolded = document.foldedNames
@@ -453,7 +470,7 @@ export async function cleanupList(
   // throw that aborts the whole pass.
   try {
     if (result.rewriteBlocked === true) {
-      result.warnings.push(t('cli.cleanup.categoriesNotPruned'))
+      result.warnings.push(syncMessage('cli.cleanup.categoriesNotPruned'))
     } else {
       // Read from the file as it is on disk — so folded only when its rewrite
       // folds them: a deck left without a format keeps its doubled spellings, and
@@ -484,7 +501,7 @@ export async function cleanupList(
     }
   } catch (error) {
     categoriesReadable = false
-    result.warnings.push(getErrorMessage(error))
+    result.warnings.push(errorMessage(error))
   }
 
   if (options.dryRun) return result
@@ -545,10 +562,13 @@ type CleanupCommandOptions = {
   check?: boolean
 } & Partial<ScriptingOptions>
 
+/** One warning of the flattened `--output json` list: the file it is about, and the message. */
+type CleanupWarning = SyncMessage & { file: string }
+
 /** The `--output json`/`ndjson` payload: per-file results plus flattened warnings. */
 type CleanupReport = {
   files: CleanupResult[]
-  warnings: string[]
+  warnings: CleanupWarning[]
 }
 
 /** The action phrases reported for one cleaned-up file, e.g. `renamed to 'Winota Stax.md'`. */
@@ -664,7 +684,9 @@ async function runCleanup(
         console.log(t('cli.cleanup.fileLine', { prefix, file: rel, actions: actions.join(', ') }))
       }
       for (const warning of result.warnings) {
-        console.warn(t('cli.cleanup.fileWarning', { prefix, file: rel, warning }))
+        console.warn(
+          t('cli.cleanup.fileWarning', { prefix, file: rel, warning: renderSyncMessage(warning) }),
+        )
       }
     }
 
@@ -707,7 +729,10 @@ async function runCleanup(
     const report: CleanupReport = {
       files: reported,
       warnings: reported.flatMap((result) =>
-        result.warnings.map((warning) => `${path.relative(baseDir, result.filePath)}: ${warning}`),
+        result.warnings.map((warning): CleanupWarning => ({
+          file: path.relative(baseDir, result.filePath),
+          ...warning,
+        })),
       ),
     }
     emitOutput(report, scripting)

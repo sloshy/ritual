@@ -4,11 +4,11 @@ import { writeFileWithHash } from '../changes/content-hash'
 import { t } from '../i18n/t'
 import type { DeckFormatKey } from './deck-format'
 import { newDeckMarkdown } from './deck-file'
-import { listFileName, unusableFileNameMessage } from './list-file-name'
-import { listNameCollision } from './list-lifecycle'
+import { listFileName } from './list-file-name'
+import { listNameCollision, unusableFileNameMessage } from './list-lifecycle'
 import type { ListType } from './list-type'
 import { dirForType } from './resolve-list'
-import { CardCommandError, ExitCode } from '../util/errors'
+import { ExitCode, messageCommandError } from '../util/errors'
 import { titleHeading } from './heading'
 
 /**
@@ -49,14 +49,14 @@ async function ensureNamedListFile(
 ): Promise<string> {
   const fileName = listFileName(name)
   if (fileName === null) {
-    throw new Error(unusableFileNameMessage(name))
+    throw messageCommandError('usage_error', ExitCode.UsageError, unusableFileNameMessage(name))
   }
   const dir = dirForType(type)
   if (!(await Bun.file(path.join(dir, fileName)).exists())) {
     const collision = await listNameCollision(type, name)
     // Mirrors `lifecycleErrorToCommandError` in src/cli/action.ts, which this
     // domain module must not import: a collision is a usage error (exit 2).
-    if (collision) throw new CardCommandError('usage_error', collision.message, ExitCode.UsageError)
+    if (collision) throw messageCommandError('usage_error', ExitCode.UsageError, collision.message)
   }
   return ensureListFile(dir, fileName, initialContent, t('cli.edit.listNoun', { type }))
 }

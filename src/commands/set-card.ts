@@ -55,7 +55,13 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
+import {
+  ExitCode,
+  getErrorMessage,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
+import { nestSync, renderSyncMessage, syncMessage } from '../sync/message'
 import { t } from '../i18n/t'
 import { describeEntry, type EntryRef } from '../list/entry-ref'
 import {
@@ -148,7 +154,9 @@ export function parseArtFlag(value: string): CardArtUpdate {
   if (value.trim().toLowerCase() === 'none') return { clear: true }
   const ref = parseCardArtInput(value)
   if (isCardArtRefError(ref)) {
-    throw new InvalidArgumentError(t('cli.setCard.artInvalid', { reason: ref.error }))
+    throw new InvalidArgumentError(
+      t('cli.setCard.artInvalid', { reason: renderSyncMessage(ref.error) }),
+    )
   }
   return ref
 }
@@ -374,11 +382,10 @@ function resolveArtWrite(target: EntryRef, art: CardArtUpdate): ArtWrite {
 async function writeCardArt(filePath: string, write: ArtWrite): Promise<string[]> {
   const loaded = await loadCardArt(filePath)
   if (!loaded.ok) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      'cli.setCard.artSidecarUnreadable',
-      { reason: loaded.message },
+      syncMessage('cli.setCard.artSidecarUnreadable', { reason: nestSync(loaded.message) }),
     )
   }
   if (isCardArtClear(write.art)) loaded.art.delete(write.cardId)

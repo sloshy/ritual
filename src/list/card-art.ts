@@ -1,8 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { getErrorMessage, hasErrorCode } from '../util/errors'
+import { hasErrorCode } from '../util/errors'
 import { isRecord } from '../util/json'
 import { writeFileAtomic } from '../util/atomic-write'
+import { errorParam, nestSync, syncList, syncMessage, type SyncMessage } from '../sync/message'
+import { invalidJsonMessage, sidecarProblem } from './sidecar-message'
 
 /**
  * Custom card art: a per-list `<name>.art.json` sidecar mapping a card's `&N` id
@@ -18,9 +20,11 @@ import { writeFileAtomic } from '../util/atomic-write'
  * relative path identifies the image in the workspace, in the built site
  * (`art/<relpath>`), and in the served art route.
  *
- * The parse messages here are plain English on purpose: like the other engine
- * parsers (`parseCollectionFile`, the `ritual-config` parsers) this module is
- * below the UI layer, and the surface that reports the failure owns its wording.
+ * The parse refusals here are messages — English plus their catalog key
+ * (`src/sync/message.ts`) — rather than rendered text: the same refusal reaches
+ * the admin API and MCP (which read the English), the CLI (which renders the key
+ * in its language) and the editors (which render it in the reader's, and relabel
+ * it on a language switch).
  */
 
 /** Custom art stored as a file inside the configured art directory. */
@@ -71,8 +75,8 @@ export function isArtImageExtension(extension: string): extension is ArtImageExt
 /** A list's custom art, keyed by the card line's `&N` id. */
 export type CardArtMap = Map<number, CardArtRef>
 
-/** The rejection branch of the single-reference parsers. */
-export type CardArtRefError = { error: string }
+/** The rejection branch of the single-reference parsers: why, as English plus its key. */
+export type CardArtRefError = { error: SyncMessage }
 
 /** True when a reference parser returned its error branch. */
 export function isCardArtRefError(value: CardArtRef | CardArtRefError): value is CardArtRefError {
@@ -109,7 +113,8 @@ export type CardArtParseSuccess = {
 
 export type CardArtParseFailure = {
   ok: false
-  message: string
+  /** Why the sidecar could not be read, as English plus its key. */
+  message: SyncMessage
 }
 
 export type CardArtParseResult = CardArtParseSuccess | CardArtParseFailure
@@ -134,26 +139,29 @@ export function cardArtFilePath(artDir: string, ref: CardArtFileRef): string {
  * ever 404 is refused where it is typed.
  */
 function parseCardArtFile(value: unknown): CardArtFileRef | CardArtRefError {
-  if (typeof value !== 'string') return { error: '"file" must be a string' }
+  if (typeof value !== 'string') return { error: syncMessage('domain.list.art.fileNotString') }
   const trimmed = value.trim()
-  if (trimmed === '') return { error: '"file" must not be empty' }
+  if (trimmed === '') return { error: syncMessage('domain.list.art.fileEmpty') }
   if (trimmed.includes('\\')) {
-    return { error: `"${trimmed}" must use forward slashes` }
+    return { error: syncMessage('domain.list.art.backslashes', { file: trimmed }) }
   }
   if (trimmed.startsWith('/') || /^[A-Za-z]:/.test(trimmed)) {
-    return { error: `"${trimmed}" must be relative to the art directory, not absolute` }
+    return { error: syncMessage('domain.list.art.absolute', { file: trimmed }) }
   }
   const normalized = path.posix.normalize(trimmed)
   if (normalized === '..' || normalized.startsWith('../')) {
-    return { error: `"${trimmed}" escapes the art directory` }
+    return { error: syncMessage('domain.list.art.escapes', { file: trimmed }) }
   }
   if (normalized === '.' || normalized.endsWith('/')) {
-    return { error: `"${trimmed}" is a directory, not an image file` }
+    return { error: syncMessage('domain.list.art.directory', { file: trimmed }) }
   }
   const extension = path.posix.extname(normalized).toLowerCase()
   if (!isArtImageExtension(extension)) {
     return {
-      error: `"${trimmed}" is not an image file — custom art must be one of: ${ART_IMAGE_EXTENSIONS.join(', ')}`,
+      error: syncMessage('domain.list.art.notImage', {
+        file: trimmed,
+        extensions: syncList(ART_IMAGE_EXTENSIONS, 'unit'),
+      }),
     }
   }
   return { file: normalized }
@@ -161,16 +169,16 @@ function parseCardArtFile(value: unknown): CardArtFileRef | CardArtRefError {
 
 /** Validate an art URL: absolute http(s) only, kept verbatim. */
 function parseCardArtUrl(value: unknown): CardArtUrlRef | CardArtRefError {
-  if (typeof value !== 'string') return { error: '"url" must be a string' }
+  if (typeof value !== 'string') return { error: syncMessage('domain.list.art.urlNotString') }
   const trimmed = value.trim()
   let parsed: URL
   try {
     parsed = new URL(trimmed)
   } catch {
-    return { error: `"${trimmed}" is not a valid URL` }
+    return { error: syncMessage('domain.list.art.invalidUrl', { url: trimmed }) }
   }
   if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    return { error: `"${trimmed}" must be an http(s) URL` }
+    return { error: syncMessage('domain.list.art.notHttp', { url: trimmed }) }
   }
   return { url: trimmed }
 }
@@ -182,22 +190,36 @@ function parseCardArtUrl(value: unknown): CardArtUrlRef | CardArtRefError {
  * save).
  */
 export function parseCardArtRef(value: unknown): CardArtRef | CardArtRefError {
-  if (!isRecord(value)) {
-    return { error: 'an art reference must be an object with a "file" or "url"' }
-  }
+  if (!isRecord(value)) return { error: syncMessage('domain.list.art.notObject') }
   const obj = value
   const extra = Object.keys(obj).filter((key) => key !== 'file' && key !== 'url')
   if (extra.length > 0) {
-    return { error: `an art reference has no such key: ${extra.join(', ')}` }
+    return { error: syncMessage('domain.list.art.unknownKeys', { keys: syncList(extra, 'unit') }) }
   }
   const hasFile = obj.file !== undefined
   const hasUrl = obj.url !== undefined
-  if (hasFile && hasUrl) {
-    return { error: 'an art reference must have either "file" or "url", not both' }
-  }
+  if (hasFile && hasUrl) return { error: syncMessage('domain.list.art.fileAndUrl') }
   if (hasFile) return parseCardArtFile(obj.file)
   if (hasUrl) return parseCardArtUrl(obj.url)
-  return { error: 'an art reference must have a "file" or a "url"' }
+  return { error: syncMessage('domain.list.art.noFileOrUrl') }
+}
+
+/**
+ * A form field's value read as an art reference: nothing typed yet, the
+ * reference itself, or the parser's refusal — held unrendered, so a refusal
+ * line relabels when the reader switches language. Shared by every field that
+ * takes custom art (the admin art and cover modals, the Add Card dialog).
+ */
+export type CardArtInput =
+  | { state: 'empty' }
+  | { state: 'valid'; art: CardArtRef }
+  | { state: 'invalid'; reason: SyncMessage }
+
+/** A parse's outcome as a {@link CardArtInput}; the caller handles the empty field. */
+export function cardArtInputOf(parsed: CardArtRef | CardArtRefError): CardArtInput {
+  return isCardArtRefError(parsed)
+    ? { state: 'invalid', reason: parsed.error }
+    : { state: 'valid', art: parsed }
 }
 
 /**
@@ -208,7 +230,7 @@ export function parseCardArtRef(value: unknown): CardArtRef | CardArtRefError {
  */
 export function parseCardArtInput(raw: string): CardArtRef | CardArtRefError {
   const trimmed = raw.trim()
-  if (trimmed === '') return { error: 'an art reference must not be empty' }
+  if (trimmed === '') return { error: syncMessage('domain.list.art.empty') }
   if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(trimmed)) return parseCardArtUrl(trimmed)
   return parseCardArtFile(trimmed)
 }
@@ -239,22 +261,27 @@ export function parseCardArtSidecar(
   try {
     raw = JSON.parse(content)
   } catch (error) {
-    return { ok: false, message: `not valid JSON: ${getErrorMessage(error)}` }
+    return { ok: false, message: invalidJsonMessage(error) }
   }
-  if (!isRecord(raw)) {
-    return { ok: false, message: 'the file must contain a JSON object keyed by card id' }
-  }
+  if (!isRecord(raw)) return { ok: false, message: syncMessage('domain.list.art.sidecarNotObject') }
 
   const art: CardArtMap = new Map()
   const unknownIds: number[] = []
   for (const [key, value] of Object.entries(raw)) {
     const cardId = parseCardIdKey(key)
     if (cardId === null) {
-      return { ok: false, message: `"${key}" is not a card id — keys are the card line's &N` }
+      return { ok: false, message: syncMessage('domain.list.art.sidecarBadKey', { key }) }
     }
     const ref = parseCardArtRef(value)
     if (isCardArtRefError(ref)) {
-      return { ok: false, message: `card ${cardId}: ${ref.error}` }
+      return {
+        ok: false,
+        message: syncMessage('domain.list.art.sidecarBadEntry', {
+          // As a string: the id is the file's own key, never a formatted number.
+          cardId: String(cardId),
+          reason: nestSync(ref.error),
+        }),
+      }
     }
     if (options.knownCardIds !== undefined && !options.knownCardIds.has(cardId)) {
       unknownIds.push(cardId)
@@ -304,10 +331,11 @@ export async function loadCardArt(
     content = await fs.readFile(sidecarPath, 'utf-8')
   } catch (error) {
     if (hasErrorCode(error, 'ENOENT')) return { ok: true, art: new Map(), warnings: [] }
-    return { ok: false, message: `${sidecarPath}: ${getErrorMessage(error)}` }
+    return { ok: false, message: sidecarProblem(sidecarPath, errorParam(error)) }
   }
   const parsed = parseCardArtSidecar(content, options)
-  if (!parsed.ok) return { ok: false, message: `${sidecarPath}: ${parsed.message}` }
+  if (!parsed.ok)
+    return { ok: false, message: sidecarProblem(sidecarPath, nestSync(parsed.message)) }
   return parsed
 }
 
@@ -472,14 +500,13 @@ export function reconcileCardArtMap(
 export type CardArtReconcileResult =
   | { ok: true; changed: false }
   | { ok: true; changed: true; saved: CardArtSaveResult }
-  | { ok: false; message: string }
+  | { ok: false; message: SyncMessage }
 
 /**
  * The refusal branch on its own — a sidecar left exactly as it was, with the
- * reason. Named so a channel carrying reconcile failures across a module
- * boundary is distinguishable from one carrying already-rendered prose: the
- * two are both "strings about art" and only one of them may be shown to a user
- * as-is.
+ * reason as a message (English plus its key). Named so a channel carrying
+ * reconcile failures across a module boundary says what it carries: each
+ * surface frames the reason in its own sentence and renders it for its reader.
  */
 export type CardArtReconcileFailure = Extract<CardArtReconcileResult, { ok: false }>
 

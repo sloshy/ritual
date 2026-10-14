@@ -4,7 +4,9 @@
  * Four namespaces: `site` (its own chrome and pages), `ui` (the shared
  * `src/ui` / `src/editor` components), `domain` (the vocabulary all three
  * surfaces share, with its `domain-changes` fragment — the editors validate an
- * imported change bundle in the browser and word its refusal) and `errors`. Not `cli`/`help` — that boundary is the whole
+ * imported change bundle in the browser and word its refusal — and its
+ * `domain-list` fragment — the list-metadata grammars this bundle carries, the
+ * categories record among them, word their refusals with it) and `errors`. Not `cli`/`help` — that boundary is the whole
  * point: those two namespaces are 49% of the catalog and no browser can reach
  * a single one of their keys.
  *
@@ -15,6 +17,7 @@
 
 import { domainMessages } from '../messages/en/domain'
 import { domainChangesMessages } from '../messages/en/domain-changes'
+import { domainListMessages } from '../messages/en/domain-list'
 import { errorMessages } from '../messages/en/errors'
 import { siteMessages } from '../messages/en/site'
 import { siteCardsMessages } from '../messages/en/site-cards'
@@ -37,6 +40,7 @@ export function registerSiteMessages(): void {
   registerMessages(
     domainMessages,
     domainChangesMessages,
+    domainListMessages,
     errorMessages,
     siteMessages,
     siteCardsMessages,

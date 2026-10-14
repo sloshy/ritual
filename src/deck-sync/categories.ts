@@ -32,7 +32,9 @@ import type { LocalCategoriesOf } from './upload-plan'
  * writes anything, so a deck whose sidecar Ritual cannot parse fails whole
  * rather than syncing its cards and then refusing its categories.
  */
-export async function loadDeckCategories(filePath: string): Promise<CardCategoriesRecord | string> {
+export async function loadDeckCategories(
+  filePath: string,
+): Promise<CardCategoriesRecord | SyncMessage> {
   const loaded = await loadCardCategories(filePath)
   return loaded.ok ? loaded.categories : loaded.message
 }

@@ -15,6 +15,7 @@ import {
   getErrorMessage,
   isBrokenPipeError,
   localizedCommandError,
+  messageCommandError,
   type ErrorCode,
   type ExitCodeValue,
 } from '../util/errors'
@@ -165,7 +166,7 @@ export function listArgumentConflictError(conflict: ListArgumentConflict): CardC
  */
 export function lifecycleErrorToCommandError(error: ListLifecycleError): CardCommandError {
   if (error.kind === 'not-found') {
-    return new CardCommandError('not_found', error.message, ExitCode.NotFound)
+    return messageCommandError('not_found', ExitCode.NotFound, error.message)
   }
-  return new CardCommandError('usage_error', error.message, ExitCode.UsageError)
+  return messageCommandError('usage_error', ExitCode.UsageError, error.message)
 }

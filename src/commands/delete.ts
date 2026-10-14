@@ -9,7 +9,7 @@ import {
 } from '../list/list-lifecycle'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
-import { CardCommandError, ExitCode } from '../util/errors'
+import { ExitCode, messageCommandError } from '../util/errors'
 import { t } from '../i18n/t'
 import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../cli/options'
 import { resolveListSelection } from './card-target'
@@ -79,9 +79,7 @@ export async function runDelete(
   }
 
   const mismatch = requireDeleteConfirmation(confirmed, displayName)
-  if (mismatch) {
-    throw new CardCommandError('usage_error', mismatch, ExitCode.UsageError)
-  }
+  if (mismatch) throw messageCommandError('usage_error', ExitCode.UsageError, mismatch)
 
   const result = await deleteList(resolved.type, resolved.filePath)
   if (isListLifecycleError(result)) throw lifecycleErrorToCommandError(result)

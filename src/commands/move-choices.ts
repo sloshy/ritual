@@ -9,7 +9,7 @@
 
 import { compareDisplay } from '../i18n/collate'
 import { t } from '../i18n/t'
-import { listRefLabel } from '../changes/change-event'
+import { listRefDisplay } from '../changes/change-message'
 import { finishSuffix } from '../card/finish-condition'
 import { printingSuffix } from '../card/card-line'
 import { languageToken } from '../card/card-language'
@@ -56,7 +56,7 @@ export function buildCardSearchChoices(
     if (vc.pendingMove !== null) continue // already moved this session
 
     const card = vc.card
-    const listLabel = listRefLabel(vc.currentList.ref)
+    const listLabel = listRefDisplay(vc.currentList.ref)
 
     const printingPart = printingSuffix(card.set, card.collectorNumber)
     const finishPart = finishSuffix(card.finish) + languageToken(card.language)
@@ -129,7 +129,7 @@ export type DeckSectionChoices =
  */
 export async function deckSectionChoices(filePath: string): Promise<DeckSectionChoices> {
   const deck = await importFromTextFile(filePath).catch(() => null)
-  if (!deck) return { ok: false, error: t('cli.move.cannotReadDeck', { file: filePath }) }
+  if (!deck) return { ok: false, error: t('domain.list.move.cannotReadDeck', { file: filePath }) }
   if (deck.sections.length === 0) return { ok: true, names: [], defaultName: undefined }
   // Mutates only this throwaway parse, never the file.
   const defaultName = resolveDefaultAddSection(deck.sections).name

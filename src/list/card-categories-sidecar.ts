@@ -8,7 +8,9 @@ import {
   sameFileContent,
   saveHash,
 } from '../changes/content-hash'
-import { getErrorMessage, hasErrorCode } from '../util/errors'
+import { hasErrorCode } from '../util/errors'
+import { errorMessage, errorParam, nestSync, type SyncMessage } from '../sync/message'
+import { sidecarProblem } from './sidecar-message'
 import {
   applyCategoryChangesToRecord,
   categoryChangesOf,
@@ -101,8 +103,11 @@ export type CommitCategoryChangesResult = {
    * when the commit was skipped (nothing to do) or failed.
    */
   action?: CardCategoriesSaveAction
-  /** Present when the sidecar could not be read — the write was skipped. */
-  error?: string
+  /**
+   * Present when the sidecar could not be read — the write was skipped. English
+   * plus its key, like every refusal this module returns.
+   */
+  error?: SyncMessage
 }
 
 /**
@@ -139,10 +144,11 @@ export async function loadCardCategories(
     if (hasErrorCode(error, 'ENOENT')) {
       return { ok: true, categories: emptyCardCategoriesRecord(), warnings: [] }
     }
-    return { ok: false, message: `${sidecarPath}: ${getErrorMessage(error)}` }
+    return { ok: false, message: sidecarProblem(sidecarPath, errorParam(error)) }
   }
   const parsed = parseCardCategoriesSidecar(content, options)
-  if (!parsed.ok) return { ok: false, message: `${sidecarPath}: ${parsed.message}` }
+  if (!parsed.ok)
+    return { ok: false, message: sidecarProblem(sidecarPath, nestSync(parsed.message)) }
   return parsed
 }
 
@@ -313,6 +319,6 @@ export async function commitCategoryChanges(
       action: saved.action,
     }
   } catch (error) {
-    return { writtenFiles: [], pruned: [], warnings: [], error: getErrorMessage(error) }
+    return { writtenFiles: [], pruned: [], warnings: [], error: errorMessage(error) }
   }
 }

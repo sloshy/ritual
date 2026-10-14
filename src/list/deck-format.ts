@@ -1,4 +1,5 @@
 import { t, type ParameterlessKey } from '../i18n/t'
+import { syncList, syncMessage, type SyncMessage } from '../sync/message'
 import { DEFAULT_SECTION, type DeckData, type DeckSection } from './deck'
 
 import type { DeckFormatKey } from './deck'
@@ -153,8 +154,10 @@ export type SectionRole =
  * `src/importers/text-file.ts`) reads from this table.
  */
 export const SECTION_ROLES: Readonly<Record<SectionRole, readonly string[]>> = {
+  // i18n-exempt: a `## Section` heading spelling matched literally in list files, file-format vocabulary
   commander: ['commander', 'commanders', 'command zone'],
   companion: ['companion'],
+  // i18n-exempt: a `## Section` heading spelling matched literally in list files, file-format vocabulary
   oathbreaker: ['oathbreaker', 'signature spell'],
   sideboard: ['sideboard'],
   maybeboard: ['maybeboard'],
@@ -253,7 +256,9 @@ export function resolveSectionName(existing: readonly string[], requested: strin
 function sectionSlot(name: string): string {
   const role = sectionRole(name)
   if (role !== 'oathbreaker') return role
-  return name.trim().toLowerCase() === 'signature spell' ? 'signature spell' : role
+  const folded = name.trim().toLowerCase()
+  // i18n-exempt: a `## Section` heading spelling matched literally in list files, file-format vocabulary
+  return folded === 'signature spell' ? 'signature spell' : role
 }
 
 /**
@@ -380,10 +385,16 @@ export function parseDeckFormat(raw: unknown): DeckFormatKey | null {
 /**
  * The message shown when {@link parseDeckFormat} rejects a user-supplied format.
  * Lives here so the CLI, the admin API, and any other caller reject a bad format
- * in the same words, listing the same keys.
+ * in the same words, listing the same keys: English plus its key, so the API
+ * answers in English and the CLI renders it in its own language. The format
+ * slugs are machine vocabulary, joined as a unit list in the reader's locale —
+ * the same convention the custom-art extensions and unknown keys use.
  */
-export function invalidDeckFormatMessage(raw: unknown): string {
-  return `Invalid deck format '${String(raw)}'. Valid formats: ${DECK_FORMAT_KEYS.join(', ')}`
+export function invalidDeckFormatMessage(raw: unknown): SyncMessage {
+  return syncMessage('domain.list.deckFormat.invalid', {
+    format: String(raw),
+    formats: syncList(DECK_FORMAT_KEYS, 'unit'),
+  })
 }
 
 /**

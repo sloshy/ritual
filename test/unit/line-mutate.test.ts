@@ -12,6 +12,8 @@ import {
   createUnsetCommanderChange,
 } from '../../src/changes/change-event'
 import type { EntryRef } from '../../src/list/entry-ref'
+import { SyncMessageError } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
 
 /**
  * The line-preserving apply core: only the targeted entry's line may change;
@@ -948,5 +950,27 @@ describe('applyTargetedChangesToContent — language token', () => {
     )
     expect(result).toContain('- Sol Ring (C21:263) &2')
     expect(result).not.toContain('[zhs]')
+  })
+})
+
+describe('applyTargetedChangesToContent — deck-only changes', () => {
+  test.each([
+    ['collection', '- Sol Ring (C21:263) &1\n', 'to a collection'],
+    ['wanted', '- Sol Ring &1\n', 'to a wanted list'],
+  ] as const)('a section move aimed at a %s is a keyed engine guard', (type, content, tail) => {
+    const target: EntryRef = { name: 'Sol Ring', cardId: 1 }
+    let caught: unknown
+    try {
+      applyTargetedChangesToContent(content, type, target, [
+        createSetSectionChange('Sol Ring', 'Sideboard', 1),
+      ])
+    } catch (error) {
+      caught = error
+    }
+    if (!(caught instanceof SyncMessageError)) throw new Error('expected an engine guard')
+    expect(caught.syncMessage.messageKey).toBe('domain.list.guard.deckOnlyAction')
+    expect(keyedMessage(caught.syncMessage)).toBe(
+      `applyTargetedChanges cannot apply 'set-section' ${tail}`,
+    )
   })
 })

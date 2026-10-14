@@ -1,26 +1,27 @@
 import {
   unreadableContentMessage,
-  unreadableLines,
+  unreadableProblems,
   type ParsedListContent,
-} from '../../list/markdown-fence'
+} from '../../list/unreadable-content'
 import { cardCache } from '../../cache'
 import { computeHash, hashPath, writeFileWithHash } from '../../changes/content-hash'
 import type { CardArtMap, CardArtRef, CardArtReconcileInput } from '../../list/card-art'
 import { reconcileListRefs } from '../../list/list-refs'
 import { appendChangelog } from '../../changes/changelog-writer'
 import { removedArtCardIds, type LineQuantities } from '../../changes/line-copies'
-import { listTypeLabel, type ListType } from '../../list/list-type'
+import { workspaceListTypeNoun, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
 import { loadDefaultCategories, loadRitualConfig } from '../../config/ritual-config'
 import { foldedCardNameSet } from '../../list/card-names'
 import { commitCategoryChanges, isCategoryChange } from '../../list/card-categories-sidecar'
 import { shouldAutoCommit, shouldAutoPush, commitFiles, pushChanges } from '../git'
-import { apiError, badRequest, type ApiConflictResponse } from '../../api/http'
+import { apiError, badRequest, nestedRefusal, type ApiConflictResponse } from '../../api/http'
 import type { ChangeEvent } from '../../changes/change-event'
 import type { DroppedNote } from '../../list/move-staging'
 import type { SaveEffect } from '../../changes/save-effects'
 import type { SelectBranch } from '../../i18n/t'
-import { apiMessage, apiText, plainMessage } from '../../api/result'
+import { apiMessage, apiText } from '../../api/result'
+import type { SyncMessage } from '../../sync/message'
 import { findLineBreak } from '../../util/single-line'
 import type { ListSaveResponse } from './list-save'
 import type { MovesOutcome } from '../../list/move-prepare'
@@ -102,9 +103,9 @@ export function refuseUnreadableBaseline(
   filePath: string,
   parsed: ParsedListContent,
 ): Response | null {
-  const lines = unreadableLines(parsed)
-  if (lines.length === 0) return null
-  return apiError(plainMessage(unreadableContentMessage(filePath, lines, 'saving')), 400)
+  const problems = unreadableProblems(parsed)
+  if (problems.length === 0) return null
+  return nestedRefusal(unreadableContentMessage(filePath, problems, 'saving'))
 }
 
 /**
@@ -332,7 +333,7 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
     // copy's art), so the path can be in `extraFiles` and here — as can the
     // list file itself, which a cover rewrite touches a second time.
     [...new Set(filesToCommit)],
-    `Edit ${listTypeLabel(tail.listType)}: ${tail.changelogName} (${loggable.length} changes)`,
+    `Edit ${workspaceListTypeNoun(tail.listType)}: ${tail.changelogName} (${loggable.length} changes)`,
   )
 
   return {
@@ -351,8 +352,8 @@ export async function finishListSave(tail: ListSaveTail): Promise<ListSaveTailRe
  * because the reconcile runs *after* the card lines are written, so its failure
  * is news to report rather than a save to undo.
  */
-export function unreconciledArtWarning(reason: string): string {
-  return apiText('admin.api.save.artUnreconciled', { reason })
+export function unreconciledArtWarning(reason: SyncMessage): string {
+  return apiText('admin.api.save.artUnreconciled', { reason: reason.message })
 }
 
 /**
@@ -360,8 +361,8 @@ export function unreconciledArtWarning(reason: string): string {
  * warning. Like {@link unreconciledArtWarning}, the card lines were written
  * first, so this is news to report rather than a save to undo.
  */
-export function categoriesUnreconciledWarning(reason: string): string {
-  return apiText('admin.api.save.categoriesUnreconciled', { reason })
+export function categoriesUnreconciledWarning(reason: SyncMessage): string {
+  return apiText('admin.api.save.categoriesUnreconciled', { reason: reason.message })
 }
 
 /**

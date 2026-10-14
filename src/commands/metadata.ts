@@ -15,7 +15,7 @@ import {
 } from '../list/flat-list-metadata'
 import { readListDescription } from '../list/list-description'
 import { parseDeckFrontMatter } from '../list/deck-file'
-import { readFrontMatterMapping } from '../list/front-matter-write'
+import { readFrontMatterMapping, unreadableReason } from '../list/front-matter-write'
 import {
   isCardLabel,
   LIST_TYPE_LABELS,
@@ -23,8 +23,7 @@ import {
   type CardLabel,
 } from '../card/card-labels'
 import { parseDeckMetadataBody, parseFlatListMetadataBody } from '../admin/api/metadata'
-import { isApiMessage } from '../api/result'
-import { isSyncMessage } from '../sync/message'
+import { isSyncMessage, nestSync, syncMessage } from '../sync/message'
 import { checkArchidektLink } from '../deck-sync/link'
 import {
   CardCommandError,
@@ -200,7 +199,7 @@ async function readFrontMatterData(target: ListTarget): Promise<Record<string, u
       'runtime_error',
       ExitCode.RuntimeError,
       'cli.metadata.frontMatterUnreadable',
-      { reason: mapping.reason === 'not-a-mapping' ? 'notAMapping' : 'invalidYaml' },
+      { reason: unreadableReason(mapping) },
     )
   }
   return mapping.data
@@ -386,7 +385,7 @@ function registerSetSubcommand(metadata: Command): void {
             throw new CardCommandError('usage_error', body, ExitCode.UsageError)
           }
           const parsed = parseDeckMetadataBody(body)
-          if (isApiMessage(parsed))
+          if (isSyncMessage(parsed))
             throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
           await applyPatch({ type: 'deck', filePath: target.filePath, patch: parsed.patch })
           emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
@@ -405,7 +404,7 @@ function registerSetSubcommand(metadata: Command): void {
           throw new CardCommandError('usage_error', body, ExitCode.UsageError)
         }
         const parsed = parseFlatListMetadataBody(body, target.type)
-        if (isApiMessage(parsed))
+        if (isSyncMessage(parsed))
           throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
         await applyPatch({ type: target.type, filePath: target.filePath, patch: parsed.patch })
         emitSetResult(target, property, patchValue(parsed.patch, property), scripting)
@@ -462,11 +461,10 @@ async function readMetadataValue(target: ListTarget, property: string): Promise<
     // silent `not_found` would send the user looking for a key that is there.
     const read = readListDescription(data)
     if (read.advisory !== undefined) {
-      throw localizedCommandError(
+      throw messageCommandError(
         'runtime_error',
         ExitCode.RuntimeError,
-        'cli.metadata.storedDescriptionInvalid',
-        { reason: read.advisory },
+        syncMessage('cli.metadata.storedDescriptionInvalid', { reason: nestSync(read.advisory) }),
       )
     }
     value = read.description

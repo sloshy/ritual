@@ -8,7 +8,7 @@ import {
 import type { ChangeEvent } from '../../changes/change-event'
 import { IMPORT_CONFLICT_REASON_KEY } from '../import-changes'
 import { formatChange } from '../../changes/change-message'
-import { type ListType, listTypeLabel } from '../../list/list-type'
+import type { ListType } from '../../list/list-type'
 import type { ImportResult } from '../editor-config'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
@@ -68,11 +68,14 @@ export const ImportChangesDialog: Component<ImportChangesDialogProps> = (props) 
     const [only, ...rest] = bundle.lists.filter((l) => l.kind === props.expectedKind)
     if (only && rest.length === 0) return listChangesFromBundle(bundle, only) ?? []
     if (!only) {
-      // `listTypeLabel` is the lowercase file-format vocabulary, not a display
-      // name: it has no localized counterpart yet (the `domain.*` list-type
-      // messages are capitalized titles, wrong mid-sentence), so this enumeration
-      // stays English until one exists.
-      const kinds = syncList([...new Set(bundle.lists.map((l) => listTypeLabel(l.kind)))], 'unit')
+      // Each kind as the lowercase noun a sentence names it with, nested so it
+      // renders — and relabels — in the reader's language.
+      const kinds = syncList(
+        [...new Set(bundle.lists.map((l) => l.kind))].map((kind) =>
+          syncRef('domain.listType.noun', { type: kind }),
+        ),
+        'unit',
+      )
       return syncRef('ui.editor.importWrongKind', { listType: props.expectedKind, kinds })
     }
     return syncRef('ui.editor.importAmbiguous', {

@@ -6,6 +6,7 @@ import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { makeMockScryfallCard, withImage } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
+import { expectPseudo, languageSelect, offerLocales, PSEUDO_LOCALE } from '../helpers/i18n'
 
 /**
  * List cover images in the admin editors: the action bar's "Cover Image…"
@@ -277,4 +278,25 @@ test('a deck card save after a cover write sends its hash and no front matter', 
   expect(Object.keys(saved!).sort()).toEqual(['changes', 'contentHash', 'continueSession'])
   // The hash the metadata write returned, not the load's.
   expect(saved!.contentHash).toBe('hash-2')
+})
+
+test('a cover reference the grammar refuses relabels on a language switch', async ({ page }) => {
+  await offerLocales(page, ['en', PSEUDO_LOCALE])
+  await openImageCollection(page)
+
+  const modal = await openImageModal(page)
+  await modal.locator('label', { hasText: 'File in the art directory' }).click()
+  await modal.locator('#list-image-value').fill('../secrets.png')
+  // By id: the modal locator filters on its English title, which the switch relabels.
+  const refusal = page.locator('#list-image-value-note')
+  await expect(refusal).toHaveText(
+    'That cover image is not usable: "../secrets.png" escapes the art directory',
+  )
+
+  await languageSelect(page).selectOption(PSEUDO_LOCALE)
+  // The grammar's refusal is held as its message, so the nested reason relabels
+  // with the cover dialog's wrapper around it.
+  await expectPseudo(refusal, true)
+  await expect(refusal).not.toContainText('escapes the art directory')
+  await expect(refusal).toContainText('../secrets.png')
 })

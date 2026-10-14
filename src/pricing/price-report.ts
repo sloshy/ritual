@@ -431,7 +431,8 @@ export async function loadPriceListInputs(
     // the way the proxy label does, so every list is read alongside its lines.
     // An unreadable sidecar is a warning, not a failure: the lines still price.
     const loadedArt = await loadCardArt(location.filePath)
-    if (!loadedArt.ok) warnings.push(`${location.name}: ${loadedArt.message}`)
+    // English, like the report's other warnings.
+    if (!loadedArt.ok) warnings.push(`${location.name}: ${loadedArt.message.message}`)
     const art: CardArtMap = loadedArt.ok ? loadedArt.art : new Map()
 
     if (location.type === 'deck') {

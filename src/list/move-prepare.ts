@@ -9,7 +9,6 @@
 import { appendChangelog } from '../changes/changelog-writer'
 import {
   createAddChange,
-  listRefLabel,
   mirrorMoveFrom,
   mirrorMoveTo,
   movedCopyOf,
@@ -28,7 +27,8 @@ import { artReconcileFor, commitArtReconciles, type ArtReconcile } from './move-
 import { loadAllLists, type ListEntry } from './list-info'
 import { carriedLabels } from '../card/card-labels'
 import type { ListType } from './list-type'
-import { t } from '../i18n/t'
+import { listRefMessage } from '../changes/change-message'
+import { syncMessage, SyncMessageError } from '../sync/message'
 import {
   adoptedCardId,
   applyAddToStaged,
@@ -342,10 +342,10 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
   for (const entry of outgoing) {
     const dest = findList(entry.move.to)
     if (!dest) {
-      throw new Error(
-        t('cli.move.destinationNotFound', {
+      throw new SyncMessageError(
+        syncMessage('domain.list.move.destinationNotFound', {
           name: entry.move.cardName,
-          list: listRefLabel(entry.move.to),
+          list: listRefMessage(entry.move.to),
         }),
       )
     }
@@ -354,10 +354,10 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
   for (const entry of incoming) {
     const source = findList(entry.move.from)
     if (!source) {
-      throw new Error(
-        t('cli.move.sourceNotFound', {
+      throw new SyncMessageError(
+        syncMessage('domain.list.move.sourceNotFound', {
           name: entry.move.cardName,
-          list: listRefLabel(entry.move.from),
+          list: listRefMessage(entry.move.from),
         }),
       )
     }
@@ -371,9 +371,9 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
     const file = await loadStagedOrThrow(listEntry, {
       missingKey:
         other.incoming.length > 0
-          ? 'cli.move.abortSourceUnreadable'
-          : 'cli.move.abortDestinationMissing',
-      abortKey: 'cli.move.abortMove',
+          ? 'domain.list.move.abortSourceUnreadable'
+          : 'domain.list.move.abortDestinationMissing',
+      abortKey: 'domain.list.move.abortMove',
     })
     prepared.push({ ...other, file })
   }
@@ -396,10 +396,10 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
         cardId: move.sourceCardId,
       })
       if (line === null) {
-        throw new Error(
-          t('cli.move.sourceCopyNotFound', {
+        throw new SyncMessageError(
+          syncMessage('domain.list.move.sourceCopyNotFound', {
             name: move.cardName,
-            list: listRefLabel(move.from),
+            list: listRefMessage(move.from),
           }),
         )
       }
@@ -509,9 +509,9 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
       if (move.cardId === undefined) {
         unfiled.push({
           ok: false,
-          message: t('cli.move.artUnfiled', {
+          message: syncMessage('domain.list.move.artUnfiled', {
             name: move.cardName,
-            list: listRefLabel(move.from),
+            list: listRefMessage(move.from),
           }),
         })
         continue
@@ -534,7 +534,7 @@ export async function prepareCrossListMoves(batches: readonly MoveBatch[]): Prom
   // would duplicate the mirrored blocks. Latched rather than trusted to callers.
   let committed = false
   const commit = async (): Promise<CrossListMovesResult> => {
-    if (committed) throw new Error('PreparedMoves.commit() is single-use')
+    if (committed) throw new SyncMessageError(syncMessage('domain.list.guard.commitTwice'))
     committed = true
     // WRITE: files, then one changelog entry per other list. Each mirrored
     // line names its own counterpart, so attribution survives the merged entry.

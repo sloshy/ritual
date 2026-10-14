@@ -22,6 +22,11 @@ import {
   type BoundWorkspace,
 } from '../helpers/workspace'
 
+/** A result's warnings as the English a script reads off `--output json`. */
+function warningText(result: CleanupResult, separator = '\n'): string {
+  return result.warnings.map((warning) => warning.message).join(separator)
+}
+
 function resultFor(results: CleanupResult[], fileName: string): CleanupResult {
   const match = results.find((r) => path.basename(r.filePath) === fileName)
   if (!match) throw new Error(`no cleanup result for ${fileName}`)
@@ -83,7 +88,7 @@ describe('cleanup (Integration)', () => {
 
     expect(result.rewriteBlocked).toBeUndefined()
     expect(result.rewritten).toBeTrue()
-    expect(result.warnings.join('\n')).toContain('Read 2 copies')
+    expect(warningText(result)).toContain('Read 2 copies')
     const content = await fs.readFile(filePath, 'utf-8')
     expect(content).toContain('- Sol Ring (LTC:284) &1')
     expect(content.match(/- Sol Ring \(LTC:284\)/g)).toHaveLength(2)
@@ -106,7 +111,9 @@ describe('cleanup (Integration)', () => {
 
     expect(result.rewriteBlocked).toBeUndefined()
     expect(result.rewritten).toBeTrue()
-    expect(result.warnings).toContain('Dropped empty section: Maybeboard')
+    expect(result.warnings.map((warning) => warning.message)).toContain(
+      'Dropped empty section: Maybeboard',
+    )
     expect(await fs.readFile(filePath, 'utf-8')).not.toContain('Maybeboard')
   })
 
@@ -174,7 +181,7 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'trade binder.md')
     expect(result.renamedTo).toBeUndefined()
-    expect(result.warnings.join('\n')).toContain('already exists')
+    expect(warningText(result)).toContain('already exists')
     expect(await Bun.file(path.join(dir(), 'collections', 'trade binder.md')).exists()).toBeTrue()
   })
 
@@ -285,7 +292,7 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'winota-stax.md')
     expect(result.renamedTo).toBeUndefined()
-    expect(result.warnings.join('\n')).toContain('another list already has that file')
+    expect(warningText(result)).toContain('another list already has that file')
     // Both files survive, the occupied one untouched.
     const keptPath = path.join(dir(), 'decks', 'winota-stax.md')
     expect(await Bun.file(keptPath).exists()).toBeTrue()
@@ -339,7 +346,7 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'jank.md')
     expect(result.renamedTo).toBeUndefined()
-    expect(result.warnings.join('\n')).toContain('another list already has that file')
+    expect(warningText(result)).toContain('another list already has that file')
     expect(await fs.readFile(lowerPath, 'utf-8')).toContain('Lightning Bolt')
     expect(await fs.readFile(occupiedPath, 'utf-8')).toBe(occupiedContent)
   })
@@ -352,7 +359,7 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'Weird.md')
     expect(result.renamedTo).toBeUndefined()
-    expect(result.warnings.join('\n')).toContain('no characters usable in a file name')
+    expect(warningText(result)).toContain('no characters usable in a file name')
     expect(await Bun.file(filePath).exists()).toBeTrue()
   })
 
@@ -366,7 +373,7 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'Scraps.md')
     expect(result.rewritten).toBeFalse()
-    expect(result.warnings.join('\n')).toContain(
+    expect(warningText(result)).toContain(
       'Skipped malformed line: sideboard ideas: maybe a counterspell',
     )
     expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
@@ -383,7 +390,7 @@ describe('cleanup (Integration)', () => {
 
     const result = resultFor(results, 'Binder.md')
     expect(result.rewritten).toBeFalse()
-    expect(result.warnings.join('\n')).toContain('not rewritten')
+    expect(warningText(result)).toContain('not rewritten')
     expect(await fs.readFile(filePath, 'utf-8')).toBe(content)
   })
 
@@ -401,7 +408,7 @@ describe('cleanup (Integration)', () => {
     expect(broken.unreadable).toBeTrue()
     expect(broken.rewritten).toBeFalse()
     expect(broken.renamedTo).toBeUndefined()
-    expect(broken.warnings.join('\n')).toContain('could not be read')
+    expect(warningText(broken)).toContain('could not be read')
     // The file itself is untouched, and every other list was still cleaned up.
     expect(await fs.readFile(brokenPath, 'utf-8')).toContain('name: [broken')
     expect(resultFor(results, 'Binder.md').rewritten).toBeTrue()
@@ -610,6 +617,40 @@ describe('cleanup CLI (Integration)', () => {
     })
   })
 
+  test('--output json carries each warning as English plus its key, whatever the CLI speaks', async () => {
+    await withWorkspace(async (dir) => {
+      const filePath = path.join(dir, 'collections', 'Bad.md')
+      await fs.writeFile(filePath, '# Bad\n\n- Opt (XLN:65) &1\nthis is not a card line\n')
+
+      // The pseudo-locale changes every catalog message, so a warning rendered in
+      // the CLI's language could not hide in the payload.
+      const result = await runCli(['cleanup', '--dry-run', '--output', 'json'], dir, {
+        RITUAL_LOCALE: 'en-XA',
+      })
+
+      const report = JSON.parse(result.stdout) as { warnings: unknown[] }
+      expect(report.warnings).toEqual([
+        {
+          file: path.join('collections', 'Bad.md'),
+          message: 'Skipped malformed line: this is not a card line',
+          messageKey: 'domain.import.text.malformedLine',
+          messageParams: { line: 'this is not a card line', hint: '' },
+        },
+        {
+          file: path.join('collections', 'Bad.md'),
+          message: 'not rewritten: fix the lines above and rerun cleanup',
+          messageKey: 'cli.cleanup.notRewritten',
+        },
+        {
+          file: path.join('collections', 'Bad.md'),
+          message:
+            'categories not pruned: the parse skipped lines, so a card still in the file could look gone',
+          messageKey: 'cli.cleanup.categoriesNotPruned',
+        },
+      ])
+    })
+  })
+
   test('a real run blocked by parse warnings exits 1', async () => {
     await withWorkspace(async (dir) => {
       // The malformed line is not a card line, so the CLI-wide card-ID
@@ -723,7 +764,7 @@ describe('cleanup — categories', () => {
     const result = await cleanupList({ type: 'collection', filePath, name: 'Bad' })
     expect(result.rewriteBlocked).toBe(true)
     expect(result.categoriesPruned).toBeUndefined()
-    expect(result.warnings.join(' ')).toContain('categories not pruned')
+    expect(warningText(result, ' ')).toContain('categories not pruned')
 
     const written = JSON.parse(await fs.readFile(sidecarPath, 'utf-8')) as {
       cards: Record<string, string[]>
@@ -871,7 +912,7 @@ describe('cleanup — labels and front matter', () => {
 
     const result = resultFor(results, 'Binder.md')
     expect(result.rewritten).toBe(false)
-    expect(result.warnings.join('\n')).toContain('Conflicting labels')
+    expect(warningText(result)).toContain('Conflicting labels')
     expect(await fs.readFile(filePath, 'utf-8')).toBe(original)
   })
 })
@@ -1036,7 +1077,7 @@ describe('cleanup — list-format migration', () => {
     // The quantity advisories are the only thing said; nothing blocked.
     const said = first.flatMap((result) => result.warnings)
     expect(said.length).toBeGreaterThan(0)
-    expect(said.every((warning) => warning.includes('copies'))).toBeTrue()
+    expect(said.every((warning) => warning.message.includes('copies'))).toBeTrue()
     expect(first).toHaveLength(3)
     expect(first.every((result) => result.rewritten)).toBeTrue()
     const after = await snapshotTree(dir())

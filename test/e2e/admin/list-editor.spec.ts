@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openListEditor, SELECTOR_ID } from '../helpers/editor-nav'
-import { LIST_TYPES, listTypeLabel } from '../../../src/list/list-type'
+import { LIST_TYPES, workspaceListTypeNoun } from '../../../src/list/list-type'
 
 test.describe('Edit Lists page', () => {
   test.beforeEach(async ({ page }) => {
@@ -33,7 +33,7 @@ test.describe('Edit Lists page', () => {
   })
 
   for (const type of LIST_TYPES) {
-    test(`selecting a ${listTypeLabel(type)} loads its content into the editor`, async ({
+    test(`selecting a ${workspaceListTypeNoun(type)} loads its content into the editor`, async ({
       page,
     }) => {
       await openListEditor(page, type)

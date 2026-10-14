@@ -10,9 +10,10 @@
  * to tree-shake one away. The sidecar module re-exports everything here, so
  * server-side importers are unaffected.
  *
- * The parse messages are plain English on purpose: like the other engine parsers
- * this module is below the UI layer, and the surface that reports the failure
- * owns its wording.
+ * The parse refusals are messages — English plus their catalog key
+ * (`src/sync/message.ts`) — never rendered text, and never written into the
+ * sidecar: the admin API reads the English, the CLI renders the key in its own
+ * language.
  */
 
 import {
@@ -31,8 +32,9 @@ import {
 } from '../changes/change-event'
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 import { compareData } from '../i18n/collate'
-import { getErrorMessage } from '../util/errors'
 import { isRecord } from '../util/json'
+import { syncMessage, syncText, type SyncMessage } from '../sync/message'
+import { invalidJsonMessage } from './sidecar-message'
 
 /** One card name's categories, in primary-first order, with the spelling the file stores. */
 export type CardCategoryEntry = {
@@ -86,7 +88,8 @@ export type CardCategoriesParseSuccess = {
 
 export type CardCategoriesParseFailure = {
   ok: false
-  message: string
+  /** Why the sidecar could not be read, as English plus its key. */
+  message: SyncMessage
 }
 
 export type CardCategoriesParseResult = CardCategoriesParseSuccess | CardCategoriesParseFailure
@@ -96,6 +99,19 @@ export type CardCategoriesPruneResult = {
   /** Stored spellings of the names dropped, in {@link compareData} order. */
   pruned: string[]
   changed: boolean
+}
+
+/** A parse failure carrying `message`. */
+function refused(message: SyncMessage): CardCategoriesParseFailure {
+  return { ok: false, message }
+}
+
+/**
+ * A parse failure the category rule (`src/card/card-categories.ts`) worded
+ * itself — carried as the text it came with, keyless.
+ */
+function refusedByRule(text: string): CardCategoriesParseFailure {
+  return refused(syncText(text))
 }
 
 /** A list with no categories at all. */
@@ -131,7 +147,7 @@ export function parseCardCategoriesSidecar(
   try {
     raw = JSON.parse(content)
   } catch (error) {
-    return { ok: false, message: `not valid JSON: ${getErrorMessage(error)}` }
+    return { ok: false, message: invalidJsonMessage(error) }
   }
   return parseCardCategoriesObject(raw, options)
 }
@@ -157,14 +173,12 @@ export function parseCardCategoriesObject(
   raw: unknown,
   options: CardCategoriesParseOptions = {},
 ): CardCategoriesParseResult {
-  if (!isRecord(raw)) {
-    return { ok: false, message: 'the file must contain a JSON object with "order" and "cards"' }
-  }
+  if (!isRecord(raw)) return refused(syncMessage('domain.list.categories.notObject'))
 
   let order: CardCategory[] = []
   if (raw.order !== undefined) {
     const parsed: CardCategoriesResult = parseCardCategoriesValue(raw.order, '"order"')
-    if (!parsed.ok) return { ok: false, message: parsed.message }
+    if (!parsed.ok) return refusedByRule(parsed.message)
     order = parsed.categories
   }
 
@@ -172,20 +186,18 @@ export function parseCardCategoriesObject(
   const unknownNames: string[] = []
   if (raw.cards !== undefined) {
     if (!isRecord(raw.cards)) {
-      return { ok: false, message: '"cards" must be an object keyed by card name' }
+      return refused(syncMessage('domain.list.categories.cardsNotObject'))
     }
     for (const [name, value] of Object.entries(raw.cards)) {
-      if (name.trim() === '') {
-        return { ok: false, message: 'a "cards" key must be a card name, not empty' }
-      }
+      if (name.trim() === '') return refused(syncMessage('domain.list.categories.emptyName'))
       const parsed = parseCardCategoriesValue(value, `"${name}"`)
-      if (!parsed.ok) return { ok: false, message: parsed.message }
+      if (!parsed.ok) return refusedByRule(parsed.message)
       if (parsed.categories.length === 0) {
-        return { ok: false, message: `"${name}" has no categories — remove the key instead` }
+        return refused(syncMessage('domain.list.categories.noCategories', { name }))
       }
       const key = foldCategoryCardName(name)
       if (cards.has(key)) {
-        return { ok: false, message: `"${name}" appears twice under different spellings` }
+        return refused(syncMessage('domain.list.categories.duplicateName', { name }))
       }
       if (options.knownCardNames !== undefined && !options.knownCardNames.has(key)) {
         unknownNames.push(name)

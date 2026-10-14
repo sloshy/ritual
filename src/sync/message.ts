@@ -75,7 +75,7 @@ export type SyncListJoin =
   | 'concat'
 
 /** Several parts rendered and joined in the enclosing message's locale. */
-export type SyncListParam = { list: SyncParam[]; join: SyncListJoin }
+export type SyncListParam = { list: readonly SyncParam[]; join: SyncListJoin }
 
 /** A duration in milliseconds, rendered like `4.2 seconds` in the enclosing message's locale. */
 export type SyncElapsedParam = { elapsedMs: number }
@@ -218,7 +218,7 @@ export function nestSync(message: SyncMessage): SyncText {
 }
 
 /** A list param. */
-export function syncList(list: SyncParam[], join: SyncListJoin): SyncListParam {
+export function syncList(list: readonly SyncParam[], join: SyncListJoin): SyncListParam {
   return { list, join }
 }
 
@@ -270,7 +270,10 @@ export function joinSyncMessages(messages: NonEmpty<SyncMessage>): SyncMessage {
 /**
  * An error a sync-owned code path throws, carrying its message unrendered so a
  * report can still state it in English (and a reader in its own language). Its
- * `Error.message` is the active locale's rendering, as for any engine error.
+ * `Error.message` is the active locale's rendering, as for any engine error —
+ * display text only: never persist it or put it on the wire. Anything that
+ * stores or sends the error reads {@link SyncMessageError.syncMessage}, whose
+ * `message` is English.
  */
 export class SyncMessageError extends Error {
   readonly syncMessage: SyncMessage
@@ -356,8 +359,10 @@ function renderParam(
     return renderRef(param, locale, strict)
   }
   if ('list' in param && Array.isArray(param.list) && isListJoin(param.join)) {
+    // Annotated: `Array.isArray` narrows a readonly array to `any[]`.
+    const list: readonly SyncParam[] = param.list
     const parts: string[] = []
-    for (const part of param.list) {
+    for (const part of list) {
       const rendered = renderParam(part, locale, strict)
       if (rendered === undefined) return undefined
       parts.push(String(rendered))

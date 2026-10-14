@@ -10,6 +10,7 @@ import {
   type CardArtRefError,
 } from '../../list/card-art'
 import { getErrorMessage, hasErrorCode } from '../../util/errors'
+import { renderSyncMessage } from '../../sync/message'
 import { compareData } from '../../i18n/collate'
 import { t } from '../../i18n/t'
 import { getArtDir } from '../../config/ritual-config'
@@ -214,7 +215,7 @@ export function cardArtActionRows(current: CardArtRef | null): ArtActionRow[] {
  */
 function acceptedArt(ref: CardArtRef | CardArtRefError): CardArtEdit | null {
   if (isCardArtRefError(ref)) {
-    console.error(t('cli.art.invalid', { reason: ref.error }))
+    console.error(t('cli.art.invalid', { reason: renderSyncMessage(ref.error) }))
     return null
   }
   return { ref }

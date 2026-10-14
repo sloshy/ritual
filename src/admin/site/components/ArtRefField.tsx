@@ -1,7 +1,8 @@
 import { type Accessor, type Component, createMemo, createSignal, Show } from 'solid-js'
 import { useT } from '../../../ui/i18n'
-import { isCardArtRefError, parseCardArtRef, type CardArtRef } from '../../../list/card-art'
+import { cardArtInputOf, parseCardArtRef, type CardArtInput } from '../../../list/card-art'
 import { cardArtDisplayUrl } from '../../../list/art-url'
+import { renderSyncMessage, type SyncMessage } from '../../../sync/message'
 import { useDebouncedInput, type DebouncedInput } from '../../../site/useDebouncedInput'
 
 /**
@@ -28,13 +29,6 @@ export type CardArtMode = 'file' | 'url'
 const ART_PREVIEW_DEBOUNCE_MS = 500
 
 /**
- * The typed value read as a reference: nothing yet, the reference itself, or the
- * parser's refusal.
- */
-export type CardArtInput =
-  { state: 'empty' } | { state: 'valid'; art: CardArtRef } | { state: 'invalid'; reason: string }
-
-/**
  * Read one form value as an art reference, through the same grammar the sidecar,
  * the art route and the CLI go through — the mode picks which half of it applies,
  * since a bare `sol-ring.png` is a legitimate path and never a URL.
@@ -46,9 +40,7 @@ export type CardArtInput =
 export function readCardArtValue(mode: CardArtMode, raw: string): CardArtInput {
   const trimmed = raw.trim()
   if (trimmed === '') return { state: 'empty' }
-  const parsed = parseCardArtRef(mode === 'file' ? { file: trimmed } : { url: trimmed })
-  if (isCardArtRefError(parsed)) return { state: 'invalid', reason: parsed.error }
-  return { state: 'valid', art: parsed }
+  return cardArtInputOf(parseCardArtRef(mode === 'file' ? { file: trimmed } : { url: trimmed }))
 }
 
 /** One art-reference field's state: what is typed, what it parses to, what it previews. */
@@ -102,7 +94,11 @@ type ArtRefFieldProps = {
   inputId: string
   /** Alt text for the preview image — each dialog names its own subject. */
   previewAlt: string
-  /** Frame for the parser's untranslated refusal, worded by the owning dialog. */
+  /**
+   * Frame for the parser's refusal, worded by the owning dialog. Called inside
+   * the JSX with the refusal already rendered in the reader's language, so the
+   * whole line relabels on a switch.
+   */
   invalidMessage: (reason: string) => string
 }
 
@@ -118,7 +114,7 @@ export const ArtRefField: Component<ArtRefFieldProps> = (props) => {
   // it until something else cleared it.
   const [brokenUrl, setBrokenUrl] = createSignal<string | null>(null)
   const noteId = (): string => `${props.inputId}-note`
-  const refError = (): string | null => {
+  const refError = (): SyncMessage | null => {
     const parsed = props.field.parsed()
     return parsed.state === 'invalid' ? parsed.reason : null
   }
@@ -145,10 +141,11 @@ export const ArtRefField: Component<ArtRefFieldProps> = (props) => {
       </div>
       <Show when={refError()}>
         {(reason) => (
-          // The reason is engine prose — the same sentence the art route and the
-          // CLI report — framed by a translated wrapper.
+          // The reason is the grammar's own refusal — the same message the art
+          // route and the CLI report — rendered here, in the reader's language,
+          // and framed by a translated wrapper.
           <p id={noteId()} class="form-error">
-            {props.invalidMessage(reason())}
+            {props.invalidMessage(renderSyncMessage(reason()))}
           </p>
         )}
       </Show>

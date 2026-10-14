@@ -11,6 +11,7 @@ import {
   orderedCategoryEntries,
 } from '../list/card-categories-sidecar'
 import type { ListType } from '../list/list-type'
+import type { SyncMessage } from '../sync/message'
 import { DEFAULT_SECTION } from '../list/deck'
 import {
   createAddChange,
@@ -102,9 +103,10 @@ export type ListDefaultEvents = {
   /**
    * Why the list's categories contributed nothing: the sidecar exists but could
    * not be read. Present only then — the caller reports it, since a rewrite is
-   * destructive and a silently dropped set of assignments is news.
+   * destructive and a silently dropped set of assignments is news. English plus
+   * its key; never written into a file.
    */
-  categoriesWarning?: string
+  categoriesWarning?: SyncMessage
 }
 
 /**

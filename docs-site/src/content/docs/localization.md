@@ -155,6 +155,8 @@ Everything a human reads is localizable. Everything a **machine** reads is Engli
 | CSV and [export](/commands/export/) headers, including the Archidekt dialect                             | Other tools import them                                                       |
 | Set codes, `&N` card IDs, `[ja]` / `[foil]` / `[etched]` / condition and label tokens                    | They are the file format                                                      |
 | `ritual.config.json` keys and values, deck format slugs, URL query values (`sort=`, `group=`, `labels=`) | Persisted identifiers; a shared list-view link must survive a language change |
+| List front-matter keys and values, the `.art.json` and `.categories.json` sidecars, list file names      | Workspace data that Ritual, and your collaborators' Ritual, reads back        |
+| The commit messages the admin server writes into your workspace repository                               | They are workspace history, like `.changes.md`                                |
 | [MCP](/commands/mcp/) tool names, descriptions, and result `message` prose                               | They are LLM prompts, and tool names are protocol identifiers                 |
 | The installable [agent skills](/commands/skills/)                                                        | Same, plus their content hash decides "machine-managed vs user-edited"        |
 | These docs                                                                                               | Localizing them is a separate project                                         |

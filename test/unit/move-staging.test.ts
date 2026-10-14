@@ -954,7 +954,10 @@ describe('loadStagedOrThrow', () => {
     await expect(
       loadStagedOrThrow(
         { ref: { type: 'collection', name: 'Binder' }, filePath },
-        { missingKey: 'cli.move.abortDestinationMissing', abortKey: 'cli.move.abortMove' },
+        {
+          missingKey: 'domain.list.move.abortDestinationMissing',
+          abortKey: 'domain.list.move.abortMove',
+        },
       ),
     ).rejects.toThrow(`Destination file not found, aborting move: ${filePath}`)
   })
@@ -965,7 +968,10 @@ describe('loadStagedOrThrow', () => {
     await expect(
       loadStagedOrThrow(
         { ref: { type: 'deck', name: 'Deck' }, filePath },
-        { missingKey: 'cli.move.abortRemoveSourceUnreadable', abortKey: 'cli.move.abortRemove' },
+        {
+          missingKey: 'domain.list.move.abortRemoveSourceUnreadable',
+          abortKey: 'domain.list.move.abortRemove',
+        },
       ),
     ).rejects.toThrow(`Source file not readable, aborting remove: ${filePath}`)
   })

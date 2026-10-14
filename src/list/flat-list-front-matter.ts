@@ -24,6 +24,7 @@ import { frontMatterBodyStart } from './markdown-fence'
 import { readFrontMatterMapping } from './front-matter-write'
 import { listDefaultLabels, readListDefaultLabelsValue, type CardLabel } from '../card/card-labels'
 import type { ListType } from './list-type'
+import { syncMessage, type SyncMessage } from '../sync/message'
 
 /** A flat list's front-matter block, as parsed from the top of the file. */
 export type FlatListFrontMatter = {
@@ -54,10 +55,10 @@ export type FlatListFrontMatterParse = {
   bodyStart: number
   /**
    * Non-fatal notes about the block — unreadable YAML, an invalid `labels:`
-   * value. Advisories rather than warnings on purpose: the raw block
-   * round-trips verbatim, so a rewrite loses nothing.
+   * value — as messages (English plus key). Advisories rather than warnings on
+   * purpose: the raw block round-trips verbatim, so a rewrite loses nothing.
    */
-  advisories: string[]
+  advisories: SyncMessage[]
 }
 
 export type ParseFlatListFrontMatterOptions = {
@@ -80,19 +81,15 @@ export function parseFlatListFrontMatter(
   if (bodyStart === 0) return { bodyStart: 0, advisories: [] }
 
   const raw = lines.slice(0, bodyStart).join('\n') + '\n'
-  const advisories: string[] = []
+  const advisories: SyncMessage[] = []
   let data: Record<string, unknown> = {}
   const mapping = readFrontMatterMapping(raw)
   if (mapping.ok) {
     data = mapping.data
   } else if (mapping.reason === 'not-a-mapping') {
-    advisories.push(
-      'Front matter is not a key/value mapping, so its content was ignored (the block itself is preserved on save).',
-    )
+    advisories.push(syncMessage('domain.list.frontMatter.notMapping'))
   } else {
-    advisories.push(
-      `Front matter could not be read as YAML, so its keys were ignored (the block itself is preserved on save): ${mapping.detail}`,
-    )
+    advisories.push(syncMessage('domain.list.frontMatter.invalidYaml', { detail: mapping.detail }))
   }
 
   const result: FlatListFrontMatterParse = { frontMatter: { raw, data }, bodyStart, advisories }
@@ -100,7 +97,10 @@ export function parseFlatListFrontMatter(
   if (opts.validateLabels && 'labels' in data) {
     const labels = readListDefaultLabelsValue('collection', data.labels)
     if ('reason' in labels) {
-      advisories.push(`Front matter 'labels' ignored: ${labels.reason}`)
+      // The label rule words its own reason; it rides as the text it came with.
+      advisories.push(
+        syncMessage('domain.list.frontMatter.labelsIgnored', { reason: labels.reason }),
+      )
     } else if (labels.labels.length > 0) {
       result.labels = labels.labels
     }

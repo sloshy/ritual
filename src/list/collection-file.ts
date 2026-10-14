@@ -8,7 +8,7 @@
 import type { Condition, Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
 import type { CardLineDiagnostic } from '../card/card-line-grammar'
-import type { ListFileParseOptions } from './line-diagnostics'
+import type { ListFileParseOptions, ParseNotice } from './line-diagnostics'
 import type { CardLabel, LabelOverride } from '../card/card-labels'
 import type { CardTag } from '../card/card-tags'
 import type { FlatListFrontMatter } from './flat-list-front-matter'
@@ -72,6 +72,12 @@ export type CollectionParseResult = {
    * rather than about one card line, which have no structured form.
    */
   diagnostics: CardLineDiagnostic[]
+  /**
+   * {@link warnings} and {@link advisories} again, in recording order, as
+   * messages (English plus their catalog key) — for a caller that reports them
+   * to a reader in another language: a sync report, the admin API, MCP.
+   */
+  notices: ParseNotice[]
 }
 
 export function parseCollectionFile(
@@ -109,5 +115,6 @@ export function parseCollectionFile(
     fencedLines: scan.fencedLines,
     advisories: [...scan.report.advisories],
     diagnostics: [...scan.report.diagnostics],
+    notices: [...scan.report.notices],
   }
 }

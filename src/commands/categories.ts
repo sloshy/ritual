@@ -39,8 +39,9 @@ import { fail } from '../cli/action'
 import { emitCardResult, emitOutput, emitWarnings, type ScriptingOptions } from '../cli/output'
 import type { ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
-import { ExitCode, localizedCommandError } from '../util/errors'
+import { ExitCode, localizedCommandError, messageCommandError } from '../util/errors'
 import { t } from '../i18n/t'
+import { nestSync, syncMessage } from '../sync/message'
 
 /**
  * `ritual categories` — inspect and edit a list's card categories, the third
@@ -133,11 +134,10 @@ async function loadTargetCategories(
 ): Promise<CardCategoriesParseSuccess> {
   const loaded = await loadCardCategories(target.filePath, { knownCardNames })
   if (!loaded.ok) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      'cli.categories.sidecarUnreadable',
-      { reason: loaded.message },
+      syncMessage('cli.categories.sidecarUnreadable', { reason: nestSync(loaded.message) }),
     )
   }
   return loaded
@@ -215,11 +215,10 @@ async function writeCategoryEdit(
   // that rewrites it, or `ritual cleanup`.
   const committed = await commitCategoryChanges(target.filePath, events, { defaultCategories })
   if (committed.error !== undefined) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      'cli.categories.sidecarUnreadable',
-      { reason: committed.error },
+      syncMessage('cli.categories.sidecarUnreadable', { reason: nestSync(committed.error) }),
     )
   }
   const wouldWrite = committed.action !== undefined && categoriesSaveTouchesDisk(committed.action)

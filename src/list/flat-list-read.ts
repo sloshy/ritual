@@ -2,7 +2,9 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import type { CollectionCardEntry, WantedListCardEntry } from './site-data'
 import { parseTitleFromContent } from './section-format'
-import { unreadableLines } from './markdown-fence'
+import { advisoryMessages, unreadableLines, unreadableMessages } from './unreadable-content'
+import type { SyncMessage } from '../sync/message'
+import type { ParseNotice } from './line-diagnostics'
 import { allocateId, collectExistingIds, createIdPool, type CardIdPool } from '../card/card-id'
 import { parseCollectionFile, type CollectionEntry } from './collection-file'
 import { parseWantedListFile, type WantedListEntry } from './wanted-file'
@@ -92,6 +94,10 @@ export type ParsedFlatListFile<E extends FlatListEntry> = {
    * lines do.
    */
   advisories: string[]
+  /** {@link warnings} as messages, the fenced-block entry included. */
+  warningMessages: SyncMessage[]
+  /** {@link advisories} as messages. */
+  advisoryMessages: SyncMessage[]
   pool: CardIdPool
 }
 
@@ -103,6 +109,7 @@ type FlatListParse<Raw> = {
   warnings: string[]
   fencedLines: number
   advisories: string[]
+  notices: ParseNotice[]
 }
 
 /**
@@ -128,6 +135,8 @@ async function readFlatListFile<Raw, E extends FlatListEntry>(
     // read re-serializes the whole file, which would delete the block.
     warnings: unreadableLines(parsed),
     advisories: parsed.advisories,
+    warningMessages: unreadableMessages(parsed),
+    advisoryMessages: advisoryMessages(parsed),
     pool: assignMissingIds(entries),
   }
 }

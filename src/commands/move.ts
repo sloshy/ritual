@@ -1,7 +1,7 @@
 import { Command } from 'commander'
 import type { Choice } from 'prompts'
 import { promptExitMenu, ask, suggestCardsWithMenu } from '../cli/prompts'
-import { listRefLabel } from '../changes/change-event'
+import { listRefDisplay, listRefMessage } from '../changes/change-message'
 import type { ListEntry } from '../list/list-info'
 import type { MoveSessionConfig, VirtualCard } from '../list/move-commit'
 import type { PhysicalCard, DroppedNote } from '../list/move-staging'
@@ -28,7 +28,13 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
+import {
+  ExitCode,
+  CardCommandError,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
+import { syncMessage } from '../sync/message'
 import { describeEntry, ensureCardIdMatchesName } from '../list/entry-ref'
 import { resolvePinnedPrinting } from '../card/printing-pin'
 import { runCommandAction } from '../cli/action'
@@ -237,7 +243,7 @@ async function runInteractiveMove(sourceFilterPath: string | undefined): Promise
   }
 
   if (sourceFilter) {
-    console.log(t('cli.move.sourceFilter', { list: listRefLabel(sourceFilter.ref) }))
+    console.log(t('cli.move.sourceFilter', { list: listRefDisplay(sourceFilter.ref) }))
   }
 
   console.log(
@@ -508,17 +514,21 @@ function selectCopies(
   fromEntry: ListEntry,
   selection: HeadlessSelection,
 ): VirtualCard[] {
-  const label = listRefLabel(fromEntry.ref)
+  const label = listRefDisplay(fromEntry.ref)
+  // Nested rather than rendered for the refusals below, so the `--output json`
+  // envelope's params keep the list's English label (`envelopeRef`).
+  const list = listRefMessage(fromEntry.ref)
   const all = [...state.values()]
 
   let matches: VirtualCard[]
   if (selection.cardId !== undefined) {
     matches = all.filter((vc) => vc.card.cardId === selection.cardId)
     if (matches.length === 0) {
-      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.move.noCardWithId', {
-        id: selection.cardId,
-        list: label,
-      })
+      throw messageCommandError(
+        'not_found',
+        ExitCode.NotFound,
+        syncMessage('cli.move.noCardWithId', { id: selection.cardId, list }),
+      )
     }
     // A name given alongside the ID must agree with it — a stale ID would
     // otherwise move whatever card now carries it, reported as success.
@@ -530,10 +540,11 @@ function selectCopies(
   } else {
     matches = matchByNormalizedName(all, selection.cardName!, (vc) => vc.card.name)
     if (matches.length === 0) {
-      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.move.noCardMatching', {
-        name: String(selection.cardName),
-        list: label,
-      })
+      throw messageCommandError(
+        'not_found',
+        ExitCode.NotFound,
+        syncMessage('cli.move.noCardMatching', { name: String(selection.cardName), list }),
+      )
     }
   }
 
@@ -552,11 +563,15 @@ function selectCopies(
         ? strict
         : matches.filter((vc) => printingMatches(vc.card, selection, 'compatible'))
     if (narrowed.length === 0) {
-      throw localizedCommandError('not_found', ExitCode.NotFound, 'cli.move.noCopiesMatching', {
-        name: matches[0]!.card.name,
-        criteria: describeNarrowing(selection),
-        list: label,
-      })
+      throw messageCommandError(
+        'not_found',
+        ExitCode.NotFound,
+        syncMessage('cli.move.noCopiesMatching', {
+          name: matches[0]!.card.name,
+          criteria: describeNarrowing(selection),
+          list,
+        }),
+      )
     }
     matches = narrowed
   }
@@ -756,8 +771,8 @@ function emitMoveSuccess(
       t('cli.move.moved', {
         count: moved,
         card: `${card.name}${printingPart}${finishSuffix(card.finish)}${languageToken(card.language)}`,
-        from: listRefLabel(from.ref),
-        to: listRefLabel(to.ref),
+        from: listRefDisplay(from.ref),
+        to: listRefDisplay(to.ref),
       }),
       scripting,
     )
@@ -820,8 +835,8 @@ function handleViewPending(virtualState: Map<string, VirtualCard>): void {
     console.log(
       t('cli.move.pendingLine', {
         card: `${card.name}${printingPart}${finishPart}${cardIdLabel(card.cardId)}`,
-        from: listRefLabel(vc.pendingMove.originalList.ref),
-        to: listRefLabel(vc.currentList.ref),
+        from: listRefDisplay(vc.pendingMove.originalList.ref),
+        to: listRefDisplay(vc.currentList.ref),
       }),
     )
   }
@@ -882,7 +897,7 @@ async function handleCardMove(
   console.log(
     t('cli.move.queued', {
       card: `${resolvedCard.name}${printingPart}${finishPart}`,
-      list: listRefLabel(destList.ref),
+      list: listRefDisplay(destList.ref),
     }),
   )
 }

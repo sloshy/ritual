@@ -6,6 +6,7 @@ import {
   type CardArtRef,
 } from '../../list/card-art'
 import { t } from '../../i18n/t'
+import { renderSyncMessage } from '../../sync/message'
 import { reconcileListRefs } from '../../list/list-refs'
 
 /** What the Set Custom Art prompt resolved to: a reference, or `null` to clear. */
@@ -241,7 +242,8 @@ export async function currentSessionArt(
   if (art.removed.has(cardId)) return { ok: true, ref: null }
   if (art.baseline === null) {
     const loaded = await loadCardArt(listFilePath)
-    if (!loaded.ok) return { ok: false, message: loaded.message }
+    // Rendered for the session's own console, in the CLI's language.
+    if (!loaded.ok) return { ok: false, message: renderSyncMessage(loaded.message) }
     art.baseline = loaded.art
   }
   return { ok: true, ref: art.baseline.get(cardId) ?? null }
@@ -318,5 +320,5 @@ export function pendingSessionArt(art: SessionArtChanges): CardArtReconcileInput
  */
 export function warnUnreconciledArt(result: CardArtReconcileResult): void {
   if (result.ok) return
-  console.warn(t('cli.session.artSidecarUnreadable', { reason: result.message }))
+  console.warn(t('cli.session.artSidecarUnreadable', { reason: renderSyncMessage(result.message) }))
 }

@@ -10,6 +10,7 @@ import {
 import { loadDefaultCategories } from '../../config/ritual-config'
 import type { WithCardCategories } from '../../card/card-categories'
 import { apiText } from '../../api/result'
+import type { SyncMessage } from '../../sync/message'
 
 /**
  * The read side of a list's categories, in the shape the load routes hand out.
@@ -29,8 +30,8 @@ import { apiText } from '../../api/result'
  * the two say different things on purpose — a read changed nothing, so it must
  * not claim the card lines were saved.
  */
-export function categoriesUnreadableWarning(reason: string): string {
-  return apiText('admin.api.load.categoriesUnreadable', { reason })
+export function categoriesUnreadableWarning(reason: SyncMessage): string {
+  return apiText('admin.api.load.categoriesUnreadable', { reason: reason.message })
 }
 
 /** {@link listCategories}' inputs. */

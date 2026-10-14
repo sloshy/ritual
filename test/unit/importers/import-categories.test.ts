@@ -6,6 +6,7 @@ import {
   moxfieldDeckCategories,
 } from '../../../src/importers/import-categories'
 import type { DeckSection } from '../../../src/list/deck'
+import { syncText } from '../../../src/sync/message'
 
 const SECTIONS: DeckSection[] = [
   { name: 'Commander', cards: [{ quantity: 1, name: 'Winota, Joiner of Forces' }] },
@@ -56,7 +57,7 @@ describe('importCategoryAdvisories', () => {
   test('names the refused categories and a failed write; nothing when there is neither', () => {
     expect(importCategoryAdvisories(undefined, undefined)).toEqual([])
     expect(importCategoryAdvisories([], undefined)).toEqual([])
-    const [refused, failed] = importCategoryAdvisories(['a,b', 'c\td'], 'EACCES')
+    const [refused, failed] = importCategoryAdvisories(['a,b', 'c\td'], syncText('EACCES'))
     expect(keyedMessage(refused!)).toBe(
       'Skipped categories Ritual cannot store (a category is non-empty plain text that cannot contain a comma or a control character): "a,b", "c\\td"',
     )

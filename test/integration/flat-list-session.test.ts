@@ -294,7 +294,7 @@ describe('session custom art', () => {
   /** The sidecar as it stands on disk, as plain pairs. */
   async function artOnDisk(filePath: string): Promise<[number, CardArtRef][]> {
     const loaded = await loadCardArt(filePath)
-    if (!loaded.ok) throw new Error(loaded.message)
+    if (!loaded.ok) throw new Error(loaded.message.message)
     return [...loaded.art.entries()]
   }
 

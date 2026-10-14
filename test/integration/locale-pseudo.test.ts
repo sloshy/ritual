@@ -5,6 +5,7 @@ import { LOCALE_ENV, ensureBinary, repoRoot, runCli, withTempDir } from './helpe
 import { en } from '../../src/i18n/messages/en'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../helpers/change-problem'
 import type { LocaleCatalog } from '../../src/i18n/types'
+import { writeDeckFile, writeWantedFile } from '../helpers/workspace'
 
 /**
  * The pseudo-locale end to end, through the real binary.
@@ -440,6 +441,64 @@ describe('pseudo-locale (Integration)', () => {
       expect(json.error).toMatchObject({
         messageParams: { reason: MALFORMED_MOVE_ENGLISH },
       })
+    })
+  })
+  test('new words an unusable list name in the CLI’s language, its key kept for json', async () => {
+    await withTempDir(async (dir) => {
+      const refusal = (await pseudoText('domain.list.name.unusable')).replace('{name}', '???')
+      const text = await runCli(['new', 'collection', '???'], dir, PSEUDO_ENV)
+      expect(text.exitCode).toBe(2)
+      expect(unwrap(text.stderr)).toContain(unwrap(refusal))
+
+      const json = await runFailing(
+        ['new', 'collection', '???', '--output', 'json'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(json.error.code).toBe('usage_error')
+      expect(json.error.messageKey).toBe('domain.list.name.unusable')
+      expect(json.error.message).toBe(refusal)
+    })
+  })
+
+  test('move names its lists in the CLI’s language while the changelog keeps them English', async () => {
+    await withTempDir(async (dir) => {
+      await writeWantedFile(dir, 'needs', { entries: [{ name: 'Demonic Tutor', cardId: 1 }] })
+      await writeDeckFile(dir, 'target', {
+        name: 'Target Deck',
+        cards: [{ quantity: 1, name: 'Sol Ring', cardId: 1 }],
+      })
+      const result = await runCli(
+        ['move', 'Demonic', 'Tutor', '--from', 'wanted:needs', '--to', 'deck:target'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(result.exitCode).toBe(0)
+
+      // The success line names both lists through `domain.change.listRef`, so
+      // each is bracketed like the sentence around it.
+      const forms = (await pseudo())['domain.change.listRef']
+      if (
+        typeof forms !== 'object' ||
+        forms === null ||
+        !('wanted' in forms) ||
+        !('deck' in forms)
+      ) {
+        throw new Error('domain.change.listRef has no wanted/deck branches in en-XA')
+      }
+      const from = String(forms.wanted).replace('{name}', 'needs')
+      const to = String(forms.deck).replace('{name}', 'Target Deck')
+      const output = unwrap(result.stdout)
+      expect(output).toContain(unwrap(from))
+      expect(output).toContain(unwrap(to))
+      // Vacuity guard: the localized labels are not the English ones.
+      expect(output).not.toContain("Wanted list 'needs'")
+
+      // The persisted move lines keep the English labels, byte for byte.
+      const sourceLog = await fs.readFile(path.join(dir, 'wanted', 'needs.changes.md'), 'utf-8')
+      expect(sourceLog).toContain("to Deck 'Target Deck'")
+      const targetLog = await fs.readFile(path.join(dir, 'decks', 'target.changes.md'), 'utf-8')
+      expect(targetLog).toContain("from Wanted list 'needs'")
     })
   })
 })

@@ -1,5 +1,6 @@
 import { createSignal, type Accessor } from 'solid-js'
-import { type ListRef, listRefLabel } from '../changes/change-event'
+import type { ListRef } from '../changes/change-event'
+import { listRefDisplay } from '../changes/change-message'
 import { t } from '../i18n/t'
 
 /**
@@ -50,14 +51,14 @@ export function closeMovePrompt(): void {
 
 /**
  * Open the picker to move card(s) into another list. Destinations are labelled
- * with {@link listRefLabel}; picking one invokes `onPick` with the exact target
+ * with {@link listRefDisplay}; picking one invokes `onPick` with the exact target
  * object that was passed in (generic, so slug-bearing refs survive the round trip).
  */
 export function promptListMove<T extends ListRef>(targets: T[], onPick: (dest: T) => void): void {
   promptMoveTarget({
     title: t('site.move.toListTitle'),
     options: targets.map((dest) => ({
-      label: listRefLabel(dest),
+      label: listRefDisplay(dest),
       onSelect: () => onPick(dest),
     })),
   })

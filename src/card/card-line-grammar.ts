@@ -53,7 +53,7 @@ import {
   parseCardTagsInput,
   type CardTag,
 } from './card-tags'
-import { listTypeLabel, type ListType } from '../list/list-type'
+import { workspaceListTypeNoun, type ListType } from '../list/list-type'
 
 /**
  * Every kind of token a card line can carry. `tags` is the only *repeatable*
@@ -739,7 +739,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           kind: 'quantity-expanded',
           token: quantityMatch[0].trim(),
           message:
-            `Read ${quantity} copies: a ${listTypeLabel(type)} holds one line per copy, ` +
+            `Read ${quantity} copies: a ${workspaceListTypeNoun(type)} holds one line per copy, ` +
             `so this line becomes ${quantity} lines on the next save.`,
         })
       }
@@ -763,7 +763,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         token: token.text,
         column: token.column,
         message:
-          `${token.text} is not a ${listTypeLabel(type)} token` +
+          `${token.text} is not a ${workspaceListTypeNoun(type)} token` +
           (reason === undefined ? '.' : ` — ${reason}.`),
       })
     }
@@ -1072,7 +1072,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
     return failLine(type, line, {
       code: 'missing-printing',
       kind: 'printing',
-      message: `A ${listTypeLabel(type)} line must name a printing, e.g. (LEA:161): ${line.trim()}`,
+      message: `A ${workspaceListTypeNoun(type)} line must name a printing, e.g. (LEA:161): ${line.trim()}`,
     })
   }
 

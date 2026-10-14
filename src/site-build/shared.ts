@@ -9,6 +9,7 @@ import {
 import { computeRepresentativePrints } from '../scryfall'
 import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
+import { renderSyncMessage } from '../sync/message'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../buylist'
 import { loadCardArt, type CardArtMap, type CardArtRef } from '../list/card-art'
 import {
@@ -90,9 +91,15 @@ export function readListFrontMatter(data: Record<string, unknown>): ListFrontMat
     ...(image.image ? { image: image.image } : {}),
     warnings: [
       ...(description.advisory
-        ? [t('site.detail.listDescriptionInvalid', { reason: description.advisory })]
+        ? [
+            t('site.detail.listDescriptionInvalid', {
+              reason: renderSyncMessage(description.advisory),
+            }),
+          ]
         : []),
-      ...(image.advisory ? [t('site.detail.listImageInvalid', { reason: image.advisory })] : []),
+      ...(image.advisory
+        ? [t('site.detail.listImageInvalid', { reason: renderSyncMessage(image.advisory) })]
+        : []),
     ],
   }
 }
@@ -194,7 +201,9 @@ export async function loadListSidecars(
   const loadedArt = await loadCardArt(listFilePath, { knownCardIds: options.knownCardIds })
   const artWarnings: string[] = []
   if (!loadedArt.ok) {
-    artWarnings.push(t('site.detail.artUnreadable', { reason: loadedArt.message }))
+    artWarnings.push(
+      t('site.detail.artUnreadable', { reason: renderSyncMessage(loadedArt.message) }),
+    )
   } else {
     for (const warning of loadedArt.warnings) {
       artWarnings.push(t('site.detail.artUnknownCards', { ids: warning.ids.join(', ') }))
@@ -207,7 +216,9 @@ export async function loadListSidecars(
   const categoryWarnings: string[] = []
   if (!loadedCategories.ok) {
     categoryWarnings.push(
-      t('site.detail.categoriesUnreadable', { reason: loadedCategories.message }),
+      t('site.detail.categoriesUnreadable', {
+        reason: renderSyncMessage(loadedCategories.message),
+      }),
     )
   } else {
     for (const warning of loadedCategories.warnings) {

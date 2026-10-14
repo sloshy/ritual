@@ -5,6 +5,7 @@ import {
   readAddCardArt,
   type AddCardOptionsConfig,
 } from '../../src/editor/components/AddCardOptions'
+import { keyedMessage } from '../helpers/api-message'
 
 /**
  * The add dialog's per-card options row, minus its markup: what the typed art
@@ -46,7 +47,7 @@ describe('readAddCardArt', () => {
     const parsed = readAddCardArt('../secrets/passwd.png')
     expect(parsed.state).toBe('invalid')
     if (parsed.state !== 'invalid') throw new Error('expected a refusal')
-    expect(parsed.reason.length).toBeGreaterThan(0)
+    expect(keyedMessage(parsed.reason)).toContain('escapes the art directory')
   })
 })
 

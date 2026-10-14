@@ -72,7 +72,7 @@ import { fail, failWithMessage } from '../cli/action'
 import { ExitCode, CardCommandError, isBrokenPipeError } from '../util/errors'
 import { getLogger } from '../util/logger'
 import { getDecksDir } from '../config/ritual-config'
-import { isListType, listTypeLabel, LIST_TYPES, type ListType } from '../list/list-type'
+import { isListType, listTypeNoun, LIST_TYPES, type ListType } from '../list/list-type'
 import { ask, promptListType, resolveImportPrintings } from '../cli/prompts'
 import { cliConflictResolver } from '../cli/import-prompts'
 import { isNoInput, promptsUnavailable } from '../util/no-input'
@@ -84,6 +84,7 @@ import {
   nestSync,
   renderSyncMessage,
   syncMessage,
+  syncRef,
   type PrefixedMessage,
   type SyncMessage,
 } from '../sync/message'
@@ -503,8 +504,7 @@ async function runCsvImport(
   if (options.deckFormat !== undefined) {
     const normalized = parseDeckFormat(options.deckFormat)
     if (normalized === null) {
-      emitError('usage_error', invalidDeckFormatMessage(options.deckFormat), scripting)
-      process.exitCode = ExitCode.UsageError
+      failWithMessage(scripting, 'usage_error', invalidDeckFormatMessage(options.deckFormat))
       return
     }
     format = normalized
@@ -554,7 +554,7 @@ async function runCsvImport(
   if (name === undefined) {
     const picked = await ask<string>({
       type: 'text',
-      message: t('cli.import.promptListName', { label: listTypeLabel(listType) }),
+      message: t('cli.import.promptListName', { label: listTypeNoun(listType) }),
       validate: (value: string) =>
         value.trim().length > 0 ? true : t('cli.import.nameEmptyValidation'),
     })
@@ -838,9 +838,14 @@ export function registerImportCommand(program: Command): void {
     }
 
     if (kind === 'url' && typeFlag !== undefined && typeFlag !== 'deck') {
-      fail(scripting, 'usage_error', 'cli.import.urlDeckOnly', {
-        label: listTypeLabel(typeFlag),
-      })
+      // Nested, so the `--output json` params keep the type's English noun.
+      failWithMessage(
+        scripting,
+        'usage_error',
+        syncMessage('cli.import.urlDeckOnly', {
+          label: syncRef('domain.listType.noun', { type: typeFlag }),
+        }),
+      )
       return
     }
 

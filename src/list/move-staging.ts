@@ -20,19 +20,14 @@ import {
   createIdPool,
   parseCardIdsFromContent,
 } from '../card/card-id'
-import {
-  endsInsideOpenFence,
-  frontMatterBodyStart,
-  markFencedLines,
-  unreadableContentMessage,
-  unreadableLines,
-} from './markdown-fence'
+import { endsInsideOpenFence, frontMatterBodyStart, markFencedLines } from './markdown-fence'
+import { unreadableContentMessage, unreadableProblems } from './unreadable-content'
+import { nestSync, syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 import type { Card } from '../card/card'
 import type { DeckData } from './deck'
 import { type ListRef, type MovedCopyFields, type PrintingTuple } from '../changes/change-event'
 import { displayLanguage } from '../card/card-language'
 import { findMatchKey } from '../card/find-search'
-import { t } from '../i18n/t'
 import { isCardCandidate, readCardLine } from '../card/card-line-read'
 import { foldCategoryCardName } from '../card/card-categories'
 import { deckCardNameSet } from './card-names'
@@ -162,7 +157,7 @@ export type StagedFile = StagedDeckFile | StagedTextFile
  */
 export type LoadStagedResult =
   | { ok: true; file: StagedFile }
-  | { ok: false; reason: 'unreadable-file' | 'unreadable-lines'; message: string }
+  | { ok: false; reason: 'unreadable-file' | 'unreadable-lines'; message: SyncMessage }
 
 export async function readDeckAndFrontMatter(
   filePath: string,
@@ -178,13 +173,13 @@ async function loadStagedDeck(filePath: string): Promise<LoadStagedResult> {
     return {
       ok: false,
       reason: 'unreadable-file',
-      message: t('cli.move.cannotReadDeck', { file: filePath }),
+      message: syncMessage('domain.list.move.cannotReadDeck', { file: filePath }),
     }
   }
   // A deck side of a move is written back by re-serializing the whole file, so
   // anything the parse could not carry — a skipped line, a fenced code block —
   // would be deleted by the write. Refuse the move instead.
-  const lost = unreadableLines(parsed)
+  const lost = unreadableProblems(parsed)
   if (lost.length > 0) {
     return {
       ok: false,
@@ -206,7 +201,7 @@ export async function loadStagedFile(
     return {
       ok: false,
       reason: 'unreadable-file',
-      message: t('cli.move.cannotReadFile', { file: filePath }),
+      message: syncMessage('domain.list.move.cannotReadFile', { file: filePath }),
     }
   }
   return { ok: true, file: { kind: 'text', type, content } }
@@ -219,10 +214,10 @@ export async function loadStagedFile(
  */
 export type StagedAbortKeys = {
   missingKey:
-    | 'cli.move.abortDestinationMissing'
-    | 'cli.move.abortSourceUnreadable'
-    | 'cli.move.abortRemoveSourceUnreadable'
-  abortKey: 'cli.move.abortMove' | 'cli.move.abortRemove'
+    | 'domain.list.move.abortDestinationMissing'
+    | 'domain.list.move.abortSourceUnreadable'
+    | 'domain.list.move.abortRemoveSourceUnreadable'
+  abortKey: 'domain.list.move.abortMove' | 'domain.list.move.abortRemove'
 }
 
 /**
@@ -236,10 +231,12 @@ export async function loadStagedOrThrow(
 ): Promise<StagedFile> {
   const loaded = await loadStagedFile(entry.filePath, entry.ref.type)
   if (loaded.ok) return loaded.file
-  throw new Error(
+  // English plus its key, so the admin save path (and MCP behind it) answers
+  // in English while the CLI renders it in its own language.
+  throw new SyncMessageError(
     loaded.reason === 'unreadable-file'
-      ? t(keys.missingKey, { file: entry.filePath })
-      : t(keys.abortKey, { reason: loaded.message }),
+      ? syncMessage(keys.missingKey, { file: entry.filePath })
+      : syncMessage(keys.abortKey, { reason: nestSync(loaded.message) }),
   )
 }
 
@@ -815,7 +812,9 @@ export function applyAddToStaged(
   }
   if (listType === 'collection') {
     if (!card.set || !card.collectorNumber) {
-      throw new Error(t('cli.move.collectionNeedsPrinting', { name: card.name }))
+      throw new SyncMessageError(
+        syncMessage('domain.changes.collectionPrinting.add', { name: card.name }),
+      )
     }
     const added = applyAddCollectionLine(staged.content, card, stagedDefaultLabels(staged))
     staged.content = added.content
@@ -899,7 +898,9 @@ function applyAddToDeck(
  */
 function assertAppendable(content: string, cardName: string): void {
   if (endsInsideOpenFence(content)) {
-    throw new Error(t('cli.move.appendIntoOpenFence', { name: cardName }))
+    throw new SyncMessageError(
+      syncMessage('domain.list.move.appendIntoOpenFence', { name: cardName }),
+    )
   }
 }
 

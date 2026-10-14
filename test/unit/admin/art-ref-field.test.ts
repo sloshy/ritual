@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { readCardArtValue } from '../../../src/admin/site/components/ArtRefField'
+import { keyedMessage } from '../../helpers/api-message'
 
 /**
  * The shared art-reference field, minus its markup: what the typed value means
@@ -40,15 +41,16 @@ describe('readCardArtValue', () => {
   })
 
   test.each([
-    ['file', '../secrets.png'],
-    ['file', 'notes.txt'],
-    ['file', 'C:\\art\\ring.png'],
-    ['file', '/etc/ring.png'],
-    ['url', 'ftp://example.test/ring.png'],
-  ] as const)('%s mode refuses %s with the parser’s own reason', (mode, raw) => {
+    ['file', '../secrets.png', 'domain.list.art.escapes'],
+    ['file', 'notes.txt', 'domain.list.art.notImage'],
+    ['file', 'C:\\art\\ring.png', 'domain.list.art.backslashes'],
+    ['file', '/etc/ring.png', 'domain.list.art.absolute'],
+    ['url', 'ftp://example.test/ring.png', 'domain.list.art.notHttp'],
+  ] as const)('%s mode refuses %s with the parser’s own reason', (mode, raw, key) => {
     const parsed = readCardArtValue(mode, raw)
-    expect(parsed.state).toBe('invalid')
     if (parsed.state !== 'invalid') throw new Error('expected a refusal')
-    expect(parsed.reason.length).toBeGreaterThan(0)
+    expect(parsed.reason.messageKey).toBe(key)
+    // The value as typed rides through the refusal, whatever its wording.
+    expect(keyedMessage(parsed.reason)).toContain(`"${raw}"`)
   })
 })

@@ -412,7 +412,7 @@ export async function saveOpenList(
   for (const plan of plans) {
     for (const { move } of plan.openDest) {
       if (move.to.type === 'collection' && (!move.set || !move.collectorNumber)) {
-        return fail(t('cli.move.collectionNeedsPrinting', { name: move.cardName }))
+        return fail(t('domain.changes.collectionPrinting.add', { name: move.cardName }))
       }
     }
   }

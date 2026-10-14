@@ -39,6 +39,7 @@ import { fail, runCommandAction } from '../cli/action'
 import { parsePositiveInteger } from '../util/parse-number'
 import { t, type MessageRef } from '../i18n/t'
 import { writeFileAtomic } from '../util/atomic-write'
+import { renderSyncMessage } from '../sync/message'
 
 export type HistoryOptions = ListTypeFlags &
   Partial<ScriptingOptions> & {
@@ -488,7 +489,11 @@ async function handleRewrite(state: EditorState, location: ListLocation): Promis
   // every existing set, so say what is being left out rather than dropping it
   // silently.
   if (defaults.categoriesWarning !== undefined) {
-    console.log(t('cli.history.categoriesUnreadable', { reason: defaults.categoriesWarning }))
+    console.log(
+      t('cli.history.categoriesUnreadable', {
+        reason: renderSyncMessage(defaults.categoriesWarning),
+      }),
+    )
   }
   const events = defaults.events
   if (events.length === 0) {

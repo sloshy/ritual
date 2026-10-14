@@ -70,6 +70,7 @@ import type { CardMutationChange } from './list-mutate'
 import type { EntryRef } from './entry-ref'
 import { loadDefaultCategories } from '../config/ritual-config'
 import { headingName, sectionHeading } from './heading'
+import { syncMessage, SyncMessageError } from '../sync/message'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -323,8 +324,8 @@ export function applyTargetedChangesToContent(
         // content out.
         break
       default:
-        throw new Error(
-          `applyTargetedChanges does not handle '${change.action}' events; use the editor engines.`,
+        throw new SyncMessageError(
+          syncMessage('domain.list.guard.unhandledAction', { action: change.action }),
         )
     }
   }
@@ -366,7 +367,7 @@ function targetLineGone(): CardCommandError {
 /** Section and commander moves are deck-line operations only. */
 function requireDeck(type: ListType, action: string): void {
   if (type !== 'deck') {
-    throw new Error(`applyTargetedChanges cannot apply '${action}' to a ${type}`)
+    throw new SyncMessageError(syncMessage('domain.list.guard.deckOnlyAction', { type, action }))
   }
 }
 
@@ -380,8 +381,10 @@ function requireDeck(type: ListType, action: string): void {
 function requireSupportedLabels(type: ListType, labels: readonly SignedCardLabel[]): void {
   const check = checkLabelsForListType(type, labels)
   if (check.ok) return
-  throw new Error(
-    `applyTargetedChanges cannot apply this set-label: ${unsupportedLabelsMessage(type, check.unsupported)}`,
+  throw new SyncMessageError(
+    syncMessage('domain.list.guard.unsupportedLabels', {
+      reason: unsupportedLabelsMessage(type, check.unsupported),
+    }),
   )
 }
 
@@ -803,7 +806,9 @@ export function applyDeckAddToContent(
   placement: DeckAddPlacement = {},
 ): DeckAddResult {
   if (!Number.isInteger(copies) || copies < 1) {
-    throw new Error(`applyDeckAddToContent needs at least one copy to add (got ${copies}).`)
+    throw new SyncMessageError(
+      syncMessage('domain.list.guard.noCopies', { copies: String(copies) }),
+    )
   }
   let lines = content.split('\n')
   let cardId = card.cardId
@@ -855,7 +860,9 @@ export function applyDeckAddToContent(
   const out = withCommander.join('\n')
   // Both loop branches assign an id (allocating one when a merge target had
   // none), and the guard above makes at least one iteration run.
-  if (cardId === undefined) throw new Error('applyDeckAddToContent produced no card id')
+  if (cardId === undefined) {
+    throw new SyncMessageError(syncMessage('domain.list.guard.noCardId'))
+  }
   return {
     content: content.endsWith('\n') && !out.endsWith('\n') ? out + '\n' : out,
     outcome: { cardId, quantity, section, merged },

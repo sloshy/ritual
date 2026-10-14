@@ -14,12 +14,13 @@ import {
   type CardArtRef,
 } from '../../list/card-art'
 import { getArtDir } from '../../config/ritual-config'
-import { listTypeLabel, type ListType } from '../../list/list-type'
+import { workspaceListTypeNoun, type ListType } from '../../list/list-type'
 import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
 import { resolveListFile } from './list-info'
-import { apiMessage, apiText, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
-import { apiError, badRequest, readJsonObjectBody } from '../../api/http'
+import { apiMessage, apiText, isApiMessage, type ApiMessage } from '../../api/result'
+import { apiError, badRequest, nestedRefusal, readJsonObjectBody } from '../../api/http'
+import { isSyncMessage, type SyncMessage } from '../../sync/message'
 import { autoCommitAndPush } from './save-helpers'
 import { parseListTarget } from './target'
 
@@ -58,7 +59,7 @@ export type CardArtSaveResponse = ApiMessage & {
  */
 export function parseCardArtSaveBody(
   raw: Record<string, unknown>,
-): CardArtSaveRequest | ApiMessage {
+): CardArtSaveRequest | SyncMessage {
   for (const key of Object.keys(raw)) {
     if (key !== 'cardId' && key !== 'art') {
       return apiMessage('admin.api.art.unknownField', { field: key })
@@ -70,7 +71,7 @@ export function parseCardArtSaveBody(
   if (!('art' in raw)) return apiMessage('admin.api.art.artRequired')
   if (raw.art === null) return { cardId: raw.cardId, art: null }
   const ref = parseCardArtRef(raw.art)
-  if (isCardArtRefError(ref)) return plainMessage(ref.error)
+  if (isCardArtRefError(ref)) return ref.error
   return { cardId: raw.cardId, art: ref }
 }
 
@@ -132,7 +133,7 @@ export async function listArtRecord(
   options: ListArtRecordOptions,
 ): Promise<ListArtRecord> {
   const loaded = await loadCardArt(filePath, { knownCardIds: options.knownCardIds })
-  if (!loaded.ok) return { artWarnings: [loaded.message] }
+  if (!loaded.ok) return { artWarnings: [loaded.message.message] }
   // English, like every warning a load body carries: the field is a list of
   // sentences with no room for a key, and MCP reads it as it stands.
   const artWarnings = loaded.warnings.map((warning) =>
@@ -161,7 +162,7 @@ export function handleArtSave(req: Request): Promise<Response> {
     const read = await readJsonObjectBody(req)
     if (!read.ok) return read.response
     const parsed = parseCardArtSaveBody(read.body)
-    if (isApiMessage(parsed)) return badRequest(parsed)
+    if (isSyncMessage(parsed)) return nestedRefusal(parsed)
 
     const filePath = await resolveListFile(target.type, target.slug)
     if (!filePath) {
@@ -195,7 +196,7 @@ export function handleArtSave(req: Request): Promise<Response> {
     // would erase custom art the user still has, for cards this request never
     // mentioned.
     const loaded = await loadCardArt(filePath)
-    if (!loaded.ok) return apiError(plainMessage(loaded.message), 400)
+    if (!loaded.ok) return nestedRefusal(loaded.message)
     if (parsed.art === null) loaded.art.delete(parsed.cardId)
     else loaded.art.set(parsed.cardId, parsed.art)
 
@@ -207,7 +208,7 @@ export function handleArtSave(req: Request): Promise<Response> {
       await autoCommitAndPush(
         dirForType(target.type),
         [written.path],
-        `Update custom art for ${listTypeLabel(target.type)} ${target.slug}`,
+        `Update custom art for ${workspaceListTypeNoun(target.type)} ${target.slug}`,
       )
     }
 

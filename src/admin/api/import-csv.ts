@@ -17,7 +17,7 @@ import {
 import { applyCsvImport, type CsvImportMode } from '../../importers/csv-apply'
 import { dirForType } from '../../list/resolve-list'
 import { apiHandler } from '../utils'
-import { apiMessage, plainMessage } from '../../api/result'
+import { apiMessage } from '../../api/result'
 import {
   isSyncMessage,
   nestSync,
@@ -177,7 +177,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
     if (body.format !== undefined) {
       const normalized = parseDeckFormat(body.format)
       if (normalized === null) {
-        return badRequest(plainMessage(invalidDeckFormatMessage(body.format)))
+        return nestedRefusal(invalidDeckFormatMessage(body.format))
       }
       format = normalized
     }

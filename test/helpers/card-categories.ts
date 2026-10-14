@@ -71,6 +71,6 @@ export async function readCategoriesSidecar(
   const sidecarPath = categoriesSidecarPath(listFilePath)
   if (!(await Bun.file(sidecarPath).exists())) return null
   const loaded = await loadCardCategories(listFilePath)
-  if (!loaded.ok) throw new Error(`categories sidecar unreadable: ${loaded.message}`)
+  if (!loaded.ok) throw new Error(`categories sidecar unreadable: ${loaded.message.message}`)
   return categoriesOf(loaded.categories)
 }

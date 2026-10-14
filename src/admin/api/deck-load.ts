@@ -1,4 +1,4 @@
-import { unreadableLines } from '../../list/markdown-fence'
+import { unreadableLines } from '../../list/unreadable-content'
 import { computeHash } from '../../changes/content-hash'
 import { collectDeckCardIds } from '../../card/card-id'
 import { loadDeckFile } from '../../importers/text-file'

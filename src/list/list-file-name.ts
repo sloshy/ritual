@@ -66,14 +66,6 @@ export function listFileName(name: string): string | null {
 }
 
 /**
- * The message every surface uses when it refuses a name it cannot make a file
- * name out of, so the CLI, the editors, and the admin API say the same thing.
- */
-export function unusableFileNameMessage(name: string): string {
-  return `'${name}' contains no characters usable in a file name.`
-}
-
-/**
  * True when a directory entry is a list's own markdown file — the one predicate
  * every enumerator of a list directory uses.
  *

@@ -9,7 +9,7 @@
  */
 
 import type { Choice } from 'prompts'
-import { listRefLabel } from '../changes/change-event'
+import { listRefDisplay } from '../changes/change-message'
 import { t } from '../i18n/t'
 import { applyVirtualMove, type MoveSessionConfig, type VirtualCard } from '../list/move-commit'
 import {
@@ -213,7 +213,7 @@ async function promptSelectAllFrom(
 
   while (true) {
     const choices: Choice[] = lists.map((l) => ({
-      title: toggleItemTitle(picked.has(l.filePath), listRefLabel(l.ref)),
+      title: toggleItemTitle(picked.has(l.filePath), listRefDisplay(l.ref)),
       value: l.filePath,
     }))
     choices.push(
@@ -337,7 +337,7 @@ async function queueBatch(
   }
 
   if (queued > 0) {
-    console.log(t('cli.move.batchQueued', { count: queued, list: listRefLabel(dest.ref) }))
+    console.log(t('cli.move.batchQueued', { count: queued, list: listRefDisplay(dest.ref) }))
   }
   if (plan.sameList > 0) {
     console.log(t('cli.move.batchSkippedSameList', { count: plan.sameList }))

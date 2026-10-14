@@ -491,7 +491,8 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
         // contents to decide what the user wrote.
         const parsed = parseCardCategoriesSidecar(content)
         if (parsed.ok) return parsed.categories
-        pushParseWarning(fc, revision, parsed.message)
+        // English, like the parser warnings this channel already carries.
+        pushParseWarning(fc, revision, parsed.message.message)
         return null
       }
       const before = parseSide(beforeContent, 'committed')

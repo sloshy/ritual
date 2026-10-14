@@ -15,30 +15,34 @@ import path from 'node:path'
 import { hashPath, isRitualClean, writeFileWithHash, writeListFile } from '../changes/content-hash'
 import { newDeckMarkdown } from './deck-file'
 import { invalidDeckFormatMessage, parseDeckFormat } from './deck-format'
-import { sanitizeListFileName, unusableFileNameMessage, listSlug } from './list-file-name'
+import { sanitizeListFileName, listSlug } from './list-file-name'
 import {
   LIST_SIDECAR_KINDS,
   listSidecarPath,
   moveListSidecars,
   renameListThroughTemp,
 } from './list-sidecars'
-import { listTypeLabel, type ListType } from './list-type'
+import type { ListType } from './list-type'
 import { isPathWithinDir } from '../util/path-validation'
 import { dirForType, listLocations, normalizeListName } from './resolve-list'
 import { isSameFile as statSameFile, type SameFileCheck } from '../util/same-file'
 import { parseTitleFromContent } from './section-format'
 import { frontMatterBodyStart, markFencedLines } from './markdown-fence'
-import { capitalize } from '../util/strings'
 import { titleHeading } from './heading'
 import { singleLineText } from '../util/single-line'
 import { moveToTrash } from '../util/safekeeping'
+import { syncMessage, type SyncMessage } from '../sync/message'
 
-/** Structured failure of a lifecycle operation. */
+/**
+ * Structured failure of a lifecycle operation. `message` is English plus its
+ * catalog key: the admin API and MCP answer with the English, the CLI renders
+ * the key in its own language.
+ */
 export type ListLifecycleError =
-  | { kind: 'invalid-name'; message: string }
-  | { kind: 'invalid-format'; message: string }
-  | { kind: 'already-exists'; slug: string; message: string }
-  | { kind: 'not-found'; message: string }
+  | { kind: 'invalid-name'; message: SyncMessage }
+  | { kind: 'invalid-format'; message: SyncMessage }
+  | { kind: 'already-exists'; slug: string; message: SyncMessage }
+  | { kind: 'not-found'; message: SyncMessage }
 
 export type CreateListSuccess = { slug: string; filePath: string; touchedFiles: string[] }
 export type CreateListResult = CreateListSuccess | ListLifecycleError
@@ -102,7 +106,7 @@ export function isListLifecycleError<T>(
 }
 
 /** The HTTP mapping of a {@link ListLifecycleError}: a status code plus the message. */
-export type ListLifecycleErrorStatus = { status: number; message: string }
+export type ListLifecycleErrorStatus = { status: number; message: SyncMessage }
 
 /**
  * Map a lifecycle error to the status/message pair every admin handler
@@ -124,11 +128,28 @@ export function listLifecycleErrorStatus(error: ListLifecycleError): ListLifecyc
 export function requireDeleteConfirmation(
   confirmed: string | undefined,
   displayName: string,
-): string | null {
+): SyncMessage | null {
   if (confirmed !== displayName) {
-    return `Confirmation name does not match. Expected '${displayName}'.`
+    return syncMessage('domain.list.lifecycle.confirmMismatch', { name: displayName })
   }
   return null
+}
+
+/**
+ * The message every surface uses when it refuses a name it cannot make a file
+ * name out of ({@link sanitizeListFileName} left nothing), so the CLI, the
+ * editors, the importers and the admin API say the same thing.
+ */
+export function unusableFileNameMessage(name: string): SyncMessage {
+  return syncMessage('domain.list.name.unusable', { name })
+}
+
+/** The refusal for a list of `type` that is not on disk, named by its file slug. */
+function notFoundError(type: ListType, filePath: string): ListLifecycleError {
+  return {
+    kind: 'not-found',
+    message: syncMessage('domain.list.lifecycle.notFound', { type, name: listSlug(filePath) }),
+  }
 }
 
 /**
@@ -207,11 +228,14 @@ function collisionError(
   slug: string,
   existing: Pick<CollidingList, 'name'>,
 ): ListLifecycleError {
-  const label = listTypeLabel(type)
   const message =
     existing.name === slug
-      ? `A ${label} named '${slug}' already exists.`
-      : `A ${label} named '${existing.name}' already exists (it matches '${slug}' under list-name folding).`
+      ? syncMessage('domain.list.lifecycle.exists', { type, name: slug })
+      : syncMessage('domain.list.lifecycle.existsFolded', {
+          type,
+          name: existing.name,
+          query: slug,
+        })
   return { kind: 'already-exists', slug, message }
 }
 
@@ -249,7 +273,10 @@ export async function createList(
   const dir = dirForType(type)
   const filePath = path.join(dir, `${slug}.md`)
   if (!isPathWithinDir(filePath, dir)) {
-    return { kind: 'invalid-name', message: `Invalid ${listTypeLabel(type)} name.` }
+    return {
+      kind: 'invalid-name',
+      message: syncMessage('domain.list.lifecycle.invalidName', { type }),
+    }
   }
 
   await fs.mkdir(dir, { recursive: true })
@@ -290,12 +317,7 @@ export async function renameList(
     return { kind: 'invalid-name', message: unusableFileNameMessage(trimmedName) }
   }
 
-  if (!(await Bun.file(filePath).exists())) {
-    return {
-      kind: 'not-found',
-      message: `${capitalize(listTypeLabel(type))} '${listSlug(filePath)}' not found.`,
-    }
-  }
+  if (!(await Bun.file(filePath).exists())) return notFoundError(type, filePath)
 
   const dir = path.dirname(filePath)
   const newFilePath = path.join(dir, `${newSlug}.md`)
@@ -383,12 +405,7 @@ export async function renameList(
  * delete can be undone by moving them back.
  */
 export async function deleteList(type: ListType, filePath: string): Promise<DeleteListResult> {
-  if (!(await Bun.file(filePath).exists())) {
-    return {
-      kind: 'not-found',
-      message: `${capitalize(listTypeLabel(type))} '${listSlug(filePath)}' not found.`,
-    }
-  }
+  if (!(await Bun.file(filePath).exists())) return notFoundError(type, filePath)
 
   // Every kind in the sidecar table, so a new one cannot be orphaned here.
   const candidates = [

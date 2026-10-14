@@ -124,7 +124,7 @@ export const cliSyncMeta = {
   },
   'cli.import.promptNewListName': {
     description:
-      'Raw stdin prompt after choosing [R]ename for a collection or wanted list. {label} is the list type as prose ("collection", "wanted list"). Ends with a space.',
+      'Raw stdin prompt after choosing [R]ename for a collection or wanted list. {label} is the list type as a lowercase noun ("collection", "wanted list"), already translated (domain.listType.noun). Ends with a space.',
   },
   'cli.import.cancelledSave': {
     description: 'The import stopped because the user chose [C]ancel at the conflict prompt.',
@@ -154,14 +154,15 @@ export const cliSyncMeta = {
   },
   'cli.import.dryRunOverwriteList': {
     description:
-      'Dry-run preview of a collection/wanted import that would replace an existing file. {label} is the list type as prose.',
+      'Dry-run preview of a collection/wanted import that would replace an existing file. {label} is the list type as a lowercase noun, already translated (domain.listType.noun).',
   },
   'cli.import.dryRunSaveList': {
-    description: 'Dry-run preview of a collection/wanted import that would create a new file.',
+    description:
+      'Dry-run preview of a collection/wanted import that would create a new file. {label} is the list type as a lowercase noun, already translated (domain.listType.noun).',
   },
   'cli.import.savedList': {
     description:
-      'Confirmation that a collection/wanted import was written. {label} is the list type as prose.',
+      'Confirmation that a collection/wanted import was written. {label} is the list type as a lowercase noun, already translated (domain.listType.noun).',
   },
   'cli.import.collectionNeedsPrinting': {
     description:
@@ -205,7 +206,7 @@ export const cliSyncMeta = {
   },
   'cli.import.urlDeckOnly': {
     description:
-      'Usage error: --type asked for a collection or wanted list, but the source is a deck URL. {label} is the list type as prose.',
+      'Usage error: --type asked for a collection or wanted list, but the source is a deck URL. {label} is the list type as a lowercase noun, already translated (domain.listType.noun).',
   },
   'cli.import.fileNotFound': { description: 'The named import source does not exist on disk.' },
   'cli.import.readingFile': { description: 'Progress line before parsing a local text file.' },
@@ -266,7 +267,8 @@ export const cliSyncMeta = {
       'Usage error: --deck-format was given alongside --append, which never creates a deck.',
   },
   'cli.import.promptListName': {
-    description: 'Prompt for the target list name. {label} is the list type as prose.',
+    description:
+      'Prompt for the target list name. {label} is the list type as a lowercase noun, already translated (domain.listType.noun).',
   },
   'cli.import.promptExisting': {
     description: 'Prompt heading when the CSV target already exists; the choices follow.',
@@ -422,7 +424,7 @@ export const cliSyncMeta = {
   },
   'cli.importChanges.listHeading': {
     description:
-      'Identifies one target list in the preview. {type} is the list type as prose and {slug} is its persisted file slug, never translated. An icon is prefixed by the caller.',
+      'Identifies one target list in the preview. {type} is the list type as a lowercase noun, already translated (domain.listType.noun), and {slug} is its persisted file slug, never translated. An icon is prefixed by the caller.',
   },
   'cli.importChanges.previewHeading': {
     description:

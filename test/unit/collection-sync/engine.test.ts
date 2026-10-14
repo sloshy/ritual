@@ -35,6 +35,7 @@ import {
 } from '../../../src/sync/message'
 import type { ArchidektCollectionRecord } from '../../../src/importers/archidekt-collection'
 import type { UploadCacheReady } from '../../../src/cache/freshness'
+import { keyedMessage } from '../../helpers/api-message'
 import {
   collectionPage,
   entry,
@@ -62,7 +63,7 @@ type FakeListInput = {
   /** Lines the parser could not read — the trigger for the confirmation gate. */
   warnings?: string[]
   /** Lines that parsed but look wrong; reported, never a gate. */
-  advisories?: string[]
+  advisories?: SyncMessage[]
 }
 
 type FakeStore = CollectionListStore & {
@@ -77,7 +78,7 @@ type FakeStore = CollectionListStore & {
 function fakeStore(lists: FakeListInput[], failApplyFor?: string): FakeStore {
   const entriesByList = new Map<string, CollectionEntry[]>()
   const warningsByList = new Map<string, string[]>()
-  const advisoriesByList = new Map<string, string[]>()
+  const advisoriesByList = new Map<string, SyncMessage[]>()
   const order: string[] = []
   for (const list of lists) {
     order.push(list.name)
@@ -1223,7 +1224,7 @@ describe('runCollectionSync (advisories)', () => {
       {
         name: 'blue-binder',
         entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })],
-        advisories: [ADVISORY],
+        advisories: [syncText(ADVISORY), syncMessage('domain.list.frontMatter.notMapping')],
       },
     ])
     const { client } = mockArchidekt({ pages: [[]] })
@@ -1236,6 +1237,14 @@ describe('runCollectionSync (advisories)', () => {
     })
 
     expect(logs).toContain(ADVISORY)
+    // A keyed advisory (the front-matter reader's) reaches the run log with its
+    // key, so the admin page renders it in its reader's language.
+    const keyed = events.find(
+      (event) => event.kind === 'log' && event.messageKey === 'domain.list.frontMatter.notMapping',
+    )
+    expect(keyed?.kind === 'log' ? keyedMessage(keyed) : undefined).toBe(
+      'Front matter is not a key/value mapping, so its content was ignored (the block itself is preserved on save).',
+    )
     expect(events.some((event) => event.kind === 'unreadable-lines')).toBe(false)
     expect(run.report.failedCount).toBe(0)
     expect(store.applied).toHaveLength(1)

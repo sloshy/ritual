@@ -5,7 +5,8 @@
  */
 import path from 'node:path'
 import * as fs from 'node:fs/promises'
-import { listFileName, unusableFileNameMessage } from '../list/list-file-name'
+import { listFileName } from '../list/list-file-name'
+import { unusableFileNameMessage } from '../list/list-lifecycle'
 import { listDeckFiles, parseDeckText } from './text-file'
 import {
   applyCsvImport,
@@ -24,7 +25,7 @@ import { dirForType, listFilePath, normalizeListName } from '../list/resolve-lis
 import { findCollidingList } from '../list/list-lifecycle'
 import { reconcileListRefs } from '../list/list-refs'
 import { collectDeckCardIds } from '../card/card-id'
-import { listTypeLabel, type ListType } from '../list/list-type'
+import { listTypeNoun, type ListType } from '../list/list-type'
 import {
   CardCommandError,
   ExitCode,
@@ -32,6 +33,7 @@ import {
   localizedCommandError,
   messageCommandError,
 } from '../util/errors'
+import type { SyncMessage } from '../sync/message'
 import { t } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import { foldCategoryCardName } from '../card/card-categories'
@@ -121,7 +123,12 @@ type SaveTarget = { filePath: string; name: string; action: SaveListAction }
  * `categoryError` says why the categories file could not be written; the list
  * itself was, so it is news for the caller's advisories, not a failure.
  */
-type SavedList = { status: 'saved'; writtenFiles: string[]; categoryError?: string } & SaveTarget
+type SavedList = {
+  status: 'saved'
+  writtenFiles: string[]
+  /** English plus its key, like every engine message. */
+  categoryError?: SyncMessage
+} & SaveTarget
 
 /** Result of {@link saveDeck} / {@link saveFlatList}: where the list went, or a prompt cancel. */
 export type SaveListOutcome = SavedList | { status: 'cancelled' }
@@ -157,7 +164,7 @@ export function importConflictError(target: string): CardCommandError {
 
 /** A list name with nothing usable left is the caller's mistake, not a crash. */
 function unusableNameError(name: string): CardCommandError {
-  return new CardCommandError('usage_error', unusableFileNameMessage(name), ExitCode.UsageError)
+  return messageCommandError('usage_error', ExitCode.UsageError, unusableFileNameMessage(name))
 }
 
 /** The stderr notice naming why an import conflicts, by how it was matched. */
@@ -519,7 +526,7 @@ export async function saveFlatList(
   options?: SaveListOptions,
 ): Promise<SaveListOutcome> {
   const resolvedOptions = normalizeSaveListOptions(options)
-  const label = listTypeLabel(listType)
+  const label = listTypeNoun(listType)
   const entries = flattenToEntries(deckData, resolvedOptions.sourceLabels)
 
   // Collection lines always carry a printing; reject up front rather than

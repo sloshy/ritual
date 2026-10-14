@@ -37,7 +37,13 @@ import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence
 import { isListMarkdownFile } from '../list/list-file-name'
 import { parseHeading, parseTitleFromContent } from '../list/section-format'
 import type { ListType } from '../list/list-type'
-import { syncMessage, SyncMessageError, syncText, type SyncMessage } from '../sync/message'
+import {
+  nestSync,
+  syncMessage,
+  SyncMessageError,
+  syncText,
+  type SyncMessage,
+} from '../sync/message'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
 export const isDeckFile = isListMarkdownFile
@@ -376,7 +382,9 @@ export function parseDeckText(
   // the worst possible outcome.
   const listImage = readListImage(parsed.data)
   if (listImage.advisory) {
-    report.warn(syncMessage('domain.import.text.imageIgnored', { reason: listImage.advisory }))
+    report.warn(
+      syncMessage('domain.import.text.imageIgnored', { reason: nestSync(listImage.advisory) }),
+    )
   }
   // Fenced code blocks are prose: a card-looking line or a `## Heading` inside
   // one is an example, not deck data, and must not warn either.

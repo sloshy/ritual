@@ -13,9 +13,25 @@ export function isListType(value: string): value is ListType {
   return value === 'deck' || value === 'collection' || value === 'wanted'
 }
 
-/** Lowercase human-readable label for a list type in CLI messages. */
-export function listTypeLabel(type: ListType): string {
+/**
+ * A list type as the lowercase **English** noun the workspace's own text
+ * spells it with: the workspace commit messages the admin server writes
+ * (`Edit wanted list: …`) and the card-line grammar's English diagnostics. Not
+ * display text — a sentence shown to a reader takes {@link listTypeNoun}, its
+ * localized form.
+ */
+export function workspaceListTypeNoun(type: ListType): string {
+  // i18n-exempt: file-format vocabulary spliced into workspace commit messages, English by contract
   return type === 'wanted' ? 'wanted list' : type
+}
+
+/**
+ * A list type as a lowercase noun in the active UI locale (`wanted list`), for
+ * a display sentence that names the type mid-sentence. The display counterpart
+ * of {@link workspaceListTypeNoun}, which stays English for the text a workspace keeps.
+ */
+export function listTypeNoun(type: ListType): string {
+  return t('domain.listType.noun', { type })
 }
 
 /**

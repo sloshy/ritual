@@ -11,7 +11,7 @@ import {
   readDeckName,
   type DeckParseResult,
 } from '../importers/text-file'
-import { unreadableLines } from '../list/markdown-fence'
+import { unreadableLines } from '../list/unreadable-content'
 import {
   errorMessage,
   errorParam,
@@ -19,12 +19,11 @@ import {
   nestSync,
   reasonFields,
   syncMessage,
-  syncText,
   type SyncMessage,
   type SyncText,
 } from '../sync/message'
 import { parseDeckFrontMatter, type DeckFrontMatter } from '../list/deck-file'
-import { formatResolveListError, isResolveListError, resolveList } from '../list/resolve-list'
+import { isResolveListError, resolveList, resolveListErrorMessage } from '../list/resolve-list'
 import type { ConfirmUnreadable } from '../sync/common'
 import { getDecksDir } from '../config/ritual-config'
 import type {
@@ -270,11 +269,11 @@ export async function resolveTargetDecks(
     for (const name of deckNames) {
       const resolved = await resolveList(name, 'deck')
       if (isResolveListError(resolved)) {
-        // The resolver's own wording, which names the deck already.
+        // The resolver's own message, which names the deck already.
         problem({
           name,
           status: 'failed',
-          reason: syncText(formatResolveListError(resolved, 'none')),
+          reason: resolveListErrorMessage(resolved, 'none'),
           level: 'error',
         })
         continue

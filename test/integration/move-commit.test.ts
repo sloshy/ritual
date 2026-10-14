@@ -364,7 +364,7 @@ describe('custom art follows a committed move', () => {
   /** The sidecar's art map, or a thrown failure naming the parse error. */
   async function artOf(listPath: string): Promise<Map<number, unknown>> {
     const loaded = await loadCardArt(listPath)
-    if (!loaded.ok) throw new Error(`expected readable art, got: ${loaded.message}`)
+    if (!loaded.ok) throw new Error(`expected readable art, got: ${loaded.message.message}`)
     return loaded.art
   }
 

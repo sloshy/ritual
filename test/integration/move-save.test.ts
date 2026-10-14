@@ -212,7 +212,7 @@ describe('applyOutgoingMoves', () => {
       change,
     ])
 
-    expect(result.artFailures.map((failure) => failure.message).join('\n')).toContain(
+    expect(result.artFailures.map((failure) => failure.message.message).join('\n')).toContain(
       'not valid JSON',
     )
     expect(await fs.readFile(deckPath(), 'utf-8')).toContain('Lightning Bolt')

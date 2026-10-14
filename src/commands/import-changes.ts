@@ -4,7 +4,7 @@ import { formatChange, listRefDisplay } from '../changes/change-message'
 import { renderChangeProblem } from '../changes/change-problem-message'
 import { t, type MessageParams } from '../i18n/t'
 import { prefixedMessage, renderSyncMessage } from '../sync/message'
-import { LIST_TYPE_DISPLAY, listTypeLabel } from '../list/list-type'
+import { LIST_TYPE_DISPLAY, listTypeNoun } from '../list/list-type'
 import {
   type ChangeBundle,
   type ChangeBundleList,
@@ -54,7 +54,7 @@ type ImportChangesReport = BundleImportResponse
 function listHeading(list: ChangeBundleList): string {
   return `${LIST_TYPE_DISPLAY[list.kind].icon} ${t('cli.importChanges.listHeading', {
     name: list.name,
-    type: listTypeLabel(list.kind),
+    type: listTypeNoun(list.kind),
     slug: list.slug,
   })}`
 }

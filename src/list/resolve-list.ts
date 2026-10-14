@@ -37,10 +37,12 @@ import { isListMarkdownFile, listFileName, normalizeListName } from './list-file
 import { t, type MessageParams } from '../i18n/t'
 import { LIST_TYPES, LIST_TYPE_SINGULAR, isListType, type ListType } from './list-type'
 import {
+  isNonEmpty,
   renderSyncMessage,
   syncList,
   syncMessage,
   syncRef,
+  type NonEmpty,
   type SyncListParam,
   type SyncMessage,
   type SyncMessageRef,
@@ -351,19 +353,17 @@ function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): SyncMessageR
     case 'type-flags':
       return syncRef('errors.resolveList.adviceTypeFlags')
     case 'type-prefix': {
-      const types = resolvingTypes(error)
-      if (types.length === 0) return typeMoreAdvice(error.matches)
       // Quoted: a name with a space must survive being pasted into a shell.
+      const prefixes = resolvingTypes(error).map((type) => `'${type}:${error.query}'`)
+      if (!isNonEmpty(prefixes)) return typeMoreAdvice(error.matches)
       return syncRef('errors.resolveList.adviceTypePrefix', {
-        prefixes: joinAlternatives(types.map((type) => `'${type}:${error.query}'`)),
+        prefixes: joinAlternatives(prefixes),
       })
     }
     case 'type-field': {
-      const types = resolvingTypes(error)
-      if (types.length === 0) return typeMoreAdvice(error.matches)
-      return syncRef('errors.resolveList.adviceTypeField', {
-        types: joinAlternatives(types.map((type) => `'${type}'`)),
-      })
+      const types = resolvingTypes(error).map((type) => `'${type}'`)
+      if (!isNonEmpty(types)) return typeMoreAdvice(error.matches)
+      return syncRef('errors.resolveList.adviceTypeField', { types: joinAlternatives(types) })
     }
     case 'none':
       return typeMoreAdvice(error.matches)
@@ -371,17 +371,23 @@ function ambiguityAdvice(error: AmbiguousError, hint: ResolveHint): SyncMessageR
 }
 
 /**
- * Join quoted alternatives for the two "e.g. …" remedies.
+ * Join quoted alternatives for the two "e.g. …" remedies, pairwise through
+ * `errors.resolveList.alternative` (`'a' or 'b' or 'c'`), so a translator words
+ * the "or".
  *
- * i18n-exempt: deliberately *not* `Intl.ListFormat` disjunction. The joined
- * items are shell-pasteable literals (`'deck:burn'`), and the list is at most
- * three long and always the same three slugs; the English disjunction format
- * would insert serial commas around them ("a, b, or c"), which reads as part of
- * the value being quoted. Recorded as a known gap rather than a hidden one: a
- * translator cannot currently change this separator.
+ * Deliberately *not* `Intl.ListFormat` disjunction: the joined items are
+ * shell-pasteable literals (`'deck:burn'`), and the list is at most three long
+ * and always the same three slugs; the English disjunction format would insert
+ * serial commas around them ("a, b, or c"), which reads as part of the value
+ * being quoted.
  */
-function joinAlternatives(items: readonly string[]): string {
-  return items.join(' or ')
+function joinAlternatives(items: NonEmpty<string>): SyncParam {
+  const [first, ...rest] = items
+  let joined: SyncParam = first
+  for (const item of rest) {
+    joined = syncRef('errors.resolveList.alternative', { first: joined, second: item })
+  }
+  return joined
 }
 
 /** The block of ambiguous matches: one indented line each, separated by newlines. */

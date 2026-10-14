@@ -12,6 +12,7 @@ import {
   serializeListImageRef,
   type ListImageRef,
 } from '../../src/list/list-image'
+import { keyedMessage } from '../helpers/api-message'
 
 /**
  * The `image:` grammar is the one value space every surface speaks — front
@@ -25,7 +26,8 @@ import {
 function unwrap(value: unknown): ListImageRef {
   const parsed = parseListImage(value)
   if (parsed === null) throw new Error('expected a reference, got the default')
-  if (isListImageRefError(parsed)) throw new Error(`expected a reference, got: ${parsed.error}`)
+  if (isListImageRefError(parsed))
+    throw new Error(`expected a reference, got: ${parsed.error.message}`)
   return parsed
 }
 
@@ -35,7 +37,7 @@ function errorOf(value: unknown): string {
   if (parsed === null || !isListImageRefError(parsed)) {
     throw new Error(`expected an error, got: ${JSON.stringify(parsed)}`)
   }
-  return parsed.error
+  return keyedMessage(parsed.error)
 }
 
 describe('parseListImage', () => {
@@ -159,15 +161,14 @@ describe('readListImage', () => {
   test('an unusable value degrades to an advisory rather than throwing', () => {
     const read = readListImage({ image: 'alters/x.png' })
     expect(read.image).toBeUndefined()
-    expect(read.advisory).toContain('must be a mapping')
+    expect(read.advisory && keyedMessage(read.advisory)).toContain('must be a mapping')
   })
 
   test('a delegated card-art refusal reaches the same advisory channel', () => {
     // The file and URL branches are `parseCardArtRef`'s rules, and its wording
     // has to survive the hop into `advisory` just as the local errors do.
-    expect(readListImage({ image: { file: '../secrets.png' } }).advisory).toContain(
-      'escapes the art directory',
-    )
+    const escaped = readListImage({ image: { file: '../secrets.png' } }).advisory
+    expect(escaped && keyedMessage(escaped)).toContain('escapes the art directory')
     expect(readListImage({ image: { file: 'notes.txt' } }).image).toBeUndefined()
     expect(readListImage({ image: { url: 'ftp://example.com/a.png' } }).advisory).toBeDefined()
   })

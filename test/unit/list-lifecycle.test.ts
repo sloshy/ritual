@@ -16,6 +16,8 @@ import { parseDeckFrontMatter } from '../../src/list/deck-file'
 import { computeHash } from '../../src/changes/content-hash'
 import { LIST_SIDECAR_KINDS, listSidecarPath } from '../../src/list/list-sidecars'
 import { bindWorkspace, snapshotTree, type BoundWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
+import { syncMessage } from '../../src/sync/message'
 
 let ws: BoundWorkspace
 let decksDir: string
@@ -23,7 +25,7 @@ let collectionsDir: string
 
 function unwrap<S>(result: S | ListLifecycleError): S {
   if (isListLifecycleError(result)) {
-    throw new Error(`Expected success, got ${result.kind}: ${result.message}`)
+    throw new Error(`Expected success, got ${result.kind}: ${result.message.message}`)
   }
   return result
 }
@@ -103,21 +105,21 @@ describe('list-lifecycle engine', () => {
     test('rejects an unknown deck format without writing a file', async () => {
       const error = unwrapError(await createList('deck', 'Cube', 'cube'))
       expect(error.kind).toBe('invalid-format')
-      expect(error.message).toContain("Invalid deck format 'cube'")
+      expect(keyedMessage(error.message)).toContain("Invalid deck format 'cube'")
       expect(await exists(path.join(decksDir, 'Cube.md'))).toBe(false)
     })
 
     test('rejects a name with no usable filename characters', async () => {
       const error = unwrapError(await createList('collection', '???'))
       expect(error.kind).toBe('invalid-name')
-      expect(error.message).toContain('no characters usable in a file name')
+      expect(keyedMessage(error.message)).toContain('no characters usable in a file name')
     })
 
     test('refuses to overwrite an existing file', async () => {
       unwrap(await createList('deck', 'Existing'))
       const error = unwrapError(await createList('deck', 'Existing'))
       expect(error.kind).toBe('already-exists')
-      expect(error.message).toContain("A deck named 'Existing' already exists")
+      expect(keyedMessage(error.message)).toContain("A deck named 'Existing' already exists")
     })
 
     test('refuses a name that only folds onto an existing list of the same type', async () => {
@@ -126,7 +128,7 @@ describe('list-lifecycle engine', () => {
       unwrap(await createList('deck', 'Atraxa Superfriends'))
       const error = unwrapError(await createList('deck', 'atraxa superfriends'))
       expect(error.kind).toBe('already-exists')
-      expect(error.message).toBe(
+      expect(keyedMessage(error.message)).toBe(
         "A deck named 'Atraxa Superfriends' already exists (it matches 'atraxa superfriends' under list-name folding).",
       )
       expect(await exists(path.join(decksDir, 'atraxa superfriends.md'))).toBe(false)
@@ -286,7 +288,9 @@ describe('list-lifecycle engine', () => {
         await renameList('collection', path.join(collectionsDir, 'Spares.md'), 'trade-binder'),
       )
       expect(error.kind).toBe('already-exists')
-      expect(error.message).toContain("A collection named 'Trade Binder' already exists")
+      expect(keyedMessage(error.message)).toContain(
+        "A collection named 'Trade Binder' already exists",
+      )
       expect(await exists(path.join(collectionsDir, 'Spares.md'))).toBe(true)
     })
 
@@ -493,5 +497,23 @@ describe('list-lifecycle engine', () => {
       await fs.writeFile(flatPath, '- Sol Ring (C19:221) &1\n')
       expect(await listDisplayName('collection', flatPath)).toBe('No Title')
     })
+  })
+})
+
+describe('lifecycle refusal wording', () => {
+  // `invalidName` guards a path the sanitizer already keeps inside the list
+  // directory, so no name reaches it through `createList`; its branches are
+  // pinned here, at the catalog, so none is left unexecuted.
+  test.each([
+    ['deck', 'Invalid deck name.', "Deck 'x' not found."],
+    ['collection', 'Invalid collection name.', "Collection 'x' not found."],
+    ['wanted', 'Invalid wanted list name.', "Wanted list 'x' not found."],
+  ] as const)('names a %s as one', (type, invalidName, notFound) => {
+    expect(keyedMessage(syncMessage('domain.list.lifecycle.invalidName', { type }))).toBe(
+      invalidName,
+    )
+    expect(keyedMessage(syncMessage('domain.list.lifecycle.notFound', { type, name: 'x' }))).toBe(
+      notFound,
+    )
   })
 })

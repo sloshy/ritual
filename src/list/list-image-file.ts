@@ -10,8 +10,12 @@
 
 import fs from 'node:fs/promises'
 import { parseCardIdsFromContent } from '../card/card-id'
-import { getErrorMessage } from '../util/errors'
-import { readFrontMatterMapping, writeListFrontMatter } from './front-matter-write'
+import {
+  readFrontMatterMapping,
+  unreadableReason,
+  writeListFrontMatter,
+} from './front-matter-write'
+import { errorParam, isSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
 import {
   isListImageCardRef,
   readListImage,
@@ -35,7 +39,7 @@ export async function readListImageFile(listFilePath: string): Promise<ListImage
     content = await fs.readFile(listFilePath, 'utf-8')
   } catch (error) {
     return {
-      advisory: `The list file could not be read, so any list image it names was ignored: ${getErrorMessage(error)}`,
+      advisory: syncMessage('domain.list.image.fileUnreadable', { error: errorParam(error) }),
     }
   }
   const mapping = readFrontMatterMapping(content)
@@ -43,8 +47,8 @@ export async function readListImageFile(listFilePath: string): Promise<ListImage
     return {
       advisory:
         mapping.reason === 'not-a-mapping'
-          ? 'Front matter is not a key/value mapping, so any list image it names was ignored.'
-          : `Front matter could not be read as YAML, so any list image it names was ignored: ${mapping.detail}`,
+          ? syncMessage('domain.list.image.notMappingIgnored')
+          : syncMessage('domain.list.image.invalidYamlIgnored', { detail: mapping.detail }),
     }
   }
   return readListImage(mapping.data)
@@ -66,9 +70,9 @@ export type ListImageWrite = {
  * Rewrite a list file's `image:` key, leaving every other key and the whole body
  * alone. `null` removes the key.
  *
- * Returns an error string — and writes nothing — when the existing front matter
- * cannot be read as a YAML mapping, exactly as the metadata writers do: a merge
- * over keys we cannot see would clobber them. On success, the written paths
+ * Returns the refusal (English plus its key) — and writes nothing — when the
+ * existing front matter cannot be read as a YAML mapping, exactly as the
+ * metadata writers do: a merge over keys we cannot see would clobber them. On success, the written paths
  * include the `.sha256` sidecar only when {@link writeListFrontMatter} refreshed
  * it, so a caller staging the result never commits a deliberately stale sidecar.
  *
@@ -80,15 +84,13 @@ export type ListImageWrite = {
 export async function writeListImage(
   listFilePath: string,
   image: ListImageRef | null,
-): Promise<ListImageWrite | string> {
+): Promise<ListImageWrite | SyncMessage> {
   const original = await fs.readFile(listFilePath, 'utf-8')
   const mapping = readFrontMatterMapping(original)
   if (!mapping.ok) {
-    const problem =
-      mapping.reason === 'not-a-mapping'
-        ? 'is not a key/value mapping'
-        : 'could not be read as YAML'
-    return `The file's front matter ${problem}, so a list image write would overwrite it. Fix the block by hand first.`
+    return syncMessage('domain.list.image.frontMatterUnreadable', {
+      reason: unreadableReason(mapping),
+    })
   }
   const data = { ...mapping.data }
   if (image === null) delete data.image
@@ -104,7 +106,7 @@ export async function writeListImage(
 export type ListImageReconcileFileResult =
   | { ok: true; changed: false }
   | { ok: true; changed: true; writtenFiles: string[]; contentHash: string }
-  | { ok: false; message: string }
+  | { ok: false; message: SyncMessage }
 
 /**
  * Re-point (or clear) a list file's `card`-mode cover after the save that
@@ -139,13 +141,14 @@ export async function reconcileListImageFile(
   if (!reconciled.changed) return { ok: true, changed: false }
 
   const written = await writeListImage(listFilePath, reconciled.image)
-  if (typeof written === 'string') return { ok: false, message: written }
+  if (isSyncMessage(written)) return { ok: false, message: written }
   return { ok: true, changed: true, ...written }
 }
 
 /**
  * Verify a `card`-mode cover against the file it is about to be written to,
- * returning the message refusing it or `null` when there is nothing to check.
+ * returning the message refusing it (English plus its key) or `null` when there
+ * is nothing to check.
  *
  * A cover naming an `&N` is only meaningful alongside the line carrying that id,
  * and both live in the same file — so its validity is transactionally knowable
@@ -162,9 +165,10 @@ export async function reconcileListImageFile(
 export async function checkListImageCardId(
   listFilePath: string,
   image: ListImageRef | null | undefined,
-): Promise<string | null> {
+): Promise<SyncMessage | null> {
   if (image === null || image === undefined || !isListImageCardRef(image)) return null
   const ids = parseCardIdsFromContent(await fs.readFile(listFilePath, 'utf-8'))
   if (ids.includes(image.card)) return null
-  return `image references card &${image.card}, which is not a card in this list.`
+  // As a string: the `&N` is the line's own token, never a formatted number.
+  return syncMessage('domain.list.image.cardNotInList', { card: String(image.card) })
 }

@@ -451,8 +451,8 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     staged.set(
       listEntry.filePath,
       await loadStagedOrThrow(listEntry, {
-        missingKey: 'cli.move.abortDestinationMissing',
-        abortKey: 'cli.move.abortMove',
+        missingKey: 'domain.list.move.abortDestinationMissing',
+        abortKey: 'domain.list.move.abortMove',
       }),
     )
   }
@@ -462,8 +462,8 @@ export async function commitAllMoves(state: Map<string, VirtualCard>): Promise<C
     staged.set(
       listEntry.filePath,
       await loadStagedOrThrow(listEntry, {
-        missingKey: 'cli.move.abortSourceUnreadable',
-        abortKey: 'cli.move.abortMove',
+        missingKey: 'domain.list.move.abortSourceUnreadable',
+        abortKey: 'domain.list.move.abortMove',
       }),
     )
   }
@@ -615,8 +615,8 @@ export async function commitAllRemovals(
     staged.set(
       listEntry.filePath,
       await loadStagedOrThrow(listEntry, {
-        missingKey: 'cli.move.abortRemoveSourceUnreadable',
-        abortKey: 'cli.move.abortRemove',
+        missingKey: 'domain.list.move.abortRemoveSourceUnreadable',
+        abortKey: 'domain.list.move.abortRemove',
       }),
     )
   }

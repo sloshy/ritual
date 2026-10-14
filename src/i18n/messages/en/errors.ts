@@ -60,6 +60,7 @@ export const errorMessages = {
   'errors.resolveList.adviceTypeFlags': 'Disambiguate with --deck, --collection, or --wanted.',
   'errors.resolveList.adviceTypePrefix': 'Disambiguate with a type prefix, e.g. {prefixes}.',
   'errors.resolveList.adviceTypeField': "Set the list's type to {types}.",
+  'errors.resolveList.alternative': '{first} or {second}',
   'errors.resolveList.typeConflict': {
     $select: 'type',
     deck: "'{query}' selects a deck, which conflicts with --{flag}. Drop the 'deck:' prefix or the --{flag} flag.",

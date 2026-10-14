@@ -132,6 +132,10 @@ export const domainMeta = {
     description: 'Singular name for the wanted list type.',
     maxLen: 20,
   },
+  'domain.listType.noun': {
+    description:
+      'A list type as a lowercase common noun. It is spliced mid-sentence into CLI import messages (the {label} of cli.import.promptListName, cli.import.savedList and their siblings, the {type} of cli.importChanges.listHeading), and it is also listed bare, comma-joined, as the {kinds} of ui.editor.importWrongKind. One branch per type: a deck, a collection, or a wanted list (a list of cards the user is looking for). Use the form that reads in both places.',
+  },
   'domain.currency.tix': {
     description:
       'A price in Magic Online event tickets. "tix" is the community name for the currency and is normally left untranslated. {amount} is an already-formatted number.',

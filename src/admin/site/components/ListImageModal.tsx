@@ -14,7 +14,7 @@ import type { ListImageCardOption } from '../list-image-cards'
 import { putListMetadata } from '../editor-backend'
 import { useApiText } from '../hooks/useApiAction'
 import type { ApiActionMessage } from '../../../api/result'
-import { apiMessage } from '../../../api/result'
+import { nestSync, syncMessage } from '../../../sync/message'
 import { ArtRefField, createArtRefField, type CardArtMode } from './ArtRefField'
 
 type ListImageModalProps = {
@@ -129,7 +129,7 @@ export const ListImageModal: Component<ListImageModalProps> = (props) => {
     // and URL halves, and this covers the card branch by the same grammar.
     const parsed = image === null ? null : parseListImage(image)
     if (parsed !== null && isListImageRefError(parsed)) {
-      setError(apiMessage('admin.listImage.invalid', { reason: parsed.error }))
+      setError(syncMessage('admin.listImage.invalid', { reason: nestSync(parsed.error) }))
       return
     }
     setSaving(true)

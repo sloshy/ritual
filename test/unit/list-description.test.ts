@@ -4,6 +4,7 @@ import {
   parseListDescription,
   readListDescription,
 } from '../../src/list/list-description'
+import { keyedMessage } from '../helpers/api-message'
 
 /**
  * The `description:` grammar every list type shares: text in, `null` for the
@@ -26,7 +27,9 @@ describe('parseListDescription', () => {
   test('a non-string value is refused rather than coerced', () => {
     const parsed = parseListDescription({ text: 'nope' })
     expect(isListDescriptionError(parsed)).toBeTrue()
-    expect(isListDescriptionError(parsed) ? parsed.error : '').toContain('must be text')
+    expect(isListDescriptionError(parsed) ? keyedMessage(parsed.error) : '').toBe(
+      'a list description must be text',
+    )
     expect(isListDescriptionError(parseListDescription(12))).toBeTrue()
   })
 })
@@ -46,6 +49,6 @@ describe('readListDescription', () => {
   test('an unusable value degrades to an advisory, never a throw', () => {
     const read = readListDescription({ description: ['a', 'b'] })
     expect(read.description).toBeUndefined()
-    expect(read.advisory).toContain('must be text')
+    expect(read.advisory && keyedMessage(read.advisory)).toBe('a list description must be text')
   })
 })

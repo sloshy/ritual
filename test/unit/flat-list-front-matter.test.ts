@@ -5,6 +5,7 @@ import { parseCollectionFile } from '../../src/list/collection-file'
 import { parseWantedListFile } from '../../src/list/wanted-file'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../src/list/site-data'
 import { makeCollectionEntry } from '../test-utils'
+import { keyedMessage } from '../helpers/api-message'
 
 describe('parseFlatListFrontMatter', () => {
   test('no block: bodyStart 0, nothing captured', () => {
@@ -35,7 +36,9 @@ describe('parseFlatListFrontMatter', () => {
     const result = parseFlatListFrontMatter(lines, { validateLabels: true })
     expect(result.frontMatter?.raw).toBe('---\n42\n---\n')
     expect(result.frontMatter?.data).toEqual({})
-    expect(result.advisories.some((a) => a.includes('not a key/value mapping'))).toBe(true)
+    expect(result.advisories.map(keyedMessage)).toEqual([
+      'Front matter is not a key/value mapping, so its content was ignored (the block itself is preserved on save).',
+    ])
   })
 })
 

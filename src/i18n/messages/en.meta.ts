@@ -17,6 +17,8 @@ import { domainMeta } from './en/domain.meta'
 import { domainCacheMeta } from './en/domain-cache.meta'
 import { domainChangesMeta } from './en/domain-changes.meta'
 import { domainImportMeta } from './en/domain-import.meta'
+import { domainListMeta } from './en/domain-list.meta'
+import { domainListFilesMeta } from './en/domain-list-files.meta'
 import { domainSyncMeta } from './en/domain-sync.meta'
 import { errorsMeta } from './en/errors.meta'
 import { helpMeta } from './en/help.meta'
@@ -45,6 +47,8 @@ export const enMeta: Record<MessageKey, MessageMeta> = {
   ...domainCacheMeta,
   ...domainChangesMeta,
   ...domainImportMeta,
+  ...domainListMeta,
+  ...domainListFilesMeta,
   ...domainSyncMeta,
   ...errorsMeta,
   ...helpMeta,

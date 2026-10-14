@@ -6,7 +6,7 @@
  */
 
 import type { Choice } from 'prompts'
-import { listRefLabel } from '../changes/change-event'
+import { listRefDisplay } from '../changes/change-message'
 import { t } from '../i18n/t'
 import type { CardLanguage } from '../card/card-language'
 import { resolveCardPrinting } from './session/prompts'
@@ -27,7 +27,7 @@ export async function promptMoveDestination(
   message: string,
 ): Promise<ListEntry | undefined> {
   const choices: Choice[] = dests.map((list) => ({
-    title: listRefLabel(list.ref),
+    title: listRefDisplay(list.ref),
     value: list,
   }))
   return ask<ListEntry>({
@@ -75,7 +75,7 @@ export async function promptDestinationSection(dest: ListEntry): Promise<Section
 
   const picked = await ask<string>({
     type: 'select',
-    message: t('cli.move.sectionPrompt', { list: listRefLabel(dest.ref) }),
+    message: t('cli.move.sectionPrompt', { list: listRefDisplay(dest.ref) }),
     subjectKey: 'cli.prompt.subject.deckSection',
     choices,
     initial,

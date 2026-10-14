@@ -16,8 +16,8 @@ import {
   type OpenList,
   type UnifiedListRef,
 } from './edit-lists'
-import { isUsableFileName, unusableFileNameMessage } from '../../list/list-file-name'
-import { listNameCollision } from '../../list/list-lifecycle'
+import { isUsableFileName } from '../../list/list-file-name'
+import { listNameCollision, unusableFileNameMessage } from '../../list/list-lifecycle'
 import { listFilePath } from '../../list/resolve-list'
 import { sameListRef, type ListRef } from '../../changes/change-event'
 import { listRefTitle } from './edit-move'
@@ -29,6 +29,7 @@ import {
   listsInScope,
   type ListScope,
 } from './scoped-session'
+import { renderSyncMessage } from '../../sync/message'
 
 /**
  * The unified editor behind the `edit` command: one interactive session over
@@ -135,7 +136,7 @@ async function promptNewListName(type: ListType): Promise<string | null> {
     subjectKey: 'cli.prompt.subject.newListName',
     validate: (value: string) => {
       if (value.trim().length === 0) return t('cli.edit.nameEmpty')
-      if (!isUsableFileName(value)) return unusableFileNameMessage(value)
+      if (!isUsableFileName(value)) return renderSyncMessage(unusableFileNameMessage(value))
       return true
     },
   })
@@ -221,7 +222,7 @@ export async function runUnifiedEditor(options: UnifiedEditorOptions): Promise<v
     // can never land beside one whose name only folds to the same thing.
     const collision = await listNameCollision(type, name)
     if (collision) {
-      console.error(collision.message)
+      console.error(renderSyncMessage(collision.message))
       return undefined
     }
     const format = type === 'deck' ? await promptDeckFormat({ current: 'commander' }) : null

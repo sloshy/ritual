@@ -751,51 +751,6 @@ export const cliCardsMeta = {
   'cli.move.listWarning': {
     description: 'Prefixes a parser warning with the list file it came from.',
   },
-  'cli.move.destinationNotFound': {
-    description:
-      "A cross-list move aborted before writing: the destination list does not exist (deleted or renamed since the move was queued). {name} is the card name; {list} is a pre-rendered English list label (e.g. Deck 'Burn') matching the changelog vocabulary — leave its shape alone.",
-  },
-  'cli.move.sourceNotFound': {
-    description:
-      "An incoming cross-list move (a `move-to` saved on its destination) aborted before writing: the source list it names does not exist (deleted or renamed since the move was staged). {name} is the card name; {list} is a pre-rendered English list label (e.g. Collection 'Binder') matching the changelog vocabulary — leave its shape alone.",
-  },
-  'cli.move.sourceCopyNotFound': {
-    description:
-      'An incoming cross-list move aborted before writing: the source list exists but holds no copy of the card (by line id, printing, or name) to take out — it was already removed or moved. {name} is the card name; {list} is a pre-rendered English list label.',
-  },
-  'cli.move.artUnfiled': {
-    description:
-      "The reason an incoming move's custom art was dropped from the source list but could not be re-filed on the destination (the destination line has no id yet, or its file could not be read). Rendered as the {reason} of admin.api.save.artUnreconciled, so it reads as a clause, lowercase. {name} is the card name; {list} is a pre-rendered English list label.",
-  },
-  'cli.move.abortDestinationMissing': {
-    description: 'The move aborted before writing: a destination file is gone.',
-  },
-  'cli.move.abortSourceUnreadable': {
-    description: 'The move aborted before writing: a source file cannot be read.',
-  },
-  'cli.move.abortMove': {
-    description: "The move aborted before writing. {reason} is the loader's own sentence.",
-  },
-  'cli.move.abortRemoveSourceUnreadable': {
-    description: 'A bulk removal aborted before writing: a source file cannot be read.',
-  },
-  'cli.move.abortRemove': {
-    description: "A bulk removal aborted before writing. {reason} is the loader's own sentence.",
-  },
-  'cli.move.cannotReadDeck': {
-    description: 'A deck file could not be read or parsed for staging.',
-  },
-  'cli.move.cannotReadFile': {
-    description: 'A collection or wanted file could not be read for staging.',
-  },
-  'cli.move.collectionNeedsPrinting': {
-    description: 'Internal guard: a collection line always records a printing.',
-  },
-  'cli.move.appendIntoOpenFence': {
-    description:
-      'Refusal: the destination file ends inside an unclosed markdown code fence, where a new card line would be invisible to every later parse.',
-  },
-
   // ── List lifecycle: new / rename / delete ─────────────────────────────
   'cli.new.invalidType': {
     description: 'The <type> argument was not one of the three type slugs, which never translate.',

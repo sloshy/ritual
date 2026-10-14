@@ -9,7 +9,7 @@ import {
   type ConflictResolution,
   type SaveConflict,
 } from '../importers/save-list'
-import { listTypeLabel } from '../list/list-type'
+import { listTypeNoun } from '../list/list-type'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import { t } from '../i18n/t'
 
@@ -35,7 +35,7 @@ async function promptUser(question: string): Promise<string> {
 export function renamePrompt(conflict: SaveConflict): string {
   return conflict.listType === 'deck'
     ? t('cli.import.promptNewFileName')
-    : t('cli.import.promptNewListName', { label: listTypeLabel(conflict.listType) })
+    : t('cli.import.promptNewListName', { label: listTypeNoun(conflict.listType) })
 }
 
 /**

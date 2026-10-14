@@ -1,4 +1,4 @@
-import { isSyncMessage } from '../../sync/message'
+import { isSyncMessage, type SyncMessage } from '../../sync/message'
 import { getBaseDir } from '../../config/base-dir'
 import {
   applyDeckMetadata,
@@ -174,7 +174,7 @@ function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | nul
  * or the message explaining the refusal. A discriminated pair rather than
  * `string | null | string` because the value and the refusal are both strings.
  */
-type DescriptionField = { ok: true; value: string | null } | { ok: false; refusal: ApiMessage }
+type DescriptionField = { ok: true; value: string | null } | { ok: false; refusal: SyncMessage }
 
 /**
  * Validate a request body's `description` value: `null` — or a string that is
@@ -186,7 +186,7 @@ type DescriptionField = { ok: true; value: string | null } | { ok: false; refusa
  */
 function parseDescriptionField(raw: unknown): DescriptionField {
   const parsed = parseListDescription(raw)
-  if (isListDescriptionError(parsed)) return { ok: false, refusal: plainMessage(parsed.error) }
+  if (isListDescriptionError(parsed)) return { ok: false, refusal: parsed.error }
   return { ok: true, value: parsed }
 }
 
@@ -200,9 +200,9 @@ function parseDescriptionField(raw: unknown): DescriptionField {
  * The reference's *validity* is checked here; whether a `card` id exists is
  * checked in the handler, which is the only place holding the file it names.
  */
-function parseListImageField(raw: unknown): ListImageRef | null | ApiMessage {
+function parseListImageField(raw: unknown): ListImageRef | null | SyncMessage {
   const parsed = parseListImage(raw)
-  if (parsed !== null && isListImageRefError(parsed)) return plainMessage(parsed.error)
+  if (parsed !== null && isListImageRefError(parsed)) return parsed.error
   return parsed
 }
 
@@ -214,7 +214,7 @@ function parseListImageField(raw: unknown): ListImageRef | null | ApiMessage {
  */
 export function parseDeckMetadataBody(
   raw: Record<string, unknown>,
-): ParsedDeckMetadataBody | ApiMessage {
+): ParsedDeckMetadataBody | SyncMessage {
   const patch: DeckMetadataPatch = {}
 
   const envelope = parseMetadataEnvelope(raw, DECK_METADATA_KEYS, REJECTED_KEYS)
@@ -252,7 +252,7 @@ export function parseDeckMetadataBody(
       patch.format = null
     } else {
       const format = parseDeckFormat(raw.format)
-      if (!format) return plainMessage(invalidDeckFormatMessage(raw.format))
+      if (!format) return invalidDeckFormatMessage(raw.format)
       patch.format = format
     }
   }
@@ -265,7 +265,7 @@ export function parseDeckMetadataBody(
 
   if ('image' in raw) {
     const image = parseListImageField(raw.image)
-    if (isApiMessage(image)) return image
+    if (isSyncMessage(image)) return image
     patch.image = image
   }
 
@@ -318,7 +318,7 @@ export function parseDeckMetadataBody(
 export function parseFlatListMetadataBody(
   raw: Record<string, unknown>,
   type: FlatListType,
-): ParsedFlatListMetadataBody | ApiMessage {
+): ParsedFlatListMetadataBody | SyncMessage {
   const patch: FlatListMetadataPatch = {}
 
   const envelope = parseMetadataEnvelope(raw, FLAT_LIST_METADATA_KEYS[type])
@@ -339,7 +339,7 @@ export function parseFlatListMetadataBody(
 
   if ('image' in raw) {
     const image = parseListImageField(raw.image)
-    if (isApiMessage(image)) return image
+    if (isSyncMessage(image)) return image
     patch.image = image
   }
 
@@ -382,7 +382,7 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       // One branch for both flat list types: they differ only in which keys
       // their vocabulary admits, which `parseFlatListMetadataBody` already knows.
       const parsed = parseFlatListMetadataBody(read.body, target.type)
-      if (isApiMessage(parsed)) return apiError(parsed, 400)
+      if (isSyncMessage(parsed)) return nestedRefusal(parsed)
 
       const filePath = await resolveListFile(target.type, target.slug)
       if (!filePath) {
@@ -398,10 +398,10 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
       }
 
       const badCardRef = await checkListImageCardId(filePath, parsed.patch.image)
-      if (badCardRef !== null) return apiError(plainMessage(badCardRef), 400)
+      if (badCardRef !== null) return nestedRefusal(badCardRef)
 
       const write = await applyFlatListMetadata(filePath, parsed.patch)
-      if (typeof write === 'string') return apiError(plainMessage(write), 400)
+      if (isSyncMessage(write)) return nestedRefusal(write)
 
       await autoCommitAndPush(
         getBaseDir(),
@@ -419,7 +419,7 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     }
 
     const parsed = parseDeckMetadataBody(read.body)
-    if (isApiMessage(parsed)) return apiError(parsed, 400)
+    if (isSyncMessage(parsed)) return nestedRefusal(parsed)
 
     const filePath = await resolveListFile('deck', target.slug)
     if (!filePath) {
@@ -435,7 +435,7 @@ export async function handleMetadataSave(req: Request): Promise<Response> {
     }
 
     const badCardRef = await checkListImageCardId(filePath, parsed.patch.image)
-    if (badCardRef !== null) return apiError(plainMessage(badCardRef), 400)
+    if (badCardRef !== null) return nestedRefusal(badCardRef)
 
     // The merged result is what is validated, not the patch: a body that sets
     // only `sourceId` still has to agree with the `sourceUrl` already on the file.

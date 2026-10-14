@@ -11,6 +11,8 @@ import {
 import { readFrontMatterMapping } from '../../src/list/front-matter-write'
 import { readListImageFile, writeListImage } from '../../src/list/list-image-file'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
+import { isSyncMessage } from '../../src/sync/message'
 
 /**
  * The flat-list metadata writer is front-matter only: card lines, `&N` ids and
@@ -128,11 +130,29 @@ describe('applyFlatListMetadata', () => {
     })
   })
 
+  test('refuses the write when the block is not valid YAML, in its own words', async () => {
+    await writeList('labels: [sale\n')
+    const before = await fs.readFile(listPath, 'utf-8')
+    const metadata = await applyFlatListMetadata(listPath, { description: 'never written' })
+    const cover = await writeListImage(listPath, { card: 1 })
+    if (!isSyncMessage(metadata) || !isSyncMessage(cover)) throw new Error('expected refusals')
+    expect(keyedMessage(metadata)).toBe(
+      "The file's front matter could not be read as YAML, so a metadata write would overwrite it. Fix the block by hand first.",
+    )
+    expect(keyedMessage(cover)).toBe(
+      "The file's front matter could not be read as YAML, so a list image write would overwrite it. Fix the block by hand first.",
+    )
+    expect(await fs.readFile(listPath, 'utf-8')).toBe(before)
+  })
+
   test('refuses the write when the block is not a readable mapping', async () => {
     await writeList('- just\n- a list\n')
     const before = await fs.readFile(listPath, 'utf-8')
     const result = await applyFlatListMetadata(listPath, { image: { card: 1 } })
-    expect(typeof result).toBe('string')
+    if (!isSyncMessage(result)) throw new Error('expected a refusal')
+    expect(keyedMessage(result)).toBe(
+      "The file's front matter is not a key/value mapping, so a metadata write would overwrite it. Fix the block by hand first.",
+    )
     expect(await fs.readFile(listPath, 'utf-8')).toBe(before)
   })
 })
@@ -141,7 +161,7 @@ describe('readListImageFile and writeListImage', () => {
   test('round-trip a cover through the file', async () => {
     await writeList()
     const written = await writeListImage(listPath, { card: 2 })
-    expect(typeof written).not.toBe('string')
+    expect(isSyncMessage(written)).toBe(false)
     expect(await readListImageFile(listPath)).toEqual({ image: { card: 2 } })
     await writeListImage(listPath, null)
     expect(await readListImageFile(listPath)).toEqual({})
@@ -150,7 +170,7 @@ describe('readListImageFile and writeListImage', () => {
   test('a missing file reads as no cover with an advisory rather than throwing', async () => {
     const read = await readListImageFile(path.join(testDir, 'nope.md'))
     expect(read.image).toBeUndefined()
-    expect(read.advisory).toContain('could not be read')
+    expect(read.advisory && keyedMessage(read.advisory)).toContain('could not be read')
   })
 
   test('an unusable value reads as an advisory, matching readListImage', async () => {
@@ -160,13 +180,17 @@ describe('readListImageFile and writeListImage', () => {
     // The literal, not the delegate's own return: asserting the two match would
     // track a wording bug in lockstep. Delegation is what the neighbouring
     // `readListImage` unit tests pin.
-    expect(read.advisory).toContain('must be a mapping')
+    expect(read.advisory && keyedMessage(read.advisory)).toContain('must be a mapping')
   })
 
   test('refuses to write over a block it cannot read', async () => {
     await writeList('- just\n- a list\n')
     const before = await fs.readFile(listPath, 'utf-8')
-    expect(typeof (await writeListImage(listPath, { card: 1 }))).toBe('string')
+    const refused = await writeListImage(listPath, { card: 1 })
+    if (!isSyncMessage(refused)) throw new Error('expected a refusal')
+    expect(keyedMessage(refused)).toBe(
+      "The file's front matter is not a key/value mapping, so a list image write would overwrite it. Fix the block by hand first.",
+    )
     expect(await fs.readFile(listPath, 'utf-8')).toBe(before)
   })
 })

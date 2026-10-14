@@ -90,11 +90,15 @@ export const errorsMeta = {
   },
   'errors.resolveList.adviceTypePrefix': {
     description:
-      "Remedy for an argument that accepts a `deck:` / `collection:` / `wanted:` prefix. {prefixes} is an already-joined list of quoted examples such as \"'deck:burn' or 'wanted:burn'\"; the prefixes themselves are file-format vocabulary and never translate.",
+      "Remedy for an argument that accepts a `deck:` / `collection:` / `wanted:` prefix. {prefixes} is an already-joined list of quoted examples such as \"'deck:burn' or 'wanted:burn'\" (joined with errors.resolveList.alternative); the prefixes themselves are file-format vocabulary and never translate.",
   },
   'errors.resolveList.adviceTypeField': {
     description:
-      "Remedy for a request carrying a structured per-list type field (the admin API, MCP). {types} is an already-joined list of quoted type slugs such as \"'deck' or 'collection'\"; the slugs never translate.",
+      "Remedy for a request carrying a structured per-list type field (the admin API, MCP). {types} is an already-joined list of quoted type slugs such as \"'deck' or 'collection'\" (joined with errors.resolveList.alternative); the slugs never translate.",
+  },
+  'errors.resolveList.alternative': {
+    description:
+      "Joins two alternatives in the list-resolution remedies, applied pairwise for three: \"'deck:burn' or 'wanted:burn'\". {first} and {second} are quoted, shell-pasteable examples (or an already-joined pair); keep them exactly as they are and translate only the word between them.",
   },
   'errors.resolveList.typeConflict': {
     description:

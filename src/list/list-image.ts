@@ -25,18 +25,19 @@
  * space (`ListImageRef | null`) is spoken by the front matter, the API body, the
  * MCP tool and the editors alike.
  *
- * This module is **grammar only**: no `node:*`, no gray-matter, no `src/i18n`.
+ * This module is **grammar only**: no `node:*`, no gray-matter, no direct `src/i18n` import.
  * Both SPAs bundle it (the admin cover modal validates before it round-trips,
  * the public editor re-emits the key on download), so the same rule
  * `flat-list-front-matter.ts` states applies here. The disk-side reader and
- * writer live in `list-image-file.ts`, and the messages below are plain English
- * for the same reason `card-art.ts`'s are: the surface reporting the failure
- * owns its wording and wraps these as an untranslated reason.
+ * writer live in `list-image-file.ts`. Its refusals are messages — English plus
+ * their catalog key — for the same reason `card-art.ts`'s are: each surface
+ * reports them in its own reader's language.
  */
 
 import { isCardArtRefError, parseCardArtRef } from './card-art'
 import type { CardArtFileRef, CardArtUrlRef } from './card-art'
 import { isRecord } from '../util/json'
+import { syncList, syncMessage, type SyncMessage } from '../sync/message'
 
 /**
  * A cover taken from a card line in the same list, named by the `&N` id that
@@ -54,7 +55,7 @@ export type ListImageCardRef = { card: number }
 export type ListImageRef = ListImageCardRef | CardArtFileRef | CardArtUrlRef
 
 /** The rejection branch of {@link parseListImage}. Mirrors `CardArtRefError`. */
-export type ListImageRefError = { error: string }
+export type ListImageRefError = { error: SyncMessage }
 
 /**
  * How a list's cover is chosen, as the surfaces name it: the three override
@@ -95,9 +96,6 @@ export function listImageMode(ref: ListImageRef | null | undefined): ListImageMo
 /** The keys a cover mapping may carry, in the order error messages list them. */
 const LIST_IMAGE_KEYS = ['card', 'file', 'url'] as const
 
-/** The shape error, shared by the not-a-mapping and no-key-at-all branches. */
-const SHAPE_ERROR = 'a list image must be a mapping with one of "card", "file" or "url"'
-
 /**
  * Validate a card-line reference: a positive integer, the canonical form of an
  * `&N` id. A float, zero, or the string `'12'` is refused rather than coerced —
@@ -106,7 +104,7 @@ const SHAPE_ERROR = 'a list image must be a mapping with one of "card", "file" o
  */
 function parseListImageCard(value: unknown): ListImageCardRef | ListImageRefError {
   if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1) {
-    return { error: '"card" must be a positive card id' }
+    return { error: syncMessage('domain.list.image.cardNotId') }
   }
   return { card: value }
 }
@@ -130,18 +128,18 @@ export function parseListImage(value: object): ListImageRef | ListImageRefError
 export function parseListImage(value: unknown): ListImageRef | null | ListImageRefError
 export function parseListImage(value: unknown): ListImageRef | null | ListImageRefError {
   if (value === null || value === undefined) return null
-  if (!isRecord(value)) return { error: SHAPE_ERROR }
+  if (!isRecord(value)) return { error: syncMessage('domain.list.image.shape') }
 
   const extra = Object.keys(value).filter(
     (key) => !(LIST_IMAGE_KEYS as readonly string[]).includes(key),
   )
   if (extra.length > 0) {
-    return { error: `a list image has no such key: ${extra.join(', ')}` }
+    return {
+      error: syncMessage('domain.list.image.unknownKeys', { keys: syncList(extra, 'unit') }),
+    }
   }
   const present = LIST_IMAGE_KEYS.filter((key) => value[key] !== undefined)
-  if (present.length !== 1) {
-    return { error: 'a list image must have exactly one of "card", "file" or "url"' }
-  }
+  if (present.length !== 1) return { error: syncMessage('domain.list.image.exactlyOne') }
   if (value.card !== undefined) return parseListImageCard(value.card)
 
   const ref = parseCardArtRef(value.file !== undefined ? { file: value.file } : { url: value.url })
@@ -171,10 +169,11 @@ export type ListImageRead = {
   /** The cover override; absent when the key is missing or unusable. */
   image?: ListImageRef
   /**
-   * Why a present `image:` key was ignored. Non-fatal by construction: the raw
-   * text round-trips, so the list still loads and the built-in cover is used.
+   * Why a present `image:` key was ignored, as English plus its key. Non-fatal
+   * by construction: the raw text round-trips, so the list still loads and the
+   * built-in cover is used.
    */
-  advisory?: string
+  advisory?: SyncMessage
 }
 
 /**

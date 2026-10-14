@@ -36,7 +36,7 @@ import { writeFileWithHash, hashPath } from '../changes/content-hash'
 import { appendChangelog } from '../changes/changelog-writer'
 import { allocateId, collectExistingIds, createIdPool, type EntryWithCardId } from '../card/card-id'
 import { reconcileListRefs } from './list-refs'
-import { isNonEmpty, SyncMessageError } from '../sync/message'
+import { isNonEmpty, syncMessage, SyncMessageError } from '../sync/message'
 import type { ChangeEvent, MoveFromChange, MoveToChange } from '../changes/change-event'
 import {
   applyChangesCollectingMisses,
@@ -71,9 +71,7 @@ export async function applyChangesToCollectionFile(
   // Defense in depth for callers that cast around the type-level exclusion.
   for (const change of changes as ChangeEvent[]) {
     if (change.action === 'move-from' || change.action === 'move-to') {
-      throw new Error(
-        'applyChangesToCollectionFile does not handle move events; use the move engine.',
-      )
+      throw new SyncMessageError(syncMessage('domain.list.guard.moveEvents'))
     }
   }
 

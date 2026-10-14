@@ -76,22 +76,55 @@ It exits 1 when any file would be rewritten or renamed, would have its categorie
 
 ## Scripted Output
 
-With `--output json` (or `ndjson`), the text report is replaced by a single payload on stdout containing the per-file results (only files with something to report) and every warning, prefixed with its file:
+With `--output json` (or `ndjson`), the text report is replaced by a single payload on stdout containing the per-file results (only files with something to report) and every warning, with the file it is about:
 
 ```json
 {
   "files": [
     {
-      "type": "wanted",
-      "filePath": "/path/to/wanted/binder.md",
-      "renamedTo": "Binder.md",
-      "rewritten": true,
-      "warnings": []
+      "type": "collection",
+      "filePath": "/path/to/collections/Bad.md",
+      "rewritten": false,
+      "rewriteBlocked": true,
+      "warnings": [
+        {
+          "message": "Skipped malformed line: this is not a card line",
+          "messageKey": "domain.import.text.malformedLine",
+          "messageParams": { "line": "this is not a card line", "hint": "" }
+        },
+        {
+          "message": "not rewritten: fix the lines above and rerun cleanup",
+          "messageKey": "cli.cleanup.notRewritten"
+        },
+        {
+          "message": "categories not pruned: the parse skipped lines, so a card still in the file could look gone",
+          "messageKey": "cli.cleanup.categoriesNotPruned"
+        }
+      ]
     }
   ],
-  "warnings": []
+  "warnings": [
+    {
+      "file": "collections/Bad.md",
+      "message": "Skipped malformed line: this is not a card line",
+      "messageKey": "domain.import.text.malformedLine",
+      "messageParams": { "line": "this is not a card line", "hint": "" }
+    },
+    {
+      "file": "collections/Bad.md",
+      "message": "not rewritten: fix the lines above and rerun cleanup",
+      "messageKey": "cli.cleanup.notRewritten"
+    },
+    {
+      "file": "collections/Bad.md",
+      "message": "categories not pruned: the parse skipped lines, so a card still in the file could look gone",
+      "messageKey": "cli.cleanup.categoriesNotPruned"
+    }
+  ]
 }
 ```
+
+Each warning is a message: `message` is English whatever the CLI's language, with `messageKey` and `messageParams` beside it when Ritual words it (a card line the grammar refused carries no key). Params may nest, as in `import --output json`: a rename refused because the name collides carries the collision as a nested message in `reason`. Match on `messageKey` rather than on `message`. The text report prints the same warnings in the CLI's language.
 
 ## Exit Codes
 

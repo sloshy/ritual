@@ -5,6 +5,7 @@ import { isListImageFileRef } from '../list/list-image'
 import { readListImageFile } from '../list/list-image-file'
 import { SITE_ART_DIR } from '../list/art-url'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
+import { renderSyncMessage } from '../sync/message'
 
 /**
  * Copies the local images a build's lists reference into the site tree.
@@ -139,7 +140,12 @@ export async function deployCardArt(options: CardArtDeployOptions): Promise<Card
 
     const loaded = await loadCardArt(listFilePath)
     if (!loaded.ok) {
-      warnings.push({ kind: 'sidecar-unreadable', listFilePath, message: loaded.message })
+      // Rendered for the build's console, like the other deploy warnings.
+      warnings.push({
+        kind: 'sidecar-unreadable',
+        listFilePath,
+        message: renderSyncMessage(loaded.message),
+      })
       continue
     }
     for (const ref of loaded.art.values()) {

@@ -8,9 +8,10 @@ import {
   type CardLabelTarget,
   type LabelOverride,
 } from '../../card/card-labels'
-import { isCardArtRefError, parseCardArtInput, type CardArtRef } from '../../list/card-art'
+import { cardArtInputOf, parseCardArtInput, type CardArtInput } from '../../list/card-art'
 import type { ListType } from '../../list/list-type'
 import { useT } from '../../ui/i18n'
+import { renderSyncMessage } from '../../sync/message'
 
 /**
  * The optional per-card choices the add dialog offers alongside the printing:
@@ -62,7 +63,7 @@ export type AddCardOptionsState = {
    * grammar twice per keystroke and leave two readings that could disagree
    * about whether the field blocks the add.
    */
-  artInput: AddCardArtInput
+  artInput: CardArtInput
 }
 
 type AddCardOptionsProps = AddCardOptionsState & {
@@ -81,19 +82,14 @@ export type AddOptionsRowProps = {
 }
 
 /**
- * Read the typed art text as a reference: `null` for an empty field (no art),
+ * Read the typed art text as a reference: `empty` for an empty field (no art),
  * the parse error otherwise. One parse for the whole dialog — the same
  * `parseCardArtInput` the CLI's `--art` and the sidecar itself go through, so a
  * value this row accepts is a value the art route will accept.
  */
-export type AddCardArtInput =
-  { state: 'empty' } | { state: 'valid'; art: CardArtRef } | { state: 'invalid'; reason: string }
-
-export function readAddCardArt(raw: string): AddCardArtInput {
+export function readAddCardArt(raw: string): CardArtInput {
   if (raw.trim() === '') return { state: 'empty' }
-  const parsed = parseCardArtInput(raw)
-  if (isCardArtRefError(parsed)) return { state: 'invalid', reason: parsed.error }
-  return { state: 'valid', art: parsed }
+  return cardArtInputOf(parseCardArtInput(raw))
 }
 
 /**
@@ -192,10 +188,11 @@ export const AddCardOptions: Component<AddCardOptionsProps> = (props) => {
             }
           >
             {(reason) => (
-              // The reason is engine prose — the same sentence the art route and
-              // the CLI report — framed by a translated wrapper.
+              // The reason is the grammar's own refusal — the same message the art
+              // route and the CLI report — rendered in the reader's language and
+              // framed by a translated wrapper.
               <p id={ADD_CARD_ART_NOTE_ID} class="form-error">
-                {t('ui.addCard.artInvalid', { reason: reason() })}
+                {t('ui.addCard.artInvalid', { reason: renderSyncMessage(reason()) })}
               </p>
             )}
           </Show>

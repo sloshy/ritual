@@ -493,6 +493,43 @@ test.describe('admin language switch', () => {
     await expect(created).toContainText('Burn')
   })
 
+  test('relabels a list-engine refusal held by useApiAction, its list-type branch included', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockDecksApi(page)
+    await mockCollectionsApi(page)
+    // The lifecycle engine's collision refusal, as the create route answers it:
+    // English plus its key, the list type a select branch of the message.
+    await fulfillJson(
+      page,
+      '**/api/deck/create',
+      () => ({
+        success: false,
+        ...syncMessage('domain.list.lifecycle.existsFolded', {
+          type: 'deck',
+          name: 'Burn',
+          query: 'burn',
+        }),
+      }),
+      { method: 'POST', status: 409 },
+    )
+    await gotoAdminDashboard(page, '#/lists')
+    await page.locator('.btn-primary:has-text("New Deck")').click()
+    await page.locator('input.form-input').first().fill('burn')
+    await page.locator('.btn-primary:has-text("Create Deck")').click()
+    const refused = page.locator('main .alert-error')
+    await expect(refused).toHaveText(
+      "A deck named 'Burn' already exists (it matches 'burn' under list-name folding).",
+    )
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(refused, true)
+    // The names ride through untranslated inside the relabelled sentence.
+    await expect(refused).toContainText('Burn')
+    await expect(refused).toContainText('burn')
+  })
+
   test('relabels a cache refresh’s failure, its nested duration and holder included', async ({
     page,
   }) => {

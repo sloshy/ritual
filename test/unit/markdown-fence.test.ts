@@ -4,8 +4,6 @@ import {
   endsInsideOpenFence,
   frontMatterBodyStart,
   markFencedLines,
-  unreadableContentMessage,
-  unreadableLines,
 } from '../../src/list/markdown-fence'
 
 /** Feed every line of `text` and return the opaque flag for each, in order. */
@@ -172,36 +170,5 @@ describe('endsInsideOpenFence', () => {
 
   test('a ``` inside front matter does not leave the file open', () => {
     expect(endsInsideOpenFence('---\nnote: "```"\n---\n\n- A &1\n')).toBe(false)
-  })
-})
-
-describe('unreadableContentMessage', () => {
-  test('names the file, the action, and every entry — and claims no line count', () => {
-    const message = unreadableContentMessage(
-      '/lists/binder.md',
-      unreadableLines({ warnings: ['Skipped malformed line: x'], fencedLines: 5 }),
-      'saving',
-    )
-    expect(message).toContain('/lists/binder.md')
-    expect(message).toContain('saving would delete it')
-    expect(message).toContain('Skipped malformed line: x')
-    expect(message).toContain('Fenced code block content (5 line(s))')
-    // The old wording reported `lines.length` as a line count, which called a
-    // five-line fenced block "1 line(s)".
-    expect(message).not.toContain('1 line(s) the parser cannot read')
-  })
-})
-
-describe('unreadableLines', () => {
-  test('passes parse warnings through untouched when nothing is fenced', () => {
-    expect(unreadableLines({ warnings: ['Skipped malformed line: x'], fencedLines: 0 })).toEqual([
-      'Skipped malformed line: x',
-    ])
-  })
-
-  test('adds one line accounting for fenced content a whole-file rewrite would delete', () => {
-    const lines = unreadableLines({ warnings: [], fencedLines: 4 })
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('4 line(s)')
   })
 })

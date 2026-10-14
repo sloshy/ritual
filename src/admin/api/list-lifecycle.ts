@@ -1,4 +1,4 @@
-import { listTypeLabel, type ListType } from '../../list/list-type'
+import { workspaceListTypeNoun, type ListType } from '../../list/list-type'
 import {
   createList,
   deleteList,
@@ -12,8 +12,8 @@ import {
 } from '../../list/list-lifecycle'
 import { apiHandler } from '../utils'
 import { resolveListFileOrRefuse, type ListFileResult, type ResolveListFile } from './list-file'
-import { apiMessage, plainMessage, type ApiMessage } from '../../api/result'
-import { apiError, readJsonObjectBody } from '../../api/http'
+import { apiMessage, type ApiMessage } from '../../api/result'
+import { apiError, nestedRefusal, readJsonObjectBody } from '../../api/http'
 import { autoCommitAndPush } from './save-helpers'
 import { parseSlugFromUrl } from './target'
 import { workspaceRelative } from '../../config/base-dir'
@@ -59,10 +59,10 @@ export interface ListDeleteResponse extends ApiMessage, DeleteListSuccess {
   success: true
 }
 
-/** Map a lifecycle-engine refusal onto the shared error envelope. */
+/** Map a lifecycle-engine refusal onto the shared error envelope: English plus its key. */
 export function lifecycleErrorResponse(error: ListLifecycleError): Response {
   const { status, message } = listLifecycleErrorStatus(error)
-  return apiError(plainMessage(message), status)
+  return nestedRefusal(message, status)
 }
 
 /** Resolve an already-validated slug to a file, or the response refusing it. */
@@ -93,7 +93,7 @@ export function handleListCreate(req: Request, cfg: ListLifecycleConfig): Promis
     await autoCommitAndPush(
       cfg.getDir(),
       result.touchedFiles,
-      `Create ${listTypeLabel(cfg.kind)}: ${trimmedName}`,
+      `Create ${workspaceListTypeNoun(cfg.kind)}: ${trimmedName}`,
     )
 
     const resp: ListCreateResponse = {
@@ -128,7 +128,7 @@ export function handleListRename(req: Request, cfg: ListLifecycleConfig): Promis
     await autoCommitAndPush(
       cfg.getDir(),
       result.touchedFiles,
-      `Rename ${listTypeLabel(cfg.kind)}: ${result.oldName} → ${trimmedName}`,
+      `Rename ${workspaceListTypeNoun(cfg.kind)}: ${result.oldName} → ${trimmedName}`,
     )
 
     const resp: ListRenameResponse = {
@@ -161,7 +161,7 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
     const displayName = await listDisplayName(cfg.kind, target.filePath)
 
     const mismatch = requireDeleteConfirmation(confirmName, displayName)
-    if (mismatch) return apiError(plainMessage(mismatch), 400)
+    if (mismatch) return nestedRefusal(mismatch, 400)
 
     const result = await deleteList(cfg.kind, target.filePath)
     if (isListLifecycleError(result)) return lifecycleErrorResponse(result)
@@ -170,7 +170,7 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
     await autoCommitAndPush(
       cfg.getDir(),
       result.deletedFiles,
-      `Delete ${listTypeLabel(cfg.kind)}: ${displayName}`,
+      `Delete ${workspaceListTypeNoun(cfg.kind)}: ${displayName}`,
     )
 
     const resp: ListDeleteResponse = {

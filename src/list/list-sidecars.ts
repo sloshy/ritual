@@ -3,6 +3,7 @@ import path from 'node:path'
 import { artSidecarPath } from './card-art'
 import { categoriesHashPath, categoriesSidecarPath } from './card-categories-sidecar'
 import { hashPath } from '../changes/content-hash'
+import { syncMessage, SyncMessageError } from '../sync/message'
 
 /**
  * The one place a list file's sidecar files are enumerated. A list `<name>.md`
@@ -21,7 +22,9 @@ import { hashPath } from '../changes/content-hash'
  * throwing beats silently handing back the list path as its own sidecar.
  */
 export function changelogSidecarPath(mdPath: string): string {
-  if (!mdPath.endsWith('.md')) throw new Error(`Not a list markdown path: ${mdPath}`)
+  if (!mdPath.endsWith('.md')) {
+    throw new SyncMessageError(syncMessage('domain.list.sidecar.notListPath', { path: mdPath }))
+  }
   return mdPath.slice(0, -'.md'.length) + '.changes.md'
 }
 

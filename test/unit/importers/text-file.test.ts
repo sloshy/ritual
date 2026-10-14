@@ -9,7 +9,7 @@ import {
   parseDeckText,
   readDeckName,
 } from '../../../src/importers/text-file'
-import { unreadableLines } from '../../../src/list/markdown-fence'
+import { unreadableLines } from '../../../src/list/unreadable-content'
 import { serializeDeckToMarkdown } from '../../../src/list/deck-file'
 import type { DeckData } from '../../../src/list/deck'
 

@@ -25,7 +25,10 @@ describe('loadStagedOrThrow', () => {
     await expect(
       loadStagedOrThrow(
         { ref: { type: 'deck', name: 'Fenced' }, filePath },
-        { missingKey: 'cli.move.abortDestinationMissing', abortKey: 'cli.move.abortMove' },
+        {
+          missingKey: 'domain.list.move.abortDestinationMissing',
+          abortKey: 'domain.list.move.abortMove',
+        },
       ),
     ).rejects.toThrow(/^Aborting move: /)
   })

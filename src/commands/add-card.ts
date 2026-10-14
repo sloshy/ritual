@@ -34,7 +34,8 @@ import type { CardLanguage } from '../card/card-language'
 import { applyConditionUpdate, type Condition, type Finish } from '../card/finish-condition'
 import { ensureCollectionFile, ensureWantedListFile } from '../list/ensure-list-file'
 import { formatWantedListLine } from '../list/wanted-file'
-import { isUsableFileName, unusableFileNameMessage, listFileName } from '../list/list-file-name'
+import { isUsableFileName, listFileName } from '../list/list-file-name'
+import { unusableFileNameMessage } from '../list/list-lifecycle'
 import { emptyCacheAdvice, ensureFreshCardCache } from '../cache/freshness'
 import {
   addRefreshOption,
@@ -84,7 +85,12 @@ import { cancelledError, listArgumentConflictError, runCommandAction } from '../
 import type { EntryRef } from '../list/entry-ref'
 import { inputRequiredError, promptsUnavailable } from '../util/no-input'
 import { emitCardResult, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
-import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
+import {
+  ExitCode,
+  CardCommandError,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
 import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import {
   getCollectionsDir,
@@ -400,7 +406,7 @@ async function resolveAddCardTarget(
     // The list is about to be created, so its name has to be usable as a file name.
     const fileName = listFileName(name)
     if (!isUsableFileName(name) || fileName === null) {
-      throw new CardCommandError('usage_error', unusableFileNameMessage(name), ExitCode.UsageError)
+      throw messageCommandError('usage_error', ExitCode.UsageError, unusableFileNameMessage(name))
     }
     const dir = type === 'collection' ? getCollectionsDir() : getWantedDir()
     const filePath = path.join(dir, fileName)

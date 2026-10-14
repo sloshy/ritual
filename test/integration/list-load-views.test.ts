@@ -457,7 +457,7 @@ describe('a fenced code block reaches the save gate', () => {
       '/api/deck/burn?view=cards',
     )
     expect(loaded.warnings).toEqual([
-      'Fenced code block content (3 line(s)) — read as prose, but a whole-file rewrite would delete it',
+      'Fenced code block content (3 lines) — read as prose, but a whole-file rewrite would delete it',
     ])
     // The fenced card is not one of the deck's cards.
     expect(JSON.stringify(loaded.deck)).not.toContain('Fake Card')
@@ -469,7 +469,7 @@ describe('a fenced code block reaches the save gate', () => {
       { changes: [], contentHash: loaded.contentHash },
     )
     expect(status).toBe(400)
-    expect(body.message).toContain('Fenced code block content (3 line(s))')
+    expect(body.message).toContain('Fenced code block content (3 lines)')
     expect(await Bun.file(deckPath).text()).toBe(original)
   })
 })

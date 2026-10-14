@@ -18,15 +18,9 @@ import {
   type DeckMetadataRequest,
   type FlatListMetadataRequest,
 } from '../admin/api/metadata'
-import { isApiMessage } from '../api/result'
-import { isSyncMessage } from '../sync/message'
+import { isSyncMessage, nestSync, renderSyncMessage, syncMessage } from '../sync/message'
 import { checkArchidektLink } from '../deck-sync/link'
-import {
-  CardCommandError,
-  localizedCommandError,
-  messageCommandError,
-  ExitCode,
-} from '../util/errors'
+import { localizedCommandError, messageCommandError, ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
 import type { ListTypeFlags } from '../list/resolve-list'
@@ -193,9 +187,11 @@ function imageFromFlags(options: SetListImageOptions): ListImageRef | null | und
 function acceptedListImage(value: object): ListImageRef {
   const parsed = parseListImage(value)
   if (isListImageRefError(parsed)) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.setListImage.invalid', {
-      reason: parsed.error,
-    })
+    throw messageCommandError(
+      'usage_error',
+      ExitCode.UsageError,
+      syncMessage('cli.setListImage.invalid', { reason: nestSync(parsed.error) }),
+    )
   }
   return parsed
 }
@@ -223,17 +219,15 @@ async function applyListImage(
   }
   if (type === 'deck') {
     const parsed = parseDeckMetadataBody(body)
-    if (isApiMessage(parsed)) throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
+    if (isSyncMessage(parsed)) throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
     const write = await applyDeckMetadata(filePath, parsed.patch, checkArchidektLink)
     if (isSyncMessage(write)) throw messageCommandError('usage_error', ExitCode.UsageError, write)
     return
   }
   const parsed = parseFlatListMetadataBody(body, type)
-  if (isApiMessage(parsed)) throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
+  if (isSyncMessage(parsed)) throw messageCommandError('usage_error', ExitCode.UsageError, parsed)
   const write = await applyFlatListMetadata(filePath, parsed.patch)
-  if (typeof write === 'string') {
-    throw new CardCommandError('usage_error', write, ExitCode.UsageError)
-  }
+  if (isSyncMessage(write)) throw messageCommandError('usage_error', ExitCode.UsageError, write)
 }
 
 /**
@@ -263,9 +257,7 @@ export async function runSetListImage(
   }
 
   const badCardRef = await checkListImageCardId(filePath, image)
-  if (badCardRef !== null) {
-    throw new CardCommandError('usage_error', badCardRef, ExitCode.UsageError)
-  }
+  if (badCardRef !== null) throw messageCommandError('usage_error', ExitCode.UsageError, badCardRef)
 
   if (!input.dryRun) await applyListImage(type, filePath, image)
 
@@ -415,7 +407,7 @@ async function promptListImage(
 function reportedListImage(value: object): ListImageRef | undefined {
   const parsed = parseListImage(value)
   if (isListImageRefError(parsed)) {
-    console.error(t('cli.setListImage.invalid', { reason: parsed.error }))
+    console.error(t('cli.setListImage.invalid', { reason: renderSyncMessage(parsed.error) }))
     return undefined
   }
   return parsed

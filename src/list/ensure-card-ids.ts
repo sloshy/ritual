@@ -25,6 +25,7 @@ import { readCardLine } from '../card/card-line-read'
 import { isDeckFile } from '../importers/text-file'
 import { createFenceTracker, frontMatterBodyStart } from './markdown-fence'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
+import { t } from '../i18n/t'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
 import { isListMarkdownFile } from './list-file-name'
 import type { ListType } from './list-type'
@@ -146,7 +147,7 @@ async function ensureIdsInDir(
     // A missing directory is normal — the user may not have set up decks/collections/wanted.
     // Other errors (permission denied, I/O) are real and worth surfacing so files don't go un-IDed.
     if (hasErrorCode(err, 'ENOENT')) return
-    console.warn(`ensure-card-ids: failed to read ${dir}: ${getErrorMessage(err)}`)
+    console.warn(t('domain.list.idBackfill.readFailed', { path: dir, error: getErrorMessage(err) }))
     return
   }
   for (const filename of files.filter(fileFilter)) {
@@ -155,7 +156,9 @@ async function ensureIdsInDir(
     try {
       content = await fs.readFile(filePath, 'utf-8')
     } catch (err) {
-      console.warn(`ensure-card-ids: failed to read ${filePath}: ${getErrorMessage(err)}`)
+      console.warn(
+        t('domain.list.idBackfill.readFailed', { path: filePath, error: getErrorMessage(err) }),
+      )
       continue
     }
     const { content: newContent, added } = ensureFn(content)

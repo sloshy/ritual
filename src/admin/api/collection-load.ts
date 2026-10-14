@@ -1,4 +1,4 @@
-import { unreadableLines } from '../../list/markdown-fence'
+import { unreadableLines } from '../../list/unreadable-content'
 import { parseCollectionFile } from '../../list/collection-file'
 import { readListDescription } from '../../list/list-description'
 import { readListImage } from '../../list/list-image'

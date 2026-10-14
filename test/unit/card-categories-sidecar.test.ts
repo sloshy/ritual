@@ -31,6 +31,7 @@ import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runt
 import { localeTag } from '../../src/i18n/locale-tag'
 
 import { categoriesOf as cardsOf, categoriesRecord as record } from '../helpers/card-categories'
+import { keyedMessage } from '../helpers/api-message'
 
 describe('categoriesSidecarPath / categoriesHashPath', () => {
   test('derive the sidecar and its own hash from the list path', () => {
@@ -58,19 +59,66 @@ describe('parseCardCategoriesSidecar', () => {
     expect(parsed.warnings).toEqual([])
   })
 
-  test.each([
-    ['malformed JSON', '{ nope'],
-    ['a non-object root', '["Ramp"]'],
-    ['a non-array order', '{"order":"Ramp"}'],
-    ['a non-string order element', '{"order":[7]}'],
-    ['a malformed category name', '{"cards":{"Sol Ring":["a,b"]}}'],
-    ['an empty per-card array', '{"cards":{"Sol Ring":[]}}'],
-    ['a duplicate folded name', '{"cards":{"Sol Ring":["Ramp"],"sol ring":["Draw"]}}'],
-    ['an empty card key', '{"cards":{"  ":["Ramp"]}}'],
-  ])('refuses %s as a whole, with a message', (_label, content) => {
+  /** A refusal row: the case, the file, its catalog key (none for the category rule's), its English. */
+  type RefusalRow = [label: string, content: string, key: string | undefined, english: string]
+
+  test.each<RefusalRow>([
+    [
+      'a non-object root',
+      '["Ramp"]',
+      'domain.list.categories.notObject',
+      'the file must contain a JSON object with "order" and "cards"',
+    ],
+    [
+      'a non-object "cards"',
+      '{"cards":["Ramp"]}',
+      'domain.list.categories.cardsNotObject',
+      '"cards" must be an object keyed by card name',
+    ],
+    [
+      'an empty per-card array',
+      '{"cards":{"Sol Ring":[]}}',
+      'domain.list.categories.noCategories',
+      '"Sol Ring" has no categories — remove the key instead',
+    ],
+    [
+      'a duplicate folded name',
+      '{"cards":{"Sol Ring":["Ramp"],"sol ring":["Draw"]}}',
+      'domain.list.categories.duplicateName',
+      '"sol ring" appears twice under different spellings',
+    ],
+    [
+      'an empty card key',
+      '{"cards":{"  ":["Ramp"]}}',
+      'domain.list.categories.emptyName',
+      'a "cards" key must be a card name, not empty',
+    ],
+    // The category rule (`src/card/card-categories.ts`) words these itself; they ride keyless.
+    ['a non-array order', '{"order":"Ramp"}', undefined, '"order" must be an array of categories.'],
+    [
+      'a non-string order element',
+      '{"order":[7]}',
+      undefined,
+      '"order" must be an array of categories.',
+    ],
+    [
+      'a malformed category name',
+      '{"cards":{"Sol Ring":["a,b"]}}',
+      undefined,
+      'Invalid category "a,b": a category is non-empty plain text that cannot contain a comma or a control character.',
+    ],
+  ])('refuses %s as a whole', (_label, content, key, english) => {
     const parsed = parseCardCategoriesSidecar(content)
-    expect(parsed.ok).toBe(false)
-    if (!parsed.ok) expect(parsed.message.length).toBeGreaterThan(0)
+    if (parsed.ok) throw new Error('expected a refusal')
+    expect<string | undefined>(parsed.message.messageKey).toBe(key)
+    expect(key === undefined ? parsed.message.message : keyedMessage(parsed.message)).toBe(english)
+  })
+
+  test('refuses malformed JSON, the parser’s own message nested', () => {
+    const parsed = parseCardCategoriesSidecar('{ nope')
+    if (parsed.ok) throw new Error('expected a refusal')
+    expect(parsed.message.messageKey).toBe('domain.list.sidecar.invalidJson')
+    expect(keyedMessage(parsed.message)).toStartWith('not valid JSON: ')
   })
 
   test('knownCardNames reports stale entries as a warning but KEEPS them', () => {
@@ -337,7 +385,7 @@ describe('the sidecar on disk', () => {
     await fs.writeFile(sidecarPath, '{ nope')
     const loaded = await loadCardCategories(listPath)
     expect(loaded.ok).toBe(false)
-    if (!loaded.ok) expect(loaded.message).toContain(sidecarPath)
+    if (!loaded.ok) expect(keyedMessage(loaded.message)).toContain(sidecarPath)
   })
 
   test('commitCategoryChanges replays, prunes and writes in one call', async () => {

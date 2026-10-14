@@ -36,9 +36,8 @@ import {
   type CardIdPool,
 } from '../card/card-id'
 import { writeFileWithHash } from '../changes/content-hash'
-import { unreadableContentMessage, unreadableLines } from '../list/markdown-fence'
-import { unusableFileNameMessage } from '../list/list-file-name'
-import { listNameCollision } from '../list/list-lifecycle'
+import { unreadableContentMessage, unreadableProblems } from '../list/unreadable-content'
+import { listNameCollision, unusableFileNameMessage } from '../list/list-lifecycle'
 import { reconcileListRefs } from '../list/list-refs'
 import {
   createAddChange,
@@ -60,7 +59,7 @@ import {
   resolveList,
   resolveListErrorMessage,
 } from '../list/resolve-list'
-import { syncList, syncMessage, syncText, type SyncMessage } from '../sync/message'
+import { nestSync, syncList, syncMessage, type SyncMessage, type SyncText } from '../sync/message'
 
 /**
  * Applies converted card entries to a list on disk: creating a new list file,
@@ -283,8 +282,7 @@ function importedCategoryFields(
   return {
     writtenFiles: result.writtenFiles,
     categoryNotices,
-    // The sidecar module words its own failure (`src/list/card-categories-sidecar.ts`).
-    ...(result.error === undefined ? {} : { categoryError: syncText(result.error) }),
+    ...(result.error === undefined ? {} : { categoryError: result.error }),
   }
 }
 
@@ -354,7 +352,10 @@ type AppendResult = { content: string; changes: ChangeEvent[] }
  * content the write would drop — the same gate the admin saves, `cleanup` and
  * the sync engines apply.
  */
-type AppendOutcome = AppendResult | { unreadable: string[] }
+/** An append refused because the file holds content its rewrite would delete. */
+type AppendRefused = { unreadable: SyncText[] }
+
+type AppendOutcome = AppendResult | AppendRefused
 
 /** Expand entries into per-copy lines (flat lists store one line per physical card). */
 function expandCopies(entries: ImportCardEntry[], pool: CardIdPool): FlatCopy[] {
@@ -442,8 +443,7 @@ async function createList(
   const targetDir = dirForType(target.listType)
   const filePath = target.filePath ?? listFilePath(target.listType, target.name)
   if (filePath === null) {
-    // Worded by the file-name module (`src/list/list-file-name.ts`), carried as it is.
-    return { error: syncText(unusableFileNameMessage(target.name)) }
+    return { error: unusableFileNameMessage(target.name) }
   }
 
   if (target.mode === 'create') {
@@ -455,7 +455,9 @@ async function createList(
     // `new`, `rename`, and the editors give.
     const collision = await listNameCollision(target.listType, target.name)
     if (collision) {
-      return { error: syncMessage('domain.import.nameTaken', { reason: collision.message }) }
+      return {
+        error: syncMessage('domain.import.nameTaken', { reason: nestSync(collision.message) }),
+      }
     }
   }
 
@@ -546,7 +548,7 @@ function appendToDeck(
   entries: ImportCardEntry[],
 ): AppendOutcome {
   const parsedDeck = parseDeckText(content, fallbackName)
-  const lost = unreadableLines(parsedDeck)
+  const lost = unreadableProblems(parsedDeck)
   if (lost.length > 0) return { unreadable: lost }
   const { deck } = parsedDeck
   const frontMatter = matter(content).data
@@ -617,7 +619,7 @@ function appendToFlatList(
 ): AppendOutcome {
   const parsed =
     listType === 'collection' ? parseCollectionFile(content) : parseWantedListFile(content)
-  const lost = unreadableLines(parsed)
+  const lost = unreadableProblems(parsed)
   if (lost.length > 0) return { unreadable: lost }
   const existing: FlatEntry[] = parsed.entries
   const sectionOrder = parsed.sectionOrder
@@ -673,10 +675,7 @@ async function appendToList(
       : appendToFlatList(target.listType, content, location.name, entries)
 
   if ('unreadable' in result) {
-    // Worded by the shared rewrite gate (`src/list/markdown-fence.ts`), carried as it is.
-    return {
-      error: syncText(unreadableContentMessage(location.filePath, result.unreadable, 'appending')),
-    }
+    return { error: unreadableContentMessage(location.filePath, result.unreadable, 'appending') }
   }
 
   if (dryRun) {

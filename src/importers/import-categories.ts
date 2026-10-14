@@ -6,7 +6,7 @@
  */
 
 import { foldCategoryCardName, parseCardCategoryNames } from '../card/card-categories'
-import { syncList, syncMessage, type SyncMessage } from '../sync/message'
+import { nestSync, syncList, syncMessage, type SyncMessage } from '../sync/message'
 import { deckCardNames } from '../list/card-names'
 import type { CardCategoryEntry } from '../list/card-categories-record'
 import type { DeckSection } from '../list/deck'
@@ -57,7 +57,7 @@ export function moxfieldDeckCategories(
  */
 export function importCategoryAdvisories(
   refused: readonly string[] | undefined,
-  categoryError: string | undefined,
+  categoryError: SyncMessage | undefined,
 ): SyncMessage[] {
   const advisories: SyncMessage[] = []
   if (refused !== undefined && refused.length > 0) {
@@ -71,8 +71,9 @@ export function importCategoryAdvisories(
     )
   }
   if (categoryError !== undefined) {
-    // Worded by the categories sidecar module, carried as it is.
-    advisories.push(syncMessage('domain.import.categoriesNotSaved', { error: categoryError }))
+    advisories.push(
+      syncMessage('domain.import.categoriesNotSaved', { error: nestSync(categoryError) }),
+    )
   }
   return advisories
 }

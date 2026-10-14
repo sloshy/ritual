@@ -34,6 +34,12 @@ export const domainMessages = {
   'domain.listTypeSingular.deck': 'Deck',
   'domain.listTypeSingular.collection': 'Collection',
   'domain.listTypeSingular.wanted': 'Wanted List',
+  'domain.listType.noun': {
+    $select: 'type',
+    deck: 'deck',
+    collection: 'collection',
+    wanted: 'wanted list',
+  },
   'domain.currency.tix': '{amount} tix',
 
   // ── Counted nouns ─────────────────────────────────────────────────────

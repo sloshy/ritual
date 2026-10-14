@@ -6,6 +6,7 @@ import { openListEditor, selectList } from '../helpers/editor-nav'
 import { fulfillJson } from '../helpers/fulfill'
 import { TINY_PNG, makeMockScryfallCard, withImage } from '../helpers/mock-cards'
 import { disableSearchDebounce } from '../helpers/search-modal'
+import { expectPseudo, languageSelect, offerLocales, PSEUDO_LOCALE } from '../helpers/i18n'
 
 /**
  * Collection editor — custom art: the per-card "Set Custom Art…" context-menu
@@ -379,5 +380,47 @@ test.describe('Collection Editor — art at add time', () => {
     await expect(add).toBeEnabled()
     await commitAdd(page)
     await expect(page.locator('.card-item')).toHaveCount(2)
+  })
+})
+
+test.describe('Collection Editor — custom art in another language', () => {
+  test('a refused reference relabels on a switch, the grammar’s own reason included', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await openArtCollection(page)
+
+    const modal = await openArtModal(page)
+    await modal.locator('#card-art-value').fill('../secrets/passwd.png')
+    // By id, not inside `modal`: that locator filters on the English title,
+    // which the switch relabels.
+    const refusal = page.locator('#card-art-value-note')
+    await expect(refusal).toHaveText(
+      'That custom art is not usable: "../secrets/passwd.png" escapes the art directory',
+    )
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    // The reason is held as the grammar's message, not as rendered English, so
+    // the nested part relabels with the wrapper around it.
+    await expectPseudo(refusal, true)
+    await expect(refusal).not.toContainText('escapes the art directory')
+    await expect(refusal).toContainText('../secrets/passwd.png')
+  })
+  test('a refused reference in the Add Card dialog relabels on a switch', async ({ page }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await openArtCollection(page)
+    await mockAddCardSearch(page)
+
+    const options = await addCardToOptionsStep(page, 'Lightning Bolt')
+    await options.locator('#add-card-art').fill('../outside/sol-ring.png')
+    const refusal = page.locator('#add-card-art-note')
+    await expect(refusal).toHaveText(
+      'That custom art is not usable: "../outside/sol-ring.png" escapes the art directory',
+    )
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(refusal, true)
+    await expect(refusal).not.toContainText('escapes the art directory')
+    await expect(refusal).toContainText('../outside/sol-ring.png')
   })
 })

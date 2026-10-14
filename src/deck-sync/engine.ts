@@ -40,6 +40,7 @@ import {
   errorMessage,
   errorParam,
   isNonEmpty,
+  isSyncMessage,
   joinSyncMessages,
   nestSync,
   reasonFields,
@@ -398,12 +399,12 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     let localCategories: CardCategoriesRecord | undefined
     if (flow.syncCategories) {
       const loaded = await loadDeckCategories(target.filePath)
-      if (typeof loaded === 'string') {
+      if (isSyncMessage(loaded)) {
         failDeck(
           results,
           emit,
           name,
-          syncMessage('domain.sync.categoriesUnreadable', { error: loaded }),
+          syncMessage('domain.sync.categoriesUnreadable', { error: nestSync(loaded) }),
         )
         continue
       }
@@ -609,7 +610,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // The categories file follows the deck file, and its events are recorded
     // only once it is written. A categories sync also prunes the entries of
     // cards the pull removed, as the deck's own save would.
-    let categoryError: string | undefined
+    let categoryError: SyncMessage | undefined
     if (flow.syncCategories) {
       const committed = await commitCategoryChanges(target.filePath, categoryChanges, {
         knownCardNames: deckCardNameSet(updatedDeck),
@@ -632,7 +633,7 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
         results,
         emit,
         name,
-        syncMessage('domain.sync.categoriesWriteFailed', { error: categoryError }),
+        syncMessage('domain.sync.categoriesWriteFailed', { error: nestSync(categoryError) }),
         {
           ...printingResultFields(flow, diff),
           ...boardMoveResultFields(diff),
@@ -702,12 +703,12 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     let localCategoriesOf: LocalCategoriesOf | undefined
     if (flow.syncCategories) {
       const loaded = await loadDeckCategories(target.filePath)
-      if (typeof loaded === 'string') {
+      if (isSyncMessage(loaded)) {
         failDeck(
           results,
           emit,
           name,
-          syncMessage('domain.sync.categoriesUnreadable', { error: loaded }),
+          syncMessage('domain.sync.categoriesUnreadable', { error: nestSync(loaded) }),
         )
         continue
       }

@@ -3,7 +3,7 @@ import { parseDeckMetadataBody } from '../../../src/admin/api/metadata'
 import type { DeckMetadataPatch } from '../../../src/list/deck-metadata'
 import { invalidDeckFormatMessage } from '../../../src/list/deck-format'
 import { keyedRefusal, refusal } from '../../helpers/api-message'
-import { isApiMessage } from '../../../src/api/result'
+import { isSyncMessage } from '../../../src/sync/message'
 
 /**
  * `PUT /api/metadata/:type/:slug`'s body validator. It returns a message rather
@@ -18,7 +18,7 @@ import { isApiMessage } from '../../../src/api/result'
 /** The parsed patch, failing the test if validation rejected the body instead. */
 function patchOf(body: Record<string, unknown>): DeckMetadataPatch {
   const parsed = parseDeckMetadataBody(body)
-  if (isApiMessage(parsed)) throw new Error(`expected a patch, got: ${parsed.message}`)
+  if (isSyncMessage(parsed)) throw new Error(`expected a patch, got: ${parsed.message}`)
   return parsed.patch
 }
 
@@ -50,7 +50,7 @@ describe('parseDeckMetadataBody', () => {
 
   test('a body without a contentHash omits the key entirely', () => {
     const parsed = parseDeckMetadataBody({ description: 'Hi' })
-    if (isApiMessage(parsed)) throw new Error(`expected a body, got: ${parsed.message}`)
+    if (isSyncMessage(parsed)) throw new Error(`expected a body, got: ${parsed.message}`)
     expect('contentHash' in parsed).toBeFalse()
   })
 
@@ -102,8 +102,8 @@ describe('parseDeckMetadataBody', () => {
   })
 
   test('an unparseable format is refused in the shared wording', () => {
-    expect(refusal(parseDeckMetadataBody({ format: 'kitchen-table' }))).toBe(
-      invalidDeckFormatMessage('kitchen-table'),
+    expect(keyedRefusal(parseDeckMetadataBody({ format: 'kitchen-table' }))).toBe(
+      invalidDeckFormatMessage('kitchen-table').message,
     )
   })
 

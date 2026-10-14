@@ -22,6 +22,7 @@ import {
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { captureConsole } from '../helpers/capture'
 import { stubTty } from '../test-utils'
+import { syncText } from '../../src/sync/message'
 
 /**
  * The session wrapper around the phase-1 sidecar engine. Only what the wrapper
@@ -122,7 +123,12 @@ describe('warnUnreconciledCategories', () => {
 
   test('reports a sidecar the save could not read', async () => {
     const capture = await captureConsole(['warn'], () => {
-      warnUnreconciledCategories({ writtenFiles: [], pruned: [], warnings: [], error: 'not json' })
+      warnUnreconciledCategories({
+        writtenFiles: [],
+        pruned: [],
+        warnings: [],
+        error: syncText('not json'),
+      })
     })
     expect(capture.all.join('\n')).toContain('not json')
   })

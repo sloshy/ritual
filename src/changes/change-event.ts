@@ -1621,7 +1621,7 @@ export function formatChangeCore(change: ChangeEvent, opts: FormatChangeOptions)
  * English by contract for the same reason as {@link formatChangeCore}: it is
  * spliced into persisted `Moved "X" to Deck 'Y'` lines.
  */
-export function listRefLabel(ref: ListRef): string {
+function listRefLabel(ref: ListRef): string {
   // i18n-exempt: spliced into a persisted `.changes.md` move line (see formatChangeCore)
   if (ref.type === 'deck') return `Deck '${ref.name}'`
   // i18n-exempt: spliced into a persisted `.changes.md` move line (see formatChangeCore)

@@ -8,7 +8,7 @@ import type { DeckData } from '../../list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../list/site-data'
 import type { ListType } from '../../list/list-type'
 import type { LineQuantities } from '../../changes/line-copies'
-import type { ParsedListContent } from '../../list/markdown-fence'
+import type { ParsedListContent } from '../../list/unreadable-content'
 import type { FlatListFrontMatter } from '../../list/flat-list-front-matter'
 import {
   assignDeckCardIds,

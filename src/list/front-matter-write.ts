@@ -32,6 +32,21 @@ export type FrontMatterMappingResult =
   | { ok: false; reason: 'invalid-yaml'; detail: string }
 
 /**
+ * Which way a front-matter block failed to read, as the `reason` branch of the
+ * refusals worded about it (`domain.list.*.frontMatterUnreadable`,
+ * `cli.metadata.frontMatterUnreadable`).
+ */
+export type FrontMatterUnreadableReason = 'notAMapping' | 'invalidYaml'
+
+/** A {@link readFrontMatterMapping} result that failed. */
+type UnreadableMapping = Extract<FrontMatterMappingResult, { ok: false }>
+
+/** The refusal branch a failed {@link readFrontMatterMapping} selects. */
+export function unreadableReason(mapping: UnreadableMapping): FrontMatterUnreadableReason {
+  return mapping.reason === 'not-a-mapping' ? 'notAMapping' : 'invalidYaml'
+}
+
+/**
  * Parse `content`'s YAML front matter as a key/value mapping — the shared
  * parse behind the flat-list reader and the metadata writer, so the two
  * gray-matter read hazards are handled exactly once. `content` may be a whole
