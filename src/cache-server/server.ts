@@ -8,7 +8,10 @@ import type { BulkSetOptions, HttpClient } from '../util/interfaces'
 import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
-import { ExitCode, getErrorMessage } from '../util/errors'
+import { ExitCode } from '../util/errors'
+import { caughtMessage } from '../api/http'
+import { prefixedFields } from '../sync/message'
+import type { CacheServerFailureBody, CacheServerStreamError } from '../cache/http-cache'
 import { resolveRefreshCadence, resolveRefreshMs, scheduleRecurringTask } from './cadence'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
@@ -49,7 +52,8 @@ interface PriceStreamTaskResult {
   result: PriceReadThroughResult
 }
 
-interface CacheServerRuntime {
+/** What the request handler serves from: the server's own caches and Scryfall client. */
+export interface CacheServerRuntime {
   localCardCache: FileCacheManager<'cards'>
   localPriceCache: FileCacheManager<'prices'>
   localScryfallClient: ScryfallClient
@@ -78,6 +82,16 @@ function createPriceRefreshScheduler(
       ),
     localCardCache,
   )
+}
+
+/**
+ * A price-stream `error` event: the failure as English plus its key (what
+ * `caughtMessage` gives every route), so the client reading this stream — another
+ * Ritual process, whose UI language need not be this server's — can nest it.
+ */
+function streamError(error: unknown, key?: string): CacheServerStreamError {
+  const message = caughtMessage(error)
+  return key === undefined ? message : { key, ...message }
 }
 
 function createPriceStream(
@@ -126,12 +140,7 @@ function createPriceStream(
             )
             emittedCount++
           } catch (error) {
-            controller.enqueue(
-              sseEvent('error', {
-                key,
-                message: getErrorMessage(error),
-              }),
-            )
+            controller.enqueue(sseEvent('error', streamError(error, key)))
           }
         }
 
@@ -160,30 +169,25 @@ function createPriceStream(
           },
           async (error, index) => {
             const key = refreshQueue[index] ?? 'unknown'
-            controller.enqueue(
-              sseEvent('error', {
-                key,
-                message: getErrorMessage(error),
-              }),
-            )
+            controller.enqueue(sseEvent('error', streamError(error, key)))
           },
         )
 
         controller.enqueue(sseEvent('done', { count: emittedCount }))
         controller.close()
       })().catch((error) => {
-        controller.enqueue(
-          sseEvent('error', {
-            message: getErrorMessage(error),
-          }),
-        )
+        controller.enqueue(sseEvent('error', streamError(error)))
         controller.close()
       })
     },
   })
 }
 
-function createCacheServerFetchHandler(
+/**
+ * The server's request handler. Exported as a test seam: a suite serves it
+ * in-process over a stubbed Scryfall client instead of spawning the binary.
+ */
+export function createCacheServerFetchHandler(
   runtime: CacheServerRuntime,
   verbose: boolean,
 ): (request: Request) => Promise<Response> {
@@ -217,6 +221,9 @@ function createCacheServerFetchHandler(
       if (parts.length === 2 && request.method === 'DELETE') {
         if (section === 'cards') {
           await localCardCache.clear()
+          // The clear drops the bulk-refresh stamp too: the client must not keep
+          // answering "complete" printing lists from what it memoized before.
+          localScryfallClient.forgetCacheMemos()
         } else {
           await localPriceCache.clear()
           priceRefreshScheduler?.clearAll()
@@ -382,15 +389,11 @@ function createCacheServerFetchHandler(
       return respond(jsonResponse({ error: 'Method not allowed.' }, 405))
     } catch (error) {
       console.error(`${CACHE_SERVER_LOG_PREFIX} Cache server request failed:`, error)
-      return respond(
-        jsonResponse(
-          {
-            error: 'Cache server request failed.',
-            details: getErrorMessage(error),
-          },
-          500,
-        ),
-      )
+      const body: CacheServerFailureBody = {
+        error: 'Cache server request failed.',
+        ...prefixedFields('details', caughtMessage(error)),
+      }
+      return respond(jsonResponse(body, 500))
     } finally {
       if (verbose) {
         logVerboseRequest(request, responseStatus, Date.now() - startedAt)

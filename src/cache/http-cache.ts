@@ -1,6 +1,16 @@
 import type { BulkSetOptions, CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
 import type { CacheSection, DataType } from './file-cache'
-import { syncMessage, SyncMessageError } from '../sync/message'
+import {
+  isRenderable,
+  nestSync,
+  prefixedMessage,
+  readSyncMessage,
+  syncMessage,
+  SyncMessageError,
+  type PrefixedMessage,
+  type SyncMessage,
+  type SyncText,
+} from '../sync/message'
 
 interface CacheServerGetResponse<T> {
   value: T | null
@@ -44,11 +54,83 @@ interface CacheServerStreamEntry<T> {
 const MAX_SSE_BUFFER_SIZE = 10 * 1024 * 1024 // 10MB
 
 /**
+ * The `error` event of `POST /cache/prices/stream`: why a price could not be
+ * resolved, as English plus its key and params (a Scryfall request failure, a
+ * price batch naming unknown cards), and the cache key it was resolving when
+ * the failure belongs to one. Another Ritual process reads it, so the text is
+ * English whatever the server's UI language.
+ */
+export type CacheServerStreamError = SyncMessage & { key?: string }
+
+/**
+ * The body of a cache-server `500`: a fixed `error` line, and the failure
+ * itself under `details` — English, with `detailsKey` / `detailsParams` beside
+ * it when the failure has a catalog entry.
+ */
+export type CacheServerFailureBody = { error: string } & PrefixedMessage<'details'>
+
+/**
+ * A message another Ritual process sent, as a param: nested when this process
+ * can render it whole, so it reads in the reader's language — and its English
+ * as it came otherwise. A newer server may send a key, a param or a param kind
+ * this process does not know, and nesting that would render the server's
+ * sentence as a raw key or `{token}`, its English lost.
+ */
+function sentMessageParam(message: SyncMessage): SyncText {
+  const nested = nestSync(message)
+  return typeof nested === 'string' || isRenderable(nested) ? nested : message.message
+}
+
+/**
+ * The server's own reply to a failed request, as a message param: the
+ * failure a Ritual cache server sent as English plus its key (per
+ * {@link sentMessageParam}), or the reply's text as it came.
+ */
+function replyParam(body: string): SyncText {
+  try {
+    const parsed: unknown = JSON.parse(body)
+    if (typeof parsed === 'object' && parsed !== null) {
+      const details = prefixedMessage('details', parsed)
+      if (details !== undefined) return sentMessageParam(details)
+    }
+  } catch {
+    // Not JSON: quoted as it came.
+  }
+  return body
+}
+
+/**
+ * A stream `error` event as the error to throw: the server's failure (per
+ * {@link sentMessageParam}), naming the cache key it was resolving when the
+ * event carries one. Data that is not an error event is quoted as it came.
+ */
+function streamFailure(data: string): SyncMessageError {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(data)
+  } catch {
+    parsed = null
+  }
+  const message = readSyncMessage(parsed)
+  if (message === null) {
+    return new SyncMessageError(syncMessage('domain.cache.serverStreamError', { error: data }))
+  }
+  const error = sentMessageParam(message)
+  const key = (parsed as Partial<CacheServerStreamError>).key
+  return new SyncMessageError(
+    typeof key === 'string'
+      ? syncMessage('domain.cache.serverStreamEntryError', { key, error })
+      : syncMessage('domain.cache.serverStreamError', { error }),
+  )
+}
+
+/**
  * A failed cache-server request, as the error to throw. Keyed (a
  * {@link SyncMessageError}) because the cache is read by the admin API and MCP
  * as well as the CLI: a route answers it in English plus the key, the CLI
- * prints it in its own language. `body` is the server's own reply, quoted as it
- * came.
+ * prints it in its own language. `body` is the server's own reply: the failure
+ * a Ritual cache server reports, nested with its key, or any other reply's text
+ * quoted as it came.
  */
 async function requestFailure(
   response: Response,
@@ -59,7 +141,12 @@ async function requestFailure(
   const status = response.status
   return new SyncMessageError(
     body
-      ? syncMessage('domain.cache.serverRequestFailedWithBody', { status, method, url, body })
+      ? syncMessage('domain.cache.serverRequestFailedWithBody', {
+          status,
+          method,
+          url,
+          body: replyParam(body),
+        })
       : syncMessage('domain.cache.serverRequestFailed', { status, method, url }),
   )
 }
@@ -151,7 +238,7 @@ export class HttpCacheManager<K extends CacheSection> implements CacheManager<Da
 
       if (eventType === 'done') return
       if (eventType === 'error') {
-        throw new SyncMessageError(syncMessage('domain.cache.serverStreamError', { error: data }))
+        throw streamFailure(data)
       }
       if (eventType !== 'price') return
 

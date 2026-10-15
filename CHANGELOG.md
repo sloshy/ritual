@@ -179,6 +179,58 @@ release changes a file format or a generated file, it ships the change as a
   or `serve --api` says "150 of 300 cards have prices older than 24 hours." (it read
   `card(s)`), and a feed download from one peer ends "(1 peer)." (it read "1 peers").
   Update any script that matched `card(s)`.
+- **The card-cache refresh's progress lines are keyed.** Each `progress` event of
+  `GET /api/cache/refresh/stream` now carries `messageKey` (a `domain.cache.refresh.*`
+  message) and `messageParams` beside its unchanged `stage`, `percentage` and English
+  `message`. The download sizes nest as a new size param, `{ sizeBytes }`, which a client
+  renders as a two-decimal mebibyte figure in its reader's locale. The admin Refresh Cache
+  page shows the line in the browser's language and relabels it when you switch, sizes
+  included (German reads `36,25/72,50 MiB`). MCP `refresh_cache` progress notes are the same
+  English as before.
+- **A failed or cancelled card-cache refresh answers in English, keyed.** A refresh refused
+  by Scryfall (the bulk manifest or the bulk download: `domain.cache.refresh.manifestFailed`,
+  `domain.cache.refresh.bulkFetchFailed`, whose params are the HTTP `status` and
+  `statusText`), a missing bulk URI, an empty download, a malformed bulk line
+  (`domain.cache.refresh.invalidJsonLine`) and a cancelled refresh (the `499` body,
+  `domain.cache.refresh.cancelled`) now reach `POST /api/cache/refresh` and the stream's
+  `error` event with their key, where they were unkeyed text.
+  So does a failed Scryfall request a route makes (a timed-out request,
+  `domain.cache.scryfall.timedOut`, whose `timeout` is a duration `{ elapsedMs }`, and a
+  failed symbology fetch, `domain.cache.scryfall.symbologyFailed`). A collection-sync push's
+  CSV cache check that refreshes the cache and fails now nests the refresh's keyed failure as
+  the `error` param of `domain.cache.downloadFailed` (it was a string). Their English is
+  unchanged; match on the keys.
+- **A cache server reports its failures in English, keyed.** `POST /cache/prices/stream`'s
+  `error` event now carries the failure as `message` (English whatever the server's UI
+  language), `messageKey` and `messageParams` beside `key`, and a failed request's `500`
+  body adds `detailsKey` / `detailsParams` beside `details`, which is now English too (both
+  were in the server's UI language). A Ritual client nests that failure into its own error,
+  so the admin API and MCP read it keyed as `domain.cache.serverRequestFailedWithBody`'s
+  `body` or a stream error's `error` — which now read as the server's failure ("…: Failed to
+  fetch batch prices: 503 Service Unavailable") instead of the raw JSON of its reply. A stream
+  error for one entry is the new `domain.cache.serverStreamEntryError`, which names the entry's
+  `key` ("Cache server stream error for 'Sol Ring:usd': …"); `domain.cache.serverStreamError`
+  is left for a failure of the whole stream. A failure worded with a key this client does not
+  know (a newer server's) is carried as the server's English text. A script matching on the
+  raw JSON must match the keys instead.
+- **`card` and `scry --random` keep their `--output json` params English.** A lookup that
+  fails on a timed-out Scryfall request reports `cli.card.fetchFailed` /
+  `cli.scry.randomFailed` with its `reason` param in English whatever the UI language (it
+  followed it), and so do a `--set`/`--collector-number` pin that Scryfall could not verify
+  (`cli.cardOps.verifyPrintingFailed`, `cli.cardOps.printingUnverified`: `reason` and
+  `advice`) in `add-card`, `set-card` and `move`. Only `message` follows the UI language.
+- **The Scryfall client's console lines follow the CLI's UI language**: card lookups, a
+  card-cache or tag refresh (`cache preload-all`, `cache refresh-tags`, every refresh on
+  demand), a cache feed ingest (`cache feed fetch`), and the same lines in the cache
+  server's, the feed host's and the admin server's consoles. A refresh's lock file still
+  names its operation in English (`bulk card cache download`), which another Ritual process
+  reads. Counted lines now use the singular for one: "Processed 1 card.", "Skipped 1
+  malformed bulk card entry.", "Filtered out 1 printing (…).", "Re-attaching tags to 1 cached
+  card...", "Indexed tags for 1 oracle id and 1 illustration.", and the "Filtered out"
+  breakdown counts tokens as "2 tokens" (it read "2 token"). A refresh's first and saving
+  lines now end in an ellipsis, as on the admin page: "Fetching bulk data metadata from
+  Scryfall…" and "Saving to cache…" (they ended in "..."). A tag file Scryfall refuses reads
+  "Failed to fetch tag bulk <url>: <status> <reason>", as before.
 - **The admin server refuses in the shared error envelope.** A `401` (no session), a `403`
   (before the first account exists, or from the IP/User-Agent allow and deny lists), a
   `404` for a path with no route or file, and an unexpected `500` now answer

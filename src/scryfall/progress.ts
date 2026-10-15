@@ -8,8 +8,16 @@
  * from these events rather than from prose.
  */
 
-/** One step of a bulk card-cache refresh, as the engine reports it. */
-export interface CacheRefreshEvent {
+import type { SyncMessage } from '../sync/message'
+
+/**
+ * One step of a bulk card-cache refresh, as the engine reports it: what the
+ * step is, plus its line as a {@link SyncMessage} — the English `message` MCP
+ * and every existing reader read, and the `messageKey` / `messageParams` the
+ * admin Cache Refresh page renders in the reader's language (the sizes nest,
+ * so they read with the locale's decimal mark).
+ */
+export interface CacheRefreshEvent extends SyncMessage {
   /**
    * Which phase of the refresh this is. `info` is the catch-all for steps no
    * client renders as its own stage.
@@ -17,7 +25,6 @@ export interface CacheRefreshEvent {
   stage: 'metadata' | 'tags' | 'download' | 'save' | 'done' | 'info'
   /** 0–100, present on `download` only when the compressed size is known. */
   percentage?: number
-  message: string
 }
 
 /** Where {@link PreloadCacheOptions.onProgress} reports go. */

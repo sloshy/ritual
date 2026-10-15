@@ -4,6 +4,8 @@ import type { BuylistQuoteBody } from '../../../src/api/buylist'
 import { gotoAdminDashboard } from '../helpers/auth-helper'
 import { openAdminPage, openDeckWithCards } from '../helpers/editor-nav'
 import {
+  cacheRefreshDownloadFrame,
+  cacheRefreshProgressFrame,
   mockCacheRefreshApi,
   emitStreamConnectionError,
   emitStreamEvent,
@@ -12,6 +14,8 @@ import {
 } from '../helpers/mock-admin'
 import { SYNTHETIC_DECK_SLUG } from '../helpers/synthetic-workspace'
 import { fulfillJson } from '../helpers/fulfill'
+import { syncMessage } from '../../../src/sync/message'
+import { apiMessage } from '../../../src/api/result'
 
 test.describe('Cache Refresh Page', () => {
   test.beforeEach(async ({ page }) => {
@@ -24,12 +28,19 @@ test.describe('Cache Refresh Page', () => {
     const main = page.locator('main')
     await main.locator('button:has-text("Refresh Cache")').click()
 
-    await emitStreamEvent(page, 'progress', {
-      stage: 'download',
-      percentage: 50,
-      message: 'Downloading: 50% (36.25/72.50 MiB)',
-    })
+    // A step before the download has a line of its own too.
+    await emitStreamEvent(
+      page,
+      'progress',
+      cacheRefreshProgressFrame('metadata', syncMessage('domain.cache.refresh.fetchingMetadata')),
+    )
+    await expect(main.locator('.progress-message')).toHaveText(
+      'Fetching bulk data metadata from Scryfall…',
+    )
+
+    await emitStreamEvent(page, 'progress', cacheRefreshDownloadFrame())
     await expect(main.locator('.progress-stages')).toBeVisible({ timeout: 5000 })
+    await expect(main.locator('.progress-message')).toHaveText('Processing: 50% (36.25/72.50 MiB)')
     // The streamed pipeline has exactly two stages: the download (which parses
     // and processes cards as bytes arrive) and the cache save.
     await expect(main.locator('.progress-stage')).toHaveCount(2)
@@ -37,19 +48,21 @@ test.describe('Cache Refresh Page', () => {
       'Downloading & processing card data',
     )
 
-    await emitStreamEvent(page, 'progress', {
-      stage: 'save',
-      message: 'Saving to cache...',
-    })
+    await emitStreamEvent(
+      page,
+      'progress',
+      cacheRefreshProgressFrame('save', syncMessage('domain.cache.refresh.saving')),
+    )
     await expect(main.locator('.progress-stage[data-status="done"]')).toContainText(
       'Downloading & processing card data',
     )
     await expect(main.locator('.progress-stage[data-status="active"]')).toContainText(
       'Saving to cache',
     )
+    await expect(main.locator('.progress-message')).toHaveText('Saving to cache…')
 
-    await emitStreamEvent(page, 'done', { message: 'Cache refreshed successfully' })
-    await expect(main.locator('.alert-success')).toBeVisible({ timeout: 5000 })
+    await emitStreamEvent(page, 'done', apiMessage('admin.api.cache.refreshed'))
+    await expect(main.locator('.alert-success')).toHaveText('Cache refreshed successfully')
     // Completion collapses the progress UI and re-enables the button.
     await expect(main.locator('.progress-stages')).toHaveCount(0)
     await expect(main.locator('button:has-text("Refresh Cache")')).toBeEnabled()
@@ -61,7 +74,7 @@ test.describe('Cache Refresh Page', () => {
     const mocks = await mockCacheRefreshApi(page)
     const main = page.locator('main')
     await main.locator('button:has-text("Refresh Cache")').click()
-    await emitStreamEvent(page, 'progress', { stage: 'download', percentage: 10, message: 'x' })
+    await emitStreamEvent(page, 'progress', cacheRefreshDownloadFrame())
 
     // A frame arrived, so the refresh is running server-side: the drop must not
     // re-issue it (a second refresh would only time out on the first's lock).

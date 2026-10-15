@@ -31,7 +31,14 @@ import {
 import { getDefaultLanguage } from '../config/ritual-config'
 import type { PrintingRef } from './printing-key'
 import { readRecordedCardBulkType } from '../cache/bulk-provenance'
-import { ExitCode, CardCommandError, getErrorMessage, localizedCommandError } from '../util/errors'
+import {
+  ExitCode,
+  CardCommandError,
+  getErrorMessage,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
+import { errorParam, syncMessage, syncRef } from '../sync/message'
 
 /**
  * The language a freshly added entry records: the language the printing
@@ -207,25 +214,33 @@ function ensureSameCard(printing: ScryfallCard, cardName: string, printingLabel:
  * asserting it is the card's only "available printing".
  */
 async function verifyPinAgainstScryfall(cardName: string, pin: PrintingPin): Promise<ScryfallCard> {
-  const advice = t('cli.cardOps.noCachedPrintingList', { name: cardName })
+  // Nested, like the reason: the message reads in the CLI's language, and the
+  // `--output json` envelope flattens both to English (`envelopeRef`).
+  const advice = syncRef('cli.cardOps.noCachedPrintingList', { name: cardName })
   const printingLabel = `${pin.set.toUpperCase()}:${pin.collectorNumber}`
   let printing: ScryfallCard | null
   try {
     printing = await fetchPrintingByCollectorNumber(pin.set, pin.collectorNumber)
   } catch (err) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      'cli.cardOps.verifyPrintingFailed',
-      { printing: printingLabel, reason: getErrorMessage(err), advice },
+      syncMessage('cli.cardOps.verifyPrintingFailed', {
+        printing: printingLabel,
+        reason: errorParam(err),
+        advice,
+      }),
     )
   }
   if (!printing) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'usage_error',
       ExitCode.UsageError,
-      'cli.cardOps.printingUnverified',
-      { printing: printingLabel, name: cardName, advice },
+      syncMessage('cli.cardOps.printingUnverified', {
+        printing: printingLabel,
+        name: cardName,
+        advice,
+      }),
     )
   }
   ensureSameCard(printing, cardName, printingLabel)

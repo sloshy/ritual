@@ -215,6 +215,98 @@ export const cliInfraMessages = {
   'cli.cacheStore.provenanceMissingRecordedAt':
     'Invalid card-bulk provenance: missing string recordedAt',
 
+  // ── Scryfall client ───────────────────────────────────────────────────
+  //
+  // The Scryfall client's console lines: card lookups, the bulk refresh's
+  // log, the tag bake and the cache feed's ingest. Printed by the CLI and in
+  // the cache server's, cache feed host's and admin server's consoles. What a
+  // server route answers with lives in `domain.cache.*` instead. Scryfall bulk
+  // names (`oracle_tags`, `art_tags`) and JSON field names are literal.
+  'cli.scryfall.fetchingSymbology': 'Fetching symbology from Scryfall...',
+  'cli.scryfall.symbolDownloadFailed': 'Failed to download symbol {symbol}',
+  'cli.scryfall.evictFailed': "Failed to evict excluded printings for '{name}':",
+  'cli.scryfall.fetchingCard': 'Fetching: {name}',
+  'cli.scryfall.arenaOnly': "Card '{name}' is arena-only, skipping.",
+  'cli.scryfall.cardFetchFailed': "Failed to fetch card '{name}': {status} {statusText}",
+  'cli.scryfall.cardFetchError': "Error fetching card '{name}':",
+  'cli.scryfall.cachePrintingsFailed': "Failed to cache printings for '{name}':",
+  'cli.scryfall.searching': 'Searching for: {query}',
+  'cli.scryfall.imageDownloadFailed': 'Failed to download image from {url}:',
+  'cli.scryfall.fetchingTagMetadata': 'Fetching tag bulk metadata from Scryfall...',
+  'cli.scryfall.noTagBulkUris': 'Could not find oracle_tags / art_tags bulk data URIs',
+  'cli.scryfall.downloadingTags': 'Downloading oracle and art tags...',
+  'cli.scryfall.tagBulkFetchFailed': 'Failed to fetch tag bulk {url}: {status} {statusText}',
+  'cli.scryfall.tagBulkNoBody': 'Tag bulk response for {url} has no body',
+  'cli.scryfall.tagDownloadFailed': 'Failed to download tags: {reason}',
+  'cli.scryfall.indexedTags': 'Indexed tags for {oracleIds} and {illustrations}.',
+  'cli.scryfall.oracleIdCount': {
+    $plural: 'count',
+    one: '{count} oracle id',
+    other: '{count} oracle ids',
+  },
+  'cli.scryfall.illustrationCount': {
+    $plural: 'count',
+    one: '{count} illustration',
+    other: '{count} illustrations',
+  },
+  'cli.scryfall.reattachingTags': {
+    $plural: 'count',
+    one: 'Re-attaching tags to {count} cached card...',
+    other: 'Re-attaching tags to {count} cached cards...',
+  },
+  'cli.scryfall.tagsRefreshed': 'Done! Tags refreshed.',
+  'cli.scryfall.bulkUrl': 'Bulk URL: {url}',
+  'cli.scryfall.skippedMalformed': {
+    $plural: 'count',
+    one: 'Skipped {count} malformed bulk card entry.',
+    other: 'Skipped {count} malformed bulk card entries.',
+  },
+  'cli.scryfall.filteredOut': {
+    $plural: 'count',
+    one: 'Filtered out {count} printing ({breakdown}).',
+    other: 'Filtered out {count} printings ({breakdown}).',
+  },
+  'cli.scryfall.excludedArenaOnly': {
+    $plural: 'count',
+    one: '{count} arena-only',
+    other: '{count} arena-only',
+  },
+  'cli.scryfall.excludedTokens': {
+    $plural: 'count',
+    one: '{count} token',
+    other: '{count} tokens',
+  },
+  'cli.scryfall.excludedArtSeries': {
+    $plural: 'count',
+    one: '{count} art-series',
+    other: '{count} art-series',
+  },
+  'cli.scryfall.processedCards': {
+    $plural: 'count',
+    one: 'Processed {count} card.',
+    other: 'Processed {count} cards.',
+  },
+  'cli.scryfall.buildingTagIndex': 'Building tag index from downloaded tag bulks...',
+  'cli.scryfall.tagBuildFailed': 'Failed to build tags from downloaded bulks: {reason}',
+  'cli.scryfall.feedIngestDone': 'Done! Card cache populated from downloaded artifacts.',
+  'cli.scryfall.tagBulkNotArray': 'Invalid tag bulk: expected a JSON array',
+  'cli.scryfall.tagBulkEntryNotObject': 'Invalid tag bulk: entry {index} is not an object',
+  'cli.scryfall.tagBulkMissingField': {
+    $select: 'field',
+    object: 'Invalid tag bulk: entry {index} is missing a string object',
+    id: 'Invalid tag bulk: entry {index} is missing a string id',
+    label: 'Invalid tag bulk: entry {index} is missing a string label',
+    slug: 'Invalid tag bulk: entry {index} is missing a string slug',
+  },
+  'cli.scryfall.tagBulkBadType': "Invalid tag bulk: entry {index} has unexpected type '{type}'",
+  'cli.scryfall.tagIndexNotObject': 'Invalid tag index: expected an object',
+  'cli.scryfall.tagIndexMissingField': {
+    $select: 'field',
+    updatedAt: 'Invalid tag index: missing numeric updatedAt',
+    oracle: 'Invalid tag index: missing oracle map',
+    illustration: 'Invalid tag index: missing illustration map',
+  },
+
   // ── --cache-server ────────────────────────────────────────────────────
   'cli.cacheServer.addressEmpty':
     'Cache server must be a non-empty hostname and port (example: localhost:4000).',

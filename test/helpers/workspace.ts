@@ -3,6 +3,8 @@ import path from 'node:path'
 import { tmpdir } from 'node:os'
 import { execSync } from 'node:child_process'
 import { getBaseDir, setBaseDir } from '../../src/config/base-dir'
+// Before the cache: `src/cache` reaches back into `src/scryfall` at load.
+import { scryfallClient } from '../../src/scryfall'
 import { cardCache } from '../../src/cache/instances'
 import { refreshRitualConfig, resetRitualConfigCache } from '../../src/config/ritual-config'
 import { serializeDeckToMarkdown, type DeckFrontMatter } from '../../src/list/deck-file'
@@ -174,6 +176,9 @@ export async function bindWorkspace(options: BoundWorkspaceOptions = {}): Promis
   const dir = await createWorkspace(options)
   setBaseDir(dir)
   resetRitualConfigCache()
+  // The shared Scryfall client memoizes facts about the cache it last read
+  // (bulk backed, its tag index); this is another workspace's cache.
+  scryfallClient.forgetCacheMemos()
   if (options.init) await refreshRitualConfig()
   if (options.clearCardCache) await cardCache.clear()
   return {
@@ -184,6 +189,7 @@ export async function bindWorkspace(options: BoundWorkspaceOptions = {}): Promis
       if (options.clearCardCache) await cardCache.clear()
       setBaseDir(originalBase)
       resetRitualConfigCache()
+      scryfallClient.forgetCacheMemos()
       await removeWorkspace(dir)
     },
   }

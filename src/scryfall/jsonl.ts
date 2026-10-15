@@ -1,16 +1,22 @@
+import { syncMessage, SyncMessageError } from '../sync/message'
+
 /** Byte-level progress reported while consuming a gzipped JSONL stream. */
 export type GzipJsonLinesProgress = {
   /** Compressed bytes consumed from the underlying stream so far. */
   compressedBytes: number
 }
 
-/** A malformed line encountered while reading a JSONL stream. */
-export class JsonLinesError extends Error {
+/**
+ * A malformed line encountered while reading a JSONL stream. A
+ * {@link SyncMessageError}: a bad line in the card bulk fails a cache refresh,
+ * which the admin API and MCP answer in English plus the key.
+ */
+export class JsonLinesError extends SyncMessageError {
   constructor(
     readonly line: number,
     cause: unknown,
   ) {
-    super(`Invalid JSONL: line ${line} is not valid JSON`, { cause })
+    super(syncMessage('domain.cache.refresh.invalidJsonLine', { line }), { cause })
     this.name = 'JsonLinesError'
   }
 }

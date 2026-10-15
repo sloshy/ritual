@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { SCRYFALL_BULK_API_URL, fetchScryfallBulkManifest } from '../../src/scryfall/bulk-manifest'
+import { rejectedSyncMessage } from '../helpers/sync-text'
 import { MockHttpClient } from '../test-utils'
 
 describe('fetchScryfallBulkManifest', () => {
@@ -24,9 +25,16 @@ describe('fetchScryfallBulkManifest', () => {
     expect(await fetchScryfallBulkManifest(http)).toEqual([])
   })
 
-  test('throws on a non-ok response', async () => {
+  test('throws a non-ok response as its status, keyed', async () => {
     const http = new MockHttpClient()
-    http.mock(SCRYFALL_BULK_API_URL, () => new Response('down', { status: 503 }))
-    expect(fetchScryfallBulkManifest(http)).rejects.toThrow('Failed to fetch bulk manifest')
+    http.mock(
+      SCRYFALL_BULK_API_URL,
+      () => new Response('down', { status: 503, statusText: 'Service Unavailable' }),
+    )
+    expect(await rejectedSyncMessage(fetchScryfallBulkManifest(http))).toEqual({
+      message: 'Failed to fetch bulk manifest: 503 Service Unavailable',
+      messageKey: 'domain.cache.refresh.manifestFailed',
+      messageParams: { status: 503, statusText: 'Service Unavailable' },
+    })
   })
 })

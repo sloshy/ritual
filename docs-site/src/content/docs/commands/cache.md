@@ -292,6 +292,15 @@ event: done
 data: {"count":2}
 ```
 
+An entry the server could not resolve (a Scryfall request that failed while refreshing it) is emitted as an `error` event naming its `key`; a failure of the whole stream has no `key`:
+
+```text
+event: error
+data: {"key":"Sol Ring:usd","message":"Failed to fetch batch prices: 503 Service Unavailable","messageKey":"domain.cache.scryfall.pricesFailed","messageParams":{"status":503,"statusText":"Service Unavailable"}}
+```
+
+`message` is English whatever the server's UI language; `messageKey` and `messageParams` (present when the failure has a catalog entry, and possibly nested) let a client render it in its own language. A request the server fails outright answers `500` with `{ "error": "Cache server request failed.", "details": "…" }`, where `details` is the failure in English and `detailsKey` / `detailsParams` carry its key and params the same way. A Ritual client nests either into its own error, so the admin API and MCP report a remote cache server's failure in English plus the keys.
+
 `updated` is `true` when the server refreshed and re-cached that entry during this request. Parse events in order, handle each `price` event as it arrives (for progress and partial results), and treat `done` as stream completion. Refreshed entries arrive in completion order, not request order, so use `key` to match each event to the requested card.
 
 ### Client configuration

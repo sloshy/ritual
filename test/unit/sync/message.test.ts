@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import type { ApiMessage } from '../../../src/api/result'
 import type { MessageKey } from '../../../src/i18n/messages/en'
-import { resetI18nRuntime } from '../../../src/i18n/runtime'
+import { DEFAULT_LOCALE, resetI18nRuntime } from '../../../src/i18n/runtime'
 import { dryRunReason } from '../../../src/sync/common'
+import { unresolvedPlaceholders } from '../../../src/i18n/t'
 import {
   errorParam,
+  isRenderable,
   isSyncMessage,
   joinSyncMessages,
   reasonFields,
@@ -18,6 +20,7 @@ import {
   syncMessage,
   SyncMessageError,
   syncRef,
+  syncSize,
   syncText,
   toSyncMessage,
   type SyncMessage,
@@ -127,11 +130,119 @@ describe('rendering in the reader’s locale', () => {
     expect(renderSyncMessage(timedOut.message, timedOut.de)).toContain('5 Minuten')
   })
 
+  test('a size renders as its mebibyte figure, in the locale reading it', () => {
+    // A pair of sizes sharing one unit, as the cache refresh's progress line has it.
+    const line = withSyntheticLocale('de', {}, (de) => {
+      const message = syncMessage('domain.cache.refresh.processing', {
+        percentage: 50,
+        received: syncSize(38_010_880),
+        total: syncSize(76_021_760),
+      })
+      return { message, de }
+    })
+    expect(line.message.message).toBe('Processing: 50% (36.25/72.50 MiB)')
+    expect(renderSyncMessage(line.message, line.de)).toBe('Processing: 50% (36,25/72,50 MiB)')
+  })
+
+  test.each([
+    [0, '0.00'],
+    [1, '0.00'],
+    [5_242, '0.00'],
+    // Exact ties (0.125, 0.375 MiB) round up, as `toFixed` does.
+    [131_072, '0.13'],
+    [393_216, '0.38'],
+    [1_048_576, '1.00'],
+    [1_053_818, '1.00'],
+    [10_485_761, '10.00'],
+    // Past 1000 MiB the figure stays ungrouped, never `1,536.00`.
+    [1_610_612_736, '1536.00'],
+    [5_000_000_000, '4768.37'],
+  ])(
+    'the English figure of %i bytes is %s, the one the console always printed',
+    (bytes, figure) => {
+      // `toFixed(2)` is what the line used to interpolate.
+      expect((bytes / 1024 / 1024).toFixed(2)).toBe(figure)
+      expect(renderSyncParam(syncSize(bytes), DEFAULT_LOCALE)).toBe(figure)
+    },
+  )
+
   test('the English half is the catalog English whatever the active locale', () => {
     const message = withSyntheticLocale('xx', { 'domain.sync.reasonNoChanges': 'xx-same' }, () =>
       syncMessage('domain.sync.reasonNoChanges'),
     )
     expect(message.message).toBe('no changes')
+  })
+})
+
+describe('a placeholder its params do not fill', () => {
+  // As an older server would send it, before `received` was renamed: the
+  // template needs a param the message does not carry.
+  const stale = {
+    message: 'Processing: 50% (36.25/72.50 MiB)',
+    messageKey: 'domain.cache.refresh.processing',
+    messageParams: { percentage: 50, receivedBytes: syncSize(38_010_880), total: syncSize(1) },
+  } as const satisfies SyncMessage
+
+  test('falls the whole message back to the English it carries', () => {
+    withSyntheticLocale('de', {}, (de) => {
+      expect(renderSyncMessage(stale, de)).toBe(stale.message)
+    })
+  })
+
+  test('is a strict failure nested too, never a raw token mid-sentence', () => {
+    const outer: SyncMessage = {
+      message: `Card cache download failed: ${stale.message}`,
+      messageKey: 'domain.cache.downloadFailed',
+      messageParams: {
+        error: { messageKey: stale.messageKey, messageParams: stale.messageParams },
+      },
+    }
+    withSyntheticLocale('xx', { 'domain.cache.downloadFailed': 'KAPUTT: {error}' }, (xx) => {
+      expect(renderSyncMessage(outer, xx)).toBe(outer.message)
+    })
+  })
+
+  test('leaves a bare reference rendering as `t()` does, token visible', () => {
+    // No English to fall back on: the non-strict path degrades as it always
+    // has. Only outside strict mode, which makes the same gap throw.
+    const strict = process.env.RITUAL_I18N_STRICT
+    delete process.env.RITUAL_I18N_STRICT
+    try {
+      expect(
+        renderSyncParam(
+          { messageKey: stale.messageKey, messageParams: stale.messageParams },
+          DEFAULT_LOCALE,
+        ),
+      ).toBe('Processing: 50% ({received}/0.00 MiB)')
+    } finally {
+      if (strict !== undefined) process.env.RITUAL_I18N_STRICT = strict
+    }
+  })
+})
+
+describe('a selector naming no branch', () => {
+  // A newer process's selector value: `cli.cacheLock.missingField` has a branch
+  // per field and no `other`, so `t()` would render the bare key.
+  const future = {
+    message: 'Invalid cache lock: missing string owner',
+    messageKey: 'cli.cacheLock.missingField',
+    messageParams: { field: 'owner' },
+  } as const satisfies SyncMessage
+
+  test('is reported as the selector going unresolved', () => {
+    expect(unresolvedPlaceholders(DEFAULT_LOCALE, future.messageKey, { field: 'owner' })).toEqual([
+      'field',
+    ])
+    expect(unresolvedPlaceholders(DEFAULT_LOCALE, future.messageKey, { field: 'pid' })).toEqual([])
+  })
+
+  test('falls the whole message back to the English it carries', () => {
+    withSyntheticLocale('de', {}, (de) => {
+      expect(renderSyncMessage(future, de)).toBe(future.message)
+    })
+    expect(
+      isRenderable({ messageKey: future.messageKey, messageParams: future.messageParams }),
+    ).toBe(false)
   })
 })
 

@@ -16,7 +16,8 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail } from '../cli/action'
+import { fail, failWithMessage } from '../cli/action'
+import { syncMessage } from '../sync/message'
 import { ExitCode, getErrorMessage } from '../util/errors'
 import { renderCardSummary } from './card'
 import { parsePositiveInteger } from '../util/parse-number'
@@ -342,9 +343,11 @@ async function runRandom(
     const outcome = classifyFetchCard(await fetchRandomCard(filter))
 
     if (outcome.kind === 'failed') {
-      fail(scriptingOptions, 'runtime_error', 'cli.scry.randomFailed', {
-        reason: outcome.message,
-      })
+      failWithMessage(
+        scriptingOptions,
+        'runtime_error',
+        syncMessage('cli.scry.randomFailed', { reason: outcome.reason }),
+      )
       return
     }
 

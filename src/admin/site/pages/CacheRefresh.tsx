@@ -72,8 +72,9 @@ export function CacheRefresh(): JSX.Element {
   const { status, error, run, setStatus, setError } = useApiAction()
   const [stage, setStage] = createSignal<Stage>('idle')
   const [percentage, setPercentage] = createSignal(0)
-  // The engine's progress lines arrive as text; the fallback's own line is a
-  // key, held unrendered for the same reason as the alerts.
+  // The engine's progress lines arrive as English plus their key, and the
+  // fallback's own line is a key: both held unrendered, for the same reason as
+  // the alerts.
   const [progressMessage, setProgressMessage] = createSignal<ApiActionMessage>('')
   let stream: SyncStream | null = null
   onCleanup(() => stream?.close())
@@ -134,8 +135,10 @@ export function CacheRefresh(): JSX.Element {
           batch(() => {
             if (isRenderedStage(event.stage)) setStage(event.stage)
             if (event.percentage !== undefined) setPercentage(event.percentage)
-            // Untyped JSON: a frame without a string `message` must not crash the render.
-            setProgressMessage(typeof event.message === 'string' ? event.message : '')
+            // Held unrendered, like the alerts: the line is English plus its key
+            // (its sizes nested), so a language switch relabels it mid-refresh.
+            // Untyped JSON: a frame without a string `message` shows no line.
+            setProgressMessage(readSyncMessage(event) ?? '')
           })
         },
         // Read through `readSyncMessage`: a frame is untyped JSON, and one with no
@@ -186,10 +189,13 @@ export function CacheRefresh(): JSX.Element {
               <div class="progress-track">
                 <div class="progress-fill" style={`width: ${percentage()}%;`} />
               </div>
-              <Show when={heldText(progressMessage())}>
-                {(line) => <p class="progress-message">{line()}</p>}
-              </Show>
             </div>
+          </Show>
+
+          {/* Every phase's line, not only the download's: the metadata and tag
+              steps before it and the save after it report one too. */}
+          <Show when={heldText(progressMessage())}>
+            {(line) => <p class="progress-message">{line()}</p>}
           </Show>
 
           <div class="progress-stages">

@@ -2,14 +2,16 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { CacheFeedClient, parseCacheFeedClientState } from '../../src/cache/feed-client'
-import { FEED_VERSION, type CacheFeedDocument, type CacheFeedEntry } from '../../src/cache/feed'
+import type { CacheFeedDocument, CacheFeedEntry } from '../../src/cache/feed'
+import { buildCacheFeed, type FeedArtifact } from '../helpers/cache-feed'
 import type { BulkCacheFiles } from '../../src/scryfall/client'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 import { foreignLocales, withSyntheticLocaleAsync } from '../helpers/sync-text'
 import { en } from '../../src/i18n/messages/en'
 
-const FEED_URL = 'https://feed.example/feed.json'
+const FEED_ORIGIN = 'https://feed.example'
+const FEED_URL = `${FEED_ORIGIN}/feed.json`
 
 async function sha256Of(bytes: Uint8Array): Promise<string> {
   return new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
@@ -27,17 +29,17 @@ async function mockFeed(
   cardLines: unknown[] = [{ name: 'Sol Ring', set: 'cmr' }],
   options: { includeAllCards?: boolean } = {},
 ): Promise<FeedFixture> {
-  const artifacts: Array<{ kind: CacheFeedEntry['kind']; name: string; body: Uint8Array }> = [
+  const artifacts: FeedArtifact[] = [
     {
       kind: 'default-cards',
-      name: `default-cards-${stamp}.jsonl.gz`,
+      fileName: `default-cards-${stamp}.jsonl.gz`,
       body: gzipJsonLines(cardLines),
     },
     ...(options.includeAllCards
       ? [
           {
             kind: 'all-cards' as const,
-            name: `all-cards-${stamp}.jsonl.gz`,
+            fileName: `all-cards-${stamp}.jsonl.gz`,
             // The every-language bulk: the same card plus a foreign object.
             body: gzipJsonLines([...cardLines, { name: 'Sol Ring', set: 'cmr', lang: 'ja' }]),
           },
@@ -47,42 +49,24 @@ async function mockFeed(
       kind: 'oracle-tags',
       // Tag content never changes across these fixtures, so — like the real
       // host, whose entries are reused verbatim when unchanged — the name is stable.
-      name: 'oracle-tags-stable.jsonl.gz',
+      fileName: 'oracle-tags-stable.jsonl.gz',
       body: gzipJsonLines([
         { object: 'tag', id: 't1', label: 'ramp', slug: 'ramp', type: 'oracle' },
       ]),
     },
     {
       kind: 'art-tags',
-      name: 'art-tags-stable.jsonl.gz',
+      fileName: 'art-tags-stable.jsonl.gz',
       body: gzipJsonLines([
         { object: 'tag', id: 'a1', label: 'sun', slug: 'sun', type: 'illustration' },
       ]),
     },
   ]
 
-  const entries: CacheFeedEntry[] = []
+  const { feed, files } = buildCacheFeed(FEED_ORIGIN, artifacts, stamp)
   const bodies: Record<string, Uint8Array> = {}
-  for (const artifact of artifacts) {
-    const fileUrl = `https://feed.example/files/${artifact.name}`
-    const infoHash = (await sha256Of(artifact.body)).slice(0, 40)
-    entries.push({
-      kind: artifact.kind,
-      fileName: artifact.name,
-      infoHash,
-      magnet: `magnet:?xt=urn:btih:${infoHash}`,
-      length: artifact.body.byteLength,
-      sha256: await sha256Of(artifact.body),
-      scryfallUpdatedAt: stamp,
-      publishedAt: stamp,
-      fileUrl,
-      torrentUrl: `https://feed.example/torrents/${infoHash}.torrent`,
-    })
-    bodies[artifact.name] = artifact.body
-    http.mock(fileUrl, () => new Response(artifact.body.slice()))
-  }
-
-  const feed: CacheFeedDocument = { version: FEED_VERSION, generatedAt: stamp, entries }
+  for (const artifact of artifacts) bodies[artifact.fileName] = artifact.body
+  for (const [fileUrl, body] of files) http.mock(fileUrl, () => new Response(body.slice()))
   http.mock(FEED_URL, () => new Response(JSON.stringify(feed)))
   return { feed, bodies }
 }

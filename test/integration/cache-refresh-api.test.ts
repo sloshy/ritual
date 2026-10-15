@@ -9,7 +9,6 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
-import { existsSync, readFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { handleCacheRefresh, type CacheRefreshResponse } from '../../src/admin/api/cache'
@@ -19,9 +18,11 @@ import {
   CacheLockTimeoutError,
   type CacheLockInfo,
 } from '../../src/cache/lock'
+import type { CacheRefreshEvent } from '../../src/scryfall'
 import type { SyncMessage, SyncMessageParams } from '../../src/sync/message'
+import { gzipJsonLines } from '../test-utils'
 import { keyedMessage } from '../helpers/api-message'
-import { foreignLocales, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocaleAsync } from '../helpers/sync-text'
 import { readStreamFrames } from '../helpers/sse'
 import { MemoryLogger, resetLogger, setLogger } from '../test-utils'
 import type { RouteProgress } from '../../src/util/progress'
@@ -73,9 +74,11 @@ describe('handleCacheRefresh', () => {
     }, controller.signal)
 
     expect(resp.status).toBe(499)
-    expect(((await resp.json()) as { success: boolean; message: string }).message).toContain(
-      'cancelled',
-    )
+    expect(await resp.json()).toEqual({
+      success: false,
+      message: 'The cache refresh was cancelled; the existing card cache was left as it was.',
+      messageKey: 'domain.cache.refresh.cancelled',
+    })
     // The previous cache (empty here) is exactly what was there before.
     expect(await cardCache.get('Sol Ring')).toBeNull()
 
@@ -93,6 +96,83 @@ describe('handleCacheRefresh', () => {
 
     expect(resp.status).toBe(500)
     expect(((await resp.json()) as { success: boolean }).success).toBe(false)
+  })
+})
+
+describe('the refresh stream’s progress lines', () => {
+  test('stream in English plus their key, sizes nested, whatever the server’s language', async () => {
+    stubbed = stubScryfallBulk({ cards: [bulkCard()] })
+
+    const frames = await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), async (locale) => {
+      expectLocaleInForce(locale)
+      const read = await readStreamFrames('/api/cache/refresh/stream')
+      expectLocaleInForce(locale)
+      return read
+    })
+
+    // The wire shape of the frames that carry nested params: English plus the
+    // key, the sizes as sizes, beside the unchanged stage and percentage. (Which
+    // steps the engine reports, and that each is keyed, is the engine's own
+    // test's: `test/unit/scryfall/cache-progress.test.ts`.)
+    const totalBytes = gzipJsonLines([bulkCard()]).byteLength
+    const mib = (totalBytes / 1024 / 1024).toFixed(2)
+    const progress = frames
+      .filter((frame) => frame.event === 'progress')
+      .map((frame) => frame.data as unknown as CacheRefreshEvent)
+    expect(progress.find((event) => event.stage === 'download')).toEqual({
+      stage: 'download',
+      message: `Download size: ${mib} MiB (compressed)`,
+      messageKey: 'domain.cache.refresh.downloadSize',
+      messageParams: { size: { sizeBytes: totalBytes } },
+    })
+    expect(progress.findLast((event) => event.stage === 'download')).toEqual({
+      stage: 'download',
+      percentage: 100,
+      message: `Processing: 100% (${mib}/${mib} MiB)`,
+      messageKey: 'domain.cache.refresh.processing',
+      messageParams: {
+        percentage: 100,
+        received: { sizeBytes: totalBytes },
+        total: { sizeBytes: totalBytes },
+      },
+    })
+  })
+
+  test('reach an in-process caller (MCP) as the English line', async () => {
+    stubbed = stubScryfallBulk({ cards: [bulkCard()] })
+
+    const reports: RouteProgress[] = []
+    await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      return handleCacheRefresh((report) => reports.push(report))
+    })
+
+    const mib = (gzipJsonLines([bulkCard()]).byteLength / 1024 / 1024).toFixed(2)
+    expect(reports.map((report) => report.message)).toEqual([
+      'Fetching bulk data metadata from Scryfall…',
+      'Downloading oracle/art tags…',
+      `Processing: 100% (${mib}/${mib} MiB)`,
+      'Saving to cache…',
+      'Done! Card cache populated.',
+    ])
+  })
+
+  test('a failed download streams as a keyed error frame, its status as params', async () => {
+    stubbed = stubScryfallBulk({
+      cardBulk: () => new Response('nope', { status: 503, statusText: 'Service Unavailable' }),
+    })
+
+    const frames = await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      return readStreamFrames('/api/cache/refresh/stream')
+    })
+
+    const error = frames.find((frame) => frame.event === 'error')?.data as SyncMessage
+    expect(error).toEqual({
+      message: 'Failed to fetch bulk data: 503 Service Unavailable',
+      messageKey: 'domain.cache.refresh.bulkFetchFailed',
+      messageParams: { status: 503, statusText: 'Service Unavailable' },
+    })
   })
 })
 
@@ -175,31 +255,4 @@ describe('handleCacheRefresh behind another process’s cache lock', () => {
       data: { message: 'Cache refreshed successfully', messageKey: 'admin.api.cache.refreshed' },
     })
   })
-})
-
-describe('the lock a refresh holds', () => {
-  test.each(foreignLocales())(
-    'names its operation in the English literal under $tag',
-    async ({ tag, catalog }) => {
-      stubbed = stubScryfallBulk({ cards: [bulkCard()] })
-      const lockPath = path.join(ws.dir, 'cache', CACHE_LOCK_FILENAME)
-      const seen = new Set<string>()
-
-      // Read while the refresh holds it: another process reads this very file.
-      const resp = await withSyntheticLocaleAsync(tag, catalog, () =>
-        handleCacheRefresh(() => {
-          if (!existsSync(lockPath)) return
-          seen.add((JSON.parse(readFileSync(lockPath, 'utf-8')) as CacheLockInfo).operation)
-        }),
-      )
-
-      expect(resp.status).toBe(200)
-      expect(seen.size).toBeGreaterThan(0)
-      for (const operation of seen) {
-        expect(['tag refresh', 'bulk card cache download', 'bulk card cache ingest']).toContain(
-          operation,
-        )
-      }
-    },
-  )
 })

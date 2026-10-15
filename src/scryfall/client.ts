@@ -14,7 +14,22 @@ import { getCardPrice, getPriceField } from '../pricing/price-currency'
 import { getBannedPrintings } from '../config/ritual-config'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { getLogger } from '../util/logger'
-import { CancelledError, getErrorMessage, isAbortError, throwHttpError } from '../util/errors'
+import { CancelledError, getErrorMessage, isAbortError } from '../util/errors'
+import type { MessageKey } from '../i18n/messages/en'
+import { t } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
+import {
+  errorParam,
+  renderSyncMessage,
+  syncElapsed,
+  syncList,
+  syncMessage,
+  SyncMessageError,
+  syncSize,
+  type SyncMessage,
+  type SyncText,
+} from '../sync/message'
 import path from 'node:path'
 import {
   type CardNameFilter,
@@ -44,8 +59,13 @@ import {
   type CardBulkType,
   type ScryfallBulkManifestEntry,
 } from './bulk-manifest'
+import { httpStatus } from './http-status'
 import { recordCardBulkType } from '../cache/bulk-provenance'
-import type { CacheRefreshProgressHandler, PreloadCacheOptions } from './progress'
+import type {
+  CacheRefreshEvent,
+  CacheRefreshProgressHandler,
+  PreloadCacheOptions,
+} from './progress'
 import { withCacheLock } from '../cache/lock'
 import { writeFileAtomic } from '../util/atomic-write'
 import { RATE_LIMIT_MS, RequestQueue } from './request-queue'
@@ -91,8 +111,14 @@ export type GetCardPrintingsOptions = {
 }
 export type FetchNamedCardOptions = { fuzzy?: boolean; set?: string }
 
-/** Request-level failure from a card fetch: a network error or a non-404 HTTP response. */
-export type ScryfallFetchError = { error: string }
+/**
+ * Request-level failure from a card fetch: a network error or a non-404 HTTP
+ * response. `error` is held unrendered when Ritual worded it (a timed-out
+ * request), so a caller can render it in its reader's language and an
+ * `--output json` envelope can flatten it to English; Scryfall's own `details`
+ * text, or another module's error, is carried as it came.
+ */
+export type ScryfallFetchError = { error: SyncText }
 
 /**
  * Result of a single-card fetch: the card, `null` when Scryfall reports that no
@@ -103,7 +129,9 @@ export type FetchCardResult = ScryfallCard | ScryfallFetchError | null
 
 /** A {@link FetchCardResult} classified into its three outcomes for exhaustive handling. */
 export type FetchCardOutcome =
-  { kind: 'card'; card: ScryfallCard } | { kind: 'not-found' } | { kind: 'failed'; message: string }
+  | { kind: 'card'; card: ScryfallCard }
+  | { kind: 'not-found' }
+  | { kind: 'failed'; reason: SyncText }
 
 /**
  * Classify a {@link FetchCardResult} so callers share one discrimination of the
@@ -112,7 +140,7 @@ export type FetchCardOutcome =
  */
 export function classifyFetchCard(result: FetchCardResult): FetchCardOutcome {
   if (result === null) return { kind: 'not-found' }
-  if ('error' in result) return { kind: 'failed', message: result.error }
+  if ('error' in result) return { kind: 'failed', reason: result.error }
   return { kind: 'card', card: result }
 }
 
@@ -164,6 +192,18 @@ export class ScryfallClient implements PricingBackend {
   private tagIndex: TagIndex | null | undefined
 
   /**
+   * Drop what this client memoized about the card cache — whether it is bulk
+   * backed, and its tag index — so the next lookup reads the cache afresh. For
+   * when the cache under it changed: a clear, which drops the bulk-refresh
+   * stamp (the cache server's `DELETE /cache/cards` calls this), or a switch to
+   * another workspace's cache (a test binding another workspace).
+   */
+  forgetCacheMemos(): void {
+    this.bulkBacked = false
+    this.tagIndex = undefined
+  }
+
+  /**
    * `http.fetch` with a {@link SCRYFALL_FETCH_TIMEOUT_MS} abort timeout, for
    * the short per-request API calls (card lookups, search pages, price
    * batches). Deliberately not used for bulk-file downloads, whose transfer
@@ -179,8 +219,11 @@ export class ScryfallClient implements PricingBackend {
       })
     } catch (e) {
       if (e instanceof DOMException && e.name === 'TimeoutError') {
-        throw new Error(
-          `Scryfall request timed out after ${SCRYFALL_FETCH_TIMEOUT_MS / 1000} seconds: ${url}`,
+        throw new SyncMessageError(
+          syncMessage('domain.cache.scryfall.timedOut', {
+            timeout: syncElapsed(SCRYFALL_FETCH_TIMEOUT_MS),
+            url: String(url),
+          }),
           { cause: e },
         )
       }
@@ -207,9 +250,13 @@ export class ScryfallClient implements PricingBackend {
 
     if (offline) return []
 
-    getLogger().info('Fetching symbology from Scryfall...')
+    getLogger().info(t('cli.scryfall.fetchingSymbology'))
     const response = await this.fetchWithTimeout('https://api.scryfall.com/symbology')
-    if (!response.ok) throwHttpError(response, 'Failed to fetch symbology')
+    if (!response.ok) {
+      throw new SyncMessageError(
+        syncMessage('domain.cache.scryfall.symbologyFailed', httpStatus(response)),
+      )
+    }
 
     const json = (await response.json()) as ScryfallList<ScryfallSymbol>
     const data = json.data
@@ -240,7 +287,9 @@ export class ScryfallClient implements PricingBackend {
     await Bun.sleep(RATE_LIMIT_MS)
 
     const response = await this.fetchWithTimeout(symbol.svg_uri)
-    if (!response.ok) throw new Error(`Failed to download symbol ${symbol.symbol}`)
+    if (!response.ok) {
+      throw new Error(t('cli.scryfall.symbolDownloadFailed', { symbol: symbol.symbol }))
+    }
 
     const buffer = await response.arrayBuffer()
     await this.fileSystem.mkdir(getImageCacheDir(), { recursive: true })
@@ -306,7 +355,7 @@ export class ScryfallClient implements PricingBackend {
       if (filtered.length !== cached.length) {
         // Evict excluded printings (tokens, art series, …) left by an older cache
         this.cardCache.set(name, filtered).catch((e) => {
-          getLogger().warn(`Failed to evict excluded printings for '${name}':`, e)
+          getLogger().warn(t('cli.scryfall.evictFailed', { name }), e)
         })
       }
       // An entry left holding nothing usable (every printing excluded — tokens,
@@ -368,7 +417,11 @@ export class ScryfallClient implements PricingBackend {
     const response = await this.fetchWithTimeout(url)
     await Bun.sleep(RATE_LIMIT_MS)
     if (response.status === 404) return null
-    if (!response.ok) throwHttpError(response, 'Failed to fetch printing')
+    if (!response.ok) {
+      throw new SyncMessageError(
+        syncMessage('domain.cache.scryfall.printingFailed', httpStatus(response)),
+      )
+    }
 
     const card = mapScryfallCard((await response.json()) as ScryfallCard)
     if (!isRealPrinting(card)) return null
@@ -434,7 +487,7 @@ export class ScryfallClient implements PricingBackend {
     }
 
     if (!options?.silent) {
-      getLogger().info(`Fetching: ${name}`)
+      getLogger().info(t('cli.scryfall.fetchingCard', { name }))
     }
     try {
       // Use exact name match to avoid ambiguity
@@ -448,7 +501,7 @@ export class ScryfallClient implements PricingBackend {
         const card = mapScryfallCard(json)
 
         if (isArenaOnly(card)) {
-          getLogger().warn(`Card '${name}' is arena-only, skipping.`)
+          getLogger().warn(t('cli.scryfall.arenaOnly', { name }))
           await Bun.sleep(RATE_LIMIT_MS)
           return null
         }
@@ -463,12 +516,10 @@ export class ScryfallClient implements PricingBackend {
         if (response.status === 404) {
           await this.cardCache.addToBlocklist?.(name)
         }
-        getLogger().warn(
-          `Failed to fetch card '${name}': ${response.status} ${response.statusText}`,
-        )
+        getLogger().warn(t('cli.scryfall.cardFetchFailed', { name, ...httpStatus(response) }))
       }
     } catch (e) {
-      getLogger().error(`Error fetching card '${name}':`, e)
+      getLogger().error(t('cli.scryfall.cardFetchError', { name }), e)
     }
 
     await Bun.sleep(RATE_LIMIT_MS)
@@ -515,7 +566,7 @@ export class ScryfallClient implements PricingBackend {
         result = { error: await readScryfallErrorDetails(response) }
       }
     } catch (e) {
-      result = { error: getErrorMessage(e) }
+      result = { error: errorParam(e) }
     }
 
     await Bun.sleep(RATE_LIMIT_MS)
@@ -543,7 +594,9 @@ export class ScryfallClient implements PricingBackend {
       })
 
       if (!response.ok) {
-        throwHttpError(response, 'Failed to fetch batch prices')
+        throw new SyncMessageError(
+          syncMessage('domain.cache.scryfall.pricesFailed', httpStatus(response)),
+        )
       }
 
       const json = (await response.json()) as ScryfallCollectionResponse
@@ -551,7 +604,11 @@ export class ScryfallClient implements PricingBackend {
         .map((item) => item.name?.trim())
         .filter((name): name is string => Boolean(name))
       if (missingNames.length > 0) {
-        throw new Error(`Scryfall could not find prices for: ${missingNames.join(', ')}`)
+        throw new SyncMessageError(
+          syncMessage('domain.cache.scryfall.pricesNotFound', {
+            names: syncList(missingNames, 'unit'),
+          }),
+        )
       }
 
       for (let index = 0; index < batch.length; index++) {
@@ -596,7 +653,7 @@ export class ScryfallClient implements PricingBackend {
         const mapped = realPrintings.map((c) => mapScryfallCard(c))
         if (mapped.length > 0) {
           await this.mergeCachedPrintings(cardName, mapped).catch((e: unknown) => {
-            getLogger().warn(`Failed to cache printings for '${name}':`, e)
+            getLogger().warn(t('cli.scryfall.cachePrintingsFailed', { name }), e)
           })
         }
         const realFirstPage = firstPageCards.filter(isRealPrinting)
@@ -713,7 +770,7 @@ export class ScryfallClient implements PricingBackend {
    * `has_more` would loop forever at one request per rate-limit tick.
    */
   async searchAllPages(query: string): Promise<SearchAllPagesResult> {
-    getLogger().info(`Searching for: ${query}`)
+    getLogger().info(t('cli.scryfall.searching', { query }))
     const cards: ScryfallCard[] = []
     let matched = 0
     for (let page = 1; page <= SEARCH_ALL_PAGES_MAX; page++) {
@@ -795,7 +852,7 @@ export class ScryfallClient implements PricingBackend {
 
       return true
     } catch (e) {
-      getLogger().error(`Failed to download image from ${url}:`, e)
+      getLogger().error(t('cli.scryfall.imageDownloadFailed', { url }), e)
       return false
     }
   }
@@ -806,8 +863,10 @@ export class ScryfallClient implements PricingBackend {
 
   private async fetchTagBulk(url: string): Promise<ScryfallTag[]> {
     const response = await this.http.fetch(url)
-    if (!response.ok) throwHttpError(response, `Failed to fetch tag bulk ${url}`)
-    if (!response.body) throw new Error(`Tag bulk response for ${url} has no body`)
+    if (!response.ok) {
+      throw new Error(t('cli.scryfall.tagBulkFetchFailed', { url, ...httpStatus(response) }))
+    }
+    if (!response.body) throw new Error(t('cli.scryfall.tagBulkNoBody', { url }))
     return this.parseTagBulkStream(response.body)
   }
 
@@ -832,7 +891,12 @@ export class ScryfallClient implements PricingBackend {
     await writeFileAtomic(this.tagCachePath(), JSON.stringify(index), { fs: this.fileSystem })
     this.tagIndex = index
     getLogger().info(
-      `Indexed tags for ${Object.keys(index.oracle).length} oracle ids and ${Object.keys(index.illustration).length} illustrations.`,
+      t('cli.scryfall.indexedTags', {
+        oracleIds: t('cli.scryfall.oracleIdCount', { count: Object.keys(index.oracle).length }),
+        illustrations: t('cli.scryfall.illustrationCount', {
+          count: Object.keys(index.illustration).length,
+        }),
+      }),
     )
     return index
   }
@@ -860,21 +924,21 @@ export class ScryfallClient implements PricingBackend {
    */
   async downloadTagIndex(): Promise<TagIndex | null> {
     try {
-      getLogger().info('Fetching tag bulk metadata from Scryfall...')
+      getLogger().info(t('cli.scryfall.fetchingTagMetadata'))
       const metadata = await this.fetchBulkMetadata()
 
       const oracleMeta = metadata.find((d) => d.type === 'oracle_tags')
       const artMeta = metadata.find((d) => d.type === 'art_tags')
       if (!oracleMeta?.jsonl_download_uri || !artMeta?.jsonl_download_uri) {
-        throw new Error('Could not find oracle_tags / art_tags bulk data URIs')
+        throw new Error(t('cli.scryfall.noTagBulkUris'))
       }
 
-      getLogger().info('Downloading oracle and art tags...')
+      getLogger().info(t('cli.scryfall.downloadingTags'))
       const oracleTags = await this.fetchTagBulk(oracleMeta.jsonl_download_uri)
       const artTags = await this.fetchTagBulk(artMeta.jsonl_download_uri)
       return await this.persistTagIndex(oracleTags, artTags)
     } catch (e) {
-      getLogger().warn(`Failed to download tags: ${e instanceof Error ? e.message : String(e)}`)
+      getLogger().warn(t('cli.scryfall.tagDownloadFailed', { reason: getErrorMessage(e) }))
       return null
     }
   }
@@ -901,6 +965,7 @@ export class ScryfallClient implements PricingBackend {
    * is supplied (e.g. by a caller that already downloaded it for its own use).
    */
   async refreshTags(prefetched?: TagIndex | null): Promise<void> {
+    // i18n-exempt: lock-file `operation`, read back by other ritual processes — English by contract
     await withCacheLock(this.fileSystem, 'tag refresh', async () => {
       const index = prefetched ?? (await this.downloadTagIndex())
       if (!index) {
@@ -908,11 +973,11 @@ export class ScryfallClient implements PricingBackend {
         // happen has to be learnable by the command that promises exit 1 for it.
         // The best-effort swallow stays where degradation is intended — the tag
         // bake inside a bulk preload, which uses `downloadTagIndex` directly.
-        throw new Error('Tag refresh aborted: could not download the oracle/art tag bulks.')
+        throw new SyncMessageError(syncMessage('domain.cache.refresh.tagsAborted'))
       }
 
       const names = await this.cardCache.keys()
-      getLogger().info(`Re-attaching tags to ${names.length} cached cards...`)
+      getLogger().info(t('cli.scryfall.reattachingTags', { count: names.length }))
       const entries: Record<string, ScryfallCard[]> = {}
       for (const name of names) {
         const printings = await this.cardCache.get(name)
@@ -922,7 +987,7 @@ export class ScryfallClient implements PricingBackend {
       }
 
       await this.flushCardEntries(entries)
-      getLogger().info('Done! Tags refreshed.')
+      getLogger().info(t('cli.scryfall.tagsRefreshed'))
     })
   }
 
@@ -936,6 +1001,7 @@ export class ScryfallClient implements PricingBackend {
    * `refresh_cache` tool) can only do so because they arrive here.
    */
   async preloadCache(options?: PreloadCacheOptions): Promise<void> {
+    // i18n-exempt: lock-file `operation`, read back by other ritual processes — English by contract
     await withCacheLock(this.fileSystem, 'bulk card cache download', () =>
       this.downloadBulkCards(options),
     )
@@ -956,45 +1022,48 @@ export class ScryfallClient implements PricingBackend {
     // itself so an abort mid-file stops the transfer rather than draining it.
     throwIfCancelled(signal)
     const bulkType = configuredCardBulkType()
-    getLogger().info('Fetching bulk data metadata from Scryfall...')
-    onProgress({ stage: 'metadata', message: 'Fetching bulk data metadata from Scryfall…' })
+    reportStep(onProgress, 'metadata', syncMessage('domain.cache.refresh.fetchingMetadata'))
     const metadata = await this.fetchBulkMetadata()
     const bulkEntry = metadata.find((d) => d.type === bulkType)
 
     if (!bulkEntry?.jsonl_download_uri) {
-      throw new Error(`Could not find ${bulkType} bulk data URI`)
+      throw new SyncMessageError(syncMessage('domain.cache.refresh.noBulkUri', { bulk: bulkType }))
     }
 
     // Download tags up front so they can be baked onto each card as it streams in.
     throwIfCancelled(signal)
-    onProgress({ stage: 'tags', message: 'Downloading oracle/art tags…' })
+    onProgress({ stage: 'tags', ...syncMessage('domain.cache.refresh.downloadingTags') })
     const tagIndex = await this.downloadTagIndex()
 
     const bulkUrl = bulkEntry.jsonl_download_uri
-    getLogger().info(`Bulk URL: ${bulkUrl}`)
+    getLogger().info(t('cli.scryfall.bulkUrl', { url: bulkUrl }))
 
     throwIfCancelled(signal)
     const response = await this.http.fetch(bulkUrl, signal ? { signal } : undefined)
-    if (!response.ok) throwHttpError(response, 'Failed to fetch bulk data')
-    if (!response.body) throw new Error('Bulk data response has no body')
+    if (!response.ok) {
+      throw new SyncMessageError(
+        syncMessage('domain.cache.refresh.bulkFetchFailed', httpStatus(response)),
+      )
+    }
+    if (!response.body) {
+      throw new SyncMessageError(syncMessage('domain.cache.refresh.bulkNoBody'))
+    }
 
     // The manifest's `size` describes the uncompressed data, so the compressed
     // download total comes from the response itself (absent on chunked bodies).
     const totalBytes = Number(response.headers.get('content-length') ?? 0)
-    const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
     if (totalBytes > 0) {
-      getLogger().info(`Download size: ${totalMiB} MiB (compressed)`)
-      onProgress({
-        stage: 'download',
-        message: `Download size: ${totalMiB} MiB (compressed)`,
-      })
+      reportStep(
+        onProgress,
+        'download',
+        syncMessage('domain.cache.refresh.downloadSize', { size: syncSize(totalBytes) }),
+      )
     }
 
     await this.ingestCardStream(response.body, tagIndex, totalBytes, options)
     await recordCardBulkType(bulkType, { fileSystem: this.fileSystem })
 
-    getLogger().info('Done! Card cache populated.')
-    onProgress({ stage: 'done', message: 'Done! Card cache populated.' })
+    reportStep(onProgress, 'done', syncMessage('domain.cache.refresh.done'))
   }
 
   /**
@@ -1009,25 +1078,28 @@ export class ScryfallClient implements PricingBackend {
     options?: PreloadCacheOptions,
   ): Promise<void> {
     const report: CacheRefreshProgressHandler = options?.onProgress ?? ((): void => {})
-    const totalMiB = (totalBytes / 1024 / 1024).toFixed(2)
     // Progress update max every 100ms to avoid spamming stdout
     let lastUpdate = 0
     const onProgress = ({ compressedBytes }: GzipJsonLinesProgress): void => {
       const now = Date.now()
       if (now - lastUpdate <= 100 && compressedBytes !== totalBytes) return
       lastUpdate = now
-      const receivedMiB = (compressedBytes / 1024 / 1024).toFixed(2)
+      const received = syncSize(compressedBytes)
       if (totalBytes > 0) {
         const percentage = Math.round((compressedBytes / totalBytes) * 100)
-        getLogger().progress(`\rProcessing: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`)
-        report({
-          stage: 'download',
+        const line = syncMessage('domain.cache.refresh.processing', {
           percentage,
-          message: `Processing: ${percentage}% (${receivedMiB}/${totalMiB} MiB)`,
+          received,
+          total: syncSize(totalBytes),
         })
+        // The console line rewrites itself in place; the report is the same
+        // line, in English plus its key.
+        getLogger().progress(`\r${renderSyncMessage(line)}`)
+        report({ stage: 'download', percentage, ...line })
       } else {
-        getLogger().progress(`\rProcessing: ${receivedMiB} MiB`)
-        report({ stage: 'download', message: `Processing: ${receivedMiB} MiB` })
+        const line = syncMessage('domain.cache.refresh.processingUnsized', { received })
+        getLogger().progress(`\r${renderSyncMessage(line)}`)
+        report({ stage: 'download', ...line })
       }
     }
 
@@ -1071,21 +1143,25 @@ export class ScryfallClient implements PricingBackend {
     getLogger().progress('\n')
 
     if (malformedCount > 0) {
-      getLogger().warn(`Skipped ${malformedCount} malformed bulk card entries.`)
+      getLogger().warn(t('cli.scryfall.skippedMalformed', { count: malformedCount }))
     }
-    const excludedEntries = Object.entries(excluded).filter(([, count]) => count > 0)
-    if (excludedEntries.length > 0) {
-      const total = excludedEntries.reduce((sum, [, count]) => sum + count, 0)
-      const breakdown = excludedEntries.map(([reason, count]) => `${count} ${reason}`).join(', ')
-      getLogger().info(`Filtered out ${total} printings (${breakdown}).`)
+    const exclusions = (Object.keys(EXCLUSION_LABEL) as PrintingExclusion[]).filter(
+      (reason) => excluded[reason] > 0,
+    )
+    if (exclusions.length > 0) {
+      const total = exclusions.reduce((sum, reason) => sum + excluded[reason], 0)
+      const breakdown = formatUnitList(
+        currentLocale(),
+        exclusions.map((reason) => t(EXCLUSION_LABEL[reason], { count: excluded[reason] })),
+      )
+      getLogger().info(t('cli.scryfall.filteredOut', { count: total, breakdown }))
     }
-    getLogger().info(`Processed ${cardCount} cards.`)
+    getLogger().info(t('cli.scryfall.processedCards', { count: cardCount }))
 
     // The last point a cancellation is honoured: the save that follows replaces
     // the cache atomically, so once it starts the refresh is allowed to finish.
     throwIfCancelled(signal)
-    getLogger().info('Saving to cache...')
-    report({ stage: 'save', message: 'Saving to cache…' })
+    reportStep(report, 'save', syncMessage('domain.cache.refresh.saving'))
     // Replaced, not merged: a name the bulk no longer produces — a printing an
     // exclusion now drops, a reversible printing now folded into its card — is
     // stale, and merging would leave it in autocomplete indefinitely.
@@ -1100,32 +1176,56 @@ export class ScryfallClient implements PricingBackend {
    * callers decide how to handle them.
    */
   async preloadCacheFromFiles(files: BulkCacheFiles): Promise<void> {
+    // i18n-exempt: lock-file `operation`, read back by other ritual processes — English by contract
     await withCacheLock(this.fileSystem, 'bulk card cache ingest', async () => {
       let tagIndex: TagIndex | null = null
       try {
-        getLogger().info('Building tag index from downloaded tag bulks...')
+        getLogger().info(t('cli.scryfall.buildingTagIndex'))
         const oracleTags = await this.parseTagBulkStream(Bun.file(files.oracleTags).stream())
         const artTags = await this.parseTagBulkStream(Bun.file(files.artTags).stream())
         tagIndex = await this.persistTagIndex(oracleTags, artTags)
       } catch (e) {
         // Tags are an enhancement — ingest cards without them rather than fail.
-        getLogger().warn(`Failed to build tags from downloaded bulks: ${getErrorMessage(e)}`)
+        getLogger().warn(t('cli.scryfall.tagBuildFailed', { reason: getErrorMessage(e) }))
       }
 
       const cardsFile = Bun.file(files.cards)
       await this.ingestCardStream(cardsFile.stream(), tagIndex, cardsFile.size)
       await recordCardBulkType(files.cardBulkType, { fileSystem: this.fileSystem })
-      getLogger().info('Done! Card cache populated from downloaded artifacts.')
+      getLogger().info(t('cli.scryfall.feedIngestDone'))
     })
   }
 }
 
 /** The error a cancelled refresh throws; the message says what was left behind. */
 function cancelledRefresh(): CancelledError {
-  return new CancelledError(
-    'The cache refresh was cancelled; the existing card cache was left as it was.',
-  )
+  return new CancelledError(syncMessage('domain.cache.refresh.cancelled'))
 }
+
+/**
+ * Report one step of a refresh twice: to the console in the active UI
+ * language, and to the caller's progress handler as English plus its key — the
+ * admin Cache Refresh page renders it in the reader's language, MCP reads the
+ * English.
+ */
+function reportStep(
+  onProgress: CacheRefreshProgressHandler,
+  stage: CacheRefreshEvent['stage'],
+  message: SyncMessage,
+): void {
+  getLogger().info(renderSyncMessage(message))
+  onProgress({ stage, ...message })
+}
+
+/**
+ * Each reason a bulk printing is left out, as the counted item the ingest's
+ * "Filtered out …" breakdown lists it by — in the order the breakdown lists them.
+ */
+const EXCLUSION_LABEL = {
+  'arena-only': 'cli.scryfall.excludedArenaOnly',
+  token: 'cli.scryfall.excludedTokens',
+  'art-series': 'cli.scryfall.excludedArtSeries',
+} as const satisfies Record<PrintingExclusion, MessageKey>
 
 /** Stop a refresh at a safe point when its caller has cancelled it. */
 function throwIfCancelled(signal: AbortSignal | undefined): void {

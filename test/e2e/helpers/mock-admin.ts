@@ -2,7 +2,14 @@ import type { Page, Route } from '@playwright/test'
 import type { ImportCsvRequest, ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { CsvRowFailure } from '../../../src/importers/csv'
 import type { MoveCommitResponse } from '../../../src/admin/api/move'
-import { syncList, syncMessage, syncRef, type SyncMessage } from '../../../src/sync/message'
+import {
+  syncList,
+  syncMessage,
+  syncRef,
+  syncSize,
+  type SyncMessage,
+} from '../../../src/sync/message'
+import type { CacheRefreshEvent } from '../../../src/scryfall/progress'
 import { AUDIT_REASONS } from '../../../src/admin/audit-reasons'
 import type { ArchidektLoginStatus } from '../../../src/auth/interfaces'
 import type { DeckSyncRunResponse } from '../../../src/admin/api/deck-sync'
@@ -387,7 +394,9 @@ export async function installMockEventSource(page: Page): Promise<void> {
 export async function emitStreamEvent(
   page: Page,
   event: string,
-  data: Record<string, unknown>,
+  // `object`, not a string-keyed record: an event payload is often an
+  // interface (`CacheRefreshEvent`), which has no index signature.
+  data: object,
 ): Promise<void> {
   await page.evaluate(
     ([eventName, payload]) => {
@@ -418,6 +427,32 @@ export async function streamUrl(page: Page): Promise<string> {
     if (!es) throw new Error('Mock EventSource not constructed yet — start the stream first')
     return es.url
   })
+}
+
+/**
+ * One `progress` frame of the cache refresh stream, exactly as the route sends
+ * it: the engine's stage (and percentage), plus the line as English with its
+ * key and params.
+ */
+export function cacheRefreshProgressFrame(
+  stage: CacheRefreshEvent['stage'],
+  line: SyncMessage,
+  percentage?: number,
+): CacheRefreshEvent {
+  return percentage === undefined ? { stage, ...line } : { stage, percentage, ...line }
+}
+
+/** The download frame the cache refresh specs share: half of 72.50 MiB in. */
+export function cacheRefreshDownloadFrame(): CacheRefreshEvent {
+  return cacheRefreshProgressFrame(
+    'download',
+    syncMessage('domain.cache.refresh.processing', {
+      percentage: 50,
+      received: syncSize(38_010_880),
+      total: syncSize(76_021_760),
+    }),
+    50,
+  )
 }
 
 /** What {@link mockCacheRefreshApi} lets a test observe: how many fallback POSTs were sent. */

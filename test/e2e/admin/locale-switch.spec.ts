@@ -19,6 +19,7 @@ import {
   mockDeckSyncApi,
   mockDecksApi,
   mockAuditLogApi,
+  cacheRefreshDownloadFrame,
   mockCacheRefreshApi,
   mockImportChangesApi,
   mockImportCsvApi,
@@ -573,6 +574,29 @@ test.describe('admin language switch', () => {
     await expect(done).toHaveText('Cache refreshed successfully')
     await languageSelect(page).selectOption(PSEUDO_LOCALE)
     await expectPseudo(done, true)
+  })
+
+  test('relabels a running cache refresh’s progress line, its sizes included', async ({ page }) => {
+    // German with no dictionary: the sentence stays English, but the sizes are
+    // nested params `Intl` renders, so they take the German decimal mark.
+    await offerLocales(page, ['en', PSEUDO_LOCALE, 'de'])
+    await fulfillJson(page, '**/locales/de.json', {})
+    await mockCacheRefreshApi(page)
+    await gotoAdminDashboard(page, '#/cache')
+    await page.locator('main button:has-text("Refresh Cache")').click()
+    await emitStreamEvent(page, 'progress', cacheRefreshDownloadFrame())
+    const line = page.locator('main .progress-message')
+    await expect(line).toHaveText('Processing: 50% (36.25/72.50 MiB)')
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(line, true)
+    await expect(line).not.toContainText('Processing:')
+
+    await languageSelect(page).selectOption('de')
+    await expect(line).toHaveText('Processing: 50% (36,25/72,50 MiB)')
+    // A re-render of the line already on screen, not a fresh page.
+    await expectNotReloaded(page)
   })
 
   test('relabels the Move Cards commit banner, held as the commit’s outcome', async ({ page }) => {

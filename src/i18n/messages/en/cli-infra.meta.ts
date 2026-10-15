@@ -3,6 +3,23 @@
 import type { MetaFor } from '../../types'
 import type { cliInfraMessages } from './cli-infra'
 
+/** Shared context for the Scryfall client's console lines. */
+const SCRYFALL_LOG =
+  'A console line of the Scryfall client (Scryfall is the card database Ritual reads card data from), printed by the CLI and in the console of a Ritual server (the admin server, the cache server, the cache feed host).'
+
+/** Shared context for the bulk card-cache refresh's console lines. */
+const BULK_LOG = `${SCRYFALL_LOG} Part of a card-cache refresh: downloading Scryfall's bulk card data into the local card cache.`
+
+/** Shared context for the tag bake's console lines. */
+const TAG_LOG = `${SCRYFALL_LOG} Part of downloading Scryfall's card tags — "oracle tags" (tags on a card's rules text) and "art tags" (tags on its artwork) — and attaching them to each cached card. A "tag bulk" is the file Scryfall publishes them in.`
+
+/** Shared context for the tag files' parse errors. */
+const TAG_PARSE = `${TAG_LOG} Why a tag file could not be read; shown inside "Failed to download tags: …" or "Failed to build tags from downloaded bulks: …". {index} is the 0-based position of the bad entry.`
+
+/** The HTTP status pair a failed request reports. */
+const STATUS_PAIR =
+  '{status} is the HTTP status code (e.g. 404) and {statusText} its standard English reason phrase (possibly empty), as the server sent them.'
+
 export const cliInfraMeta = {
   // ── cache status ──────────────────────────────────────────────────────
   'cli.cache.rowEmpty': {
@@ -396,6 +413,119 @@ export const cliInfraMeta = {
   },
   'cli.cacheStore.provenanceMissingRecordedAt': {
     description: 'That file lacks its "recordedAt" timestamp (a literal field name).',
+  },
+
+  // ── Scryfall client ───────────────────────────────────────────────────
+  'cli.scryfall.fetchingSymbology': {
+    description: `${SCRYFALL_LOG} Downloading Scryfall's "symbology": the list of mana and other symbols printed on cards, used when building the site.`,
+  },
+  'cli.scryfall.symbolDownloadFailed': {
+    description: `${SCRYFALL_LOG} One symbol image could not be downloaded. {symbol} is the symbol as printed in card text, e.g. "{W}" or "{2/U}".`,
+  },
+  'cli.scryfall.evictFailed': {
+    description: `${SCRYFALL_LOG} A warning, followed by the error on the same line: cached printings that are no longer wanted (tokens, art cards) could not be removed from a card's cache entry. {name} is the card's name.`,
+  },
+  'cli.scryfall.fetchingCard': {
+    description: `${SCRYFALL_LOG} Looking a card up on Scryfall because the local cache does not have it. {name} is the card's name.`,
+  },
+  'cli.scryfall.arenaOnly': {
+    description: `${SCRYFALL_LOG} A warning: the card exists only in MTG Arena, the digital game, so it is not cached. {name} is the card's name; "arena-only" means "only on MTG Arena".`,
+  },
+  'cli.scryfall.cardFetchFailed': {
+    description: `${SCRYFALL_LOG} A warning: Scryfall refused the lookup of one card. {name} is the card's name. ${STATUS_PAIR}`,
+  },
+  'cli.scryfall.cardFetchError': {
+    description: `${SCRYFALL_LOG} An error, followed by the error itself on the same line: looking one card up failed (e.g. the network was down). {name} is the card's name.`,
+  },
+  'cli.scryfall.cachePrintingsFailed': {
+    description: `${SCRYFALL_LOG} A warning, followed by the error on the same line: a card's printings (its editions) were fetched but could not be saved to the cache. {name} is the card's name.`,
+  },
+  'cli.scryfall.searching': {
+    description: `${SCRYFALL_LOG} Running a Scryfall card search. {query} is the search as typed, in Scryfall's own search syntax.`,
+  },
+  'cli.scryfall.imageDownloadFailed': {
+    description: `${SCRYFALL_LOG} An error, followed by the error itself on the same line: a card image could not be downloaded. {url} is the image's address.`,
+  },
+  'cli.scryfall.fetchingTagMetadata': {
+    description: `${TAG_LOG} The first step: asking Scryfall which bulk files exist and where to download them.`,
+  },
+  'cli.scryfall.noTagBulkUris': {
+    description: `${TAG_LOG} Scryfall's list of bulk files did not include the two tag files. "oracle_tags" and "art_tags" are their literal Scryfall names; "URIs" are download addresses. Shown inside "Failed to download tags: …".`,
+  },
+  'cli.scryfall.downloadingTags': {
+    description: `${TAG_LOG} Downloading the two tag files.`,
+  },
+  'cli.scryfall.tagBulkFetchFailed': {
+    description: `${TAG_LOG} Scryfall refused the download of one tag file. {url} is the file's address. ${STATUS_PAIR} Shown inside "Failed to download tags: …".`,
+  },
+  'cli.scryfall.tagBulkNoBody': {
+    description: `${TAG_LOG} Scryfall answered the download of one tag file with an empty response. {url} is the file's address. Shown inside "Failed to download tags: …".`,
+  },
+  'cli.scryfall.tagDownloadFailed': {
+    description: `${TAG_LOG} A warning: the tags could not be downloaded, so cards are cached without them. {reason} is why, already worded.`,
+  },
+  'cli.scryfall.indexedTags': {
+    description: `${TAG_LOG} How many cards and artworks got tags. {oracleIds} is a count with its noun, e.g. "3 oracle ids" (an "oracle id" identifies a card across its printings); {illustrations} is a count with its noun, e.g. "2 illustrations" (artworks).`,
+  },
+  'cli.scryfall.oracleIdCount': {
+    description: `${TAG_LOG} Fills {oracleIds} in "Indexed tags for {oracleIds} and {illustrations}." An "oracle id" is Scryfall's identifier for a card across all its printings; "id" may be translated as the language's usual abbreviation for an identifier.`,
+  },
+  'cli.scryfall.illustrationCount': {
+    description: `${TAG_LOG} Fills {illustrations} in "Indexed tags for {oracleIds} and {illustrations}." An illustration is one card artwork.`,
+  },
+  'cli.scryfall.reattachingTags': {
+    description: `${TAG_LOG} Attaching freshly downloaded tags to every card already in the cache. {count} is how many cards.`,
+  },
+  'cli.scryfall.tagsRefreshed': {
+    description: `${TAG_LOG} The last line: every cached card has its tags again.`,
+  },
+  'cli.scryfall.bulkUrl': {
+    description: `${BULK_LOG} The address of the bulk card file about to be downloaded. {url} is that address, literal.`,
+  },
+  'cli.scryfall.skippedMalformed': {
+    description: `${BULK_LOG} A warning: some entries of the downloaded card file were not valid cards and were left out. {count} is how many.`,
+  },
+  'cli.scryfall.filteredOut': {
+    description: `${BULK_LOG} How many downloaded printings (card editions) were deliberately left out of the cache. {count} is the total; {breakdown} is a list of counts per reason, already joined for the language, e.g. "3 arena-only, 2 tokens".`,
+  },
+  'cli.scryfall.excludedArenaOnly': {
+    description: `${BULK_LOG} One item of the {breakdown} list in "Filtered out … printings ({breakdown})": printings that exist only in MTG Arena, the digital game. {count} is how many.`,
+  },
+  'cli.scryfall.excludedTokens': {
+    description: `${BULK_LOG} One item of the {breakdown} list in "Filtered out … printings ({breakdown})": tokens (game pieces that are not real cards). {count} is how many.`,
+  },
+  'cli.scryfall.excludedArtSeries': {
+    description: `${BULK_LOG} One item of the {breakdown} list in "Filtered out … printings ({breakdown})": "art series" cards (collectible art cards, not playable cards). {count} is how many.`,
+  },
+  'cli.scryfall.processedCards': {
+    description: `${BULK_LOG} How many cards the download produced. {count} is that number.`,
+  },
+  'cli.scryfall.buildingTagIndex': {
+    description: `${BULK_LOG} The bulk files came from a cache feed (a server that republishes Scryfall's files) and are already on disk; the tag files among them are being read. A "tag bulk" is the file Scryfall publishes card tags in.`,
+  },
+  'cli.scryfall.tagBuildFailed': {
+    description: `${BULK_LOG} A warning: the tag files that came from the cache feed could not be read, so cards are cached without tags. {reason} is why, already worded.`,
+  },
+  'cli.scryfall.feedIngestDone': {
+    description: `${BULK_LOG} The last line of a refresh from a cache feed: the card cache now holds the cards from the downloaded files ("artifacts").`,
+  },
+  'cli.scryfall.tagBulkNotArray': {
+    description: `${TAG_PARSE} The file is not a list at all. "JSON array" is a technical term for a list in JSON format.`,
+  },
+  'cli.scryfall.tagBulkEntryNotObject': {
+    description: `${TAG_PARSE} One entry is not a JSON object (a record of named fields).`,
+  },
+  'cli.scryfall.tagBulkMissingField': {
+    description: `${TAG_PARSE} One entry lacks a required text field. One branch per field; the field names (object, id, label, slug) are literal.`,
+  },
+  'cli.scryfall.tagBulkBadType': {
+    description: `${TAG_PARSE} One entry's "type" field is neither "oracle" nor "illustration". {type} is the value it has, literal.`,
+  },
+  'cli.scryfall.tagIndexNotObject': {
+    description: `${TAG_LOG} Why Ritual's own saved tag index (tags.json in the cache folder) could not be read: it is not a JSON object (a record of named fields).`,
+  },
+  'cli.scryfall.tagIndexMissingField': {
+    description: `${TAG_LOG} Why Ritual's own saved tag index (tags.json in the cache folder) could not be read: it lacks a field. One branch per field; the field names (updatedAt, oracle, illustration) are literal, and "map" means a lookup table.`,
   },
 
   // ── --cache-server ────────────────────────────────────────────────────

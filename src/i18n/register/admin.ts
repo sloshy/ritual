@@ -14,9 +14,10 @@
  * Collection pages render those keys — streamed or from a finished report — in
  * the reader's language. The public site never syncs, so it is left out of that
  * bundle. `domain-cache` is the card cache's text that reaches a server
- * response: a sync's CSV-upload cache check and the errors a cache refresh
- * raises (a lock time-out), which the Sync Collection and Cache Refresh pages
- * render from their key the same way; the public site never refreshes a cache.
+ * response: a sync's CSV-upload cache check, a cache refresh's streamed
+ * progress lines and the errors it raises (a lock time-out, a failed Scryfall
+ * request), which the Sync Collection and Cache Refresh pages render from their
+ * key the same way; the public site never refreshes a cache.
  * `domain-import` is the importers' text: the Import CSV page reads a pasted
  * file and checks its column mapping in the browser (with the importer's own
  * column labels and header spellings), and renders the import routes' keyed

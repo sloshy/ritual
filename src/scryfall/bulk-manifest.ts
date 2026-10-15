@@ -1,6 +1,7 @@
 import type { HttpClient } from '../util/interfaces'
 import type { ScryfallCard } from './types'
-import { throwHttpError } from '../util/errors'
+import { syncMessage, SyncMessageError } from '../sync/message'
+import { httpStatus } from './http-status'
 import { getDefaultLanguage } from '../config/ritual-config'
 
 export const SCRYFALL_BULK_API_URL = 'https://api.scryfall.com/bulk-data'
@@ -49,7 +50,13 @@ export async function fetchScryfallBulkManifest(
   url: string = SCRYFALL_BULK_API_URL,
 ): Promise<ScryfallBulkManifestEntry[]> {
   const response = await http.fetch(url)
-  if (!response.ok) throwHttpError(response, 'Failed to fetch bulk manifest')
+  if (!response.ok) {
+    // English plus its key: a refresh that fails here is answered over the
+    // admin API and MCP, and the CLI prints it in its own language.
+    throw new SyncMessageError(
+      syncMessage('domain.cache.refresh.manifestFailed', httpStatus(response)),
+    )
+  }
   const json = (await response.json()) as ScryfallBulkManifest
   return json.data ?? []
 }

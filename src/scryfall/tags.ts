@@ -1,4 +1,5 @@
 import type { ScryfallCard } from './types'
+import { t } from '../i18n/t'
 
 /** Confidence weight Scryfall Tagger assigns to a tagging. */
 export type ScryfallTaggingWeight = 'very_strong' | 'strong' | 'median'
@@ -32,6 +33,9 @@ export interface TagIndex {
   illustration: Record<string, string[]>
 }
 
+/** The string fields every tag bulk entry must carry, in the order they are checked. */
+const TAG_STRING_FIELDS = ['object', 'id', 'label', 'slug'] as const
+
 /**
  * Validate and parse a raw Scryfall tag bulk payload into `ScryfallTag[]`.
  * Returns an error string (never throws) when the payload is not a well-formed
@@ -39,30 +43,22 @@ export interface TagIndex {
  */
 export function parseTagBulk(json: unknown): ScryfallTag[] | string {
   if (!Array.isArray(json)) {
-    return 'Invalid tag bulk: expected a JSON array'
+    return t('cli.scryfall.tagBulkNotArray')
   }
 
   const tags: ScryfallTag[] = []
   for (let i = 0; i < json.length; i++) {
     const entry: unknown = json[i]
     if (!entry || typeof entry !== 'object') {
-      return `Invalid tag bulk: entry ${i} is not an object`
+      return t('cli.scryfall.tagBulkEntryNotObject', { index: i })
     }
     const raw = entry as Record<string, unknown>
-    if (typeof raw['object'] !== 'string') {
-      return `Invalid tag bulk: entry ${i} is missing a string object`
-    }
-    if (typeof raw['id'] !== 'string') {
-      return `Invalid tag bulk: entry ${i} is missing a string id`
-    }
-    if (typeof raw['label'] !== 'string') {
-      return `Invalid tag bulk: entry ${i} is missing a string label`
-    }
-    if (typeof raw['slug'] !== 'string') {
-      return `Invalid tag bulk: entry ${i} is missing a string slug`
+    const missing = TAG_STRING_FIELDS.find((field) => typeof raw[field] !== 'string')
+    if (missing !== undefined) {
+      return t('cli.scryfall.tagBulkMissingField', { field: missing, index: i })
     }
     if (raw['type'] !== 'oracle' && raw['type'] !== 'illustration') {
-      return `Invalid tag bulk: entry ${i} has unexpected type '${String(raw['type'])}'`
+      return t('cli.scryfall.tagBulkBadType', { index: i, type: String(raw['type']) })
     }
     tags.push(raw as unknown as ScryfallTag)
   }
@@ -75,17 +71,17 @@ export function parseTagBulk(json: unknown): ScryfallTag[] | string {
  */
 export function parseTagIndex(json: unknown): TagIndex | string {
   if (!json || typeof json !== 'object') {
-    return 'Invalid tag index: expected an object'
+    return t('cli.scryfall.tagIndexNotObject')
   }
   const raw = json as Record<string, unknown>
   if (typeof raw['updatedAt'] !== 'number') {
-    return 'Invalid tag index: missing numeric updatedAt'
+    return t('cli.scryfall.tagIndexMissingField', { field: 'updatedAt' })
   }
   if (!raw['oracle'] || typeof raw['oracle'] !== 'object') {
-    return 'Invalid tag index: missing oracle map'
+    return t('cli.scryfall.tagIndexMissingField', { field: 'oracle' })
   }
   if (!raw['illustration'] || typeof raw['illustration'] !== 'object') {
-    return 'Invalid tag index: missing illustration map'
+    return t('cli.scryfall.tagIndexMissingField', { field: 'illustration' })
   }
   return raw as unknown as TagIndex
 }

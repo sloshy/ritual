@@ -19,6 +19,9 @@ import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { writeDeckFile } from '../helpers/workspace'
 import { ExitCode } from '../../src/util/errors'
 import type { ErrorEnvelope } from '../../src/cli/output'
+import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
+import { tIn } from '../../src/i18n/t'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocaleAsync } from '../helpers/sync-text'
 
 /** Seed a card cache with priced printings so `price` has something to total. */
 async function seedPriceCache(dir: string): Promise<void> {
@@ -660,6 +663,13 @@ describe('scry paging (Integration)', () => {
  * batch contract is about output *shape*, which only a captured stdout can pin;
  * a spawned binary would need real network access to produce any.
  */
+/** A card whose lookup the Scryfall stub times out. */
+const SLOW_CARD = 'Slow Card'
+
+/** The English reason a timed-out lookup of {@link SLOW_CARD} gives. */
+const SLOW_REASON =
+  'Scryfall request timed out after 15 seconds: https://api.scryfall.com/cards/named?exact=Slow+Card'
+
 describe('card batch output (Integration)', () => {
   let scryfall: StubbedFetch
 
@@ -668,6 +678,8 @@ describe('card batch output (Integration)', () => {
       'https://api.scryfall.com': (request) => {
         const params = new URL(request.url).searchParams
         const name = params.get('exact') ?? params.get('fuzzy') ?? 'Unknown'
+        // What `fetch` rejects with once the client's `AbortSignal.timeout` fires.
+        if (name === SLOW_CARD) throw new DOMException('The operation timed out.', 'TimeoutError')
         return Response.json(makeScryfallCard({ name }))
       },
     })
@@ -727,6 +739,30 @@ describe('card batch output (Integration)', () => {
       expect(stderr).toContain('ENOENT')
       expect(stdout).toBe('')
     })
+  })
+
+  test('a timed-out lookup keeps its --output json params English under another language', async () => {
+    let envelope: ErrorEnvelope | undefined
+    let english = ''
+    await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), async (locale) => {
+      expectLocaleInForce(locale)
+      const stderr = await captureStream('stderr', () => runCard([SLOW_CARD, '--output', 'json']))
+      envelope = (JSON.parse(stderr) as { error: ErrorEnvelope }).error
+      english = tIn(DEFAULT_LOCALE, 'cli.card.fetchFailed', {
+        name: SLOW_CARD,
+        reason: SLOW_REASON,
+      })
+    })
+
+    expect(process.exitCode).toBe(ExitCode.RuntimeError)
+    expect(envelope).toMatchObject({
+      code: 'runtime_error',
+      messageKey: 'cli.card.fetchFailed',
+      // The nested reason flattened to English, whatever the CLI's language.
+      messageParams: { name: SLOW_CARD, reason: SLOW_REASON },
+    })
+    // The message itself follows the CLI's language.
+    expect(envelope?.message).not.toBe(english)
   })
 
   test('card registers no --quiet flag', async () => {

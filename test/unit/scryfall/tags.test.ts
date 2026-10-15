@@ -35,30 +35,34 @@ describe('parseTagBulk', () => {
     expect((result as ScryfallTag[])[0]!.slug).toBe('ramp')
   })
 
-  test('returns an error string when payload is not an array', () => {
-    expect(parseTagBulk({ data: [] })).toContain('expected a JSON array')
+  /** A well-formed entry, every check passes. */
+  const good = { object: 'tag', id: 'x', label: 'X', slug: 'x', type: 'oracle' }
+
+  /**
+   * Each refusal, judged at entry 1 behind a good entry 0 — so the index in the
+   * message is the bad entry's, not whichever came first.
+   */
+  test.each([
+    ['not an object', 'nope', 'Invalid tag bulk: entry 1 is not an object'],
+    [
+      'no object',
+      { ...good, object: undefined },
+      'Invalid tag bulk: entry 1 is missing a string object',
+    ],
+    ['no id', { ...good, id: 7 }, 'Invalid tag bulk: entry 1 is missing a string id'],
+    ['no label', { ...good, label: null }, 'Invalid tag bulk: entry 1 is missing a string label'],
+    ['no slug', { ...good, slug: undefined }, 'Invalid tag bulk: entry 1 is missing a string slug'],
+    [
+      'a type it does not know',
+      { ...good, type: 'keyword' },
+      "Invalid tag bulk: entry 1 has unexpected type 'keyword'",
+    ],
+  ])('refuses an entry with %s', (_label, entry, refusal) => {
+    expect(parseTagBulk([good, entry])).toBe(refusal)
   })
 
-  test('returns an error string when an entry is missing a slug', () => {
-    const result = parseTagBulk([{ object: 'tag', id: 'x', label: 'X', type: 'oracle' }])
-    expect(typeof result).toBe('string')
-    expect(result as string).toContain('missing a string slug')
-  })
-
-  test('returns an error string for an unexpected tag type', () => {
-    const result = parseTagBulk([
-      { object: 'tag', id: 'x', label: 'Foo', slug: 'foo', type: 'keyword' },
-    ])
-    expect(result as string).toContain("unexpected type 'keyword'")
-  })
-
-  test('returns an error string when required id/label fields are missing', () => {
-    expect(parseTagBulk([{ object: 'tag', slug: 'foo', type: 'oracle' }]) as string).toContain(
-      'missing a string id',
-    )
-    expect(
-      parseTagBulk([{ object: 'tag', id: 'x', slug: 'foo', type: 'oracle' }]) as string,
-    ).toContain('missing a string label')
+  test('refuses a payload that is not an array', () => {
+    expect(parseTagBulk({ data: [] })).toBe('Invalid tag bulk: expected a JSON array')
   })
 })
 
@@ -68,11 +72,13 @@ describe('parseTagIndex', () => {
     expect(parseTagIndex(index)).toEqual(index)
   })
 
-  test('rejects non-objects and missing maps', () => {
-    expect(parseTagIndex(null) as string).toContain('expected an object')
-    expect(parseTagIndex({ oracle: {}, illustration: {} }) as string).toContain('updatedAt')
-    expect(parseTagIndex({ updatedAt: 1, illustration: {} }) as string).toContain('oracle map')
-    expect(parseTagIndex({ updatedAt: 1, oracle: {} }) as string).toContain('illustration map')
+  test.each([
+    [null, 'Invalid tag index: expected an object'],
+    [{ oracle: {}, illustration: {} }, 'Invalid tag index: missing numeric updatedAt'],
+    [{ updatedAt: 1, illustration: {} }, 'Invalid tag index: missing oracle map'],
+    [{ updatedAt: 1, oracle: {} }, 'Invalid tag index: missing illustration map'],
+  ])('refuses %j', (index, refusal) => {
+    expect(parseTagIndex(index)).toBe(refusal)
   })
 })
 

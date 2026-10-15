@@ -23,6 +23,7 @@ import type { FileSystemClient } from '../../src/util/interfaces'
 import {
   MockHttpClient,
   InMemoryCacheManager,
+  MemoryFileSystemClient,
   MemoryLogger,
   makeReversibleScryfallCard,
   makeScryfallCard,
@@ -31,6 +32,15 @@ import {
   stubTty,
 } from '../test-utils'
 import type { ScryfallCard } from '../../src/scryfall/types'
+import {
+  renderSyncParam,
+  syncElapsed,
+  syncList,
+  syncMessage,
+  syncRef,
+} from '../../src/sync/message'
+import { rejectedSyncMessage } from '../helpers/sync-text'
+import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
 import { setNoInputOverride } from '../../src/util/no-input'
 
 const readFileMock = mock(async (_path: string, _encoding: BufferEncoding) => '[]')
@@ -163,6 +173,24 @@ describe('ScryfallClient', () => {
     })
   })
 
+  describe('fetchSymbology failures', () => {
+    test('a refused symbology fetch throws its status, keyed', async () => {
+      readFileMock.mockImplementationOnce(async () => {
+        throw new Error('ENOENT: no such file or directory')
+      })
+      mockHttp.mock(
+        'https://api.scryfall.com/symbology',
+        () => new Response('', { status: 500, statusText: 'Internal Server Error' }),
+      )
+
+      expect(await rejectedSyncMessage(client.fetchSymbology())).toEqual({
+        message: 'Failed to fetch symbology: 500 Internal Server Error',
+        messageKey: 'domain.cache.scryfall.symbologyFailed',
+        messageParams: { status: 500, statusText: 'Internal Server Error' },
+      })
+    })
+  })
+
   describe('fetchCardData', () => {
     test('should fetch card from API and cache via CacheManager', async () => {
       const mockCard = makeScryfallCard({
@@ -247,7 +275,9 @@ describe('ScryfallClient', () => {
     test('a non-404 failure throws rather than reading as "no such printing"', async () => {
       mockHttp.mock(PRINTING_URL, () => new Response('', { status: 503 }))
 
-      expect(client.fetchPrintingByCollectorNumber('sta', '90')).rejects.toThrow()
+      expect(await rejectedSyncMessage(client.fetchPrintingByCollectorNumber('sta', '90'))).toEqual(
+        syncMessage('domain.cache.scryfall.printingFailed', { status: 503, statusText: '' }),
+      )
     })
 
     test('an excluded printing (art series) is refused', async () => {
@@ -476,7 +506,17 @@ describe('ScryfallClient', () => {
 
       expect(receivedSignal).toBeInstanceOf(AbortSignal)
       if (result === null || !('error' in result)) throw new Error('expected a fetch error')
-      expect(result.error).toContain('timed out after 15 seconds')
+      // Held unrendered, so a caller words it in its reader's language and an
+      // `--output json` envelope flattens it to English.
+      expect(result.error).toEqual(
+        syncRef('domain.cache.scryfall.timedOut', {
+          timeout: syncElapsed(15_000),
+          url: 'https://api.scryfall.com/cards/named?exact=Lightning+Bolt',
+        }),
+      )
+      expect(renderSyncParam(result.error, DEFAULT_LOCALE)).toBe(
+        'Scryfall request timed out after 15 seconds: https://api.scryfall.com/cards/named?exact=Lightning+Bolt',
+      )
     })
   })
 
@@ -581,10 +621,29 @@ describe('ScryfallClient', () => {
         )
       })
 
-      // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-      await expect(client.fetchLatestPrices(['Lightning Bolt', 'Counterspell'])).rejects.toThrow(
-        'Scryfall could not find prices for: Counterspell, Bogus Card',
+      const refusal = await rejectedSyncMessage(
+        client.fetchLatestPrices(['Lightning Bolt', 'Counterspell']),
       )
+      // The names nest as a list, joined in the reader's language.
+      expect(refusal).toEqual(
+        syncMessage('domain.cache.scryfall.pricesNotFound', {
+          names: syncList(['Counterspell', 'Bogus Card'], 'unit'),
+        }),
+      )
+      expect(refusal.message).toBe('Scryfall could not find prices for: Counterspell, Bogus Card')
+    })
+
+    test('a refused price batch throws its status, keyed', async () => {
+      mockHttp.mock(
+        'https://api.scryfall.com/cards/collection',
+        () => new Response('', { status: 502, statusText: 'Bad Gateway' }),
+      )
+
+      expect(await rejectedSyncMessage(client.fetchLatestPrices(['Lightning Bolt']))).toEqual({
+        message: 'Failed to fetch batch prices: 502 Bad Gateway',
+        messageKey: 'domain.cache.scryfall.pricesFailed',
+        messageParams: { status: 502, statusText: 'Bad Gateway' },
+      })
     })
 
     test('should fetch min max pricing for a card', async () => {
@@ -771,10 +830,10 @@ describe('classifyFetchCard', () => {
     expect(classifyFetchCard(null)).toEqual({ kind: 'not-found' })
   })
 
-  test('classifies a fetch error as failed with its message', () => {
+  test('classifies a fetch error as failed with its reason', () => {
     expect(classifyFetchCard({ error: 'Scryfall is down' })).toEqual({
       kind: 'failed',
-      message: 'Scryfall is down',
+      reason: 'Scryfall is down',
     })
   })
 
@@ -1290,5 +1349,30 @@ describe('computeRepresentativePrints — banned printings', () => {
   test('without bans the newest eligible printing is featured', () => {
     const result = computeRepresentativePrints(printings, printings, ['usd'])
     expect(result.usd?.representative?.id).toBe('sld-123')
+  })
+})
+
+describe('forgetCacheMemos', () => {
+  /** A card cache whose bulk-refresh stamp the test sets directly. */
+  class StampedCache extends InMemoryCacheManager<ScryfallCard[]> {
+    stamp: number | null = 1
+    override async getLastRefreshedAt(): Promise<number | null> {
+      return this.stamp
+    }
+  }
+
+  test('makes the next lookup re-read whether the cache is bulk backed', async () => {
+    const cache = new StampedCache(0)
+    await cache.set('Sol Ring', [makeScryfallCard({ name: 'Sol Ring' })])
+    const client = new ScryfallClient(new MockHttpClient(), cache, new MemoryFileSystemClient(), 0)
+    expect((await client.getCardPrintingsResult('Sol Ring')).source).toBe('complete')
+
+    // Another cache under the same client — a workspace never bulk-refreshed.
+    cache.stamp = null
+    // Memoized: the client still believes the old answer…
+    expect((await client.getCardPrintingsResult('Sol Ring')).source).toBe('complete')
+    // …until told the cache changed hands.
+    client.forgetCacheMemos()
+    expect((await client.getCardPrintingsResult('Sol Ring')).source).toBe('partial')
   })
 })

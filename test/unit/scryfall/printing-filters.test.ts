@@ -1,6 +1,7 @@
 import { describe, expect, test, beforeEach, afterEach } from 'bun:test'
 import { ScryfallClient } from '../../../src/scryfall'
 import type { ScryfallCard } from '../../../src/scryfall/types'
+import { expectLocaleInForce, withSyntheticLocaleAsync } from '../../helpers/sync-text'
 import {
   MockHttpClient,
   InMemoryCacheManager,
@@ -100,12 +101,14 @@ const ARENA_PRINTING = makeScryfallCard({
 })
 
 describe('cache printing exclusions', () => {
+  let logger: MemoryLogger
   let http: MockHttpClient
   let cache: InMemoryCacheManager<ScryfallCard[]>
   let client: ScryfallClient
 
   beforeEach(() => {
-    setLogger(new MemoryLogger())
+    logger = new MemoryLogger()
+    setLogger(logger)
     http = new MockHttpClient()
     cache = new InMemoryCacheManager<ScryfallCard[]>(0)
     http.mock(BULK_META_URL, () => bulkMetaResponse())
@@ -141,6 +144,42 @@ describe('cache printing exclusions', () => {
     expect(await cache.get('Clearwater Pathway // Clearwater Pathway')).toBeNull()
     expect(await cache.get('Dinosaur')).toBeNull()
     expect(await cache.keys()).toHaveLength(2)
+  })
+
+  /** Every bulk line the summary counts: two real, four excluded, one malformed. */
+  const SUMMARIZED_BULK = [
+    REAL_PRINTING,
+    REAL_IN_A_SET,
+    ART_PRINTING,
+    ART_ONLY_NAME,
+    TOKEN_PRINTING,
+    ARENA_PRINTING,
+    { name: 'No Set Or Prices' },
+  ]
+
+  /** The console lines a run logged, as text. */
+  const logged = (): string[] => logger.entries.map((entry) => String(entry.args[0]))
+
+  test('the ingest counts what it left out, by reason, in the singular for one', async () => {
+    http.mock(DEFAULT_URI, () => gzipJsonLinesResponse(SUMMARIZED_BULK))
+
+    await client.preloadCache()
+
+    expect(logged()).toContain('Skipped 1 malformed bulk card entry.')
+    expect(logged()).toContain('Filtered out 4 printings (1 arena-only, 1 token, 2 art-series).')
+    expect(logged()).toContain('Processed 2 cards.')
+  })
+
+  test('the breakdown is joined the console language’s way', async () => {
+    http.mock(DEFAULT_URI, () => gzipJsonLinesResponse(SUMMARIZED_BULK))
+
+    // German with no dictionary: the sentence stays English, `Intl` joins the list.
+    await withSyntheticLocaleAsync('de', {}, async (de) => {
+      expectLocaleInForce(de)
+      await client.preloadCache()
+    })
+
+    expect(logged()).toContain('Filtered out 4 printings (1 arena-only, 1 token und 2 art-series).')
   })
 
   test('preloadCache files a reversible printing under its card and drops names the bulk no longer produces', async () => {

@@ -361,6 +361,39 @@ export function tSegmentsIn<K extends MessageKey>(
 }
 
 /**
+ * The params the form of `key` that `locale` would render needs but `params`
+ * does not supply — empty when every one is there, or when the key resolves
+ * nowhere (that gap is {@link isMessageKey}'s to report). Two kinds of gap: a
+ * `{placeholder}` with no param, and a `$select` whose selector names no
+ * branch the message has (nor an `other`), reported as the selector's name. For
+ * a renderer that must not show a raw `{token}` or the bare key: a message
+ * carried over a wire whose params were renamed, or whose selector gained a
+ * value, since it was built.
+ */
+export function unresolvedPlaceholders(
+  locale: LocaleTag,
+  key: MessageKey,
+  params: RenderParams = {},
+): string[] {
+  const resolved = resolve(key, locale)
+  if (resolved === undefined) return []
+  const { value } = resolved
+  // Checked before `selectForm`, which renders this gap as the key itself (or,
+  // in strict mode, throws).
+  if (isSelectForms(value)) {
+    const variant = params[value.$select]
+    const branch = variant === undefined ? undefined : value[String(variant)]
+    if (branch === undefined && value.other === undefined) return [value.$select]
+  }
+  const missing: string[] = []
+  for (const match of selectForm(key, resolved, params).matchAll(PLACEHOLDER)) {
+    const name = (match[1] ?? '').trim()
+    if (params[name] === undefined) missing.push(name)
+  }
+  return missing
+}
+
+/**
  * Whether a string is a known message key. For the `messageKey` field carried
  * by API responses and error envelopes, which arrives as untyped JSON.
  *

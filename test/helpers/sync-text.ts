@@ -22,6 +22,7 @@ import {
   renderSyncMessage,
   renderSyncParam,
   syncList,
+  SyncMessageError,
   syncRef,
   type SyncMessage,
   type SyncParam,
@@ -131,4 +132,20 @@ export function expectLocaleInForce(locale: LocaleTag): void {
   expect(currentLocale()).toBe(locale)
   const probe = syncRef('domain.list.art.unknownKeys', { keys: syncList(['a', 'b', 'c'], 'and') })
   expect(renderSyncParam(probe, locale)).not.toBe(renderSyncParam(probe, DEFAULT_LOCALE))
+}
+
+/**
+ * The message a promise rejects with — English plus its key and params — after
+ * asserting it rejects at all, and with a {@link SyncMessageError}: an engine
+ * error a route answers in English plus the key must be one.
+ */
+export async function rejectedSyncMessage(promise: Promise<unknown>): Promise<SyncMessage> {
+  const error = await promise.then(
+    () => new Error('expected the promise to reject'),
+    (reason: unknown) => reason,
+  )
+  if (!(error instanceof SyncMessageError)) {
+    throw new Error(`expected a SyncMessageError, got ${String(error)}`)
+  }
+  return error.syncMessage
 }

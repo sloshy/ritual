@@ -6,6 +6,8 @@ import { en } from '../../src/i18n/messages/en'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../helpers/change-problem'
 import type { LocaleCatalog } from '../../src/i18n/types'
 import { writeDeckFile, writeWantedFile } from '../helpers/workspace'
+import { buildCacheFeed, type FeedArtifact } from '../helpers/cache-feed'
+import { bulkCard, gzipJsonLines } from '../test-utils'
 
 /**
  * The pseudo-locale end to end, through the real binary.
@@ -81,6 +83,54 @@ async function runFailing(
   const result = await runCli(args, dir, env)
   expect(result.exitCode).not.toBe(0)
   return JSON.parse(result.stderr) as ErrorEnvelopeJson
+}
+
+/** A cache feed served from this process: its URL, and how to stop it. */
+type ServedFeed = { url: string; stop: () => Promise<void> }
+
+/**
+ * Serve a one-card cache feed on a loopback port, for `cache feed fetch --url`
+ * to download over plain HTTP.
+ */
+async function serveCacheFeed(): Promise<ServedFeed> {
+  const artifacts: FeedArtifact[] = [
+    {
+      kind: 'default-cards',
+      fileName: 'default-cards.jsonl.gz',
+      body: gzipJsonLines([bulkCard()]),
+    },
+    {
+      kind: 'oracle-tags',
+      fileName: 'oracle-tags.jsonl.gz',
+      body: gzipJsonLines([
+        { object: 'tag', id: 't1', label: 'Ramp', slug: 'ramp', type: 'oracle' },
+      ]),
+    },
+    {
+      kind: 'art-tags',
+      fileName: 'art-tags.jsonl.gz',
+      body: gzipJsonLines([
+        { object: 'tag', id: 'a1', label: 'Ring', slug: 'ring', type: 'illustration' },
+      ]),
+    },
+  ]
+  // Bound first: the feed document names its files by the server's own origin.
+  let files = new Map<string, Uint8Array>()
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch: (request) => {
+      const body = files.get(request.url)
+      return body === undefined
+        ? new Response('not found', { status: 404 })
+        : new Response(body.slice())
+    },
+  })
+  const origin = `http://127.0.0.1:${server.port}`
+  const built = buildCacheFeed(origin, artifacts, '2026-06-04T00:00:00.000Z')
+  files = new Map(built.files)
+  files.set(`${origin}/feed.json`, new TextEncoder().encode(JSON.stringify(built.feed)))
+  return { url: `${origin}/feed.json`, stop: () => server.stop(true) }
 }
 
 describe('pseudo-locale (Integration)', () => {
@@ -458,6 +508,36 @@ describe('pseudo-locale (Integration)', () => {
       expect(json.error.code).toBe('usage_error')
       expect(json.error.messageKey).toBe('domain.list.name.unusable')
       expect(json.error.message).toBe(refusal)
+    })
+  })
+
+  test('a cache ingest prints the Scryfall client’s lines in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      // A local cache feed: the one way to drive a real card-cache ingest
+      // through the binary without reaching Scryfall.
+      const feed = await serveCacheFeed()
+      try {
+        const result = await runCli(
+          ['cache', 'feed', 'fetch', '--url', feed.url, '--no-p2p', '--no-seed'],
+          dir,
+          PSEUDO_ENV,
+        )
+        expect(result.exitCode).toBe(0)
+
+        const output = unwrap(`${result.stdout}\n${result.stderr}`)
+        expect(output).toContain(unwrap(await pseudoText('cli.scryfall.buildingTagIndex')))
+        expect(output).toContain(unwrap(await pseudoText('cli.scryfall.feedIngestDone')))
+        // A counted line, its singular form picked in the CLI's language.
+        const processed = (await pseudo())['cli.scryfall.processedCards']
+        if (typeof processed !== 'object' || processed === null || !('one' in processed)) {
+          throw new Error('cli.scryfall.processedCards has no "one" form in en-XA')
+        }
+        expect(output).toContain(unwrap(String(processed.one).replace('{count}', '1')))
+        // Vacuity guard: the English lines are not there.
+        expect(output).not.toContain(en['cli.scryfall.feedIngestDone'])
+      } finally {
+        await feed.stop()
+      }
     })
   })
 

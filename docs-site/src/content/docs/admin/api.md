@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, and the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems). Every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale). Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -38,7 +38,7 @@ Every route refuses a request with the same body, whatever the status — and so
 
 The list-file engines' refusals are keyed the same way: a [create, rename or delete](#list-lifecycle-responses) refused (`domain.list.lifecycle.*`, or `domain.list.name.unusable` for a name with no usable file-name characters), an unknown deck format (`domain.list.deckFormat.invalid`, whose `formats` is a `{ list, join: "unit" }`), a cover image, custom-art reference or description the grammar refuses (`domain.list.image.*`, `domain.list.art.*`, `domain.list.description.*`; the keys it does not accept nest as a `{ list, join: "unit" }`), a metadata or cover write over front matter that is not a readable mapping, a cover naming no card of the list, an unreadable `.art.json`, and a [save](#save-a-list) refused because a rewrite would delete content the parser cannot re-emit (`domain.list.unreadableContent`, whose `problems` param is a `{ list, join: "clauses" }` of the parser's own warnings and, for a fenced code block, a nested `domain.list.fencedContent` message), and a save whose cross-list moves cannot reach their other list (`domain.list.move.*`: the list is gone, holds no copy to take, or cannot be staged — the last nests the staging refusal as its `reason`, and each names the list as a nested `domain.change.listRef` message).
 
-An error a route did not expect — one raised deep in an engine — is answered the same way, in English plus its key whenever it has one. A card-cache error is one: a cache-lock time-out (`domain.cache.lockTimedOut`, whose `timeout` param is a duration `{ durationMs }` and whose `holder` is a message of its own) or a failed request to a [`--cache-server`](/commands/cache/) (`domain.cache.serverRequestFailed`, …). These params nest the way a [sync's](#sync-decks) do.
+An error a route did not expect — one raised deep in an engine — is answered the same way, in English plus its key whenever it has one. A card-cache error is one: a cache-lock time-out (`domain.cache.lockTimedOut`, whose `timeout` param is a duration `{ durationMs }` and whose `holder` is a message of its own), a failed request to a [`--cache-server`](/commands/cache/) (`domain.cache.serverRequestFailed`, …), a card-cache refresh that failed or was cancelled (`domain.cache.refresh.*`), or a failed Scryfall request a route made (`domain.cache.scryfall.timedOut`, whose `timeout` is a duration `{ elapsedMs }`, and `domain.cache.scryfall.symbologyFailed`, whose params are the HTTP `status` and `statusText`). A remote cache server's own failure arrives nested: its reply's message (a failed Scryfall price batch, `domain.cache.scryfall.pricesFailed`) is the `body` of `domain.cache.serverRequestFailedWithBody`, or the `error` of `domain.cache.serverStreamEntryError` (which names the entry's `key`) or `domain.cache.serverStreamError`. A failure the server worded with a key this server does not know (a newer cache server's) is nested as its English text instead. These params nest the way a [sync's](#sync-decks) do.
 
 `499` is the status a route answers when an **in-process** caller cancels the request part way (the MCP tools do this on a client's `notifications/cancelled`). HTTP requests are never cancelled this way: closing the connection leaves the handler running to completion.
 
@@ -2764,13 +2764,13 @@ Stream cache refresh progress as Server-Sent Events (SSE). The UI uses it for it
 
 **Response:** `text/event-stream` with the following event types:
 
-| Event      | Data Fields                                | Description                    |
-| ---------- | ------------------------------------------ | ------------------------------ |
-| `progress` | `stage`, `percentage?`, `message`          | Progress update during refresh |
-| `done`     | `message`, `messageKey`                    | Refresh completed successfully |
-| `error`    | `message`, `messageKey?`, `messageParams?` | Refresh failed                 |
+| Event      | Data Fields                                                       | Description                    |
+| ---------- | ----------------------------------------------------------------- | ------------------------------ |
+| `progress` | `stage`, `percentage?`, `message`, `messageKey`, `messageParams?` | Progress update during refresh |
+| `done`     | `message`, `messageKey`                                           | Refresh completed successfully |
+| `error`    | `message`, `messageKey?`, `messageParams?`                        | Refresh failed                 |
 
-`done` and `error` are [message triples](#the-message-triple): `message` is English, and an `error` with a catalog entry (a cache-lock time-out) carries its key and params as an [error response](#error-responses) does. A `progress` line's `message` is English text with no key.
+All three are [message triples](#the-message-triple): `message` is English whatever the server's UI language, and `messageKey` and `messageParams` let a client render the line in its reader's language — the admin Cache Refresh page does, and relabels a line already on screen when the reader switches language. A `progress` line's key is a `domain.cache.refresh.*` message, and its params nest: a download size or the amount received so far is a size, `{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale (the line spells the `MiB` unit itself). An `error` with a catalog entry carries its key and params as an [error response](#error-responses) does: a cache-lock time-out (`domain.cache.lockTimedOut`), or a refresh failure (`domain.cache.refresh.*`) — Scryfall refusing the bulk manifest or the bulk download (`manifestFailed`, `bulkFetchFailed`, whose params are the HTTP `status` and `statusText`), a manifest with no bulk of the kind needed (`noBulkUri`, whose `bulk` is the Scryfall bulk name), an empty download (`bulkNoBody`) or a malformed bulk line (`invalidJsonLine`, whose `line` is its number).
 
 **Stage values:** `metadata`, `tags`, `download`, `save`, `done`, `info`. Parsing and processing happen inline while the gzipped-JSONL bulk streams, so `download` covers them. The stages come from the refresh engine itself, and `percentage` is present on a `download` event whenever the compressed download size is known.
 
@@ -2778,10 +2778,10 @@ Stream cache refresh progress as Server-Sent Events (SSE). The UI uses it for it
 
 ```
 event: progress
-data: {"stage":"download","percentage":45,"message":"Downloading: 45% (32.50/72.50 MiB)"}
+data: {"stage":"download","percentage":45,"message":"Processing: 45% (32.50/72.50 MiB)","messageKey":"domain.cache.refresh.processing","messageParams":{"percentage":45,"received":{"sizeBytes":34078720},"total":{"sizeBytes":76021760}}}
 
 event: progress
-data: {"stage":"save","message":"Saving to cache..."}
+data: {"stage":"save","message":"Saving to cache…","messageKey":"domain.cache.refresh.saving"}
 
 event: done
 data: {"message":"Cache refreshed successfully","messageKey":"admin.api.cache.refreshed"}

@@ -1,7 +1,9 @@
 import type { MessageKey } from '../i18n/messages/en'
 import { paramsOf, t, type MessageRef, type RenderParams, type TranslateArgs } from '../i18n/t'
 import { hasErrorCode } from './errno'
-import { envelopeRef, renderSyncMessage, type SyncMessage } from '../sync/message'
+// A value import, resolved at load: `CancelledError extends SyncMessageError`, so
+// `sync/message` (and nothing it loads) may ever import this module back.
+import { envelopeRef, renderSyncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 
 export { hasErrorCode, type ErrnoCode } from './errno'
 
@@ -139,9 +141,13 @@ export function isAbortError(error: unknown): boolean {
  * the engine's own statement that it went no further, as opposed to a `fetch`
  * that happened to be aborted underneath it ({@link isAbortError}). The message
  * says what state the operation left behind.
+ *
+ * A {@link SyncMessageError}: a cancelled run is answered over the admin API
+ * and MCP (a 499), so its message travels as English plus its key, and reads
+ * in the active UI language as `Error.message`.
  */
-export class CancelledError extends Error {
-  constructor(message: string) {
+export class CancelledError extends SyncMessageError {
+  constructor(message: SyncMessage) {
     super(message)
     this.name = 'CancelledError'
   }

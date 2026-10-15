@@ -23,7 +23,8 @@
  * translated sentence, so a param here may itself be a message reference
  * ({@link SyncMessageRef}), a list ({@link SyncListParam}), a duration
  * ({@link SyncElapsedParam} for how long something took, {@link SyncDurationParam}
- * for an age or a timeout) or a card language ({@link SyncLanguageParam}), and
+ * for an age or a timeout), a card language ({@link SyncLanguageParam}) or a data
+ * size ({@link SyncSizeParam}), and
  * {@link renderSyncMessage} renders the whole tree in one locale. The type is
  * deliberately not assignable to `ApiMessage`, so a sync message cannot reach
  * `renderApiMessage`, which would print a nested param as `[object Object]`.
@@ -33,12 +34,13 @@
  */
 
 import { languageLabel, type CardLanguage } from '../card/card-language'
-import { formatUnitList, listFormat } from '../i18n/format'
+import { formatUnitList, listFormat, numberFormat } from '../i18n/format'
 import type { EnglishCatalog, MessageKey } from '../i18n/messages/en'
 import { currentLocale, DEFAULT_LOCALE } from '../i18n/runtime'
 import {
   isMessageKey,
   tDynamic,
+  unresolvedPlaceholders,
   type MessageRef,
   type MessageTriple,
   type ParamsOf,
@@ -77,18 +79,33 @@ export type SyncListJoin =
 /** Several parts rendered and joined in the enclosing message's locale. */
 export type SyncListParam = { list: readonly SyncParam[]; join: SyncListJoin }
 
-/** A duration in milliseconds, rendered like `4.2 seconds` in the enclosing message's locale. */
+/**
+ * A duration in milliseconds to second precision, rendered like `4.2 seconds`
+ * in the enclosing message's locale (`formatElapsed`): how long something took,
+ * or a time-out counted in seconds (a Scryfall request's).
+ */
 export type SyncElapsedParam = { elapsedMs: number }
 
 /**
- * A coarser duration in milliseconds — an age or a timeout — rendered like
- * `2 days, 3 hours` or `less than a minute` in the enclosing message's locale
- * (`formatDuration`). {@link SyncElapsedParam} is the one to second precision.
+ * A coarser duration in milliseconds, rendered like `2 days, 3 hours` or
+ * `less than a minute` in the enclosing message's locale (`formatDuration`,
+ * whose floor is a minute): an age, or a wait counted in minutes (the cache
+ * lock's). A time-out of seconds is a {@link SyncElapsedParam}, which this
+ * would round down to "less than a minute".
  */
 export type SyncDurationParam = { durationMs: number }
 
 /** A card language, named in the enclosing message's locale (`Japanese`, `Japanisch`). */
 export type SyncLanguageParam = { language: CardLanguage }
+
+/**
+ * A data size in bytes, rendered as a mebibyte figure to two decimals (`12.34`,
+ * `12,34`) in the enclosing message's locale. The figure only: the enclosing
+ * message spells the unit (`{size} MiB`), so one unit can close a pair of
+ * sizes (`12.34/56.78 MiB`). Never digit-grouped, so the English figure is the
+ * same as `toFixed(2)`'s.
+ */
+export type SyncSizeParam = { sizeBytes: number }
 
 /**
  * One parameter of a sync message. A string is text rendered once and for all —
@@ -102,6 +119,7 @@ export type SyncParam =
   | SyncElapsedParam
   | SyncDurationParam
   | SyncLanguageParam
+  | SyncSizeParam
 
 /** The parameters a sync message interpolates. */
 export type SyncMessageParams = Record<string, SyncParam>
@@ -227,7 +245,7 @@ export function syncElapsed(elapsedMs: number): SyncElapsedParam {
   return { elapsedMs }
 }
 
-/** An age or timeout param — see {@link SyncDurationParam}. */
+/** An age or minutes-long wait param — see {@link SyncDurationParam}. */
 export function syncDuration(durationMs: number): SyncDurationParam {
   return { durationMs }
 }
@@ -235,6 +253,11 @@ export function syncDuration(durationMs: number): SyncDurationParam {
 /** A card-language param. */
 export function syncLanguage(language: CardLanguage): SyncLanguageParam {
   return { language }
+}
+
+/** A data-size param — see {@link SyncSizeParam}. */
+export function syncSize(sizeBytes: number): SyncSizeParam {
+  return { sizeBytes }
 }
 
 /**
@@ -277,8 +300,9 @@ export function joinSyncMessages(messages: NonEmpty<SyncMessage>): SyncMessage {
  */
 export class SyncMessageError extends Error {
   readonly syncMessage: SyncMessage
-  constructor(message: SyncMessage) {
-    super(renderSyncMessage(message))
+  /** `options` as `Error`'s own: a `cause` is kept the standard way. */
+  constructor(message: SyncMessage, options?: ErrorOptions) {
+    super(renderSyncMessage(message), options)
     this.name = 'SyncMessageError'
     this.syncMessage = message
   }
@@ -378,7 +402,24 @@ function renderParam(
   if ('durationMs' in param && typeof param.durationMs === 'number') {
     return formatDuration(param.durationMs, locale)
   }
+  if ('sizeBytes' in param && typeof param.sizeBytes === 'number') {
+    return formatMebibytes(param.sizeBytes, locale)
+  }
   return strict ? undefined : ''
+}
+
+/** Bytes per mebibyte. */
+const MEBIBYTE = 1024 * 1024
+
+/** The mebibyte figure of a {@link SyncSizeParam}: two decimals, no digit grouping. */
+const MEBIBYTE_FIGURE: Intl.NumberFormatOptions = {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  useGrouping: false,
+}
+
+function formatMebibytes(bytes: number, locale: LocaleTag): string {
+  return numberFormat(locale, MEBIBYTE_FIGURE).format(bytes / MEBIBYTE)
 }
 
 /** Every join a {@link SyncListParam} may name. */
@@ -396,7 +437,24 @@ function renderRef(ref: SyncMessageRef, locale: LocaleTag, strict: boolean): str
     if (rendered === undefined) return undefined
     params[name] = rendered
   }
+  // A placeholder with no param (a message built before its param was renamed)
+  // would print as a raw `{token}`; strictly, the whole message falls back.
+  if (strict && unresolvedPlaceholders(locale, ref.messageKey, params).length > 0) {
+    return undefined
+  }
   return tDynamic(locale, ref.messageKey, params)
+}
+
+/**
+ * Whether this surface can render `ref` whole in `locale`: every key in its
+ * tree is one it knows, every param a shape it knows, every placeholder filled
+ * — the check {@link renderSyncMessage} falls back to English on. For a reader
+ * deciding whether to nest a message another process sent (which may be newer
+ * than this one) or to carry its English as it came: a nested reference that
+ * fails the check would render as a raw key or `{token}`, its English lost.
+ */
+export function isRenderable(ref: SyncMessageRef, locale: LocaleTag = DEFAULT_LOCALE): boolean {
+  return renderRef(ref, locale, true) !== undefined
 }
 
 /**
@@ -404,8 +462,10 @@ function renderRef(ref: SyncMessageRef, locale: LocaleTag, strict: boolean): str
  * locale, nested parts included.
  *
  * A message whose tree names a key this surface does not have (its namespace
- * unregistered, or a newer server's) renders as the English it carries,
- * whole — never a half-translated sentence with a raw key in it. A bare
+ * unregistered, or a newer server's), or leaves one of its placeholders without
+ * a param (an older server's, from before the param was renamed), renders as
+ * the English it carries, whole — never a half-translated sentence with a raw
+ * key or `{token}` in it. A bare
  * reference has no English to fall back on, so an unknown key in it degrades
  * the way `t()` does.
  *
@@ -489,7 +549,8 @@ export function prefixedFields<P extends string>(
 /** The message stored under `prefix`, or `undefined` when the record carries none. */
 export function prefixedMessage<P extends string>(
   prefix: P,
-  record: PrefixedMessage<P>,
+  // Any object — a typed `PrefixedMessage<P>`, or a body read off the wire.
+  record: object,
 ): SyncMessage | undefined {
   const fields = record as Record<string, unknown>
   const text = fields[prefix]
