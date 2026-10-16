@@ -10,7 +10,7 @@ import type {
   DeckSummary,
   WantedListSummary,
 } from '../list/site-data'
-import { fetchJson } from '../list-view/useFetchJson'
+import { fetchJson } from '../list-view/fetch-json'
 import { detailUrl, reportDataFetchError } from '../list-view/api-base'
 import { isAbortError } from '../util/errors'
 import {

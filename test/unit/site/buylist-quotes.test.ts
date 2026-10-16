@@ -18,6 +18,7 @@ import {
   stubBuylistFetcher,
 } from '../../test-utils'
 import type { StubBuylistFetcher } from '../../test-utils'
+import { syncRef } from '../../../src/sync/message'
 
 /**
  * The store's *live* half — the admin editors' path, where quotes are fetched
@@ -54,7 +55,8 @@ describe('requestBuylistQuotes', () => {
   test('a failed request settles nothing, so the next one retries', async () => {
     fetcher.breakIt()
     await requestBuylistQuotes([SOL_RING])
-    expect(buylistError()).toContain('503')
+    // Held as the reason's key and the status, so the notice relabels with the page.
+    expect(buylistError()).toEqual(syncRef('site.sell.quotesHttpFailed', { status: 503 }))
 
     await requestBuylistQuotes([SOL_RING])
 

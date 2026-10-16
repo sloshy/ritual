@@ -252,50 +252,6 @@
     "message \"${…}\" needs a numeric \"${…}\" param": 1,
     "missing message key \"${…}\" — is its namespace registered?": 1
   },
-  "src/list-view/buylist-quotes.ts": {
-    "Buylist quotes failed: HTTP ${…}": 1
-  },
-  "src/list-view/card-sorting.ts": {
-    "Abzan (WBG)": 1,
-    "Any Printing": 1,
-    "Azorius (WU)": 1,
-    "Bant (WUG)": 1,
-    "Boros (WR)": 1,
-    "Dimir (UB)": 1,
-    "Esper (WUB)": 1,
-    "Golgari (BG)": 1,
-    "Grixis (UBR)": 1,
-    "Gruul (RG)": 1,
-    "Izzet (UR)": 1,
-    "Jeskai (WUR)": 1,
-    "Jund (BRG)": 1,
-    "Mardu (WBR)": 1,
-    "Naya (WRG)": 1,
-    "No Price Data": 1,
-    "Not on Buylist": 1,
-    "On Buylist": 1,
-    "Orzhov (WB)": 1,
-    "Rakdos (BR)": 1,
-    "Selesnya (WG)": 1,
-    "Simic (UG)": 1,
-    "Specific Printing": 1,
-    "Sultai (UBG)": 1,
-    "Temur (URG)": 1,
-    "UBRG (Four Color)": 1,
-    "WBRG (Four Color)": 1,
-    "WUBG (Four Color)": 1,
-    "WUBR (Four Color)": 1,
-    "WUBRG (Five Color)": 1,
-    "WURG (Four Color)": 1
-  },
-  "src/list-view/combined-list.ts": {
-    "Combined view: failed to load ${…}/${…}:": 1
-  },
-  "src/list-view/useFetchJson.ts": {
-    "Failed to load ${…}:": 1,
-    "Failed to load data.": 1,
-    "HTTP ${…}": 1
-  },
   "src/mcp/dispatch.ts": {
     "Admin request failed (HTTP ${…})": 1,
     "Admin route ${…} ${…} returned a non-JSON body (HTTP ${…}).": 1,

@@ -103,7 +103,7 @@ test.describe('Deck Toolbar', () => {
     await page.locator('[data-view="list"]').click()
 
     // Capture initial card order within the Creature section (sorted by name: 'Alpha Creature', 'Test Creature')
-    const creatureSection = page.locator('[data-section="Creature"]')
+    const creatureSection = page.locator('[data-section="type:creature"]')
     const cardsBefore = await creatureSection.locator('.card-list .list-name').allTextContents()
     expect(cardsBefore).toEqual(['Alpha Creature', 'Test Creature'])
 

@@ -3,10 +3,17 @@ import {
   groupDeckBoardsByCategory,
   isCategoryGroupBy,
   type DeckBoardCards,
+  type DeckBoardGroup,
   type DeckCategoryGroupOptions,
 } from '../../../src/site/deck-category-groups'
 import type { CardData, SortLayer } from '../../../src/list-view/card-sorting'
 import { makeCardData as makeCard } from '../../test-utils'
+import { english } from '../../helpers/sync-text'
+
+/** A nested group's heading, rendered in English. */
+function heading(group: DeckBoardGroup<CardData>): string {
+  return english(group.heading)
+}
 
 const sortLayers: SortLayer[] = [{ sortBy: 'name', reverse: false }]
 
@@ -52,13 +59,46 @@ function boards(): DeckBoardCards<CardData>[] {
 describe('groupDeckBoardsByCategory', () => {
   test("nests each board's categories under it, boards in input order", () => {
     const groups = groupDeckBoardsByCategory(boards(), options())
-    expect(groups.map((g) => g.key)).toEqual([
+    expect(groups.map(heading)).toEqual([
       'Commander › Uncategorized',
       'Main › Ramp',
       'Main › Draw',
       'Main › Uncategorized',
       'Sideboard › Draw',
     ])
+  })
+
+  test("keys nest the grouper's code inside the board's, whatever the headings say", () => {
+    const groups = groupDeckBoardsByCategory(boards(), options())
+    expect(groups.map((g) => g.key)).toEqual([
+      'board:Commander/category:',
+      'board:Main/category:ramp',
+      'board:Main/category:draw',
+      'board:Main/category:',
+      'board:Sideboard/category:draw',
+    ])
+  })
+
+  test("a nested heading holds the board and the grouper's heading unrendered", () => {
+    const [commander] = groupDeckBoardsByCategory(boards(), options())
+    expect(commander!.heading).toEqual({
+      messageKey: 'site.cardSection.boardCategoryHeading',
+      messageParams: {
+        board: 'Commander',
+        category: { messageKey: 'site.groupBy.uncategorized' },
+      },
+    })
+  })
+
+  test('a board name holding the key separator stays its own board', () => {
+    const groups = groupDeckBoardsByCategory(
+      [
+        { label: 'A/B', cards: [makeCard({ name: 'One', categories: ['C'] })], hideCount: false },
+        { label: 'A', cards: [makeCard({ name: 'Two', categories: ['B/C'] })], hideCount: false },
+      ],
+      options({ categoryOrder: [] }),
+    )
+    expect(groups.map((g) => g.key)).toEqual(['board:A%2FB/category:c', 'board:A/category:b/c'])
   })
 
   test('a board with no cards contributes no group', () => {
@@ -68,28 +108,28 @@ describe('groupDeckBoardsByCategory', () => {
 
   test('the categories grouping repeats a card inside its own board only', () => {
     const groups = groupDeckBoardsByCategory(boards(), options({ groupBy: 'categories' }))
-    const keys = groups.map((g) => g.key)
-    expect(keys).toContain('Main › Artifacts')
-    expect(keys).toContain('Sideboard › Draw')
-    const artifacts = groups.find((g) => g.key === 'Main › Artifacts')!
+    const headings = groups.map(heading)
+    expect(headings).toContain('Main › Artifacts')
+    expect(headings).toContain('Sideboard › Draw')
+    const artifacts = groups.find((g) => heading(g) === 'Main › Artifacts')!
     expect(artifacts.cards.map((c) => c.name)).toEqual(['Sol Ring'])
     // The same card again under its primary — the deliberate one-card-two-groups
     // break — and in the forwarded within-group name order.
-    expect(groups.find((g) => g.key === 'Main › Ramp')!.cards.map((c) => c.name)).toEqual([
+    expect(groups.find((g) => heading(g) === 'Main › Ramp')!.cards.map((c) => c.name)).toEqual([
       'Arcane Signet',
       'Sol Ring',
     ])
     // The sideboard's Draw card never reaches the mainboard's Draw group.
-    expect(groups.find((g) => g.key === 'Main › Draw')!.cards.map((c) => c.name)).toEqual([
+    expect(groups.find((g) => heading(g) === 'Main › Draw')!.cards.map((c) => c.name)).toEqual([
       'Board Draw',
     ])
   })
 
   test('group.category carries the bare category, and is absent for Uncategorized', () => {
     const groups = groupDeckBoardsByCategory(boards(), options({ groupBy: 'categories' }))
-    const artifacts = groups.find((g) => g.key === 'Main › Artifacts')!
+    const artifacts = groups.find((g) => heading(g) === 'Main › Artifacts')!
     expect(artifacts.category).toBe('Artifacts')
-    const uncategorized = groups.find((g) => g.key === 'Main › Uncategorized')!
+    const uncategorized = groups.find((g) => heading(g) === 'Main › Uncategorized')!
     // bun's `toEqual` ignores `undefined`-valued keys, so assert presence.
     expect('category' in uncategorized).toBe(false)
   })
@@ -111,7 +151,7 @@ describe('groupDeckBoardsByCategory', () => {
 
   test('reverseGroups reverses within each board, leaving the board order alone', () => {
     const groups = groupDeckBoardsByCategory(boards(), options({ reverseGroups: true }))
-    expect(groups.map((g) => g.key)).toEqual([
+    expect(groups.map(heading)).toEqual([
       'Commander › Uncategorized',
       'Main › Uncategorized',
       'Main › Draw',

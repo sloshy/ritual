@@ -5,7 +5,7 @@ import {
   printingFinishes,
   VALID_FINISHES,
 } from '../card/finish-condition'
-import { numberFormat } from '../i18n/format'
+import { formatPriceIn, type PriceCurrency } from './money-format'
 import { currentLocale } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import { displayWidth, padEndDisplay } from '../i18n/width'
@@ -16,7 +16,9 @@ import { printingLabel } from '../card/card-line-tail'
 // `findCheapestPrinting` keep one import.
 export type { CheapestPrintingResult }
 
-export type PriceCurrency = 'usd' | 'eur' | 'tix'
+// The currency vocabulary and its display formatter live in a leaf the
+// message renderer can import; re-exported so callers keep one import.
+export { VALID_CURRENCIES, isPriceCurrency, type PriceCurrency } from './money-format'
 
 export const DEFAULT_CURRENCY: PriceCurrency = 'usd'
 
@@ -72,16 +74,6 @@ export function formatPriceInvariant(amount: number, currency: PriceCurrency): s
 }
 
 /**
- * The ISO 4217 code each currency formats as. `tix` has none — Magic Online
- * event tickets are not a currency ICU knows — which is exactly why it is
- * absent here and rendered through a message instead.
- */
-const ISO_CURRENCY_CODES = {
-  usd: 'USD',
-  eur: 'EUR',
-} as const satisfies Partial<Record<PriceCurrency, string>>
-
-/**
  * A price for a human to read: `Intl.NumberFormat` in the active UI locale,
  * so a German reader gets `1.234,50 €` rather than `€1234.50`.
  *
@@ -91,18 +83,7 @@ const ISO_CURRENCY_CODES = {
  * non-English locale is involved.
  */
 export function formatPrice(amount: number, currency: PriceCurrency): string {
-  const locale = currentLocale()
-  if (currency === 'tix') {
-    const formatted = numberFormat(locale, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount)
-    return t('domain.currency.tix', { amount: formatted })
-  }
-  return numberFormat(locale, {
-    style: 'currency',
-    currency: ISO_CURRENCY_CODES[currency],
-  }).format(amount)
+  return formatPriceIn(currentLocale(), amount, currency)
 }
 
 /** Like formatPrice, but returns 'N/A' when amount is 0 (i.e. no price data available). */
@@ -346,12 +327,6 @@ export function formatPriceColumn<T>(rows: readonly PriceColumnRow<T>[]): PriceC
     const title = `${padEndDisplay(row.label, labelWidth)}${PRICE_COLUMN_GAP}${cells.join(PRICE_COLUMN_GAP)}`
     return { title: title.trimEnd(), value: row.value }
   })
-}
-
-export const VALID_CURRENCIES = ['usd', 'eur', 'tix'] as const satisfies readonly PriceCurrency[]
-
-export function isPriceCurrency(value: string): value is PriceCurrency {
-  return (VALID_CURRENCIES as readonly string[]).includes(value)
 }
 
 /** Check if a currency is available for a card based on its game formats. */

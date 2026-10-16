@@ -560,9 +560,34 @@ JSON object`).
   unreadable block, an unusable `labels:`) on the run log keyed, and an internal engine
   error a list operation raises answers the admin API in English with its key. Update any
   script that matched `line(s)`.
+- The group headings on list pages follow the site's language on the public and admin
+  sites, and relabel when you switch: the color identity names (a guild, shard or wedge
+  keeps its mana letters, as in `Azorius (WU)` and `WUBG (Four Color)`), the card types
+  under **Group by Type** (**Creature**, **Land**, **Other**, …), **Specific Printing** /
+  **Any Printing**, **On Buylist** / **Not on Buylist**, **No Price Data** and **All
+  Cards**. So do the color filter's swatch names, the "Buylist prices are unavailable"
+  notice and a page's "Failed to load data." message. Shared links are unchanged: they
+  store only the grouping (`group=color-identity`), never a heading. Switching language
+  no longer rebuilds the cards on screen, so a flipped double-faced card stays flipped.
+- Price-bracket headings show their bounds as prices in your language, the way every
+  other price on the page does: `$0.50 – $1.00` and `$100.00+` (they read `$0.50 – $1`
+  and `$100+`), and `0,50 € – 1,00 €` in German.
+- **A card section's `data-section` attribute and heading anchor are now a code, not the
+  heading.** `data-section` reads `type:creature`, `color:WU`, `printing:any`,
+  `price:0.5`, `buylist-price:none`, `tags:ramp, staple`, `category:ramp` (folded to
+  lowercase), `source:deck:my-deck` (the list's type and slug), `board:Sideboard` or
+  `board:Main/category:ramp`, the same in every language, where it used to carry the
+  heading text. The anchor id is built from that code (`section-color_3a_WU`). Update a
+  custom stylesheet or script that selected a section by its heading.
 
 ### Fixed
 
+- A tag named `Untagged` or a category named `Uncategorized` no longer merges into the
+  group of cards that have none when you group by tags or categories.
+- In a combined view grouped by **Source List**, two lists that share a name (a deck and a
+  collection both called "Red") are two groups rather than one.
+- Grouping by section puts a section the list's own order does not name after the named
+  ones, instead of first.
 - A deck card with 1,000 or more copies was saved as `- 1234 Sol Ring`, which the next
   read took as one copy of a card named "1234 Sol Ring": a bare run of four or more digits
   is the start of a card name, as in `1996 World Champion`. Ritual now writes such a

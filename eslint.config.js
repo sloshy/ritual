@@ -167,6 +167,8 @@ export default [
                 'src/scryfall/types',
                 'src/scryfall/card-utils',
                 'src/pricing/price-currency',
+                // The display formatter a message's price param renders through.
+                'src/pricing/money-format',
                 'src/pricing/price-source',
                 'src/pricing/price-summary',
                 'src/pricing/price-data',

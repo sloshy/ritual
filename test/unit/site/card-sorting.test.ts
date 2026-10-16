@@ -3,19 +3,34 @@ import {
   compareBySortLayers,
   groupAndSortCards,
   getCardTypeCategory,
+  colorIdentityHeading,
   colorIdentityKey,
-  colorIdentityName,
-  getPriceGroupKey,
+  priceGroupSlot,
   groupHasEstimatedPrice,
   groupTotalPrice,
   isEstimatedPrice,
   sortByOptions,
   type CardData,
+  type CardGroup,
+  type CardTypeCategory,
+  type GroupBy,
   type SortBy,
   type SortLayer,
 } from '../../../src/list-view/card-sorting'
 import { makeCardData as makeCard } from '../../test-utils'
-import { t } from '../../../src/i18n/t'
+import {
+  english,
+  expectLocaleInForce,
+  pseudoCatalog,
+  withSyntheticLocale,
+} from '../../helpers/sync-text'
+import { currentLocale } from '../../../src/i18n/runtime'
+import { renderSyncMessage } from '../../../src/sync/message'
+
+/** A group's heading, rendered in English. */
+function heading(group: CardGroup): string {
+  return english(group.heading)
+}
 
 /** Build a single-layer sort, the common case in these tests. */
 function sl(sortBy: SortBy, reverse = false): SortLayer[] {
@@ -181,20 +196,20 @@ describe('compareBySortLayers', () => {
 })
 
 describe('getCardTypeCategory', () => {
-  test.each([
-    ['Creature — Human Wizard', 'Creature'],
-    ['Legendary Planeswalker — Teferi', 'Planeswalker'],
-    ['Instant', 'Instant'],
-    ['Sorcery', 'Sorcery'],
-    ['Artifact', 'Artifact'],
-    ['Enchantment — Aura', 'Enchantment'],
-    ['Basic Land — Mountain', 'Land'],
-    ['Conspiracy', 'Other'],
+  test.each<[string, CardTypeCategory]>([
+    ['Creature — Human Wizard', 'creature'],
+    ['Legendary Planeswalker — Teferi', 'planeswalker'],
+    ['Instant', 'instant'],
+    ['Sorcery', 'sorcery'],
+    ['Artifact', 'artifact'],
+    ['Enchantment — Aura', 'enchantment'],
+    ['Basic Land — Mountain', 'land'],
+    ['Conspiracy', 'other'],
     // Double-faced / multi-faced cards categorize by the front face only.
-    ['Creature — Elf Druid // Land', 'Creature'],
-    ['Land // Sorcery', 'Land'],
-    ['Instant // Instant', 'Instant'],
-    ['Enchantment — Saga // Creature — Avatar', 'Enchantment'],
+    ['Creature — Elf Druid // Land', 'creature'],
+    ['Land // Sorcery', 'land'],
+    ['Instant // Instant', 'instant'],
+    ['Enchantment — Saga // Creature — Avatar', 'enchantment'],
   ])('identifies %s as %s', (typeLine, expected) => {
     expect(getCardTypeCategory(typeLine)).toBe(expected)
   })
@@ -210,13 +225,13 @@ describe('groupAndSortCards', () => {
   test('groups by none puts all in one group', () => {
     const groups = groupAndSortCards(cards, 'none', sl('name'), [])
     expect(groups).toHaveLength(1)
-    expect(groups[0]!.key).toBe('All Cards')
+    expect(heading(groups[0]!)).toBe('All Cards')
     expect(groups[0]!.cards).toHaveLength(3)
   })
 
   test('groups by type', () => {
     const groups = groupAndSortCards(cards, 'type', sl('name'), [])
-    const keys = groups.map((g) => g.key)
+    const keys = groups.map(heading)
     expect(keys).toContain('Creature')
     expect(keys).toContain('Instant')
     expect(keys).toContain('Artifact')
@@ -224,7 +239,7 @@ describe('groupAndSortCards', () => {
 
   test('groups by cmc', () => {
     const groups = groupAndSortCards(cards, 'cmc', sl('name'), [])
-    const keys = groups.map((g) => g.key)
+    const keys = groups.map(heading)
     expect(keys).toContain('1')
     expect(keys).toContain('2')
   })
@@ -263,8 +278,8 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'B', section: 'Main' }),
     ]
     const groups = groupAndSortCards(sectionCards, 'section', sl('name'), ['Main', 'Sideboard'])
-    expect(groups[0]!.key).toBe('Main')
-    expect(groups[1]!.key).toBe('Sideboard')
+    expect(heading(groups[0]!)).toBe('Main')
+    expect(heading(groups[1]!)).toBe('Sideboard')
   })
 
   test('groups by color identity with WUBRG-ordered names', () => {
@@ -275,7 +290,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'Colorless Card', colorIdentity: [] }),
     ]
     const groups = groupAndSortCards(colorCards, 'color-identity', sl('name'), [])
-    const keys = groups.map((g) => g.key)
+    const keys = groups.map(heading)
     expect(keys[0]).toBe('Colorless')
     expect(keys[1]).toBe('White')
     expect(keys[2]).toBe('Green')
@@ -289,7 +304,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'Any B', hasPrinting: false }),
     ]
     const groups = groupAndSortCards(printingCards, 'printing', sl('name'), [])
-    expect(groups.map((g) => g.key)).toEqual(['Specific Printing', 'Any Printing'])
+    expect(groups.map(heading)).toEqual(['Specific Printing', 'Any Printing'])
     expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Specific A'])
     expect(groups[1]!.cards.map((c) => c.name)).toEqual(['Any A', 'Any B'])
   })
@@ -300,7 +315,7 @@ describe('groupAndSortCards', () => {
       makeCard({ name: 'B', hasPrinting: true }),
     ]
     const groups = groupAndSortCards(allSpecific, 'printing', sl('name'), [])
-    expect(groups.map((g) => g.key)).toEqual(['Specific Printing'])
+    expect(groups.map(heading)).toEqual(['Specific Printing'])
   })
 })
 
@@ -314,8 +329,8 @@ describe('groupAndSortCards with reverseGroups', () => {
     // TYPE_ORDER canonical: Creature, Instant, Artifact (subset of the full WUBRG-style order).
     const normal = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', false)
     const reversed = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', true)
-    expect(normal.map((g) => g.key)).toEqual(['Creature', 'Instant', 'Artifact'])
-    expect(reversed.map((g) => g.key)).toEqual(['Artifact', 'Instant', 'Creature'])
+    expect(normal.map(heading)).toEqual(['Creature', 'Instant', 'Artifact'])
+    expect(reversed.map(heading)).toEqual(['Artifact', 'Instant', 'Creature'])
   })
 
   test('reverseGroups reverses section group order', () => {
@@ -332,8 +347,8 @@ describe('groupAndSortCards with reverseGroups', () => {
       'usd',
       true,
     )
-    expect(reversed[0]!.key).toBe('Sideboard')
-    expect(reversed[1]!.key).toBe('Main')
+    expect(heading(reversed[0]!)).toBe('Sideboard')
+    expect(heading(reversed[1]!)).toBe('Main')
   })
 
   test('reverseGroups does not affect card order within groups', () => {
@@ -343,7 +358,7 @@ describe('groupAndSortCards with reverseGroups', () => {
       makeCard({ name: 'Beta', type: 'Creature — Bear' }),
     ]
     const reversed = groupAndSortCards(cards, 'type', sl('name'), [], undefined, 'usd', true)
-    const creatureGroup = reversed.find((g) => g.key === 'Creature')!
+    const creatureGroup = reversed.find((g) => heading(g) === 'Creature')!
     expect(creatureGroup.cards[0]!.name).toBe('Beta')
     expect(creatureGroup.cards[1]!.name).toBe('Charlie')
   })
@@ -367,11 +382,11 @@ describe('groupAndSortCards with reverseGroups', () => {
     )
 
     // Canonical type order is Creature, Instant; reversed is Instant, Creature.
-    expect(normalSections.map((g) => g.key)).toEqual(['Creature', 'Instant'])
-    expect(bothReversed.map((g) => g.key)).toEqual(['Instant', 'Creature'])
+    expect(normalSections.map(heading)).toEqual(['Creature', 'Instant'])
+    expect(bothReversed.map(heading)).toEqual(['Instant', 'Creature'])
 
     // Cards within creature group should be reverse-alphabetical
-    const creatureGroup = bothReversed.find((g) => g.key === 'Creature')!
+    const creatureGroup = bothReversed.find((g) => heading(g) === 'Creature')!
     expect(creatureGroup.cards[0]!.name).toBe('Charlie')
     expect(creatureGroup.cards[1]!.name).toBe('Beta')
   })
@@ -392,9 +407,9 @@ describe('colorIdentityKey', () => {
   })
 })
 
-describe('colorIdentityName', () => {
+describe('colorIdentityHeading', () => {
   test('returns Colorless for empty', () => {
-    expect(colorIdentityName([])).toBe('Colorless')
+    expect(english(colorIdentityHeading([]))).toBe('Colorless')
   })
 
   test.each([
@@ -404,66 +419,66 @@ describe('colorIdentityName', () => {
     [['R'], 'Red'],
     [['G'], 'Green'],
   ] as const)('returns mono color name %p → %s', (input, expected) => {
-    expect(colorIdentityName([...input])).toBe(expected)
+    expect(english(colorIdentityHeading([...input]))).toBe(expected)
   })
 
   test('returns guild names for two-color combos', () => {
-    expect(colorIdentityName(['W', 'U'])).toBe('Azorius (WU)')
-    expect(colorIdentityName(['U', 'R'])).toBe('Izzet (UR)')
-    expect(colorIdentityName(['B', 'G'])).toBe('Golgari (BG)')
+    expect(english(colorIdentityHeading(['W', 'U']))).toBe('Azorius (WU)')
+    expect(english(colorIdentityHeading(['U', 'R']))).toBe('Izzet (UR)')
+    expect(english(colorIdentityHeading(['B', 'G']))).toBe('Golgari (BG)')
   })
 
   test('returns shard/wedge names for three-color combos', () => {
-    expect(colorIdentityName(['W', 'U', 'B'])).toBe('Esper (WUB)')
-    expect(colorIdentityName(['B', 'R', 'G'])).toBe('Jund (BRG)')
+    expect(english(colorIdentityHeading(['W', 'U', 'B']))).toBe('Esper (WUB)')
+    expect(english(colorIdentityHeading(['B', 'R', 'G']))).toBe('Jund (BRG)')
   })
 
   test('returns four-color name with WUBRG-ordered key', () => {
     // Input is given in non-canonical order to verify both lookup and key normalization.
-    expect(colorIdentityName(['R', 'W', 'U', 'B'])).toBe('WUBR (Four Color)')
-    expect(colorIdentityName(['G', 'U', 'B', 'R'])).toBe('UBRG (Four Color)')
+    expect(english(colorIdentityHeading(['R', 'W', 'U', 'B']))).toBe('WUBR (Four Color)')
+    expect(english(colorIdentityHeading(['G', 'U', 'B', 'R']))).toBe('UBRG (Four Color)')
   })
 
   test('returns WUBRG (Five Color) for all five', () => {
-    expect(colorIdentityName(['W', 'U', 'B', 'R', 'G'])).toBe('WUBRG (Five Color)')
+    expect(english(colorIdentityHeading(['W', 'U', 'B', 'R', 'G']))).toBe('WUBRG (Five Color)')
   })
 })
 
-describe('getPriceGroupKey', () => {
+describe('priceGroupSlot', () => {
   test('archidekt strategy groups into correct brackets', () => {
-    expect(getPriceGroupKey(0.25, 'archidekt')).toBe('$0 – $0.50')
-    expect(getPriceGroupKey(0.75, 'archidekt')).toBe('$0.50 – $1')
-    expect(getPriceGroupKey(3.0, 'archidekt')).toBe('$1 – $5')
-    expect(getPriceGroupKey(7.5, 'archidekt')).toBe('$5 – $10')
-    expect(getPriceGroupKey(15, 'archidekt')).toBe('$10 – $20')
-    expect(getPriceGroupKey(35, 'archidekt')).toBe('$20 – $50')
-    expect(getPriceGroupKey(75, 'archidekt')).toBe('$50 – $100')
-    expect(getPriceGroupKey(150, 'archidekt')).toBe('$100+')
+    expect(english(priceGroupSlot(0.25, 'archidekt').heading)).toBe('$0.00 – $0.50')
+    expect(english(priceGroupSlot(0.75, 'archidekt').heading)).toBe('$0.50 – $1.00')
+    expect(english(priceGroupSlot(3.0, 'archidekt').heading)).toBe('$1.00 – $5.00')
+    expect(english(priceGroupSlot(7.5, 'archidekt').heading)).toBe('$5.00 – $10.00')
+    expect(english(priceGroupSlot(15, 'archidekt').heading)).toBe('$10.00 – $20.00')
+    expect(english(priceGroupSlot(35, 'archidekt').heading)).toBe('$20.00 – $50.00')
+    expect(english(priceGroupSlot(75, 'archidekt').heading)).toBe('$50.00 – $100.00')
+    expect(english(priceGroupSlot(150, 'archidekt').heading)).toBe('$100.00+')
   })
 
   test('five-dollar strategy groups correctly', () => {
-    expect(getPriceGroupKey(2.5, 'five')).toBe('$0 – $5')
-    expect(getPriceGroupKey(7.5, 'five')).toBe('$5 – $10')
-    expect(getPriceGroupKey(22.0, 'five')).toBe('$20 – $25')
+    expect(english(priceGroupSlot(2.5, 'five').heading)).toBe('$0.00 – $5.00')
+    expect(english(priceGroupSlot(7.5, 'five').heading)).toBe('$5.00 – $10.00')
+    expect(english(priceGroupSlot(22.0, 'five').heading)).toBe('$20.00 – $25.00')
   })
 
   test('ten-dollar strategy groups correctly', () => {
-    expect(getPriceGroupKey(2.5, 'ten')).toBe('$0 – $10')
-    expect(getPriceGroupKey(15, 'ten')).toBe('$10 – $20')
-    expect(getPriceGroupKey(95, 'ten')).toBe('$90 – $100')
+    expect(english(priceGroupSlot(2.5, 'ten').heading)).toBe('$0.00 – $10.00')
+    expect(english(priceGroupSlot(15, 'ten').heading)).toBe('$10.00 – $20.00')
+    expect(english(priceGroupSlot(95, 'ten').heading)).toBe('$90.00 – $100.00')
   })
 
   test('zero price goes to No Price Data group', () => {
-    expect(getPriceGroupKey(0, 'archidekt')).toBe('No Price Data')
-    expect(getPriceGroupKey(0, 'five')).toBe('No Price Data')
-    expect(getPriceGroupKey(0, 'ten')).toBe('No Price Data')
+    expect(english(priceGroupSlot(0, 'archidekt').heading)).toBe('No Price Data')
+    expect(english(priceGroupSlot(0, 'five').heading)).toBe('No Price Data')
+    expect(english(priceGroupSlot(0, 'ten').heading)).toBe('No Price Data')
   })
 
   test('renders bracket labels using the requested currency symbol', () => {
-    // The default formatter uses '$' for usd, '€' for eur, and a ' tix' suffix.
-    expect(getPriceGroupKey(3.0, 'archidekt', 'eur')).toBe('€1 – €5')
-    expect(getPriceGroupKey(150, 'archidekt', 'eur')).toBe('€100+')
-    expect(getPriceGroupKey(2.5, 'ten', 'tix')).toBe('0 tix – 10 tix')
+    // Each bound is a price, formatted like every other price on the page.
+    expect(english(priceGroupSlot(3.0, 'archidekt', 'eur').heading)).toBe('€1.00 – €5.00')
+    expect(english(priceGroupSlot(150, 'archidekt', 'eur').heading)).toBe('€100.00+')
+    expect(english(priceGroupSlot(2.5, 'ten', 'tix').heading)).toBe('0.00 tix – 10.00 tix')
   })
 })
 
@@ -475,10 +490,10 @@ describe('groupAndSortCards with price grouping', () => {
       makeCard({ name: 'Expensive', price: 150 }),
     ]
     const groups = groupAndSortCards(cards, 'price', sl('name'), [], 'archidekt')
-    const keys = groups.map((g) => g.key)
-    expect(keys).toContain('$0 – $0.50')
-    expect(keys).toContain('$5 – $10')
-    expect(keys).toContain('$100+')
+    const keys = groups.map(heading)
+    expect(keys).toContain('$0.00 – $0.50')
+    expect(keys).toContain('$5.00 – $10.00')
+    expect(keys).toContain('$100.00+')
   })
 
   test('sorts price groups in ascending bracket order', () => {
@@ -488,9 +503,9 @@ describe('groupAndSortCards with price grouping', () => {
       makeCard({ name: 'Mid', price: 7.5 }),
     ]
     const groups = groupAndSortCards(cards, 'price', sl('name'), [], 'archidekt')
-    const keys = groups.map((g) => g.key)
-    expect(keys.indexOf('$0 – $0.50')).toBeLessThan(keys.indexOf('$5 – $10'))
-    expect(keys.indexOf('$5 – $10')).toBeLessThan(keys.indexOf('$100+'))
+    const keys = groups.map(heading)
+    expect(keys.indexOf('$0.00 – $0.50')).toBeLessThan(keys.indexOf('$5.00 – $10.00'))
+    expect(keys.indexOf('$5.00 – $10.00')).toBeLessThan(keys.indexOf('$100.00+'))
   })
 
   test('No Price Data group sorts after all price brackets', () => {
@@ -500,7 +515,7 @@ describe('groupAndSortCards with price grouping', () => {
       makeCard({ name: 'Expensive', price: 150 }),
     ]
     const groups = groupAndSortCards(cards, 'price', sl('name'), [], 'archidekt')
-    const keys = groups.map((g) => g.key)
+    const keys = groups.map(heading)
     expect(keys[keys.length - 1]).toBe('No Price Data')
   })
 })
@@ -560,7 +575,7 @@ describe('buylist grouping and sorting', () => {
 
   test('on-buylist grouping puts the cards the buyer will take first', () => {
     const groups = groupAndSortCards([unlisted, listed], 'on-buylist', sl('name'), [])
-    expect(groups.map((g) => [g.key, g.cards.map((c) => c.name)])).toEqual([
+    expect(groups.map((g) => [heading(g), g.cards.map((c) => c.name)])).toEqual([
       ['On Buylist', ['Listed']],
       ['Not on Buylist', ['Unlisted']],
     ])
@@ -574,13 +589,13 @@ describe('buylist grouping and sorting', () => {
       [],
       'archidekt',
     )
-    expect(groups.map((g) => g.key)).toEqual(['$5 – $10', 'No Price Data'])
+    expect(groups.map(heading)).toEqual(['$5.00 – $10.00', 'No Price Data'])
   })
 
   test('buylist-price bucket labels stay USD even on a EUR page', () => {
     // Buylist quotes are the buyer's own currency, never the page's.
     const groups = groupAndSortCards([listed], 'buylist-price', sl('name'), [], 'archidekt', 'eur')
-    expect(groups[0]!.key).toBe('$5 – $10')
+    expect(heading(groups[0]!)).toBe('$5.00 – $10.00')
   })
 
   test('sorts by buylist price ascending, unsold cards first', () => {
@@ -640,7 +655,7 @@ describe('buylist spread sorting', () => {
 // counted in two groups' totals. The key is the canonical `a, b` string, so
 // two spellings of one set share a group, and untagged cards gather last.
 describe('groupAndSortCards — tags', () => {
-  const untagged = t('site.groupBy.untagged')
+  const untagged = 'Untagged'
   const cards = [
     makeCard({ name: 'Plain' }),
     makeCard({ name: 'Ramp Rock', tags: ['ramp'] }),
@@ -652,8 +667,8 @@ describe('groupAndSortCards — tags', () => {
 
   test('one group per distinct tag set, in display order, untagged last', () => {
     const groups = groupAndSortCards(cards, 'tags', sl('name'), [])
-    expect(groups.map((g) => g.key)).toEqual(['draw', 'ramp', 'ramp, staple', untagged])
-    expect(groups.find((g) => g.key === 'ramp, staple')!.cards.map((c) => c.name)).toEqual([
+    expect(groups.map(heading)).toEqual(['draw', 'ramp', 'ramp, staple', untagged])
+    expect(groups.find((g) => heading(g) === 'ramp, staple')!.cards.map((c) => c.name)).toEqual([
       'Other Rock',
       'Staple Rock',
     ])
@@ -663,7 +678,7 @@ describe('groupAndSortCards — tags', () => {
 
   test('reverse groups puts untagged first', () => {
     const groups = groupAndSortCards(cards, 'tags', sl('name'), [], undefined, 'usd', true)
-    expect(groups[0]!.key).toBe(untagged)
+    expect(heading(groups[0]!)).toBe(untagged)
   })
 
   test('sorting by tags orders sets by their canonical string, untagged last', () => {
@@ -696,7 +711,7 @@ describe('groupAndSortCards — tags', () => {
 // under its primary only, `'categories'` under every category it holds — which
 // deliberately breaks the one-card-one-group invariant, so group totals overlap.
 describe('groupAndSortCards — categories', () => {
-  const uncategorized = t('site.groupBy.uncategorized')
+  const uncategorized = 'Uncategorized'
   const order = ['Ramp', 'Draw', 'Artifacts']
   const cards = [
     makeCard({ name: 'Sol Ring', categories: ['Ramp', 'Artifacts'] }),
@@ -716,7 +731,7 @@ describe('groupAndSortCards — categories', () => {
       false,
       order,
     )
-    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', uncategorized])
+    expect(groups.map(heading)).toEqual(['Ramp', 'Draw', uncategorized])
     expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Arcane Signet', 'Sol Ring'])
     expect(groups.at(-1)!.cards.map((c) => c.name)).toEqual(['Plain Card'])
   })
@@ -733,7 +748,7 @@ describe('groupAndSortCards — categories', () => {
       false,
       order,
     )
-    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', 'Artifacts', uncategorized])
+    expect(groups.map(heading)).toEqual(['Ramp', 'Draw', 'Artifacts', uncategorized])
   })
 
   test('a category the vocabulary does not name comes after the named ones', () => {
@@ -747,7 +762,7 @@ describe('groupAndSortCards — categories', () => {
       false,
       order,
     )
-    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', 'Combo', uncategorized])
+    expect(groups.map(heading)).toEqual(['Ramp', 'Draw', 'Combo', uncategorized])
   })
 
   test('the all-categories grouping puts a two-category card in both groups', () => {
@@ -761,7 +776,7 @@ describe('groupAndSortCards — categories', () => {
       false,
       order,
     )
-    expect(groups.map((g) => g.key)).toEqual(['Ramp', 'Draw', 'Artifacts', uncategorized])
+    expect(groups.map(heading)).toEqual(['Ramp', 'Draw', 'Artifacts', uncategorized])
     expect(groups[0]!.cards.map((c) => c.name)).toEqual(['Arcane Signet', 'Sol Ring'])
     expect(groups[2]!.cards.map((c) => c.name)).toEqual(['Sol Ring'])
   })
@@ -806,7 +821,7 @@ describe('groupAndSortCards — categories', () => {
     const groups = groupAndSortCards(mixed, 'category', sl('name'), [], undefined, 'usd', false, [
       'Ramp',
     ])
-    expect(groups.map((g) => g.key)).toEqual(['Ramp'])
+    expect(groups.map(heading)).toEqual(['Ramp'])
     expect(groups[0]!.cards.map((c) => c.name)).toEqual(['One', 'Three', 'Two'])
   })
 
@@ -816,7 +831,7 @@ describe('groupAndSortCards — categories', () => {
       makeCard({ name: 'Two', categories: ['Combo'] }),
     ]
     const groups = groupAndSortCards(mixed, 'category', sl('name'), [], undefined, 'usd', false, [])
-    expect(groups.map((g) => g.key)).toEqual(['combo'])
+    expect(groups.map(heading)).toEqual(['combo'])
     expect(groups[0]!.cards).toHaveLength(2)
   })
 
@@ -831,7 +846,7 @@ describe('groupAndSortCards — categories', () => {
       true,
       order,
     )
-    expect(groups[0]!.key).toBe(uncategorized)
+    expect(heading(groups[0]!)).toBe(uncategorized)
   })
 })
 
@@ -854,5 +869,243 @@ describe('compareBySortLayers — category', () => {
     ]
     const sorted = [...cards].sort((a, b) => compareBySortLayers(a, b, sl('category', true)))
     expect(sorted.map((c) => c.name)).toEqual(['None', 'Ramp Rock'])
+  })
+})
+
+// A group's key is its identity — `data-section`, the heading anchor — and its
+// heading is held unrendered, for the page to word. These pin the codes, the
+// heading objects, and that a language switch can change a heading but never a
+// key; the order moves only where it is display-collated by design.
+describe('group identity', () => {
+  /** Every group's key, in order. */
+  function keys(groups: readonly CardGroup[]): string[] {
+    return groups.map((g) => g.key)
+  }
+
+  const colorCards = [
+    makeCard({ name: 'Rock', colorIdentity: [] }),
+    makeCard({ name: 'Knight', colorIdentity: ['W'] }),
+    makeCard({ name: 'Mage', colorIdentity: ['U', 'W'] }),
+    makeCard({ name: 'Nephilim', colorIdentity: ['G', 'B', 'U', 'W'] }),
+  ]
+
+  test.each<[string, GroupBy, CardData[], string[]]>([
+    ['none', 'none', [makeCard({ name: 'A' })], ['all']],
+    [
+      'color identity',
+      'color-identity',
+      colorCards,
+      ['color:C', 'color:W', 'color:WU', 'color:WUBG'],
+    ],
+    [
+      'printing',
+      'printing',
+      [makeCard({ name: 'A', hasPrinting: false }), makeCard({ name: 'B', hasPrinting: true })],
+      ['printing:specific', 'printing:any'],
+    ],
+    [
+      'on-buylist',
+      'on-buylist',
+      [makeCard({ name: 'A' }), makeCard({ name: 'B', onBuylist: true, buylistPrice: 2 })],
+      ['buylist:on', 'buylist:off'],
+    ],
+    [
+      'price',
+      'price',
+      [makeCard({ name: 'A', price: 0 }), makeCard({ name: 'B', price: 0.75 })],
+      ['price:0.5', 'price:none'],
+    ],
+    [
+      'buylist price (its own kind, so a price key never means an offer)',
+      'buylist-price',
+      [makeCard({ name: 'A' }), makeCard({ name: 'B', buylistPrice: 7.5, onBuylist: true })],
+      ['buylist-price:5', 'buylist-price:none'],
+    ],
+    [
+      'type',
+      'type',
+      [makeCard({ name: 'A', type: 'Instant' }), makeCard({ name: 'B', type: 'Creature — Bear' })],
+      ['type:creature', 'type:instant'],
+    ],
+    [
+      'mana value',
+      'cmc',
+      [makeCard({ name: 'A', cmc: 3 }), makeCard({ name: 'B', cmc: 1 })],
+      ['cmc:1', 'cmc:3'],
+    ],
+    [
+      'source (the list identity, so a deck and a collection named alike stay apart)',
+      'source',
+      [
+        makeCard({ name: 'A', sourceName: 'Red', sourceKey: 'deck:red' }),
+        makeCard({ name: 'B', sourceName: 'Red', sourceKey: 'collection:red' }),
+        makeCard({ name: 'C' }),
+      ],
+      ['source:deck:red', 'source:collection:red', 'source:'],
+    ],
+    [
+      'tags',
+      'tags',
+      [makeCard({ name: 'A' }), makeCard({ name: 'B', tags: ['staple', 'ramp'] })],
+      ['tags:ramp, staple', 'tags:'],
+    ],
+    [
+      'category (folded, so two spellings are one identity)',
+      'category',
+      [
+        makeCard({ name: 'A' }),
+        makeCard({ name: 'B', categories: ['Ramp'] }),
+        makeCard({ name: 'C', categories: ['RAMP'] }),
+      ],
+      ['category:ramp', 'category:'],
+    ],
+    [
+      'categories (one card, a key per category it holds)',
+      'categories',
+      [makeCard({ name: 'A', categories: ['Ramp', 'Draw'] })],
+      ['category:draw', 'category:ramp'],
+    ],
+  ])('%s groups are keyed by code', (_label, groupBy, cards, expected) => {
+    expect(keys(groupAndSortCards(cards, groupBy, sl('name'), ['Main']))).toEqual(expected)
+  })
+
+  test('section groups are keyed by name, the page order first and unnamed sections after', () => {
+    const cards = [
+      makeCard({ name: 'A', section: 'Tokens' }),
+      makeCard({ name: 'B', section: 'Sideboard' }),
+      makeCard({ name: 'C', section: 'Main' }),
+    ]
+    expect(keys(groupAndSortCards(cards, 'section', sl('name'), ['Main', 'Sideboard']))).toEqual([
+      'section:Main',
+      'section:Sideboard',
+      'section:Tokens',
+    ])
+  })
+
+  test('two lists that share a name are two source groups, both headed by the name', () => {
+    const groups = groupAndSortCards(
+      [
+        makeCard({ name: 'A', sourceName: 'Red', sourceKey: 'deck:red' }),
+        makeCard({ name: 'B', sourceName: 'Red', sourceKey: 'collection:red' }),
+      ],
+      'source',
+      sl('name'),
+      [],
+    )
+    expect(groups.map((g) => [g.heading, g.cards.map((c) => c.name)])).toEqual([
+      ['Red', ['A']],
+      ['Red', ['B']],
+    ])
+  })
+
+  test('a keyed heading is held as its message, never rendered', () => {
+    const [group] = groupAndSortCards(
+      [makeCard({ name: 'A', hasPrinting: true })],
+      'printing',
+      sl('name'),
+      [],
+    )
+    expect(group!.heading).toEqual({ messageKey: 'site.group.printing.specific' })
+  })
+
+  test('a price heading holds its bounds as prices, for the reader to format', () => {
+    expect(priceGroupSlot(0.75, 'archidekt', 'eur').heading).toEqual({
+      messageKey: 'site.group.price.range',
+      messageParams: {
+        low: { amount: 0.5, currency: 'eur' },
+        high: { amount: 1, currency: 'eur' },
+      },
+    })
+    withSyntheticLocale('de', {}, (locale) => {
+      expect(currentLocale()).toBe(locale)
+      expect(renderSyncMessage(priceGroupSlot(0.75, 'archidekt', 'eur').heading, locale)).toBe(
+        '0,50 € – 1,00 €',
+      )
+    })
+  })
+
+  test('keys and rank order are the same in every language', () => {
+    const inEnglish = groupAndSortCards(colorCards, 'color-identity', sl('name'), [])
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const foreign = groupAndSortCards(colorCards, 'color-identity', sl('name'), [])
+      expect(keys(foreign)).toEqual(keys(inEnglish))
+      // Held unrendered: the same objects in every language.
+      expect(foreign.map((g) => g.heading)).toEqual(inEnglish.map((g) => g.heading))
+      const rendered = foreign.map((g) => renderSyncMessage(g.heading, locale))
+      // Every color identity name is a catalog message…
+      for (const [i, text] of rendered.entries()) expect(text).not.toBe(heading(inEnglish[i]!))
+      // …and the mana letters in it are data: whatever the translation, they survive.
+      expect(rendered[2]).toContain('WU')
+      expect(rendered[3]).toContain('WUBG')
+      expectLocaleInForce(locale)
+    })
+  })
+
+  test('a display-collated grouping follows the reader’s collation, its keys unchanged', () => {
+    // Swedish sorts `ä` after `z`; English beside `a`. Tag sets order the way
+    // the reader reads them, by design — the keys are what must not move.
+    const cards = [makeCard({ name: 'A', tags: ['z'] }), makeCard({ name: 'B', tags: ['ä'] })]
+    expect(keys(groupAndSortCards(cards, 'tags', sl('name'), []))).toEqual(['tags:ä', 'tags:z'])
+    withSyntheticLocale('sv', {}, (locale) => {
+      expect(currentLocale()).toBe(locale)
+      expect(keys(groupAndSortCards(cards, 'tags', sl('name'), []))).toEqual(['tags:z', 'tags:ä'])
+    })
+  })
+
+  test('a tag or category spelled like the empty-group heading keeps its own group', () => {
+    const tagged = groupAndSortCards(
+      [makeCard({ name: 'A' }), makeCard({ name: 'B', tags: ['Untagged'] })],
+      'tags',
+      sl('name'),
+      [],
+    )
+    expect(keys(tagged)).toEqual(['tags:Untagged', 'tags:'])
+    const categorized = groupAndSortCards(
+      [makeCard({ name: 'A' }), makeCard({ name: 'B', categories: ['Uncategorized'] })],
+      'category',
+      sl('name'),
+      [],
+    )
+    expect(keys(categorized)).toEqual(['category:uncategorized', 'category:'])
+    expect(categorized.map(heading)).toEqual(['Uncategorized', 'Uncategorized'])
+  })
+
+  test('the 32 color identities resolve to 28 catalog names', () => {
+    const identities = [[]] as string[][]
+    for (const color of ['W', 'U', 'B', 'R', 'G']) {
+      for (const subset of [...identities]) identities.push([...subset, color])
+    }
+    expect(identities).toHaveLength(32)
+    const messageKeys = identities.map((colors) => colorIdentityHeading(colors).messageKey)
+    // Colorless, five mono colors, ten guilds and ten shards and wedges — a key
+    // each — while the five four-color identities share one key and WUBRG has
+    // its own: 28.
+    expect(new Set(messageKeys).size).toBe(28)
+    for (const key of messageKeys) expect(key).toMatch(/^site\.colorIdentity\./)
+  })
+
+  test('a named combination interpolates its letters in WUBRG order', () => {
+    expect(colorIdentityHeading(['U', 'W'])).toEqual({
+      messageKey: 'site.colorIdentity.azorius',
+      messageParams: { colors: 'WU' },
+    })
+  })
+
+  test.each<[CardTypeCategory, string]>([
+    ['creature', 'Creature'],
+    ['land', 'Land'],
+    ['other', 'Other'],
+  ])('the %s type group is headed by its catalog name', (type, english) => {
+    const typeLine = type === 'other' ? 'Battle — Siege' : english
+    const [group] = groupAndSortCards(
+      [makeCard({ name: 'A', type: typeLine })],
+      'type',
+      sl('name'),
+      [],
+    )
+    expect(group!.key).toBe(`type:${type}`)
+    expect(group!.heading).toEqual({ messageKey: `site.group.type.${type}` })
+    expect(heading(group!)).toBe(english)
   })
 })

@@ -376,19 +376,19 @@ function App() {
   const {
     data: deckDetail,
     loading: deckLoading,
-    error: deckError,
+    failed: deckFailed,
   } = useFetchJson<DeckDetail>(() => (deckSlug() ? detailUrl('deck', deckSlug()!) : null))
   const {
     data: collectionDetail,
     loading: collectionLoading,
-    error: collectionError,
+    failed: collectionFailed,
   } = useFetchJson<CollectionDetail>(() =>
     collectionSlug() ? detailUrl('collection', collectionSlug()!) : null,
   )
   const {
     data: wantedListDetail,
     loading: wantedListLoading,
-    error: wantedListError,
+    failed: wantedListFailed,
   } = useFetchJson<WantedListDetail>(() =>
     wantedListSlug() ? detailUrl('wanted', wantedListSlug()!) : null,
   )
@@ -661,8 +661,8 @@ function App() {
                   the URL for the life of the page. */}
               <Show when={deckList()} fallback={<LoadingSpinner />}>
                 <Show
-                  when={!wantedListError()}
-                  fallback={<ErrorMessage message={wantedListError()!} />}
+                  when={!wantedListFailed()}
+                  fallback={<ErrorMessage message={t('site.app.loadFailed')} />}
                 >
                   <Show
                     when={!wantedListLoading() && wantedListDetail()}
@@ -725,8 +725,8 @@ function App() {
                   the URL for the life of the page. */}
               <Show when={deckList()} fallback={<LoadingSpinner />}>
                 <Show
-                  when={!collectionError()}
-                  fallback={<ErrorMessage message={collectionError()!} />}
+                  when={!collectionFailed()}
+                  fallback={<ErrorMessage message={t('site.app.loadFailed')} />}
                 >
                   <Show
                     when={!collectionLoading() && collectionDetail()}
@@ -788,7 +788,10 @@ function App() {
                   shared `?sell=1` link's parameters and then strip them from
                   the URL for the life of the page. */}
               <Show when={deckList()} fallback={<LoadingSpinner />}>
-                <Show when={!deckError()} fallback={<ErrorMessage message={deckError()!} />}>
+                <Show
+                  when={!deckFailed()}
+                  fallback={<ErrorMessage message={t('site.app.loadFailed')} />}
+                >
                   <Show when={!deckLoading() && deckDetail()} fallback={<LoadingSpinner />}>
                     <Show
                       when={editMode()}

@@ -16,6 +16,7 @@ import {
 } from '../../../src/list-view/buylist-quotes'
 import type { BakedBuylist } from '../../../src/list/site-data'
 import { makeBuylistQuote, stubBuylistFetcher } from '../../test-utils'
+import { syncRef } from '../../../src/sync/message'
 
 /**
  * The public site's only source of quotes: the buylist map baked into a list
@@ -111,8 +112,9 @@ describe('seedBuylistQuotes', () => {
   })
 
   test('a successful seed clears the “nothing baked” explanation', () => {
-    reportBuylistUnavailable('This list was built without buylist data.')
-    expect(buylistError()).toBe('This list was built without buylist data.')
+    const notBaked = syncRef('site.sell.notBaked')
+    reportBuylistUnavailable(notBaked)
+    expect(buylistError()).toBe(notBaked)
 
     seedBuylistQuotes(baked({ 'c21:263:nonfoil': makeQuote() }))
 

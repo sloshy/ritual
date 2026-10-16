@@ -12,7 +12,8 @@ import {
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { parseSetCodesInput, scanSetCodesInput } from '../card/set-codes'
-import { colorIdentityName, WUBRG } from '../list-view/card-sorting'
+import { colorIdentityHeading, WUBRG } from '../list-view/card-sorting'
+import { renderSyncMessage } from '../sync/message'
 import {
   COPIES_MATCH_MODES,
   parseCopiesFilter,
@@ -31,7 +32,7 @@ import {
 import { CARD_LABEL_DISPLAY_NAMES, type CardLabelSelection } from '../card/card-labels'
 import { type PriceCurrency, getCurrencySymbol } from '../pricing/price-currency'
 import { pricesEnabled } from '../list-view/price-view'
-import { useT } from '../ui/i18n'
+import { useI18n, useT } from '../ui/i18n'
 import type { ParameterlessKey, TranslateFn } from '../i18n/t'
 import { formatCardTypeForDisplay, parseCardTypesInput, scanCardTypeInput } from './card-types'
 import {
@@ -66,9 +67,6 @@ import { useDebouncedInput, type DebouncedInput } from './useDebouncedInput'
  * shared.css sets the width that actually renders, so keep the two in step.
  */
 const PANEL_WIDTH = 410
-
-/** Display name for the colorless swatch — `colorIdentityName([])` is "Colorless". */
-const COLORLESS_NAME = colorIdentityName([])
 
 /** A numeric filter value as the string its input field shows ('' when unset). */
 function numericFieldText(value: number | null): string {
@@ -728,7 +726,10 @@ export const FilterMenu: Component<FilterMenuProps> = (props) => {
 }
 
 const FilterPanelBody: Component<FilterMenuProps> = (props) => {
-  const t = useT()
+  const { t, locale } = useI18n()
+  /** A swatch's name — the color identity's own, as its group heading spells it. */
+  const colorName = (colors: readonly string[]): string =>
+    renderSyncMessage(colorIdentityHeading(colors), locale())
   // The free-text and numeric filters commit to the store 250ms after the user stops
   // typing, so fast typing no longer triggers a filter+re-render pass per keystroke.
   // The fields still echo keystrokes instantly via each input's `draft`.
@@ -917,7 +918,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
                 class="filter-color-btn"
                 classList={{ active: props.filters.filters.colors.includes(color) }}
                 aria-pressed={props.filters.filters.colors.includes(color)}
-                title={colorIdentityName([color])}
+                title={colorName([color])}
                 onClick={() =>
                   props.filters.update({
                     colors: toggleColorSelection(props.filters.filters.colors, color),
@@ -928,9 +929,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
                   when={props.symbolMap[`{${color}}`]}
                   fallback={<span class="filter-color-letter">{color}</span>}
                 >
-                  {(src) => (
-                    <img src={src()} alt={colorIdentityName([color])} class="mana-symbol" />
-                  )}
+                  {(src) => <img src={src()} alt={colorName([color])} class="mana-symbol" />}
                 </Show>
               </button>
             )}
@@ -941,7 +940,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
             class="filter-color-btn"
             classList={{ active: props.filters.filters.colorless }}
             aria-pressed={props.filters.filters.colorless}
-            title={COLORLESS_NAME}
+            title={colorName([])}
             onClick={() => props.filters.update({ colorless: !props.filters.filters.colorless })}
           >
             <Show
@@ -951,7 +950,7 @@ const FilterPanelBody: Component<FilterMenuProps> = (props) => {
                 <span class="filter-color-letter">C</span>
               }
             >
-              {(src) => <img src={src()} alt={COLORLESS_NAME} class="mana-symbol" />}
+              {(src) => <img src={src()} alt={colorName([])} class="mana-symbol" />}
             </Show>
           </button>
         </div>

@@ -20,6 +20,7 @@ import {
   syncMessage,
   SyncMessageError,
   syncRef,
+  syncPrice,
   syncSize,
   syncText,
   toSyncMessage,
@@ -165,6 +166,27 @@ describe('rendering in the reader’s locale', () => {
       expect(renderSyncParam(syncSize(bytes), DEFAULT_LOCALE)).toBe(figure)
     },
   )
+
+  test("a price param is a price in the enclosing message's locale", () => {
+    const message = syncMessage('site.group.price.atLeast', { low: syncPrice(100, 'eur') })
+    expect(message.message).toBe('€100.00+')
+    withSyntheticLocale('de', {}, (de) => {
+      expect(renderSyncMessage(message, de)).toBe('100,00\u00a0€+')
+      expect(renderSyncParam(syncPrice(1.5, 'tix'), de)).toBe('1,50 tix')
+    })
+  })
+
+  test('a price in a currency this surface does not know falls back to the English sent', () => {
+    const received = {
+      message: '¥100+',
+      messageKey: 'site.group.price.atLeast',
+      messageParams: { low: { amount: 100, currency: 'jpy' } },
+    } as unknown as SyncMessage
+    expect(
+      isRenderable({ messageKey: received.messageKey!, messageParams: received.messageParams }),
+    ).toBe(false)
+    expect(renderSyncMessage(received)).toBe('¥100+')
+  })
 
   test('the English half is the catalog English whatever the active locale', () => {
     const message = withSyntheticLocale('xx', { 'domain.sync.reasonNoChanges': 'xx-same' }, () =>

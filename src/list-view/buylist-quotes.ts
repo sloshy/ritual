@@ -40,6 +40,8 @@ import { scryfallCardLanguage, type CardLanguage } from '../card/card-language'
 import { sitePriceForFinish } from './price-view'
 import { sellModeActive } from './sell-mode'
 import type { ScryfallCard } from '../scryfall/types'
+import { syncRef, type SyncMessageRef } from '../sync/message'
+import { HttpStatusError } from './fetch-json'
 
 /**
  * Whether a displayed card object is a non-English printing. The buyer's feed
@@ -81,7 +83,7 @@ export function createBuylistFetcher(options: BuylistFetcherOptions): BuylistFet
       body: JSON.stringify({ buyer, printings }),
       ...(options.credentials ? { credentials: options.credentials } : {}),
     })
-    if (!response.ok) throw new Error(`Buylist quotes failed: HTTP ${response.status}`)
+    if (!response.ok) throw new HttpStatusError(response.status)
     return (await response.json()) as BuylistQuotesResponse
   }
 }
@@ -142,7 +144,7 @@ export type BuylistFeedInfo = Omit<BuylistFeedStamp, 'productCount'>
 const [quotes, setQuotes] = createSignal<ReadonlyMap<string, BuylistQuote>>(new Map())
 const [feedInfo, setFeedInfo] = createSignal<BuylistFeedInfo | null>(null)
 const [loading, setLoading] = createSignal(false)
-const [error, setError] = createSignal<string | null>(null)
+const [error, setError] = createSignal<SyncMessageRef | null>(null)
 
 /** Outstanding requests. A bare boolean would be cleared by whichever of two
  * overlapping calls finished first, while the other was still running. */
@@ -181,8 +183,11 @@ export const buylistLoading: Accessor<boolean> = loading
  * off, so a failure there can leave a reason behind for a mode nobody entered.
  * Harmless — the message names the real problem either way — but it is why this
  * is worded as "quotes", not "sell mode".
+ *
+ * Held unrendered — a reason phrase for `site.stats.buylistUnavailable` — so
+ * the notice that shows it relabels when the reader switches language.
  */
-export const buylistError: Accessor<string | null> = error
+export const buylistError: Accessor<SyncMessageRef | null> = error
 
 /**
  * Record a reason sell mode has nothing to show that the store did not produce
@@ -190,11 +195,22 @@ export const buylistError: Accessor<string | null> = error
  * {@link buylistError} exactly like a failed request, and is cleared by the
  * next successful seed or request.
  *
- * The message is passed in already translated: this module is shared by both
- * SPAs and holds no locale of its own.
+ * The reason is passed in unrendered, like the store's own, so it relabels
+ * with the page.
  */
-export function reportBuylistUnavailable(message: string): void {
-  setError(message)
+export function reportBuylistUnavailable(reason: SyncMessageRef): void {
+  setError(reason)
+}
+
+/**
+ * Why a quote request failed, as a reason phrase: the HTTP status when the
+ * server answered, else the error the request raised (a network failure, whose
+ * text is the browser's own).
+ */
+function quoteFailureReason(e: unknown): SyncMessageRef {
+  if (e instanceof HttpStatusError)
+    return syncRef('site.sell.quotesHttpFailed', { status: e.status })
+  return syncRef('site.sell.quotesFailed', { detail: e instanceof Error ? e.message : String(e) })
 }
 
 /**
@@ -466,7 +482,7 @@ export async function requestBuylistQuotes(
   } catch (e) {
     // A straggler's failure must not stick a sticky error onto the store a
     // reset just gave a clean slate.
-    if (myGeneration === generation) setError(e instanceof Error ? e.message : String(e))
+    if (myGeneration === generation) setError(quoteFailureReason(e))
   } finally {
     // Only un-mark keys this call still owns: a reset (including the one a
     // buyer switch performs) cleared `inFlight`, and a newer request may

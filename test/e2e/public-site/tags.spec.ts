@@ -35,9 +35,9 @@ test.describe('Card tags', () => {
     await expect(headings).toHaveText(['Card Draw', 'ramp', 'ramp, staple', 'Untagged'])
     // A two-tag card lands in its set's group alone — never fanned out into
     // both single-tag groups, which would double-count it.
-    await expect(page.locator('[data-section="ramp, staple"] .card-item')).toHaveCount(1)
-    await expect(page.locator('[data-section="ramp"] .card-item')).toHaveCount(1)
-    await expect(page.locator('[data-section="Untagged"] .card-item')).toHaveCount(1)
+    await expect(page.locator('[data-section="tags:ramp, staple"] .card-item')).toHaveCount(1)
+    await expect(page.locator('[data-section="tags:ramp"] .card-item')).toHaveCount(1)
+    await expect(page.locator('[data-section="tags:"] .card-item')).toHaveCount(1)
 
     // The sort dropdown offers tags too, and the choice travels in the URL.
     await page.locator('.toolbar-sort-layer select').first().selectOption('tags')

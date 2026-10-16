@@ -24,7 +24,7 @@
  * ({@link SyncMessageRef}), a list ({@link SyncListParam}), a duration
  * ({@link SyncElapsedParam} for how long something took, {@link SyncDurationParam}
  * for an age or a timeout), a card language ({@link SyncLanguageParam}) or a data
- * size ({@link SyncSizeParam}), and
+ * size ({@link SyncSizeParam}) or a price ({@link SyncPriceParam}), and
  * {@link renderSyncMessage} renders the whole tree in one locale. The type is
  * deliberately not assignable to `ApiMessage`, so a sync message cannot reach
  * `renderApiMessage`, which would print a nested param as `[object Object]`.
@@ -49,6 +49,7 @@ import {
 } from '../i18n/t'
 import type { LocaleTag, PluralForms, SelectForms } from '../i18n/types'
 import { formatDuration, formatElapsed } from '../util/duration'
+import { formatPriceIn, isPriceCurrency, type PriceCurrency } from '../pricing/money-format'
 import { isRecord } from '../util/json'
 
 // ── Shapes ────────────────────────────────────────────────────────────
@@ -109,6 +110,15 @@ export type SyncLanguageParam = { language: CardLanguage }
 export type SyncSizeParam = { sizeBytes: number }
 
 /**
+ * A price, rendered in the enclosing message's locale by the one display
+ * formatter prices use everywhere (`formatPriceIn`): `$0.50`, `0,50 €`,
+ * `1.00 tix`. The amount stays a number, so a reader formats it in its own
+ * language — and a currency this surface does not know is a shape it does not
+ * know, so the message falls back to its English.
+ */
+export type SyncPriceParam = { amount: number; currency: PriceCurrency }
+
+/**
  * One parameter of a sync message. A string is text rendered once and for all —
  * a card name, a list name, or an error message raised outside the catalog.
  */
@@ -121,6 +131,7 @@ export type SyncParam =
   | SyncDurationParam
   | SyncLanguageParam
   | SyncSizeParam
+  | SyncPriceParam
 
 /** The parameters a sync message interpolates. */
 export type SyncMessageParams = Record<string, SyncParam>
@@ -294,6 +305,11 @@ export function syncSize(sizeBytes: number): SyncSizeParam {
   return { sizeBytes }
 }
 
+/** A price param — see {@link SyncPriceParam}. */
+export function syncPrice(amount: number, currency: PriceCurrency): SyncPriceParam {
+  return { amount, currency }
+}
+
 /**
  * Whether a value is a {@link SyncMessage} — the one discriminant the sync
  * engines use for "a result, or the message saying why not". Structural: it
@@ -438,6 +454,15 @@ function renderParam(
   }
   if ('sizeBytes' in param && typeof param.sizeBytes === 'number') {
     return formatMebibytes(param.sizeBytes, locale)
+  }
+  if (
+    'amount' in param &&
+    typeof param.amount === 'number' &&
+    'currency' in param &&
+    typeof param.currency === 'string' &&
+    isPriceCurrency(param.currency)
+  ) {
+    return formatPriceIn(locale, param.amount, param.currency)
   }
   return strict ? undefined : ''
 }

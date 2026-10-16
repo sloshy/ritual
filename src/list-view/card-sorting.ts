@@ -1,6 +1,22 @@
 import { compareData, compareDisplay } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
-import { t } from '../i18n/t'
+import { t, type ParameterlessKey, type ParamsOf } from '../i18n/t'
+import { syncPrice, syncRef, type SyncMessageRef, type SyncText } from '../sync/message'
+import { BUYLIST_CURRENCY } from '../buylist'
+import type { Finish } from '../card/finish-condition'
+import type { ScryfallCard } from '../scryfall/types'
+import type { CardLabel } from '../card/card-labels'
+import type { CardLanguage } from '../card/card-language'
+import { formatCardTags, type CardTag } from '../card/card-tags'
+import {
+  cardCategorySpellings,
+  foldCardCategory,
+  primaryCardCategory,
+  type CardCategory,
+} from '../card/card-categories'
+import type { PriceCurrency } from '../pricing/price-currency'
+import type { ListRefKey } from './combined-list'
+import { isPricelessCard } from './priceless'
 
 export type ViewMode = 'binder' | 'list' | 'overlap' | 'stack'
 export type CardSize = 'large' | 'medium' | 'small'
@@ -250,10 +266,38 @@ export interface CardData {
    * single-list pages.
    */
   sourceName?: string
+  /**
+   * The source list's `type:slug` identity, beside {@link CardData.sourceName}:
+   * what the "Source List" grouping keys on, so two lists that share a name
+   * (a deck and a collection both called "Red") stay two groups.
+   */
+  sourceKey?: ListRefKey
 }
 
+/**
+ * What a group's heading says, held unrendered: plain text when the heading
+ * *is* the cards' own data (a deck section, a tag set, a category, a price
+ * bracket, a source list's name, a mana value, a card type), or a catalog
+ * message (a color identity, "Specific Printing", "Uncategorized") that the
+ * renderer words in the reader's language with `renderSyncMessage`. Never
+ * rendered here: the grouper runs once per change to the cards, and a heading
+ * rendered at that moment would stay in that language after a switch.
+ */
+export type GroupHeading = SyncText
+
 export interface CardGroup<T extends CardData = CardData> {
-  key: string
+  /**
+   * The group's identity — the same in every language, and never the heading:
+   * `<kind>:<value>`, the value being the cards' own data (`section:Main`,
+   * `tags:ramp, staple`, `category:ramp`, folded) or a fixed code
+   * (`printing:any`, `buylist:on`, `price:none`, `color:WU`). The empty value
+   * is the "has none" bucket (`tags:`, `category:`, `source:`), which no data
+   * value can collide with. The DOM's `data-section` and anchor id are built
+   * from it, so a test or a style hook never has to know the language.
+   */
+  key: GroupKey
+  /** What the section heading says. See {@link GroupHeading}. */
+  heading: GroupHeading
   cards: T[]
   /**
    * The category this group *is*, for the `'categories'` grouping — where one
@@ -264,75 +308,110 @@ export interface CardGroup<T extends CardData = CardData> {
   category?: CardCategory
 }
 
-import { BUYLIST_CURRENCY } from '../buylist'
-import type { Finish } from '../card/finish-condition'
-import type { ScryfallCard } from '../scryfall/types'
-import type { CardLabel } from '../card/card-labels'
-import type { CardLanguage } from '../card/card-language'
-import { formatCardTags, type CardTag } from '../card/card-tags'
-import {
-  cardCategorySpellings,
-  foldCardCategory,
-  primaryCardCategory,
-  type CardCategory,
-} from '../card/card-categories'
-import type { PriceCurrency } from '../pricing/price-currency'
-import { isPricelessCard } from './priceless'
-import { getCurrencySymbol, getCurrencySuffix } from '../pricing/price-currency'
-
 export { BUYLIST_CURRENCY }
 
-// WUBRG canonical order
-export const WUBRG: readonly string[] = ['W', 'U', 'B', 'R', 'G']
+/** One of the five colors of mana, by its letter. */
+export type ManaColor = 'W' | 'U' | 'B' | 'R' | 'G'
 
-const COLOR_COMBO_NAMES: Record<string, string> = {
-  '': 'Colorless',
-  W: 'White',
-  U: 'Blue',
-  B: 'Black',
-  R: 'Red',
-  G: 'Green',
-  // Guilds (two-color)
-  WU: 'Azorius (WU)',
-  WB: 'Orzhov (WB)',
-  WR: 'Boros (WR)',
-  WG: 'Selesnya (WG)',
-  UB: 'Dimir (UB)',
-  UR: 'Izzet (UR)',
-  UG: 'Simic (UG)',
-  BR: 'Rakdos (BR)',
-  BG: 'Golgari (BG)',
-  RG: 'Gruul (RG)',
-  // Shards and Wedges (three-color)
-  WUB: 'Esper (WUB)',
-  WUR: 'Jeskai (WUR)',
-  WUG: 'Bant (WUG)',
-  WBR: 'Mardu (WBR)',
-  WBG: 'Abzan (WBG)',
-  WRG: 'Naya (WRG)',
-  UBR: 'Grixis (UBR)',
-  UBG: 'Sultai (UBG)',
-  URG: 'Temur (URG)',
-  BRG: 'Jund (BRG)',
-  // Four-color
-  WUBR: 'WUBR (Four Color)',
-  WUBG: 'WUBG (Four Color)',
-  WURG: 'WURG (Four Color)',
-  WBRG: 'WBRG (Four Color)',
-  UBRG: 'UBRG (Four Color)',
-  // Five-color
-  WUBRG: 'WUBRG (Five Color)',
-}
+// WUBRG canonical order
+export const WUBRG: readonly ManaColor[] = ['W', 'U', 'B', 'R', 'G']
+
+/** The ten two-color identities, by their WUBRG-ordered letters. */
+type GuildLetters = 'WU' | 'WB' | 'WR' | 'WG' | 'UB' | 'UR' | 'UG' | 'BR' | 'BG' | 'RG'
+
+/** The ten three-color identities, by their WUBRG-ordered letters. */
+type ShardLetters = 'WUB' | 'WUR' | 'WUG' | 'WBR' | 'WBG' | 'WRG' | 'UBR' | 'UBG' | 'URG' | 'BRG'
+
+/** A key naming a color identity in the catalog. */
+type ColorIdentityMessageKey = Extract<MessageKey, `site.colorIdentity.${string}`>
+
+/** A color identity name that takes no params — the mono colors. */
+type PlainColorKey = {
+  [K in ColorIdentityMessageKey]: [ParamsOf<K>] extends [never] ? K : never
+}[ColorIdentityMessageKey]
+
+/**
+ * A color identity name whose one placeholder is `{colors}`. A table entry
+ * whose message lost or renamed it fails to compile rather than rendering a
+ * literal `{colors}`.
+ */
+type LetteredColorKey = {
+  [K in ColorIdentityMessageKey]: [ParamsOf<K>] extends ['colors']
+    ? ['colors'] extends [ParamsOf<K>]
+      ? K
+      : never
+    : never
+}[ColorIdentityMessageKey]
+
+/** The five mono-color names, by mana letter. */
+const MONO_COLOR_NAMES = {
+  W: 'site.colorIdentity.white',
+  U: 'site.colorIdentity.blue',
+  B: 'site.colorIdentity.black',
+  R: 'site.colorIdentity.red',
+  G: 'site.colorIdentity.green',
+} as const satisfies Record<ManaColor, PlainColorKey>
+
+/**
+ * The guilds (two colors) and the shards and wedges (three), by their
+ * WUBRG-ordered letters. Each name is a proper noun the official card
+ * translations translate too, so it is a catalog key; the letters are mana
+ * symbols, interpolated as the key's `{colors}` so the translator places them.
+ * `satisfies` a record over every combination, so a missing entry is a compile
+ * error rather than a pair or triple mislabelled by a fallback.
+ */
+const NAMED_COLOR_COMBOS = {
+  WU: 'site.colorIdentity.azorius',
+  WB: 'site.colorIdentity.orzhov',
+  WR: 'site.colorIdentity.boros',
+  WG: 'site.colorIdentity.selesnya',
+  UB: 'site.colorIdentity.dimir',
+  UR: 'site.colorIdentity.izzet',
+  UG: 'site.colorIdentity.simic',
+  BR: 'site.colorIdentity.rakdos',
+  BG: 'site.colorIdentity.golgari',
+  RG: 'site.colorIdentity.gruul',
+  WUB: 'site.colorIdentity.esper',
+  WUR: 'site.colorIdentity.jeskai',
+  WUG: 'site.colorIdentity.bant',
+  WBR: 'site.colorIdentity.mardu',
+  WBG: 'site.colorIdentity.abzan',
+  WRG: 'site.colorIdentity.naya',
+  UBR: 'site.colorIdentity.grixis',
+  UBG: 'site.colorIdentity.sultai',
+  URG: 'site.colorIdentity.temur',
+  BRG: 'site.colorIdentity.jund',
+} as const satisfies Record<GuildLetters | ShardLetters, LetteredColorKey>
 
 /** Normalize a color identity array to a canonical WUBRG-ordered key string */
-export function colorIdentityKey(colors: string[]): string {
+export function colorIdentityKey(colors: readonly string[]): string {
   return WUBRG.filter((c) => colors.includes(c)).join('')
 }
 
-/** Get the display name for a color identity */
-export function colorIdentityName(colors: string[]): string {
-  const key = colorIdentityKey(colors)
-  return COLOR_COMBO_NAMES[key] ?? key
+/**
+ * A color identity's name, unrendered: `Colorless`, a mono color, a guild,
+ * shard or wedge (`Azorius (WU)`), or the four- and five-color names
+ * (`WUBG (Four Color)`). Every one of the 32 identities has an entry.
+ */
+export function colorIdentityHeading(colors: readonly string[]): SyncMessageRef {
+  const letters = colorIdentityKey(colors)
+  switch (letters.length) {
+    case 0:
+      return syncRef('site.colorIdentity.colorless')
+    case 1:
+      // One letter of `WUBRG` is a mana color.
+      return { messageKey: MONO_COLOR_NAMES[letters as ManaColor] }
+    case 4:
+      return syncRef('site.colorIdentity.fourColor', { colors: letters })
+    case 5:
+      return syncRef('site.colorIdentity.fiveColor', { colors: letters })
+    default:
+      // Two or three distinct letters in WUBRG order: exactly the table's keys.
+      return {
+        messageKey: NAMED_COLOR_COMBOS[letters as GuildLetters | ShardLetters],
+        messageParams: { colors: letters },
+      }
+  }
 }
 
 /**
@@ -340,8 +419,12 @@ export function colorIdentityName(colors: string[]): string {
  * Mono colors sort first (W=1..G=5), then pairs, triples, etc.
  * Within the same count, combos are ordered by their constituent colors in WUBRG order.
  */
-export function colorIdentitySortValue(colors: string[]): number {
-  const key = colorIdentityKey(colors)
+export function colorIdentitySortValue(colors: readonly string[]): number {
+  return colorLettersSortValue(colorIdentityKey(colors))
+}
+
+/** {@link colorIdentitySortValue} for letters already in WUBRG order. */
+function colorLettersSortValue(key: string): number {
   if (key === '') return 0 // Colorless first
 
   // Group by color count, then order within group
@@ -350,71 +433,88 @@ export function colorIdentitySortValue(colors: string[]): number {
 
   // Within the same count, compute positional value from WUBRG indices
   for (let i = 0; i < key.length; i++) {
-    value += WUBRG.indexOf(key[i]!) * Math.pow(5, key.length - 1 - i)
+    value += WUBRG.indexOf(key[i] as ManaColor) * Math.pow(5, key.length - 1 - i)
   }
   return value
 }
 
-function formatBracketValue(value: number, currency: PriceCurrency): string {
-  const sym = getCurrencySymbol(currency)
-  const suf = getCurrencySuffix(currency)
-  const formatted = Number.isInteger(value) ? String(value) : value.toFixed(2)
-  return `${sym}${formatted}${suf}`
+/** Archidekt's price brackets, as `[low, high)` bounds. The last is open-ended. */
+const ARCHIDEKT_BRACKETS: readonly (readonly [number, number])[] = [
+  [0, 0.5],
+  [0.5, 1],
+  [1, 5],
+  [5, 10],
+  [10, 20],
+  [20, 50],
+  [50, 100],
+  [100, Infinity],
+]
+
+/**
+ * A group's identity: `all`, or `<kind>:<value>` — see {@link CardGroup.key}.
+ * A deck board's own section adds `board:<name>` (`boardSectionKey`).
+ */
+export type GroupKey = 'all' | `${string}:${string}`
+
+/**
+ * Where one card lands in a grouping: the group's {@link CardGroup.key}, its
+ * heading, and its place in the group order. Groups sort by `rank`, then — for
+ * the groupings whose order is the reader's own (tags, the categories the
+ * vocabulary does not name) — by `collate` under display collation, which does
+ * follow the locale (`ä` sorts after `z` in Swedish). Never by the heading, so
+ * a translated heading can neither merge two groups nor move one.
+ */
+export type GroupSlot = {
+  key: GroupKey
+  heading: GroupHeading
+  rank: number
+  collate?: string
+  /** The category the group *is* — set by the two category groupings only. */
+  category?: CardCategory
 }
 
-function getArchidektBrackets(currency: PriceCurrency): Array<[number, number, string]> {
-  return [
-    [0, 0.5, `${formatBracketValue(0, currency)} – ${formatBracketValue(0.5, currency)}`],
-    [0.5, 1, `${formatBracketValue(0.5, currency)} – ${formatBracketValue(1, currency)}`],
-    [1, 5, `${formatBracketValue(1, currency)} – ${formatBracketValue(5, currency)}`],
-    [5, 10, `${formatBracketValue(5, currency)} – ${formatBracketValue(10, currency)}`],
-    [10, 20, `${formatBracketValue(10, currency)} – ${formatBracketValue(20, currency)}`],
-    [20, 50, `${formatBracketValue(20, currency)} – ${formatBracketValue(50, currency)}`],
-    [50, 100, `${formatBracketValue(50, currency)} – ${formatBracketValue(100, currency)}`],
-    [100, Infinity, `${formatBracketValue(100, currency)}+`],
-  ]
-}
+/** The rank of a "has none" group — No Price Data, Untagged, Uncategorized — which sorts last. */
+const LAST_RANK = Infinity
 
-const NO_PRICE_DATA_KEY = 'No Price Data'
+/** The rank of a category or section the page's order does not name: after the named ones, before {@link LAST_RANK}. */
+const UNNAMED_RANK = Number.MAX_SAFE_INTEGER
 
-/** Get the price group key for a card given a grouping strategy */
-export function getPriceGroupKey(
+/** The two kinds of price grouping: the card's price, or the buyer's offer for it. */
+export type PriceGroupKind = 'price' | 'buylist-price'
+
+/**
+ * A price grouping's slot for one price: its bracket, keyed by the bracket's
+ * lower bound (`price:0.5`, `buylist-price:0.5`) and headed by the bracket's
+ * bounds as prices in `currency`, or the No Price Data group — last — for no
+ * price at all.
+ */
+export function priceGroupSlot(
   price: number,
   strategy: PriceGroupStrategy,
   currency: PriceCurrency = 'usd',
-): string {
-  if (price <= 0) return NO_PRICE_DATA_KEY
-
-  if (strategy === 'archidekt') {
-    const brackets = getArchidektBrackets(currency)
-    for (const [low, high, label] of brackets) {
-      if (price >= low && price < high) return label
-    }
-    return `${formatBracketValue(100, currency)}+`
+  kind: PriceGroupKind = 'price',
+): GroupSlot {
+  if (price <= 0) {
+    return { key: `${kind}:none`, heading: syncRef('site.group.price.none'), rank: LAST_RANK }
   }
-
-  const increment = strategy === 'five' ? 5 : 10
-  const lower = Math.floor(price / increment) * increment
-  const upper = lower + increment
-  return `${formatBracketValue(lower, currency)} – ${formatBracketValue(upper, currency)}`
+  const [low, high] =
+    strategy === 'archidekt'
+      ? (ARCHIDEKT_BRACKETS.find(([lo, hi]) => price >= lo && price < hi) ?? [100, Infinity])
+      : stepBracket(price, strategy === 'five' ? 5 : 10)
+  const heading =
+    high === Infinity
+      ? syncRef('site.group.price.atLeast', { low: syncPrice(low, currency) })
+      : syncRef('site.group.price.range', {
+          low: syncPrice(low, currency),
+          high: syncPrice(high, currency),
+        })
+  return { key: `${kind}:${low}`, heading, rank: low }
 }
 
-/** Get a numeric sort value for a price group key so groups sort in ascending order */
-export function priceGroupSortValue(
-  key: string,
-  strategy: PriceGroupStrategy,
-  currency: PriceCurrency = 'usd',
-): number {
-  if (key === NO_PRICE_DATA_KEY) return Infinity
-
-  if (strategy === 'archidekt') {
-    const brackets = getArchidektBrackets(currency)
-    const idx = brackets.findIndex(([, , label]) => label === key)
-    return idx >= 0 ? idx : brackets.length
-  }
-  // Extract lower bound number from label
-  const match = key.match(/(\d+)/)
-  return match ? parseInt(match[1]!, 10) : 0
+/** The fixed-width bracket holding `price`. */
+function stepBracket(price: number, increment: number): readonly [number, number] {
+  const lower = Math.floor(price / increment) * increment
+  return [lower, lower + increment]
 }
 
 /** Compute the total price for a group of cards */
@@ -455,18 +555,17 @@ function tagSetKey(tags: readonly CardTag[] | undefined): string {
 }
 
 /**
- * The one ordering rule for group keys, shared by the tags sort and grouping and
- * by the two category groupings: keys in display order, with `emptyKey` — the
- * spelling of "no tags" in that context (`''` for a card, the localized
- * "Untagged" heading for a group) — last. Locale-aware (`compareDisplay`)
- * because the keys are the headings the reader sees; the order of tags
- * *within* one set is the file's pinned data collation (`normalizeCardTags`),
- * which is why `#ä` can sit one way inside a line and another between lines.
+ * The one ordering rule for tag sets and category names, shared by the tags
+ * and category sorts: display order, with `''` — "no tags", "no category" —
+ * last. Locale-aware (`compareDisplay`) because the strings are what the reader
+ * sees; the order of tags *within* one set is the file's pinned data collation
+ * (`normalizeCardTags`), which is why `#ä` can sit one way inside a line and
+ * another between lines.
  */
-function compareGroupKeys(left: string, right: string, emptyKey: string): number {
+function compareGroupKeys(left: string, right: string): number {
   if (left === right) return 0
-  if (left === emptyKey) return 1
-  if (right === emptyKey) return -1
+  if (left === '') return 1
+  if (right === '') return -1
   return compareDisplay(left, right)
 }
 
@@ -475,22 +574,7 @@ function compareTagSets(
   a: readonly CardTag[] | undefined,
   b: readonly CardTag[] | undefined,
 ): number {
-  return compareGroupKeys(tagSetKey(a), tagSetKey(b), '')
-}
-
-/**
- * The tags grouping's key for one card: the canonical tag-set string, or the
- * localized "Untagged" heading (rendered once by the caller, not per card). One
- * group per distinct *set* rather than one per tag: a card lands in exactly one
- * group, like every other grouping, so group totals never count a two-tag card
- * twice. The key is the bare `a, b` heading text, so the one collision a
- * caller can hit is a single tag spelled exactly like the localized "Untagged"
- * heading — the same class of collision every other grouping's fallback key
- * has ("Unknown" for source), and accepted for the same reason.
- */
-function tagGroupKey(tags: readonly CardTag[] | undefined, untaggedKey: string): string {
-  const key = tagSetKey(tags)
-  return key === '' ? untaggedKey : key
+  return compareGroupKeys(tagSetKey(a), tagSetKey(b))
 }
 
 /** A card's primary category, or `''` for none — the sort's and grouping's key. */
@@ -508,7 +592,7 @@ function compareCategories(
   a: readonly CardCategory[] | undefined,
   b: readonly CardCategory[] | undefined,
 ): number {
-  return compareGroupKeys(primaryCategoryKey(a), primaryCategoryKey(b), '')
+  return compareGroupKeys(primaryCategoryKey(a), primaryCategoryKey(b))
 }
 
 /**
@@ -578,44 +662,248 @@ export function compareBySortLayers(
   return compareDisplay(a.name, b.name)
 }
 
-export function getCardTypeCategory(typeLine: string): string {
+/**
+ * The type grouping's buckets, in heading order. Ritual's own categories, not
+ * the type line's words: a card goes under the first of these its front face's
+ * type line names, and `other` holds everything else (a battle, a bare
+ * kindred spell).
+ */
+export const CARD_TYPE_CATEGORIES = [
+  'creature',
+  'planeswalker',
+  'instant',
+  'sorcery',
+  'artifact',
+  'enchantment',
+  'land',
+  'other',
+] as const
+
+/** One of {@link CARD_TYPE_CATEGORIES}. */
+export type CardTypeCategory = (typeof CARD_TYPE_CATEGORIES)[number]
+
+/** The English type-line word each category is recognized by. */
+const CARD_TYPE_WORDS = {
+  creature: 'Creature',
+  planeswalker: 'Planeswalker',
+  instant: 'Instant',
+  sorcery: 'Sorcery',
+  artifact: 'Artifact',
+  enchantment: 'Enchantment',
+  land: 'Land',
+} as const satisfies Record<Exclude<CardTypeCategory, 'other'>, string>
+
+/** Each category's heading. */
+const CARD_TYPE_HEADINGS = {
+  creature: 'site.group.type.creature',
+  planeswalker: 'site.group.type.planeswalker',
+  instant: 'site.group.type.instant',
+  sorcery: 'site.group.type.sorcery',
+  artifact: 'site.group.type.artifact',
+  enchantment: 'site.group.type.enchantment',
+  land: 'site.group.type.land',
+  other: 'site.group.type.other',
+} as const satisfies Record<CardTypeCategory, ParameterlessKey>
+
+export function getCardTypeCategory(typeLine: string): CardTypeCategory {
   // For double-faced / multi-faced cards, Scryfall's combined type line is
   // "Front // Back". Categorize by the front face only, so e.g. a Creature
-  // front with a Land back groups under Creature.
+  // front with a Land back groups under Creature. Scryfall's type lines are
+  // English whatever the printing's language, so the words are matched as data.
   const frontType = typeLine.split(' // ')[0] ?? typeLine
-  if (frontType.includes('Creature')) return 'Creature'
-  if (frontType.includes('Planeswalker')) return 'Planeswalker'
-  if (frontType.includes('Instant')) return 'Instant'
-  if (frontType.includes('Sorcery')) return 'Sorcery'
-  if (frontType.includes('Artifact')) return 'Artifact'
-  if (frontType.includes('Enchantment')) return 'Enchantment'
-  if (frontType.includes('Land')) return 'Land'
-  return 'Other'
+  for (const category of CARD_TYPE_CATEGORIES) {
+    if (category !== 'other' && frontType.includes(CARD_TYPE_WORDS[category])) return category
+  }
+  return 'other'
 }
 
-const TYPE_ORDER = [
-  'Creature',
-  'Planeswalker',
-  'Instant',
-  'Sorcery',
-  'Artifact',
-  'Enchantment',
-  'Land',
-  'Other',
-]
+/** The one group of the `'none'` grouping. */
+const ALL_CARDS: GroupSlot = { key: 'all', heading: syncRef('site.group.all'), rank: 0 }
 
-// Group keys for the 'printing' grouping. A card is "specific" when it is pinned
-// to a single printing (has both set and collector number); otherwise it accepts
-// any printing.
-const PRINTING_SPECIFIC_KEY = 'Specific Printing'
-const PRINTING_ANY_KEY = 'Any Printing'
-const PRINTING_ORDER = [PRINTING_SPECIFIC_KEY, PRINTING_ANY_KEY]
+// The 'printing' grouping's two groups, specific first. A card is "specific"
+// when it is pinned to a single printing (has both set and collector number);
+// otherwise it accepts any printing.
+const PRINTING_SPECIFIC: GroupSlot = {
+  key: 'printing:specific',
+  heading: syncRef('site.group.printing.specific'),
+  rank: 0,
+}
+const PRINTING_ANY: GroupSlot = {
+  key: 'printing:any',
+  heading: syncRef('site.group.printing.any'),
+  rank: 1,
+}
 
-// Group keys for the 'on-buylist' grouping. "On" means the buyer is currently
+// The 'on-buylist' grouping's two groups. "On" means the buyer is currently
 // buying the printing; a paused offer groups under "Not on Buylist".
-const BUYLIST_ON_KEY = 'On Buylist'
-const BUYLIST_OFF_KEY = 'Not on Buylist'
-const BUYLIST_ORDER = [BUYLIST_ON_KEY, BUYLIST_OFF_KEY]
+const BUYLIST_ON: GroupSlot = {
+  key: 'buylist:on',
+  heading: syncRef('site.group.buylist.on'),
+  rank: 0,
+}
+const BUYLIST_OFF: GroupSlot = {
+  key: 'buylist:off',
+  heading: syncRef('site.group.buylist.off'),
+  rank: 1,
+}
+
+/** Cards with no tags, after every tag set. */
+const UNTAGGED: GroupSlot = {
+  key: 'tags:',
+  heading: syncRef('site.groupBy.untagged'),
+  rank: LAST_RANK,
+}
+
+/** Cards with no category, after every category. */
+const UNCATEGORIZED: GroupSlot = {
+  key: 'category:',
+  heading: syncRef('site.groupBy.uncategorized'),
+  rank: LAST_RANK,
+}
+
+/** What {@link groupSlotsFor} reads besides the cards. */
+type GroupSlotOptions = {
+  sectionOrder: readonly string[]
+  priceGroupStrategy: PriceGroupStrategy
+  currency: PriceCurrency
+  categoryOrder: readonly CardCategory[]
+}
+
+/** Where one card lands in a grouping — several groups only for `'categories'`. */
+type SlotsOf = (card: CardData, index: number) => readonly GroupSlot[]
+
+/** A rank from a page-supplied order: its position, or {@link UNNAMED_RANK} for a name it lacks. */
+function rankIn(position: number): number {
+  return position === -1 ? UNNAMED_RANK : position
+}
+
+/** The slot function for one grouping over `cards`. */
+function groupSlotsFor(
+  cards: readonly CardData[],
+  groupBy: GroupBy,
+  options: GroupSlotOptions,
+): SlotsOf {
+  switch (groupBy) {
+    case 'none':
+      return () => [ALL_CARDS]
+    case 'cmc':
+      return (c) => [{ key: `cmc:${c.cmc}`, heading: String(c.cmc), rank: c.cmc }]
+    case 'type':
+      return (c) => {
+        const type = getCardTypeCategory(c.type)
+        return [
+          {
+            key: `type:${type}`,
+            heading: syncRef(CARD_TYPE_HEADINGS[type]),
+            rank: CARD_TYPE_CATEGORIES.indexOf(type),
+          },
+        ]
+      }
+    case 'section':
+      // The page's section order, and any section it does not name after it,
+      // in the order those first appear.
+      return (c) => [
+        {
+          key: `section:${c.section}`,
+          heading: c.section,
+          rank: rankIn(options.sectionOrder.indexOf(c.section)),
+        },
+      ]
+    case 'color-identity':
+      return (c) => {
+        const letters = colorIdentityKey(c.colorIdentity)
+        return [
+          {
+            // `C`, the colorless mana symbol, so the key never ends empty.
+            key: `color:${letters === '' ? 'C' : letters}`,
+            heading: colorIdentityHeading(c.colorIdentity),
+            rank: colorLettersSortValue(letters),
+          },
+        ]
+      }
+    case 'price':
+      return (c) => [priceGroupSlot(c.price, options.priceGroupStrategy, options.currency)]
+    case 'buylist-price':
+      // Buylist quotes are the buyer's own currency, never the page's.
+      return (c) => [
+        priceGroupSlot(
+          c.buylistPrice,
+          options.priceGroupStrategy,
+          BUYLIST_CURRENCY,
+          'buylist-price',
+        ),
+      ]
+    case 'on-buylist':
+      return (c) => [c.onBuylist ? BUYLIST_ON : BUYLIST_OFF]
+    case 'printing':
+      return (c) => [c.hasPrinting ? PRINTING_SPECIFIC : PRINTING_ANY]
+    case 'source':
+      // Keyed by the list's `type:slug`, so a deck and a collection that share
+      // a name stay two groups; headed by the name. Ranked by the first card's
+      // position, so source groups keep the order their lists first appear in
+      // the card list — the order the lists were selected for the combined view.
+      return (c, index) =>
+        c.sourceKey === undefined
+          ? [{ key: 'source:', heading: syncRef('site.group.source.unknown'), rank: index }]
+          : [{ key: `source:${c.sourceKey}`, heading: c.sourceName ?? c.sourceKey, rank: index }]
+    case 'tags':
+      // One group per distinct *set* rather than one per tag: a card lands in
+      // exactly one group, like every other grouping, so group totals never
+      // count a two-tag card twice. Sets in display order, untagged last.
+      return (c) => {
+        const set = tagSetKey(c.tags)
+        return set === ''
+          ? [UNTAGGED]
+          : [{ key: `tags:${set}`, heading: set, rank: 0, collate: set }]
+      }
+    case 'category':
+    case 'categories': {
+      // The list's own vocabulary order, anything it does not name after it
+      // (in display order), and Uncategorized last. Keyed and ranked by the
+      // fold, so two spellings of one category are one group, headed by the
+      // shared spelling table's choice.
+      const headings = categoryHeadings(cards, options.categoryOrder)
+      const ranks = new Map(
+        options.categoryOrder.map((name, i) => [foldCardCategory(name), i] as const),
+      )
+      const slotOf = (name: CardCategory): GroupSlot => {
+        const fold = foldCardCategory(name)
+        const spelling = headings.get(fold) ?? name
+        return {
+          key: `category:${fold}`,
+          heading: spelling,
+          rank: ranks.get(fold) ?? UNNAMED_RANK,
+          collate: spelling,
+          category: spelling,
+        }
+      }
+      if (groupBy === 'category') {
+        return (c) => {
+          const primary = primaryCardCategory(c.categories)
+          return [primary === undefined ? UNCATEGORIZED : slotOf(primary)]
+        }
+      }
+      // Deliberately breaks the one-card-one-group invariant: a card appears
+      // under every category it holds, so group totals overlap and the section
+      // heading says so.
+      return (c) => {
+        const own = c.categories ?? []
+        return own.length === 0 ? [UNCATEGORIZED] : own.map(slotOf)
+      }
+    }
+  }
+}
+
+/** One group while it is being collected: the slot that opened it, and its cards. */
+type GroupBucket<T extends CardData> = { slot: GroupSlot; cards: T[] }
+
+/** Group order: by rank, then by display collation where the grouping asks for it. */
+function compareSlots(a: GroupSlot, b: GroupSlot): number {
+  if (a.rank !== b.rank) return a.rank < b.rank ? -1 : 1
+  return a.collate !== undefined && b.collate !== undefined
+    ? compareDisplay(a.collate, b.collate)
+    : 0
+}
 
 export function groupAndSortCards<T extends CardData>(
   cards: T[],
@@ -632,170 +920,34 @@ export function groupAndSortCards<T extends CardData>(
   categoryOrder: readonly CardCategory[] = [],
 ): CardGroup<T>[] {
   const sortFn = (a: CardData, b: CardData) => compareBySortLayers(a, b, sortLayers)
+  const slotsOf = groupSlotsFor(cards, groupBy, {
+    sectionOrder,
+    priceGroupStrategy: priceGroupStrategy ?? 'archidekt',
+    currency,
+    categoryOrder,
+  })
 
-  const groups: Record<string, T[]> = {}
+  // Insertion-ordered, and `Array.sort` is stable, so groups that tie on rank
+  // (sections the page's order does not name, every source list) keep the
+  // order they first appear.
+  const buckets = new Map<GroupKey, GroupBucket<T>>()
+  cards.forEach((card, index) => {
+    for (const slot of slotsOf(card, index)) {
+      const bucket = buckets.get(slot.key)
+      if (bucket) bucket.cards.push(card)
+      else buckets.set(slot.key, { slot, cards: [card] })
+    }
+  })
 
-  if (groupBy === 'none') {
-    groups['All Cards'] = [...cards].sort(sortFn)
-  } else if (groupBy === 'cmc') {
-    for (const c of cards) {
-      const key = c.cmc.toString()
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'type') {
-    for (const c of cards) {
-      const key = getCardTypeCategory(c.type)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'section') {
-    for (const c of cards) {
-      if (!groups[c.section]) groups[c.section] = []
-      groups[c.section]!.push(c)
-    }
-  } else if (groupBy === 'color-identity') {
-    for (const c of cards) {
-      const key = colorIdentityName(c.colorIdentity)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'price') {
-    const strategy = priceGroupStrategy ?? 'archidekt'
-    for (const c of cards) {
-      const key = getPriceGroupKey(c.price, strategy, currency)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'buylist-price') {
-    const strategy = priceGroupStrategy ?? 'archidekt'
-    for (const c of cards) {
-      const key = getPriceGroupKey(c.buylistPrice, strategy, BUYLIST_CURRENCY)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'on-buylist') {
-    for (const c of cards) {
-      const key = c.onBuylist ? BUYLIST_ON_KEY : BUYLIST_OFF_KEY
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'printing') {
-    for (const c of cards) {
-      const key = c.hasPrinting ? PRINTING_SPECIFIC_KEY : PRINTING_ANY_KEY
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'source') {
-    for (const c of cards) {
-      const key = c.sourceName ?? 'Unknown'
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'tags') {
-    const untagged = t('site.groupBy.untagged')
-    for (const c of cards) {
-      const key = tagGroupKey(c.tags, untagged)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'category') {
-    const uncategorized = t('site.groupBy.uncategorized')
-    const headings = categoryHeadings(cards, categoryOrder)
-    for (const c of cards) {
-      const primary = primaryCardCategory(c.categories)
-      const key =
-        primary === undefined ? uncategorized : (headings.get(foldCardCategory(primary)) ?? primary)
-      if (!groups[key]) groups[key] = []
-      groups[key].push(c)
-    }
-  } else if (groupBy === 'categories') {
-    const uncategorized = t('site.groupBy.uncategorized')
-    const headings = categoryHeadings(cards, categoryOrder)
-    for (const c of cards) {
-      const own = c.categories ?? []
-      if (own.length === 0) {
-        if (!groups[uncategorized]) groups[uncategorized] = []
-        groups[uncategorized].push(c)
-        continue
-      }
-      // Deliberately breaks the one-card-one-group invariant: a card appears
-      // under every category it holds, so group totals overlap and
-      // the section heading says so.
-      for (const name of own) {
-        const key = headings.get(foldCardCategory(name)) ?? name
-        if (!groups[key]) groups[key] = []
-        groups[key].push(c)
-      }
-    }
-  }
+  const ordered = [...buckets.values()].sort((a, b) => compareSlots(a.slot, b.slot))
+  // Whole-order reversal, the "has none" group included: it leads a reversed
+  // page, the way it trails an unreversed one.
+  if (reverseGroups) ordered.reverse()
 
-  const keys = Object.keys(groups)
-  if (groupBy === 'cmc') {
-    keys.sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-  } else if (groupBy === 'type') {
-    keys.sort((a, b) => TYPE_ORDER.indexOf(a) - TYPE_ORDER.indexOf(b))
-  } else if (groupBy === 'section') {
-    keys.sort((a, b) => sectionOrder.indexOf(a) - sectionOrder.indexOf(b))
-  } else if (groupBy === 'color-identity') {
-    const nameToValue = new Map<string, number>()
-    for (const c of cards) {
-      const name = colorIdentityName(c.colorIdentity)
-      if (!nameToValue.has(name)) {
-        nameToValue.set(name, colorIdentitySortValue(c.colorIdentity))
-      }
-    }
-    keys.sort((a, b) => (nameToValue.get(a) ?? 0) - (nameToValue.get(b) ?? 0))
-  } else if (groupBy === 'price') {
-    const strategy = priceGroupStrategy ?? 'archidekt'
-    keys.sort(
-      (a, b) =>
-        priceGroupSortValue(a, strategy, currency) - priceGroupSortValue(b, strategy, currency),
-    )
-  } else if (groupBy === 'buylist-price') {
-    const strategy = priceGroupStrategy ?? 'archidekt'
-    keys.sort(
-      (a, b) =>
-        priceGroupSortValue(a, strategy, BUYLIST_CURRENCY) -
-        priceGroupSortValue(b, strategy, BUYLIST_CURRENCY),
-    )
-  } else if (groupBy === 'on-buylist') {
-    keys.sort((a, b) => BUYLIST_ORDER.indexOf(a) - BUYLIST_ORDER.indexOf(b))
-  } else if (groupBy === 'printing') {
-    keys.sort((a, b) => PRINTING_ORDER.indexOf(a) - PRINTING_ORDER.indexOf(b))
-  } else if (groupBy === 'source') {
-    // Order source groups by the order their lists first appear in the card list,
-    // which mirrors the order the lists were selected for the combined view.
-    const firstIndex = new Map<string, number>()
-    cards.forEach((c, i) => {
-      const key = c.sourceName ?? 'Unknown'
-      if (!firstIndex.has(key)) firstIndex.set(key, i)
-    })
-    keys.sort((a, b) => (firstIndex.get(a) ?? 0) - (firstIndex.get(b) ?? 0))
-  } else if (groupBy === 'tags') {
-    // Tag sets in display order, the untagged group last.
-    keys.sort((a, b) => compareGroupKeys(a, b, t('site.groupBy.untagged')))
-  } else if (groupBy === 'category' || groupBy === 'categories') {
-    // The list's own vocabulary order, anything it does not name after it, and
-    // Uncategorized last. Ranks are folded, so the buckets and the ranks agree.
-    const uncategorized = t('site.groupBy.uncategorized')
-    const rank = new Map(categoryOrder.map((name, i) => [foldCardCategory(name), i] as const))
-    keys.sort((a, b) => {
-      if (a === uncategorized) return 1
-      if (b === uncategorized) return -1
-      const ra = rank.get(foldCardCategory(a)) ?? Number.MAX_SAFE_INTEGER
-      const rb = rank.get(foldCardCategory(b)) ?? Number.MAX_SAFE_INTEGER
-      return ra === rb ? compareGroupKeys(a, b, uncategorized) : ra - rb
-    })
-  }
-
-  const orderedKeys = keys.filter((key) => groups[key] && groups[key].length > 0)
-  if (reverseGroups) orderedKeys.reverse()
-
-  const uncategorizedKey = t('site.groupBy.uncategorized')
-  return orderedKeys.map((key) => ({
-    key,
-    cards: groups[key]!.sort(sortFn),
-    ...(groupBy === 'categories' && key !== uncategorizedKey ? { category: key } : {}),
+  return ordered.map(({ slot, cards: members }) => ({
+    key: slot.key,
+    heading: slot.heading,
+    cards: members.sort(sortFn),
+    ...(groupBy === 'categories' && slot.category !== undefined ? { category: slot.category } : {}),
   }))
 }

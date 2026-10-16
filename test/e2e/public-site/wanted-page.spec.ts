@@ -30,8 +30,8 @@ test.describe('Wanted List Page', () => {
     // The first toolbar select is the "Group:" dropdown.
     await page.locator('.toolbar select').first().selectOption('printing')
 
-    const specific = page.locator('[data-section="Specific Printing"]')
-    const any = page.locator('[data-section="Any Printing"]')
+    const specific = page.locator('[data-section="printing:specific"]')
+    const any = page.locator('[data-section="printing:any"]')
     await expect(specific).toBeVisible()
     await expect(any).toBeVisible()
 
@@ -64,8 +64,8 @@ test.describe('Wanted List Page', () => {
 
     // Grouped by printing, only the Any Printing section's total is estimated.
     await page.locator('.toolbar select').first().selectOption('printing')
-    await expect(page.locator('[data-section="Any Printing"] .section-price')).toContainText('~$')
-    const specificPrice = page.locator('[data-section="Specific Printing"] .section-price')
+    await expect(page.locator('[data-section="printing:any"] .section-price')).toContainText('~$')
+    const specificPrice = page.locator('[data-section="printing:specific"] .section-price')
     await expect(specificPrice).toContainText('$')
     await expect(specificPrice).not.toContainText('~')
 

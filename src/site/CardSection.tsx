@@ -1,15 +1,25 @@
 import type { JSX } from 'solid-js'
 import { Show, For } from 'solid-js'
-import type { CardData } from '../list-view/card-sorting'
+import type { CardData, GroupHeading, GroupKey } from '../list-view/card-sorting'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { TotalPrice } from './TotalPrice'
 import { groupTotalPrice } from '../list-view/card-sorting'
 import { pricesEnabled } from '../list-view/price-view'
 import { foldCardCategory, primaryCardCategory, type CardCategory } from '../card/card-categories'
-import { useT } from '../ui/i18n'
+import { useI18n } from '../ui/i18n'
+import { renderSyncMessage } from '../sync/message'
+import { sectionId } from './section-id'
 
 interface CardSectionProps<T extends CardData = CardData> {
-  label: string
+  /**
+   * The section's identity, the same in every language — a group's
+   * `CardGroup.key`, or `board:<name>` for a deck board rendered whole. The
+   * `data-section` attribute and the heading anchor are built from it, never
+   * from the heading.
+   */
+  sectionKey: GroupKey
+  /** What the heading says, rendered here in the reader's language. */
+  heading: GroupHeading
   cards: T[]
   currency: PriceCurrency
   renderCard: (card: T, index: number) => JSX.Element
@@ -28,8 +38,8 @@ interface CardSectionProps<T extends CardData = CardData> {
 export function CardSection<T extends CardData = CardData>(
   props: CardSectionProps<T>,
 ): JSX.Element {
-  const t = useT()
-  const sectionId = () => props.label.replace(/[^a-zA-Z0-9]/g, '_')
+  const { t, locale } = useI18n()
+  const anchorId = () => sectionId(props.sectionKey)
   const sectionTotal = () => groupTotalPrice(props.cards)
   const sectionEstimated = () => props.priceEstimated(props.cards)
   // Folded on both sides for the same reason the grouper buckets by fold: two
@@ -41,20 +51,20 @@ export function CardSection<T extends CardData = CardData>(
 
   return (
     <Show when={props.cards.length > 0}>
-      <div data-section={props.label}>
-        <div class="section-divider" id={sectionId()}>
+      <div data-section={props.sectionKey}>
+        <div class="section-divider" id={anchorId()}>
           <h2>
             <a
-              href={`#${sectionId()}`}
+              href={`#${anchorId()}`}
               class="section-header-link"
               onClick={(e) => {
                 e.preventDefault()
                 document
-                  .getElementById(sectionId())
+                  .getElementById(anchorId())
                   ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
               }}
             >
-              {props.label}
+              {renderSyncMessage(props.heading, locale())}
             </a>
           </h2>
           <span class="section-count">{props.cards.reduce((sum, c) => sum + c.quantity, 0)}</span>

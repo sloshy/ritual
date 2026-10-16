@@ -16,6 +16,7 @@ import {
 } from '../../src/list-view/buylist-quotes'
 import { resetSellMode, setSellModeActive } from '../../src/list-view/sell-mode'
 import { makeScryfallCard } from '../test-utils'
+import { syncRef } from '../../src/sync/message'
 import {
   allocateSellQuantities,
   isEmptySellSummary,
@@ -495,11 +496,13 @@ describe('requestBuylistQuotes', () => {
   })
 
   test('records a failure so the UI can explain an empty sell mode', async () => {
-    setBuylistFetcher(() => Promise.reject(new Error('Buylist quotes failed: HTTP 503')))
+    // A request that never got an answer (a network failure) carries the
+    // error's own text into the reason.
+    setBuylistFetcher(() => Promise.reject(new Error('network down')))
 
     await requestBuylistQuotes([ask('1')])
 
-    expect(buylistError()).toContain('503')
+    expect(buylistError()).toEqual(syncRef('site.sell.quotesFailed', { detail: 'network down' }))
   })
 
   test('switching buyers drops the previous buyer’s quotes', async () => {

@@ -13,9 +13,10 @@ import { resolveWantedCardEntry } from './resolve-card'
 import { sourceCard, type SourceCardMaps } from './source-cards'
 import type { CardData } from './card-sorting'
 import { selectionMoveCarry, type SelectedCard } from './useCardSelection'
-import { fetchJson } from './useFetchJson'
+import { fetchJson } from './fetch-json'
 import { detailUrl, reportDataFetchError } from './api-base'
 import { isAbortError } from '../util/errors'
+import { t } from '../i18n/t'
 import type {
   BakedBuylist,
   DeckDetail,
@@ -225,7 +226,7 @@ export async function loadCombinedDetails(
       return { ref, name: ref.name, ...loaded }
     } catch (e) {
       if (isAbortError(e)) throw e
-      console.error(`Combined view: failed to load ${ref.type}/${ref.slug}:`, e)
+      console.error(t('site.combined.loadFailedLog', { type: ref.type, slug: ref.slug }), e)
       reportDataFetchError(e)
       return null
     }
@@ -347,6 +348,7 @@ function buildDeckCards(
         sourceName: name,
         sourceKind: 'deck',
         sourceSlug: ref.slug,
+        sourceKey: listRefKey(ref),
         selectKey: key,
         selectedTile,
         printings: detail.printings[entry.name] ?? [],
@@ -437,6 +439,7 @@ function buildCollectionCards(
       sourceName: name,
       sourceKind: 'collection',
       sourceSlug: ref.slug,
+      sourceKey: listRefKey(ref),
       selectKey: key,
       selectedTile,
       printings: detail.printings[entry.name] ?? [],
@@ -522,6 +525,7 @@ function buildWantedCards(
       sourceName: name,
       sourceKind: 'wanted',
       sourceSlug: ref.slug,
+      sourceKey: listRefKey(ref),
       selectKey: key,
       selectedTile,
       printings: detail.printings[entry.name] ?? [],

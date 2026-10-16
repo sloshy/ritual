@@ -18,10 +18,10 @@ test.describe('Double-faced cards', () => {
   test('groups a double-faced card by its front face (Creature, not Land)', async ({ page }) => {
     // Default group-by is 'type'. The DFC's front is a Creature, so it must land
     // in the Creature section even though its back face is a Land.
-    await expect(page.locator(`[data-section="Creature"] ${DFC}`)).toHaveCount(1)
-    await expect(page.locator(`[data-section="Land"] ${DFC}`)).toHaveCount(0)
+    await expect(page.locator(`[data-section="type:creature"] ${DFC}`)).toHaveCount(1)
+    await expect(page.locator(`[data-section="type:land"] ${DFC}`)).toHaveCount(0)
     // The genuinely-land card stays in the Land section.
-    await expect(page.locator(`[data-section="Land"] ${LAND}`)).toHaveCount(1)
+    await expect(page.locator(`[data-section="type:land"] ${LAND}`)).toHaveCount(1)
   })
 
   test('flip button toggles the face in place in binder view', async ({ page }) => {

@@ -21,7 +21,7 @@ import {
 } from '../list-view/buylist-quotes'
 import type { BakedBuylist } from '../list/site-data'
 import { activeStore } from '../list-view/price-view'
-import { useT } from '../ui/i18n'
+import { syncRef } from '../sync/message'
 import { isPricelessCard } from '../list-view/priceless'
 import type { CardData, SortBy, SortLayer } from '../list-view/card-sorting'
 import { SELL_GROUP_BYS, SELL_SORT_BYS } from '../list-view/card-sorting'
@@ -139,8 +139,10 @@ function quoteRequests(cards: CardData[]): BuylistQuoteRequest[] {
   return [...requests.values()]
 }
 
+/** Why a baked page has no buylist prices: the build carried no buyer feed. */
+const NOT_BAKED = syncRef('site.sell.notBaked')
+
 export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSellModeResult {
-  const t = useT()
   // Sell mode can be left on in the toolbar (or arrive via a shared URL) on a
   // page that turns out not to support it; gating the read here means no
   // consumer has to remember to check both.
@@ -166,7 +168,7 @@ export function useSellMode<G extends string>(input: UseSellModeInput<G>): UseSe
       // view whose details are still in flight has no cards yet, and announcing
       // missing prices for a page with nothing on it is noise, not an
       // explanation.
-      if (input.cards().length > 0) reportBuylistUnavailable(t('site.sell.notBaked'))
+      if (input.cards().length > 0) reportBuylistUnavailable(NOT_BAKED)
       return
     }
     const requests = quoteRequests(input.cards())

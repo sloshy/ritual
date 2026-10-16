@@ -8,7 +8,8 @@ import { buylistError } from '../list-view/buylist-quotes'
 import { activeStore, pricesEnabled } from '../list-view/price-view'
 import { isEmptySellSummary, sellShortfallNote, type SellValueSummary } from './sell-value'
 import type { CardFiltersControl } from './useCardFilters'
-import { useT, useTSegments } from '../ui/i18n'
+import { useI18n, useT, useTSegments } from '../ui/i18n'
+import { renderSyncMessage } from '../sync/message'
 
 type PageStatProps = {
   /** Whether this stat contributes to the line at all. */
@@ -198,12 +199,12 @@ type SellModeNoticeProps = {
  * explanation even with sell mode off — an all-N/A page needs a reason too.
  */
 export const SellModeNotice: Component<SellModeNoticeProps> = (props) => {
-  const t = useT()
+  const { t, locale } = useI18n()
   return (
     <Show when={props.sellMode || activeStore() === 'cardkingdom' ? buylistError() : null}>
       {(reason) => (
         <p class="page-stats-warning" role="status">
-          {t('site.stats.buylistUnavailable', { reason: reason() })}
+          {t('site.stats.buylistUnavailable', { reason: renderSyncMessage(reason(), locale()) })}
         </p>
       )}
     </Show>

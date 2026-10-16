@@ -13,7 +13,7 @@ import { resolveCardThumbnailUrl } from '../card/image-sources'
 import { scoreMatch } from './quick-switch-search'
 import type { CardCandidate } from './quick-switch-candidates'
 import { buildCandidates, cardNameKey, totalQuantityByName } from './quick-switch-candidates'
-import { fetchJson } from '../list-view/useFetchJson'
+import { fetchJson } from '../list-view/fetch-json'
 import { detailUrl } from '../list-view/api-base'
 import {
   getSummaryEstimatedPriceCount,

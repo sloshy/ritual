@@ -19,6 +19,7 @@ import { cardCache, streamFromBatchResults } from '../src/cache'
 import { MemoryLogger, resetLogger, setLogger } from '../src/util/logger'
 import { quoteKey, type BuylistQuote } from '../src/buylist'
 import { setBuylistFetcher } from '../src/list-view/buylist-quotes'
+import { HttpStatusError } from '../src/list-view/fetch-json'
 import type { ScryfallCard } from '../src/scryfall/types'
 import { makeBuylistQuote, makeScryfallCard } from './fixtures/cards'
 
@@ -519,7 +520,7 @@ export function stubBuylistFetcher(priceBuy: number): StubBuylistFetcher {
   let broken = false
   setBuylistFetcher(async (buyer, printings) => {
     calls++
-    if (broken) throw new Error('Buylist quotes failed: HTTP 503')
+    if (broken) throw new HttpStatusError(503)
     const quotes: Record<string, BuylistQuote> = {}
     for (const printing of printings) {
       quotes[quoteKey(printing.set, printing.collectorNumber, printing.finish)] = makeBuylistQuote({

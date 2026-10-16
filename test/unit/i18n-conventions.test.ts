@@ -140,6 +140,7 @@ const LINE_ROUTE_LEDGER: Record<string, string> = {
   'src/list/list-type.ts':
     'display labels and nouns for list types; no line token is a list-type noun',
   'src/list/resolve-list.ts': 'refusals for a list that does not resolve, returned to callers',
+  'src/pricing/money-format.ts': 'formats prices for display; a card line carries no price',
   'src/pricing/price-currency.ts': 'formats prices for display; a card line carries no price',
   'src/scryfall/card-utils.ts': 'collation only, to order printings',
   'src/sync/message.ts':
@@ -173,6 +174,8 @@ const I18N_ROUTE_LEDGER: Record<string, string> = {
     'display labels and nouns for list types; the persisted kinds and the English workspaceListTypeNoun commit messages use are literals',
   'src/list/resolve-list.ts':
     'refusals for a list that does not resolve (their remedies included), returned to callers',
+  'src/pricing/money-format.ts':
+    'formats prices for display (a message’s price param included); export rows carry raw numbers',
   'src/pricing/price-currency.ts': 'formats prices for display; export rows carry raw numbers',
   'src/scryfall/card-utils.ts': 'collation only, to order printings',
   'src/sync/message.ts': 'renders messages for a reader at a boundary; persists nothing',

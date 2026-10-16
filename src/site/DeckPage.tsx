@@ -2,7 +2,7 @@ import { buylistFieldsFor } from '../list-view/buylist-quotes'
 import type { SellModeProps } from '../list-view/sell-mode'
 import { useListCategories } from './list-categories'
 import type { Component } from 'solid-js'
-import { createSignal, createMemo, createEffect, For, Show } from 'solid-js'
+import { createSignal, createMemo, createEffect, For, Index, Show } from 'solid-js'
 import { CardItem } from './CardItem'
 import {
   seedCards,
@@ -49,6 +49,7 @@ import {
 import { deckGroupByOptions } from './list-page-options'
 import { deckPrimerHash, partitionDeckCards } from './deck-page-logic'
 import {
+  boardSectionKey,
   groupDeckBoardsByCategory,
   isCategoryGroupBy,
   type DeckBoardCards,
@@ -795,7 +796,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               <Show when={partitioned().commanderCards.length > 0}>
                 <CardSection
                   priceEstimated={page.priceEstimated}
-                  label={commanderLabel()}
+                  sectionKey={boardSectionKey(commanderLabel())}
+                  heading={commanderLabel()}
                   cards={partitioned().commanderCards}
                   currency={props.currency}
                   renderCard={renderDeckCard(true)}
@@ -803,23 +805,25 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
               </Show>
 
               {/* Dynamic sorted/grouped sections (mainboard only) */}
-              <For each={page.cardGroups()}>
+              <Index each={page.cardGroups()}>
                 {(group) => (
                   <CardSection
                     priceEstimated={page.priceEstimated}
-                    label={group.key}
-                    cards={group.cards}
+                    sectionKey={group().key}
+                    heading={group().heading}
+                    cards={group().cards}
                     currency={props.currency}
                     renderCard={renderDeckCard(false)}
                   />
                 )}
-              </For>
+              </Index>
 
               {/* Sideboard always shown at bottom, ungrouped */}
               <Show when={page.filteredAlso().length > 0}>
                 <CardSection
                   priceEstimated={page.priceEstimated}
-                  label={sideboardLabel()}
+                  sectionKey={boardSectionKey(sideboardLabel())}
+                  heading={sideboardLabel()}
                   cards={page.filteredAlso()}
                   currency={props.currency}
                   renderCard={renderDeckCard(false)}
@@ -831,7 +835,8 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
                 {(s) => (
                   <CardSection
                     priceEstimated={page.priceEstimated}
-                    label={s.name}
+                    sectionKey={boardSectionKey(s.name)}
+                    heading={s.name}
                     cards={s.cards}
                     currency={props.currency}
                     renderCard={renderDeckCard(false)}
@@ -842,18 +847,19 @@ export const DeckPage: Component<DeckPageProps> = (props) => {
           }
         >
           {/* Every board's categories, nested under it. */}
-          <For each={nestedCategoryGroups()}>
+          <Index each={nestedCategoryGroups()}>
             {(group) => (
               <CardSection
                 priceEstimated={page.priceEstimated}
-                label={group.key}
-                cards={group.cards}
+                sectionKey={group().key}
+                heading={group().heading}
+                cards={group().cards}
                 currency={props.currency}
-                secondaryOf={group.category}
-                renderCard={renderDeckCard(group.hideCount)}
+                secondaryOf={group().category}
+                renderCard={renderDeckCard(group().hideCount)}
               />
             )}
-          </For>
+          </Index>
         </Show>
       }
       overlays={

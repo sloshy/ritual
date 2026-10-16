@@ -55,4 +55,12 @@ export const siteMeta = {
     description:
       'Reason phrase substituted into site.stats.buylistUnavailable ("Buylist prices are unavailable: {reason}"). Shown when sell mode is on but this list carries no buylist prices, because the site was built (or is being served) without a downloaded buyer feed. Lowercase, no final period — it continues the sentence.',
   },
+  'site.sell.quotesHttpFailed': {
+    description:
+      'Reason phrase substituted into site.stats.buylistUnavailable ("Buylist prices are unavailable: {reason}"). Shown when the request for buylist quotes answered with an HTTP error. {status} is the numeric status code (500, 503, …). Lowercase, no final period — it continues the sentence.',
+  },
+  'site.sell.quotesFailed': {
+    description:
+      'Reason phrase substituted into site.stats.buylistUnavailable ("Buylist prices are unavailable: {reason}"). Shown when the request for buylist quotes could not be made at all (the network failed). {detail} is the browser\'s own error text, which may be English. Lowercase, no final period — it continues the sentence.',
+  },
 } as const satisfies MetaFor<typeof siteMessages>

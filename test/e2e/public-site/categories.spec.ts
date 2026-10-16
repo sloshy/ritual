@@ -38,8 +38,8 @@ test.describe('Card categories', () => {
     // Artifacts draws no heading here because no card's *primary* is Artifacts.
     await expect(page.locator('.section-divider h2')).toHaveText(['Ramp', 'Draw', 'Uncategorized'])
     // A two-category card sits under its primary only.
-    await expect(page.locator('[data-section="Ramp"] .card-item')).toHaveCount(2)
-    await expect(page.locator('[data-section="Uncategorized"] .card-item')).toHaveCount(1)
+    await expect(page.locator('[data-section="category:ramp"] .card-item')).toHaveCount(2)
+    await expect(page.locator('[data-section="category:"] .card-item')).toHaveCount(1)
   })
 
   test('group by categories: the two-category card appears twice, dimmed under the second', async ({
@@ -54,10 +54,10 @@ test.describe('Card categories', () => {
       'Artifacts',
       'Uncategorized',
     ])
-    await expect(page.locator('[data-section="Artifacts"] .card-item')).toHaveCount(1)
+    await expect(page.locator('[data-section="category:artifacts"] .card-item')).toHaveCount(1)
 
     // Only the non-primary appearance is dimmed and badged.
-    const artifacts = page.locator('[data-section="Artifacts"]')
+    const artifacts = page.locator('[data-section="category:artifacts"]')
     await expect(artifacts.locator('.card-slot--secondary')).toHaveCount(1)
     await expect(artifacts.locator('.card-secondary-marker')).toHaveAttribute('title', /Ramp/)
     await expect(artifacts.locator('.section-note')).toBeVisible()
@@ -76,7 +76,7 @@ test.describe('Card categories', () => {
       document.documentElement.style.removeProperty('--card-secondary-opacity'),
     )
 
-    const ramp = page.locator('[data-section="Ramp"]')
+    const ramp = page.locator('[data-section="category:ramp"]')
     await expect(ramp.locator('.card-slot--secondary')).toHaveCount(0)
     await expect(ramp.locator('.card-secondary-marker')).toHaveCount(0)
   })
@@ -149,34 +149,42 @@ test.describe('Card categories — decks nest categories inside each board', () 
       'Sideboard › Draw',
       'Maybeboard › Ramp',
     ])
-    await expect(page.locator('[data-section="Sideboard › Draw"] .card-item')).toHaveCount(1)
+    await expect(
+      page.locator('[data-section="board:Sideboard/category:draw"] .card-item'),
+    ).toHaveCount(1)
     // No un-nested heading survives on any side.
-    await expect(page.locator('[data-section="Ramp"]')).toHaveCount(0)
-    await expect(page.locator('[data-section="Sideboard"]')).toHaveCount(0)
-    await expect(page.locator('[data-section="Maybeboard"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="category:ramp"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="board:Sideboard"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="board:Maybeboard"]')).toHaveCount(0)
 
     // The commander board keeps its count-free tiles: both boards hold a
     // two-copy card, and only the mainboard's draws a quantity badge.
-    await expect(page.locator('[data-section="Commander › Ramp"] .qty-badge')).toHaveCount(0)
-    await expect(page.locator('[data-section="Main › Ramp"] .qty-badge')).toHaveCount(1)
+    await expect(
+      page.locator('[data-section="board:Commander/category:ramp"] .qty-badge'),
+    ).toHaveCount(0)
+    await expect(page.locator('[data-section="board:Main/category:ramp"] .qty-badge')).toHaveCount(
+      1,
+    )
 
     // Hiding extras drops the extras boards and leaves the others alone.
     await openFilterMenu(page)
     const hideExtras = page.getByRole('button', { name: 'Hide Extras' })
     await hideExtras.click()
-    await expect(page.locator('[data-section="Maybeboard › Ramp"]')).toHaveCount(0)
-    await expect(page.locator('[data-section="Sideboard › Draw"]')).toHaveCount(1)
+    await expect(page.locator('[data-section="board:Maybeboard/category:ramp"]')).toHaveCount(0)
+    await expect(page.locator('[data-section="board:Sideboard/category:draw"]')).toHaveCount(1)
     await hideExtras.click()
     await page.keyboard.press('Escape')
 
     // The all-categories grouping takes the same path.
     await groupField.selectOption('categories')
-    await expect(page.locator('[data-section="Sideboard › Draw"] .card-item')).toHaveCount(1)
+    await expect(
+      page.locator('[data-section="board:Sideboard/category:draw"] .card-item'),
+    ).toHaveCount(1)
 
     // …and every other grouping still renders the un-nested blocks the nested
     // branch replaced: the mainboard grouped, the other boards on their own.
     await groupField.selectOption('type')
-    await expect(page.locator('[data-section="Sideboard"]')).toHaveCount(1)
+    await expect(page.locator('[data-section="board:Sideboard"]')).toHaveCount(1)
     await expect(page.locator('.section-divider h2').filter({ hasText: '›' })).toHaveCount(0)
   })
 })

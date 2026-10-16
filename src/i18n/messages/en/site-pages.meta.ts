@@ -83,9 +83,189 @@ export const sitePagesMeta = {
   },
   'site.cardSection.boardCategoryHeading': {
     description:
-      'Heading for a category group nested inside one board of a deck: the board name, then the category. Both halves are data — a deck section name and a category name — so translate only the separator and the order.',
+      'Heading for a category group nested inside one board of a deck: the board name, then the category. {board} is a deck section name (data). {category} is a category name (data) or the translated "Uncategorized" heading. Translate only the separator and the order.',
   },
   'site.groupBy.none': { description: 'Toolbar "Group by" choice: do not group at all.' },
+  'site.group.all': {
+    description:
+      'Heading of the single group when the list is not grouped at all ("Group by: None"): every card in the list.',
+  },
+  'site.group.price.range': {
+    description:
+      "Group heading under the price groupings for one price bracket. {low} and {high} are the bracket's bounds, already formatted as prices in the reader's locale ($0.50, 5,00 €). Translate only the separator and the order.",
+  },
+  'site.group.price.atLeast': {
+    description:
+      "Group heading under the price groupings for the open-ended top bracket: every price from {low} up. {low} is already formatted as a price in the reader's locale ($100.00).",
+  },
+  'site.group.type.creature': {
+    description:
+      'Group heading under "Group by: Type" for creature cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Creature card type in your language.',
+  },
+  'site.group.type.planeswalker': {
+    description:
+      'Group heading under "Group by: Type" for planeswalker cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Planeswalker card type in your language.',
+  },
+  'site.group.type.instant': {
+    description:
+      'Group heading under "Group by: Type" for instant cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Instant card type in your language.',
+  },
+  'site.group.type.sorcery': {
+    description:
+      'Group heading under "Group by: Type" for sorcery cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Sorcery card type in your language.',
+  },
+  'site.group.type.artifact': {
+    description:
+      'Group heading under "Group by: Type" for artifact cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Artifact card type in your language.',
+  },
+  'site.group.type.enchantment': {
+    description:
+      'Group heading under "Group by: Type" for enchantment cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Enchantment card type in your language.',
+  },
+  'site.group.type.land': {
+    description:
+      'Group heading under "Group by: Type" for land cards (a card goes under the first type its front face has, in the order creature, planeswalker, instant, sorcery, artifact, enchantment, land). Use the official Magic: The Gathering name of the Land card type in your language.',
+  },
+  'site.group.type.other': {
+    description:
+      'Group heading under "Group by: Type" for cards that are none of the other types (a battle, for example). Ritual\'s own catch-all word, not a Magic card type.',
+  },
+  'site.group.printing.specific': {
+    description:
+      'Group heading under "Group by: Printing" for cards pinned to one exact printing (a set and collector number). Shown first.',
+  },
+  'site.group.printing.any': {
+    description:
+      'Group heading under "Group by: Printing" for cards that name no printing, so any printing of the card will do. Shown after Specific Printing.',
+  },
+  'site.group.buylist.on': {
+    description:
+      'Group heading under "Group by: On Buylist" (sell mode) for cards the buyer is currently buying.',
+  },
+  'site.group.buylist.off': {
+    description:
+      'Group heading under "Group by: On Buylist" (sell mode) for cards the buyer is not buying, including paused offers.',
+  },
+  'site.group.price.none': {
+    description:
+      'Group heading under the price groupings for cards with no price for their finish. Shown after every price bracket.',
+  },
+  'site.group.source.unknown': {
+    description:
+      'Group heading under "Group by: Source List" (the combined view) for cards whose source list is not known.',
+  },
+  'site.colorIdentity.colorless': {
+    description:
+      'Name of the colorless color identity (a card with no colored mana in its identity): a group heading under "Group by: Color Identity", and the tooltip of the colorless swatch in the color filter. Use the term Magic: The Gathering uses in your language.',
+  },
+  'site.colorIdentity.white': {
+    description:
+      'The white color identity in Magic: The Gathering (White as one of the five colors of mana): a group heading under "Group by: Color Identity", and the tooltip of the white swatch in the color filter. Use the color name Magic uses in your language.',
+  },
+  'site.colorIdentity.blue': {
+    description:
+      'The blue color identity in Magic: The Gathering (Blue as one of the five colors of mana): a group heading under "Group by: Color Identity", and the tooltip of the blue swatch in the color filter. Use the color name Magic uses in your language.',
+  },
+  'site.colorIdentity.black': {
+    description:
+      'The black color identity in Magic: The Gathering (Black as one of the five colors of mana): a group heading under "Group by: Color Identity", and the tooltip of the black swatch in the color filter. Use the color name Magic uses in your language.',
+  },
+  'site.colorIdentity.red': {
+    description:
+      'The red color identity in Magic: The Gathering (Red as one of the five colors of mana): a group heading under "Group by: Color Identity", and the tooltip of the red swatch in the color filter. Use the color name Magic uses in your language.',
+  },
+  'site.colorIdentity.green': {
+    description:
+      'The green color identity in Magic: The Gathering (Green as one of the five colors of mana): a group heading under "Group by: Color Identity", and the tooltip of the green swatch in the color filter. Use the color name Magic uses in your language.',
+  },
+  'site.colorIdentity.azorius': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Azorius color pair or triple: Azorius is the Magic: The Gathering proper name of the white-blue guild — use its official name in your language. {colors} is the mana-color letters (WU, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.orzhov': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Orzhov color pair or triple: Orzhov is the Magic: The Gathering proper name of the white-black guild — use its official name in your language. {colors} is the mana-color letters (WB, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.boros': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Boros color pair or triple: Boros is the Magic: The Gathering proper name of the red-white guild — use its official name in your language. {colors} is the mana-color letters (WR, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.selesnya': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Selesnya color pair or triple: Selesnya is the Magic: The Gathering proper name of the green-white guild — use its official name in your language. {colors} is the mana-color letters (WG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.dimir': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Dimir color pair or triple: Dimir is the Magic: The Gathering proper name of the blue-black guild — use its official name in your language. {colors} is the mana-color letters (UB, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.izzet': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Izzet color pair or triple: Izzet is the Magic: The Gathering proper name of the blue-red guild — use its official name in your language. {colors} is the mana-color letters (UR, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.simic': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Simic color pair or triple: Simic is the Magic: The Gathering proper name of the green-blue guild — use its official name in your language. {colors} is the mana-color letters (UG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.rakdos': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Rakdos color pair or triple: Rakdos is the Magic: The Gathering proper name of the black-red guild — use its official name in your language. {colors} is the mana-color letters (BR, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.golgari': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Golgari color pair or triple: Golgari is the Magic: The Gathering proper name of the black-green guild — use its official name in your language. {colors} is the mana-color letters (BG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.gruul': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Gruul color pair or triple: Gruul is the Magic: The Gathering proper name of the red-green guild — use its official name in your language. {colors} is the mana-color letters (RG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.esper': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Esper color pair or triple: Esper is the Magic: The Gathering proper name of the white-blue-black shard — use its official name in your language. {colors} is the mana-color letters (WUB, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.jeskai': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Jeskai color pair or triple: Jeskai is the Magic: The Gathering proper name of the blue-red-white wedge — use its official name in your language. {colors} is the mana-color letters (WUR, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.bant': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Bant color pair or triple: Bant is the Magic: The Gathering proper name of the green-white-blue shard — use its official name in your language. {colors} is the mana-color letters (WUG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.mardu': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Mardu color pair or triple: Mardu is the Magic: The Gathering proper name of the red-white-black wedge — use its official name in your language. {colors} is the mana-color letters (WBR, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.abzan': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Abzan color pair or triple: Abzan is the Magic: The Gathering proper name of the white-black-green wedge — use its official name in your language. {colors} is the mana-color letters (WBG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.naya': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Naya color pair or triple: Naya is the Magic: The Gathering proper name of the red-green-white shard — use its official name in your language. {colors} is the mana-color letters (WRG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.grixis': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Grixis color pair or triple: Grixis is the Magic: The Gathering proper name of the blue-black-red shard — use its official name in your language. {colors} is the mana-color letters (UBR, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.sultai': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Sultai color pair or triple: Sultai is the Magic: The Gathering proper name of the black-green-blue wedge — use its official name in your language. {colors} is the mana-color letters (UBG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.temur': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Temur color pair or triple: Temur is the Magic: The Gathering proper name of the green-blue-red wedge — use its official name in your language. {colors} is the mana-color letters (URG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.jund': {
+    description:
+      'Group heading under "Group by: Color Identity" for the Jund color pair or triple: Jund is the Magic: The Gathering proper name of the black-red-green shard — use its official name in your language. {colors} is the mana-color letters (BRG, from W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.fourColor': {
+    description:
+      'Group heading under "Group by: Color Identity" for a four-color identity. {colors} is its four mana-color letters in WUBRG order (for example WUBG; W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
+  'site.colorIdentity.fiveColor': {
+    description:
+      'Group heading under "Group by: Color Identity" for the five-color identity. {colors} is the mana-color letters WUBRG (W white, U blue, B black, R red, G green); keep them unchanged.',
+  },
   'site.sortBy.tags': {
     description: 'Toolbar "Sort by" choice: order cards by their tag set, untagged cards last.',
   },
@@ -141,6 +321,18 @@ export const sitePagesMeta = {
     maxLen: 10,
   },
   'site.app.liveTitle': { description: 'Tooltip explaining the "Live" header badge.' },
+  'site.app.loadFailed': {
+    description:
+      'Error shown in place of a deck, collection or wanted list page when its data could not be fetched.',
+  },
+  'site.app.loadFailedLog': {
+    description:
+      "Browser console line logged when a page's data could not be fetched; the error follows it. {url} is the address that failed.",
+  },
+  'site.app.httpStatus': {
+    description:
+      'Message of the error raised when a data request answers with an HTTP error status, as it appears in the browser console. {status} is the numeric status code (404, 500, …).',
+  },
   'site.app.offlineTitle': { description: 'Tooltip explaining the "Offline" header badge.' },
   'site.app.quickSwitch': {
     description: 'Label on the header button that opens the quick-switch list jumper.',
@@ -294,6 +486,10 @@ export const sitePagesMeta = {
   },
   'site.combined.loadFailed': {
     description: 'Error banner shown when one or more of the combined lists could not be fetched.',
+  },
+  'site.combined.loadFailedLog': {
+    description:
+      "Browser console line logged when one list of a combined view could not be fetched; the error follows it. {type} is the list type (deck, collection or wanted — an identifier, not a word to translate) and {slug} the list's URL slug.",
   },
   'site.combined.empty': {
     description: 'Shown when a combined view has loaded successfully but holds no cards.',

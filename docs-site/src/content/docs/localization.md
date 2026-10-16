@@ -274,4 +274,5 @@ If you add a namespace or a new surface, add or extend a register module. `scrip
 
 - **Right-to-left languages are not supported yet.** `dir` is plumbed end to end, but the stylesheet still uses physical directions in places, so no RTL locale ships until that is fixed.
 - **One CLI multiselect prompt has an untranslatable instructions block**, hardcoded by the underlying prompt library. It is the only multiselect in the CLI.
+- **The Card Type filter's choices are English.** They are the words of the cards' type lines (`creature`, `elf`, `legendary`), which the card data carries in English and which the filter matches what you type against. The **Type** grouping's headings, like every heading Ritual words itself, follow the interface language.
 - **These docs are English only.** Localizing them is a separate project.

@@ -20,6 +20,7 @@ import {
   makeSiteIndex,
   mockPublicSiteCollectionWithTags,
   mockPublicSiteDeckForFilters,
+  mockPublicSiteDeckWithDoubleFacedCard,
 } from '../helpers/mock-public-site'
 import { enterEditMode, openEditTags } from '../helpers/list-ui'
 
@@ -126,6 +127,42 @@ test.describe('public site language switch', () => {
     await expectNotReloaded(page)
   })
 
+  test('relabels group headings in place, keeping every group and the grouping', async ({
+    page,
+  }) => {
+    await page.goto(`${DECK_HASH}?group=color-identity`)
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await markPage(page)
+
+    // The grouper's sections (the Maybeboard renders apart, as its board).
+    const sections = page.locator('[data-section^="color:"]')
+    const headings = sections.locator('.section-divider h2')
+    const keys = () => sections.evaluateAll((els) => els.map((el) => el.dataset.section))
+    const counts = () =>
+      sections.evaluateAll((els) => els.map((el) => el.querySelectorAll('.card-item').length))
+    const anchor = sections.first().locator('.section-divider')
+    const order = ['color:C', 'color:W', 'color:G', 'color:BG']
+    await expect(headings).toHaveText(['Colorless', 'White', 'Green', 'Golgari (BG)'])
+    expect(await keys()).toEqual(order)
+    // The heading anchor is built from the key, never from the heading.
+    await expect(anchor).toHaveAttribute('id', 'section-color_3a_C')
+    const countsBefore = await counts()
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    for (const heading of await headings.all()) await expectPseudo(heading, true)
+    // The mana letters are data the translator places, not prose.
+    await expect(headings.last()).toContainText('BG')
+    // A group's identity is its code, not its heading: same groups, same order.
+    expect(await keys()).toEqual(order)
+    expect(await counts()).toEqual(countsBefore)
+    await expect(anchor).toHaveAttribute('id', 'section-color_3a_C')
+    // The grouping itself is untouched: the dropdown and the shared link.
+    await expect(page.locator('.toolbar-select').first()).toHaveValue('color-identity')
+    await expect(page).toHaveURL(/group=color-identity/)
+    await expectNotReloaded(page)
+  })
+
   test('relabels a change bundle’s refusal in the Load Changes dialog, the move it names included', async ({
     page,
   }) => {
@@ -199,6 +236,43 @@ test.describe('public site language switch', () => {
 
     await expect(languageSelect(page)).toHaveCount(0)
     await expectPseudo(chromeTexts(page).toolbarLabel, false)
+  })
+})
+
+test.describe('public site language switch — tiles keep their state', () => {
+  test('a flipped double-faced card stays flipped while its type heading relabels', async ({
+    page,
+  }) => {
+    // The DFC deck, on a site that publishes both English and the pseudo-locale
+    // (registered after the helper, so this index wins).
+    await mockPublicSiteDeckWithDoubleFacedCard(page)
+    await fulfillJson(
+      page,
+      '**/index.json',
+      makeSiteIndex({
+        decks: [makeDeckSummary({ slug: 'test-dfc-deck', name: 'Test DFC Deck', cardCount: 3 })],
+        useScryfallImgUrls: true,
+        availableLocales: [localeTag('en'), PSEUDO_LOCALE],
+      }),
+    )
+    await fulfillJson(page, `**/locales/${PSEUDO_LOCALE}.json`, pseudoCatalog())
+    await page.goto('#/deck/test-dfc-deck')
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+
+    // Grouped by type, the default: the DFC's front face is a creature.
+    const creatures = page.locator('[data-section="type:creature"]')
+    const dfc = creatures.locator('.card-item[data-name="werewolf front // werewolf back"]')
+    await expect(creatures.locator('.section-divider h2')).toHaveText('Creature')
+    await dfc.locator('.card-binder').hover()
+    await dfc.locator('.card-flip-btn').click()
+    await expect(dfc.locator('.card-flip')).toHaveClass(/flipped/)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    await expectPseudo(creatures.locator('.section-divider h2'), true)
+    // The switch re-sorts the groups (display collation reads the locale); the
+    // sections are kept by position, so the tile — and its face — survive.
+    await expect(dfc.locator('.card-flip')).toHaveClass(/flipped/)
   })
 })
 
