@@ -144,6 +144,9 @@ export const domainImportMeta = {
   'domain.import.csv.quantityTooSmall': {
     description: `${ROW_CONTEXT} The quantity cell is zero. {value} is the cell as written.`,
   },
+  'domain.import.csv.quantityTooLarge': {
+    description: `${ROW_CONTEXT} The quantity cell is a whole number with so many digits (more than 9,007,199,254,740,991) that it cannot be stored exactly. {value} is the cell as written.`,
+  },
   'domain.import.csv.rowUnexplained': {
     description: `${CSV_CONTEXT} An internal error: a row was rejected but no reason was recorded, which should never happen. {line} is the row's 1-based line number in the file.`,
   },
@@ -154,6 +157,10 @@ export const domainImportMeta = {
   'domain.import.archidektUnnamedEntries': {
     description:
       'Console warning while reading a deck from Archidekt (a deck-building website): some of its card entries carried no card name and were left out. Shown in the CLI and in the admin or MCP server’s log. {deckId} is the deck’s number on Archidekt; {count} how many entries were skipped.',
+  },
+  'domain.import.archidektUnwritableQuantity': {
+    description:
+      'Console warning while reading a deck from Archidekt (a deck-building website): some of its card entries gave a quantity no deck can hold (negative, a fraction, or a number too large to store exactly) and were left out. Entries with zero copies are not counted here. Shown in the CLI and in the admin or MCP server’s log. {deckId} is the deck’s number on Archidekt; {count} how many entries were skipped.',
   },
   'domain.import.csv.rowNotice': {
     description: `${CSV_CONTEXT} A note about a row that DID import. {line} is the row’s 1-based line number in the file, {notice} one of the "ignored category …" / "category … names a board …" clauses (lowercase), and {card} the card’s name.`,

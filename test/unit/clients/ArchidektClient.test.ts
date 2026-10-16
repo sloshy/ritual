@@ -12,6 +12,7 @@ import {
   type ArchidektCardSearchResult,
   type ArchidektDeckResponse,
   parseArchidektDeckResponse,
+  withoutEmptyCards,
 } from '../../../src/importers/archidekt-types'
 import {
   ARCHIDEKT_CSV_CHUNK_SIZE,
@@ -301,6 +302,59 @@ describe('ArchidektClient', () => {
       expect(parseArchidektDeckResponse(response, '9').sections).toHaveLength(0)
       expect(logger.entries.filter((e) => e.level === 'warn')).toHaveLength(1)
       expect(String(logger.entries[0]?.args[0])).toContain('skipped 2 card entries')
+    } finally {
+      resetLogger()
+    }
+  })
+
+  test('skips and reports entries whose quantity no card line can hold', () => {
+    const logger = new MemoryLogger()
+    setLogger(logger)
+    try {
+      const response: ArchidektDeckResponse = {
+        name: 'Odd Counts',
+        cards: [
+          { quantity: -1, card: { name: 'Plains' } },
+          { quantity: 1.5, card: { name: 'Swamp' } },
+          { quantity: 2, card: { name: 'Forest' } },
+        ],
+      }
+      const cards = parseArchidektDeckResponse(response, '9').sections.flatMap((s) => s.cards)
+      expect(cards.map((card) => [card.name, card.quantity])).toEqual([['Forest', 2]])
+      const warnings = logger.entries.filter((e) => e.level === 'warn')
+      expect(warnings).toHaveLength(1)
+      expect(String(warnings[0]?.args[0])).toBe(
+        'Archidekt deck 9: skipped 2 card entries whose quantity no deck can hold (negative, a fraction, or too large).',
+      )
+    } finally {
+      resetLogger()
+    }
+  })
+
+  test('keeps a zero-copy relation for deck sync, silently; an import drops it', () => {
+    // Archidekt keeps a relation whose copies were all taken out. Deck sync's
+    // diff must see it — a push that re-adds the card patches that relation
+    // rather than adding a second one — so only the import drops it.
+    const logger = new MemoryLogger()
+    setLogger(logger)
+    try {
+      const response: ArchidektDeckResponse = {
+        name: 'Emptied',
+        cards: [
+          { quantity: 0, card: { name: 'Island' } },
+          { quantity: 2, card: { name: 'Forest' } },
+        ],
+      }
+      const parsed = parseArchidektDeckResponse(response, '9')
+      expect(parsed.sections.flatMap((s) => s.cards.map((c) => [c.name, c.quantity]))).toEqual([
+        ['Island', 0],
+        ['Forest', 2],
+      ])
+      expect(logger.entries.filter((e) => e.level === 'warn')).toEqual([])
+      const imported = withoutEmptyCards(parsed)
+      expect(imported.sections.flatMap((s) => s.cards.map((c) => [c.name, c.quantity]))).toEqual([
+        ['Forest', 2],
+      ])
     } finally {
       resetLogger()
     }

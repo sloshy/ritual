@@ -234,6 +234,24 @@ describe('buildUploadPlan applied', () => {
     ])
   })
 
+  test('re-adding a card Archidekt holds at zero copies patches that relation', async () => {
+    // The deck parser keeps a zero-copy relation (only an import drops it), so
+    // the diff reads the re-add as a quantity change and the plan modifies the
+    // relation Archidekt already has rather than adding a second one.
+    const raw = archidektDeck([{ id: 1, name: 'Island', quantity: 0, categories: [] }], [])
+    const local: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 3, name: 'Island' }] }]
+    const diff = diffDeckCards(archidektDeckSections(raw), local)
+    expect(diff.added).toEqual([])
+    const plan = await buildUploadPlan(diff, local, raw, searchingExcept('Island'), 'token')
+    expect(plan.errors).toEqual([])
+    expect(plan.entries).toHaveLength(1)
+    expect(plan.entries[0]).toMatchObject({
+      action: 'modify',
+      deckRelationId: 1,
+      modifications: { quantity: 3 },
+    })
+  })
+
   test('a failed printing update takes the quantity change riding on it along', async () => {
     const raw = archidektDeck([{ id: 1, name: 'Sol Ring', categories: [] }], [])
     const local: DeckSection[] = [

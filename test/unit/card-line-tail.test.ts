@@ -8,6 +8,7 @@ import {
 } from '../../src/card/card-line-tail'
 import { parseCardLine, type LineTokens } from '../../src/card/card-line-grammar'
 import type { ListType } from '../../src/list/list-type'
+import { SyncMessageError } from '../../src/sync/message'
 
 /**
  * The write half of the card-line grammar. Paired with
@@ -96,13 +97,39 @@ describe('formatCanonicalCardLine', () => {
   })
 })
 
-describe('formatCanonicalCardLine line-break backstop', () => {
+describe('formatCanonicalCardLine backstops', () => {
+  /** The guard `write` trips, as the engine raised it. */
+  function refusal(write: () => string): SyncMessageError {
+    try {
+      write()
+    } catch (error) {
+      if (error instanceof SyncMessageError) return error
+      throw error
+    }
+    throw new Error('expected the writer to refuse')
+  }
+
   test.each([
     ['name', { name: 'Sol Ring\n- 1 Black Lotus &3' }],
     ['collector number', { name: 'Sol Ring', printing: { set: 'c21', collectorNumber: '1\r2' } }],
   ])('refuses a %s that spans lines', (_label, fields) => {
-    expect(() => formatCanonicalCardLine('deck', fields)).toThrow('cannot hold a line break')
+    const error = refusal(() => formatCanonicalCardLine('deck', fields))
+    expect(error.syncMessage.messageKey).toBe('domain.card.line.lineBreak')
   })
+
+  // Each would write a line the reader refuses (`0`, past the safe-integer
+  // range) or reads as part of the name (`-2 Sol Ring`, `1.5 Sol Ring`).
+  test.each([0, -2, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
+    'refuses a quantity of %d, which no card line can hold',
+    (quantity) => {
+      const error = refusal(() => formatCanonicalCardLine('deck', { name: 'Sol Ring', quantity }))
+      expect(error.syncMessage.messageKey).toBe('domain.card.line.unwritableQuantity')
+      expect(error.syncMessage.messageParams).toEqual({
+        quantity: String(quantity),
+        max: '9007199254740991',
+      })
+    },
+  )
 })
 
 describe('round trip', () => {
@@ -110,6 +137,14 @@ describe('round trip', () => {
   // an identity assertion rather than a structural coincidence.
   const cases: readonly [ListType, LineTokens][] = [
     ['deck', { quantity: 3, name: 'Lightning Bolt' }],
+    // Either side of the bare-digit cap, and far past it: a quantity the reader
+    // would take as part of the name bare is written `x`-marked, and comes back.
+    ['deck', { quantity: 999, name: 'Island', printing: { set: 'lea', collectorNumber: '288' } }],
+    ['deck', { quantity: 1000, name: 'Island', printing: { set: 'lea', collectorNumber: '288' } }],
+    ['deck', { quantity: 1_000_000, name: 'Island', finish: 'foil', cardId: 4 }],
+    ['deck', { quantity: Number.MAX_SAFE_INTEGER, name: 'Island' }],
+    // A digit-led name keeps both its name and its quantity.
+    ['deck', { quantity: 1234, name: '1996 World Champion' }],
     [
       'deck',
       {
@@ -197,7 +232,7 @@ describe('round trip', () => {
   ]
 
   for (const [type, fields] of cases) {
-    test(`${type}: ${fields.name}`, () => {
+    test(`${type}: ${fields.quantity} × ${fields.name}`, () => {
       // A flat list takes no quantity at all — `FlatCardLineFields` types it
       // `never`, so the copies have to be destructured off rather than dropped.
       const { quantity, ...flat } = fields

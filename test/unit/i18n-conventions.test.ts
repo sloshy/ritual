@@ -98,6 +98,9 @@ const LINE_FENCE = [
   // The grammar's diagnostics as codes and values, worded by the unfenced
   // `card-line-message.ts`.
   'src/card/card-line-text.ts',
+  // The quantity token's reader and writer, shared by the grammar and every
+  // line writer.
+  'src/card/card-line-quantity.ts',
   'src/card/card-line-id.ts',
   'src/card/card-line-tail.ts',
   'src/card/card-line-read.ts',
@@ -374,16 +377,20 @@ describe('i18n persistence fence', () => {
   /**
    * The card-line grammar words nothing itself: its diagnostics are codes and
    * values (`card-line-text.ts`), which `card-line-message.ts` maps to catalog
-   * keys. The codes module loads nothing at run time; what else the line-fenced
+   * keys. The codes module — and the quantity token module, which every line
+   * writer imports — load nothing at run time; what else the line-fenced
    * modules reach at run time (`sync/message.ts` for the line-break and
    * set-code refusals, the label and tag vocabularies) is pinned in
    * {@link LINE_ROUTE_LEDGER} above, each with why it never puts a translated
    * sentence into a card line.
    */
-  test('the card-line text codes load nothing at run time', () => {
-    const source = readFileSync(path.join(ROOT, 'src/card/card-line-text.ts'), 'utf-8')
-    expect(runtimeImports(source)).toEqual([])
-  })
+  test.each(['src/card/card-line-text.ts', 'src/card/card-line-quantity.ts'])(
+    '%s loads nothing at run time',
+    (file) => {
+      const source = readFileSync(path.join(ROOT, file), 'utf-8')
+      expect(runtimeImports(source)).toEqual([])
+    },
+  )
 
   /**
    * The persistence writer's *own* module must not reach the display renderer

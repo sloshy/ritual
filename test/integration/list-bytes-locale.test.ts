@@ -275,7 +275,7 @@ describe('list-file bytes under a foreign UI language (Integration)', () => {
     expect(english.files['decks/Burn.md']).toContain('card: 2')
     expect(english.files['collections/Trade Binder.md']).toContain('description: Cards for trade.')
     expect(english.files['decks/Burn.md']).toContain('description: Burn them out.')
-    expect(english.files['decks/Burn.md']).toContain('1000 Mountain')
+    expect(english.files['decks/Burn.md']).toContain('- 1000x Mountain &4')
     // The move landed on both sides, its art with it, and both changelogs say so.
     expect(english.files['decks/Burn.md']).toContain('Arcane Signet (FDN:266)')
     expect(english.files['collections/Trade Binder.md']).not.toContain('Arcane Signet')

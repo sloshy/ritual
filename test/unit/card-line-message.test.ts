@@ -33,7 +33,7 @@ import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
 import { toSyncMessage } from '../../src/sync/message'
 import type { ListType } from '../../src/list/list-type'
 import { keyedMessage } from '../helpers/api-message'
-import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
+import { jpDiagnosticAt, jpDiagnosticEnglish, parsedCardLine } from '../helpers/card-line'
 import {
   expectLocaleInForce,
   foreignLocales,
@@ -67,6 +67,10 @@ const SAMPLES: Record<CardLineTextCode, Sample> = {
   'blank-line': [lineText('blank-line'), 'Blank line.'],
   'not-a-card-line': [lineText('not-a-card-line', { line: '## Main' }), 'Not a card line: ## Main'],
   'zero-quantity': [lineText('zero-quantity'), 'A card line must name at least one copy.'],
+  'quantity-too-large': [
+    lineText('quantity-too-large', { token: '99999999999999999999x' }),
+    'Quantity 99999999999999999999x is too large to read exactly.',
+  ],
   'quantity-expanded-collection': [
     lineText('quantity-expanded-collection', { count: 3 }),
     'Read 3 copies: a collection holds one line per copy, so this line becomes 3 lines on the next save.',
@@ -144,6 +148,15 @@ const SAMPLES: Record<CardLineTextCode, Sample> = {
     lineText('suspect-printing-in-name', { line: '4 Lightning Bolt (M10) 146 *A*' }),
     "Card name still contains a printing token, so the line's format was not recognized: 4 Lightning Bolt (M10) 146 *A*",
   ],
+  'suspect-quantity-in-name': [
+    lineText('suspect-quantity-in-name', {
+      name: '1234 Sol Ring',
+      count: 1234,
+      fix: '1234x Sol Ring',
+    }),
+    'Read as one copy of "1234 Sol Ring". If the line means 1234 copies, write it as 1234x Sol Ring;' +
+      ' if "1234 Sol Ring" really is the card\'s name, write it as - 1 1234 Sol Ring.',
+  ],
   'did-you-mean': [lineText('did-you-mean', { language: 'ja' }), 'did you mean [ja]?'],
   'insert-space': [
     lineText('insert-space', { token: '(LEA:270)', side: 'after' }),
@@ -176,6 +189,20 @@ describe('every card-line text code', () => {
     // one code's English under another's name.
     expect<string>(text.code).toBe(code)
     expect(keyedMessage(toSyncMessage(cardLineTextRef(text)))).toBe(english)
+  })
+
+  // The sample above renders the `other` branch; a leading `0001` is the one
+  // run that reaches `one`.
+  test('suspect-quantity-in-name renders its one-copy branch', () => {
+    const text = lineText('suspect-quantity-in-name', {
+      name: '0001 Sol Ring',
+      count: 1,
+      fix: '1 Sol Ring',
+    })
+    expect(keyedMessage(toSyncMessage(cardLineTextRef(text)))).toBe(
+      'Read as one copy of "0001 Sol Ring". If the line means 1 copy, write it as 1 Sol Ring;' +
+        ' if "0001 Sol Ring" really is the card\'s name, write it as - 1 0001 Sol Ring.',
+    )
   })
 
   /**
@@ -338,8 +365,10 @@ describe('the line format never localizes', () => {
     ['wanted', { name: 'Shock', note: 'from a friend' }, '- Shock {from a friend}'],
     ['wanted', { name: 'Shock', cardId: 12 }, '- Shock &12'],
     // Digits a locale would group (`1.234` in German) are written as the file
-    // spells them; a deck reads at most three quantity digits back.
+    // spells them, never grouped: a bare quantity up to the cap, and an
+    // `x`-marked one past it — the only form a deck reads back as a quantity.
     ['deck', { name: 'Sol Ring', quantity: 999, cardId: 1234 }, '- 999 Sol Ring &1234'],
+    ['deck', { name: 'Sol Ring', quantity: 1234, cardId: 1234 }, '- 1234x Sol Ring &1234'],
     // Every token at its default writes nothing: a bare line.
     [
       'collection',
@@ -381,23 +410,11 @@ describe('the line format never localizes', () => {
 
   function writeAndRead(): LineRun {
     const lines = LINES.map(([type, fields]) => writeLine(type, fields))
-    const tokens = lines.map((line, index) => {
-      const parsed = parseCardLine(LINES[index]![0], line)
-      if (!parsed.ok) throw new Error(`"${line}" did not read back`)
-      return parsed.tokens
-    })
+    const tokens = lines.map((line, index) => parsedCardLine(LINES[index]![0], line))
     return { lines, tokens }
   }
 
   const english = writeAndRead()
-
-  test('a four-digit quantity is written ungrouped', () => {
-    // Pinned to the bytes, not only English against German: a writer that
-    // formatted numbers for en-US would also write `1,234`.
-    expect(formatCanonicalCardLine('deck', { name: 'Sol Ring', quantity: 1234 })).toBe(
-      '- 1234 Sol Ring',
-    )
-  })
 
   test('every token kind writes its canonical English bytes and reads back', () => {
     expect(english.lines).toEqual(LINES.map(([, , line]) => line))
@@ -417,8 +434,6 @@ describe('the line format never localizes', () => {
       formatLabelOverride(['keep', 'no-sale']),
       formatCardTagsToken(['Ramp', 'Card Draw']),
       serializeCardCategoriesSidecar(record),
-      // A four-digit quantity, written (a deck reads it back as part of the name).
-      formatCanonicalCardLine('deck', { name: 'Sol Ring', quantity: 1234 }),
       // The language names a changelog line persists and re-parses.
       ...CARD_LANGUAGES.map(languageDisplayName),
     ]

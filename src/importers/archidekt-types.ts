@@ -1,3 +1,4 @@
+import { isWritableQuantity } from '../card/card-line-quantity'
 import { BOARDS, type DeckData, type DeckSection } from '../list/deck'
 import type { Card } from '../card/card'
 import type { Finish } from '../card/finish-condition'
@@ -264,6 +265,19 @@ export function archidektEntryPrinting(
 }
 
 /**
+ * A parsed Archidekt deck without its zero-copy cards — the relations
+ * {@link parseArchidektDeckResponse} keeps for deck sync — and without any
+ * section they leave empty. What an import writes: a card line cannot hold
+ * zero copies.
+ */
+export function withoutEmptyCards(deck: DeckData): DeckData {
+  const sections = deck.sections
+    .map((section) => ({ ...section, cards: section.cards.filter((card) => card.quantity > 0) }))
+    .filter((section) => section.cards.length > 0)
+  return { ...deck, sections }
+}
+
+/**
  * Parse an Archidekt deck response into a DeckData object.
  *
  * The printing each entry names — set code, collector number, and foil/etched
@@ -284,6 +298,17 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
   /** Entries carrying no resolvable card name; reported rather than dropped in silence. */
   let unnamedEntries = 0
+  /**
+   * Entries whose quantity no card line can hold — negative, fractional, too
+   * large to store exactly; skipped and reported like the unnamed ones, rather
+   * than reaching the line writer, which refuses them and would abort the
+   * whole import. A quantity of **0** is not one of them: Archidekt keeps a
+   * relation whose copies were all taken out, and deck sync must see it (a
+   * push that re-adds the card patches that relation instead of adding a
+   * second one). It is kept here, silently, and dropped by the import
+   * ({@link withoutEmptyCards}) and by a pull's applied deck.
+   */
+  let unwritableQuantityEntries = 0
 
   if (json.cards && Array.isArray(json.cards)) {
     for (const entry of json.cards) {
@@ -292,6 +317,10 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
 
       if (!cardName) {
         unnamedEntries++
+        continue
+      }
+      if (quantity !== 0 && !isWritableQuantity(quantity)) {
+        unwritableQuantityEntries++
         continue
       }
 
@@ -319,6 +348,14 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   if (unnamedEntries > 0) {
     getLogger().warn(
       t('domain.import.archidektUnnamedEntries', { deckId: String(deckId), count: unnamedEntries }),
+    )
+  }
+  if (unwritableQuantityEntries > 0) {
+    getLogger().warn(
+      t('domain.import.archidektUnwritableQuantity', {
+        deckId: String(deckId),
+        count: unwritableQuantityEntries,
+      }),
     )
   }
 

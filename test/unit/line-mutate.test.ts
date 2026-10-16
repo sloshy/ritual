@@ -13,6 +13,7 @@ import {
 } from '../../src/changes/change-event'
 import type { EntryRef } from '../../src/list/entry-ref'
 import { SyncMessageError } from '../../src/sync/message'
+import { CardCommandError } from '../../src/util/errors'
 import { keyedMessage } from '../helpers/api-message'
 
 /**
@@ -142,6 +143,17 @@ describe('applyTargetedChangesToContent', () => {
     ])
     expect(removed).not.toContain('Lightning Bolt')
     expect(removed).toContain('a note between cards')
+  })
+
+  test('a decrement back under the bare-digit cap drops the marker', () => {
+    const marked = ['## Main', '- 1000x Mountain &4', ''].join('\n')
+    const result = applyTargetedChangesToContent(
+      marked,
+      'deck',
+      { name: 'Mountain', quantity: 1000, cardId: 4 },
+      [createRemoveChange('Mountain', { cardId: 4 })],
+    )
+    expect(result).toBe(['## Main', '- 999 Mountain &4', ''].join('\n'))
   })
 
   test('collection updates preserve prose and custom heading levels', () => {
@@ -329,6 +341,34 @@ describe('applyDeckAddToContent', () => {
     expect(content).toContain('5 Sol Ring &2')
     expect(content).not.toContain('3 Sol Ring')
     expect(outcome).toEqual({ cardId: 2, quantity: 5, section: 'Mainboard', merged: true })
+  })
+
+  // A quantity longer than the bare-digit cap is written `x`-marked: bare, the
+  // next read would take the digits as part of the card's name.
+  test('a merge across the bare-digit cap writes the marked quantity', () => {
+    const atCap = ['## Main', '- 999 Mountain &4', ''].join('\n')
+    const crossed = applyDeckAddToContent(atCap, { name: 'Mountain' }, 1)
+    expect(crossed.content).toBe(['## Main', '- 1000x Mountain &4', ''].join('\n'))
+    expect(crossed.outcome).toEqual({ cardId: 4, quantity: 1000, section: 'Main', merged: true })
+
+    const past = applyDeckAddToContent(crossed.content, { name: 'Mountain' }, 1)
+    expect(past.content).toBe(['## Main', '- 1001x Mountain &4', ''].join('\n'))
+    expect(past.outcome).toEqual({ cardId: 4, quantity: 1001, section: 'Main', merged: true })
+  })
+
+  test('a new line of 1,000 copies is written marked', () => {
+    const deck = ['## Main', '- 2 Sol Ring &1', ''].join('\n')
+    const { content, outcome } = applyDeckAddToContent(deck, { name: 'Island' }, 1000)
+    expect(content).toBe(['## Main', '- 2 Sol Ring &1', '- 1000x Island &2', ''].join('\n'))
+    expect(outcome).toEqual({ cardId: 2, quantity: 1000, section: 'Main', merged: false })
+  })
+
+  test('an add of another card leaves a suspect-quantity line byte-for-byte', () => {
+    // `- 1234 Sol Ring` may be 1,234 copies an older writer spelled bare; line
+    // surgery never touches a line it is not editing, so it survives as written.
+    const deck = ['## Main', '- 1234 Sol Ring &4', ''].join('\n')
+    const { content } = applyDeckAddToContent(deck, { name: 'Island' }, 2)
+    expect(content).toBe(['## Main', '- 1234 Sol Ring &4', '- 2 Island &1', ''].join('\n'))
   })
 
   test("a merge keeps the destination line's note, which is not part of its printing", () => {
@@ -971,6 +1011,78 @@ describe('applyTargetedChangesToContent — deck-only changes', () => {
     expect(caught.syncMessage.messageKey).toBe('domain.list.guard.deckOnlyAction')
     expect(keyedMessage(caught.syncMessage)).toBe(
       `applyTargetedChanges cannot apply 'set-section' ${tail}`,
+    )
+  })
+})
+
+/**
+ * A held deck line — `- 1234 Sol Ring`, which may be 1,234 copies an older
+ * writer spelled bare — is read as one copy of "1234 Sol Ring", but no edit may
+ * re-emit it: its canonical form `- 1 1234 Sol Ring` would erase the one sign
+ * that it may be copies. A removal re-emits nothing, and a section move carries
+ * the line as written, so those still apply.
+ */
+describe('a held deck line', () => {
+  const held = ['## Main', '- 1234 Sol Ring &4', '', '## Sideboard', '- 1 Pyroblast &5', ''].join(
+    '\n',
+  )
+  const target: EntryRef = { name: '1234 Sol Ring', cardId: 4 }
+
+  /** The refusal `apply` raises, as the engine built it. */
+  function refusal(apply: () => unknown): CardCommandError {
+    try {
+      apply()
+    } catch (error) {
+      if (error instanceof CardCommandError) return error
+      throw error
+    }
+    throw new Error('expected the held line to be refused')
+  }
+
+  test.each([
+    ['a note', createSetNoteChange('1234 Sol Ring', { note: 'mine', cardId: 4 })],
+    ['a label', createSetLabelChange('1234 Sol Ring', { labels: ['proxy'], cardId: 4 })],
+    [
+      'a printing',
+      createSetPrintingChange('1234 Sol Ring', { set: 'c21', collectorNumber: '263', cardId: 4 }),
+    ],
+  ])('refuses %s rather than rewrite it', (_label, change) => {
+    const error = refusal(() => applyTargetedChangesToContent(held, 'deck', target, [change]))
+    expect(error.messageKey).toBe('domain.list.rewriteHoldLine')
+    expect(error.exitCode).toBe(2)
+  })
+
+  test('is refused behind a conflicting labels token, even by the label fix', () => {
+    // `set-card --label` replaces the refused token wholesale; on a held line
+    // that rewrite would still re-emit `- 1 1234 Sol Ring [proxy] &5`.
+    const conflicted = ['## Main', '- 1234 Sol Ring [proxy,no-proxy] &5', ''].join('\n')
+    const error = refusal(() =>
+      applyTargetedChangesToContent(conflicted, 'deck', { name: '1234 Sol Ring', cardId: 5 }, [
+        createSetLabelChange('1234 Sol Ring', { labels: ['proxy'], cardId: 5 }),
+      ]),
+    )
+    expect(error.messageKey).toBe('domain.list.rewriteHoldLine')
+  })
+
+  test('refuses an add that would merge onto it', () => {
+    const error = refusal(() => applyDeckAddToContent(held, { name: '1234 Sol Ring' }, 1))
+    expect(error.messageKey).toBe('domain.list.rewriteHoldLine')
+  })
+
+  test('a removal takes the line out', () => {
+    const result = applyTargetedChangesToContent(held, 'deck', target, [
+      createRemoveChange('1234 Sol Ring', { cardId: 4 }),
+    ])
+    expect(result).toBe(['## Main', '', '## Sideboard', '- 1 Pyroblast &5', ''].join('\n'))
+  })
+
+  test('a section move carries the line as written', () => {
+    const result = applyTargetedChangesToContent(held, 'deck', target, [
+      createSetSectionChange('1234 Sol Ring', 'Sideboard', 4),
+    ])
+    expect(result.split('\n')).toContain('- 1234 Sol Ring &4')
+    expect(result.split('\n').indexOf('- 1234 Sol Ring &4')).toBeGreaterThan(
+      result.split('\n').indexOf('## Sideboard'),
     )
   })
 })

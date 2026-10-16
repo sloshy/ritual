@@ -84,6 +84,7 @@ export const domainImportMessages = {
   'domain.import.csv.unknownLanguage': "Unrecognized language '{value}'",
   'domain.import.csv.invalidQuantity': "Invalid quantity '{value}'",
   'domain.import.csv.quantityTooSmall': "Invalid quantity '{value}': must be at least 1",
+  'domain.import.csv.quantityTooLarge': "Invalid quantity '{value}': too large to store exactly",
   'domain.import.csv.rowUnexplained':
     'Row on line {line} was rejected without a reason; this is a bug in Ritual',
 
@@ -138,6 +139,12 @@ export const domainImportMessages = {
     $plural: 'count',
     one: 'Archidekt deck {deckId}: skipped {count} card entry with no card name.',
     other: 'Archidekt deck {deckId}: skipped {count} card entries with no card name.',
+  },
+  'domain.import.archidektUnwritableQuantity': {
+    $plural: 'count',
+    one: 'Archidekt deck {deckId}: skipped {count} card entry whose quantity no deck can hold (negative, a fraction, or too large).',
+    other:
+      'Archidekt deck {deckId}: skipped {count} card entries whose quantity no deck can hold (negative, a fraction, or too large).',
   },
 
   // ── Deck URLs ─────────────────────────────────────────────────────────

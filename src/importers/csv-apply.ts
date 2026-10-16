@@ -36,7 +36,7 @@ import {
   type CardIdPool,
 } from '../card/card-id'
 import { writeFileWithHash } from '../changes/content-hash'
-import { unreadableContentMessage, unreadableProblems } from '../list/unreadable-content'
+import { rewriteRefusal } from '../list/unreadable-content'
 import { listNameCollision, unusableFileNameMessage } from '../list/list-lifecycle'
 import { reconcileListRefs } from '../list/list-refs'
 import {
@@ -59,7 +59,7 @@ import {
   resolveList,
   resolveListErrorMessage,
 } from '../list/resolve-list'
-import { nestSync, syncList, syncMessage, type SyncMessage, type SyncText } from '../sync/message'
+import { nestSync, syncList, syncMessage, type SyncMessage } from '../sync/message'
 
 /**
  * Applies converted card entries to a list on disk: creating a new list file,
@@ -346,14 +346,13 @@ type FlatEntry = (CollectionEntry | WantedListEntry) & { cardId?: number }
 type AppendResult = { content: string; changes: ChangeEvent[] }
 
 /**
- * An append either produced new content, or found content the canonical
- * re-serialize would delete. Append rewrites the whole file from parsed
- * entries, so a skipped line or a fenced code block in the existing file is
- * content the write would drop — the same gate the admin saves, `cleanup` and
- * the sync engines apply.
+ * An append refused because the canonical re-serialize would delete or change
+ * content of the existing file. Append rewrites the whole file from parsed
+ * entries, so a skipped line or a fenced code block is content the write would
+ * drop, and a held line one it would change — the same gate the admin saves,
+ * `cleanup` and the sync engines apply.
  */
-/** An append refused because the file holds content its rewrite would delete. */
-type AppendRefused = { unreadable: SyncText[] }
+type AppendRefused = { refusal: SyncMessage }
 
 type AppendOutcome = AppendResult | AppendRefused
 
@@ -543,13 +542,14 @@ function boardForSection(section: string): Board | undefined {
 }
 
 function appendToDeck(
+  filePath: string,
   content: string,
   fallbackName: string,
   entries: ImportCardEntry[],
 ): AppendOutcome {
   const parsedDeck = parseDeckText(content, fallbackName)
-  const lost = unreadableProblems(parsedDeck)
-  if (lost.length > 0) return { unreadable: lost }
+  const refusal = rewriteRefusal(filePath, parsedDeck, 'appending')
+  if (refusal) return { refusal }
   const { deck } = parsedDeck
   const frontMatter = matter(content).data
   const listLabels = listDefaultLabels('deck', frontMatter)
@@ -612,6 +612,7 @@ function appendToDeck(
 }
 
 function appendToFlatList(
+  filePath: string,
   listType: FlatListType,
   content: string,
   fallbackTitle: string,
@@ -619,8 +620,8 @@ function appendToFlatList(
 ): AppendOutcome {
   const parsed =
     listType === 'collection' ? parseCollectionFile(content) : parseWantedListFile(content)
-  const lost = unreadableProblems(parsed)
-  if (lost.length > 0) return { unreadable: lost }
+  const refusal = rewriteRefusal(filePath, parsed, 'appending')
+  if (refusal) return { refusal }
   const existing: FlatEntry[] = parsed.entries
   const sectionOrder = parsed.sectionOrder
 
@@ -671,12 +672,10 @@ async function appendToList(
   const content = await Bun.file(location.filePath).text()
   const result =
     target.listType === 'deck'
-      ? appendToDeck(content, location.name, entries)
-      : appendToFlatList(target.listType, content, location.name, entries)
+      ? appendToDeck(location.filePath, content, location.name, entries)
+      : appendToFlatList(location.filePath, target.listType, content, location.name, entries)
 
-  if ('unreadable' in result) {
-    return { error: unreadableContentMessage(location.filePath, result.unreadable, 'appending') }
-  }
+  if ('refusal' in result) return { error: result.refusal }
 
   if (dryRun) {
     return {

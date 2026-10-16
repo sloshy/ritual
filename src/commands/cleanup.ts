@@ -120,8 +120,9 @@ export type CleanupResult = {
   /** True for a deck left without a format (no answer, or dry-run). */
   missingFormat?: boolean
   /**
-   * True when parse warnings blocked the rewrite: the parser skipped lines, so
-   * a re-emit would silently drop them. The file must be fixed by hand.
+   * True when the parse blocked the rewrite: the parser skipped lines a re-emit
+   * would silently drop, or read a held line (`- 1234 Sol Ring`) a re-emit
+   * would change the meaning of. The file must be fixed by hand.
    */
   rewriteBlocked?: boolean
   /**
@@ -178,13 +179,18 @@ type ListDocument = {
   original: string
   /** The file re-emitted through the canonical serializer. */
   canonical: string
-  /** Parse warnings; a file that produced any is not rewritten (see below). */
+  /**
+   * What blocks the rewrite: lines the parser skipped, fenced blocks, and held
+   * lines (`- 1234 Sol Ring`); a file that produced any is not rewritten (see
+   * below).
+   */
   parseWarnings: SyncMessage[]
   /**
    * Notices about content that parsed but is worth saying out loud: a card name
-   * starting with a quantity (which the re-emit preserves exactly), or a deck's
-   * empty extras section (which the re-emit drops — the one advisory that names
-   * something cleanup removes). Reported alongside the warnings, never blocking.
+   * that looks like it holds a printing, copies a flat list will expand, or a
+   * deck's empty extras section (which the re-emit drops — the one advisory
+   * that names something cleanup removes). Reported alongside the warnings,
+   * never blocking; a held line is reported with the warnings instead.
    */
   advisories: SyncMessage[]
   /** Format stamped onto a deck that had none. */

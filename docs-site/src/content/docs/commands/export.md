@@ -93,6 +93,8 @@ Column-shaped output driven by `--columns`, `--no-header`, and `--quote-all`. Se
 
 Identical printings (same name, printing, finish, condition, and language) are **aggregated** with summed quantities. A multi-list export **merges into one list**, so list boundaries disappear. Lines keep first-seen file order, and the printing is omitted for cards without one. The line form follows the [dialect](#dialects).
 
+In every dialect, a quantity of 1,000 or more is written with an `x` (`1234x Plains`). That is the form [`ritual import`](/commands/import/) reads back as a quantity: a bare run of four or more digits is read as the start of the card's name (`1996 World Champion`). Smaller quantities are written bare.
+
 In the default `ritual` dialect (and in `archidekt`, which has no plain-text form of its own): `{quantity} {Name} ({SET}:{Collector Number})` lines, with no headers or sections.
 
 ```text

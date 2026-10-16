@@ -2,7 +2,8 @@ import type { Finish, Condition } from './finish-condition'
 import type { SignedCardLabel } from './card-labels'
 import type { CardTag } from './card-tags'
 import { displayLanguage, type CardLanguage } from './card-language'
-import { formatCanonicalCardLine, printingLabel } from './card-line-tail'
+import { formatCanonicalCardLine, formatTokenTail, printingLabel } from './card-line-tail'
+import { formatQuantityToken } from './card-line-quantity'
 
 /** A specific printing reference (set code + collector number) for a card line. */
 export type CardPrinting = { set: string; collectorNumber: string }
@@ -18,6 +19,26 @@ export function printingSuffix(
 ): string {
   if (!set || !collectorNumber) return ''
   return ` (${printingLabel(set, collectorNumber)})`
+}
+
+/**
+ * The card a {@link plainTextCardLine} names: its name and, when pinned, its
+ * printing — either half absent means no printing (see {@link resolvePrinting}).
+ * Taken as one object so a set and a collector number cannot be passed in the
+ * wrong order.
+ */
+export type PlainTextCard = { name: string } & Partial<CardPrinting>
+
+/**
+ * One bulletless plain-text card line, `N Name (SET:CN)` — the "Copy" / text
+ * export form, which Ritual's own importers read back through the card-line
+ * grammar. The quantity is spelled by `formatQuantityToken`, so a count longer
+ * than `BARE_QUANTITY_MAX_DIGITS` digits is written `1234x` and is not read back
+ * as part of the name; the printing is the canonical line's own printing token.
+ */
+export function plainTextCardLine(quantity: number, card: PlainTextCard): string {
+  const printing = resolvePrinting(card.set, card.collectorNumber)
+  return `${formatQuantityToken(quantity)} ${card.name}${formatTokenTail({ printing })}`
 }
 
 /**

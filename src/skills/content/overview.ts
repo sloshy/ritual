@@ -161,13 +161,24 @@ format: commander
 - **Read tolerances** (rewritten to the canonical form on the next save): bracket
   tokens in any order; any whitespace run; the \`- \` bullet is optional on a deck line
   (a deck line is recognized by its leading quantity; a flat-list line by its bullet);
-  \`4x\` quantities; a quantity on a collection/wanted line (\`- 4 Sol Ring (C21:240)\`
+  \`4x\` quantities (four or more digits are a quantity **only** with the \`x\` —
+  \`1996 World Champion\` is a name — so 1,000+ copies are written \`- 1234x Sol Ring\`);
+  a quantity on a collection/wanted line (\`- 4 Sol Ring (C21:240)\`
   reads as four copies and is **expanded to four lines on save** — an advisory, never a
   refusal; the first copy keeps the \`&N\`); Arena/MTGO \`Name (SET) CN\` and Moxfield
   \`Name (SET) *F* CN\` printings; \`//\` comment lines (dropped on write); \`_\` in set
   codes. A refused line (an unknown or disallowed token, a collection line with no
   printing) is a warning naming the file, line, and token, and blocks every
   whole-file write of that file; line-preserving commands leave it alone.
+- **Held deck lines** are the one read *not* rewritten on save: a deck line with no
+  quantity whose name starts with 4+ digits (\`- 1234 Sol Ring\`) reads as one card of
+  that whole name, but may be 1,234 copies an older version wrote without the \`x\`. It
+  is reported with the fix, and nothing may re-emit it: every whole-file write of the
+  deck refuses (admin/MCP saves, \`cleanup\`, \`move\`, \`import --append\`, and
+  \`deck-sync\` even with \`--yes\`), \`ritual edit\` won't open the deck, and a one-shot
+  edit aimed at that line refuses (removing or re-sectioning it still works). Only the
+  user settles it, by editing the file to \`- 1234x Sol Ring\` (copies) or
+  \`- 1 1234 Sol Ring\` (the card's name).
 - **Sections** are matched by exact name (case-insensitive) against a closed table:
   \`Commander\`/\`Commanders\`/\`Command Zone\`, \`Companion\`, \`Oathbreaker\`/\`Signature
   Spell\`, \`Sideboard\`, \`Maybeboard\`, \`Tokens\`/\`Token\`, \`Main\`/\`Mainboard\`/\`Deck\`.

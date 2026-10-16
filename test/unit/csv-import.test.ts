@@ -410,6 +410,13 @@ describe('normalizeQuantity', () => {
     expect(refusedWith(normalizeQuantity('0'))).toBe("Invalid quantity '0': must be at least 1")
     expect(refusedWith(normalizeQuantity('many'))).toBe("Invalid quantity 'many'")
   })
+
+  test('accepts the largest quantity a card line holds, and refuses one past it', () => {
+    expect(normalizeQuantity('9007199254740991')).toEqual({ ok: true, value: 9007199254740991 })
+    expect(refusedWith(normalizeQuantity('99999999999999999999'))).toBe(
+      "Invalid quantity '99999999999999999999': too large to store exactly",
+    )
+  })
 })
 
 describe('normalizeLanguage', () => {

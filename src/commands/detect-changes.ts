@@ -1,4 +1,4 @@
-import { parseWarningMessages } from '../list/unreadable-content'
+import { rewriteBlockingMessages } from '../list/unreadable-content'
 import { nestSync, renderSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
 import { Command } from 'commander'
 import { compareData } from '../i18n/collate'
@@ -271,14 +271,14 @@ function diffCollection(
   report: ReportParseWarning,
 ): ChangeEvent[] {
   const newParsed = parseCollectionFile(newContent)
-  for (const w of parseWarningMessages(newParsed)) report('working-tree', w)
+  for (const w of rewriteBlockingMessages(newParsed)) report('working-tree', w)
 
   if (!oldContent) {
     return diffCollectionEntries([], newParsed.entries)
   }
 
   const oldParsed = parseCollectionFile(oldContent)
-  for (const w of parseWarningMessages(oldParsed)) report('committed', w)
+  for (const w of rewriteBlockingMessages(oldParsed)) report('committed', w)
 
   const aligned = alignEntryIds(oldParsed.entries, newParsed.entries)
   return diffCollectionEntries(aligned.old, aligned.current)
@@ -290,14 +290,14 @@ function diffWanted(
   report: ReportParseWarning,
 ): ChangeEvent[] {
   const newParsed = parseWantedListFile(newContent)
-  for (const w of parseWarningMessages(newParsed)) report('working-tree', w)
+  for (const w of rewriteBlockingMessages(newParsed)) report('working-tree', w)
 
   if (!oldContent) {
     return diffWantedEntries([], newParsed.entries)
   }
 
   const oldParsed = parseWantedListFile(oldContent)
-  for (const w of parseWarningMessages(oldParsed)) report('committed', w)
+  for (const w of rewriteBlockingMessages(oldParsed)) report('committed', w)
 
   const aligned = alignEntryIds(oldParsed.entries, newParsed.entries)
   return diffWantedEntries(aligned.old, aligned.current)
@@ -326,7 +326,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
     // read must be reported, since the sidecar refresh below will otherwise
     // declare it recorded forever.
     const newDeck = await loadDeckFile(newTmp)
-    for (const w of parseWarningMessages(newDeck)) report('working-tree', w)
+    for (const w of rewriteBlockingMessages(newDeck)) report('working-tree', w)
 
     if (!oldContent) {
       return diffDeckCards([], newDeck.deck.sections)
@@ -335,7 +335,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
     const oldTmp = path.join(tempDir, `old-deck-${suffix}.md`)
     await fs.writeFile(oldTmp, oldContent)
     const oldDeck = await loadDeckFile(oldTmp)
-    for (const w of parseWarningMessages(oldDeck)) report('committed', w)
+    for (const w of rewriteBlockingMessages(oldDeck)) report('committed', w)
 
     const aligned = alignSectionIds(oldDeck.deck.sections, newDeck.deck.sections)
     return diffDeckCards(aligned.old, aligned.current)

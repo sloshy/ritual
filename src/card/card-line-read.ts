@@ -22,17 +22,25 @@
  * `node:`.
  */
 
-import { CARD_LINE_BULLET_RE, parseCardLine, type LineTokens } from './card-line-grammar'
+import {
+  CARD_LINE_BULLET_RE,
+  parseCardLine,
+  type CardLineAdvisory,
+  type LineTokens,
+} from './card-line-grammar'
+import { QUANTITY_PATTERN } from './card-line-quantity'
 import type { ListType } from '../list/list-type'
 
 /**
  * A deck card candidate: a leading quantity, optionally behind a `- ` bullet.
+ * Any digit run counts here, marked or not — `- 1234 Sol Ring` is offered to
+ * the tokenizer, which reads it as a name and says so with an advisory.
  *
  * Requiring the quantity is what keeps hand-written prose prose — an imported
  * decklist's commentary would otherwise become one card per sentence. The
  * optional bullet is read tolerance for the canonical write form.
  */
-const DECK_CANDIDATE_RE = /^(?:-\s+)?\d+[xX]?\s+/
+const DECK_CANDIDATE_RE = new RegExp(`^(?:-\\s+)?${QUANTITY_PATTERN}\\s+`)
 
 /**
  * Whether a **trimmed** body line is a card line candidate for `type`: a
@@ -52,6 +60,12 @@ export function isCardCandidate(type: ListType, trimmed: string): boolean {
 /** A card line read out of a file, plus the one refusal the readers tolerate. */
 export type ReadCardLine = {
   tokens: LineTokens
+  /**
+   * The advisories of whichever parse read the line — the recovered one's on a
+   * line whose labels conflict — so a caller that must not re-emit a held line
+   * (`suspect-quantity-in-name`) still sees it behind a refused labels token.
+   */
+  advisories: readonly CardLineAdvisory[]
   /**
    * The labels token's body (`sale,keep`) when the line's labels conflict —
    * present only on a line the grammar refused and this reader recovered.
@@ -75,7 +89,7 @@ export type ReadCardLine = {
 export function readCardLine(type: ListType, trimmed: string): ReadCardLine | undefined {
   if (!isCardCandidate(type, trimmed)) return undefined
   const parsed = parseCardLine(type, trimmed)
-  if (parsed.ok) return { tokens: parsed.tokens }
+  if (parsed.ok) return { tokens: parsed.tokens, advisories: parsed.advisories }
   if (parsed.code !== 'conflicting-labels') return undefined
   // Cut the offending token out and read what is left: the token's exact text
   // and column come from the refusal, so nothing else in the line moves.
@@ -83,5 +97,9 @@ export function readCardLine(type: ListType, trimmed: string): ReadCardLine | un
     trimmed.slice(0, parsed.column) + trimmed.slice(parsed.column + parsed.token.length)
   const retry = parseCardLine(type, without)
   if (!retry.ok) return undefined
-  return { tokens: retry.tokens, invalidLabels: parsed.token.slice(1, -1) }
+  return {
+    tokens: retry.tokens,
+    advisories: retry.advisories,
+    invalidLabels: parsed.token.slice(1, -1),
+  }
 }

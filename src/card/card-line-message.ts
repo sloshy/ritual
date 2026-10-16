@@ -37,6 +37,7 @@ const TEXT_KEYS = {
   'blank-line': 'domain.card.line.blank',
   'not-a-card-line': 'domain.card.line.notACardLine',
   'zero-quantity': 'domain.card.line.zeroQuantity',
+  'quantity-too-large': 'domain.card.line.quantityTooLarge',
   'quantity-expanded-collection': 'domain.card.line.quantityExpandedCollection',
   'quantity-expanded-wanted': 'domain.card.line.quantityExpandedWanted',
   'token-not-allowed': 'domain.card.line.tokenNotAllowed',
@@ -56,6 +57,7 @@ const TEXT_KEYS = {
   'export-printing': 'domain.card.line.exportPrinting',
   'export-printing-finish': 'domain.card.line.exportPrintingFinish',
   'suspect-printing-in-name': 'domain.card.line.suspectPrintingInName',
+  'suspect-quantity-in-name': 'domain.card.line.suspectQuantityInName',
   'did-you-mean': 'domain.card.line.hint.didYouMean',
   'insert-space': 'domain.card.line.hint.insertSpace',
   'id-last': 'domain.card.line.hint.idLast',
@@ -77,14 +79,14 @@ type FixedParams = {
 // i18n-exempt: card-line syntax, quoted verbatim inside the sentence
 const NOTE_SYNTAX = '{note}'
 
+/** One builder per {@link FixedParams} code, returning that code's values. */
+type FixedParamBuilders = { [C in keyof FixedParams]: () => FixedParams[C] }
+
 /**
  * {@link FixedParams} at run time: one builder per code, typed by the same
  * table, so the values a code adds and the type the checks below read cannot
  * drift apart.
  */
-/** One builder per {@link FixedParams} code, returning that code's values. */
-type FixedParamBuilders = { [C in keyof FixedParams]: () => FixedParams[C] }
-
 const FIXED_PARAMS: FixedParamBuilders = {
   'malformed-tag': () => ({ rule: cardTagShapeRule() }),
   'unclosed-note': () => ({ syntax: NOTE_SYNTAX }),

@@ -37,6 +37,7 @@ export const CARD_LINE_DETAIL_CODES = [
   'blank-line',
   'not-a-card-line',
   'zero-quantity',
+  'quantity-too-large',
   'quantity-expanded-collection',
   'quantity-expanded-wanted',
   'token-not-allowed',
@@ -56,6 +57,7 @@ export const CARD_LINE_DETAIL_CODES = [
   'export-printing',
   'export-printing-finish',
   'suspect-printing-in-name',
+  'suspect-quantity-in-name',
 ] as const
 
 /** Codes for the next step a refusal suggests. */
@@ -93,6 +95,7 @@ export type CardLineTextParams = {
   'blank-line': NoParams
   'not-a-card-line': { line: string }
   'zero-quantity': NoParams
+  'quantity-too-large': { token: string }
   'quantity-expanded-collection': { count: number }
   'quantity-expanded-wanted': { count: number }
   'token-not-allowed': { token: string; listType: ListType }
@@ -112,6 +115,8 @@ export type CardLineTextParams = {
   'export-printing': { token: string; printing: string }
   'export-printing-finish': { token: string; printing: string; finish: Finish }
   'suspect-printing-in-name': { line: string }
+  /** `name` is the whole name as read, `count` its leading digits, `fix` the line marked (`1234x Sol Ring`). */
+  'suspect-quantity-in-name': { name: string; count: number; fix: string }
   'did-you-mean': { language: CardLanguage }
   'insert-space': { token: string; side: SpaceSide }
   'id-last': NoParams

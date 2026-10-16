@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test'
 import {
+  advisoryMessages,
+  rewriteBlockingMessages,
+  rewriteHoldMessages,
   unreadableContentMessage,
   unreadableLines,
   unreadableProblems,
@@ -125,6 +128,55 @@ describe('a parser’s warnings are its warning notices', () => {
       parsed.notices
         .filter((notice) => notice.severity === 'warning')
         .map((notice) => notice.message.message),
+    )
+  })
+})
+
+/**
+ * A deck line that may hold 1,000+ copies written bare by an older writer
+ * (`- 1234 Sol Ring`) loads as a card, so it is no skipped line, but a rewrite
+ * would re-emit it as `- 1 1234 Sol Ring` for good: it rides the advisory
+ * channel and stops every whole-file-rewrite gate.
+ */
+describe('a suspect quantity in a deck card name', () => {
+  const parsed = parseDeckText('# Lands\n\n## Main\n- 1234 Sol Ring &4\n', 'Lands')
+  const english =
+    'line 4: Read as one copy of "1234 Sol Ring". If the line means 1234 copies, write it as 1234x Sol Ring;' +
+    ' if "1234 Sol Ring" really is the card\'s name, write it as - 1 1234 Sol Ring.'
+
+  test('loads as one copy of the whole name, and is no skipped line', () => {
+    expect(parsed.deck.sections[0]?.cards).toEqual([
+      { quantity: 1, name: '1234 Sol Ring', cardId: 4 },
+    ])
+    expect(parsed.warnings).toEqual([])
+    expect(parsed.advisories).toEqual([english])
+  })
+
+  test('is a rewrite-blocking notice: in the gates’ list, out of the plain advisories', () => {
+    expect(parsed.notices).toMatchObject([{ severity: 'advisory', blocksRewrite: true }])
+    expect(unreadableLines(parsed)).toEqual([english])
+    expect(rewriteBlockingMessages(parsed).map(keyedMessage)).toEqual([english])
+    expect(rewriteHoldMessages(parsed).map(keyedMessage)).toEqual([english])
+    expect(advisoryMessages(parsed)).toEqual([])
+  })
+
+  test('is still a hold behind a conflicting labels token', () => {
+    // The labels token is refused and the card recovered without it; the
+    // held quantity read off the rest of the line must still block a rewrite,
+    // or fixing the labels would let the next save re-emit `- 1 1234 Sol Ring`.
+    const conflicted = parseDeckText(
+      '# Lands\n\n## Main\n- 1234 Sol Ring [proxy,no-proxy] &5\n',
+      'Lands',
+    )
+    expect(conflicted.deck.sections[0]?.cards).toMatchObject([
+      { quantity: 1, name: '1234 Sol Ring', cardId: 5 },
+    ])
+    expect(conflicted.notices.map((notice) => notice.severity)).toEqual(['warning', 'advisory'])
+    expect(rewriteHoldMessages(conflicted).map((message) => message.messageKey)).toEqual([
+      'domain.card.line.atLine',
+    ])
+    expect(rewriteHoldMessages(conflicted)[0]?.message).toContain(
+      'Read as one copy of "1234 Sol Ring"',
     )
   })
 })

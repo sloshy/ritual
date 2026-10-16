@@ -2,6 +2,7 @@ import type { Condition, Finish } from '../card/finish-condition'
 import type { CardLanguage } from '../card/card-language'
 import { isCardTagShaped } from '../card/card-tags'
 import { aggregateQuantities, variantKey } from '../card/card-line'
+import { formatQuantityToken } from '../card/card-line-quantity'
 import {
   isCommanderSection,
   isCompanionSection,
@@ -200,11 +201,17 @@ export function formatDialectCardLine(card: DialectCard, dialect: TextDialect): 
       ? (card.categories ?? []).flatMap((category) => moxfieldTagToken(category) ?? [])
       : []
   const tagSuffix = tags.length > 0 ? ` ${tags.join(' ')}` : ''
-  if (!card.set || !card.collectorNumber) return `${card.quantity} ${card.name}${tagSuffix}`
+  // The quantity is spelled the way Ritual's own importer reads it back: a run
+  // longer than `BARE_QUANTITY_MAX_DIGITS` digits is `x`-marked
+  // (`1200x Plains`), or `ritual import` would read it as one copy of
+  // "1200 Plains". Every quantity a playable deck holds is under the cap, so
+  // those lines are exactly what the sites' own importers already take.
+  const quantity = formatQuantityToken(card.quantity)
+  if (!card.set || !card.collectorNumber) return `${quantity} ${card.name}${tagSuffix}`
   const marker =
     dialect === 'moxfield' && card.finish ? MOXFIELD_FINISH_MARKERS[card.finish] : undefined
   const printing = `(${card.set.toUpperCase()})${marker ? ` ${marker}` : ''} ${card.collectorNumber}`
-  return `${card.quantity} ${card.name} ${printing}${tagSuffix}`
+  return `${quantity} ${card.name} ${printing}${tagSuffix}`
 }
 
 /**

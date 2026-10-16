@@ -10,6 +10,7 @@ import {
   type ModifyCardEntry,
   parseArchidektDeckCategories,
   parseArchidektDeckResponse,
+  withoutEmptyCards,
 } from '../importers/archidekt-types'
 import {
   ARCHIDEKT_BULK_BATCH_SIZE,
@@ -487,7 +488,7 @@ export class ArchidektClient {
     const json = (await response.json()) as ArchidektDeckResponse
     const categories = parseArchidektDeckCategories(json)
     return {
-      deck: parseArchidektDeckResponse(json, deckId),
+      deck: withoutEmptyCards(parseArchidektDeckResponse(json, deckId)),
       categories: categories.cards,
       refusedCategories: categories.refused,
     }

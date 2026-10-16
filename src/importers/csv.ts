@@ -1,3 +1,4 @@
+import { isWritableQuantity } from '../card/card-line-quantity'
 import { DEFAULT_SECTION } from '../list/deck'
 import type { Condition, Finish } from '../card/finish-condition'
 import { normalizeLanguageValue, storedLanguage, type CardLanguage } from '../card/card-language'
@@ -581,8 +582,9 @@ function resolveRowSection(
 }
 
 /**
- * Normalize a quantity cell: a positive integer, tolerating a leading or
- * trailing `x` (`4x`, `x4`). An empty cell means "unspecified" (one copy).
+ * Normalize a quantity cell: a positive integer a card line can hold exactly,
+ * tolerating a leading or trailing `x` (`4x`, `x4`). An empty cell means
+ * "unspecified" (one copy).
  */
 export function normalizeQuantity(rawValue: string): NormalizedField<number> {
   const trimmed = rawValue.trim()
@@ -599,6 +601,13 @@ export function normalizeQuantity(rawValue: string): NormalizedField<number> {
     return {
       ok: false,
       error: syncMessage('domain.import.csv.quantityTooSmall', { value: rawValue }),
+    }
+  }
+  // Too many digits to hold exactly: the card line could not write it back.
+  if (!isWritableQuantity(quantity)) {
+    return {
+      ok: false,
+      error: syncMessage('domain.import.csv.quantityTooLarge', { value: rawValue }),
     }
   }
   return { ok: true, value: quantity }

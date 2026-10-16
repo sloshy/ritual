@@ -17,6 +17,7 @@
 
 import type { CardPrinting } from './card-line'
 import { formatLabelOverride, type SignedCardLabel } from './card-labels'
+import { formatQuantityToken, isWritableQuantity } from './card-line-quantity'
 import { formatCardTagsToken, type CardTag } from './card-tags'
 import { languageToken, type CardLanguage } from './card-language'
 import type { ConditionUpdate, Finish } from './finish-condition'
@@ -127,14 +128,20 @@ export type FlatCardLineFields = CardLineFields & { quantity?: never }
  * mandatory on write for all three, and optional on read — so a list file
  * renders as a list wherever markdown is rendered. Deck lines carry their
  * copies as a quantity (`- 2 Sol Ring (C21:263) &4`); collection and wanted
- * lines are one bullet per copy (`- Sol Ring (LEA:270) &4`). The overloads make
- * that structural: a flat list cannot be handed a `quantity` this function
- * would silently drop — the caller must expand the copies into that many lines
- * instead.
+ * lines are one bullet per copy (`- Sol Ring (LEA:270) &4`). A deck quantity
+ * longer than `BARE_QUANTITY_MAX_DIGITS` digits is written `x`-marked
+ * (`- 1234x Sol Ring`), the only form the reader takes back as a quantity
+ * rather than as the start of the card's name (`formatQuantityToken`). The
+ * overloads make that structural: a flat list cannot be handed a `quantity`
+ * this function would silently drop — the caller must expand the copies into
+ * that many lines instead.
  *
- * This is the **only** writer of a canonical card line. The bulletless
- * `N Name (SET) CN` forms other sites import are export *dialects*, rendered by
- * `src/export/dialects.ts`, and are deliberately not this function's business.
+ * This is the **only** writer of a canonical card line. The grammar also reads
+ * back two bulletless writers that are not canonical lines: Ritual's own
+ * `N Name (SET:CN)` text form (`plainTextCardLine` in `card-line.ts`) and the
+ * `N Name (SET) CN` export *dialects* other sites import
+ * (`src/export/dialects.ts`). All three spell their quantity through
+ * `formatQuantityToken`.
  */
 export function formatCanonicalCardLine(type: 'deck', fields: DeckCardLineFields): string
 export function formatCanonicalCardLine(
@@ -154,6 +161,19 @@ export function formatCanonicalCardLine(type: ListType, fields: DeckCardLineFiel
       syncMessage('domain.card.line.lineBreak', { text: JSON.stringify(broken) }),
     )
   }
-  const head = type === 'deck' ? `- ${fields.quantity ?? 1} ${fields.name}` : `- ${fields.name}`
+  // The same backstop for the copies: a quantity no card line can hold (zero,
+  // negative, fractional, past `Number.MAX_SAFE_INTEGER`) would write a line
+  // the reader refuses or reads as part of the name, so it is never written.
+  const quantity = fields.quantity ?? 1
+  if (type === 'deck' && !isWritableQuantity(quantity)) {
+    throw new SyncMessageError(
+      syncMessage('domain.card.line.unwritableQuantity', {
+        quantity: String(quantity),
+        max: String(Number.MAX_SAFE_INTEGER),
+      }),
+    )
+  }
+  const head =
+    type === 'deck' ? `- ${formatQuantityToken(quantity)} ${fields.name}` : `- ${fields.name}`
   return head + formatTokenTail(fields)
 }

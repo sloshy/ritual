@@ -15,6 +15,7 @@ import {
 } from '../../src/card/card-line-grammar'
 import { lineText } from '../../src/card/card-line-text'
 import type { ListType } from '../../src/list/list-type'
+import { parsedCardLine as parsed } from '../helpers/card-line'
 
 /**
  * The tokenizer suite. Every case of the old three-regex drift that silently
@@ -26,13 +27,6 @@ import type { ListType } from '../../src/list/list-type'
  * handlers all reach this one function, so semantics are asserted here and
  * nowhere else.
  */
-
-/** Parse and assert success, returning the tokens. */
-function parsed(type: ListType, line: string): LineTokens {
-  const result = parseCardLine(type, line)
-  if (!result.ok) throw new Error(`expected ${type} line to parse: ${line} — ${result.detail.code}`)
-  return result.tokens
-}
 
 /** Parse and assert failure, returning the error. */
 function refused(type: ListType, line: string): CardLineError {
@@ -259,10 +253,13 @@ describe('quantities', () => {
   }
 
   test('a four-digit run is a card name, not a quantity', () => {
-    expect(parsed('deck', '1996 World Champion')).toEqual({
-      quantity: 1,
-      name: '1996 World Champion',
-    })
+    const result = parseCardLine('deck', '1996 World Champion')
+    expect(result.ok && result.tokens).toEqual({ quantity: 1, name: '1996 World Champion' })
+    // Read as written — and, with no quantity in front, flagged: the shape an
+    // older writer left for 1,996 copies of "World Champion".
+    expect(result.ok && result.advisories.map((advisory) => advisory.kind)).toEqual([
+      'suspect-quantity-in-name',
+    ])
     expect(parsed('collection', '- 1996 World Champion (PCEL:1)')).toMatchObject({
       quantity: 1,
       name: '1996 World Champion',
@@ -277,6 +274,44 @@ describe('quantities', () => {
       column: 0,
     })
   })
+
+  test('a quantity too large to hold exactly is a refusal, not a rounded count', () => {
+    expect(refused('deck', '- 99999999999999999999x Sol Ring')).toMatchObject({
+      code: 'bad-quantity',
+      kind: 'quantity',
+      token: '99999999999999999999x',
+      column: 2,
+      detail: lineText('quantity-too-large', { token: '99999999999999999999x' }),
+    })
+  })
+
+  test.each([
+    [
+      'collection',
+      {
+        severity: 'advisory',
+        kind: 'quantity-expanded',
+        token: '1234x',
+        detail: lineText('quantity-expanded-collection', { count: 1234 }),
+      },
+    ],
+    [
+      'wanted',
+      {
+        severity: 'advisory',
+        kind: 'quantity-expanded',
+        token: '1234x',
+        detail: lineText('quantity-expanded-wanted', { count: 1234 }),
+      },
+    ],
+  ] as const)(
+    'a marked 1,000+ quantity pasted on a %s line expands with the advisory',
+    (type, advisory) => {
+      const result = parseCardLine(type, '- 1234x Sol Ring (C21:263)')
+      expect(result.ok && result.tokens).toMatchObject({ quantity: 1234, name: 'Sol Ring' })
+      expect(result.ok && result.advisories).toEqual([advisory])
+    },
+  )
 })
 
 describe('read tolerance for the export dialects', () => {
@@ -410,12 +445,60 @@ describe('advisories', () => {
       ['deck', '4 Lightning Bolt (M10) 146'],
       ['wanted', '- 3 Sol Ring'],
       ['deck', '1 Very Cryptic Command (Untap)'],
+      ['deck', '- 1234 Sol Ring'],
     ]
     const kinds = lines.flatMap(([type, line]) => {
       const result = parseCardLine(type, line)
       return result.ok ? result.advisories.map((advisory) => advisory.kind) : []
     })
     expect([...new Set(kinds)].sort()).toEqual([...CARD_LINE_ADVISORY_KINDS].sort())
+  })
+
+  test('a deck line led by an unmarked 1,000+ run is read as a name, and flagged', () => {
+    // The shape an older writer left for 1,000+ copies. Read as one copy of the
+    // whole name — a card may really be called that — but never silently.
+    const result = parseCardLine('deck', '- 1234 Sol Ring (C21:263) &4')
+    expect(result.ok && result.tokens).toMatchObject({ quantity: 1, name: '1234 Sol Ring' })
+    expect(result.ok && result.advisories).toEqual([
+      {
+        severity: 'advisory',
+        kind: 'suspect-quantity-in-name',
+        token: '1234',
+        detail: lineText('suspect-quantity-in-name', {
+          name: '1234 Sol Ring',
+          count: 1234,
+          fix: '1234x Sol Ring',
+        }),
+      },
+    ])
+  })
+
+  test('a leading run of zeros naming one copy suggests the one-copy fix', () => {
+    const result = parseCardLine('deck', '- 0001 Sol Ring')
+    expect(result.ok && result.advisories).toEqual([
+      {
+        severity: 'advisory',
+        kind: 'suspect-quantity-in-name',
+        token: '0001',
+        detail: lineText('suspect-quantity-in-name', {
+          name: '0001 Sol Ring',
+          count: 1,
+          fix: '1 Sol Ring',
+        }),
+      },
+    ])
+  })
+
+  test.each([
+    // What the writer produces for a real digit-led card: the quantity comes first.
+    ['deck', '- 1 1996 World Champion'],
+    ['deck', '- 1234x Sol Ring'],
+    ['deck', '- 999 Sol Ring'],
+    // A flat line never carries a quantity on write, so its name is its own.
+    ['collection', '- 1996 World Champion (PCEL:1)'],
+  ] as const)('%s line %s raises no suspect-quantity advisory', (type, line) => {
+    const result = parseCardLine(type, line)
+    expect(result.ok && result.advisories).toEqual([])
   })
 
   test('a suspect printing on a collection still refuses for the missing printing', () => {

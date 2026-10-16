@@ -1,5 +1,10 @@
 import type { SelectedCard } from './useCardSelection'
-import { aggregateQuantities, printingSuffix, variantKey, type Aggregated } from '../card/card-line'
+import {
+  aggregateQuantities,
+  plainTextCardLine,
+  variantKey,
+  type Aggregated,
+} from '../card/card-line'
 import { CSV_HEADER, csvRow } from '../list/list-export'
 
 const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =>
@@ -16,10 +21,7 @@ const aggregateSelection = (cards: SelectedCard[]): Aggregated<SelectedCard>[] =
  */
 export function selectionToText(cards: SelectedCard[]): string {
   return aggregateSelection(cards)
-    .map(
-      ({ entry, quantity }) =>
-        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
-    )
+    .map(({ entry, quantity }) => plainTextCardLine(quantity, entry))
     .join('\n')
 }
 

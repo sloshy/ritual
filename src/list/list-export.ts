@@ -8,7 +8,7 @@ import {
   aggregateQuantities,
   formatCollectionLine,
   formatWantedListLine,
-  printingSuffix,
+  plainTextCardLine,
   variantKey,
   type Aggregated,
 } from '../card/card-line'
@@ -239,10 +239,7 @@ export function collectionToCsv(entries: CollectionCardEntry[]): string {
  */
 export function collectionToText(entries: CollectionCardEntry[]): string {
   return aggregateCollection(entries)
-    .map(
-      ({ entry, quantity }) =>
-        `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
-    )
+    .map(({ entry, quantity }) => plainTextCardLine(quantity, entry))
     .join('\n')
 }
 
@@ -252,9 +249,7 @@ export function collectionToText(entries: CollectionCardEntry[]): string {
  * name-only (no printing suffix).
  */
 export function wantedToText(entries: WantedListCardEntry[]): string {
-  return entries
-    .map((entry) => `1 ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`)
-    .join('\n')
+  return entries.map((entry) => plainTextCardLine(1, entry)).join('\n')
 }
 
 /**

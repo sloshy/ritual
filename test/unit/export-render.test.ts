@@ -240,6 +240,17 @@ describe('renderTextExport', () => {
     )
   })
 
+  // Read-back alone (the writers table in card-line-quantity.test.ts) does not
+  // pin the spelling: the dialect line marks a quantity past the bare-digit cap.
+  test.each(['arena', 'moxfield'] as const)(
+    '%s marks a quantity past the bare-digit cap with x',
+    (dialect) => {
+      expect(
+        renderTextExport([entry({ quantity: 1234, finish: undefined })], dialect).content,
+      ).toBe('Deck\n1234x Lightning Bolt (LEA) 161')
+    },
+  )
+
   test('moxfield writes categories as tags and warns about the ones it cannot spell', () => {
     const { content, warnings } = renderTextExport(
       [entry({ name: 'Wrath of God', finish: undefined, categories: ['Removal', 'Board Wipes'] })],

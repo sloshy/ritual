@@ -1,5 +1,5 @@
 import { csvCell } from '../changes/csv'
-import { aggregateQuantities, printingSuffix, variantKey } from '../card/card-line'
+import { aggregateQuantities, plainTextCardLine, variantKey } from '../card/card-line'
 import { canonicalCardLine } from '../list/deck-text'
 import {
   aggregateDialectCards,
@@ -392,10 +392,7 @@ export function renderTextExport(
         ),
       (entry) => entry.quantity,
     )
-      .map(
-        ({ entry, quantity }) =>
-          `${quantity} ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}`,
-      )
+      .map(({ entry, quantity }) => plainTextCardLine(quantity, entry))
       .join('\n')
     return { content, warnings: [] }
   }

@@ -1,8 +1,4 @@
-import {
-  unreadableContentMessage,
-  unreadableProblems,
-  type ParsedListContent,
-} from '../../list/unreadable-content'
+import { rewriteRefusal, type ParsedListContent } from '../../list/unreadable-content'
 import { cardCache } from '../../cache'
 import { computeHash, hashPath, writeFileWithHash } from '../../changes/content-hash'
 import type { CardArtMap, CardArtRef, CardArtReconcileInput } from '../../list/card-art'
@@ -103,9 +99,8 @@ export function refuseUnreadableBaseline(
   filePath: string,
   parsed: ParsedListContent,
 ): Response | null {
-  const problems = unreadableProblems(parsed)
-  if (problems.length === 0) return null
-  return nestedRefusal(unreadableContentMessage(filePath, problems, 'saving'))
+  const refusal = rewriteRefusal(filePath, parsed, 'saving')
+  return refusal === undefined ? null : nestedRefusal(refusal)
 }
 
 /**

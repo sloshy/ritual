@@ -191,6 +191,8 @@ Changes accumulate **in memory per list**. Nothing is written to any file as you
 
 A save rewrites the whole list file in canonical form. Any line the parser could not read (prose, comments, malformed card lines) is dropped, and so is a [fenced code block](/list-format/#fenced-code-blocks), which the canonical form cannot express. Both are printed as warnings when the session loads the list, so check the output before saving a hand-edited file, or run [`cleanup --check`](/commands/cleanup/) first. For an edit that must leave such lines untouched, use the line-preserving one-shot commands: [`set-card`](/commands/set-card/), [`remove-card`](/commands/remove-card/), and [`note`](/commands/note/).
 
+One deck line is refused outright instead: a line with no quantity whose card name starts with four or more digits (`- 1234 Sol Ring`), which may be 1,000+ copies an earlier version wrote without the `x`. The save would re-emit it as `- 1 1234 Sol Ring`, which can never be told from a real card name again, so `ritual edit` prints the line and does not open that deck. Settle the line by hand first: `- 1234x Sol Ring` for 1,234 copies, or `- 1 1234 Sol Ring` for one card of that name. See [read tolerances](/list-format/#read-tolerances).
+
 The save actions:
 
 - `💾 Save all changes (N across M lists)` writes every open list's file and appends each list's session changelog while you keep working. Everything saved is committed, and the undo and discard menus reset.

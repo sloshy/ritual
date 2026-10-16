@@ -28,6 +28,7 @@ export const domainCardMessages = {
   'domain.card.line.blank': 'Blank line.',
   'domain.card.line.notACardLine': 'Not a card line: {line}',
   'domain.card.line.zeroQuantity': 'A card line must name at least one copy.',
+  'domain.card.line.quantityTooLarge': 'Quantity {token} is too large to read exactly.',
   'domain.card.line.quantityExpandedCollection': {
     $plural: 'count',
     one: 'Read {count} copy: a collection holds one line per copy, so this line becomes {count} line on the next save.',
@@ -86,7 +87,15 @@ export const domainCardMessages = {
     'Read the export printing {token} as ({printing}) [{finish}].',
   'domain.card.line.suspectPrintingInName':
     "Card name still contains a printing token, so the line's format was not recognized: {line}",
+  'domain.card.line.suspectQuantityInName': {
+    $plural: 'count',
+    one: 'Read as one copy of "{name}". If the line means {count} copy, write it as {fix}; if "{name}" really is the card\'s name, write it as - 1 {name}.',
+    other:
+      'Read as one copy of "{name}". If the line means {count} copies, write it as {fix}; if "{name}" really is the card\'s name, write it as - 1 {name}.',
+  },
   'domain.card.line.lineBreak': 'A card line cannot hold a line break: {text}',
+  'domain.card.line.unwritableQuantity':
+    'A card line cannot hold a quantity of {quantity}: it must be a whole number of copies, from 1 to {max}.',
 
   // ── The next step a refused card line suggests ────────────────────────
   'domain.card.line.hint.didYouMean': 'did you mean [{language}]?',

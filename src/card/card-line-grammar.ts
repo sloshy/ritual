@@ -31,6 +31,12 @@
 
 import { type CardPrinting, resolvePrinting } from './card-line'
 import { matchCardId } from './card-line-id'
+import {
+  formatQuantityToken,
+  isWritableQuantity,
+  readQuantityToken,
+  readUnmarkedQuantity,
+} from './card-line-quantity'
 import { printingLabel } from './card-line-tail'
 import {
   isSignedCardLabel,
@@ -118,19 +124,24 @@ export type CardLineAdvisoryKind =
   | 'quantity-expanded'
   /** The name still carries a set-like token — a dialect nobody taught the parser. */
   | 'suspect-printing-in-name'
+  /** A deck line's name starts with a digit run that reads as a quantity only when `x`-marked. */
+  | 'suspect-quantity-in-name'
 
 /** Every advisory kind, for exhaustive iteration by consumers and tests. */
 export const CARD_LINE_ADVISORY_KINDS: readonly CardLineAdvisoryKind[] = Object.values({
   'dialect-rewritten': 'dialect-rewritten',
   'quantity-expanded': 'quantity-expanded',
   'suspect-printing-in-name': 'suspect-printing-in-name',
+  'suspect-quantity-in-name': 'suspect-quantity-in-name',
 } as const satisfies Record<CardLineAdvisoryKind, CardLineAdvisoryKind>)
 
 /**
  * A non-fatal note about a line the parser *did* read. Advisories must never be
- * promoted into the `warnings` channel: nothing was lost, so they must not trip
- * the whole-file-rewrite gates (`unreadableLines`), whose refusal promises the
- * listed content would be deleted.
+ * promoted into the `warnings` channel: nothing was lost. They leave the
+ * whole-file-rewrite gates (`unreadableLines`) alone too, with one exception
+ * the list diagnostics apply: `suspect-quantity-in-name`, whose line a rewrite
+ * would re-emit with a meaning no later read can recover (see `ParseNotice`'s
+ * `blocksRewrite` in `line-diagnostics.ts`).
  */
 export type CardLineAdvisory = {
   /**
@@ -161,7 +172,7 @@ export type TokenErrorCode =
   | 'misplaced-token'
   /** A token written with no whitespace between it and the text beside it. */
   | 'unseparated-token'
-  /** A quantity of zero, which says nothing. */
+  /** A quantity of zero, which says nothing, or one too large to hold exactly. */
   | 'bad-quantity'
   /** A `{` the line never closes. */
   | 'malformed-note'
@@ -492,14 +503,6 @@ const LABELS_BODY_RE = new RegExp(
 )
 
 /**
- * A leading quantity: `2 `, `4x `, `10X `. Capped at three digits on purpose —
- * those are the quantities anyone actually writes, while a longer run is a real
- * card name (`1996 World Champion`) that must parse untouched. An explicit
- * `x`/`X` marker says "quantity" out loud, so it lifts the cap.
- */
-const QUANTITY_RE = /^(\d+)([xX])?(\s+)/
-
-/**
  * Line shapes that are structure or prose, never a card: an ATX heading, a `//`
  * comment, a fence delimiter, and a `---` rule (which is also how front matter
  * is delimited).
@@ -713,45 +716,39 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
   let quantity = 1
   /** The quantity token, held until `accept` exists to gate it like any other. */
   let quantityToken: ScannedToken | undefined
-  const quantityMatch = QUANTITY_RE.exec(line.slice(start))
-  if (quantityMatch?.[1] !== undefined) {
-    const digits = quantityMatch[1]
-    const explicit = quantityMatch[2] !== undefined
-    // A four-digit run with no `x` is a card name (`1996 World Champion`), not
-    // a quantity anybody wrote.
-    if (explicit || digits.length <= 3) {
-      const value = Number.parseInt(digits, 10)
-      if (value === 0) {
-        return failToken(type, line, {
-          code: 'bad-quantity',
-          kind: 'quantity',
-          token: `${digits}${quantityMatch[2] ?? ''}`,
-          column: start,
-          detail: lineText('zero-quantity'),
-        })
-      }
-      quantityToken = {
+  // What counts as a quantity — and when a digit run is the start of a card
+  // name instead (`1996 World Champion`) — is `card-line-quantity.ts`'s call,
+  // shared with the writer; this only gates what it read.
+  const read = readQuantityToken(line.slice(start))
+  if (read) {
+    if (!isWritableQuantity(read.value)) {
+      return failToken(type, line, {
+        code: 'bad-quantity',
         kind: 'quantity',
-        text: `${digits}${quantityMatch[2] ?? ''}`,
+        token: read.text,
         column: start,
-        body: digits,
-      }
-      quantity = value
-      start += quantityMatch[0].length
-      // A flat list holds one line per copy, so a pasted quantity is read and
-      // then written out as N lines. An advisory, not a warning: nothing is
-      // lost, so it must not trip the whole-file-rewrite gates.
-      if (type !== 'deck' && quantity > 1) {
-        advisories.push({
-          severity: 'advisory',
-          kind: 'quantity-expanded',
-          token: quantityMatch[0].trim(),
-          detail:
-            type === 'wanted'
-              ? lineText('quantity-expanded-wanted', { count: quantity })
-              : lineText('quantity-expanded-collection', { count: quantity }),
-        })
-      }
+        detail:
+          read.value === 0
+            ? lineText('zero-quantity')
+            : lineText('quantity-too-large', { token: read.text }),
+      })
+    }
+    quantityToken = { kind: 'quantity', text: read.text, column: start, body: String(read.value) }
+    quantity = read.value
+    start += read.length
+    // A flat list holds one line per copy, so a pasted quantity is read and
+    // then written out as N lines. An advisory, not a warning: nothing is
+    // lost, so it must not trip the whole-file-rewrite gates.
+    if (type !== 'deck' && quantity > 1) {
+      advisories.push({
+        severity: 'advisory',
+        kind: 'quantity-expanded',
+        token: read.text,
+        detail:
+          type === 'wanted'
+            ? lineText('quantity-expanded-wanted', { count: quantity })
+            : lineText('quantity-expanded-collection', { count: quantity }),
+      })
     }
   }
 
@@ -1086,6 +1083,28 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           detail: lineText('suspect-printing-in-name', { line: line.trim() }),
         })
       }
+    }
+  }
+
+  // A deck line led by a digit run too long to be a bare quantity, with no
+  // quantity before it: `- 1234 Sol Ring`. The writer never produces that for a
+  // real digit-led card (it writes `- 1 1996 World Champion`), so the line was
+  // either hand-written or left by an older writer that spelled 1,000+ copies
+  // bare. It reads as one copy of the whole name — said out loud, never
+  // silently rewritten, since a card may really be named that way.
+  if (type === 'deck' && quantityToken === undefined) {
+    const unmarked = readUnmarkedQuantity(name)
+    if (unmarked) {
+      advisories.push({
+        severity: 'advisory',
+        kind: 'suspect-quantity-in-name',
+        token: unmarked.text,
+        detail: lineText('suspect-quantity-in-name', {
+          name,
+          count: unmarked.value,
+          fix: `${formatQuantityToken(unmarked.value)} ${name.slice(unmarked.length)}`,
+        }),
+      })
     }
   }
 

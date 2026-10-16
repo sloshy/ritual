@@ -78,6 +78,32 @@ describe('import text file skipped-line reporting (Integration)', () => {
 })
 
 /**
+ * A quantity past three digits end to end: imported, written `x`-marked (a bare
+ * four-digit run would read back as part of the card's name), and read back by
+ * the next command as that many copies. The round trip itself is pinned in
+ * test/unit/card-line-quantity.test.ts; this covers the import and reload path.
+ */
+describe('import a deck card with 1,000+ copies (Integration)', () => {
+  test('the file keeps the quantity and the next load reads it back', async () => {
+    await withWorkspace(async (dir) => {
+      const source = path.join(dir, 'lands.txt')
+      await fs.writeFile(source, '1234x Island (LEA:288)\n999 Mountain\n')
+
+      const imported = await runCli(['import', source, '--type', 'deck', '--no-input'], dir)
+
+      expect(imported.exitCode).toBe(0)
+      const deck = await fs.readFile(path.join(dir, 'decks', 'lands.md'), 'utf-8')
+      expect(deck).toContain('- 1234x Island (LEA:288) &1\n- 999 Mountain &2\n')
+
+      const reloaded = await runCli(['export', 'deck:lands', '--format', 'text', '--quiet'], dir)
+
+      expect(reloaded.exitCode).toBe(0)
+      expect(reloaded.stdout.trim()).toBe('1234x Island (LEA:288)\n999 Mountain')
+    })
+  })
+})
+
+/**
  * The Arena/MTGO dialect end to end: the CLI opts the parser in, so the file
  * lands with real printings and sections. (The dialect grammar itself is pinned
  * in test/unit; this covers the wiring, the file content, and the advisory

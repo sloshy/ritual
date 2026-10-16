@@ -9,8 +9,16 @@
  * here, beside the parse results it reads.
  */
 
-import type { ParseNotice } from './line-diagnostics'
-import { nestSync, syncList, syncMessage, type SyncMessage, type SyncText } from '../sync/message'
+import type { AdvisoryNotice, ParseNotice } from './line-diagnostics'
+import {
+  isNonEmpty,
+  joinSyncMessages,
+  nestSync,
+  syncList,
+  syncMessage,
+  type SyncMessage,
+  type SyncText,
+} from '../sync/message'
 
 /**
  * The shape every list parse result exposes for the "would a whole-file
@@ -39,8 +47,9 @@ function fencedContentMessage(fencedLines: number): SyncMessage {
 
 /**
  * Everything a whole-file re-serialize would delete from a parsed list file,
- * as English text: the parser's skipped lines, plus a single line accounting
- * for fenced code blocks.
+ * as English text: the parser's skipped lines, the lines it read but would
+ * re-emit with a different meaning ({@link isRewriteHold}), plus a
+ * single line accounting for fenced code blocks.
  *
  * Fenced content is prose to the parsers — it produces no per-line warnings, is
  * never a mutation target, and survives every line-preserving edit untouched.
@@ -64,36 +73,127 @@ export function unreadableLines(parsed: ParsedListContent): string[] {
  * has one), for a report that renders each in its reader's language.
  */
 export function unreadableMessages(parsed: ParsedListContent): SyncMessage[] {
-  const messages = parseWarningMessages(parsed)
+  const messages = rewriteBlockingMessages(parsed)
   if (parsed.fencedLines > 0) messages.push(fencedContentMessage(parsed.fencedLines))
   return messages
 }
 
+/** A hold: a line the parser read, but a rewrite would re-emit with a different meaning. */
+export type RewriteHoldNotice = AdvisoryNotice & { blocksRewrite: true }
+
 /**
- * The lines a parse could not read, as messages — {@link unreadableMessages}
- * without the fenced-block entry, for a reader that wants the parser's own
- * warnings only.
+ * Whether a notice is a hold ({@link AdvisoryNotice.blocksRewrite}): the card
+ * loads, but no whole-file rewrite may re-emit its line.
  */
-export function parseWarningMessages(parsed: Pick<ParsedListContent, 'notices'>): SyncMessage[] {
-  return parsed.notices
-    .filter((notice) => notice.severity === 'warning')
-    .map((notice) => notice.message)
+export function isRewriteHold(notice: ParseNotice): notice is RewriteHoldNotice {
+  return notice.severity === 'advisory' && notice.blocksRewrite === true
 }
 
-/** The advisories of a parse, as messages. */
+/**
+ * Whether a notice stops a whole-file rewrite: a line the parser could not
+ * read, or a {@link isRewriteHold hold}.
+ */
+function stopsRewrite(notice: ParseNotice): boolean {
+  return notice.severity === 'warning' || isRewriteHold(notice)
+}
+
+/**
+ * The lines a whole-file rewrite would lose or change, as messages —
+ * {@link unreadableMessages} without the fenced-block entry, for a reader that
+ * wants the parser's own per-line notices only.
+ */
+export function rewriteBlockingMessages(parsed: Pick<ParsedListContent, 'notices'>): SyncMessage[] {
+  return parsed.notices.filter(stopsRewrite).map((notice) => notice.message)
+}
+
+/**
+ * The {@link isRewriteHold holds} of a parse — the subset of
+ * {@link rewriteBlockingMessages} that loads as cards.
+ */
+export function rewriteHoldMessages(parsed: Pick<ParsedListContent, 'notices'>): SyncMessage[] {
+  return parsed.notices.filter(isRewriteHold).map((notice) => notice.message)
+}
+
+/**
+ * The advisories of a parse that leave a rewrite free, as messages. A hold is
+ * reported with the gate's list ({@link unreadableMessages}) instead, so a
+ * report printing both lists names it once.
+ */
 export function advisoryMessages(parsed: Pick<ParsedListContent, 'notices'>): SyncMessage[] {
   return parsed.notices
-    .filter((notice) => notice.severity === 'advisory')
+    .filter((notice) => notice.severity === 'advisory' && !isRewriteHold(notice))
     .map((notice) => notice.message)
 }
 
 /**
- * {@link unreadableMessages} as message params for {@link unreadableContentMessage}:
- * every entry nested unrendered — the parser's warnings and the fenced-block
- * entry alike — so the refusal renders whole in the reader's language.
+ * What a whole-file rewrite would *delete*, as message params for
+ * {@link unreadableContentMessage}: the lines the parser could not read and
+ * the fenced-block entry, each nested unrendered so the refusal renders whole
+ * in the reader's language. Holds are not here — a rewrite would change them,
+ * not delete them, and {@link rewriteHoldMessage} says so.
  */
 export function unreadableProblems(parsed: ParsedListContent): SyncText[] {
-  return unreadableMessages(parsed).map(nestSync)
+  const lost = parsed.notices
+    .filter((notice) => notice.severity === 'warning')
+    .map((notice) => notice.message)
+  if (parsed.fencedLines > 0) lost.push(fencedContentMessage(parsed.fencedLines))
+  return lost.map(nestSync)
+}
+
+/** What a gate holding back a rewrite of a held line was about to do. */
+export type RewriteHoldAction = UnreadableContentAction | 'opening' | 'syncing'
+
+/**
+ * The refusal for a list holding {@link isRewriteHold holds}: the line was
+ * read, nothing would be deleted, but the rewrite would change what it means,
+ * so only the user can settle it.
+ *
+ * @param filePath The list file, named so the fix is obvious.
+ * @param holds The holds' messages ({@link rewriteHoldMessages}); must be non-empty.
+ * @param action What the caller was about to do.
+ */
+export function rewriteHoldMessage(
+  filePath: string,
+  holds: readonly SyncMessage[],
+  action: RewriteHoldAction,
+): SyncMessage {
+  return syncMessage('domain.list.rewriteHold', {
+    action,
+    file: filePath,
+    problems: syncList(holds.map(nestSync), 'clauses'),
+  })
+}
+
+/**
+ * The refusal a list's holds earn, or `undefined` when it has none — for a
+ * surface that tolerates unreadable lines (the CLI editor) but must never
+ * re-emit a held one.
+ */
+export function rewriteHoldRefusal(
+  filePath: string,
+  parsed: Pick<ParsedListContent, 'notices'>,
+  action: RewriteHoldAction,
+): SyncMessage | undefined {
+  const holds = rewriteHoldMessages(parsed)
+  return holds.length > 0 ? rewriteHoldMessage(filePath, holds, action) : undefined
+}
+
+/**
+ * The one refusal every whole-file-rewrite gate gives, or `undefined` when the
+ * rewrite may proceed: what it would delete ({@link unreadableContentMessage}),
+ * what it would change ({@link rewriteHoldMessage}), or both, joined.
+ */
+export function rewriteRefusal(
+  filePath: string,
+  parsed: ParsedListContent,
+  action: UnreadableContentAction,
+): SyncMessage | undefined {
+  const lost = unreadableProblems(parsed)
+  const refusals: SyncMessage[] = []
+  if (lost.length > 0) refusals.push(unreadableContentMessage(filePath, lost, action))
+  const held = rewriteHoldRefusal(filePath, parsed, action)
+  if (held) refusals.push(held)
+  return isNonEmpty(refusals) ? joinSyncMessages(refusals) : undefined
 }
 
 /**
