@@ -30,11 +30,15 @@ import {
   parseCardCategoriesInput,
   type CardCategory,
 } from '../card/card-categories'
+import { CARD_LANGUAGES, normalizeLanguageValue, type CardLanguage } from '../card/card-language'
 import {
-  invalidLanguageMessage,
-  normalizeLanguageValue,
-  type CardLanguage,
-} from '../card/card-language'
+  isSyncMessage,
+  renderSyncMessage,
+  renderSyncParam,
+  syncList,
+  type SyncMessage,
+} from '../sync/message'
+import type { NotAMessage } from '../api/result'
 import type { ListType } from '../list/list-type'
 import { VALID_PRICE_SOURCES, type PriceSource } from '../pricing/price-source'
 import { listTypeFromFlags, type ListTypeFlags } from '../list/resolve-list'
@@ -67,14 +71,25 @@ export function parseEnumFlag<T extends string>(
 }
 
 /**
- * Adapt an engine parser — the value, or an error message — into a commander
- * argParser, so a flag refuses exactly what the engine's parser refuses, with
- * the engine's own wording (exit `2` via commander's invalid-argument path).
+ * `never` when a member of `T` is a string — {@link parsedFlag} reads a string
+ * as a plain-text refusal, so a parser whose value is a string cannot use it.
  */
-export function parsedFlag<T>(parse: (raw: string) => T | string): (value: string) => T {
+type NotAString<T> = [Extract<T, string>] extends [never] ? unknown : never
+
+/**
+ * Adapt an engine parser — the value, or its refusal — into a commander
+ * argParser, so a flag refuses exactly what the engine's parser refuses, with
+ * the engine's own wording (exit `2` via commander's invalid-argument path). A
+ * refusal is text already worded, or a message (English plus its key) worded
+ * here in the CLI's language.
+ */
+export function parsedFlag<T extends NotAMessage<T> & NotAString<T>>(
+  parse: (raw: string) => T | string | SyncMessage,
+): (value: string) => T {
   return (value) => {
     const parsed = parse(value)
     if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
+    if (isSyncMessage(parsed)) throw new InvalidArgumentError(renderSyncMessage(parsed))
     return parsed
   }
 }
@@ -319,7 +334,7 @@ export function parseFinishFlag(value: string): Finish {
 export function parseSetFlag(value: string): string {
   const result = parseSetCode(value)
   if (!result.ok) {
-    throw new InvalidArgumentError(result.error)
+    throw new InvalidArgumentError(renderSyncMessage(result.error))
   }
   return result.code
 }
@@ -391,7 +406,7 @@ export function tagsFlagParser(flag: string): TagsFlagParser {
     const parsed = parseCardTagsInput(value)
     if (!parsed.ok) {
       throw new InvalidArgumentError(
-        t('cli.cardOps.tagFlagInvalid', { flag, reason: parsed.message }),
+        t('cli.cardOps.tagFlagInvalid', { flag, reason: renderSyncMessage(parsed.error) }),
       )
     }
     if (parsed.tags.length === 0) {
@@ -430,7 +445,10 @@ export function categoriesFlagParser(flag: string): CategoriesFlagParser {
     const parsed = parseCardCategoriesInput(value)
     if (!parsed.ok) {
       throw new InvalidArgumentError(
-        t('cli.cardOps.categoriesFlagInvalid', { flag, reason: parsed.message }),
+        t('cli.cardOps.categoriesFlagInvalid', {
+          flag,
+          reason: renderSyncMessage(parsed.error),
+        }),
       )
     }
     if (parsed.categories.length === 0) {
@@ -441,18 +459,32 @@ export function categoriesFlagParser(flag: string): CategoriesFlagParser {
 }
 
 /**
- * Parse a `--language` flag value: a Scryfall language code or one of the
- * usual aliases (e.g. `jp`), refused via {@link invalidLanguageMessage}.
- * `hint` is an extra clause appended to the `for --language` context
- * (`set-card` passes `(en clears the token)`). Wrap in an arrow when handing
- * to Commander — an argParser's second argument is the previous value, which
- * must not land here as the hint.
+ * Which `--language` refusal a command words: the plain one, or `set-card`'s,
+ * which adds that `en` clears the token.
  */
-export function parseLanguageFlag(value: string, hint?: string): CardLanguage {
+export type LanguageFlagContext = 'add' | 'set'
+
+/**
+ * Parse a `--language` flag value: a Scryfall language code or one of the
+ * usual aliases (e.g. `jp`), refused in the CLI's language. `context` picks
+ * the refusal's wording (`set` adds that `en` clears the token). Wrap in an
+ * arrow when handing to Commander — an argParser's second argument is the
+ * previous value, which must not land here as the context.
+ */
+export function parseLanguageFlag(
+  value: string,
+  context: LanguageFlagContext = 'add',
+): CardLanguage {
   const result = normalizeLanguageValue(value)
   if (result === null) {
+    const params = {
+      value: JSON.stringify(value),
+      languages: renderSyncParam(syncList(CARD_LANGUAGES, 'unit')),
+    }
     throw new InvalidArgumentError(
-      invalidLanguageMessage(value, hint ? `for --language ${hint}` : 'for --language'),
+      context === 'set'
+        ? t('cli.setCard.languageFlagInvalid', params)
+        : t('cli.cardOps.languageFlagInvalid', params),
     )
   }
   return result

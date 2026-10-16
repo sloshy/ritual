@@ -1,4 +1,4 @@
-import { unreadableLines } from '../../list/unreadable-content'
+import { unreadableMessages } from '../../list/unreadable-content'
 import { parseCollectionFile } from '../../list/collection-file'
 import { readListDescription } from '../../list/list-description'
 import { readListImage } from '../../list/list-image'
@@ -33,7 +33,7 @@ const COLLECTION_LOAD_CFG: FlatListLoadConfig<CollectionEntry> = {
       description: readListDescription(frontMatter?.data ?? {}).description,
       image: readListImage(frontMatter?.data ?? {}).image,
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
-      warnings: unreadableLines(parsed),
+      warnings: unreadableMessages(parsed),
     }
   },
 }

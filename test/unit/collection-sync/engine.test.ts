@@ -77,13 +77,14 @@ type FakeStore = CollectionListStore & {
 
 function fakeStore(lists: FakeListInput[], failApplyFor?: string): FakeStore {
   const entriesByList = new Map<string, CollectionEntry[]>()
-  const warningsByList = new Map<string, string[]>()
+  const warningsByList = new Map<string, SyncMessage[]>()
   const advisoriesByList = new Map<string, SyncMessage[]>()
   const order: string[] = []
   for (const list of lists) {
     order.push(list.name)
     entriesByList.set(list.name, list.entries ?? [])
-    warningsByList.set(list.name, list.warnings ?? [])
+    // Fixture text with no catalog entry, carried as it is.
+    warningsByList.set(list.name, (list.warnings ?? []).map(syncText))
     advisoriesByList.set(list.name, list.advisories ?? [])
   }
 

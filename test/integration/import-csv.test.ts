@@ -9,6 +9,7 @@ import {
   foreignLocales,
   loadSyntheticLocale,
   pseudoCatalog,
+  withGuardedLocaleAsync,
   withSyntheticLocaleAsync,
 } from '../helpers/sync-text'
 import { registerBakedLocales, resetI18nRuntime } from '../../src/i18n/runtime'
@@ -230,6 +231,36 @@ describe('admin import-csv handler (Integration)', () => {
         card: 'Sol Ring',
       },
     })
+  })
+
+  test('a refused tags cell fails its row in English plus keys, the tag rule nested', async () => {
+    const { data } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      importCsv({
+        listType: 'wanted',
+        name: 'Tagged',
+        content: ['Name,Tags', 'Sol Ring,Ramp', 'Arcane Signet,R&D'].join('\n'),
+        columns: 'name=1,tags=2',
+      }),
+    )
+    expect(data.cardCount).toBe(1)
+    expect(data.failures).toEqual([
+      {
+        lineNumber: 3,
+        raw: 'Arcane Signet,R&D',
+        reason:
+          "Invalid tag \"R&D\": a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses.",
+        reasonKey: 'domain.card.tag.invalid',
+        reasonParams: { value: '"R&D"', rule: { messageKey: 'domain.card.tag.shapeRule' } },
+      },
+    ])
+    const [failure] = data.failures
+    expect(
+      keyedMessage({
+        message: failure!.reason,
+        messageKey: failure!.reasonKey,
+        messageParams: failure!.reasonParams,
+      }),
+    ).toBe(failure!.reason)
   })
 
   test('a request whose every row fails is a 200 carrying the per-row report', async () => {

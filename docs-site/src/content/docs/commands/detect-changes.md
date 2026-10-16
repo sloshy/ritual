@@ -231,7 +231,17 @@ The changelogs are still updated (or previewed under `--dry-run`) exactly as in 
       "kind": "parse",
       "file": "decks/New Name.md",
       "revision": "working-tree",
-      "message": "decks/New Name.md: Skipped malformed line: Sideboard plan: bring in Pyroblast"
+      "message": "decks/New Name.md: Skipped malformed line: Sideboard plan: bring in Pyroblast",
+      "messageKey": "cli.detectChanges.parseWarning",
+      "messageParams": {
+        "revision": "working-tree",
+        "path": "decks/New Name.md",
+        "commit": "HEAD~1",
+        "detail": {
+          "messageKey": "domain.import.text.malformedLine",
+          "messageParams": { "line": "Sideboard plan: bring in Pyroblast" }
+        }
+      }
     }
   ]
 }
@@ -241,9 +251,9 @@ The changelogs are still updated (or previewed under `--dry-run`) exactly as in 
 - `changelogsUpdated`: the number of list files whose changelog was (or, under `--dry-run`, would be) updated.
 - `renames`: old path → new path for renamed list files.
 - `results`: one entry per changed list file: its `kind` (`deck`, `collection`, or `wanted`), git `status` (`A`, `M`, `D`, or `R`), whether it was skipped as `ritualClean` (see [Hash-aware detection](#hash-aware-detection)), and the detected change events.
-- `warnings`: everything the run noticed but did not stop for. Each carries a `kind`:
-  - `missing-file`: the file changed in the range but is gone from the working tree, so it was skipped. The run is partial, so this (and only this) makes the exit code `1`.
-  - `parse`: a line the parser could not read, with `revision` saying whether it was in the `working-tree` or the `committed` copy. The rest of the file is still diffed and the exit code stays `0`. That line gets no changelog entry.
+- `warnings`: everything the run noticed but did not stop for. Each is a message — the English `message` plus `messageKey` and `messageParams` (match on the key, never the prose; text mode prints it in the CLI's language) — and carries a `kind`:
+  - `missing-file` (`cli.detectChanges.missingFile`): the file changed in the range but is gone from the working tree, so it was skipped. The run is partial, so this (and only this) makes the exit code `1`.
+  - `parse` (`cli.detectChanges.parseWarning`): a line the parser could not read, with `revision` saying whether it was in the `working-tree` or the `committed` copy. The parser's own warning nests as `detail` (a card-line diagnostic is `domain.card.line.atLine`, its diagnostic nested as `text`). The rest of the file is still diffed and the exit code stays `0`. That line gets no changelog entry.
 
 ### `--hash-only`
 

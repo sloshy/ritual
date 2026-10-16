@@ -90,7 +90,7 @@ With `--output json` (or `ndjson`), the text report is replaced by a single payl
         {
           "message": "Skipped malformed line: this is not a card line",
           "messageKey": "domain.import.text.malformedLine",
-          "messageParams": { "line": "this is not a card line", "hint": "" }
+          "messageParams": { "line": "this is not a card line" }
         },
         {
           "message": "not rewritten: fix the lines above and rerun cleanup",
@@ -108,7 +108,7 @@ With `--output json` (or `ndjson`), the text report is replaced by a single payl
       "file": "collections/Bad.md",
       "message": "Skipped malformed line: this is not a card line",
       "messageKey": "domain.import.text.malformedLine",
-      "messageParams": { "line": "this is not a card line", "hint": "" }
+      "messageParams": { "line": "this is not a card line" }
     },
     {
       "file": "collections/Bad.md",
@@ -124,7 +124,7 @@ With `--output json` (or `ndjson`), the text report is replaced by a single payl
 }
 ```
 
-Each warning is a message: `message` is English whatever the CLI's language, with `messageKey` and `messageParams` beside it when Ritual words it (a card line the grammar refused carries no key). Params may nest, as in `import --output json`: a rename refused because the name collides carries the collision as a nested message in `reason`. Match on `messageKey` rather than on `message`. The text report prints the same warnings in the CLI's language.
+Each warning is a message: `message` is English whatever the CLI's language, with `messageKey` and `messageParams` beside it. A card-line grammar refusal is keyed `domain.card.line.atLine` (or `domain.card.line.inFile`), its diagnostic nested as `text` (`domain.card.line.*`). Params may nest, as in `import --output json`: a rename refused because the name collides carries the collision as a nested message in `reason`. Match on `messageKey` rather than on `message`. The text report prints the same warnings in the CLI's language.
 
 ## Exit Codes
 

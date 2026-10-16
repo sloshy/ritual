@@ -34,6 +34,7 @@ import type {
 } from './change-event'
 import { CATEGORY_ACTIONS, CHANGE_ACTIONS, movedCopyOf } from './change-event'
 import { findLineBreak } from '../util/single-line'
+import { nestSync, type SyncMessage } from '../sync/message'
 import {
   locatedProblem,
   partOf,
@@ -124,13 +125,13 @@ export function validateMovedCopyFields(
   let tags: CardTag[] | undefined
   if (obj.tags !== undefined) {
     const parsed = parseCardTagsValue(obj.tags, '"tags"')
-    if (!parsed.ok) return rejected(site, parsed.message)
+    if (!parsed.ok) return rejected(site, parsed.error)
     tags = parsed.tags
   }
   let labels: LabelOverride | undefined
   if (obj.labels !== undefined) {
     const parsed = parseLabelOverrideData(obj.labels, '"labels"')
-    if (!parsed.ok) return rejected(site, parsed.message)
+    if (!parsed.ok) return rejected(site, parsed.error)
     labels = parsed.labels
   }
   if (obj.note !== undefined && typeof obj.note !== 'string') {
@@ -144,9 +145,13 @@ function invalidField(site: ChangeProblemSite, field: ChangeFieldName): ChangePr
   return refuse(locatedProblem('field-invalid', site, { field }))
 }
 
-/** The refusal another module's parser worded (a label, tag or category rule), carried as it came. */
-function rejected(site: ChangeProblemSite, detail: string): ChangeProblemRefusal {
-  return refuse(locatedProblem('field-rejected', site, { detail }))
+/**
+ * The refusal another module's parser raised (a label, tag or category rule),
+ * nested unrendered so the surface showing the problem words it, rule and all,
+ * in its reader's language.
+ */
+function rejected(site: ChangeProblemSite, detail: SyncMessage): ChangeProblemRefusal {
+  return refuse(locatedProblem('field-rejected', site, { detail: nestSync(detail) }))
 }
 
 /**
@@ -435,7 +440,7 @@ export function decodeChangeEvent(
     ((action === 'add' || action === 'remove') && obj.labels !== undefined)
   ) {
     const labels = parseLabelOverrideData(obj.labels, 'labels')
-    if (!labels.ok) return rejected(site, labels.message)
+    if (!labels.ok) return rejected(site, labels.error)
     if (opts.listType !== undefined) {
       const check = checkLabelsForListType(opts.listType, labels.labels)
       if (!check.ok) {
@@ -468,13 +473,13 @@ export function decodeChangeEvent(
   if (obj.tag !== undefined) {
     if (typeof obj.tag !== 'string') return invalidField(site, 'tag')
     const tag = parseCardTag(obj.tag)
-    if (!tag.ok) return rejected(site, tag.message)
+    if (!tag.ok) return rejected(site, tag.error)
     normalized = { ...normalized, tag: tag.tag }
   }
   // (A move's `tags` were validated with the rest of its payload above.)
   if (obj.tags !== undefined && action !== 'move-from' && action !== 'move-to') {
     const tags = parseCardTagsValue(obj.tags, 'tags')
-    if (!tags.ok) return rejected(site, tags.message)
+    if (!tags.ok) return rejected(site, tags.error)
     // An empty set is no set: the stored form is absent (`normalizedTags`), so
     // a decoded add never carries a `[]` the serializers would have to fold.
     const { tags: _dropped, ...withoutTags } = normalized
@@ -486,12 +491,12 @@ export function decodeChangeEvent(
   // card's primary category.
   if (obj.categories !== undefined) {
     const categories = parseCardCategoriesValue(obj.categories, '"categories"')
-    if (!categories.ok) return rejected(site, categories.message)
+    if (!categories.ok) return rejected(site, categories.error)
     normalized = { ...normalized, categories: categories.categories }
   }
   if (obj.order !== undefined) {
     const order = parseCardCategoriesValue(obj.order, '"order"')
-    if (!order.ok) return rejected(site, order.message)
+    if (!order.ok) return rejected(site, order.error)
     normalized = { ...normalized, order: order.categories }
   }
   for (const field of ['category', 'newCategory'] as const) {
@@ -499,7 +504,7 @@ export function decodeChangeEvent(
     if (value === undefined) continue
     if (typeof value !== 'string') return invalidField(site, field)
     const parsed = parseCardCategory(value)
-    if (!parsed.ok) return rejected(site, parsed.message)
+    if (!parsed.ok) return rejected(site, parsed.error)
     normalized = { ...normalized, [field]: parsed.category }
   }
   // Every field a variant requires has been checked above (envelope, the

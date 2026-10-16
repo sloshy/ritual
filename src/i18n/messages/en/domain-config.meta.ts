@@ -63,6 +63,12 @@ export const domainConfigMeta = {
   'domain.config.defaultLanguage': {
     description: `${SETTINGS_FILE} The "defaultLanguage" setting (the language newly added cards are printed in, e.g. Japanese cards) names no known card language. {value} is the value as given, already in quotes; {languages} is the list of accepted card-language codes ("en", "ja", …), already joined in the reader's language. "defaultLanguage" is the setting's key; never translate it or the codes.`,
   },
+  'domain.config.defaultCategoriesNotArray': {
+    description: `${SETTINGS_FILE} The "defaultCategories" setting — the card categories (a card's role in a deck, like "Ramp") the program suggests — is not a JSON array of names. "defaultCategories" is the setting's key; never translate it. Shown on its own, and also after a prefix.`,
+  },
+  'domain.config.defaultCategoriesNotText': {
+    description: `${SETTINGS_FILE} An entry of the "defaultCategories" setting — the card categories (a card's role in a deck, like "Ramp") the program suggests — is not text. {value} is that entry as JSON; leave it as it is. "defaultCategories" is the setting's key; never translate it.`,
+  },
   'domain.config.section': {
     description: `${SETTINGS_FILE} The name of one block of settings, shown as the subject of a warning ("ignoring invalid admin config"). {section} is the block's key in the file ("admin", "site", "managed", "collectionSync"); never translate it.`,
   },

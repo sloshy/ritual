@@ -19,7 +19,6 @@ import {
   syncMessage,
   SyncMessageError,
   syncRef,
-  syncText,
   type PrefixedMessage,
   type SyncMessage,
 } from '../sync/message'
@@ -340,31 +339,37 @@ function squash(value: string): string {
 export type NormalizedField<T> =
   { ok: true; value: T | undefined } | { ok: false; error: SyncMessage }
 
-const CONDITION_ALIASES: Record<string, Condition> = {
-  nm: 'NM',
-  n: 'NM',
-  m: 'NM',
-  mint: 'NM',
-  nearmint: 'NM',
-  lp: 'LP',
-  l: 'LP',
-  lightlyplayed: 'LP',
-  lightplayed: 'LP',
-  slightlyplayed: 'LP',
-  sp: 'LP',
-  mp: 'MP',
-  moderatelyplayed: 'MP',
-  played: 'MP',
-  pl: 'MP',
-  hp: 'HP',
-  h: 'HP',
-  heavilyplayed: 'HP',
-  heavyplayed: 'HP',
-  dmg: 'DMG',
-  d: 'DMG',
-  damaged: 'DMG',
-  poor: 'DMG',
-}
+/**
+ * Every spelling a condition cell may use, squashed (lowercase, no spaces or
+ * dashes). A `Map`, not an object literal: the key is untrusted cell text, and
+ * an object would answer `constructor` or `toString` from its prototype — a
+ * cell reading `constructor` would import as a function rather than be refused.
+ */
+const CONDITION_ALIASES: ReadonlyMap<string, Condition> = new Map<string, Condition>([
+  ['nm', 'NM'],
+  ['n', 'NM'],
+  ['m', 'NM'],
+  ['mint', 'NM'],
+  ['nearmint', 'NM'],
+  ['lp', 'LP'],
+  ['l', 'LP'],
+  ['lightlyplayed', 'LP'],
+  ['lightplayed', 'LP'],
+  ['slightlyplayed', 'LP'],
+  ['sp', 'LP'],
+  ['mp', 'MP'],
+  ['moderatelyplayed', 'MP'],
+  ['played', 'MP'],
+  ['pl', 'MP'],
+  ['hp', 'HP'],
+  ['h', 'HP'],
+  ['heavilyplayed', 'HP'],
+  ['heavyplayed', 'HP'],
+  ['dmg', 'DMG'],
+  ['d', 'DMG'],
+  ['damaged', 'DMG'],
+  ['poor', 'DMG'],
+])
 
 /**
  * Normalize a condition cell. Matches the canonical codes (NM/LP/MP/HP/DMG),
@@ -374,7 +379,7 @@ const CONDITION_ALIASES: Record<string, Condition> = {
 export function normalizeCondition(rawValue: string): NormalizedField<Condition> {
   const key = squash(rawValue)
   if (key === '') return { ok: true, value: undefined }
-  const condition = CONDITION_ALIASES[key]
+  const condition = CONDITION_ALIASES.get(key)
   if (condition === undefined) {
     return {
       ok: false,
@@ -384,23 +389,27 @@ export function normalizeCondition(rawValue: string): NormalizedField<Condition>
   return { ok: true, value: condition }
 }
 
-const FINISH_ALIASES: Record<string, Finish> = {
-  foil: 'foil',
-  f: 'foil',
-  yes: 'foil',
-  true: 'foil',
-  '1': 'foil',
-  etched: 'etched',
-  e: 'etched',
-  etchedfoil: 'etched',
-  foiletched: 'etched',
-  nonfoil: 'nonfoil',
-  normal: 'nonfoil',
-  regular: 'nonfoil',
-  no: 'nonfoil',
-  false: 'nonfoil',
-  '0': 'nonfoil',
-}
+/**
+ * Every spelling a finish cell may use, squashed like {@link CONDITION_ALIASES}
+ * and a `Map` for the same reason.
+ */
+const FINISH_ALIASES: ReadonlyMap<string, Finish> = new Map<string, Finish>([
+  ['foil', 'foil'],
+  ['f', 'foil'],
+  ['yes', 'foil'],
+  ['true', 'foil'],
+  ['1', 'foil'],
+  ['etched', 'etched'],
+  ['e', 'etched'],
+  ['etchedfoil', 'etched'],
+  ['foiletched', 'etched'],
+  ['nonfoil', 'nonfoil'],
+  ['normal', 'nonfoil'],
+  ['regular', 'nonfoil'],
+  ['no', 'nonfoil'],
+  ['false', 'nonfoil'],
+  ['0', 'nonfoil'],
+])
 
 /**
  * Normalize a tags cell. Read with the typed-input grammar (`Ramp, Card Draw`)
@@ -410,8 +419,7 @@ const FINISH_ALIASES: Record<string, Finish> = {
  */
 export function normalizeTags(rawValue: string): NormalizedField<CardTag[]> {
   const parsed = parseCardTagsInput(rawValue)
-  // The tag grammar words its own refusal (`src/card/card-tags.ts`), carried as it is.
-  if (!parsed.ok) return { ok: false, error: syncText(parsed.message) }
+  if (!parsed.ok) return { ok: false, error: parsed.error }
   return { ok: true, value: normalizedTags(parsed.tags) }
 }
 
@@ -424,7 +432,7 @@ export function normalizeTags(rawValue: string): NormalizedField<CardTag[]> {
 export function normalizeFinish(rawValue: string): NormalizedField<Finish> {
   const key = squash(rawValue)
   if (key === '') return { ok: true, value: undefined }
-  const finish = FINISH_ALIASES[key]
+  const finish = FINISH_ALIASES.get(key)
   if (finish === undefined) {
     return { ok: false, error: syncMessage('domain.import.csv.unknownFinish', { value: rawValue }) }
   }
@@ -455,20 +463,24 @@ export function normalizeLanguage(rawValue: string): NormalizedField<CardLanguag
   return { ok: true, value: storedLanguage(language) }
 }
 
-const DECK_SECTION_ALIASES: Record<string, string> = {
-  main: 'Main',
-  mainboard: 'Main',
-  maindeck: 'Main',
-  deck: 'Main',
-  side: 'Sideboard',
-  sideboard: 'Sideboard',
-  sb: 'Sideboard',
-  maybe: 'Maybeboard',
-  maybeboard: 'Maybeboard',
-  commander: 'Commander',
-  command: 'Commander',
-  commandzone: 'Commander',
-}
+/**
+ * The board names a CSV cell may use, squashed. A `Map` for the same reason as
+ * {@link CONDITION_ALIASES}: a cell reading `constructor` must name no board.
+ */
+const DECK_SECTION_ALIASES: ReadonlyMap<string, string> = new Map([
+  ['main', 'Main'],
+  ['mainboard', 'Main'],
+  ['maindeck', 'Main'],
+  ['deck', 'Main'],
+  ['side', 'Sideboard'],
+  ['sideboard', 'Sideboard'],
+  ['sb', 'Sideboard'],
+  ['maybe', 'Maybeboard'],
+  ['maybeboard', 'Maybeboard'],
+  ['commander', 'Commander'],
+  ['command', 'Commander'],
+  ['commandzone', 'Commander'],
+])
 
 /**
  * The section a category cell's value names, or `undefined` when it is an
@@ -479,7 +491,7 @@ const DECK_SECTION_ALIASES: Record<string, string> = {
  * `companion`, `oathbreaker`, `signature spell` and `command zone`.
  */
 function categoryCellBoardSection(rawValue: string): string | undefined {
-  const board = DECK_SECTION_ALIASES[squash(rawValue)]
+  const board = DECK_SECTION_ALIASES.get(squash(rawValue))
   if (board !== undefined) return board
   const role = sectionRole(rawValue)
   return role === 'main' ? undefined : canonicalSectionName(role)
@@ -547,7 +559,7 @@ export function normalizeSection(rawValue: string, listType: ListType): string {
   const trimmed = rawValue.trim()
   if (trimmed === '') return DEFAULT_SECTION
   if (listType === 'deck') {
-    const board = DECK_SECTION_ALIASES[squash(trimmed)]
+    const board = DECK_SECTION_ALIASES.get(squash(trimmed))
     if (board !== undefined) return board
   }
   return trimmed

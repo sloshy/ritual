@@ -124,16 +124,27 @@ export function plainMessage(text: string): ApiMessage {
 }
 
 /**
- * The constraint for a parsed value that must be told apart from an
- * {@link ApiMessage} refusal: `unknown` (no constraint) when no member of `T`
- * declares `message`, `never` (no `T` fits) when one does — a union is checked
- * member by member. Written `T extends NotAMessage<T>`,
- * it turns the convention {@link isApiMessage} rests on into a compile error.
+ * The constraint for a parsed value that must be told apart from a message
+ * refusal: `unknown` (no constraint) when no member of `T` declares `message`,
+ * `never` (no `T` fits) when one does — a union is checked member by member.
+ * Written `T extends NotAMessage<T>`, it turns the convention
+ * {@link isApiMessage} and `isSyncMessage` (`src/sync/message.ts`) rest on into
+ * a compile error.
  */
 export type NotAMessage<T> = [MessageBearingMembers<T>] extends [never] ? unknown : never
 
-/** The members of `T` that declare a `message` — distributing over a union. */
-type MessageBearingMembers<T> = T extends unknown ? ('message' extends keyof T ? T : never) : never
+/**
+ * The members of `T` that declare a `message` — distributing over a union. A
+ * string index signature (`Record<string, …>`) declares no particular key, so
+ * it is not read as declaring `message`.
+ */
+type MessageBearingMembers<T> = T extends unknown
+  ? string extends keyof T
+    ? never
+    : 'message' extends keyof T
+      ? T
+      : never
+  : never
 
 /**
  * Whether a value is an {@link ApiMessage} — the discriminant a request parser's

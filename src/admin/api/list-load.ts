@@ -29,6 +29,7 @@ import { foldedCardNameSet } from '../../list/card-names'
 import { isEmptyCardCategoriesRecord } from '../../list/card-categories-sidecar'
 import { apiError } from '../../api/http'
 import { parseSlugFromUrl } from './target'
+import type { SyncMessage } from '../../sync/message'
 
 /**
  * The shared half of `GET /api/{deck,collection,wanted}/:slug`.
@@ -116,10 +117,10 @@ export interface FlatListParseResult<T> {
    */
   image?: ListImageRef
   /**
-   * Lines the parser could not read. Carried through to every load body, so a
-   * list holding an unreadable line no longer loads as merely shorter.
+   * Lines the parser could not read, as messages. Carried through to every load
+   * body, so a list holding an unreadable line no longer loads as merely shorter.
    */
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 /**

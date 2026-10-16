@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { createSyncEventRenderer } from '../../src/commands/sync-render-event'
 import { createScopedIndenter } from '../../src/commands/sync-helpers'
 import type { ScriptingOptions } from '../../src/cli/output'
+import { syncText } from '../../src/sync/message'
 import type { Logger } from '../../src/util/logger'
 import type { SyncDirection, SyncEvent, SyncSubjectKind } from '../../src/sync/common'
 import '../../src/i18n/register/cli'
@@ -70,7 +71,13 @@ function render(
 
 const UNREADABLE: SyncEvent<Result> = {
   kind: 'unreadable-lines',
-  items: [{ name: 'Alpha', file: 'alpha.md', warnings: ['line 3: junk', 'line 9: junk'] }],
+  items: [
+    {
+      name: 'Alpha',
+      file: 'alpha.md',
+      warnings: [syncText('line 3: junk'), syncText('line 9: junk')],
+    },
+  ],
 }
 
 const SOURCE_BLOCK = '  alpha.md ("Alpha"):\n    line 3: junk\n    line 9: junk'

@@ -222,6 +222,11 @@ export const cliSyncMessages = {
   // ── `detect-changes` — git detection ──────────────────────────────────
   'cli.detectChanges.missingFile':
     'skipped {path}: changed in the range but missing from the working tree',
+  'cli.detectChanges.parseWarning': {
+    $select: 'revision',
+    'working-tree': '{path}: {detail}',
+    committed: '{path} at {commit}: {detail}',
+  },
   'cli.detectChanges.wouldRename': 'Would rename: {from} → {to}',
   'cli.detectChanges.renamed': 'Renamed: {from} → {to}',
   'cli.detectChanges.wouldDelete': 'Would delete: {path}',

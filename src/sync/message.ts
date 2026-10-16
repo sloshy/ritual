@@ -191,6 +191,39 @@ export type SyncArgs<K extends MessageKey> = [ParamsOf<K>] extends [never]
   ? []
   : [params: SyncMessageParamsFor<K>]
 
+/**
+ * The codes of a code → key table whose key's placeholders disagree with the
+ * param names the code supplies (`Expected[C]`), or `never` when every code
+ * agrees. For a module that words structured problems through a lookup table
+ * — where `syncRef`'s per-call check cannot reach — to assert, at compile time,
+ * that a placeholder renamed in the catalog or a value added to a code fails
+ * to build rather than rendering a literal `{token}`.
+ */
+export type PlaceholderDrift<
+  C extends string,
+  Keys extends Record<C, MessageKey>,
+  Expected extends Record<C, string>,
+> = {
+  [K in C]: [ParamsOf<Keys[K]>] extends [Expected[K]]
+    ? [Expected[K]] extends [ParamsOf<Keys[K]>]
+      ? never
+      : K
+    : K
+}[C]
+
+/**
+ * The codes whose supplied params (`Given[C]`) are not what their key accepts —
+ * a select's selector one of its branches, a plural's `count` a number — or
+ * `never`. The type half of {@link PlaceholderDrift}.
+ */
+export type ParamTypeDrift<
+  C extends string,
+  Keys extends Record<C, MessageKey>,
+  Given extends Record<C, unknown>,
+> = {
+  [K in C]: Given[K] extends SyncMessageParamsFor<Keys[K]> ? never : K
+}[C]
+
 // ── Builders ──────────────────────────────────────────────────────────
 
 /** A {@link SyncMessageRef}, its params checked against the key's catalog entry. */

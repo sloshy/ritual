@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { createLineDiagnostics } from '../../src/list/line-diagnostics'
 import { parseCardLine, type CardLineDiagnostic } from '../../src/card/card-line-grammar'
 import { syncMessage } from '../../src/sync/message'
+import { keyedMessage } from '../helpers/api-message'
 
 /** The one diagnostic a card line raises (its error, or its only advisory). */
 function diagnosticOf(line: string): CardLineDiagnostic {
@@ -55,9 +56,21 @@ describe('createLineDiagnostics', () => {
           .map((notice) => notice.message.message),
       ).toEqual([...strings])
     }
-    // Keyed where Ritual worded it; the grammar's own text rides keyless.
+    // Every notice is keyed — the grammar's diagnostics included, located at
+    // their line with the diagnostic nested.
     expect(skipped.message.messageKey).toBe('domain.import.text.extraTitle')
-    expect(duplicate?.message.messageKey).toBeUndefined()
+    expect(duplicate?.message).toEqual({
+      message: 'line 7: Duplicate finish token [foil].',
+      messageKey: 'domain.card.line.atLine',
+      messageParams: {
+        line: 7,
+        text: {
+          messageKey: 'domain.card.line.duplicateToken',
+          messageParams: { token: '[foil]', kind: 'finish' },
+        },
+      },
+    })
+    expect(suspect && keyedMessage(suspect.message)).toBe(report.advisories[1])
   })
 
   test('a rewritten export dialect is kept structured only — no string, no notice', () => {

@@ -233,7 +233,7 @@ export const domainSyncMeta = {
       'Why a deck pull is reported as failed even though its cards were written: the card-categories sidecar file could not be saved. {error} is the underlying error message.',
   },
   'domain.sync.categoriesRefused': {
-    description: `${LOG_CONTEXT} Warning: some category names on the Archidekt deck break Ritual's naming rule, so they were not pulled. {count} is how many — in some languages the "one" form also covers other numbers (21, 31…), so keep {count} in every form rather than writing the word for one. {rule} is the rule itself in English (a data-format contract, not translated); {names} is the quoted names, which ${LIST_CONTEXT}`,
+    description: `${LOG_CONTEXT} Warning: some category names on the Archidekt deck break Ritual's naming rule, so they were not pulled. {count} is how many — in some languages the "one" form also covers other numbers (21, 31…), so keep {count} in every form rather than writing the word for one. {rule} is the naming rule itself (domain.card.category.shapeRule), rendered separately; {names} is the quoted names, which ${LIST_CONTEXT}`,
   },
   'domain.sync.noLocalCategories': {
     description: `${LOG_CONTEXT} Warning during a deck push with category syncing on: the local deck has no categories at all, so the push leaves Archidekt's alone rather than wiping them. "--sync-categories" is a literal CLI flag.`,

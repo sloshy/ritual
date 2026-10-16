@@ -14,7 +14,7 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.tagFlagInvalid': {
     description:
-      "Wraps the tag parser's English data-format refusal ({reason}) for a --tag/--untag flag value. {flag} is the literal flag name (never translated).",
+      "Refusal for a malformed --tag/--untag flag value. {reason} is the tag rule's own refusal (domain.card.tag.*), a complete sentence already rendered in the reader's language; {flag} is the literal flag name (never translated).",
   },
   'cli.cardOps.tagFlagEmpty': {
     description:
@@ -22,7 +22,11 @@ export const cliCardsMeta = {
   },
   'cli.cardOps.categoriesFlagInvalid': {
     description:
-      "Refusal for a malformed --categories value. {reason} is the category vocabulary parser's own English sentence; {flag} is the literal flag name and never translates.",
+      "Refusal for a malformed --categories value. {reason} is the category rule's own refusal (domain.card.category.*), a complete sentence already rendered in the reader's language; {flag} is the literal flag name and never translates.",
+  },
+  'cli.cardOps.languageFlagInvalid': {
+    description:
+      'Refusal for a --language value that names no card language. {value} is the value as typed, as JSON (quoted); {languages} is the list of valid language codes, already joined in the reader’s language. --language and the codes are machine vocabulary and never translate.',
   },
   'cli.cardOps.categoriesFlagEmpty': {
     description:
@@ -233,9 +237,9 @@ export const cliCardsMeta = {
     description:
       "Wraps the label parser's refusal with set-card's extra escape hatch. 'none' is a machine value.",
   },
-  'cli.setCard.languageFlagHint': {
+  'cli.setCard.languageFlagInvalid': {
     description:
-      "Parenthetical appended to the --language refusal, reminding that 'en' clears the token. Kept in brackets.",
+      "Refusal for a set-card --language value that names no card language; the parenthesis reminds that 'en' (English) clears the language token. {value} is the value as typed, as JSON (quoted); {languages} is the list of valid language codes, already joined in the reader’s language. --language, 'en' and the codes are machine vocabulary and never translate.",
   },
   'cli.setCard.conditionCleared': {
     description:
@@ -805,7 +809,7 @@ export const cliCardsMeta = {
   },
   'cli.metadata.storedLabelsInvalid': {
     description:
-      "The stored `labels` value failed validation. {reason} is the parser's own sentence.",
+      "The stored `labels` value failed validation. {reason} is the label rule's own refusal (domain.card.label.* or errors.label.*), rendered separately in the reader's language.",
   },
   'cli.metadata.storedDescriptionInvalid': {
     description:
@@ -886,7 +890,7 @@ export const cliCardsMeta = {
   },
   'cli.categories.nameInvalid': {
     description:
-      "Usage refusal for a malformed category name given to the categories command. {reason} is the vocabulary parser's own sentence; the named characters are data-format vocabulary.",
+      "Usage refusal for a malformed category name given to the categories command. {reason} is the category rule's own refusal (domain.card.category.*), rendered separately in the reader's language.",
   },
   'cli.categories.sidecarUnreadable': {
     description:

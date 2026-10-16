@@ -33,7 +33,7 @@ import {
 import { foldRepeatedFaceNames } from '../scryfall/card-utils'
 import { compareData } from '../i18n/collate'
 import { isRecord } from '../util/json'
-import { syncMessage, syncText, type SyncMessage } from '../sync/message'
+import { syncMessage, type SyncMessage } from '../sync/message'
 import { invalidJsonMessage } from './sidecar-message'
 
 /** One card name's categories, in primary-first order, with the spelling the file stores. */
@@ -106,14 +106,6 @@ function refused(message: SyncMessage): CardCategoriesParseFailure {
   return { ok: false, message }
 }
 
-/**
- * A parse failure the category rule (`src/card/card-categories.ts`) worded
- * itself — carried as the text it came with, keyless.
- */
-function refusedByRule(text: string): CardCategoriesParseFailure {
-  return refused(syncText(text))
-}
-
 /** A list with no categories at all. */
 export function emptyCardCategoriesRecord(): CardCategoriesRecord {
   return { order: [], cards: new Map() }
@@ -178,7 +170,7 @@ export function parseCardCategoriesObject(
   let order: CardCategory[] = []
   if (raw.order !== undefined) {
     const parsed: CardCategoriesResult = parseCardCategoriesValue(raw.order, '"order"')
-    if (!parsed.ok) return refusedByRule(parsed.message)
+    if (!parsed.ok) return refused(parsed.error)
     order = parsed.categories
   }
 
@@ -191,7 +183,7 @@ export function parseCardCategoriesObject(
     for (const [name, value] of Object.entries(raw.cards)) {
       if (name.trim() === '') return refused(syncMessage('domain.list.categories.emptyName'))
       const parsed = parseCardCategoriesValue(value, `"${name}"`)
-      if (!parsed.ok) return refusedByRule(parsed.message)
+      if (!parsed.ok) return refused(parsed.error)
       if (parsed.categories.length === 0) {
         return refused(syncMessage('domain.list.categories.noCategories', { name }))
       }

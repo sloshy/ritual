@@ -16,9 +16,9 @@ export function isListType(value: string): value is ListType {
 /**
  * A list type as the lowercase **English** noun the workspace's own text
  * spells it with: the workspace commit messages the admin server writes
- * (`Edit wanted list: …`) and the card-line grammar's English diagnostics. Not
- * display text — a sentence shown to a reader takes {@link listTypeNoun}, its
- * localized form.
+ * (`Edit wanted list: …`). Not display text — a sentence shown to a reader
+ * takes {@link listTypeNoun}, its localized form, and the card-line grammar's
+ * diagnostics are worded from the catalog (`card-line-message.ts`).
  */
 export function workspaceListTypeNoun(type: ListType): string {
   // i18n-exempt: file-format vocabulary spliced into workspace commit messages, English by contract

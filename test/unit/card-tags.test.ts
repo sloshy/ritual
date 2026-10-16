@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { keyedError, keyedMessage, keyedSyncRefusal } from '../helpers/api-message'
 import {
   cardTagsDelta,
   formatCardTags,
@@ -24,7 +25,6 @@ import {
  * the canonical form every writer emits, and the set algebra the editors turn
  * a "set the tags to …" gesture into.
  */
-
 describe('isCardTagShaped', () => {
   test('accepts plain text in any case, with spaces and most punctuation', () => {
     for (const tag of [
@@ -74,10 +74,10 @@ describe('parseCardTag', () => {
   test('refuses a malformed tag with prose that names the offender', () => {
     const result = parseCardTag('a,b')
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.message).toBe(invalidCardTagMessage('a,b'))
+    if (!result.ok) expect(result.error).toEqual(invalidCardTagMessage('a,b'))
     // The sentence itself, pinned once: it names the raw input and the shared
     // shape clause every other surface interpolates.
-    expect(invalidCardTagMessage('a,b')).toBe(
+    expect(keyedMessage(invalidCardTagMessage('a,b'))).toBe(
       `Invalid tag "a,b": a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses.`,
     )
     expect(parseCardTag('').ok).toBe(false)
@@ -113,10 +113,7 @@ describe('parseCardTagsValue', () => {
   })
 
   test('refuses a non-array, a non-string element, and a malformed tag', () => {
-    expect(parseCardTagsValue('ramp', 'tags')).toEqual({
-      ok: false,
-      message: 'tags must be an array of tags.',
-    })
+    expect(keyedError(parseCardTagsValue('ramp', 'tags'))).toBe('tags must be an array of tags.')
     expect(parseCardTagsValue([1], 'tags').ok).toBe(false)
     expect(parseCardTagsValue(['ramp', 'a&b'], 'tags').ok).toBe(false)
   })
@@ -210,14 +207,16 @@ describe('parseTagFilterValues', () => {
   })
 
   test('refuses a malformed tag, an empty list, and a non-string with an error string', () => {
-    expect(parseTagFilterValues(['a#b'])).toContain('Invalid tag "a#b"')
-    expect(parseTagFilterValues([])).toBe('No tags given.')
-    expect(parseTagFilterValues([1])).toBe('tags must be an array of tags.')
+    expect(keyedSyncRefusal(parseTagFilterValues(['a#b']))).toContain('Invalid tag "a#b"')
+    expect(keyedSyncRefusal(parseTagFilterValues([]))).toBe('No tags given.')
+    expect(keyedSyncRefusal(parseTagFilterValues([1]))).toBe('tags must be an array of tags.')
   })
 
   test('a shape refusal names the field the caller passes, non-array included', () => {
-    expect(parseTagFilterValues([1], 'filters.tags')).toBe('filters.tags must be an array of tags.')
-    expect(parseTagFilterValues('ramp', 'filters.tags')).toBe(
+    expect(keyedSyncRefusal(parseTagFilterValues([1], 'filters.tags'))).toBe(
+      'filters.tags must be an array of tags.',
+    )
+    expect(keyedSyncRefusal(parseTagFilterValues('ramp', 'filters.tags'))).toBe(
       'filters.tags must be an array of tags.',
     )
   })
@@ -229,9 +228,9 @@ describe('parseTagFilterInput', () => {
   })
 
   test('refuses a malformed tag and an input naming no tag with an error string', () => {
-    expect(parseTagFilterInput('a#b')).toContain('Invalid tag "a#b"')
-    expect(parseTagFilterInput('')).toBe('No tags given.')
-    expect(parseTagFilterInput(' , ')).toBe('No tags given.')
+    expect(keyedSyncRefusal(parseTagFilterInput('a#b'))).toContain('Invalid tag "a#b"')
+    expect(keyedSyncRefusal(parseTagFilterInput(''))).toBe('No tags given.')
+    expect(keyedSyncRefusal(parseTagFilterInput(' , '))).toBe('No tags given.')
   })
 })
 

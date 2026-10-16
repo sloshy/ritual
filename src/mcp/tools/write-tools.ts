@@ -444,7 +444,7 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'text was not imported; `advisories` reports content that was read but is worth a ' +
         'word (a line that looked off, or an empty Maybeboard/Tokens section the write drops). ' +
         'Each entry of both is a message: English `message`, plus a `messageKey` to match on ' +
-        'when present (text Ritual words outside its catalog has none); a warning whose card ' +
+        'when present; a warning whose card ' +
         'was imported without its labels is marked `labelsDropped: true`. ' +
         'A URL import must state `syncPrintings` — the CLI asks the user interactively, and ' +
         'this call is that decision, so ask the user when their intent is unclear. A URL ' +

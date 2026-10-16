@@ -34,13 +34,15 @@
  *
  * Layer-neutral like its siblings: the sidecar parser, the CLI prompts, the HTTP
  * bodies, the change-event decoder and the site UI ask the same questions and
- * get the same answers. English by construction (its refusal prose states a
- * data-format rule) and browser-safe.
+ * get the same answers. Its refusals are messages — English plus their key —
+ * that each surface sends on or renders in its reader's language; a category
+ * name itself is the owner's data and is never translated. Browser-safe.
  */
 
 // Type-only, so the value-level import cycle (ritual-config parses this
 // module's config key) never materializes at runtime.
-import type { PlainParseError } from '../config/ritual-config'
+import type { ConfigParseError } from '../config/ritual-config'
+import { syncMessage, syncRef, type SyncMessage, type SyncMessageRef } from '../sync/message'
 import { isUnknownArray } from '../util/guards'
 
 /**
@@ -60,12 +62,12 @@ export const CARD_CATEGORY_SEPARATOR = ','
 const CARD_CATEGORY_FORBIDDEN_RE = /[,\p{Cc}]/u
 
 /**
- * The shape rule as a sentence fragment, shared by every surface that refuses a
- * malformed category so the rule is never spelled twice. English by contract: it
- * states a data-format rule.
+ * The shape rule as a clause (`domain.card.category.shapeRule`), shared by every
+ * surface that refuses a malformed category so the rule is never spelled twice.
  */
-export const CARD_CATEGORY_SHAPE_CLAUSE =
-  'a category is non-empty plain text that cannot contain a comma or a control character'
+export function cardCategoryShapeRule(): SyncMessageRef {
+  return syncRef('domain.card.category.shapeRule')
+}
 
 /**
  * The categories a fresh install suggests and orders by — the global vocabulary
@@ -76,7 +78,7 @@ export const DEFAULT_CARD_CATEGORIES = [
   'Ramp',
   'Draw',
   'Removal',
-  'Board Wipes',
+  'Board Wipes', // i18n-exempt: a shipped category value, stored verbatim in sidecars and config like any owner's
   'Counterspells',
   'Tutors',
   'Recursion',
@@ -90,10 +92,12 @@ export const DEFAULT_CARD_CATEGORIES = [
 ] as const satisfies readonly CardCategory[]
 
 /**
- * Why a category or a set of them was refused: prose ready for whichever error
- * channel the caller owns (400 body, sidecar parse failure, bundle validation).
+ * Why a category or a set of them was refused: a message (English plus its key)
+ * for whichever channel the caller owns (400 body, sidecar parse failure,
+ * bundle validation), which sends the English or renders the key in its
+ * reader's language.
  */
-export type CardCategoryError = { ok: false; message: string }
+export type CardCategoryError = { ok: false; error: SyncMessage }
 
 /** The outcome of parsing one category: its canonical form, or why it was refused. */
 export type CardCategoryResult = { ok: true; category: CardCategory } | CardCategoryError
@@ -110,9 +114,12 @@ export function isCardCategoryShaped(value: string): boolean {
   return value.trim() !== '' && !CARD_CATEGORY_FORBIDDEN_RE.test(value)
 }
 
-/** The refusal prose for a value that is not category-shaped, English by contract. */
-export function invalidCardCategoryMessage(raw: string): string {
-  return `Invalid category ${JSON.stringify(raw)}: ${CARD_CATEGORY_SHAPE_CLAUSE}.`
+/** The refusal for a value that is not category-shaped: English plus its key. */
+export function invalidCardCategoryMessage(raw: string): SyncMessage {
+  return syncMessage('domain.card.category.invalid', {
+    value: JSON.stringify(raw),
+    rule: cardCategoryShapeRule(),
+  })
 }
 
 /**
@@ -151,7 +158,7 @@ export function foldCardCategory(category: string): string {
  */
 export function parseCardCategory(raw: string): CardCategoryResult {
   const body = raw.trim()
-  if (!isCardCategoryShaped(body)) return { ok: false, message: invalidCardCategoryMessage(raw) }
+  if (!isCardCategoryShaped(body)) return { ok: false, error: invalidCardCategoryMessage(raw) }
   return { ok: true, category: normalizeCardCategory(body) }
 }
 
@@ -208,12 +215,12 @@ export function parseCardCategoryNames(raw: readonly string[]): LenientCardCateg
  */
 export function parseCardCategoriesValue(raw: unknown, field: string): CardCategoriesResult {
   if (!isUnknownArray(raw)) {
-    return { ok: false, message: `${field} must be an array of categories.` }
+    return { ok: false, error: syncMessage('domain.card.category.notArray', { field }) }
   }
   const categories: CardCategory[] = []
   for (const element of raw) {
     if (typeof element !== 'string') {
-      return { ok: false, message: `${field} must be an array of categories.` }
+      return { ok: false, error: syncMessage('domain.card.category.notArray', { field }) }
     }
     const parsed = parseCardCategory(element)
     if (!parsed.ok) return parsed
@@ -285,22 +292,25 @@ export function foldCategoryCardName(name: string): string {
 /**
  * Parse the `defaultCategories` config key: an array of category-shaped strings,
  * canonical on the way out. Absent means the shipped vocabulary; an explicit
- * empty array means "no suggestions", which is the owner's business.
+ * empty array means "no suggestions", which is the owner's business. A refusal
+ * is the config validator's own shape, English plus its key.
  */
-export function parseDefaultCategories(value: unknown): CardCategory[] | PlainParseError {
+export function parseDefaultCategories(value: unknown): CardCategory[] | ConfigParseError {
   if (value === undefined) return [...DEFAULT_CARD_CATEGORIES]
   if (!isUnknownArray(value)) {
-    return { reason: 'defaultCategories must be an array of category names' }
+    return { error: syncMessage('domain.config.defaultCategoriesNotArray') }
   }
   const categories: CardCategory[] = []
   for (const element of value) {
     if (typeof element !== 'string') {
       return {
-        reason: `defaultCategories must be an array of category names, got ${JSON.stringify(element)}`,
+        error: syncMessage('domain.config.defaultCategoriesNotText', {
+          value: String(JSON.stringify(element)),
+        }),
       }
     }
     const parsed = parseCardCategory(element)
-    if (!parsed.ok) return { reason: parsed.message }
+    if (!parsed.ok) return { error: parsed.error }
     categories.push(parsed.category)
   }
   return normalizeCardCategories(categories)

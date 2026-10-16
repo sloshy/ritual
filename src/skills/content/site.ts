@@ -667,8 +667,10 @@ stable, locale-invariant identifier to match on instead of matching prose. Param
 may nest — a param may itself be a message, a list, a duration (\`elapsedMs\`, or
 \`durationMs\` for an age or a time-out) or a card language: in the \`import_csv\`,
 \`import_deck\` and \`import_change_bundle\` results (a count with its noun — and
-\`import_csv\`/\`import_deck\`'s \`warnings\`/\`advisories\` entries are message
-objects, each \`import_csv\` failure carrying \`reasonKey\`/\`reasonParams\`), in
+\`get_list\`'s \`warnings\`, the sync tools' \`report.unreadable[].warnings\` and
+\`import_csv\`/\`import_deck\`'s
+\`warnings\`/\`advisories\` entries are message objects, a card-line diagnostic
+nested as \`text\`, each \`import_csv\` failure carrying \`reasonKey\`/\`reasonParams\`), in
 the sync tools' per-item \`reasonParams\`, and in their run-level
 \`report.errorMessages[].messageParams\`. Each failed list of
 \`import_change_bundle\` carries \`errorKey\`/\`errorParams\` beside \`error\`. A

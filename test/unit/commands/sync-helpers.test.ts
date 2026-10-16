@@ -10,6 +10,8 @@ import {
 import { MemoryLogger, getLogger, resetLogger, setLogger } from '../../../src/util/logger'
 import { setNoInputOverride } from '../../../src/util/no-input'
 import type { ScriptingOptions } from '../../../src/cli/output'
+import { syncMessage, syncText } from '../../../src/sync/message'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocale } from '../../helpers/sync-text'
 
 /**
  * The CLI plumbing both sync commands share. The gate matrix of
@@ -23,10 +25,32 @@ const LISTS: UnreadableSubject = 'collectionLists'
 const DECKS: UnreadableSubject = 'decks'
 
 function source(name: string, warnings: string[]): UnreadableSource {
-  return { name, file: `${name.toLowerCase().replace(/\s+/g, '-')}.md`, warnings }
+  return {
+    name,
+    file: `${name.toLowerCase().replace(/\s+/g, '-')}.md`,
+    // Fixture text with no catalog entry, carried as it is.
+    warnings: warnings.map(syncText),
+  }
 }
 
 describe('describeUnreadable', () => {
+  test('words each line in the CLI’s language from its key, the line’s own text kept', () => {
+    const keyed: UnreadableSource = {
+      name: 'Winota Stax',
+      file: 'winota-stax.md',
+      warnings: [syncMessage('domain.import.text.malformedLine', { line: '- ???' })],
+    }
+    const english = describeUnreadable([keyed], DECKS, 'Cost:')
+    expect(english).toContain('    Skipped malformed line: - ???')
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const text = describeUnreadable([keyed], DECKS, 'Cost:')
+      expect(text).not.toContain('Skipped malformed line')
+      expect(text).toContain('- ???')
+      expectLocaleInForce(locale)
+    })
+  })
+
   test('agrees the noun and the verb with a single source', () => {
     const text = describeUnreadable([source('Blue Binder', ['Skipped: - ???'])], LISTS, 'Cost:')
     expect(text.split('\n')[0]).toBe('1 collection list contains lines Ritual cannot read.')

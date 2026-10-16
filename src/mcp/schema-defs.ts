@@ -9,7 +9,7 @@ import type { JsonSchemaType } from '@modelcontextprotocol/server'
 import { LIST_TYPES } from '../list/list-type'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABELS, SIGNED_CARD_LABELS } from '../card/card-labels'
-import { CARD_CATEGORY_SHAPE_CLAUSE } from '../card/card-categories'
+import { CARD_CATEGORY_SHAPE_RULE } from './shape-rules'
 import { CARD_LANGUAGES } from '../card/card-language'
 import { UNPRICED_REASONS, type PriceTotals } from '../pricing/price-report'
 import type { ListImportResult } from '../admin/api/import-changes'
@@ -149,7 +149,7 @@ export const CARD_TAG = str(
  * advertised description can never drift from what the input schema refuses.
  */
 export const CARD_CATEGORY = str(
-  `A category name, canonical: ${CARD_CATEGORY_SHAPE_CLAUSE}, in its owner's casing (e.g. "Ramp", "Card Draw").`,
+  `A category name, canonical: ${CARD_CATEGORY_SHAPE_RULE}, in its owner's casing (e.g. "Ramp", "Card Draw").`,
 )
 
 /**

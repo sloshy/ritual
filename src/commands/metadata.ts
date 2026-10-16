@@ -210,11 +210,10 @@ function currentCollectionLabels(data: Record<string, unknown>): CardLabel[] {
   if (data.labels === undefined) return []
   const parsed = parseCardLabelsValue(data.labels, 'labels')
   if (!parsed.ok) {
-    throw localizedCommandError(
+    throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      'cli.metadata.storedLabelsInvalid',
-      { reason: parsed.message },
+      syncMessage('cli.metadata.storedLabelsInvalid', { reason: nestSync(parsed.error) }),
     )
   }
   return parsed.labels

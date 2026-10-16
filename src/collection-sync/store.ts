@@ -12,7 +12,7 @@
 
 import * as fs from 'node:fs/promises'
 import path from 'node:path'
-import { unreadableLines } from '../list/unreadable-content'
+import { unreadableMessages } from '../list/unreadable-content'
 import { errorMessage, syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { createList, isListLifecycleError } from '../list/list-lifecycle'
@@ -46,8 +46,11 @@ export type LoadedCollectionList = {
   /** The file's basename, for pointing the user at what to fix. */
   file: string
   entries: CollectionEntry[]
-  /** One message per line the parser skipped — lines a save would delete. */
-  warnings: string[]
+  /**
+   * One message per line the parser skipped — lines a save would delete —
+   * English plus its key, like {@link advisories}.
+   */
+  warnings: SyncMessage[]
   /**
    * Lines that parsed with something worth saying about them — copies a save
    * will write out as their own lines, a name that still looks like it holds a
@@ -130,7 +133,7 @@ export function createDiskCollectionListStore(): CollectionListStore {
         entries: parsed.entries,
         // Both sync directions re-serialize the whole file, so a fenced code
         // block is as much at risk as a line the parser could not read.
-        warnings: unreadableLines(parsed),
+        warnings: unreadableMessages(parsed),
         advisories: parsed.notices
           .filter((notice) => notice.severity === 'advisory')
           .map((notice) => notice.message),

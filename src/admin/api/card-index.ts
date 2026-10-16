@@ -6,8 +6,9 @@ import type { ListInfo } from '../../list/list-info'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
 import { moveCardKey, type MovePhysicalCard } from '../../card/card-index-types'
 import { isValidListSlug } from './target'
-import { badRequest, errorResponse } from '../../api/http'
-import { apiMessage, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
+import { errorResponse, nestedRefusal } from '../../api/http'
+import { apiMessage } from '../../api/result'
+import { isSyncMessage, type SyncMessage } from '../../sync/message'
 import { parseSetCode } from '../../card/set-codes'
 
 /**
@@ -42,7 +43,7 @@ export type CardIndexFilters = {
  * message explaining why it is not usable. Blank values are treated as absent
  * rather than as "match nothing".
  */
-export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters | ApiMessage {
+export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters | SyncMessage {
   const filters: CardIndexFilters = {}
 
   const name = params.get('name')?.trim()
@@ -78,7 +79,7 @@ export function parseCardIndexFilters(params: URLSearchParams): CardIndexFilters
   // matching nothing.
   if (set) {
     const parsed = parseSetCode(set)
-    if (!parsed.ok) return plainMessage(parsed.error)
+    if (!parsed.ok) return parsed.error
     filters.set = parsed.code
   }
 
@@ -146,7 +147,7 @@ export function filterCardIndex(
 export async function handleCardIndex(req: Request): Promise<Response> {
   try {
     const filters = parseCardIndexFilters(new URL(req.url).searchParams)
-    if (isApiMessage(filters)) return badRequest(filters)
+    if (isSyncMessage(filters)) return nestedRefusal(filters)
 
     const index = await loadCardIndex()
     const body: CardIndexResponse = {

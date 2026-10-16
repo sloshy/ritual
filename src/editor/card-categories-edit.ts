@@ -8,6 +8,7 @@
  */
 
 import { t } from '../i18n/t'
+import { renderSyncMessage } from '../sync/message'
 import { defaultCategories } from '../config/default-categories'
 import { promptCardCategories } from './categories-prompt'
 import {
@@ -62,7 +63,9 @@ export function categoryRenameError(
   currentName?: string,
 ): string | null {
   const parsed = parseCardCategory(name)
-  if (!parsed.ok) return t('ui.editor.categoryInvalid', { reason: parsed.message })
+  if (!parsed.ok) {
+    return t('ui.editor.categoryInvalid', { reason: renderSyncMessage(parsed.error) })
+  }
   const key = foldCardCategory(parsed.category)
   const currentKey = currentName === undefined ? undefined : foldCardCategory(currentName)
   const clash = order.find((existing) => foldCardCategory(existing) === key)

@@ -11,6 +11,9 @@ import {
   type BoundWorkspace,
 } from '../helpers/workspace'
 import { callJson } from './helpers/request'
+import { keyedMessage } from '../helpers/api-message'
+import { pseudoCatalog, withGuardedLocaleAsync } from '../helpers/sync-text'
+import type { SyncMessage } from '../../src/sync/message'
 import { makePrintingIn } from '../test-utils'
 
 /**
@@ -136,11 +139,18 @@ describe('handleExport', () => {
     expect(narrowed.body.content).toContain('Sol Ring')
     expect(narrowed.body.content).not.toContain('Lightning Bolt')
 
-    const malformed = await post({ filters: { tags: ['a#b'] } })
+    // English plus the key whatever the server speaks, the shape rule nested.
+    const malformed = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      post({ filters: { tags: ['a#b'] } }),
+    )
     expect(malformed.status).toBe(400)
-    expect(malformed.body).toMatchObject({
-      success: false,
-      message: expect.stringContaining('Invalid tag'),
+    const refusal = malformed.body as unknown as SyncMessage
+    expect(keyedMessage(refusal)).toBe(
+      `Invalid tag "a#b": a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses.`,
+    )
+    expect(refusal).toMatchObject({
+      messageKey: 'domain.card.tag.invalid',
+      messageParams: { value: '"a#b"', rule: { messageKey: 'domain.card.tag.shapeRule' } },
     })
 
     // Both shape refusals name the body path, not the parser's bare field.
@@ -160,7 +170,8 @@ describe('handleExport', () => {
       filters: { set: '../etc' },
     })
     expect(status).toBe(400)
-    expect(body).toMatchObject({ success: false })
+    expect(body).toMatchObject({ success: false, messageKey: 'domain.card.setCode.invalid' })
+    expect(keyedMessage(body as unknown as SyncMessage)).toBe("Invalid set code '../etc'.")
   })
 
   test('write mode lands a file under exports/ and reports its relative path', async () => {

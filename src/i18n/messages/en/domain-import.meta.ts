@@ -206,7 +206,10 @@ export const domainImportMeta = {
     description: `${TEXT_CONTEXT} A second "# Title" line was skipped; only the first names the list. {line} is the skipped line as written.`,
   },
   'domain.import.text.malformedLine': {
-    description: `${TEXT_CONTEXT} A line that is neither a card nor a heading was skipped. {line} is the line as written; {hint} is either empty or a short suggestion that starts with a space, such as " (did you mean [ja]?)".`,
+    description: `${TEXT_CONTEXT} A line that is neither a card nor a heading was skipped. {line} is the line as written.`,
+  },
+  'domain.import.text.malformedLineLanguage': {
+    description: `${TEXT_CONTEXT} A line that is neither a card nor a heading was skipped; it carries a bracketed card-language token in a spelling the format does not accept ([JA], [jp], [Japanese]), so the accepted spelling is suggested. {line} is the line as written; {language} is the accepted language code (e.g. ja) — keep the square brackets around it.`,
   },
   'domain.import.text.aboutLineSkipped': {
     description: `${TEXT_CONTEXT} A line of an MTG Arena export’s "About" block (deck details) was not read. "About" is the block’s literal heading in the file. {line} is the line as written.`,

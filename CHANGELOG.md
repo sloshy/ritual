@@ -235,8 +235,51 @@ release changes a file format or a generated file, it ships the change as a
   `config get` and `config unset` word an invalid property or value in the CLI's language,
   and their `--output json` error envelope now carries `messageKey` (`cli.config.*`, or
   `domain.config.*` for a value the validator refuses) and `messageParams`, with any nested
-  part flattened to English. A refused `priceSources`, `defaultPriceSource` or
-  `defaultCategories` value is still English with no key.
+  part flattened to English. A refused `priceSources` or `defaultPriceSource` value is
+  still English with no key.
+- **Card-line diagnostics, and the card vocabulary's refusals, carry their keys.** Why a
+  card line could not be read, or how an export line was read, is now a message: English
+  plus a `domain.card.line.*` key, located by `domain.card.line.inFile` (`{ file, line, text }`)
+  or `domain.card.line.atLine` (`{ line, text }`) with the diagnostic nested as `text`, and a
+  suggested fix nested beside it through `domain.card.line.withHint`. That reaches every
+  import's `warnings`/`advisories` (`ritual import --output json`, `POST /api/import-deck`,
+  MCP `import_deck`) and `ritual cleanup --output json`'s `warnings`, and the CLI prints it
+  in its own language (`ritual import`, the `edit` sessions, `cleanup`, `detect-changes`). A label, tag, category, note, set-code or
+  card-language refusal is keyed too (`domain.card.*`, `errors.label.*`, and
+  `domain.config.defaultCategories*` for the `defaultCategories` setting): in
+  `PUT /api/config`, the metadata, save, export, card-index, sell and buylist-quote routes'
+  400 bodies, a CSV row's `reasonKey`/`reasonParams`, a change bundle's
+  `domain.changes.problem.fieldRejected` (whose `detail` is now the rule's nested message
+  instead of English text), and the admin Settings page and the editors' tag and category
+  dialogs, which relabel the refusal when the reader switches language. A shape rule nests
+  as `rule` (`domain.card.tag.shapeRule`, `domain.card.category.shapeRule`). The English is
+  unchanged except: "labels do not apply to a wanted." now reads "labels do not apply to a
+  wanted list.", "labels [x] are not supported on a wanted; …" reads "… on a wanted
+  list; …", and `detect-changes` words a list's parse warnings in the CLI's language like
+  its other warnings. A skipped import line's `domain.import.text.malformedLine` no longer
+  carries an empty `hint` param; one carrying a misspelled language token (`[JA]`, `[jp]`) is
+  `domain.import.text.malformedLineLanguage` with a `language` param instead — a script that
+  finds skipped lines by key must now match both keys.
+- **`detect-changes --output json` warnings carry their keys.** Each `warnings` entry keeps
+  its `kind`, `file` and `revision` and its English `message`, and gains `messageKey` and
+  `messageParams`: `cli.detectChanges.missingFile` (`{ path }`) or
+  `cli.detectChanges.parseWarning` (`{ revision, path, commit, detail }`, the parser's own
+  warning nested as `detail`). Its `message` is now English whatever the CLI's language (a
+  `missing-file` entry's followed the CLI's language before); the text report prints it in
+  the CLI's language.
+- **List-load warnings are messages, not strings.** `GET /api/deck/:slug`,
+  `/api/collection/:slug` and `/api/wanted/:slug` (every view) and the MCP `get_list` result
+  carry each `warnings` entry as `{ "message", "messageKey", "messageParams" }` instead of a
+  bare string; `message` is the English it always was. So does a sync's unreadable-lines
+  report — `ritual deck-sync --output json` and `ritual collection-sync --output json`'s
+  `unreadable[].warnings`, the MCP `sync_decks`/`sync_collection` `report.unreadable`, and
+  the admin routes' `report.unreadable` and `unreadable-lines` stream frame — which the
+  admin sync pages now show in the reader's language. A save, move or CSV append refused over such a file
+  (`domain.list.unreadableContent`) nests each of those warnings as a keyed message in its
+  `problems` param, instead of English text. Update any script that read these arrays as
+  strings to read `.message`, and match on `messageKey`.
+- `ritual set-card --language` and `add-card --language` word an unknown language in the
+  CLI's language.
 - **A refusal before the command runs honours `--output json`.** A `--base-dir` /
   `RITUAL_BASE_DIR` that is not a directory (`cli.baseDir.*`, exit 2) and a
   `ritual.config.json` that is not JSON (`domain.config.fileNotJson`, exit 1) — like
@@ -258,8 +301,8 @@ JSON object`).
   answers with `messageKey` and `messageParams` beside the English `message` (it sent the
   English alone), where a block's refusal (`domain.config.inSection`) nests the field's as
   its `reason` and a list of accepted values is a `{ list, join }`; the admin Settings page
-  shows it in the reader's language. A refused `priceSources`, `defaultPriceSource`,
-  `defaultCategories` or `exportPresets` value is still English with no key. The MCP
+  shows it in the reader's language. A refused `priceSources`, `defaultPriceSource` or
+  `exportPresets` value is still English with no key. The MCP
   `update_config` tool keeps answering with the English. A config file broken by hand
   under a running admin server answers every request with the same English plus
   `domain.config.fileNotJson`.
@@ -296,9 +339,7 @@ JSON object`).
   `import_deck` results), `ritual import --output json` and
   `ritual import-account --output json`, each entry of `warnings` and `advisories` is now
   `{ "message", "messageKey", "messageParams" }` instead of a bare string; `message` is the
-  English it always was. The key is absent for text Ritual still words outside its catalog:
-  a card-line grammar refusal and the printing-token advisory, a tag refusal, and a deck's
-  front-matter `labels:` warning. A text import's warning whose card was imported without its
+  English it always was. A text import's warning whose card was imported without its
   labels carries `labelsDropped: true`, so a client can tell it from a skipped line. Each
   CSV `failures` entry keeps its English `reason` and gains `reasonKey` and
   `reasonParams`; a row failing for several reasons nests them as a list. Update any
@@ -477,6 +518,13 @@ JSON object`).
 
 ### Fixed
 
+- A CSV import cell reading `constructor` was taken for a valid condition or finish (and,
+  in a deck's section or categories column, for a board) — the alias tables were plain
+  objects, so the name answered with a function from their prototype instead of being
+  refused. It is now refused as an unrecognized condition or finish, and kept as an
+  ordinary section name. A language value of `constructor` or `__proto__` (a CSV cell,
+  `--language`, `config set defaultLanguage`) is likewise refused instead of read as a
+  language.
 - Adding a card to a named deck section (`add-card --section`, MCP `add_card` and
   `apply_changes` with a `section`, a change-bundle import, a changelog replay) now merges
   only with a line of the same printing in that section, instead of folding onto a matching

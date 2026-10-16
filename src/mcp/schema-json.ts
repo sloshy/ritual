@@ -55,7 +55,12 @@ import {
   type SellEntryMatch,
 } from '../pricing/sell-report'
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
-import { SYNC_DIRECTIONS, SYNC_ITEM_OUTCOMES, SYNC_ITEM_STATUSES } from '../sync/common'
+import {
+  SYNC_DIRECTIONS,
+  SYNC_ITEM_OUTCOMES,
+  SYNC_ITEM_STATUSES,
+  type UnreadableSource,
+} from '../sync/common'
 import type { SyncMessage, SyncReasonFields } from '../sync/message'
 import type { ImportParseWarning } from '../importers/text-file'
 import { BOARDS } from '../list/deck'
@@ -108,6 +113,50 @@ import {
   type Properties,
 } from './schema-defs'
 
+// ── Message shapes ────────────────────────────────────────────────────
+
+/**
+ * The message triple an admin-authored response carries.
+ *
+ * `message` is **always English** and always present — that is the contract
+ * this catalogue has always had, and localizing it would change what an agent
+ * reads. The other two are the same sentence unrendered, for a client that has
+ * a translator (the admin UI); `messageKey` doubles as a locale-invariant
+ * discriminator a script can match on instead of matching prose. Optional
+ * because handlers gain keys incrementally.
+ */
+type MessageProperties = {
+  message: JsonSchemaType
+  messageKey: JsonSchemaType
+  messageParams: JsonSchemaType
+}
+
+const MESSAGE_PROPS: MessageProperties = {
+  message: str(),
+  messageKey: str(
+    'Catalog key the English `message` was rendered from — stable across locales, so a client may match on it instead of on prose. Absent when the text has no catalog entry.',
+  ),
+  messageParams: openObject('The parameters `messageKey` interpolates.'),
+}
+
+/**
+ * The message triple of a response whose params may nest — a sync message
+ * (`src/sync/message.ts`): an import summary built from counted nouns, a refusal
+ * naming ambiguous lists. Checked against the engine type.
+ */
+const SYNC_MESSAGE_PROPS = {
+  message: str(),
+  messageKey: MESSAGE_PROPS.messageKey,
+  messageParams: openObject(
+    'What `messageKey` interpolates; a param may itself be a message (`messageKey`, ' +
+      '`messageParams`), a list (`list`, `join`), a duration (`elapsedMs`, or `durationMs` for ' +
+      'an age or a time-out) or a card language (`language`).',
+  ),
+} as const satisfies Record<keyof SyncMessage, JsonSchemaType>
+
+/** One message on its own — a run-level sync failure, an import warning: English plus key and params. */
+const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])
+
 // ── Per-tool output schemas ───────────────────────────────────────────
 
 export const LIST_LISTS_OUTPUT: JsonSchemaType = withDefs(
@@ -121,12 +170,25 @@ export const GET_SYNC_STATUS_OUTPUT: JsonSchemaType = withDefs(
   'CollectionSyncStatusSection',
 )
 
+/**
+ * A file a sync refused to rewrite because its parser could not read some of
+ * it: its name, its file and one message per line a rewrite would delete.
+ */
+const UNREADABLE_SOURCE: JsonSchemaType = obj(
+  {
+    name: str('The deck’s or list’s display name.'),
+    file: str('The file’s basename.'),
+    warnings: arr(SYNC_MESSAGE, 'One message per line a rewrite would delete.'),
+  } as const satisfies Record<keyof UnreadableSource, JsonSchemaType>,
+  ['name', 'file', 'warnings'],
+)
+
 /** What every `get_list` arm carries besides its two discriminants. */
 const GET_LIST_COMMON_PROPS = {
   slug: str(),
   warnings: arr(
-    str(),
-    'Lines the parser could not read; always present, empty when the file is clean.',
+    SYNC_MESSAGE,
+    'Lines the parser could not read; always present, empty when the file is clean. Each is a message: English `message`, plus `messageKey`/`messageParams`.',
   ),
 } as const satisfies Properties
 const GET_LIST_COMMON_REQUIRED = ['view', 'listType', 'slug', 'warnings'] as const
@@ -705,30 +767,6 @@ export const EXPORT_CARDS_OUTPUT: JsonSchemaType = {
   ],
 }
 
-/**
- * The message triple an admin-authored response carries.
- *
- * `message` is **always English** and always present — that is the contract
- * this catalogue has always had, and localizing it would change what an agent
- * reads. The other two are the same sentence unrendered, for a client that has
- * a translator (the admin UI); `messageKey` doubles as a locale-invariant
- * discriminator a script can match on instead of matching prose. Optional
- * because handlers gain keys incrementally.
- */
-type MessageProperties = {
-  message: JsonSchemaType
-  messageKey: JsonSchemaType
-  messageParams: JsonSchemaType
-}
-
-const MESSAGE_PROPS: MessageProperties = {
-  message: str(),
-  messageKey: str(
-    'Catalog key the English `message` was rendered from — stable across locales, so a client may match on it instead of on prose. Absent when the text has no catalog entry.',
-  ),
-  messageParams: openObject('The parameters `messageKey` interpolates.'),
-}
-
 export const CREATE_LIST_OUTPUT: JsonSchemaType = obj(
   {
     ...MESSAGE_PROPS,
@@ -736,24 +774,6 @@ export const CREATE_LIST_OUTPUT: JsonSchemaType = obj(
   },
   ['message', 'slug'],
 )
-
-/**
- * The message triple of a response whose params may nest — a sync message
- * (`src/sync/message.ts`): an import summary built from counted nouns, a refusal
- * naming ambiguous lists. Checked against the engine type.
- */
-const SYNC_MESSAGE_PROPS = {
-  message: str(),
-  messageKey: MESSAGE_PROPS.messageKey,
-  messageParams: openObject(
-    'What `messageKey` interpolates; a param may itself be a message (`messageKey`, ' +
-      '`messageParams`), a list (`list`, `join`), a duration (`elapsedMs`, or `durationMs` for ' +
-      'an age or a time-out) or a card language (`language`).',
-  ),
-} as const satisfies Record<keyof SyncMessage, JsonSchemaType>
-
-/** One message on its own — a run-level sync failure, an import warning: English plus key and params. */
-const SYNC_MESSAGE: JsonSchemaType = obj(SYNC_MESSAGE_PROPS, ['message'])
 
 export const IMPORT_DECK_OUTPUT: JsonSchemaType = obj(
   {
@@ -1151,7 +1171,7 @@ const DECK_SYNC_REPORT_PROPS = {
   direction: SYNC_DIRECTION,
   decks: arr(DECK_SYNC_DECK_RESULT, 'One sync outcome per deck the run covered.'),
   failedCount: int('Decks that failed; a run with failures still reports success.'),
-  unreadable: arr(openObject('A deck file holding lines the parser cannot read.')),
+  unreadable: arr(UNREADABLE_SOURCE, 'Deck files holding lines the parser cannot read.'),
   cancelled: bool(
     'True when the call was cancelled between decks; the decks never started are skipped.',
   ),
@@ -1265,7 +1285,7 @@ const COLLECTION_SYNC_REPORT_PROPS = {
     '`errors` as messages, in the same order: English `message` plus `messageKey` / ' +
       '`messageParams` for a client that renders them in its own language.',
   ),
-  unreadable: arr(openObject('A list file holding lines the parser cannot read.')),
+  unreadable: arr(UNREADABLE_SOURCE, 'List files holding lines the parser cannot read.'),
   ambiguous: arr(openObject('A partial removal spanning several lists.')),
   localIncomplete: bool('True when some in-scope list did not make it into the comparison.'),
   csv: nullable(openObject('What the CSV bulk-import path did with a push’s additions.')),

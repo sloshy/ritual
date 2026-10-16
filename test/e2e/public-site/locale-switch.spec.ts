@@ -15,10 +15,13 @@ import { localeTag } from '../../../src/i18n/locale-tag'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
 import type { LocaleTag } from '../../../src/i18n/types'
 import {
+  makeCollectionSummary,
   makeDeckSummary,
   makeSiteIndex,
+  mockPublicSiteCollectionWithTags,
   mockPublicSiteDeckForFilters,
 } from '../helpers/mock-public-site'
+import { enterEditMode, openEditTags } from '../helpers/list-ui'
 
 /**
  * Switching the UI language at runtime.
@@ -196,5 +199,47 @@ test.describe('public site language switch', () => {
 
     await expect(languageSelect(page)).toHaveCount(0)
     await expectPseudo(chromeTexts(page).toolbarLabel, false)
+  })
+})
+
+test.describe('public site language switch — the editors’ own refusals', () => {
+  test('relabels a refused tag in Edit Tags, the shape rule nested', async ({ page }) => {
+    // The tagged collection, on a site that publishes both English and the
+    // pseudo-locale (registered after the helper, so this index wins).
+    await mockPublicSiteCollectionWithTags(page)
+    await fulfillJson(
+      page,
+      '**/index.json',
+      makeSiteIndex({
+        collections: [
+          makeCollectionSummary({
+            slug: 'tag-binder',
+            name: 'Tag Binder',
+            cardCount: 4,
+            totalPrice: 4.0,
+          }),
+        ],
+        availableLocales: [localeTag('en'), PSEUDO_LOCALE],
+      }),
+    )
+    await fulfillJson(page, `**/locales/${PSEUDO_LOCALE}.json`, pseudoCatalog())
+    await enterEditMode(page, '#/collection/tag-binder')
+
+    const dialog = await openEditTags(page, page.locator('.card-item[data-name="ramp rock"]'))
+    // Validated as it is typed, in the browser: the tag rule's own message,
+    // held unrendered and rendered in the JSX.
+    await dialog.locator('#tags-prompt-input').fill('a#b')
+    const error = dialog.locator('.form-error')
+    await expect(error).toContainText('Invalid tag "a#b"')
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(error, true)
+    const rule = pseudoCatalog()['domain.card.tag.shapeRule']
+    if (typeof rule !== 'string') throw new Error('domain.card.tag.shapeRule is not a string')
+    await expect(error).toContainText(rule)
+    // The value is the owner's own text, untouched.
+    await expect(error).toContainText('"a#b"')
+    await expectNotReloaded(page)
   })
 })

@@ -1,4 +1,4 @@
-import type { ListCounts, ListSummaryLoadResult } from '../admin/api/load-results'
+import type { ListCounts, ListLoadBase, ListSummaryLoadResult } from '../admin/api/load-results'
 import type { CardArtRecord } from '../list/card-art'
 import type { CardLabel } from '../card/card-labels'
 import type { ListImageRef } from '../list/list-image'
@@ -99,9 +99,10 @@ export type DeckProjection = {
   /**
    * Lines the parser could not read. Always present — an empty array is the
    * honest report for a clean file, and an unread list that merely loaded
-   * shorter is exactly the failure an optional field hides.
+   * shorter is exactly the failure an optional field hides. Each is a message:
+   * English `message` plus its key and params.
    */
-  warnings: string[]
+  warnings: ListLoadBase['warnings']
   /**
    * What was wrong with the `<list>.art.json` sidecar, kept apart from
    * {@link DeckProjection.warnings}: a mutation refuses a list whose *lines* are
@@ -142,7 +143,7 @@ export type FlatListProjection = {
   /** See {@link DeckProjection.totalCount}. */
   totalCount: number
   /** See {@link DeckProjection.warnings}. */
-  warnings: string[]
+  warnings: ListLoadBase['warnings']
   /** See {@link DeckProjection.artWarnings}. */
   artWarnings?: string[]
   /** See {@link DeckProjection.categoryWarnings}. */
@@ -156,7 +157,7 @@ export type ListSummaryProjection = {
   slug: string
   counts: ListCounts
   /** See {@link DeckProjection.warnings}. */
-  warnings: string[]
+  warnings: ListLoadBase['warnings']
 }
 
 export type ListProjection = DeckProjection | FlatListProjection | ListSummaryProjection

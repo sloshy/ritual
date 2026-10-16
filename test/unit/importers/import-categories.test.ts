@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { keyedMessage } from '../../helpers/api-message'
-import { CARD_CATEGORY_SHAPE_CLAUSE } from '../../../src/card/card-categories'
+import { domainCardMessages } from '../../../src/i18n/messages/en/domain-card'
 import {
   importCategoryAdvisories,
   moxfieldDeckCategories,
@@ -64,9 +64,9 @@ describe('importCategoryAdvisories', () => {
     expect(keyedMessage(failed!)).toBe(
       'The deck was imported, but its categories could not be saved: EACCES',
     )
-    // The catalog spells out the category rule itself; it must say what the
-    // grammar enforces, word for word.
-    expect(refused!.message).toContain(`(${CARD_CATEGORY_SHAPE_CLAUSE})`)
+    // The import's sentence spells out the category rule itself; it must say
+    // what the rule's own clause (domain.card.category.shapeRule) says, word for word.
+    expect(refused!.message).toContain(`(${domainCardMessages['domain.card.category.shapeRule']})`)
     // The names nest as a list, so a reader's language joins them its own way.
     expect(refused!.messageParams).toEqual({
       names: { list: ['"a,b"', '"c\\td"'], join: 'unit' },

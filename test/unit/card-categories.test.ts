@@ -17,7 +17,8 @@ import {
   sameCardCategories,
   withoutCardCategory,
 } from '../../src/card/card-categories'
-import { isPlainParseError } from '../../src/config/ritual-config'
+import { isConfigParseError } from '../../src/config/ritual-config'
+import { keyedError, keyedMessage } from '../helpers/api-message'
 
 describe('isCardCategoryShaped / invalidCardCategoryMessage', () => {
   test("accepts any text without a comma, including the card line's own punctuation", () => {
@@ -43,10 +44,10 @@ describe('isCardCategoryShaped / invalidCardCategoryMessage', () => {
     }
   })
 
-  test('the refusal names the raw input and states the shape rule', () => {
-    const message = invalidCardCategoryMessage('a,b')
-    expect(message).toStartWith('Invalid category "a,b":')
-    expect(message).toEndWith('cannot contain a comma or a control character.')
+  test('the refusal names the raw input and states the shape rule, keyed', () => {
+    expect(keyedMessage(invalidCardCategoryMessage('a,b'))).toBe(
+      'Invalid category "a,b": a category is non-empty plain text that cannot contain a comma or a control character.',
+    )
   })
 })
 
@@ -79,10 +80,7 @@ describe('normalizeCardCategories', () => {
 describe('parseCardCategoriesValue', () => {
   test('refuses a non-array and a non-string element, naming the field', () => {
     const notArray = parseCardCategoriesValue('Ramp', '"categories"')
-    expect(notArray).toEqual({
-      ok: false,
-      message: '"categories" must be an array of categories.',
-    })
+    expect(keyedError(notArray)).toBe('"categories" must be an array of categories.')
     const notStrings = parseCardCategoriesValue(['Ramp', 7], '"categories"')
     expect(notStrings.ok).toBe(false)
   })
@@ -167,12 +165,19 @@ describe('parseDefaultCategories', () => {
     expect(parseDefaultCategories([])).toEqual([])
   })
 
-  test('a non-array and a malformed name each return a config parse error', () => {
-    const notArray = parseDefaultCategories('Ramp')
-    expect(isPlainParseError(notArray)).toBe(true)
-    const malformed = parseDefaultCategories(['Ramp', 'a,b'])
-    expect(isPlainParseError(malformed)).toBe(true)
-    if (isPlainParseError(malformed)) expect(malformed.reason).toContain('a,b')
+  test('a non-array, a non-text entry and a malformed name each return a keyed config error', () => {
+    const refusalOf = (value: unknown): string => {
+      const parsed = parseDefaultCategories(value)
+      if (!isConfigParseError(parsed)) throw new Error('expected a config parse error')
+      return keyedMessage(parsed.error)
+    }
+    expect(refusalOf('Ramp')).toBe('defaultCategories must be an array of category names')
+    expect(refusalOf(['Ramp', 7])).toBe(
+      'defaultCategories must be an array of category names, got 7',
+    )
+    expect(refusalOf(['Ramp', 'a,b'])).toBe(
+      'Invalid category "a,b": a category is non-empty plain text that cannot contain a comma or a control character.',
+    )
   })
 })
 

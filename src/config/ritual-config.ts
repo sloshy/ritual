@@ -361,7 +361,7 @@ export type ConfigParseError = { error: SyncMessage }
 
 /**
  * The refusal of a config parser that lives outside `src/config` and words its
- * refusal as plain text (`parsePriceSources`, `parseDefaultCategories`). The
+ * refusal as plain text (`parsePriceSources`). The
  * loader and the write paths lift it to a {@link ConfigParseError} through the
  * `…Field` parsers below, which carry the text as it is. Its field is `reason`,
  * not `error`, so the two shapes cannot be mistaken for each other.
@@ -446,9 +446,12 @@ export function parseDefaultPriceSourceField(
   return liftPlainError(parseDefaultPriceSource(value))
 }
 
-/** `parseDefaultCategories` with its refusal as a {@link ConfigParseError}. */
+/**
+ * `parseDefaultCategories` as the field parser the loader and the write paths
+ * call; its refusal is already a keyed {@link ConfigParseError}.
+ */
 export function parseDefaultCategoriesField(value: unknown): CardCategory[] | ConfigParseError {
-  return liftPlainError(parseDefaultCategories(value))
+  return parseDefaultCategories(value)
 }
 
 /** `parseExportPresets` with its refusal (a bare string) as a {@link ConfigParseError}. */

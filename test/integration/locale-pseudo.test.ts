@@ -6,6 +6,7 @@ import { en } from '../../src/i18n/messages/en'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../helpers/change-problem'
 import type { LocaleCatalog } from '../../src/i18n/types'
 import { writeDeckFile, writeWantedFile } from '../helpers/workspace'
+import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
 import { buildCacheFeed, type FeedArtifact } from '../helpers/cache-feed'
 import { bulkCard, gzipJsonLines } from '../test-utils'
 
@@ -311,9 +312,10 @@ describe('pseudo-locale (Integration)', () => {
   test('import words a skipped line in the CLI’s language, and keeps --output json English', async () => {
     await withTempDir(async (dir) => {
       await fs.writeFile(path.join(dir, 'decklist.txt'), 'Lightning Bolt\n2 Mountain\n')
-      const skipped = (await pseudoText('domain.import.text.malformedLine'))
-        .replace('{line}', 'Lightning Bolt')
-        .replace('{hint}', '')
+      const skipped = (await pseudoText('domain.import.text.malformedLine')).replace(
+        '{line}',
+        'Lightning Bolt',
+      )
 
       const text = await runCli(
         ['import', 'decklist.txt', '--type', 'deck', '--no-input'],
@@ -335,9 +337,41 @@ describe('pseudo-locale (Integration)', () => {
         {
           message: 'Skipped malformed line: Lightning Bolt',
           messageKey: 'domain.import.text.malformedLine',
-          messageParams: { line: 'Lightning Bolt', hint: '' },
+          messageParams: { line: 'Lightning Bolt' },
         },
       ])
+    })
+  })
+
+  test('import words a card-line diagnostic in the CLI’s language, its tree English for json', async () => {
+    await withTempDir(async (dir) => {
+      await fs.writeFile(path.join(dir, 'decklist.txt'), '1 Lightning Bolt [jp]\n2 Mountain\n')
+      // The grammar's code, worded by the catalog: its sentence and its hint
+      // both come out pseudo-localized, the tokens they quote untouched.
+      const refusal = (await pseudoText('domain.card.line.unknownToken')).replace('{token}', '[jp]')
+      const hint = (await pseudoText('domain.card.line.hint.didYouMean')).replace(
+        '{language}',
+        'ja',
+      )
+
+      const text = await runCli(
+        ['import', 'decklist.txt', '--type', 'deck', '--no-input'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(text.exitCode).toBe(1)
+      expect(unwrap(text.stderr)).toContain(unwrap(refusal))
+      expect(unwrap(text.stderr)).toContain(unwrap(hint))
+      expect(text.stderr).not.toContain('Unrecognized token')
+
+      const json = await runCli(
+        ['import', 'decklist.txt', '--type', 'deck', '--no-input', '--yes', '--output', 'json'],
+        dir,
+        PSEUDO_ENV,
+      )
+      const payload = JSON.parse(json.stdout) as { warnings: unknown[] }
+      expect(json.exitCode).toBe(1)
+      expect(payload.warnings).toEqual([{ message: jpDiagnosticEnglish(1), ...jpDiagnosticAt(1) }])
     })
   })
 

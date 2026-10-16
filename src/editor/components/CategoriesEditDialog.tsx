@@ -3,6 +3,7 @@ import { focusAndSelectOnOpen } from '../../ui/focus-on-open'
 import { swapNeighbour } from '../../util/array'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
+import { renderSyncMessage } from '../../sync/message'
 import {
   CARD_CATEGORY_SEPARATOR,
   foldCardCategory,
@@ -52,7 +53,7 @@ export const CategoriesEditDialog: Component = () => {
   // pre-flag: a message means something typed was refused.
   const error = () => {
     const result = parsed()
-    return result.ok ? null : result.message
+    return result.ok ? null : result.error
   }
   /** The ordered chips shown above the field; empty while the draft is refused. */
   const ordered = createMemo((): readonly CardCategory[] => {
@@ -188,7 +189,7 @@ export const CategoriesEditDialog: Component = () => {
         <Show when={error()}>
           {(message) => (
             <p id="categories-prompt-error" class="form-error" role="alert">
-              {message()}
+              {renderSyncMessage(message())}
             </p>
           )}
         </Show>

@@ -18,6 +18,9 @@ import {
 import { seedCardNames } from '../test-utils'
 import { callJson } from './helpers/request'
 import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
+import { keyedMessage } from '../helpers/api-message'
+import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
+import type { SyncMessage } from '../../src/sync/message'
 import {
   bindWorkspace,
   writeCollectionFile,
@@ -388,7 +391,10 @@ describe('warnings reach every view', () => {
     // Every view has to report it: a list that loaded merely *shorter* than it is
     // is exactly what an unreported warning looks like from the client's side.
     const deckPath = path.join(ws.dir, 'decks', 'burn.md')
-    await Bun.write(deckPath, (await Bun.file(deckPath).text()) + '\nthis is not a card line\n')
+    await Bun.write(
+      deckPath,
+      (await Bun.file(deckPath).text()) + '\nthis is not a card line\n1 Lava Spike [jp]\n',
+    )
     await seedCardNames('Lightning Bolt', 'Lava Spike', 'Smash to Smithereens')
     stubbed = stubFetch({ 'https://api.scryfall.com': () => Response.json({ data: [] }) })
   })
@@ -401,10 +407,15 @@ describe('warnings reach every view', () => {
     ['summary', '/api/deck/burn?view=summary'],
     ['cards', '/api/deck/burn?view=cards'],
     ['full', '/api/deck/burn?view=full'],
-  ])('view=%s carries the parser warning', async (_view, url) => {
-    const { status, body } = await callJson<{ warnings: string[] }>(handleDeckLoad, 'GET', url)
+  ])('view=%s carries the parser warnings, English plus their keys', async (_view, url) => {
+    const { status, body } = await callJson<{ warnings: SyncMessage[] }>(handleDeckLoad, 'GET', url)
     expect(status).toBe(200)
-    expect(body.warnings).toEqual(['Skipped malformed line: this is not a card line'])
+    expect(body.warnings.map(keyedMessage)).toEqual([
+      'Skipped malformed line: this is not a card line',
+      jpDiagnosticEnglish(17),
+    ])
+    // A card-line diagnostic nests: its location around it, its hint beside it.
+    expect(body.warnings[1]).toMatchObject(jpDiagnosticAt(17))
   })
 
   test('the save route refuses a list whose file holds an unreadable line', async () => {
@@ -456,7 +467,7 @@ describe('a fenced code block reaches the save gate', () => {
       'GET',
       '/api/deck/burn?view=cards',
     )
-    expect(loaded.warnings).toEqual([
+    expect(loaded.warnings.map(keyedMessage)).toEqual([
       'Fenced code block content (3 lines) — read as prose, but a whole-file rewrite would delete it',
     ])
     // The fenced card is not one of the deck's cards.

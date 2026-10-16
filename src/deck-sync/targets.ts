@@ -11,7 +11,7 @@ import {
   readDeckName,
   type DeckParseResult,
 } from '../importers/text-file'
-import { unreadableLines } from '../list/unreadable-content'
+import { unreadableMessages } from '../list/unreadable-content'
 import {
   errorMessage,
   errorParam,
@@ -214,7 +214,7 @@ export async function resolveTargetDecks(
     const target: DeckTarget = { filePath, frontMatter, deck: loaded.deck, sourceId }
     // Both directions re-serialize the whole file, so a fenced code block is as
     // much at risk as a line the parser could not read.
-    const blockers = unreadableLines(loaded)
+    const blockers = unreadableMessages(loaded)
     if (blockers.length > 0) {
       unreadable.push({
         target,

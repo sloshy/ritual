@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { CARD_LANGUAGES } from '../../../src/card/card-language'
+import { keyedSyncRefusal, syncRefusal } from '../../helpers/api-message'
 import {
   MAX_BUYLIST_PRINTINGS,
   parseBuylistQuoteBody,
@@ -58,16 +60,21 @@ describe('parseBuylistQuoteBody', () => {
       { printings: [printing({ scryfallId: 7 })] },
       'printings[0].scryfallId',
     ],
-    [
-      'an unknown language',
-      { printings: [printing({ language: 'klingon' })] },
-      'printings[0].language',
-    ],
     ['a non-object printing', { printings: ['dsk:136'] }, 'printings[0]'],
   ])('refuses %s', (_label, body, expected) => {
-    const parsed = parseBuylistQuoteBody(body)
-    expect(typeof parsed).toBe('string')
-    expect(parsed as string).toContain(expected)
+    expect(syncRefusal(parseBuylistQuoteBody(body)).message).toContain(expected)
+  })
+
+  test.each([
+    ['an unknown language', 'klingon', '"klingon"'],
+    ['a non-string language', 7, '7'],
+  ])('refuses %s in English plus its key, the code list nested', (_label, language, shown) => {
+    const parsed = syncRefusal(parseBuylistQuoteBody({ printings: [printing({ language })] }))
+    expect(keyedSyncRefusal(parsed)).toBe(
+      `Invalid language ${shown} for "printings[0].language". Valid languages: ${CARD_LANGUAGES.join(', ')}`,
+    )
+    expect(parsed.messageKey).toBe('domain.card.language.invalidField')
+    expect(parsed.messageParams?.languages).toEqual({ list: CARD_LANGUAGES, join: 'unit' })
   })
 
   test('refuses more than the per-request cap so one call cannot scan the feed', () => {
@@ -75,7 +82,9 @@ describe('parseBuylistQuoteBody', () => {
       printings: Array.from({ length: MAX_BUYLIST_PRINTINGS + 1 }, () => printing()),
     })
 
-    expect(parsed).toBe(`"printings" must contain at most ${MAX_BUYLIST_PRINTINGS} entries`)
+    expect(syncRefusal(parsed).message).toBe(
+      `"printings" must contain at most ${MAX_BUYLIST_PRINTINGS} entries`,
+    )
   })
 })
 

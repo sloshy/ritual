@@ -56,6 +56,7 @@ import {
 } from '../card/finish-condition'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { renderSyncMessage } from '../sync/message'
 import { LIST_TYPE_DISPLAY } from '../list/list-type'
 import { listLocations, type ListLocation } from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
@@ -460,9 +461,9 @@ export async function promptTagsFilter(
     if (answer === undefined) return undefined
     const parsed = parseCardTagsInput(answer)
     if (!parsed.ok) {
-      // The parser's refusal names a data-format rule (English by contract),
-      // on the same channel the wizard's other warnings use.
-      console.warn(`⚠️  ${parsed.message}`)
+      // The parser's refusal, in the CLI's language, on the same channel the
+      // wizard's other warnings use.
+      console.warn(`⚠️  ${renderSyncMessage(parsed.error)}`)
       continue
     }
     return parsed.tags.length > 0 ? parsed.tags : undefined

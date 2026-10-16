@@ -11,6 +11,9 @@ import {
 } from '../../src/commands/detect-changes'
 import { bindWorkspace, deckMarkdown, type BoundWorkspace } from '../helpers/workspace'
 import { runCli, withTempDir } from './helpers/cli'
+import { keyedMessage } from '../helpers/api-message'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocale } from '../helpers/sync-text'
+import { renderSyncMessage } from '../../src/sync/message'
 
 // ── Test fixtures ────────────────────────────────────────────────────
 
@@ -373,6 +376,8 @@ describe('detect-changes git failures', () => {
         file: 'decks/gone-deck.md',
         message:
           'skipped decks/gone-deck.md: changed in the range but missing from the working tree',
+        messageKey: 'cli.detectChanges.missingFile',
+        messageParams: { path: 'decks/gone-deck.md' },
       },
     ])
 
@@ -397,16 +402,67 @@ describe('detect-changes git failures', () => {
     expect(result.stderr).toContain('Skipped malformed line: this line is not a card')
 
     const report = JSON.parse(result.stdout) as ParsedDetectChangesReport
+    // English plus the key, the parser's own warning nested — whatever the CLI speaks.
     expect(report.warnings).toEqual([
       {
         kind: 'parse',
         file: 'decks/test-deck.md',
         revision: 'working-tree',
         message: 'decks/test-deck.md: Skipped malformed line: this line is not a card',
+        messageKey: 'cli.detectChanges.parseWarning',
+        messageParams: {
+          revision: 'working-tree',
+          path: 'decks/test-deck.md',
+          commit: repo.before,
+          detail: {
+            messageKey: 'domain.import.text.malformedLine',
+            messageParams: { line: 'this line is not a card' },
+          },
+        },
       },
     ])
     // The rest of the file was still diffed.
     expect(report.changelogsUpdated).toBe(1)
+  })
+})
+
+describe('detect-changes warnings in the reader’s language', () => {
+  test('a committed revision’s parse warning names the commit, keyed, and renders in the CLI’s language', async () => {
+    repo = await setupRepo()
+    // The bad line lives in the *committed* revision; the working tree fixes it.
+    await fs.writeFile(repo.deckPath, `${DECK_BEFORE}1 Sol Ring [jp]\n`)
+    const base = commitAll(repo.dir, 'a misspelled language token')
+    await fs.writeFile(repo.deckPath, DECK_AFTER)
+    commitAll(repo.dir, 'fixed by hand')
+
+    const output = await detectChanges(base, repo.dir)
+    const [warning] = output.warnings
+    expect(output.warnings).toHaveLength(1)
+    expect(warning).toMatchObject({
+      kind: 'parse',
+      file: 'decks/test-deck.md',
+      revision: 'committed',
+      messageKey: 'cli.detectChanges.parseWarning',
+      messageParams: {
+        revision: 'committed',
+        path: 'decks/test-deck.md',
+        commit: base,
+        detail: { messageKey: 'domain.card.line.atLine' },
+      },
+    })
+    expect(keyedMessage(warning!)).toMatch(
+      new RegExp(
+        `^decks/test-deck\\.md at ${base}: line \\d+: Unrecognized token \\[jp\\]\\. \\(did you mean \\[ja\\]\\?\\)$`,
+      ),
+    )
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const rendered = renderSyncMessage(warning!)
+      expect(rendered).not.toContain('Unrecognized token')
+      expect(rendered).toContain(base)
+      expect(rendered).toContain('[jp]')
+      expectLocaleInForce(locale)
+    })
   })
 })
 

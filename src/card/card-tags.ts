@@ -30,11 +30,14 @@
  *
  * Layer-neutral like {@link module:card-labels}: the file parsers, the CLI
  * prompts, the HTTP bodies, the change-event decoder and the site UI all ask
- * this module the same questions and must get the same answers. English by
- * construction (its refusal prose names a data-format rule) and browser-safe.
+ * this module the same questions and must get the same answers. Its refusals
+ * are messages — English plus their key — that each surface sends on or
+ * renders in its reader's language; a tag value itself is the owner's data and
+ * is never translated. Browser-safe.
  */
 
 import { compareData } from '../i18n/collate'
+import { syncMessage, syncRef, type SyncMessage, type SyncMessageRef } from '../sync/message'
 import { isUnknownArray } from '../util/guards'
 
 /**
@@ -61,13 +64,13 @@ export const CARD_TAG_SEPARATOR = ','
 const CARD_TAG_FORBIDDEN_RE = /[#,&*"[\]{}()\p{Cc}]/u
 
 /**
- * The shape rule as a sentence fragment, shared by every surface that refuses a
- * malformed tag (this module, the card-line grammar, the MCP schema) so the
- * same rule is never spelled three ways. English by contract: it states a
- * data-format rule.
+ * The shape rule as a clause (`domain.card.tag.shapeRule`), shared by every
+ * surface that refuses a malformed tag (this module, the card-line grammar's
+ * wording, the MCP schema) so the same rule is never spelled three ways.
  */
-export const CARD_TAG_SHAPE_CLAUSE =
-  "a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses"
+export function cardTagShapeRule(): SyncMessageRef {
+  return syncRef('domain.card.tag.shapeRule')
+}
 
 /**
  * True when `value` has the tag shape. This answers "could this be a tag?" —
@@ -78,18 +81,22 @@ export function isCardTagShaped(value: string): boolean {
   return value.trim() !== '' && !CARD_TAG_FORBIDDEN_RE.test(value)
 }
 
-/** The refusal prose for a value that is not tag-shaped, English by contract. */
-export function invalidCardTagMessage(raw: string): string {
-  return `Invalid tag ${JSON.stringify(raw)}: ${CARD_TAG_SHAPE_CLAUSE}.`
+/** The refusal for a value that is not tag-shaped: English plus its key. */
+export function invalidCardTagMessage(raw: string): SyncMessage {
+  return syncMessage('domain.card.tag.invalid', {
+    value: JSON.stringify(raw),
+    rule: cardTagShapeRule(),
+  })
 }
 
 /**
- * Why a tag or tag set was refused: prose ready for whichever error channel the
- * caller owns (400 body, bundle validation, parse warning). One arm shared by
- * both result types, so a set parser can hand a single tag's refusal straight
- * through.
+ * Why a tag or tag set was refused: a message (English plus its key) for
+ * whichever channel the caller owns (400 body, bundle validation, parse
+ * warning), which sends the English or renders the key in its reader's
+ * language. One arm shared by both result types, so a set parser can hand a
+ * single tag's refusal straight through.
  */
-export type CardTagError = { ok: false; message: string }
+export type CardTagError = { ok: false; error: SyncMessage }
 
 /** The outcome of parsing one tag: its canonical form, or why the input was refused. */
 export type CardTagResult = { ok: true; tag: CardTag } | CardTagError
@@ -106,7 +113,7 @@ export type CardTagsResult = { ok: true; tags: CardTag[] } | CardTagError
 export function parseCardTag(raw: string): CardTagResult {
   let body = raw.trim()
   if (body.startsWith(CARD_TAG_SIGIL)) body = body.slice(CARD_TAG_SIGIL.length)
-  if (!isCardTagShaped(body)) return { ok: false, message: invalidCardTagMessage(raw) }
+  if (!isCardTagShaped(body)) return { ok: false, error: invalidCardTagMessage(raw) }
   return { ok: true, tag: normalizeCardTag(body) }
 }
 
@@ -149,12 +156,12 @@ export function normalizedTags(tags: readonly string[] | undefined): CardTag[] |
  */
 export function parseCardTagsValue(raw: unknown, field: string): CardTagsResult {
   if (!isUnknownArray(raw)) {
-    return { ok: false, message: `${field} must be an array of tags.` }
+    return { ok: false, error: syncMessage('domain.card.tag.notArray', { field }) }
   }
   const tags: CardTag[] = []
   for (const element of raw) {
     if (typeof element !== 'string') {
-      return { ok: false, message: `${field} must be an array of tags.` }
+      return { ok: false, error: syncMessage('domain.card.tag.notArray', { field }) }
     }
     const parsed = parseCardTag(element)
     if (!parsed.ok) return parsed
@@ -201,20 +208,22 @@ export function formatCardTagsToken(tags: readonly CardTag[] | undefined): strin
 }
 
 /** The refusal for a tag set that names no tag at all — a filter that could match nothing. */
-const NO_TAGS_GIVEN = 'No tags given.'
+function noTagsGiven(): SyncMessage {
+  return syncMessage('domain.card.tag.noneGiven')
+}
 
 /**
  * Validate a raw tags-filter value (an API body array) into canonical tags,
- * or an error message naming `field` — the caller's path to it, so a route
+ * or a refusal (English plus its key) naming `field` — the caller's path to it, so a route
  * can say `filters.tags`. A non-array is refused here too. Tags are matched
  * exactly and case-sensitively — the vocabulary rule — and there is no `none`
  * sentinel: `none` is an ordinary tag. An empty list is refused rather than
  * silently matching nothing.
  */
-export function parseTagFilterValues(values: unknown, field = 'tags'): CardTag[] | string {
+export function parseTagFilterValues(values: unknown, field = 'tags'): CardTag[] | SyncMessage {
   const parsed = parseCardTagsValue(values, field)
-  if (!parsed.ok) return parsed.message
-  if (parsed.tags.length === 0) return NO_TAGS_GIVEN
+  if (!parsed.ok) return parsed.error
+  if (parsed.tags.length === 0) return noTagsGiven()
   return parsed.tags
 }
 
@@ -224,10 +233,10 @@ export function parseTagFilterValues(values: unknown, field = 'tags'): CardTag[]
  * shares (`parseCardTagsInput`), so the flag cannot disagree with the tag
  * editor about what a typed list means.
  */
-export function parseTagFilterInput(raw: string): CardTag[] | string {
+export function parseTagFilterInput(raw: string): CardTag[] | SyncMessage {
   const parsed = parseCardTagsInput(raw)
-  if (!parsed.ok) return parsed.message
-  if (parsed.tags.length === 0) return NO_TAGS_GIVEN
+  if (!parsed.ok) return parsed.error
+  if (parsed.tags.length === 0) return noTagsGiven()
   return parsed.tags
 }
 

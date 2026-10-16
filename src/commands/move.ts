@@ -393,7 +393,7 @@ function parseFinishFlag(raw: string): Finish {
 function parseSetFlag(raw: string): string {
   const result = parseSetCode(raw)
   if (!result.ok) {
-    throw new CardCommandError('usage_error', result.error, ExitCode.UsageError)
+    throw messageCommandError('usage_error', ExitCode.UsageError, result.error)
   }
   return result.code
 }

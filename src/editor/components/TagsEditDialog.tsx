@@ -2,6 +2,7 @@ import { type Component, createEffect, createMemo, createSignal, For, on, Show }
 import { focusAndSelectOnOpen } from '../../ui/focus-on-open'
 import { Modal } from '../../ui/Modal'
 import { useT } from '../../ui/i18n'
+import { renderSyncMessage } from '../../sync/message'
 import {
   CARD_TAG_SEPARATOR,
   formatCardTags,
@@ -48,7 +49,7 @@ export const TagsEditDialog: Component = () => {
   // pre-flag: a message means something typed was refused.
   const error = () => {
     const result = parsed()
-    return result.ok ? null : result.message
+    return result.ok ? null : result.error
   }
   /**
    * The draft's well-formed tags, for hiding suggestions it already holds.
@@ -126,7 +127,7 @@ export const TagsEditDialog: Component = () => {
         <Show when={error()}>
           {(message) => (
             <p id="tags-prompt-error" class="form-error" role="alert">
-              {message()}
+              {renderSyncMessage(message())}
             </p>
           )}
         </Show>

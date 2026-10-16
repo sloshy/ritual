@@ -4,7 +4,12 @@ import path from 'node:path'
 import { handleImportDeck, type ImportDeckResponse } from '../../src/admin/api/import-deck'
 import { renderSyncMessage, syncMessage } from '../../src/sync/message'
 import { keyedMessage } from '../helpers/api-message'
-import { pseudoCatalog, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
+import {
+  pseudoCatalog,
+  withGuardedLocaleAsync,
+  withSyntheticLocaleAsync,
+} from '../helpers/sync-text'
 import { apiRequest } from './helpers/request'
 import type { ApiMessage } from '../../src/api/result'
 import {
@@ -167,6 +172,14 @@ describe('POST /api/import-deck reporting (Integration)', () => {
       true,
     ])
     expect(body.warnings[1]?.messageKey).toBe('domain.import.text.malformedLine')
+  })
+
+  test('a card-line diagnostic reaches the wire as English plus its key, whatever the server speaks', async () => {
+    const { body } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      importDeck({ mode: 'text', name: 'Glued', content: '1 Sol Ring\n1 Arcane Signet [jp]\n' }),
+    )
+    expect(body.warnings).toEqual([{ message: jpDiagnosticEnglish(2), ...jpDiagnosticAt(2) }])
+    expect(body.warnings.map(keyedMessage)).toEqual([jpDiagnosticEnglish(2)])
   })
 
   test('a deck service’s error reply answers English plus its key, whatever the server speaks', async () => {

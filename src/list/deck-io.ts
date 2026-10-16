@@ -20,7 +20,8 @@ import { writeFileWithHash } from '../changes/content-hash'
 import { parseDeckFrontMatter, serializeDeckToMarkdown, type DeckFrontMatter } from './deck-file'
 import { listDeckFiles, loadDeckFile, readDeckName } from '../importers/text-file'
 import { assignMissingDeckCardIds } from '../card/card-id'
-import { unreadableLines } from './unreadable-content'
+import { unreadableMessages } from './unreadable-content'
+import { renderSyncMessage } from '../sync/message'
 
 /**
  * Deck file I/O for the interactive sessions and the commands that share them:
@@ -42,8 +43,13 @@ export async function loadDeck(filePath: string): Promise<LoadedDeck> {
   // file, so any line the parser skipped — and any fenced code block, which the
   // canonical serializer cannot emit — would be dropped by that save. Warn up
   // front rather than losing them silently.
-  for (const warning of unreadableLines(parseResult)) {
-    console.warn(t('cli.edit.fileWarning', { file: path.basename(filePath), warning }))
+  for (const warning of unreadableMessages(parseResult)) {
+    console.warn(
+      t('cli.edit.fileWarning', {
+        file: path.basename(filePath),
+        warning: renderSyncMessage(warning),
+      }),
+    )
   }
   const deck = assignMissingDeckCardIds(parsed)
   const frontMatter = await parseDeckFrontMatter(filePath)

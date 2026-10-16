@@ -239,8 +239,16 @@ describe('parseDeckText', () => {
   })
 
   test('a misspelled language token on a malformed line names its fix', () => {
-    const { warnings } = parseDeckText('## Main\nShock (M21:159) [JA]', 'X')
+    const { warnings, notices } = parseDeckText('## Main\nShock (M21:159) [JA]', 'X')
     expect(warnings).toEqual(['Skipped malformed line: Shock (M21:159) [JA] (did you mean [ja]?)'])
+    // Its own key, with the suggested code as a param — never a sentence fragment.
+    expect(notices.map((notice) => notice.message)).toEqual([
+      {
+        message: 'Skipped malformed line: Shock (M21:159) [JA] (did you mean [ja]?)',
+        messageKey: 'domain.import.text.malformedLineLanguage',
+        messageParams: { line: 'Shock (M21:159) [JA]', language: 'ja' },
+      },
+    ])
   })
 
   test('reports no warnings for a fully parseable deck', () => {
@@ -912,8 +920,8 @@ describe('parseDeckText — notices', () => {
       ['domain.import.text.labelsUnsupported', true],
       // Not a card at all: skipped.
       ['domain.import.text.malformedLine', false],
-      // A conflicting labels token (worded by the card-line grammar): kept too.
-      [null, true],
+      // A conflicting labels token (a card-line diagnostic, located): kept too.
+      ['domain.card.line.atLine', true],
     ])
     // Both kept cards are on the deck.
     const names = parsed.deck.sections.flatMap((section) => section.cards.map((card) => card.name))

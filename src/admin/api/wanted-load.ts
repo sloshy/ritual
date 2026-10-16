@@ -1,4 +1,4 @@
-import { unreadableLines } from '../../list/unreadable-content'
+import { unreadableMessages } from '../../list/unreadable-content'
 import { parseWantedListFile } from '../../list/wanted-file'
 import { readListDescription } from '../../list/list-description'
 import { readListImage } from '../../list/list-image'
@@ -23,7 +23,7 @@ const WANTED_LOAD_CFG: FlatListLoadConfig<ParsedWantedEntry> = {
       description: readListDescription(parsed.frontMatter?.data ?? {}).description,
       image: readListImage(parsed.frontMatter?.data ?? {}).image,
       // Fenced code blocks join the parse warnings — see `deck-load.ts`.
-      warnings: unreadableLines(parsed),
+      warnings: unreadableMessages(parsed),
     }
   },
 }

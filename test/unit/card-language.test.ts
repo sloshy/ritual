@@ -5,12 +5,11 @@ import {
   LANGUAGE_TOKEN_PATTERN,
   displayLanguage,
   formatLanguageList,
-  invalidLanguageMessage,
   isCardLanguage,
   languageBadge,
   languageDisplayName,
   languageToken,
-  malformedLanguageTokenHint,
+  misspelledLanguage,
   normalizeLanguageValue,
   scryfallCardLanguage,
   sortLanguages,
@@ -85,6 +84,14 @@ describe('normalizeLanguageValue', () => {
       'zhs',
       'es',
     ])
+  })
+
+  test('an object-prototype property name is no language', () => {
+    // The alias table is a `Map`: an object literal would answer these with a
+    // function off its prototype, read as a language.
+    for (const name of ['constructor', 'Constructor', '__proto__']) {
+      expect(normalizeLanguageValue(name)).toBeNull()
+    }
   })
 
   test('accepts full English names, case-insensitively', () => {
@@ -182,35 +189,23 @@ describe('formatLanguageList', () => {
   })
 })
 
-describe('invalidLanguageMessage', () => {
-  test('quotes the offender, splices the hint, and ends with the joined code list', () => {
-    const message = invalidLanguageMessage('klingon', 'for --language')
-    expect(message).toBe(
-      `Invalid language "klingon" for --language. Valid languages: ${CARD_LANGUAGES.join(', ')}`,
-    )
-  })
-
-  test('shows non-string offenders as data and works without a hint', () => {
-    expect(invalidLanguageMessage(7)).toBe(
-      `Invalid language 7. Valid languages: ${CARD_LANGUAGES.join(', ')}`,
-    )
-    expect(invalidLanguageMessage(undefined)).toContain('Invalid language undefined.')
-  })
-})
-
-describe('malformedLanguageTokenHint', () => {
-  test('names the canonical spelling for a recognizable-but-wrong token', () => {
-    expect(malformedLanguageTokenHint('- Shock (M21:159) [JA]')).toBe(' (did you mean [ja]?)')
-    expect(malformedLanguageTokenHint('1 Shock [jp]')).toBe(' (did you mean [ja]?)')
-    expect(malformedLanguageTokenHint('- Shock [Japanese]')).toBe(' (did you mean [ja]?)')
+describe('misspelledLanguage', () => {
+  test('names the canonical code for a recognizable-but-wrong token', () => {
+    expect(misspelledLanguage('- Shock (M21:159) [JA]')).toBe('ja')
+    expect(misspelledLanguage('1 Shock [jp]')).toBe('ja')
+    expect(misspelledLanguage('- Shock [Japanese]')).toBe('ja')
   })
 
   test('stays silent for canonical tokens, unknown tokens, and token-free lines', () => {
     // A canonical lowercase code means the line failed for some other reason.
-    expect(malformedLanguageTokenHint('- Shock (M21:159 [ja]')).toBe('')
-    expect(malformedLanguageTokenHint('- Shock [klingon]')).toBe('')
-    expect(malformedLanguageTokenHint('- Shock [foil] [NM]')).toBe('')
-    expect(malformedLanguageTokenHint('just prose')).toBe('')
+    expect(misspelledLanguage('- Shock (M21:159 [ja]')).toBeUndefined()
+    expect(misspelledLanguage('- Shock [klingon]')).toBeUndefined()
+    expect(misspelledLanguage('- Shock [foil] [NM]')).toBeUndefined()
+    expect(misspelledLanguage('just prose')).toBeUndefined()
+  })
+
+  test('an object-prototype name is no language', () => {
+    expect(misspelledLanguage('- Shock [constructor]')).toBeUndefined()
   })
 })
 

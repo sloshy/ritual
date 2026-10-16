@@ -23,7 +23,13 @@ import type { LocaleCatalog } from '../../src/i18n/types'
 import { readSyncMessage, renderSyncMessage, type SyncMessage } from '../../src/sync/message'
 import { keyedMessage } from '../helpers/api-message'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH, MOVE_1 } from '../helpers/change-problem'
-import { withSyntheticLocale, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import {
+  expectLocaleInForce,
+  pseudoCatalog,
+  withSyntheticLocale,
+  withSyntheticLocaleAsync,
+} from '../helpers/sync-text'
+import { decodeChangeEvent } from '../../src/changes/change-event-decode'
 
 /**
  * The persistence fence's refusals are structured codes; this module is where
@@ -42,6 +48,12 @@ const BUNDLE_CHANGE: ChangeProblemSite = { subject: { kind: 'bundle-change', lis
 type Sample = [problem: ChangeProblem, english: string]
 
 const TAGS_DETAIL = '"tags" must be an array of tags.'
+
+/** The tag rule's own refusal as the decoder nests it: keyed, unrendered. */
+const TAGS_DETAIL_REF = {
+  messageKey: 'domain.card.tag.notArray',
+  messageParams: { field: '"tags"' },
+} as const
 
 /**
  * One problem per code, with its full English — a missing row is a compile
@@ -181,7 +193,7 @@ const SAMPLES: Record<ChangeProblemCode, Sample> = {
     'Move #1 has a "replacement" but no "pinsCardId"; only a pinning move carries one.',
   ],
   'field-rejected': [
-    locatedProblem('field-rejected', MOVE_1, { detail: TAGS_DETAIL }),
+    locatedProblem('field-rejected', MOVE_1, { detail: TAGS_DETAIL_REF }),
     `Move #1: ${TAGS_DETAIL}`,
   ],
 }
@@ -233,10 +245,16 @@ describe('change problem wording', () => {
         'messageKey' in value && typeof value.messageKey === 'string' ? [value.messageKey] : []
       return [...own, ...Object.values(value).flatMap(keys)]
     }
-    const reached = new Set([
-      ...CHANGE_PROBLEM_CODES.flatMap((code) => keys(changeProblemRef(sample(code)))),
-      ...subjects.flatMap((site) => keys(changeProblemRef(locatedProblem('printing-half', site)))),
-    ])
+    // Only this module's own keys count: a nested rule's refusal is the card
+    // vocabulary's (`domain.card.*`), pinned where it is worded.
+    const reached = new Set(
+      [
+        ...CHANGE_PROBLEM_CODES.flatMap((code) => keys(changeProblemRef(sample(code)))),
+        ...subjects.flatMap((site) =>
+          keys(changeProblemRef(locatedProblem('printing-half', site))),
+        ),
+      ].filter((key) => key.startsWith('domain.changes.')),
+    )
     const catalog = Object.keys(en).filter(
       (key) =>
         key.startsWith('domain.changes.problem.') || key.startsWith('domain.changes.subject.'),
@@ -266,6 +284,31 @@ const SYNTHETIC: LocaleCatalog = {
   'domain.changes.subject.historyEvent': 'Satz {set}, Ereignis {event}',
   'domain.changes.problem.bundleListNotObject': 'Liste Nr. {list} ist kein Objekt.',
 }
+
+describe('a rule’s refusal nests in field-rejected', () => {
+  test('the decoder nests the tag rule’s keyed refusal, rendered whole in the reader’s language', () => {
+    const decoded = decodeChangeEvent(
+      { id: 'a1', timestamp: 1, action: 'add', cardName: 'Sol Ring', tags: 'ramp' },
+      { kind: 'save-change', index: 0 },
+    )
+    if (decoded.ok) throw new Error('expected a refusal')
+    expect(decoded.problem).toMatchObject({
+      code: 'field-rejected',
+      params: {
+        detail: { messageKey: 'domain.card.tag.notArray', messageParams: { field: 'tags' } },
+      },
+    })
+    const message = changeProblemMessage(decoded.problem)
+    expect(keyedMessage(message)).toBe('changes[0]: tags must be an array of tags.')
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const rendered = renderSyncMessage(message)
+      expect(rendered).not.toContain('must be an array of tags')
+      expect(rendered).toContain('tags')
+      expectLocaleInForce(locale)
+    })
+  })
+})
 
 describe('change problems in the reader’s language', () => {
   test('the CLI and the SPAs word the whole sentence, nested record included', () => {

@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises'
 import path from 'node:path'
 import type { CollectionCardEntry, WantedListCardEntry } from './site-data'
 import { parseTitleFromContent } from './section-format'
-import { advisoryMessages, unreadableLines, unreadableMessages } from './unreadable-content'
+import { advisoryMessages, unreadableMessages } from './unreadable-content'
 import type { SyncMessage } from '../sync/message'
 import type { ParseNotice } from './line-diagnostics'
 import { allocateId, collectExistingIds, createIdPool, type CardIdPool } from '../card/card-id'
@@ -85,18 +85,18 @@ export type ParsedFlatListFile<E extends FlatListEntry> = {
   sectionOrder: string[]
   /** The file's front-matter block, carried so every re-serialize preserves it. */
   frontMatter?: FlatListFrontMatter
-  warnings: string[]
+  /**
+   * What a whole-file rewrite would delete — the lines the parser skipped, and
+   * one entry for any fenced code block — as messages (English plus their key).
+   */
+  warningMessages: SyncMessage[]
   /**
    * Non-blocking notices about lines that parsed but almost certainly do not say
    * what the author meant — today, a card name that starts with a quantity.
-   * Kept apart from `warnings` because a re-serialize preserves these lines
-   * verbatim, so they must not gate the whole-file rewrite the way unreadable
-   * lines do.
+   * Kept apart from {@link warningMessages} because a re-serialize preserves
+   * these lines verbatim, so they must not gate the whole-file rewrite the way
+   * unreadable lines do.
    */
-  advisories: string[]
-  /** {@link warnings} as messages, the fenced-block entry included. */
-  warningMessages: SyncMessage[]
-  /** {@link advisories} as messages. */
   advisoryMessages: SyncMessage[]
   pool: CardIdPool
 }
@@ -133,8 +133,6 @@ async function readFlatListFile<Raw, E extends FlatListEntry>(
     frontMatter: parsed.frontMatter,
     // Fenced code blocks join the parse warnings here: every consumer of this
     // read re-serializes the whole file, which would delete the block.
-    warnings: unreadableLines(parsed),
-    advisories: parsed.advisories,
     warningMessages: unreadableMessages(parsed),
     advisoryMessages: advisoryMessages(parsed),
     pool: assignMissingIds(entries),

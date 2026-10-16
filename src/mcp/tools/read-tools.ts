@@ -358,7 +358,8 @@ export function registerReadTools(server: McpServer): void {
         'list’s categories (categories: the vocabulary’s order plus each card NAME’s ordered ' +
         'assignments), with every returned card also carrying its own resolved categories, ' +
         'primary first, absent when it has none. ' +
-        'warnings holds lines the parser could not read (a mutation refuses a list that has any); ' +
+        'warnings holds lines the parser could not read, as message objects ' +
+        '({ message, messageKey, messageParams }; a mutation refuses a list that has any); ' +
         'artWarnings holds custom-art sidecar problems and categoryWarnings holds ' +
         'categories-sidecar problems, neither of which blocks anything.',
       inputSchema: z.object({

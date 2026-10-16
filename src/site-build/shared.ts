@@ -277,8 +277,13 @@ export type LoadedFlatList<Entry> = {
 /** What the loader reads off either flat-list parser's result. */
 export type FlatListParseResult<Entry extends FlatListEntry> = Pick<
   ParsedFlatListFile<Entry>,
-  'entries' | 'sectionOrder' | 'frontMatter' | 'warnings' | 'advisories'
-> & { labels?: CardLabel[] }
+  'entries' | 'sectionOrder' | 'frontMatter'
+> & {
+  /** The parser's own English channels (`parseCollectionFile` / `parseWantedListFile`). */
+  warnings: readonly string[]
+  advisories: readonly string[]
+  labels?: CardLabel[]
+}
 
 /**
  * Load a collection or wanted list markdown file plus its sidecars through

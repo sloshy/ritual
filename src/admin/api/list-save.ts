@@ -2,7 +2,7 @@ import path from 'node:path'
 import { dedupeDroppedNotes, type DroppedNote } from '../../list/move-staging'
 import type { CardLabel } from '../../card/card-labels'
 import type { SaveEffect } from '../../changes/save-effects'
-import { apiMessage, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import type { ChangeAction, ChangeEvent } from '../../changes/change-event'
 import type { DeckData } from '../../list/deck'
 import type { CollectionCardEntry, WantedListCardEntry } from '../../list/site-data'
@@ -389,7 +389,7 @@ function normalizeRawNotes(changes: unknown): Response | null {
       continue
     }
     const result = normalizeNote(change.note)
-    if (!result.ok) return badRequest(plainMessage(result.error))
+    if (!result.ok) return nestedRefusal(result.error)
     change.note = result.note
   }
   return null

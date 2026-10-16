@@ -1,3 +1,5 @@
+import { syncMessage, type SyncMessage } from '../sync/message'
+
 /**
  * Parse a comma-separated string of set codes into a normalized lowercase array.
  * Trims whitespace, drops empty entries, removes duplicates while preserving order.
@@ -17,8 +19,12 @@ export function parseSetCodesInput(value: string): string[] {
   return result
 }
 
-/** A single parsed set code (normalized lowercase), or a user-facing error. */
-export type SetCodeParseResult = { ok: true; code: string } | { ok: false; error: string }
+/**
+ * A single parsed set code (normalized lowercase), or why it was refused — a
+ * message, English plus its key, that each surface sends on or renders in its
+ * reader's language.
+ */
+export type SetCodeParseResult = { ok: true; code: string } | { ok: false; error: SyncMessage }
 
 /**
  * Parse a single user-supplied set code: trimmed, lowercased, and required to be
@@ -34,7 +40,7 @@ export type SetCodeParseResult = { ok: true; code: string } | { ok: false; error
 export function parseSetCode(raw: string): SetCodeParseResult {
   const code = raw.trim().toLowerCase()
   if (!/^[a-z0-9_]+$/.test(code)) {
-    return { ok: false, error: `Invalid set code '${raw}'.` }
+    return { ok: false, error: syncMessage('domain.card.setCode.invalid', { value: raw }) }
   }
   return { ok: true, code }
 }

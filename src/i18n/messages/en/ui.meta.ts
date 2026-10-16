@@ -382,7 +382,7 @@ export const uiMeta = {
   },
   'ui.editor.categoryInvalid': {
     description:
-      'Refusal when a typed category name breaks the name rule. {reason} is the shared shape explanation, English by construction.',
+      "Refusal when a typed category name breaks the name rule. {reason} is the category rule's own refusal (domain.card.category.invalid), already rendered in the reader's language.",
   },
   'ui.editor.moveCategoryUp': {
     description: "Button that moves a category one place earlier in the list's display order.",

@@ -1,6 +1,7 @@
 import type { Choice } from 'prompts'
 import { ask } from '../../cli/prompts'
 import { t } from '../../i18n/t'
+import { renderSyncMessage } from '../../sync/message'
 import { getCardPrintings, isDigitalOnlySet } from '../../scryfall'
 import type { ScryfallCard } from '../../scryfall/types'
 import {
@@ -184,7 +185,9 @@ export async function promptTagsEdit(
     },
     (raw) => {
       const parsed = parseCardTagsInput(raw)
-      return parsed.ok ? { ok: true, value: parsed.tags } : { ok: false, message: parsed.message }
+      return parsed.ok
+        ? { ok: true, value: parsed.tags }
+        : { ok: false, message: renderSyncMessage(parsed.error) }
     },
   )
   if (tags === null) return null
@@ -223,7 +226,7 @@ export async function promptCategoriesEdit(
       const parsed = parseCardCategoriesInput(raw)
       return parsed.ok
         ? { ok: true, value: parsed.categories }
-        : { ok: false, message: parsed.message }
+        : { ok: false, message: renderSyncMessage(parsed.error) }
     },
   )
   if (next === null) return null
@@ -261,7 +264,7 @@ export async function promptCategoryRename(
       const parsed = parseCardCategory(raw)
       return parsed.ok
         ? { ok: true, value: parsed.category }
-        : { ok: false, message: parsed.message }
+        : { ok: false, message: renderSyncMessage(parsed.error) }
     },
   )
   return to === null ? null : { from, to }
@@ -285,7 +288,7 @@ export async function promptCategoryOrder(
     },
     (raw) => {
       const parsed = parseCardCategoriesInput(raw)
-      if (!parsed.ok) return { ok: false, message: parsed.message }
+      if (!parsed.ok) return { ok: false, message: renderSyncMessage(parsed.error) }
       // The one refusal this prompt adds over the vocabulary's own grammar:
       // an empty answer parses fine (it is a clear elsewhere), but clearing the
       // order is not what "reorder" means.

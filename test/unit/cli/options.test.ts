@@ -13,6 +13,8 @@ import { CSV_OUTPUT_FORMATS, OUTPUT_FORMATS } from '../../../src/cli/output'
 import { parseCardCategoriesInput } from '../../../src/card/card-categories'
 import { registerCliMessages } from '../../../src/i18n/register/cli'
 import { t } from '../../../src/i18n/t'
+import { renderSyncMessage, syncMessage } from '../../../src/sync/message'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocale } from '../../helpers/sync-text'
 
 // `t()` returns the bare key until the CLI catalog is registered; without this the
 // help-text assertions below would compare a key to itself.
@@ -36,6 +38,32 @@ describe('parsedFlag', () => {
     const parse = parsedFlag((raw) => (raw === 'ok' ? 1 : `Bad value '${raw}'`))
     expect(parse('ok')).toBe(1)
     expect(() => parse('no')).toThrow(new InvalidArgumentError("Bad value 'no'"))
+  })
+})
+
+describe('parsedFlag with a keyed refusal', () => {
+  test('words a message refusal in the CLI’s language, never its English', () => {
+    const parse = parsedFlag((raw: string) =>
+      raw === 'ok' ? 1 : syncMessage('domain.card.setCode.invalid', { value: raw }),
+    )
+    expect(() => parse('x!')).toThrow(new InvalidArgumentError("Invalid set code 'x!'."))
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      let thrown: unknown
+      try {
+        parse('x!')
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(InvalidArgumentError)
+      const message = (thrown as InvalidArgumentError).message
+      expect(message).not.toBe("Invalid set code 'x!'.")
+      expect(message).toContain("'x!'")
+      expect(message).toBe(
+        renderSyncMessage(syncMessage('domain.card.setCode.invalid', { value: 'x!' }), locale),
+      )
+      expectLocaleInForce(locale)
+    })
   })
 })
 

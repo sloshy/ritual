@@ -41,19 +41,14 @@ import {
 } from './card-labels'
 import {
   isCardLanguage,
-  malformedLanguageTokenHint,
+  misspelledLanguage,
   storedLanguage,
   type CardLanguage,
 } from './card-language'
 import { isCondition, isFinish, type Condition, type Finish } from './finish-condition'
-import {
-  CARD_TAG_SHAPE_CLAUSE,
-  CARD_TAG_SIGIL,
-  normalizeCardTags,
-  parseCardTagsInput,
-  type CardTag,
-} from './card-tags'
-import { workspaceListTypeNoun, type ListType } from '../list/list-type'
+import { CARD_TAG_SIGIL, normalizeCardTags, parseCardTagsInput, type CardTag } from './card-tags'
+import { lineText, type CardLineDetail, type CardLineHint } from './card-line-text'
+import type { ListType } from '../list/list-type'
 
 /**
  * Every kind of token a card line can carry. `tags` is the only *repeatable*
@@ -147,8 +142,11 @@ export type CardLineAdvisory = {
   kind: CardLineAdvisoryKind
   /** The offending token exactly as written, when there is one. */
   token?: string
-  /** English by construction — the card-line grammar is not prose. */
-  message: string
+  /**
+   * What the note says, as a code and its values — worded at the boundary
+   * that shows it (`card-line-message.ts`), never here.
+   */
+  detail: CardLineDetail
 }
 
 /** Refusals that always name the token they refused. */
@@ -213,10 +211,13 @@ type CardLineErrorBase = {
   listType: ListType
   /** The line as handed to the parser. */
   line: string
-  /** English by construction — the card-line grammar is not prose. */
-  message: string
-  /** An actionable next step, e.g. `did you mean [ja]?`. */
-  hint?: string
+  /**
+   * Why the line was refused, as a code and its values — worded at the
+   * boundary that shows it (`card-line-message.ts`), never here.
+   */
+  detail: CardLineDetail
+  /** An actionable next step, e.g. `did you mean [ja]?`, structured like {@link detail}. */
+  hint?: CardLineHint
 }
 
 /**
@@ -329,19 +330,28 @@ export const GRAMMAR = {
   wanted: { allowed: kindsOf(WANTED_TOKENS), required: new Set<RequiredTokenKind>() },
 } as const satisfies Record<ListType, CardLineGrammar>
 
+/** The `token-not-allowed` refusals that state the rule behind the verdict. */
+type RefusalWithReason = Extract<CardLineDetail['code'], 'wanted-condition' | 'wanted-labels'>
+
 /**
  * Why a type refuses a token kind, when there is more to say than "it does not
- * take one". Read into the `token-not-allowed` message so the user is told the
- * rule, not just the verdict.
+ * take one". Picks the `token-not-allowed` refusal's wording so the user is
+ * told the rule, not just the verdict.
  */
-const REFUSAL_REASONS: Record<ListType, Partial<Record<TokenKind, string>>> = {
+const REFUSAL_REASONS: Record<ListType, Partial<Record<TokenKind, RefusalWithReason>>> = {
   deck: {},
   collection: {},
   wanted: {
-    condition: 'wanted lists never carry a condition',
-    labels: 'wanted lists never carry labels',
+    condition: 'wanted-condition',
+    labels: 'wanted-labels',
   },
 }
+
+/** Each reasoned refusal's text, built per code so every call names one literal code. */
+const REFUSAL_TEXT = {
+  'wanted-condition': (token) => lineText('wanted-condition', { token }),
+  'wanted-labels': (token) => lineText('wanted-labels', { token }),
+} as const satisfies Record<RefusalWithReason, (token: string) => CardLineDetail>
 
 /**
  * The set-code charset, in one place. `_` is legal: some art-series and
@@ -548,14 +558,12 @@ function failLine(type: ListType, line: string, fields: LineErrorFields): LineCa
 }
 
 /**
- * The `did you mean [ja]?` hint for a line whose bracket token names a language
- * in the wrong spelling (`[JA]`, `[jp]`, `[Japanese]`), or `undefined`.
- * Normalized out of the warning-suffix form the CLI parsers already used.
+ * The `did you mean [ja]?` hint for a token that names a language in the wrong
+ * spelling (`[JA]`, `[jp]`, `[Japanese]`), or `undefined`.
  */
-function languageHint(line: string): string | undefined {
-  const suffix = malformedLanguageTokenHint(line)
-  if (!suffix) return undefined
-  return suffix.trim().replace(/^\(/, '').replace(/\)$/, '')
+function languageHint(token: string): CardLineHint | undefined {
+  const language = misspelledLanguage(token)
+  return language === undefined ? undefined : lineText('did-you-mean', { language })
 }
 
 /** One token peeled off the right-hand end of a line. */
@@ -689,12 +697,12 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
   const bodyEndRaw = line.trimEnd().length
   const leading = line.length - line.trimStart().length
   if (bodyEndRaw <= leading) {
-    return failLine(type, line, { code: 'not-a-card-line', message: 'Blank line.' })
+    return failLine(type, line, { code: 'not-a-card-line', detail: lineText('blank-line') })
   }
   if (NOT_A_CARD_LINE_RE.test(line.slice(leading))) {
     return failLine(type, line, {
       code: 'not-a-card-line',
-      message: `Not a card line: ${line.trim()}`,
+      detail: lineText('not-a-card-line', { line: line.trim() }),
     })
   }
 
@@ -719,7 +727,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           kind: 'quantity',
           token: `${digits}${quantityMatch[2] ?? ''}`,
           column: start,
-          message: 'A card line must name at least one copy.',
+          detail: lineText('zero-quantity'),
         })
       }
       quantityToken = {
@@ -738,9 +746,10 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           severity: 'advisory',
           kind: 'quantity-expanded',
           token: quantityMatch[0].trim(),
-          message:
-            `Read ${quantity} copies: a ${workspaceListTypeNoun(type)} holds one line per copy, ` +
-            `so this line becomes ${quantity} lines on the next save.`,
+          detail:
+            type === 'wanted'
+              ? lineText('quantity-expanded-wanted', { count: quantity })
+              : lineText('quantity-expanded-collection', { count: quantity }),
         })
       }
     }
@@ -762,9 +771,10 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         kind: token.kind,
         token: token.text,
         column: token.column,
-        message:
-          `${token.text} is not a ${workspaceListTypeNoun(type)} token` +
-          (reason === undefined ? '.' : ` — ${reason}.`),
+        detail:
+          reason === undefined
+            ? lineText('token-not-allowed', { token: token.text, listType: type })
+            : REFUSAL_TEXT[reason](token.text),
       })
     }
     if (seen.has(token.kind) && !REPEATABLE_TOKEN_KINDS.has(token.kind)) {
@@ -773,7 +783,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         kind: token.kind,
         token: token.text,
         column: token.column,
-        message: `Duplicate ${token.kind} token ${token.text}.`,
+        detail: lineText('duplicate-token', { token: token.text, kind: token.kind }),
       })
     }
     seen.set(token.kind, token)
@@ -851,10 +861,8 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         const refusal = accept({ kind: 'labels', ...token })
         if (refusal) return refusal
         // The body matched the signed vocabulary pattern, so every part is a
-        // signed label. The conflict rule lives in `card-labels.ts`; it is
-        // worded here, in English, because a `CardLineError.message` is
-        // English by construction (the CLI's localized wording would only be
-        // discarded, and would be a fence hazard).
+        // signed label. The conflict rule lives in `card-labels.ts`; the
+        // refusal names it as a code, worded at the boundary that shows it.
         const parts = inner
           .split(',')
           .map((part) => part.trim())
@@ -866,10 +874,10 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
             kind: 'labels',
             token: text,
             column: open,
-            message:
+            detail:
               conflict.kind === 'exclusive'
-                ? `Conflicting labels ${text} — [${conflict.label}] cannot be combined with any other label.`
-                : `Conflicting labels ${text} — [${conflict.label}] cannot be both set and negated.`,
+                ? lineText('labels-exclusive', { token: text, label: conflict.label })
+                : lineText('labels-contradictory', { token: text, label: conflict.label }),
           })
         }
         tokens.labels = normalizeLabelOverride(parts)
@@ -878,7 +886,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           code: 'unknown-token',
           token: text,
           column: open,
-          message: `Unrecognized token ${text}.`,
+          detail: lineText('unknown-token', { token: text }),
           hint: languageHint(text),
         })
       }
@@ -916,7 +924,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         severity: 'advisory',
         kind: 'dialect-rewritten',
         token: marker[0],
-        message: `Read the export finish marker ${marker[0]} as [${finish}].`,
+        detail: lineText('export-finish-marker', { token: marker[0], finish }),
       })
       end = column
       continue
@@ -965,7 +973,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           kind: 'tags',
           token: text,
           column: open,
-          message: `Malformed tag token ${text}: ${CARD_TAG_SHAPE_CLAUSE}.`,
+          detail: lineText('malformed-tag', { token: text }),
         })
       }
       const refusal = accept({ kind: 'tags', text, column: open, body: text.slice(1) })
@@ -993,12 +1001,15 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
       kind: 'note',
       token: name.slice(name.indexOf('{')),
       column,
-      message: 'Unclosed note: a {note} must end with a closing brace.',
+      detail: lineText('unclosed-note'),
     })
   }
 
   if (name === '') {
-    return failLine(type, line, { code: 'empty-name', message: `No card name: ${line.trim()}` })
+    return failLine(type, line, {
+      code: 'empty-name',
+      detail: lineText('empty-name', { line: line.trim() }),
+    })
   }
 
   const misplaced = findMisplacedToken(line, bodyStart, end)
@@ -1014,8 +1025,11 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         kind: misplaced.kind,
         token: misplaced.text,
         column: misplaced.column,
-        message: `${misplaced.text} runs into the text beside it: a card line's tokens are separated by whitespace.`,
-        hint: `insert a space ${misplaced.spacedBefore ? 'after' : 'before'} ${misplaced.text}`,
+        detail: lineText('unseparated-token', { token: misplaced.text }),
+        hint: lineText('insert-space', {
+          token: misplaced.text,
+          side: misplaced.spacedBefore ? 'after' : 'before',
+        }),
       })
     }
     return failToken(type, line, {
@@ -1023,11 +1037,11 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
       kind: misplaced.kind,
       token: misplaced.text,
       column: misplaced.column,
-      message: `${misplaced.text} is inside the card name: a card line's tokens all follow the name.`,
+      detail: lineText('misplaced-token', { token: misplaced.text }),
       hint:
         misplaced.kind === 'id'
-          ? 'the &N id must be the last token on the line'
-          : `move ${misplaced.text} after the name`,
+          ? lineText('id-last')
+          : lineText('move-after-name', { token: misplaced.text }),
     })
   }
 
@@ -1053,7 +1067,14 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
         severity: 'advisory',
         kind: 'dialect-rewritten',
         token: dialect.token,
-        message: `Read the export printing ${dialect.token} as (${label})${applied ? ` [${applied}]` : ''}.`,
+        detail:
+          applied === undefined
+            ? lineText('export-printing', { token: dialect.token, printing: label })
+            : lineText('export-printing-finish', {
+                token: dialect.token,
+                printing: label,
+                finish: applied,
+              }),
       })
     } else {
       const suspect = SUSPECT_PRINTING_IN_NAME_RE.exec(name)
@@ -1062,7 +1083,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
           severity: 'advisory',
           kind: 'suspect-printing-in-name',
           token: suspect[0],
-          message: `Card name still contains a printing token, so the line's format was not recognized: ${line.trim()}`,
+          detail: lineText('suspect-printing-in-name', { line: line.trim() }),
         })
       }
     }
@@ -1072,7 +1093,7 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
     return failLine(type, line, {
       code: 'missing-printing',
       kind: 'printing',
-      message: `A ${workspaceListTypeNoun(type)} line must name a printing, e.g. (LEA:161): ${line.trim()}`,
+      detail: lineText('missing-printing', { line: line.trim(), listType: type }),
     })
   }
 
@@ -1086,23 +1107,3 @@ export function parseCardLine(type: ListType, line: string): CardLineResult {
  * widths differ — and note that it is the only module that spells the pattern.
  */
 export { readAnyCardId, readCardId } from './card-line-id'
-
-/** Where a diagnostic was found. `file` is optional — pasted text has none. */
-export type CardLineDiagnosticLocation = {
-  file?: string
-  /** 1-based line number. */
-  line: number
-}
-
-/**
- * Render a parse diagnostic with its location: `decks/burn.md:12: …` when the
- * file is known, `line 12: …` when it is not. Errors append their hint.
- */
-export function formatCardLineDiagnostic(
-  diagnostic: CardLineDiagnostic,
-  where: CardLineDiagnosticLocation,
-): string {
-  const prefix = where.file === undefined ? `line ${where.line}` : `${where.file}:${where.line}`
-  const hint = 'ok' in diagnostic && diagnostic.hint ? ` (${diagnostic.hint})` : ''
-  return `${prefix}: ${diagnostic.message}${hint}`
-}

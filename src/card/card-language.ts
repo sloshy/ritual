@@ -69,11 +69,11 @@ export const LANGUAGE_PARSE_NAMES: Record<CardLanguage, string> = {
   ja: 'Japanese',
   ko: 'Korean',
   ru: 'Russian',
-  zhs: 'Simplified Chinese',
-  zht: 'Traditional Chinese',
+  zhs: 'Simplified Chinese', // i18n-exempt: file-format vocabulary re-parsed from persisted changelog lines
+  zht: 'Traditional Chinese', // i18n-exempt: file-format vocabulary re-parsed from persisted changelog lines
   he: 'Hebrew',
   la: 'Latin',
-  grc: 'Ancient Greek',
+  grc: 'Ancient Greek', // i18n-exempt: file-format vocabulary re-parsed from persisted changelog lines
   ar: 'Arabic',
   sa: 'Sanskrit',
   ph: 'Phyrexian',
@@ -89,14 +89,18 @@ export function isCardLanguage(value: string): value is CardLanguage {
  * cards and in third-party CSVs — Archidekt's CSV export uses exactly
  * `EN CT DE FR IT JP KR PT RU CS SP`, which lowercases into this table or the
  * codes themselves).
+ *
+ * A `Map`, not an object literal: the lookup key is untrusted input, and an
+ * object would answer `constructor` or `toString` with a function from its
+ * prototype.
  */
-const LANGUAGE_ALIASES: Record<string, CardLanguage> = {
-  jp: 'ja',
-  kr: 'ko',
-  sp: 'es',
-  cs: 'zhs',
-  ct: 'zht',
-}
+const LANGUAGE_ALIASES: ReadonlyMap<string, CardLanguage> = new Map([
+  ['jp', 'ja'],
+  ['kr', 'ko'],
+  ['sp', 'es'],
+  ['cs', 'zhs'],
+  ['ct', 'zht'],
+])
 
 /** Lowercased English name → code, built once from {@link LANGUAGE_PARSE_NAMES}. */
 const LANGUAGE_BY_NAME: ReadonlyMap<string, CardLanguage> = new Map(
@@ -117,7 +121,7 @@ export function normalizeLanguageValue(raw: string): CardLanguage | null {
   const value = raw.trim().toLowerCase()
   if (value === '') return null
   if (isCardLanguage(value)) return value
-  const alias = LANGUAGE_ALIASES[value]
+  const alias = LANGUAGE_ALIASES.get(value)
   if (alias !== undefined) return alias
   return LANGUAGE_BY_NAME.get(value) ?? null
 }
@@ -252,21 +256,6 @@ export function formatLanguageList(codes: readonly string[]): string {
 }
 
 /**
- * The one refusal message for a value that names no known language, always
- * ending in the joined code list. `hint` is an optional context clause spliced
- * after the offender (e.g. `for "defaultLanguage"`, `on a card entry`). The
- * offender is JSON-encoded: a string is quoted verbatim, and a non-string
- * payload is shown as data rather than default-stringified. Every caller
- * guards `undefined` before refusing (an absent field is "use the default",
- * not an invalid language), so the encoding never comes back undefined.
- */
-export function invalidLanguageMessage(raw: unknown, hint?: string): string {
-  const offender = JSON.stringify(raw)
-  const context = hint ? ` ${hint}` : ''
-  return `Invalid language ${offender}${context}. Valid languages: ${CARD_LANGUAGES.join(', ')}`
-}
-
-/**
  * The language of a Scryfall card object as a {@link CardLanguage}, folding an
  * absent or unrecognized `lang` to `en` (the `default_cards` bulk omits it).
  * The Scryfall-object twin of {@link displayLanguage}.
@@ -276,20 +265,21 @@ export function scryfallCardLanguage(card: ScryfallCard): CardLanguage {
 }
 
 /**
- * The `(did you mean [ja]?)` suffix for a malformed-line warning: when a line
- * the grammar rejected carries a bracket token that names a language in the
- * wrong spelling (`[JA]`, `[jp]`, `[Japanese]`), the fix is worth naming.
- * Only tokens the grammar would *not* have matched qualify — a canonical
- * lowercase code means the line failed for some other reason. Empty when no
- * such token exists.
+ * The language a misspelled language token meant: when a line (or a token) the
+ * grammar rejected carries a bracket token that names a language in the wrong
+ * spelling (`[JA]`, `[jp]`, `[Japanese]`), the fix — `did you mean [ja]?` — is
+ * worth naming, and this is the code it names. Only tokens the grammar would
+ * *not* have matched qualify — a canonical lowercase code means the line failed
+ * for some other reason. `undefined` when no such token exists. The wording
+ * belongs to whoever shows it.
  */
-export function malformedLanguageTokenHint(line: string): string {
-  for (const match of line.matchAll(/\[([^\][]+)\]/g)) {
+export function misspelledLanguage(text: string): CardLanguage | undefined {
+  for (const match of text.matchAll(/\[([^\][]+)\]/g)) {
     const token = match[1]!
     const language = normalizeLanguageValue(token)
-    if (language !== null && token !== language) return ` (did you mean [${language}]?)`
+    if (language !== null && token !== language) return language
   }
-  return ''
+  return undefined
 }
 
 /**

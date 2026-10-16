@@ -6,6 +6,8 @@ import {
   ARCHIDEKT_SESSION_EXPIRED,
   emitStreamConnectionError,
   emitStreamEvent,
+  skippedLineWarning,
+  unreadableLinesFrame,
   mockCollectionSyncApi,
   MOCK_CSV_THRESHOLD,
   MOCK_PULL_TARGET,
@@ -663,16 +665,17 @@ test.describe('Sync Collection Page', () => {
     await page.locator('.sync-direction .segmented-option:has-text("Push")').click()
     await syncButton(page).click()
 
-    await emitStreamEvent(page, 'progress', {
-      kind: 'unreadable-lines',
-      items: [
+    await emitStreamEvent(
+      page,
+      'progress',
+      unreadableLinesFrame([
         {
           name: BLUE!.name,
           file: `${BLUE!.slug}.md`,
-          warnings: ['Skipped malformed line: 4 Sol Ring (typo here'],
+          warnings: [skippedLineWarning('4 Sol Ring (typo here')],
         },
-      ],
-    })
+      ]),
+    )
     await emitStreamEvent(page, 'done', {
       message: 'Pushed +0 added, -0 removed, 1 list failed.',
       report: DONE_REPORT,
@@ -699,7 +702,7 @@ test.describe('Sync Collection Page', () => {
       {
         name: BLUE!.name,
         file: `${BLUE!.slug}.md`,
-        warnings: ['Skipped malformed line: junk'],
+        warnings: [skippedLineWarning('junk')],
       },
     ])
 

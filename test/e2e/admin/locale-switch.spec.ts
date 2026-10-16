@@ -30,6 +30,8 @@ import {
   MOCK_SYNC_DECKS,
   mockStatusApi,
   mockTotpApi,
+  skippedLineWarning,
+  unreadableLinesFrame,
 } from '../helpers/mock-admin'
 import { apiMessage } from '../../../src/api/result'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
@@ -227,6 +229,40 @@ test.describe('admin language switch', () => {
     await expect(runLine).toContainText(/\b1\b.*\b5\b/)
     // And the summary banner relabels with them.
     await expectPseudo(banner, true)
+    await expectNotReloaded(page)
+  })
+
+  test('relabels the unreadable-lines panel, the parser’s line kept as it was written', async ({
+    page,
+  }) => {
+    const [winota] = MOCK_SYNC_DECKS
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockDeckSyncApi(page)
+    await gotoAdminDashboard(page, '#/sync/decks')
+    await markPage(page)
+    await page.locator('.sync-run-btn').click()
+    await expect(page.locator('.sync-run-btn')).toBeDisabled()
+
+    // As the engine streams it: each line a message, English plus its key.
+    await emitStreamEvent(
+      page,
+      'progress',
+      unreadableLinesFrame([
+        {
+          name: winota!.name,
+          file: `${winota!.slug}.md`,
+          warnings: [skippedLineWarning('4 Sol Ring (typo here')],
+        },
+      ]),
+    )
+    const line = page.locator('.sync-unreadable .sync-unreadable-line')
+    await expect(line).toHaveText('Skipped malformed line: 4 Sol Ring (typo here')
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(line, true)
+    await expect(line).not.toContainText('Skipped malformed line')
+    // The line the file holds is data, never translated.
+    await expect(line).toContainText('4 Sol Ring (typo here')
     await expectNotReloaded(page)
   })
 
@@ -577,6 +613,34 @@ test.describe('admin language switch', () => {
         .replace('{second}', 'manual'),
     )
     await expect(refused).not.toContainText('" must be "')
+    await expectNotReloaded(page)
+  })
+
+  test('relabels a refused Default Categories draft, the category rule nested', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockConfigApi(page)
+    await mockTotpApi(page)
+    await mockStatusApi(page)
+    await gotoAdminDashboard(page)
+    await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
+    // Validated as it is typed, in the browser: the refusal is the category
+    // rule's own message, held unrendered and rendered in the JSX.
+    await page.locator('input[name="defaultCategories"]').fill('Ramp, Tokens\u0001Extras')
+    const refused = page.locator('main .form-error')
+    await expect(refused).toHaveText(
+      'Invalid category "Tokens\\u0001Extras": a category is non-empty plain text that cannot contain a comma or a control character.',
+    )
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(refused, true)
+    // The nested shape rule relabels with its sentence; the value is the owner's.
+    const rule = pseudoCatalog()['domain.card.category.shapeRule']
+    if (typeof rule !== 'string') throw new Error('domain.card.category.shapeRule is not a string')
+    await expect(refused).toContainText(rule)
+    await expect(refused).toContainText('"Tokens\\u0001Extras"')
     await expectNotReloaded(page)
   })
 

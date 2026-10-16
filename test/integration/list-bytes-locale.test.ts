@@ -38,6 +38,7 @@ import {
   isSyncMessage,
   renderSyncMessage,
   SyncMessageError,
+  syncText,
   type SyncMessage,
 } from '../../src/sync/message'
 import { bindWorkspace, snapshotTree } from '../helpers/workspace'
@@ -212,7 +213,14 @@ async function writeEverything(): Promise<ListRun> {
     refusals.push(
       unreadableContentMessage(
         deckPath,
-        unreadableProblems({ warnings: ['first problem', 'second problem'], fencedLines: 2 }),
+        unreadableProblems({
+          fencedLines: 2,
+          // Text with no catalog entry, nested as it is.
+          notices: [
+            { severity: 'warning', message: syncText('first problem') },
+            { severity: 'warning', message: syncText('second problem') },
+          ],
+        }),
         'saving',
       ),
     )

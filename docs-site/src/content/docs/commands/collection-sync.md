@@ -353,7 +353,7 @@ A pull rewrites the list file, so these lines would be removed:
 
 Answering no (the default) fails those lists; the rest of the run continues. Pass `-y, --yes` to answer yes up front.
 
-Without a terminal to ask (`--no-input`, a piped stdin, or `--output json`/`ndjson`), the affected lists fail and the command exits 1. The listing is written to stderr in every mode, and every report carries an `unreadable` array with the same lists and lines.
+Without a terminal to ask (`--no-input`, a piped stdin, or `--output json`/`ndjson`), the affected lists fail and the command exits 1. The listing is written to stderr in every mode, and every report carries an `unreadable` array with the same lists and lines, as `{ name, file, warnings }`: each warning is a message — the English `message` plus `messageKey`/`messageParams` (a card-line diagnostic nests as `text`).
 
 `--dry-run` is exempt: a preview writes nothing, so there is nothing to confirm.
 

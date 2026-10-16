@@ -3,7 +3,6 @@ import {
   CARD_LINE_ADVISORY_KINDS,
   isCardLineError,
   CARD_LINE_ERROR_CODES,
-  formatCardLineDiagnostic,
   GRAMMAR,
   parseCardLine,
   readAnyCardId,
@@ -14,6 +13,7 @@ import {
   type TokenCardLineError,
   type LineTokens,
 } from '../../src/card/card-line-grammar'
+import { lineText } from '../../src/card/card-line-text'
 import type { ListType } from '../../src/list/list-type'
 
 /**
@@ -30,7 +30,7 @@ import type { ListType } from '../../src/list/list-type'
 /** Parse and assert success, returning the tokens. */
 function parsed(type: ListType, line: string): LineTokens {
   const result = parseCardLine(type, line)
-  if (!result.ok) throw new Error(`expected ${type} line to parse: ${line} — ${result.message}`)
+  if (!result.ok) throw new Error(`expected ${type} line to parse: ${line} — ${result.detail.code}`)
   return result.tokens
 }
 
@@ -113,9 +113,7 @@ describe('lines that used to drift tokens into the name or drop them', () => {
       token: '[LP]',
       listType: 'wanted',
     })
-    expect(error.message).toBe(
-      '[LP] is not a wanted list token — wanted lists never carry a condition.',
-    )
+    expect(error.detail).toEqual(lineText('wanted-condition', { token: '[LP]' }))
     expect(refusedToken('wanted', '- Bolt (LEA:161) [LP]').column).toBe('- Bolt (LEA:161) '.length)
   })
 })
@@ -297,7 +295,7 @@ describe('read tolerance for the export dialects', () => {
         severity: 'advisory',
         kind: 'dialect-rewritten',
         token: '(M10) 146',
-        message: 'Read the export printing (M10) 146 as (M10:146).',
+        detail: lineText('export-printing', { token: '(M10) 146', printing: 'M10:146' }),
       },
     ])
   })
@@ -343,7 +341,11 @@ describe('read tolerance for the export dialects', () => {
         severity: 'advisory',
         kind: 'dialect-rewritten',
         token: '(2XM) *F* 270',
-        message: 'Read the export printing (2XM) *F* 270 as (2XM:270) [foil].',
+        detail: lineText('export-printing-finish', {
+          token: '(2XM) *F* 270',
+          printing: '2XM:270',
+          finish: 'foil',
+        }),
       },
     ])
     expect(parsed('deck', '1 Sol Ring (CMM) *e* 410')).toMatchObject({
@@ -393,9 +395,7 @@ describe('advisories', () => {
         severity: 'advisory',
         kind: 'quantity-expanded',
         token: '3',
-        message:
-          'Read 3 copies: a wanted list holds one line per copy, ' +
-          'so this line becomes 3 lines on the next save.',
+        detail: lineText('quantity-expanded-wanted', { count: 3 }),
       },
     ])
   })
@@ -559,7 +559,7 @@ describe('tags', () => {
     expect(misplaced.ok).toBe(false)
     if (misplaced.ok) return
     expect(misplaced.code).toBe('misplaced-token')
-    expect(misplaced.hint).toBe('the &N id must be the last token on the line')
+    expect(misplaced.hint).toEqual(lineText('id-last'))
   })
 
   test('a tag token runs from its sigil to the end of the tail, spaces included', () => {
@@ -630,8 +630,13 @@ describe('tags', () => {
 
 describe('every error code', () => {
   const rows: readonly [CardLineErrorCode, ListType, string, Partial<CardLineError>][] = [
-    ['not-a-card-line', 'deck', '', { message: 'Blank line.' }],
-    ['not-a-card-line', 'collection', '## Main', { message: 'Not a card line: ## Main' }],
+    ['not-a-card-line', 'deck', '', { detail: lineText('blank-line') }],
+    [
+      'not-a-card-line',
+      'collection',
+      '## Main',
+      { detail: lineText('not-a-card-line', { line: '## Main' }) },
+    ],
     ['not-a-card-line', 'collection', '# My Collection', {}],
     ['not-a-card-line', 'deck', '// a comment', {}],
     ['not-a-card-line', 'deck', '```', {}],
@@ -639,7 +644,12 @@ describe('every error code', () => {
     // A horizontal rule, and the delimiter a caller's front-matter reader leaves
     // behind — never a card named `---`.
     ['not-a-card-line', 'collection', '---', {}],
-    ['empty-name', 'deck', '- (LEA:161) &4', { message: 'No card name: - (LEA:161) &4' }],
+    [
+      'empty-name',
+      'deck',
+      '- (LEA:161) &4',
+      { detail: lineText('empty-name', { line: '- (LEA:161) &4' }) },
+    ],
     ['empty-name', 'collection', '- &4', {}],
     [
       'unknown-token',
@@ -647,9 +657,9 @@ describe('every error code', () => {
       '1 Sol Ring [jp]',
       {
         token: '[jp]',
-        hint: 'did you mean [ja]?',
+        hint: lineText('did-you-mean', { language: 'ja' }),
         column: '1 Sol Ring '.length,
-        message: 'Unrecognized token [jp].',
+        detail: lineText('unknown-token', { token: '[jp]' }),
       },
     ],
     // Case matters: the bracket vocabularies are written lowercase (finish,
@@ -672,7 +682,7 @@ describe('every error code', () => {
         token: '[keep]',
         kind: 'labels',
         column: '- Sol Ring (LEA:1) '.length,
-        message: '[keep] is not a wanted list token — wanted lists never carry labels.',
+        detail: lineText('wanted-labels', { token: '[keep]' }),
       },
     ],
     [
@@ -683,8 +693,7 @@ describe('every error code', () => {
         token: '#R&D',
         kind: 'tags',
         column: '1 Sol Ring '.length,
-        message:
-          "Malformed tag token #R&D: a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses.",
+        detail: lineText('malformed-tag', { token: '#R&D' }),
       },
     ],
     ['malformed-tag', 'collection', '- Sol Ring (LEA:1) #', { token: '#' }],
@@ -697,14 +706,18 @@ describe('every error code', () => {
         token: '[foil]',
         kind: 'finish',
         column: '1 Sol Ring '.length,
-        message: 'Duplicate finish token [foil].',
+        detail: lineText('duplicate-token', { token: '[foil]', kind: 'finish' }),
       },
     ],
     [
       'duplicate-token',
       'deck',
       '1 Sol Ring (LEA:1) (2XM:2)',
-      { token: '(LEA:1)', kind: 'printing', message: 'Duplicate printing token (LEA:1).' },
+      {
+        token: '(LEA:1)',
+        kind: 'printing',
+        detail: lineText('duplicate-token', { token: '(LEA:1)', kind: 'printing' }),
+      },
     ],
     [
       'bad-quantity',
@@ -714,7 +727,7 @@ describe('every error code', () => {
         token: '0x',
         kind: 'quantity',
         column: 0,
-        message: 'A card line must name at least one copy.',
+        detail: lineText('zero-quantity'),
       },
     ],
     ['bad-quantity', 'collection', '- 0 Sol Ring (LEA:1)', { token: '0', column: 2 }],
@@ -724,7 +737,7 @@ describe('every error code', () => {
       '- Sol Ring',
       {
         kind: 'printing',
-        message: 'A collection line must name a printing, e.g. (LEA:161): - Sol Ring',
+        detail: lineText('missing-printing', { line: '- Sol Ring', listType: 'collection' }),
       },
     ],
     [
@@ -734,7 +747,7 @@ describe('every error code', () => {
       {
         kind: 'note',
         token: '{oops',
-        message: 'Unclosed note: a {note} must end with a closing brace.',
+        detail: lineText('unclosed-note'),
       },
     ],
     [
@@ -745,8 +758,8 @@ describe('every error code', () => {
         token: '&4',
         kind: 'id',
         column: '1 Sol Ring (LEA:161) '.length,
-        message: "&4 is inside the card name: a card line's tokens all follow the name.",
-        hint: 'the &N id must be the last token on the line',
+        detail: lineText('misplaced-token', { token: '&4' }),
+        hint: lineText('id-last'),
       },
     ],
     [
@@ -761,7 +774,11 @@ describe('every error code', () => {
       'misplaced-token',
       'deck',
       '1 Sol Ring [foil] and some prose',
-      { token: '[foil]', kind: 'finish', hint: 'move [foil] after the name' },
+      {
+        token: '[foil]',
+        kind: 'finish',
+        hint: lineText('move-after-name', { token: '[foil]' }),
+      },
     ],
     [
       // The shape that used to blame a *missing* printing on a collection line
@@ -773,9 +790,8 @@ describe('every error code', () => {
         token: '&2',
         kind: 'id',
         column: '- Sol Ring (LEA:270)'.length,
-        message:
-          "&2 runs into the text beside it: a card line's tokens are separated by whitespace.",
-        hint: 'insert a space before &2',
+        detail: lineText('unseparated-token', { token: '&2' }),
+        hint: lineText('insert-space', { token: '&2', side: 'before' }),
       },
     ],
     [
@@ -786,9 +802,9 @@ describe('every error code', () => {
         token: '[keep,sale]',
         kind: 'labels',
         column: '- Sol Ring (LEA:1) '.length,
-        // English by construction, like every other message this type carries —
-        // the conflict *rule* still comes from `labelOverrideConflict`.
-        message: 'Conflicting labels [keep,sale] — [keep] cannot be combined with any other label.',
+        // A code, worded at the boundary — the conflict *rule* still comes from
+        // `labelOverrideConflict`.
+        detail: lineText('labels-exclusive', { token: '[keep,sale]', label: 'keep' }),
       },
     ],
     [
@@ -799,7 +815,7 @@ describe('every error code', () => {
         token: '[proxy,no-proxy]',
         kind: 'labels',
         column: '1 Sol Ring '.length,
-        message: 'Conflicting labels [proxy,no-proxy] — [proxy] cannot be both set and negated.',
+        detail: lineText('labels-contradictory', { token: '[proxy,no-proxy]', label: 'proxy' }),
       },
     ],
   ]
@@ -901,10 +917,12 @@ describe('a glued token is a missing space, never a silent name', () => {
     // `(LEA:270)` has its leading space and lacks its trailing one; `&2` is the
     // other way round, and telling its author to move an id that is already
     // last would help nobody.
-    expect(refused('collection', '- Sol Ring (LEA:270)[foil]').hint).toBe(
-      'insert a space after (LEA:270)',
+    expect(refused('collection', '- Sol Ring (LEA:270)[foil]').hint).toEqual(
+      lineText('insert-space', { token: '(LEA:270)', side: 'after' }),
     )
-    expect(refused('deck', '1 Sol Ring&5').hint).toBe('insert a space before &5')
+    expect(refused('deck', '1 Sol Ring&5').hint).toEqual(
+      lineText('insert-space', { token: '&5', side: 'before' }),
+    )
   })
 
   test('text that is not token-shaped stays part of the name', () => {
@@ -1018,29 +1036,5 @@ describe('isCardLineError', () => {
     expect(advisory).toBeDefined()
     expect(isCardLineError(error)).toBe(true)
     expect(advisory && isCardLineError(advisory)).toBe(false)
-  })
-})
-
-describe('formatCardLineDiagnostic', () => {
-  test('prefixes with the file when there is one', () => {
-    const error = refused('wanted', '- Bolt (LEA:161) [LP]')
-    expect(formatCardLineDiagnostic(error, { file: 'wanted/cube.md', line: 12 })).toBe(
-      'wanted/cube.md:12: [LP] is not a wanted list token — wanted lists never carry a condition.',
-    )
-  })
-
-  test('falls back to the line number for pasted text', () => {
-    const error = refused('deck', '1 Sol Ring [jp]')
-    expect(formatCardLineDiagnostic(error, { line: 3 })).toBe(
-      'line 3: Unrecognized token [jp]. (did you mean [ja]?)',
-    )
-  })
-
-  test('renders an advisory too', () => {
-    const result = parseCardLine('deck', '4 Lightning Bolt (M10) 146')
-    const advisory = result.ok ? result.advisories[0] : undefined
-    expect(advisory && formatCardLineDiagnostic(advisory, { file: 'decks/burn.md', line: 4 })).toBe(
-      'decks/burn.md:4: Read the export printing (M10) 146 as (M10:146).',
-    )
   })
 })

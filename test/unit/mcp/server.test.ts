@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import type { BundleImportResponse } from '../../../src/admin/api/import-changes'
 import type { ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { ImportDeckResponse } from '../../../src/admin/api/import-deck'
-import { prefixedMessage, renderSyncMessage, syncRef } from '../../../src/sync/message'
+import {
+  prefixedMessage,
+  renderSyncMessage,
+  syncRef,
+  type SyncMessage,
+} from '../../../src/sync/message'
 import { keyedMessage } from '../../helpers/api-message'
 import { withSyntheticLocaleAsync } from '../../helpers/sync-text'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
@@ -139,7 +144,7 @@ type ConfigResultView = {
 type LoadedDeck = {
   deck: { sections: { name: string; cards: { name: string }[] }[] }
   cards?: unknown
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 async function callTool(
@@ -381,7 +386,14 @@ describe('Ritual MCP server (in-memory transport)', () => {
     )
     // The whole point of carrying warnings to the agent surface: a list that
     // loaded merely shorter than it is, said out loud.
-    expect(data.warnings).toEqual(['Skipped malformed line: not a card line'])
+    // English plus the key, so a client that renders can relabel it.
+    expect(data.warnings).toEqual([
+      {
+        message: 'Skipped malformed line: not a card line',
+        messageKey: 'domain.import.text.malformedLine',
+        messageParams: { line: 'not a card line' },
+      },
+    ])
   })
 
   test('get_list returns flat-list entries', async () => {

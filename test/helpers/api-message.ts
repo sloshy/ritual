@@ -7,7 +7,12 @@
 import { isApiMessage } from '../../src/api/result'
 import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
 import { isMessageKey, type MessageTriple } from '../../src/i18n/t'
-import { renderSyncParam, type SyncMessageParams } from '../../src/sync/message'
+import {
+  isSyncMessage,
+  renderSyncParam,
+  type SyncMessage,
+  type SyncMessageParams,
+} from '../../src/sync/message'
 
 /**
  * A parser's refusal as its English `message`, or the parsed value itself when
@@ -50,4 +55,35 @@ export function keyedMessage(triple: MessageTriple<SyncMessageParams>): string {
     throw new Error(`message "${triple.message}" disagrees with its key: "${rendered}"`)
   }
   return triple.message
+}
+
+/** A card-vocabulary parser's outcome: its value, or the refusal it raised as a message. */
+export type MessageRefusalResult =
+  { ok: true } | { ok: false; error: MessageTriple<SyncMessageParams> }
+
+/**
+ * A card-vocabulary parser's refusal (`{ ok: false, error }` — a label, tag,
+ * category, note or set-code rule) as English, after asserting it refused and
+ * that the refusal is keyed ({@link keyedMessage}).
+ */
+export function keyedError(result: MessageRefusalResult): string {
+  if (result.ok) throw new Error('expected a refusal, got an accepted value')
+  return keyedMessage(result.error)
+}
+
+/**
+ * A `T | SyncMessage` parser's refusal, after asserting the parser refused —
+ * the message itself, keyed or not, for a caller that pins its English.
+ */
+export function syncRefusal(parsed: unknown): SyncMessage {
+  if (!isSyncMessage(parsed)) throw new Error(`expected a refusal, got ${JSON.stringify(parsed)}`)
+  return parsed
+}
+
+/**
+ * A `T | SyncMessage` parser's refusal as English, after asserting it refused
+ * and is keyed ({@link keyedMessage}).
+ */
+export function keyedSyncRefusal(parsed: unknown): string {
+  return keyedMessage(syncRefusal(parsed))
 }

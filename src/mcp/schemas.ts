@@ -9,12 +9,9 @@ import {
   unsupportedLabelsMessage,
 } from '../card/card-labels'
 import { CARD_LANGUAGES } from '../card/card-language'
-import {
-  CARD_CATEGORY_SHAPE_CLAUSE,
-  isCardCategoryShaped,
-  normalizeCardCategory,
-} from '../card/card-categories'
-import { CARD_TAG_SHAPE_CLAUSE, isCardTagShaped, normalizeCardTag } from '../card/card-tags'
+import { isCardCategoryShaped, normalizeCardCategory } from '../card/card-categories'
+import { isCardTagShaped, normalizeCardTag } from '../card/card-tags'
+import { CARD_CATEGORY_SHAPE_RULE, CARD_TAG_SHAPE_RULE } from './shape-rules'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { isListType } from '../list/list-type'
 import type { ListImageRef } from '../list/list-image'
@@ -50,7 +47,7 @@ export const signedCardLabelSchema = z.enum(SIGNED_CARD_LABELS)
 export const cardTagSchema = z
   .string()
   .refine((raw) => isCardTagShaped(raw) && raw === normalizeCardTag(raw), {
-    message: `Not a canonical tag: ${CARD_TAG_SHAPE_CLAUSE}; no surrounding or doubled spaces.`,
+    message: `Not a canonical tag: ${CARD_TAG_SHAPE_RULE}; no surrounding or doubled spaces.`,
   })
   .describe('A card tag as its owner writes it, e.g. "Ramp" or "Card Draw" — plain text, no "#".')
 /** The tags a newly added card starts with; omit for none. */
@@ -68,7 +65,7 @@ export const tagsField = z
 export const cardCategorySchema = z
   .string()
   .refine((raw) => isCardCategoryShaped(raw) && raw === normalizeCardCategory(raw), {
-    message: `Not a canonical category: ${CARD_CATEGORY_SHAPE_CLAUSE}; no surrounding or doubled spaces.`,
+    message: `Not a canonical category: ${CARD_CATEGORY_SHAPE_RULE}; no surrounding or doubled spaces.`,
   })
   .describe('A category as its owner writes it, e.g. "Ramp" or "Card Draw" — plain text.')
 /**
@@ -102,7 +99,7 @@ export const categoryOrderField = z
  */
 function refineLabelOverride(labels: readonly string[], ctx: RefinementIssueSink): void {
   const parsed = parseLabelOverrideData(labels, 'labels')
-  if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.message })
+  if (!parsed.ok) ctx.addIssue({ code: 'custom', message: parsed.error.message })
 }
 
 /** How an override adjusts its list's default, spelled once for every tool that takes one. */
@@ -181,7 +178,10 @@ export function refineLabelsForListType(val: ListTypeWithLabels, ctx: Refinement
   if (labels === undefined || !isListType(listType)) return
   const check = checkLabelsForListType(listType, labels.filter(isSignedCardLabel))
   if (!check.ok) {
-    ctx.addIssue({ code: 'custom', message: unsupportedLabelsMessage(listType, check.unsupported) })
+    ctx.addIssue({
+      code: 'custom',
+      message: unsupportedLabelsMessage(listType, check.unsupported).message,
+    })
   }
 }
 

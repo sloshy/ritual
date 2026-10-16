@@ -459,6 +459,10 @@ export const cliSyncMeta = {
   },
 
   // ── `detect-changes` — git detection ──────────────────────────────────
+  'cli.detectChanges.parseWarning': {
+    description:
+      "A line (or a categories file) detect-changes could not read, located in the git history. Branches on {revision}: working-tree (the file as it is now) or committed (as it was at {commit}, a git commit hash). {path} is the repository-relative file path; {detail} is the parser's own warning, rendered separately. Keep the path:detail shape.",
+  },
   'cli.detectChanges.missingFile': {
     description:
       'A file changed inside the commit range but is gone from the working tree, so it was skipped and the run is partial. Begins lowercase: it is rendered under a ⚠️ marker as a sentence fragment.',

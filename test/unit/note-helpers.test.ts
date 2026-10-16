@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { normalizeNote, noteOrUndefined } from '../../src/card/note-helpers'
+import { keyedMessage } from '../helpers/api-message'
 
 describe('normalizeNote', () => {
   test('returns the trimmed text for a clean note', () => {
@@ -23,9 +24,13 @@ describe('normalizeNote', () => {
     expect(normalizeNote(`"foo" bar's baz`)).toEqual({ ok: true, note: `"foo" bar's baz` })
   })
 
-  test('rejects newlines', () => {
+  test('rejects newlines, in English plus its key', () => {
     const result = normalizeNote('line one\nline two')
-    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected a refusal')
+    expect(result.error.messageKey).toBe('domain.card.note.invalid')
+    expect(keyedMessage(result.error)).toBe(
+      'Notes must be single-line text with no control characters (newlines, tabs, etc. are not allowed).',
+    )
   })
 
   test('rejects tabs', () => {

@@ -1,6 +1,7 @@
 import { type JSX, For } from 'solid-js'
 import { useT } from '../../../ui/i18n'
 import type { UnreadableSource } from '../../../sync/common'
+import { renderSyncMessage } from '../../../sync/message'
 
 /**
  * The lead sentence, which names the kind of file the run refused. A message
@@ -44,7 +45,9 @@ export function UnreadableLinesPanel(props: UnreadableLinesPanelProps): JSX.Elem
                 {source.file} ({source.name})
               </span>
               <For each={source.warnings}>
-                {(warning) => <span class="sync-unreadable-line">{warning}</span>}
+                {(warning) => (
+                  <span class="sync-unreadable-line">{renderSyncMessage(warning)}</span>
+                )}
               </For>
             </li>
           )}

@@ -634,7 +634,7 @@ describe('cleanup CLI (Integration)', () => {
           file: path.join('collections', 'Bad.md'),
           message: 'Skipped malformed line: this is not a card line',
           messageKey: 'domain.import.text.malformedLine',
-          messageParams: { line: 'this is not a card line', hint: '' },
+          messageParams: { line: 'this is not a card line' },
         },
         {
           file: path.join('collections', 'Bad.md'),

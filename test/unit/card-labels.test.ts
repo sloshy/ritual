@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { keyedError, keyedMessage } from '../helpers/api-message'
 import {
   arrivalLabels,
   carriedEffectiveLabels,
@@ -164,19 +165,22 @@ describe('parseLabelOverrideData', () => {
     expect(parseLabelOverrideData([], 'labels')).toEqual({ ok: true, labels: [] })
   })
 
-  test('refuses in English, naming the field', () => {
-    expect(parseLabelOverrideData('sale', 'labels')).toEqual({
-      ok: false,
-      message: expect.stringContaining('labels must be an array'),
-    })
-    expect(parseLabelOverrideData(['sale', 'no-sale'], 'labels')).toEqual({
-      ok: false,
-      message: "'sale' cannot be both set and negated on one card.",
-    })
-    expect(parseLabelOverrideData(['keep', 'trade'], 'labels')).toEqual({
-      ok: false,
-      message: "'keep' cannot be combined with other labels.",
-    })
+  test('refuses in English plus a key, naming the field', () => {
+    expect(keyedError(parseLabelOverrideData('sale', 'labels'))).toBe(
+      'labels must be an array of labels (sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy).',
+    )
+    expect(keyedError(parseLabelOverrideData([7], '"labels"'))).toBe(
+      '"labels" must be one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.',
+    )
+    expect(keyedError(parseLabelOverrideData(['Sael'], 'labels'))).toBe(
+      "Invalid labels 'Sael'. Use one of: sale, trade, keep, proxy, no-sale, no-trade, no-keep, no-proxy.",
+    )
+    expect(keyedError(parseLabelOverrideData(['sale', 'no-sale'], 'labels'))).toBe(
+      "'sale' cannot be both set and negated on one card.",
+    )
+    expect(keyedError(parseLabelOverrideData(['keep', 'trade'], 'labels'))).toBe(
+      "'keep' cannot be combined with other labels.",
+    )
   })
 })
 
@@ -212,6 +216,21 @@ describe('parseCardLabelsValue', () => {
 
   test('refuses a negation: a list default is positive only', () => {
     expect(parseCardLabelsValue(['no-sale'], 'labels').ok).toBe(false)
+  })
+
+  test('words each refusal in English plus a key', () => {
+    expect(keyedError(parseCardLabelsValue('sale', 'labels'))).toBe(
+      'labels must be an array of labels (sale, trade, keep, proxy).',
+    )
+    expect(keyedError(parseCardLabelsValue([1], 'labels'))).toBe(
+      'labels must be one of: sale, trade, keep, proxy.',
+    )
+    expect(keyedError(parseCardLabelsValue(['no-sale'], 'labels'))).toBe(
+      "Invalid labels 'no-sale'. Use one of: sale, trade, keep, proxy.",
+    )
+    expect(keyedError(parseCardLabelsValue(['proxy', 'sale'], 'labels'))).toBe(
+      "'proxy' cannot be combined with other labels.",
+    )
   })
 })
 
@@ -268,11 +287,13 @@ describe('checkLabelsForListType', () => {
   })
 
   test('the refusal wording names the offenders and the type’s vocabulary', () => {
-    expect(unsupportedLabelsMessage('deck', ['sale', 'trade'])).toBe(
+    expect(keyedMessage(unsupportedLabelsMessage('deck', ['sale', 'trade']))).toBe(
       'labels [sale, trade] are not supported on a deck; supported: proxy.',
     )
     // Nothing to name on a type that carries none at all.
-    expect(unsupportedLabelsMessage('wanted', [])).toBe('labels do not apply to a wanted.')
+    expect(keyedMessage(unsupportedLabelsMessage('wanted', []))).toBe(
+      'labels do not apply to a wanted list.',
+    )
   })
 })
 
@@ -342,12 +363,15 @@ describe('readListDefaultLabels', () => {
   test('an unreadable or unsupported value warns that a rewrite drops the key', () => {
     const unsupported = readListDefaultLabels('deck', ['sale'])
     expect(unsupported.labels).toBeUndefined()
-    expect(unsupported.warning).toContain('labels [sale] are not supported on a deck')
-    expect(unsupported.warning).toContain('A rewrite would drop the key.')
+    expect(unsupported.warning && keyedMessage(unsupported.warning)).toBe(
+      "Front matter 'labels' ignored: labels [sale] are not supported on a deck; supported: proxy. A rewrite would drop the key.",
+    )
 
     const malformed = readListDefaultLabels('deck', 'proxy')
     expect(malformed.labels).toBeUndefined()
-    expect(malformed.warning).toContain("Front matter 'labels' ignored")
+    expect(malformed.warning && keyedMessage(malformed.warning)).toBe(
+      "Front matter 'labels' ignored: labels must be an array of labels (sale, trade, keep, proxy). A rewrite would drop the key.",
+    )
   })
 })
 

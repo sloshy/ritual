@@ -22,6 +22,7 @@
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 import type { ListType } from '../list/list-type'
+import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 import { isUnknownArray } from '../util/guards'
 import { parseEnumField } from '../util/parse-enum'
 
@@ -210,22 +211,25 @@ export function checkLabelsForListType(
 }
 
 /**
- * The refusal prose for a {@link checkLabelsForListType} failure, shared by the
- * English API and data surfaces (HTTP 400 bodies, change-bundle validation, MCP
- * schema issues) so they refuse in identical words. The CLI has its own
- * localized key for the same decision — machine-facing surfaces do not
- * localize, per the message-catalog rules.
+ * The refusal for a {@link checkLabelsForListType} failure, shared by the API
+ * and data surfaces (HTTP 400 bodies, change-bundle validation, the apply-path
+ * guard, MCP schema issues) so they refuse in identical words: English plus its
+ * key, which each surface sends as it is or renders in its reader's language.
+ * The CLI has its own localized key for the same decision.
  */
 export function unsupportedLabelsMessage(
   type: ListType,
   unsupported: readonly SignedCardLabel[],
-): string {
+): SyncMessage {
   const supported = supportedLabels(type)
-  if (supported.length === 0) return `labels do not apply to a ${type}.`
-  return (
-    `labels [${unsupported.join(', ')}] are not supported on a ${type}; ` +
-    `supported: ${supported.join(', ')}.`
-  )
+  if (supported.length === 0)
+    return syncMessage('domain.card.label.notApplicable', { listType: type })
+  return syncMessage('domain.card.label.unsupported', {
+    listType: type,
+    // Label tokens, joined the way the file and the flags spell a set.
+    labels: unsupported.join(', '),
+    supported: supported.join(', '),
+  })
 }
 
 /**
@@ -385,13 +389,23 @@ export function matchesCardLabelSelection(
 
 /**
  * The outcome of parsing a positive label set (a list default): the normalized
- * labels, or why the input was refused. Refusals carry prose ready for
- * whichever error channel the caller owns (commander throw, 400 body, advisory).
+ * labels, or why the input was refused — a message (English plus its key) the
+ * caller sends on as it is or renders in its reader's language.
  */
-export type CardLabelsResult = { ok: true; labels: CardLabel[] } | { ok: false; message: string }
+export type CardLabelsResult = { ok: true; labels: CardLabel[] } | { ok: false; error: SyncMessage }
 
-/** The outcome of parsing a card line's override: the normalized override, or why it was refused. */
+/**
+ * The outcome of parsing a card line's override from data: the normalized
+ * override, or why it was refused, as a message like {@link CardLabelsResult}'s.
+ */
 export type LabelOverrideResult =
+  { ok: true; labels: LabelOverride } | { ok: false; error: SyncMessage }
+
+/**
+ * The outcome of parsing a CLI `--label` value: the normalized override, or the
+ * refusal already worded in the CLI's language.
+ */
+export type LabelOverrideTokenResult =
   { ok: true; labels: LabelOverride } | { ok: false; message: string }
 
 /**
@@ -585,10 +599,10 @@ export function arrivalLabels(
 
 /**
  * The exclusive label that makes a combination of *positives* illegal, or
- * `undefined` when the set is legal. The *rule*, with no prose attached: the
- * CLI renders it through a localized message, and the card-line grammar —
- * which is English by construction and must not render a `t()` string it would
- * only discard — words its own refusal from the label this returns.
+ * `undefined` when the set is legal. The *rule*, with no prose attached: each
+ * surface words the refusal from the label this returns — the CLI and the data
+ * parsers through the catalog, the card-line grammar as a structured code
+ * (`labels-exclusive`) that `card-line-message.ts` words.
  */
 export function conflictingExclusiveLabel(labels: readonly CardLabel[]): CardLabel | undefined {
   if (labels.length < 2) return undefined
@@ -604,8 +618,9 @@ export type LabelOverrideConflict = { kind: 'exclusive' | 'contradictory'; label
 
 /**
  * The rule behind every override refusal, with no prose attached — the grammar
- * words it in English, the CLI through the catalog, the data decoders in
- * English. `labels` are signed members already known to be in the vocabulary.
+ * returns it as a structured code, the CLI words it through the catalog in its
+ * own language, and the data parsers as a message (English plus its key).
+ * `labels` are signed members already known to be in the vocabulary.
  */
 export function labelOverrideConflict(
   labels: readonly SignedCardLabel[],
@@ -630,11 +645,11 @@ function localizedConflict(labels: readonly SignedCardLabel[]): string | undefin
 /**
  * Parse a comma-separated override value (`trade,no-sale`) as a CLI `--label`
  * takes it, with localized refusals. Case-insensitive like every enum surface
- * (the card-line grammar itself reads only lowercase tokens and words its own
- * English refusals); the result is normalized. An empty body, an exclusive
+ * (the card-line grammar itself reads only lowercase tokens, and refuses with
+ * structured codes); the result is normalized. An empty body, an exclusive
  * combination, and a label both added and negated are refusals.
  */
-export function parseLabelOverrideToken(raw: string): LabelOverrideResult {
+export function parseLabelOverrideToken(raw: string): LabelOverrideTokenResult {
   const parts = raw.split(',').map((part) => part.trim())
   if (parts.some((part) => part === '')) {
     return {
@@ -661,66 +676,80 @@ export function parseLabelOverrideToken(raw: string): LabelOverrideResult {
  * default", the metadata route as "clear"). Negations are refused: a default is
  * positive only.
  *
- * Refusals are **English by contract**, one locale for every reader: they name
- * a field in a file or a request body — the metadata route's 400, the
- * front-matter warnings, the CLI's "stored value is invalid" report — like
- * {@link parseLabelOverrideData}'s.
+ * Refusals are messages — English plus their key — like
+ * {@link parseLabelOverrideData}'s: they name a field in a file or a request
+ * body (the metadata route's 400, the front-matter warnings, the CLI's "stored
+ * value is invalid" report), and each surface sends the English or renders the
+ * key in its reader's language.
  */
 export function parseCardLabelsValue(raw: unknown, field: string): CardLabelsResult {
-  const choices = CARD_LABELS.join(', ')
-  if (!isUnknownArray(raw)) {
-    return { ok: false, message: `${field} must be an array of labels (${choices}).` }
-  }
-  const labels: CardLabel[] = []
-  for (const element of raw) {
-    if (typeof element !== 'string') {
-      return { ok: false, message: `${field} must be one of: ${choices}.` }
-    }
-    const label = element.toLowerCase()
-    if (!isCardLabel(label)) {
-      return { ok: false, message: `Invalid ${field} '${element}'. Use one of: ${choices}.` }
-    }
-    labels.push(label)
-  }
+  const read = readLabelValues(raw, field, CARD_LABELS, isCardLabel)
+  if (!read.ok) return read
+  const { labels } = read
   const exclusive = conflictingExclusiveLabel(labels)
   if (exclusive !== undefined) {
-    return { ok: false, message: `'${exclusive}' cannot be combined with other labels.` }
+    return { ok: false, error: syncMessage('errors.label.exclusive', { label: exclusive }) }
   }
   return { ok: true, labels: normalizeCardLabels(labels) }
 }
 
+/** {@link readLabelValues}' outcome: the labels lowercased, or why `raw` was refused. */
+type LabelValues<L extends string> = { ok: true; labels: L[] } | { ok: false; error: SyncMessage }
+
 /**
- * Parse a signed override from persisted and exchanged data — a changelog's
- * event block, a change bundle, a save request's events — whose refusals are
- * **English by contract**: they name JSON fields in a file the user inspects,
- * and the decoders that report them live inside the persistence fence, so no
- * message here may depend on the UI locale. The acceptance rule is the token
- * parser's: signed labels, case-insensitive, normalized, conflicts refused.
+ * Read `raw` as an array of labels from `vocabulary` (case-insensitive) — the
+ * shape check {@link parseCardLabelsValue} and {@link parseLabelOverrideData}
+ * share. The choices a refusal names are label tokens, joined the way the file
+ * and the flags spell a set.
  */
-export function parseLabelOverrideData(raw: unknown, field: string): LabelOverrideResult {
-  const choices = SIGNED_CARD_LABELS.join(', ')
+function readLabelValues<L extends string>(
+  raw: unknown,
+  field: string,
+  vocabulary: readonly L[],
+  isMember: (value: string) => value is L,
+): LabelValues<L> {
+  const choices = vocabulary.join(', ')
   if (!isUnknownArray(raw)) {
-    return { ok: false, message: `${field} must be an array of labels (${choices}).` }
+    return { ok: false, error: syncMessage('domain.card.label.notArray', { field, choices }) }
   }
-  const labels: SignedCardLabel[] = []
+  const labels: L[] = []
   for (const element of raw) {
     if (typeof element !== 'string') {
-      return { ok: false, message: `${field} must be one of: ${choices}.` }
+      return { ok: false, error: syncMessage('domain.card.label.notString', { field, choices }) }
     }
     const label = element.toLowerCase()
-    if (!isSignedCardLabel(label)) {
-      return { ok: false, message: `Invalid ${field} '${element}'. Use one of: ${choices}.` }
+    if (!isMember(label)) {
+      return {
+        ok: false,
+        error: syncMessage('domain.card.label.invalid', { field, value: element, choices }),
+      }
     }
     labels.push(label)
   }
+  return { ok: true, labels }
+}
+
+/**
+ * Parse a signed override from persisted and exchanged data — a changelog's
+ * event block, a change bundle, a save request's events. The decoders that
+ * report its refusals live inside the persistence fence, so a refusal is a
+ * message — English plus its key — never text in the UI locale: the fenced
+ * decoder nests it in its own structured problem, and the surface showing that
+ * words it. The acceptance rule is the token parser's: signed labels,
+ * case-insensitive, normalized, conflicts refused.
+ */
+export function parseLabelOverrideData(raw: unknown, field: string): LabelOverrideResult {
+  const read = readLabelValues(raw, field, SIGNED_CARD_LABELS, isSignedCardLabel)
+  if (!read.ok) return read
+  const { labels } = read
   const conflict = labelOverrideConflict(labels)
-  if (conflict?.kind === 'exclusive') {
-    return { ok: false, message: `'${conflict.label}' cannot be combined with other labels.` }
-  }
-  if (conflict?.kind === 'contradictory') {
+  if (conflict !== undefined) {
     return {
       ok: false,
-      message: `'${conflict.label}' cannot be both set and negated on one card.`,
+      error: syncMessage(
+        conflict.kind === 'exclusive' ? 'errors.label.exclusive' : 'errors.label.contradictory',
+        { label: conflict.label },
+      ),
     }
   }
   return { ok: true, labels: normalizeLabelOverride(labels) }
@@ -740,7 +769,7 @@ export type ListDefaultLabelsResult = {
    * (`validateDeckFrontMatter` deletes the key), exactly like a card line's
    * refused `[keep]` token — so the whole-file-rewrite gates must see it.
    */
-  warning?: string
+  warning?: SyncMessage
 }
 
 /**
@@ -756,14 +785,16 @@ export function readListDefaultLabels(type: ListType, raw: unknown): ListDefault
   const read = readListDefaultLabelsValue(type, raw)
   if ('reason' in read) {
     return {
-      warning: `Front matter 'labels' ignored: ${read.reason} A rewrite would drop the key.`,
+      warning: syncMessage('domain.card.label.frontMatterDropped', {
+        reason: nestSync(read.reason),
+      }),
     }
   }
   return read.labels.length === 0 ? {} : { labels: read.labels }
 }
 
 /** {@link readListDefaultLabelsValue}' outcome: the default (possibly empty), or why it was refused. */
-export type ListDefaultLabelsValue = { labels: CardLabel[] } | { reason: string }
+export type ListDefaultLabelsValue = { labels: CardLabel[] } | { reason: SyncMessage }
 
 /**
  * The one rule for a front-matter `labels:` value: a legal label set (empty
@@ -774,7 +805,7 @@ export type ListDefaultLabelsValue = { labels: CardLabel[] } | { reason: string 
  */
 export function readListDefaultLabelsValue(type: ListType, raw: unknown): ListDefaultLabelsValue {
   const parsed = parseCardLabelsValue(raw, 'labels')
-  if (!parsed.ok) return { reason: parsed.message }
+  if (!parsed.ok) return { reason: parsed.error }
   const unsupported = unsupportedLabelsFor(type, parsed.labels)
   if (unsupported.length > 0) return { reason: unsupportedLabelsMessage(type, unsupported) }
   return { labels: parsed.labels }

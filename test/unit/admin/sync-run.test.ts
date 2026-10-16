@@ -11,7 +11,7 @@ import {
   type SyncRunMessage,
 } from '../../../src/admin/site/sync-run'
 import type { SyncEvent, UnreadableSource } from '../../../src/sync/common'
-import { syncMessage } from '../../../src/sync/message'
+import { syncMessage, syncText } from '../../../src/sync/message'
 
 /**
  * The bookkeeping behind the two sync pages' progress lists. The pages
@@ -105,7 +105,7 @@ function fold(events: SyncEvent<ListResult>[], confirmed = false): RunState {
 
 const UNREADABLE: SyncEvent<ListResult> = {
   kind: 'unreadable-lines',
-  items: [{ name: 'Blue Binder', file: 'blue.md', warnings: ['line 3: junk'] }],
+  items: [{ name: 'Blue Binder', file: 'blue.md', warnings: [syncText('line 3: junk')] }],
 }
 
 describe('applySyncEvent', () => {
@@ -150,7 +150,7 @@ describe('applySyncEvent', () => {
 
   test('raises the unreadable-lines panel only for a run that has not answered it', () => {
     expect(fold([UNREADABLE]).unreadable).toEqual([
-      { name: 'Blue Binder', file: 'blue.md', warnings: ['line 3: junk'] },
+      { name: 'Blue Binder', file: 'blue.md', warnings: [syncText('line 3: junk')] },
     ])
     // The engines report those sources on every run, so an already-confirmed run
     // must not re-raise the panel it was launched from.

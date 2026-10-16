@@ -19,6 +19,7 @@ import { computeHash } from '../../src/changes/content-hash'
 import { getDefaultRitualConfig } from '../../src/config/ritual-config'
 import { DECK_FORMAT_KEYS } from '../../src/list/deck-format'
 import { keyedMessage } from '../helpers/api-message'
+import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
 import { saveList } from '../helpers/list-save'
 import { expectLocaleInForce, pseudoCatalog, withSyntheticLocaleAsync } from '../helpers/sync-text'
 import {
@@ -280,6 +281,30 @@ describe('list-engine refusals on the admin API (Integration)', () => {
         list: [{ messageKey: 'domain.list.fencedContent', messageParams: { count: 3 } }],
         join: 'clauses',
       },
+    })
+    expect(await fs.readFile(deckPath, 'utf-8')).toBe(original)
+  })
+})
+
+describe('a save over an unreadable card line (Integration)', () => {
+  test('the rewrite gate nests the parser’s keyed warning, the diagnostic inside it', async () => {
+    const deckPath = path.join(ws.dir, 'decks', 'burn.md')
+    const original = `${await fs.readFile(deckPath, 'utf-8')}\n1 Lava Spike [jp]\n`
+    await fs.writeFile(deckPath, original)
+    const { status, body } = await pseudoCall(
+      (req) => handleListSave(req, 'deck'),
+      'POST',
+      '/api/deck/burn/save',
+      { changes: [], contentHash: computeHash(original) },
+    )
+    expect(status).toBe(400)
+    // The save parses the file it read from disk, so the line is counted in
+    // the whole file (front matter included).
+    const lineNumber = original.trimEnd().split('\n').length
+    expect(keyedMessage(body)).toEndWith(`Fix the file first — ${jpDiagnosticEnglish(lineNumber)}`)
+    expect(body.messageParams?.problems).toEqual({
+      list: [jpDiagnosticAt(lineNumber)],
+      join: 'clauses',
     })
     expect(await fs.readFile(deckPath, 'utf-8')).toBe(original)
   })

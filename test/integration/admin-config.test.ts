@@ -345,6 +345,29 @@ describe('config refusals on the wire (Integration)', () => {
     })
   })
 
+  test('a defaultCategories refusal is keyed, the category rule nested', async () => {
+    const response = await inPseudoLocale(() => putConfig({ defaultCategories: ['Ramp', 'a,b'] }))
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as SyncMessage & { success: boolean }
+    expect(body.success).toBe(false)
+    expect(keyedMessage(body)).toBe(
+      'Invalid category "a,b": a category is non-empty plain text that cannot contain a comma or a control character.',
+    )
+    expect(body).toMatchObject({
+      messageKey: 'domain.card.category.invalid',
+      messageParams: {
+        value: '"a,b"',
+        rule: { messageKey: 'domain.card.category.shapeRule' },
+      },
+    })
+
+    const notArray = await inPseudoLocale(() => putConfig({ defaultCategories: 'Ramp' }))
+    expect(notArray.status).toBe(400)
+    const notArrayBody = (await notArray.json()) as SyncMessage
+    expect(notArrayBody.messageKey).toBe('domain.config.defaultCategoriesNotArray')
+    expect(keyedMessage(notArrayBody)).toBe('defaultCategories must be an array of category names')
+  })
+
   test('a refusal worded outside the catalog is its English alone, with no key', async () => {
     // `priceSources` is validated by the pricing module, not yet converted.
     const response = await inPseudoLocale(() => putConfig({ priceSources: ['ebay'] }))

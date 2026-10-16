@@ -20,6 +20,7 @@ import { cliInfraMessages } from './en/cli-infra'
 import { cliSyncMessages } from './en/cli-sync'
 import { domainMessages } from './en/domain'
 import { domainCacheMessages } from './en/domain-cache'
+import { domainCardMessages } from './en/domain-card'
 import { domainConfigMessages } from './en/domain-config'
 import { domainChangesMessages } from './en/domain-changes'
 import { domainImportMessages } from './en/domain-import'
@@ -47,9 +48,10 @@ import { uiMessages } from './en/ui'
  *
  * - `admin` — `admin` (the admin SPA's own chrome) plus `admin-api`, the prose
  *   the admin HTTP API authors;
- * - `domain` — `domain` (shared), `domain-changes` (the change engine's
- *   refusals) and `domain-list` (the list-metadata grammars' refusals), which
- *   every surface registers, and `domain-sync`, `domain-cache`,
+ * - `domain` — `domain` (shared), `domain-card` (the card-line grammar's
+ *   diagnostics and the card vocabulary's refusals), `domain-changes` (the
+ *   change engine's refusals) and `domain-list` (the list-metadata grammars'
+ *   refusals), which every surface registers, and `domain-sync`, `domain-cache`,
  *   `domain-config`, `domain-import` and `domain-list-files` — the sync
  *   engines' text, the card cache's server-facing text, the config validator's
  *   refusals, the importers' text and the list-file engines' text — which only
@@ -72,6 +74,7 @@ export const en = {
   ...cliSyncMessages,
   ...domainMessages,
   ...domainCacheMessages,
+  ...domainCardMessages,
   ...domainConfigMessages,
   ...domainChangesMessages,
   ...domainImportMessages,

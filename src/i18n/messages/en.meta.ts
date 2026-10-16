@@ -15,6 +15,7 @@ import { cliInfraMeta } from './en/cli-infra.meta'
 import { cliSyncMeta } from './en/cli-sync.meta'
 import { domainMeta } from './en/domain.meta'
 import { domainCacheMeta } from './en/domain-cache.meta'
+import { domainCardMeta } from './en/domain-card.meta'
 import { domainConfigMeta } from './en/domain-config.meta'
 import { domainChangesMeta } from './en/domain-changes.meta'
 import { domainImportMeta } from './en/domain-import.meta'
@@ -46,6 +47,7 @@ export const enMeta: Record<MessageKey, MessageMeta> = {
   ...cliSyncMeta,
   ...domainMeta,
   ...domainCacheMeta,
+  ...domainCardMeta,
   ...domainConfigMeta,
   ...domainChangesMeta,
   ...domainImportMeta,

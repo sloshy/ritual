@@ -17,8 +17,8 @@
  * - `notices` — every warning and advisory as a message (English plus its
  *   catalog key, `src/sync/message.ts`) with its severity, in the order they
  *   were recorded, for a caller that reports them to a reader in another
- *   language: an import surface's JSON, the admin API, MCP. A notice whose text
- *   has no catalog entry yet is carried keyless, its English as it was.
+ *   language: an import surface's JSON, the admin API, MCP. Card-line
+ *   diagnostics are worded by `src/card/card-line-message.ts`.
  *
  * Routing between the two string channels is the whole reason this is a shared
  * object rather than three arrays per parser: the severity split is a promise
@@ -34,12 +34,12 @@
  */
 
 import {
-  formatCardLineDiagnostic,
   isCardLineError,
   type CardLineAdvisoryKind,
   type CardLineDiagnostic,
 } from '../card/card-line-grammar'
-import { syncText, type SyncMessage } from '../sync/message'
+import { cardLineDiagnosticMessage } from '../card/card-line-message'
+import type { SyncMessage } from '../sync/message'
 
 /** What every list-file parser accepts about the content it is handed. */
 export type ListFileParseOptions = {
@@ -57,7 +57,7 @@ export type ParseNoticeSeverity = 'warning' | 'advisory'
 /** One warning or advisory as a message, with the channel it belongs to. */
 export type ParseNotice = {
   severity: ParseNoticeSeverity
-  /** English plus the catalog key, or keyless text another module worded. */
+  /** English plus the catalog key. */
   message: SyncMessage
 }
 
@@ -124,9 +124,9 @@ export function createLineDiagnostics(file?: string): LineDiagnostics {
       if (!isCardLineError(diagnostic) && diagnostic.kind === STRUCTURED_ONLY_ADVISORY) {
         return undefined
       }
-      // The grammar words its diagnostics itself (`formatCardLineDiagnostic`),
-      // so they ride keyless until it hands back messages of its own.
-      const text = syncText(formatCardLineDiagnostic(diagnostic, { file, line }))
+      // Worded here, not by the grammar (which returns codes): English plus
+      // the key, located at `file:line`.
+      const text = cardLineDiagnosticMessage(diagnostic, { file, line })
       return isCardLineError(diagnostic) ? warn(text) : advise(text)
     },
     warn,

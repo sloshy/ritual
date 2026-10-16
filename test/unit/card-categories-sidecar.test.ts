@@ -59,8 +59,8 @@ describe('parseCardCategoriesSidecar', () => {
     expect(parsed.warnings).toEqual([])
   })
 
-  /** A refusal row: the case, the file, its catalog key (none for the category rule's), its English. */
-  type RefusalRow = [label: string, content: string, key: string | undefined, english: string]
+  /** A refusal row: the case, the file, its catalog key, its English. */
+  type RefusalRow = [label: string, content: string, key: string, english: string]
 
   test.each<RefusalRow>([
     [
@@ -93,25 +93,30 @@ describe('parseCardCategoriesSidecar', () => {
       'domain.list.categories.emptyName',
       'a "cards" key must be a card name, not empty',
     ],
-    // The category rule (`src/card/card-categories.ts`) words these itself; they ride keyless.
-    ['a non-array order', '{"order":"Ramp"}', undefined, '"order" must be an array of categories.'],
+    // The category rule's own refusals (`src/card/card-categories.ts`), keyed too.
+    [
+      'a non-array order',
+      '{"order":"Ramp"}',
+      'domain.card.category.notArray',
+      '"order" must be an array of categories.',
+    ],
     [
       'a non-string order element',
       '{"order":[7]}',
-      undefined,
+      'domain.card.category.notArray',
       '"order" must be an array of categories.',
     ],
     [
       'a malformed category name',
       '{"cards":{"Sol Ring":["a,b"]}}',
-      undefined,
+      'domain.card.category.invalid',
       'Invalid category "a,b": a category is non-empty plain text that cannot contain a comma or a control character.',
     ],
   ])('refuses %s as a whole', (_label, content, key, english) => {
     const parsed = parseCardCategoriesSidecar(content)
     if (parsed.ok) throw new Error('expected a refusal')
     expect<string | undefined>(parsed.message.messageKey).toBe(key)
-    expect(key === undefined ? parsed.message.message : keyedMessage(parsed.message)).toBe(english)
+    expect(keyedMessage(parsed.message)).toBe(english)
   })
 
   test('refuses malformed JSON, the parser’s own message nested', () => {

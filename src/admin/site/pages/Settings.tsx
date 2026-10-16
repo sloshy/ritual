@@ -1,4 +1,4 @@
-import { type JSX, createSignal, onMount, For, Show } from 'solid-js'
+import { type JSX, createMemo, createSignal, onMount, For, Show } from 'solid-js'
 import type {
   AdminConfig,
   CacheSource,
@@ -33,6 +33,7 @@ import { isLocaleTagError, parseLocaleTag } from '../../../i18n/locale-tag'
 import type { LocaleTag, MessageSegment } from '../../../i18n/types'
 import { useT, useTSegments } from '../../../ui/i18n'
 import { apiMessage } from '../../../api/result'
+import { renderSyncMessage, type SyncMessage } from '../../../sync/message'
 import { useApiAction } from '../hooks/useApiAction'
 import { StatusAlerts } from '../components/StatusAlerts'
 import { TotpSettings } from '../components/TotpSettings'
@@ -79,15 +80,15 @@ export function Settings(): JSX.Element {
   /**
    * The refusal for the current draft, or `undefined` while it parses. A refused
    * draft is never committed, so without this the field would keep the typed
-   * text while Save quietly persisted the last accepted vocabulary. The prose is
-   * the parser's own (English by contract, as for every `CardCategoryError`).
+   * text while Save quietly persisted the last accepted vocabulary. Held as the
+   * parser's message and rendered in the JSX, so a language switch relabels it.
    */
-  const categoriesError = (): string | undefined => {
+  const categoriesError = createMemo((): SyncMessage | undefined => {
     const draft = categoriesDraft()
     if (draft === null) return undefined
     const parsed = parseCardCategoriesInput(draft)
-    return parsed.ok ? undefined : parsed.message
-  }
+    return parsed.ok ? undefined : parsed.error
+  })
 
   /**
    * Render a hint's segments with every parameter wrapped in `<code>`. The
@@ -359,7 +360,7 @@ export function Settings(): JSX.Element {
             <Show when={categoriesError()}>
               {(message) => (
                 <p class="form-error" role="alert">
-                  {message()}
+                  {renderSyncMessage(message())}
                 </p>
               )}
             </Show>

@@ -36,7 +36,9 @@ describe('createDiskCollectionListStore().load (Integration)', () => {
     if (isSyncMessage(loaded)) throw new Error(`expected a loaded list, got: ${loaded.message}`)
 
     expect(loaded.entries.map((entry) => entry.name)).toEqual(['Sol Ring'])
-    expect(loaded.warnings).toEqual(['Skipped malformed line: this is not a card line'])
+    expect(loaded.warnings.map(keyedMessage)).toEqual([
+      'Skipped malformed line: this is not a card line',
+    ])
     expect(loaded.advisories.map((advisory) => advisory.messageKey)).toEqual([
       'domain.list.frontMatter.notMapping',
     ])

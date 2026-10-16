@@ -3,7 +3,7 @@ import type { DeckData, DeckSection } from '../list/deck'
 import path from 'node:path'
 import { readdir } from 'node:fs/promises'
 import matter from 'gray-matter'
-import { malformedLanguageTokenHint } from '../card/card-language'
+import { misspelledLanguage } from '../card/card-language'
 import {
   listDefaultLabels,
   readListDefaultLabels,
@@ -37,13 +37,7 @@ import { createFenceTracker, frontMatterBodyStart } from '../list/markdown-fence
 import { isListMarkdownFile } from '../list/list-file-name'
 import { parseHeading, parseTitleFromContent } from '../list/section-format'
 import type { ListType } from '../list/list-type'
-import {
-  nestSync,
-  syncMessage,
-  SyncMessageError,
-  syncText,
-  type SyncMessage,
-} from '../sync/message'
+import { nestSync, syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
 
 /** A deck directory entry that is a deck's own file. Decks share the one list-file predicate. */
 export const isDeckFile = isListMarkdownFile
@@ -374,8 +368,7 @@ export function parseDeckText(
   // (`defaultLabels` below), against which its lines' labels are carried.
   if (listType === 'deck' && 'labels' in parsed.data) {
     const defaultLabels = readListDefaultLabels('deck', parsed.data.labels)
-    // Worded by the label module (`src/card/card-labels.ts`), carried as it is.
-    if (defaultLabels.warning) report.warn(syncText(defaultLabels.warning))
+    if (defaultLabels.warning) report.warn(defaultLabels.warning)
   }
   // And the same for an unreadable `image:` cover, for the same reason: users
   // are told to hand-edit this key, so a save that silently deletes it would be
@@ -443,7 +436,7 @@ export function parseDeckText(
       if (titled) {
         report.warn(syncMessage('domain.import.text.extraTitle', { line: trimmed }))
       } else if (sawCard) {
-        report.warn(syncMessage('domain.import.text.malformedLine', { line: trimmed, hint: '' }))
+        report.warn(syncMessage('domain.import.text.malformedLine', { line: trimmed }))
       } else {
         name = heading.text
         titled = true
@@ -509,12 +502,11 @@ export function parseDeckText(
     }
 
     // A recognizable-but-misspelled language token ([JA], [jp]) names its fix.
-    // The hint is worded by the language module (`src/card/card-language.ts`).
+    const language = misspelledLanguage(trimmed)
     report.warn(
-      syncMessage('domain.import.text.malformedLine', {
-        line: trimmed,
-        hint: malformedLanguageTokenHint(trimmed),
-      }),
+      language === undefined
+        ? syncMessage('domain.import.text.malformedLine', { line: trimmed })
+        : syncMessage('domain.import.text.malformedLineLanguage', { line: trimmed, language }),
     )
   }
 

@@ -26,7 +26,7 @@ import { invalidDeckFormatMessage, parseDeckFormat } from '../../list/deck-forma
 import { parseListTarget } from './target'
 import { resolveListFile } from './list-info'
 import { apiError, errorResponse, nestedRefusal, readJsonObjectBody } from '../../api/http'
-import { apiMessage, isApiMessage, plainMessage, type ApiMessage } from '../../api/result'
+import { apiMessage, isApiMessage, type ApiMessage } from '../../api/result'
 import { autoCommitAndPush, validateContentHash } from './save-helpers'
 import { MAX_METADATA_BODY_SIZE } from '../validation'
 
@@ -159,12 +159,12 @@ function parseMetadataEnvelope(
  * the refusal. Shared by both body parsers so a deck and a collection refuse an
  * illegal label set identically.
  */
-function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | null | ApiMessage {
+function parseListDefaultLabels(raw: unknown, type: ListType): CardLabel[] | null | SyncMessage {
   if (raw === null) return null
   const labels = parseCardLabelsValue(raw, 'labels')
-  if (!labels.ok) return plainMessage(labels.message)
+  if (!labels.ok) return labels.error
   const unsupported = unsupportedLabelsFor(type, labels.labels)
-  if (unsupported.length > 0) return plainMessage(unsupportedLabelsMessage(type, unsupported))
+  if (unsupported.length > 0) return unsupportedLabelsMessage(type, unsupported)
   // An empty array says "no default"; clear the key rather than writing `[]`.
   return labels.labels.length === 0 ? null : labels.labels
 }
@@ -259,7 +259,7 @@ export function parseDeckMetadataBody(
 
   if ('labels' in raw) {
     const labels = parseListDefaultLabels(raw.labels, 'deck')
-    if (isApiMessage(labels)) return labels
+    if (isSyncMessage(labels)) return labels
     patch.labels = labels
   }
 
@@ -333,7 +333,7 @@ export function parseFlatListMetadataBody(
 
   if ('labels' in raw) {
     const labels = parseListDefaultLabels(raw.labels, type)
-    if (isApiMessage(labels)) return labels
+    if (isSyncMessage(labels)) return labels
     patch.labels = labels
   }
 

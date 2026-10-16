@@ -1,3 +1,5 @@
+import { parseWarningMessages } from '../list/unreadable-content'
+import { nestSync, renderSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
 import { Command } from 'commander'
 import { compareData } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
@@ -108,14 +110,21 @@ type DetectResult = {
  */
 export type DetectWarningKind = 'missing-file' | 'parse'
 
-export type DetectWarning = {
+/** Which revision of a file a `parse` warning was read from. */
+export type DetectRevision = 'working-tree' | 'committed'
+
+/**
+ * One warning: a message — English `message` plus its key and (nested) params,
+ * already naming the file and revision — with what a script branches on. The
+ * text output renders it in the CLI's language; `--output json` carries it as
+ * it is, like every other scripting payload.
+ */
+export type DetectWarning = SyncMessage & {
   kind: DetectWarningKind
   /** Repo-relative path of the list file the warning is about. */
   file: string
   /** Which revision of `file` produced a `parse` warning. */
-  revision?: 'working-tree' | 'committed'
-  /** Ready-to-print text, already naming the file and revision. */
-  message: string
+  revision?: DetectRevision
 }
 
 /** Whether `warnings` describe a run that could not process every candidate. */
@@ -254,7 +263,7 @@ function alignSectionIds(
 // ── Per-file diffing ─────────────────────────────────────────────────
 
 /** Collects a parser warning against the revision it came from. */
-type ReportParseWarning = (revision: 'working-tree' | 'committed', warning: string) => void
+type ReportParseWarning = (revision: DetectRevision, warning: SyncMessage) => void
 
 function diffCollection(
   oldContent: string | null,
@@ -262,14 +271,14 @@ function diffCollection(
   report: ReportParseWarning,
 ): ChangeEvent[] {
   const newParsed = parseCollectionFile(newContent)
-  for (const w of newParsed.warnings) report('working-tree', w)
+  for (const w of parseWarningMessages(newParsed)) report('working-tree', w)
 
   if (!oldContent) {
     return diffCollectionEntries([], newParsed.entries)
   }
 
   const oldParsed = parseCollectionFile(oldContent)
-  for (const w of oldParsed.warnings) report('committed', w)
+  for (const w of parseWarningMessages(oldParsed)) report('committed', w)
 
   const aligned = alignEntryIds(oldParsed.entries, newParsed.entries)
   return diffCollectionEntries(aligned.old, aligned.current)
@@ -281,14 +290,14 @@ function diffWanted(
   report: ReportParseWarning,
 ): ChangeEvent[] {
   const newParsed = parseWantedListFile(newContent)
-  for (const w of newParsed.warnings) report('working-tree', w)
+  for (const w of parseWarningMessages(newParsed)) report('working-tree', w)
 
   if (!oldContent) {
     return diffWantedEntries([], newParsed.entries)
   }
 
   const oldParsed = parseWantedListFile(oldContent)
-  for (const w of oldParsed.warnings) report('committed', w)
+  for (const w of parseWarningMessages(oldParsed)) report('committed', w)
 
   const aligned = alignEntryIds(oldParsed.entries, newParsed.entries)
   return diffWantedEntries(aligned.old, aligned.current)
@@ -317,7 +326,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
     // read must be reported, since the sidecar refresh below will otherwise
     // declare it recorded forever.
     const newDeck = await loadDeckFile(newTmp)
-    for (const w of newDeck.warnings) report('working-tree', w)
+    for (const w of parseWarningMessages(newDeck)) report('working-tree', w)
 
     if (!oldContent) {
       return diffDeckCards([], newDeck.deck.sections)
@@ -326,7 +335,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
     const oldTmp = path.join(tempDir, `old-deck-${suffix}.md`)
     await fs.writeFile(oldTmp, oldContent)
     const oldDeck = await loadDeckFile(oldTmp)
-    for (const w of oldDeck.warnings) report('committed', w)
+    for (const w of parseWarningMessages(oldDeck)) report('committed', w)
 
     const aligned = alignSectionIds(oldDeck.deck.sections, newDeck.deck.sections)
     return diffDeckCards(aligned.old, aligned.current)
@@ -336,7 +345,7 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
     warnings.push({
       kind: 'missing-file',
       file: filePath,
-      message: t('cli.detectChanges.missingFile', { path: filePath }),
+      ...syncMessage('cli.detectChanges.missingFile', { path: filePath }),
     })
   }
 
@@ -346,11 +355,22 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
    */
   const pushParseWarning = (
     fc: FileChange,
-    revision: 'committed' | 'working-tree',
-    detail: string,
+    revision: DetectRevision,
+    detail: SyncMessage,
   ): void => {
-    const where = revision === 'committed' ? `${fc.oldPath} at ${commit}` : fc.path
-    warnings.push({ kind: 'parse', file: fc.path, revision, message: `${where}: ${detail}` })
+    warnings.push({
+      kind: 'parse',
+      file: fc.path,
+      revision,
+      // The committed side names the *old* path (a rename's committed bytes
+      // live there) and the commit; the parser's own warning nests.
+      ...syncMessage('cli.detectChanges.parseWarning', {
+        revision,
+        path: revision === 'committed' ? fc.oldPath : fc.path,
+        commit,
+        detail: nestSync(detail),
+      }),
+    })
   }
 
   await fs.mkdir(tempDir, { recursive: true })
@@ -484,15 +504,14 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
 
       const parseSide = (
         content: string | null,
-        revision: 'committed' | 'working-tree',
+        revision: DetectRevision,
       ): CardCategoriesRecord | null => {
         if (content === null) return emptyCardCategoriesRecord()
         // No `knownCardNames`: detect-changes must not consult the list's
         // contents to decide what the user wrote.
         const parsed = parseCardCategoriesSidecar(content)
         if (parsed.ok) return parsed.categories
-        // English, like the parser warnings this channel already carries.
-        pushParseWarning(fc, revision, parsed.message.message)
+        pushParseWarning(fc, revision, parsed.message)
         return null
       }
       const before = parseSide(beforeContent, 'committed')
@@ -901,7 +920,7 @@ async function runDetect(
   // Warnings go to stderr in every mode so stdout stays a pure payload, and are
   // essential: each one names something that will not get a changelog entry.
   emitWarnings(
-    output.warnings.map((warning) => `⚠️  ${warning.message}`),
+    output.warnings.map((warning) => `⚠️  ${renderSyncMessage(warning)}`),
     scripting,
     { essential: true },
   )

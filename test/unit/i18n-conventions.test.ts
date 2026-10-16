@@ -89,6 +89,64 @@ const PERSISTENCE_FENCE = [
 ]
 
 /**
+ * The card-line fence: the modules that write and re-parse the card-line
+ * grammar itself, which must never import `src/i18n` (AGENTS.md, "Card-line
+ * grammar is not prose").
+ */
+const LINE_FENCE = [
+  'src/card/card-line-grammar.ts',
+  // The grammar's diagnostics as codes and values, worded by the unfenced
+  // `card-line-message.ts`.
+  'src/card/card-line-text.ts',
+  'src/card/card-line-id.ts',
+  'src/card/card-line-tail.ts',
+  'src/card/card-line-read.ts',
+  'src/list/line-diagnostics.ts',
+  'src/list/deck-file.ts',
+  'src/list/deck-text.ts',
+  'src/card/card-line.ts',
+  'src/list/collection-file.ts',
+  'src/list/wanted-file.ts',
+  'src/list/flat-list-scan.ts',
+  'src/card/set-codes.ts',
+  'src/card/card-id.ts',
+  'src/card/printing-key.ts',
+  'src/list/list-file-name.ts',
+  'src/list/flat-list-read.ts',
+  'src/importers/text-file.ts',
+]
+
+/**
+ * The modules a line-fenced file reaches that import `src/i18n`, each with why
+ * it cannot put localized text into a card line: what a line carries is a
+ * literal token, and what these modules render is a refusal or a display label
+ * returned to a caller, or a collation.
+ */
+const LINE_ROUTE_LEDGER: Record<string, string> = {
+  'src/card/card-labels.ts':
+    'label refusals and display labels returned to callers; the [labels] token is built from the literal vocabulary (formatLabelOverride)',
+  'src/card/card-language.ts': 'collation only; the [ja] token is the literal code (languageToken)',
+  'src/card/card-tags.ts':
+    'collation only (compareData, pinned English) to order a tag set; tag values are the owner’s data',
+  'src/card/finish-condition.ts':
+    'display labels and refusals for callers; the [foil] / [NM] tokens are literals',
+  'src/config/ritual-config.ts':
+    'config validation refusals returned to callers and its own warning to the console; a card line carries no config text',
+  'src/list/deck-format.ts':
+    'display labels and the invalid-format refusal returned to callers; section headings and format slugs are literals',
+  'src/list/list-type.ts':
+    'display labels and nouns for list types; no line token is a list-type noun',
+  'src/list/resolve-list.ts': 'refusals for a list that does not resolve, returned to callers',
+  'src/pricing/price-currency.ts': 'formats prices for display; a card line carries no price',
+  'src/scryfall/card-utils.ts': 'collation only, to order printings',
+  'src/sync/message.ts':
+    'renders the parsers’ notices and the line-break / set-code refusals for a reader; the line format never passes through it',
+  'src/util/duration.ts': 'formats durations for display',
+  'src/util/errors.ts': 'error text thrown to callers (localizedCommandError)',
+  'src/util/parse-enum.ts': 'enum refusals returned to callers',
+}
+
+/**
  * The modules a fenced file reaches that import `src/i18n`, each with why it is
  * safe: what it takes from the catalog either orders data with the pinned
  * English collation, or is prose returned to (or thrown at) a caller — a
@@ -96,7 +154,7 @@ const PERSISTENCE_FENCE = [
  */
 const I18N_ROUTE_LEDGER: Record<string, string> = {
   'src/card/card-labels.ts':
-    'label refusals and display labels returned to callers; the label tokens a line carries are literals',
+    'label refusals (keyed messages) and display labels returned to callers; the label tokens a line carries are literals',
   'src/card/card-language.ts':
     'collation only; persisted language names come from LANGUAGE_PARSE_NAMES, not the catalog',
   'src/card/card-tags.ts': 'collation only (compareData) to order a tag set',
@@ -297,26 +355,34 @@ describe('i18n persistence fence', () => {
    * no test that would have caught it.
    */
   test('card-line serializers never import src/i18n', async () => {
-    const lineFenced = [
-      'src/card/card-line-grammar.ts',
-      'src/card/card-line-id.ts',
-      'src/card/card-line-tail.ts',
-      'src/card/card-line-read.ts',
-      'src/list/line-diagnostics.ts',
-      'src/list/deck-file.ts',
-      'src/list/deck-text.ts',
-      'src/card/card-line.ts',
-      'src/list/collection-file.ts',
-      'src/list/wanted-file.ts',
-      'src/list/flat-list-scan.ts',
-      'src/card/set-codes.ts',
-      'src/card/card-id.ts',
-      'src/card/printing-key.ts',
-      'src/list/list-file-name.ts',
-      'src/list/flat-list-read.ts',
-      'src/importers/text-file.ts',
-    ]
-    expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: lineFenced })).toEqual([])
+    expect(await scan(/from\s+['"][^'"]*\bi18n\b/, { files: LINE_FENCE })).toEqual([])
+  })
+
+  /**
+   * The line fence's direct scan cannot see a route through another module, so
+   * — as for the persistence fence — every module a line-fenced file reaches
+   * that imports `src/i18n` itself is listed in {@link LINE_ROUTE_LEDGER}, with
+   * why it cannot put localized text into a card line. A new route fails here
+   * until someone writes that reason down.
+   */
+  test('every i18n route a line-fenced module reaches is in the line ledger', () => {
+    const routes = i18nRoutes(LINE_FENCE)
+    expect(routes.filter((file) => LINE_FENCE.includes(file))).toEqual([])
+    expect(routes).toEqual(Object.keys(LINE_ROUTE_LEDGER).sort(compareData))
+  })
+
+  /**
+   * The card-line grammar words nothing itself: its diagnostics are codes and
+   * values (`card-line-text.ts`), which `card-line-message.ts` maps to catalog
+   * keys. The codes module loads nothing at run time; what else the line-fenced
+   * modules reach at run time (`sync/message.ts` for the line-break and
+   * set-code refusals, the label and tag vocabularies) is pinned in
+   * {@link LINE_ROUTE_LEDGER} above, each with why it never puts a translated
+   * sentence into a card line.
+   */
+  test('the card-line text codes load nothing at run time', () => {
+    const source = readFileSync(path.join(ROOT, 'src/card/card-line-text.ts'), 'utf-8')
+    expect(runtimeImports(source)).toEqual([])
   })
 
   /**

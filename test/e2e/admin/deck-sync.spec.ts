@@ -6,6 +6,8 @@ import {
   ARCHIDEKT_SESSION_EXPIRED,
   emitStreamConnectionError,
   emitStreamEvent,
+  skippedLineWarning,
+  unreadableLinesFrame,
   mockDeckSyncApi,
   MOCK_SYNC_DECKS,
   streamUrl,
@@ -277,16 +279,17 @@ test.describe('Sync Decks Page', () => {
     await openPage(page)
     await syncButton(page).click()
 
-    await emitStreamEvent(page, 'progress', {
-      kind: 'unreadable-lines',
-      items: [
+    await emitStreamEvent(
+      page,
+      'progress',
+      unreadableLinesFrame([
         {
           name: WINOTA!.name,
           file: `${WINOTA!.slug}.md`,
-          warnings: ['Skipped malformed line: 4 Sol Ring (typo here'],
+          warnings: [skippedLineWarning('4 Sol Ring (typo here')],
         },
-      ],
-    })
+      ]),
+    )
     await emitStreamEvent(page, 'progress', {
       kind: 'item-result',
       result: {
@@ -315,16 +318,17 @@ test.describe('Sync Decks Page', () => {
 
     // The engine reports those decks on every run, confirmed or not — but the
     // confirmed run must not re-raise the question it was launched from.
-    await emitStreamEvent(page, 'progress', {
-      kind: 'unreadable-lines',
-      items: [
+    await emitStreamEvent(
+      page,
+      'progress',
+      unreadableLinesFrame([
         {
           name: WINOTA!.name,
           file: `${WINOTA!.slug}.md`,
-          warnings: ['Skipped malformed line: 4 Sol Ring (typo here'],
+          warnings: [skippedLineWarning('4 Sol Ring (typo here')],
         },
-      ],
-    })
+      ]),
+    )
     await emitStreamEvent(page, 'done', {
       message: 'Pulled 1 deck.',
       report: { direction: 'pull', decks: [], failedCount: 0, unreadable: [] },
@@ -340,7 +344,7 @@ test.describe('Sync Decks Page', () => {
       {
         name: WINOTA!.name,
         file: `${WINOTA!.slug}.md`,
-        warnings: ['Skipped malformed line: junk'],
+        warnings: [skippedLineWarning('junk')],
       },
     ])
 

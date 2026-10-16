@@ -179,7 +179,7 @@ export function registerSetCardCommand(program: Command): void {
         parseFinishFlag,
       )
       .option('--language <code>', t('help.setCard.language'), (value: string) =>
-        parseLanguageFlag(value, t('cli.setCard.languageFlagHint')),
+        parseLanguageFlag(value, 'set'),
       )
       .option(
         '--condition <condition>',

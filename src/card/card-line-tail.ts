@@ -21,6 +21,7 @@ import { formatCardTagsToken, type CardTag } from './card-tags'
 import { languageToken, type CardLanguage } from './card-language'
 import type { ConditionUpdate, Finish } from './finish-condition'
 import type { ListType } from '../list/list-type'
+import { syncMessage, SyncMessageError } from '../sync/message'
 import { hasLineBreak } from '../util/single-line'
 
 /**
@@ -149,7 +150,9 @@ export function formatCanonicalCardLine(type: ListType, fields: DeckCardLineFiel
   const texts = [fields.name, fields.printing?.set, fields.printing?.collectorNumber]
   const broken = texts.find((text) => text !== undefined && hasLineBreak(text))
   if (broken !== undefined) {
-    throw new Error(`A card line cannot hold a line break: ${JSON.stringify(broken)}`)
+    throw new SyncMessageError(
+      syncMessage('domain.card.line.lineBreak', { text: JSON.stringify(broken) }),
+    )
   }
   const head = type === 'deck' ? `- ${fields.quantity ?? 1} ${fields.name}` : `- ${fields.name}`
   return head + formatTokenTail(fields)

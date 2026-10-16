@@ -49,10 +49,12 @@ import {
   fail,
   failWith,
   failWithError,
+  failWithMessage,
   listArgumentConflictError,
   runCommandAction,
 } from '../cli/action'
 import { parseEnumField } from '../util/parse-enum'
+import { isSyncMessage } from '../sync/message'
 import { runExportWizard } from './export-wizard'
 import { t } from '../i18n/t'
 
@@ -171,8 +173,8 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   if (options.tags !== undefined) {
     // The tag grammar owns its own comma split (spaces are part of a tag).
     const tags = parseTagFilterInput(options.tags)
-    if (typeof tags === 'string') {
-      failWith(TEXT_ONLY, 'usage_error', tags)
+    if (isSyncMessage(tags)) {
+      failWithMessage(TEXT_ONLY, 'usage_error', tags)
       return undefined
     }
     filters.tags = tags

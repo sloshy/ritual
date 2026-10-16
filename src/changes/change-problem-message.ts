@@ -21,15 +21,15 @@
  */
 
 import type { MessageKey } from '../i18n/messages/en'
-import type { ParamsOf } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 import {
   renderSyncMessage,
   syncRef,
   toSyncMessage,
   type SyncMessage,
+  type ParamTypeDrift,
+  type PlaceholderDrift,
   type SyncMessageParams,
-  type SyncMessageParamsFor,
   type SyncMessageRef,
 } from '../sync/message'
 import type {
@@ -85,15 +85,11 @@ const PROBLEM_KEYS = {
  * the catalog, or a value added to a code, fails here rather than rendering a
  * literal `{field}`.
  */
-type ExpectedParams<C extends ChangeProblemCode> =
-  keyof ChangeProblemParams[C] | (C extends LocatedProblemCode ? 'subject' : never)
-type ParamsDrift = {
-  [C in ChangeProblemCode]: [ParamsOf<(typeof PROBLEM_KEYS)[C]>] extends [ExpectedParams<C>]
-    ? [ExpectedParams<C>] extends [ParamsOf<(typeof PROBLEM_KEYS)[C]>]
-      ? never
-      : C
-    : C
-}[ChangeProblemCode]
+type ExpectedParams = {
+  [C in ChangeProblemCode]:
+    keyof ChangeProblemParams[C] | (C extends LocatedProblemCode ? 'subject' : never)
+}
+type ParamsDrift = PlaceholderDrift<ChangeProblemCode, typeof PROBLEM_KEYS, ExpectedParams>
 const PARAMS_AGREE: [ParamsDrift] extends [never] ? true : ParamsDrift = true
 void PARAMS_AGREE
 
@@ -103,16 +99,12 @@ void PARAMS_AGREE
  * `value-unknown` fields), a plural's `count` a number — the check `syncRef`
  * makes per call, which `changeProblemRef` (a lookup by code) cannot.
  */
-type ProblemParamsFor<C extends ChangeProblemCode> = ChangeProblemParams[C] &
-  (C extends LocatedProblemCode ? SubjectParam : unknown)
 type SubjectParam = { subject: SyncMessageRef }
-type ParamTypesDrift = {
-  [C in ChangeProblemCode]: ProblemParamsFor<C> extends SyncMessageParamsFor<
-    (typeof PROBLEM_KEYS)[C]
-  >
-    ? never
-    : C
-}[ChangeProblemCode]
+type GivenParams = {
+  [C in ChangeProblemCode]: ChangeProblemParams[C] &
+    (C extends LocatedProblemCode ? SubjectParam : unknown)
+}
+type ParamTypesDrift = ParamTypeDrift<ChangeProblemCode, typeof PROBLEM_KEYS, GivenParams>
 const PARAM_TYPES_AGREE: [ParamTypesDrift] extends [never] ? true : ParamTypesDrift = true
 void PARAM_TYPES_AGREE
 

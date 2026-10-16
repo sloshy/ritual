@@ -25,6 +25,8 @@ export const cliCardsMessages = {
   'cli.cardOps.tagFlagEmpty': '{flag} needs at least one tag.',
   'cli.cardOps.categoriesFlagInvalid':
     '{reason} {flag} takes one or more categories separated by commas.',
+  'cli.cardOps.languageFlagInvalid':
+    'Invalid language {value} for --language. Valid languages: {languages}',
   'cli.cardOps.categoriesFlagEmpty':
     '{flag} needs at least one category — use --no-categories to clear them.',
   'cli.cardOps.wantedNoCondition':
@@ -159,7 +161,8 @@ export const cliCardsMessages = {
 
   // ── set-card ──────────────────────────────────────────────────────────
   'cli.setCard.labelWithNone': "{reason} Or pass 'none' to clear the override.",
-  'cli.setCard.languageFlagHint': '(en clears the token)',
+  'cli.setCard.languageFlagInvalid':
+    'Invalid language {value} for --language (en clears the token). Valid languages: {languages}',
   'cli.setCard.conditionCleared': 'condition → none (grade cleared)',
   'cli.setCard.conditionDefault':
     'condition → NM (written as an ungraded line — NM is the default)',

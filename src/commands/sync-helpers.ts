@@ -27,6 +27,7 @@ import { ExitCode } from '../util/errors'
 import type { Command } from 'commander'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
+import { renderSyncMessage } from '../sync/message'
 
 /** Commander argParser for the `<direction>` positional: only push/pull are valid. */
 export function parseSyncDirection(value: string): SyncDirection {
@@ -211,7 +212,7 @@ export function describeUnreadable(
 ): string {
   const lines = sources.flatMap((source) => [
     `  ${source.file} ("${source.name}"):`,
-    ...source.warnings.map((warning) => `    ${warning}`),
+    ...source.warnings.map((warning) => `    ${renderSyncMessage(warning)}`),
   ])
   return [
     t(UNREADABLE_MESSAGES[subject].heading, { count: sources.length }),

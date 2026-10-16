@@ -43,6 +43,7 @@ import {
   plainMessage,
   type ApiMessage,
 } from '../../api/result'
+import { isSyncMessage, type SyncMessage } from '../../sync/message'
 
 /** One list selection in the request body. */
 export type ExportRequestListRef = { type?: string; name: string }
@@ -147,8 +148,11 @@ function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | ApiM
   return flags
 }
 
-/** Validate the body's filters, or the refusal. */
-function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | ApiMessage {
+/**
+ * Validate the body's filters, or the refusal — a message whose params may nest
+ * (a tag refusal carries the tag shape rule as a message of its own).
+ */
+function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | SyncMessage {
   const filters: ExportFilters = {}
   if (raw === undefined) return filters
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -168,7 +172,7 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | Ap
     // rather than a filter that silently matches nothing, and so the stored
     // value is lowercase like every other in-memory set code.
     const set = parseSetCode(raw.set)
-    if (!set.ok) return plainMessage(set.error)
+    if (!set.ok) return set.error
     filters.set = set.code
   }
   if (raw.finish !== undefined) {
@@ -191,7 +195,7 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | Ap
   if (raw.tags !== undefined) {
     // The parser refuses a non-array itself, naming the body path.
     const tags = parseTagFilterValues(raw.tags, 'filters.tags')
-    if (typeof tags === 'string') return plainMessage(tags)
+    if (isSyncMessage(tags)) return tags
     filters.tags = tags
   }
   return filters
@@ -238,7 +242,7 @@ export async function handleExport(req: Request): Promise<Response> {
     const settings = resolveExportSettings(preset, flags)
 
     const filters = parseFilters(body.filters)
-    if (isApiMessage(filters)) return badRequest(filters)
+    if (isSyncMessage(filters)) return nestedRefusal(filters)
 
     if (body.write !== undefined && typeof body.write !== 'boolean') {
       return badRequest(apiMessage('admin.api.field.notBoolean', { field: 'write' }))

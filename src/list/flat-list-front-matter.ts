@@ -24,7 +24,7 @@ import { frontMatterBodyStart } from './markdown-fence'
 import { readFrontMatterMapping } from './front-matter-write'
 import { listDefaultLabels, readListDefaultLabelsValue, type CardLabel } from '../card/card-labels'
 import type { ListType } from './list-type'
-import { syncMessage, type SyncMessage } from '../sync/message'
+import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 
 /** A flat list's front-matter block, as parsed from the top of the file. */
 export type FlatListFrontMatter = {
@@ -97,9 +97,9 @@ export function parseFlatListFrontMatter(
   if (opts.validateLabels && 'labels' in data) {
     const labels = readListDefaultLabelsValue('collection', data.labels)
     if ('reason' in labels) {
-      // The label rule words its own reason; it rides as the text it came with.
+      // The label rule's own refusal, nested so it is worded with the sentence.
       advisories.push(
-        syncMessage('domain.list.frontMatter.labelsIgnored', { reason: labels.reason }),
+        syncMessage('domain.list.frontMatter.labelsIgnored', { reason: nestSync(labels.reason) }),
       )
     } else if (labels.labels.length > 0) {
       result.labels = labels.labels

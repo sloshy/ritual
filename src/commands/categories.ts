@@ -41,7 +41,7 @@ import type { ListTypeFlags } from '../list/resolve-list'
 import type { ListType } from '../list/list-type'
 import { ExitCode, localizedCommandError, messageCommandError } from '../util/errors'
 import { t } from '../i18n/t'
-import { nestSync, syncMessage } from '../sync/message'
+import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 
 /**
  * `ritual categories` — inspect and edit a list's card categories, the third
@@ -153,14 +153,23 @@ function renderCategoryWarnings(warnings: readonly CardCategoriesWarning[]): str
   })
 }
 
+/**
+ * The usage refusal for a category the rule refused: worded in the CLI's
+ * language, the rule's own message nested so `--output json` carries the key
+ * with its params flattened to English.
+ */
+function categoryRefusal(reason: SyncMessage): Error {
+  return messageCommandError(
+    'usage_error',
+    ExitCode.UsageError,
+    syncMessage('cli.categories.nameInvalid', { reason: nestSync(reason) }),
+  )
+}
+
 /** A category name given as a command argument, or a usage refusal. */
 function parseCategoryArgument(value: string): CardCategory {
   const parsed = parseCardCategory(value)
-  if (!parsed.ok) {
-    throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.categories.nameInvalid', {
-      reason: parsed.message,
-    })
-  }
+  if (!parsed.ok) throw categoryRefusal(parsed.error)
   return parsed.category
 }
 
@@ -395,14 +404,7 @@ function registerCategoriesOrderSubcommand(categories: Command): void {
     async (listName: string | undefined, value: string, options: CategoriesWriteOptions) => {
       await runListTargetAction(listName, options, async (target, scripting) => {
         const parsed = parseCardCategoriesInput(value)
-        if (!parsed.ok) {
-          throw localizedCommandError(
-            'usage_error',
-            ExitCode.UsageError,
-            'cli.categories.nameInvalid',
-            { reason: parsed.message },
-          )
-        }
+        if (!parsed.ok) throw categoryRefusal(parsed.error)
         if (parsed.categories.length === 0) {
           throw localizedCommandError(
             'usage_error',

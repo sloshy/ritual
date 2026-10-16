@@ -41,6 +41,9 @@ export const domainConfigMessages = {
     'invalid UI locale "{tag}": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")',
   'domain.config.defaultLanguage':
     'Invalid language {value} for "defaultLanguage". Valid languages: {languages}',
+  'domain.config.defaultCategoriesNotArray': 'defaultCategories must be an array of category names',
+  'domain.config.defaultCategoriesNotText':
+    'defaultCategories must be an array of category names, got {value}',
 
   // ── Sections and fields ───────────────────────────────────────────────
   'domain.config.section': '{section} config',

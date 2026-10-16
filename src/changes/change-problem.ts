@@ -26,6 +26,9 @@
  * `test/unit/i18n-conventions.test.ts`); the fenced validators import it.
  */
 
+// Type-only: erased at run time, so this module still loads nothing.
+import type { SyncText } from '../sync/message'
+
 /** Codes for a problem with the input as a whole, or with one `lists` entry of a bundle. */
 export const DOCUMENT_PROBLEM_CODES = [
   'json-invalid',
@@ -128,8 +131,8 @@ type NoParams = Record<never, never>
  * are the offending input as the message shows it — JSON-quoted for a
  * closed-vocabulary value (`value-unknown`), as written otherwise.
  * Positions (`list`) are 1-based, as the message shows them. `detail` is a
- * refusal another module's parser worded (a label, tag or category rule),
- * carried as it came.
+ * refusal another module's parser raised (a label, tag or category rule),
+ * nested as an unrendered message so it is worded with the problem around it.
  */
 export type ChangeProblemParams = {
   'json-invalid': NoParams
@@ -165,7 +168,7 @@ export type ChangeProblemParams = {
   'move-same-list': NoParams
   'move-pin-without-target': NoParams
   'move-replacement-unpinned': NoParams
-  'field-rejected': { detail: string }
+  'field-rejected': { detail: SyncText }
 }
 
 /** A params row per code, and no row that is not a code. */

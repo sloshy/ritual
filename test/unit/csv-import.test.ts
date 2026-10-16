@@ -283,6 +283,14 @@ describe('validateMappingWidth', () => {
   })
 })
 
+/**
+ * Cells that name a member of `Object.prototype` once squashed the way the
+ * alias tables are keyed (lowercased, spaces, dashes and underscores dropped).
+ * `constructor` is the one that survives the squash as itself; the rest are
+ * here to show the casing a person might type changes nothing.
+ */
+const OBJECT_PROTOTYPE_NAMES = ['constructor', 'Constructor', 'CONSTRUCTOR', 'con-structor']
+
 describe('normalizeCondition', () => {
   test.each([
     ['NM', 'NM'],
@@ -312,6 +320,13 @@ describe('normalizeCondition', () => {
 
   test('rejects unrecognized values', () => {
     expect(refusedWith(normalizeCondition('shiny'))).toBe("Unrecognized condition 'shiny'")
+  })
+
+  // The alias table is looked up with the cell's own text, so an
+  // object-prototype name must not answer with a function (it read as a
+  // condition, `ok: true`, before the table became a `Map`).
+  test.each(OBJECT_PROTOTYPE_NAMES)('refuses %s rather than reading a prototype member', (cell) => {
+    expect(refusedWith(normalizeCondition(cell))).toBe(`Unrecognized condition '${cell}'`)
   })
 })
 
@@ -345,6 +360,10 @@ describe('normalizeFinish', () => {
   test('rejects unrecognized values', () => {
     expect(refusedWith(normalizeFinish('glossy'))).toBe("Unrecognized finish 'glossy'")
   })
+
+  test.each(OBJECT_PROTOTYPE_NAMES)('refuses %s rather than reading a prototype member', (cell) => {
+    expect(refusedWith(normalizeFinish(cell))).toBe(`Unrecognized finish '${cell}'`)
+  })
 })
 
 describe('normalizeSection', () => {
@@ -364,6 +383,10 @@ describe('normalizeSection', () => {
 
   test('keeps custom deck sections verbatim', () => {
     expect(normalizeSection('Ramp Package', 'deck')).toBe('Ramp Package')
+  })
+
+  test('a prototype member name is a custom section, never a board', () => {
+    for (const cell of OBJECT_PROTOTYPE_NAMES) expect(normalizeSection(cell, 'deck')).toBe(cell)
   })
 
   test('does not apply board aliases to flat lists', () => {
@@ -605,10 +628,24 @@ describe('convertCsvRows', () => {
       'deck',
     )
     expect(entries.map((entry) => entry.tags)).toEqual([['edh']])
-    // The tag grammar words its own refusal; it rides keyless.
+    // The tag rule's own refusal, keyed: English plus the key, its shape rule
+    // nested as a message of its own.
+    const refusal = invalidCardTagMessage('R&D')
     expect(failures).toEqual([
-      { lineNumber: 4, raw: 'Sol Ring,R&D', reason: invalidCardTagMessage('R&D') },
+      {
+        lineNumber: 4,
+        raw: 'Sol Ring,R&D',
+        reason: refusal.message,
+        reasonKey: 'domain.card.tag.invalid',
+        reasonParams: {
+          value: '"R&D"',
+          rule: { messageKey: 'domain.card.tag.shapeRule' },
+        },
+      },
     ])
+    expect(keyedMessage(refusal)).toBe(
+      `Invalid tag "R&D": a tag is non-empty plain text that cannot contain '#', ',', '&', '*', double quotes, brackets, braces or parentheses.`,
+    )
   })
 
   test('keeps explicit sections verbatim on flat lists', () => {
@@ -634,6 +671,19 @@ describe('convertCsvRows', () => {
       expect(failures).toEqual([])
       expect(warnings).toEqual([])
       expect(entries[0]!.categories).toEqual(['Ramp', 'Artifacts'])
+    })
+
+    test('a prototype member name is an ordinary category on Main, never a board', () => {
+      const { entries, failures, warnings } = convert(
+        ['Sol Ring', 'constructor'],
+        'name=1,categories=2',
+        'deck',
+      )
+      expect(failures).toEqual([])
+      expect(warnings).toEqual([])
+      expect(entries).toHaveLength(1)
+      expect(entries[0]!.section).toBe('Main')
+      expect(entries[0]!.categories).toEqual(['constructor'])
     })
 
     test('a blank cell leaves no categories and no warning', () => {

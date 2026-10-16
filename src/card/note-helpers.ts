@@ -6,9 +6,11 @@
  * coerce empty strings to `undefined` via {@link noteOrUndefined} before storage.
  */
 
+import { syncMessage, type SyncMessage } from '../sync/message'
 import { hasControlOrSeparator } from '../util/single-line'
 
-export type NoteValidationResult = { ok: true; note: string } | { ok: false; error: string }
+/** A note cleaned for storage, or why it was refused — a message, English plus its key. */
+export type NoteValidationResult = { ok: true; note: string } | { ok: false; error: SyncMessage }
 
 /**
  * Trim whitespace and validate a user-supplied note. Returns the cleaned text
@@ -23,11 +25,7 @@ export function normalizeNote(raw: string): NoteValidationResult {
   // escape sequence, NEL) or Unicode line separator is refused. Quotes and other
   // printable punctuation are allowed.
   if (hasControlOrSeparator(trimmed)) {
-    return {
-      ok: false,
-      error:
-        'Notes must be single-line text with no control characters (newlines, tabs, etc. are not allowed).',
-    }
+    return { ok: false, error: syncMessage('domain.card.note.invalid') }
   }
   return { ok: true, note: trimmed }
 }

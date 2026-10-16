@@ -31,6 +31,7 @@ import {
 } from '../../pricing/price-currency'
 import { getDefaultPriceCurrency } from '../../config/ritual-config'
 import { t } from '../../i18n/t'
+import { renderSyncMessage } from '../../sync/message'
 import { trackAdd, trackAnotherCopy, trackEdit } from '../../changes/session-changelog'
 import type { FlatListFrontMatter } from '../../list/flat-list-front-matter'
 import type { CardArtRef } from '../../list/card-art'
@@ -55,7 +56,7 @@ import type { EditUndoEntry } from './edit-undo'
 import type { ApplyChange, ApplyChangeOptions } from '../../changes/apply-batch'
 import { listDefaultLabels, type CardLabel } from '../../card/card-labels'
 import type { ListType } from '../../list/list-type'
-import type { FlatListEntry } from '../../list/flat-list-read'
+import type { FlatListEntry, ParsedFlatListFile } from '../../list/flat-list-read'
 import { readCollectionFile, readWantedFile } from '../../list/flat-list-read'
 
 /**
@@ -138,10 +139,23 @@ function newFlatListSession<E extends FlatListEntry>(
   }
 }
 
+/** The parse notices of a read list file. */
+type ParsedFlatListMessages = Pick<
+  ParsedFlatListFile<FlatListEntry>,
+  'warningMessages' | 'advisoryMessages'
+>
+
+/** A parsed list's warnings and advisories, printed in the CLI's language. */
+function warnParseNotices(file: ParsedFlatListMessages): void {
+  for (const message of [...file.warningMessages, ...file.advisoryMessages]) {
+    console.warn(renderSyncMessage(message))
+  }
+}
+
 /** Load a collection file into a session model, surfacing any parse warnings. */
 export async function loadCollectionSession(filePath: string): Promise<CollectionSession> {
   const file = await readCollectionFile(filePath)
-  for (const warning of [...file.warnings, ...file.advisories]) console.warn(warning)
+  warnParseNotices(file)
   return {
     filePath,
     title: file.title,
@@ -160,7 +174,7 @@ export async function loadCollectionSession(filePath: string): Promise<Collectio
 /** Load a wanted-list file into a session model, surfacing any parse warnings. */
 export async function loadWantedSession(filePath: string): Promise<WantedSession> {
   const file = await readWantedFile(filePath)
-  for (const warning of [...file.warnings, ...file.advisories]) console.warn(warning)
+  warnParseNotices(file)
   return {
     filePath,
     title: file.title,

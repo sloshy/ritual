@@ -275,6 +275,8 @@ describe('MCP output schemas, as authored', () => {
     // that never sees the key is a client that reads a truncated list as whole.
     for (const branch of listBranches) {
       expect(branch.required).toContain('warnings')
+      // Each warning is a message — English plus its key — never a bare string.
+      expect(branch.properties?.warnings?.items?.required).toEqual(['message'])
     }
     // `artWarnings` is the opposite: a separate, optional channel. Folding a
     // custom-art problem into `warnings` would read as "this list has lines a
@@ -660,14 +662,26 @@ describe('MCP output schemas, as authored', () => {
           {
             message: 'Skipped malformed line: not a card line',
             messageKey: 'domain.import.text.malformedLine',
-            messageParams: { line: 'not a card line', hint: '' },
+            messageParams: { line: 'not a card line' },
           },
           // A card kept without its labels says so, so a client need not read prose.
-          { message: 'line 3: Conflicting labels [sale,no-sale]', labelsDropped: true },
+          {
+            message:
+              'line 3: Conflicting labels [sale,no-sale] — [sale] cannot be both set and negated.',
+            messageKey: 'domain.card.line.atLine',
+            messageParams: {
+              line: 3,
+              text: {
+                messageKey: 'domain.card.line.labelsContradictory',
+                messageParams: { token: '[sale,no-sale]', label: 'sale' },
+              },
+            },
+            labelsDropped: true,
+          },
         ],
         advisories: [
-          // Text another module worded rides keyless.
-          { message: 'line 2: Card name still contains a printing token' },
+          // A message with no catalog entry is still a message.
+          { message: 'Fetched from an older server' },
         ],
         syncPrintings: true,
       }
@@ -816,6 +830,43 @@ describe('MCP output schemas, as authored', () => {
           },
         }),
       ).toBe(false)
+      // An unreadable deck names its file and each line as a message, never a string.
+      const unreadable = [
+        {
+          name: 'Stax',
+          file: 'stax.md',
+          warnings: [
+            {
+              message: 'line 3: Unrecognized token [jp]. (did you mean [ja]?)',
+              messageKey: 'domain.card.line.atLine',
+              messageParams: {
+                line: 3,
+                text: {
+                  messageKey: 'domain.card.line.unknownToken',
+                  messageParams: { token: '[jp]' },
+                },
+              },
+            },
+          ],
+        },
+      ]
+      expect(
+        await validates(SYNC_DECKS_OUTPUT, {
+          ...deckSample,
+          report: { ...deckSample.report, unreadable },
+        }),
+      ).toBe(true)
+      for (const bad of [
+        [{ ...unreadable[0], warnings: ['Skipped malformed line: junk'] }],
+        [{ name: 'Stax', warnings: [] }],
+      ]) {
+        expect(
+          await validates(SYNC_DECKS_OUTPUT, {
+            ...deckSample,
+            report: { ...deckSample.report, unreadable: bad },
+          }),
+        ).toBe(false)
+      }
       // An outcome outside the fixed set is not a report.
       expect(
         await validates(SYNC_DECKS_OUTPUT, {
@@ -885,6 +936,21 @@ describe('MCP output schemas, as authored', () => {
         report: collectionReport,
       }
       expect(await validates(SYNC_COLLECTION_OUTPUT, collectionSample)).toBe(true)
+      expect(
+        await validates(SYNC_COLLECTION_OUTPUT, {
+          ...collectionSample,
+          report: { ...collectionReport, unreadable },
+        }),
+      ).toBe(true)
+      expect(
+        await validates(SYNC_COLLECTION_OUTPUT, {
+          ...collectionSample,
+          report: {
+            ...collectionReport,
+            unreadable: [{ ...unreadable[0], warnings: ['Skipped malformed line: junk'] }],
+          },
+        }),
+      ).toBe(false)
       // A run-level failure whose params nest three deep — a push the card-cache
       // check refused because the download hit another process's lock — is the
       // shape the report really carries, and the schema takes it.

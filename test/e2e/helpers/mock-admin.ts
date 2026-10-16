@@ -1,4 +1,5 @@
 import type { Page, Route } from '@playwright/test'
+import type { SyncEvent, UnreadableSource } from '../../../src/sync/common'
 import type { ImportCsvRequest, ImportCsvResponse } from '../../../src/admin/api/import-csv'
 import type { CsvRowFailure } from '../../../src/importers/csv'
 import type { MoveCommitResponse } from '../../../src/admin/api/move'
@@ -384,6 +385,22 @@ function replaceEventSource(): void {
 export async function installMockEventSource(page: Page): Promise<void> {
   await page.addInitScript(replaceEventSource)
   await page.evaluate(replaceEventSource)
+}
+
+/** A sync stream's `unreadable-lines` frame. */
+export type UnreadableLinesFrame = Extract<SyncEvent<unknown>, { kind: 'unreadable-lines' }>
+
+/**
+ * A sync stream's `unreadable-lines` frame, typed so each warning has to be a
+ * message (English plus its key), as the engines send it — never a bare string.
+ */
+export function unreadableLinesFrame(items: UnreadableSource[]): UnreadableLinesFrame {
+  return { kind: 'unreadable-lines', items }
+}
+
+/** The warning a deck or list parser records for a line it skipped, as the engines send it. */
+export function skippedLineWarning(line: string): SyncMessage {
+  return syncMessage('domain.import.text.malformedLine', { line })
 }
 
 /**

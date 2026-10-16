@@ -70,7 +70,7 @@ import type { CardMutationChange } from './list-mutate'
 import type { EntryRef } from './entry-ref'
 import { loadDefaultCategories } from '../config/ritual-config'
 import { headingName, sectionHeading } from './heading'
-import { syncMessage, SyncMessageError } from '../sync/message'
+import { nestSync, syncMessage, SyncMessageError } from '../sync/message'
 
 /** Options for {@link applyTargetedChanges}. */
 export type TargetedMutateOptions = {
@@ -383,7 +383,7 @@ function requireSupportedLabels(type: ListType, labels: readonly SignedCardLabel
   if (check.ok) return
   throw new SyncMessageError(
     syncMessage('domain.list.guard.unsupportedLabels', {
-      reason: unsupportedLabelsMessage(type, check.unsupported),
+      reason: nestSync(unsupportedLabelsMessage(type, check.unsupported)),
     }),
   )
 }

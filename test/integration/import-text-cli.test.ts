@@ -55,7 +55,7 @@ describe('import text file skipped-line reporting (Integration)', () => {
       expect(payload.warnings[0]).toEqual({
         message: 'Skipped malformed line: Lightning Bolt',
         messageKey: 'domain.import.text.malformedLine',
-        messageParams: { line: 'Lightning Bolt', hint: '' },
+        messageParams: { line: 'Lightning Bolt' },
       })
     })
   })

@@ -6,7 +6,7 @@
  */
 
 import {
-  CARD_CATEGORY_SHAPE_CLAUSE,
+  cardCategoryShapeRule,
   foldCategoryCardName,
   sameCardCategories,
   type CardCategory,
@@ -93,7 +93,7 @@ export function localCategoriesFor(
 export function refusedCategoriesMessage(refused: readonly string[]): SyncMessage {
   return syncMessage('domain.sync.categoriesRefused', {
     count: refused.length,
-    rule: CARD_CATEGORY_SHAPE_CLAUSE,
+    rule: cardCategoryShapeRule(),
     // The names exactly as Archidekt holds them, quoted so a stray space shows.
     names: syncList(
       refused.map((name) => JSON.stringify(name)),

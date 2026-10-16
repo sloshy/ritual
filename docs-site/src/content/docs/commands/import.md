@@ -199,13 +199,13 @@ With `--output json` (or `ndjson`), a URL or text-file import emits a summary on
 - `action` is `created`, `overwritten`, or `renamed` (the interactive rename resolution).
 - `warnings` lists text-file lines the parser skipped (always empty for URL imports). A non-empty array means content was lost and the command exits `1` (see [Partial Failures](#partial-failures)).
 - `advisories` lists content that **was** read but is worth a word: a card name still carrying a printing token, a skipped Arena `About` line, or an empty extras section (`## Maybeboard`, `## Tokens`) dropped because it holds nothing. Advisories print on stderr (even under `--quiet`) and never change the exit code, so a file whose only oddity is a bare `## Maybeboard` exits `0`.
-- Each entry of `warnings` and `advisories` is a message object: the English `message`, plus `messageKey` and `messageParams` when the text has a catalog entry. They stay English whatever the CLI's language; text mode prints them in it. Match on `messageKey` when it is present, never on the prose (text Ritual still words outside its catalog, such as a card-line grammar refusal, carries no key). A warning whose card **was** imported, only without the labels it carried, has `"labelsDropped": true`:
+- Each entry of `warnings` and `advisories` is a message object: the English `message`, plus `messageKey` and `messageParams` when the text has a catalog entry. They stay English whatever the CLI's language; text mode prints them in it. Match on `messageKey` when it is present, never on the prose. A card-line grammar refusal is keyed `domain.card.line.atLine` (pasted text) or `domain.card.line.inFile`, its diagnostic nested as `text` (`domain.card.line.*`). A warning whose card **was** imported, only without the labels it carried, has `"labelsDropped": true`:
 
   ```json
   {
     "message": "Skipped malformed line: Lightning Bolt",
     "messageKey": "domain.import.text.malformedLine",
-    "messageParams": { "line": "Lightning Bolt", "hint": "" }
+    "messageParams": { "line": "Lightning Bolt" }
   }
   ```
 

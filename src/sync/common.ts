@@ -248,8 +248,11 @@ export type UnreadableSource = {
   name: string
   /** The file's basename, for pointing the user at what to fix. */
   file: string
-  /** One message per line the parser skipped. */
-  warnings: string[]
+  /**
+   * One message per line the parser skipped (and one for the file's fenced
+   * blocks): English plus its key, rendered in each reader's language.
+   */
+  warnings: SyncMessage[]
 }
 
 /**

@@ -762,7 +762,14 @@ describe('deck-sync API', () => {
         {
           name: 'Linked Deck',
           file: 'linked.md',
-          warnings: ['Skipped malformed line: this line is not a card'],
+          // English plus the key on the wire, so the admin page relabels it.
+          warnings: [
+            {
+              message: 'Skipped malformed line: this line is not a card',
+              messageKey: 'domain.import.text.malformedLine',
+              messageParams: { line: 'this line is not a card' },
+            },
+          ],
         },
       ],
     })

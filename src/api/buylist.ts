@@ -13,7 +13,7 @@
  * so an unauthenticated public route can never be made to pull ~70 MB.
  */
 
-import { apiError, errorResponse, readJsonObjectBody } from './http'
+import { apiError, errorResponse, nestedRefusal, readJsonObjectBody } from './http'
 import {
   DEFAULT_BUYER,
   isBuyerId,
@@ -32,10 +32,11 @@ import {
   quoteForPrinting,
   type LoadedCardKingdomFeed,
 } from '../cardkingdom'
-import { invalidLanguageMessage, isCardLanguage } from '../card/card-language'
+import { CARD_LANGUAGES, isCardLanguage } from '../card/card-language'
+import { isSyncMessage, syncList, syncMessage, type SyncMessage } from '../sync/message'
 import { isFinish } from '../card/finish-condition'
 import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
-import { plainMessage } from './result'
+import { plainMessage, type NotAMessage } from './result'
 
 /**
  * The cached buyer feed, or a 503 naming every way to download it. The buylist
@@ -74,26 +75,42 @@ export type BuylistQuoteBody = {
   printings: BuylistQuoteRequest[]
 }
 
-function parsePrinting(value: unknown, i: number): BuylistQuoteRequest | string {
-  if (!value || typeof value !== 'object') return `"printings[${i}]" must be an object`
+/**
+ * Neither parser's success type declares a `message`, so `isSyncMessage` alone
+ * tells a refusal from a parsed value — a compile error the day one does.
+ */
+const SUCCESS_IS_NOT_A_MESSAGE: [NotAMessage<BuylistQuoteRequest | BuylistQuoteBody>] extends [
+  never,
+]
+  ? never
+  : true = true
+void SUCCESS_IS_NOT_A_MESSAGE
+
+function parsePrinting(value: unknown, i: number): BuylistQuoteRequest | SyncMessage {
+  if (!value || typeof value !== 'object')
+    return plainMessage(`"printings[${i}]" must be an object`)
   const raw = value as Record<string, unknown>
   if (typeof raw['set'] !== 'string' || raw['set'] === '') {
-    return `"printings[${i}].set" must be a non-empty string`
+    return plainMessage(`"printings[${i}].set" must be a non-empty string`)
   }
   if (typeof raw['collectorNumber'] !== 'string' || raw['collectorNumber'] === '') {
-    return `"printings[${i}].collectorNumber" must be a non-empty string`
+    return plainMessage(`"printings[${i}].collectorNumber" must be a non-empty string`)
   }
   const finish = raw['finish']
   if (typeof finish !== 'string' || !isFinish(finish)) {
-    return `"printings[${i}].finish" must be one of: nonfoil, foil, etched`
+    return plainMessage(`"printings[${i}].finish" must be one of: nonfoil, foil, etched`)
   }
   const scryfallId = raw['scryfallId']
   if (scryfallId !== undefined && typeof scryfallId !== 'string') {
-    return `"printings[${i}].scryfallId" must be a string when present`
+    return plainMessage(`"printings[${i}].scryfallId" must be a string when present`)
   }
   const language = raw['language']
   if (language !== undefined && (typeof language !== 'string' || !isCardLanguage(language))) {
-    return invalidLanguageMessage(language, `for "printings[${i}].language"`)
+    return syncMessage('domain.card.language.invalidField', {
+      value: String(JSON.stringify(language)),
+      field: `printings[${i}].language`,
+      languages: syncList(CARD_LANGUAGES, 'unit'),
+    })
   }
   return {
     // Set codes are lowercase internally, whatever a client sent.
@@ -107,23 +124,29 @@ function parsePrinting(value: unknown, i: number): BuylistQuoteRequest | string 
   }
 }
 
-/** Parse a quote request body; returns the error message string on a bad one. */
-export function parseBuylistQuoteBody(body: Record<string, unknown>): BuylistQuoteBody | string {
+/**
+ * Parse a quote request body; returns the refusal on a bad one — a message:
+ * keyed (English plus its key) where the refusal has a catalog entry, its
+ * English alone (`plainMessage`) where it does not yet.
+ */
+export function parseBuylistQuoteBody(
+  body: Record<string, unknown>,
+): BuylistQuoteBody | SyncMessage {
   const rawBuyer = body['buyer']
   if (rawBuyer !== undefined && !isBuyerId(rawBuyer)) {
-    return `"buyer" must be one of: ${BUYERS.join(', ')}`
+    return plainMessage(`"buyer" must be one of: ${BUYERS.join(', ')}`)
   }
   const rawPrintings = body['printings']
   if (!Array.isArray(rawPrintings)) {
-    return '"printings" must be an array'
+    return plainMessage('"printings" must be an array')
   }
   if (rawPrintings.length > MAX_BUYLIST_PRINTINGS) {
-    return `"printings" must contain at most ${MAX_BUYLIST_PRINTINGS} entries`
+    return plainMessage(`"printings" must contain at most ${MAX_BUYLIST_PRINTINGS} entries`)
   }
   const printings: BuylistQuoteRequest[] = []
   for (const [i, value] of rawPrintings.entries()) {
     const parsed = parsePrinting(value, i)
-    if (typeof parsed === 'string') return parsed
+    if (isSyncMessage(parsed)) return parsed
     printings.push(parsed)
   }
   return { buyer: rawBuyer ?? DEFAULT_BUYER, printings }
@@ -141,7 +164,7 @@ export async function handleBuylistQuotes(req: Request): Promise<Response> {
     const parsed = await readJsonObjectBody(req, MAX_QUOTE_BODY_BYTES)
     if (!parsed.ok) return parsed.response
     const body = parseBuylistQuoteBody(parsed.body)
-    if (typeof body === 'string') return apiError(plainMessage(body), 400)
+    if (isSyncMessage(body)) return nestedRefusal(body)
 
     const feed = await requireBuylistFeed()
     if (feed instanceof Response) return feed

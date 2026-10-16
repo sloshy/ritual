@@ -117,7 +117,7 @@ export function scanFlatListFile<E>(
         titleSeen = true
         continue
       }
-      report.warn(syncMessage('domain.import.text.malformedLine', { line: trimmed, hint: '' }))
+      report.warn(syncMessage('domain.import.text.malformedLine', { line: trimmed }))
       continue
     }
 

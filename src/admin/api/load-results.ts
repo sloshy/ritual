@@ -10,6 +10,7 @@ import type { CardLanguage } from '../../card/card-language'
 import type { ParsedWantedEntry } from '../../list/wanted-entries'
 import type { DeckCardLoadResult, EntryCardLoadResult } from './card-data-loader'
 import type { ListCounts, ListLoadView, ListSectionCount } from './list-load-params'
+import type { SyncMessage } from '../../sync/message'
 
 export type { ListCounts, ListLoadView, ListSectionCount }
 export type { WithCardCategories }
@@ -102,9 +103,11 @@ export interface ListLoadBase extends ListLoadStamp, ListCategoriesFields {
    * is (the `CardIndexResponse` precedent).
    *
    * The save routes refuse a file whose baseline parse produces any, since
-   * re-serializing would delete those lines and recycle their `&N` ids.
+   * re-serializing would delete those lines and recycle their `&N` ids. Each
+   * is a message: English `message` plus its key and params, which a client
+   * renders in its reader's language.
    */
-  warnings: string[]
+  warnings: SyncMessage[]
   /**
    * What was wrong with the list's `<list>.art.json` sidecar: unreadable, or
    * holding art for cards the list no longer has. Kept apart from

@@ -126,7 +126,9 @@ export const domainImportMessages = {
   'domain.import.text.imageIgnored':
     "Front matter 'image' ignored: {reason} A rewrite would drop the key.",
   'domain.import.text.extraTitle': 'Skipped extra title line: {line}',
-  'domain.import.text.malformedLine': 'Skipped malformed line: {line}{hint}',
+  'domain.import.text.malformedLine': 'Skipped malformed line: {line}',
+  'domain.import.text.malformedLineLanguage':
+    'Skipped malformed line: {line} (did you mean [{language}]?)',
   'domain.import.text.aboutLineSkipped': 'Skipped About line: {line}',
   'domain.import.text.emptySectionDropped': 'Dropped empty section: {section}',
 

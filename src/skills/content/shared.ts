@@ -304,7 +304,7 @@ export function textImportSection(options: TextImportSectionOptions): string {
       `the JSON \`warnings\` array, and exits 1 — the import is still written. ` +
       `Each \`warnings\`/\`advisories\` entry is an object: the English ` +
       `\`message\`, plus a \`messageKey\` to match on when present (never the ` +
-      `prose; text Ritual words outside its catalog has no key). ` +
+      `prose). ` +
       `Ritual's own format and the MTG Arena/MTGO export dialect ` +
       `(\`4 Lightning Bolt (M10) 146\`, bare \`Deck\`/\`Sideboard\` markers, a ` +
       `\`*F*\`/\`*E*\` foil marker either trailing or between the set and the ` +

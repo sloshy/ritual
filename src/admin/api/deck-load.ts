@@ -1,4 +1,4 @@
-import { unreadableLines } from '../../list/unreadable-content'
+import { unreadableMessages } from '../../list/unreadable-content'
 import { computeHash } from '../../changes/content-hash'
 import { collectDeckCardIds } from '../../card/card-id'
 import { loadDeckFile } from '../../importers/text-file'
@@ -81,7 +81,7 @@ export function handleDeckLoad(req: Request): Promise<Response> {
     const loaded = parsed.deck
     // Fenced code blocks join the parse warnings: the save routes refuse a
     // baseline carrying either, so a load must report both.
-    const warnings = unreadableLines(parsed)
+    const warnings = unreadableMessages(parsed)
     const frontMatter = await parseDeckFrontMatter(filePath)
     // Hashed from the content itself, never read from (or persisted to) the
     // .sha256 sidecar: a load must not stamp a hand-edited file Ritual-clean,

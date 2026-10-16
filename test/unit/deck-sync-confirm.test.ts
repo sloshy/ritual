@@ -4,6 +4,7 @@ import type { UnreadableDeck } from '../../src/deck-sync/engine'
 import { MemoryLogger } from '../../src/util/logger'
 import { setNoInputOverride } from '../../src/util/no-input'
 import type { ScriptingOptions } from '../../src/cli/output'
+import { syncMessage } from '../../src/sync/message'
 
 /**
  * The CLI's answer to "may these decks sync even though the save would delete
@@ -12,7 +13,11 @@ import type { ScriptingOptions } from '../../src/cli/output'
  */
 
 const DECKS: UnreadableDeck[] = [
-  { name: 'Winota Stax', file: 'winota-stax.md', warnings: ['Skipped malformed line: junk'] },
+  {
+    name: 'Winota Stax',
+    file: 'winota-stax.md',
+    warnings: [syncMessage('domain.import.text.malformedLine', { line: 'junk' })],
+  },
 ]
 
 const TEXT: ScriptingOptions = { output: 'text', quiet: false }

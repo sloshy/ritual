@@ -13,7 +13,7 @@ import {
   type CardCommandResultBase,
 } from '../cli/options'
 import { emitCardResult, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
-import { ExitCode, CardCommandError, localizedCommandError } from '../util/errors'
+import { ExitCode, localizedCommandError, messageCommandError } from '../util/errors'
 import { normalizeNote } from '../card/note-helpers'
 import { requireInteractive } from '../util/no-input'
 import { t } from '../i18n/t'
@@ -235,7 +235,7 @@ async function resolveNoteText(
 function validateOrThrow(raw: string): string {
   const result = normalizeNote(raw)
   if (!result.ok) {
-    throw new CardCommandError('usage_error', result.error, ExitCode.UsageError)
+    throw messageCommandError('usage_error', ExitCode.UsageError, result.error)
   }
   if (result.note === '') {
     throw localizedCommandError('usage_error', ExitCode.UsageError, 'cli.note.emptyNote')
