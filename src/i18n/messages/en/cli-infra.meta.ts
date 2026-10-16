@@ -538,6 +538,20 @@ export const cliInfraMeta = {
       'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is not a host name with a port. The example addresses are literal.',
   },
 
+  // ── --base-dir ────────────────────────────────────────────────────────
+  'cli.baseDir.missing': {
+    description:
+      'Usage error: the --base-dir flag or the RITUAL_BASE_DIR environment variable names a directory (the workspace folder Ritual reads and writes) that does not exist; Ritual never creates it. {path} is the absolute path it resolved to. Starts lowercase, no closing period.',
+  },
+  'cli.baseDir.notDirectory': {
+    description:
+      'Usage error: the --base-dir flag or the RITUAL_BASE_DIR environment variable names a file, not a directory (the workspace folder Ritual reads and writes). {path} is the absolute path it resolved to. Starts lowercase, no closing period.',
+  },
+  'cli.baseDir.unreadable': {
+    description:
+      "Usage error: the directory named by the --base-dir flag or the RITUAL_BASE_DIR environment variable could not be checked (for example, no permission). {path} is the absolute path it resolved to; {reason} is the operating system's own message (usually English). Starts lowercase, no closing period.",
+  },
+
   // ── config ────────────────────────────────────────────────────────────
   'cli.config.set': {
     description: '`config set` succeeded. {property} and {value} are machine values.',
@@ -552,6 +566,54 @@ export const cliInfraMeta = {
     description: '`config unset` on a property that has a built-in default to fall back to.',
   },
   'cli.config.unset': { description: '`config unset` on a property with no default.' },
+  'cli.config.unknownProperty': {
+    description:
+      'Usage error from `ritual config set`/`get`/`unset`: no setting has that name. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {properties} is the list of every valid property name, already joined in the reader\'s language; never translate the names.',
+  },
+  'cli.config.noValues': {
+    description:
+      'Usage error from `ritual config set`: the property was given no value. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name.',
+  },
+  'cli.config.fieldType': {
+    description:
+      'The kind of value a setting holds, as a noun shown after "is a" in the two `config set` usage errors (cli.config.addRemoveScalar, cli.config.tooManyValues): text (string), true/false (boolean) or a number. One branch per kind; the branch names are code.',
+  },
+  'cli.config.addRemoveScalar': {
+    description:
+      'Usage error from `ritual config set`: --add and --remove (flags, literal) add to or remove from a list-valued setting, and this setting holds a single value. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {typeName} is the kind of value it holds (cli.config.fieldType: string, boolean or number).',
+  },
+  'cli.config.tooManyValues': {
+    description:
+      'Usage error from `ritual config set`: several values were given for a setting that holds one. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {typeName} is the kind of value it holds (cli.config.fieldType: string, boolean or number); {count} is how many values were given (always 2 or more).',
+  },
+  'cli.config.expectsBoolean': {
+    description:
+      'Usage error from `ritual config set`: a true/false setting was given another value. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {value} is the value as typed. "true" and "false" are the literal words to type; keep them in English.',
+  },
+  'cli.config.expectsNumberEmpty': {
+    description:
+      'Usage error from `ritual config set`: a numeric setting was given an empty value. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it.',
+  },
+  'cli.config.expectsNumber': {
+    description:
+      'Usage error from `ritual config set`: a numeric setting was given something that is not a number. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {value} is the value as typed.',
+  },
+  'cli.config.expectsInteger': {
+    description:
+      'Usage error from `ritual config set`: a numeric setting was given a number with a fractional part; it takes whole numbers only. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {value} is the value as typed.',
+  },
+  'cli.config.expectsNonNegativeInteger': {
+    description:
+      'Usage error from `ritual config set`: a numeric setting was given a negative number; it takes zero or more. Ritual keeps its settings in a JSON file named ritual.config.json; `ritual config set`/`get`/`unset` edit and read it by property name. {property} is the property name the user typed (a config key such as "cacheSource" or a dotted path such as "admin.gitEnabled"); never translate it. Keep the straight quotes around it. {value} is the value as typed.',
+  },
+  'cli.config.siteManaged': {
+    description:
+      'Usage error from `ritual config set`/`unset`: the deployment part of the "site" settings block is written by the `ritual init-site` command, so it cannot be changed this way; only the public-site selection lists can. One branch per command (set, unset): the participle and the quoted command in a branch are the same word, and only the participle is translated — "config set", "config unset", "site" and "ritual init-site" are literal. {properties} is the list of property names that may be changed, already joined in the reader\'s language; never translate them.',
+  },
+  'cli.config.managedOwned': {
+    description:
+      'Usage error from `ritual config set`/`unset`: the "managed" settings block is Ritual\'s own bookkeeping, kept current by the `ritual init-site` and `ritual migrate` commands. One branch per command (set, unset): the participle and the quoted command in a branch are the same word, and only the participle is translated — "config set", "config unset", "managed", "ritual init-site" and "ritual migrate" are literal.',
+  },
 
   // ── serve ─────────────────────────────────────────────────────────────
   'cli.serve.building': { description: '`serve --build` is building the site first.' },
@@ -998,7 +1060,7 @@ export const cliInfraMeta = {
   },
   'cli.migrate.invalid': {
     description:
-      'Refusal: the migrated config still fails validation. {error} is the English validation message; "ritual.config.json" and the backticked command are literal.',
+      'Refusal: the migrated config still fails validation. {error} is the validation message, a phrase of its own already in the reader\'s language; "ritual.config.json" and the backticked command are literal.',
   },
   'cli.migrate.offer': {
     description:

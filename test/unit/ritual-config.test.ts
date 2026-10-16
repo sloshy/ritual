@@ -15,6 +15,7 @@ import {
   getSiteSelectionConfig,
   refreshRitualConfig,
   isConfigParseError,
+  parseDefaultPriceSourceField,
   isDefaultLanguageConfigured,
   loadRitualConfig,
   normalizeBannedPrintings,
@@ -50,7 +51,7 @@ import {
 import { defaultSiteSelection } from '../../src/config/list-selection'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { localeTag } from '../../src/i18n/locale-tag'
-import { parseDefaultPriceSource, type PriceSource } from '../../src/pricing/price-source'
+import type { PriceSource } from '../../src/pricing/price-source'
 
 let testDir: string
 let configPath: string
@@ -73,7 +74,7 @@ async function expectRejection(load: Promise<unknown>, expected: ThrowMatcher): 
 function expectParseError(result: unknown, substring: string): void {
   expect(isConfigParseError(result)).toBeTrue()
   if (isConfigParseError(result)) {
-    expect(result.error).toContain(substring)
+    expect(result.error.message).toContain(substring)
   }
 }
 
@@ -980,16 +981,18 @@ describe('normalizeBannedPrintings', () => {
 
 describe('config parser error shape', () => {
   test('isConfigParseError discriminates errors from success values', () => {
-    expect(isConfigParseError({ error: 'nope' })).toBeTrue()
+    expect(isConfigParseError({ error: { message: 'nope' } })).toBeTrue()
+    // A sibling parser's plain-text refusal is not one until it is lifted.
+    expect(isConfigParseError({ error: 'nope' })).toBeFalse()
     expect(isConfigParseError('nope')).toBeFalse()
     expect(isConfigParseError(undefined)).toBeFalse()
     expect(isConfigParseError(null)).toBeFalse()
     expect(isConfigParseError({ set: 'sld', collectorNumber: '123', key: 'sld:123' })).toBeFalse()
   })
 
-  test('parseDefaultPriceSource returns the store or a shared-shape error', () => {
-    expect(parseDefaultPriceSource('TCGplayer')).toBe('tcgplayer')
-    expectParseError(parseDefaultPriceSource('usd'), 'defaultPriceSource')
+  test('parseDefaultPriceSourceField returns the store or a shared-shape error', () => {
+    expect(parseDefaultPriceSourceField('TCGplayer')).toBe('tcgplayer')
+    expectParseError(parseDefaultPriceSourceField('usd'), 'defaultPriceSource')
   })
 
   test('parseDefaultLanguage returns the language or a shared-shape error', () => {
@@ -1080,7 +1083,7 @@ describe('parseRitualConfig', () => {
   ] as const)('a malformed %s is an error naming it, not a warning', (key, value) => {
     const result = parseRitualConfig({ [key]: value })
     expect(isConfigParseError(result)).toBeTrue()
-    if (isConfigParseError(result)) expect(result.error.startsWith(key)).toBeTrue()
+    if (isConfigParseError(result)) expect(result.error.message.startsWith(key)).toBeTrue()
   })
 })
 

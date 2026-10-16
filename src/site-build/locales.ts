@@ -14,6 +14,7 @@ import { t } from '../i18n/t'
 import type { LocaleCatalog, LocaleTag } from '../i18n/types'
 import { isConfigParseError, parseUiLocale } from '../config/ritual-config'
 import { getErrorMessage } from '../util/errors'
+import { renderSyncMessage } from '../sync/message'
 
 /** One dictionary this build can publish, ready to write. */
 export type BuildLocale = {
@@ -114,7 +115,10 @@ export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
   const bakedRaw = input.locale ?? input.configured
   const baked = parseUiLocale(bakedRaw)
   if (isConfigParseError(baked)) {
-    return t('cli.buildSite.localeInvalid', { value: bakedRaw, reason: baked.error })
+    return t('cli.buildSite.localeInvalid', {
+      value: bakedRaw,
+      reason: renderSyncMessage(baked.error),
+    })
   }
 
   const byTag = new Map<string, BuildLocale>()
@@ -132,7 +136,10 @@ export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
     }
     const tag = parseUiLocale(requested)
     if (isConfigParseError(tag)) {
-      return t('cli.buildSite.localesInvalid', { value: requested, reason: tag.error })
+      return t('cli.buildSite.localesInvalid', {
+        value: requested,
+        reason: renderSyncMessage(tag.error),
+      })
     }
     if (tag !== DEFAULT_LOCALE && !byTag.has(tag.toLowerCase())) {
       return t('cli.buildSite.localesUnknown', { tag })

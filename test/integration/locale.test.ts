@@ -30,6 +30,15 @@ type LocaleProbeJson = {
   tag?: string
 }
 
+/** One `ignored` entry: the tier, the raw value, and why — English plus its key. */
+type IgnoredLocaleJson = {
+  source: string
+  value: string
+  error: string
+  errorKey?: string
+  errorParams?: Record<string, unknown>
+}
+
 /** The `ritual locale --output json` payload, as a client sees it. */
 type LocaleReportJson = {
   uiLocale: string
@@ -38,7 +47,7 @@ type LocaleReportJson = {
   availableLocales: string[]
   detectedOsLocale?: string
   defaultLanguage: string
-  ignored: { source: string; value: string; error: string }[]
+  ignored: IgnoredLocaleJson[]
   probes?: LocaleProbeJson[]
   suggestedUiLocale?: string
 }
@@ -153,9 +162,17 @@ describe('locale resolution (Integration)', () => {
       const report = JSON.parse(result.stdout) as LocaleReportJson
       expect(report.uiLocale).toBe('en')
       expect(report.source).toBe('default')
-      expect(report.ignored).toHaveLength(1)
-      expect(report.ignored[0]?.source).toBe('env')
-      expect(report.ignored[0]?.value).toBe('zz-ZZ')
+      // The reason is English plus its key, so a script matches on the key.
+      expect(report.ignored).toEqual([
+        {
+          source: 'env',
+          value: 'zz-ZZ',
+          error:
+            'invalid UI locale "zz-ZZ": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")',
+          errorKey: 'domain.config.uiLocaleUnknown',
+          errorParams: { tag: 'zz-ZZ' },
+        },
+      ])
       expect(result.stderr).toContain('RITUAL_LOCALE')
     })
   })

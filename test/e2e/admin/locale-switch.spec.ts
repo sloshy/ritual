@@ -10,6 +10,7 @@ import {
   markPage,
   offerLocales,
   PSEUDO_LOCALE,
+  pseudoCatalog,
 } from '../helpers/i18n'
 import {
   emitStreamConnectionError,
@@ -21,11 +22,14 @@ import {
   mockAuditLogApi,
   cacheRefreshDownloadFrame,
   mockCacheRefreshApi,
+  mockConfigApi,
   mockImportChangesApi,
   mockImportCsvApi,
   mockMoveCardsApi,
   MOCK_SYNC_COLLECTION_LISTS,
   MOCK_SYNC_DECKS,
+  mockStatusApi,
+  mockTotpApi,
 } from '../helpers/mock-admin'
 import { apiMessage } from '../../../src/api/result'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
@@ -529,6 +533,51 @@ test.describe('admin language switch', () => {
     // The names ride through untranslated inside the relabelled sentence.
     await expect(refused).toContainText('Burn')
     await expect(refused).toContainText('burn')
+  })
+
+  test('relabels a Settings save the config validator refused, the nested field refusal included', async ({
+    page,
+  }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockConfigApi(page)
+    await mockTotpApi(page)
+    await mockStatusApi(page)
+    // The refusal exactly as `PUT /api/config` sends it: English plus the key,
+    // the field's own refusal nested inside its section's.
+    const reason = syncRef('domain.config.mustBeEither', {
+      field: 'ciSystem',
+      first: 'github-actions',
+      second: 'manual',
+    })
+    await fulfillJson(
+      page,
+      '**/api/config',
+      () => ({
+        success: false,
+        ...syncMessage('domain.config.inSection', { section: 'site', reason }),
+      }),
+      { method: 'PUT', status: 400 },
+    )
+    await gotoAdminDashboard(page)
+    await page.locator('.admin-sidebar .admin-nav-item:has-text("Settings")').click()
+    await page.locator('main button:has-text("Save")').click()
+    const refused = page.locator('main .alert-error')
+    await expect(refused).toHaveText('site config: "ciSystem" must be "github-actions" or "manual"')
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(refused, true)
+    // The nested refusal relabels with its frame, its key names and values kept.
+    const nested = pseudoCatalog()['domain.config.mustBeEither']
+    if (typeof nested !== 'string') throw new Error('domain.config.mustBeEither is not a string')
+    await expect(refused).toContainText(
+      nested
+        .replace('{field}', 'ciSystem')
+        .replace('{first}', 'github-actions')
+        .replace('{second}', 'manual'),
+    )
+    await expect(refused).not.toContainText('" must be "')
+    await expectNotReloaded(page)
   })
 
   test('relabels a cache refresh’s failure, its nested duration and holder included', async ({

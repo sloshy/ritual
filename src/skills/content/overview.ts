@@ -550,8 +550,16 @@ unauthenticated write routes: keep it on loopback or a trusted private network.
 \`ritual.config.json\` is created only by a genuine write — \`config set\`/\`unset\`,
 \`init-site\`, the admin Settings page, or the MCP \`update_config\` tool — reading
 config never does. If the file exists but is not valid JSON, every command fails with exit 1
-and a message naming the path; the file is never rewritten, so fix (or delete)
-it rather than trying to overwrite it with \`config set\`.
+and a message naming the path — under \`--output json\` an error envelope with
+\`messageKey: domain.config.fileNotJson\`, as for a \`--base-dir\` that is not a directory
+(\`cli.baseDir.*\`, exit 2). It is worded in the language \`--locale\`/\`RITUAL_LOCALE\`/the
+OS chose, since a broken file cannot name its own \`uiLocale\`. The file is never
+rewritten, so fix (or delete) it rather than trying to overwrite it with \`config set\`.
+\`config set\`/\`get\`/\`unset\` refusals are keyed \`cli.config.*\` (or \`domain.config.*\`
+for a value the validator refuses); \`PUT /api/config\` refuses a value in English plus its
+\`domain.config.*\` key, and \`update_config\` with the same English. A refused
+\`priceSources\`, \`defaultPriceSource\`, \`defaultCategories\` or \`exportPresets\` value has
+no key yet: English only.
 
 Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh
 started while another process is refreshing waits up to the configurable

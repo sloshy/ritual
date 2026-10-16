@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { getBaseDir } from './base-dir'
-import { CardCommandError, ExitCode, getErrorMessage, hasErrorCode } from '../util/errors'
+import { getErrorMessage, hasErrorCode } from '../util/errors'
 import type { PriceCurrency } from '../pricing/price-currency'
 import {
   DEFAULT_PRICE_SOURCES,
@@ -23,8 +23,8 @@ import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './l
 import { parseExportPresets, type ExportPreset } from '../export/presets'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from './search-debounce'
 import {
+  CARD_LANGUAGES,
   DEFAULT_CARD_LANGUAGE,
-  invalidLanguageMessage,
   isCardLanguage,
   type CardLanguage,
 } from '../card/card-language'
@@ -32,7 +32,21 @@ import { printingKey } from '../card/printing-key'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
+import type { MessageKey } from '../i18n/messages/en'
 import { writeFileAtomic } from '../util/atomic-write'
+import {
+  isSyncMessage,
+  nestSync,
+  renderSyncMessage,
+  syncList,
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+  syncText,
+  type SyncArgs,
+  type SyncMessage,
+  type SyncText,
+} from '../sync/message'
 
 export { INCLUDE_ALL } from './list-selection'
 export type { SiteSelectionConfig } from './list-selection'
@@ -335,8 +349,59 @@ function isStringArray(value: unknown): value is string[] {
  * (store names, URLs), so a `T | string` union would not be discriminable —
  * every parser returns this shape instead, and every consumer branches via
  * {@link isConfigParseError}.
+ *
+ * The refusal is a message, not rendered text: the validator runs under the
+ * CLI, the admin API and MCP alike, and each wants it in a different language.
+ * `error.message` is English (what the API and MCP send, beside its key and
+ * params); the CLI renders it with `renderSyncMessage` in its own language, and
+ * the admin page in the reader's. A refusal worded by a module outside the
+ * catalog (a {@link PlainParseError}) is carried keyless, as its own text.
  */
-export type ConfigParseError = { error: string }
+export type ConfigParseError = { error: SyncMessage }
+
+/**
+ * The refusal of a config parser that lives outside `src/config` and words its
+ * refusal as plain text (`parsePriceSources`, `parseDefaultCategories`). The
+ * loader and the write paths lift it to a {@link ConfigParseError} through the
+ * `…Field` parsers below, which carry the text as it is. Its field is `reason`,
+ * not `error`, so the two shapes cannot be mistaken for each other.
+ */
+export type PlainParseError = { reason: string }
+
+/** A {@link ConfigParseError} from a catalog key, its params checked against the key. */
+function configError<K extends MessageKey>(key: K, ...args: SyncArgs<K>): ConfigParseError {
+  return { error: syncMessage(key, ...args) }
+}
+
+/**
+ * The top-level blocks of settings whose refusals are prefixed with the block's
+ * name (`site config: …`). The key as it appears in the file.
+ */
+const CONFIG_SECTIONS = ['site', 'admin', 'managed', 'collectionSync'] as const
+
+type ConfigSection = (typeof CONFIG_SECTIONS)[number]
+
+function isConfigSection(key: string): key is ConfigSection {
+  return (CONFIG_SECTIONS as readonly string[]).includes(key)
+}
+
+/**
+ * A top-level key as the subject of a warning or a refusal: a block by its name
+ * (`admin config`), any other key as itself.
+ */
+function keyLabel(key: string): SyncText {
+  return isConfigSection(key) ? syncRef('domain.config.section', { section: key }) : key
+}
+
+/** A refusal of one field inside a block, prefixed with the block's name. */
+function sectionError(section: ConfigSection, reason: SyncText): ConfigParseError {
+  return configError('domain.config.inSection', { section, reason })
+}
+
+/** A block of settings that is not a JSON object. */
+function sectionNotObject(section: ConfigSection): ConfigParseError {
+  return configError('domain.config.sectionNotObject', { section })
+}
 
 /** `ritual.config.json` as parsed JSON, before (or without) validation. */
 export type RawConfig = Record<string, unknown>
@@ -349,10 +414,49 @@ export function isMigrationCounter(value: unknown): value is number {
 /** True when a config parser result is the {@link ConfigParseError} branch. */
 export function isConfigParseError(value: unknown): value is ConfigParseError {
   return (
+    typeof value === 'object' && value !== null && 'error' in value && isSyncMessage(value.error)
+  )
+}
+
+/** True when a sibling parser's result is the {@link PlainParseError} branch. */
+export function isPlainParseError(value: unknown): value is PlainParseError {
+  return (
     typeof value === 'object' &&
     value !== null &&
-    typeof (value as Partial<ConfigParseError>).error === 'string'
+    !Array.isArray(value) &&
+    'reason' in value &&
+    typeof value.reason === 'string'
   )
+}
+
+/** A plain-text refusal lifted to a {@link ConfigParseError}, its text carried as it is. */
+function liftPlainError<T>(parsed: T | PlainParseError): T | ConfigParseError {
+  return isPlainParseError(parsed) ? { error: syncText(parsed.reason) } : parsed
+}
+
+/** `parsePriceSources` with its refusal as a {@link ConfigParseError}. */
+export function parsePriceSourcesField(value: unknown): PriceSource[] | ConfigParseError {
+  return liftPlainError(parsePriceSources(value))
+}
+
+/** `parseDefaultPriceSource` with its refusal as a {@link ConfigParseError}. */
+export function parseDefaultPriceSourceField(
+  value: unknown,
+): PriceSource | undefined | ConfigParseError {
+  return liftPlainError(parseDefaultPriceSource(value))
+}
+
+/** `parseDefaultCategories` with its refusal as a {@link ConfigParseError}. */
+export function parseDefaultCategoriesField(value: unknown): CardCategory[] | ConfigParseError {
+  return liftPlainError(parseDefaultCategories(value))
+}
+
+/** `parseExportPresets` with its refusal (a bare string) as a {@link ConfigParseError}. */
+export function parseExportPresetsField(
+  value: unknown,
+): Record<string, ExportPreset> | ConfigParseError {
+  const presets = parseExportPresets(value)
+  return typeof presets === 'string' ? { error: syncText(presets) } : presets
 }
 
 /**
@@ -369,7 +473,7 @@ function parseSelectionList(
     return fallback
   }
   if (!isStringArray(value)) {
-    return { error: `site config: "${field}" must be an array of strings` }
+    return sectionError('site', syncRef('domain.config.mustBeStringArray', { field }))
   }
   return value
 }
@@ -387,12 +491,12 @@ export function parseBannedPrinting(raw: string): ParsedBannedPrinting | ConfigP
   const colon = trimmed.indexOf(':')
   // Require exactly one ':' with non-empty text on each side.
   if (colon <= 0 || trimmed.indexOf(':', colon + 1) !== -1) {
-    return { error: `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")` }
+    return configError('domain.config.bannedPrinting', { value: raw })
   }
   const set = trimmed.slice(0, colon).toLowerCase()
   const collectorNumber = trimmed.slice(colon + 1).trim()
   if (set.length === 0 || collectorNumber.length === 0) {
-    return { error: `banned printing "${raw}" must be in "SET:COLLECTOR" form (e.g. "sld:123")` }
+    return configError('domain.config.bannedPrinting', { value: raw })
   }
   return { set, collectorNumber, key: printingKey(set, collectorNumber) }
 }
@@ -404,13 +508,16 @@ export function parseBannedPrinting(raw: string): ParsedBannedPrinting | ConfigP
  */
 export function normalizeBannedPrintings(value: unknown): string[] | ConfigParseError {
   if (!isStringArray(value)) {
-    return { error: 'site config: "bannedPrintings" must be an array of strings' }
+    return sectionError(
+      'site',
+      syncRef('domain.config.mustBeStringArray', { field: 'bannedPrintings' }),
+    )
   }
   const keys: string[] = []
   const seen = new Set<string>()
   for (const entry of value) {
     const parsed = parseBannedPrinting(entry)
-    if (isConfigParseError(parsed)) return { error: `site config: ${parsed.error}` }
+    if (isConfigParseError(parsed)) return sectionError('site', nestSync(parsed.error))
     if (!seen.has(parsed.key)) {
       seen.add(parsed.key)
       keys.push(parsed.key)
@@ -430,7 +537,7 @@ export function normalizeBannedPrintings(value: unknown): string[] | ConfigParse
  */
 export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   if (typeof value !== 'object' || value === null) {
-    return { error: 'site config must be a JSON object' }
+    return sectionNotObject('site')
   }
   const obj = value as Record<string, unknown>
 
@@ -478,7 +585,7 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   const api = apiBaseUrl !== undefined ? { apiBaseUrl } : {}
 
   if (obj.sellMode !== undefined && typeof obj.sellMode !== 'boolean') {
-    return { error: 'site config: "sellMode" must be a boolean' }
+    return sectionError('site', syncRef('domain.config.mustBeBoolean', { field: 'sellMode' }))
   }
   const sell = obj.sellMode !== undefined ? { sellMode: obj.sellMode } : {}
 
@@ -496,18 +603,35 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
   }
 
   if (obj.ciSystem !== 'github-actions' && obj.ciSystem !== 'manual') {
-    return { error: 'site config: "ciSystem" must be "github-actions" or "manual"' }
+    return sectionError(
+      'site',
+      syncRef('domain.config.mustBeEither', {
+        field: 'ciSystem',
+        first: 'github-actions',
+        second: 'manual',
+      }),
+    )
   }
 
   if (obj.ciSystem === 'github-actions') {
     if (obj.deployMode !== 'publish-for-me' && obj.deployMode !== 'local-build') {
-      return { error: 'site config: "deployMode" must be "publish-for-me" or "local-build"' }
+      return sectionError(
+        'site',
+        syncRef('domain.config.mustBeEither', {
+          field: 'deployMode',
+          first: 'publish-for-me',
+          second: 'local-build',
+        }),
+      )
     }
     if (typeof obj.distDir !== 'string') {
-      return { error: 'site config: "distDir" must be a string' }
+      return sectionError('site', syncRef('domain.config.mustBeString', { field: 'distDir' }))
     }
     if (typeof obj.detectChanges !== 'boolean') {
-      return { error: 'site config: "detectChanges" must be a boolean' }
+      return sectionError(
+        'site',
+        syncRef('domain.config.mustBeBoolean', { field: 'detectChanges' }),
+      )
     }
     return {
       ...selection,
@@ -529,21 +653,24 @@ export function parseSiteConfig(value: unknown): SiteConfig | ConfigParseError {
  * a workspace no migration has touched yet.
  */
 export function parseManagedConfig(value: unknown): ManagedConfig | ConfigParseError {
-  if (!isRecord(value)) return { error: 'managed config must be a JSON object' }
+  if (!isRecord(value)) return sectionNotObject('managed')
   const migration = value.migration ?? 0
   if (!isMigrationCounter(migration)) {
-    return { error: 'managed config: "migration" must be a non-negative integer' }
+    return sectionError(
+      'managed',
+      syncRef('domain.config.mustBeNonNegativeInteger', { field: 'migration' }),
+    )
   }
   const managed: ManagedConfig = { migration }
   if (value.version !== undefined) {
     if (typeof value.version !== 'string' || !isValidSemver(value.version)) {
-      return { error: 'managed config: "version" must be a semver string' }
+      return sectionError('managed', syncRef('domain.config.mustBeSemver', { field: 'version' }))
     }
     managed.version = value.version
   }
   if (value.output !== undefined) {
     if (typeof value.output !== 'string' || !value.output.startsWith('sha256:')) {
-      return { error: 'managed config: "output" must be a "sha256:" hash string' }
+      return sectionError('managed', syncRef('domain.config.mustBeHash', { field: 'output' }))
     }
     managed.output = value.output
   }
@@ -627,7 +754,9 @@ function parseAdminBoolean(
   fallback: boolean,
 ): boolean | ConfigParseError {
   if (value === undefined) return fallback
-  if (typeof value !== 'boolean') return { error: `admin config: "${field}" must be a boolean` }
+  if (typeof value !== 'boolean') {
+    return sectionError('admin', syncRef('domain.config.mustBeBoolean', { field }))
+  }
   return value
 }
 
@@ -639,7 +768,7 @@ function parseAdminNumber(
 ): number | ConfigParseError {
   if (value === undefined) return fallback
   if (typeof value !== 'number' || !Number.isFinite(value)) {
-    return { error: `admin config: "${field}" must be a number` }
+    return sectionError('admin', syncRef('domain.config.mustBeNumber', { field }))
   }
   return value
 }
@@ -652,7 +781,7 @@ function parseAdminStringList(
 ): string[] | ConfigParseError {
   if (value === undefined) return fallback
   if (!isStringArray(value)) {
-    return { error: `admin config: "${field}" must be an array of strings` }
+    return sectionError('admin', syncRef('domain.config.mustBeStringArray', { field }))
   }
   return value
 }
@@ -667,7 +796,7 @@ function parseAdminStringList(
 export function parseAdminConfig(value: unknown): AdminConfig | ConfigParseError {
   if (value === undefined) return { ...DEFAULT_ADMIN_CONFIG }
   if (typeof value !== 'object' || value === null) {
-    return { error: 'admin config must be a JSON object' }
+    return sectionNotObject('admin')
   }
   const obj = value as Record<string, unknown>
   const d = DEFAULT_ADMIN_CONFIG
@@ -749,7 +878,10 @@ export function parseAdminConfig(value: unknown): AdminConfig | ConfigParseError
 export function parseCollectionSyncPullTarget(value: unknown): string | ConfigParseError {
   if (value === undefined) return DEFAULT_COLLECTION_SYNC_CONFIG.pullTarget
   if (typeof value !== 'string' || value.trim() === '') {
-    return { error: 'collectionSync config: "pullTarget" must be a non-empty list name' }
+    return sectionError(
+      'collectionSync',
+      syncRef('domain.config.mustBeListName', { field: 'pullTarget' }),
+    )
   }
   return value.trim()
 }
@@ -763,7 +895,7 @@ export function parseCollectionSyncPullTarget(value: unknown): string | ConfigPa
 export function parseCollectionSyncConfig(value: unknown): CollectionSyncConfig | ConfigParseError {
   if (value === undefined) return { ...DEFAULT_COLLECTION_SYNC_CONFIG }
   if (typeof value !== 'object' || value === null) {
-    return { error: 'collectionSync config must be a JSON object' }
+    return sectionNotObject('collectionSync')
   }
   const obj = value as Record<string, unknown>
   const pullTarget = parseCollectionSyncPullTarget(obj.pullTarget)
@@ -783,7 +915,19 @@ export function parseDefaultLanguage(value: unknown): CardLanguage | ConfigParse
     const lower = value.toLowerCase()
     if (isCardLanguage(lower)) return lower
   }
-  return { error: invalidLanguageMessage(value, 'for "defaultLanguage"') }
+  return invalidDefaultLanguage(value)
+}
+
+/**
+ * The refusal of a `defaultLanguage` value that names no card language — shared
+ * with `config set`, which accepts aliases (`jp`) before refusing with it.
+ */
+export function invalidDefaultLanguage(value: unknown): ConfigParseError {
+  return configError('domain.config.defaultLanguage', {
+    // `String` keeps `undefined`'s spelling, which `JSON.stringify` drops.
+    value: String(JSON.stringify(value)),
+    languages: syncList(CARD_LANGUAGES, 'unit'),
+  })
 }
 
 /**
@@ -807,12 +951,10 @@ export function parseUiLocale(value: unknown): LocaleTag | ConfigParseError {
   if (value === undefined) return DEFAULT_LOCALE
   const parsed = parseLocaleTag(value)
   if (isLocaleTagError(parsed)) {
-    return { error: `invalid UI locale: ${parsed.error}` }
+    return configError('domain.config.uiLocaleMalformed', { reason: parsed.error })
   }
   if (!isRecognizedLocale(parsed)) {
-    return {
-      error: `invalid UI locale "${parsed}": no such language is known (expected a BCP-47 tag such as "en" or "de-AT")`,
-    }
+    return configError('domain.config.uiLocaleUnknown', { tag: parsed })
   }
   return parsed
 }
@@ -838,7 +980,7 @@ function isRecognizedLocale(tag: LocaleTag): boolean {
 export function parseCacheLockTimeoutSeconds(value: unknown): number | ConfigParseError {
   if (value === undefined) return DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
-    return { error: '"cacheLockTimeoutSeconds" must be a positive integer' }
+    return configError('domain.config.mustBePositiveInteger', { field: 'cacheLockTimeoutSeconds' })
   }
   return value
 }
@@ -851,7 +993,7 @@ export function parseCacheLockTimeoutSeconds(value: unknown): number | ConfigPar
 export function parseSearchDebounceMs(value: unknown): number | ConfigParseError {
   if (value === undefined) return DEFAULT_SEARCH_DEBOUNCE_MS
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
-    return { error: '"searchDebounceMs" must be a non-negative integer' }
+    return configError('domain.config.mustBeNonNegativeInteger', { field: 'searchDebounceMs' })
   }
   return value
 }
@@ -862,7 +1004,9 @@ export function parseSearchDebounceMs(value: unknown): number | ConfigParseError
  */
 export function parseUpdateCheck(value: unknown): boolean | ConfigParseError {
   if (value === undefined) return DEFAULT_CONFIG.updateCheck
-  if (typeof value !== 'boolean') return { error: '"updateCheck" must be a boolean' }
+  if (typeof value !== 'boolean') {
+    return configError('domain.config.mustBeBoolean', { field: 'updateCheck' })
+  }
   return value
 }
 
@@ -875,7 +1019,10 @@ export function parseCacheSource(value: unknown): CacheSource | ConfigParseError
   if (typeof value === 'string' && (CACHE_SOURCES as readonly string[]).includes(value)) {
     return value as CacheSource
   }
-  return { error: `"cacheSource" must be one of: ${CACHE_SOURCES.join(', ')}` }
+  return configError('domain.config.mustBeOneOf', {
+    field: 'cacheSource',
+    values: syncList(CACHE_SOURCES, 'unit'),
+  })
 }
 
 /**
@@ -893,7 +1040,7 @@ export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
       // Fall through to the error below.
     }
   }
-  return { error: '"cacheFeedUrl" must be an http(s) URL' }
+  return configError('domain.config.mustBeHttpUrl', { field: 'cacheFeedUrl' })
 }
 
 /**
@@ -905,7 +1052,7 @@ export function parseCacheFeedUrl(value: unknown): string | ConfigParseError {
  */
 export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
   if (typeof value !== 'string') {
-    return { error: 'site config: "apiBaseUrl" must be a string' }
+    return sectionError('site', syncRef('domain.config.mustBeString', { field: 'apiBaseUrl' }))
   }
   if (value === '') return ''
   try {
@@ -916,7 +1063,10 @@ export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
   } catch {
     // Fall through to the error below.
   }
-  return { error: 'site config: "apiBaseUrl" must be an http(s) URL or an empty string' }
+  return sectionError(
+    'site',
+    syncRef('domain.config.mustBeHttpUrlOrEmpty', { field: 'apiBaseUrl' }),
+  )
 }
 
 /**
@@ -925,24 +1075,31 @@ export function parseSiteApiBaseUrl(value: unknown): string | ConfigParseError {
  * ({@link warnAndDefault}) warns and falls back; the strict parser
  * ({@link parseRitualConfig}) records the error instead.
  */
-type FieldPolicy = <T>(parsed: T | ConfigParseError, fieldLabel: string, fallback: T) => T
+type FieldPolicy = <T>(parsed: T | ConfigParseError, key: string, fallback: T) => T
 
 /**
  * The load path's policy: it never fails on a bad field — it logs and
  * continues with the field's default.
+ *
+ * The warning is the one text this module renders itself: an operator-facing
+ * console line, in the UI language of the process that loaded the config (the
+ * CLI's, or a server's). It goes to the console only — never into the file or
+ * a response — and a run that loads the config before its locale is applied
+ * (the CLI's `preAction`) renders it in the boot-time locale `initI18n()` chose.
  */
-const warnAndDefault: FieldPolicy = (parsed, fieldLabel, fallback) => {
+const warnAndDefault: FieldPolicy = (parsed, key, fallback) => {
   if (isConfigParseError(parsed)) {
-    console.warn(`ritual.config.json: ignoring invalid ${fieldLabel} — ${parsed.error}`)
+    console.warn(
+      renderSyncMessage(
+        syncRef('domain.config.ignoringInvalid', {
+          field: keyLabel(key),
+          reason: nestSync(parsed.error),
+        }),
+      ),
+    )
     return fallback
   }
   return parsed
-}
-
-/** `parseExportPresets` reports its error as a bare string; lift it to the shared shape. */
-function parseExportPresetsField(value: unknown): Record<string, ExportPreset> | ConfigParseError {
-  const presets = parseExportPresets(value)
-  return typeof presets === 'string' ? { error: presets } : presets
 }
 
 function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
@@ -958,15 +1115,15 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
     artDir: parsed.artDir ?? DEFAULT_CONFIG.artDir,
     defaultPriceSource: field(
-      parseDefaultPriceSource(parsed.defaultPriceSource),
+      parseDefaultPriceSourceField(parsed.defaultPriceSource),
       'defaultPriceSource',
       undefined,
     ),
-    priceSources: field(parsePriceSources(parsed.priceSources), 'priceSources', [
+    priceSources: field(parsePriceSourcesField(parsed.priceSources), 'priceSources', [
       ...DEFAULT_PRICE_SOURCES,
     ]),
     defaultCategories: field(
-      parseDefaultCategories(parsed.defaultCategories),
+      parseDefaultCategoriesField(parsed.defaultCategories),
       'defaultCategories',
       [...DEFAULT_CARD_CATEGORIES],
     ),
@@ -992,30 +1149,24 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
       'updateCheck',
       DEFAULT_CONFIG.updateCheck,
     ),
-    admin: field(parseAdminConfig(parsed.admin), 'admin config', { ...DEFAULT_ADMIN_CONFIG }),
+    admin: field(parseAdminConfig(parsed.admin), 'admin', { ...DEFAULT_ADMIN_CONFIG }),
     // Defaulted unconditionally rather than only when the key is present, so a
     // config file written before this section existed still yields the default.
-    collectionSync: field(
-      parseCollectionSyncConfig(parsed.collectionSync),
-      'collectionSync config',
-      { ...DEFAULT_COLLECTION_SYNC_CONFIG },
-    ),
+    collectionSync: field(parseCollectionSyncConfig(parsed.collectionSync), 'collectionSync', {
+      ...DEFAULT_COLLECTION_SYNC_CONFIG,
+    }),
   }
   if (cacheFeedUrl !== undefined) {
     merged.cacheFeedUrl = cacheFeedUrl
   }
   if (parsed.site !== undefined) {
-    const site = field<SiteConfig | undefined>(
-      parseSiteConfig(parsed.site),
-      'site config',
-      undefined,
-    )
+    const site = field<SiteConfig | undefined>(parseSiteConfig(parsed.site), 'site', undefined)
     if (site !== undefined) merged.site = site
   }
   if (parsed.managed !== undefined) {
     const managed = field<ManagedConfig | undefined>(
       parseManagedConfig(parsed.managed),
-      'managed config',
+      'managed',
       undefined,
     )
     if (managed !== undefined) merged.managed = managed
@@ -1038,9 +1189,15 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
  */
 export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseError {
   const errors: ConfigParseError[] = []
-  const recordError: FieldPolicy = (parsed, fieldLabel, fallback) => {
+  const recordError: FieldPolicy = (parsed, key, fallback) => {
     if (isConfigParseError(parsed)) {
-      errors.push({ error: `${fieldLabel}: ${parsed.error}` })
+      // A block's refusal already names its block (`site config: …`); any other
+      // field's is headed by the key it is about.
+      errors.push(
+        isConfigSection(key)
+          ? parsed
+          : configError('domain.config.field', { field: key, reason: nestSync(parsed.error) }),
+      )
       return fallback
     }
     return parsed
@@ -1055,16 +1212,19 @@ export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseErr
  * the command with the file path and the parser's complaint — treating it as
  * "no config" would silently run against defaults and, worse, let the next
  * write replace settings the user still has on disk.
+ *
+ * A {@link SyncMessageError}: the admin API and MCP answer it (a hand-edit
+ * breaking the file under a running server fails every request) as English plus
+ * its key, with the reason nested, and the CLI prints it in its own language —
+ * a runtime error, exit 1. The CLI meets it while loading the config, before the
+ * file's own `uiLocale` could be read (it is the file that is broken), so it is
+ * worded in the language `--locale`, `RITUAL_LOCALE` or the OS chose.
  */
-export class RitualConfigParseError extends CardCommandError {
+export class RitualConfigParseError extends SyncMessageError {
   readonly configPath: string
-  constructor(configPath: string, reason: string) {
-    super(
-      'runtime_error',
-      `ritual.config.json is not valid JSON: ${configPath}\n  ${reason}\n` +
-        'Fix the file (or delete it to fall back to defaults) and try again.',
-      ExitCode.RuntimeError,
-    )
+  /** `reason` is the JSON parser's own message, or the catalog's "not an object". */
+  constructor(configPath: string, reason: SyncText) {
+    super(syncMessage('domain.config.fileNotJson', { path: configPath, reason }))
     this.name = 'RitualConfigParseError'
     this.configPath = configPath
   }
@@ -1093,7 +1253,7 @@ export async function readRawRitualConfig(): Promise<RawConfig | null> {
     throw new RitualConfigParseError(configPath, getErrorMessage(error))
   }
   if (!isRecord(parsed)) {
-    throw new RitualConfigParseError(configPath, 'the file must contain a JSON object')
+    throw new RitualConfigParseError(configPath, syncRef('domain.config.fileNotObject'))
   }
   return parsed
 }

@@ -15,8 +15,8 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     const result = applyConfigSet(base, 'unknownProp', ['value'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('Unknown property')
-      expect(result.error).toContain('unknownProp')
+      expect(result.error.message).toContain('Unknown property')
+      expect(result.error.message).toContain('unknownProp')
     }
   })
 
@@ -24,8 +24,8 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     const result = applyConfigSet(base, 'notReal', ['x'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('decksDir')
-      expect(result.error).toContain('admin.gitEnabled')
+      expect(result.error.message).toContain('decksDir')
+      expect(result.error.message).toContain('admin.gitEnabled')
     }
   })
 
@@ -33,8 +33,8 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     const result = applyConfigSet(base, 'site', ['{}'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('"site"')
-      expect(result.error).toContain('init-site')
+      expect(result.error.message).toContain('"site"')
+      expect(result.error.message).toContain('init-site')
     }
   })
 
@@ -42,21 +42,21 @@ describe('applyConfigSet — unknown / blocked properties', () => {
     const result = applyConfigSet(base, 'site.ciSystem', ['github-actions'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('"site"')
+      expect(result.error.message).toContain('"site"')
     }
   })
 
   test.each(['managed', 'managed.migration'])('blocks the Ritual-owned "%s" path', (property) => {
     const result = applyConfigSet(base, property, ['3'], 'replace')
     expect('error' in result).toBeTrue()
-    if ('error' in result) expect(result.error).toContain('ritual migrate')
+    if ('error' in result) expect(result.error.message).toContain('ritual migrate')
   })
 
   test('returns error when no values are provided', () => {
     const result = applyConfigSet(base, 'decksDir', [], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toBe('At least one value must be provided.')
+      expect(result.error.message).toBe('At least one value must be provided.')
     }
   })
 })
@@ -83,7 +83,7 @@ describe('applyConfigSet — site selection lists', () => {
     const seeded = applyConfigSet(base, 'site.includeWantedLists', ['A'], 'replace')
     expect('error' in seeded).toBeFalse()
     if ('error' in seeded) {
-      throw new Error(`seed setup failed: ${seeded.error}`)
+      throw new Error(`seed setup failed: ${seeded.error.message}`)
     }
     const result = applyConfigSet(seeded.updatedConfig, 'site.includeWantedLists', ['B'], 'add')
     expect('error' in result).toBeFalse()
@@ -127,7 +127,7 @@ describe('applyConfigSet — site.bannedPrintings', () => {
   test('--remove matches a stored key regardless of input case', () => {
     const seeded = applyConfigSet(base, 'site.bannedPrintings', ['sld:123', 'mh2:42'], 'replace')
     expect('error' in seeded).toBeFalse()
-    if ('error' in seeded) throw new Error(`seed setup failed: ${seeded.error}`)
+    if ('error' in seeded) throw new Error(`seed setup failed: ${seeded.error.message}`)
     const result = applyConfigSet(
       seeded.updatedConfig,
       'site.bannedPrintings',
@@ -144,7 +144,7 @@ describe('applyConfigSet — site.bannedPrintings', () => {
     const result = applyConfigSet(base, 'site.bannedPrintings', ['sld'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('SET:COLLECTOR')
+      expect(result.error.message).toContain('SET:COLLECTOR')
     }
   })
 })
@@ -171,13 +171,13 @@ describe('applyConfigSet — site.apiBaseUrl', () => {
     const result = applyConfigSet(base, 'site.apiBaseUrl', ['not a url'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('apiBaseUrl')
+      expect(result.error.message).toContain('apiBaseUrl')
     }
   })
 
   test('unset removes the key without an init-site guard error', () => {
     const seeded = applyConfigSet(base, 'site.apiBaseUrl', ['http://localhost:3000'], 'replace')
-    if ('error' in seeded) throw new Error(`seed setup failed: ${seeded.error}`)
+    if ('error' in seeded) throw new Error(`seed setup failed: ${seeded.error.message}`)
     const result = applyConfigUnset(seeded.updatedConfig, 'site.apiBaseUrl')
     expect('error' in result).toBeFalse()
     if (!('error' in result)) {
@@ -206,8 +206,8 @@ describe('applyConfigSet — string properties', () => {
     const result = applyConfigSet(base, 'decksDir', ['./x'], 'add')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('--add')
-      expect(result.error).toContain('array')
+      expect(result.error.message).toContain('--add')
+      expect(result.error.message).toContain('array')
     }
   })
 
@@ -215,7 +215,7 @@ describe('applyConfigSet — string properties', () => {
     const result = applyConfigSet(base, 'decksDir', ['./x'], 'remove')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('--remove')
+      expect(result.error.message).toContain('--remove')
     }
   })
 })
@@ -234,7 +234,7 @@ describe('applyConfigSet — collectionSync.pullTarget', () => {
     const result = applyConfigSet(base, 'collectionSync.pullTarget', ['   '], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('pullTarget')
+      expect(result.error.message).toContain('pullTarget')
     }
   })
 
@@ -280,9 +280,9 @@ describe('applyConfigSet — boolean properties', () => {
     const result = applyConfigSet(base, 'admin.gitEnabled', ['yes'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('boolean')
-      expect(result.error).toContain('"true" or "false"')
-      expect(result.error).toContain('"yes"')
+      expect(result.error.message).toContain('boolean')
+      expect(result.error.message).toContain('"true" or "false"')
+      expect(result.error.message).toContain('"yes"')
     }
   })
 })
@@ -295,7 +295,7 @@ describe('applyConfigSet — updateCheck', () => {
     expect(set.updatedConfig.updateCheck).toBe(false)
 
     const refused = applyConfigSet(base, 'updateCheck', ['off'], 'replace')
-    expect('error' in refused && refused.error).toContain('"updateCheck" expects a boolean')
+    expect('error' in refused && refused.error.message).toContain('"updateCheck" expects a boolean')
 
     const unset = applyConfigUnset(set.updatedConfig, 'updateCheck')
     expect('error' in unset).toBeFalse()
@@ -336,8 +336,8 @@ describe('applyConfigSet — number properties', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['abc'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('number')
-      expect(result.error).toContain('"abc"')
+      expect(result.error.message).toContain('number')
+      expect(result.error.message).toContain('"abc"')
     }
   })
 
@@ -345,7 +345,7 @@ describe('applyConfigSet — number properties', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', [''], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('empty string')
+      expect(result.error.message).toContain('empty string')
     }
   })
 
@@ -353,7 +353,7 @@ describe('applyConfigSet — number properties', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['1.5'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('integer')
+      expect(result.error.message).toContain('integer')
     }
   })
 
@@ -361,7 +361,7 @@ describe('applyConfigSet — number properties', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['-1'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('non-negative')
+      expect(result.error.message).toContain('non-negative')
     }
   })
 
@@ -369,8 +369,8 @@ describe('applyConfigSet — number properties', () => {
     const result = applyConfigSet(base, 'admin.rateLimitMaxAttempts', ['5', '10'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('number')
-      expect(result.error).toContain('2')
+      expect(result.error.message).toContain('number')
+      expect(result.error.message).toContain('2')
     }
   })
 })
@@ -467,7 +467,7 @@ describe('applyConfigSet — immutability', () => {
 describe('applyConfigSet — cacheLockTimeoutSeconds', () => {
   test('sets a valid timeout', () => {
     const result = applyConfigSet(base, 'cacheLockTimeoutSeconds', ['120'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe(120)
     expect(result.updatedConfig.cacheLockTimeoutSeconds).toBe(120)
   })
@@ -476,7 +476,7 @@ describe('applyConfigSet — cacheLockTimeoutSeconds', () => {
     const result = applyConfigSet(base, 'cacheLockTimeoutSeconds', ['0'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('positive integer')
+      expect(result.error.message).toContain('positive integer')
     }
   })
 })
@@ -484,7 +484,7 @@ describe('applyConfigSet — cacheLockTimeoutSeconds', () => {
 describe('applyConfigSet — defaultPriceSource', () => {
   test('sets a valid store, normalized to lowercase', () => {
     const result = applyConfigSet(base, 'defaultPriceSource', ['CardKingdom'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe('cardkingdom')
     expect(result.updatedConfig.defaultPriceSource).toBe('cardkingdom')
   })
@@ -493,7 +493,7 @@ describe('applyConfigSet — defaultPriceSource', () => {
     const result = applyConfigSet(base, 'defaultPriceSource', ['usd'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('tcgplayer, cardmarket, cardkingdom, cardhoarder')
+      expect(result.error.message).toContain('tcgplayer, cardmarket, cardkingdom, cardhoarder')
     }
   })
 })
@@ -501,7 +501,7 @@ describe('applyConfigSet — defaultPriceSource', () => {
 describe('applyConfigSet — priceSources', () => {
   test('sets store names, normalized to lowercase', () => {
     const result = applyConfigSet(base, 'priceSources', ['TCGplayer', 'cardkingdom'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toEqual(['tcgplayer', 'cardkingdom'])
     expect(result.updatedConfig.priceSources).toEqual(['tcgplayer', 'cardkingdom'])
   })
@@ -510,20 +510,20 @@ describe('applyConfigSet — priceSources', () => {
     const result = applyConfigSet(base, 'priceSources', ['ebay'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('tcgplayer, cardmarket, cardkingdom, cardhoarder')
+      expect(result.error.message).toContain('tcgplayer, cardmarket, cardkingdom, cardhoarder')
     }
   })
 
   test('--remove can empty the list, which means "no prices on the sites"', () => {
     const result = applyConfigSet(base, 'priceSources', ['tcgplayer'], 'remove')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toEqual([])
     expect(result.updatedConfig.priceSources).toEqual([])
   })
 
   test('--add merges without duplicating', () => {
     const result = applyConfigSet(base, 'priceSources', ['cardmarket', 'tcgplayer'], 'add')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toEqual(['tcgplayer', 'cardmarket'])
   })
 })
@@ -536,7 +536,7 @@ describe('applyConfigSet — defaultCategories', () => {
       [' Ramp ', 'ramp', 'Card  Draw'],
       'replace',
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toEqual(['Ramp', 'Card Draw'])
     expect(result.updatedConfig.defaultCategories).toEqual(['Ramp', 'Card Draw'])
   })
@@ -544,20 +544,20 @@ describe('applyConfigSet — defaultCategories', () => {
   test('refuses a malformed name where it is typed, rather than on the next read', () => {
     const result = applyConfigSet(base, 'defaultCategories', ['a,b'], 'replace')
     expect('error' in result).toBeTrue()
-    if ('error' in result) expect(result.error).toContain('a,b')
+    if ('error' in result) expect(result.error.message).toContain('a,b')
   })
 
   test('--add and --remove fold case, the way every reader of the vocabulary does', () => {
     const withRamp = applyConfigSet(base, 'defaultCategories', ['Ramp'], 'replace')
-    if ('error' in withRamp) throw new Error(withRamp.error)
+    if ('error' in withRamp) throw new Error(withRamp.error.message)
 
     // A second spelling of a category already stored is not a second category.
     const added = applyConfigSet(withRamp.updatedConfig, 'defaultCategories', ['ramp'], 'add')
-    if ('error' in added) throw new Error(added.error)
+    if ('error' in added) throw new Error(added.error.message)
     expect(added.newValue).toEqual(['Ramp'])
 
     const removed = applyConfigSet(withRamp.updatedConfig, 'defaultCategories', ['RAMP'], 'remove')
-    if ('error' in removed) throw new Error(removed.error)
+    if ('error' in removed) throw new Error(removed.error.message)
     expect(removed.newValue).toEqual([])
   })
 })
@@ -565,14 +565,14 @@ describe('applyConfigSet — defaultCategories', () => {
 describe('applyConfigSet — defaultLanguage', () => {
   test('sets a valid language code', () => {
     const result = applyConfigSet(base, 'defaultLanguage', ['ja'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe('ja')
     expect(result.updatedConfig.defaultLanguage).toBe('ja')
   })
 
   test('normalizes the code to lowercase', () => {
     const result = applyConfigSet(base, 'defaultLanguage', ['ZHS'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe('zhs')
   })
 
@@ -583,7 +583,7 @@ describe('applyConfigSet — defaultLanguage', () => {
     ['Japanese', 'ja'],
   ] as const)('corrects the alias %s to the canonical code %s', (alias, canonical) => {
     const result = applyConfigSet(base, 'defaultLanguage', [alias], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe(canonical)
     expect(result.updatedConfig.defaultLanguage).toBe(canonical)
   })
@@ -592,10 +592,10 @@ describe('applyConfigSet — defaultLanguage', () => {
     const result = applyConfigSet(base, 'defaultLanguage', ['klingon'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('defaultLanguage')
-      expect(result.error).toContain('klingon')
+      expect(result.error.message).toContain('defaultLanguage')
+      expect(result.error.message).toContain('klingon')
       // The full vocabulary is in the message, so the user can pick a code.
-      expect(result.error).toContain('en, es, fr, de, it, pt, ja, ko, ru, zhs, zht')
+      expect(result.error.message).toContain('en, es, fr, de, it, pt, ja, ko, ru, zhs, zht')
     }
   })
 })
@@ -603,7 +603,7 @@ describe('applyConfigSet — defaultLanguage', () => {
 describe('applyConfigSet — cacheSource', () => {
   test('sets a valid source', () => {
     const result = applyConfigSet(base, 'cacheSource', ['feed'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe('feed')
     expect(result.updatedConfig.cacheSource).toBe('feed')
   })
@@ -611,7 +611,7 @@ describe('applyConfigSet — cacheSource', () => {
   test('sets back to scryfall', () => {
     const config = { ...base, cacheSource: 'feed' as const }
     const result = applyConfigSet(config, 'cacheSource', ['scryfall'], 'replace')
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe('scryfall')
   })
 
@@ -619,7 +619,7 @@ describe('applyConfigSet — cacheSource', () => {
     const result = applyConfigSet(base, 'cacheSource', ['torrent'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('scryfall, feed')
+      expect(result.error.message).toContain('scryfall, feed')
     }
   })
 })
@@ -632,7 +632,7 @@ describe('applyConfigSet — cacheFeedUrl', () => {
       ['https://feed.example/feed.json'],
       'replace',
     )
-    if ('error' in result) throw new Error(result.error)
+    if ('error' in result) throw new Error(result.error.message)
     expect(result.newValue).toBe('https://feed.example/feed.json')
     expect(result.updatedConfig.cacheFeedUrl).toBe('https://feed.example/feed.json')
   })
@@ -641,7 +641,7 @@ describe('applyConfigSet — cacheFeedUrl', () => {
     const result = applyConfigSet(base, 'cacheFeedUrl', ['ftp://feed.example/feed.json'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('http(s) URL')
+      expect(result.error.message).toContain('http(s) URL')
     }
   })
 
@@ -649,7 +649,7 @@ describe('applyConfigSet — cacheFeedUrl', () => {
     const result = applyConfigSet(base, 'cacheFeedUrl', ['not a url'], 'replace')
     expect('error' in result).toBeTrue()
     if ('error' in result) {
-      expect(result.error).toContain('http(s) URL')
+      expect(result.error.message).toContain('http(s) URL')
     }
   })
 })
@@ -699,7 +699,7 @@ describe('applyConfigUnset', () => {
   test('removes a defaulted key and reports its default value', () => {
     const config = { ...base, decksDir: './custom-decks' }
     const outcome = applyConfigUnset(config, 'decksDir')
-    if ('error' in outcome) throw new Error(outcome.error)
+    if ('error' in outcome) throw new Error(outcome.error.message)
     expect(outcome.property).toBe('decksDir')
     expect(outcome.defaultValue).toBe('./decks')
     expect('decksDir' in outcome.updatedConfig).toBeFalse()
@@ -708,7 +708,7 @@ describe('applyConfigUnset', () => {
   test('removes an optional key without a default value', () => {
     const config = { ...base, cacheFeedUrl: 'https://feed.example/feed.json' }
     const outcome = applyConfigUnset(config, 'cacheFeedUrl')
-    if ('error' in outcome) throw new Error(outcome.error)
+    if ('error' in outcome) throw new Error(outcome.error.message)
     expect(outcome.defaultValue).toBeUndefined()
     expect('cacheFeedUrl' in outcome.updatedConfig).toBeFalse()
   })
@@ -716,37 +716,37 @@ describe('applyConfigUnset', () => {
   test('removes defaultLanguage and reports en as its default', () => {
     const config = { ...base, defaultLanguage: 'ja' as const }
     const outcome = applyConfigUnset(config, 'defaultLanguage')
-    if ('error' in outcome) throw new Error(outcome.error)
+    if ('error' in outcome) throw new Error(outcome.error.message)
     expect(outcome.defaultValue).toBe('en')
     expect('defaultLanguage' in outcome.updatedConfig).toBeFalse()
   })
 
   test('reports the effective default for a site selection list', () => {
     const seeded = applyConfigSet(base, 'site.includeDecks', ['Izzet Storm'], 'replace')
-    if ('error' in seeded) throw new Error(seeded.error)
+    if ('error' in seeded) throw new Error(seeded.error.message)
     const outcome = applyConfigUnset(seeded.updatedConfig, 'site.includeDecks')
-    if ('error' in outcome) throw new Error(outcome.error)
+    if ('error' in outcome) throw new Error(outcome.error.message)
     expect(outcome.defaultValue).toEqual(['*'])
     expect(outcome.updatedConfig.site?.includeDecks).toBeUndefined()
   })
 
   test('is idempotent for an already-absent optional key', () => {
     const outcome = applyConfigUnset(base, 'cacheFeedUrl')
-    if ('error' in outcome) throw new Error(outcome.error)
+    if ('error' in outcome) throw new Error(outcome.error.message)
     expect(outcome.updatedConfig).toEqual(base)
   })
 
   test.each(['managed', 'managed.output'])('blocks the Ritual-owned "%s" path', (property) => {
     const outcome = applyConfigUnset(base, property)
     expect('error' in outcome).toBeTrue()
-    if ('error' in outcome) expect(outcome.error).toContain('ritual migrate')
+    if ('error' in outcome) expect(outcome.error.message).toContain('ritual migrate')
   })
 
   test('blocks the site deployment keys', () => {
     const outcome = applyConfigUnset(base, 'site.ciSystem')
     expect('error' in outcome).toBeTrue()
     if ('error' in outcome) {
-      expect(outcome.error).toContain('init-site')
+      expect(outcome.error.message).toContain('init-site')
     }
   })
 
@@ -754,7 +754,7 @@ describe('applyConfigUnset', () => {
     const outcome = applyConfigUnset(base, 'nope')
     expect('error' in outcome).toBeTrue()
     if ('error' in outcome) {
-      expect(outcome.error).toContain('Unknown property')
+      expect(outcome.error.message).toContain('Unknown property')
     }
   })
 
@@ -809,9 +809,9 @@ describe('applyConfigGet', () => {
     const outcome = applyConfigGet(base, 'site.ciSystem')
     expect(outcome.kind).toBe('unknown-property')
     if (outcome.kind === 'unknown-property') {
-      expect(outcome.error).toContain('Unknown property')
-      expect(outcome.error).toContain('decksDir')
-      expect(outcome.error).toContain('exportPresets')
+      expect(outcome.error.message).toContain('Unknown property')
+      expect(outcome.error.message).toContain('decksDir')
+      expect(outcome.error.message).toContain('exportPresets')
     }
   })
 })
@@ -857,7 +857,7 @@ describe('listConfigEntries', () => {
 
   test('marks a site selection list holding its documented default as default', () => {
     const seeded = applyConfigSet(base, 'site.includeDecks', ['*'], 'replace')
-    if ('error' in seeded) throw new Error(seeded.error)
+    if ('error' in seeded) throw new Error(seeded.error.message)
     const entries = listConfigEntries(seeded.updatedConfig)
     const entry = entries.find((candidate) => candidate.property === 'site.includeDecks')
     expect(entry?.value).toEqual(['*'])

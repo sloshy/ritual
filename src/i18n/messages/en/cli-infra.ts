@@ -313,6 +313,11 @@ export const cliInfraMessages = {
   'cli.cacheServer.addressInvalid':
     'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
 
+  // ── --base-dir ────────────────────────────────────────────────────────
+  'cli.baseDir.missing': 'base directory does not exist: {path}',
+  'cli.baseDir.notDirectory': 'base directory is not a directory: {path}',
+  'cli.baseDir.unreadable': 'base directory is not readable: {path} — {reason}',
+
   // ── config ────────────────────────────────────────────────────────────
   //
   // The property name and the rendered value are machine vocabulary; only the
@@ -326,6 +331,41 @@ export const cliInfraMessages = {
   'cli.config.entryUnset': '{property} = (unset)',
   'cli.config.reset': 'Reset {property} to default ({value})',
   'cli.config.unset': 'Unset {property}',
+  'cli.config.unknownProperty':
+    'Unknown property: "{property}". Available properties: {properties}',
+  'cli.config.noValues': 'At least one value must be provided.',
+  'cli.config.fieldType': {
+    $select: 'type',
+    string: 'string',
+    boolean: 'boolean',
+    number: 'number',
+  },
+  'cli.config.addRemoveScalar':
+    '--add and --remove can only be used with array properties. "{property}" is a {typeName}.',
+  'cli.config.tooManyValues': {
+    $plural: 'count',
+    one: '"{property}" is a {typeName} and only accepts one value, but {count} was provided.',
+    other: '"{property}" is a {typeName} and only accepts one value, but {count} were provided.',
+  },
+  'cli.config.expectsBoolean':
+    '"{property}" expects a boolean. Use "true" or "false", got "{value}".',
+  'cli.config.expectsNumberEmpty': '"{property}" expects a number, got an empty string.',
+  'cli.config.expectsNumber': '"{property}" expects a number, got "{value}".',
+  'cli.config.expectsInteger': '"{property}" expects an integer, got "{value}".',
+  'cli.config.expectsNonNegativeInteger':
+    '"{property}" expects a non-negative integer, got "{value}".',
+  'cli.config.siteManaged': {
+    $select: 'verb',
+    set: 'The "site" property is managed by "ritual init-site" and cannot be set with "config set", except for the public-site selection lists: {properties}.',
+    unset:
+      'The "site" property is managed by "ritual init-site" and cannot be unset with "config unset", except for the public-site selection lists: {properties}.',
+  },
+  'cli.config.managedOwned': {
+    $select: 'verb',
+    set: 'The "managed" property is owned by Ritual and cannot be set with "config set"; "ritual init-site" and "ritual migrate" keep it up to date.',
+    unset:
+      'The "managed" property is owned by Ritual and cannot be unset with "config unset"; "ritual init-site" and "ritual migrate" keep it up to date.',
+  },
 
   // ── serve ─────────────────────────────────────────────────────────────
   'cli.serve.building': 'Building site...',

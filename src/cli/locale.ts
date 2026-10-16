@@ -38,6 +38,13 @@ import { t } from '../i18n/t'
 import type { LocaleTag } from '../i18n/types'
 import { bakedDictionaries } from '../generated/locales'
 import { isConfigParseError, parseUiLocale } from '../config/ritual-config'
+import type { MessageKey } from '../i18n/messages/en'
+import {
+  prefixedFields,
+  renderSyncMessage,
+  type SyncMessage,
+  type SyncMessageParams,
+} from '../sync/message'
 
 /** The environment variable naming the UI locale — never the card language. */
 export const LOCALE_ENV_VAR = 'RITUAL_LOCALE'
@@ -63,11 +70,34 @@ export type UiLocaleInput = {
   available: readonly LocaleTag[]
 }
 
-/** A locale value that was present but unusable, and why it was skipped. */
+/**
+ * A locale value that was present but unusable, and why it was skipped.
+ *
+ * The reason is a message held the way a JSON report keeps one: `error` is
+ * English whatever the UI language (it reaches `ritual locale --output json`),
+ * with `errorKey` / `errorParams` beside it for a reader that renders it
+ * itself — {@link ignoredReason} gets it back for display in the CLI's
+ * language.
+ */
 export type IgnoredLocale = {
   source: LocaleSource
   value: string
   error: string
+  errorKey?: MessageKey
+  errorParams?: SyncMessageParams
+}
+
+/** An {@link IgnoredLocale}, its reason flattened onto the `error` fields. */
+function ignoredLocale(source: LocaleSource, value: string, reason: SyncMessage): IgnoredLocale {
+  return { source, value, error: reason.message, ...prefixedFields('error', reason) }
+}
+
+/** Why a locale value was skipped, as a message to render in the reader's language. */
+export function ignoredReason(entry: IgnoredLocale): SyncMessage {
+  const reason: SyncMessage = { message: entry.error }
+  if (entry.errorKey !== undefined) reason.messageKey = entry.errorKey
+  if (entry.errorParams !== undefined) reason.messageParams = entry.errorParams
+  return reason
 }
 
 /** The resolved UI locale together with the trail that produced it. */
@@ -114,20 +144,20 @@ export function resolveUiLocale(input: UiLocaleInput): UiLocaleResolution {
     const source: LocaleSource = (input.flag?.trim() ?? '') === '' ? 'env' : 'flag'
     const parsed = parseUiLocale(override)
     if (!isConfigParseError(parsed)) return accept(parsed, source, override)
-    ignored.push({ source, value: override, error: parsed.error })
+    ignored.push(ignoredLocale(source, override, parsed.error))
   }
 
   const configured = input.config?.trim() || undefined
   if (configured !== undefined) {
     const parsed = parseUiLocale(configured)
     if (!isConfigParseError(parsed)) return accept(parsed, 'config', configured)
-    ignored.push({ source: 'config', value: configured, error: parsed.error })
+    ignored.push(ignoredLocale('config', configured, parsed.error))
   }
 
   if (detected !== undefined) {
     const parsed = parseUiLocale(detected)
     if (isConfigParseError(parsed)) {
-      ignored.push({ source: 'detected', value: detected, error: parsed.error })
+      ignored.push(ignoredLocale('detected', detected, parsed.error))
     } else {
       // `matchLocale` reports "nothing matched" as `undefined`, which is what
       // keeps the reported source honest: an environment naming a language this
@@ -290,7 +320,12 @@ export function applyCliLocale(options: CliLocaleOptions = {}): UiLocaleResoluti
     // The config file's own complaint is already reported by the config loader,
     // and the flag never reaches here malformed.
     if (entry.source === 'env') {
-      console.warn(t('cli.locale.envIgnored', { variable: LOCALE_ENV_VAR, error: entry.error }))
+      console.warn(
+        t('cli.locale.envIgnored', {
+          variable: LOCALE_ENV_VAR,
+          error: renderSyncMessage(ignoredReason(entry)),
+        }),
+      )
     }
   }
   return resolution

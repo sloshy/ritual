@@ -8,10 +8,14 @@ import {
   type BaseDirError,
 } from '../../src/config/base-dir'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
 
-/** The error message of a {@link parseBaseDir} result, or a failing marker. */
+/**
+ * The English of a {@link parseBaseDir} refusal — after asserting it is keyed
+ * and agrees with its key — or a failing marker.
+ */
 function errorOf(result: string | BaseDirError): string {
-  return isBaseDirError(result) ? result.error : `expected an error, got ${result}`
+  return isBaseDirError(result) ? keyedMessage(result.error) : `expected an error, got ${result}`
 }
 
 describe('resolveBaseDir', () => {
@@ -88,4 +92,22 @@ describe('parseBaseDir', () => {
     await parseBaseDir(missing)
     expect(await fs.readdir(dir)).toEqual([])
   })
+
+  // Root reads through a mode-000 directory, so the refusal cannot be provoked.
+  test.skipIf(process.getuid?.() === 0)(
+    'reports a path it cannot check as unreadable, with the system’s reason',
+    async () => {
+      const locked = path.join(dir, 'locked')
+      await fs.mkdir(path.join(locked, 'inner'), { recursive: true })
+      await fs.chmod(locked, 0o000)
+      try {
+        const target = path.join(locked, 'inner')
+        const result = await parseBaseDir(target)
+        expect(errorOf(result)).toStartWith(`base directory is not readable: ${target} — `)
+        expect(isBaseDirError(result) && result.error.messageKey).toBe('cli.baseDir.unreadable')
+      } finally {
+        await fs.chmod(locked, 0o755)
+      }
+    },
+  )
 })

@@ -29,7 +29,13 @@ import { deleteAtPath, setAtPath } from '../config/config-fields'
 import { getBaseDir } from '../config/base-dir'
 import { compareVersions, isValidSemver } from '../config/semver'
 import { isReleaseBuild, version as ritualVersion } from '../config/version'
-import { CardCommandError, ExitCode, localizedCommandError } from '../util/errors'
+import {
+  CardCommandError,
+  ExitCode,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
+import { nestSync, syncMessage, type SyncMessage } from '../sync/message'
 import { isRecord } from '../util/json'
 import { backUpFiles } from '../util/safekeeping'
 import { renameWithRetry } from '../util/atomic-write'
@@ -129,7 +135,7 @@ export type AheadOutcome = {
 }
 
 /** The migrated config would still fail strict validation; nothing may be written. */
-export type InvalidOutcome = { kind: 'invalid'; error: string }
+export type InvalidOutcome = { kind: 'invalid'; error: SyncMessage }
 
 export type PlanOutcome = MigrationPlan | NoConfigOutcome | AheadOutcome | InvalidOutcome
 
@@ -146,9 +152,13 @@ export function hasPendingMigrations(plan: MigrationPlan): boolean {
 /** The localized refusal for an outcome no command may act on. */
 export function refusalError(outcome: AheadOutcome | InvalidOutcome): CardCommandError {
   if (outcome.kind === 'invalid') {
-    return localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.invalid', {
-      error: outcome.error,
-    })
+    // The validator's refusal nests, so the CLI words both in its language and
+    // the `--output json` envelope carries the English of each.
+    return messageCommandError(
+      'runtime_error',
+      ExitCode.RuntimeError,
+      syncMessage('cli.migrate.invalid', { error: nestSync(outcome.error) }),
+    )
   }
   return outcome.version === undefined
     ? localizedCommandError('runtime_error', ExitCode.RuntimeError, 'cli.migrate.aheadNoVersion', {

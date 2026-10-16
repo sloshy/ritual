@@ -12,7 +12,9 @@ import { buildProgram } from './src/cli/program'
 import { initI18n } from './src/cli/locale'
 import { registerCliMessages } from './src/i18n/register/cli'
 import { ExitCode, CardCommandError, getErrorMessage, isBrokenPipeError } from './src/util/errors'
-import { markStdoutClosed } from './src/cli/output'
+import { markStdoutClosed, TEXT_ONLY } from './src/cli/output'
+import { SyncMessageError } from './src/sync/message'
+import { PreActionFailure, reportCommandFailure } from './src/cli/action'
 import { isReleaseBuild } from './src/config/version'
 import { removeLeftoverBinary } from './src/update/install'
 
@@ -78,17 +80,21 @@ async function main(): Promise<void> {
     } else if (error instanceof CommanderError) {
       // Commander already printed its message (usage error, help, or version).
       process.exitCode = error.exitCode === 0 ? ExitCode.Success : ExitCode.UsageError
-    } else if (error instanceof CardCommandError) {
-      // A structured failure that escaped its command (or came from the
-      // preAction hook) carries its own exit code — 2 for usage errors — which
-      // the generic branch below would flatten to 1.
-      process.stderr.write(`${error.message}\n`)
-      process.exitCode = error.exitCode
+    } else if (error instanceof PreActionFailure) {
+      // A refusal from the root `preAction` hook (a bad `--base-dir`, a
+      // malformed `ritual.config.json`): reported in the invoked command's
+      // output mode, an envelope under `--output json`, with its exit code.
+      reportCommandFailure(error.scripting, error.cause)
+    } else if (error instanceof CardCommandError || error instanceof SyncMessageError) {
+      // A structured failure that escaped with no command in hand to report it
+      // with: plain text, its own exit code (a `SyncMessageError` is a runtime
+      // error) — the dispatch `runCommandAction` uses.
+      reportCommandFailure(TEXT_ONLY, error)
     } else {
-      // The last-resort net for throws from `buildProgram`, the `preAction`
-      // hook, or `parseAsync` itself — the only places left with no
-      // `ScriptingOptions` to render an envelope with. Everything thrown
-      // inside a command action is caught by `runCommandAction`.
+      // The last-resort net for anything else `parseAsync` itself throws.
+      // Everything thrown inside a command action is caught by
+      // `runCommandAction`, and the `preAction` hook's throws arrive above as a
+      // `PreActionFailure`. An exit code the run already recorded stands.
       process.stderr.write(`${getErrorMessage(error)}\n`)
       if (!process.exitCode) process.exitCode = ExitCode.RuntimeError
     }

@@ -279,7 +279,7 @@ describe('planMigration', () => {
     ])
     const outcome = await planMigration({ migrations: [breaking], build: DEV_BUILD })
     expect(outcome.kind).toBe('invalid')
-    if (outcome.kind === 'invalid') expect(outcome.error).toContain('cacheSource')
+    if (outcome.kind === 'invalid') expect(outcome.error.message).toContain('cacheSource')
   })
 
   test('migrations run in id order, each planning against the config earlier ones leave', async () => {

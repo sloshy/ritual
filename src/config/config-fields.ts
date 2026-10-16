@@ -2,6 +2,7 @@ import {
   DEFAULT_SITE_SELL_MODE,
   getDefaultRitualConfig,
   getSiteSelectionConfig,
+  invalidDefaultLanguage,
   isConfigParseError,
   type ConfigParseError,
   parseBannedPrinting,
@@ -9,6 +10,9 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncPullTarget,
+  parseDefaultCategoriesField,
+  parseDefaultPriceSourceField,
+  parsePriceSourcesField,
   parseSiteApiBaseUrl,
   parseUiLocale,
   type AdminConfig,
@@ -17,10 +21,9 @@ import {
   type SiteConfig,
   type SiteSelectionConfig,
 } from './ritual-config'
-import { invalidLanguageMessage, normalizeLanguageValue } from '../card/card-language'
-import { parseDefaultPriceSource, parsePriceSources } from '../pricing/price-source'
-import { parseDefaultCategories } from '../card/card-categories'
+import { normalizeLanguageValue } from '../card/card-language'
 import { getAtPath } from '../util/object'
+import { syncList, syncMessage, syncRef, type SyncMessageRef } from '../sync/message'
 
 type ConfigFieldType = 'string' | 'boolean' | 'number' | 'string[]'
 
@@ -121,9 +124,13 @@ export type ConfigSetSuccess = {
   updatedConfig: RitualConfig
 }
 
-export type ConfigSetError = {
-  error: string
-}
+/**
+ * Why `config set`/`config unset` refused: the same message-carrying shape as
+ * every config parser's refusal, which a refusal from one of them is passed
+ * through as. The CLI renders it in its own language, its key in the
+ * `--output json` envelope.
+ */
+export type ConfigSetError = ConfigParseError
 
 export type ConfigSetOutcome = ConfigSetSuccess | ConfigSetError
 
@@ -141,8 +148,8 @@ const ARRAY_VALUE_PARSERS: Record<
   string,
   (values: readonly string[]) => string[] | ConfigParseError
 > = {
-  priceSources: parsePriceSources,
-  defaultCategories: parseDefaultCategories,
+  priceSources: parsePriceSourcesField,
+  defaultCategories: parseDefaultCategoriesField,
 }
 
 export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
@@ -241,12 +248,16 @@ function isSiteDeployManagedPath(property: string): boolean {
   )
 }
 
-function siteDeployGuardError(verb: 'set' | 'unset'): string {
-  return (
-    `The "site" property is managed by "ritual init-site" and cannot be ${verb} with "config ${verb}", ` +
-    'except for the public-site selection lists: ' +
-    `${Object.keys(SETTABLE_SITE_FIELDS).join(', ')}.`
-  )
+/** The subcommand a guard refuses — the `verb` branch of its message. */
+type ConfigWriteVerb = 'set' | 'unset'
+
+function siteDeployGuardError(verb: ConfigWriteVerb): ConfigSetError {
+  return {
+    error: syncMessage('cli.config.siteManaged', {
+      verb,
+      properties: syncList(Object.keys(SETTABLE_SITE_FIELDS), 'unit'),
+    }),
+  }
 }
 
 /**
@@ -257,11 +268,28 @@ function isManagedPath(property: string): boolean {
   return property === 'managed' || property.startsWith('managed.')
 }
 
-function managedGuardError(verb: 'set' | 'unset'): string {
-  return (
-    `The "managed" property is owned by Ritual and cannot be ${verb} with "config ${verb}"; ` +
-    '"ritual init-site" and "ritual migrate" keep it up to date.'
-  )
+function managedGuardError(verb: ConfigWriteVerb): ConfigSetError {
+  return { error: syncMessage('cli.config.managedOwned', { verb }) }
+}
+
+/** The refusal of a property no settable (or, for `config get`, readable) key has. */
+function unknownPropertyError(property: string, available: readonly string[]): ConfigSetError {
+  return {
+    error: syncMessage('cli.config.unknownProperty', {
+      property,
+      properties: syncList(available, 'unit'),
+    }),
+  }
+}
+
+/** The kind of a single-valued property, as the noun its refusals name. */
+function fieldTypeName(type: Exclude<ConfigFieldType, 'string[]'>): SyncMessageRef {
+  return syncRef('cli.config.fieldType', { type })
+}
+
+/** `config set` was given a property but no value for it. */
+function noValuesError(): ConfigSetError {
+  return { error: syncMessage('cli.config.noValues') }
 }
 
 export function setAtPath(
@@ -320,10 +348,10 @@ export function applyConfigSet(
   // The deployment portion of `site` is managed by init-site; only the
   // public-site selection lists may be set here.
   if (isSiteDeployManagedPath(property)) {
-    return { error: siteDeployGuardError('set') }
+    return siteDeployGuardError('set')
   }
   if (isManagedPath(property)) {
-    return { error: managedGuardError('set') }
+    return managedGuardError('set')
   }
 
   const fieldType =
@@ -332,25 +360,29 @@ export function applyConfigSet(
     SETTABLE_COLLECTION_SYNC_FIELDS[property] ??
     SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
-    const available = settableProperties().join(', ')
-    return {
-      error: `Unknown property: "${property}". Available properties: ${available}`,
-    }
+    return unknownPropertyError(property, settableProperties())
   }
 
   if (values.length === 0) {
-    return { error: 'At least one value must be provided.' }
+    return noValuesError()
   }
 
   if (mode !== 'replace' && fieldType !== 'string[]') {
     return {
-      error: `--add and --remove can only be used with array properties. "${property}" is a ${fieldType}.`,
+      error: syncMessage('cli.config.addRemoveScalar', {
+        property,
+        typeName: fieldTypeName(fieldType),
+      }),
     }
   }
 
   if (fieldType !== 'string[]' && values.length > 1) {
     return {
-      error: `"${property}" is a ${fieldType} and only accepts one value, but ${values.length} were provided.`,
+      error: syncMessage('cli.config.tooManyValues', {
+        property,
+        typeName: fieldTypeName(fieldType),
+        count: values.length,
+      }),
     }
   }
 
@@ -409,15 +441,13 @@ export function applyConfigSet(
   // but noUncheckedIndexedAccess requires an explicit guard.
   const rawValue = values[0]
   if (rawValue === undefined) {
-    return { error: 'At least one value must be provided.' }
+    return noValuesError()
   }
 
   if (fieldType === 'boolean') {
     const raw = rawValue.toLowerCase()
     if (raw !== 'true' && raw !== 'false') {
-      return {
-        error: `"${property}" expects a boolean. Use "true" or "false", got "${rawValue}".`,
-      }
+      return { error: syncMessage('cli.config.expectsBoolean', { property, value: rawValue }) }
     }
     const newValue = raw === 'true'
     // Safe: path is a validated keyof RitualConfig, value matches the field's boolean type.
@@ -428,17 +458,19 @@ export function applyConfigSet(
   if (fieldType === 'number') {
     const trimmed = rawValue.trim()
     if (trimmed === '') {
-      return { error: `"${property}" expects a number, got an empty string.` }
+      return { error: syncMessage('cli.config.expectsNumberEmpty', { property }) }
     }
     const num = Number(trimmed)
     if (!Number.isFinite(num)) {
-      return { error: `"${property}" expects a number, got "${rawValue}".` }
+      return { error: syncMessage('cli.config.expectsNumber', { property, value: rawValue }) }
     }
     if (!Number.isInteger(num)) {
-      return { error: `"${property}" expects an integer, got "${rawValue}".` }
+      return { error: syncMessage('cli.config.expectsInteger', { property, value: rawValue }) }
     }
     if (num < 0) {
-      return { error: `"${property}" expects a non-negative integer, got "${rawValue}".` }
+      return {
+        error: syncMessage('cli.config.expectsNonNegativeInteger', { property, value: rawValue }),
+      }
     }
     // cacheLockTimeoutSeconds is a constrained number (must be strictly positive); reject
     // 0 here rather than letting it round-trip to a value the config loader silently
@@ -458,7 +490,7 @@ export function applyConfigSet(
   // defaultPriceSource is a constrained string; validate and normalize to lowercase.
   let newValue = rawValue
   if (property === 'defaultPriceSource') {
-    const parsed = parseDefaultPriceSource(rawValue)
+    const parsed = parseDefaultPriceSourceField(rawValue)
     if (isConfigParseError(parsed)) {
       return parsed
     }
@@ -471,9 +503,7 @@ export function applyConfigSet(
   if (property === 'defaultLanguage') {
     const normalized = normalizeLanguageValue(rawValue)
     if (normalized === null) {
-      return {
-        error: invalidLanguageMessage(rawValue, 'for "defaultLanguage"'),
-      }
+      return invalidDefaultLanguage(rawValue)
     }
     newValue = normalized
   }
@@ -560,7 +590,7 @@ function configValuesEqual(a: unknown, b: unknown): boolean {
 
 export type ConfigGetValue = { kind: 'value'; value: unknown }
 export type ConfigGetUnset = { kind: 'unset' }
-export type ConfigGetUnknownProperty = { kind: 'unknown-property'; error: string }
+export type ConfigGetUnknownProperty = { kind: 'unknown-property' } & ConfigSetError
 export type ConfigGetOutcome = ConfigGetValue | ConfigGetUnset | ConfigGetUnknownProperty
 
 /**
@@ -576,10 +606,9 @@ export function applyConfigGet(config: RitualConfig, property: string): ConfigGe
     property in SETTABLE_SITE_FIELDS ||
     READ_ONLY_FIELDS.includes(property)
   if (!known) {
-    const available = [...settableProperties(), ...READ_ONLY_FIELDS].join(', ')
     return {
       kind: 'unknown-property',
-      error: `Unknown property: "${property}". Available properties: ${available}`,
+      ...unknownPropertyError(property, [...settableProperties(), ...READ_ONLY_FIELDS]),
     }
   }
   const value = getAtPath(config, property.split('.'))
@@ -619,10 +648,10 @@ export type ConfigUnsetOutcome = ConfigUnsetSuccess | ConfigSetError
 export function applyConfigUnset(config: RitualConfig, property: string): ConfigUnsetOutcome {
   // Same guard as applyConfigSet: init-site owns the site deployment keys.
   if (isSiteDeployManagedPath(property)) {
-    return { error: siteDeployGuardError('unset') }
+    return siteDeployGuardError('unset')
   }
   if (isManagedPath(property)) {
-    return { error: managedGuardError('unset') }
+    return managedGuardError('unset')
   }
 
   const fieldType =
@@ -631,10 +660,7 @@ export function applyConfigUnset(config: RitualConfig, property: string): Config
     SETTABLE_COLLECTION_SYNC_FIELDS[property] ??
     SETTABLE_SITE_FIELDS[property]
   if (!fieldType) {
-    const available = settableProperties().join(', ')
-    return {
-      error: `Unknown property: "${property}". Available properties: ${available}`,
-    }
+    return unknownPropertyError(property, settableProperties())
   }
 
   const configObj = config as unknown as Record<string, unknown>

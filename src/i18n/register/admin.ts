@@ -2,8 +2,8 @@
  * Message registration for the **admin** SPA.
  *
  * Everything the public site registers, plus `admin`, its `admin-api` fragment
- * and the `domain-cache`, `domain-import`, `domain-list-files` and
- * `domain-sync` fragments. `admin-api` is the prose the admin HTTP API
+ * and the `domain-cache`, `domain-config`, `domain-import`,
+ * `domain-list-files` and `domain-sync` fragments. `admin-api` is the prose the admin HTTP API
  * authors: every response carries it as English plus its key and params, and the
  * admin re-renders that key in the reader's language. The public site's set is
  * reused rather than re-listed because the admin embeds the shared `src/site/**`
@@ -27,6 +27,11 @@
  * unreadable front matter, the whole-file-rewrite gate's refusal of a save —
  * which the admin API answers with as English plus the key, and the admin
  * renders in the reader's language. The public site never writes a list file.
+ * `domain-config` is the config validator's refusals: the Settings page's
+ * save (`PUT /api/config`) answers a malformed value as English plus the key,
+ * and a config file broken by hand refuses every route the same way; the
+ * admin renders both in the reader's language. The public site never edits
+ * the config.
  *
  * Not `cli`/`help`: the admin talks to the CLI's HTTP API, it does not render
  * the CLI's output.
@@ -35,6 +40,7 @@
 import { adminMessages } from '../messages/en/admin'
 import { adminApiMessages } from '../messages/en/admin-api'
 import { domainCacheMessages } from '../messages/en/domain-cache'
+import { domainConfigMessages } from '../messages/en/domain-config'
 import { domainImportMessages } from '../messages/en/domain-import'
 import { domainListFilesMessages } from '../messages/en/domain-list-files'
 import { domainSyncMessages } from '../messages/en/domain-sync'
@@ -51,6 +57,7 @@ export function registerAdminMessages(): void {
     adminMessages,
     adminApiMessages,
     domainCacheMessages,
+    domainConfigMessages,
     domainImportMessages,
     domainListFilesMessages,
     domainSyncMessages,

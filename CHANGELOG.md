@@ -231,6 +231,42 @@ release changes a file format or a generated file, it ships the change as a
   lines now end in an ellipsis, as on the admin page: "Fetching bulk data metadata from
   Scryfall…" and "Saving to cache…" (they ended in "..."). A tag file Scryfall refuses reads
   "Failed to fetch tag bulk <url>: <status> <reason>", as before.
+- **Config refusals follow the reader's language, and carry their keys.** `config set`,
+  `config get` and `config unset` word an invalid property or value in the CLI's language,
+  and their `--output json` error envelope now carries `messageKey` (`cli.config.*`, or
+  `domain.config.*` for a value the validator refuses) and `messageParams`, with any nested
+  part flattened to English. A refused `priceSources`, `defaultPriceSource` or
+  `defaultCategories` value is still English with no key.
+- **A refusal before the command runs honours `--output json`.** A `--base-dir` /
+  `RITUAL_BASE_DIR` that is not a directory (`cli.baseDir.*`, exit 2) and a
+  `ritual.config.json` that is not JSON (`domain.config.fileNotJson`, exit 1) — like
+  anything else the start-up checks refuse — were printed as plain text even under
+  `--output json`/`ndjson`; they now go to stderr as the standard error envelope, with
+  their key and English params. Text output is unchanged, and so is a command's own
+  non-scripting format (`scry`/`sell --output csv` still report them as text). `card`
+  defaults to `--output json`, so its start-up refusals are now envelopes even with no
+  `--output` flag. Both are worded in the CLI's
+  language; a config file that does not parse cannot name its own `uiLocale`, so that
+  refusal is in the language `--locale`, `RITUAL_LOCALE` or the OS chose.
+- The config loader's "ignoring invalid …" warning and `migrate`'s "would still be invalid"
+  refusal are printed in the CLI's language (both are console text, with no envelope).
+  `migrate`'s refusal no longer repeats a block's name: it reads `managed config:
+"migration" must be a non-negative integer` (it read `managed config: managed config: …`)
+  and `admin config must be a JSON object` (it read `admin config: admin config must be a
+JSON object`).
+- **`PUT /api/config` refuses a value in English plus its key.** A malformed value now
+  answers with `messageKey` and `messageParams` beside the English `message` (it sent the
+  English alone), where a block's refusal (`domain.config.inSection`) nests the field's as
+  its `reason` and a list of accepted values is a `{ list, join }`; the admin Settings page
+  shows it in the reader's language. A refused `priceSources`, `defaultPriceSource`,
+  `defaultCategories` or `exportPresets` value is still English with no key. The MCP
+  `update_config` tool keeps answering with the English. A config file broken by hand
+  under a running admin server answers every request with the same English plus
+  `domain.config.fileNotJson`.
+- `ritual locale --output json` adds `errorKey` and `errorParams` beside each `ignored`
+  entry's English `error`. Apart from the `migrate` refusal above, the English of every
+  config message is unchanged, and `ritual.config.json` is written byte for byte the same
+  in every UI language.
 - **The admin server refuses in the shared error envelope.** A `401` (no session), a `403`
   (before the first account exists, or from the IP/User-Agent allow and deny lists), a
   `404` for a path with no route or file, and an unexpected `500` now answer

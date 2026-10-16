@@ -103,7 +103,7 @@ const I18N_ROUTE_LEDGER: Record<string, string> = {
   'src/card/finish-condition.ts':
     'display-only conditionLabel / finishLabel / finishSuffix and refusals for callers; the persisted tokens are literals',
   'src/config/ritual-config.ts':
-    'parseLocaleTag and DEFAULT_LOCALE only, no catalog text; writes nothing but its own config file',
+    'parseLocaleTag and DEFAULT_LOCALE to validate uiLocale; validation refusals are messages returned or thrown to callers, and the ignored-field warning goes to the console; ritual.config.json is written from typed config values, or the raw file plus migration ops; never message text',
   'src/list/card-categories-record.ts':
     'collation only (compareData, pinned English) to order category names; its parse refusals are messages returned to callers, never sidecar bytes',
   'src/list/deck-format.ts':

@@ -1,6 +1,7 @@
 import { InvalidArgumentError, type Command } from 'commander'
 import { DAY_REFRESH_MS, MONTHLY_REFRESH_MS, WEEKLY_REFRESH_MS } from './constants'
 import { parseCacheFeedUrl, parseCacheSource, type CacheSource } from '../config/ritual-config'
+import { renderSyncMessage } from '../sync/message'
 import type { RefreshCadence } from './types'
 import { parsePort } from '../cli/options'
 
@@ -56,7 +57,9 @@ export function scheduleRecurringTask(
 export function parseFeedUrlFlag(value: string): string {
   const parsed = parseCacheFeedUrl(value)
   if (typeof parsed !== 'string') {
-    throw new InvalidArgumentError(parsed === undefined ? '"--url" requires a value' : parsed.error)
+    throw new InvalidArgumentError(
+      parsed === undefined ? '"--url" requires a value' : renderSyncMessage(parsed.error),
+    )
   }
   return parsed
 }
@@ -65,7 +68,7 @@ export function parseFeedUrlFlag(value: string): string {
 export function parseCacheSourceFlag(value: string): CacheSource {
   const parsed = parseCacheSource(value)
   if (typeof parsed !== 'string') {
-    throw new InvalidArgumentError(parsed.error)
+    throw new InvalidArgumentError(renderSyncMessage(parsed.error))
   }
   return parsed
 }

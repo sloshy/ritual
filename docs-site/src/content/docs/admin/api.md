@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale). Every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale). Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -39,6 +39,8 @@ Every route refuses a request with the same body, whatever the status — and so
 The list-file engines' refusals are keyed the same way: a [create, rename or delete](#list-lifecycle-responses) refused (`domain.list.lifecycle.*`, or `domain.list.name.unusable` for a name with no usable file-name characters), an unknown deck format (`domain.list.deckFormat.invalid`, whose `formats` is a `{ list, join: "unit" }`), a cover image, custom-art reference or description the grammar refuses (`domain.list.image.*`, `domain.list.art.*`, `domain.list.description.*`; the keys it does not accept nest as a `{ list, join: "unit" }`), a metadata or cover write over front matter that is not a readable mapping, a cover naming no card of the list, an unreadable `.art.json`, and a [save](#save-a-list) refused because a rewrite would delete content the parser cannot re-emit (`domain.list.unreadableContent`, whose `problems` param is a `{ list, join: "clauses" }` of the parser's own warnings and, for a fenced code block, a nested `domain.list.fencedContent` message), and a save whose cross-list moves cannot reach their other list (`domain.list.move.*`: the list is gone, holds no copy to take, or cannot be staged — the last nests the staging refusal as its `reason`, and each names the list as a nested `domain.change.listRef` message).
 
 An error a route did not expect — one raised deep in an engine — is answered the same way, in English plus its key whenever it has one. A card-cache error is one: a cache-lock time-out (`domain.cache.lockTimedOut`, whose `timeout` param is a duration `{ durationMs }` and whose `holder` is a message of its own), a failed request to a [`--cache-server`](/commands/cache/) (`domain.cache.serverRequestFailed`, …), a card-cache refresh that failed or was cancelled (`domain.cache.refresh.*`), or a failed Scryfall request a route made (`domain.cache.scryfall.timedOut`, whose `timeout` is a duration `{ elapsedMs }`, and `domain.cache.scryfall.symbologyFailed`, whose params are the HTTP `status` and `statusText`). A remote cache server's own failure arrives nested: its reply's message (a failed Scryfall price batch, `domain.cache.scryfall.pricesFailed`) is the `body` of `domain.cache.serverRequestFailedWithBody`, or the `error` of `domain.cache.serverStreamEntryError` (which names the entry's `key`) or `domain.cache.serverStreamError`. A failure the server worded with a key this server does not know (a newer cache server's) is nested as its English text instead. These params nest the way a [sync's](#sync-decks) do.
+
+A `ritual.config.json` edited by hand into something that is not a JSON object while the server runs fails **every** request with a `500` (the server re-reads the file per request), keyed `domain.config.fileNotJson`: `path` is the file and `reason` the JSON parser's own complaint (plain text) or, for valid JSON that is not an object, a nested `domain.config.fileNotObject` message.
 
 `499` is the status a route answers when an **in-process** caller cancels the request part way (the MCP tools do this on a client's `notifications/cancelled`). HTTP requests are never cancelled this way: closing the connection leaves the handler running to completion.
 
@@ -2991,6 +2993,25 @@ Every key in the request body is validated **before** the merge is persisted; a 
 - `defaultPriceSource` (an empty string clears it), `priceSources` (store names only — lowercased and deduped, unknown stores rejected), `defaultLanguage` (canonical Scryfall codes only, no aliases), `uiLocale` (a BCP-47 tag naming the interface language, not the card language; see [Localization](/localization/)), `cacheLockTimeoutSeconds`, `cacheSource`, `cacheFeedUrl`, `searchDebounceMs`, and `updateCheck` (a boolean) are validated as [`config set`](/commands/config/) validates them.
 - `cacheFeedUrl` has one extra rule: sending it as an **empty string** clears a previously-set override (falling back to the built-in default). Omitting the field leaves the current value untouched.
 - `managed` is accepted so a client can send back the whole config it read, but it is **ignored**: the stored [`managed` block](/configuration/#ritual-bookkeeping-managed-key) belongs to `init-site` and `migrate` and is never taken from a request.
+
+A rejected value answers in the shared [error envelope](#error-responses), in English plus its key. The config validator's keys are `domain.config.*`: a top-level field's refusal names it as `field` (`domain.config.mustBeBoolean`, `mustBeOneOf` — whose `values` is a `{ list, join: "unit" }` — and so on), and a field inside a block is refused by `domain.config.inSection`, whose `section` is the block (`site`, `admin`, `collectionSync`) and whose `reason` nests the field's own refusal:
+
+```json
+{
+  "success": false,
+  "message": "site config: \"ciSystem\" must be \"github-actions\" or \"manual\"",
+  "messageKey": "domain.config.inSection",
+  "messageParams": {
+    "section": "site",
+    "reason": {
+      "messageKey": "domain.config.mustBeEither",
+      "messageParams": { "field": "ciSystem", "first": "github-actions", "second": "manual" }
+    }
+  }
+}
+```
+
+`priceSources`, `defaultPriceSource`, `defaultCategories` and `exportPresets` refusals carry their English `message` with no key yet.
 
 **Request body:**
 

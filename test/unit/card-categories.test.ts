@@ -17,7 +17,7 @@ import {
   sameCardCategories,
   withoutCardCategory,
 } from '../../src/card/card-categories'
-import { isConfigParseError } from '../../src/config/ritual-config'
+import { isPlainParseError } from '../../src/config/ritual-config'
 
 describe('isCardCategoryShaped / invalidCardCategoryMessage', () => {
   test("accepts any text without a comma, including the card line's own punctuation", () => {
@@ -169,10 +169,10 @@ describe('parseDefaultCategories', () => {
 
   test('a non-array and a malformed name each return a config parse error', () => {
     const notArray = parseDefaultCategories('Ramp')
-    expect(isConfigParseError(notArray)).toBe(true)
+    expect(isPlainParseError(notArray)).toBe(true)
     const malformed = parseDefaultCategories(['Ramp', 'a,b'])
-    expect(isConfigParseError(malformed)).toBe(true)
-    if (isConfigParseError(malformed)) expect(malformed.error).toContain('a,b')
+    expect(isPlainParseError(malformed)).toBe(true)
+    if (isPlainParseError(malformed)) expect(malformed.reason).toContain('a,b')
   })
 })
 

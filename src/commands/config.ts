@@ -16,14 +16,8 @@ import {
 } from '../config/ritual-config'
 import { t } from '../i18n/t'
 import { addScriptingOptions } from '../cli/options'
-import {
-  emitError,
-  emitOutput,
-  normalizeScriptingOptions,
-  type ScriptingOptions,
-} from '../cli/output'
-import { fail } from '../cli/action'
-import { ExitCode } from '../util/errors'
+import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
+import { fail, failWithMessage } from '../cli/action'
 
 type ConfigSetOptions = {
   add?: boolean
@@ -74,8 +68,7 @@ function registerSetSubcommand(config: Command): void {
     const outcome = applyConfigSet(current, property, values, mode)
 
     if ('error' in outcome) {
-      emitError('usage_error', outcome.error, scripting)
-      process.exitCode = ExitCode.UsageError
+      failWithMessage(scripting, 'usage_error', outcome.error)
       return
     }
 
@@ -109,8 +102,7 @@ function registerGetSubcommand(config: Command): void {
     const outcome = applyConfigGet(await loadRitualConfig(), property)
 
     if (outcome.kind === 'unknown-property') {
-      emitError('usage_error', outcome.error, scripting)
-      process.exitCode = ExitCode.UsageError
+      failWithMessage(scripting, 'usage_error', outcome.error)
       return
     }
     if (outcome.kind === 'unset') {
@@ -173,8 +165,7 @@ function registerUnsetSubcommand(config: Command): void {
     const outcome = applyConfigUnset(current, property)
 
     if ('error' in outcome) {
-      emitError('usage_error', outcome.error, scripting)
-      process.exitCode = ExitCode.UsageError
+      failWithMessage(scripting, 'usage_error', outcome.error)
       return
     }
 

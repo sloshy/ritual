@@ -9,7 +9,11 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncConfig,
+  parseDefaultCategoriesField,
   parseDefaultLanguage,
+  parseDefaultPriceSourceField,
+  parseExportPresetsField,
+  parsePriceSourcesField,
   parseSearchDebounceMs,
   parseSiteConfig,
   parseUiLocale,
@@ -20,13 +24,11 @@ import {
   type RitualConfig,
   type SessionOverrides,
 } from '../../config/ritual-config'
-import { parseExportPresets } from '../../export/presets'
-import { parseDefaultPriceSource, parsePriceSources } from '../../pricing/price-source'
-import { parseDefaultCategories } from '../../card/card-categories'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
-import { badRequest, readJsonObjectBody } from '../../api/http'
-import { apiMessage, plainMessage } from '../../api/result'
+import { badRequest, nestedRefusal, readJsonObjectBody } from '../../api/http'
+import { apiMessage } from '../../api/result'
+import type { SyncMessage } from '../../sync/message'
 import { getBaseDir } from '../../config/base-dir'
 
 /**
@@ -104,7 +106,7 @@ type ParsedConfigKey =
 
 /**
  * Validate one constrained key of a PUT /api/config body and stage it into
- * `updates`. Returns the parse error message when the value is malformed, or
+ * `updates`. Returns the parse error's message when the value is malformed, or
  * null when the key is absent or was staged successfully.
  */
 function applyParsedUpdate<K extends ParsedConfigKey>(
@@ -112,7 +114,7 @@ function applyParsedUpdate<K extends ParsedConfigKey>(
   updates: Partial<RitualConfig>,
   key: K,
   parse: (value: unknown) => RitualConfig[K] | ConfigParseError,
-): string | null {
+): SyncMessage | null {
   const value = raw[key]
   if (value === undefined) return null
   const parsed = parse(value)
@@ -175,10 +177,12 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       applyParsedUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
       applyParsedUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs) ??
       applyParsedUpdate(raw, updates, 'updateCheck', parseUpdateCheck) ??
-      applyParsedUpdate(raw, updates, 'priceSources', parsePriceSources) ??
-      applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategories)
+      applyParsedUpdate(raw, updates, 'priceSources', parsePriceSourcesField) ??
+      applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategoriesField)
+    // A refusal is English plus its key, its params possibly nested (a section's
+    // refusal nests the field's, a list of accepted values is a list).
     if (scalarError !== null) {
-      return badRequest(plainMessage(scalarError))
+      return nestedRefusal(scalarError)
     }
 
     // An empty string clears the default store (the first enabled store then
@@ -187,8 +191,10 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     let clearDefaultPriceSource = false
     if (raw.defaultPriceSource !== undefined) {
       const parsed =
-        raw.defaultPriceSource === '' ? undefined : parseDefaultPriceSource(raw.defaultPriceSource)
-      if (isConfigParseError(parsed)) return badRequest(plainMessage(parsed.error))
+        raw.defaultPriceSource === ''
+          ? undefined
+          : parseDefaultPriceSourceField(raw.defaultPriceSource)
+      if (isConfigParseError(parsed)) return nestedRefusal(parsed.error)
       if (parsed === undefined) {
         // `updates` aliases the raw body; never leave a `''` typed as a store.
         clearDefaultPriceSource = true
@@ -208,7 +214,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       } else {
         const parsed = parseCacheFeedUrl(raw.cacheFeedUrl)
         if (isConfigParseError(parsed)) {
-          return badRequest(plainMessage(parsed.error))
+          return nestedRefusal(parsed.error)
         }
         updates.cacheFeedUrl = parsed
       }
@@ -224,7 +230,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.admin !== undefined) {
       const parsed = parseAdminConfig(raw.admin)
       if (isConfigParseError(parsed)) {
-        return badRequest(plainMessage(parsed.error))
+        return nestedRefusal(parsed.error)
       }
       if (typeof raw.admin === 'object' && raw.admin !== null) {
         for (const key of Object.keys(raw.admin)) {
@@ -241,7 +247,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.collectionSync !== undefined) {
       const parsed = parseCollectionSyncConfig(raw.collectionSync)
       if (isConfigParseError(parsed)) {
-        return badRequest(plainMessage(parsed.error))
+        return nestedRefusal(parsed.error)
       }
       updates.collectionSync = parsed
     }
@@ -255,15 +261,15 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     if (raw.site !== undefined) {
       const parsed = parseSiteConfig(raw.site)
       if (isConfigParseError(parsed)) {
-        return badRequest(plainMessage(parsed.error))
+        return nestedRefusal(parsed.error)
       }
       updates.site = parsed
     }
 
     if (raw.exportPresets !== undefined) {
-      const parsed = parseExportPresets(raw.exportPresets)
-      if (typeof parsed === 'string') {
-        return badRequest(plainMessage(parsed))
+      const parsed = parseExportPresetsField(raw.exportPresets)
+      if (isConfigParseError(parsed)) {
+        return nestedRefusal(parsed.error)
       }
       updates.exportPresets = parsed
     }

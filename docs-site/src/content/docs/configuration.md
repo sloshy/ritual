@@ -420,7 +420,7 @@ A field missing from the file takes its default.
 
 Invalid values are rejected where they are entered. [`config set`](/commands/config/) refuses them with an error. Saving from the admin **Settings** page (`PUT /api/config`) rejects the whole update, including unknown top-level keys and wrong-typed fields, before anything is persisted.
 
-Values edited into the file by hand are validated when the config loads. A malformed field (or an invalid `admin`, `site`, or `managed` object) is ignored with a warning, and its default applies for that run. Fix the file to clear the warning. A file whose **JSON itself** is broken fails the command outright; see [Malformed files are a hard error](#malformed-files-are-a-hard-error).
+Values edited into the file by hand are validated when the config loads. A malformed field (or an invalid `admin`, `site`, or `managed` object) is ignored with a warning, and its default applies for that run. Fix the file to clear the warning. The warning, like `config set`'s refusals, is in the CLI's language. The admin Settings page shows a refused save in the reader's language; the API answers it in English with the message's `domain.config.*` key (see [`PUT /api/config`](/admin/api/#update-config)), and the MCP `update_config` tool with the English alone. A file whose **JSON itself** is broken fails the command outright; see [Malformed files are a hard error](#malformed-files-are-a-hard-error).
 
 ## When the file is created
 
@@ -447,6 +447,6 @@ ritual.config.json is not valid JSON: /home/you/mtg/ritual.config.json
 Fix the file (or delete it to fall back to defaults) and try again.
 ```
 
-The exit code is `1`. Failing loudly protects your settings: treating a broken file as "no config" would let the next write replace what is still on disk. Fix the syntax, or delete the file to start again from defaults.
+The exit code is `1`. The message is in the CLI's language — but a file that does not parse cannot supply its own `uiLocale`, so that language is the one `--locale`, `RITUAL_LOCALE` or the OS environment chose (English when none names one). Under `--output json`/`ndjson` it is the standard error envelope on stderr, keyed `domain.config.fileNotJson`. An admin server whose file breaks while it runs answers every request with a `500` carrying the same message in English plus that key (see [error responses](/admin/api/#error-responses)). Failing loudly protects your settings: treating a broken file as "no config" would let the next write replace what is still on disk. Fix the syntax, or delete the file to start again from defaults.
 
 This applies to the whole document. A single field with a bad value is a softer failure; see [Validation](#validation).

@@ -1,7 +1,7 @@
 import { VALID_CURRENCIES, type PriceCurrencies, type PriceCurrency } from './price-currency'
 // Type-only, so the value-level import cycle (ritual-config parses this
 // module's config key) never materializes at runtime.
-import type { ConfigParseError } from '../config/ritual-config'
+import type { PlainParseError } from '../config/ritual-config'
 import type { MessageKey } from '../i18n/messages/en'
 
 /**
@@ -243,16 +243,14 @@ export function isSiteStoresError(value: SiteStores | SiteStoresError): value is
  * enabled store is the default); the value is lowercased, and an unknown store
  * name is a parse error.
  */
-export function parseDefaultPriceSource(
-  value: unknown,
-): PriceSource | undefined | ConfigParseError {
+export function parseDefaultPriceSource(value: unknown): PriceSource | undefined | PlainParseError {
   if (value === undefined) return undefined
   if (typeof value === 'string') {
     const lower = value.trim().toLowerCase()
     if (isPriceSource(lower)) return lower
   }
   return {
-    error: `"defaultPriceSource" must be one of: ${VALID_PRICE_SOURCES.join(', ')}`,
+    reason: `"defaultPriceSource" must be one of: ${VALID_PRICE_SOURCES.join(', ')}`,
   }
 }
 
@@ -262,17 +260,17 @@ export function parseDefaultPriceSource(
  * no prices at all" on the sites. Values are lowercased and deduped; an
  * unrecognized store name is a parse error.
  */
-export function parsePriceSources(value: unknown): PriceSource[] | ConfigParseError {
+export function parsePriceSources(value: unknown): PriceSource[] | PlainParseError {
   if (value === undefined) return [...DEFAULT_PRICE_SOURCES]
   if (!Array.isArray(value) || !value.every((v) => typeof v === 'string')) {
-    return { error: '"priceSources" must be an array of strings' }
+    return { reason: '"priceSources" must be an array of strings' }
   }
   const sources: PriceSource[] = []
   for (const raw of value) {
     const lower = raw.trim().toLowerCase()
     if (!isPriceSource(lower)) {
       return {
-        error: `"priceSources" contains unknown store "${raw}". Must be any of: ${VALID_PRICE_SOURCES.join(', ')}`,
+        reason: `"priceSources" contains unknown store "${raw}". Must be any of: ${VALID_PRICE_SOURCES.join(', ')}`,
       }
     }
     if (!sources.includes(lower)) sources.push(lower)

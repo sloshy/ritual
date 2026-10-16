@@ -40,7 +40,7 @@
 
 // Type-only, so the value-level import cycle (ritual-config parses this
 // module's config key) never materializes at runtime.
-import type { ConfigParseError } from '../config/ritual-config'
+import type { PlainParseError } from '../config/ritual-config'
 import { isUnknownArray } from '../util/guards'
 
 /**
@@ -287,20 +287,20 @@ export function foldCategoryCardName(name: string): string {
  * canonical on the way out. Absent means the shipped vocabulary; an explicit
  * empty array means "no suggestions", which is the owner's business.
  */
-export function parseDefaultCategories(value: unknown): CardCategory[] | ConfigParseError {
+export function parseDefaultCategories(value: unknown): CardCategory[] | PlainParseError {
   if (value === undefined) return [...DEFAULT_CARD_CATEGORIES]
   if (!isUnknownArray(value)) {
-    return { error: 'defaultCategories must be an array of category names' }
+    return { reason: 'defaultCategories must be an array of category names' }
   }
   const categories: CardCategory[] = []
   for (const element of value) {
     if (typeof element !== 'string') {
       return {
-        error: `defaultCategories must be an array of category names, got ${JSON.stringify(element)}`,
+        reason: `defaultCategories must be an array of category names, got ${JSON.stringify(element)}`,
       }
     }
     const parsed = parseCardCategory(element)
-    if (!parsed.ok) return { error: parsed.message }
+    if (!parsed.ok) return { reason: parsed.message }
     categories.push(parsed.category)
   }
   return normalizeCardCategories(categories)

@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { handleGetConfig, handleUpdateConfig } from '../../src/admin/api/config'
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { handleGetConfig } from '../../src/admin/api/config'
+import { startAdminServer } from '../../src/admin/server'
 import { clearSiteSellModeOverride, setSiteSellModeOverride } from '../../src/config/ritual-config'
+import type { SyncMessage } from '../../src/sync/message'
 import { bindWorkspace, writeConfig, type BoundWorkspace } from '../helpers/workspace'
+import { keyedMessage } from '../helpers/api-message'
+import { putConfig } from '../helpers/config-api'
+import { pseudoCatalog, withGuardedLocaleAsync } from '../helpers/sync-text'
 
 /**
  * The subset of the effective config these tests read back. Deliberately
@@ -34,19 +41,6 @@ type AcceptedConfigUpdate = {
 type RejectedConfigUpdate = {
   label: string
   update: Record<string, unknown>
-}
-
-function putConfig(config: Record<string, unknown>): Promise<Response> {
-  // The route takes the partial config object as the body itself (that is what
-  // the `update_config` MCP tool and the admin Settings page both send).
-  const body = JSON.stringify(config)
-  return handleUpdateConfig(
-    new Request('http://admin/api/config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': String(body.length) },
-      body,
-    }),
-  )
 }
 
 /** The `GET /api/config` body, as much of it as these tests read. */
@@ -298,5 +292,106 @@ describe('GET /api/config session overrides', () => {
     // polling this route sees the instance return to the stored config.
     clearSiteSellModeOverride()
     expect(await getConfig()).not.toHaveProperty('overrides')
+  })
+})
+
+/**
+ * A config refusal reaches the admin page and MCP as English plus its key —
+ * never in the server process's own UI language — with a refusal nested inside
+ * another kept as a message of its own, so a client can render both halves.
+ * Run under a synthetic process locale: a refusal rendered with `t()` would
+ * come back pseudo-localized.
+ */
+describe('config refusals on the wire (Integration)', () => {
+  let workspace: BoundWorkspace
+
+  beforeEach(async () => {
+    workspace = await bindWorkspace({ init: true })
+  })
+  afterEach(async () => {
+    await workspace.dispose()
+  })
+
+  /** Run `body` with the pseudo-locale in force for the whole process. */
+  function inPseudoLocale<T>(body: () => Promise<T>): Promise<T> {
+    return withGuardedLocaleAsync('en-XA', pseudoCatalog(), body)
+  }
+
+  test('a PUT refusal nests the field refusal inside its section', async () => {
+    const response = await inPseudoLocale(() => putConfig({ site: { ciSystem: 'gitlab' } }))
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as SyncMessage & { success: boolean }
+    expect(body.success).toBe(false)
+    expect(keyedMessage(body)).toBe('site config: "ciSystem" must be "github-actions" or "manual"')
+    expect(body).toMatchObject({
+      messageKey: 'domain.config.inSection',
+      messageParams: {
+        section: 'site',
+        reason: {
+          messageKey: 'domain.config.mustBeEither',
+          messageParams: { field: 'ciSystem', first: 'github-actions', second: 'manual' },
+        },
+      },
+    })
+  })
+
+  test('a PUT refusal of an accepted-values list nests the list', async () => {
+    const response = await inPseudoLocale(() => putConfig({ cacheSource: 'torrent' }))
+    const body = (await response.json()) as SyncMessage
+    expect(keyedMessage(body)).toBe('"cacheSource" must be one of: scryfall, feed')
+    expect(body.messageParams).toEqual({
+      field: 'cacheSource',
+      values: { list: ['scryfall', 'feed'], join: 'unit' },
+    })
+  })
+
+  test('a refusal worded outside the catalog is its English alone, with no key', async () => {
+    // `priceSources` is validated by the pricing module, not yet converted.
+    const response = await inPseudoLocale(() => putConfig({ priceSources: ['ebay'] }))
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as SyncMessage & { success: boolean }
+    expect(body).toEqual({
+      success: false,
+      message:
+        '"priceSources" contains unknown store "ebay". Must be any of: tcgplayer, cardmarket, cardkingdom, cardhoarder',
+    })
+  })
+
+  test('a config file broken by hand refuses a route with the reason nested', async () => {
+    await fs.writeFile(path.join(workspace.dir, 'ritual.config.json'), '[]\n')
+    const response = await inPseudoLocale(() => handleGetConfig())
+    expect(response.status).toBe(500)
+    const body = (await response.json()) as SyncMessage
+    expect(keyedMessage(body)).toBe(
+      `ritual.config.json is not valid JSON: ${path.join(workspace.dir, 'ritual.config.json')}\n` +
+        '  the file must contain a JSON object\n' +
+        'Fix the file (or delete it to fall back to defaults) and try again.',
+    )
+    expect(body.messageParams).toMatchObject({
+      reason: { messageKey: 'domain.config.fileNotObject' },
+    })
+  })
+
+  test('the admin server refuses every request over a broken file the same way', async () => {
+    const configPath = path.join(workspace.dir, 'ritual.config.json')
+    await fs.writeFile(configPath, '{ "decksDir": ')
+    const body = await inPseudoLocale(async () => {
+      const server = await startAdminServer({ port: 0, host: '127.0.0.1', distDir: workspace.dir })
+      try {
+        // Refused before any route (or the login check) is chosen.
+        const response = await fetch(`http://127.0.0.1:${server.port}/api/lists`)
+        expect(response.status).toBe(500)
+        return (await response.json()) as SyncMessage & { success: boolean }
+      } finally {
+        await server.stop(true)
+      }
+    })
+    expect(body.success).toBe(false)
+    expect(body.messageKey).toBe('domain.config.fileNotJson')
+    expect(keyedMessage(body)).toStartWith(
+      `ritual.config.json is not valid JSON: ${configPath}\n  `,
+    )
+    // The parser's own complaint has no key: it rides as its text.
+    expect(typeof body.messageParams?.reason).toBe('string')
   })
 })

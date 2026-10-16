@@ -581,4 +581,125 @@ describe('pseudo-locale (Integration)', () => {
       expect(targetLog).toContain("from Wanted list 'needs'")
     })
   })
+
+  test('a malformed ritual.config.json is refused in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      const configPath = path.join(dir, 'ritual.config.json')
+      await fs.writeFile(configPath, '[]\n')
+      const result = await runCli(['lists'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(1)
+      // The parser's reason nests as a message of its own, so both halves are
+      // in the pseudo-locale.
+      const refusal = (await pseudoText('domain.config.fileNotJson'))
+        .replace('{path}', configPath)
+        .replace('{reason}', await pseudoText('domain.config.fileNotObject'))
+      expect(result.stderr).toContain(refusal)
+    })
+  })
+
+  test('the uiLocale pre-read tolerates a file that does not parse, and the OS decides', async () => {
+    await withTempDir(async (dir) => {
+      // The broken file asks for the pseudo-locale, but a file that does not
+      // parse cannot be read for it — and the boot-time pre-read must not fail
+      // over it either: the loader's refusal is what reports it.
+      const configPath = path.join(dir, 'ritual.config.json')
+      await fs.writeFile(configPath, '{ "uiLocale": "en-XA", ')
+      const noLocale = { ...LOCALE_ENV, RITUAL_LOCALE: undefined }
+
+      // An environment naming no language: English.
+      const english = await runCli(['lists'], dir, noLocale)
+      expect(english.exitCode).toBe(1)
+      expect(english.stderr).toStartWith('ritual.config.json is not valid JSON: ')
+
+      // An environment naming the pseudo-locale: the refusal follows it.
+      const detected = await runCli(['lists'], dir, { ...noLocale, LANG: 'en_XA.UTF-8' })
+      expect(detected.exitCode).toBe(1)
+      const prefix = (await pseudoText('domain.config.fileNotJson')).split('{path}')[0] ?? ''
+      expect(prefix).not.toBe('')
+      expect(detected.stderr).toStartWith(`${prefix}${configPath}`)
+    })
+  })
+
+  test('an ignored RITUAL_LOCALE is warned about in the language that won, reason nested', async () => {
+    await withTempDir(async (dir) => {
+      await fs.writeFile(path.join(dir, 'ritual.config.json'), JSON.stringify({ uiLocale: PSEUDO }))
+      const result = await runCli(['lists'], dir, { ...LOCALE_ENV, RITUAL_LOCALE: 'zz-ZZ' })
+
+      const warning = (await pseudoText('cli.locale.envIgnored'))
+        .replace('{variable}', 'RITUAL_LOCALE')
+        .replace(
+          '{error}',
+          (await pseudoText('domain.config.uiLocaleUnknown')).replace('{tag}', 'zz-ZZ'),
+        )
+      expect(unwrap(result.stderr)).toContain(unwrap(warning))
+    })
+  })
+
+  test('a field the config loader ignores is warned about in the file’s own language', async () => {
+    await withTempDir(async (dir) => {
+      // A file that parses is read for its `uiLocale` before it is loaded, so
+      // the loader's warning about another field is already in that language.
+      await fs.writeFile(
+        path.join(dir, 'ritual.config.json'),
+        JSON.stringify({ uiLocale: PSEUDO, searchDebounceMs: -1 }),
+      )
+      const result = await runCli(['lists'], dir, { ...LOCALE_ENV, RITUAL_LOCALE: undefined })
+
+      const warning = (await pseudoText('domain.config.ignoringInvalid'))
+        .replace('{field}', 'searchDebounceMs')
+        .replace(
+          '{reason}',
+          (await pseudoText('domain.config.mustBeNonNegativeInteger')).replace(
+            '{field}',
+            'searchDebounceMs',
+          ),
+        )
+      expect(unwrap(result.stderr)).toContain(unwrap(warning))
+    })
+  })
+
+  test('a --base-dir that does not exist is refused in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      const missing = path.join(dir, 'nope')
+      const result = await runCli(['lists', '--base-dir', missing], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(2)
+      expect(unwrap(result.stderr)).toContain(
+        unwrap((await pseudoText('cli.baseDir.missing')).replace('{path}', missing)),
+      )
+    })
+  })
+
+  test('config set words a refusal in the CLI’s language, its params English for json', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(
+        ['config', 'set', 'decksDir', 'a', 'b', '--output', 'json'],
+        dir,
+        PSEUDO_ENV,
+      )
+      expect(result.exitCode).toBe(2)
+      const json = JSON.parse(result.stderr) as ErrorEnvelopeJson
+      expect(json.error.code).toBe('usage_error')
+      expect(json.error.messageKey).toBe('cli.config.tooManyValues')
+      // The nested type name is flattened to its English, like the key.
+      expect(json.error).toMatchObject({
+        messageParams: { property: 'decksDir', typeName: 'string', count: 2 },
+      })
+      const forms = (await pseudo())['cli.config.tooManyValues']
+      if (typeof forms !== 'object' || forms === null || !('other' in forms)) {
+        throw new Error('cli.config.tooManyValues has no other form in en-XA')
+      }
+      const typeNames = (await pseudo())['cli.config.fieldType']
+      if (typeof typeNames !== 'object' || typeNames === null || !('string' in typeNames)) {
+        throw new Error('cli.config.fieldType has no string branch in en-XA')
+      }
+      expect(json.error.message).toBe(
+        String(forms.other)
+          .replace('{property}', 'decksDir')
+          .replace('{typeName}', String(typeNames.string))
+          .replace('{count}', '2'),
+      )
+    })
+  })
 })

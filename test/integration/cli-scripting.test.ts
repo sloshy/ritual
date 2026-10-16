@@ -771,3 +771,70 @@ describe('card batch output (Integration)', () => {
     expect((error as Error).message).toContain("unknown option '--quiet'")
   })
 })
+
+/**
+ * A refusal raised by the root `preAction` hook, before the command's action
+ * runs, is still reported in the invoked command's output mode: the standard
+ * envelope under `--output json`, with its params flattened to English and its
+ * exit code — and, in text mode, the plain line it always was.
+ */
+describe('refusals before the action (Integration)', () => {
+  /** The `{ error }` envelope a structured run writes to stderr. */
+  type Envelope = { error: Partial<ErrorEnvelope> }
+
+  test('a --base-dir that does not exist is an envelope under --output json', async () => {
+    await withTempDir(async (dir) => {
+      const missing = path.join(dir, 'nope')
+      const json = await runCli(['lists', '--base-dir', missing, '--output', 'json'], dir)
+      expect(json.exitCode).toBe(ExitCode.UsageError)
+      expect(JSON.parse(json.stderr) as Envelope).toEqual<Envelope>({
+        error: {
+          code: 'usage_error',
+          messageKey: 'cli.baseDir.missing',
+          messageParams: { path: missing },
+          message: `base directory does not exist: ${missing}`,
+        },
+      })
+
+      const text = await runCli(['lists', '--base-dir', missing], dir)
+      expect(text.exitCode).toBe(ExitCode.UsageError)
+      expect(text.stderr).toBe(`base directory does not exist: ${missing}\n`)
+    })
+  })
+
+  test('a malformed ritual.config.json is an envelope under --output json', async () => {
+    await withTempDir(async (dir) => {
+      const configPath = path.join(dir, 'ritual.config.json')
+      await fs.writeFile(configPath, '[]\n')
+      const english =
+        `ritual.config.json is not valid JSON: ${configPath}\n` +
+        '  the file must contain a JSON object\n' +
+        'Fix the file (or delete it to fall back to defaults) and try again.'
+
+      const json = await runCli(['lists', '--output', 'json'], dir)
+      expect(json.exitCode).toBe(ExitCode.RuntimeError)
+      expect(JSON.parse(json.stderr) as Envelope).toEqual<Envelope>({
+        error: {
+          code: 'runtime_error',
+          messageKey: 'domain.config.fileNotJson',
+          // The nested reason is flattened to its English, like the key.
+          messageParams: { path: configPath, reason: 'the file must contain a JSON object' },
+          message: english,
+        },
+      })
+
+      const text = await runCli(['lists'], dir)
+      expect(text.exitCode).toBe(ExitCode.RuntimeError)
+      expect(text.stderr).toBe(`${english}\n`)
+    })
+  })
+
+  test('a command-specific --output csv reports a start-up refusal as text', async () => {
+    await withTempDir(async (dir) => {
+      const missing = path.join(dir, 'nope')
+      const csv = await runCli(['scry', 't:land', '--output', 'csv', '--base-dir', missing], dir)
+      expect(csv.exitCode).toBe(ExitCode.UsageError)
+      expect(csv.stderr).toBe(`base directory does not exist: ${missing}\n`)
+    })
+  })
+})

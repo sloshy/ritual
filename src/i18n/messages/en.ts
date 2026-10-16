@@ -20,6 +20,7 @@ import { cliInfraMessages } from './en/cli-infra'
 import { cliSyncMessages } from './en/cli-sync'
 import { domainMessages } from './en/domain'
 import { domainCacheMessages } from './en/domain-cache'
+import { domainConfigMessages } from './en/domain-config'
 import { domainChangesMessages } from './en/domain-changes'
 import { domainImportMessages } from './en/domain-import'
 import { domainListMessages } from './en/domain-list'
@@ -48,10 +49,11 @@ import { uiMessages } from './en/ui'
  *   the admin HTTP API authors;
  * - `domain` — `domain` (shared), `domain-changes` (the change engine's
  *   refusals) and `domain-list` (the list-metadata grammars' refusals), which
- *   every surface registers, and `domain-sync`, `domain-cache`, `domain-import`
- *   and `domain-list-files` — the sync engines' text, the card cache's
- *   server-facing text, the importers' text and the list-file engines' text —
- *   which only the CLI and the admin SPA register;
+ *   every surface registers, and `domain-sync`, `domain-cache`,
+ *   `domain-config`, `domain-import` and `domain-list-files` — the sync
+ *   engines' text, the card cache's server-facing text, the config validator's
+ *   refusals, the importers' text and the list-file engines' text — which only
+ *   the CLI and the admin SPA register;
  * - `site` — `site` (shared) plus the four surface fragments;
  * - `cli` — `cli` (the shared CLI core) plus one fragment per command family;
  * - `help` — `help` (global options and the shared scripting flags) plus the
@@ -70,6 +72,7 @@ export const en = {
   ...cliSyncMessages,
   ...domainMessages,
   ...domainCacheMessages,
+  ...domainConfigMessages,
   ...domainChangesMessages,
   ...domainImportMessages,
   ...domainListMessages,

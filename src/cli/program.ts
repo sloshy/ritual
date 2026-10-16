@@ -8,7 +8,7 @@
  * from a test with any subset of commands.
  */
 
-import { Command, InvalidArgumentError } from 'commander'
+import { Command, CommanderError, InvalidArgumentError } from 'commander'
 import { version } from '../config/version'
 import { applyCliLocale } from './locale'
 import { qualifiedCommandName } from './command-name'
@@ -24,7 +24,10 @@ import { isBaseDirError, parseBaseDir, resolveBaseDir, setBaseDir } from '../con
 import { resolveNoInput, setNoInputOverride } from '../util/no-input'
 import { ensureCardIdsForAllLists } from '../list/ensure-card-ids'
 import { isConfigParseError, parseUiLocale, refreshRitualConfig } from '../config/ritual-config'
-import { ExitCode, CardCommandError } from '../util/errors'
+import { ExitCode, CardCommandError, messageCommandError } from '../util/errors'
+import { renderSyncMessage } from '../sync/message'
+import { PreActionFailure } from './action'
+import { OUTPUT_FORMATS, type OutputFormat, type ScriptingOptions } from './output'
 
 /** Registers one command tree onto a program, e.g. `registerImportCommand`. */
 export type CommandRegistrar = (program: Command) => void
@@ -87,7 +90,7 @@ function parseCacheServerOption(value: string): string {
 function parseLocaleOption(value: string): string {
   const parsed = parseUiLocale(value)
   if (isConfigParseError(parsed)) {
-    throw new InvalidArgumentError(parsed.error)
+    throw new InvalidArgumentError(renderSyncMessage(parsed.error))
   }
   return parsed
 }
@@ -317,72 +320,16 @@ export function buildProgram(build: BuildProgramOptions): Command {
   // the command whose action is about to run second — everything per-invocation
   // must be derived from `actionCommand`.
   program.hook('preAction', async (_program, actionCommand) => {
-    // The MCP stdio transport uses stdout as its JSON-RPC channel; divert any stray
-    // logging (config init, card-ID backfill, etc.) to stderr before it can run.
-    // (`src/mcp/run.ts` diverts again for the stdio transport, but only once the
-    // action starts — too late for this hook's own logging.)
-    if (qualifiedCommandName(actionCommand) === 'mcp') {
-      divertConsoleLogToStderr()
-    }
-
-    const options = actionCommand.optsWithGlobals<GlobalOptions>()
-    // A base dir that isn't an existing directory is a usage error, not an empty
-    // workspace: reading a typo would report "(no lists)" and writing one would
-    // fork the user's data into a stray tree.
-    const requestedBaseDir = resolveBaseDir(options.baseDir, process.env.RITUAL_BASE_DIR)
-    if (requestedBaseDir !== undefined) {
-      const parsed = await parseBaseDir(requestedBaseDir)
-      if (isBaseDirError(parsed)) {
-        throw new CardCommandError('usage_error', parsed.error, ExitCode.UsageError)
-      }
-      setBaseDir(parsed)
-    }
-    const resolved = resolveCacheServerAddress(options.cacheServer, process.env.RITUAL_CACHE_SERVER)
-    if (resolved) {
-      // The flag itself is validated by its argParser (exit 2); this catches a
-      // malformed RITUAL_CACHE_SERVER with the same usage error. A *blank* env
-      // var never reaches here — `resolveCacheServerAddress` reads blank as
-      // "unset", the usual environment convention, whereas explicitly passing
-      // `--cache-server ""` is a bad flag value and still exits 2.
-      const parsedCacheServer = parseCacheServerBaseUrl(resolved)
-      if (isCacheServerAddressError(parsedCacheServer)) {
-        throw new CardCommandError('usage_error', parsedCacheServer.error, ExitCode.UsageError)
-      }
-    }
-    setCacheServerAddressOverride(resolved)
-
-    // `--no-input` can only turn prompting off; when absent (`input` stays true),
-    // RITUAL_NO_INPUT decides.
-    setNoInputOverride(
-      resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
-    )
-
-    // Needs the base dir (whose config it reads) and the no-input state (whether
-    // it may prompt), and must precede the config load: a yes migrates the file
-    // that load then reads, and the notice comes before any warnings the load
-    // prints about keys a migration would change.
-    await build.workspaceCheck(actionCommand)
-
-    // `ritual migrate` reads the raw config itself: it must run against a file
-    // the loader would reject or warn about, since fixing that file is its job.
-    // Only the top-level command — a subcommand that happens to be named
-    // `migrate` loads the config like any other.
-    const isMigrate = qualifiedCommandName(actionCommand) === 'migrate'
-    if (!isMigrate) {
-      await refreshRitualConfig()
-    }
-    // The authoritative locale pass: `--base-dir` has been applied, so the
-    // `uiLocale` tier reads the config file this run will actually use, and the
-    // flag has already been validated by its argParser. `initI18n()` ran before
-    // registration purely so help text could be authored in the right language.
-    applyCliLocale({ flag: options.locale })
-
-    // After the locale (a server prints the notice right here) and before the
-    // backfill, so a lookup gets as much of the run as possible to answer in.
-    await build.updateNotice.start(actionCommand)
-
-    if (build.backfill(actionCommand)) {
-      await ensureCardIdsForAllLists()
+    try {
+      await prepareAction(build, actionCommand)
+    } catch (error) {
+      // An error Commander raised itself (a hook calling `command.error()`) has
+      // already been printed by Commander, and the top level handles it as such.
+      if (error instanceof CommanderError) throw error
+      // The top level has no command in hand to report with: carry the one this
+      // run invoked, so a refusal here honours its `--output json` like one
+      // raised inside the action would.
+      throw new PreActionFailure(error, invokedScripting(actionCommand))
     }
   })
 
@@ -398,4 +345,99 @@ export function buildProgram(build: BuildProgramOptions): Command {
   }
 
   return program
+}
+
+/**
+ * The output mode the invoked command was asked for: its parsed `--output` and
+ * `--quiet`, or text for a command that has neither. Narrowed at runtime: a
+ * command-specific format (`scry`/`sell --output csv`) is not a scripting mode
+ * and reports a failure as text does, so anything outside {@link OUTPUT_FORMATS}
+ * reads as `text`.
+ */
+function invokedScripting(actionCommand: Command): ScriptingOptions {
+  const { output, quiet } = actionCommand.opts<Record<string, unknown>>()
+  return {
+    output: isOutputFormat(output) ? output : 'text',
+    quiet: quiet === true,
+  }
+}
+
+function isOutputFormat(value: unknown): value is OutputFormat {
+  return typeof value === 'string' && (OUTPUT_FORMATS as readonly string[]).includes(value)
+}
+
+/**
+ * The root `preAction` hook's work: everything per-invocation, derived from the
+ * command whose action is about to run.
+ */
+async function prepareAction(build: BuildProgramOptions, actionCommand: Command): Promise<void> {
+  // The MCP stdio transport uses stdout as its JSON-RPC channel; divert any stray
+  // logging (config init, card-ID backfill, etc.) to stderr before it can run.
+  // (`src/mcp/run.ts` diverts again for the stdio transport, but only once the
+  // action starts — too late for this hook's own logging.)
+  if (qualifiedCommandName(actionCommand) === 'mcp') {
+    divertConsoleLogToStderr()
+  }
+
+  const options = actionCommand.optsWithGlobals<GlobalOptions>()
+  // A base dir that isn't an existing directory is a usage error, not an empty
+  // workspace: reading a typo would report "(no lists)" and writing one would
+  // fork the user's data into a stray tree.
+  const requestedBaseDir = resolveBaseDir(options.baseDir, process.env.RITUAL_BASE_DIR)
+  if (requestedBaseDir !== undefined) {
+    const parsed = await parseBaseDir(requestedBaseDir)
+    if (isBaseDirError(parsed)) {
+      // Worded in the language `initI18n()` chose: `--locale`, `RITUAL_LOCALE`
+      // or the OS — the requested directory's config is never read.
+      throw messageCommandError('usage_error', ExitCode.UsageError, parsed.error)
+    }
+    setBaseDir(parsed)
+  }
+  const resolved = resolveCacheServerAddress(options.cacheServer, process.env.RITUAL_CACHE_SERVER)
+  if (resolved) {
+    // The flag itself is validated by its argParser (exit 2); this catches a
+    // malformed RITUAL_CACHE_SERVER with the same usage error. A *blank* env
+    // var never reaches here — `resolveCacheServerAddress` reads blank as
+    // "unset", the usual environment convention, whereas explicitly passing
+    // `--cache-server ""` is a bad flag value and still exits 2.
+    const parsedCacheServer = parseCacheServerBaseUrl(resolved)
+    if (isCacheServerAddressError(parsedCacheServer)) {
+      throw new CardCommandError('usage_error', parsedCacheServer.error, ExitCode.UsageError)
+    }
+  }
+  setCacheServerAddressOverride(resolved)
+
+  // `--no-input` can only turn prompting off; when absent (`input` stays true),
+  // RITUAL_NO_INPUT decides.
+  setNoInputOverride(
+    resolveNoInput(options.input === false ? true : undefined, process.env.RITUAL_NO_INPUT),
+  )
+
+  // Needs the base dir (whose config it reads) and the no-input state (whether
+  // it may prompt), and must precede the config load: a yes migrates the file
+  // that load then reads, and the notice comes before any warnings the load
+  // prints about keys a migration would change.
+  await build.workspaceCheck(actionCommand)
+
+  // `ritual migrate` reads the raw config itself: it must run against a file
+  // the loader would reject or warn about, since fixing that file is its job.
+  // Only the top-level command — a subcommand that happens to be named
+  // `migrate` loads the config like any other.
+  const isMigrate = qualifiedCommandName(actionCommand) === 'migrate'
+  if (!isMigrate) {
+    await refreshRitualConfig()
+  }
+  // The authoritative locale pass: `--base-dir` has been applied, so the
+  // `uiLocale` tier reads the config file this run will actually use, and the
+  // flag has already been validated by its argParser. `initI18n()` ran before
+  // registration purely so help text could be authored in the right language.
+  applyCliLocale({ flag: options.locale })
+
+  // After the locale (a server prints the notice right here) and before the
+  // backfill, so a lookup gets as much of the run as possible to answer in.
+  await build.updateNotice.start(actionCommand)
+
+  if (build.backfill(actionCommand)) {
+    await ensureCardIdsForAllLists()
+  }
 }

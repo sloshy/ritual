@@ -68,7 +68,7 @@ import {
   handleListDelete,
   type ListLifecycleConfig,
 } from './api/list-lifecycle'
-import { apiError, type ApiErrorResponse } from '../api/http'
+import { apiError, errorResponse } from '../api/http'
 import { apiMessage } from '../api/result'
 import { t } from '../i18n/t'
 import { resolveDeckFile, resolveFlatListFile } from './api/list-file'
@@ -559,11 +559,9 @@ async function handleRequest(
     config = await loadRitualConfig()
   } catch (error) {
     if (error instanceof RitualConfigParseError) {
-      // The shared refusal envelope, spelled out rather than routed through
-      // `apiError`: this fires before any handler is chosen. No `messageKey` —
-      // the text is the parser's own report of what is wrong with the file.
-      const body: ApiErrorResponse = { success: false, message: error.message }
-      return Response.json(body, { status: 500 })
+      // The shared refusal envelope, though no handler was chosen yet: English
+      // plus its key, the parser's own complaint nested as the `reason`.
+      return errorResponse(error)
     }
     throw error
   }

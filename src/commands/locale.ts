@@ -38,6 +38,7 @@ import type { LocaleTag } from '../i18n/types'
 import { promptsUnavailableReason } from '../util/no-input'
 import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
 import type { CardLanguage } from '../card/card-language'
+import { renderSyncMessage, SyncMessageError } from '../sync/message'
 import { ask } from '../cli/prompts'
 import { addScriptingOptions } from '../cli/options'
 import {
@@ -49,6 +50,7 @@ import {
 } from '../cli/output'
 import {
   currentUiLocaleResolution,
+  ignoredReason,
   LOCALE_ENV_VAR,
   type IgnoredLocale,
   type LocaleSource,
@@ -158,7 +160,7 @@ async function saveUiLocale(locale: LocaleTag): Promise<void> {
   const outcome = applyConfigSet(await loadRitualConfig(), 'uiLocale', [locale], 'replace')
   // Unreachable: the value is an already-parsed LocaleTag and `uiLocale` is a
   // known property. Throwing beats silently writing nothing if that ever changes.
-  if ('error' in outcome) throw new Error(outcome.error)
+  if ('error' in outcome) throw new SyncMessageError(outcome.error)
   await saveRitualConfig(outcome.updatedConfig)
 }
 
@@ -289,7 +291,7 @@ export function registerLocaleCommand(program: Command): void {
         t('cli.locale.ignoring', {
           source: sourceLabel(entry.source),
           value: entry.value,
-          error: entry.error,
+          error: renderSyncMessage(ignoredReason(entry)),
         }),
       ),
       scripting,

@@ -149,3 +149,22 @@ export async function rejectedSyncMessage(promise: Promise<unknown>): Promise<Sy
   }
   return error.syncMessage
 }
+
+/**
+ * {@link withSyntheticLocaleAsync} with the vacuity guard on both sides: the
+ * locale is in force (and renders differently from English) before `body` runs
+ * and after it settles, so a run that reset the locale part way fails rather
+ * than comparing English with English.
+ */
+export function withGuardedLocaleAsync<T>(
+  tag: string,
+  catalog: LocaleCatalog,
+  body: (locale: LocaleTag) => Promise<T>,
+): Promise<T> {
+  return withSyntheticLocaleAsync(tag, catalog, async (locale) => {
+    expectLocaleInForce(locale)
+    const result = await body(locale)
+    expectLocaleInForce(locale)
+    return result
+  })
+}

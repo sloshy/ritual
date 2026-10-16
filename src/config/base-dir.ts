@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { resolveStringOverride } from './env-override'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
+import { isSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
 
 let baseDir: string = process.cwd()
 
@@ -18,11 +19,15 @@ export function workspaceRelative(file: string): string {
   return path.relative(baseDir, file)
 }
 
-/** The error branch of {@link parseBaseDir}: why the value cannot be a base dir. */
-export type BaseDirError = { error: string }
+/**
+ * The error branch of {@link parseBaseDir}: why the value cannot be a base dir,
+ * as a message the CLI renders in its own language (the key and English params
+ * ride in a `--output json` envelope).
+ */
+export type BaseDirError = { error: SyncMessage }
 
 export function isBaseDirError(result: string | BaseDirError): result is BaseDirError {
-  return typeof result === 'object' && result !== null && typeof result.error === 'string'
+  return typeof result === 'object' && result !== null && isSyncMessage(result.error)
 }
 
 /**
@@ -50,17 +55,22 @@ export async function parseBaseDir(value: string): Promise<string | BaseDirError
   try {
     const stats = await fs.stat(resolved)
     if (!stats.isDirectory()) {
-      return { error: `base directory is not a directory: ${resolved}` }
+      return { error: syncMessage('cli.baseDir.notDirectory', { path: resolved }) }
     }
   } catch (error) {
     if (hasErrorCode(error, 'ENOENT')) {
-      return { error: `base directory does not exist: ${resolved}` }
+      return { error: syncMessage('cli.baseDir.missing', { path: resolved }) }
     }
     // A file somewhere in the path prefix (e.g. `--base-dir <file>/sub`).
     if (hasErrorCode(error, 'ENOTDIR')) {
-      return { error: `base directory is not a directory: ${resolved}` }
+      return { error: syncMessage('cli.baseDir.notDirectory', { path: resolved }) }
     }
-    return { error: `base directory is not readable: ${resolved} — ${getErrorMessage(error)}` }
+    return {
+      error: syncMessage('cli.baseDir.unreadable', {
+        path: resolved,
+        reason: getErrorMessage(error),
+      }),
+    }
   }
   return resolved
 }

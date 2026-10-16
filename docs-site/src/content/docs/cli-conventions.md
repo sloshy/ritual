@@ -57,7 +57,7 @@ base directory is not a directory: /home/you/notes.txt
 base directory is not readable: /srv/private — EACCES: permission denied, stat '/srv/private'
 ```
 
-The third form covers permission problems and any other filesystem failure while checking the path. Failing early protects you from a typo: a misspelled `--base-dir` would otherwise look like an empty workspace, and a write would put your data in a stray directory.
+The third form covers permission problems and any other filesystem failure while checking the path. The message is in the CLI's language (the one `--locale`, `RITUAL_LOCALE` or the OS chose: the requested directory's own `uiLocale` is never read), and under `--output json`/`ndjson` it is the standard error envelope on stderr, keyed `cli.baseDir.missing`, `cli.baseDir.notDirectory` or `cli.baseDir.unreadable`. Failing early protects you from a typo: a misspelled `--base-dir` would otherwise look like an empty workspace, and a write would put your data in a stray directory.
 
 ### `--no-input`
 

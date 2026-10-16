@@ -37,35 +37,64 @@ export async function runCommandAction(
   try {
     await run()
   } catch (err) {
-    if (isBrokenPipeError(err)) {
-      // Latch the shared writers quiet and leave the exit code untouched:
-      // anything the command already recorded stands, and an otherwise clean
-      // run still exits 0.
-      markStdoutClosed()
-      return
-    }
-    if (err instanceof CardCommandError) {
-      // The catalog key travels beside the rendered prose, so `--output json`
-      // carries a locale-invariant discriminator alongside `error.code`.
-      emitError(err.code, err.message, scripting, err.details, err.messageRef)
-      process.exitCode = err.exitCode
-      return
-    }
-    if (err instanceof SyncMessageError) {
-      // An engine failure raised from a catalog key (a cache-lock time-out, a
-      // failed cache-server request): its prose is already in the CLI's
-      // language, and its key rides along as a refusal's does.
-      emitError('runtime_error', err.message, scripting, undefined, envelopeRef(err.syncMessage))
-      process.exitCode = ExitCode.RuntimeError
-      return
-    }
-    // A bug rather than a refusal: there is no catalog key behind it, and the
-    // raw Error is not `details` (it stringifies to `{}` and a subclass could
-    // leak a path).
-    emitError('runtime_error', getErrorMessage(err), scripting)
-    // Deliberately overrides any code an earlier emit set: the run ended in a
-    // bug, and that is what the caller should see.
+    reportCommandFailure(scripting, err)
+  }
+}
+
+/**
+ * Report a failure that ended a command — thrown by its action body, or by the
+ * root `preAction` hook before the action ran ({@link PreActionFailure}) —
+ * through the scripting error channel, and record its exit code. The one
+ * dispatch both use, so a refusal raised before the action (a bad `--base-dir`,
+ * a malformed `ritual.config.json`) reaches `--output json` as the same
+ * envelope a refusal raised inside it does.
+ */
+export function reportCommandFailure(scripting: ScriptingOptions, err: unknown): void {
+  if (isBrokenPipeError(err)) {
+    // Latch the shared writers quiet and leave the exit code untouched:
+    // anything the command already recorded stands, and an otherwise clean
+    // run still exits 0.
+    markStdoutClosed()
+    return
+  }
+  if (err instanceof CardCommandError) {
+    // The catalog key travels beside the rendered prose, so `--output json`
+    // carries a locale-invariant discriminator alongside `error.code`.
+    emitError(err.code, err.message, scripting, err.details, err.messageRef)
+    process.exitCode = err.exitCode
+    return
+  }
+  if (err instanceof SyncMessageError) {
+    // An engine failure raised from a catalog key (a cache-lock time-out, a
+    // failed cache-server request, a malformed config file): its prose is
+    // already in the CLI's language, and its key rides along as a refusal's does.
+    emitError('runtime_error', err.message, scripting, undefined, envelopeRef(err.syncMessage))
     process.exitCode = ExitCode.RuntimeError
+    return
+  }
+  // A bug rather than a refusal: there is no catalog key behind it, and the
+  // raw Error is not `details` (it stringifies to `{}` and a subclass could
+  // leak a path).
+  emitError('runtime_error', getErrorMessage(err), scripting)
+  // Deliberately overrides any code an earlier emit set: the run ended in a
+  // bug, and that is what the caller should see.
+  process.exitCode = ExitCode.RuntimeError
+}
+
+/**
+ * A failure of the root `preAction` hook, carrying the scripting options of the
+ * command it was about to run — so the top level, which has no command in hand,
+ * still reports it in that command's output mode via {@link reportCommandFailure}.
+ * `cause` is the error the hook threw.
+ */
+export class PreActionFailure extends Error {
+  override readonly cause: unknown
+  readonly scripting: ScriptingOptions
+  constructor(cause: unknown, scripting: ScriptingOptions) {
+    super(getErrorMessage(cause), { cause })
+    this.name = 'PreActionFailure'
+    this.cause = cause
+    this.scripting = scripting
   }
 }
 

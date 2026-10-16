@@ -206,6 +206,7 @@ ritual config unset site.includeDecks    # back to ["*"] (publish everything)
 ## Notes
 
 - Changes are written to `ritual.config.json` immediately. `config set`/`unset` **create** the file if it does not exist; reading config never does. See [Configuration](/configuration/#when-the-file-is-created).
+- A refusal is worded in the CLI's language. Under `--output json`/`ndjson` its error envelope carries `messageKey` and `messageParams` beside `message`: `cli.config.*` for an unknown property, a missing or surplus value, a value of the wrong type, `--add`/`--remove` on a single-valued property and the `site`/`managed` guards, and `domain.config.*` for a value the config validator refuses (an unknown `cacheSource`, a malformed `uiLocale`, …). A param that is itself a message or a list is flattened to its English; match on the key, never on `message`. A refused `priceSources`, `defaultPriceSource` or `defaultCategories` value is the exception: it is English, with no `messageKey` yet.
 - If the existing file is not valid JSON, every subcommand, including `set`, fails with exit `1` and leaves the file untouched, so a hand-edit typo is never overwritten with defaults.
 - A running admin server picks up config changes on its next request. No restart is needed.
 - Use `--base-dir` to target a config file in another directory. The directory must already exist.

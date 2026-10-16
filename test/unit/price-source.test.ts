@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { isConfigParseError } from '../../src/config/ritual-config'
+import { isPlainParseError } from '../../src/config/ritual-config'
 import {
   DEFAULT_PRICE_SOURCES,
   isPriceSource,
@@ -37,16 +37,16 @@ describe('parsePriceSources', () => {
 
   test('an unknown store is a parse error naming the vocabulary', () => {
     const parsed = parsePriceSources(['tcgplayer', 'starcity'])
-    expect(isConfigParseError(parsed)).toBe(true)
-    if (isConfigParseError(parsed)) {
-      expect(parsed.error).toContain('starcity')
-      expect(parsed.error).toContain('cardmarket')
+    expect(isPlainParseError(parsed)).toBe(true)
+    if (isPlainParseError(parsed)) {
+      expect(parsed.reason).toContain('starcity')
+      expect(parsed.reason).toContain('cardmarket')
     }
   })
 
   test('a non-array (or an array with non-strings) is a parse error', () => {
-    expect(isConfigParseError(parsePriceSources('tcgplayer'))).toBe(true)
-    expect(isConfigParseError(parsePriceSources([1]))).toBe(true)
+    expect(isPlainParseError(parsePriceSources('tcgplayer'))).toBe(true)
+    expect(isPlainParseError(parsePriceSources([1]))).toBe(true)
   })
 })
 
@@ -182,7 +182,7 @@ describe('parseDefaultPriceSource', () => {
 
   test.each([['usd'], [5]])('rejects %p', (raw) => {
     const parsed = parseDefaultPriceSource(raw)
-    expect(isConfigParseError(parsed)).toBeTrue()
+    expect(isPlainParseError(parsed)).toBeTrue()
   })
 })
 
