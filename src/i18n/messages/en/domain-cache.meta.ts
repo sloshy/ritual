@@ -9,6 +9,10 @@ const UPLOAD_CONTEXT =
 const SERVER_CONTEXT =
   'An error from the remote cache server Ritual was pointed at with --cache-server; reported by the CLI and by the admin API. "Cache server" is that server.'
 
+/** Context for a cache server's reply to a refused request. */
+const REPLY_CONTEXT =
+  'The reason a Ritual cache server (a shared card/price cache another Ritual process runs; see --cache-server) refused a request from this Ritual process. Shown after "Cache server request failed (…) …: ", i.e. as the server\'s own reply.'
+
 const PROGRESS_CONTEXT =
   "A progress line of a card-cache refresh: Ritual downloading Scryfall's (a card database's) bulk card data into its local card cache. Shown on the admin Cache Refresh page while the refresh runs, in the CLI, and to MCP clients as a progress note."
 
@@ -76,6 +80,48 @@ export const domainCacheMeta = {
   },
   'domain.cache.serverStreamTooLarge': {
     description: `${SERVER_CONTEXT} The streaming price lookup sent more data at once than Ritual will hold, so it was stopped.`,
+  },
+  'domain.cache.serverReply.notFound': {
+    description: `${REPLY_CONTEXT} The request was for a path the cache server does not serve at all (everything it serves is under /cache/).`,
+  },
+  'domain.cache.serverReply.invalidSection': {
+    description: `${REPLY_CONTEXT} The request named a cache section other than the two the server keeps (cards, prices).`,
+  },
+  'domain.cache.serverReply.invalidRoute': {
+    description: `${REPLY_CONTEXT} The request path under /cache/ matches none of the server's routes.`,
+  },
+  'domain.cache.serverReply.methodNotAllowed': {
+    description: `${REPLY_CONTEXT} The request used an HTTP method (GET, PUT, DELETE…) that the cache entry's route does not accept.`,
+  },
+  'domain.cache.serverReply.keyRequired': {
+    description: `${REPLY_CONTEXT} The request path named a cache entry but its key (a card name, or a card name and currency) was empty.`,
+  },
+  'domain.cache.serverReply.keysRequired': {
+    description: `${REPLY_CONTEXT} A streaming price lookup listed no cache keys (card names) once blank ones were dropped.`,
+  },
+  'domain.cache.serverReply.keyMalformed': {
+    description: `${REPLY_CONTEXT} The request path named a cache entry whose key has a broken %-escape (URL encoding, as in "Sol%20Ring"), so the key could not be read.`,
+  },
+  'domain.cache.serverReply.bodyNotJson': {
+    description: `${REPLY_CONTEXT} A write or a streaming lookup sent a request body that is not valid JSON.`,
+  },
+  'domain.cache.serverReply.bodyNotObject': {
+    description: `${REPLY_CONTEXT} A write or a streaming lookup sent valid JSON that is not an object (a record of named fields) — a list, a number, a string or null.`,
+  },
+  'domain.cache.serverReply.entriesExpected': {
+    description: `${REPLY_CONTEXT} A bulk write's request body lacked its entries. 'entries' is a JSON field name and stays literal; "object" means a JSON object (a record of named fields).`,
+  },
+  'domain.cache.serverReply.replaceNotBoolean': {
+    description: `${REPLY_CONTEXT} A bulk write's 'replace' option (whether to drop every entry the write does not name) was not true or false. 'replace' is a JSON field name and stays literal.`,
+  },
+  'domain.cache.serverReply.keysExpected': {
+    description: `${REPLY_CONTEXT} A streaming price lookup's request body lacked its list of cache keys (card names). 'keys' is a JSON field name and stays literal.`,
+  },
+  'domain.cache.serverReply.valueExpected': {
+    description: `${REPLY_CONTEXT} A write of one cache entry had no value to store. 'value' is a JSON field name and stays literal.`,
+  },
+  'domain.cache.serverReply.httpDenied': {
+    description: `${REPLY_CONTEXT} The cache server was started with --deny-http (a test mode that forbids it from downloading anything), and a price read needed a download — a price not in its cache. "Pre-populate" means fill the cache in advance. --deny-http is a literal flag.`,
   },
   'domain.cache.refresh.fetchingMetadata': {
     description: `${PROGRESS_CONTEXT} The first step: asking Scryfall which bulk files exist and where to download them.`,

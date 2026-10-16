@@ -9,9 +9,11 @@ import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import { ExitCode } from '../util/errors'
-import { caughtMessage } from '../api/http'
-import { prefixedFields } from '../sync/message'
-import type { CacheServerFailureBody, CacheServerStreamError } from '../cache/http-cache'
+import { caughtMessage, nestedRefusal } from '../api/http'
+import { syncMessage, SyncMessageError } from '../sync/message'
+import { t, type ParameterlessKey, type SelectBranch } from '../i18n/t'
+import { isRecord, isStringArray } from '../util/json'
+import type { CacheServerStreamError } from '../cache/http-cache'
 import { resolveRefreshCadence, resolveRefreshMs, scheduleRecurringTask } from './cadence'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
@@ -33,19 +35,6 @@ import {
 import { tryStartServer } from '../util/start-server'
 import { PriceRefreshScheduler } from './scheduler'
 import type { CacheServerCommandOptions, PriceReadThroughResult } from './types'
-
-interface BulkSetPayload {
-  entries?: Record<string, PriceData> | Record<string, ScryfallCard[]>
-  replace?: unknown
-}
-
-interface PriceStreamPayload {
-  keys?: string[]
-}
-
-interface SetValuePayload {
-  value?: PriceData | ScryfallCard[]
-}
 
 interface PriceStreamTaskResult {
   key: string
@@ -82,6 +71,48 @@ function createPriceRefreshScheduler(
       ),
     localCardCache,
   )
+}
+
+/** Why the server refuses a request: a `domain.cache.serverReply.*` message. */
+type RefusalKey = Extract<ParameterlessKey, `domain.cache.serverReply.${string}`>
+
+/**
+ * A refused request's reply: the shared refusal body (`ApiErrorResponse`).
+ * Another Ritual process reads it, whose UI language need not be this
+ * server's: the reason goes out in English with its key, and the client words
+ * it in its own language.
+ */
+function refusal(key: RefusalKey, status: number): Response {
+  return nestedRefusal(syncMessage(key), status)
+}
+
+/** A request's JSON object body, or the refusal to answer instead. */
+type ObjectBody = { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
+
+/**
+ * The request's body as a JSON object. Read whole: a bulk write carries the
+ * entire card cache, so no budget short of the server's own applies.
+ */
+async function readObjectBody(request: Request): Promise<ObjectBody> {
+  let raw: unknown
+  try {
+    raw = await request.json()
+  } catch {
+    return { ok: false, response: refusal('domain.cache.serverReply.bodyNotJson', 400) }
+  }
+  if (!isRecord(raw)) {
+    return { ok: false, response: refusal('domain.cache.serverReply.bodyNotObject', 400) }
+  }
+  return { ok: true, body: raw }
+}
+
+/** A path segment's cache key, or `undefined` when its `%` escapes are malformed. */
+function decodeKey(segment: string): string | undefined {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -210,12 +241,12 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts[0] !== 'cache') {
-        return respond(new Response('Not Found', { status: 404 }))
+        return respond(refusal('domain.cache.serverReply.notFound', 404))
       }
 
       const section = getSection(parts[1] ?? '')
       if (!section) {
-        return respond(jsonResponse({ error: 'Invalid cache section.' }, 400))
+        return respond(refusal('domain.cache.serverReply.invalidSection', 400))
       }
 
       if (parts.length === 2 && request.method === 'DELETE') {
@@ -233,50 +264,49 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts[2] === 'bulk' && request.method === 'PUT') {
-        const payload = (await request.json()) as BulkSetPayload
-        if (!payload.entries || typeof payload.entries !== 'object') {
-          return respond(jsonResponse({ error: "Expected JSON body with 'entries' object." }, 400))
+        const read = await readObjectBody(request)
+        if (!read.ok) return respond(read.response)
+        const { entries, replace } = read.body
+        if (!isRecord(entries)) {
+          return respond(refusal('domain.cache.serverReply.entriesExpected', 400))
         }
 
-        if (payload.replace !== undefined && typeof payload.replace !== 'boolean') {
-          return respond(jsonResponse({ error: "Expected 'replace' to be a boolean." }, 400))
+        if (replace !== undefined && typeof replace !== 'boolean') {
+          return respond(refusal('domain.cache.serverReply.replaceNotBoolean', 400))
         }
-        const bulkOptions: BulkSetOptions = { replace: payload.replace === true }
+        const bulkOptions: BulkSetOptions = { replace: replace === true }
+        // The entries' values are trusted as the cache's own shape: the cache
+        // server serves trusted networks only, and its writers are Ritual.
         if (section === 'cards') {
-          await localCardCache.bulkSet(
-            payload.entries as Record<string, ScryfallCard[]>,
-            bulkOptions,
-          )
+          await localCardCache.bulkSet(entries as Record<string, ScryfallCard[]>, bulkOptions)
         } else {
-          const entries = payload.entries as Record<string, PriceData>
-          await localPriceCache.bulkSet(entries, bulkOptions)
+          const prices = entries as Record<string, PriceData>
+          await localPriceCache.bulkSet(prices, bulkOptions)
           // A replace drops every key it does not name; their refreshes must go too,
           // or the scheduler would write the dropped keys straight back.
           if (bulkOptions.replace) priceRefreshScheduler?.clearAll()
           if (priceRefreshScheduler) {
-            for (const key of Object.keys(entries)) {
+            for (const key of Object.keys(prices)) {
               priceRefreshScheduler.scheduleFromNow(key)
             }
           }
         }
 
-        logCacheUpdate(
-          `section=${section} action=bulk-set count=${Object.keys(payload.entries).length}`,
-        )
+        logCacheUpdate(`section=${section} action=bulk-set count=${Object.keys(entries).length}`)
         return respond(new Response(null, { status: 204 }))
       }
 
       if (section === 'prices' && parts[2] === 'stream' && request.method === 'POST') {
-        const payload = (await request.json()) as PriceStreamPayload
-        if (!Array.isArray(payload.keys) || !payload.keys.every((key) => typeof key === 'string')) {
-          return respond(
-            jsonResponse({ error: "Expected JSON body with 'keys' string array." }, 400),
-          )
+        const read = await readObjectBody(request)
+        if (!read.ok) return respond(read.response)
+        const requested = read.body.keys
+        if (!isStringArray(requested)) {
+          return respond(refusal('domain.cache.serverReply.keysExpected', 400))
         }
 
-        const keys = payload.keys.map((key) => key.trim()).filter((key) => key.length > 0)
+        const keys = requested.map((key) => key.trim()).filter((key) => key.length > 0)
         if (keys.length === 0) {
-          return respond(jsonResponse({ error: 'At least one cache key is required.' }, 400))
+          return respond(refusal('domain.cache.serverReply.keysRequired', 400))
         }
 
         return respond(
@@ -317,9 +347,10 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts.length === 4 && parts[3] === 'timestamp' && request.method === 'GET') {
-        const key = decodeURIComponent(parts[2] ?? '')
+        const key = decodeKey(parts[2] ?? '')
+        if (key === undefined) return respond(refusal('domain.cache.serverReply.keyMalformed', 400))
         if (!key) {
-          return respond(jsonResponse({ error: 'Cache key is required.' }, 400))
+          return respond(refusal('domain.cache.serverReply.keyRequired', 400))
         }
         const timestamp =
           section === 'cards'
@@ -329,12 +360,13 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts.length !== 3) {
-        return respond(jsonResponse({ error: 'Invalid cache route.' }, 404))
+        return respond(refusal('domain.cache.serverReply.invalidRoute', 404))
       }
 
-      const key = decodeURIComponent(parts[2] ?? '')
+      const key = decodeKey(parts[2] ?? '')
+      if (key === undefined) return respond(refusal('domain.cache.serverReply.keyMalformed', 400))
       if (!key) {
-        return respond(jsonResponse({ error: 'Cache key is required.' }, 400))
+        return respond(refusal('domain.cache.serverReply.keyRequired', 400))
       }
 
       if (request.method === 'GET') {
@@ -360,15 +392,17 @@ export function createCacheServerFetchHandler(
       }
 
       if (request.method === 'PUT') {
-        const payload = (await request.json()) as SetValuePayload
-        if (!('value' in payload)) {
-          return respond(jsonResponse({ error: "Expected JSON body with 'value'." }, 400))
+        const read = await readObjectBody(request)
+        if (!read.ok) return respond(read.response)
+        if (!('value' in read.body)) {
+          return respond(refusal('domain.cache.serverReply.valueExpected', 400))
         }
+        const { value } = read.body
 
         if (section === 'cards') {
-          await localCardCache.set(key, payload.value as ScryfallCard[])
+          await localCardCache.set(key, value as ScryfallCard[])
         } else {
-          await localPriceCache.set(key, payload.value as PriceData)
+          await localPriceCache.set(key, value as PriceData)
           priceRefreshScheduler?.scheduleFromNow(key)
         }
         logCacheUpdate(`section=${section} action=set key='${key}'`)
@@ -386,14 +420,10 @@ export function createCacheServerFetchHandler(
         return respond(new Response(null, { status: 204 }))
       }
 
-      return respond(jsonResponse({ error: 'Method not allowed.' }, 405))
+      return respond(refusal('domain.cache.serverReply.methodNotAllowed', 405))
     } catch (error) {
-      console.error(`${CACHE_SERVER_LOG_PREFIX} Cache server request failed:`, error)
-      const body: CacheServerFailureBody = {
-        error: 'Cache server request failed.',
-        ...prefixedFields('details', caughtMessage(error)),
-      }
-      return respond(jsonResponse(body, 500))
+      console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.requestFailed')}`, error)
+      return respond(nestedRefusal(caughtMessage(error), 500))
     } finally {
       if (verbose) {
         logVerboseRequest(request, responseStatus, Date.now() - startedAt)
@@ -408,10 +438,11 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
 
   const httpClient: HttpClient = options.denyHttp
     ? {
-        fetch: () => {
-          throw new Error(
-            'HTTP requests are denied (--deny-http). Pre-populate the cache for testing.',
-          )
+        fetch: async () => {
+          // Keyed: a price read that needs a download reaches its client as
+          // this refusal (a 500, or a stream `error` event). A card miss is not
+          // a failure — it answers `200 { value: null }`.
+          throw new SyncMessageError(syncMessage('domain.cache.serverReply.httpDenied'))
         },
       }
     : defaultHttpClient
@@ -470,15 +501,12 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
       try {
         result = await feedClient.sync()
       } catch (error) {
-        console.error(
-          `${CACHE_SERVER_LOG_PREFIX} Feed sync failed; falling back to Scryfall:`,
-          error,
-        )
+        console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.feedSyncFailed')}`, error)
       }
       if (result) {
         if (result.outcome === 'unchanged') {
           await localCardCache.bulkSet({})
-          console.log(`${CACHE_SERVER_LOG_PREFIX} Cache feed is unchanged; cards are current.`)
+          console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.feedUnchanged')}`)
         }
         logCacheUpdate(`section=cards action=${action} source=feed outcome=${result.outcome}`)
         if (options.seed) {
@@ -487,10 +515,7 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
           try {
             await feedClient.seedAll(result.feed)
           } catch (error) {
-            console.error(
-              `${CACHE_SERVER_LOG_PREFIX} Seeding feed artifacts failed (cards already ingested):`,
-              error,
-            )
+            console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.seedFailed')}`, error)
           }
         }
         return
@@ -502,7 +527,10 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
       await localScryfallClient.preloadCache()
       logCacheUpdate(`section=cards action=${action} source=scryfall`)
     } catch (error) {
-      console.error(`${CACHE_SERVER_LOG_PREFIX} Refreshing cards from Scryfall failed:`, error)
+      console.error(
+        `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.scryfallRefreshFailed')}`,
+        error,
+      )
     }
   }
 
@@ -515,32 +543,41 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
   const startupRefreshNeeded =
     cardCacheIsEmpty || cardCacheIsStale || (feedClient !== null && options.seed)
   if (!options.denyHttp && startupRefreshNeeded) {
-    const reason = cardCacheIsEmpty ? 'empty' : cardCacheIsStale ? 'stale' : 'seed'
+    const reason: SelectBranch<'cli.cacheServer.startupRefresh'> = cardCacheIsEmpty
+      ? 'empty'
+      : cardCacheIsStale
+        ? 'stale'
+        : 'seed'
     console.log(
-      `${CACHE_SERVER_LOG_PREFIX} Running startup cards refresh (${reason}, source: ${cacheSource})...`,
+      `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.startupRefresh', { reason, source: cacheSource })}`,
     )
     await refreshCards(`startup-preload reason=${reason}`)
   }
 
   if (cardsRefreshMs && cardsRefreshCadence) {
+    const cardsCadence: SelectBranch<'cli.cacheServer.cardsRefreshEnabled'> = cardsRefreshCadence
     console.log(
-      `${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh enabled: ${cardsRefreshCadence}`,
+      `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.cardsRefreshEnabled', { cadence: cardsCadence })}`,
     )
     scheduleRecurringTask(
       cardsRefreshMs,
       async () => {
         await refreshCards('scheduled-preload')
-        console.log(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh complete.`)
+        console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.cardsRefreshComplete')}`)
       },
       (error) =>
-        console.error(`${CACHE_SERVER_LOG_PREFIX} Scheduled cards cache refresh failed:`, error),
+        console.error(
+          `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.cardsRefreshFailed')}`,
+          error,
+        ),
     )
   }
 
   if (priceRefreshScheduler && pricesRefreshCadence) {
     await priceRefreshScheduler.initializeFromCache()
+    const pricesCadence: SelectBranch<'cli.cacheServer.pricesRefreshEnabled'> = pricesRefreshCadence
     console.log(
-      `${CACHE_SERVER_LOG_PREFIX} Scheduled prices cache refresh enabled: ${pricesRefreshCadence}`,
+      `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.pricesRefreshEnabled', { cadence: pricesCadence })}`,
     )
   }
 
@@ -560,27 +597,26 @@ export async function runCacheServer(options: CacheServerCommandOptions): Promis
     }),
   )
   if (!started.ok) {
-    console.error(`${CACHE_SERVER_LOG_PREFIX} Failed to start the cache server:`, started.error)
+    console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.startFailed')}`, started.error)
     process.exitCode = ExitCode.RuntimeError
     return
   }
 
   if (options.denyHttp) {
-    console.log(`${CACHE_SERVER_LOG_PREFIX} HTTP requests denied (--deny-http).`)
+    console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.httpDenied')}`)
     if (cacheSource === 'feed') {
-      console.log(`${CACHE_SERVER_LOG_PREFIX} Feed mode disabled by --deny-http.`)
+      console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.feedDisabled')}`)
     }
   }
   if (options.verbose) {
-    console.log(`${CACHE_SERVER_LOG_PREFIX} Verbose request logging enabled.`)
+    console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.verbose')}`)
   }
   if (feedClient && options.seed) {
     const port = feedClient.torrentPortInUse()
     console.log(
-      `${CACHE_SERVER_LOG_PREFIX} Seeding feed artifacts${port ? ` on TCP port ${port}` : ''}.`,
+      `${CACHE_SERVER_LOG_PREFIX} ${port ? t('cli.cacheServer.seedingOnPort', { port }) : t('cli.cacheServer.seeding')}`,
     )
   }
-  console.log(
-    `${CACHE_SERVER_LOG_PREFIX} Cache server listening on http://${options.host}:${options.port}`,
-  )
+  const url = `http://${options.host}:${options.port}`
+  console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.listening', { url })}`)
 }

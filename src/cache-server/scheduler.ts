@@ -5,6 +5,7 @@ import { getCardGames } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS } from './constants'
 import { getInitialPriceRefreshAt } from './helpers'
+import { t } from '../i18n/t'
 import type { PriceRefreshBucket, PriceRefreshReason, PriceRefreshSchedule } from './types'
 
 /**
@@ -195,7 +196,7 @@ export class PriceRefreshScheduler {
     try {
       await this.refreshDueKeys(bucketId)
     } catch (error) {
-      console.error(`${CACHE_SERVER_LOG_PREFIX} Scheduled price refresh bucket failed:`, error)
+      console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.priceBucketFailed')}`, error)
       this.rescheduleBucketTimer(bucketId)
     }
   }
@@ -237,7 +238,7 @@ export class PriceRefreshScheduler {
         }
       } catch (error) {
         console.error(
-          `${CACHE_SERVER_LOG_PREFIX} Scheduled price refresh failed for '${key}':`,
+          `${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.priceRefreshFailed', { key })}`,
           error,
         )
         this.scheduleFromNow(key)

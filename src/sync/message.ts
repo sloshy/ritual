@@ -49,6 +49,7 @@ import {
 } from '../i18n/t'
 import type { LocaleTag, PluralForms, SelectForms } from '../i18n/types'
 import { formatDuration, formatElapsed } from '../util/duration'
+import { isRecord } from '../util/json'
 
 // ── Shapes ────────────────────────────────────────────────────────────
 
@@ -491,6 +492,19 @@ export function isRenderable(ref: SyncMessageRef, locale: LocaleTag = DEFAULT_LO
 }
 
 /**
+ * A message another process sent (a cache server's reply, a newer server's
+ * report), as a param: nested when this surface can render it whole, so it
+ * reads in the reader's language — and its English as it came otherwise. A
+ * newer sender may use a key, a param or a param kind this surface does not
+ * know, and nesting that would render its sentence as a raw key or `{token}`,
+ * the English lost.
+ */
+export function nestReceived(message: SyncMessage): SyncText {
+  const nested = nestSync(message)
+  return typeof nested === 'string' || isRenderable(nested) ? nested : message.message
+}
+
+/**
  * Render a sync message — or a nested reference, or literal text — in one
  * locale, nested parts included.
  *
@@ -593,10 +607,11 @@ export function prefixedMessage<P extends string>(
   // `renderSyncMessage` checks it, and falls back to the English.
   const key = fields[`${prefix}Key`]
   if (typeof key === 'string') message.messageKey = key as MessageKey
+  // Params off the wire are an object of params or nothing: an array or a
+  // scalar in their place is dropped, and the key then renders only if it
+  // needs none.
   const params = fields[`${prefix}Params`]
-  if (typeof params === 'object' && params !== null) {
-    message.messageParams = params as SyncMessageParams
-  }
+  if (isRecord(params)) message.messageParams = params as SyncMessageParams
   return message
 }
 

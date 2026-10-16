@@ -20,6 +20,10 @@ const TAG_PARSE = `${TAG_LOG} Why a tag file could not be read; shown inside "Fa
 const STATUS_PAIR =
   '{status} is the HTTP status code (e.g. 404) and {statusText} its standard English reason phrase (possibly empty), as the server sent them.'
 
+/** Shared context for the cache server's console lines. */
+const CACHE_SERVER_LOG =
+  'A console line of `ritual cache server` — a long-running process that serves a shared card and price cache to other Ritual processes — read by whoever operates it.'
+
 export const cliInfraMeta = {
   // ── cache status ──────────────────────────────────────────────────────
   'cli.cache.rowEmpty': {
@@ -536,6 +540,82 @@ export const cliInfraMeta = {
   'cli.cacheServer.addressInvalid': {
     description:
       'Usage error: the --cache-server flag or RITUAL_CACHE_SERVER environment variable is not a host name with a port. The example addresses are literal.',
+  },
+
+  // ── cache server / cache feed flags ───────────────────────────────────
+  'cli.cache.refreshIntervalInvalid': {
+    description:
+      "Usage error: a refresh-interval flag (`cache server --cards-refresh`/`--prices-refresh`, `cache feed host`/`fetch --refresh`) or its environment variable named an unknown interval. 'daily', 'weekly' and 'monthly' are the literal values the flag accepts.",
+  },
+  'cli.cache.feedUrlEmpty': {
+    description:
+      'Usage error: the --url flag (the cache feed\'s address) was given an empty value. "--url" is a literal flag. No closing period.',
+  },
+  'cli.cache.feedUrlNeedsFeedSource': {
+    description:
+      "Usage error: --url (a cache feed's address) was combined with a cache source other than the feed, so it would be ignored. --url and 'feed' (the cache-source value) are literal.",
+  },
+
+  // ── cache server (operator log) ───────────────────────────────────────
+  'cli.cacheServer.cacheUpdate': {
+    description: `${CACHE_SERVER_LOG} The server changed its cache. {fields} is a machine-readable list of key=value tokens (section=prices action=set key='Sol Ring'), never translated. Kept lowercase.`,
+  },
+  'cli.cacheServer.requestFailed': {
+    description: `${CACHE_SERVER_LOG} Handling one HTTP request failed unexpectedly; the client gets an error reply.`,
+  },
+  'cli.cacheServer.feedSyncFailed': {
+    description: `${CACHE_SERVER_LOG} Refreshing the card cache from the cache feed (a BitTorrent/HTTP distribution of Scryfall's card data) failed, so the server downloads from Scryfall (the card database) directly instead.`,
+  },
+  'cli.cacheServer.feedUnchanged': {
+    description: `${CACHE_SERVER_LOG} The cache feed has not published anything new since the last refresh, so the cached cards are already up to date.`,
+  },
+  'cli.cacheServer.seedFailed': {
+    description: `${CACHE_SERVER_LOG} The card cache was refreshed from the feed, but sharing ("seeding", as in BitTorrent) the feed's downloaded files with other peers failed. A warning only.`,
+  },
+  'cli.cacheServer.scryfallRefreshFailed': {
+    description: `${CACHE_SERVER_LOG} Downloading the card data from Scryfall (the card database) failed; the server keeps running on its existing cache.`,
+  },
+  'cli.cacheServer.startupRefresh': {
+    description: `${CACHE_SERVER_LOG} On start-up the server refreshes its card cache, and says why: one branch per reason — the cache is empty, it is older than the refresh interval (stale), or the server seeds the feed and needs its current files (seed). {source} is the configured cache source, \`scryfall\` or \`feed\`, literal.`,
+  },
+  'cli.cacheServer.cardsRefreshEnabled': {
+    description: `${CACHE_SERVER_LOG} The card cache will be refreshed on a schedule. One branch per interval (daily, weekly, monthly — the --cards-refresh value).`,
+  },
+  'cli.cacheServer.cardsRefreshComplete': {
+    description: `${CACHE_SERVER_LOG} A scheduled card-cache refresh finished.`,
+  },
+  'cli.cacheServer.cardsRefreshFailed': {
+    description: `${CACHE_SERVER_LOG} A scheduled card-cache refresh failed; the next one still runs.`,
+  },
+  'cli.cacheServer.pricesRefreshEnabled': {
+    description: `${CACHE_SERVER_LOG} Cached prices will be refreshed on a schedule. One branch per interval (daily, weekly, monthly — the --prices-refresh value).`,
+  },
+  'cli.cacheServer.priceBucketFailed': {
+    description: `${CACHE_SERVER_LOG} A scheduled refresh of a group of cached prices failed; the group is rescheduled.`,
+  },
+  'cli.cacheServer.priceRefreshFailed': {
+    description: `${CACHE_SERVER_LOG} A scheduled refresh of one cached price failed; it is rescheduled. {key} is its cache key — a card name, possibly with a currency after a colon (e.g. "Sol Ring:usd") — literal.`,
+  },
+  'cli.cacheServer.startFailed': {
+    description: `${CACHE_SERVER_LOG} The server could not start listening — usually the port is already in use.`,
+  },
+  'cli.cacheServer.httpDenied': {
+    description: `${CACHE_SERVER_LOG} The server was started with --deny-http (a test mode): it will not download anything. --deny-http is a literal flag.`,
+  },
+  'cli.cacheServer.feedDisabled': {
+    description: `${CACHE_SERVER_LOG} The cache source is the feed, but --deny-http forbids downloading it, so the feed is not used. --deny-http is a literal flag.`,
+  },
+  'cli.cacheServer.verbose': {
+    description: `${CACHE_SERVER_LOG} The server was started with --verbose and will log every request it serves.`,
+  },
+  'cli.cacheServer.seeding': {
+    description: `${CACHE_SERVER_LOG} The server is sharing ("seeding", as in BitTorrent) the cache feed's files with other peers.`,
+  },
+  'cli.cacheServer.seedingOnPort': {
+    description: `${CACHE_SERVER_LOG} The same as the previous line, naming the TCP port peers connect to. {port} is a number.`,
+  },
+  'cli.cacheServer.listening': {
+    description: `${CACHE_SERVER_LOG} The server is up. {url} is the address clients point --cache-server at.`,
   },
 
   // ── --base-dir ────────────────────────────────────────────────────────

@@ -10,19 +10,16 @@ import {
 } from '../../src/cache/config'
 import type { PriceData } from '../../src/pricing/price-data'
 import type { ScryfallCard } from '../../src/scryfall/types'
-import { binaryPath, ensureBinary } from './helpers/cli'
+import {
+  spawnCacheServer,
+  type CacheServerOutput,
+  type SpawnedCacheServer,
+} from './helpers/cache-server'
 
 interface RunningServer {
   cwd: string
   port: number
-  process: Bun.Subprocess
-  stdoutPromise: Promise<string>
-  stderrPromise: Promise<string>
-}
-
-interface StopServerOutput {
-  stdout: string
-  stderr: string
+  server: SpawnedCacheServer
 }
 
 interface StartServerOptions {
@@ -59,28 +56,8 @@ const testPrice2: PriceData = {
   max: 3,
 }
 
-function pickPort(): number {
-  return 41000 + Math.floor(Math.random() * 1000)
-}
-
-async function waitForHealth(port: number): Promise<void> {
-  for (let attempt = 0; attempt < 60; attempt++) {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`, {
-        signal: AbortSignal.timeout(200),
-      })
-      if (response.ok) return
-    } catch {
-      // wait and retry
-    }
-    await Bun.sleep(100)
-  }
-  throw new Error(`Cache server did not become healthy on port ${port}.`)
-}
-
 async function startServer(options: StartServerOptions = {}): Promise<RunningServer> {
   const { denyHttp = true } = options
-  await ensureBinary()
 
   const cwd = path.join(tmpdir(), `ritual-cache-server-${crypto.randomUUID()}`)
   await fs.mkdir(path.join(cwd, 'cache'), { recursive: true })
@@ -124,8 +101,7 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
     ),
   )
 
-  const port = pickPort()
-  const args = [binaryPath, 'cache', 'server', '--host', '127.0.0.1', '--port', String(port)]
+  const args: string[] = []
   if (options.verbose) {
     args.push('--verbose')
   }
@@ -138,40 +114,16 @@ async function startServer(options: StartServerOptions = {}): Promise<RunningSer
   if (denyHttp) {
     args.push('--deny-http')
   }
-  const proc = Bun.spawn(args, {
-    cwd,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: {
-      ...process.env,
-      RITUAL_CACHE_SERVER: '',
-      RITUAL_CACHE_SERVER_CARDS_REFRESH: '',
-      RITUAL_CACHE_SERVER_PRICES_REFRESH: '',
-    },
-  })
-  const stdoutPromise = proc.stdout ? new Response(proc.stdout).text() : Promise.resolve('')
-  const stderrPromise = proc.stderr ? new Response(proc.stderr).text() : Promise.resolve('')
-
-  await waitForHealth(port)
-  return {
-    cwd,
-    port,
-    process: proc,
-    stdoutPromise,
-    stderrPromise,
-  }
+  const server = await spawnCacheServer({ cwd, args })
+  return { cwd, port: server.port, server }
 }
 
-async function stopServer(server: RunningServer): Promise<StopServerOutput> {
+async function stopServer(running: RunningServer): Promise<CacheServerOutput> {
+  // Let the last request's log lines reach stdout before the server goes.
   await Bun.sleep(100)
-  server.process.kill()
-  await Promise.race([server.process.exited, Bun.sleep(2000)])
-  const [stdout, stderr] = await Promise.all([server.stdoutPromise, server.stderrPromise])
-  await fs.rm(server.cwd, { recursive: true, force: true })
-  return {
-    stdout,
-    stderr,
-  }
+  const output = await running.server.stop()
+  await fs.rm(running.cwd, { recursive: true, force: true })
+  return output
 }
 
 describe('cache server command (Integration)', () => {
@@ -258,6 +210,7 @@ describe('cache server command (Integration)', () => {
       cardsRefresh: 'monthly',
       pricesRefresh: 'weekly',
     })
+    runningServers.push(server)
 
     const readResponse = await fetch(
       `http://127.0.0.1:${server.port}/cache/cards/${encodeURIComponent('Sol Ring')}`,
@@ -283,7 +236,9 @@ describe('cache server command (Integration)', () => {
     expect(deleteResponse.status).toBe(204)
 
     const logs = await stopServer(server)
-    expect(logs.stdout).toContain('[cache-server] GET /cache/cards/Sol%20Ring -> 200')
+    expect(logs.stdout).toMatch(
+      /\[cache-server\] method=GET path=\/cache\/cards\/Sol%20Ring status=200 durationMs=\d+\n/,
+    )
     expect(logs.stdout).toContain("cache update: section=prices action=set key='Arcane Signet'")
     expect(logs.stdout).toContain("cache update: section=prices action=delete key='Arcane Signet'")
     expect(logs.stdout).toContain('Scheduled cards cache refresh enabled: monthly')

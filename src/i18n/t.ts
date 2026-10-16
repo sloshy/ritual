@@ -193,6 +193,23 @@ function strictFailure(reason: string): never {
  * Reduce a catalog value to the single string to interpolate: pick the plural
  * category or the select branch, falling through to `other`.
  */
+/**
+ * The branch a `$select` message has for `variant`, or `undefined` when it has
+ * none. Own string branches only: a selector value off the wire may be a
+ * prototype name (`constructor`, `toString`, `__proto__`), which must read as
+ * "no such branch", never as the inherited function.
+ */
+function selectBranch(
+  value: SelectForms,
+  variant: string | number | undefined,
+): string | undefined {
+  if (variant === undefined) return undefined
+  const name = String(variant)
+  if (name === '$select' || !Object.hasOwn(value, name)) return undefined
+  const branch = value[name]
+  return typeof branch === 'string' ? branch : undefined
+}
+
 function selectForm(key: string, resolved: ResolvedMessage, params: RenderParams): string {
   const { value, locale } = resolved
   if (typeof value === 'string') return value
@@ -207,7 +224,7 @@ function selectForm(key: string, resolved: ResolvedMessage, params: RenderParams
   }
   if (isSelectForms(value)) {
     const variant = params[value.$select]
-    const branch = variant === undefined ? undefined : value[String(variant)]
+    const branch = selectBranch(value, variant)
     if (branch !== undefined) return branch
     // `other` is a deliberate catch-all, so an unmatched variant is only a gap
     // when the catalog supplies no catch-all either.
@@ -363,9 +380,10 @@ export function tSegmentsIn<K extends MessageKey>(
 /**
  * The params the form of `key` that `locale` would render needs but `params`
  * does not supply — empty when every one is there, or when the key resolves
- * nowhere (that gap is {@link isMessageKey}'s to report). Two kinds of gap: a
- * `{placeholder}` with no param, and a `$select` whose selector names no
- * branch the message has (nor an `other`), reported as the selector's name. For
+ * nowhere (that gap is {@link isMessageKey}'s to report). Three kinds of gap: a
+ * `{placeholder}` with no param, a `$plural` whose count is not a finite number,
+ * and a `$select` whose selector names no branch the message has (nor an
+ * `other`) — the last two reported as the count's or selector's name. For
  * a renderer that must not show a raw `{token}` or the bare key: a message
  * carried over a wire whose params were renamed, or whose selector gained a
  * value, since it was built.
@@ -378,11 +396,13 @@ export function unresolvedPlaceholders(
   const resolved = resolve(key, locale)
   if (resolved === undefined) return []
   const { value } = resolved
-  // Checked before `selectForm`, which renders this gap as the key itself (or,
-  // in strict mode, throws).
+  // Checked before `selectForm`, which renders these gaps as the key itself or
+  // the `other` form (or, in strict mode, throws).
+  if (isPluralForms(value) && !Number.isFinite(Number(params[value.$plural]))) {
+    return [value.$plural]
+  }
   if (isSelectForms(value)) {
-    const variant = params[value.$select]
-    const branch = variant === undefined ? undefined : value[String(variant)]
+    const branch = selectBranch(value, params[value.$select])
     if (branch === undefined && value.other === undefined) return [value.$select]
   }
   const missing: string[] = []

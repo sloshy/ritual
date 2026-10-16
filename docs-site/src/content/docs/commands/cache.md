@@ -250,8 +250,9 @@ The tag lookup is stored in `cache/tags.json`. The [`sell`](/commands/sell/) com
 - For streamed/fallback refreshes, network refresh starts are staggered by 200ms and `price` events are emitted in completion order.
 - Cache updates are always logged.
 - Price min/max batch lookups can be streamed with SSE using `POST /cache/prices/stream`.
-- With `--verbose`, each incoming request is logged with method, path, status, and duration.
-- With `--deny-http`, the server makes no outgoing HTTP requests. The startup card cache preload is skipped, and any cache-miss read that would normally fetch from Scryfall throws an error. Use this for testing with pre-populated caches.
+- With `--verbose`, each incoming request is logged as `key=value` fields: `[cache-server] method=GET path=/cache/cards/Sol%20Ring status=200 durationMs=3`.
+- The server's console lines are worded in its own UI language (see [Configuration → Interface language](/configuration/#interface-language)); the `[cache-server]` prefix and the `key=value` fields of the cache-update and request lines never change, so they stay safe to grep.
+- With `--deny-http`, the server makes no outgoing HTTP requests. The startup card cache preload is skipped. A price read that would have to fetch from Scryfall fails: a single read answers `500` with `domain.cache.serverReply.httpDenied`, and a streamed one emits that as an `error` event. A card cache miss is not a failure; it answers `200` with `{ "value": null }`. Use this for testing with pre-populated caches.
 
 ### HTTP endpoints
 
@@ -299,9 +300,25 @@ event: error
 data: {"key":"Sol Ring:usd","message":"Failed to fetch batch prices: 503 Service Unavailable","messageKey":"domain.cache.scryfall.pricesFailed","messageParams":{"status":503,"statusText":"Service Unavailable"}}
 ```
 
-`message` is English whatever the server's UI language; `messageKey` and `messageParams` (present when the failure has a catalog entry, and possibly nested) let a client render it in its own language. A request the server fails outright answers `500` with `{ "error": "Cache server request failed.", "details": "…" }`, where `details` is the failure in English and `detailsKey` / `detailsParams` carry its key and params the same way. A Ritual client nests either into its own error, so the admin API and MCP report a remote cache server's failure in English plus the keys.
+`message` is English whatever the server's UI language; `messageKey` and `messageParams` (present when the failure has a catalog entry, and possibly nested) let a client render it in its own language.
 
 `updated` is `true` when the server refreshed and re-cached that entry during this request. Parse events in order, handle each `price` event as it arrives (for progress and partial results), and treat `done` as stream completion. Refreshed entries arrive in completion order, not request order, so use `key` to match each event to the requested card.
+
+#### Error replies
+
+Every HTTP error the server answers (`400`, `404`, `405`, `500`) has the same body as an [admin API refusal](/admin/api/): `success: false`, the reason in English as `message`, and `messageKey` / `messageParams` beside it. For example:
+
+```json
+{
+  "success": false,
+  "message": "Invalid cache route.",
+  "messageKey": "domain.cache.serverReply.invalidRoute"
+}
+```
+
+A request the server refuses carries a `domain.cache.serverReply.*` key: a path outside `/cache/`, an unknown section, route or method, a missing or badly `%`-encoded key, a body that is not a JSON object, or a body missing its `entries`, `keys` or `value`. A request that fails outright (`500`) carries the failure itself, such as a failed Scryfall price batch (`domain.cache.scryfall.pricesFailed`).
+
+A Ritual client nests the reply into its own error, worded in the client's language, and keeps the server's English when the key or a param is one it does not know. Through the admin API that error is English plus the keys; [MCP](/commands/mcp/) tool errors carry its English `message` without them. A reply that is not such a body (a proxy's error page, an older server's) is quoted as text, cut to about 1,000 characters and stripped of control characters; the text params of a nested reply are cut and stripped the same way.
 
 ### Client configuration
 

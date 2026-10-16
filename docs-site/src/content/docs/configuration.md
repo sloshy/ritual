@@ -171,9 +171,9 @@ The cache records which bulk file built it. When that disagrees with `defaultLan
 
 ## Interface language
 
-| Field      | Default | Description                                                                                                                                                                                          |
-| ---------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `uiLocale` | `en`    | The language of **Ritual's own interface text**: CLI output, prompts, menus, help, and both web apps. A [BCP-47](https://www.rfc-editor.org/info/bcp47) tag such as `en`, `de`, `de-AT`, or `pt-BR`. |
+| Field      | Default | Description                                                                                                                                                                                                           |
+| ---------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `uiLocale` | `en`    | The language of **Ritual's own interface text**: CLI output, prompts, menus, help, server consoles, and both web apps. A [BCP-47](https://www.rfc-editor.org/info/bcp47) tag such as `en`, `de`, `de-AT`, or `pt-BR`. |
 
 The tag is stored canonicalized (`de-at` is persisted as `de-AT`).
 

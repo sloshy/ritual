@@ -200,19 +200,43 @@ release changes a file format or a generated file, it ships the change as a
   CSV cache check that refreshes the cache and fails now nests the refresh's keyed failure as
   the `error` param of `domain.cache.downloadFailed` (it was a string). Their English is
   unchanged; match on the keys.
-- **A cache server reports its failures in English, keyed.** `POST /cache/prices/stream`'s
-  `error` event now carries the failure as `message` (English whatever the server's UI
-  language), `messageKey` and `messageParams` beside `key`, and a failed request's `500`
-  body adds `detailsKey` / `detailsParams` beside `details`, which is now English too (both
-  were in the server's UI language). A Ritual client nests that failure into its own error,
-  so the admin API and MCP read it keyed as `domain.cache.serverRequestFailedWithBody`'s
-  `body` or a stream error's `error` — which now read as the server's failure ("…: Failed to
-  fetch batch prices: 503 Service Unavailable") instead of the raw JSON of its reply. A stream
-  error for one entry is the new `domain.cache.serverStreamEntryError`, which names the entry's
-  `key` ("Cache server stream error for 'Sol Ring:usd': …"); `domain.cache.serverStreamError`
-  is left for a failure of the whole stream. A failure worded with a key this client does not
-  know (a newer server's) is carried as the server's English text. A script matching on the
-  raw JSON must match the keys instead.
+- **A cache server reports its failures in English, keyed, in one shape.** Every HTTP error
+  `ritual cache server` answers (`400`, `404`, `405`, `500`) is now the admin API's refusal
+  body, `{ "success": false, "message": …, "messageKey": …, "messageParams": … }`, with
+  `message` English whatever the server's UI language. It replaces `{ "error": … }`, and the
+  `500`'s fixed "Cache server request failed." line and `details`: the `500`'s `message` is
+  now the failure itself. `POST /cache/prices/stream`'s `error` event carries the same
+  triple beside `key`. A refusal is keyed `domain.cache.serverReply.*`: a path outside
+  `/cache/` (which answered the plain text `Not Found`), an unknown section, route or
+  method, a missing key, a body missing its `entries`, `keys` or `value`, and — new — a body
+  that is not JSON or not a JSON object, or a key with a broken `%` escape, all `400`s where
+  they used to fail as a `500`. A `--deny-http` server's refusal to download a price
+  (`domain.cache.serverReply.httpDenied`) arrives as that price read's refusal or as a
+  stream `error` event; a card miss still answers `{ "value": null }`. A Ritual client nests
+  the reply into its own error, worded in its reader's language:
+  `domain.cache.serverRequestFailedWithBody`'s `body` or a stream error's `error`, which now
+  read as the server's reason ("…: Failed to fetch batch prices: 503 Service Unavailable")
+  instead of the raw JSON of its reply. A stream error for one entry is the new
+  `domain.cache.serverStreamEntryError`, which names the entry's `key` ("Cache server stream
+  error for 'Sol Ring:usd': …"); `domain.cache.serverStreamError` is left for a failure of
+  the whole stream. The admin API answers these errors in English with the keys; MCP tool
+  errors carry the English `message` without them. A reply worded with a key or param this
+  client does not know (a newer server's) is carried as the server's English text, and one
+  that is not a message at all (an older server's body, a proxy's error page) is quoted as
+  text, cut to about 1,000 characters and stripped of control characters (as is every text
+  param of a nested reply). **Upgrade the
+  cache server and its clients together:** an older Ritual client talking to this server
+  quotes the new body's raw JSON as the reason, as it did before for every refusal. A script
+  matching on the raw JSON or on `error` must match `messageKey` instead.
+- **A cache server's console follows its UI language.** The server's console lines
+  (listening, start-up and scheduled refreshes, feed fallbacks, failures) and the `--url` /
+  refresh-interval refusals of `cache server`, `cache preload-all` and `cache feed` are
+  worded in the UI language. The `[cache-server]` prefix and the `key=value` fields stay as
+  they are, so **log filters must match the prefix and the fields, not the words around
+  them**, which follow the UI language. **The `--verbose` request line is now `key=value`
+  fields**, `[cache-server] method=GET path=/cache/cards/Sol%20Ring status=200 durationMs=3`
+  (it read `GET /cache/cards/Sol%20Ring -> 200 (3ms)`): update any log filter that matched
+  the old form.
 - **`card` and `scry --random` keep their `--output json` params English.** A lookup that
   fails on a timed-out Scryfall request reports `cli.card.fetchFailed` /
   `cli.scry.randomFailed` with its `reason` param in English whatever the UI language (it

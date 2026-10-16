@@ -313,6 +313,53 @@ export const cliInfraMessages = {
   'cli.cacheServer.addressInvalid':
     'Cache server must include hostname and port (example: localhost:4000 or http://localhost:4000).',
 
+  // ── cache server / cache feed flags ───────────────────────────────────
+  'cli.cache.refreshIntervalInvalid':
+    "Refresh interval must be one of: 'daily', 'weekly', 'monthly'.",
+  'cli.cache.feedUrlEmpty': '"--url" requires a value',
+  'cli.cache.feedUrlNeedsFeedSource': "--url only applies when the cache source is 'feed'.",
+
+  // ── cache server (operator log) ───────────────────────────────────────
+  //
+  // Every line below is printed behind the server's own `[cache-server]`
+  // prefix, which is a machine marker and is never translated. A line ending in
+  // a colon has the error object printed after it.
+  'cli.cacheServer.cacheUpdate': 'cache update: {fields}',
+  'cli.cacheServer.requestFailed': 'Cache server request failed:',
+  'cli.cacheServer.feedSyncFailed': 'Feed sync failed; falling back to Scryfall:',
+  'cli.cacheServer.feedUnchanged': 'Cache feed is unchanged; cards are current.',
+  'cli.cacheServer.seedFailed': 'Seeding feed artifacts failed (cards already ingested):',
+  'cli.cacheServer.scryfallRefreshFailed': 'Refreshing cards from Scryfall failed:',
+  'cli.cacheServer.startupRefresh': {
+    $select: 'reason',
+    empty: 'Running startup cards refresh (empty, source: {source})...',
+    stale: 'Running startup cards refresh (stale, source: {source})...',
+    seed: 'Running startup cards refresh (seed, source: {source})...',
+  },
+  'cli.cacheServer.cardsRefreshEnabled': {
+    $select: 'cadence',
+    daily: 'Scheduled cards cache refresh enabled: daily',
+    weekly: 'Scheduled cards cache refresh enabled: weekly',
+    monthly: 'Scheduled cards cache refresh enabled: monthly',
+  },
+  'cli.cacheServer.cardsRefreshComplete': 'Scheduled cards cache refresh complete.',
+  'cli.cacheServer.cardsRefreshFailed': 'Scheduled cards cache refresh failed:',
+  'cli.cacheServer.pricesRefreshEnabled': {
+    $select: 'cadence',
+    daily: 'Scheduled prices cache refresh enabled: daily',
+    weekly: 'Scheduled prices cache refresh enabled: weekly',
+    monthly: 'Scheduled prices cache refresh enabled: monthly',
+  },
+  'cli.cacheServer.priceBucketFailed': 'Scheduled price refresh bucket failed:',
+  'cli.cacheServer.priceRefreshFailed': "Scheduled price refresh failed for '{key}':",
+  'cli.cacheServer.startFailed': 'Failed to start the cache server:',
+  'cli.cacheServer.httpDenied': 'HTTP requests denied (--deny-http).',
+  'cli.cacheServer.feedDisabled': 'Feed mode disabled by --deny-http.',
+  'cli.cacheServer.verbose': 'Verbose request logging enabled.',
+  'cli.cacheServer.seeding': 'Seeding feed artifacts.',
+  'cli.cacheServer.seedingOnPort': 'Seeding feed artifacts on TCP port {port}.',
+  'cli.cacheServer.listening': 'Cache server listening on {url}',
+
   // ── --base-dir ────────────────────────────────────────────────────────
   'cli.baseDir.missing': 'base directory does not exist: {path}',
   'cli.baseDir.notDirectory': 'base directory is not a directory: {path}',

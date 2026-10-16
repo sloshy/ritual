@@ -17,7 +17,9 @@
  * So are the Scryfall request failures a Ritual server can surface: a
  * timed-out request or a failed symbology fetch through an admin route, a
  * failed price batch nested in a cache server's reply to its client. (A failed
- * printing fetch is keyed the same way; today only the CLI reports it.)
+ * printing fetch is keyed the same way; today only the CLI reports it.) So is
+ * why a cache server refused a request (`domain.cache.serverReply.*`): it goes
+ * out in English beside its key, and the client words it in its own language.
  *
  * Commands (`ritual cache preload-all`), flags (`--refresh auto`), Scryfall
  * bulk names, process ids, host names, HTTP methods and URLs are machine
@@ -83,4 +85,23 @@ export const domainCacheMessages = {
   'domain.cache.serverStreamError': 'Cache server stream error: {error}',
   'domain.cache.serverStreamEntryError': "Cache server stream error for '{key}': {error}",
   'domain.cache.serverStreamTooLarge': 'Cache server stream buffer exceeded maximum size',
+
+  // What a Ritual cache server answers a refused request with: English on the
+  // wire, `messageKey` beside it, rendered by the client in its own language as
+  // the reply inside `serverRequestFailedWithBody`.
+  'domain.cache.serverReply.notFound': 'Not found.',
+  'domain.cache.serverReply.invalidSection': 'Invalid cache section.',
+  'domain.cache.serverReply.invalidRoute': 'Invalid cache route.',
+  'domain.cache.serverReply.methodNotAllowed': 'Method not allowed.',
+  'domain.cache.serverReply.keyRequired': 'Cache key is required.',
+  'domain.cache.serverReply.keysRequired': 'At least one cache key is required.',
+  'domain.cache.serverReply.keyMalformed': 'Cache key is not validly URL-encoded.',
+  'domain.cache.serverReply.bodyNotJson': 'Expected a JSON request body.',
+  'domain.cache.serverReply.bodyNotObject': 'Expected the request body to be a JSON object.',
+  'domain.cache.serverReply.entriesExpected': "Expected JSON body with 'entries' object.",
+  'domain.cache.serverReply.replaceNotBoolean': "Expected 'replace' to be a boolean.",
+  'domain.cache.serverReply.keysExpected': "Expected JSON body with 'keys' string array.",
+  'domain.cache.serverReply.valueExpected': "Expected JSON body with 'value'.",
+  'domain.cache.serverReply.httpDenied':
+    'HTTP requests are denied (--deny-http). Pre-populate the cache for testing.',
 } as const satisfies MessageCatalogShape

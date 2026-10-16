@@ -16,8 +16,13 @@
  * bundle. `domain-cache` is the card cache's text that reaches a server
  * response: a sync's CSV-upload cache check, a cache refresh's streamed
  * progress lines and the errors it raises (a lock time-out, a failed Scryfall
- * request), which the Sync Collection and Cache Refresh pages render from their
- * key the same way; the public site never refreshes a cache.
+ * request), and a remote `--cache-server`'s failures with the server's own
+ * reply nested (`domain.cache.serverReply.*`), which any route that reads the
+ * cache may answer with — and the admin renders all of these from their key
+ * wherever it shows a route's error (the Sync Collection and Cache Refresh
+ * pages among them). The public site never
+ * refreshes a cache, and its live-API card lookups (`serve --api`) drop a
+ * failed reply's body rather than show it, so it never renders one.
  * `domain-import` is the importers' text: the Import CSV page reads a pasted
  * file and checks its column mapping in the browser (with the importer's own
  * column labels and header spellings), and renders the import routes' keyed

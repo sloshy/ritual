@@ -1,4 +1,5 @@
 import type { CacheSection } from '../cache'
+import { t } from '../i18n/t'
 import { createDefaultFileSystemClient, type FileSystemClient } from '../util/interfaces'
 import { CACHE_SERVER_LOG_PREFIX, DAY_REFRESH_MS, PRICE_REFRESH_STAGGER_MS } from './constants'
 
@@ -29,8 +30,9 @@ export function createFileSystemClient(): FileSystemClient {
   return createDefaultFileSystemClient()
 }
 
-export function logCacheUpdate(message: string): void {
-  console.log(`${CACHE_SERVER_LOG_PREFIX} cache update: ${message}`)
+/** Log a cache change; `fields` is machine `key=value` tokens (`section=prices action=set`). */
+export function logCacheUpdate(fields: string): void {
+  console.log(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.cacheUpdate', { fields })}`)
 }
 
 export function sseEvent(event: string, data: unknown): Uint8Array {
@@ -107,9 +109,14 @@ export async function runStaggeredTasksInCompletionOrder<T>(
   }
 }
 
+/**
+ * The `--verbose` access log: one record per request, every field machine data
+ * (method, percent-encoded path and query, status, elapsed milliseconds) — so
+ * it is `key=value` tokens like the cache-update fields, never a sentence.
+ */
 export function logVerboseRequest(request: Request, status: number, durationMs: number): void {
   const url = new URL(request.url)
   console.log(
-    `${CACHE_SERVER_LOG_PREFIX} ${request.method} ${url.pathname}${url.search} -> ${status} (${durationMs}ms)`,
+    `${CACHE_SERVER_LOG_PREFIX} method=${request.method} path=${url.pathname}${url.search} status=${status} durationMs=${durationMs}`,
   )
 }

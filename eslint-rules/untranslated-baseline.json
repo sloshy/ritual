@@ -79,49 +79,6 @@
     "Torrent ${…} did not become ready in time": 1,
     "Torrent client error: ${…}": 1
   },
-  "src/cache-server/cadence.ts": {
-    "\"--url\" requires a value": 1,
-    "--url only applies when the cache source is 'feed'.": 1,
-    "Refresh interval must be one of: 'daily', 'weekly', 'monthly'.": 1
-  },
-  "src/cache-server/helpers.ts": {
-    "${…} ${…} ${…}${…} -> ${…} (${…}ms)": 1,
-    "${…} cache update: ${…}": 1
-  },
-  "src/cache-server/scheduler.ts": {
-    "${…} Scheduled price refresh bucket failed:": 1,
-    "${…} Scheduled price refresh failed for '${…}':": 1
-  },
-  "src/cache-server/server.ts": {
-    "${…} Cache feed is unchanged; cards are current.": 1,
-    "${…} Cache server listening on http://${…}:${…}": 1,
-    "${…} Cache server request failed:": 1,
-    "${…} Failed to start the cache server:": 1,
-    "${…} Feed mode disabled by --deny-http.": 1,
-    "${…} Feed sync failed; falling back to Scryfall:": 1,
-    "${…} HTTP requests denied (--deny-http).": 1,
-    "${…} Refreshing cards from Scryfall failed:": 1,
-    "${…} Running startup cards refresh (${…}, source: ${…})...": 1,
-    "${…} Scheduled cards cache refresh complete.": 1,
-    "${…} Scheduled cards cache refresh enabled: ${…}": 1,
-    "${…} Scheduled cards cache refresh failed:": 1,
-    "${…} Scheduled prices cache refresh enabled: ${…}": 1,
-    "${…} Seeding feed artifacts failed (cards already ingested):": 1,
-    "${…} Seeding feed artifacts{ on TCP port ${…}|}.": 1,
-    "${…} Verbose request logging enabled.": 1,
-    "At least one cache key is required.": 1,
-    "Cache key is required.": 2,
-    "Cache server request failed.": 1,
-    "Expected 'replace' to be a boolean.": 1,
-    "Expected JSON body with 'entries' object.": 1,
-    "Expected JSON body with 'keys' string array.": 1,
-    "Expected JSON body with 'value'.": 1,
-    "HTTP requests are denied (--deny-http). Pre-populate the cache for testing.": 1,
-    "Invalid cache route.": 1,
-    "Invalid cache section.": 1,
-    "Method not allowed.": 1,
-    "Not Found": 1
-  },
   "src/cardkingdom/cache.ts": {
     "Dropped ${…} malformed products from the Card Kingdom cache": 1,
     "Ignoring unreadable Card Kingdom cache (not valid JSON)": 1,

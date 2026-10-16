@@ -2,14 +2,13 @@ import type { Command } from 'commander'
 import {
   addFeedUrlOption,
   addTorrentPortOption,
-  feedUrlSourceConflict,
+  rejectFeedUrlSourceConflict,
   parseCacheSourceFlag,
   parseRefreshCadence,
 } from '../cache-server/cadence'
 import { runCacheServer } from '../cache-server/server'
 import type { CacheServerCommandOptions } from '../cache-server/types'
 import { t } from '../i18n/t'
-import { ExitCode } from '../util/errors'
 import { parsePort } from '../cli/options'
 
 /** Wire `cache server` under the parent `cache` command. */
@@ -40,12 +39,7 @@ export function registerCacheServerSubcommand(cache: Command): void {
     .option('-v, --verbose', t('help.cacheServer.verbose'), false)
     .option('--deny-http', t('help.cacheServer.denyHttp'), false)
     .action(async (options: CacheServerCommandOptions) => {
-      const conflict = feedUrlSourceConflict(options.cacheSource, options.url)
-      if (conflict !== undefined) {
-        console.error(conflict)
-        process.exitCode = ExitCode.UsageError
-        return
-      }
+      if (rejectFeedUrlSourceConflict(options.cacheSource, options.url)) return
       await runCacheServer(options)
     })
 }

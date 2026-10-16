@@ -246,6 +246,58 @@ describe('a selector naming no branch', () => {
   })
 })
 
+describe('a selector value that names a prototype member', () => {
+  // A hostile or broken sender: the select has no such branch, and must not
+  // read the inherited function as one.
+  for (const field of ['constructor', 'toString', '__proto__', 'hasOwnProperty', '$select']) {
+    test(`'${field}' is unresolved and falls back to the English`, () => {
+      const sent = {
+        message: `Invalid cache lock: missing ${field}`,
+        messageKey: 'cli.cacheLock.missingField',
+        messageParams: { field },
+      } as const satisfies SyncMessage
+      expect(unresolvedPlaceholders(DEFAULT_LOCALE, sent.messageKey, { field })).toEqual(['field'])
+      expect(isRenderable({ messageKey: sent.messageKey, messageParams: sent.messageParams })).toBe(
+        false,
+      )
+      expect(renderSyncMessage(sent)).toBe(sent.message)
+    })
+  }
+})
+
+describe('a plural count that is not a number', () => {
+  // What a newer (or hostile) process could send: `t()` would pick the `other`
+  // form and print "lots peers", or throw in strict mode.
+  const sent = {
+    message: 'Completed cards.jsonl (lots peers).',
+    messageKey: 'cli.cacheFeed.completed',
+    messageParams: { file: 'cards.jsonl', count: 'lots' },
+  } as const satisfies SyncMessage
+
+  test('is reported as the count going unresolved', () => {
+    for (const count of ['lots', Number.NaN, Number.POSITIVE_INFINITY]) {
+      expect(unresolvedPlaceholders(DEFAULT_LOCALE, sent.messageKey, { file: 'f', count })).toEqual(
+        ['count'],
+      )
+    }
+    expect(unresolvedPlaceholders(DEFAULT_LOCALE, sent.messageKey, { file: 'f' })).toEqual([
+      'count',
+    ])
+    expect(
+      unresolvedPlaceholders(DEFAULT_LOCALE, sent.messageKey, { file: 'f', count: 2 }),
+    ).toEqual([])
+  })
+
+  test('falls the whole message back to the English it carries', () => {
+    withSyntheticLocale('de', {}, (de) => {
+      expect(renderSyncMessage(sent, de)).toBe(sent.message)
+    })
+    expect(isRenderable({ messageKey: sent.messageKey, messageParams: sent.messageParams })).toBe(
+      false,
+    )
+  })
+})
+
 describe('a key this bundle does not know', () => {
   test('a whole message falls back to the English it carries', () => {
     const message: SyncMessage = { message: 'From the future.', messageKey: UNKNOWN_KEY }

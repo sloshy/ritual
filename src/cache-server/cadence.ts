@@ -2,6 +2,9 @@ import { InvalidArgumentError, type Command } from 'commander'
 import { DAY_REFRESH_MS, MONTHLY_REFRESH_MS, WEEKLY_REFRESH_MS } from './constants'
 import { parseCacheFeedUrl, parseCacheSource, type CacheSource } from '../config/ritual-config'
 import { renderSyncMessage } from '../sync/message'
+import { t } from '../i18n/t'
+import { fail } from '../cli/action'
+import { TEXT_ONLY } from '../cli/output'
 import type { RefreshCadence } from './types'
 import { parsePort } from '../cli/options'
 
@@ -10,7 +13,7 @@ export function parseRefreshCadence(value: string): RefreshCadence {
   if (normalized === 'daily' || normalized === 'weekly' || normalized === 'monthly') {
     return normalized
   }
-  throw new InvalidArgumentError("Refresh interval must be one of: 'daily', 'weekly', 'monthly'.")
+  throw new InvalidArgumentError(t('cli.cache.refreshIntervalInvalid'))
 }
 
 export function cadenceToMs(cadence: RefreshCadence): number {
@@ -58,7 +61,7 @@ export function parseFeedUrlFlag(value: string): string {
   const parsed = parseCacheFeedUrl(value)
   if (typeof parsed !== 'string') {
     throw new InvalidArgumentError(
-      parsed === undefined ? '"--url" requires a value' : renderSyncMessage(parsed.error),
+      parsed === undefined ? t('cli.cache.feedUrlEmpty') : renderSyncMessage(parsed.error),
     )
   }
   return parsed
@@ -84,16 +87,17 @@ export function addTorrentPortOption(command: Command, description: string): Com
 }
 
 /**
- * The usage-error message for combining an explicit non-feed cache source with
- * `--url` — only feed-sourced refreshes ever read the URL, so the combination
- * would silently ignore it. Returns `undefined` when the flags are compatible.
+ * Refuse combining an explicit non-feed cache source with `--url` — only
+ * feed-sourced refreshes ever read the URL, so the combination would silently
+ * ignore it. Reports the usage error (exit 2) and returns `true` when the flags
+ * conflict; the caller then stops.
  */
-export function feedUrlSourceConflict(
+export function rejectFeedUrlSourceConflict(
   source: CacheSource | undefined,
   url: string | undefined,
-): string | undefined {
-  if (source !== undefined && source !== 'feed' && url !== undefined) {
-    return "--url only applies when the cache source is 'feed'."
-  }
-  return undefined
+): boolean {
+  if (source === undefined || source === 'feed' || url === undefined) return false
+  // Neither command takes `--output`: the refusal is text on stderr.
+  fail(TEXT_ONLY, 'usage_error', 'cli.cache.feedUrlNeedsFeedSource')
+  return true
 }

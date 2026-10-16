@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { LOCALE_ENV, ensureBinary, repoRoot, runCli, withTempDir } from './helpers/cli'
+import { spawnCacheServer } from './helpers/cache-server'
 import { en } from '../../src/i18n/messages/en'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../helpers/change-problem'
 import type { LocaleCatalog } from '../../src/i18n/types'
@@ -68,6 +69,19 @@ async function pseudoText(key: string): Promise<string> {
  */
 function unwrap(text: string): string {
   return text.replace(/\s+/g, ' ')
+}
+
+/**
+ * A `--deny-http` cache server's answer to a price it would have to download:
+ * English with its key, whatever the server's language.
+ */
+const DENIED_PRICE = {
+  status: 500,
+  body: {
+    success: false,
+    message: en['domain.cache.serverReply.httpDenied'],
+    messageKey: 'domain.cache.serverReply.httpDenied',
+  },
 }
 
 /** The `--output json` error envelope, as a script or agent parses it. */
@@ -295,6 +309,79 @@ describe('pseudo-locale (Integration)', () => {
       expect(result.exitCode).toBe(2)
       expect(unwrap(result.stderr)).toContain(
         unwrap(await pseudoText('cli.cacheServer.addressInvalid')),
+      )
+    })
+  })
+
+  test('a cache server logs in its own language and answers in English with the key', async () => {
+    await withTempDir(async (dir) => {
+      const server = await spawnCacheServer({
+        cwd: dir,
+        args: ['--deny-http', '--verbose'],
+        env: PSEUDO_ENV,
+      })
+      let elsewhere: unknown
+      let price: unknown
+      try {
+        const answer = async (route: string): Promise<unknown> => {
+          const response = await fetch(`${server.url}${route}`, {
+            signal: AbortSignal.timeout(5000),
+          })
+          return { status: response.status, body: (await response.json()) as unknown }
+        }
+        elsewhere = await answer('/elsewhere')
+        // A price the empty cache does not hold needs a download --deny-http refuses.
+        price = await answer('/cache/prices/Sol%20Ring:usd')
+      } finally {
+        await server.stop()
+      }
+      const log = (await server.stop()).stdout
+
+      // The replies go to another Ritual process, whatever this server's language.
+      expect(elsewhere).toEqual({
+        status: 404,
+        body: {
+          success: false,
+          message: en['domain.cache.serverReply.notFound'],
+          messageKey: 'domain.cache.serverReply.notFound',
+        },
+      })
+      expect(price).toEqual(DENIED_PRICE)
+      // The operator log is this server's, read in its language behind the
+      // untranslated `[cache-server]` marker; the access log is machine fields.
+      expect(log).toContain(`[cache-server] ${await pseudoText('cli.cacheServer.httpDenied')}`)
+      expect(log).toContain(
+        (await pseudoText('cli.cacheServer.listening')).replace('{url}', server.url),
+      )
+      expect(log).toMatch(
+        /^\[cache-server\] method=GET path=\/elsewhere status=404 durationMs=\d+$/m,
+      )
+    })
+  }, 20000)
+
+  test('a cache server flag conflict is refused in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      // `--deny-http` and a spare port: a regression that started the server
+      // anyway must neither reach the network nor take the default port.
+      const result = await runCli(
+        [
+          'cache',
+          'server',
+          '--deny-http',
+          '--port',
+          '45999',
+          '--cache-source',
+          'scryfall',
+          '--url',
+          'https://feed.example/feed.json',
+        ],
+        dir,
+        PSEUDO_ENV,
+      )
+
+      expect(result.exitCode).toBe(2)
+      expect(unwrap(result.stderr)).toContain(
+        unwrap(await pseudoText('cli.cache.feedUrlNeedsFeedSource')),
       )
     })
   })
