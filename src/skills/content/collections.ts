@@ -2,6 +2,7 @@ import type { RitualSkill } from '../types'
 import {
   csvImportSection,
   DIFF_BY_MODES,
+  DIFF_JSON_WARNINGS,
   interactiveEditIntro,
   PRICE_SOURCE_COMMENT,
   priceIntro,
@@ -180,6 +181,8 @@ ${wrapProse(
 ritual diff wanted:to-buy "collection:Main Binder"          # overlap = already owned
 ritual diff "Main Binder" trade-binder --by printing --output json
 \`\`\`
+
+${DIFF_JSON_WARNINGS}
 
 ## Import from a text file
 

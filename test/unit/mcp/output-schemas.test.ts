@@ -6,6 +6,7 @@ import {
   CONFIG_OUTPUT,
   CREATE_LIST_OUTPUT,
   DELETE_LIST_OUTPUT,
+  DIFF_LISTS_OUTPUT,
   EXPORT_CARDS_OUTPUT,
   FIND_CARDS_OUTPUT,
   GET_CACHE_STATUS_OUTPUT,
@@ -33,6 +34,10 @@ import { defsFor } from '../../../src/mcp/schema-defs'
 import { apiErrorToMcp } from '../../../src/mcp/errors'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
+import { exportWarning } from '../../../src/export/text'
+import { exportWarningMessage } from '../../../src/export-wording/message'
+import type { DiffResult, ExportResult } from '../../../src/mcp/tools/read-tools'
+import type { DiffListRef } from '../../../src/changes/list-diff'
 import { VALID_FINISHES } from '../../../src/card/finish-condition'
 import { CARD_LANGUAGES } from '../../../src/card/card-language'
 import { BY_RULE_UNPRICED_REASONS, UNPRICED_REASONS } from '../../../src/pricing/price-report'
@@ -702,6 +707,40 @@ describe('MCP output schemas, as authored', () => {
           warnings: [{ message: 'line 3', labelsDropped: false }],
         }),
       ).toBe(false)
+    })
+
+    test('export_cards and diff_lists carry their warnings as messages', async () => {
+      // A real nested warning: the section list is a list of messages of its own.
+      const warning = exportWarningMessage(
+        exportWarning('extras-omitted', { sections: [{ section: 'Maybeboard', quantity: 2 }] }),
+      )
+      const exported: ExportResult = {
+        mode: 'content',
+        format: 'text',
+        entryCount: 1,
+        warnings: [warning],
+        content: '1 Sol Ring (C21) 263',
+      }
+      expect(await validates(EXPORT_CARDS_OUTPUT, exported)).toBe(true)
+      expect(
+        await validates(EXPORT_CARDS_OUTPUT, { ...exported, warnings: [warning.message] }),
+      ).toBe(false)
+      // The format is the export enum, not free text.
+      expect(await validates(EXPORT_CARDS_OUTPUT, { ...exported, format: 'xml' })).toBe(false)
+      const ref: DiffListRef = { listType: 'deck', slug: 'burn', name: 'Burn' }
+      const diff: DiffResult = {
+        a: ref,
+        b: ref,
+        by: 'name',
+        matches: [],
+        onlyInA: [],
+        onlyInB: [],
+        warnings: [warning],
+      }
+      expect(await validates(DIFF_LISTS_OUTPUT, diff)).toBe(true)
+      expect(await validates(DIFF_LISTS_OUTPUT, { ...diff, warnings: [warning.message] })).toBe(
+        false,
+      )
     })
 
     test('import_change_bundle accepts a per-list failure carrying its key', async () => {

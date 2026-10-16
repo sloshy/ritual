@@ -1,11 +1,11 @@
 import {
   parseExportColumns,
   DEFAULT_EXPORT_COLUMNS,
-  EXPORT_DIALECTS,
   isExportDialect,
   type ExportDialect,
   type ExportProperty,
 } from './render'
+import { exportProblem, refuseExport, type ExportParsed, type PresetsProblem } from './text'
 
 export type ExportFormat = 'csv' | 'json' | 'text' | 'md'
 
@@ -148,57 +148,58 @@ export function exportPresetNames(saved: Record<string, ExportPreset>): string[]
 }
 
 /**
- * Parse the `exportPresets` config value. Returns the validated preset map,
- * an empty map when absent, or an error string when malformed (following the
- * config module's warn-and-ignore convention).
+ * Parse the `exportPresets` config value. Returns the validated preset map, an
+ * empty map when absent, or the problem with it (the config loader words it and
+ * follows its warn-and-ignore convention).
  */
-export function parseExportPresets(value: unknown): Record<string, ExportPreset> | string {
-  if (value === undefined) return {}
+export function parseExportPresets(
+  value: unknown,
+): ExportParsed<Record<string, ExportPreset>, PresetsProblem> {
+  if (value === undefined) return { ok: true, value: {} }
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    return '"exportPresets" must be an object mapping preset names to presets'
+    return refuseExport(exportProblem('presets-not-object'))
   }
   const presets: Record<string, ExportPreset> = {}
   for (const [name, raw] of Object.entries(value)) {
     const parsed = parsePreset(name, raw)
-    if (typeof parsed === 'string') return parsed
-    presets[name] = parsed
+    if (!parsed.ok) return parsed
+    presets[name] = parsed.value
   }
-  return presets
+  return { ok: true, value: presets }
 }
 
-function parsePreset(name: string, raw: unknown): ExportPreset | string {
-  const label = `exportPresets["${name}"]`
+function parsePreset(name: string, raw: unknown): ExportParsed<ExportPreset, PresetsProblem> {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return `${label} must be an object`
+    return refuseExport(exportProblem('preset-not-object', { name }))
   }
   const candidate = raw as Record<string, unknown>
   if (typeof candidate.format !== 'string' || !isExportFormat(candidate.format)) {
-    return `${label}.format must be one of: ${EXPORT_FORMATS.join(', ')}`
+    return refuseExport(exportProblem('preset-format-invalid', { name }))
   }
   if (!Array.isArray(candidate.columns)) {
-    return `${label}.columns must be an array of property names`
+    return refuseExport(exportProblem('preset-columns-not-array', { name }))
   }
   const columns = parseExportColumns(candidate.columns)
-  if (typeof columns === 'string') {
-    return `${label}.columns: ${columns}`
+  if (!columns.ok) {
+    return refuseExport(exportProblem('preset-columns-invalid', { name, reason: columns.problem }))
   }
   if (candidate.header !== undefined && typeof candidate.header !== 'boolean') {
-    return `${label}.header must be a boolean`
+    return refuseExport(exportProblem('preset-field-not-boolean', { name, field: 'header' }))
   }
   if (candidate.quoteAll !== undefined && typeof candidate.quoteAll !== 'boolean') {
-    return `${label}.quoteAll must be a boolean`
+    return refuseExport(exportProblem('preset-field-not-boolean', { name, field: 'quoteAll' }))
   }
   if (
     candidate.dialect !== undefined &&
     (typeof candidate.dialect !== 'string' || !isExportDialect(candidate.dialect))
   ) {
-    return `${label}.dialect must be one of: ${EXPORT_DIALECTS.join(', ')}`
+    return refuseExport(exportProblem('preset-dialect-invalid', { name }))
   }
-  const preset: ExportPreset = { format: candidate.format, columns }
+  const preset: ExportPreset = { format: candidate.format, columns: columns.value }
   if (candidate.header !== undefined) preset.header = candidate.header
   if (candidate.quoteAll !== undefined) preset.quoteAll = candidate.quoteAll
   if (candidate.dialect !== undefined) preset.dialect = candidate.dialect
-  return preset
+  return { ok: true, value: preset }
 }
 
 /**

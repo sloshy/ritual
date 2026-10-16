@@ -2,6 +2,7 @@ import type { RitualSkill } from '../types'
 import {
   csvImportSection,
   DIFF_BY_MODES,
+  DIFF_JSON_WARNINGS,
   interactiveEditIntro,
   PRICE_SOURCE_COMMENT,
   priceIntro,
@@ -82,6 +83,8 @@ ${wrapProse(
 ritual diff wanted:to-buy "collection:Main Binder"
 ritual diff wanted:to-buy "collection:Main Binder" --by printing --output json
 \`\`\`
+
+${DIFF_JSON_WARNINGS}
 
 ## Interactive management
 

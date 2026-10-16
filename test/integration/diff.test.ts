@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { runCli, withTempDir } from './helpers/cli'
 import { writeCollectionFile, writeDeckFile } from '../helpers/workspace'
+import type { SyncMessage } from '../../src/sync/message'
 
 type DiffJsonBody = {
   a: { listType: string; slug: string; name: string }
@@ -9,7 +10,7 @@ type DiffJsonBody = {
   matches: { name: string; a: { quantity: number }; b: { quantity: number } }[]
   onlyInA: { name: string; quantity: number }[]
   onlyInB: { name: string; quantity: number }[]
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 /**

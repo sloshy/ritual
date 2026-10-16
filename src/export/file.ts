@@ -5,6 +5,7 @@ import { hasErrorCode } from '../util/errors'
 import { sanitizeListFileName } from '../list/list-file-name'
 import type { ListLocation } from '../list/resolve-list'
 import { EXPORT_FORMAT_EXTENSIONS, type ExportFormat } from './presets'
+import { exportProblem, refuseExport, type ExportParsed, type FileNameProblem } from './text'
 
 /**
  * Server-written exports: where they land and what they are called.
@@ -36,6 +37,9 @@ export type ExportFileNameInput = {
   /** Names already present in the target directory. */
   existing: ReadonlySet<string>
 }
+
+/** A written export, or why no file name could be settled on. */
+export type ExportWriteResult = ExportParsed<WrittenExport, FileNameProblem>
 
 /** A written export file, reported back to the caller. */
 export type WrittenExport = {
@@ -95,7 +99,9 @@ const MAX_NAME_ATTEMPTS = 100
  * Write a rendered export under `<baseDir>/exports/`, creating the directory and
  * choosing the name itself via {@link buildExportFileName}. The content is
  * newline-terminated, matching what the CLI's `--out` writes, so a CLI-written
- * and an API-written export of the same selection are identical.
+ * and an API-written export of the same selection are identical. Refuses —
+ * writing nothing — when no free name turns up, or a generated name is not a
+ * bare basename; a filesystem failure still throws.
  *
  * The no-overwrite guarantee is enforced by the write, not by the directory
  * listing: an exclusive create (`wx`) fails rather than truncating, and the
@@ -106,7 +112,7 @@ const MAX_NAME_ATTEMPTS = 100
 export async function writeExportFile(
   content: string,
   input: ExportFileNameInput,
-): Promise<WrittenExport> {
+): Promise<ExportWriteResult> {
   const dir = path.join(getBaseDir(), EXPORTS_DIR_NAME)
   await fs.mkdir(dir, { recursive: true })
   const payload = `${content}\n`
@@ -117,15 +123,18 @@ export async function writeExportFile(
     // The name is server-generated, but assert it before joining: a bare
     // basename is the whole reason no caller can steer a write out of `exports/`.
     if (name !== path.basename(name)) {
-      throw new Error(`Refusing to write export under a non-basename name '${name}'.`)
+      return refuseExport(exportProblem('file-name-not-basename', { name }))
     }
     const absolutePath = path.join(dir, name)
     try {
       await fs.writeFile(absolutePath, payload, { flag: 'wx' })
       return {
-        path: `${EXPORTS_DIR_NAME}/${name}`,
-        absolutePath,
-        bytes: Buffer.byteLength(payload),
+        ok: true,
+        value: {
+          path: `${EXPORTS_DIR_NAME}/${name}`,
+          absolutePath,
+          bytes: Buffer.byteLength(payload),
+        },
       }
     } catch (error) {
       if (!hasErrorCode(error, 'EEXIST')) throw error
@@ -133,7 +142,5 @@ export async function writeExportFile(
     }
   }
 
-  throw new Error(
-    `Could not find a free export file name after ${MAX_NAME_ATTEMPTS} attempts in ${dir}.`,
-  )
+  return refuseExport(exportProblem('file-name-exhausted', { attempts: MAX_NAME_ATTEMPTS, dir }))
 }

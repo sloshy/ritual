@@ -773,7 +773,7 @@ describe('Ritual MCP server (in-memory transport)', () => {
       mode: string
       entryCount: number
       content: string
-      warnings: string[]
+      warnings: SyncMessage[]
     }>(result)
     // Without `write`, the response is the inline arm.
     expect(data.mode).toBe('content')

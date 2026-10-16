@@ -58,10 +58,13 @@ describe('handleExport', () => {
     expect(status).toBe(200)
     if (!('content' in body)) throw new Error('expected content mode')
     expect(body.content).toContain('Lightning Bolt,lea-161,57')
-    // Sol Ring is not cached: its cells are empty and its absence is reported.
-    expect(body.warnings).toContain(
-      'No EDHREC rank for Sol Ring: the card is not in the Scryfall cache.',
-    )
+    // Sol Ring is not cached: its cells are empty and its absence is reported,
+    // as English plus its key.
+    expect(body.warnings).toContainEqual({
+      message: 'No EDHREC rank for Sol Ring: the card is not in the Scryfall cache.',
+      messageKey: 'domain.export.warning.edhrecRankUncached',
+      messageParams: { name: 'Sol Ring' },
+    })
   })
 
   // The only surface where a text dialect's omitted-extras warning can be
@@ -84,16 +87,52 @@ describe('handleExport', () => {
         },
       ],
     })
-    const { status, body } = await post({
-      lists: [{ type: 'deck', name: 'burn' }],
-      format: 'text',
-      dialect: 'moxfield',
-    })
+    // Under a foreign UI language: the warning reaches the client in English.
+    const { status, body } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      post({ lists: [{ type: 'deck', name: 'burn' }], format: 'text', dialect: 'moxfield' }),
+    )
     expect(status).toBe(200)
     if (!('content' in body)) throw new Error('expected content mode')
     expect(body.content).toBe('Deck\n1 Fireblast (VIS) *F* 78')
     expect(body.warnings).toHaveLength(1)
-    expect(body.warnings[0]).toContain('Omitted cards a decklist has no board for: Maybeboard (2)')
+    const [warning] = body.warnings
+    expect(keyedMessage(warning!)).toStartWith(
+      'Omitted cards a decklist has no board for: Maybeboard (2). ',
+    )
+    // Each omitted section is a message of its own, so a client re-renders the
+    // count in the reader's locale.
+    expect(warning).toMatchObject({
+      messageKey: 'domain.export.warning.extrasOmitted',
+      messageParams: {
+        sections: {
+          list: [
+            {
+              messageKey: 'domain.export.warning.sectionCount',
+              messageParams: { section: 'Maybeboard', quantity: 2 },
+            },
+          ],
+          join: 'unit',
+        },
+      },
+    })
+  })
+
+  // The column parser sits inside the persistence fence and returns a code; the
+  // route words it as English plus the key, whatever the server's own language.
+  test('an unknown column is refused in English with its key, the column ids offered', async () => {
+    const { status, body } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      post({ columns: ['name', 'price'] }),
+    )
+    expect(status).toBe(400)
+    const refusal = body as unknown as SyncMessage
+    expect(keyedMessage(refusal)).toStartWith(
+      "Unknown column 'price'. Available columns: name, quantity, set, collectorNumber, ",
+    )
+    expect(refusal).toMatchObject({
+      success: false,
+      messageKey: 'domain.export.problem.columnUnknown',
+      messageParams: { column: 'price', columns: { join: 'unit' } },
+    })
   })
 
   test('content mode returns the rendered export inline', async () => {
@@ -233,10 +272,11 @@ describe('writeExportFile', () => {
       existing: new Set(),
     })
 
-    expect(written.path).toBe(`${EXPORTS_DIR_NAME}/cards-20260728-2.csv`)
+    if (!written.ok) throw new Error(`expected a write, got ${written.problem.code}`)
+    expect(written.value.path).toBe(`${EXPORTS_DIR_NAME}/cards-20260728-2.csv`)
     expect(await fs.readFile(path.join(dir, 'cards-20260728.csv'), 'utf-8')).toBe(
       'claimed by someone else\n',
     )
-    expect(await fs.readFile(written.absolutePath, 'utf-8')).toBe('name\nSol Ring\n')
+    expect(await fs.readFile(written.value.absolutePath, 'utf-8')).toBe('name\nSol Ring\n')
   })
 })

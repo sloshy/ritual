@@ -14,14 +14,16 @@ import path from 'node:path'
 import type { Choice } from 'prompts'
 import {
   CONDITION_FILTER_NONE,
+  type ConditionFilterValue,
+  type LabelFilterValue,
+} from '../export/filter-values'
+import {
   exportEntryKey,
   filterExportEntries,
   hasActiveExportFilters,
   loadExportEntries,
-  type ConditionFilterValue,
   type ExportEntry,
   type ExportFilters,
-  type LabelFilterValue,
 } from '../export/entries'
 import { cardLabelName, CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card/card-labels'
 import { formatCardTags, parseCardTagsInput, type CardTag } from '../card/card-tags'
@@ -42,12 +44,12 @@ import {
 import {
   DEFAULT_EXPORT_COLUMNS,
   EXPORT_PROPERTIES,
-  EXPORT_PROPERTY_LABELS,
-  exportPropertyLabel,
   type ExportDialect,
   type ExportProperty,
 } from '../export/render'
-import { exportPropertyHint } from '../pricing/export-hints'
+import { exportColumnLabel, exportPropertyHint } from '../export-wording/columns'
+import { renderExportWarning } from '../export-wording/message'
+import type { ExportWarning } from '../export/text'
 import {
   conditionLabel,
   VALID_CONDITIONS,
@@ -62,6 +64,11 @@ import { listLocations, type ListLocation } from '../list/resolve-list'
 import { getExportPresets } from '../config/ritual-config'
 import { ask, promptTextFilter, suggestByTitleTerms } from '../cli/prompts'
 import { printingLabel } from '../card/card-line-tail'
+
+/** One export warning as the export command and its wizard print it, in the CLI's language. */
+export function exportWarningLine(warning: ExportWarning): string {
+  return `⚠️  ${renderExportWarning(warning)}`
+}
 
 /** Everything the wizard tracks between screens. */
 export type ExportWizardState = {
@@ -175,7 +182,7 @@ export function formatWizardHeaderLines(state: ExportWizardState, entryCount: nu
   if (exportFormatUsesColumns(state.settings.format)) {
     formatLine += t('cli.exportWizard.columnsSegment', {
       columns: state.settings.columns
-        .map((column) => exportPropertyLabel(column, state.settings.dialect))
+        .map((column) => exportColumnLabel(column, state.settings.dialect))
         .join(', '),
     })
   }
@@ -582,10 +589,12 @@ const RESET_SENTINEL = 'reset'
 /**
  * The ordered column picker: each pick appends to the new order, so inclusion
  * and ordering happen in one gesture. Returns the new order, or undefined when
- * the user cancels (keep the current columns).
+ * the user cancels (keep the current columns). Columns are labelled the way the
+ * export's dialect heads them (Archidekt's `Variant` for the finish).
  */
 export async function promptColumns(
   current: ExportProperty[],
+  dialect: ExportDialect,
 ): Promise<ExportProperty[] | undefined> {
   const order: ExportProperty[] = []
   while (true) {
@@ -595,7 +604,7 @@ export async function promptColumns(
     if (order.length === 0) {
       choices.push({
         title: t('cli.exportWizard.keepCurrent', {
-          columns: current.map((c) => EXPORT_PROPERTY_LABELS[c]).join(' → '),
+          columns: current.map((c) => exportColumnLabel(c, dialect)).join(' → '),
         }),
         value: KEEP_SENTINEL,
       })
@@ -607,7 +616,7 @@ export async function promptColumns(
       ...remaining.map((property): Choice => {
         const hint = exportPropertyHint(property)
         return {
-          title: `${EXPORT_PROPERTY_LABELS[property]}${hint ? ` (${hint})` : ''}`,
+          title: `${exportColumnLabel(property, dialect)}${hint ? ` (${hint})` : ''}`,
           value: property,
         }
       }),
@@ -615,7 +624,7 @@ export async function promptColumns(
     const message =
       order.length > 0
         ? t('cli.exportWizard.orderSoFar', {
-            columns: order.map((c) => EXPORT_PROPERTY_LABELS[c]).join(' → '),
+            columns: order.map((c) => exportColumnLabel(c, dialect)).join(' → '),
           })
         : t('cli.exportWizard.pickColumns')
     const pick = await ask<
@@ -668,7 +677,7 @@ async function promptCsvOptions(state: ExportWizardState): Promise<void> {
 export function formatPresetSummary(name: string, preset: ExportPreset): string {
   const parts: string[] = [
     preset.format.toUpperCase(),
-    preset.columns.map((column) => exportPropertyLabel(column, preset.dialect)).join(', '),
+    preset.columns.map((column) => exportColumnLabel(column, preset.dialect)).join(', '),
   ]
   if (preset.header === false) parts.push(t('cli.exportWizard.presetNoHeader'))
   if (preset.quoteAll) parts.push(t('cli.exportWizard.quoteAll'))
@@ -741,7 +750,7 @@ async function promptExport(entries: ExportEntry[], state: ExportWizardState): P
   const rendered = await renderExport(entries, state.settings, {
     lookupPrintings: getCachedCardPrintings,
   })
-  for (const warning of rendered.warnings) console.warn(`⚠️  ${warning}`)
+  for (const warning of rendered.warnings) console.warn(exportWarningLine(warning))
   await fs.mkdir(path.dirname(resolved), { recursive: true })
   await fs.writeFile(resolved, rendered.content + '\n', 'utf-8')
   console.log(
@@ -761,7 +770,7 @@ export async function runExportWizard(): Promise<void> {
     return
   }
   const loaded = await loadExportEntries(allLocations)
-  for (const warning of loaded.warnings) console.warn(`⚠️  ${warning}`)
+  for (const warning of loaded.warnings) console.warn(exportWarningLine(warning))
 
   const state: ExportWizardState = {
     lists: [],
@@ -808,7 +817,7 @@ export async function runExportWizard(): Promise<void> {
         await promptFormat(state)
         break
       case 'columns': {
-        const columns = await promptColumns(state.settings.columns)
+        const columns = await promptColumns(state.settings.columns, state.settings.dialect)
         if (columns) state.settings.columns = columns
         break
       }

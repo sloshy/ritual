@@ -705,6 +705,61 @@ describe('pseudo-locale (Integration)', () => {
     })
   })
 
+  test('export words a column refusal in the CLI’s language, the column ids untouched', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['export', '--all', '--columns', 'name,price'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(2)
+      // The export engine returns a code; the CLI words it through the catalog.
+      const [lead = ''] = (await pseudoText('domain.export.problem.columnUnknown'))
+        .replace('{column}', 'price')
+        .split('{columns}')
+      expect(lead).not.toBe('')
+      expect(unwrap(result.stderr)).toContain(unwrap(lead))
+      expect(result.stderr).not.toContain('Unknown column')
+      // The ids offered are what `--columns` takes, in any language.
+      expect(result.stderr).toContain('collectorNumber')
+    })
+  })
+
+  test('diff words a list’s unreadable line in the CLI’s language, English plus key for json', async () => {
+    await withTempDir(async (dir) => {
+      await writeWantedFile(dir, 'needs', { entries: [{ name: 'Demonic Tutor', cardId: 1 }] })
+      await writeDeckFile(dir, 'target', {
+        sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Demonic Tutor' }] }],
+      })
+      // A line the deck parser cannot read, appended by hand.
+      await fs.appendFile(path.join(dir, 'decks', 'target.md'), '\nnot a card line\n')
+      const args = ['diff', 'wanted:needs', 'deck:target']
+
+      const text = await runCli(args, dir, PSEUDO_ENV)
+      expect(text.exitCode).toBe(0)
+      // The frame around the parser's own sentence comes from the catalog.
+      const frame = (await pseudoText('domain.export.warning.inList')).split('{warning}')[0] ?? ''
+      expect(frame).not.toBe('{list}: ')
+      expect(unwrap(text.stderr)).toContain(unwrap(frame.replace('{list}', 'target')))
+
+      // The payload is for scripts: English plus the key, whatever the CLI speaks.
+      const json = await runCli([...args, '--output', 'json'], dir, PSEUDO_ENV)
+      expect(json.exitCode).toBe(0)
+      const payload = JSON.parse(json.stdout) as { warnings: Record<string, unknown>[] }
+      expect(payload.warnings).toHaveLength(1)
+      expect(payload.warnings[0]).toMatchObject({
+        messageKey: 'domain.export.warning.inList',
+        // The deck parser's own message nests keyed, its English kept.
+        messageParams: {
+          list: 'target',
+          warning: {
+            messageKey: 'domain.import.text.malformedLine',
+            messageParams: { line: 'not a card line' },
+          },
+        },
+      })
+      expect(String(payload.warnings[0]?.message)).toStartWith('target: ')
+      expect(String(payload.warnings[0]?.message)).toContain('not a card line')
+    })
+  })
+
   test('config set words a refusal in the CLI’s language, its params English for json', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(

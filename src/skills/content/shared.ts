@@ -264,6 +264,13 @@ export const DIFF_BY_MODES =
   `\`--by name\` (the default) matches card names; \`--by printing\` requires the ` +
   `exact set/collector-number/finish to match:`
 
+/** What a `ritual diff --output json` warning is, for the paragraph after the example block. */
+export const DIFF_JSON_WARNINGS = wrapProse(
+  'Under `--output json` each `warnings` entry is an object: the English `message` ' +
+    '(naming the list whose line could not be read), plus `messageKey` ' +
+    '(`domain.export.warning.inList`) and `messageParams` to match on.',
+)
+
 /** Options for {@link moxfieldUserAgentNote}. */
 export type MoxfieldUserAgentNoteOptions = {
   /** What needs the User-Agent in this context, e.g. 'imports' or 'URLs'. */

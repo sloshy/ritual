@@ -154,6 +154,8 @@ The exportable properties are the fields stored in your list files, the list ide
 
 The default column set matches the site's CSV export: `name,set,collectorNumber,finish,condition,language,quantity`.
 
+The CSV header row writes each column's English name (`Collector Number`, `Scryfall ID`, Archidekt's `Variant`) in every UI language, because an importer matches on those exact words. The wizard's column picker shows the same names in your UI language, and `--columns` always takes the ids above. A refusal lists those ids (`Unknown column 'price'. Available columns: name, quantity, …`).
+
 Notes on values:
 
 - **Set codes** are lowercase in JSON (a data format) and uppercase in CSV (like every other user-facing surface).

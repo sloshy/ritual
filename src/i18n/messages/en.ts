@@ -23,6 +23,7 @@ import { domainCacheMessages } from './en/domain-cache'
 import { domainCardMessages } from './en/domain-card'
 import { domainConfigMessages } from './en/domain-config'
 import { domainChangesMessages } from './en/domain-changes'
+import { domainExportMessages } from './en/domain-export'
 import { domainImportMessages } from './en/domain-import'
 import { domainListMessages } from './en/domain-list'
 import { domainListFilesMessages } from './en/domain-list-files'
@@ -52,9 +53,10 @@ import { uiMessages } from './en/ui'
  *   diagnostics and the card vocabulary's refusals), `domain-changes` (the
  *   change engine's refusals) and `domain-list` (the list-metadata grammars'
  *   refusals), which every surface registers, and `domain-sync`, `domain-cache`,
- *   `domain-config`, `domain-import` and `domain-list-files` — the sync
- *   engines' text, the card cache's server-facing text, the config validator's
- *   refusals, the importers' text and the list-file engines' text — which only
+ *   `domain-config`, `domain-export`, `domain-import` and `domain-list-files` —
+ *   the sync engines' text, the card cache's server-facing text, the config
+ *   validator's refusals, the export engine's refusals, warnings and column
+ *   labels, the importers' text and the list-file engines' text — which only
  *   the CLI and the admin SPA register;
  * - `site` — `site` (shared) plus the four surface fragments;
  * - `cli` — `cli` (the shared CLI core) plus one fragment per command family;
@@ -77,6 +79,7 @@ export const en = {
   ...domainCardMessages,
   ...domainConfigMessages,
   ...domainChangesMessages,
+  ...domainExportMessages,
   ...domainImportMessages,
   ...domainListMessages,
   ...domainListFilesMessages,

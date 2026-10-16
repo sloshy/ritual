@@ -368,6 +368,27 @@ describe('config refusals on the wire (Integration)', () => {
     expect(keyedMessage(notArrayBody)).toBe('defaultCategories must be an array of category names')
   })
 
+  test('an exportPresets refusal is keyed, the column list’s own refusal nested', async () => {
+    const response = await inPseudoLocale(() =>
+      putConfig({ exportPresets: { p: { format: 'csv', columns: ['price'] } } }),
+    )
+    expect(response.status).toBe(400)
+    const body = (await response.json()) as SyncMessage
+    expect(keyedMessage(body)).toStartWith(
+      'exportPresets["p"].columns: Unknown column \'price\'. Available columns: name, quantity, ',
+    )
+    expect(body).toMatchObject({
+      messageKey: 'domain.export.problem.presetColumnsInvalid',
+      messageParams: {
+        preset: 'exportPresets["p"]',
+        reason: {
+          messageKey: 'domain.export.problem.columnUnknown',
+          messageParams: { column: 'price', columns: { join: 'unit' } },
+        },
+      },
+    })
+  })
+
   test('a refusal worded outside the catalog is its English alone, with no key', async () => {
     // `priceSources` is validated by the pricing module, not yet converted.
     const response = await inPseudoLocale(() => putConfig({ priceSources: ['ebay'] }))

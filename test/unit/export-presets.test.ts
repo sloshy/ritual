@@ -8,11 +8,12 @@ import {
   resolveExportSettings,
   type ExportPreset,
 } from '../../src/export/presets'
-import { DEFAULT_EXPORT_COLUMNS, exportPropertyLabel } from '../../src/export/render'
+import { DEFAULT_EXPORT_COLUMNS, exportColumnHeader } from '../../src/export/render'
+import type { PresetsProblem } from '../../src/export/text'
 
 describe('parseExportPresets', () => {
   test('returns an empty map when absent', () => {
-    expect(parseExportPresets(undefined)).toEqual({})
+    expect(parseExportPresets(undefined)).toEqual({ ok: true, value: {} })
   })
 
   test('parses a valid preset map', () => {
@@ -21,8 +22,11 @@ describe('parseExportPresets', () => {
       dump: { format: 'json', columns: ['name', 'set', 'listName'] },
     })
     expect(result).toEqual({
-      deckbox: { format: 'csv', columns: ['name', 'quantity'], header: false, quoteAll: true },
-      dump: { format: 'json', columns: ['name', 'set', 'listName'] },
+      ok: true,
+      value: {
+        deckbox: { format: 'csv', columns: ['name', 'quantity'], header: false, quoteAll: true },
+        dump: { format: 'json', columns: ['name', 'set', 'listName'] },
+      },
     })
   })
 
@@ -32,52 +36,92 @@ describe('parseExportPresets', () => {
       files: { format: 'md', columns: ['name'] },
     })
     expect(result).toEqual({
-      list: { format: 'text', columns: ['name'] },
-      files: { format: 'md', columns: ['name'] },
+      ok: true,
+      value: {
+        list: { format: 'text', columns: ['name'] },
+        files: { format: 'md', columns: ['name'] },
+      },
     })
   })
 
-  test.each([
-    ['not an object', ['a'], '"exportPresets" must be an object'],
-    ['non-object preset', { p: 'csv' }, 'exportPresets["p"] must be an object'],
-    ['bad format', { p: { format: 'xml', columns: ['name'] } }, '.format must be one of'],
-    ['non-array columns', { p: { format: 'csv', columns: 'name' } }, '.columns must be an array'],
-    ['empty columns', { p: { format: 'csv', columns: [] } }, '.columns: No columns given'],
+  // A preset may be named like a field of the result: the map is still a map.
+  test('a preset named "code" or "ok" is just a preset', () => {
+    const result = parseExportPresets({
+      code: { format: 'csv', columns: ['name'] },
+      ok: { format: 'json', columns: ['name'] },
+    })
+    expect(result).toEqual({
+      ok: true,
+      value: {
+        code: { format: 'csv', columns: ['name'] },
+        ok: { format: 'json', columns: ['name'] },
+      },
+    })
+  })
+
+  test.each<[string, unknown, PresetsProblem]>([
+    ['not an object', ['a'], { code: 'presets-not-object', params: {} }],
+    ['non-object preset', { p: 'csv' }, { code: 'preset-not-object', params: { name: 'p' } }],
+    [
+      'bad format',
+      { p: { format: 'xml', columns: ['name'] } },
+      { code: 'preset-format-invalid', params: { name: 'p' } },
+    ],
+    [
+      'non-array columns',
+      { p: { format: 'csv', columns: 'name' } },
+      { code: 'preset-columns-not-array', params: { name: 'p' } },
+    ],
+    [
+      'empty columns',
+      { p: { format: 'csv', columns: [] } },
+      {
+        code: 'preset-columns-invalid',
+        params: { name: 'p', reason: { code: 'columns-empty', params: {} } },
+      },
+    ],
     [
       'unknown column',
       { p: { format: 'csv', columns: ['price'] } },
-      ".columns: Unknown column 'price'",
+      {
+        code: 'preset-columns-invalid',
+        params: { name: 'p', reason: { code: 'column-unknown', params: { column: 'price' } } },
+      },
     ],
     [
       'duplicate column',
       { p: { format: 'csv', columns: ['name', 'name'] } },
-      ".columns: Duplicate column 'name'",
+      {
+        code: 'preset-columns-invalid',
+        params: { name: 'p', reason: { code: 'column-duplicate', params: { column: 'name' } } },
+      },
     ],
     [
       'non-boolean header',
       { p: { format: 'csv', columns: ['name'], header: 'yes' } },
-      '.header must be a boolean',
+      { code: 'preset-field-not-boolean', params: { name: 'p', field: 'header' } },
     ],
     [
       'non-boolean quoteAll',
       { p: { format: 'csv', columns: ['name'], quoteAll: 1 } },
-      '.quoteAll must be a boolean',
+      { code: 'preset-field-not-boolean', params: { name: 'p', field: 'quoteAll' } },
     ],
     [
       'unknown dialect',
       { p: { format: 'csv', columns: ['name'], dialect: 'mtggoldfish' } },
-      '.dialect must be one of: ritual, archidekt, arena, moxfield',
+      { code: 'preset-dialect-invalid', params: { name: 'p' } },
     ],
-  ])('rejects %s with an error string', (_label, value, expected) => {
-    const result = parseExportPresets(value)
-    expect(typeof result).toBe('string')
-    expect(result).toContain(expected)
+  ])('rejects %s with the problem', (_label, value, problem) => {
+    expect(parseExportPresets(value)).toEqual({ ok: false, problem })
   })
 
   test('keeps a valid dialect', () => {
     expect(
       parseExportPresets({ p: { format: 'csv', columns: ['name'], dialect: 'archidekt' } }),
-    ).toEqual({ p: { format: 'csv', columns: ['name'], dialect: 'archidekt' } })
+    ).toEqual({
+      ok: true,
+      value: { p: { format: 'csv', columns: ['name'], dialect: 'archidekt' } },
+    })
   })
 })
 
@@ -104,12 +148,12 @@ describe('built-in presets', () => {
    * The header Archidekt's importer reads each column under. What each column
    * *means* to the upload is derived from these same properties
    * (`COLLECTION_CSV_UPLOAD`, pinned in collection-sync/csv.test.ts), so a
-   * reorder cannot desync the two — but the labels are what a human uploading the
+   * reorder cannot desync the two — but the headers are what a human uploading the
    * file by hand matches up, and they are Archidekt's own spellings.
    */
-  test('the archidekt preset columns carry Archidekt’s own header labels', () => {
+  test('the archidekt preset columns carry Archidekt’s own header cells', () => {
     expect(
-      ARCHIDEKT_EXPORT_SETTINGS.columns.map((c) => exportPropertyLabel(c, 'archidekt')),
+      ARCHIDEKT_EXPORT_SETTINGS.columns.map((c) => exportColumnHeader(c, 'archidekt')),
     ).toEqual(['Scryfall ID', 'Quantity', 'Variant', 'Condition', 'Language'])
   })
 

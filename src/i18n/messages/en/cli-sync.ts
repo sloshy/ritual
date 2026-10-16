@@ -6,10 +6,11 @@
  * begins with `cli.`, and a translator sees one flat catalog.
  *
  * Nothing here crosses into an interchange format. CSV and export *headers*,
- * the Archidekt/Moxfield dialect spellings, `EXPORT_PROPERTY_LABELS`, list-type
+ * the Archidekt/Moxfield dialect spellings, `EXPORT_COLUMN_HEADERS`, list-type
  * slugs, set codes, and `--output json` payload keys are English by contract
  * and are spliced in as parameters rather than translated. (The CSV import's
- * column labels are translated: `domain.import.csv.field.*`.)
+ * column labels are translated: `domain.import.csv.field.*`, and so are the
+ * export column picker's: `domain.export.column.*`.)
  */
 
 import type { MessageCatalogShape } from '../../types'

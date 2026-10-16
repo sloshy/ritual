@@ -548,7 +548,9 @@ csv/json only: giving \`--columns\`, \`--no-header\`, or \`--quote-all\`
 alongside an explicit \`--format text|md\` is a usage error (a preset's stored
 columns with a text/md format are simply unused); \`--dialect\` also shapes
 \`--format text\`, so it conflicts with \`--format md\` alone. Set codes are
-lowercase in JSON and UPPERCASE in CSV, text, and md output.
+lowercase in JSON and UPPERCASE in CSV, text, and md output. CSV header cells
+(\`Collector Number\`, Archidekt's \`Variant\`) are English in every UI language;
+\`--columns\` always takes the ids above.
 
 \`--dialect ritual|archidekt|arena|moxfield\` chooses the output vocabulary. For
 csv/json it picks how finish and condition are spelled: \`ritual\` (default) writes

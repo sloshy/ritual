@@ -268,58 +268,6 @@
     "Failed to parse stored editor defaults: ${…}": 1,
     "[editor-defaults] ${…}": 1
   },
-  "src/export/cache-columns.ts": {
-    "No EDHREC rank for ${…}: the card is not in the Scryfall cache.": 1,
-    "No Scryfall ID for ${…}${…}: the printing is not in the Scryfall cache.": 1,
-    "No Scryfall ID for ${…}: the entry has no set and collector number.": 1
-  },
-  "src/export/entries.ts": {
-    "Invalid condition '${…}'. Use one of: ${…}, none.": 2,
-    "Invalid label '${…}'. Use one of: ${…}.": 1,
-    "No cards matched '${…}'": 1,
-    "No conditions given. Use one of: ${…}, none.": 1,
-    "No labels given. Use one of: ${…}.": 1
-  },
-  "src/export/file.ts": {
-    "Could not find a free export file name after ${…} attempts in ${…}.": 1,
-    "Refusing to write export under a non-basename name '${…}'.": 1
-  },
-  "src/export/presets.ts": {
-    "\"exportPresets\" must be an object mapping preset names to presets": 1,
-    "${…} must be an object": 1,
-    "${…}.columns must be an array of property names": 1,
-    "${…}.dialect must be one of: ${…}": 1,
-    "${…}.format must be one of: ${…}": 1,
-    "${…}.header must be a boolean": 1,
-    "${…}.quoteAll must be a boolean": 1
-  },
-  "src/export/render.ts": {
-    "Categories": 1,
-    "Categories not written as Moxfield tags: ${…}. Moxfield’s bulk-edit format documents only single-word tags, so a category holding a space (or starting with \"!\") has no spelling it is known to read, and one holding a character a Ritual tag cannot (\"#\", \"&\", brackets and the like) would not import back.": 1,
-    "Collector Number": 1,
-    "Condition": 1,
-    "Duplicate column '${…}'.": 1,
-    "EDHREC Rank": 1,
-    "Edition": 1,
-    "Finish": 1,
-    "Is Foil": 1,
-    "Labels": 1,
-    "Language": 1,
-    "List": 1,
-    "List Type": 1,
-    "Name": 1,
-    "No columns given. Available columns: ${…}": 1,
-    "Note": 1,
-    "Omitted cards a decklist has no board for: ${…}. Maybeboard and token sections are deck-building extras rather than part of a decklist, so neither Arena nor Moxfield writes them.": 1,
-    "Primary Category": 1,
-    "Quantity": 1,
-    "Scryfall ID": 1,
-    "Section": 1,
-    "Set": 1,
-    "Tags": 1,
-    "Unknown column '${…}'. Available columns: ${…}": 1,
-    "Variant": 1
-  },
   "src/i18n/catalog.ts": {
     "$plural table needs an \"other\" form": 1,
     "$select table needs at least one branch": 1,

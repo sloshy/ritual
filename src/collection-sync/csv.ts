@@ -23,8 +23,9 @@ import type { CollectionCsvUploadOptions } from '../clients/ArchidektClient'
 import type { CardPrintingsLookup } from '../card/card-printing'
 import type { ExportEntry } from '../export/entries'
 import { ARCHIDEKT_EXPORT_SETTINGS } from '../export/presets'
-import { exportPropertyLabel, renderCsvExport, type ExportProperty } from '../export/render'
+import { exportColumnHeader, renderCsvExport, type ExportProperty } from '../export/render'
 import { resolveExportScryfallIds } from '../export/cache-columns'
+import { exportWarningMessage } from '../export-wording/message'
 import {
   archidektCsvCondition,
   archidektCsvLanguage,
@@ -159,12 +160,18 @@ export async function planCollectionCsv(
   // A language Archidekt cannot model renders `EN` in the CSV (the dialect's
   // fallback); the file must not carry that silently, so the plan warns the
   // same way a per-record push does.
+  // One per card and language: keyed on what the warning is worded from, never
+  // on its rendered text.
   const languageWarnings: SyncMessage[] = []
+  const warnedLanguages = new Set<string>()
   for (const operation of creates) {
+    const { set, collectorNumber, language } = operation.parts
+    const key = `${operation.name}|${set}|${collectorNumber}|${language ?? ''}`
+    if (warnedLanguages.has(key)) continue
     const warning = unmappableLanguageWarning(operation.name, operation.parts)
-    if (warning && !languageWarnings.some((seen) => seen.message === warning.message)) {
-      languageWarnings.push(warning)
-    }
+    if (warning === undefined) continue
+    warnedLanguages.add(key)
+    languageWarnings.push(warning)
   }
 
   // One entry out per entry in, in order — which is what lets the split below
@@ -210,9 +217,9 @@ export async function planCollectionCsv(
     rowIds,
     copies: rows.reduce((total, operation) => total + operation.quantity, 0),
     uncached,
-    // The export module's warnings are English by construction (it cannot reach
-    // the catalog), so they travel as text.
-    warnings: [...resolved.warnings.map(syncText), ...languageWarnings],
+    // The export module's warnings are structured (it cannot reach the
+    // catalog), worded here as English plus their key like every other.
+    warnings: [...resolved.warnings.map(exportWarningMessage), ...languageWarnings],
   }
 }
 
@@ -279,7 +286,7 @@ const IDENTITY_CELLS: IdentityCells = ((): IdentityCells => {
 })()
 
 /** The uid column's header cell, lowercased, as the preset's dialect labels it. */
-const UID_HEADER_CELL = exportPropertyLabel(
+const UID_HEADER_CELL = exportColumnHeader(
   'scryfallId',
   ARCHIDEKT_EXPORT_SETTINGS.dialect,
 ).toLowerCase()
@@ -400,6 +407,8 @@ export function collectionCsvOutcome(
           : syncMessage('domain.sync.csvRowEcho', { row: row.row + 1, line: row.raw.trim() })
     failures.push({
       row: row.row,
+      // Spelled out as well as spread: the failure type requires `card`, which
+      // `prefixedFields` only types as optional.
       card: label.message,
       ...prefixedFields('card', label),
       ambiguous: row.ambiguous,

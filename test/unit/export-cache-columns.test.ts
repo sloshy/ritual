@@ -79,8 +79,8 @@ describe('resolveExportScryfallIds', () => {
     expect(entries.every((e) => e.scryfallId === undefined)).toBe(true)
     // Two distinct printings, three copies: one warning each, naming the printing.
     expect(warnings).toEqual([
-      'No Scryfall ID for Lightning Bolt (LEA:161): the printing is not in the Scryfall cache.',
-      'No Scryfall ID for Lightning Bolt (LEA:162): the printing is not in the Scryfall cache.',
+      { code: 'scryfall-id-uncached', params: { name: 'Lightning Bolt', printing: 'LEA:161' } },
+      { code: 'scryfall-id-uncached', params: { name: 'Lightning Bolt', printing: 'LEA:162' } },
     ])
   })
 
@@ -92,9 +92,7 @@ describe('resolveExportScryfallIds', () => {
     )
 
     expect(entries[0]?.scryfallId).toBeUndefined()
-    expect(warnings).toEqual([
-      'No Scryfall ID for Brainstorm: the entry has no set and collector number.',
-    ])
+    expect(warnings).toEqual([{ code: 'scryfall-id-unpinned', params: { name: 'Brainstorm' } }])
     expect(asked.asked).toEqual([])
   })
 
@@ -177,9 +175,7 @@ describe('resolveExportEdhrecRanks', () => {
       lookup([]).lookup,
     )
 
-    expect(warnings).toEqual([
-      'No EDHREC rank for Lightning Bolt: the card is not in the Scryfall cache.',
-    ])
+    expect(warnings).toEqual([{ code: 'edhrec-rank-uncached', params: { name: 'Lightning Bolt' } }])
   })
 })
 

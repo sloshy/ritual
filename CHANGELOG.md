@@ -278,6 +278,27 @@ release changes a file format or a generated file, it ships the change as a
   (`domain.list.unreadableContent`) nests each of those warnings as a keyed message in its
   `problems` param, instead of English text. Update any script that read these arrays as
   strings to read `.message`, and match on `messageKey`.
+- **Export and diff warnings are messages, and export refusals carry their keys.** The
+  `warnings` of `POST /api/export` (both modes), the MCP `export_cards` result,
+  `ritual diff --output json`, `GET /api/diff` and the MCP `diff_lists` result are now
+  `{ "message", "messageKey", "messageParams" }` objects instead of bare strings
+  (`domain.export.warning.*`; a list's own parse warning nests as `warning` inside
+  `domain.export.warning.inList`, and the sections a decklist dialect left out are a
+  `unit` list of `domain.export.warning.sectionCount` messages). `message` is the English
+  it always was. A refused `columns`, `filters.conditions` or `filters.labels` in
+  `POST /api/export` is keyed (`domain.export.problem.*`, the accepted values a `unit`
+  list), and so is a malformed `exportPresets` setting (in `PUT /api/config`, and in the
+  warning the config loader prints), with a column list's own refusal nested as `reason`.
+  `ritual export` and `ritual diff` print all of these in the CLI's language, and the
+  export wizard's column picker shows the column labels in it too (`Variant` when the
+  export is in the `archidekt` dialect); the CSV header cells an export writes stay
+  English, byte for byte. A `collection-sync push` that builds its Archidekt CSV logs each
+  card the local cache could not give a Scryfall ID in the CLI's language and on the admin
+  Sync Collection page in the reader's, and its `log` frames carry
+  `domain.export.warning.scryfallIdUncached` where they were keyless English. A server-written
+  export that cannot find a free file name now answers `500` with
+  `domain.export.problem.fileNameExhausted`. Update any script that read these `warnings`
+  as strings to read `.message`, and match on `messageKey`.
 - `ritual set-card --language` and `add-card --language` word an unknown language in the
   CLI's language.
 - **A refusal before the command runs honours `--output json`.** A `--base-dir` /

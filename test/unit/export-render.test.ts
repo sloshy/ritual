@@ -4,7 +4,7 @@ import type { ExportEntry } from '../../src/export/entries'
 import { ARCHIDEKT_EXPORT_SETTINGS } from '../../src/export/presets'
 import {
   DEFAULT_EXPORT_COLUMNS,
-  exportPropertyLabel,
+  exportColumnHeader,
   parseColumnsFlag,
   renderCsvExport,
   renderJsonExport,
@@ -48,19 +48,25 @@ describe('csvCell', () => {
 
 describe('parseColumnsFlag', () => {
   test('parses a comma-separated list preserving order', () => {
-    expect(parseColumnsFlag('quantity, name,set')).toEqual(['quantity', 'name', 'set'])
+    expect(parseColumnsFlag('quantity, name,set')).toEqual({
+      ok: true,
+      value: ['quantity', 'name', 'set'],
+    })
   })
 
-  test('rejects unknown columns with the available list', () => {
-    const result = parseColumnsFlag('name,price')
-    expect(typeof result).toBe('string')
-    expect(result).toContain("Unknown column 'price'")
-    expect(result).toContain('name, quantity, set')
-  })
-
-  test('rejects duplicates and empty input', () => {
-    expect(parseColumnsFlag('name,name')).toBe("Duplicate column 'name'.")
-    expect(parseColumnsFlag(' , ')).toContain('No columns given')
+  test('rejects unknown columns, duplicates and empty input', () => {
+    expect(parseColumnsFlag('name,price')).toEqual({
+      ok: false,
+      problem: { code: 'column-unknown', params: { column: 'price' } },
+    })
+    expect(parseColumnsFlag('name,name')).toEqual({
+      ok: false,
+      problem: { code: 'column-duplicate', params: { column: 'name' } },
+    })
+    expect(parseColumnsFlag(' , ')).toEqual({
+      ok: false,
+      problem: { code: 'columns-empty', params: {} },
+    })
   })
 })
 
@@ -257,8 +263,9 @@ describe('renderTextExport', () => {
       'moxfield',
     )
     expect(content).toBe('Deck\n1 Wrath of God (LEA) 161 #Removal')
-    expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('not written as Moxfield tags: Board Wipes.')
+    expect(warnings).toEqual([
+      { code: 'categories-unwritable', params: { categories: ['Board Wipes'] } },
+    ])
     expect(renderTextExport([entry({ categories: ['Board Wipes'] })], 'arena').warnings).toEqual([])
   })
 
@@ -295,9 +302,15 @@ describe('renderTextExport', () => {
     )
     expect(result.content).toBe('Deck\n2 Lightning Bolt (LEA) 161')
     expect(result.warnings).toEqual([
-      'Omitted cards a decklist has no board for: Maybeboard (5), Tokens (1). Maybeboard and ' +
-        'token sections are deck-building extras rather than part of a decklist, so neither ' +
-        'Arena nor Moxfield writes them.',
+      {
+        code: 'extras-omitted',
+        params: {
+          sections: [
+            { section: 'Maybeboard', quantity: 5 },
+            { section: 'Tokens', quantity: 1 },
+          ],
+        },
+      },
     ])
   })
 
@@ -306,7 +319,9 @@ describe('renderTextExport', () => {
   test('a selection of nothing but extras renders an empty decklist', () => {
     const result = renderTextExport([entry({ section: 'Maybeboard' })], 'arena')
     expect(result.content).toBe('')
-    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings).toEqual([
+      { code: 'extras-omitted', params: { sections: [{ section: 'Maybeboard', quantity: 1 }] } },
+    ])
   })
 
   // The flat `ritual` form is not a decklist for anyone's importer, so it has no
@@ -600,10 +615,10 @@ describe('the archidekt dialect', () => {
     expect(renderCsvExport([entry({ condition })], ['condition'], csvOptions)).toBe(expected)
   })
 
-  test('labels the finish column the way Archidekt names it', () => {
-    expect(exportPropertyLabel('finish', 'archidekt')).toBe('Variant')
-    expect(exportPropertyLabel('finish')).toBe('Finish')
-    expect(exportPropertyLabel('condition', 'archidekt')).toBe('Condition')
+  test('heads the finish column the way Archidekt names it', () => {
+    expect(exportColumnHeader('finish', 'archidekt')).toBe('Variant')
+    expect(exportColumnHeader('finish')).toBe('Finish')
+    expect(exportColumnHeader('condition', 'archidekt')).toBe('Condition')
   })
 
   // The text dialects publish no column vocabulary, so a csv/json export in one

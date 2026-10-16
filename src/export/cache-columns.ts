@@ -1,4 +1,4 @@
-import { printingSuffix } from '../card/card-line'
+import { printingLabel } from '../card/card-line-tail'
 import {
   edhrecRankOf,
   findPrinting,
@@ -8,6 +8,7 @@ import {
 } from '../card/card-printing'
 import type { ExportEntry } from './entries'
 import type { ExportProperty } from './render'
+import { exportWarning, type ExportWarning } from './text'
 
 /**
  * Resolving the export properties that are not in the list files — the
@@ -22,8 +23,8 @@ import type { ExportProperty } from './render'
 /** Entries with cached card data filled in, plus one warning per unresolvable card. */
 export type CacheColumnResolution = {
   entries: ExportEntry[]
-  /** One message per distinct printing (or name) that could not be resolved, in first-seen order. */
-  warnings: string[]
+  /** One warning per distinct printing (or name) that could not be resolved, in first-seen order. */
+  warnings: ExportWarning[]
 }
 
 /** Fills one cache-answered column in on a set of entries. */
@@ -55,20 +56,20 @@ export function columnsNeedCardCache(columns: readonly ExportProperty[]): boolea
 
 /** Warnings collected so far, and the sink that keeps only the first per key. */
 type WarningCollector = {
-  warnings: string[]
-  warn: (key: string, message: string) => void
+  warnings: ExportWarning[]
+  warn: (key: string, warning: ExportWarning) => void
 }
 
 /** Collects warnings, keeping only the first per key. */
 function warningCollector(): WarningCollector {
-  const warnings: string[] = []
+  const warnings: ExportWarning[] = []
   const warned = new Set<string>()
   return {
     warnings,
-    warn: (key, message) => {
+    warn: (key, warning) => {
       if (warned.has(key)) return
       warned.add(key)
-      warnings.push(message)
+      warnings.push(warning)
     },
   }
 }
@@ -85,7 +86,7 @@ export async function resolveExportCacheColumns(
 ): Promise<CacheColumnResolution> {
   const memoized = memoizePrintingsLookup(lookup)
   let resolved: readonly ExportEntry[] = entries
-  const warnings: string[] = []
+  const warnings: ExportWarning[] = []
   for (const column of columns.filter(isCacheColumn)) {
     const resolution = await CACHE_COLUMN_RESOLVERS[column](resolved, memoized)
     resolved = resolution.entries
@@ -117,7 +118,7 @@ export async function resolveExportScryfallIds(
     if (!hasSpecificPrinting(entry)) {
       warn(
         `${entry.name.toLowerCase()}|`,
-        `No Scryfall ID for ${entry.name}: the entry has no set and collector number.`,
+        exportWarning('scryfall-id-unpinned', { name: entry.name }),
       )
       resolved.push(entry)
       continue
@@ -134,7 +135,10 @@ export async function resolveExportScryfallIds(
     if (!printing) {
       warn(
         `${entry.name.toLowerCase()}|${entry.set}|${entry.collectorNumber}`,
-        `No Scryfall ID for ${entry.name}${printingSuffix(entry.set, entry.collectorNumber)}: the printing is not in the Scryfall cache.`,
+        exportWarning('scryfall-id-uncached', {
+          name: entry.name,
+          printing: printingLabel(entry.set, entry.collectorNumber),
+        }),
       )
       resolved.push(entry)
       continue
@@ -164,10 +168,7 @@ export async function resolveExportEdhrecRanks(
   for (const entry of entries) {
     const printings = await printingsFor(entry.name)
     if (printings.length === 0) {
-      warn(
-        entry.name.toLowerCase(),
-        `No EDHREC rank for ${entry.name}: the card is not in the Scryfall cache.`,
-      )
+      warn(entry.name.toLowerCase(), exportWarning('edhrec-rank-uncached', { name: entry.name }))
       resolved.push(entry)
       continue
     }

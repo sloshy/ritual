@@ -18,6 +18,14 @@ import {
 } from '../importers/archidekt-collection'
 import type { ExportEntry } from './entries'
 import { sectionHeading, titleHeading } from '../list/heading'
+import {
+  exportProblem,
+  exportWarning,
+  refuseExport,
+  type ColumnsProblem,
+  type ExportParsed,
+  type ExportWarning,
+} from './text'
 
 /**
  * Every property a card entry can export, in the canonical display order used
@@ -52,27 +60,32 @@ export function isExportProperty(value: string): value is ExportProperty {
   return (EXPORT_PROPERTIES as readonly string[]).includes(value)
 }
 
-/** Human-facing labels, used as CSV header cells and in the interactive column picker. */
-export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
+/**
+ * The CSV header cell each property is written under. A machine contract: an
+ * importer column-matches on these exact bytes, so they are English in every
+ * UI language. A human *choosing* columns reads the catalog's labels instead
+ * (`src/export-wording/columns.ts`).
+ */
+export const EXPORT_COLUMN_HEADERS: Record<ExportProperty, string> = {
   name: 'Name',
   quantity: 'Quantity',
   set: 'Set',
-  collectorNumber: 'Collector Number',
+  collectorNumber: 'Collector Number', // i18n-exempt: CSV header cell
   edition: 'Edition',
-  scryfallId: 'Scryfall ID',
-  edhrecRank: 'EDHREC Rank',
+  scryfallId: 'Scryfall ID', // i18n-exempt: CSV header cell
+  edhrecRank: 'EDHREC Rank', // i18n-exempt: CSV header cell
   finish: 'Finish',
-  isFoil: 'Is Foil',
+  isFoil: 'Is Foil', // i18n-exempt: CSV header cell
   condition: 'Condition',
   language: 'Language',
-  labels: 'Labels',
+  labels: 'Labels', // i18n-exempt: CSV header cell
   tags: 'Tags',
   categories: 'Categories',
-  primaryCategory: 'Primary Category',
-  note: 'Note',
+  primaryCategory: 'Primary Category', // i18n-exempt: CSV header cell
+  note: 'Note', // i18n-exempt: CSV header cell
   section: 'Section',
   listName: 'List',
-  listType: 'List Type',
+  listType: 'List Type', // i18n-exempt: CSV header cell
 }
 
 /**
@@ -96,7 +109,7 @@ export const EXPORT_PROPERTY_LABELS: Record<ExportProperty, string> = {
  *   different file format, not a different spelling.
  *
  * `archidekt` differs from `ritual` in exactly four ways, all in
- * {@link propertyValue} / {@link exportPropertyLabel}:
+ * {@link propertyValue} / {@link exportColumnHeader}:
  *
  * - `finish` renders Archidekt's modifier (`Normal` / `Foil` / `Etched`) and is
  *   labelled `Variant`, the name Archidekt's own CSV importer uses.
@@ -121,9 +134,10 @@ export function isExportDialect(value: string): value is ExportDialect {
   return (EXPORT_DIALECTS as readonly string[]).includes(value)
 }
 
-/** Labels a dialect spells differently from {@link EXPORT_PROPERTY_LABELS}. */
-const DIALECT_PROPERTY_LABELS: Record<ExportDialect, Partial<Record<ExportProperty, string>>> = {
+/** Header cells a dialect spells differently from {@link EXPORT_COLUMN_HEADERS}. */
+const DIALECT_COLUMN_HEADERS: Record<ExportDialect, Partial<Record<ExportProperty, string>>> = {
   ritual: {},
+  // i18n-exempt: Archidekt's own CSV header, matched by its importer
   archidekt: { finish: 'Variant' },
   // Text dialects: they shape decklist lines, not columns, so a csv/json export
   // in one of them keeps Ritual's own headers.
@@ -131,12 +145,12 @@ const DIALECT_PROPERTY_LABELS: Record<ExportDialect, Partial<Record<ExportProper
   moxfield: {},
 }
 
-/** A property's header/picker label in a dialect. */
-export function exportPropertyLabel(
+/** A property's CSV header cell in a dialect. */
+export function exportColumnHeader(
   property: ExportProperty,
   dialect: ExportDialect = 'ritual',
 ): string {
-  return DIALECT_PROPERTY_LABELS[dialect][property] ?? EXPORT_PROPERTY_LABELS[property]
+  return DIALECT_COLUMN_HEADERS[dialect][property] ?? EXPORT_COLUMN_HEADERS[property]
 }
 
 /** Default column set and order, matching the site's fixed CSV export columns. */
@@ -152,32 +166,32 @@ export const DEFAULT_EXPORT_COLUMNS: ExportProperty[] = [
 
 /**
  * Validate a raw column-key list (from a flag, a preset, or an API body) into
- * an ordered column selection, or an error message. Rejects unknown keys,
+ * an ordered column selection, or the problem with it. Rejects unknown keys,
  * duplicates, non-strings, and an empty selection. Shared by every surface so
- * the rule (and its error wording) can never drift between them.
+ * the rule (and its refusal) can never drift between them.
  */
-export function parseExportColumns(keys: readonly unknown[]): ExportProperty[] | string {
-  if (keys.length === 0) {
-    return `No columns given. Available columns: ${EXPORT_PROPERTIES.join(', ')}`
-  }
+export function parseExportColumns(
+  keys: readonly unknown[],
+): ExportParsed<ExportProperty[], ColumnsProblem> {
+  if (keys.length === 0) return refuseExport(exportProblem('columns-empty'))
   const columns: ExportProperty[] = []
   for (const key of keys) {
     if (typeof key !== 'string' || !isExportProperty(key)) {
-      return `Unknown column '${String(key)}'. Available columns: ${EXPORT_PROPERTIES.join(', ')}`
+      return refuseExport(exportProblem('column-unknown', { column: String(key) }))
     }
     if (columns.includes(key)) {
-      return `Duplicate column '${key}'.`
+      return refuseExport(exportProblem('column-duplicate', { column: key }))
     }
     columns.push(key)
   }
-  return columns
+  return { ok: true, value: columns }
 }
 
 /**
  * Parse a `--columns` flag value (comma-separated property keys, in output
- * order) into a validated column list, or an error message.
+ * order) into a validated column list, or the problem with it.
  */
-export function parseColumnsFlag(value: string): ExportProperty[] | string {
+export function parseColumnsFlag(value: string): ExportParsed<ExportProperty[], ColumnsProblem> {
   return parseExportColumns(
     value
       .split(',')
@@ -303,11 +317,11 @@ export type RenderedText = {
   /** The decklist; no trailing newline (the writer appends one). */
   content: string
   /**
-   * Plain-English warnings. English by construction: `src/export/**` is inside
-   * the i18n persistence fence (AGENTS.md, "Localization") and must never
-   * import `src/i18n`.
+   * What the caller should tell the user, as structured values: `src/export/**`
+   * is inside the i18n persistence fence (AGENTS.md, "Localization") and must
+   * never import `src/i18n`, so the boundary words them (`src/export-wording`).
    */
-  warnings: string[]
+  warnings: ExportWarning[]
 }
 
 /**
@@ -316,40 +330,27 @@ export type RenderedText = {
  * for those cards by name, so dropping them silently would be a lie about what
  * the file contains — but writing them would be a lie about the deck.
  */
-function omittedExtrasWarning(entries: readonly ExportEntry[]): string[] {
+function omittedExtrasWarning(entries: readonly ExportEntry[]): ExportWarning[] {
   const sections = new Map<string, number>()
   for (const entry of entries) {
     if (isDecklistSection(entry.section)) continue
     sections.set(entry.section, (sections.get(entry.section) ?? 0) + entry.quantity)
   }
   if (sections.size === 0) return []
-  // Counts are written per section as `Name (n)` rather than as a summed "n
-  // cards from m sections": it says strictly more, and it needs no plural
-  // morphology — which this module could not localize anyway, being inside the
-  // persistence fence.
-  const named = [...sections].map(([section, quantity]) => `${section} (${quantity})`).join(', ')
+  // Counts are reported per section rather than as a summed "n cards from m
+  // sections": it says strictly more.
   return [
-    `Omitted cards a decklist has no board for: ${named}. ` +
-      'Maybeboard and token sections are deck-building extras rather than part of a decklist, ' +
-      'so neither Arena nor Moxfield writes them.',
+    exportWarning('extras-omitted', {
+      sections: [...sections].map(([section, quantity]) => ({ section, quantity })),
+    }),
   ]
 }
 
-/**
- * The warning for categories a `moxfield` decklist could not write as tags.
- * English by construction, like its sibling above: this module sits inside the
- * persistence fence.
- */
-function unwritableCategoriesWarning(cards: readonly SectionedDialectCard[]): string[] {
+/** The warning for categories a `moxfield` decklist could not write as tags. */
+function unwritableCategoriesWarning(cards: readonly SectionedDialectCard[]): ExportWarning[] {
   const skipped = unwritableMoxfieldCategories(cards)
   if (skipped.length === 0) return []
-  return [
-    `Categories not written as Moxfield tags: ${skipped.join(', ')}. ` +
-      'Moxfield’s bulk-edit format documents only single-word tags, so a category ' +
-      'holding a space (or starting with "!") has no spelling it is known to read, and ' +
-      'one holding a character a Ritual tag cannot ("#", "&", brackets and the like) ' +
-      'would not import back.',
-  ]
+  return [exportWarning('categories-unwritable', { categories: skipped })]
 }
 
 /**
@@ -491,7 +492,7 @@ export function renderCsvExport(
   if (options.header) {
     rows.push(
       columns
-        .map((column) => csvCell(exportPropertyLabel(column, dialect), options.quoteAll))
+        .map((column) => csvCell(exportColumnHeader(column, dialect), options.quoteAll))
         .join(','),
     )
   }

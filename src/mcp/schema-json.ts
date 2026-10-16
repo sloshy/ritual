@@ -55,6 +55,7 @@ import {
   type SellEntryMatch,
 } from '../pricing/sell-report'
 import { VALID_PRICE_SOURCES } from '../pricing/price-source'
+import { EXPORT_FORMATS } from '../export/presets'
 import {
   SYNC_DIRECTIONS,
   SYNC_ITEM_OUTCOMES,
@@ -725,7 +726,10 @@ export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(
       matches: arr(ref('DiffMatch'), 'Identities present on both sides.'),
       onlyInA: arr(ref('DiffOnly')),
       onlyInB: arr(ref('DiffOnly')),
-      warnings: arr(str()),
+      warnings: arr(
+        SYNC_MESSAGE,
+        "Both lists' parse warnings, each naming its list (domain.export.warning.inList, the parser's own message nested as `warning`).",
+      ),
     },
     ['a', 'b', 'by', 'matches', 'onlyInA', 'onlyInB', 'warnings'],
   ),
@@ -736,9 +740,12 @@ export const DIFF_LISTS_OUTPUT: JsonSchemaType = withDefs(
 
 /** What both export arms carry; see the note on {@link PRICE_REPORT_COMMON_PROPS}. */
 const EXPORT_COMMON_PROPS = {
-  format: str(),
+  format: enumOf(EXPORT_FORMATS),
   entryCount: int(),
-  warnings: arr(str()),
+  warnings: arr(
+    SYNC_MESSAGE,
+    'What the export reports beside its output (domain.export.warning.*): unreadable list lines, unmatched card terms, cells the local card cache could not fill, cards or categories a decklist dialect left out.',
+  ),
 } as const satisfies Properties
 
 const EXPORT_COMMON_REQUIRED = ['mode', 'format', 'entryCount', 'warnings'] as const

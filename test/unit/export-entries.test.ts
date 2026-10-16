@@ -122,14 +122,24 @@ describe('loadExportEntries', () => {
     expect(entries.map((e) => e.fileOrder)).toEqual([0, 1])
   })
 
-  test('collects parse warnings prefixed with the list name', async () => {
+  test('collects parse warnings naming their list, the parser’s message kept whole', async () => {
     const content = '- Lightning Bolt'
     const { entries, warnings } = await withListFile('collection', content, (location) =>
       loadExportEntries([location]),
     )
     expect(entries).toEqual([])
-    expect(warnings).toEqual([
-      'Test List: line 1: A collection line must name a printing, e.g. (LEA:161): - Lightning Bolt',
+    expect(warnings).toMatchObject([
+      {
+        code: 'list-warning',
+        params: {
+          list: 'Test List',
+          warning: {
+            message:
+              'line 1: A collection line must name a printing, e.g. (LEA:161): - Lightning Bolt',
+            messageKey: 'domain.card.line.atLine',
+          },
+        },
+      },
     ])
   })
 })
@@ -230,12 +240,25 @@ describe('tags filter', () => {
 
 describe('parseConditionFilterValues', () => {
   test('parses grades case-insensitively plus none, deduplicating', () => {
-    expect(parseConditionFilterValues(['nm', 'NONE', 'NM'])).toEqual(['NM', 'none'])
+    expect(parseConditionFilterValues(['nm', 'NONE', 'NM'])).toEqual({
+      ok: true,
+      value: ['NM', 'none'],
+    })
   })
 
-  test('rejects unknown values and empty input with an error string', () => {
-    expect(parseConditionFilterValues(['OK'])).toContain("Invalid condition 'OK'")
-    expect(parseConditionFilterValues([])).toContain('No conditions given')
+  test('rejects unknown values and empty input with the problem', () => {
+    expect(parseConditionFilterValues(['OK'])).toEqual({
+      ok: false,
+      problem: { code: 'condition-invalid', params: { value: 'OK' } },
+    })
+    expect(parseConditionFilterValues([3])).toEqual({
+      ok: false,
+      problem: { code: 'condition-invalid', params: { value: '3' } },
+    })
+    expect(parseConditionFilterValues([])).toEqual({
+      ok: false,
+      problem: { code: 'conditions-empty', params: {} },
+    })
   })
 })
 
@@ -329,12 +352,21 @@ describe('labels filter', () => {
 
 describe('parseLabelFilterValues', () => {
   test('parses case-insensitively, deduping', () => {
-    expect(parseLabelFilterValues(['SALE', 'sale', 'None'])).toEqual(['sale', 'none'])
+    expect(parseLabelFilterValues(['SALE', 'sale', 'None'])).toEqual({
+      ok: true,
+      value: ['sale', 'none'],
+    })
   })
 
-  test('rejects unknown values and empty lists with the vocabulary named', () => {
-    expect(parseLabelFilterValues(['sell'])).toContain("Invalid label 'sell'")
-    expect(parseLabelFilterValues([])).toContain('No labels given')
+  test('rejects unknown values and empty lists with the problem', () => {
+    expect(parseLabelFilterValues(['sell'])).toEqual({
+      ok: false,
+      problem: { code: 'label-invalid', params: { value: 'sell' } },
+    })
+    expect(parseLabelFilterValues([])).toEqual({
+      ok: false,
+      problem: { code: 'labels-empty', params: {} },
+    })
   })
 })
 
@@ -401,8 +433,7 @@ describe('categories reach the export entries', () => {
     await withListFile('wanted', '# Test List\n\n- Sol Ring &1\n', async (location) => {
       await writeUnreadableCategoriesSidecar(location.filePath)
       const { entries: loaded, warnings } = await loadExportEntries([location])
-      expect(warnings.length).toBe(1)
-      expect(warnings[0]).toStartWith('Test List: ')
+      expect(warnings).toMatchObject([{ code: 'list-warning', params: { list: 'Test List' } }])
       expect(loaded).toHaveLength(1)
       expect(loaded[0]?.categories).toBeUndefined()
     })

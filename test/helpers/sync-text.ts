@@ -121,17 +121,23 @@ export function foreignLocales(): ForeignLocale[] {
 
 /**
  * Vacuity guard for a "same bytes in every language" pin: `locale` is the one in
- * force, and a probe renders differently in it than in English. The probe is a
- * catalog message holding an `Intl` list, so it catches both kinds of foreign
- * locale {@link foreignLocales} supplies — the pseudo-locale changes the
- * catalog text, German with no dictionary changes how `Intl` joins the list.
- * Call it before a run and again after, so a run that reset the locale part way
- * cannot pass by comparing English with English.
+ * force, and each probe renders differently in it than in English. The probes
+ * are catalog messages holding an `Intl` list — one joined with "and", one a
+ * `unit` list (what refusals offering accepted values use) — so they catch both
+ * kinds of foreign locale {@link foreignLocales} supplies: the pseudo-locale
+ * changes the catalog text, German with no dictionary changes how `Intl` joins
+ * each list. Call it before a run and again after, so a run that reset the
+ * locale part way cannot pass by comparing English with English.
  */
 export function expectLocaleInForce(locale: LocaleTag): void {
   expect(currentLocale()).toBe(locale)
-  const probe = syncRef('domain.list.art.unknownKeys', { keys: syncList(['a', 'b', 'c'], 'and') })
-  expect(renderSyncParam(probe, locale)).not.toBe(renderSyncParam(probe, DEFAULT_LOCALE))
+  const probes = [
+    syncRef('domain.list.art.unknownKeys', { keys: syncList(['a', 'b', 'c'], 'and') }),
+    syncRef('domain.export.problem.columnsEmpty', { columns: syncList(['a', 'b', 'c'], 'unit') }),
+  ]
+  for (const probe of probes) {
+    expect(renderSyncParam(probe, locale)).not.toBe(renderSyncParam(probe, DEFAULT_LOCALE))
+  }
 }
 
 /**

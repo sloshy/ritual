@@ -1,11 +1,8 @@
 import { Command, InvalidArgumentError } from 'commander'
 import { languageToken } from '../card/card-language'
-import { loadExportEntries } from '../export/entries'
 import {
-  diffLists,
   isDiffBy,
   isListDiffEmpty,
-  loadDiffListRef,
   type DiffBy,
   type DiffListRef,
   type DiffMatch,
@@ -20,6 +17,8 @@ import {
   type ListLocation,
 } from '../list/resolve-list'
 import { t } from '../i18n/t'
+import { renderSyncMessage } from '../sync/message'
+import { buildDiffReport } from '../changes/list-diff-report'
 import { addOutputOption } from '../cli/options'
 import { runCommandAction } from '../cli/action'
 import {
@@ -34,17 +33,6 @@ import {
 type DiffCommandOptions = {
   by: DiffBy
   output?: OutputFormat
-}
-
-/** The JSON body a successful diff emits (mirrored by `GET /api/diff`). */
-type DiffCommandResult = {
-  a: DiffListRef
-  b: DiffListRef
-  by: DiffBy
-  matches: DiffMatch[]
-  onlyInA: DiffOnly[]
-  onlyInB: DiffOnly[]
-  warnings: string[]
 }
 
 /** Commander argParser for `--by`: only the two identity modes. */
@@ -190,38 +178,24 @@ async function runDiff(
   const locationB = await resolveSide(rawB, scripting)
   if (!locationB) return
 
-  const [refA, refB] = await Promise.all([loadDiffListRef(locationA), loadDiffListRef(locationB)])
-  const [sideA, sideB] = await Promise.all([
-    loadExportEntries([locationA]),
-    loadExportEntries([locationB]),
-  ])
-  const warnings = [...sideA.warnings, ...sideB.warnings]
-  const result = diffLists(sideA.entries, sideB.entries, by)
+  const report = await buildDiffReport(locationA, locationB, by)
 
   // A skipped card line means the diff compared incomplete lists — data loss,
-  // so it always reaches stderr, in every output mode. The structured envelope
-  // additionally carries `warnings` for consumers.
+  // so it always reaches stderr, in every output mode, in the CLI's language.
+  // The structured envelope additionally carries `warnings` for consumers.
   emitWarnings(
-    warnings.map((warning) => t('cli.diff.warningLine', { warning })),
+    report.warnings.map((warning) =>
+      t('cli.diff.warningLine', { warning: renderSyncMessage(warning) }),
+    ),
     scripting,
     { essential: true },
   )
 
   if (scripting.output === 'text') {
-    emitOutput(renderTextDiff(refA, refB, result), scripting)
+    emitOutput(renderTextDiff(report.a, report.b, report), scripting)
     return
   }
-
-  const body: DiffCommandResult = {
-    a: refA,
-    b: refB,
-    by: result.by,
-    matches: result.matches,
-    onlyInA: result.onlyInA,
-    onlyInB: result.onlyInB,
-    warnings,
-  }
-  emitOutput(body, scripting)
+  emitOutput(report, scripting)
 }
 
 export function registerDiffCommand(program: Command): void {

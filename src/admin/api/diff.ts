@@ -1,13 +1,5 @@
-import { loadExportEntries } from '../../export/entries'
-import {
-  diffLists,
-  DIFF_BY_MODES,
-  loadDiffListRef,
-  type DiffBy,
-  type DiffListRef,
-  type DiffMatch,
-  type DiffOnly,
-} from '../../changes/list-diff'
+import { DIFF_BY_MODES } from '../../changes/list-diff'
+import { buildDiffReport, type DiffReport } from '../../changes/list-diff-report'
 import {
   resolveListErrorMessage,
   isResolveListError,
@@ -20,16 +12,7 @@ import { badRequest, nestedRefusal, type ApiErrorResponse } from '../../api/http
 import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
 
 /** `GET /api/diff` success body — the CLI `diff --output json` shape plus `success`. */
-export type DiffResponseBody = {
-  success: true
-  a: DiffListRef
-  b: DiffListRef
-  by: DiffBy
-  matches: DiffMatch[]
-  onlyInA: DiffOnly[]
-  onlyInB: DiffOnly[]
-  warnings: string[]
-}
+export type DiffResponseBody = { success: true } & DiffReport
 
 /**
  * Every body `GET /api/diff` can return: the comparison, the shared refusal,
@@ -77,22 +60,9 @@ export function handleDiff(req: Request): Promise<Response> {
     const locationB = await resolveSide(rawB)
     if (locationB instanceof Response) return locationB
 
-    const [refA, refB] = await Promise.all([loadDiffListRef(locationA), loadDiffListRef(locationB)])
-    const [sideA, sideB] = await Promise.all([
-      loadExportEntries([locationA]),
-      loadExportEntries([locationB]),
-    ])
-    const result = diffLists(sideA.entries, sideB.entries, by)
-
     const body: DiffResponseBody = {
       success: true,
-      a: refA,
-      b: refB,
-      by: result.by,
-      matches: result.matches,
-      onlyInA: result.onlyInA,
-      onlyInB: result.onlyInB,
-      warnings: [...sideA.warnings, ...sideB.warnings],
+      ...(await buildDiffReport(locationA, locationB, by)),
     }
     return Response.json(body)
   })

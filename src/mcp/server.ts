@@ -34,10 +34,13 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   locale-invariant identifier to match on instead of matching prose. Those params may nest — a
   param is then a message ({ messageKey, messageParams }), a list ({ list, join }), a duration
   ({ elapsedMs } or { durationMs }) or a card language ({ language }): import results' counts,
-  the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams".
+  the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams",
+  and export_cards' and diff_lists' "warnings" (a list's parse warning nested as "warning", the
+  sections a decklist dialect left out as a list).
   A failed import_change_bundle list carries "errorKey"/"errorParams" beside "error".
-  get_list's "warnings", the sync tools' "report.unreadable[].warnings" and import_deck's and
-  import_csv's "warnings"/"advisories" are message objects, not strings ({ message,
+  get_list's "warnings", the sync tools' "report.unreadable[].warnings", export_cards' and
+  diff_lists' "warnings", and import_deck's and import_csv's "warnings"/"advisories" are message
+  objects, not strings ({ message,
   messageKey?, messageParams? }; an import_deck warning whose card was kept without its labels
   adds "labelsDropped": true), and each import_csv "failures" row carries "reasonKey"/
   "reasonParams" beside its English "reason".

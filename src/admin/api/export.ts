@@ -13,6 +13,7 @@ import {
   exportPresetNames,
   findExportPreset,
   resolveExportSettings,
+  type ExportFormat,
   type ExportPreset,
   type ExportSettingsFlags,
 } from '../../export/presets'
@@ -36,14 +37,9 @@ import {
   readJsonObjectBody,
   type ApiErrorResponse,
 } from '../../api/http'
-import {
-  apiMessage,
-  isApiMessage,
-  parseEnumParam,
-  plainMessage,
-  type ApiMessage,
-} from '../../api/result'
+import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
 import { isSyncMessage, type SyncMessage } from '../../sync/message'
+import { exportProblemMessage, exportWarningMessage } from '../../export-wording/message'
 
 /** One list selection in the request body. */
 export type ExportRequestListRef = { type?: string; name: string }
@@ -86,23 +82,24 @@ export type ExportRequestBody = {
   write?: boolean
 }
 
-/** Content mode: the rendered export inline. */
-export type ExportContentResponse = {
+/** What both modes of a `POST /api/export` success carry. */
+export type ExportResponseCommon = {
   success: true
-  mode: 'content'
-  format: string
+  format: ExportFormat
   entryCount: number
-  warnings: string[]
+  /** What the export reports beside its output: English plus the key, params possibly nested. */
+  warnings: SyncMessage[]
+}
+
+/** Content mode: the rendered export inline. */
+export type ExportContentResponse = ExportResponseCommon & {
+  mode: 'content'
   content: string
 }
 
 /** File mode: the base-dir-relative path of the file written. */
-export type ExportFileResponse = {
-  success: true
+export type ExportFileResponse = ExportResponseCommon & {
   mode: 'file'
-  format: string
-  entryCount: number
-  warnings: string[]
   /** Base-dir-relative, e.g. `exports/binder-20260728.csv`. */
   path: string
   bytes: number
@@ -114,8 +111,12 @@ export type ExportResponseBody = ExportContentResponse | ExportFileResponse
 /** Every body `POST /api/export` can return. */
 export type ExportResponse = ExportResponseBody | ApiErrorResponse
 
-/** Validate the body's output-shape fields into settings flags, or the refusal. */
-function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | ApiMessage {
+/**
+ * Validate the body's output-shape fields into settings flags, or the refusal —
+ * a message whose params may nest (a column refusal offers the column ids as a
+ * list).
+ */
+function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | SyncMessage {
   const flags: ExportSettingsFlags = {}
   if (body.header !== undefined) {
     if (typeof body.header !== 'boolean') {
@@ -137,8 +138,8 @@ function parseSettingsFlags(body: ExportRequestBody): ExportSettingsFlags | ApiM
   if (body.columns !== undefined) {
     if (!Array.isArray(body.columns)) return apiMessage('admin.api.export.columnsNotArray')
     const columns = parseExportColumns(body.columns)
-    if (typeof columns === 'string') return plainMessage(columns)
-    flags.columns = columns
+    if (!columns.ok) return exportProblemMessage(columns.problem)
+    flags.columns = columns.value
   }
   if (body.dialect !== undefined) {
     const dialect = parseEnumParam(body.dialect, EXPORT_DIALECTS, 'dialect')
@@ -183,14 +184,14 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | Sy
   if (raw.conditions !== undefined) {
     if (!Array.isArray(raw.conditions)) return apiMessage('admin.api.export.conditionsNotArray')
     const conditions = parseConditionFilterValues(raw.conditions)
-    if (typeof conditions === 'string') return plainMessage(conditions)
-    filters.conditions = conditions
+    if (!conditions.ok) return exportProblemMessage(conditions.problem)
+    filters.conditions = conditions.value
   }
   if (raw.labels !== undefined) {
     if (!Array.isArray(raw.labels)) return apiMessage('admin.api.export.labelsNotArray')
     const labels = parseLabelFilterValues(raw.labels)
-    if (typeof labels === 'string') return plainMessage(labels)
-    filters.labels = labels
+    if (!labels.ok) return exportProblemMessage(labels.problem)
+    filters.labels = labels.value
   }
   if (raw.tags !== undefined) {
     // The parser refuses a non-array itself, naming the body path.
@@ -238,7 +239,7 @@ export async function handleExport(req: Request): Promise<Response> {
       }
     }
     const flags = parseSettingsFlags(body)
-    if (isApiMessage(flags)) return badRequest(flags)
+    if (isSyncMessage(flags)) return nestedRefusal(flags)
     const settings = resolveExportSettings(preset, flags)
 
     const filters = parseFilters(body.filters)
@@ -291,7 +292,7 @@ export async function handleExport(req: Request): Promise<Response> {
     const rendered = await renderExport(selection.entries, settings, {
       lookupPrintings: getCachedCardPrintings,
     })
-    const warnings = [...selection.warnings, ...rendered.warnings]
+    const warnings = [...selection.warnings, ...rendered.warnings].map(exportWarningMessage)
 
     if (body.write === true) {
       const written = await writeExportFile(rendered.content, {
@@ -301,14 +302,16 @@ export async function handleExport(req: Request): Promise<Response> {
         now: new Date(),
         existing: await listExistingExports(),
       })
+      // A name the server could not settle on is the server's failure, not the caller's.
+      if (!written.ok) return nestedRefusal(exportProblemMessage(written.problem), 500)
       const filePayload: ExportFileResponse = {
         success: true,
         mode: 'file',
         format: settings.format,
         entryCount: selection.entries.length,
         warnings,
-        path: written.path,
-        bytes: written.bytes,
+        path: written.value.path,
+        bytes: written.value.bytes,
       }
       return Response.json(filePayload)
     }

@@ -146,20 +146,20 @@ Time zones need no workaround; Bun honors `TZ` normally.
 
 Everything a human reads is localizable. Everything a **machine** reads is English in every locale. Otherwise a translated build would produce files and payloads that Ritual, or your scripts, could no longer read.
 
-| Contract                                                                                                 | Stays English because                                                         |
-| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Exit codes and `--output json` error `code` values                                                       | Scripts match on them                                                         |
-| `--output json` / `ndjson` **payload keys**                                                              | Same                                                                          |
-| `.changes.md` prose lines and their `ritual-changes` event block                                         | It is a git-diffable data format that Ritual reads back                       |
-| Deck section names (`Main`, `Sideboard`, `Commander`, …)                                                 | They are parsed back out of your list files                                   |
-| CSV and [export](/commands/export/) headers, including the Archidekt dialect                             | Other tools import them                                                       |
-| Set codes, `&N` card IDs, `[ja]` / `[foil]` / `[etched]` / condition and label tokens                    | They are the file format                                                      |
-| `ritual.config.json` keys and values, deck format slugs, URL query values (`sort=`, `group=`, `labels=`) | Persisted identifiers; a shared list-view link must survive a language change |
-| List front-matter keys and values, the `.art.json` and `.categories.json` sidecars, list file names      | Workspace data that Ritual, and your collaborators' Ritual, reads back        |
-| The commit messages the admin server writes into your workspace repository                               | They are workspace history, like `.changes.md`                                |
-| [MCP](/commands/mcp/) tool names, descriptions, and result `message` prose                               | They are LLM prompts, and tool names are protocol identifiers                 |
-| The installable [agent skills](/commands/skills/)                                                        | Same, plus their content hash decides "machine-managed vs user-edited"        |
-| These docs                                                                                               | Localizing them is a separate project                                         |
+| Contract                                                                                                                                         | Stays English because                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Exit codes and `--output json` error `code` values                                                                                               | Scripts match on them                                                         |
+| `--output json` / `ndjson` **payload keys**                                                                                                      | Same                                                                          |
+| `.changes.md` prose lines and their `ritual-changes` event block                                                                                 | It is a git-diffable data format that Ritual reads back                       |
+| Deck section names (`Main`, `Sideboard`, `Commander`, …)                                                                                         | They are parsed back out of your list files                                   |
+| CSV and [export](/commands/export/) headers, including the Archidekt dialect (the export wizard's column picker shows the same names translated) | Other tools import them                                                       |
+| Set codes, `&N` card IDs, `[ja]` / `[foil]` / `[etched]` / condition and label tokens                                                            | They are the file format                                                      |
+| `ritual.config.json` keys and values, deck format slugs, URL query values (`sort=`, `group=`, `labels=`)                                         | Persisted identifiers; a shared list-view link must survive a language change |
+| List front-matter keys and values, the `.art.json` and `.categories.json` sidecars, list file names                                              | Workspace data that Ritual, and your collaborators' Ritual, reads back        |
+| The commit messages the admin server writes into your workspace repository                                                                       | They are workspace history, like `.changes.md`                                |
+| [MCP](/commands/mcp/) tool names, descriptions, and result `message` prose                                                                       | They are LLM prompts, and tool names are protocol identifiers                 |
+| The installable [agent skills](/commands/skills/)                                                                                                | Same, plus their content hash decides "machine-managed vs user-edited"        |
+| These docs                                                                                                                                       | Localizing them is a separate project                                         |
 
 Two consequences may surprise you:
 

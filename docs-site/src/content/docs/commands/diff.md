@@ -105,7 +105,7 @@ When the two sides share a display name, the section headers use the `type:slug`
 - Set codes are lowercase in JSON (a data format) and uppercase in text output.
 - `printings` entries omit `set`/`collectorNumber` for the no-printing bucket. `finish` is always concrete (unmarked lines fold to `"nonfoil"`). Each row also carries the bucket's language, so `en` and `[ja]` copies of one printing are separate rows.
 - Results keep a stable order: identities appear in first-seen file order, side A before side B.
-- `warnings` carries list parse warnings from either side, and names a list's `<name>.categories.json` sidecar that could not be read (the diff still runs). The same warnings print to stderr in every output mode, since a skipped line means the diff compared incomplete lists.
+- `warnings` carries list parse warnings from either side, and names a list's `<name>.categories.json` sidecar that could not be read (the diff still runs). Each entry is a message: the English `message` (`burn: Skipped malformed line: …`), plus `messageKey` (`domain.export.warning.inList`) and `messageParams`, whose `list` is the list's file slug and whose `warning` nests the parser's own message. The same warnings print to stderr in every output mode, in the CLI's language, since a skipped line means the diff compared incomplete lists.
 
 ## Exit Codes
 

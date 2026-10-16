@@ -232,9 +232,10 @@ export const domainMessages = {
 
   // ── Export ────────────────────────────────────────────────────────────
   //
-  // Column *labels* are CSV header cells and stay English by contract
-  // (`EXPORT_PROPERTY_LABELS`); only the parenthetical hints shown while
-  // *choosing* columns, and the format picker's rows, are localized.
+  // The CSV header cells stay English by contract (`EXPORT_COLUMN_HEADERS`).
+  // The column picker's labels are `domain.export.column.*`; these are the
+  // parenthetical hints shown beside them while *choosing* columns, and the
+  // format picker's rows.
   'domain.exportHint.edition': 'set + collector number',
   'domain.exportHint.scryfallId': 'resolved from the local Scryfall cache',
   'domain.exportHint.edhrecRank': 'lower is more popular; from the local Scryfall cache',

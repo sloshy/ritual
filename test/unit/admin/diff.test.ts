@@ -4,6 +4,8 @@ import path from 'node:path'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { handleDiff, type DiffResponseBody } from '../../../src/admin/api/diff'
 import type { ApiErrorResponse } from '../../../src/api/http'
+import { keyedMessage } from '../../helpers/api-message'
+import { pseudoCatalog, withGuardedLocaleAsync } from '../../helpers/sync-text'
 
 /**
  * Handler tests for `GET /api/diff`. Diff semantics (identity modes, finish
@@ -93,6 +95,27 @@ describe('GET /api/diff', () => {
     expect(body.onlyInA.map((o) => o.name)).toEqual(['Fireblast'])
     expect(body.onlyInB.map((o) => o.name)).toEqual(['Sol Ring'])
     expect(body.warnings).toEqual([])
+  })
+
+  // The parse warnings come from the export engine as codes; the route words
+  // them as English plus the key whatever language the server runs in.
+  test('a list’s unreadable line is warned about in English, its parser’s key nested', async () => {
+    await fs.appendFile(path.join(ws.dir, 'decks', 'burn.md'), 'not a card line\n')
+    const body = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () => {
+      const resp = await handleDiff(diffRequest('?a=burn&b=binder'))
+      expect(resp.status).toBe(200)
+      return (await resp.json()) as DiffResponseBody
+    })
+    expect(body.warnings).toHaveLength(1)
+    const [warning] = body.warnings
+    expect(keyedMessage(warning!)).toBe('burn: Skipped malformed line: not a card line')
+    expect(warning).toMatchObject({
+      messageKey: 'domain.export.warning.inList',
+      messageParams: {
+        list: 'burn',
+        warning: { messageKey: 'domain.import.text.malformedLine' },
+      },
+    })
   })
 
   test('by=printing switches the identity mode', async () => {

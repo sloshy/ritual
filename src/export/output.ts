@@ -10,6 +10,7 @@ import {
 import { columnsNeedCardCache, resolveExportCacheColumns } from './cache-columns'
 import { exportFormatUsesColumns, type ExportPreset, type ResolvedExportSettings } from './presets'
 import { loadRitualConfig, saveRitualConfig } from '../config/ritual-config'
+import type { ExportWarning } from './text'
 
 /**
  * Shared output helpers for the `export` command, its interactive wizard, and
@@ -50,7 +51,7 @@ export async function renderExport(
   options: RenderExportOptions,
 ): Promise<RenderedExport> {
   let rendered = entries
-  const warnings: string[] = []
+  const warnings: ExportWarning[] = []
   if (exportFormatUsesColumns(settings.format) && columnsNeedCardCache(settings.columns)) {
     const resolution = await resolveExportCacheColumns(
       entries,

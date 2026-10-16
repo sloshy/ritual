@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list), a list load's [`warnings`](#load-deck) (a card-line diagnostic nested as `text` inside its `domain.card.line.atLine` location, its hint inside `domain.card.line.withHint`), the [card vocabulary's refusals](#error-responses) (a tag or category refusal nesting its shape `rule`, a card language's valid codes as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale). Every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list), a list load's [`warnings`](#load-deck) (a card-line diagnostic nested as `text` inside its `domain.card.line.atLine` location, its hint inside `domain.card.line.withHint`), the [card vocabulary's refusals](#error-responses) (a tag or category refusal nesting its shape `rule`, a card language's valid codes as a `unit` list), [Export Cards](#export-cards)' and [Diff Lists](#diff-lists)' `warnings` (a list's parse warning nested as `warning`, a decklist's omitted sections as a `unit` list) and export refusals (the accepted columns or values as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale). Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -1756,7 +1756,7 @@ A missing `a`/`b`, an invalid `by`, or a name that resolves to no list (or ambig
 }
 ```
 
-`matches` includes identities whose quantities are equal on both sides; clients decide what counts as interesting. `warnings` carries list parse warnings from either side, and names a list's [`.categories.json` sidecar](/list-format/#categories-namecategoriesjson) that could not be read (the diff still runs).
+`matches` includes identities whose quantities are equal on both sides; clients decide what counts as interesting. `warnings` carries list parse warnings from either side, and names a list's [`.categories.json` sidecar](/list-format/#categories-namecategoriesjson) that could not be read (the diff still runs). Each entry is a [message triple](#the-message-triple): `domain.export.warning.inList`, whose `list` names the list and whose `warning` nests the parser's own message.
 
 ## Load Change History
 
@@ -2645,17 +2645,17 @@ File mode (`write: true`):
 
 The file lands under an `exports/` directory in the base dir, which [`init-site`](/commands/init-site/) adds to `.gitignore`. The server picks the name, `<scope>-<YYYYMMDD>.<ext>`: scope is the single selected list's sanitized name, `cards` for a card-pick-only export, or `all-lists` otherwise, and the date is UTC. A name already taken gains the lowest free `-2`, `-3`, … suffix, so a write never overwrites an earlier export. `path` is **base-dir-relative**, so a caller that trusts it cannot be walked outside the workspace. The written file is newline-terminated and byte-identical to what the CLI's `export --out` writes.
 
-`warnings` carries:
+`warnings` carries [message triples](#the-message-triple) (`domain.export.warning.*`), never bare strings:
 
-- list parse warnings;
+- list parse warnings (`domain.export.warning.inList`, the parser's own message nested as `warning`);
 - `cards` terms that matched nothing;
-- one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (with per-section counts);
+- one entry naming the maybeboard/token sections a `text` export in the `arena` or `moxfield` dialect left out (`domain.export.warning.extrasOmitted`, whose `sections` is a `{ list, join: "unit" }` of `domain.export.warning.sectionCount` messages with per-section counts);
 - one entry naming the categories a `text` export in the `moxfield` dialect could not write as tags (a space, a leading `!`, or a character a Ritual tag cannot hold);
 - one entry per list whose [categories sidecar](/list-format/#categories-namecategoriesjson) could not be read (that list exports with empty category cells);
-- when the `scryfallId` column is selected, one entry per printing the local Scryfall cache does not hold (that cell renders empty);
+- when the `scryfallId` column is selected, one entry per printing the local Scryfall cache does not hold (`domain.export.warning.scryfallIdUncached`), and one per card name whose line pins no printing (`domain.export.warning.scryfallIdUnpinned`); either cell renders empty;
 - when the `edhrecRank` column is selected, one entry per card name the local Scryfall cache does not hold (an unranked card is not warned about — its cell is simply empty).
 
-The response is `400` for an unknown list, preset, column, dialect, or filter value.
+The response is `400` for an unknown list, preset, column, dialect, or filter value. A refused column or condition/label filter value is keyed `domain.export.problem.*`. An unknown value, or an empty list, offers the values accepted as a `{ list, join: "unit" }` (`columns`, or `values`); a duplicate column names only the duplicate. A write that cannot settle on a free file name answers `500` with `domain.export.problem.fileNameExhausted`.
 
 ## List Decks
 
@@ -3014,7 +3014,7 @@ A rejected value answers in the shared [error envelope](#error-responses), in En
 }
 ```
 
-`priceSources`, `defaultPriceSource` and `exportPresets` refusals carry their English `message` with no key yet. A `defaultCategories` refusal is keyed: `domain.config.defaultCategoriesNotArray` / `domain.config.defaultCategoriesNotText`, or the category rule's own `domain.card.category.invalid`, whose `rule` nests `domain.card.category.shapeRule`.
+`priceSources` and `defaultPriceSource` refusals carry their English `message` with no key yet. An `exportPresets` refusal is keyed `domain.export.problem.*` (a preset's column list's own refusal nested as `reason` inside `domain.export.problem.presetColumnsInvalid`). A `defaultCategories` refusal is keyed: `domain.config.defaultCategoriesNotArray` / `domain.config.defaultCategoriesNotText`, or the category rule's own `domain.card.category.invalid`, whose `rule` nests `domain.card.category.shapeRule`.
 
 **Request body:**
 

@@ -146,8 +146,13 @@ describe('planCollectionCsv', () => {
     expect(missing.uncached).toEqual([KARLACH])
     expect(missing.copies).toBe(2)
     expect(missing.csv.split('\n')).toHaveLength(2)
-    expect(missing.warnings.map((warning) => warning.message)).toEqual([
-      'No Scryfall ID for Karlach, Fury of Avernus (CLB:507): the printing is not in the Scryfall cache.',
+    expect(missing.warnings).toEqual([
+      {
+        message:
+          'No Scryfall ID for Karlach, Fury of Avernus (CLB:507): the printing is not in the Scryfall cache.',
+        messageKey: 'domain.export.warning.scryfallIdUncached',
+        messageParams: { name: 'Karlach, Fury of Avernus', printing: 'CLB:507' },
+      },
     ])
   })
 

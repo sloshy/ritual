@@ -1,10 +1,9 @@
-import { afterEach, describe, expect, test } from 'bun:test'
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { tmpdir } from 'node:os'
+import { describe, expect, test } from 'bun:test'
 import { renderExport } from '../../src/export/output'
-import { EXPORT_PROPERTIES, type ExportProperty } from '../../src/export/render'
+import { EXPORT_DIALECTS, EXPORT_PROPERTIES, type ExportProperty } from '../../src/export/render'
+import { EXPORT_FORMATS, type ResolvedExportSettings } from '../../src/export/presets'
 import type { ExportEntry } from '../../src/export/entries'
+import type { ExportWarning } from '../../src/export/text'
 import { CSV_HEADER } from '../../src/list/list-export'
 import { buildCkCartCsv } from '../../src/buylist/cart-csv'
 import {
@@ -12,26 +11,34 @@ import {
   formatPriceInvariant,
   VALID_CURRENCIES,
 } from '../../src/pricing/price-currency'
-import { en } from '../../src/i18n/messages/en'
-import { enMeta } from '../../src/i18n/messages/en.meta'
-import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
-import { PSEUDO_LOCALE, pseudoLocalize } from '../../scripts/generate-locales'
-import { localeTag } from '../../src/i18n/locale-tag'
+import {
+  expectLocaleInForce,
+  foreignLocales,
+  pseudoCatalog,
+  withSyntheticLocale,
+  withSyntheticLocaleAsync,
+} from '../helpers/sync-text'
 
 /**
- * CSV is an interchange format, so every cell in it is a machine contract: the
- * header row is what an importer column-matches on, and a decimal separator
- * that follows the UI locale would put a `,` inside a comma-delimited file and
- * silently shift every column after it. Both properties are asserted here
- * against the generated `en-XA` pseudo-locale (which changes every string that
- * *is* routed through the catalog) and against hostile explicit locales.
+ * Exports are an interchange format, so every byte in one is a machine
+ * contract: the CSV header row is what an importer column-matches on, a
+ * decklist's board markers are what a site's importer reads, and a decimal
+ * separator that follows the UI locale would put a `,` inside a comma-delimited
+ * file and silently shift every column after it. Each pin runs against the full
+ * `en-XA` pseudo-catalog (which changes every string routed through the
+ * catalog) and real German (which changes everything routed through `Intl`).
  */
-
-const pseudoCatalog = pseudoLocalize(en, enMeta)
 
 /** Every exportable column, so a future localized label cannot slip in unseen. */
 const ALL_COLUMNS: ExportProperty[] = [...EXPORT_PROPERTIES]
 
+/**
+ * Entries that reach every branch a renderer has: a collection card carrying
+ * every collection-side value, and a deck with a maybeboard and a token section
+ * (which the `arena`/`moxfield` decklists drop and warn about), categories one
+ * of which Moxfield cannot spell, a quantity past the bare-digit cap and a
+ * foreign language.
+ */
 const ENTRIES: ExportEntry[] = [
   {
     listType: 'collection',
@@ -45,8 +52,6 @@ const ENTRIES: ExportEntry[] = [
     condition: 'LP',
     language: 'ja',
     labels: ['sale'],
-    // Non-empty so the fence covers the two new columns' *cells* (the join and
-    // the primary) and not only their header labels.
     categories: ['Ramp', 'Artifacts'],
     note: 'trade bait',
     // Grouping-sized, so a locale-aware number format would show in the cell
@@ -54,63 +59,126 @@ const ENTRIES: ExportEntry[] = [
     edhrecRank: 12345,
     fileOrder: 0,
   },
+  {
+    listType: 'deck',
+    listName: 'Burn',
+    section: 'Main',
+    name: 'Fireblast',
+    quantity: 1234,
+    set: 'vis',
+    collectorNumber: '78',
+    finish: 'etched',
+    condition: 'NM',
+    language: 'de',
+    categories: ['Burn', 'Board Wipes'],
+    tags: ['Finisher'],
+    fileOrder: 0,
+  },
+  {
+    listType: 'deck',
+    listName: 'Burn',
+    section: 'Maybeboard',
+    name: 'Price of Progress',
+    quantity: 2,
+    set: 'exo',
+    collectorNumber: '96',
+    fileOrder: 1,
+  },
+  {
+    listType: 'deck',
+    listName: 'Burn',
+    section: 'Tokens',
+    name: 'Goblin',
+    quantity: 1,
+    fileOrder: 2,
+  },
 ]
 
-async function renderCsv(): Promise<string> {
-  const { content } = await renderExport(
-    ENTRIES,
-    {
-      format: 'csv',
-      columns: ALL_COLUMNS,
-      header: true,
-      quoteAll: false,
-      dialect: 'ritual',
-    },
-    { lookupPrintings: async () => [] },
-  )
-  return content
+/** One rendered export — its bytes and its (structured) warnings. */
+type RenderedCase = {
+  settings: ResolvedExportSettings
+  content: string
+  warnings: ExportWarning[]
 }
 
-afterEach(() => {
-  resetI18nRuntime()
+/** Every format in every dialect it accepts, with and without the CSV toggles. */
+async function renderEveryFormat(): Promise<RenderedCase[]> {
+  const cases: RenderedCase[] = []
+  for (const format of EXPORT_FORMATS) {
+    for (const dialect of format === 'md' ? (['ritual'] as const) : EXPORT_DIALECTS) {
+      for (const [header, quoteAll] of [
+        [true, false],
+        [false, true],
+      ] as const) {
+        const settings: ResolvedExportSettings = {
+          format,
+          columns: ALL_COLUMNS,
+          header,
+          quoteAll,
+          dialect,
+        }
+        const rendered = await renderExport(ENTRIES, settings, {
+          lookupPrintings: async () => [],
+        })
+        cases.push({ settings, ...rendered })
+      }
+    }
+  }
+  return cases
+}
+
+describe('every export format is locale-invariant', () => {
+  /**
+   * Neither foreign language reaches an export today; this pins that none ever
+   * does. `expectLocaleInForce` proves each is really in force, its probes
+   * moving in it.
+   */
+  test.each(foreignLocales())(
+    'every format and dialect writes the same bytes under $tag',
+    async ({ tag, catalog }) => {
+      const english = await renderEveryFormat()
+      // Vacuity guards: the cases reach the warnings, the dialect line forms, a
+      // grouping-sized number, and the CSV header row — spelled out, since a
+      // silent empty diff would pass the equality below if both sides broke
+      // the same way.
+      expect(english.some((rendered) => rendered.warnings.length > 0)).toBe(true)
+      expect(english.some((rendered) => rendered.content.includes('1234x Fireblast'))).toBe(true)
+      expect(english.some((rendered) => rendered.content.includes('12345'))).toBe(true)
+      const csv = english.find(
+        ({ settings }) =>
+          settings.format === 'csv' && settings.dialect === 'ritual' && settings.header,
+      )
+      expect(csv?.content.split('\n')[0]).toBe(
+        'Name,Quantity,Set,Collector Number,Edition,Scryfall ID,EDHREC Rank,Finish,Is Foil,Condition,Language,Labels,Tags,Categories,Primary Category,Note,Section,List,List Type',
+      )
+
+      const foreign = await withSyntheticLocaleAsync(tag, catalog, async (locale) => {
+        expectLocaleInForce(locale)
+        const rendered = await renderEveryFormat()
+        expectLocaleInForce(locale)
+        return rendered
+      })
+      expect(foreign).toEqual(english)
+    },
+  )
 })
 
-describe('CSV exports are locale-invariant', () => {
-  test('headers and cells are identical under en and en-XA', async () => {
-    setLocale(localeTag('en'))
-    const english = await renderCsv()
-
-    loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
-    setLocale(PSEUDO_LOCALE)
-    const pseudo = await renderCsv()
-
-    expect(pseudo).toBe(english)
-    // Spot-check the header explicitly: a silent empty diff would pass the
-    // equality above if both sides broke the same way.
-    expect(english.split('\n')[0]).toBe(
-      'Name,Quantity,Set,Collector Number,Edition,Scryfall ID,EDHREC Rank,Finish,Is Foil,Condition,Language,Labels,Tags,Categories,Primary Category,Note,Section,List,List Type',
-    )
-  })
-
+describe('the other CSV writers are locale-invariant', () => {
   test('the fixed-column CSV header is the same string in every locale', () => {
-    loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
-    setLocale(localeTag('en'))
-    const english = CSV_HEADER
-    setLocale(PSEUDO_LOCALE)
-    expect(CSV_HEADER).toBe(english)
-    expect(CSV_HEADER).toBe('Name,Set,Collector Number,Finish,Condition,Language,Quantity')
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      expect(CSV_HEADER).toBe('Name,Set,Collector Number,Finish,Condition,Language,Quantity')
+    })
   })
 
   test("the Card Kingdom cart CSV keeps the buyer's own vocabulary", () => {
-    loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
     const items = [
       { name: "Mishra's Factory", edition: 'Antiquities', finish: 'nonfoil' as const, quantity: 2 },
     ]
-    setLocale(localeTag('en'))
-    const english = buildCkCartCsv(items).csv
-    setLocale(PSEUDO_LOCALE)
-    expect(buildCkCartCsv(items).csv).toBe(english)
-    expect(english).toBe("Mishra's Factory,Antiquities,false,2\n")
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      expect(buildCkCartCsv(items).csv).toBe("Mishra's Factory,Antiquities,false,2\n")
+    })
   })
 })
 
@@ -124,12 +192,13 @@ describe('formatPriceInvariant', () => {
   // representative non-English locale is the whole regression fence; the
   // divergence case below is what actually documents why it exists.
   test('never emits a comma, whatever the UI locale', () => {
-    setLocale(localeTag('de-DE'))
-    for (const currency of VALID_CURRENCIES) {
-      const cell = formatPriceInvariant(1234.5, currency)
-      expect(cell).not.toContain(',')
-      expect(cell).toContain('.')
-    }
+    withSyntheticLocale('de-DE', {}, () => {
+      for (const currency of VALID_CURRENCIES) {
+        const cell = formatPriceInvariant(1234.5, currency)
+        expect(cell).not.toContain(',')
+        expect(cell).toContain('.')
+      }
+    })
   })
 
   test('renders exactly two decimals with a dot separator per currency', () => {
@@ -142,35 +211,14 @@ describe('formatPriceInvariant', () => {
   // it groups thousands and follows the locale's decimal separator. Both are
   // correct for a price *label* and both are unrepresentable in a delimited file.
   test('display formatting genuinely diverges from it', () => {
-    setLocale(localeTag('en'))
     expect(formatPrice(1234.5, 'usd')).toBe('$1,234.50')
     expect(formatPriceInvariant(1234.5, 'usd')).toBe('$1234.50')
 
-    setLocale(localeTag('de-DE'))
-    // A comma decimal separator — the exact byte that would shift every column
-    // after it in a CSV row.
-    expect(formatPrice(1234.5, 'usd')).not.toBe(formatPriceInvariant(1234.5, 'usd'))
-    expect(formatPriceInvariant(1234.5, 'usd')).toBe('$1234.50')
-  })
-})
-
-describe('export files on disk', () => {
-  test('a CSV written under the pseudo-locale is byte-identical to the English one', async () => {
-    const dir = path.join(tmpdir(), `ritual-export-locale-${crypto.randomUUID()}`)
-    await fs.mkdir(dir, { recursive: true })
-    try {
-      setLocale(localeTag('en'))
-      const englishPath = path.join(dir, 'english.csv')
-      await fs.writeFile(englishPath, `${await renderCsv()}\n`)
-
-      loadDictionary(PSEUDO_LOCALE, pseudoCatalog)
-      setLocale(PSEUDO_LOCALE)
-      const pseudoPath = path.join(dir, 'pseudo.csv')
-      await fs.writeFile(pseudoPath, `${await renderCsv()}\n`)
-
-      expect(await fs.readFile(pseudoPath)).toEqual(await fs.readFile(englishPath))
-    } finally {
-      await fs.rm(dir, { recursive: true, force: true })
-    }
+    withSyntheticLocale('de-DE', {}, () => {
+      // A comma decimal separator — the exact byte that would shift every column
+      // after it in a CSV row.
+      expect(formatPrice(1234.5, 'usd')).not.toBe(formatPriceInvariant(1234.5, 'usd'))
+      expect(formatPriceInvariant(1234.5, 'usd')).toBe('$1234.50')
+    })
   })
 })

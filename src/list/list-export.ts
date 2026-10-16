@@ -15,16 +15,16 @@ import {
 import { assignMissingEntryIds } from '../card/card-id'
 import { storedLanguage, type CardLanguage } from '../card/card-language'
 import { csvCell } from '../changes/csv'
-import { DEFAULT_EXPORT_COLUMNS, EXPORT_PROPERTY_LABELS } from '../export/render'
+import { DEFAULT_EXPORT_COLUMNS, EXPORT_COLUMN_HEADERS } from '../export/render'
 
 /**
  * Header row shared by every fixed-column CSV export
  * (`Name,Set,Collector Number,Finish,Condition,Language,Quantity`). Derived
- * from the `ritual export` property labels so the two CSV surfaces can never
- * drift.
+ * from the `ritual export` header cells so the two CSV surfaces can never
+ * drift. English in every UI language: an importer matches on these bytes.
  */
 export const CSV_HEADER = DEFAULT_EXPORT_COLUMNS.map(
-  (column) => EXPORT_PROPERTY_LABELS[column],
+  (column) => EXPORT_COLUMN_HEADERS[column],
 ).join(',')
 
 /**

@@ -159,6 +159,9 @@ export default [
                 'src/changes',
                 'src/theme',
                 'src/export',
+                // The export engine's words, outside the persistence fence;
+                // the config validator words a preset refusal through it.
+                'src/export-wording',
                 'src/buylist',
                 'src/sync',
                 'src/scryfall/types',

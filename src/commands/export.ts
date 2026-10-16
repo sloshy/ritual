@@ -1,6 +1,7 @@
 import path from 'node:path'
 import type { Command } from 'commander'
-import { describeExportProperties } from '../pricing/export-hints'
+import { describeExportProperties } from '../export-wording/columns'
+import { exportProblemMessage } from '../export-wording/message'
 import { VALID_CONDITIONS, VALID_FINISHES } from '../card/finish-condition'
 import { CARD_LABEL_SELECTION_NONE, CARD_LABELS } from '../card/card-labels'
 import type { ListType } from '../list/list-type'
@@ -55,7 +56,7 @@ import {
 } from '../cli/action'
 import { parseEnumField } from '../util/parse-enum'
 import { isSyncMessage } from '../sync/message'
-import { runExportWizard } from './export-wizard'
+import { exportWarningLine, runExportWizard } from './export-wizard'
 import { t } from '../i18n/t'
 
 /** Raw commander option values; format/columns/finish/condition are validated in the action. */
@@ -151,11 +152,11 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
         .map((value) => value.trim())
         .filter((value) => value.length > 0),
     )
-    if (typeof conditions === 'string') {
-      failWith(TEXT_ONLY, 'usage_error', conditions)
+    if (!conditions.ok) {
+      failWithMessage(TEXT_ONLY, 'usage_error', exportProblemMessage(conditions.problem))
       return undefined
     }
-    filters.conditions = conditions
+    filters.conditions = conditions.value
   }
   if (options.labels !== undefined) {
     const labels = parseLabelFilterValues(
@@ -164,11 +165,11 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
         .map((value) => value.trim())
         .filter((value) => value.length > 0),
     )
-    if (typeof labels === 'string') {
-      failWith(TEXT_ONLY, 'usage_error', labels)
+    if (!labels.ok) {
+      failWithMessage(TEXT_ONLY, 'usage_error', exportProblemMessage(labels.problem))
       return undefined
     }
-    filters.labels = labels
+    filters.labels = labels.value
   }
   if (options.tags !== undefined) {
     // The tag grammar owns its own comma split (spaces are part of a tag).
@@ -183,11 +184,11 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
   let columns: ExportProperty[] | undefined
   if (options.columns !== undefined) {
     const parsed = parseColumnsFlag(options.columns)
-    if (typeof parsed === 'string') {
-      failWith(TEXT_ONLY, 'usage_error', parsed)
+    if (!parsed.ok) {
+      failWithMessage(TEXT_ONLY, 'usage_error', exportProblemMessage(parsed.problem))
       return undefined
     }
-    columns = parsed
+    columns = parsed.value
   }
 
   let dialect: ExportDialect | undefined
@@ -333,7 +334,7 @@ async function runFlagExport(
   // is missing cards, so these always reach stderr — `--quiet` silences
   // confirmations, never a signal that content was lost.
   emitWarnings(
-    selection.warnings.map((warning) => `⚠️  ${warning}`),
+    selection.warnings.map(exportWarningLine),
     { output: 'text', quiet },
     { essential: true },
   )
@@ -347,7 +348,7 @@ async function runFlagExport(
     lookupPrintings: getCachedCardPrintings,
   })
   emitWarnings(
-    rendered.warnings.map((warning) => `⚠️  ${warning}`),
+    rendered.warnings.map(exportWarningLine),
     { output: 'text', quiet },
     { essential: true },
   )

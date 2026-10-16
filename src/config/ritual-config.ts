@@ -21,6 +21,7 @@ import { isRecord } from '../util/json'
 import { DEFAULT_CACHE_LOCK_TIMEOUT_SECONDS } from '../cache/constants'
 import { INCLUDE_ALL, defaultSiteSelection, type SiteSelectionConfig } from './list-selection'
 import { parseExportPresets, type ExportPreset } from '../export/presets'
+import { exportProblemMessage } from '../export-wording/message'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from './search-debounce'
 import {
   CARD_LANGUAGES,
@@ -454,12 +455,16 @@ export function parseDefaultCategoriesField(value: unknown): CardCategory[] | Co
   return parseDefaultCategories(value)
 }
 
-/** `parseExportPresets` with its refusal (a bare string) as a {@link ConfigParseError}. */
+/**
+ * `parseExportPresets` with its refusal as a {@link ConfigParseError}: the export
+ * engine's structured problem, worded at this boundary (it cannot reach the
+ * catalog itself), keyed and with a column list's own refusal nested.
+ */
 export function parseExportPresetsField(
   value: unknown,
 ): Record<string, ExportPreset> | ConfigParseError {
   const presets = parseExportPresets(value)
-  return typeof presets === 'string' ? { error: syncText(presets) } : presets
+  return presets.ok ? presets.value : { error: exportProblemMessage(presets.problem) }
 }
 
 /**

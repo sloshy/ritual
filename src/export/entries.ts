@@ -1,19 +1,12 @@
 import * as fs from 'node:fs/promises'
+import { isCondition, type Condition, type Finish } from '../card/finish-condition'
 import {
-  isCondition,
-  VALID_CONDITIONS,
-  type Condition,
-  type Finish,
-} from '../card/finish-condition'
-import {
-  CARD_LABEL_SELECTIONS,
   effectiveLabels,
   isCardLabelSelection,
   normalizedLabelSet,
   matchesCardLabelSelection,
   supportsAnyLabels,
   type CardLabel,
-  type CardLabelSelection,
 } from '../card/card-labels'
 import { hasAnyCardTag, normalizedTags, type CardTag } from '../card/card-tags'
 import { type CardCategory, type WithCardCategories } from '../card/card-categories'
@@ -24,6 +17,8 @@ import {
   type CardCategoriesRecord,
 } from '../list/card-categories-sidecar'
 import type { CardLanguage } from '../card/card-language'
+import type { ParseNotice } from '../list/line-diagnostics'
+import type { SyncMessage } from '../sync/message'
 import type { ListType } from '../list/list-type'
 import type { ListLocation } from '../list/resolve-list'
 import { loadDeckFile } from '../importers/text-file'
@@ -31,6 +26,20 @@ import { parseDeckFrontMatter } from '../list/deck-file'
 import { parseCollectionFile, type CollectionEntry } from '../list/collection-file'
 import { parseWantedListFile, type WantedListEntry } from '../list/wanted-file'
 import { matchesAllTerms } from '../card/term-match'
+import {
+  CONDITION_FILTER_NONE,
+  type ConditionFilterValue,
+  type LabelFilterValue,
+} from './filter-values'
+import {
+  exportProblem,
+  exportWarning,
+  refuseExport,
+  type ConditionsProblem,
+  type ExportParsed,
+  type ExportWarning,
+  type LabelsProblem,
+} from './text'
 
 /**
  * One flattened card entry assembled for export, unified across deck,
@@ -90,7 +99,17 @@ type ExportEntryFields = {
   edhrecRank?: number
 }
 
-export type LoadedExportEntries = { entries: ExportEntry[]; warnings: string[] }
+export type LoadedExportEntries = { entries: ExportEntry[]; warnings: ExportWarning[] }
+
+/** A list parser's (or sidecar's) own message, as an export warning naming its list. */
+function listWarning(location: ListLocation, warning: SyncMessage): ExportWarning {
+  return exportWarning('list-warning', { list: location.name, warning })
+}
+
+/** The messages of a parse's `warning` notices — its unreadable content — in recording order. */
+function warningMessages(notices: readonly ParseNotice[]): SyncMessage[] {
+  return notices.filter((notice) => notice.severity === 'warning').map((notice) => notice.message)
+}
 
 /**
  * Stable identity of an entry within the assembled export set, used to dedupe
@@ -102,29 +121,26 @@ export function exportEntryKey(entry: ExportEntry): string {
 
 /**
  * Load and flatten the given list files into export entries. Parse warnings are
- * collected (prefixed with the list name) rather than printed, so both the CLI
- * and the admin route can surface them their own way.
+ * collected (each naming its list) rather than printed, so both the CLI and the
+ * admin route can surface them their own way.
  */
 export async function loadExportEntries(locations: ListLocation[]): Promise<LoadedExportEntries> {
   const entries: ExportEntry[] = []
-  const warnings: string[] = []
+  const warnings: ExportWarning[] = []
 
   for (const location of locations) {
     // The sidecar is read once per list and joined by name below. `knownCardNames`
     // is deliberately not passed: an export never prunes, and the stale-name
     // report belongs to the read API, which gates it on a lossless parse.
     const loadedCategories = await loadCardCategories(location.filePath)
-    // English, like every export warning.
-    if (!loadedCategories.ok) {
-      warnings.push(`${location.name}: ${loadedCategories.message.message}`)
-    }
+    if (!loadedCategories.ok) warnings.push(listWarning(location, loadedCategories.message))
     const categoriesRecord: CardCategoriesRecord = loadedCategories.ok
       ? loadedCategories.categories
       : emptyCardCategoriesRecord()
 
     if (location.type === 'deck') {
-      const { deck, warnings: deckWarnings } = await loadDeckFile(location.filePath)
-      warnings.push(...deckWarnings.map((w) => `${location.name}: ${w}`))
+      const { deck, notices } = await loadDeckFile(location.filePath)
+      warnings.push(...warningMessages(notices).map((w) => listWarning(location, w)))
       // The deck's `labels:` default lives in front matter, which the deck
       // parser does not project onto DeckData — read separately, exactly as the
       // site's deck baker does, so an export resolves the same effective labels
@@ -159,7 +175,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
     const content = await fs.readFile(location.filePath, 'utf-8')
     if (location.type === 'collection') {
       const parsed = parseCollectionFile(content)
-      warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
+      warnings.push(...warningMessages(parsed.notices).map((w) => listWarning(location, w)))
       parsed.entries.forEach((entry, fileOrder) => {
         const labels = effectiveLabels(entry.labels, parsed.labels)
         entries.push(
@@ -176,7 +192,7 @@ export async function loadExportEntries(locations: ListLocation[]): Promise<Load
       continue
     }
     const parsed = parseWantedListFile(content)
-    warnings.push(...parsed.warnings.map((w) => `${location.name}: ${w}`))
+    warnings.push(...warningMessages(parsed.notices).map((w) => listWarning(location, w)))
     parsed.entries.forEach((entry, fileOrder) => {
       entries.push(
         flatEntry({
@@ -253,7 +269,9 @@ export async function buildExportSelection(
   const warnings = [...loaded.warnings]
   const scopeEntries = cardTerms.length > 0 ? (await loadExportEntries(scope)).entries : []
   const assembled = assembleExportEntries(loaded.entries, scopeEntries, cardTerms)
-  warnings.push(...assembled.unmatchedTerms.map((terms) => `No cards matched '${terms}'`))
+  warnings.push(
+    ...assembled.unmatchedTerms.map((terms) => exportWarning('cards-unmatched', { terms })),
+  )
   return { entries: filterExportEntries(assembled.entries, filters), warnings }
 }
 
@@ -288,25 +306,17 @@ export function assembleExportEntries(
 }
 
 /**
- * One condition-filter value: an explicit condition grade, or `'none'` to
- * match entries with no condition marked on their line.
- */
-export type ConditionFilterValue = Condition | 'none'
-
-export const CONDITION_FILTER_NONE = 'none'
-
-/**
  * Validate a raw condition-filter value list (from a flag or an API body), or
- * an error message. Condition grades are matched case-insensitively; `none`
+ * the problem with it. Condition grades are matched case-insensitively; `none`
  * selects entries without an explicit condition.
  */
 export function parseConditionFilterValues(
   values: readonly unknown[],
-): ConditionFilterValue[] | string {
+): ExportParsed<ConditionFilterValue[], ConditionsProblem> {
   const conditions: ConditionFilterValue[] = []
   for (const value of values) {
     if (typeof value !== 'string') {
-      return `Invalid condition '${String(value)}'. Use one of: ${VALID_CONDITIONS.join(', ')}, none.`
+      return refuseExport(exportProblem('condition-invalid', { value: String(value) }))
     }
     const grade = value.toUpperCase()
     const parsed: ConditionFilterValue | undefined = isCondition(grade)
@@ -315,45 +325,32 @@ export function parseConditionFilterValues(
         ? CONDITION_FILTER_NONE
         : undefined
     if (parsed === undefined) {
-      return `Invalid condition '${value}'. Use one of: ${VALID_CONDITIONS.join(', ')}, none.`
+      return refuseExport(exportProblem('condition-invalid', { value }))
     }
     if (!conditions.includes(parsed)) conditions.push(parsed)
   }
-  if (conditions.length === 0) {
-    return `No conditions given. Use one of: ${VALID_CONDITIONS.join(', ')}, none.`
-  }
-  return conditions
+  if (conditions.length === 0) return refuseExport(exportProblem('conditions-empty'))
+  return { ok: true, value: conditions }
 }
 
 /**
- * One labels-filter value: the shared selection vocabulary (`'none'` matches
- * collection entries whose effective label set is empty). The alias marks the
- * export-specific semantics: unlike the site's chips, a filter list here may
- * combine `keep` with the others — it selects, it doesn't declare.
- */
-export type LabelFilterValue = CardLabelSelection
-
-/** Every labels-filter value, in canonical order, for flag help and validation messages. */
-export const LABEL_FILTER_VALUES = CARD_LABEL_SELECTIONS
-
-/**
- * Validate a raw labels-filter value list (from a flag or an API body), or an
- * error message. Labels are matched case-insensitively; `none` selects
+ * Validate a raw labels-filter value list (from a flag or an API body), or the
+ * problem with it. Labels are matched case-insensitively; `none` selects
  * unlabeled collection entries.
  */
-export function parseLabelFilterValues(values: readonly unknown[]): LabelFilterValue[] | string {
+export function parseLabelFilterValues(
+  values: readonly unknown[],
+): ExportParsed<LabelFilterValue[], LabelsProblem> {
   const labels: LabelFilterValue[] = []
   for (const value of values) {
     const lower = typeof value === 'string' ? value.toLowerCase() : undefined
     if (lower === undefined || !isCardLabelSelection(lower)) {
-      return `Invalid label '${String(value)}'. Use one of: ${LABEL_FILTER_VALUES.join(', ')}.`
+      return refuseExport(exportProblem('label-invalid', { value: String(value) }))
     }
     if (!labels.includes(lower)) labels.push(lower)
   }
-  if (labels.length === 0) {
-    return `No labels given. Use one of: ${LABEL_FILTER_VALUES.join(', ')}.`
-  }
-  return labels
+  if (labels.length === 0) return refuseExport(exportProblem('labels-empty'))
+  return { ok: true, value: labels }
 }
 
 /**
