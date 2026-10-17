@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { resolveStringOverride } from './env-override'
 import { getErrorMessage, hasErrorCode } from '../util/errors'
-import { isSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
+import { syncMessage, type MessageParseError } from '../sync/message'
 
 let baseDir: string = process.cwd()
 
@@ -17,17 +17,6 @@ export function setBaseDir(dir: string): void {
 /** `file`'s path relative to the workspace, as a message shows it to the user. */
 export function workspaceRelative(file: string): string {
   return path.relative(baseDir, file)
-}
-
-/**
- * The error branch of {@link parseBaseDir}: why the value cannot be a base dir,
- * as a message the CLI renders in its own language (the key and English params
- * ride in a `--output json` envelope).
- */
-export type BaseDirError = { error: SyncMessage }
-
-export function isBaseDirError(result: string | BaseDirError): result is BaseDirError {
-  return typeof result === 'object' && result !== null && isSyncMessage(result.error)
 }
 
 /**
@@ -50,7 +39,7 @@ export function resolveBaseDir(
  * workspace (nor quietly fork a new one), so this is the CLI's usage-error gate
  * — it never creates the directory.
  */
-export async function parseBaseDir(value: string): Promise<string | BaseDirError> {
+export async function parseBaseDir(value: string): Promise<string | MessageParseError> {
   const resolved = path.resolve(value)
   try {
     const stats = await fs.stat(resolved)

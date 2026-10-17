@@ -3,7 +3,13 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import type { MessageKey } from '../../../src/i18n/messages/en'
 import type { SelfUpdateEnv } from '../../../src/update/env'
-import { parseChecksumFile, removeLeftoverBinary } from '../../../src/update/install'
+import {
+  parseChecksumFile,
+  removeLeftoverBinary,
+  smokeTestDetail,
+} from '../../../src/update/install'
+import type { MessageParseError, SyncText } from '../../../src/sync/message'
+import type { BinaryRunResult } from '../../../src/update/env'
 import { assetNameFor } from '../../../src/update/release-source'
 import {
   assertSelfUpdatable,
@@ -26,6 +32,7 @@ import {
 } from '../../helpers/fake-release'
 import { commandFailure, failureIdentity } from '../../helpers/rejection'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
+import { pseudoCatalog, pseudoString, withGuardedLocaleAsync } from '../../helpers/sync-text'
 
 describe('assetNameFor', () => {
   test.each<[NodeJS.Platform, NodeJS.Architecture, string]>([
@@ -59,12 +66,109 @@ describe('parseChecksumFile', () => {
     expect(parseChecksumFile(text, FAKE_ASSET)).toBe(digest.toLowerCase())
   })
 
-  test.each([
-    ['a digest for another file', `${digest}  ritual-macos-arm64`],
-    ['a short digest', `${'a'.repeat(63)}  ${FAKE_ASSET}`],
-    ['an empty file', ''],
-  ])('rejects %s', (_label, text) => {
-    expect(parseChecksumFile(text, FAKE_ASSET)).toHaveProperty('error')
+  const malformed: MessageParseError = {
+    error: {
+      message: 'expected a SHA-256 digest followed by a file name',
+      messageKey: 'cli.selfUpdate.checksum.malformed',
+    },
+  }
+
+  test.each<[string, string, MessageParseError]>([
+    [
+      'a digest for another file',
+      `${digest}  ./dist/ritual-macos-arm64`,
+      {
+        error: {
+          message: `the digest is for ./dist/ritual-macos-arm64, not ${FAKE_ASSET}`,
+          messageKey: 'cli.selfUpdate.checksum.otherFile',
+          messageParams: { file: './dist/ritual-macos-arm64', asset: FAKE_ASSET },
+        },
+      },
+    ],
+    [
+      'a digest naming a file with control characters, quoted onto one line',
+      `${digest}  ./dist/\u001b[31mevil\u001b[0m\tname`,
+      {
+        error: {
+          message: `the digest is for ./dist/evil name, not ${FAKE_ASSET}`,
+          messageKey: 'cli.selfUpdate.checksum.otherFile',
+          messageParams: { file: './dist/evil name', asset: FAKE_ASSET },
+        },
+      },
+    ],
+    ['a short digest', `${'a'.repeat(63)}  ${FAKE_ASSET}`, malformed],
+    ['an empty file', '', malformed],
+  ])('rejects %s', (_label, text, error) => {
+    expect(parseChecksumFile(text, FAKE_ASSET)).toEqual(error)
+  })
+})
+
+describe('smokeTestDetail', () => {
+  const run = (overrides: Partial<BinaryRunResult>): BinaryRunResult => ({
+    exitCode: 0,
+    stdout: '',
+    stderr: '',
+    killed: false,
+    ...overrides,
+  })
+  const long = 'x'.repeat(250)
+
+  // The policy: the binary's own text is quoted on one line — every line break
+  // and control character a space, runs collapsed, ends trimmed — and capped at
+  // 200 characters; only why there is nothing to quote is worded by Ritual.
+  test.each<[string, BinaryRunResult, SyncText]>([
+    [
+      'a run that timed out',
+      run({ exitCode: 1, stdout: '1.1.0', killed: true }),
+      { messageKey: 'cli.selfUpdate.smoke.timedOut' },
+    ],
+    ['the wrong version', run({ stdout: '6.6.6\n' }), '6.6.6'],
+    [
+      'a multi-line version answer, on one line',
+      run({ stdout: 'Ritual\n  6.6.6\n' }),
+      'Ritual 6.6.6',
+    ],
+    [
+      'nothing printed at all',
+      run({ stdout: ' \n' }),
+      { messageKey: 'cli.selfUpdate.smoke.noOutput' },
+    ],
+    [
+      'multi-line stderr, on one line',
+      run({ exitCode: 1, stderr: 'error: bad\n    at main\n' }),
+      {
+        messageKey: 'cli.selfUpdate.smoke.exited',
+        messageParams: { exitCode: 1, output: 'error: bad at main' },
+      },
+    ],
+    [
+      'control characters in stderr',
+      run({ exitCode: 2, stderr: '\u001b[31mred\u001b[0m\tand\u0007bell' }),
+      {
+        messageKey: 'cli.selfUpdate.smoke.exited',
+        messageParams: { exitCode: 2, output: 'red and bell' },
+      },
+    ],
+    [
+      'stderr past the cap',
+      run({ exitCode: 1, stderr: long }),
+      {
+        messageKey: 'cli.selfUpdate.smoke.exited',
+        messageParams: { exitCode: 1, output: `${'x'.repeat(200)}…` },
+      },
+    ],
+    [
+      'a failure with empty stderr, quoting stdout',
+      run({ exitCode: 1, stdout: 'oops\n' }),
+      { messageKey: 'cli.selfUpdate.smoke.exited', messageParams: { exitCode: 1, output: 'oops' } },
+    ],
+    [
+      'a failure that printed nothing',
+      run({ exitCode: 139 }),
+      { messageKey: 'cli.selfUpdate.smoke.exitedSilently', messageParams: { exitCode: 139 } },
+    ],
+  ])('%s', (_label, result, detail) => {
+    expect(smokeTestDetail(result)).toEqual(detail)
   })
 })
 
@@ -221,6 +325,39 @@ describe('installUpdate', () => {
     },
   )
 
+  test('a malformed checksum file nests why in the refusal', async () => {
+    const { binary, plan, env } = await setUp('v1.1.0', { checksum: 'not a digest' })
+
+    const error = await commandFailure(installUpdate(env, plan, binary))
+
+    expect({ message: error.message, key: error.messageKey, params: error.messageParams }).toEqual({
+      message: `The checksum file for ${FAKE_ASSET} is malformed (expected a SHA-256 digest followed by a file name); nothing was installed.`,
+      key: 'cli.selfUpdate.error.badChecksumFile',
+      params: {
+        asset: FAKE_ASSET,
+        error: 'expected a SHA-256 digest followed by a file name',
+      },
+    })
+  })
+
+  test('a malformed checksum file reads in the CLI’s language, its reason too', async () => {
+    const { binary, plan, env } = await setUp('v1.1.0', { checksum: 'not a digest' })
+
+    const error = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      commandFailure(installUpdate(env, plan, binary)),
+    )
+
+    expect(error.message).toBe(
+      pseudoString('cli.selfUpdate.error.badChecksumFile')
+        .replace('{asset}', FAKE_ASSET)
+        .replace('{error}', pseudoString('cli.selfUpdate.checksum.malformed')),
+    )
+    expect(error.messageParams).toEqual({
+      asset: FAKE_ASSET,
+      error: 'expected a SHA-256 digest followed by a file name',
+    })
+  })
+
   test.each<[string, FakeReleaseOptions, MessageKey]>([
     [
       'a malformed checksum file',
@@ -238,18 +375,45 @@ describe('installUpdate', () => {
     expect(await filesBeside(binary)).toEqual(['ritual'])
   })
 
-  test.each<[string, string]>([
-    ['reports the wrong version', fakeBinary('6.6.6')],
-    ['fails to run', 'garbage'],
-  ])('a binary that %s is not installed, and its temp file is removed', async (_label, bytes) => {
-    const { binary, plan, env, runs } = await setUp('v1.1.0', { binary: bytes })
+  test.each<[string, string, string]>([
+    ['reports the wrong version', fakeBinary('6.6.6'), '6.6.6'],
+    ['fails to run', 'garbage', 'exit 1: not a ritual binary'],
+  ])(
+    'a binary that %s is not installed, and its temp file is removed',
+    async (_label, bytes, detail) => {
+      const { binary, plan, env, runs } = await setUp('v1.1.0', { binary: bytes })
 
-    const error = await commandFailure(installUpdate(env, plan, binary))
+      const error = await commandFailure(installUpdate(env, plan, binary))
 
-    expect(error.messageKey).toBe('cli.selfUpdate.error.smokeTest')
-    expect(runs.smokeTests).toHaveLength(1)
-    expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
-    expect(await filesBeside(binary)).toEqual(['ritual'])
+      expect({ key: error.messageKey, params: error.messageParams }).toEqual({
+        key: 'cli.selfUpdate.error.smokeTest',
+        params: { expected: '1.1.0', detail },
+      })
+      expect(runs.smokeTests).toHaveLength(1)
+      expect(await fs.readFile(binary, 'utf8')).toBe(fakeBinary('1.0.0'))
+      expect(await filesBeside(binary)).toEqual(['ritual'])
+    },
+  )
+
+  test('a failed smoke test reads in the CLI’s language, its exit reason too', async () => {
+    const { binary, plan, env } = await setUp(
+      'v1.1.0',
+      {},
+      { runBinary: async () => ({ exitCode: 3, stdout: '', stderr: 'boom', killed: false }) },
+    )
+    const error = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      commandFailure(installUpdate(env, plan, binary)),
+    )
+
+    expect(error.messageParams).toEqual({ expected: '1.1.0', detail: 'exit 3: boom' })
+    const detail = pseudoString('cli.selfUpdate.smoke.exited')
+      .replace('{exitCode}', '3')
+      .replace('{output}', 'boom')
+    expect(error.message).toBe(
+      pseudoString('cli.selfUpdate.error.smokeTest')
+        .replace('{expected}', '1.1.0')
+        .replace('{detail}', detail),
+    )
   })
 
   test('a failed swap removes the temp file and leaves the target alone', async () => {

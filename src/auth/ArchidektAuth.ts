@@ -1,3 +1,5 @@
+import type { MessageKey } from '../i18n/messages/en'
+import { isSyncMessage } from '../sync/message'
 import type {
   AuthService,
   TokenStore,
@@ -6,26 +8,189 @@ import type {
   ArchidektLoginStatus,
 } from './interfaces'
 import { getJwtExpiration } from './jwt'
-import { getLogger } from '../util/logger'
-import { throwHttpError } from '../util/errors'
+import { t } from '../i18n/t'
+import {
+  syncList,
+  syncMessage,
+  SyncMessageError,
+  type SyncMessage,
+  type SyncParam,
+} from '../sync/message'
+import { getErrorMessage } from '../util/errors'
+import { isRecord } from '../util/json'
+import { getLogger, type Logger } from '../util/logger'
+import { parsedJson, quotedReply, readReplyText } from '../util/reply-text'
 
 // Refresh slightly before actual expiry so a token isn't used mid-request.
 const EXPIRY_BUFFER_MS = 30_000
 
+/** The most of one of Archidekt's reasons an error quotes (characters). */
+const MAX_REASON_CHARS = 300
+
 type StoredUser = { username: string; id: number }
 
-type RefreshResponse = {
-  access?: string
-  access_token?: string
-  refresh_token?: string
-  access_token_expiration?: string
+/** The two requests the login makes, each failure worded by a pair of keys. */
+type AuthRequest = 'login' | 'refresh'
+
+/** A failure Archidekt gave no reason for, and the same failure quoting its reason. */
+const FAILURE_KEYS = {
+  login: {
+    plain: 'domain.sync.auth.loginFailed',
+    withReason: 'domain.sync.auth.loginFailedWithReason',
+  },
+  refresh: {
+    plain: 'domain.sync.auth.refreshFailed',
+    withReason: 'domain.sync.auth.refreshFailedWithReason',
+  },
+} as const satisfies Record<AuthRequest, Record<'plain' | 'withReason', MessageKey>>
+
+/**
+ * A failed Archidekt auth request: its message (English plus its key, as for
+ * any sync-owned error), and the HTTP status Archidekt answered with — what
+ * lets the admin login route tell a refused login (a 4xx) from Archidekt
+ * failing (anything else).
+ */
+export class ArchidektAuthError extends SyncMessageError {
+  readonly upstreamStatus: number
+  constructor(message: SyncMessage, upstreamStatus: number) {
+    super(message)
+    this.name = 'ArchidektAuthError'
+    this.upstreamStatus = upstreamStatus
+  }
+}
+
+/** Whether Archidekt refused the credentials themselves: a 4xx, other than a rate limit. */
+export function isCredentialRefusal(upstreamStatus: number): boolean {
+  return upstreamStatus >= 400 && upstreamStatus < 500 && upstreamStatus !== 429
+}
+
+/**
+ * The human reasons in one of Archidekt's error replies: Django REST
+ * framework's `non_field_errors` list (a refused login) and its `detail`
+ * (a refused token), each quoted — control characters stripped, capped. A
+ * reply with neither (an HTML error page, an empty body) gives none: its
+ * status says as much as it would.
+ */
+export function archidektReasons(body: string): string[] {
+  const json = parsedJson(body)
+  if (!isRecord(json)) return []
+  const reasons: string[] = []
+  const { non_field_errors: nonField, detail } = json
+  if (Array.isArray(nonField)) {
+    const list: readonly unknown[] = nonField
+    for (const item of list) if (typeof item === 'string') reasons.push(item)
+  }
+  if (typeof detail === 'string') reasons.push(detail)
+  return reasons.map((reason) => quotedReply(reason, MAX_REASON_CHARS)).filter((r) => r !== '')
+}
+
+/** One reason as itself, several as independent clauses joined in the reader's language. */
+function reasonParam(reasons: readonly [string, ...string[]]): SyncParam {
+  return reasons.length === 1 ? reasons[0] : syncList(reasons, 'clauses')
+}
+
+/**
+ * A failed Archidekt auth request as the error to throw: the status as a
+ * number, and Archidekt's own reason when its reply carries one. The status's
+ * reason phrase is dropped: the number says the same, in no particular
+ * language.
+ */
+async function authRequestFailure(
+  response: Response,
+  request: AuthRequest,
+): Promise<ArchidektAuthError> {
+  const [first, ...rest] = archidektReasons(await readReplyText(response))
+  const status = response.status
+  const keys = FAILURE_KEYS[request]
+  return new ArchidektAuthError(
+    first === undefined
+      ? syncMessage(keys.plain, { status })
+      : syncMessage(keys.withReason, { status, reason: reasonParam([first, ...rest]) }),
+    status,
+  )
+}
+
+/** A non-empty string, or `undefined`. */
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+/** An optional string field: absent, or a string. */
+function optionalString(value: unknown): value is string | undefined {
+  return value === undefined || typeof value === 'string'
+}
+
+/**
+ * Validate what Archidekt answered a login with: a session to store. Only the
+ * fields Ritual reads are kept, so nothing unvalidated reaches the token file.
+ * A reply that is not one (no tokens, a malformed account, `null`) is the
+ * message saying so.
+ */
+export function parseArchidektToken(json: unknown): ArchidektToken | SyncMessage {
+  const invalid = syncMessage('domain.sync.auth.loginReplyInvalid')
+  if (!isRecord(json)) return invalid
+  const access = nonEmptyString(json.access_token)
+  const refresh = nonEmptyString(json.refresh_token)
+  const { user, access_token_expiration: accessExp, refresh_token_expiration: refreshExp } = json
+  if (access === undefined || refresh === undefined) return invalid
+  if (!optionalString(accessExp) || !optionalString(refreshExp)) return invalid
+  const token: ArchidektToken = { access_token: access, refresh_token: refresh }
+  if (user !== undefined) {
+    if (!isRecord(user)) return invalid
+    const { id, username } = user
+    if (typeof id !== 'number' || !Number.isSafeInteger(id) || typeof username !== 'string') {
+      return invalid
+    }
+    token.user = { id, username }
+  }
+  if (accessExp !== undefined) token.access_token_expiration = accessExp
+  if (refreshExp !== undefined) token.refresh_token_expiration = refreshExp
+  return token
+}
+
+/** What a token refresh answers, validated. */
+export type RefreshReply = {
+  accessToken: string
+  refreshToken?: string
+  accessTokenExpiration?: string
+}
+
+/**
+ * Validate what Archidekt answered a token refresh with: the new access token
+ * (`access`, or `access_token`), and a rotated refresh token and expiry when
+ * it sends them. A reply without a usable access token (`null` included) is the
+ * message saying so.
+ */
+export function parseRefreshReply(json: unknown): RefreshReply | SyncMessage {
+  const invalid = syncMessage('domain.sync.auth.refreshNoAccessToken')
+  if (!isRecord(json)) return invalid
+  const accessToken = nonEmptyString(json.access) ?? nonEmptyString(json.access_token)
+  const { refresh_token: refreshToken, access_token_expiration: expiration } = json
+  if (accessToken === undefined) return invalid
+  if (!optionalString(refreshToken) || !optionalString(expiration)) return invalid
+  const reply: RefreshReply = { accessToken }
+  if (refreshToken) reply.refreshToken = refreshToken
+  if (expiration) reply.accessTokenExpiration = expiration
+  return reply
 }
 
 export class ArchidektAuth implements AuthService<ArchidektCredentials> {
   private readonly SITE_NAME = 'archidekt'
   private readonly BASE_URL = 'https://archidekt.com/api/rest-auth'
 
-  constructor(private tokenStore: TokenStore) {}
+  /**
+   * `logger` takes the session-refresh lines; a command that owns stdout (a
+   * sync under `--output json`) passes its scripting logger so they never
+   * reach it. Without one, each line goes to the process's logger.
+   */
+  constructor(
+    private readonly tokenStore: TokenStore,
+    private readonly logger?: Logger,
+  ) {}
+
+  private log(): Logger {
+    return this.logger ?? getLogger()
+  }
 
   async getStoredUser(): Promise<StoredUser | null> {
     const token = await this.tokenStore.load<ArchidektToken>(this.SITE_NAME)
@@ -82,12 +247,13 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
       body: JSON.stringify(credentials),
     })
 
-    if (!response.ok) {
-      throwHttpError(response, 'Login failed')
-    }
+    if (!response.ok) throw await authRequestFailure(response, 'login')
 
-    const data = (await response.json()) as ArchidektToken
-    await this.tokenStore.save(this.SITE_NAME, data)
+    // A 2xx reply that is not JSON parses to `undefined`: a reply without a usable
+    // session (502 on the admin route), never a SyntaxError (500).
+    const token = parseArchidektToken(parsedJson(await response.text()))
+    if (isSyncMessage(token)) throw new ArchidektAuthError(token, response.status)
+    await this.tokenStore.save(this.SITE_NAME, token)
   }
 
   /** Forget the stored login (token + user); a no-op when none is stored. */
@@ -105,10 +271,10 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     if (this.isExpired(token)) {
       try {
         const accessToken = await this.refreshToken(token)
-        getLogger().info('Token refreshed successfully.')
+        this.log().info(t('domain.sync.auth.refreshed'))
         return accessToken
       } catch (error) {
-        getLogger().error('Failed to refresh token:', error)
+        this.log().error(t('domain.sync.auth.refreshError', { error: getErrorMessage(error) }))
         // Returning null signals the caller to re-enter the login flow.
         return null
       }
@@ -141,7 +307,13 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
     return Date.now() >= expiration.getTime() - EXPIRY_BUFFER_MS
   }
 
-  private async refreshToken(oldToken: ArchidektToken): Promise<string> {
+  /**
+   * Trade the stored refresh token for a new access token, store it, and
+   * return it. Rejects with an {@link ArchidektAuthError} when Archidekt
+   * refuses or answers without one. Public so the failure can be observed:
+   * {@link getToken} logs it and asks for a fresh login instead.
+   */
+  async refreshToken(oldToken: ArchidektToken): Promise<string> {
     const response = await fetch(`${this.BASE_URL}/token/refresh/`, {
       method: 'POST',
       headers: {
@@ -150,26 +322,15 @@ export class ArchidektAuth implements AuthService<ArchidektCredentials> {
       body: JSON.stringify({ refresh: oldToken.refresh_token }),
     })
 
-    if (!response.ok) {
-      throwHttpError(response, 'Token refresh failed')
-    }
+    if (!response.ok) throw await authRequestFailure(response, 'refresh')
 
-    const data = (await response.json()) as RefreshResponse
-    // Preserve fields (e.g. user info) that the refresh endpoint may omit
-    const newToken: ArchidektToken = {
-      ...oldToken,
-    }
-
-    const nextAccessToken = data.access ?? data.access_token
-    if (!nextAccessToken) {
-      throw new Error('Token refresh failed: missing access token in response')
-    }
-    newToken.access_token = nextAccessToken
-    if (data.refresh_token) {
-      newToken.refresh_token = data.refresh_token
-    }
-    if (data.access_token_expiration) {
-      newToken.access_token_expiration = data.access_token_expiration
+    const reply = parseRefreshReply(parsedJson(await response.text()))
+    if (isSyncMessage(reply)) throw new ArchidektAuthError(reply, response.status)
+    // Preserve fields (e.g. user info) that the refresh endpoint omits.
+    const newToken: ArchidektToken = { ...oldToken, access_token: reply.accessToken }
+    if (reply.refreshToken !== undefined) newToken.refresh_token = reply.refreshToken
+    if (reply.accessTokenExpiration !== undefined) {
+      newToken.access_token_expiration = reply.accessTokenExpiration
     }
 
     await this.tokenStore.save(this.SITE_NAME, newToken)

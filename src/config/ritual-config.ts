@@ -36,7 +36,7 @@ import type { LocaleTag } from '../i18n/types'
 import type { MessageKey } from '../i18n/messages/en'
 import { writeFileAtomic } from '../util/atomic-write'
 import {
-  isSyncMessage,
+  isMessageParseError,
   nestSync,
   renderSyncMessage,
   syncList,
@@ -44,8 +44,8 @@ import {
   SyncMessageError,
   syncRef,
   syncText,
+  type MessageParseError,
   type SyncArgs,
-  type SyncMessage,
   type SyncText,
 } from '../sync/message'
 
@@ -358,7 +358,7 @@ function isStringArray(value: unknown): value is string[] {
  * the admin page in the reader's. A refusal worded by a module outside the
  * catalog (a {@link PlainParseError}) is carried keyless, as its own text.
  */
-export type ConfigParseError = { error: SyncMessage }
+export type ConfigParseError = MessageParseError
 
 /**
  * The refusal of a config parser that lives outside `src/config` and words its
@@ -412,12 +412,12 @@ export function isMigrationCounter(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0
 }
 
-/** True when a config parser result is the {@link ConfigParseError} branch. */
-export function isConfigParseError(value: unknown): value is ConfigParseError {
-  return (
-    typeof value === 'object' && value !== null && 'error' in value && isSyncMessage(value.error)
-  )
-}
+/**
+ * True when a config parser result is the {@link ConfigParseError} branch — the
+ * shared {@link isMessageParseError}, under the name the config parsers' many
+ * call sites read it by.
+ */
+export const isConfigParseError = isMessageParseError
 
 /** True when a sibling parser's result is the {@link PlainParseError} branch. */
 export function isPlainParseError(value: unknown): value is PlainParseError {
@@ -1096,7 +1096,8 @@ type FieldPolicy = <T>(parsed: T | ConfigParseError, key: string, fallback: T) =
  * (the CLI's `preAction`) renders it in the boot-time locale `initI18n()` chose.
  */
 const warnAndDefault: FieldPolicy = (parsed, key, fallback) => {
-  if (isConfigParseError(parsed)) {
+  // `T` is generic, so the impostor check cannot be re-proved here.
+  if (isConfigParseError<unknown>(parsed)) {
     console.warn(
       renderSyncMessage(
         syncRef('domain.config.ignoringInvalid', {
@@ -1198,7 +1199,7 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
 export function parseRitualConfig(raw: RawConfig): RitualConfig | ConfigParseError {
   const errors: ConfigParseError[] = []
   const recordError: FieldPolicy = (parsed, key, fallback) => {
-    if (isConfigParseError(parsed)) {
+    if (isConfigParseError<unknown>(parsed)) {
       // A block's refusal already names its block (`site config: …`); any other
       // field's is headed by the key it is about.
       errors.push(

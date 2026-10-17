@@ -20,13 +20,14 @@ import {
   resolveCacheServerAddress,
   setCacheServerAddressOverride,
 } from '../cache/config'
-import { isBaseDirError, parseBaseDir, resolveBaseDir, setBaseDir } from '../config/base-dir'
+import { parseBaseDir, resolveBaseDir, setBaseDir } from '../config/base-dir'
 import { resolveNoInput, setNoInputOverride } from '../util/no-input'
 import { ensureCardIdsForAllLists } from '../list/ensure-card-ids'
-import { isConfigParseError, parseUiLocale, refreshRitualConfig } from '../config/ritual-config'
+import { parseUiLocale, refreshRitualConfig } from '../config/ritual-config'
 import { ExitCode, CardCommandError, messageCommandError } from '../util/errors'
-import { renderSyncMessage } from '../sync/message'
+import { isMessageParseError } from '../sync/message'
 import { PreActionFailure } from './action'
+import { messageArgParser } from './options'
 import { OUTPUT_FORMATS, type OutputFormat, type ScriptingOptions } from './output'
 
 /** Registers one command tree onto a program, e.g. `registerImportCommand`. */
@@ -87,13 +88,7 @@ function parseCacheServerOption(value: string): string {
  * The parser returns the canonical tag (`de-at` → `de-AT`), so the preAction
  * hook never has to re-canonicalize what it reads back.
  */
-function parseLocaleOption(value: string): string {
-  const parsed = parseUiLocale(value)
-  if (isConfigParseError(parsed)) {
-    throw new InvalidArgumentError(renderSyncMessage(parsed.error))
-  }
-  return parsed
-}
+const parseLocaleOption = messageArgParser(parseUiLocale)
 
 // ---------------------------------------------------------------------------
 // Commander's own strings
@@ -396,7 +391,7 @@ async function prepareAction(build: BuildProgramOptions, actionCommand: Command)
   const requestedBaseDir = resolveBaseDir(options.baseDir, process.env.RITUAL_BASE_DIR)
   if (requestedBaseDir !== undefined) {
     const parsed = await parseBaseDir(requestedBaseDir)
-    if (isBaseDirError(parsed)) {
+    if (isMessageParseError(parsed)) {
       // Worded in the language `initI18n()` chose: `--locale`, `RITUAL_LOCALE`
       // or the OS — the requested directory's config is never read.
       throw messageCommandError('usage_error', ExitCode.UsageError, parsed.error)

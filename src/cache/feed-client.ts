@@ -14,7 +14,8 @@ import {
   SyncMessageError,
   syncRef,
 } from '../sync/message'
-import { readReplyText, replyParam } from './server-reply'
+import { replyParam } from './server-reply'
+import { readReplyText } from '../util/reply-text'
 import type { BulkCacheFiles } from '../scryfall/client'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import {

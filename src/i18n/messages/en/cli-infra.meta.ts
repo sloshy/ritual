@@ -3,6 +3,22 @@
 import type { MetaFor } from '../../types'
 import type { cliInfraMessages } from './cli-infra'
 
+/** Shared context for why GitHub's release data was refused. */
+const RELEASE_REASON =
+  '`ritual self-update` reads the list of published Ritual releases from GitHub as JSON. This phrase says why that data was refused; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badResponse ("GitHub sent an unexpected response for …: …").'
+
+/** Shared context for the release field a reason names. */
+const RELEASE_FIELD =
+  '{field} is the JSON field exactly as GitHub names it (e.g. "tag_name", "draft", "assets[0].browser_download_url", where [0] is a 0-based position); never translate it.'
+
+/** Shared context for why a release's checksum file was refused. */
+const CHECKSUM_REASON =
+  'Each Ritual release binary comes with a .sha256 checksum file that proves the download is intact. This phrase says why that file could not be read; it starts lowercase with no closing period, and is shown as {error} inside cli.selfUpdate.error.badChecksumFile.'
+
+/** Shared context for why the new binary's version check failed. */
+const SMOKE_REASON =
+  'Before installing it, `ritual self-update` runs the downloaded binary with --version as a test. This phrase says why the test got no version back; it starts lowercase with no closing period, and is shown in parentheses as {detail} inside cli.selfUpdate.error.smokeTest.'
+
 /** Shared context for the Scryfall client's console lines. */
 const SCRYFALL_LOG =
   'A console line of the Scryfall client (Scryfall is the card database Ritual reads card data from), printed by the CLI and in the console of a Ritual server (the admin server, the cache server, the cache feed host).'
@@ -1333,7 +1349,7 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.badResponse': {
     description:
-      'GitHub answered, but not with the release data Ritual expects. {url} is the address; {error} an English detail.',
+      "GitHub answered, but not with the release data Ritual expects. {url} is the address; {error} says what was wrong — one of the cli.selfUpdate.release.* phrases, already in the reader's language, or the JSON parser's own (English) error.",
   },
   'cli.selfUpdate.error.noStableRelease': {
     description:
@@ -1356,7 +1372,7 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.badChecksumFile': {
     description:
-      'The .sha256 checksum file could not be read. {asset} is the binary file name; {error} an English detail.',
+      "The .sha256 checksum file could not be read. {asset} is the binary file name; {error} says why — one of the cli.selfUpdate.checksum.* phrases, already in the reader's language.",
   },
   'cli.selfUpdate.error.sizeMismatch': {
     description:
@@ -1368,7 +1384,7 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.smokeTest': {
     description:
-      'The downloaded binary was run with --version as a test and did not answer with the expected version. {expected} is that version; {detail} is what it printed (untranslated).',
+      "The downloaded binary was run with --version as a test and did not answer with the expected version. {expected} is that version; {detail} is the version it printed instead (untranslated), or why it printed none — one of the cli.selfUpdate.smoke.* phrases, already in the reader's language.",
   },
   'cli.selfUpdate.error.swapStranded': {
     description:
@@ -1380,7 +1396,63 @@ export const cliInfraMeta = {
   },
   'cli.selfUpdate.error.installFailed': {
     description:
-      'Writing or moving the new binary into place failed; the old binary still works. {path} is the binary file; {error} the English system error.',
+      "Writing or moving the new binary into place failed; the old binary still works. {path} is the binary file; {error} the system error (usually English), or cli.selfUpdate.install.diskFull already in the reader's language.",
+  },
+
+  'cli.selfUpdate.release.notObject': {
+    description: `${RELEASE_REASON} The whole release GitHub sent is not a JSON object.`,
+  },
+  'cli.selfUpdate.release.listNotList': {
+    description: `${RELEASE_REASON} The list of recent releases GitHub sent is not a JSON array.`,
+  },
+  'cli.selfUpdate.release.inList': {
+    description: `${RELEASE_REASON} Names which entry of the release list was refused: {index} is its 0-based position, and {reason} why — another of these phrases, already in the reader's language. "release" here is that entry; keep the colon layout.`,
+  },
+  'cli.selfUpdate.release.fieldMissing': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field is absent.`,
+  },
+  'cli.selfUpdate.release.fieldNotText': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field is present but is not text, or is empty text.`,
+  },
+  'cli.selfUpdate.release.fieldNotBoolean': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field must be JSON true or false.`,
+  },
+  'cli.selfUpdate.release.fieldNotList': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field must be a JSON array.`,
+  },
+  'cli.selfUpdate.release.fieldNotObject': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field must be a JSON object.`,
+  },
+  'cli.selfUpdate.release.fieldNotHttpsUrl': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field must be a web address starting with https:// (where the file is downloaded from). "https" is literal.`,
+  },
+  'cli.selfUpdate.release.fieldNotByteCount': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The field must be a file size in bytes: a whole number, zero or greater.`,
+  },
+  'cli.selfUpdate.release.fieldNotVersion': {
+    description: `${RELEASE_REASON} ${RELEASE_FIELD} The release's tag is not a version Ritual can install (such as v1.2.0). {value} is the tag as GitHub sent it; keep the straight quotes around it.`,
+  },
+  'cli.selfUpdate.checksum.malformed': {
+    description: `${CHECKSUM_REASON} The file does not start with a SHA-256 digest (64 hexadecimal digits), optionally followed by the name of the file it is for. "SHA-256" is literal.`,
+  },
+  'cli.selfUpdate.checksum.otherFile': {
+    description: `${CHECKSUM_REASON} The digest names a different file than the binary being installed. {file} is the name the checksum file gives; {asset} the binary's file name. Never translate either.`,
+  },
+  'cli.selfUpdate.install.diskFull': {
+    description:
+      'Why the new binary could not be written: the disk stopped taking data (it is likely full). Starts lowercase with no closing period: shown as {error} inside cli.selfUpdate.error.installFailed.',
+  },
+  'cli.selfUpdate.smoke.timedOut': {
+    description: `${SMOKE_REASON} It did not answer before the time limit.`,
+  },
+  'cli.selfUpdate.smoke.exited': {
+    description: `${SMOKE_REASON} It failed: {exitCode} is the process exit code (a number) and {output} the start of what it printed, on one line (untranslated). Keep the colon layout.`,
+  },
+  'cli.selfUpdate.smoke.exitedSilently': {
+    description: `${SMOKE_REASON} It failed without printing anything: {exitCode} is the process exit code (a number).`,
+  },
+  'cli.selfUpdate.smoke.noOutput': {
+    description: `${SMOKE_REASON} It ran successfully but printed nothing at all.`,
   },
 
   // ── update-available notice ───────────────────────────────────────────

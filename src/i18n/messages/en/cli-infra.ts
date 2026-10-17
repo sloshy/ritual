@@ -762,6 +762,28 @@ export const cliInfraMessages = {
   'cli.selfUpdate.error.installFailed':
     'Could not install the new binary at {path}: {error}. The current Ritual was left in place.',
 
+  // ── why GitHub's release data, or a checksum file, was refused ─────────
+  'cli.selfUpdate.release.notObject': 'the release is not an object',
+  'cli.selfUpdate.release.listNotList': 'the release list is not a list',
+  'cli.selfUpdate.release.inList': 'release {index}: {reason}',
+  'cli.selfUpdate.release.fieldMissing': '{field} is missing',
+  'cli.selfUpdate.release.fieldNotText': '{field} is not a non-empty string',
+  'cli.selfUpdate.release.fieldNotBoolean': '{field} is not a boolean',
+  'cli.selfUpdate.release.fieldNotList': '{field} is not a list',
+  'cli.selfUpdate.release.fieldNotObject': '{field} is not an object',
+  'cli.selfUpdate.release.fieldNotHttpsUrl': '{field} is not an https URL',
+  'cli.selfUpdate.release.fieldNotByteCount': '{field} is not a byte count',
+  'cli.selfUpdate.release.fieldNotVersion': "{field} '{value}' is not a release version",
+  'cli.selfUpdate.checksum.malformed': 'expected a SHA-256 digest followed by a file name',
+  'cli.selfUpdate.checksum.otherFile': 'the digest is for {file}, not {asset}',
+
+  // ── why an install step failed ────────────────────────────────────────
+  'cli.selfUpdate.install.diskFull': 'the disk accepted no more bytes',
+  'cli.selfUpdate.smoke.timedOut': 'timed out',
+  'cli.selfUpdate.smoke.exited': 'exit {exitCode}: {output}',
+  'cli.selfUpdate.smoke.exitedSilently': 'exit {exitCode}, with no output',
+  'cli.selfUpdate.smoke.noOutput': 'it printed nothing',
+
   // ── update-available notice ───────────────────────────────────────────
   'cli.updateNotice.available':
     'Ritual {latest} is available (you have {current}). Run `ritual self-update` to update.',

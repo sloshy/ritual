@@ -2857,6 +2857,28 @@ Log in to Archidekt. The server authenticates with the Archidekt API and stores 
 }
 ```
 
+A missing `username` or `password` is a `400` (`admin.api.field.credentialsRequired`) that never reaches Archidekt. A login that fails is an [error response](#error-responses) whose status says whose failure it was:
+
+| Status | When                                                                      | `messageKey`                                                                        |
+| ------ | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `401`  | Archidekt refused the credentials (a 4xx other than `429`)                | `domain.sync.auth.loginFailedWithReason`, or `domain.sync.auth.loginFailed`         |
+| `502`  | Archidekt failed: a 5xx, a `429`, or a reply that holds no usable session | `domain.sync.auth.loginFailed(WithReason)`, or `domain.sync.auth.loginReplyInvalid` |
+| `500`  | This server failed, such as a token file it could not write               | the error's own, as for any route                                                   |
+
+`status` is the HTTP status Archidekt answered with. `reason` is Archidekt's own explanation, read from its reply's `non_field_errors` and `detail` and quoted on one line (control characters stripped, each cut to 300 characters); several are a `clauses` list. A reply without one, such as an error page, gives the `loginFailed` form with no `reason`:
+
+```json
+{
+  "success": false,
+  "message": "Archidekt answered the login with HTTP 400: Unable to log in with provided credentials.",
+  "messageKey": "domain.sync.auth.loginFailedWithReason",
+  "messageParams": {
+    "status": 400,
+    "reason": "Unable to log in with provided credentials."
+  }
+}
+```
+
 ## Archidekt Login Status
 
 ```

@@ -118,7 +118,8 @@ function applyParsedUpdate<K extends ParsedConfigKey>(
   const value = raw[key]
   if (value === undefined) return null
   const parsed = parse(value)
-  if (isConfigParseError(parsed)) return parsed.error
+  // `K` is generic, so the impostor check cannot be re-proved here.
+  if (isConfigParseError<unknown>(parsed)) return parsed.error
   updates[key] = parsed
   return null
 }

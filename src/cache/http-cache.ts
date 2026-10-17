@@ -1,7 +1,8 @@
 import type { BulkSetOptions, CacheManager, CacheStreamEntryMeta } from '../util/interfaces'
 import type { CacheSection, DataType } from './file-cache'
 import { syncMessage, SyncMessageError, type SyncMessage } from '../sync/message'
-import { readReplyText, replyParam, streamFailureMessage } from './server-reply'
+import { replyParam, streamFailureMessage } from './server-reply'
+import { readReplyText } from '../util/reply-text'
 
 interface CacheServerGetResponse<T> {
   value: T | null

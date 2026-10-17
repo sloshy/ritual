@@ -27,6 +27,21 @@ const CARD_CONTEXT =
 const CSV_SIZE_CONTEXT =
   '{size} is a pre-rendered count of cards and CSV rows like "30 cards (28 rows)".'
 
+const AUTH_FAILURE_CONTEXT =
+  'Why logging in to Archidekt (a deck-building website; a name, never translated) failed. Shown on its own on the admin Archidekt Login page, and after "Login failed: " in the CLI; so it has no closing period.'
+
+const AUTH_REFRESH_CONTEXT =
+  'A stored Archidekt login is a "session": a short-lived access token, renewed ("refreshed") automatically before a sync with a longer-lived refresh token.'
+
+const AUTH_STATUS_CONTEXT =
+  '{status} is the HTTP status code (a number such as 400); "HTTP" stays literal.'
+
+const AUTH_REASON_CONTEXT =
+  '{reason} is Archidekt\'s own explanation (such as "Unable to log in with provided credentials."), quoted as Archidekt sent it, usually in English; never translate it. Several are already joined in the reader\'s language.'
+
+const AUTH_LOG_CONTEXT =
+  'A console line of the process that used a stored Archidekt login — the CLI, or a Ritual server (admin, mcp) — about renewing that login before a sync.'
+
 const CSV_REASON_CONTEXT =
   'One clause of the parenthetical list explaining why Archidekt dropped rows of an uploaded CSV, e.g. "2 not found, 1 ambiguous". {count} is a number of CSV rows; the clauses are joined with the locale\'s list separator.'
 
@@ -554,5 +569,29 @@ export const domainSyncMeta = {
   'domain.sync.csvFailureUnexplained': {
     description:
       'Why one CSV row was not imported, when Archidekt refused it without any message. Follows the card name and a dash.',
+  },
+  'domain.sync.auth.loginFailed': {
+    description: `${AUTH_FAILURE_CONTEXT} The login request (username and password) failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT}`,
+  },
+  'domain.sync.auth.loginFailedWithReason': {
+    description: `${AUTH_FAILURE_CONTEXT} The login request (username and password) failed. ${AUTH_STATUS_CONTEXT} ${AUTH_REASON_CONTEXT}`,
+  },
+  'domain.sync.auth.loginReplyInvalid': {
+    description: `${AUTH_FAILURE_CONTEXT} Archidekt accepted the login, but its reply did not hold the session it should (the tokens that keep the user signed in).`,
+  },
+  'domain.sync.auth.refreshFailed': {
+    description: `${AUTH_FAILURE_CONTEXT} ${AUTH_REFRESH_CONTEXT} The refresh request failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT}`,
+  },
+  'domain.sync.auth.refreshFailedWithReason': {
+    description: `${AUTH_FAILURE_CONTEXT} ${AUTH_REFRESH_CONTEXT} The refresh request failed. ${AUTH_STATUS_CONTEXT} ${AUTH_REASON_CONTEXT}`,
+  },
+  'domain.sync.auth.refreshNoAccessToken': {
+    description: `${AUTH_FAILURE_CONTEXT} ${AUTH_REFRESH_CONTEXT} Archidekt answered the refresh, but its reply lacked the new access token (the credential the next requests need).`,
+  },
+  'domain.sync.auth.refreshed': {
+    description: `${AUTH_LOG_CONTEXT} ${AUTH_REFRESH_CONTEXT} The refresh worked.`,
+  },
+  'domain.sync.auth.refreshError': {
+    description: `${AUTH_LOG_CONTEXT} ${AUTH_REFRESH_CONTEXT} The refresh failed, so the user has to log in again. {error} is why — one of the other domain.sync.auth.* phrases already in the reader's language, or a network error (usually English).`,
   },
 } as const satisfies MetaFor<typeof domainSyncMessages>

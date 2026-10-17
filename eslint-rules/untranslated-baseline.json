@@ -1,11 +1,4 @@
 {
-  "src/auth/ArchidektAuth.ts": {
-    "Failed to refresh token:": 1,
-    "Login failed": 1,
-    "Token refresh failed": 1,
-    "Token refresh failed: missing access token in response": 1,
-    "Token refreshed successfully.": 1
-  },
   "src/clients/ArchidektClient.ts": {
     "${…} failed (${…}): ${…}": 1,
     "Archidekt returned a next-page link it had already served (${…}); stopping after ${…} result(s).": 1,
@@ -151,27 +144,5 @@
     "Unknown theme '${…}'. Choose one of: ${…}.": 1,
     "Variable '${…}' must be a non-empty string value": 1,
     "Variable name '${…}' must start with '--'": 1
-  },
-  "src/update/install.ts": {
-    "exit ${…}: ${…}": 1,
-    "expected a SHA-256 digest followed by a file name": 1,
-    "the digest is for ${…}, not ${…}": 1,
-    "the disk accepted no more bytes": 1,
-    "timed out": 1
-  },
-  "src/update/release.ts": {
-    "'${…}' is not a release version": 1,
-    "assets is not a list": 1,
-    "assets[${…}] is not an object": 1,
-    "assets[${…}].browser_download_url is not an https URL": 1,
-    "assets[${…}].name is missing": 1,
-    "assets[${…}].size is not a byte count": 1,
-    "draft is not a boolean": 1,
-    "prerelease is not a boolean": 1,
-    "release ${…}: ${…}": 1,
-    "tag_name '${…}' is not a release version": 1,
-    "tag_name is missing": 1,
-    "the release is not an object": 1,
-    "the release list is not a list": 1
   }
 }

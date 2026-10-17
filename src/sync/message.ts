@@ -366,6 +366,48 @@ export function joinSyncMessages(messages: NonEmpty<SyncMessage>): SyncMessage {
   })
 }
 
+// ── Parse refusals ────────────────────────────────────────────────────
+
+/**
+ * The refusal branch of a parser that returns `T | MessageParseError`
+ * (AGENTS.md, "Parsers"): why the input was refused, held as a message so the
+ * caller can word it in its reader's language or nest it whole in a refusal of
+ * its own.
+ */
+export type MessageParseError = { error: SyncMessage }
+
+/**
+ * The members of `T` other than {@link MessageParseError} that declare an
+ * `error` field, which {@link isMessageParseError} would misread as the
+ * refusal. Distributes over a union; a string index signature declares no
+ * particular key.
+ */
+type ErrorImpostors<T> = T extends unknown
+  ? T extends MessageParseError
+    ? never
+    : string extends keyof T
+      ? never
+      : 'error' extends keyof T
+        ? T
+        : never
+  : never
+
+/** `unknown` when no success member of `T` has an `error` field, `never` (no `T` fits) otherwise. */
+export type NoErrorImpostor<T> = [ErrorImpostors<T>] extends [never] ? unknown : never
+
+/**
+ * Whether a parse result is the refusal. Structural, and checked rather than
+ * assumed: a success type that declares an `error` field fails to compile here
+ * ({@link NoErrorImpostor}), so it can never be mistaken for a refusal.
+ */
+export function isMessageParseError<T extends NoErrorImpostor<T>>(
+  value: T,
+): value is T & MessageParseError {
+  return (
+    typeof value === 'object' && value !== null && 'error' in value && isSyncMessage(value.error)
+  )
+}
+
 // ── Errors ────────────────────────────────────────────────────────────
 
 /**

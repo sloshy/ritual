@@ -15,15 +15,40 @@ import { createHash, randomBytes } from 'node:crypto'
 import { constants as fsConstants } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { CardCommandError, ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
-import { isParseError, type ParseError } from '../util/parse-error'
-import type { SelfUpdateEnv } from './env'
+import {
+  errorParam,
+  isMessageParseError,
+  nestSync,
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+  type MessageParseError,
+  type SyncText,
+} from '../sync/message'
+import {
+  CardCommandError,
+  ExitCode,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
+import { quotedReply, readBoundedText } from '../util/reply-text'
+import type { BinaryRunResult, SelfUpdateEnv } from './env'
 import { httpError, networkError, request, type Release, type ReleaseAsset } from './release'
 import { assetNameFor } from './release-source'
 import { renameWithRetry } from '../util/atomic-write'
 
 /** How long the `.sha256` file may take to arrive. */
 const CHECKSUM_TIMEOUT_MS = 30_000
+
+/**
+ * The most of a `.sha256` file read (bytes). The file is one `sha256sum` line —
+ * 64 hex digits and a file name — so anything past this is not one, and is
+ * never fetched.
+ */
+const CHECKSUM_MAX_BYTES = 4096
+
+/** The most of a file name or of the new binary's output a refusal quotes (characters). */
+const MAX_QUOTED_OUTPUT_CHARS = 200
 
 /** How long the whole binary download may take. */
 const DOWNLOAD_TIMEOUT_MS = 10 * 60_000
@@ -50,13 +75,16 @@ export function requireAssetName(env: SelfUpdateEnv): string {
  * mode) for `assetName`, returning the lowercase digest. A bare digest is
  * accepted too; a line naming a different file is not.
  */
-export function parseChecksumFile(text: string, assetName: string): string | ParseError {
+export function parseChecksumFile(text: string, assetName: string): string | MessageParseError {
   const line = text.trim().split(/\r?\n/, 1)[0] ?? ''
   const match = line.match(/^([0-9a-fA-F]{64})(?:\s+\*?(.+))?$/)
-  if (match === null) return { error: 'expected a SHA-256 digest followed by a file name' }
+  if (match === null) return { error: syncMessage('cli.selfUpdate.checksum.malformed') }
   const file = match[2]?.trim()
   if (file !== undefined && path.basename(file) !== assetName) {
-    return { error: `the digest is for ${file}, not ${assetName}` }
+    const named = quotedReply(file, MAX_QUOTED_OUTPUT_CHARS)
+    return {
+      error: syncMessage('cli.selfUpdate.checksum.otherFile', { file: named, asset: assetName }),
+    }
   }
   return match[1]!.toLowerCase()
 }
@@ -105,13 +133,16 @@ async function fetchExpectedDigest(env: SelfUpdateEnv, assets: InstallAssets): P
     AbortSignal.timeout(CHECKSUM_TIMEOUT_MS),
   )
   if (!response.ok) throw httpError(response, url)
-  const expected = parseChecksumFile(await readBody(url, () => response.text()), assets.name)
-  if (isParseError(expected)) {
-    throw localizedCommandError(
+  const text = await readBody(url, () => readBoundedText(response, CHECKSUM_MAX_BYTES))
+  const expected = parseChecksumFile(text, assets.name)
+  if (isMessageParseError(expected)) {
+    throw messageCommandError(
       'runtime_error',
       ExitCode.RuntimeError,
-      'cli.selfUpdate.error.badChecksumFile',
-      { asset: assets.name, error: expected.error },
+      syncMessage('cli.selfUpdate.error.badChecksumFile', {
+        asset: assets.name,
+        error: nestSync(expected.error),
+      }),
     )
   }
   return expected
@@ -135,12 +166,12 @@ function sizeMismatch(asset: string, actual: number, expected: number): CardComm
   )
 }
 
+/** Writing or moving the new binary failed; a keyed reason (a full disk) stays nested. */
 function installFailed(target: string, error: unknown): CardCommandError {
-  return localizedCommandError(
+  return messageCommandError(
     'runtime_error',
     ExitCode.RuntimeError,
-    'cli.selfUpdate.error.installFailed',
-    { path: target, error: getErrorMessage(error) },
+    syncMessage('cli.selfUpdate.error.installFailed', { path: target, error: errorParam(error) }),
   )
 }
 
@@ -313,26 +344,41 @@ async function writeFully(handle: fs.FileHandle, bytes: Uint8Array): Promise<voi
   let offset = 0
   while (offset < bytes.byteLength) {
     const { bytesWritten } = await handle.write(bytes, offset, bytes.byteLength - offset)
-    if (bytesWritten <= 0) throw new Error('the disk accepted no more bytes')
+    if (bytesWritten <= 0) {
+      throw new SyncMessageError(syncMessage('cli.selfUpdate.install.diskFull'))
+    }
     offset += bytesWritten
   }
+}
+
+/**
+ * Why the new binary's `--version` check got no matching version, as the
+ * refusal's `detail`. What the binary printed is its own text, quoted: on one
+ * line (every line break and control character a space, runs collapsed) and
+ * capped at {@link MAX_QUOTED_OUTPUT_CHARS} characters. A failed run quotes its
+ * stderr, or its stdout when stderr is empty; only why there is nothing to
+ * quote is Ritual's to word.
+ */
+export function smokeTestDetail(result: BinaryRunResult): SyncText {
+  if (result.killed) return syncRef('cli.selfUpdate.smoke.timedOut')
+  const stdout = quotedReply(result.stdout, MAX_QUOTED_OUTPUT_CHARS)
+  if (result.exitCode === 0) {
+    return stdout === '' ? syncRef('cli.selfUpdate.smoke.noOutput') : stdout
+  }
+  const output = quotedReply(result.stderr, MAX_QUOTED_OUTPUT_CHARS) || stdout
+  return output === ''
+    ? syncRef('cli.selfUpdate.smoke.exitedSilently', { exitCode: result.exitCode })
+    : syncRef('cli.selfUpdate.smoke.exited', { exitCode: result.exitCode, output })
 }
 
 /** Run the new binary with `--version`; anything but exactly `expected` fails. */
 async function smokeTest(env: SelfUpdateEnv, file: string, expected: string): Promise<void> {
   const result = await env.runBinary(file, ['--version'])
-  const reported = result.stdout.trim()
-  if (result.exitCode === 0 && reported === expected) return
-  const detail = result.killed
-    ? 'timed out'
-    : result.exitCode === 0
-      ? reported
-      : `exit ${result.exitCode}: ${(result.stderr.trim() || reported).slice(0, 200)}`
-  throw localizedCommandError(
+  if (result.exitCode === 0 && result.stdout.trim() === expected) return
+  throw messageCommandError(
     'runtime_error',
     ExitCode.RuntimeError,
-    'cli.selfUpdate.error.smokeTest',
-    { expected, detail },
+    syncMessage('cli.selfUpdate.error.smokeTest', { expected, detail: smokeTestDetail(result) }),
   )
 }
 
@@ -443,11 +489,15 @@ export async function installRelease(
     const failure = await swapInto(env, temporary, target)
     if (failure?.kind === 'stranded') {
       removeTemporary = false
-      throw localizedCommandError(
+      throw messageCommandError(
         'runtime_error',
         ExitCode.RuntimeError,
-        'cli.selfUpdate.error.swapStranded',
-        { target, old: failure.old, kept: temporary, error: getErrorMessage(failure.cause) },
+        syncMessage('cli.selfUpdate.error.swapStranded', {
+          target,
+          old: failure.old,
+          kept: temporary,
+          error: errorParam(failure.cause),
+        }),
       )
     }
     if (failure !== undefined) throw installFailed(target, failure.cause)

@@ -1,12 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import {
-  isBaseDirError,
-  parseBaseDir,
-  resolveBaseDir,
-  type BaseDirError,
-} from '../../src/config/base-dir'
+import { parseBaseDir, resolveBaseDir } from '../../src/config/base-dir'
+import { isMessageParseError, type MessageParseError } from '../../src/sync/message'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
 import { keyedMessage } from '../helpers/api-message'
 
@@ -14,8 +10,10 @@ import { keyedMessage } from '../helpers/api-message'
  * The English of a {@link parseBaseDir} refusal — after asserting it is keyed
  * and agrees with its key — or a failing marker.
  */
-function errorOf(result: string | BaseDirError): string {
-  return isBaseDirError(result) ? keyedMessage(result.error) : `expected an error, got ${result}`
+function errorOf(result: string | MessageParseError): string {
+  return isMessageParseError(result)
+    ? keyedMessage(result.error)
+    : `expected an error, got ${result}`
 }
 
 describe('resolveBaseDir', () => {
@@ -104,7 +102,9 @@ describe('parseBaseDir', () => {
         const target = path.join(locked, 'inner')
         const result = await parseBaseDir(target)
         expect(errorOf(result)).toStartWith(`base directory is not readable: ${target} — `)
-        expect(isBaseDirError(result) && result.error.messageKey).toBe('cli.baseDir.unreadable')
+        expect(isMessageParseError(result) && result.error.messageKey).toBe(
+          'cli.baseDir.unreadable',
+        )
       } finally {
         await fs.chmod(locked, 0o755)
       }

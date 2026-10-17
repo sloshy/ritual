@@ -16,10 +16,11 @@ import { resolveAmbiguousRemovals } from './resolve-ambiguity'
 import {
   canPromptWithOutput,
   emitOutput,
+  installScriptingLogger,
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { fail } from '../cli/action'
+import { fail, runCommandAction } from '../cli/action'
 import { ExitCode } from '../util/errors'
 import {
   addSyncDirectionArgument,
@@ -176,112 +177,125 @@ export function registerCollectionSyncCommand(program: Command): void {
   ).action(
     async (direction: SyncDirection, lists: string[], options: CollectionSyncCommandOptions) => {
       const scripting = normalizeScriptingOptions(options)
-      // JSON/NDJSON output owns stdout, so per-list progress logging is silenced
-      // there; every outcome still lands in the emitted report.
-      const logger = loggerFor(scripting)
-      const indent = createScopedIndenter(scripting)
-
-      // One says "send the additions to Archidekt", the other "do not send them
-      // at all" — there is no reading of the two together, so it is a usage
-      // error rather than a precedence rule.
-      if (options.csv === true && options.csvFile !== undefined) {
-        fail(scripting, 'usage_error', 'cli.collectionSync.csvFlagsExclusive')
-        return
-      }
-
-      const session = await requireArchidektSession(scripting)
-      if (!session) return
-
-      if (direction === 'push' && options.into !== undefined) {
-        logger.warn(t('cli.collectionSync.ignoringInto'))
-      }
-
-      const removalPriority = options.removalPriority ?? []
-      if (direction === 'push' && removalPriority.length > 0) {
-        logger.warn(t('cli.collectionSync.ignoringRemovalPriority'))
-      }
-
-      if (direction === 'pull') {
-        if (options.csv === true) logger.warn(t('cli.collectionSync.ignoringCsv'))
-        if (options.csvFile !== undefined) {
-          logger.warn(t('cli.collectionSync.ignoringCsvFile'))
-        }
-      }
-
-      // Resolving removals one by one needs a terminal that owns stdout, and a
-      // run that will actually write something — the shared sync gate, plus dry
-      // runs, which never resolve anything. (The engine owns that dry-run
-      // precedence too: belt and braces, so a preview cannot reach a prompt by
-      // some route this command has not thought of.)
-      const canPrompt = canPromptWithOutput(scripting) && options.dryRun !== true
-
-      const renderer = createSyncEventRenderer<CollectionSyncListResult>({
-        subject: 'collection',
-        direction,
-        logger,
-        indent,
-        verbose: options.verbose === true,
-      })
-      const { report } = await runCollectionSync({
-        direction,
-        token: session.token,
-        userId: session.account.id,
-        lists,
-        only: options.only,
-        into: resolvePullTarget(options.into),
-        removalPriority,
-        // Never consulted when a priority was given; the engine owns that
-        // precedence so every surface applies it the same way.
-        resolveAmbiguous: (ambiguous) =>
-          resolveAmbiguousRemovals({ ambiguous, interactive: canPrompt, logger }),
-        csv: options.csv === true,
-        csvFile: options.csvFile,
-        // Only consulted when neither flag was given and the additions pass the
-        // threshold; like the ambiguity resolver, it answers for a
-        // non-interactive run too — by refusing with the reason.
-        decideCsv: (question) => decideCsvUpload({ question, interactive: canPrompt }),
-        // Every uploaded row is keyed by a Scryfall id from the local cache, so a
-        // run taking the CSV path needs that cache fresh — refreshed, prompted
-        // for, or refused, according to `--refresh`. The refresh line goes through
-        // the run's log so it reads in order with the rest of the run.
-        ensureCsvCache: ({ log }) =>
-          ensureCardCacheForUpload(cliRefreshPolicy(options.refresh ?? 'ask'), { log }),
-        dryRun: options.dryRun ?? false,
-        onEvent: renderer.onEvent,
-        confirmUnreadable: (unreadable) =>
-          confirmUnreadableSync({
-            sources: unreadable,
-            subject: LISTS,
-            cost: unreadableCost(direction),
-            yes: options.yes === true,
-            scripting,
-            logger,
-          }),
-      })
-
-      if (scripting.output !== 'text') {
-        emitOutput(report, scripting)
-      } else {
-        logger.info(summarize(report))
-        const note = csvNote(report)
-        if (note) logger.info(note)
-        printVerboseHint(renderer, logger)
-      }
-
-      if (report.failedCount > 0) {
-        logger.error(
-          t('cli.collectionSync.listsFailed', {
-            failed: report.failedCount,
-            total: report.lists.length,
-          }),
-        )
-      }
-      // Run-level errors (a failed collection fetch, records that could not be
-      // deleted) belong to no list, so they are counted separately — but they
-      // fail the run just the same.
-      if (report.failedCount > 0 || report.errors.length > 0) {
-        process.exitCode = ExitCode.RuntimeError
-      }
+      await runCommandAction(scripting, () => runSync(direction, lists, options, scripting))
     },
   )
+}
+
+/** One `collection-sync pull` / `collection-sync push` run, from flags to exit code. */
+async function runSync(
+  direction: SyncDirection,
+  lists: string[],
+  options: CollectionSyncCommandOptions,
+  scripting: ScriptingOptions,
+): Promise<void> {
+  // JSON/NDJSON output owns stdout, so per-list progress logging is silenced
+  // there; every outcome still lands in the emitted report. The engines below
+  // log through the process logger, which this moves onto stderr (as import and
+  // price do), so nothing but the report reaches stdout.
+  installScriptingLogger(scripting)
+  const logger = loggerFor(scripting)
+  const indent = createScopedIndenter(scripting)
+
+  // One says "send the additions to Archidekt", the other "do not send them
+  // at all" — there is no reading of the two together, so it is a usage
+  // error rather than a precedence rule.
+  if (options.csv === true && options.csvFile !== undefined) {
+    fail(scripting, 'usage_error', 'cli.collectionSync.csvFlagsExclusive')
+    return
+  }
+
+  const session = await requireArchidektSession(scripting, logger)
+  if (!session) return
+
+  if (direction === 'push' && options.into !== undefined) {
+    logger.warn(t('cli.collectionSync.ignoringInto'))
+  }
+
+  const removalPriority = options.removalPriority ?? []
+  if (direction === 'push' && removalPriority.length > 0) {
+    logger.warn(t('cli.collectionSync.ignoringRemovalPriority'))
+  }
+
+  if (direction === 'pull') {
+    if (options.csv === true) logger.warn(t('cli.collectionSync.ignoringCsv'))
+    if (options.csvFile !== undefined) {
+      logger.warn(t('cli.collectionSync.ignoringCsvFile'))
+    }
+  }
+
+  // Resolving removals one by one needs a terminal that owns stdout, and a
+  // run that will actually write something — the shared sync gate, plus dry
+  // runs, which never resolve anything. (The engine owns that dry-run
+  // precedence too: belt and braces, so a preview cannot reach a prompt by
+  // some route this command has not thought of.)
+  const canPrompt = canPromptWithOutput(scripting) && options.dryRun !== true
+
+  const renderer = createSyncEventRenderer<CollectionSyncListResult>({
+    subject: 'collection',
+    direction,
+    logger,
+    indent,
+    verbose: options.verbose === true,
+  })
+  const { report } = await runCollectionSync({
+    direction,
+    token: session.token,
+    userId: session.account.id,
+    lists,
+    only: options.only,
+    into: resolvePullTarget(options.into),
+    removalPriority,
+    // Never consulted when a priority was given; the engine owns that
+    // precedence so every surface applies it the same way.
+    resolveAmbiguous: (ambiguous) =>
+      resolveAmbiguousRemovals({ ambiguous, interactive: canPrompt, logger }),
+    csv: options.csv === true,
+    csvFile: options.csvFile,
+    // Only consulted when neither flag was given and the additions pass the
+    // threshold; like the ambiguity resolver, it answers for a
+    // non-interactive run too — by refusing with the reason.
+    decideCsv: (question) => decideCsvUpload({ question, interactive: canPrompt }),
+    // Every uploaded row is keyed by a Scryfall id from the local cache, so a
+    // run taking the CSV path needs that cache fresh — refreshed, prompted
+    // for, or refused, according to `--refresh`. The refresh line goes through
+    // the run's log so it reads in order with the rest of the run.
+    ensureCsvCache: ({ log }) =>
+      ensureCardCacheForUpload(cliRefreshPolicy(options.refresh ?? 'ask'), { log }),
+    dryRun: options.dryRun ?? false,
+    onEvent: renderer.onEvent,
+    confirmUnreadable: (unreadable) =>
+      confirmUnreadableSync({
+        sources: unreadable,
+        subject: LISTS,
+        cost: unreadableCost(direction),
+        yes: options.yes === true,
+        scripting,
+        logger,
+      }),
+  })
+
+  if (scripting.output !== 'text') {
+    emitOutput(report, scripting)
+  } else {
+    logger.info(summarize(report))
+    const note = csvNote(report)
+    if (note) logger.info(note)
+    printVerboseHint(renderer, logger)
+  }
+
+  if (report.failedCount > 0) {
+    logger.error(
+      t('cli.collectionSync.listsFailed', {
+        failed: report.failedCount,
+        total: report.lists.length,
+      }),
+    )
+  }
+  // Run-level errors (a failed collection fetch, records that could not be
+  // deleted) belong to no list, so they are counted separately — but they
+  // fail the run just the same.
+  if (report.failedCount > 0 || report.errors.length > 0) {
+    process.exitCode = ExitCode.RuntimeError
+  }
 }

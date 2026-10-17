@@ -6,7 +6,7 @@
 
 import { expect } from 'bun:test'
 import { localeTag } from '../../src/i18n/locale-tag'
-import { en } from '../../src/i18n/messages/en'
+import { en, type MessageKey } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { pseudoLocalize } from '../../scripts/generate-locales'
 import {
@@ -101,6 +101,17 @@ let pseudoCatalogMemo: LocaleCatalog | null = null
 export function pseudoCatalog(): LocaleCatalog {
   pseudoCatalogMemo ??= pseudoLocalize(en, enMeta)
   return pseudoCatalogMemo
+}
+
+/**
+ * One plain-string message of {@link pseudoCatalog}, placeholders unfilled — for
+ * building what a pseudo-localized line reads. Throws on a `$plural` / `$select`
+ * message, whose forms a test must pick itself.
+ */
+export function pseudoString(key: MessageKey): string {
+  const value = pseudoCatalog()[key]
+  if (typeof value !== 'string') throw new Error(`${key} is not a plain-string message`)
+  return value
 }
 
 /** A foreign UI language a persistence pin runs under, and the dictionary it loads. */

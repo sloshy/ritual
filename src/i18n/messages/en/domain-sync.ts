@@ -377,4 +377,20 @@ export const domainSyncMessages = {
   'domain.sync.csvFailureNotFound': 'not found on Archidekt',
   'domain.sync.csvFailureAmbiguous': 'matched more than one printing',
   'domain.sync.csvFailureUnexplained': 'Archidekt gave no reason',
+
+  // ── The Archidekt login (`src/auth/ArchidektAuth.ts`) ─────────────────
+  //
+  // Its failures reach `ritual login`, the admin Archidekt Login page and the
+  // console of whatever process refreshed the session before a sync.
+  'domain.sync.auth.loginFailed': 'Archidekt answered the login with HTTP {status}',
+  'domain.sync.auth.loginFailedWithReason':
+    'Archidekt answered the login with HTTP {status}: {reason}',
+  'domain.sync.auth.loginReplyInvalid': 'Archidekt answered the login without a usable session',
+  'domain.sync.auth.refreshFailed': 'Archidekt answered the session refresh with HTTP {status}',
+  'domain.sync.auth.refreshFailedWithReason':
+    'Archidekt answered the session refresh with HTTP {status}: {reason}',
+  'domain.sync.auth.refreshNoAccessToken':
+    'Archidekt answered the session refresh without an access token',
+  'domain.sync.auth.refreshed': 'Refreshed the Archidekt session.',
+  'domain.sync.auth.refreshError': 'Could not refresh the Archidekt session: {error}',
 } as const satisfies MessageCatalogShape

@@ -1,5 +1,6 @@
-import { InvalidArgumentError, Option, type Command } from 'commander'
+import { Option, type Command } from 'commander'
 import { runCommandAction } from '../cli/action'
+import { messageArgParser } from '../cli/options'
 import { TEXT_ONLY } from '../cli/output'
 import { ask } from '../cli/prompts'
 import { getBaseDir } from '../config/base-dir'
@@ -19,7 +20,6 @@ import {
 import { ExitCode, getErrorMessage } from '../util/errors'
 import { fileExists } from '../util/fs'
 import { isNoInput, requireFlag } from '../util/no-input'
-import { isParseError } from '../util/parse-error'
 
 /**
  * The exact-release flag is `--tag`, not `--version`: the root program owns
@@ -33,13 +33,7 @@ export type SelfUpdateCommandOptions = ChannelFlags & {
 }
 
 /** Commander argParser for `--tag`: a value that is not a release version exits 2. */
-function parseTagOption(value: string): string {
-  const tag = parseReleaseTag(value)
-  if (isParseError(tag)) {
-    throw new InvalidArgumentError(t('cli.selfUpdate.error.invalidTag', { tag: value.trim() }))
-  }
-  return tag
-}
+const parseTagOption = messageArgParser(parseReleaseTag)
 
 /** `--check`: report, write nothing, and exit 4 when an update is available. */
 function reportCheck(plan: UpdatePlan): void {

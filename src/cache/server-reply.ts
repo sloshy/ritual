@@ -1,6 +1,7 @@
 /**
  * Reading what a cache server answered when it failed: the refusal body of an
- * HTTP error, or the data of a price stream's `error` event.
+ * HTTP error, or the data of a price stream's `error` event. The bounded read
+ * and the quoting itself are shared plumbing in `src/util/reply-text.ts`.
  *
  * A Ritual cache server answers both as the shared message triple — English
  * `message`, with `messageKey` / `messageParams` beside it — which the client
@@ -12,8 +13,8 @@
  * the terminal that prints it.
  */
 
-import { stripVTControlCharacters } from 'node:util'
 import { isRecord } from '../util/json'
+import { parsedJson, quotedReply } from '../util/reply-text'
 import {
   nestReceived,
   readSyncMessage,
@@ -22,32 +23,6 @@ import {
   type SyncMessageRef,
   type SyncText,
 } from '../sync/message'
-
-/** The most of a failed reply's body the client reads (bytes); the rest is never fetched. */
-export const MAX_REPLY_BYTES = 16 * 1024
-
-/** The most of a reply's raw text an error quotes (characters, before the ellipsis). */
-export const MAX_QUOTED_CHARS = 1024
-
-/** Whether a code point is a C0 or C1 control character (newlines and tabs included). */
-function isControl(codePoint: number): boolean {
-  return codePoint < 0x20 || (codePoint >= 0x7f && codePoint <= 0x9f)
-}
-
-/**
- * Text a server sent, made safe to print inside one line of an error: escape
- * sequences removed, every other control character a space, runs of spaces
- * collapsed, and at most {@link MAX_QUOTED_CHARS} characters kept.
- */
-export function quotedReply(text: string): string {
-  let clean = ''
-  for (const char of stripVTControlCharacters(text)) {
-    clean += isControl(char.codePointAt(0) ?? 0) ? ' ' : char
-  }
-  clean = clean.replace(/ {2,}/g, ' ').trim()
-  const chars = [...clean]
-  return chars.length > MAX_QUOTED_CHARS ? `${chars.slice(0, MAX_QUOTED_CHARS).join('')}…` : clean
-}
 
 /**
  * A value off the wire with every text leaf quoted (per {@link quotedReply}) and
@@ -71,15 +46,6 @@ function receivedParam(message: SyncMessage): SyncText {
   const param = nestReceived(message)
   // The walk keeps the shape `nestReceived` checked; only text leaves change.
   return typeof param === 'string' ? quotedReply(param) : (quotedLeaves(param) as SyncMessageRef)
-}
-
-/** `text` as JSON, or `undefined` when it is not JSON. */
-function parsedJson(text: string): unknown {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return undefined
-  }
 }
 
 /**
@@ -107,35 +73,4 @@ export function streamFailureMessage(data: string): SyncMessage {
   return isRecord(parsed) && typeof parsed.key === 'string'
     ? syncMessage('domain.cache.serverStreamEntryError', { key: quotedReply(parsed.key), error })
     : syncMessage('domain.cache.serverStreamError', { error })
-}
-
-/**
- * A failed reply's body as text, reading at most {@link MAX_REPLY_BYTES}: the
- * bytes are counted as they arrive and the rest is cancelled, so an endless or
- * enormous error page costs no more than the budget. A cut-off body is not
- * JSON, so {@link replyParam} quotes it.
- */
-export async function readReplyText(response: Response): Promise<string> {
-  if (response.body === null) return ''
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  let text = ''
-  let total = 0
-  try {
-    for (;;) {
-      const { done, value } = await reader.read()
-      if (done) break
-      const room = MAX_REPLY_BYTES - total
-      total += value.byteLength
-      if (value.byteLength >= room) {
-        text += decoder.decode(value.subarray(0, room))
-        await reader.cancel()
-        return text
-      }
-      text += decoder.decode(value, { stream: true })
-    }
-  } catch {
-    // A connection dropped mid-reply: quote what arrived.
-  }
-  return text + decoder.decode()
 }

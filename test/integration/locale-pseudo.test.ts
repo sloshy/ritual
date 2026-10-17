@@ -945,6 +945,23 @@ describe('pseudo-locale (Integration)', () => {
     })
   })
 
+  test('self-update words a --tag that is not a release in the CLI’s language', async () => {
+    await withTempDir(async (dir) => {
+      // The tag parser's own refusal is the reason Commander's frame quotes.
+      const result = await runCli(['self-update', '--tag', 'nightly'], dir, PSEUDO_ENV)
+
+      expect(result.exitCode).toBe(2)
+      const frame = (await pseudoText('help.commander.invalidOptionArgument'))
+        .replace('{flags}', '--tag <tag>')
+        .replace('{value}', 'nightly')
+      const reason = (await pseudoText('cli.selfUpdate.error.invalidTag')).replace(
+        '{tag}',
+        'nightly',
+      )
+      expect(unwrap(result.stderr)).toContain(unwrap(`${frame} ${reason}`))
+    })
+  })
+
   test('export words a column refusal in the CLI’s language, the column ids untouched', async () => {
     await withTempDir(async (dir) => {
       const result = await runCli(['export', '--all', '--columns', 'name,price'], dir, PSEUDO_ENV)

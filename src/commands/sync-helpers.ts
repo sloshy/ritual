@@ -139,10 +139,15 @@ function refuseRun(message: string, scripting: ScriptingOptions): null {
 /**
  * The stored Archidekt access token, or null after emitting the structured error
  * and setting the exit code — so both sync commands refuse an unauthenticated
- * run identically.
+ * run identically. A session refreshed on the way logs through `logger`, the
+ * run's own ({@link loggerFor}), so under `--output json` the line stays off
+ * the stdout the report owns.
  */
-export async function requireArchidektToken(scripting: ScriptingOptions): Promise<string | null> {
-  const token = await new ArchidektAuth(new FileTokenStore()).getToken()
+export async function requireArchidektToken(
+  scripting: ScriptingOptions,
+  logger: Logger,
+): Promise<string | null> {
+  const token = await new ArchidektAuth(new FileTokenStore(), logger).getToken()
   if (token) return token
   return refuseRun(t('cli.sync.notSignedIn'), scripting)
 }
@@ -154,8 +159,9 @@ export async function requireArchidektToken(scripting: ScriptingOptions): Promis
  */
 export async function requireArchidektSession(
   scripting: ScriptingOptions,
+  logger: Logger,
 ): Promise<ArchidektSession | null> {
-  const auth = new ArchidektAuth(new FileTokenStore())
+  const auth = new ArchidektAuth(new FileTokenStore(), logger)
   const token = await auth.getToken()
   if (!token) {
     return refuseRun(t('cli.sync.notSignedIn'), scripting)

@@ -17,7 +17,8 @@ export interface ArchidektToken {
   // optional fast path in case the API starts returning them (dj-rest-auth can).
   access_token_expiration?: string
   refresh_token_expiration?: string
-  user: {
+  /** The account the login names; absent when Archidekt's reply named none. */
+  user?: {
     id: number
     username: string
   }

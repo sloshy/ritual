@@ -258,6 +258,35 @@ release changes a file format or a generated file, it ships the change as a
   Unavailable". These errors, and the feed client's other failures (a missing kind, a
   checksum mismatch, a torrent timeout), are keyed (`cli.cacheFeed.*`) where a keyed error
   is reported.
+- **A failed Archidekt login says what Archidekt answered, keyed.**
+  `ritual login archidekt` and the admin Archidekt Login page now name the HTTP status and
+  Archidekt's own reason: "Login failed: Archidekt answered the login with HTTP 400: Unable
+  to log in with provided credentials." (it read "Login failed: Login failed: 400 Bad
+  Request"). The reason is read from Archidekt's reply (its `non_field_errors` and `detail`)
+  and quoted on one line, capped; a reply without one (an error page) leaves the status alone.
+  A login reply that holds no usable session is refused rather than stored, and only the
+  session fields Ritual reads are written to the token file.
+  **`POST /api/login/archidekt` answers by whose failure it was:** `401` only when Archidekt
+  refused the credentials (a 4xx other than `429`), `502` when Archidekt failed (a 5xx, a
+  `429`, a reply without a session), and `500` when this server did (a token file it could
+  not write); every refusal was a `401`. Archidekt's refusals now carry `messageKey`
+  (`domain.sync.auth.loginFailedWithReason`, `domain.sync.auth.loginFailed` or
+  `domain.sync.auth.loginReplyInvalid`) and `messageParams` (`status`, `reason`), so the
+  admin page words them in its reader's language. A stored session that cannot be refreshed
+  before a sync logs one line in the UI language, "Could not refresh the Archidekt session:
+  …", naming the status and reason the same way (it printed "Failed to refresh token:" and a
+  stack trace), and a refresh that worked logs "Refreshed the Archidekt session." (it read
+  "Token refreshed successfully.").
+- **`self-update` words its refusals in the CLI's language, reason included.** Why a
+  GitHub release was refused ("GitHub sent an unexpected response for …: draft is not a
+  boolean"), why its `.sha256` file could not be read, why the downloaded binary failed its
+  `--version` check, a disk that filled up mid-install, and a `--tag` that is not a release
+  now read in the UI language, the reason nested in the sentence around it. Text quoted from
+  GitHub or from the new binary (a tag, a file name in the checksum file, the binary's
+  output) is put on one line, stripped of control characters and capped, and a binary that
+  printed nothing says so ("it printed nothing", "exit 1, with no output"). A release field
+  that is present but not text reads "tag_name is not a non-empty string" (it read "tag_name
+  is missing"). The checksum file is read only up to 4 KiB.
 - **A cache feed host's console follows its UI language.** Its refresh, publish, prune and
   seeding lines, and the reasons a refresh fails (a bulk download error, a manifest
   missing a bulk, a refused file name), are worded in the UI language behind the
@@ -750,6 +779,13 @@ integer.` / `Invalid "offset" '-1'. Use a non-negative integer.` on every route 
   Ctrl, Esc, Tab) stay English.
 
 ### Fixed
+
+- `deck-sync` and `collection-sync` under `--output json` or `ndjson` no longer print
+  "Token refreshed successfully." (now "Refreshed the Archidekt session.") on stdout ahead
+  of the report when the run refreshed an expired Archidekt session, which left the output
+  unparseable. Under `--quiet` the line is dropped. Any other log line the sync engines
+  write goes to stderr under structured output, and an unexpected failure of either command
+  is now reported as the `--output json` error envelope.
 
 - A tag named `Untagged` or a category named `Uncategorized` no longer merges into the
   group of cards that have none when you group by tags or categories.

@@ -32,10 +32,13 @@ import {
 } from '../card/card-categories'
 import { CARD_LANGUAGES, normalizeLanguageValue, type CardLanguage } from '../card/card-language'
 import {
+  isMessageParseError,
   isSyncMessage,
   renderSyncMessage,
   renderSyncParam,
   syncList,
+  type MessageParseError,
+  type NoErrorImpostor,
   type SyncMessage,
 } from '../sync/message'
 import type { NotAMessage } from '../api/result'
@@ -75,6 +78,24 @@ export function parseEnumFlag<T extends string>(
  * as a plain-text refusal, so a parser whose value is a string cannot use it.
  */
 type NotAString<T> = [Extract<T, string>] extends [never] ? unknown : never
+
+/**
+ * Adapt a parser whose refusal is a {@link MessageParseError} into a commander
+ * argParser: the refusal is worded in the CLI's language and exits `2` through
+ * commander's invalid-argument path, like any other bad flag value.
+ */
+export function messageArgParser<T extends NoErrorImpostor<T>>(
+  parse: (raw: string) => T | MessageParseError,
+): (value: string) => T {
+  return (value) => {
+    const parsed = parse(value)
+    // `T` is held to `NoErrorImpostor` above, which the generic call cannot re-prove.
+    if (isMessageParseError<unknown>(parsed)) {
+      throw new InvalidArgumentError(renderSyncMessage(parsed.error))
+    }
+    return parsed
+  }
+}
 
 /**
  * Adapt an engine parser — the value, or its refusal — into a commander

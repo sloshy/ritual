@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import path from 'node:path'
 import { applyConfigGet, applyConfigSet, applyConfigUnset } from '../../src/config/config-fields'
-import { parseBaseDir, isBaseDirError } from '../../src/config/base-dir'
+import { parseBaseDir } from '../../src/config/base-dir'
 import {
   getDefaultRitualConfig,
   isConfigParseError,
@@ -23,7 +23,12 @@ import {
   parseUpdateCheck,
   RitualConfigParseError,
 } from '../../src/config/ritual-config'
-import { renderSyncMessage, syncRef, type SyncMessage } from '../../src/sync/message'
+import {
+  isMessageParseError,
+  renderSyncMessage,
+  syncRef,
+  type SyncMessage,
+} from '../../src/sync/message'
 import { keyedMessage } from '../helpers/api-message'
 import {
   expectLocaleInForce,
@@ -344,7 +349,7 @@ describe('--base-dir refusals', () => {
     try {
       const missing = path.join(dir, 'nope')
       const result = await parseBaseDir(missing)
-      if (!isBaseDirError(result)) throw new Error(`expected a refusal, got ${result}`)
+      if (!isMessageParseError(result)) throw new Error(`expected a refusal, got ${result}`)
       expect(keyedMessage(result.error)).toBe(`base directory does not exist: ${missing}`)
       expect(result.error.messageKey).toBe('cli.baseDir.missing')
     } finally {

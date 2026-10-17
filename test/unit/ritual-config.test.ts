@@ -983,7 +983,7 @@ describe('config parser error shape', () => {
   test('isConfigParseError discriminates errors from success values', () => {
     expect(isConfigParseError({ error: { message: 'nope' } })).toBeTrue()
     // A sibling parser's plain-text refusal is not one until it is lifted.
-    expect(isConfigParseError({ error: 'nope' })).toBeFalse()
+    expect(isConfigParseError<unknown>({ error: 'nope' })).toBeFalse()
     expect(isConfigParseError('nope')).toBeFalse()
     expect(isConfigParseError(undefined)).toBeFalse()
     expect(isConfigParseError(null)).toBeFalse()

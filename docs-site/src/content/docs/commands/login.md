@@ -50,6 +50,8 @@ Passing only one of the two flags is a usage error (exit code `2`), as is an emp
 | `1`  | The login itself failed (bad credentials, network error)                         |
 | `2`  | Usage error: cancelled prompts, missing/partial credential flags, empty password |
 
+A login Archidekt refuses prints the HTTP status and Archidekt's own reason, quoted on one line (`Login failed: Archidekt answered the login with HTTP 400: Unable to log in with provided credentials.`). A reply that gives no reason, such as an error page, prints the status alone.
+
 ## `login status`
 
 Reports whether an Archidekt login is stored, for which user, and whether the next sync can authenticate with it. It never touches the network; validity comes from the stored tokens' own `exp` claims.

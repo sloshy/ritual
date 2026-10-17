@@ -9,9 +9,23 @@
 import { compareVersions, isPrereleaseVersion, type UpdateChannel } from '../config/semver'
 import { isReleaseTag, normalizeVersion } from '../config/version'
 import type { MessageKey } from '../i18n/messages/en'
-import { CardCommandError, ExitCode, getErrorMessage, localizedCommandError } from '../util/errors'
+import {
+  errorParam,
+  isMessageParseError,
+  nestSync,
+  syncMessage,
+  type MessageParseError,
+  type SyncText,
+} from '../sync/message'
+import {
+  CardCommandError,
+  ExitCode,
+  getErrorMessage,
+  localizedCommandError,
+  messageCommandError,
+} from '../util/errors'
 import { isRecord } from '../util/json'
-import { isParseError, type ParseError } from '../util/parse-error'
+import { quotedReply } from '../util/reply-text'
 import type { ReleaseApiEnv } from './env'
 
 /** One downloadable file attached to a release. */
@@ -48,40 +62,92 @@ const API_TIMEOUT_MS = 30_000
 /** How many recent releases the prerelease channel considers. */
 const RELEASE_LIST_SIZE = 30
 
-function isHttpsUrl(value: string): boolean {
-  return URL.canParse(value) && new URL(value).protocol === 'https:'
+/**
+ * The most of a value GitHub sent that a refusal quotes (characters). A tag is
+ * a short version string; anything longer is not one, and its start says so.
+ */
+const MAX_QUOTED_VALUE_CHARS = 100
+
+/** A field-shaped refusal: one of the reasons that name the JSON field at fault. */
+type FieldReasonKey =
+  | 'cli.selfUpdate.release.fieldMissing'
+  | 'cli.selfUpdate.release.fieldNotText'
+  | 'cli.selfUpdate.release.fieldNotBoolean'
+  | 'cli.selfUpdate.release.fieldNotList'
+  | 'cli.selfUpdate.release.fieldNotObject'
+  | 'cli.selfUpdate.release.fieldNotHttpsUrl'
+  | 'cli.selfUpdate.release.fieldNotByteCount'
+
+/** The refusal of one field, named exactly as GitHub spells it (`assets[0].name`). */
+function fieldRefused(key: FieldReasonKey, field: string): MessageParseError {
+  return { error: syncMessage(key, { field }) }
 }
 
-function parseAsset(value: unknown, index: number): ReleaseAsset | ParseError {
-  if (!isRecord(value)) return { error: `assets[${index}] is not an object` }
-  const { name, browser_download_url: url, size } = value
-  if (typeof name !== 'string' || name === '') {
-    return { error: `assets[${index}].name is missing` }
+/** The refusal of a field that should hold text: absent, or present but not non-empty text. */
+function textRefused(value: unknown, field: string): MessageParseError {
+  const key: FieldReasonKey =
+    value === undefined
+      ? 'cli.selfUpdate.release.fieldMissing'
+      : 'cli.selfUpdate.release.fieldNotText'
+  return fieldRefused(key, field)
+}
+
+/** The path of an asset's field, as the reasons name it: `assets[0].name`. */
+function assetField(index: number, field?: string): string {
+  const element = `assets[${index}]`
+  return field === undefined ? element : `${element}.${field}`
+}
+
+function isHttpsUrl(value: string): boolean {
+  return URL.parse(value)?.protocol === 'https:'
+}
+
+function parseAsset(value: unknown, index: number): ReleaseAsset | MessageParseError {
+  if (!isRecord(value)) {
+    return fieldRefused('cli.selfUpdate.release.fieldNotObject', assetField(index))
   }
+  const { name, browser_download_url: url, size } = value
+  if (typeof name !== 'string' || name === '') return textRefused(name, assetField(index, 'name'))
   if (typeof url !== 'string' || !isHttpsUrl(url)) {
-    return { error: `assets[${index}].browser_download_url is not an https URL` }
+    return fieldRefused(
+      'cli.selfUpdate.release.fieldNotHttpsUrl',
+      assetField(index, 'browser_download_url'),
+    )
   }
   if (typeof size !== 'number' || !Number.isSafeInteger(size) || size < 0) {
-    return { error: `assets[${index}].size is not a byte count` }
+    return fieldRefused('cli.selfUpdate.release.fieldNotByteCount', assetField(index, 'size'))
   }
   return { name, url, size }
 }
 
 /** Parse one object from the releases API. */
-export function parseRelease(json: unknown): Release | ParseError {
-  if (!isRecord(json)) return { error: 'the release is not an object' }
+export function parseRelease(json: unknown): Release | MessageParseError {
+  if (!isRecord(json)) return { error: syncMessage('cli.selfUpdate.release.notObject') }
   const { tag_name: tag, draft, prerelease, assets } = json
-  if (typeof tag !== 'string' || tag === '') return { error: 'tag_name is missing' }
+  if (typeof tag !== 'string' || tag === '') return textRefused(tag, 'tag_name')
   // Exactly the tags `normalizeVersion` reads as a release: anything looser
   // would become a `0.0.0-dev.…` version and compare as a downgrade.
-  if (!isReleaseTag(tag)) return { error: `tag_name '${tag}' is not a release version` }
-  if (typeof draft !== 'boolean') return { error: 'draft is not a boolean' }
-  if (typeof prerelease !== 'boolean') return { error: 'prerelease is not a boolean' }
-  if (!Array.isArray(assets)) return { error: 'assets is not a list' }
+  if (!isReleaseTag(tag)) {
+    return {
+      error: syncMessage('cli.selfUpdate.release.fieldNotVersion', {
+        field: 'tag_name',
+        // GitHub's text, quoted onto one line: no control characters, capped.
+        value: quotedReply(tag, MAX_QUOTED_VALUE_CHARS),
+      }),
+    }
+  }
+  if (typeof draft !== 'boolean') {
+    return fieldRefused('cli.selfUpdate.release.fieldNotBoolean', 'draft')
+  }
+  if (typeof prerelease !== 'boolean') {
+    return fieldRefused('cli.selfUpdate.release.fieldNotBoolean', 'prerelease')
+  }
+  if (!Array.isArray(assets)) return fieldRefused('cli.selfUpdate.release.fieldNotList', 'assets')
+  const assetList: readonly unknown[] = assets
   const parsedAssets: ReleaseAsset[] = []
-  for (const [index, asset] of assets.entries()) {
+  for (const [index, asset] of assetList.entries()) {
     const parsed = parseAsset(asset, index)
-    if (isParseError(parsed)) return parsed
+    if (isMessageParseError(parsed)) return parsed
     parsedAssets.push(parsed)
   }
   return { tag, version: normalizeVersion(tag), draft, prerelease, assets: parsedAssets }
@@ -91,17 +157,26 @@ export function parseRelease(json: unknown): Release | ParseError {
  * Parse the releases API's list. Drafts are dropped before validation (never
  * installable, and a draft's tag may not be a version yet), and so is any other
  * entry that does not parse — one odd release (a `nightly` tag) must not close
- * the whole channel. Only a list where nothing parses is an error.
+ * the whole channel. Only a list where nothing parses is an error, naming the
+ * first bad entry (by its position in the whole list) with its reason nested.
  */
-export function parseReleaseList(json: unknown): Release[] | ParseError {
-  if (!Array.isArray(json)) return { error: 'the release list is not a list' }
+export function parseReleaseList(json: unknown): Release[] | MessageParseError {
+  if (!Array.isArray(json)) return { error: syncMessage('cli.selfUpdate.release.listNotList') }
+  const list: readonly unknown[] = json
   const releases: Release[] = []
-  let firstError: ParseError | undefined
-  for (const [index, item] of json.entries()) {
+  let firstError: MessageParseError | undefined
+  for (const [index, item] of list.entries()) {
     if (isRecord(item) && item.draft === true) continue
     const parsed = parseRelease(item)
-    if (isParseError(parsed)) firstError ??= { error: `release ${index}: ${parsed.error}` }
-    else releases.push(parsed)
+    if (!isMessageParseError(parsed)) releases.push(parsed)
+    else {
+      firstError ??= {
+        error: syncMessage('cli.selfUpdate.release.inList', {
+          index,
+          reason: nestSync(parsed.error),
+        }),
+      }
+    }
   }
   return releases.length === 0 && firstError !== undefined ? firstError : releases
 }
@@ -133,9 +208,11 @@ export function resolveChannel(currentVersion: string, flags: ChannelFlags): Upd
  * The release tag for a `--tag` value, which may be spelled with or without the
  * leading `v` (Ritual's release tags always carry it).
  */
-export function parseReleaseTag(input: string): string | ParseError {
+export function parseReleaseTag(input: string): string | MessageParseError {
   const trimmed = input.trim()
-  if (!isReleaseTag(trimmed)) return { error: `'${trimmed}' is not a release version` }
+  if (!isReleaseTag(trimmed)) {
+    return { error: syncMessage('cli.selfUpdate.error.invalidTag', { tag: trimmed }) }
+  }
   return `v${trimmed.replace(/^v/, '')}`
 }
 
@@ -219,12 +296,12 @@ export function httpError(response: Response, url: string): CardCommandError {
   })
 }
 
-function badResponse(url: string, error: string): CardCommandError {
-  return localizedCommandError(
+/** A document GitHub sent that is not what Ritual expects; `error` says why, nested. */
+function badResponse(url: string, error: SyncText): CardCommandError {
+  return messageCommandError(
     'runtime_error',
     ExitCode.RuntimeError,
-    'cli.selfUpdate.error.badResponse',
-    { url, error },
+    syncMessage('cli.selfUpdate.error.badResponse', { url, error }),
   )
 }
 
@@ -248,12 +325,14 @@ async function getJson(
   try {
     return { kind: 'found', json: (await response.json()) as unknown }
   } catch (error) {
-    throw badResponse(url, getErrorMessage(error))
+    throw badResponse(url, errorParam(error))
   }
 }
 
-function parsedOrThrow<T>(url: string, parsed: T | ParseError): T {
-  if (isParseError(parsed)) throw badResponse(url, parsed.error)
+function parsedOrThrow<T>(url: string, parsed: T | MessageParseError): T {
+  // `T` is generic, so the impostor check cannot be re-proved here; its two
+  // instantiations (a release, a release list) carry no `error` field.
+  if (isMessageParseError<unknown>(parsed)) throw badResponse(url, nestSync(parsed.error))
   return parsed
 }
 

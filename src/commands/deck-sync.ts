@@ -29,6 +29,7 @@ import { addDryRunOption, addOutputOption, addScriptingOptions } from '../cli/op
 import {
   emitError,
   emitOutput,
+  installScriptingLogger,
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
@@ -268,14 +269,17 @@ async function runSync(
   direction: SyncDirection,
   decks: string[],
   options: DeckSyncCommandOptions,
+  scripting: ScriptingOptions,
 ): Promise<void> {
-  const scripting = normalizeScriptingOptions(options)
   // JSON/NDJSON output owns stdout, so per-deck progress logging is silenced
-  // there; every outcome still lands in the emitted report.
+  // there; every outcome still lands in the emitted report. The engines below
+  // log through the process logger, which this moves onto stderr (as import and
+  // price do), so nothing but the report reaches stdout.
+  installScriptingLogger(scripting)
   const logger = loggerFor(scripting)
   const indent = createScopedIndenter(scripting)
 
-  const token = await requireArchidektToken(scripting)
+  const token = await requireArchidektToken(scripting, logger)
   if (!token) return
 
   const dryRun = options.dryRun ?? false
@@ -345,7 +349,8 @@ export function registerDeckSyncCommand(program: Command): void {
     command.option('--sync-categories', t('help.deckSync.syncCategories'), false)
     addVerboseOption(command, 'decks')
     command.action(async (decks: string[], options: DeckSyncCommandOptions) => {
-      await runSync(direction, decks, options)
+      const scripting = normalizeScriptingOptions(options)
+      await runCommandAction(scripting, () => runSync(direction, decks, options, scripting))
     })
   }
 

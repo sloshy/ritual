@@ -9,11 +9,28 @@ import {
   type Release,
 } from '../../../src/update/release'
 import type { UpdateChannel } from '../../../src/config/semver'
+import type { MessageKey } from '../../../src/i18n/messages/en'
+import type { MessageParseError, SyncMessageParams } from '../../../src/sync/message'
 import { planUpdate } from '../../../src/update/self-update'
 import { ExitCode } from '../../../src/util/errors'
 import { FAKE_API, fakeEnv, fakeRelease, serveReleases } from '../../helpers/fake-release'
 import { commandFailure, failureIdentity } from '../../helpers/rejection'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
+import { pseudoCatalog, pseudoString, withGuardedLocaleAsync } from '../../helpers/sync-text'
+
+/** A refusal as the parsers return it: its English, key and params, pinned whole. */
+function refused(
+  message: string,
+  messageKey: MessageKey,
+  messageParams?: SyncMessageParams,
+): MessageParseError {
+  return {
+    error:
+      messageParams === undefined
+        ? { message, messageKey }
+        : { message, messageKey, messageParams },
+  }
+}
 
 describe('resolveChannel', () => {
   test.each<[string, string, ChannelFlags, UpdateChannel]>([
@@ -35,13 +52,19 @@ describe('parseReleaseTag', () => {
     expect(parseReleaseTag(input)).toBe(tag)
   })
 
-  test.each([
-    ['latest', "'latest' is not a release version"],
-    ['v1.2', "'v1.2' is not a release version"],
-    ['1.2.0-rc_1', "'1.2.0-rc_1' is not a release version"],
-  ])('%p is not a release tag', (input, error) => {
-    expect(parseReleaseTag(input)).toEqual({ error })
-  })
+  test.each([['latest'], ['v1.2'], ['1.2.0-rc_1'], [' nightly ']])(
+    '%p is not a release tag',
+    (input) => {
+      const tag = input.trim()
+      expect(parseReleaseTag(input)).toEqual(
+        refused(
+          `'${tag}' is not a release version (expected a tag like v1.2.0 or 1.2.0-beta4).`,
+          'cli.selfUpdate.error.invalidTag',
+          { tag },
+        ),
+      )
+    },
+  )
 })
 
 describe('parseRelease', () => {
@@ -61,50 +84,143 @@ describe('parseRelease', () => {
   const valid = (): Record<string, unknown> => fakeRelease('v1.0.0').json
   const withAsset = (asset: unknown): Record<string, unknown> => ({ ...valid(), assets: [asset] })
 
-  test.each<[string, unknown, string]>([
-    ['not an object', [], 'the release is not an object'],
-    ['a missing tag', { ...valid(), tag_name: undefined }, 'tag_name is missing'],
+  test.each<[string, unknown, MessageParseError]>([
+    [
+      'not an object',
+      [],
+      refused('the release is not an object', 'cli.selfUpdate.release.notObject'),
+    ],
+    [
+      'a missing tag',
+      { ...valid(), tag_name: undefined },
+      refused('tag_name is missing', 'cli.selfUpdate.release.fieldMissing', { field: 'tag_name' }),
+    ],
+    [
+      'a tag that is not text',
+      { ...valid(), tag_name: 7 },
+      refused('tag_name is not a non-empty string', 'cli.selfUpdate.release.fieldNotText', {
+        field: 'tag_name',
+      }),
+    ],
+    [
+      'an empty tag',
+      { ...valid(), tag_name: '' },
+      refused('tag_name is not a non-empty string', 'cli.selfUpdate.release.fieldNotText', {
+        field: 'tag_name',
+      }),
+    ],
+    [
+      'a tag that is not a version, quoted onto one line',
+      { ...valid(), tag_name: 'night\n\u001b[31mly' },
+      refused(
+        "tag_name 'night ly' is not a release version",
+        'cli.selfUpdate.release.fieldNotVersion',
+        { field: 'tag_name', value: 'night ly' },
+      ),
+    ],
     [
       'a tag that is not a version',
       { ...valid(), tag_name: 'nightly' },
-      "tag_name 'nightly' is not a release version",
+      refused(
+        "tag_name 'nightly' is not a release version",
+        'cli.selfUpdate.release.fieldNotVersion',
+        { field: 'tag_name', value: 'nightly' },
+      ),
     ],
     [
       'a tag Ritual would not read as a release',
       { ...valid(), tag_name: 'v1.2.3-rc+b' },
-      "tag_name 'v1.2.3-rc+b' is not a release version",
+      refused(
+        "tag_name 'v1.2.3-rc+b' is not a release version",
+        'cli.selfUpdate.release.fieldNotVersion',
+        { field: 'tag_name', value: 'v1.2.3-rc+b' },
+      ),
     ],
-    ['a non-boolean draft flag', { ...valid(), draft: 'no' }, 'draft is not a boolean'],
-    ['a non-boolean prerelease flag', { ...valid(), prerelease: 1 }, 'prerelease is not a boolean'],
-    ['missing assets', { ...valid(), assets: null }, 'assets is not a list'],
-    ['an asset that is not an object', withAsset('x'), 'assets[0] is not an object'],
+    [
+      'a non-boolean draft flag',
+      { ...valid(), draft: 'no' },
+      refused('draft is not a boolean', 'cli.selfUpdate.release.fieldNotBoolean', {
+        field: 'draft',
+      }),
+    ],
+    [
+      'a non-boolean prerelease flag',
+      { ...valid(), prerelease: 1 },
+      refused('prerelease is not a boolean', 'cli.selfUpdate.release.fieldNotBoolean', {
+        field: 'prerelease',
+      }),
+    ],
+    [
+      'missing assets',
+      { ...valid(), assets: null },
+      refused('assets is not a list', 'cli.selfUpdate.release.fieldNotList', { field: 'assets' }),
+    ],
+    [
+      'an asset that is not an object',
+      withAsset('x'),
+      refused('assets[0] is not an object', 'cli.selfUpdate.release.fieldNotObject', {
+        field: 'assets[0]',
+      }),
+    ],
     [
       'an asset without a name',
       withAsset({ browser_download_url: 'https://x.test/x', size: 1 }),
-      'assets[0].name is missing',
+      refused('assets[0].name is missing', 'cli.selfUpdate.release.fieldMissing', {
+        field: 'assets[0].name',
+      }),
+    ],
+    [
+      'an asset whose name is not text',
+      withAsset({ name: 42, browser_download_url: 'https://x.test/x', size: 1 }),
+      refused('assets[0].name is not a non-empty string', 'cli.selfUpdate.release.fieldNotText', {
+        field: 'assets[0].name',
+      }),
+    ],
+    [
+      'a bad asset after a good one, by its own position',
+      {
+        ...valid(),
+        assets: [
+          { name: 'ok', browser_download_url: 'https://x.test/ok', size: 1 },
+          { browser_download_url: 'https://x.test/x', size: 1 },
+        ],
+      },
+      refused('assets[1].name is missing', 'cli.selfUpdate.release.fieldMissing', {
+        field: 'assets[1].name',
+      }),
     ],
     [
       'an asset without a URL',
       withAsset({ name: 'x', browser_download_url: 'nope', size: 1 }),
-      'assets[0].browser_download_url is not an https URL',
+      refused(
+        'assets[0].browser_download_url is not an https URL',
+        'cli.selfUpdate.release.fieldNotHttpsUrl',
+        { field: 'assets[0].browser_download_url' },
+      ),
     ],
     [
       'an asset served over plain http',
       withAsset({ name: 'x', browser_download_url: 'http://x.test/x', size: 1 }),
-      'assets[0].browser_download_url is not an https URL',
+      refused(
+        'assets[0].browser_download_url is not an https URL',
+        'cli.selfUpdate.release.fieldNotHttpsUrl',
+        { field: 'assets[0].browser_download_url' },
+      ),
     ],
     [
       'an asset with a negative size',
       withAsset({ name: 'x', browser_download_url: 'https://x.test/x', size: -1 }),
-      'assets[0].size is not a byte count',
+      refused('assets[0].size is not a byte count', 'cli.selfUpdate.release.fieldNotByteCount', {
+        field: 'assets[0].size',
+      }),
     ],
   ])('rejects %s', (_label, json, error) => {
-    expect(parseRelease(json)).toEqual({ error })
+    expect(parseRelease(json)).toEqual(error)
   })
 })
 
 describe('parseReleaseList', () => {
-  const tags = (list: Release[] | { error: string }): string[] | { error: string } =>
+  const tags = (list: Release[] | MessageParseError): string[] | MessageParseError =>
     Array.isArray(list) ? list.map((release) => release.tag) : list
 
   test('skips drafts before validating them', () => {
@@ -123,16 +239,36 @@ describe('parseReleaseList', () => {
     expect(tags(list)).toEqual(['v1.1.0'])
   })
 
-  test('fails, naming the first bad entry, when nothing parses', () => {
-    expect(parseReleaseList([{ tag_name: 'v2.0.0' }])).toEqual({
-      error: 'release 0: draft is not a boolean',
-    })
+  test('fails, naming the first bad entry with its reason nested, when nothing parses', () => {
+    expect(parseReleaseList([{ tag_name: 'v2.0.0' }, { tag_name: 'nightly' }])).toEqual(
+      refused('release 0: draft is not a boolean', 'cli.selfUpdate.release.inList', {
+        index: 0,
+        reason: {
+          messageKey: 'cli.selfUpdate.release.fieldNotBoolean',
+          messageParams: { field: 'draft' },
+        },
+      }),
+    )
+  })
+
+  test('names a bad entry by its position in the whole list, skipped drafts included', () => {
+    expect(
+      parseReleaseList([{ tag_name: 'untagged-1', draft: true }, { tag_name: 'v2.0.0' }]),
+    ).toEqual(
+      refused('release 1: draft is not a boolean', 'cli.selfUpdate.release.inList', {
+        index: 1,
+        reason: {
+          messageKey: 'cli.selfUpdate.release.fieldNotBoolean',
+          messageParams: { field: 'draft' },
+        },
+      }),
+    )
   })
 
   test('rejects a document that is not a list', () => {
-    expect(parseReleaseList({ message: 'Not Found' })).toEqual({
-      error: 'the release list is not a list',
-    })
+    expect(parseReleaseList({ message: 'Not Found' })).toEqual(
+      refused('the release list is not a list', 'cli.selfUpdate.release.listNotList'),
+    )
   })
 })
 
@@ -339,7 +475,44 @@ describe('planUpdate', () => {
   test('a malformed release is a bad response, not a crash', async () => {
     server = serveReleases({ latest: { json: { tag_name: 'v1.1.0' }, routes: {} } })
     const error = await commandFailure(planUpdate(env, {}))
-    expect(error.messageKey).toBe('cli.selfUpdate.error.badResponse')
-    expect(error.message).toContain('draft is not a boolean')
+    const url = `${FAKE_API}/releases/latest`
+    expect({
+      message: error.message,
+      key: error.messageKey,
+      params: error.messageParams,
+      exitCode: error.exitCode,
+    }).toEqual({
+      message: `GitHub sent an unexpected response for ${url}: draft is not a boolean`,
+      key: 'cli.selfUpdate.error.badResponse',
+      params: { url, error: 'draft is not a boolean' },
+      exitCode: ExitCode.RuntimeError,
+    })
+  })
+
+  test('a release list where nothing parses is a bad response naming the first bad entry', async () => {
+    server = serveReleases({ list: [{ json: { tag_name: 'v1.1.0' }, routes: {} }] })
+    const error = await commandFailure(planUpdate(env, { prerelease: true }))
+    expect(error.messageParams).toEqual({
+      url: `${FAKE_API}/releases?per_page=30`,
+      error: 'release 0: draft is not a boolean',
+    })
+  })
+
+  test('the refusal reads in the CLI’s language, frame and reason alike; its params stay English', async () => {
+    server = serveReleases({ latest: { json: { tag_name: 'v1.1.0' }, routes: {} } })
+    const error = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      commandFailure(planUpdate(env, {})),
+    )
+    const url = `${FAKE_API}/releases/latest`
+    const reason = pseudoString('cli.selfUpdate.release.fieldNotBoolean').replace(
+      '{field}',
+      'draft',
+    )
+    expect(error.message).toBe(
+      pseudoString('cli.selfUpdate.error.badResponse')
+        .replace('{url}', url)
+        .replace('{error}', reason),
+    )
+    expect(error.messageParams).toEqual({ url, error: 'draft is not a boolean' })
   })
 })

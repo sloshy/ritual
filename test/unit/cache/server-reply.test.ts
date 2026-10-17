@@ -1,12 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import { replyParam, streamFailureMessage } from '../../../src/cache/server-reply'
 import {
   MAX_QUOTED_CHARS,
   MAX_REPLY_BYTES,
   quotedReply,
   readReplyText,
-  replyParam,
-  streamFailureMessage,
-} from '../../../src/cache/server-reply'
+} from '../../../src/util/reply-text'
 import { syncMessage, type SyncText } from '../../../src/sync/message'
 
 /**
