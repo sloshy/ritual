@@ -1,9 +1,10 @@
-import { createSignal, onCleanup, type Accessor } from 'solid-js'
+import { createEffect, createSignal, on, onCleanup, type Accessor } from 'solid-js'
 import type { SelectedCard } from '../list-view/useCardSelection'
 import { selectionToText, selectionToCsv } from '../list-view/selection-export'
 import { selectionToCartCsv } from './sell-value'
 import { useT } from '../ui/i18n'
-import { buyerName } from '../buylist'
+import { buyerName, cartWarningRef } from '../buylist'
+import type { SyncMessageRef } from '../sync/message'
 import { cartBuyer } from '../list-view/sell-mode'
 
 /** Which copy button was pressed — the feedback lands on that button. */
@@ -35,8 +36,16 @@ export interface SelectionCopy {
    * mode with Card Kingdom selected; cards with no active offer are omitted.
    */
   copyCart: () => Promise<void>
-  /** Warnings from the last cart copy (etched coercion, upload caps); empty otherwise. */
-  cartWarnings: Accessor<string[]>
+  /**
+   * Warnings from the last cart copy that reached the clipboard (etched
+   * coercion, upload caps); emptied by any other copy, a failed one, a change
+   * of buyer (sell mode turned off included) and {@link clearCartWarnings}.
+   * Unrendered — render them with `SyncMessageLines`, so a locale switch
+   * relabels a warning already on screen.
+   */
+  cartWarnings: Accessor<readonly SyncMessageRef[]>
+  /** Forget the last cart copy's warnings — for a surface that closes but stays mounted. */
+  clearCartWarnings: () => void
 }
 
 /**
@@ -47,7 +56,7 @@ export interface SelectionCopy {
 export function useSelectionCopy(getCards: () => SelectedCard[]): SelectionCopy {
   const t = useT()
   const [outcome, setOutcome] = createSignal<SelectionCopyOutcome | null>(null)
-  const [cartWarnings, setCartWarnings] = createSignal<string[]>([])
+  const [cartWarnings, setCartWarnings] = createSignal<readonly SyncMessageRef[]>([])
   let timer: ReturnType<typeof setTimeout> | null = null
 
   const flash = (next: SelectionCopyOutcome) => {
@@ -62,17 +71,31 @@ export function useSelectionCopy(getCards: () => SelectedCard[]): SelectionCopy 
     if (timer !== null) clearTimeout(timer)
   })
 
-  const write = async (kind: SelectionCopyKind, text: string): Promise<void> => {
+  // The warnings describe the cart the buyer was last named for; a different
+  // buyer (or none, sell mode off) makes them about a file this surface no
+  // longer offers.
+  createEffect(on(cartBuyer, () => setCartWarnings([]), { defer: true }))
+
+  /** Write `text` to the clipboard and flash the outcome on its button; whether it landed. */
+  const write = async (kind: SelectionCopyKind, text: string): Promise<boolean> => {
     try {
       await navigator.clipboard.writeText(text)
       flash({ kind, ok: true })
+      return true
     } catch {
       flash({ kind, ok: false })
+      return false
     }
   }
 
-  const run = (kind: SelectionCopyKind, build: (cards: SelectedCard[]) => string) =>
-    write(kind, build(getCards()))
+  const run = async (
+    kind: SelectionCopyKind,
+    build: (cards: SelectedCard[]) => string,
+  ): Promise<void> => {
+    // Another format replaces the cart on the clipboard, so its warnings go too.
+    setCartWarnings([])
+    await write(kind, build(getCards()))
+  }
 
   const message = (result: SelectionCopyOutcome): string =>
     result.ok ? t('site.export.copied') : t('site.export.copyFailed')
@@ -92,10 +115,12 @@ export function useSelectionCopy(getCards: () => SelectedCard[]): SelectionCopy 
   // The cart builder also reports advisory problems (etched exported as foil,
   // CK's per-upload caps). Surfacing them is not optional: silently handing over
   // a mis-exported or unimportable file is worse than not offering the copy.
+  // Set only once the file is on the clipboard: a failed copy handed nothing
+  // over for them to describe.
   const copyCart = async (): Promise<void> => {
     const cart = selectionToCartCsv(getCards())
-    setCartWarnings(cart.warnings)
-    await write('cart', cart.csv)
+    const copied = await write('cart', cart.csv)
+    setCartWarnings(copied ? cart.warnings.map(cartWarningRef) : [])
   }
 
   return {
@@ -116,5 +141,6 @@ export function useSelectionCopy(getCards: () => SelectedCard[]): SelectionCopy 
     copyCsv: () => run('csv', selectionToCsv),
     copyCart,
     cartWarnings,
+    clearCartWarnings: () => setCartWarnings([]),
   }
 }

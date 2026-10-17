@@ -565,4 +565,16 @@ export const domainMeta = {
   'domain.change.clearCategoryOrder': {
     description: `${CHANGE_CONTEXT} A list's category display order was emptied, so categories fall back to the configured default order.`,
   },
+  'domain.buylist.cart.etchedAsFoil': {
+    description:
+      'Warning shown beside a Card Kingdom (CK) sell-cart CSV — a file the user uploads to CK to sell them cards: the file format has no way to say "etched foil", so those cards were written as plain foil and the user must fix them in CK’s cart after uploading. {titles} is a list of CK’s own card titles, never translated. “CK” is the store’s abbreviation; keep it.',
+  },
+  'domain.buylist.cart.tooManyTitles': {
+    description:
+      'Warning shown beside a Card Kingdom (CK) sell-cart CSV: CK’s uploader takes at most {max} different card titles at once (always 500), and this file has {count}, so the user should split it into several uploads. The file is still written. “CK” is the store’s abbreviation; keep it.',
+  },
+  'domain.buylist.cart.tooManyCards': {
+    description:
+      'Warning shown beside a Card Kingdom (CK) sell-cart CSV: CK’s uploader takes at most {max} cards at once (always 5000), and this file has {count}, so the user should split it into several uploads. The file is still written. “CK” is the store’s abbreviation; keep it.',
+  },
 } as const satisfies MetaFor<typeof domainMessages>

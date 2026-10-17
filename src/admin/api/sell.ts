@@ -6,7 +6,7 @@ import {
 } from '../../cardkingdom'
 import { isListType, type ListType } from '../../list/list-type'
 import type { ListLocation } from '../../list/resolve-list'
-import type { BuylistFeedStamp, SellCartCsv } from '../../buylist'
+import { cartWarningMessage, type BuylistFeedStamp, type SellCartCsv } from '../../buylist'
 import {
   applySellFilters,
   buildSellCartCsv,
@@ -33,8 +33,14 @@ export type SellReportResponse = SellReportPayload & {
 }
 
 /** GET /api/sell/cart body — the CK sell-cart CSV over the same scope/filters. */
-export type SellCartResponse = SellCartCsv & {
+export type SellCartResponse = Omit<SellCartCsv, 'warnings'> & {
   success: true
+  /**
+   * What the file cannot say (etched foils exported as foil) and CK's upload
+   * caps it exceeds: English `message` plus its key and params, which a client
+   * renders in its reader's language.
+   */
+  warnings: SyncMessage[]
 }
 
 /** POST /api/sell/refresh body — the state of the feed after the refresh. */
@@ -228,7 +234,12 @@ export async function handleSellCart(req: Request): Promise<Response> {
     const built = await buildSellView(query)
     if (built instanceof Response) return built
 
-    const body: SellCartResponse = { success: true, ...buildSellCartCsv(built.view.entries) }
+    const cart = buildSellCartCsv(built.view.entries)
+    const body: SellCartResponse = {
+      success: true,
+      ...cart,
+      warnings: cart.warnings.map(cartWarningMessage),
+    }
     return Response.json(body)
   } catch (err) {
     return errorResponse(err)

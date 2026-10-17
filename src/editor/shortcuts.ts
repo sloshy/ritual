@@ -1,17 +1,18 @@
 import type { KeyHint } from '../ui/KeyHints'
+import { ADD_ANOTHER_KEYS, CONFIRM_KEYS } from './card-search/key-hints'
 import type { ParameterlessKey } from '../i18n/t'
 
 /**
  * A titled set of related shortcuts, as listed in the shortcuts dialog.
  *
- * Both `title` and each hint's label are {@link MessageKey}s rather than
+ * Both `title` and each binding's label are {@link MessageKey}s rather than
  * rendered text: this table is evaluated once at module load, so a rendered
  * string would freeze the whole reference in whichever language happened to be
  * active when the bundle booted.
  */
 export type ShortcutGroup = {
   title: ParameterlessKey
-  hints: readonly KeyHint[]
+  bindings: readonly KeyHint[]
 }
 
 /**
@@ -24,35 +25,31 @@ export type ShortcutGroup = {
  */
 export const EDITOR_SHORTCUTS: readonly ShortcutGroup[] = [
   {
-    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
     title: 'ui.shortcuts.groupEditor',
-    hints: [
+    bindings: [
       { keys: ['Ctrl', 'Enter'], label: 'ui.shortcuts.addCard' },
       { keys: ['Ctrl', 'B'], label: 'ui.shortcuts.focusActionBar' },
       { keys: ['?'], label: 'ui.shortcuts.showThisList' },
     ],
   },
   {
-    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
     title: 'ui.shortcuts.groupActionBar',
-    hints: [
+    bindings: [
       { keys: ['←', '→', 'Tab'], label: 'ui.shortcuts.moveBetweenButtons' },
       { keys: ['Enter'], label: 'ui.shortcuts.activateButton' },
       { keys: ['Esc'], label: 'ui.shortcuts.returnFocus' },
     ],
   },
   {
-    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
     title: 'ui.shortcuts.groupAddCardSearch',
-    hints: [
+    bindings: [
       { keys: ['↑', '↓'], label: 'ui.shortcuts.moveThroughResults' },
       { keys: ['Enter'], label: 'ui.shortcuts.chooseCard' },
     ],
   },
   {
-    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
     title: 'ui.shortcuts.groupAddCardPrintings',
-    hints: [
+    bindings: [
       { keys: ['←', '→'], label: 'ui.shortcuts.prevNextPrinting' },
       { keys: ['↑', '↓'], label: 'ui.shortcuts.prevNextRow' },
       { keys: ['A–Z', '0–9'], label: 'ui.shortcuts.filterPrintings' },
@@ -60,19 +57,17 @@ export const EDITOR_SHORTCUTS: readonly ShortcutGroup[] = [
     ],
   },
   {
-    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
     title: 'ui.shortcuts.groupAddCardFinish',
-    hints: [
+    bindings: [
       { keys: ['←', '→'], label: 'ui.shortcuts.changeGroupValue' },
       { keys: ['↑', '↓', 'Tab'], label: 'ui.shortcuts.nextGroup' },
       { keys: ['+', '-'], label: 'ui.shortcuts.adjustQuantity' },
-      { keys: ['Enter'], label: 'ui.shortcuts.addTheCard' },
-      { keys: ['Ctrl', 'Enter'], label: 'ui.shortcuts.addThenAnother' },
+      { keys: CONFIRM_KEYS, label: 'ui.shortcuts.addTheCard' },
+      { keys: ADD_ANOTHER_KEYS, label: 'ui.shortcuts.addThenAnother' },
     ],
   },
   {
-    // i18n-exempt: a message key, not text — resolved by ShortcutsDialog at render
     title: 'ui.shortcuts.groupAnyDialog',
-    hints: [{ keys: ['Esc'], label: 'ui.shortcuts.close' }],
+    bindings: [{ keys: ['Esc'], label: 'ui.shortcuts.close' }],
   },
 ]

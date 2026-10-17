@@ -1,8 +1,10 @@
 import type { Component } from 'solid-js'
-import { For, Show, createSignal, onCleanup } from 'solid-js'
+import { Show, createEffect, createSignal, on, onCleanup } from 'solid-js'
 import { MenuButton } from '../ui/MenuButton'
 import { useT } from '../ui/i18n'
 import type { MessageKey } from '../i18n/messages/en'
+import type { SyncMessageRef } from '../sync/message'
+import { SyncMessageLines } from '../ui/SyncMessageLines'
 import { downloadTextFile } from './editor/download'
 
 const PANEL_WIDTH = 200
@@ -30,8 +32,11 @@ const FORMATS: FormatOption[] = [
   { value: 'csv', label: 'site.export.formatCsv', mime: 'text/csv' },
 ]
 
-/** A rendered extra export, plus any advisory problems worth showing. */
-export type ExtraExportResult = { content: string; warnings: string[] }
+/**
+ * A rendered extra export, plus any advisory problems worth showing — held
+ * unrendered and worded in the menu's JSX, so a locale switch relabels them.
+ */
+export type ExtraExportResult = { content: string; warnings: readonly SyncMessageRef[] }
 
 /**
  * An export entry offered alongside the standard formats — sell mode's
@@ -59,6 +64,8 @@ export interface ExportMenuProps {
 /** A rendered export ready to be copied or written to a file. */
 type RenderedExport = {
   content: string
+  /** What the export reports beside its content; empty for a standard format. */
+  warnings: readonly SyncMessageRef[]
   /** Filename extension for downloads (no dot). */
   extension: string
   mime: string
@@ -97,7 +104,20 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
     if (timer !== null) clearTimeout(timer)
   })
 
-  const [warnings, setWarnings] = createSignal<string[]>([])
+  // The last export's warnings, shown until another export replaces them. They
+  // describe a file that was handed over, so they are set only once it was —
+  // and cleared when the extras go away (sell mode turned off), since the file
+  // they describe can no longer be made from this menu.
+  const [warnings, setWarnings] = createSignal<readonly SyncMessageRef[]>([])
+  createEffect(
+    on(
+      () => (props.extraFormats ?? []).length === 0,
+      (noExtras) => {
+        if (noExtras) setWarnings([])
+      },
+      { defer: true },
+    ),
+  )
 
   const entries = (): MenuEntry[] => [
     ...FORMATS.map((format): MenuEntry => ({ kind: 'format', label: t(format.label), format })),
@@ -108,26 +128,33 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
     })),
   ]
 
-  /** Render an entry, capturing any advisory warnings it reports. */
+  /** Render an entry, with any advisory warnings it reports. */
   const render = (entry: MenuEntry): RenderedExport => {
     if (entry.kind === 'format') {
-      setWarnings([])
       return {
         content: props.serialize(entry.format.value),
+        warnings: [],
         extension: entry.format.value,
         mime: entry.format.mime,
       }
     }
     const result = entry.extra.serialize()
-    setWarnings(result.warnings)
-    return { content: result.content, extension: entry.extra.extension, mime: entry.extra.mime }
+    return {
+      content: result.content,
+      warnings: result.warnings,
+      extension: entry.extra.extension,
+      mime: entry.extra.mime,
+    }
   }
 
   const handleCopy = async (entry: MenuEntry) => {
+    const rendered = render(entry)
     try {
-      await navigator.clipboard.writeText(render(entry).content)
+      await navigator.clipboard.writeText(rendered.content)
+      setWarnings(rendered.warnings)
       flash(t('site.export.copied'))
     } catch {
+      setWarnings([])
       flash(t('site.export.copyFailed'))
     }
   }
@@ -139,6 +166,7 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
       rendered.content,
       rendered.mime,
     )
+    setWarnings(rendered.warnings)
     flash(t('site.export.downloaded'))
   }
 
@@ -163,11 +191,7 @@ export const ExportMenu: Component<ExportMenuProps> = (props) => {
           </div>
         )}
       </Show>
-      <Show when={warnings().length > 0}>
-        <div class="export-warnings" role="status" aria-live="polite">
-          <For each={warnings()}>{(warning) => <p>{warning}</p>}</For>
-        </div>
-      </Show>
+      <SyncMessageLines messages={warnings()} class="export-warnings" />
     </div>
   )
 }

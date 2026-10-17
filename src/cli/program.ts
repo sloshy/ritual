@@ -116,20 +116,30 @@ function parseLocaleOption(value: string): string {
 // error) stay English by necessity.
 
 /**
- * Commander's help section headings, keyed by the exact literal the library
- * hands `styleTitle`. Ritual's own command-group headings reach the same hook
- * already localized (`program.commandsGroup(t(…))`) and pass through untouched.
+ * The catalog key for one of Commander's help section headings, matched on the
+ * exact literal the library hands `styleTitle` — Commander's own English, which
+ * is only ever compared here, never shown. Ritual's own command-group headings
+ * reach the same hook already localized (`program.commandsGroup(t(…))`) and
+ * have no key here. Commander's "Global Options:" heading is absent on purpose:
+ * it prints only under `showGlobalOptions`, which Ritual never enables.
  */
-export const COMMANDER_SECTION_TITLES = new Map<string, ParameterlessKey>([
-  ['Usage:', 'help.commander.usageTitle'],
-  ['Arguments:', 'help.commander.argumentsTitle'],
-  ['Options:', 'help.commander.optionsTitle'],
-  ['Global Options:', 'help.commander.globalOptionsTitle'],
-  ['Commands:', 'help.commander.commandsTitle'],
-])
+function commanderSectionTitleKey(title: string): ParameterlessKey | undefined {
+  switch (title) {
+    case 'Usage:':
+      return 'help.commander.usageTitle'
+    case 'Arguments:':
+      return 'help.commander.argumentsTitle'
+    case 'Options:':
+      return 'help.commander.optionsTitle'
+    case 'Commands:':
+      return 'help.commander.commandsTitle'
+    default:
+      return undefined
+  }
+}
 
 export function localizeHelpTitle(title: string): string {
-  const key = COMMANDER_SECTION_TITLES.get(title)
+  const key = commanderSectionTitleKey(title)
   return key === undefined ? title : t(key)
 }
 

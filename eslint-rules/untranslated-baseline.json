@@ -6,14 +6,6 @@
     "Token refresh failed: missing access token in response": 1,
     "Token refreshed successfully.": 1
   },
-  "src/buylist/cart-csv.ts": {
-    "CK imports at most ${…} cards per upload (this file has ${…}); split it before uploading.": 1,
-    "CK imports at most ${…} unique titles per upload (this file has ${…}); split it before uploading.": 1,
-    "The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: ${…}": 1
-  },
-  "src/cli/program.ts": {
-    "Global Options:": 1
-  },
   "src/clients/ArchidektClient.ts": {
     "${…} failed (${…}): ${…}": 1,
     "Archidekt returned a next-page link it had already served (${…}); stopping after ${…} result(s).": 1,
@@ -33,29 +25,6 @@
     "uploadCollectionCsv (chunk ${…})": 1,
     "uploadCollectionCsv: ${…}": 1,
     "uploadCollectionCsv: the CSV could not be read — ${…}": 1
-  },
-  "src/editor/card-search/key-hints.ts": {
-    "Tab": 1
-  },
-  "src/editor/components/card-search/FinishConditionStep.tsx": {
-    "Ctrl": 1,
-    "Enter": 2
-  },
-  "src/editor/components/card-search/LanguageNoticeStep.tsx": {
-    "Enter": 1
-  },
-  "src/editor/shortcuts.ts": {
-    "Ctrl": 3,
-    "Enter": 6,
-    "Esc": 2,
-    "Tab": 2
-  },
-  "src/editor/swap-printings/moves.ts": {
-    "swap allocation for printingless candidate ${…} has no chosen printing": 1
-  },
-  "src/editor/useEditorDefaults.ts": {
-    "Failed to parse stored editor defaults: ${…}": 1,
-    "[editor-defaults] ${…}": 1
   },
   "src/i18n/catalog.ts": {
     "$plural table needs an \"other\" form": 1,
@@ -183,12 +152,6 @@
     "Variable '${…}' must be a non-empty string value": 1,
     "Variable name '${…}' must start with '--'": 1
   },
-  "src/ui/format.ts": {
-    "Invalid Date": 1
-  },
-  "src/ui/useMediaQuery.ts": {
-    "(hover: none), (pointer: coarse)": 1
-  },
   "src/update/install.ts": {
     "exit ${…}: ${…}": 1,
     "expected a SHA-256 digest followed by a file name": 1,
@@ -210,17 +173,5 @@
     "tag_name is missing": 1,
     "the release is not an object": 1,
     "the release list is not a list": 1
-  },
-  "src/util/bundled-text.ts": {
-    "Expected text module for ${…}": 1
-  },
-  "src/util/safekeeping.ts": {
-    "moveToTrash needs at least one file": 1
-  },
-  "src/util/user-state.ts": {
-    "migratePrompts must be an object": 1,
-    "the state file must contain a JSON object": 1,
-    "updateCheck must be an object": 1,
-    "updateCheck.channel must be one of: ${…}": 1
   }
 }

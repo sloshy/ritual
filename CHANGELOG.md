@@ -729,6 +729,25 @@ integer.` / `Invalid "offset" '-1'. Use a non-negative integer.` on every route 
   still use the canonical lowercase finish (`dsk:136:foil`). `set` and `collectorNumber`
   are trimmed, so a whitespace-only value is refused as blank. This is the HTTP route's
   rule: the MCP `get_buylist_quotes` tool's schema still takes lowercase values.
+- **The sell cart's `warnings` are messages.** `GET /api/sell/cart` and MCP `get_sell_cart`
+  now answer each warning (etched foils exported as foil, CK's 500-title and 5,000-card upload
+  caps) as English `message` plus `messageKey` (`domain.buylist.cart.etchedAsFoil`,
+  `tooManyTitles`, `tooManyCards`) and `messageParams`, where each was a bare string; the
+  English is unchanged. Update a client that read `warnings[i]` as text: read its `.message`,
+  and match on `messageKey`. `ritual sell --output csv` prints them in the CLI's language, and
+  the public site's cart export and both sites' "Copy cart" warnings follow the site's
+  language, relabelling one already on screen when you switch, and clear when you copy
+  something else, close the Selected Cards dialog or turn sell mode off. The CSV itself is unchanged in every
+  language.
+- More text follows the UI language: the list editors' "Invalid Date" stand-in for an
+  unreadable date, the browser-console warning for unreadable stored add-card defaults (it
+  read `[editor-defaults] Failed to parse stored editor defaults: …`), and a few internal
+  errors (an embedded asset that is not text, an empty trash request, a swap plan missing
+  its chosen printing). The add-card dialog's finish and condition choices show their names
+  (Foil, Near Mint; they read `foil`, `NM`), and its "not available in your language" notice
+  names languages in the UI language, as do `ritual edit`'s language-fallback prompt and the
+  trade picker's notice. Key names in the editors' hints and the shortcuts reference (Enter,
+  Ctrl, Esc, Tab) stay English.
 
 ### Fixed
 

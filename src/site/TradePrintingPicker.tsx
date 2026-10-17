@@ -15,7 +15,7 @@ import { finishChipName } from '../list-view/printing-display'
 import { PriceSourceSelect } from '../list-view/PriceSourceSelect'
 import { PrintingPrices } from '../list-view/PrintingPrices'
 import { usePrintingQuotes } from '../list-view/printing-quotes'
-import { useT } from '../ui/i18n'
+import { useI18n, useT } from '../ui/i18n'
 import { TooltipOverlay } from '../ui/TooltipOverlay'
 import { useTooltip } from '../ui/useTooltip'
 import { PrintingFilter } from '../ui/PrintingFilter'
@@ -119,7 +119,7 @@ const PickerItem: Component<PickerItemProps> = (props) => {
 }
 
 export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) => {
-  const t = useT()
+  const { t, locale } = useI18n()
   const [selectedPrinting, setSelectedPrinting] = createSignal<ScryfallCard | null>(null)
   const [selectedFinish, setSelectedFinish] = createSignal<Finish>('nonfoil')
   const [page, setPage] = createSignal(0)
@@ -308,7 +308,7 @@ export const TradePrintingPicker: Component<TradePrintingPickerProps> = (props) 
               <div class="trade-picker-actions">
                 <span class="trade-picker-language-notice">
                   {t('site.tradePicker.languageNotice', {
-                    language: formatLanguageList([notice()]),
+                    language: formatLanguageList([notice()], locale()),
                     token: notice(),
                   })}
                 </span>

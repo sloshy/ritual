@@ -16,6 +16,8 @@ import {
   storedLanguage,
 } from '../../src/card/card-language'
 import { makeScryfallCard } from '../test-utils'
+import { DEFAULT_LOCALE } from '../../src/i18n/constants'
+import { localeTag } from '../../src/i18n/locale-tag'
 
 describe('card language vocabulary', () => {
   test('holds exactly the 17 Scryfall codes', () => {
@@ -180,12 +182,18 @@ describe('sortLanguages', () => {
 
 describe('formatLanguageList', () => {
   test('renders display names with codes, comma-separated', () => {
-    expect(formatLanguageList(['ja', 'ko'])).toBe('Japanese (ja), Korean (ko)')
-    expect(formatLanguageList(['en'])).toBe('English (en)')
+    expect(formatLanguageList(['ja', 'ko'], DEFAULT_LOCALE)).toBe('Japanese (ja), Korean (ko)')
+    expect(formatLanguageList(['en'], DEFAULT_LOCALE)).toBe('English (en)')
   })
 
   test('passes unknown codes through as-is', () => {
-    expect(formatLanguageList(['ja', 'xx'])).toBe('Japanese (ja), xx')
+    expect(formatLanguageList(['ja', 'xx'], DEFAULT_LOCALE)).toBe('Japanese (ja), xx')
+  })
+
+  test('names and joins the languages as the given locale does, the codes untouched', () => {
+    expect(formatLanguageList(['ja', 'ko', 'de'], localeTag('de'))).toBe(
+      'Japanisch (ja), Koreanisch (ko) und Deutsch (de)',
+    )
   })
 })
 

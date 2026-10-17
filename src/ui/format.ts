@@ -19,6 +19,7 @@
 
 import { dateTimeFormat, numberFormat } from '../i18n/format'
 import { currentLocale } from '../i18n/runtime'
+import { t } from '../i18n/t'
 
 /** Anything a date column may hold: a `Date`, epoch milliseconds, or an ISO string. */
 export type DateTimeInput = Date | number | string
@@ -37,20 +38,16 @@ const DEFAULT_DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
   second: 'numeric',
 }
 
-/**
- * What `Date.prototype.toLocaleString()` returns for an unparseable date.
- * `Intl.DateTimeFormat.format` throws on one instead, so it is caught here and
- * every call site keeps the behavior it had.
- */
-const INVALID_DATE = 'Invalid Date'
-
 /** Render a date and time in the active UI locale. Defaults to the full date + clock time. */
 export function formatDateTime(
   value: DateTimeInput,
   options: Intl.DateTimeFormatOptions = DEFAULT_DATE_TIME_OPTIONS,
 ): string {
   const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return INVALID_DATE
+  // `Intl.DateTimeFormat.format` throws on an unparseable date where
+  // `toLocaleString()` returned "Invalid Date"; the catalog says it instead, in
+  // the reader's language.
+  if (Number.isNaN(date.getTime())) return t('ui.format.invalidDate')
   return dateTimeFormat(currentLocale(), options).format(date)
 }
 

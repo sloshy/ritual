@@ -3,7 +3,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../../src/cache'
 import { handleSellCart, handleSellReport } from '../../../src/admin/api/sell'
-import type { SellReportResponse } from '../../../src/admin/api/sell'
+import type { SellCartResponse, SellReportResponse } from '../../../src/admin/api/sell'
+import type { Finish } from '../../../src/card/finish-condition'
 import { setupRitualTestEnv, type RitualTestEnv } from '../mcp/harness'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-utils'
 
@@ -15,7 +16,12 @@ import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-uti
  * in test/unit/sell-report.test.ts; tool wiring in test/unit/mcp/sell-tools.test.ts.
  */
 
-async function seedFeed(dir: string, scryfallId: string, qtyBuying = 10): Promise<void> {
+async function seedFeed(
+  dir: string,
+  scryfallId: string,
+  qtyBuying = 10,
+  finish: Finish = 'nonfoil',
+): Promise<void> {
   await fs.mkdir(path.join(dir, 'cache'), { recursive: true })
   await fs.writeFile(
     path.join(dir, 'cache', 'cardkingdom.json'),
@@ -27,6 +33,7 @@ async function seedFeed(dir: string, scryfallId: string, qtyBuying = 10): Promis
           edition: 'Alpha',
           priceBuy: 4,
           qtyBuying,
+          finish,
         }),
       ]),
     ),
@@ -108,8 +115,29 @@ describe('admin sell handlers', () => {
     ).toBe(400)
     const response = await handleSellCart(new Request('http://localhost/api/sell/cart'))
     expect(response.status).toBe(200)
-    const body = (await response.json()) as { csv: string; titleCount: number }
+    const body = (await response.json()) as SellCartResponse
     expect(body.csv).toBe('Sol Ring,Alpha,false,1\n')
     expect(body.titleCount).toBe(1)
+  })
+
+  test('the cart answers its warnings as English plus their key', async () => {
+    const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
+    await fs.writeFile(
+      path.join(env.dir, 'collections', 'shoebox.md'),
+      `# Shoebox\n\n- Sol Ring (${printing.set.toUpperCase()}:${printing.collector_number}) [etched] &1\n`,
+    )
+    await seedFeed(env.dir, printing.id, 10, 'etched')
+    const response = await handleSellCart(new Request('http://localhost/api/sell/cart'))
+    expect(response.status).toBe(200)
+    const body = (await response.json()) as SellCartResponse
+    expect(body.csv).toBe('Sol Ring,Alpha,true,1\n')
+    expect(body.warnings).toEqual([
+      {
+        message:
+          'The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: Sol Ring',
+        messageKey: 'domain.buylist.cart.etchedAsFoil',
+        messageParams: { titles: { list: ['Sol Ring'], join: 'unit' } },
+      },
+    ])
   })
 })

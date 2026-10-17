@@ -400,4 +400,12 @@ export const domainMessages = {
     present: 'Clear category order',
     past: 'Cleared category order',
   },
+
+  // ── The Card Kingdom sell-cart CSV ────────────────────────────────────
+  'domain.buylist.cart.etchedAsFoil':
+    'The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: {titles}',
+  'domain.buylist.cart.tooManyTitles':
+    'CK imports at most {max} unique titles per upload (this file has {count}); split it before uploading.',
+  'domain.buylist.cart.tooManyCards':
+    'CK imports at most {max} cards per upload (this file has {count}); split it before uploading.',
 } as const satisfies MessageCatalogShape

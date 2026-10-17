@@ -36,6 +36,8 @@ export {
   CK_CSV_MAX_CARDS,
   CK_CSV_MAX_TITLES,
   buildCkCartCsv,
+  type CartWarning,
   type CkCartItem,
   type SellCartCsv,
 } from './cart-csv'
+export { cartWarningMessage, cartWarningRef, renderCartWarning } from './cart-message'

@@ -30,6 +30,19 @@ export const errorsMeta = {
       'An internal consistency failure: a part of Ritual was used before it was set up (a programming error, not a user mistake). {method} is the code name of what was called (like FeedSeeder.sync) and {setup} the code name of the call that must come first (like start()); both are never translated.',
   },
 
+  'errors.invariant.emptyArgument': {
+    description:
+      'An internal consistency failure: a part of Ritual was handed an empty list where it needs at least one item (a programming error, not a user mistake). {method} is the code name of what was called (like moveToTrash) and {argument} the code name of the empty argument (like files); both are never translated.',
+  },
+  'errors.invariant.missingField': {
+    description:
+      'An internal consistency failure: a value Ritual built for itself lacks a part that must be there by now (a programming error, not a user mistake). {subject} is the code name of the value, with its internal id (like SwapAllocation(lea:161)), and {field} the code name of the missing part (like printing); both are never translated.',
+  },
+  'errors.invariant.notTextModule': {
+    description:
+      'An internal consistency failure: a file that the build embeds into the program as text (a stylesheet, a script) is missing or was embedded the wrong way (a build mistake, not a user mistake). {module} is the embedded file’s path (like admin/styles.css) and is never translated.',
+  },
+
   'errors.label.exclusive': {
     description:
       'Rejection of an illegal card-label combination. {label} is the exclusive label the user asked for (the untranslated token `keep` or `proxy`), which stands alone and cannot be paired with any other label. Keep the quotes around it.',

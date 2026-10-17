@@ -5,7 +5,7 @@ import { EXPORT_FORMATS, type ResolvedExportSettings } from '../../src/export/pr
 import type { ExportEntry } from '../../src/export/entries'
 import type { ExportWarning } from '../../src/export/text'
 import { CSV_HEADER } from '../../src/list/list-export'
-import { buildCkCartCsv } from '../../src/buylist/cart-csv'
+import { buildCkCartCsv, type CkCartItem } from '../../src/buylist/cart-csv'
 import {
   formatPrice,
   formatPriceInvariant,
@@ -171,15 +171,26 @@ describe('the other CSV writers are locale-invariant', () => {
     })
   })
 
-  test("the Card Kingdom cart CSV keeps the buyer's own vocabulary", () => {
-    const items = [
-      { name: "Mishra's Factory", edition: 'Antiquities', finish: 'nonfoil' as const, quantity: 2 },
-    ]
-    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
-      expectLocaleInForce(locale)
-      expect(buildCkCartCsv(items).csv).toBe("Mishra's Factory,Antiquities,false,2\n")
-    })
-  })
+  test.each(foreignLocales())(
+    "the Card Kingdom cart CSV keeps the buyer's own vocabulary under $tag",
+    ({ tag, catalog }) => {
+      const items: CkCartItem[] = [
+        { name: "Mishra's Factory", edition: 'Antiquities', finish: 'nonfoil', quantity: 2 },
+        // Etched exports as foil, and its warning is a code — no sentence to localize.
+        { name: 'Sol Ring', edition: 'Commander Legends', finish: 'etched', quantity: 1 },
+      ]
+      withSyntheticLocale(tag, catalog, (locale) => {
+        expectLocaleInForce(locale)
+        expect(buildCkCartCsv(items)).toEqual({
+          csv: "Mishra's Factory,Antiquities,false,2\nSol Ring,Commander Legends,true,1\n",
+          titleCount: 2,
+          cardCount: 3,
+          warnings: [{ code: 'etched-as-foil', params: { titles: ['Sol Ring'] } }],
+        })
+        expectLocaleInForce(locale)
+      })
+    },
+  )
 })
 
 describe('formatPriceInvariant', () => {

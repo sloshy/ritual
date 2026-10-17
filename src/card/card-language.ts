@@ -18,6 +18,8 @@
  */
 
 import { compareData } from '../i18n/collate'
+import { formatUnitList } from '../i18n/format'
+import type { LocaleTag } from '../i18n/types'
 import type { ScryfallCard } from '../scryfall/types'
 
 /** Every card language, in Scryfall's canonical listing order. */
@@ -247,12 +249,15 @@ export function sortLanguages(codes: Iterable<string>): string[] {
 
 /**
  * Render a list of language codes as `Japanese (ja), Korean (ko)` for the
- * "only available in …" notices. Codes outside the vocabulary render as-is.
+ * "only available in …" notices: each name in `locale` ({@link languageLabel})
+ * beside its code, joined as `locale` lists things. Codes outside the
+ * vocabulary render as-is.
  */
-export function formatLanguageList(codes: readonly string[]): string {
-  return codes
-    .map((code) => (isCardLanguage(code) ? `${languageDisplayName(code)} (${code})` : code))
-    .join(', ')
+export function formatLanguageList(codes: readonly string[], locale: LocaleTag): string {
+  return formatUnitList(
+    locale,
+    codes.map((code) => (isCardLanguage(code) ? `${languageLabel(code, locale)} (${code})` : code)),
+  )
 }
 
 /**

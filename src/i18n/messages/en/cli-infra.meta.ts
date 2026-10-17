@@ -1389,6 +1389,16 @@ export const cliInfraMeta = {
       "One stderr line printed after a command's own output, at most once a day per release, when a newer Ritual release exists. {latest} is that release's version, {current} the running one. The backticked command is literal.",
   },
 
+  // ── the per-user state file ───────────────────────────────────────────
+  'cli.userState.fileNotObject': {
+    description:
+      'Why the per-user state file (state.json: what Ritual remembers between runs, like when it last checked for updates) was set aside: it is valid JSON but not an object ({ … }). Ritual then starts from an empty state. Starts lowercase with no closing period: it reads as a reason.',
+  },
+  'cli.userState.sectionNotObject': {
+    description:
+      'Why one section of the per-user state file (state.json) was set aside: it is not a JSON object ({ … }). {section} is the section’s key in the file ("migratePrompts" or "updateCheck") and is never translated. Starts lowercase with no closing period: it reads as a reason.',
+  },
+
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': { description: 'One skill file was installed or refreshed.' },
   'cli.skills.resultUpToDate': {

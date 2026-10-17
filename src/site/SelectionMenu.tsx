@@ -1,5 +1,5 @@
 import type { Component } from 'solid-js'
-import { For, Show, createMemo } from 'solid-js'
+import { Show, createMemo } from 'solid-js'
 import { AdaptiveMenu } from '../ui/AdaptiveMenu'
 import { useAnchoredToggle } from '../ui/useAnchoredToggle'
 import { usePointerCoarse } from '../ui/useMediaQuery'
@@ -21,6 +21,7 @@ import type { ListType } from '../list/list-type'
 import { displayLanguage, type CardLanguage } from '../card/card-language'
 import { cartBuyer } from '../list-view/sell-mode'
 import { useT } from '../ui/i18n'
+import { SyncMessageLines } from '../ui/SyncMessageLines'
 
 const PANEL_WIDTH = 220
 
@@ -434,11 +435,6 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
           {copy.label('cart')}
         </button>
       </Show>
-      <Show when={copy.cartWarnings().length > 0}>
-        <For each={copy.cartWarnings()}>
-          {(warning) => <p class="selection-menu-warning">{warning}</p>}
-        </For>
-      </Show>
       <Show when={props.enableTrade}>
         <button
           type="button"
@@ -495,6 +491,7 @@ const SelectionMenuItems: Component<SelectionMenuItemsProps> = (props) => {
       >
         {props.clearLabel ?? t('site.selection.clear')}
       </button>
+      <SyncMessageLines messages={copy.cartWarnings()} lineClass="selection-menu-warning" />
       <span class="visually-hidden" aria-live="polite">
         {copy.announcement()}
       </span>

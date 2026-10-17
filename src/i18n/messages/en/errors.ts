@@ -16,6 +16,12 @@ export const errorMessages = {
     'Internal error: {hook} was called outside {provider}. This is a bug in Ritual.',
   'errors.invariant.calledBeforeSetup':
     'Internal error: {method} was called before {setup}. This is a bug in Ritual.',
+  'errors.invariant.emptyArgument':
+    'Internal error: {method} was called with no {argument}. This is a bug in Ritual.',
+  'errors.invariant.missingField':
+    'Internal error: {subject} has no {field}. This is a bug in Ritual.',
+  'errors.invariant.notTextModule':
+    'Internal error: {module} was not embedded as a text module. This is a bug in Ritual.',
   'errors.label.exclusive': "'{label}' cannot be combined with other labels.",
   'errors.label.contradictory': "'{label}' cannot be both set and negated on one card.",
   'errors.label.emptyPart': 'Labels must be a comma-separated list of: {choices}.',

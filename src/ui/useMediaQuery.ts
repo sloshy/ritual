@@ -6,6 +6,7 @@ import { type Accessor, createSignal, onCleanup } from 'solid-js'
  * controls for touch (see src/css/touch.css) so JSX branching and styling agree
  * on what counts as a touch device.
  */
+// i18n-exempt: a CSS media query handed to matchMedia, not text anyone reads
 export const COARSE_POINTER_QUERY = '(hover: none), (pointer: coarse)'
 
 /**

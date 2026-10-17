@@ -1115,4 +1115,16 @@ export const uiMeta = {
     description: 'What Ctrl+Enter does: commits the card and reopens the dialog for another.',
   },
   'ui.shortcuts.close': { description: 'What Escape does in any dialog.' },
+  'ui.format.invalidDate': {
+    description:
+      'Shown in place of a date and time that could not be read (a damaged timestamp in a list’s history or a cache stamp). Keep it short: it fills a table cell or a line where the date would be.',
+  },
+  'ui.editor.defaultsNotJson': {
+    description:
+      'Browser developer-console warning: the add-card defaults (preferred sets, finish, condition) this browser remembered for a list type could not be read, so the editor starts with none. {reason} is the browser’s own JSON parse error, in whatever language the browser speaks.',
+  },
+  'ui.editor.defaultsNotObject': {
+    description:
+      'Browser developer-console warning: the add-card defaults (preferred sets, finish, condition) this browser remembered for a list type were readable JSON but not an object ({ … }) of settings, so the editor starts with none.',
+  },
 } as const satisfies MetaFor<typeof uiMessages>

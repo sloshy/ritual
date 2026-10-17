@@ -34,6 +34,7 @@ import {
   type SellReportTotals,
   type SellReportView,
 } from '../pricing/sell-report'
+import { renderCartWarning } from '../buylist'
 import { loadAndBuildSellReport } from '../pricing/sell-runtime'
 import { parseSetCodesInput } from '../card/set-codes'
 import { formatCardTags, parseTagFilterInput, type CardTag } from '../card/card-tags'
@@ -363,7 +364,7 @@ export function registerSellCommand(program: Command): void {
         case 'csv': {
           const cart = buildSellCartCsv(view.entries)
           emitWarnings(
-            cart.warnings.map((warning) => `⚠️  ${warning}`),
+            cart.warnings.map((warning) => `⚠️  ${renderCartWarning(warning)}`),
             scripting,
             { essential: true },
           )

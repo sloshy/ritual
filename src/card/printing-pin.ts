@@ -13,6 +13,7 @@ import {
 import type { ScryfallCard } from '../scryfall/types'
 import { printingFinishes, type Finish } from './finish-condition'
 import { t, type MessageParams } from '../i18n/t'
+import { DEFAULT_LOCALE } from '../i18n/constants'
 import {
   findPrinting,
   hasSpecificPrinting,
@@ -367,7 +368,8 @@ export async function ensureLanguageAvailableForEntry(
       name: cardName,
       language: languageDisplayName(language),
       code: language,
-      available: formatLanguageList(available),
+      // English, like `language` beside it: the params ride the error envelope.
+      available: formatLanguageList(available, DEFAULT_LOCALE),
     }
     throw new CardCommandError(
       'usage_error',

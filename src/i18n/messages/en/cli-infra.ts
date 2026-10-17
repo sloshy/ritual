@@ -766,6 +766,10 @@ export const cliInfraMessages = {
   'cli.updateNotice.available':
     'Ritual {latest} is available (you have {current}). Run `ritual self-update` to update.',
 
+  // ── the per-user state file ───────────────────────────────────────────
+  'cli.userState.fileNotObject': 'the state file must contain a JSON object',
+  'cli.userState.sectionNotObject': '{section} must be an object',
+
   // ── skills ────────────────────────────────────────────────────────────
   'cli.skills.resultWritten': '✓ {name} → {path}',
   'cli.skills.resultUpToDate': '• {name} already up to date',

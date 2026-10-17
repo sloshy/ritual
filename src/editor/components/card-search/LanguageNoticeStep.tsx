@@ -1,12 +1,9 @@
 import { Show, type Component } from 'solid-js'
-import { useT } from '../../../ui/i18n'
-import {
-  displayLanguage,
-  formatLanguageList,
-  languageDisplayName,
-} from '../../../card/card-language'
+import { useI18n } from '../../../ui/i18n'
+import { displayLanguage, formatLanguageList, languageLabel } from '../../../card/card-language'
 import { defaultLanguage } from '../../default-language'
 import { KeyChips } from '../../../ui/KeyHints'
+import { CONFIRM_KEYS } from '../../card-search/key-hints'
 import type { LanguageNotice } from '../../card-search/dialog-state'
 import { StepHeader } from './StepHeader'
 
@@ -23,7 +20,7 @@ export type LanguageNoticeStepProps = {
  * printing grid.
  */
 export const LanguageNoticeStep: Component<LanguageNoticeStepProps> = (props) => {
-  const t = useT()
+  const { t, locale } = useI18n()
   return (
     <>
       <StepHeader
@@ -39,13 +36,13 @@ export const LanguageNoticeStep: Component<LanguageNoticeStepProps> = (props) =>
           <Show
             when={props.notice.available.length > 1}
             fallback={t('ui.addCard.languageOnly', {
-              languages: formatLanguageList(props.notice.available),
+              languages: formatLanguageList(props.notice.available, locale()),
             })}
           >
             {t('ui.addCard.languageUnavailable', {
-              preferred: languageDisplayName(displayLanguage(defaultLanguage())),
-              languages: formatLanguageList(props.notice.available),
-              language: languageDisplayName(props.notice.language),
+              preferred: languageLabel(displayLanguage(defaultLanguage()), locale()),
+              languages: formatLanguageList(props.notice.available, locale()),
+              language: languageLabel(props.notice.language, locale()),
             })}
           </Show>
         </div>
@@ -53,7 +50,7 @@ export const LanguageNoticeStep: Component<LanguageNoticeStepProps> = (props) =>
           <button onClick={props.onContinue} class="btn-add-card">
             {t('ui.dialog.continue')}
             <span class="btn-key-hint" aria-hidden="true">
-              <KeyChips keys={['Enter']} />
+              <KeyChips keys={CONFIRM_KEYS} />
             </span>
           </button>
         </div>

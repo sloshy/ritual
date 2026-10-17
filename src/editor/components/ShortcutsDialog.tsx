@@ -23,7 +23,7 @@ export const ShortcutsDialog: Component<ShortcutsDialogProps> = (props) => {
           {(group) => (
             <section class="shortcuts-group">
               <h4 class="shortcuts-group-title">{tKey(group.title)}</h4>
-              <For each={group.hints}>
+              <For each={group.bindings}>
                 {(hint) => (
                   <div class="shortcuts-row">
                     <span class="shortcuts-keys">

@@ -24,7 +24,7 @@ import {
   type Accessor,
   type Setter,
 } from 'solid-js'
-import { buyerName } from '../buylist'
+import { buyerName, cartWarningRef } from '../buylist'
 import type { CardLabelSelection } from '../card/card-labels'
 import {
   CARD_SIZE_WIDTHS,
@@ -462,7 +462,7 @@ export function useListPage<G extends GroupBy, C extends CardData>(
         mime: 'text/csv',
         serialize: () => {
           const cart = selectionToCartCsv(filteredSellables())
-          return { content: cart.csv, warnings: cart.warnings }
+          return { content: cart.csv, warnings: cart.warnings.map(cartWarningRef) }
         },
       },
     ]

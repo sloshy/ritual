@@ -419,6 +419,18 @@ describe('i18n persistence fence', () => {
       }),
     ).toEqual([])
   })
+
+  /**
+   * The sell-cart builder writes the file CK's importer reads, and words none
+   * of its warnings: it returns codes, and `cart-message` (outside the fence)
+   * words them. One import of the renderer back into the builder would put the
+   * catalog on the path of every byte the file holds.
+   */
+  test('the sell-cart builder never reaches its renderer', async () => {
+    expect(
+      await scan(/from\s+['"][^'"]*\bcart-message\b/, { files: ['src/buylist/cart-csv.ts'] }),
+    ).toEqual([])
+  })
 })
 
 describe('i18n casing conventions', () => {

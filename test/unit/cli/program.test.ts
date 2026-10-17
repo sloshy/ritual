@@ -11,6 +11,7 @@ import { NO_UPDATE_NOTICE } from '../../helpers/cli'
 import { COMMANDS_WITH_ID_BACKFILL } from '../../../src/commands/id-backfill'
 import { registerCliMessages } from '../../../src/i18n/register/cli'
 import { t } from '../../../src/i18n/t'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocale } from '../../helpers/sync-text'
 
 /**
  * The backfill allowlist and the command registry are maintained by hand in two
@@ -156,5 +157,63 @@ describe('localizeCommanderError', () => {
 
   test('passes an unrecognised message through untouched', () => {
     expect(localizeCommanderError('error: something new')).toBe('error: something new')
+  })
+})
+
+/**
+ * Commander hands `styleTitle` its own English headings; each one this hook
+ * claims must come back in the reader's language, and anything else (Ritual's
+ * own command-group headings, already localized) must pass through untouched.
+ */
+describe('localizeHelpTitle', () => {
+  registerCliMessages()
+
+  test.each(['Usage:', 'Arguments:', 'Options:', 'Commands:'])(
+    'relabels Commander’s %p under the pseudo-locale',
+    (title) => {
+      withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+        expectLocaleInForce(locale)
+        const localized = localizeHelpTitle(title)
+        expect(localized).not.toBe(title)
+        expect(localized).toMatch(/^\[.*\]$/)
+      })
+    },
+  )
+
+  test('passes a heading it does not claim through verbatim', () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), () => {
+      expect(localizeHelpTitle('Ein Titel:')).toBe('Ein Titel:')
+    })
+  })
+
+  test('a real subcommand’s help keeps none of Commander’s English headings', () => {
+    const probe = buildProgram({
+      groups: [
+        {
+          titleKey: 'help.group.utilities',
+          commands: [
+            (program) => {
+              program
+                .command('probe')
+                .argument('<name>')
+                .option('--flag')
+                .action(() => undefined)
+            },
+          ],
+        },
+      ],
+      backfill: () => false,
+      workspaceCheck: () => Promise.resolve(),
+      updateNotice: NO_UPDATE_NOTICE,
+    })
+    const sub = probe.commands.find((command) => command.name() === 'probe')!
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const help = sub.helpInformation()
+      expect(help).toContain('--flag')
+      for (const heading of ['Usage:', 'Arguments:', 'Options:']) {
+        expect(help).not.toContain(heading)
+      }
+    })
   })
 })

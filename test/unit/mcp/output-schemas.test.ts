@@ -15,6 +15,7 @@ import {
   GET_HISTORY_OUTPUT,
   GET_LIST_OUTPUT,
   GET_PRICE_REPORT_OUTPUT,
+  GET_SELL_CART_OUTPUT,
   IMPORT_CHANGE_BUNDLE_OUTPUT,
   IMPORT_CSV_OUTPUT,
   IMPORT_DECK_OUTPUT,
@@ -38,7 +39,8 @@ import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
 import { exportWarning } from '../../../src/export/text'
 import { syncMessage, syncRef } from '../../../src/sync/message'
 import { exportWarningMessage } from '../../../src/export-wording/message'
-import type { DiffResult, ExportResult } from '../../../src/mcp/tools/read-tools'
+import type { DiffResult, ExportResult, SellCartResult } from '../../../src/mcp/tools/read-tools'
+import { cartWarningMessage } from '../../../src/buylist/cart-message'
 import type { DiffListRef } from '../../../src/changes/list-diff'
 import { VALID_FINISHES } from '../../../src/card/finish-condition'
 import { CARD_LANGUAGES } from '../../../src/card/card-language'
@@ -781,6 +783,23 @@ describe('MCP output schemas, as authored', () => {
       }
       expect(await validates(DIFF_LISTS_OUTPUT, diff)).toBe(true)
       expect(await validates(DIFF_LISTS_OUTPUT, { ...diff, warnings: [warning.message] })).toBe(
+        false,
+      )
+    })
+
+    test('get_sell_cart carries its warnings as messages', async () => {
+      const warning = cartWarningMessage({
+        code: 'etched-as-foil',
+        params: { titles: ['Sol Ring'] },
+      })
+      const cart: SellCartResult = {
+        csv: 'Sol Ring,Commander Legends,true,1\n',
+        titleCount: 1,
+        cardCount: 1,
+        warnings: [warning],
+      }
+      expect(await validates(GET_SELL_CART_OUTPUT, cart)).toBe(true)
+      expect(await validates(GET_SELL_CART_OUTPUT, { ...cart, warnings: [warning.message] })).toBe(
         false,
       )
     })

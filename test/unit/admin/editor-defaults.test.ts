@@ -40,11 +40,25 @@ describe('parseStored', () => {
     expect(parseStored(null, 'wanted')).toEqual({ kind: 'wanted', sets: [] })
   })
 
-  test('returns error string for malformed JSON', () => {
-    const result = parseStored('{not json', 'deck')
-    expect(typeof result).toBe('string')
-    expect(result).toContain('Failed to parse')
+  test('returns error string for malformed JSON, the parser’s own reason after it', () => {
+    let reason = ''
+    try {
+      JSON.parse('{not json')
+    } catch (e) {
+      reason = (e as Error).message
+    }
+    expect(reason).not.toBe('')
+    expect(parseStored('{not json', 'deck')).toBe(
+      `Stored add-card defaults are not valid JSON: ${reason}`,
+    )
   })
+
+  test.each(['null', '[]', '"x"', '42'])(
+    'refuses valid JSON that is not an object (%s) rather than throwing',
+    (raw) => {
+      expect(parseStored(raw, 'deck')).toBe('Stored add-card defaults are not a JSON object')
+    },
+  )
 
   test('parses valid deck defaults', () => {
     const raw = JSON.stringify({ sets: ['fdn', 'spg'], finish: 'foil', condition: 'NM' })

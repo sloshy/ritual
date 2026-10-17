@@ -8,6 +8,13 @@
  * endpoint, and the site's "Copy CK cart CSV" all render byte-identical rows.
  *
  * Browser-safe: imports only `csv.ts` and `card-line.ts`.
+ *
+ * **Persistence fence — this module must never import `src/i18n`.** The file it
+ * writes is read by CK's importer, so every byte of it is a machine contract
+ * that may not follow the UI locale. What it has to tell the user beside the
+ * file is a {@link CartWarning} — a code and the values its sentence needs —
+ * worded by `src/buylist/cart-message.ts`, in English plus the key for the
+ * admin API and MCP, in the reader's language on the CLI and the sites.
  */
 
 import { aggregateQuantities } from '../card/card-line'
@@ -44,12 +51,33 @@ export function ckListedName(item: Pick<CkCartItem, 'name' | 'variation'>): stri
   return item.variation ? `${item.name} (${item.variation})` : item.name
 }
 
+/**
+ * What each cart warning code carries. `titles` are the etched items' listed
+ * titles ({@link ckListedName}), in first-seen order — CK's own spellings, the
+ * same in every language. `count` is the file's figure and `max` CK's cap.
+ */
+export type CartWarningParams = {
+  /** The format cannot express etched, so these items were exported as foil. */
+  'etched-as-foil': { titles: readonly string[] }
+  /** More unique titles than CK imports per upload. */
+  'too-many-titles': { count: number; max: number }
+  /** More cards than CK imports per upload. */
+  'too-many-cards': { count: number; max: number }
+}
+
+export type CartWarningCode = keyof CartWarningParams
+
+/** Something the cart builder reports beside the file: a code and the values it needs. */
+export type CartWarning = {
+  [C in CartWarningCode]: { code: C; params: CartWarningParams[C] }
+}[CartWarningCode]
+
 /** A rendered sell-cart CSV plus its size against CK's upload caps. */
 export type SellCartCsv = {
   csv: string
   titleCount: number
   cardCount: number
-  warnings: string[]
+  warnings: CartWarning[]
 }
 
 /**
@@ -94,21 +122,16 @@ export function buildCkCartCsv(items: CkCartItem[]): SellCartCsv {
     )
   }
 
-  const warnings: string[] = []
-  if (etched.length > 0) {
-    warnings.push(
-      `The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: ${etched.join(', ')}`,
-    )
-  }
+  const warnings: CartWarning[] = []
+  if (etched.length > 0) warnings.push({ code: 'etched-as-foil', params: { titles: etched } })
   if (rows.length > CK_CSV_MAX_TITLES) {
-    warnings.push(
-      `CK imports at most ${CK_CSV_MAX_TITLES} unique titles per upload (this file has ${rows.length}); split it before uploading.`,
-    )
+    warnings.push({
+      code: 'too-many-titles',
+      params: { count: rows.length, max: CK_CSV_MAX_TITLES },
+    })
   }
   if (cardCount > CK_CSV_MAX_CARDS) {
-    warnings.push(
-      `CK imports at most ${CK_CSV_MAX_CARDS} cards per upload (this file has ${cardCount}); split it before uploading.`,
-    )
+    warnings.push({ code: 'too-many-cards', params: { count: cardCount, max: CK_CSV_MAX_CARDS } })
   }
 
   const csv = lines.length > 0 ? `${lines.join('\n')}\n` : ''

@@ -4,6 +4,7 @@
  */
 
 import { displayFinish } from '../../card/finish-condition'
+import { t } from '../../i18n/t'
 import { listRefKey, type ListRefKey, type NamedListRef } from '../../list-view/combined-list'
 import type { MovedCopyFields } from '../../changes/change-event'
 import { currentPrintingPrice } from './auto'
@@ -62,7 +63,10 @@ function allocatedPrinting(allocation: SwapAllocation): AllocatedPrinting {
   const printing = allocationPrinting(allocation)
   if (printing === null) {
     throw new Error(
-      `swap allocation for printingless candidate ${allocation.candidate.key} has no chosen printing`,
+      t('errors.invariant.missingField', {
+        subject: `SwapAllocation(${allocation.candidate.key})`,
+        field: 'printing',
+      }),
     )
   }
   return printing
@@ -83,11 +87,6 @@ export function candidatePrice(candidate: SwapCandidate, priceOf: PriceOf): numb
   )
 }
 
-/**
- * Hands out the target's line ids to its copies in order: a deck line has one
- * id shared by every copy (repeated), a flat list one id per copy (taken in
- * sequence, `undefined` past the end for legacy lines — never another copy's).
- */
 /** The payloads of the copies {@link takeTargetIds} hands out, aligned with them. */
 function takeTargetPayloads(
   target: Pick<SwapTarget, 'payloads' | 'sharedLine'>,
@@ -110,6 +109,11 @@ function withPayloads(move: SwapMove, payloads: MovedCopyFields[]): void {
   else move.payloads = payloads
 }
 
+/**
+ * Hands out the target's line ids to its copies in order: a deck line has one
+ * id shared by every copy (repeated), a flat list one id per copy (taken in
+ * sequence, `undefined` past the end for legacy lines — never another copy's).
+ */
 function takeTargetIds(
   target: Pick<SwapTarget, 'cardIds' | 'sharedLine'>,
   cursor: number,

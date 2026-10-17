@@ -62,7 +62,6 @@ export const helpMessages = {
   'help.commander.usageTitle': 'Usage:',
   'help.commander.argumentsTitle': 'Arguments:',
   'help.commander.optionsTitle': 'Options:',
-  'help.commander.globalOptionsTitle': 'Global Options:',
   'help.commander.commandsTitle': 'Commands:',
 
   // ── Commander's parse errors (`configureOutput({ outputError })`) ─────

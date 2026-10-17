@@ -1279,6 +1279,23 @@ const MOCK_SELL_BINDER_DETAIL = makeCollectionDetail({
   buylist: { cardkingdom: { quotes: MOCK_BUYLIST_CATALOG, ...MOCK_BAKED_FEED } },
 })
 
+/** {@link MOCK_SELL_BINDER_DETAIL} with the bought card an etched foil, quoted as one. */
+const MOCK_SELL_BINDER_ETCHED_DETAIL: CollectionDetail = {
+  ...MOCK_SELL_BINDER_DETAIL,
+  entries: MOCK_SELL_BINDER_DETAIL.entries.map((entry) =>
+    entry.name === 'Bought Card' ? { ...entry, finish: 'etched' } : entry,
+  ),
+  buylist: {
+    cardkingdom: {
+      quotes: {
+        'tst:1:etched': makeBuylistQuote({ name: 'Bought Card', finish: 'etched' }),
+        'tst:2:nonfoil': MOCK_BUYLIST_CATALOG['tst:2:nonfoil']!,
+      },
+      ...MOCK_BAKED_FEED,
+    },
+  },
+}
+
 // No `apiBaseUrl`: a plain static build, which is exactly where baked quotes
 // have to work. One factory for every sell-binder fixture, so its index
 // summary cannot drift between the sell-mode and price-source helpers.
@@ -1512,6 +1529,14 @@ export type SellMockOptions = {
    * explain the gap rather than read every card as declined.
    */
   baked?: boolean
+  /**
+   * Make the actively-bought card an etched foil, quoted as one. The buyer's
+   * cart CSV cannot mark etched, so exporting the binder's cart raises its
+   * etched-as-foil warning.
+   */
+  etched?: boolean
+  /** The UI languages the site publishes; English only when absent. */
+  locales?: LocaleTag[]
 }
 
 /**
@@ -1529,11 +1554,20 @@ export async function mockPublicSiteCollectionForSell(
   options: SellMockOptions = {},
 ): Promise<BuylistApiWatch> {
   const watch: BuylistApiWatch = { requests: [] }
-  const detail: CollectionDetail = { ...MOCK_SELL_BINDER_DETAIL }
+  // A copy either way: the `baked` branch below deletes from it.
+  const detail: CollectionDetail = {
+    ...(options.etched ? MOCK_SELL_BINDER_ETCHED_DETAIL : MOCK_SELL_BINDER_DETAIL),
+  }
   // Absent, not empty: an empty `quotes` map means the buyer declined every
   // card, which is a different thing to say.
   if (options.baked === false) delete detail.buylist
-  await fulfillJson(page, '**/index.json', MOCK_SITE_INDEX_FOR_SELL)
+  await fulfillJson(
+    page,
+    '**/index.json',
+    options.locales
+      ? makeSellBinderIndex({ sellMode: true, availableLocales: options.locales })
+      : MOCK_SITE_INDEX_FOR_SELL,
+  )
   await fulfillJson(page, '**/collections/sell-binder.json', detail)
   await stubBuylistApiUnreachable(page, watch)
   return watch

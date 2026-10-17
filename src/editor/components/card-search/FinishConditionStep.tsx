@@ -4,10 +4,13 @@ import type { ScryfallCard } from '../../../scryfall/types'
 import {
   type Condition,
   type Finish,
+  conditionLabel,
   printingFinishes,
   VALID_CONDITIONS,
 } from '../../../card/finish-condition'
+import { finishName } from '../../../list-view/printing-display'
 import { KeyChips } from '../../../ui/KeyHints'
+import { ADD_ANOTHER_KEYS, CONFIRM_KEYS } from '../../card-search/key-hints'
 import { QuantityStepper } from '../../../ui/QuantityStepper'
 import { pricesEnabled } from '../../../list-view/price-view'
 import { finishPrice } from '../../card-search/add-resolution'
@@ -86,7 +89,7 @@ export const FinishConditionStep: Component<FinishConditionStepProps> = (props) 
                         checked={props.finish === finish}
                         onChange={() => props.onFinish(finish)}
                       />
-                      {finish}
+                      {finishName(t, finish)}
                       <Show when={pricesEnabled()}>
                         <span class="radio-option-price">
                           {finishPrice(t, props.printing, finish)}
@@ -115,7 +118,7 @@ export const FinishConditionStep: Component<FinishConditionStepProps> = (props) 
                         checked={props.condition === condition}
                         onChange={() => props.onCondition(condition)}
                       />
-                      {condition}
+                      {conditionLabel(condition)}
                     </label>
                   )}
                 </For>
@@ -150,7 +153,7 @@ export const FinishConditionStep: Component<FinishConditionStepProps> = (props) 
               {t(props.isAddFlow ? 'ui.addCard.add' : 'ui.addCard.update')}
               {quantityBadge()}
               <span class="btn-key-hint" aria-hidden="true">
-                <KeyChips keys={['Enter']} />
+                <KeyChips keys={CONFIRM_KEYS} />
               </span>
             </button>
             <Show when={props.canAddAnother}>
@@ -162,7 +165,7 @@ export const FinishConditionStep: Component<FinishConditionStepProps> = (props) 
                 {t('ui.addCard.addAnother')}
                 {quantityBadge()}
                 <span class="btn-key-hint" aria-hidden="true">
-                  <KeyChips keys={['Ctrl', 'Enter']} />
+                  <KeyChips keys={ADD_ANOTHER_KEYS} />
                 </span>
               </button>
             </Show>

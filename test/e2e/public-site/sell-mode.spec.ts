@@ -1,7 +1,23 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mockPublicSiteCollectionForSell, type BuylistApiWatch } from '../helpers/mock-public-site'
 import { openFilterMenu } from '../helpers/filter-menu'
-import { expectVisibleCards, gotoList, selectCard, switchToListView } from '../helpers/list-ui'
+import {
+  expectVisibleCards,
+  gotoList,
+  openSelectionMenu,
+  selectCard,
+  switchToListView,
+} from '../helpers/list-ui'
+import { fulfillJson } from '../helpers/fulfill'
+import {
+  expectNotReloaded,
+  expectPseudo,
+  languageSelect,
+  markPage,
+  pseudoCatalog,
+  PSEUDO_LOCALE,
+} from '../helpers/i18n'
+import { localeTag } from '../../../src/i18n/locale-tag'
 
 /**
  * Sell mode on the public site: the toolbar toggle gating buylist prices,
@@ -351,6 +367,88 @@ test.describe('Sell mode', () => {
     await expect(
       page.locator('.selection-menu-item', { hasText: 'Card Kingdom cart (.csv)' }),
     ).toBeVisible()
+  })
+
+  test.describe('cart warnings', () => {
+    // A warning describes a file that reached the clipboard, so it shows only
+    // after a copy that succeeded.
+    test.use({ permissions: ['clipboard-read', 'clipboard-write'] })
+
+    test.beforeEach(async ({ page }) => {
+      // The bought card is an etched foil here, which CK's cart CSV cannot mark.
+      await mockPublicSiteCollectionForSell(page, {
+        etched: true,
+        locales: [localeTag('en'), PSEUDO_LOCALE],
+      })
+      await fulfillJson(page, `**/locales/${PSEUDO_LOCALE}.json`, pseudoCatalog())
+      await gotoSellBinder(page)
+      await markPage(page)
+      await enableSellMode(page)
+    })
+
+    test('a cart export’s warning relabels in place when the language switches', async ({
+      page,
+    }) => {
+      await page.locator('.export-menu-control').first().locator('button').click()
+      await page.locator('.selection-menu-item', { hasText: 'Card Kingdom cart (.csv)' }).click()
+      const warning = page.locator('.export-warnings p')
+      await expectPseudo(warning, false)
+      await expect(warning).toContainText('Bought Card')
+
+      // The warning is held as a message, not as the English it first rendered:
+      // switching relabels the one already on screen, with no re-export.
+      await languageSelect(page).selectOption(PSEUDO_LOCALE)
+      await expectPseudo(warning, true)
+      // The buyer's own title is data, never translated.
+      await expect(warning).toContainText('Bought Card')
+      await expectNotReloaded(page)
+    })
+
+    test('a selection’s cart copy warns, relabels, and is cleared by a plain copy', async ({
+      page,
+    }) => {
+      await selectCard(page, CARD_INDEX['Bought Card'])
+      const panel = await openSelectionMenu(page)
+      await panel.locator('.selection-menu-item', { hasText: 'Copy Card Kingdom cart CSV' }).click()
+      const warning = panel.locator('.selection-menu-warning')
+      await expect(warning).toHaveCount(1)
+      await expectPseudo(warning, false)
+      await expect(warning).toContainText('Bought Card')
+
+      await languageSelect(page).selectOption(PSEUDO_LOCALE)
+      await expectPseudo(warning, true)
+      await expect(warning).toContainText('Bought Card')
+      await expectNotReloaded(page)
+
+      // Another format replaces the cart on the clipboard, so its warning goes —
+      // with the menu still open, so the warning is gone rather than unmounted.
+      await languageSelect(page).selectOption('en')
+      await panel.locator('.selection-menu-item', { hasText: 'Copy as Text' }).click()
+      await expect(panel).toBeVisible()
+      await expect(warning).toHaveCount(0)
+    })
+
+    test('the Selected Cards dialog forgets a cart copy’s warning once closed', async ({
+      page,
+    }) => {
+      await selectCard(page, CARD_INDEX['Bought Card'])
+      const modal = page.locator('.selection-modal')
+      const openModal = async () => {
+        const panel = await openSelectionMenu(page)
+        await panel.locator('.selection-menu-item', { hasText: 'View selected cards' }).click()
+        await expect(modal).toBeVisible()
+      }
+
+      await openModal()
+      await modal.locator('button', { hasText: 'Copy Card Kingdom cart CSV' }).click()
+      const warning = modal.locator('.selection-menu-warning')
+      await expect(warning).toContainText('Bought Card')
+
+      await modal.locator('.selection-modal-close').click()
+      await expect(modal).toBeHidden()
+      await openModal()
+      await expect(warning).toHaveCount(0)
+    })
   })
 
   test('a list built without a buylist explains itself instead of showing no prices', async ({

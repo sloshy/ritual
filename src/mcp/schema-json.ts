@@ -47,7 +47,7 @@ import { CARD_LANGUAGES } from '../card/card-language'
 import { CARD_BULK_TYPES } from '../scryfall/bulk-manifest'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import { DIFF_BY_MODES } from '../changes/list-diff'
-import { BUYERS, SELL_MATCH_VIAS } from '../buylist'
+import { BUYERS, CK_CSV_MAX_CARDS, CK_CSV_MAX_TITLES, SELL_MATCH_VIAS } from '../buylist'
 import {
   SELL_ENTRY_STATUSES,
   SELL_NO_MATCH_REASONS,
@@ -87,7 +87,7 @@ import type {
 } from '../deck-sync/types'
 import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
-import type { SellRefreshResponse } from '../admin/api/sell'
+import type { SellCartResponse, SellRefreshResponse } from '../admin/api/sell'
 import {
   CARD_ART_REF,
   CARD_LABEL,
@@ -555,17 +555,28 @@ export const GET_SELL_REPORT_OUTPUT: JsonSchemaType = obj(
   ['feedCreatedAt', 'feedRetrievedAt', 'filters', 'lists', 'entries', 'totals', 'warnings'],
 )
 
-export const GET_SELL_CART_OUTPUT: JsonSchemaType = obj(
-  {
-    csv: str(
-      'The sell-cart CSV — data rows only, no header row (CK’s importer prompts for column matching).',
-    ),
-    titleCount: int('Unique titles in the file (CK imports at most 500 per upload).'),
-    cardCount: int('Total cards in the file (CK imports at most 5,000 per upload).'),
-    warnings: arr(str(), 'Upload-cap overruns and etched foils the format cannot express.'),
-  },
-  ['csv', 'titleCount', 'cardCount', 'warnings'],
-)
+const GET_SELL_CART_PROPS = {
+  csv: str(
+    'The sell-cart CSV — data rows only, no header row (CK’s importer prompts for column matching).',
+  ),
+  titleCount: int(
+    `Unique titles in the file (CK imports at most ${CK_CSV_MAX_TITLES} per upload).`,
+  ),
+  cardCount: int(`Total cards in the file (CK imports at most ${CK_CSV_MAX_CARDS} per upload).`),
+  warnings: arr(
+    SYNC_MESSAGE,
+    'Upload-cap overruns and etched foils the format cannot express. Each is a message: ' +
+      'English `message`, plus `messageKey`/`messageParams` (the etched titles nest as a ' +
+      '`unit` list).',
+  ),
+} as const satisfies Record<keyof Omit<SellCartResponse, 'success'>, JsonSchemaType>
+
+export const GET_SELL_CART_OUTPUT: JsonSchemaType = obj(GET_SELL_CART_PROPS, [
+  'csv',
+  'titleCount',
+  'cardCount',
+  'warnings',
+])
 
 /** One buyer offer, as `/api/buylist/quotes` files it under a printing key. */
 const BUYLIST_QUOTE_SCHEMA: JsonSchemaType = obj(

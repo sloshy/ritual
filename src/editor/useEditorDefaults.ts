@@ -1,5 +1,7 @@
 import { type Accessor, createSignal, createEffect, createMemo } from 'solid-js'
 import { type Finish, type Condition, isFinish, isCondition } from '../card/finish-condition'
+import { t } from '../i18n/t'
+import { isRecord } from '../util/json'
 
 export type EditorListKind = 'deck' | 'collection' | 'wanted'
 
@@ -37,6 +39,7 @@ export type EditorDefaultsNamespace = 'site' | 'admin'
 const storageKey = (namespace: EditorDefaultsNamespace, kind: EditorListKind): string =>
   `ritual:${namespace}:defaults:${kind}`
 
+/** What the hook writes to localStorage; `parseStored` reads it back as `unknown`, field by field. */
 type RawStored = {
   sets?: unknown
   finish?: unknown
@@ -47,19 +50,21 @@ type RawStored = {
  * Parse a raw localStorage payload into the kind-specific defaults shape.
  *
  * Returns the parsed shape on success, or a string error message on failure
- * (per the project's parser convention — see AGENTS.md). The caller is
+ * (per the project's parser convention — see AGENTS.md), worded in the active
+ * UI locale: it is only ever a developer-console warning. The caller is
  * expected to log the error and fall back to an empty default.
  *
  * Exported for unit testing; not part of the public hook API.
  */
 export function parseStored(raw: string | null, kind: EditorListKind): EditorDefaults | string {
   if (!raw) return emptyDefaults(kind)
-  let parsed: RawStored
+  let parsed: unknown
   try {
-    parsed = JSON.parse(raw) as RawStored
+    parsed = JSON.parse(raw)
   } catch (e) {
-    return `Failed to parse stored editor defaults: ${e instanceof Error ? e.message : String(e)}`
+    return t('ui.editor.defaultsNotJson', { reason: e instanceof Error ? e.message : String(e) })
   }
+  if (!isRecord(parsed)) return t('ui.editor.defaultsNotObject')
   const sets = Array.isArray(parsed.sets)
     ? parsed.sets
         .filter((s): s is string => typeof s === 'string')
@@ -80,14 +85,14 @@ export function parseStored(raw: string | null, kind: EditorListKind): EditorDef
 }
 
 function emptyDefaults(kind: EditorListKind): EditorDefaults {
-  return kind === 'wanted' ? { kind, sets: [] } : { kind, sets: [] }
+  return { kind, sets: [] }
 }
 
 function loadStored(kind: EditorListKind, namespace: EditorDefaultsNamespace): EditorDefaults {
   if (typeof localStorage === 'undefined') return emptyDefaults(kind)
   const result = parseStored(localStorage.getItem(storageKey(namespace, kind)), kind)
   if (typeof result === 'string') {
-    console.warn(`[editor-defaults] ${result}`)
+    console.warn(result)
     return emptyDefaults(kind)
   }
   return result

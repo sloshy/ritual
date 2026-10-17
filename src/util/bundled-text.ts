@@ -4,12 +4,13 @@
  * SPA bundles use this.
  */
 
-type TextModule = { default?: unknown }
+import { t } from '../i18n/t'
+import { isRecord } from './json'
 
 export function readTextModule(moduleValue: unknown, moduleName: string): string {
-  const maybeDefaultExport = (moduleValue as TextModule).default
-  if (typeof maybeDefaultExport !== 'string') {
-    throw new Error(`Expected text module for ${moduleName}`)
+  const text = isRecord(moduleValue) ? moduleValue.default : undefined
+  if (typeof text !== 'string') {
+    throw new Error(t('errors.invariant.notTextModule', { module: moduleName }))
   }
-  return maybeDefaultExport
+  return text
 }

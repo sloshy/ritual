@@ -126,7 +126,7 @@ With Card Kingdom selected as the buyer, two exports appear:
 
 Both produce Card Kingdom's sell-cart import format (`card name,edition,foil,quantity`, data rows only, no header row) using Card Kingdom's own listing titles, including their parenthesized variant note for variant printings, with quantities capped at their buy limits. Upload the file at [cardkingdom.com/static/csvImport](https://www.cardkingdom.com/static/csvImport).
 
-Warnings appear when they apply: the format cannot express etched foils (they export as foil, and the affected cards are named), and Card Kingdom imports at most 500 unique titles or 5,000 cards per upload.
+Warnings appear when they apply: the format cannot express etched foils (they export as foil, and the affected cards are named), and Card Kingdom imports at most 500 unique titles or 5,000 cards per upload. They follow the site's language, relabelling when you switch, and clear when you copy something else, close the **Selected Cards** dialog or turn sell mode off.
 
 ## Shareable links
 

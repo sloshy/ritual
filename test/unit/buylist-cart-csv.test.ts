@@ -80,9 +80,18 @@ describe('buildCkCartCsv', () => {
       'Sol Ring,Commander 2021,true,2',
       'Arcane Signet,Commander 2021,true,1',
     ])
-    // Named once each, not once per copy.
-    expect(cart.warnings).toHaveLength(1)
-    expect(cart.warnings[0]).toContain('Sol Ring, Arcane Signet')
+    // Named once each, not once per copy, in first-seen order.
+    expect(cart.warnings).toEqual([
+      { code: 'etched-as-foil', params: { titles: ['Sol Ring', 'Arcane Signet'] } },
+    ])
+  })
+
+  test('names an etched variant by its listed title', () => {
+    const cart = buildCkCartCsv([item({ finish: 'etched', variation: 'Retro Frame' })])
+
+    expect(cart.warnings).toEqual([
+      { code: 'etched-as-foil', params: { titles: ['Sol Ring (Retro Frame)'] } },
+    ])
   })
 
   test('reports CK’s upload caps without refusing the file', () => {
@@ -91,12 +100,17 @@ describe('buildCkCartCsv', () => {
     )
     const overTitles = buildCkCartCsv(manyTitles)
     expect(overTitles.titleCount).toBe(CK_CSV_MAX_TITLES + 1)
-    expect(overTitles.warnings).toHaveLength(1)
-    expect(overTitles.warnings[0]).toContain('unique titles')
+    expect(overTitles.warnings).toEqual([
+      {
+        code: 'too-many-titles',
+        params: { count: CK_CSV_MAX_TITLES + 1, max: CK_CSV_MAX_TITLES },
+      },
+    ])
 
     const overCards = buildCkCartCsv([item({ quantity: CK_CSV_MAX_CARDS + 1 })])
     expect(overCards.cardCount).toBe(CK_CSV_MAX_CARDS + 1)
-    expect(overCards.warnings).toHaveLength(1)
-    expect(overCards.warnings[0]).toContain(`at most ${CK_CSV_MAX_CARDS} cards`)
+    expect(overCards.warnings).toEqual([
+      { code: 'too-many-cards', params: { count: CK_CSV_MAX_CARDS + 1, max: CK_CSV_MAX_CARDS } },
+    ])
   })
 })

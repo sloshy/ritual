@@ -14,6 +14,7 @@ import { TooltipOverlay } from '../ui/TooltipOverlay'
 import { useTooltip } from '../ui/useTooltip'
 import { finishName } from '../list-view/printing-display'
 import { useT } from '../ui/i18n'
+import { SyncMessageLines } from '../ui/SyncMessageLines'
 import type { TranslateFn } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import { cartBuyer } from '../list-view/sell-mode'
@@ -136,8 +137,12 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
 
   // Reset the preview whenever the modal closes — mouseleave won't fire when the
   // rows are torn down by the <Show>, so the tooltip signal could otherwise stick.
+  // The last cart copy's warnings go too: the modal stays mounted, and reopened
+  // later they would describe a copy the reader no longer has in mind.
   createEffect(() => {
-    if (!open()) hidePreview()
+    if (open()) return
+    hidePreview()
+    copy.clearCartWarnings()
   })
 
   // Close once the whole selection empties (e.g. after removing the last card or
@@ -363,9 +368,11 @@ export const SelectionModal: Component<SelectionModalProps> = (props) => {
             </button>
           </div>
         </div>
-        <For each={copy.cartWarnings()}>
-          {(warning) => <p class="selection-menu-warning selection-modal-warning">{warning}</p>}
-        </For>
+        <SyncMessageLines
+          messages={copy.cartWarnings()}
+          class="selection-modal-warning"
+          lineClass="selection-menu-warning"
+        />
         <span class="visually-hidden" aria-live="polite">
           {copy.announcement()}
         </span>

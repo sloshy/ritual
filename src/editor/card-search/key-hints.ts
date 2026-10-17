@@ -5,8 +5,18 @@
  * radio groups.
  */
 
-import type { KeyHint } from '../../ui/KeyHints'
+import type { KeyHint, KeyLabel } from '../../ui/KeyHints'
 import type { CardSearchStep } from './dialog-state'
+
+/**
+ * The keys that confirm a step — continue past the language notice, add or
+ * update the card. The step's button shows them as chips, so the button and the
+ * footer hint advertise one binding from one place.
+ */
+export const CONFIRM_KEYS: readonly KeyLabel[] = ['Enter']
+
+/** The keys that add the card and reopen the search for another, as the button and the footer show them. */
+export const ADD_ANOTHER_KEYS: readonly KeyLabel[] = ['Ctrl', 'Enter']
 
 /** What decides which hints the finish/condition step shows. */
 export type CardSearchHintFlags = {
@@ -35,22 +45,22 @@ export function keyHintsFor(flags: CardSearchHintFlags): KeyHint[] {
       ]
     case 'language-notice':
       return [
-        { keys: ['Enter'], label: 'ui.hint.continue' },
+        { keys: CONFIRM_KEYS, label: 'ui.hint.continue' },
         { keys: ['Esc'], label: 'ui.hint.close' },
       ]
     case 'finish-condition': {
-      const hints: KeyHint[] = [
+      const shown: KeyHint[] = [
         { keys: ['←', '→'], label: 'ui.hint.choose' },
         { keys: ['↑', '↓', 'Tab'], label: 'ui.hint.nextGroup' },
       ]
-      if (flags.usesQuantity) hints.push({ keys: ['+', '-'], label: 'ui.hint.quantity' })
-      hints.push({
-        keys: ['Enter'],
+      if (flags.usesQuantity) shown.push({ keys: ['+', '-'], label: 'ui.hint.quantity' })
+      shown.push({
+        keys: CONFIRM_KEYS,
         label: flags.isAddFlow ? 'ui.hint.addCard' : 'ui.hint.updateCard',
       })
-      if (flags.canAddAnother) hints.push({ keys: ['Ctrl', 'Enter'], label: 'ui.hint.addAnother' })
-      hints.push({ keys: ['Esc'], label: 'ui.hint.close' })
-      return hints
+      if (flags.canAddAnother) shown.push({ keys: ADD_ANOTHER_KEYS, label: 'ui.hint.addAnother' })
+      shown.push({ keys: ['Esc'], label: 'ui.hint.close' })
+      return shown
     }
     default: {
       const unreachable: never = flags.step

@@ -35,8 +35,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   param is then a message ({ messageKey, messageParams }), a list ({ list, join }), a duration
   ({ elapsedMs } or { durationMs }) or a card language ({ language }): import results' counts,
   the sync tools' per-item "reasonParams" and run-level "report.errorMessages[].messageParams",
-  and export_cards' and diff_lists' "warnings" (a list's parse warning nested as "warning", the
-  sections a decklist dialect left out as a list).
+  export_cards' and diff_lists' "warnings" (a list's parse warning nested as "warning", the
+  sections a decklist dialect left out as a list), and get_sell_cart's "warnings" (the etched
+  titles as a list).
   A failed import_change_bundle list carries "errorKey"/"errorParams" beside "error".
   get_list's "warnings", the sync tools' "report.unreadable[].warnings", export_cards' and
   diff_lists' "warnings", import_deck's and import_csv's "warnings"/"advisories", and

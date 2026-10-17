@@ -3,6 +3,7 @@ import path from 'node:path'
 import { getBaseDir, workspaceRelative } from '../config/base-dir'
 import { renameWithRetry } from './atomic-write'
 import { hasErrorCode } from './errno'
+import { t } from '../i18n/t'
 import { isPathWithinDir } from './path-validation'
 
 /**
@@ -71,7 +72,11 @@ export async function moveToTrash(
   label: string,
   now: Date = new Date(),
 ): Promise<string> {
-  if (files.length === 0) throw new Error('moveToTrash needs at least one file')
+  if (files.length === 0) {
+    throw new Error(
+      t('errors.invariant.emptyArgument', { method: 'moveToTrash', argument: 'files' }),
+    )
+  }
   const folder = await createFolder(TRASH_DIR, label, now)
   const moved: TrashedFile[] = []
   try {

@@ -669,8 +669,9 @@ may nest — a param may itself be a message, a list, a duration (\`elapsedMs\`,
 \`import_deck\` and \`import_change_bundle\` results (a count with its noun — and
 \`get_list\`'s \`warnings\`, the sync tools' \`report.unreadable[].warnings\`,
 \`export_cards\`'/\`diff_lists\`' \`warnings\`, \`import_csv\`/\`import_deck\`'s
-\`warnings\`/\`advisories\` entries and \`refresh_buylist\`'s \`staleFallback\` and
-\`skippedRows\` are message objects, a card-line diagnostic
+\`warnings\`/\`advisories\` entries, \`refresh_buylist\`'s \`staleFallback\` and
+\`skippedRows\` and \`get_sell_cart\`'s \`warnings\` (the etched titles nested as a
+list) are message objects, a card-line diagnostic
 nested as \`text\`, each \`import_csv\` failure carrying \`reasonKey\`/\`reasonParams\`), in
 the sync tools' per-item \`reasonParams\`, and in their run-level
 \`report.errorMessages[].messageParams\`. Each failed list of

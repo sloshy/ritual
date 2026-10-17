@@ -307,7 +307,10 @@ describe('planMoves', () => {
 
   test('a printingless allocation without a chosen printing is a programming error', () => {
     const bad = plan({ allocations: [{ candidate: printinglessCandidate(WANTS, 1), count: 1 }] })
-    expect(() => planMoves(bad, DECK, { kind: 'swap' })).toThrow(/no chosen printing/)
+    expect(() => planMoves(bad, DECK, { kind: 'swap' })).toThrow(
+      'Internal error: SwapAllocation(wanted:wants|printingless|lightning bolt) has no ' +
+        'printing. This is a bug in Ritual.',
+    )
   })
 
   test('zero-count allocations produce no moves', () => {

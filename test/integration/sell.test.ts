@@ -40,6 +40,16 @@ const SEED_CARDS: Record<string, ScryfallCard[]> = {
       prices: { usd: '2.40', usd_foil: '10.00' },
     }),
   ],
+  // Etched only: CK quotes it as an etched product, which their cart CSV cannot mark.
+  'Command Tower': [
+    makeScryfallCard({
+      id: 'it-tower-cmr',
+      name: 'Command Tower',
+      set: 'cmr',
+      collector_number: '350',
+      finishes: ['etched'],
+    }),
+  ],
   'Lightning Bolt': [
     makeScryfallCard({
       id: 'it-bolt-lea',
@@ -80,6 +90,17 @@ async function writeFeedCache(dir: string): Promise<void> {
       edition: 'Alpha',
       priceBuy: 30,
       qtyBuying: 0,
+    }),
+    makeCardKingdomProduct({
+      id: 13,
+      sku: 'ECMR-350',
+      scryfallId: 'it-tower-cmr',
+      name: 'Command Tower',
+      edition: 'Commander Legends',
+      variation: 'Foil Etched',
+      finish: 'etched',
+      priceBuy: 0.5,
+      qtyBuying: 5,
     }),
   ])
 }
@@ -262,6 +283,54 @@ describe('sell CLI (Integration)', () => {
     const result = await runCli(['sell', '--output', 'csv', '--refresh', 'never'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toBe('Sol Ring,Commander 2021,false,2\nSol Ring,Commander 2021,true,1\n')
+  })
+
+  describe('the cart CSV’s warnings', () => {
+    const ETCHED_WARNING =
+      '⚠️  The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell ' +
+      'cart: Command Tower (Foil Etched)'
+    const ETCHED_CSV = 'Command Tower (Foil Etched),Commander Legends,true,1\n'
+
+    function sellEtchedCsv(env: Record<string, string>, ...extra: string[]) {
+      return runCli(
+        ['sell', 'etched-box', '--output', 'csv', '--refresh', 'never', ...extra],
+        dir,
+        env,
+      )
+    }
+
+    beforeEach(async () => {
+      await writeCollectionFile(dir, 'etched-box', {
+        entries: [
+          {
+            name: 'Command Tower',
+            set: 'cmr',
+            collectorNumber: '350',
+            finish: 'etched',
+            cardId: 1,
+          },
+        ],
+      })
+    })
+
+    test.each([[[]], [['--quiet']]])(
+      'go to stderr in English, the CSV alone on stdout (extra flags: %j)',
+      async (extra) => {
+        const result = await sellEtchedCsv(OFFLINE_ENV, ...extra)
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toBe(ETCHED_CSV)
+        expect(result.stderr).toContain(ETCHED_WARNING)
+      },
+    )
+
+    test('follow the UI language, while the CSV bytes do not', async () => {
+      const result = await sellEtchedCsv({ ...OFFLINE_ENV, RITUAL_LOCALE: 'en-XA' })
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toBe(ETCHED_CSV)
+      expect(result.stderr).not.toContain('cannot mark etched foils')
+      // Bracketed — it went through the catalog — with CK's own title untouched inside.
+      expect(result.stderr).toMatch(/\[[^\]\n]*Command Tower \(Foil Etched\)[^\]\n]*\]/)
+    })
   })
 
   test('--out writes the payload to a file instead of stdout', async () => {

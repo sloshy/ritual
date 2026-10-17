@@ -7,6 +7,9 @@
  * The file is best-effort by contract. Nothing a command does may fail because
  * it could not be read or written: a missing, unreadable or corrupt file reads
  * as empty, and a failed write is dropped.
+ *
+ * The parsers' refusals are worded with `t()` in the CLI's own language: the
+ * file is the CLI's alone, and no server response ever carries one.
  */
 
 import fs from 'node:fs/promises'
@@ -14,6 +17,7 @@ import path from 'node:path'
 import { writeFileAtomic } from './atomic-write'
 import { isUpdateChannel, UPDATE_CHANNELS, type UpdateChannel } from '../config/semver'
 import { isReleaseTag } from '../config/version'
+import { t } from '../i18n/t'
 import { isRecord } from './json'
 import { resolveUserStateDir } from './user-dirs'
 
@@ -73,7 +77,7 @@ function isEpochMs(value: unknown): value is number {
  * not an object at all is an error.
  */
 export function parseMigratePromptTimes(value: unknown): MigratePromptTimes | string {
-  if (!isRecord(value)) return 'migratePrompts must be an object'
+  if (!isRecord(value)) return t('cli.userState.sectionNotObject', { section: 'migratePrompts' })
   const times: MigratePromptTimes = {}
   for (const [baseDir, time] of Object.entries(value)) {
     if (isEpochMs(time)) times[baseDir] = time
@@ -92,10 +96,14 @@ function isStoredVersion(value: unknown): value is string {
  * own (a lost time only means an early retry or a repeated notice).
  */
 export function parseUpdateCheckState(value: unknown): UpdateCheckState | string {
-  if (!isRecord(value)) return 'updateCheck must be an object'
+  if (!isRecord(value)) return t('cli.userState.sectionNotObject', { section: 'updateCheck' })
   const { channel, checkedAt, latest, failedAt, abandonedAt, notifiedAt, notifiedVersion } = value
   if (!isUpdateChannel(channel)) {
-    return `updateCheck.channel must be one of: ${UPDATE_CHANNELS.join(', ')}`
+    return t('errors.enum.type', {
+      // i18n-exempt: the field's JSON path in state.json — an identifier, not text
+      field: 'updateCheck.channel',
+      choices: UPDATE_CHANNELS.join(', '),
+    })
   }
   const state: UpdateCheckState = { channel }
   // A version without the time it was seen (or the reverse) is half a fact.
@@ -119,7 +127,7 @@ export function parseUpdateCheckState(value: unknown): UpdateCheckState | string
  * preserved by {@link writeUserStateSection}.
  */
 export function parseUserState(value: unknown): UserState | string {
-  if (!isRecord(value)) return 'the state file must contain a JSON object'
+  if (!isRecord(value)) return t('cli.userState.fileNotObject')
   const state = emptyUserState()
   const migratePrompts = parseMigratePromptTimes(value.migratePrompts)
   if (typeof migratePrompts !== 'string') state.migratePrompts = migratePrompts

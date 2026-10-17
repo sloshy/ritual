@@ -1,6 +1,7 @@
 import type { Choice } from 'prompts'
 import { ask } from '../../cli/prompts'
 import { t } from '../../i18n/t'
+import { currentLocale } from '../../i18n/runtime'
 import { renderSyncMessage } from '../../sync/message'
 import { getCardPrintings, isDigitalOnlySet } from '../../scryfall'
 import type { ScryfallCard } from '../../scryfall/types'
@@ -474,7 +475,7 @@ async function promptLanguageFallback(
   defaultLanguage: CardLanguage,
   stamp: CardLanguage,
 ): Promise<LanguageConfirmOutcome> {
-  const availableNames = formatLanguageList(available)
+  const availableNames = formatLanguageList(available, currentLocale())
   // A loose string: the prompt is untyped, so the value is proven at the read.
   const choice = await ask<string>({
     type: 'select',

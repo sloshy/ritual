@@ -5,6 +5,12 @@ import type { ParameterlessKey } from '../i18n/t'
  * A key as it is spelled on screen. Closed so every surface renders the same
  * key the same way — the set is small, and a free-form string let "Enter" and
  * "⏎" drift apart between the shortcuts reference and a dialog's footer hints.
+ *
+ * **Never translated** (owner decision: key names stay English). These are the
+ * names printed on the keys themselves, so a chip reads the same in every UI
+ * language; only the hint's `label` beside it goes through the catalog. Tables
+ * of them are named `*_KEYS` / `keys`, never `*Hints`, which the
+ * untranslated-literal rule reads as text.
  */
 export type KeyLabel =
   | 'Ctrl'

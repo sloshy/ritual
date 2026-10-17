@@ -512,6 +512,11 @@ ritual set-card main-binder --card-id 14 --tag "CK Batch" --no-input
 ritual sell --tags "CK Batch" --output csv --out ck-batch.csv
 \`\`\`
 
+The CSV holds data rows only; its warnings (etched foils exported as foil, CK's 500-title /
+5,000-card upload caps) go to stderr in the UI language, \`--quiet\` included. Over MCP,
+\`get_sell_cart\`'s \`warnings\` are message objects: read \`message\` (English) and match on
+\`messageKey\` (\`domain.buylist.cart.*\`).
+
 Entries report \`status\` \`buying\` / \`not-buying\` (CK's buy quantity is 0) / \`no-match\`,
 with \`sellableQuantity = min(owned, CK's cap)\` and \`value\` covering only those copies.
 Beside CK's \`priceBuy\` (and their high-running \`priceRetail\`), a matched entry carries

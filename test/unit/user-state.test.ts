@@ -5,6 +5,7 @@ import path from 'node:path'
 import { resolveUserStateDir, type UserDirsEnvironment } from '../../src/util/user-dirs'
 import {
   emptyUserState,
+  parseMigratePromptTimes,
   parseUpdateCheckState,
   parseUserState,
   readUserState,
@@ -56,8 +57,8 @@ describe('resolveUserStateDir', () => {
 
 describe('parseUserState', () => {
   test('content that is not an object is an error', () => {
-    expect(typeof parseUserState([])).toBe('string')
-    expect(typeof parseUserState('x')).toBe('string')
+    expect(parseUserState([])).toBe('the state file must contain a JSON object')
+    expect(parseUserState('x')).toBe('the state file must contain a JSON object')
   })
 
   test('keeps well-formed prompt times and drops malformed ones', () => {
@@ -76,6 +77,12 @@ describe('parseUserState', () => {
   })
 })
 
+describe('parseMigratePromptTimes', () => {
+  test('a section that is not an object is an error', () => {
+    expect(parseMigratePromptTimes(['/a'])).toBe('migratePrompts must be an object')
+  })
+})
+
 describe('parseUpdateCheckState', () => {
   test('keeps a well-formed section', () => {
     const state: UpdateCheckState = {
@@ -90,8 +97,10 @@ describe('parseUpdateCheckState', () => {
   })
 
   test('without a known channel nothing in it is trusted', () => {
-    expect(typeof parseUpdateCheckState({ channel: 'beta', latest: '1.0.0' })).toBe('string')
-    expect(typeof parseUpdateCheckState('stable')).toBe('string')
+    expect(parseUpdateCheckState({ channel: 'beta', latest: '1.0.0' })).toBe(
+      'updateCheck.channel must be one of: stable, prerelease.',
+    )
+    expect(parseUpdateCheckState('stable')).toBe('updateCheck must be an object')
   })
 
   test.each<[string, Record<string, unknown>]>([

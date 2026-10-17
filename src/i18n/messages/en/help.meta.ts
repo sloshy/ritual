@@ -93,10 +93,6 @@ export const helpMeta = {
   'help.commander.optionsTitle': {
     description: 'Heading over the list of flags a command accepts.',
   },
-  'help.commander.globalOptionsTitle': {
-    description:
-      "Heading over flags inherited from a parent command. Ritual does not currently enable Commander's global-options section, so this is registered for completeness.",
-  },
   'help.commander.commandsTitle': {
     description:
       'Heading over the list of subcommands, for subcommands with no group of their own.',

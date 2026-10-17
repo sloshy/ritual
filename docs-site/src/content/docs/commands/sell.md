@@ -119,6 +119,8 @@ With nothing to sell the payload is empty. Upload the file on their CSV import p
 - Their importer caps one upload at 500 unique titles or 5,000 cards. The command warns when the file exceeds either.
 - The format cannot express etched foils. Etched-quoted entries export as foil, with a warning to adjust the cart by hand.
 
+The warnings print on stderr in the CLI's language, even under `--quiet`; the CSV itself is the same bytes in every language.
+
 The same rendering is available as [`GET /api/sell/cart`](/admin/api/#sell-cart) and the MCP `get_sell_cart` tool.
 
 ### Selling a Hand-Picked Batch

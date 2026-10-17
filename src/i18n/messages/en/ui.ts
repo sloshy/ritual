@@ -485,4 +485,9 @@ export const uiMessages = {
   'ui.shortcuts.addTheCard': 'Add the card',
   'ui.shortcuts.addThenAnother': 'Add the card, then start another',
   'ui.shortcuts.close': 'Close',
+
+  // ── Formatting and stored preferences ─────────────────────────────────
+  'ui.format.invalidDate': 'Invalid Date',
+  'ui.editor.defaultsNotJson': 'Stored add-card defaults are not valid JSON: {reason}',
+  'ui.editor.defaultsNotObject': 'Stored add-card defaults are not a JSON object',
 } as const satisfies MessageCatalogShape
