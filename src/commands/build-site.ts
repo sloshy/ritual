@@ -178,11 +178,7 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
     explicitStores = []
     for (const raw of options.priceSources.split(',')) {
       if (raw.trim() === '') continue
-      const parsed = parseEnumField(
-        raw.trim(),
-        VALID_PRICE_SOURCES,
-        t('errors.enum.fieldPriceSource'),
-      )
+      const parsed = parseEnumField(raw.trim(), VALID_PRICE_SOURCES, '--price-sources')
       if (!parsed.ok) return refuse(parsed.message, ExitCode.UsageError)
       if (!explicitStores.includes(parsed.value)) explicitStores.push(parsed.value)
     }

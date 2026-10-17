@@ -9,8 +9,9 @@
  *
  * One of the single-function multipliers: two messages here cover every
  * fixed-choice option in the project, so this is one edit rather than dozens.
- * `field` and `choices` are English identifiers spliced into the sentence and
- * are never themselves translated.
+ * `field` and `choices` are identifiers spliced into the sentence and are never
+ * themselves translated: `field` is the flag or argument as typed (`--format`,
+ * `<direction>`) or the request-body field name (`finish`), never a noun.
  */
 
 import { t, type MessageParams, type RenderParams } from '../i18n/t'

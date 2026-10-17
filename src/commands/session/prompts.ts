@@ -64,7 +64,7 @@ import {
   type PriceCurrency,
 } from '../../pricing/price-currency'
 import { getDefaultPriceCurrency, getDefaultLanguage } from '../../config/ritual-config'
-import { requireInteractive, type PromptSubjectKey } from '../../util/no-input'
+import { requireFlag, type QuestionSubjectKey } from '../../util/no-input'
 import { printingLabel } from '../../card/card-line-tail'
 
 /**
@@ -128,7 +128,7 @@ type ParsedTextPrompt = {
   /** The rendered question. */
   message: string
   /** What the question wanted, for the `--no-input` refusal. */
-  subjectKey: PromptSubjectKey
+  subjectKey: QuestionSubjectKey
   /** Prefill — the current value as a person reads it. */
   initial: string
   /** Renders a parser refusal for the console. */
@@ -624,7 +624,7 @@ async function promptLabelRow<C extends CardLabelChoice | CardLabelDefaultChoice
   current: C | undefined,
   keyOf: (choice: C) => string,
   message: string,
-  subjectKey: PromptSubjectKey,
+  subjectKey: QuestionSubjectKey,
 ): Promise<C | null> {
   const currentIndex = current === undefined ? -1 : choices.indexOf(current)
   const key = await ask<string>({
@@ -701,7 +701,7 @@ export async function promptFinishAndCondition(
   if (!forcePrompts && config.finish && availableFinishes.includes(config.finish)) {
     selectedFinish = config.finish
   } else if (availableFinishes.length > 1) {
-    requireInteractive(`--finish <${availableFinishes.join('|')}>`)
+    requireFlag(`--finish <${availableFinishes.join('|')}>`)
     const choices = finishChoices(finishRows(availableFinishes), selectedPrinting)
     const chosenFinish = await ask<string>({
       type: 'select',
@@ -722,7 +722,7 @@ export async function promptFinishAndCondition(
   } else {
     // There is no non-interactive default: a run that cannot answer this must
     // say so, not exit 0 with the prompt unanswered and nothing written.
-    requireInteractive(`--condition <${[...VALID_CONDITIONS, 'NONE'].join('|')}>`)
+    requireFlag(`--condition <${[...VALID_CONDITIONS, 'NONE'].join('|')}>`)
     const chosenCondition = await ask<string>({
       type: 'select',
       message: t('cli.printing.promptCondition'),
@@ -784,7 +784,7 @@ export async function promptWantedFinish(
     return only !== undefined ? only : 'nopreference'
   }
 
-  requireInteractive(`--finish <${availableFinishes.join('|')}>`)
+  requireFlag(`--finish <${availableFinishes.join('|')}>`)
 
   const answer = await askWantedFinish(
     [
@@ -806,7 +806,7 @@ type WantedFinishAnswer =
   { kind: 'finish'; finish: Finish } | { kind: 'none' } | { kind: 'cancelled' }
 
 /** How a wanted finish picker asks: its message, and the edit picker's subject/cursor. */
-type WantedFinishAsk = { message: string; subjectKey?: PromptSubjectKey; initial?: number }
+type WantedFinishAsk = { message: string; subjectKey?: QuestionSubjectKey; initial?: number }
 
 /**
  * The one wanted finish select behind {@link promptWantedFinish} (add) and

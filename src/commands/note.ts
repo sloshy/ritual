@@ -215,7 +215,7 @@ async function resolveNoteText(
 
   // The note-text prompt is only available interactively — a run without a
   // terminal, or with prompts disabled via --no-input, must say what to pass.
-  requireInteractive('--note <text> or --clear')
+  requireInteractive('cli.prompt.subject.passEither', { first: '--note <text>', second: '--clear' })
 
   const note = await ask<string>({
     type: 'text',

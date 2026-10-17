@@ -113,6 +113,30 @@ export const cliMeta = {
     description:
       'Noun phrase for a refusal whose remedy is a flag or argument. {what} is that flag or argument spelled exactly as it is typed (e.g. "--from and --to") and is never translated. Reads as "Input required: pass --from and --to (…)".',
   },
+  'cli.prompt.subject.passListName': {
+    description:
+      'Noun phrase for a --no-input refusal of the list picker: the run should have named the list as an argument. Reads as "Input required: pass a list name (…)".',
+  },
+  'cli.prompt.subject.passEither': {
+    description:
+      'Noun phrase for a --no-input refusal whose remedy is one of two flags (e.g. --skills or --no-skills). {first} and {second} are flags spelled exactly as typed and are never translated. Reads as "Input required: pass --skills or --no-skills (…)".',
+  },
+  'cli.prompt.subject.passBoth': {
+    description:
+      'Noun phrase for a --no-input refusal whose remedy is two flags given together (e.g. --from and --to). {first} and {second} are flags spelled exactly as typed and are never translated. Reads as "Input required: pass --from and --to (…)".',
+  },
+  'cli.prompt.subject.noInteractiveEditor': {
+    description:
+      'Why `ritual edit` refuses without a terminal. A noun phrase, not a sentence: it is spliced into "Input required: {subject} ({reason})." The command names are CLI identifiers and never translate.',
+  },
+  'cli.prompt.subject.noHistoryEditor': {
+    description:
+      'Why `ritual history` refuses without a terminal. A noun phrase spliced into "Input required: {subject} ({reason})."; --show is a flag name and never translates.',
+  },
+  'cli.prompt.subject.passCardOrId': {
+    description:
+      'Noun phrase for a --no-input refusal of the card picker (several cards matched): the run should have named one card. {flag} is the flag spelled exactly as typed ("--card-id <id>") and is never translated. Reads as "Input required: pass a card name or --card-id <id> (…)".',
+  },
   'cli.prompt.subject.interactiveInput': {
     description:
       'Fallback noun phrase for a prompt that has not yet been given a subject of its own. Deliberately vague — a converted prompt should name what it wanted instead.',
@@ -465,6 +489,10 @@ export const cliMeta = {
     description: 'Confirmation that the session-wide filters were re-applied.',
   },
   'cli.session.changesSaved': { description: 'Confirmation that the list file was written.' },
+  'cli.session.multiListSave': {
+    description:
+      'Internal error: something asked a multi-list editing session (`ritual edit` over several lists) to save as a whole, when each open list is saved on its own.',
+  },
   'cli.session.artSidecarUnreadable': {
     description:
       "Warning after a session save that could not re-file a <list>.art.json custom-art sidecar — either the saved list's own (the ids its removals freed stay filed under the old numbers) or, when the save delivered cards moved to another list, that destination's (the moved cards' art did not follow them). Says \"A list's\" rather than \"The list's\" because it is not always the list being saved; {reason} is untranslated engine prose naming the file and the parse failure. Warns rather than fails: the card lines were written correctly.",

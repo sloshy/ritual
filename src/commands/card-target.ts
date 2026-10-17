@@ -77,7 +77,7 @@ export async function resolveListSelection(
     return { type: resolved.type, filePath: resolved.filePath }
   }
 
-  requireInteractive('a list name')
+  requireInteractive('cli.prompt.subject.passListName')
   const allLocations = await listLocations(type)
   const locations = options?.pickerTypes
     ? allLocations.filter((loc) => options.pickerTypes!.includes(loc.type))
@@ -173,7 +173,7 @@ export async function resolveTarget(
 }
 
 async function promptCardSelection(entries: EntryRef[]): Promise<EntryRef> {
-  requireInteractive('a card name or --card-id <id>')
+  requireInteractive('cli.prompt.subject.passCardOrId', { flag: '--card-id <id>' })
   const choices = entries.map((e, i) => ({
     title: e.note
       ? t('cli.cardOps.cardChoiceWithNote', { entry: describeEntry(e), note: e.note })

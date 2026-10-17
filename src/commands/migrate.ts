@@ -20,7 +20,7 @@ import {
 } from '../migrate/runner'
 import type { MigrationOp } from '../migrate/types'
 import { ExitCode } from '../util/errors'
-import { requireInteractive } from '../util/no-input'
+import { requireFlag } from '../util/no-input'
 import { printGitignoreRefresh } from './init-site'
 import { workspaceRelative } from '../config/base-dir'
 
@@ -162,7 +162,7 @@ async function runMigrate(options: MigrateCommandOptions): Promise<void> {
   }
 
   if (!options.yes) {
-    requireInteractive('--yes')
+    requireFlag('--yes')
     const confirmed = await ask<boolean>({
       type: 'confirm',
       message: t('cli.migrate.confirm'),

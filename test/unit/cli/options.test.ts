@@ -110,7 +110,7 @@ describe('parseRefreshFlag', () => {
 
   test('rejects anything else, listing the valid modes', () => {
     expect(() => parseRefreshFlag('allow')).toThrow('ask, auto, no-bulk, never')
-    expect(() => parseRefreshFlag('')).toThrow("Invalid refresh mode ''")
+    expect(() => parseRefreshFlag('')).toThrow("Invalid --refresh ''")
   })
 })
 
@@ -163,7 +163,7 @@ describe('addOutputOption', () => {
   test('the narrow vocabulary rejects csv; the csv overload accepts it', () => {
     expect(() =>
       addOutputOption(new Command().exitOverride()).parse(['--output', 'csv'], { from: 'user' }),
-    ).toThrow(/output format/)
+    ).toThrow("Invalid --output 'csv'")
     const csv = addOutputOption(new Command().exitOverride(), CSV_OUTPUT_FORMATS, 'text')
     csv.parse(['--output', 'csv'], { from: 'user' })
     expect(csv.opts().output).toBe('csv')

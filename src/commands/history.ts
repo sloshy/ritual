@@ -164,9 +164,9 @@ export function registerHistoryCommand(program: Command): void {
     // picker, and the editor is interactive from its first screen. Refuse up
     // front rather than exiting 0 having done nothing.
     await runCommandAction(scripting, async () => {
-      if (listNameArg === undefined) requireInteractive('a list name')
+      if (listNameArg === undefined) requireInteractive('cli.prompt.subject.passListName')
       if (!options.show && promptsUnavailable()) {
-        throw inputRequiredError(t('cli.history.noEditorHeadless'))
+        throw inputRequiredError('cli.prompt.subject.noHistoryEditor')
       }
 
       const location = await resolveLocation(listNameArg, type, scripting)

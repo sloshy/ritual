@@ -107,7 +107,7 @@ export function registerEditCommand(program: Command): void {
     if (promptsUnavailable()) {
       emitError(
         'usage_error',
-        inputRequiredError(t('cli.edit.noInteractiveEditor')).message,
+        inputRequiredError('cli.prompt.subject.noInteractiveEditor').message,
         TEXT_ONLY,
       )
       process.exitCode = ExitCode.UsageError

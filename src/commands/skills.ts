@@ -19,6 +19,7 @@ import {
   type ScriptingOptions,
 } from '../cli/output'
 import { ExitCode } from '../util/errors'
+import { assertNever } from '../util/assert-never'
 import type { MessageKey } from '../i18n/messages/en'
 import { t } from '../i18n/t'
 
@@ -78,10 +79,8 @@ function printSkillResultLines(results: SkillInstallResult[]): void {
       case 'absent':
         console.log(t('cli.skills.resultAbsent', { name: result.name }))
         break
-      default: {
-        result.status satisfies never
-        throw new Error('Unhandled skill install status (this is a bug)')
-      }
+      default:
+        assertNever(result.status)
     }
   }
 }

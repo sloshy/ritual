@@ -483,7 +483,7 @@ describe('export command (Integration)', () => {
     [
       'invalid finish',
       ['export', '--all', '--finish', 'shiny'],
-      "Invalid finish 'shiny'. Use one of: nonfoil, foil, etched.",
+      "Invalid --finish 'shiny'. Use one of: nonfoil, foil, etched.",
     ],
     [
       'conflicting list-scope flags',
@@ -493,7 +493,7 @@ describe('export command (Integration)', () => {
     [
       'invalid dialect',
       ['export', '--all', '--dialect', 'mtggoldfish'],
-      "Invalid dialect 'mtggoldfish'. Use one of: ritual, archidekt, arena, moxfield.",
+      "Invalid --dialect 'mtggoldfish'. Use one of: ritual, archidekt, arena, moxfield.",
     ],
     // A per-argument prefix that contradicts the whole-command flag used to win
     // silently, so this reported that no *deck* named 'binder' exists.

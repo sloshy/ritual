@@ -316,7 +316,7 @@ describe('init-site CLI (Integration)', () => {
       const result = await runCli(['init-site', '--ci', 'jenkins'], dir)
 
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain("Invalid CI system 'jenkins'")
+      expect(result.stderr).toContain("Invalid --ci 'jenkins'")
     })
   })
 

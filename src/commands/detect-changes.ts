@@ -1,9 +1,15 @@
 import { rewriteBlockingMessages } from '../list/unreadable-content'
-import { nestSync, renderSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
+import {
+  nestSync,
+  renderSyncMessage,
+  syncMessage,
+  SyncMessageError,
+  type SyncMessage,
+} from '../sync/message'
 import { Command } from 'commander'
 import { compareData } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
-import { t } from '../i18n/t'
+import { t, type MessageParams } from '../i18n/t'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { parseTitleFromContent } from '../list/section-format'
@@ -46,6 +52,7 @@ import {
 } from '../changes/content-hash'
 import { listLocations } from '../list/resolve-list'
 import { getErrorMessage, hasErrorCode, ExitCode } from '../util/errors'
+import { assertNever } from '../util/assert-never'
 import type { DeckSection } from '../list/deck'
 import { addDryRunOption, addScriptingOptions } from '../cli/options'
 import {
@@ -54,7 +61,7 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { failWith, runCommandAction } from '../cli/action'
+import { failWith, failWithMessage, runCommandAction } from '../cli/action'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -442,10 +449,8 @@ export async function detectChanges(commit: string, cwd: string): Promise<Detect
         case 'wanted':
           changes = diffWanted(oldContent, newContent, report)
           break
-        default: {
-          const _exhaustive: never = kind
-          throw new Error(`Unknown list kind: ${_exhaustive}`)
-        }
+        default:
+          assertNever(kind)
       }
 
       results.push({
@@ -734,11 +739,14 @@ function unrecorded(stamped: readonly StampedFile[]): StampedFile[] {
  * already recorded, so `detect-changes` will skip them forever. Essential —
  * it prints even under `--quiet`.
  */
-function stampWarnings(stamped: readonly StampedFile[], dryRun: boolean): string[] {
+/** Which wording a `--hash-only` line takes: the preview's, or the stamped run's. */
+type StampMode = MessageParams<'cli.detectChanges.stamped'>['mode']
+
+function stampWarnings(stamped: readonly StampedFile[], mode: StampMode): string[] {
   const lost = unrecorded(stamped)
   if (lost.length === 0) return []
   const warning = t('cli.detectChanges.stampWarning', {
-    mode: dryRun ? 'dryRun' : 'applied',
+    mode,
     count: t('domain.count.files', { count: lost.length }),
   })
   return [`⚠️  ${warning}`, ...lost.map((inspection) => `⚠️    ${inspection.file}`)]
@@ -751,6 +759,7 @@ async function runHashOnly(
   dryRun: boolean,
   scripting: ScriptingOptions,
 ): Promise<void> {
+  const mode: StampMode = dryRun ? 'dryRun' : 'applied'
   const stamped: StampedFile[] = (await inspectListSidecars(baseDir)).map(
     ({ file, state, hash }) => ({ file, priorState: state, hash }),
   )
@@ -762,7 +771,7 @@ async function runHashOnly(
 
   // The warning is data-loss reporting, so it precedes the payload and survives
   // both `--quiet` and structured output.
-  emitWarnings(stampWarnings(stamped, dryRun), scripting, { essential: true })
+  emitWarnings(stampWarnings(stamped, mode), scripting, { essential: true })
 
   if (scripting.output !== 'text') {
     const report: HashOnlyReport = {
@@ -778,7 +787,13 @@ async function runHashOnly(
   if (scripting.quiet) return
 
   for (const inspection of stamped) {
-    console.log(`${dryRun ? '[dry-run] ' : ''}${inspection.file}: ${inspection.hash}`)
+    console.log(
+      t('cli.detectChanges.hashLine', {
+        mode,
+        file: inspection.file,
+        hash: inspection.hash,
+      }),
+    )
   }
 
   if (stamped.length === 0) {
@@ -787,7 +802,7 @@ async function runHashOnly(
   }
   console.log(
     `\n${t('cli.detectChanges.stamped', {
-      mode: dryRun ? 'dryRun' : 'applied',
+      mode,
       count: t('domain.count.files', { count: stamped.length }),
     })}`,
   )
@@ -827,7 +842,9 @@ async function runVerify(baseDir: string, scripting: ScriptingOptions): Promise<
   if (scripting.quiet) return
 
   for (const file of files) {
-    console.log(`${file.file}: ${t(VERIFY_LABELS[file.state])}`)
+    console.log(
+      t('cli.detectChanges.verifyLine', { file: file.file, state: t(VERIFY_LABELS[file.state]) }),
+    )
   }
 
   if (files.length === 0) {
@@ -850,12 +867,26 @@ async function runVerify(baseDir: string, scripting: ScriptingOptions): Promise<
 
 // ── Mode: git detection (default) ────────────────────────────────────
 
-/** Render a git failure as the operation that failed, then git's own detail. */
-export function describeGitFailure(error: unknown, prefix: string): string {
+/**
+ * A git failure as the operation that failed, then git's own detail — or, for
+ * an error that is not git's, `prefix` (the step that failed) and the error's
+ * own message. A message, so the CLI words it in its language while the
+ * `--output json` envelope carries the key with English params.
+ */
+export function describeGitFailure(error: unknown, prefix: SyncMessage): SyncMessage {
   if (error instanceof GitCommandError) {
-    return error.gitDetail === null ? error.message : `${error.message}\n  git: ${error.gitDetail}`
+    return error.gitDetail === null
+      ? error.syncMessage
+      : syncMessage('cli.detectChanges.gitDetail', {
+          failure: nestSync(error.syncMessage),
+          detail: error.gitDetail,
+        })
   }
-  return `${prefix}: ${getErrorMessage(error)}`
+  return syncMessage('cli.detectChanges.failureReason', {
+    failure: nestSync(prefix),
+    reason:
+      error instanceof SyncMessageError ? nestSync(error.syncMessage) : getErrorMessage(error),
+  })
 }
 
 async function runDetect(
@@ -874,10 +905,10 @@ async function runDetect(
     // git could not answer at all — reporting "not a git repository" here would
     // send the user to --hash-only, which forfeits changelog entries, for a
     // repository that is fine.
-    failWith(
+    failWithMessage(
       scripting,
       'runtime_error',
-      describeGitFailure(repoProbe.error, t('cli.detectChanges.gitProbeFailed')),
+      describeGitFailure(repoProbe.error, syncMessage('cli.detectChanges.gitProbeFailed')),
     )
     return
   }
@@ -888,10 +919,13 @@ async function runDetect(
 
   const refProbe = probeGitRef(commit, cwd)
   if (!refProbe.ok) {
-    failWith(
+    failWithMessage(
       scripting,
       'runtime_error',
-      describeGitFailure(refProbe.error, t('cli.detectChanges.resolveRefFailed', { commit })),
+      describeGitFailure(
+        refProbe.error,
+        syncMessage('cli.detectChanges.resolveRefFailed', { commit }),
+      ),
     )
     return
   }
@@ -909,10 +943,10 @@ async function runDetect(
   try {
     output = await detectChanges(commit, cwd)
   } catch (err) {
-    failWith(
+    failWithMessage(
       scripting,
       'runtime_error',
-      describeGitFailure(err, t('cli.detectChanges.detectFailed')),
+      describeGitFailure(err, syncMessage('cli.detectChanges.detectFailed')),
     )
     return
   }
@@ -1055,6 +1089,8 @@ export function registerDetectChangesCommand(program: Command): void {
         case 'detect':
           await runDetect(selection.commit, cwd, dryRun, scripting)
           return
+        default:
+          assertNever(selection)
       }
     })
   })

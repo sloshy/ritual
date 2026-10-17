@@ -41,14 +41,15 @@ import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site-build/h
 import { bakedDictionaries } from '../generated/locales'
 import { en } from '../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
-import { t } from '../i18n/t'
+import { t, tIn } from '../i18n/t'
+import { stopListeners, type AdminListener } from './admin-teardown'
 import type { LocaleTag } from '../i18n/types'
 import { getUiLocale } from '../config/ritual-config'
 import { buildFlameSvg } from '../theme/flame'
 import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
-import { requireInteractive } from '../util/no-input'
+import { requireFlag } from '../util/no-input'
 import { readPasswordFromStdin } from '../cli/prompts'
 import { emitOutput, normalizeScriptingOptions, type ScriptingOptions } from '../cli/output'
 
@@ -81,8 +82,8 @@ function buildIndexHtml(initialTheme: ThemeName, locale: LocaleTag): string {
   const devReload = isRunningFromSource() ? '\n  <script src="__dev_reload.js"></script>' : ''
   return renderAppShell({
     lang: locale,
-    // i18n-exempt: the product name, a proper noun that is the same in every locale
-    title: 'Ritual Admin',
+    // The same product name the admin header shows, in the page's own language.
+    title: tIn(locale, 'admin.layout.title'),
     initialTheme,
     extraHead: devReload,
   })
@@ -121,7 +122,7 @@ async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<void>
   })
   if (!result.success) {
     for (const log of result.logs) console.error(log)
-    throw new Error('Admin SPA JS build failed')
+    throw new Error(t('cli.admin.jsBuildFailed'))
   }
 }
 
@@ -133,10 +134,10 @@ async function buildAdminCss(srcDir: string, adminDistDir: string): Promise<void
   })
   if (!result.success) {
     for (const log of result.logs) console.error(log)
-    throw new Error('Admin SPA CSS build failed')
+    throw new Error(t('cli.admin.cssBuildFailed'))
   }
   const cssOutput = result.outputs.find((o) => o.path.endsWith('.css'))
-  if (!cssOutput) throw new Error('Admin SPA CSS build produced no .css output')
+  if (!cssOutput) throw new Error(t('cli.admin.cssBuildNoOutput'))
   const compiled = await cssOutput.text()
   await Bun.write(path.join(adminDistDir, 'styles.css'), `${generateAllThemesCss()}\n${compiled}`)
 }
@@ -258,21 +259,20 @@ export function registerAdminCommand(program: Command): void {
       // stdio MCP leg's teardown works the same way). Dropping active
       // connections is what lets the dev live-reload stream's `cancel()` run and
       // clear its keep-alive timer.
-      // `allSettled` so one listener refusing to close still lets the other; the
-      // results are read rather than discarded, because a teardown that failed is
-      // a port left bound, and the next `ritual admin` failing to start is a much
-      // worse way to learn about it (`ritual mcp` logs its own the same way).
-      const labels = ['MCP HTTP', 'Admin'] as const
+      // A teardown that failed is a port left bound, and the next `ritual admin`
+      // failing to start is a much worse way to learn about it, so each failure
+      // is logged (`ritual mcp` logs its own the same way). The reason rides as
+      // its own argument so an error keeps its stack.
+      const listeners: AdminListener[] = [
+        {
+          failure: 'cli.admin.teardownFailedMcp',
+          stop: () => mcpServer?.stop(true) ?? Promise.resolve(),
+        },
+        { failure: 'cli.admin.teardownFailedAdmin', stop: () => adminServer.stop(true) },
+      ]
       const shutdown = (): void => {
-        void Promise.allSettled([mcpServer?.stop(true), adminServer.stop(true)]).then((results) => {
-          results.forEach((result, index) => {
-            if (result.status === 'rejected') {
-              console.error(
-                t('cli.admin.teardownFailed', { label: labels[index] ?? '' }),
-                result.reason,
-              )
-            }
-          })
+        void stopListeners(listeners).then((failures) => {
+          for (const { failure, reason } of failures) console.error(t(failure), reason)
         })
       }
       process.once('SIGINT', shutdown)
@@ -334,7 +334,7 @@ async function resolvePassword(options: AccountSubcommandOptions): Promise<strin
   if (options.passwordStdin) {
     return readPasswordFromStdin()
   }
-  requireInteractive('--password-stdin')
+  requireFlag('--password-stdin')
   return promptForPassword()
 }
 

@@ -44,8 +44,8 @@ import {
 } from '../migrate/runner'
 import { getBaseDir, workspaceRelative } from '../config/base-dir'
 import { fileExists } from '../util/fs'
-import { promptsUnavailable, requireInteractive } from '../util/no-input'
-import { t } from '../i18n/t'
+import { promptsUnavailable, requireFlag, requireInteractive } from '../util/no-input'
+import { t, type MessageParams } from '../i18n/t'
 import type { MessageKey } from '../i18n/messages/en'
 import { SKILLS } from '../skills/catalog'
 import { installSkills, resolveSkillsDir } from '../skills/install'
@@ -54,9 +54,11 @@ import { localizedCommandError, ExitCode } from '../util/errors'
 import { runCommandAction } from '../cli/action'
 import { TEXT_ONLY } from '../cli/output'
 import type { Choice } from 'prompts'
-import { parseEnumFlag, parsePriceSourceFlag } from '../cli/options'
+import { parseEnumFlag, priceSourceFlagParser } from '../cli/options'
 import { ask } from '../cli/prompts'
 import { writeFileAtomic } from '../util/atomic-write'
+import { assertNever } from '../util/assert-never'
+import { renderSyncMessage, syncList, syncRef } from '../sync/message'
 
 /**
  * The build command the scaffolding tells the user to run.
@@ -67,11 +69,13 @@ import { writeFileAtomic } from '../util/atomic-write'
  * the site appeared in a directory nothing had written to.
  */
 export function buildSiteCommand(distDir: string): string {
+  // i18n-exempt: a command line for the user to type, spelled as the CLI parses it
   return distDir === 'dist' ? 'ritual build-site' : `ritual build-site --out-dir ${distDir}`
 }
 
 /** The preview command, carrying the same `--out-dir` for a non-default distDir. */
 export function servePreviewCommand(distDir: string): string {
+  // i18n-exempt: a command line for the user to type, spelled as the CLI parses it
   return distDir === 'dist' ? 'ritual serve --build' : `ritual serve --build --out-dir ${distDir}`
 }
 
@@ -81,9 +85,10 @@ export function servePreviewCommand(distDir: string): string {
  * than gitignored — the two facts every command and layout line below depends on.
  */
 function gettingStarted(distDir: string, committed: boolean): string {
-  const generated = committed
-    ? '`cache/`, `exports/`, and `all-cards.md` — generated artifacts (gitignored)'
-    : `\`cache/\`, \`${distDir}/\`, \`exports/\`, and \`all-cards.md\` — generated artifacts (gitignored)`
+  const ignoredDist = committed ? '' : `\`${distDir}/\`, `
+  // i18n-exempt: owner decision: the generated init-site README is English workspace content
+  const generated = `\`cache/\`, ${ignoredDist}\`exports/\`, and \`all-cards.md\` — generated artifacts (gitignored)`
+  // i18n-exempt: owner decision: the generated init-site README is English workspace content
   return `## Getting Started
 
 Ritual manages three kinds of card lists as Markdown files in your repository:
@@ -128,6 +133,47 @@ For the full list of commands and features, see the
 [Ritual documentation](https://ritual.rpeters.dev/).`
 }
 
+/** The README's deploy section for a publish-for-me deploy: CI builds and publishes. */
+function publishForMeInstructions(): string {
+  // i18n-exempt: owner decision: the generated init-site README is English workspace content
+  return `## Deploying
+
+This repository is configured with a GitHub Action that automatically builds and
+deploys your site to GitHub Pages on every push to \`main\`.
+
+The action downloads Ritual, fetches the latest card data from Scryfall, builds
+your site, and deploys it. Both the Ritual binary and Scryfall cache are
+persisted between runs so subsequent builds are fast.
+
+### Ritual version
+
+The action downloads the Ritual release pinned in \`ritual.config.json\`
+(\`managed.version\`). The pin moves only when you run \`ritual migrate\` with a
+newer Ritual release and commit the result. To override it, create a GitHub
+Actions repository variable called \`RITUAL_VERSION\` set to a release tag
+(e.g. \`v1.0.0\`).`
+}
+
+/** The README's build and deploy sections for a local-build deploy of `distDir`. */
+function localBuildInstructions(distDir: string): string {
+  // i18n-exempt: owner decision: the generated init-site README is English workspace content
+  return `## Building
+
+Install [Ritual](https://github.com/sloshy/ritual) and run:
+
+\`\`\`sh
+${buildSiteCommand(distDir)}
+\`\`\`
+
+The generated site is written to \`${distDir}\`.
+
+## Deploying
+
+Commit the built \`${distDir}\` directory and push to \`main\`. The
+included GitHub Action deploys it to GitHub Pages automatically. \`${distDir}/\`
+is deliberately **not** gitignored for this deploy mode.`
+}
+
 export function generateReadme(config: InitSiteConfig): string {
   // Only a local-build deploy has a configurable built-site directory (and is
   // the only mode that commits it); every other mode builds and ignores `dist/`.
@@ -135,6 +181,7 @@ export function generateReadme(config: InitSiteConfig): string {
   const distDir = committed ?? 'dist'
 
   if (config.ciSystem === 'manual') {
+    // i18n-exempt: owner decision: the generated init-site README is English workspace content
     return `# My Ritual Site
 
 A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
@@ -155,38 +202,10 @@ The generated site is written to \`${distDir}/\`. Deploy it to any static hostin
 
   const buildInstructions =
     config.deployMode === 'publish-for-me'
-      ? `## Deploying
+      ? publishForMeInstructions()
+      : localBuildInstructions(distDir)
 
-This repository is configured with a GitHub Action that automatically builds and
-deploys your site to GitHub Pages on every push to \`main\`.
-
-The action downloads Ritual, fetches the latest card data from Scryfall, builds
-your site, and deploys it. Both the Ritual binary and Scryfall cache are
-persisted between runs so subsequent builds are fast.
-
-### Ritual version
-
-The action downloads the Ritual release pinned in \`ritual.config.json\`
-(\`managed.version\`). The pin moves only when you run \`ritual migrate\` with a
-newer Ritual release and commit the result. To override it, create a GitHub
-Actions repository variable called \`RITUAL_VERSION\` set to a release tag
-(e.g. \`v1.0.0\`).`
-      : `## Building
-
-Install [Ritual](https://github.com/sloshy/ritual) and run:
-
-\`\`\`sh
-${buildSiteCommand(distDir)}
-\`\`\`
-
-The generated site is written to \`${distDir}\`.
-
-## Deploying
-
-Commit the built \`${distDir}\` directory and push to \`main\`. The
-included GitHub Action deploys it to GitHub Pages automatically. \`${distDir}/\`
-is deliberately **not** gitignored for this deploy mode.`
-
+  // i18n-exempt: owner decision: the generated init-site README is English workspace content
   return `# My Ritual Site
 
 A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual).
@@ -232,12 +251,12 @@ const DEPLOY_MODES = ['publish-for-me', 'local-build'] as const satisfies readon
 
 /** Commander argParser for `--ci`: only the two supported CI systems are valid. */
 export function parseCISystemFlag(value: string): CISystem {
-  return parseEnumFlag(value, CI_SYSTEMS, t('cli.initSite.fieldCiSystem'))
+  return parseEnumFlag(value, CI_SYSTEMS, '--ci')
 }
 
 /** Commander argParser for `--deploy`: only the two deploy modes are valid. */
 export function parseDeployModeFlag(value: string): DeployMode {
-  return parseEnumFlag(value, DEPLOY_MODES, t('cli.initSite.fieldDeployMode'))
+  return parseEnumFlag(value, DEPLOY_MODES, '--deploy')
 }
 
 /** Commander argParser for `--dist-dir`: any non-empty path. */
@@ -346,7 +365,11 @@ export function registerInitSiteCommand(program: Command): void {
     .option('--dist-dir <dir>', t('help.initSite.distDir'), parseDistDirFlag)
     .option('--change-detection', t('help.initSite.changeDetection'))
     .option('--no-change-detection', t('help.initSite.noChangeDetection'))
-    .option('--price-source <store>', t('help.initSite.priceSource'), parsePriceSourceFlag)
+    .option(
+      '--price-source <store>',
+      t('help.initSite.priceSource'),
+      priceSourceFlagParser('--price-source'),
+    )
     .option('--overwrite-readme', t('help.initSite.overwriteReadme'))
     .option('--no-overwrite-readme', t('help.initSite.noOverwriteReadme'))
     .option('--skills', t('help.initSite.skills'))
@@ -362,7 +385,11 @@ export function registerInitSiteCommand(program: Command): void {
  * anything is written — like every other missing flag.
  */
 function requireSkillsDecision(options: InitSiteCommandOptions): void {
-  if (options.skills === undefined) requireInteractive('--skills or --no-skills')
+  if (options.skills === undefined)
+    requireInteractive('cli.prompt.subject.passEither', {
+      first: '--skills',
+      second: '--no-skills',
+    })
 }
 
 /** True when any flag that configures a fresh init was passed. */
@@ -462,7 +489,7 @@ async function runInitSite(options: InitSiteCommandOptions): Promise<void> {
         console.log(t('cli.initSite.alreadyCurrent'))
         return
       default:
-        outcome satisfies never
+        assertNever(outcome)
     }
     return
   }
@@ -566,7 +593,7 @@ async function resolveInitPriceSource(
   options: InitSiteCommandOptions,
 ): Promise<PriceSource | null> {
   if (options.priceSource !== undefined) return options.priceSource
-  requireInteractive('--price-source <store>')
+  requireFlag('--price-source <store>')
   return promptDefaultPriceSource()
 }
 
@@ -595,7 +622,7 @@ async function promptDefaultPriceSource(): Promise<PriceSource | null> {
 async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteConfig | null> {
   let ciSystem = options.ci
   if (ciSystem === undefined) {
-    requireInteractive('--ci <system>')
+    requireFlag('--ci <system>')
     const picked = await ask<CISystem>({
       type: 'select',
       message: t('cli.initSite.promptCi'),
@@ -637,7 +664,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   let deployMode = options.deploy
   if (deployMode === undefined) {
-    requireInteractive('--deploy <mode>')
+    requireFlag('--deploy <mode>')
     const picked = await ask<DeployMode>({
       type: 'select',
       message: t('cli.initSite.promptDeploy'),
@@ -676,7 +703,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
     let distDir = options.distDir
     if (distDir === undefined) {
-      requireInteractive('--dist-dir <dir>')
+      requireFlag('--dist-dir <dir>')
       const typed = await ask<string>({
         type: 'text',
         message: t('cli.initSite.promptDistDir'),
@@ -702,7 +729,7 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
 
   const detectChanges = await resolveConfirmFlag(
     options.changeDetection,
-    '--change-detection/--no-change-detection',
+    { first: '--change-detection', second: '--no-change-detection' },
     'cli.initSite.promptChangeDetection',
   )
   if (detectChanges === null) return null
@@ -710,18 +737,21 @@ async function resolveConfig(options: InitSiteCommandOptions): Promise<InitSiteC
   return { ciSystem, deployMode, distDir: 'dist', detectChanges }
 }
 
+/** A `--x` / `--no-x` flag pair, spelled as typed. */
+type FlagPair = MessageParams<'cli.prompt.subject.passEither'>
+
 /**
  * Resolve a yes/no setting from its flag pair, else a default-no confirm
  * prompt. When prompts are unavailable and the flag is unset, a usage error
- * names `flags`. Returns null when the prompt is cancelled.
+ * names the pair. Returns null when the prompt is cancelled.
  */
 async function resolveConfirmFlag(
   value: boolean | undefined,
-  flags: string,
+  flags: FlagPair,
   message: MessageKey,
 ): Promise<boolean | null> {
   if (value !== undefined) return value
-  requireInteractive(flags)
+  requireInteractive('cli.prompt.subject.passEither', flags)
   const answer = await ask<boolean>({ type: 'confirm', message: t(message), initial: false })
   if (answer === undefined) {
     console.error(t('cli.initSite.cancelled'))
@@ -788,10 +818,12 @@ export function printGitignoreRefresh(
   }
   if (result.committedDir !== null && result.covering.length > 0) {
     console.warn(
-      t('cli.initSite.gitignoreStillIgnores', {
-        dir: result.committedDir,
-        patterns: result.covering.join(', '),
-      }),
+      renderSyncMessage(
+        syncRef('cli.initSite.gitignoreStillIgnores', {
+          dir: result.committedDir,
+          patterns: syncList(result.covering, 'unit'),
+        }),
+      ),
     )
   }
 }

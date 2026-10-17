@@ -53,8 +53,8 @@ export const COMMANDS_WITH_ID_BACKFILL = [
   'import',
   'import-account',
   'import-changes',
-  'deck-sync pull',
-  'deck-sync push',
+  'deck-sync pull', // i18n-exempt: commander command path, matched against the invoked command
+  'deck-sync push', // i18n-exempt: commander command path, matched against the invoked command
   'collection-sync',
   // Rewrites every list file into canonical form.
   'cleanup',

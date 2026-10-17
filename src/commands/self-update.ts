@@ -18,7 +18,7 @@ import {
 } from '../update/self-update'
 import { ExitCode, getErrorMessage } from '../util/errors'
 import { fileExists } from '../util/fs'
-import { isNoInput, requireInteractive } from '../util/no-input'
+import { isNoInput, requireFlag } from '../util/no-input'
 import { isParseError } from '../util/parse-error'
 
 /**
@@ -62,7 +62,7 @@ function reportCheck(plan: UpdatePlan): void {
 /** Whether the user agreed to the install; `--yes` agrees up front. */
 async function confirmInstall(plan: UpdatePlan, yes: boolean): Promise<boolean> {
   if (yes) return true
-  requireInteractive('--yes')
+  requireFlag('--yes')
   const confirmed = await ask<boolean>({
     type: 'confirm',
     message: t(

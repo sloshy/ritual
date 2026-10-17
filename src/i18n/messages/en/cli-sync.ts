@@ -242,6 +242,8 @@ export const cliSyncMessages = {
     'Failed to read the git diff between {commit} and HEAD in {dir}',
   'cli.detectChanges.gitReadFailed': 'Failed to read {file} at {commit} in {dir}',
   'cli.detectChanges.gitMissing': 'git is not installed or not on PATH',
+  'cli.detectChanges.gitDetail': '{failure}\n  git: {detail}',
+  'cli.detectChanges.failureReason': '{failure}: {reason}',
   'cli.detectChanges.notGitRepo':
     'Not a git repository: {path}\n  Detection reads git history. Use "ritual detect-changes --hash-only" to stamp .sha256 sidecars without git.',
   'cli.detectChanges.resolveRefFailed': 'Failed to resolve {commit}',
@@ -258,6 +260,11 @@ export const cliSyncMessages = {
 
   // ── `detect-changes` — sidecar modes ──────────────────────────────────
   'cli.detectChanges.noListFiles': 'No list files found.',
+  'cli.detectChanges.hashLine': {
+    $select: 'mode',
+    dryRun: '[dry-run] {file}: {hash}',
+    applied: '{file}: {hash}',
+  },
   'cli.detectChanges.stampWarning': {
     $select: 'mode',
     dryRun:
@@ -270,6 +277,7 @@ export const cliSyncMessages = {
     dryRun: 'Would stamp {count}.',
     applied: 'Stamped {count}.',
   },
+  'cli.detectChanges.verifyLine': '{file}: {state}',
   'cli.detectChanges.verifySummary':
     '{files}: {clean} clean, {diverged} diverged, {missing} without a sidecar.',
   'cli.detectChanges.verifyAdvice':

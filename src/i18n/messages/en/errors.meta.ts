@@ -10,15 +10,15 @@ export const errorsMeta = {
   },
   'errors.enum.invalid': {
     description:
-      'Rejection of an unknown value for a fixed-choice option. {field} is the option name, {value} what the user typed, {choices} a comma-joined list. All three are English identifiers and must not be translated.',
+      'Rejection of an unknown value for a fixed-choice option. {field} names where the value was given, spelled exactly as typed there — a CLI flag or argument (`--format`, `<direction>`) or a request-body field (`finish`); {value} is what the user typed; {choices} is a comma-joined list of the accepted values. All three are identifiers and must not be translated.',
   },
   'errors.enum.type': {
     description:
       'Rejection of a non-string value for a fixed-choice field (an HTTP body sending a number where an enum was expected). {field} is the field name and {choices} a comma-joined list; both are English identifiers.',
   },
-  'errors.enum.fieldPriceSource': {
+  'errors.invariant.unhandled': {
     description:
-      'The noun naming a price-store flag value (`price --source`, `init-site --price-source`) inside an "Invalid <field> …" error.',
+      'An internal consistency failure: an exhaustive switch met a value none of its cases handles (a programming error, not a user mistake). {value} is that value as raw data — a quoted token, an object’s kind, or JSON, capped at 200 characters — and is never translated.',
   },
 
   'errors.label.exclusive': {

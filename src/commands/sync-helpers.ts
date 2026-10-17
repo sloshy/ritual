@@ -31,12 +31,12 @@ import { renderSyncMessage } from '../sync/message'
 
 /** Commander argParser for the `<direction>` positional: only push/pull are valid. */
 export function parseSyncDirection(value: string): SyncDirection {
-  return parseEnumFlag(value, SYNC_DIRECTIONS, 'direction')
+  return parseEnumFlag(value, SYNC_DIRECTIONS, '<direction>')
 }
 
 /** Commander argParser for `--only`: additions or removals, nothing else. */
 export function parseSyncChangeFilter(value: string): SyncChangeFilter {
-  return parseEnumFlag(value, SYNC_CHANGE_FILTERS, 'change filter')
+  return parseEnumFlag(value, SYNC_CHANGE_FILTERS, '--only')
 }
 
 /**
@@ -168,7 +168,7 @@ export async function requireArchidektSession(
 }
 
 /** What a sync command calls the things it syncs, for the messages below. */
-export type UnreadableSubject = 'decks' | 'collectionLists'
+export type UnreadableSubject = SyncSubject
 
 /**
  * The three sentences the unreadable-line gate says, once per subject.

@@ -490,6 +490,14 @@ export const cliSyncMeta = {
     description:
       'How many changelog entries a file is getting; the entries themselves are listed underneath. English does not inflect the noun here.',
   },
+  'cli.detectChanges.gitDetail': {
+    description:
+      'A git operation detect-changes ran failed. {failure} is the already-worded sentence naming the operation (e.g. "Failed to resolve HEAD~1"); {detail} is git\'s own first stderr line, verbatim and untranslated. "git" labels the program and is a command name. Keep the line break and the indented second line.',
+  },
+  'cli.detectChanges.failureReason': {
+    description:
+      'A detect-changes step failed with an error that is not git\'s. {failure} is the already-worded sentence naming the step (e.g. "Failed to detect changes"); {reason} is the underlying error message.',
+  },
   'cli.detectChanges.gitProbeFailed': {
     description:
       'Prefix for a failure to even ask git whether this is a repository. git’s own detail follows on the next line.',
@@ -550,6 +558,10 @@ export const cliSyncMeta = {
     description:
       'Shared by --hash-only and --verify: there are no decks, collections, or wanted lists.',
   },
+  'cli.detectChanges.hashLine': {
+    description:
+      'One line per list file under --hash-only. {file} is the workspace-relative path and {hash} its SHA-256 hex digest, both verbatim. Branch "dryRun" marks the preview (nothing was written); "applied" is the line once the sidecar was stamped. Keep the file:hash shape.',
+  },
   'cli.detectChanges.stampWarning': {
     description:
       'Essential data-loss warning: stamping a diverged file declares its edits already recorded, so they will never get changelog entries. The affected files are listed underneath. Branch "dryRun" is the preview, "applied" the wording once files were stamped. Begins lowercase: rendered under a ⚠️ marker.',
@@ -557,6 +569,10 @@ export const cliSyncMeta = {
   'cli.detectChanges.stamped': {
     description:
       'Closing tally of --hash-only. Branch "dryRun" is the preview, "applied" the wording once files were stamped.',
+  },
+  'cli.detectChanges.verifyLine': {
+    description:
+      'One line per list file under --verify. {file} is the workspace-relative path, verbatim; {state} is its sidecar state, already worded (clean, diverged, or without a sidecar).',
   },
   'cli.detectChanges.verifySummary': {
     description:

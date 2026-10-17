@@ -205,7 +205,7 @@ export function registerMoveCommand(program: Command): void {
 async function runInteractiveMove(sourceFilterPath: string | undefined): Promise<void> {
   // The session is prompt-driven end to end; without a terminal (or with
   // prompts disabled via --no-input) the only path is the headless one.
-  requireInteractive('--from and --to')
+  requireInteractive('cli.prompt.subject.passBoth', { first: '--from', second: '--to' })
   console.log(t('cli.move.loadingLists'))
   const allLists = await loadAllLists()
 

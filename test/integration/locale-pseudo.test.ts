@@ -61,6 +61,15 @@ async function pseudoText(key: string): Promise<string> {
   return value
 }
 
+/** One branch of a `$select` / `$plural` message in the pseudo catalog. */
+async function pseudoBranch(key: string, branch: string): Promise<string> {
+  const value = (await pseudo())[key]
+  if (typeof value !== 'object' || value === null || !(branch in value)) {
+    throw new Error(`${key} has no ${branch} branch in the ${PSEUDO} catalog`)
+  }
+  return String((value as Record<string, unknown>)[branch])
+}
+
 /**
  * Collapse every whitespace run to a single space.
  *
@@ -891,6 +900,118 @@ describe('pseudo-locale (Integration)', () => {
       })
       expect(String(payload.warnings[0]?.message)).toStartWith('target: ')
       expect(String(payload.warnings[0]?.message)).toContain('not a card line')
+    })
+  })
+
+  test('detect-changes --hash-only words its dry-run lines in the CLI’s language, the payload untouched', async () => {
+    await withTempDir(async (dir) => {
+      await writeDeckFile(dir, 'pseudo', {
+        sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
+      })
+      const file = path.join('decks', 'pseudo.md')
+      const args = ['detect-changes', '--hash-only', '--dry-run']
+
+      const text = await runCli(args, dir, PSEUDO_ENV)
+      expect(text.exitCode).toBe(0)
+      // The path and the digest are data; the frame around them is the catalog's.
+      const [lead = ''] = (await pseudoBranch('cli.detectChanges.hashLine', 'dryRun'))
+        .replace('{file}', file)
+        .split('{hash}')
+      expect(lead).not.toBe(`${file}: `)
+      expect(text.stdout).toContain(lead)
+      expect(text.stdout).not.toContain(`[dry-run] ${file}`)
+      const count = (await pseudoBranch('domain.count.files', 'one')).replace('{count}', '1')
+      const summary = (await pseudoBranch('cli.detectChanges.stamped', 'dryRun')).replace(
+        '{count}',
+        count,
+      )
+      expect(text.stdout).toContain(summary)
+
+      // The payload carries no prose: the same bytes whatever the CLI speaks.
+      const english = await runCli([...args, '--output', 'json'], dir, LOCALE_ENV)
+      const translated = await runCli([...args, '--output', 'json'], dir, PSEUDO_ENV)
+      expect(english.exitCode).toBe(0)
+      expect(translated.exitCode).toBe(0)
+      const payload: unknown = JSON.parse(english.stdout)
+      expect(payload).toMatchObject({ mode: 'hash-only', dryRun: true, stamped: [{ file }] })
+      expect(JSON.parse(translated.stdout)).toEqual(payload)
+    })
+  })
+
+  describe('export joins conflicting flags the way the CLI’s language lists them', () => {
+    const TWO = ['--columns', 'name', '--no-header']
+    const THREE = [...TWO, '--quote-all']
+    const DE_ENV: Record<string, string | undefined> = { ...LOCALE_ENV, RITUAL_LOCALE: 'de' }
+    const frame = en['cli.export.formatFlagConflict']
+
+    /** The refusal `export --format text` prints for these flags, under `env`. */
+    async function refusalFor(
+      flags: string[],
+      env: Record<string, string | undefined>,
+    ): Promise<string> {
+      let stderr = ''
+      await withTempDir(async (dir) => {
+        const result = await runCli(['export', '--all', '--format', 'text', ...flags], dir, env)
+        expect(result.exitCode).toBe(2)
+        stderr = unwrap(result.stderr)
+      })
+      return stderr
+    }
+
+    test.each([
+      ['two flags', TWO, '--columns and --no-header'],
+      ['three flags', THREE, '--columns, --no-header, and --quote-all'],
+    ])('in English, %s', async (_name, flags, joined) => {
+      const stderr = await refusalFor(flags, LOCALE_ENV)
+      expect(stderr).toContain(
+        unwrap(frame.replace('{flags}', joined).replaceAll('{format}', 'text')),
+      )
+    })
+
+    test.each([
+      ['two flags', TWO, '--columns und --no-header'],
+      ['three flags', THREE, '--columns, --no-header und --quote-all'],
+    ])('in German, which has no dictionary, %s', async (_name, flags, joined) => {
+      // No German catalog: the frame stays English, but the list is German's.
+      const stderr = await refusalFor(flags, DE_ENV)
+      expect(stderr).toContain(
+        unwrap(frame.replace('{flags}', joined).replaceAll('{format}', 'text')),
+      )
+    })
+
+    test('in the pseudo-locale, the frame is the catalog’s and the flags stay as typed', async () => {
+      const stderr = await refusalFor(THREE, PSEUDO_ENV)
+      const expected = (await pseudoText('cli.export.formatFlagConflict'))
+        .replace('{flags}', '--columns, --no-header, and --quote-all')
+        .replaceAll('{format}', 'text')
+      expect(stderr).toContain(unwrap(expected))
+    })
+  })
+
+  test('a --no-input refusal is worded in the CLI’s language, its envelope params English', async () => {
+    await withTempDir(async (dir) => {
+      await writeDeckFile(dir, 'pseudo', {
+        sections: [{ name: 'Main', cards: [{ quantity: 1, name: 'Sol Ring' }] }],
+      })
+      const json = await runFailing(['delete', 'deck:pseudo', '--output', 'json'], dir, PSEUDO_ENV)
+      expect(json.error.code).toBe('usage_error')
+      expect(json.error.messageKey).toBe('errors.input.required')
+      // The non-TTY spawn is the reason; both nested parts flatten to English.
+      expect(json.error).toMatchObject({
+        messageParams: {
+          subject: 'pass --confirm <name>',
+          reason: en['cli.prompt.reason.noTty'],
+        },
+      })
+      const subject = (await pseudoText('cli.prompt.subject.pass')).replace(
+        '{what}',
+        '--confirm <name>',
+      )
+      expect(json.error.message).toBe(
+        (await pseudoText('errors.input.required'))
+          .replace('{subject}', subject)
+          .replace('{reason}', await pseudoText('cli.prompt.reason.noTty')),
+      )
     })
   })
 

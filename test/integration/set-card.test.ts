@@ -796,7 +796,7 @@ describe('set-card CLI (Integration)', () => {
       dir,
     )
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain("Invalid finish 'glossy'")
+    expect(result.stderr).toContain("Invalid --finish 'glossy'")
   })
 })
 

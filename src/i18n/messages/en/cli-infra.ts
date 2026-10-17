@@ -439,7 +439,11 @@ export const cliInfraMessages = {
   'cli.admin.serverError': 'Unhandled server error:',
   'cli.admin.setupRequired':
     'No admin account yet. Create it at:\n  {url}\n(or run `ritual admin setup` in this workspace)',
-  'cli.admin.teardownFailed': '{label} teardown failed:',
+  'cli.admin.teardownFailedMcp': 'MCP HTTP server teardown failed:',
+  'cli.admin.teardownFailedAdmin': 'Admin server teardown failed:',
+  'cli.admin.jsBuildFailed': 'Admin SPA JS build failed',
+  'cli.admin.cssBuildFailed': 'Admin SPA CSS build failed',
+  'cli.admin.cssBuildNoOutput': 'Admin SPA CSS build produced no .css output',
   'cli.admin.promptPassword': 'Password',
   'cli.admin.passwordCancelled': 'Password entry cancelled.',
   'cli.admin.usernameTooLong': 'Username is too long',
@@ -561,8 +565,6 @@ export const cliInfraMessages = {
 
   // ── init-site ─────────────────────────────────────────────────────────
   'cli.initSite.cancelled': 'Cancelled.',
-  'cli.initSite.fieldCiSystem': 'CI system',
-  'cli.initSite.fieldDeployMode': 'deploy mode',
   'cli.initSite.distDirRequired': 'Expected a directory path for --dist-dir.',
   'cli.initSite.promptOverwrite': '{path} already exists. Overwrite?',
   'cli.initSite.promptSkills':
@@ -773,7 +775,6 @@ export const cliInfraMessages = {
   // ── price: report output ──────────────────────────────────────────────
   'cli.price.disclaimer':
     '⚠️  Prices are from Scryfall and reflect NM (Near Mint) market values. Card condition can significantly decrease actual value.',
-  'cli.price.fieldSort': 'sort field',
   'cli.price.pricingList': {
     $select: 'type',
     deck: 'Pricing deck "{name}"{suffix}',

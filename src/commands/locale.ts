@@ -207,6 +207,7 @@ async function offerDetectedLocale(
     emitOutput(
       t('cli.locale.detectNoPrompt', {
         reason: promptsUnavailableReason(),
+        // i18n-exempt: a command line for the user to type, spelled as the CLI parses it
         command: `ritual config set uiLocale ${detected}`,
       }),
       scripting,

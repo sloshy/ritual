@@ -10,7 +10,8 @@ export const errorMessages = {
   'errors.input.required': 'Input required: {subject} ({reason}).',
   'errors.enum.invalid': "Invalid {field} '{value}'. Use one of: {choices}.",
   'errors.enum.type': '{field} must be one of: {choices}.',
-  'errors.enum.fieldPriceSource': 'price store',
+  'errors.invariant.unhandled':
+    'Internal error: no case handles the value {value}. This is a bug in Ritual.',
   'errors.label.exclusive': "'{label}' cannot be combined with other labels.",
   'errors.label.contradictory': "'{label}' cannot be both set and negated on one card.",
   'errors.label.emptyPart': 'Labels must be a comma-separated list of: {choices}.',

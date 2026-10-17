@@ -95,9 +95,12 @@ export function parsedFlag<T extends NotAMessage<T> & NotAString<T>>(
   }
 }
 
-/** Commander argParser for a price-store flag (`price --source`, `init-site --price-source`). */
-export function parsePriceSourceFlag(value: string): PriceSource {
-  return parseEnumFlag(value.trim(), VALID_PRICE_SOURCES, t('errors.enum.fieldPriceSource'))
+/**
+ * Commander argParser for a price-store flag (`price --source`, `init-site
+ * --price-source`), refusing an unknown store under the flag's own spelling.
+ */
+export function priceSourceFlagParser(flag: string): (value: string) => PriceSource {
+  return (value) => parseEnumFlag(value.trim(), VALID_PRICE_SOURCES, flag)
 }
 
 /** Commander argParser for port options: reject non-numeric and out-of-range values at parse time. */
@@ -142,7 +145,7 @@ export function addOutputOption(
   return command.option(
     '--output <format>',
     t('help.global.output', { formats: formats.join(', ') }),
-    (value) => parseEnumFlag(value, formats, 'output format'),
+    (value) => parseEnumFlag(value, formats, '--output'),
     defaultOutput,
   )
 }
@@ -185,7 +188,7 @@ export const REFRESH_OPTION_NAME = 'refresh'
 
 /** Parse a `--refresh <mode>` value, rejecting anything but the four modes. */
 export function parseRefreshFlag(value: string): RefreshMode {
-  return parseEnumFlag(value, REFRESH_MODES, 'refresh mode')
+  return parseEnumFlag(value, REFRESH_MODES, '--refresh')
 }
 
 /**

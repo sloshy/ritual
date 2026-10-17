@@ -179,7 +179,7 @@ export const adminMeta = {
   },
   'admin.layout.title': {
     description:
-      'Product name in the admin header and mobile menu. A brand name — leave untranslated unless the product is renamed in your language.',
+      "Product name in the admin header and mobile menu, and the admin page's browser-tab title. A brand name — leave untranslated unless the product is renamed in your language.",
   },
   'admin.layout.logout': { description: 'Button that ends the admin session.' },
   'admin.layout.toggleMenu': {

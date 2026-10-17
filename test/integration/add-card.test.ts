@@ -138,7 +138,7 @@ describe('add-card CLI (Integration)', () => {
         dir,
       )
       expect(result.exitCode).toBe(2)
-      expect(result.stderr).toContain('Invalid finish')
+      expect(result.stderr).toContain('Invalid --finish')
       expect(result.stderr).toContain('nonfoil, foil, etched')
     })
 

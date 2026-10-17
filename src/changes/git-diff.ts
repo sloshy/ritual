@@ -4,7 +4,13 @@ import { getBaseDir } from '../config/base-dir'
 import { getCollectionsDir, getDecksDir, getWantedDir } from '../config/ritual-config'
 import { hasErrorCode } from '../util/errors'
 import { CATEGORIES_SIDECAR_SUFFIX } from '../list/card-categories-sidecar'
-import { t } from '../i18n/t'
+import {
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../sync/message'
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -78,16 +84,26 @@ export function cleanGitEnv(): Record<string, string | undefined> {
 }
 
 /**
+ * What follows `git:` under a failed operation: git's own first stderr line,
+ * verbatim, or — when git never ran — Ritual's note saying why.
+ */
+export type GitDetail = string | SyncMessageRef
+
+/**
  * A failed `git` subprocess, wrapped with what Ritual was trying to do. Raw git
  * stderr alone ("error: Could not access 'HEAD~1'") never says which Ritual
- * operation failed or on what, so callers report {@link message} first and keep
- * {@link gitDetail} as a secondary line.
+ * operation failed or on what, so callers report the operation (this error's
+ * message) first and keep {@link gitDetail} as a secondary line.
+ *
+ * The operation is a message — English plus its key — so `detect-changes` can
+ * word it in the CLI's language and still hand `--output json` the key.
  */
-export class GitCommandError extends Error {
-  readonly gitDetail: string | null
+export class GitCommandError extends SyncMessageError {
+  /** git's own detail, or null when git exited silently (a `--quiet` probe's "no"). */
+  readonly gitDetail: GitDetail | null
 
-  constructor(message: string, gitDetail: string | null) {
-    super(message)
+  constructor(operation: SyncMessage, gitDetail: GitDetail | null) {
+    super(operation)
     this.name = 'GitCommandError'
     this.gitDetail = gitDetail
   }
@@ -109,10 +125,9 @@ export function gitStderrSummary(error: unknown): string | null {
 /**
  * Run `git` and return its stdout, converting any failure into a
  * {@link GitCommandError} carrying `operation` as the human-facing message —
- * worded by the caller in the CLI's UI language (`detect-changes` is the only
- * consumer), and only when the command fails.
+ * built only when the command fails.
  */
-function runGit(args: readonly string[], cwd: string, operation: () => string): string {
+function runGit(args: readonly string[], cwd: string, operation: () => SyncMessage): string {
   try {
     return execFileSync('git', [...args], {
       cwd,
@@ -124,7 +139,9 @@ function runGit(args: readonly string[], cwd: string, operation: () => string): 
     // A spawn failure produces no stderr at all, so name the one cause worth
     // naming; every other silent failure stays `null` (a probe reads that as
     // git's own quiet "no").
-    const spawnFailure = hasErrorCode(error, 'ENOENT') ? t('cli.detectChanges.gitMissing') : null
+    const spawnFailure = hasErrorCode(error, 'ENOENT')
+      ? syncRef('cli.detectChanges.gitMissing')
+      : null
     throw new GitCommandError(operation(), gitStderrSummary(error) ?? spawnFailure)
   }
 }
@@ -151,12 +168,12 @@ const NOT_A_REPO_PATTERN = /^fatal: not a git repository/i
 export function probeGitRepository(cwd: string): GitProbeResult {
   try {
     runGit(['rev-parse', '--git-dir'], cwd, () =>
-      t('cli.detectChanges.gitRepoCheckFailed', { dir: cwd }),
+      syncMessage('cli.detectChanges.gitRepoCheckFailed', { dir: cwd }),
     )
     return { ok: true, present: true }
   } catch (error) {
     if (!(error instanceof GitCommandError)) throw error
-    if (error.gitDetail !== null && NOT_A_REPO_PATTERN.test(error.gitDetail)) {
+    if (typeof error.gitDetail === 'string' && NOT_A_REPO_PATTERN.test(error.gitDetail)) {
       return { ok: true, present: false }
     }
     return { ok: false, error }
@@ -173,7 +190,7 @@ export function probeGitRepository(cwd: string): GitProbeResult {
 export function probeGitRef(commit: string, cwd: string): GitProbeResult {
   try {
     runGit(['rev-parse', '--verify', '--quiet', `${commit}^{commit}`], cwd, () =>
-      t('cli.detectChanges.gitResolveFailed', { commit, dir: cwd }),
+      syncMessage('cli.detectChanges.gitResolveFailed', { commit, dir: cwd }),
     )
     return { ok: true, present: true }
   } catch (error) {
@@ -193,7 +210,7 @@ export function probeGitRef(commit: string, cwd: string): GitProbeResult {
  */
 export function getChangedFiles(commit: string, cwd: string): FileChange[] {
   const raw = runGit(['diff', '--name-status', '-M', commit, 'HEAD'], cwd, () =>
-    t('cli.detectChanges.gitDiffFailed', { commit, dir: cwd }),
+    syncMessage('cli.detectChanges.gitDiffFailed', { commit, dir: cwd }),
   )
 
   return parseNameStatus(raw)
@@ -253,6 +270,6 @@ export function parseNameStatus(raw: string): FileChange[] {
  */
 export function getFileAtCommit(commit: string, filePath: string, cwd: string): string {
   return runGit(['show', `${commit}:${filePath}`], cwd, () =>
-    t('cli.detectChanges.gitReadFailed', { file: filePath, commit, dir: cwd }),
+    syncMessage('cli.detectChanges.gitReadFailed', { file: filePath, commit, dir: cwd }),
   )
 }

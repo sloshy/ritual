@@ -55,7 +55,7 @@ import {
   runCommandAction,
 } from '../cli/action'
 import { parseEnumField } from '../util/parse-enum'
-import { isSyncMessage } from '../sync/message'
+import { isSyncMessage, syncList, syncMessage } from '../sync/message'
 import { exportWarningLine, runExportWizard } from './export-wizard'
 import { t } from '../i18n/t'
 
@@ -135,7 +135,7 @@ export function shouldRunExportInteractive(
 function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | undefined {
   const filters: ExportFilters = { name: options.name, set: options.set }
   if (options.finish !== undefined) {
-    const finish = parseEnumField(options.finish, VALID_FINISHES, 'finish')
+    const finish = parseEnumField(options.finish, VALID_FINISHES, '--finish')
     if (!finish.ok) {
       failWith(TEXT_ONLY, 'usage_error', finish.message, {
         key: finish.messageKey,
@@ -193,7 +193,7 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
 
   let dialect: ExportDialect | undefined
   if (options.dialect !== undefined) {
-    const parsed = parseEnumField(options.dialect, EXPORT_DIALECTS, 'dialect')
+    const parsed = parseEnumField(options.dialect, EXPORT_DIALECTS, '--dialect')
     if (!parsed.ok) {
       failWith(TEXT_ONLY, 'usage_error', parsed.message, {
         key: parsed.messageKey,
@@ -222,10 +222,14 @@ function parseExportFlags(options: ExportCommandOptions): ParsedExportFlags | un
       conflicting.push('--dialect')
     }
     if (conflicting.length > 0) {
-      fail(TEXT_ONLY, 'usage_error', 'cli.export.formatFlagConflict', {
-        flags: conflicting.join(' and '),
-        format,
-      })
+      failWithMessage(
+        TEXT_ONLY,
+        'usage_error',
+        syncMessage('cli.export.formatFlagConflict', {
+          flags: syncList(conflicting, 'and'),
+          format,
+        }),
+      )
       return undefined
     }
   }
@@ -392,7 +396,7 @@ export function registerExportCommand(program: Command): void {
       .option(
         '--format <format>',
         t('help.export.format', { formats: EXPORT_FORMATS.join(', ') }),
-        (value: string) => parseEnumFlag(value, EXPORT_FORMATS, 'export format'),
+        (value: string) => parseEnumFlag(value, EXPORT_FORMATS, '--format'),
       )
       .option(
         '--columns <list>',
@@ -421,12 +425,7 @@ export function registerExportCommand(program: Command): void {
         return
       }
       if (!hasExportRunSignal(flags, listArgs)) {
-        failWith(
-          TEXT_ONLY,
-          'usage_error',
-          t('cli.export.wizardNeedsTerminal'),
-          'cli.export.wizardNeedsTerminal',
-        )
+        fail(TEXT_ONLY, 'usage_error', 'cli.export.wizardNeedsTerminal')
         return
       }
       await runFlagExport(listArgs, type, flags)

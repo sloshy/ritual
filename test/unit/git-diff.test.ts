@@ -7,6 +7,9 @@ import {
   GitCommandError,
 } from '../../src/changes/git-diff'
 import { describeGitFailure } from '../../src/commands/detect-changes'
+import { tDynamic } from '../../src/i18n/t'
+import { renderSyncMessage, syncMessage } from '../../src/sync/message'
+import { pseudoCatalog, withSyntheticLocale } from '../helpers/sync-text'
 
 describe('parseNameStatus', () => {
   test('parses modified deck file', () => {
@@ -176,22 +179,69 @@ describe('gitStderrSummary', () => {
 })
 
 describe('describeGitFailure', () => {
+  const readFailed = syncMessage('cli.detectChanges.gitReadFailed', {
+    file: 'decks/a.md',
+    commit: 'HEAD~1',
+    dir: '/repo',
+  })
+
   test('reports the Ritual operation first and git detail on a second line', () => {
-    const error = new GitCommandError('Failed to read decks/a.md at HEAD~1', 'fatal: bad object')
-    expect(describeGitFailure(error, 'unused prefix')).toBe(
-      'Failed to read decks/a.md at HEAD~1\n  git: fatal: bad object',
+    const failure = describeGitFailure(
+      new GitCommandError(readFailed, 'fatal: bad object'),
+      syncMessage('cli.detectChanges.detectFailed'),
     )
+    expect(failure.message).toBe(
+      'Failed to read decks/a.md at HEAD~1 in /repo\n  git: fatal: bad object',
+    )
+    expect(failure.messageKey).toBe('cli.detectChanges.gitDetail')
   })
 
   test('omits the git line when git gave no detail', () => {
-    expect(describeGitFailure(new GitCommandError('Failed to resolve HEAD~1', null), 'p')).toBe(
-      'Failed to resolve HEAD~1',
+    const failure = describeGitFailure(
+      new GitCommandError(readFailed, null),
+      syncMessage('cli.detectChanges.detectFailed'),
     )
+    expect(failure).toEqual(readFailed)
   })
 
   test('falls back to the prefix for a non-git error', () => {
-    expect(describeGitFailure(new Error('EACCES'), 'Failed to detect changes')).toBe(
-      'Failed to detect changes: EACCES',
+    const failure = describeGitFailure(
+      new Error('EACCES'),
+      syncMessage('cli.detectChanges.detectFailed'),
     )
+    expect(failure.message).toBe('Failed to detect changes: EACCES')
+    expect(failure.messageKey).toBe('cli.detectChanges.failureReason')
+  })
+
+  test('words both branches in the UI language, git’s own detail verbatim', () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      const withDetail = renderSyncMessage(
+        describeGitFailure(
+          new GitCommandError(readFailed, 'fatal: bad object'),
+          syncMessage('cli.detectChanges.detectFailed'),
+        ),
+        locale,
+      )
+      const operation = renderSyncMessage(readFailed, locale)
+      expect(operation).not.toBe(readFailed.message)
+      expect(withDetail).toBe(
+        tDynamic(locale, 'cli.detectChanges.gitDetail', {
+          failure: operation,
+          detail: 'fatal: bad object',
+        }),
+      )
+      expect(withDetail).toContain('fatal: bad object')
+
+      const fallback = renderSyncMessage(
+        describeGitFailure(new Error('EACCES'), syncMessage('cli.detectChanges.detectFailed')),
+        locale,
+      )
+      expect(fallback).toBe(
+        tDynamic(locale, 'cli.detectChanges.failureReason', {
+          failure: tDynamic(locale, 'cli.detectChanges.detectFailed'),
+          reason: 'EACCES',
+        }),
+      )
+    })
   })
 })

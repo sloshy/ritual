@@ -671,7 +671,7 @@ describe('collection-sync CLI arguments (Integration)', () => {
     const result = await runCli(['collection-sync', 'sideways'], workspace, OFFLINE_ENV)
 
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain("Invalid direction 'sideways'")
+    expect(result.stderr).toContain("Invalid <direction> 'sideways'")
     expect(result.stderr).toContain('Use one of: push, pull.')
   })
 
@@ -683,7 +683,7 @@ describe('collection-sync CLI arguments (Integration)', () => {
     )
 
     expect(result.exitCode).toBe(2)
-    expect(result.stderr).toContain("Invalid change filter 'adds'")
+    expect(result.stderr).toContain("Invalid --only 'adds'")
   })
 
   test('--yes is a recognized flag', async () => {

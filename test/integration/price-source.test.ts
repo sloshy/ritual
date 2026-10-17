@@ -118,6 +118,6 @@ describe('price --source (Integration)', () => {
   test('an unknown store is rejected at parse time', async () => {
     const result = await runCli(['price', '--source', 'ebay'], dir, OFFLINE_ENV)
     expect(result.exitCode).toBe(2)
-    expect(result.stderr.toLowerCase()).toContain('price store')
+    expect(result.stderr).toContain("Invalid --source 'ebay'")
   })
 })

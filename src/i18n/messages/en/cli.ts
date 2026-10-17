@@ -20,6 +20,14 @@ export const cliMessages = {
   'cli.prompt.reason.noTty': 'no terminal available for prompts',
   'cli.prompt.subject.pass': 'pass {what}',
   'cli.prompt.subject.interactiveInput': 'interactive input',
+  'cli.prompt.subject.passListName': 'pass a list name',
+  'cli.prompt.subject.passEither': 'pass {first} or {second}',
+  'cli.prompt.subject.passBoth': 'pass {first} and {second}',
+  'cli.prompt.subject.noInteractiveEditor':
+    'the interactive editor is unavailable — use the one-shot commands (add-card, remove-card, set-card, note, move) to edit lists from scripts',
+  'cli.prompt.subject.noHistoryEditor':
+    'the interactive history editor is unavailable — use --show to print the change history from a script',
+  'cli.prompt.subject.passCardOrId': 'pass a card name or {flag}',
   'cli.prompt.subject.listType': 'the kind of list to import into',
   'cli.prompt.subject.deckSection': 'the deck section to move into',
   'cli.prompt.subject.moveDestination': 'the list to move the cards into',
@@ -129,6 +137,7 @@ export const cliMessages = {
   'cli.session.loadedPrintings': 'Loaded {count} printings.',
   'cli.session.filtersUpdated': 'Session filters updated.',
   'cli.session.changesSaved': 'Changes saved.',
+  'cli.session.multiListSave': 'A multi-list session must be saved one open list at a time.',
   'cli.session.changelogSaved': 'Changelog saved.',
   'cli.session.artSidecarUnreadable':
     "⚠️  A list's custom art was left as it is — it could not be read: {reason}",

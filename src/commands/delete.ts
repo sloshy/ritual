@@ -14,7 +14,7 @@ import { t } from '../i18n/t'
 import { addListTypeFlags, resolveListTypeFlag, addScriptingOptions } from '../cli/options'
 import { resolveListSelection } from './card-target'
 import { cancelledError, runCommandAction, lifecycleErrorToCommandError } from '../cli/action'
-import { requireInteractive } from '../util/no-input'
+import { requireFlag } from '../util/no-input'
 import { workspaceRelative } from '../config/base-dir'
 import { ask } from '../cli/prompts'
 import {
@@ -67,7 +67,7 @@ export async function runDelete(
   let confirmed = confirm
   if (confirmed === undefined) {
     // Deletion is destructive: without a terminal, --confirm is mandatory.
-    requireInteractive('--confirm "<list name>"')
+    requireFlag('--confirm <name>')
     // <list> resolves by substring and by folded name, so what the user typed
     // need not be what they are about to destroy. Name the resolved target
     // *before* asking — a mismatch error after the fact is too late to be

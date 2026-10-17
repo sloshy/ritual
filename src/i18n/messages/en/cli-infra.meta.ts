@@ -746,9 +746,25 @@ export const cliInfraMeta = {
     description:
       'Printed at startup while no admin account exists. {url} is the setup link carrying the one-time setup token; the account can only be created through it (or the `ritual admin setup` command, kept verbatim).',
   },
-  'cli.admin.teardownFailed': {
+  'cli.admin.teardownFailedMcp': {
     description:
-      'One of the listeners refused to close on shutdown. {label} names it; the reason follows on the same line.',
+      'On shutdown, the embedded MCP HTTP listener refused to close (its port may stay bound). The reason follows on the same line.',
+  },
+  'cli.admin.teardownFailedAdmin': {
+    description:
+      'On shutdown, the admin web server refused to close (its port may stay bound). The reason follows on the same line.',
+  },
+  'cli.admin.jsBuildFailed': {
+    description:
+      'Startup failure: bundling the admin web app\'s JavaScript failed. The bundler\'s own diagnostics are printed above it. "SPA" is the single-page web app; JS and CSS are file kinds.',
+  },
+  'cli.admin.cssBuildFailed': {
+    description:
+      "Startup failure: bundling the admin web app's stylesheet failed. The bundler's own diagnostics are printed above it.",
+  },
+  'cli.admin.cssBuildNoOutput': {
+    description:
+      'Startup failure: the admin stylesheet bundle finished but wrote no .css file (".css" is a file extension, kept verbatim).',
   },
   'cli.admin.promptPassword': { description: 'Password prompt of the admin account subcommands.' },
   'cli.admin.passwordCancelled': { description: 'The password prompt was cancelled.' },
@@ -940,13 +956,6 @@ export const cliInfraMeta = {
 
   // ── init-site ─────────────────────────────────────────────────────────
   'cli.initSite.cancelled': { description: 'A prompt was cancelled, so nothing was written.' },
-  'cli.initSite.fieldCiSystem': {
-    description:
-      'The noun naming the --ci value inside an "Invalid <field> …" error. A short noun phrase.',
-  },
-  'cli.initSite.fieldDeployMode': {
-    description: 'The noun naming the --deploy value inside an "Invalid <field> …" error.',
-  },
   'cli.initSite.distDirRequired': { description: '--dist-dir was given an empty value.' },
   'cli.initSite.promptOverwrite': {
     description: 'Confirm prompt before overwriting a generated file. {path} is repo-relative.',
@@ -1009,7 +1018,7 @@ export const cliInfraMeta = {
   'cli.initSite.gitignoreUnchanged': { description: '.gitignore already had every entry.' },
   'cli.initSite.gitignoreStillIgnores': {
     description:
-      'Warning: an existing .gitignore pattern still hides the built site this deploy mode must commit. {patterns} is a comma-separated list of the offending lines.',
+      'Warning: an existing .gitignore pattern still hides the built site this deploy mode must commit. {patterns} lists the offending lines, verbatim, joined the way your language lists independent items (no conjunction).',
   },
   'cli.initSite.nextSteps': { description: 'Header of the closing checklist.' },
   'cli.initSite.stepAddDecks': {
@@ -1377,9 +1386,6 @@ export const cliInfraMeta = {
   // ── price: report output ──────────────────────────────────────────────
   'cli.price.disclaimer': {
     description: 'Footer of every price report. NM is the Near Mint card condition.',
-  },
-  'cli.price.fieldSort': {
-    description: 'The noun naming the --sort value inside an "Invalid <field> …" error.',
   },
   'cli.price.pricingList': {
     description:

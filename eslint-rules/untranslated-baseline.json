@@ -79,10 +79,6 @@
     "Torrent ${…} did not become ready in time": 1,
     "Torrent client error: ${…}": 1
   },
-  "src/cli/options.ts": {
-    "output format": 1,
-    "refresh mode": 1
-  },
   "src/cli/program.ts": {
     "Global Options:": 1
   },
@@ -105,61 +101,6 @@
     "uploadCollectionCsv (chunk ${…})": 1,
     "uploadCollectionCsv: ${…}": 1,
     "uploadCollectionCsv: the CSV could not be read — ${…}": 1
-  },
-  "src/commands/admin.ts": {
-    "Admin": 1,
-    "Admin SPA CSS build failed": 1,
-    "Admin SPA CSS build produced no .css output": 1,
-    "Admin SPA JS build failed": 1,
-    "MCP HTTP": 1
-  },
-  "src/commands/card-target.ts": {
-    "a card name or --card-id <id>": 1,
-    "a list name": 1
-  },
-  "src/commands/detect-changes.ts": {
-    "${…} git: ${…}": 1,
-    "Unknown list kind: ${…}": 1,
-    "{[dry-run] |}${…}: ${…}": 1
-  },
-  "src/commands/export.ts": {
-    "and": 1,
-    "export format": 1
-  },
-  "src/commands/history.ts": {
-    "a list name": 1
-  },
-  "src/commands/id-backfill.ts": {
-    "deck-sync pull": 1,
-    "deck-sync push": 1
-  },
-  "src/commands/init-site.ts": {
-    "# My Ritual Site A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual). ${…} ## Building Install [Ritual](https://github.com/sloshy/ritual) and run: ```sh ${…} ``` The generated site is written to `${…}/`. Deploy it to any static hosting provider.": 1,
-    "# My Ritual Site A Magic: The Gathering deck site built with [Ritual](https://github.com/sloshy/ritual). ${…} ${…} ## Setup Make sure GitHub Pages is enabled in your repository settings: 1. Go to **Settings → Pages** 2. Under **Source**, select **GitHub Actions**": 1,
-    "## Building Install [Ritual](https://github.com/sloshy/ritual) and run: ```sh ${…} ``` The generated site is written to `${…}`. ## Deploying Commit the built `${…}` directory and push to `main`. The included GitHub Action deploys it to GitHub Pages automatically. `${…}/` is deliberately **not** gitignored for this deploy mode.": 1,
-    "## Deploying This repository is configured with a GitHub Action that automatically builds and deploys your site to GitHub Pages on every push to `main`. The action downloads Ritual, fetches the latest card data from Scryfall, builds your site, and deploys it. Both the Ritual binary and Scryfall cache are persisted between runs so subsequent builds are fast. ### Ritual version The action downloads the Ritual release pinned in `ritual.config.json` (`managed.version`). The pin moves only when you run `ritual migrate` with a newer Ritual release and commit the result. To override it, create a GitHub Actions repository variable called `RITUAL_VERSION` set to a release tag (e.g. `v1.0.0`).": 1,
-    "## Getting Started Ritual manages three kinds of card lists as Markdown files in your repository: - **Decks** in `decks/` - **Collections** in `collections/` - **Wanted lists** in `wanted/` The easiest way to build any of them is the interactive editor: ```sh ritual edit ``` `ritual edit` opens a single session over every list. From the menu you can create a new deck, collection, or wanted list — or pick an existing one — and then add, remove, and update cards. Your changes are written to disk when you save on exit. Prefer a browser? Run `ritual admin` to manage your lists from a local web interface instead. ## Previewing Locally Build and serve the site on your machine before you deploy: ```sh ${…} ``` Then open <http://localhost:3000> to preview it. ## Project Layout - `decks/`, `collections/`, `wanted/` — your card lists as Markdown files - `ritual.config.json` — site and pricing settings - ${…}{ - `${…}/` — your built site, committed so the deploy workflow can publish it|} ## Documentation For the full list of commands and features, see the [Ritual documentation](https://ritual.rpeters.dev/).": 1,
-    "`cache/`, `${…}/`, `exports/`, and `all-cards.md` — generated artifacts (gitignored)": 1,
-    "`cache/`, `exports/`, and `all-cards.md` — generated artifacts (gitignored)": 1,
-    "ritual build-site": 1
-  },
-  "src/commands/locale.ts": {
-    "ritual config set uiLocale ${…}": 1
-  },
-  "src/commands/session/edit-model.ts": {
-    "Unhandled session change action: ${…}": 1
-  },
-  "src/commands/session/loop.ts": {
-    "A multi-list session must be saved one open list at a time.": 1
-  },
-  "src/commands/skills.ts": {
-    "Unhandled skill install status (this is a bug)": 1
-  },
-  "src/commands/sync-helpers.ts": {
-    "change filter": 1
-  },
-  "src/commands/sync-render-event.ts": {
-    "Unhandled sync event: ${…}": 1
   },
   "src/editor/card-search/key-hints.ts": {
     "Tab": 1

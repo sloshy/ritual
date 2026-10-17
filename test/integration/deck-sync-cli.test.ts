@@ -101,7 +101,7 @@ describe('deck-sync CLI (Integration)', () => {
 
       const rejected = await runCli(['deck-sync', 'pull', '--only', 'adds'], dir, OFFLINE_ENV)
       expect(rejected.exitCode).toBe(2)
-      expect(rejected.stderr).toContain("Invalid change filter 'adds'")
+      expect(rejected.stderr).toContain("Invalid --only 'adds'")
       expect(rejected.stderr).toContain('Use one of: additions, removals.')
     })
   })

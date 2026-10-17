@@ -612,6 +612,39 @@ preload-all`'s buylist-failure warning, the buylist's download prompt and progre
   name"), and now also appears in `skippedRows`; an unreadable value it quotes is shown as
   JSON, capped at 80 characters. Counts read "1 product" (they read "1 products"). The
   `cache/cardkingdom.json` file is unchanged.
+- More CLI text follows the UI language: `detect-changes`'s `--hash-only` and `--verify`
+  per-file lines (`[dry-run] decks/a.md: <hash>`) and its git failure lines (git's own detail
+  still follows `git:` as git wrote it), the `--no-input` refusals that name a list, a card or
+  a pair of flags, `ritual admin`'s startup build failures, shutdown warnings and page title,
+  `init-site`'s ".gitignore still ignores" warning, and the internal "no case handles this
+  value" error. `export` lists conflicting flags the way the UI language lists things
+  ("--columns, --no-header, and --quote-all"; it read "--columns and --no-header and
+  --quote-all"). `ritual admin`'s shutdown warnings now read "MCP HTTP server teardown
+  failed:" and "Admin server teardown failed:". The README that `init-site` generates stays
+  English, whatever the UI language: it is workspace content.
+- **A refused fixed-choice value names the flag you typed.** "Invalid … '<value>'. Use one
+  of: …" now names the flag or argument instead of a noun, so it reads the same in every
+  language: `Invalid --only 'adds'` (was `Invalid change filter`), `Invalid <direction>`
+  (`deck-sync` / `collection-sync`; was `Invalid direction`), `Invalid --format`, `--finish`
+  and `--dialect` (`export`; were `export format`, `finish`, `dialect`), `Invalid --sort`
+  (`price`; was `sort field`), `Invalid --source` / `--price-source` / `--price-sources`
+  (`price`, `init-site`, `build-site`; was `price store`), `Invalid --ci` and `--deploy`
+  (`init-site`; were `CI system`, `deploy mode`), `Invalid --finish` and `--label`
+  (`add-card`, `set-card`, `move`; were `finish`, `label`), `Invalid --output` (was `output format`)
+  and `Invalid --refresh` (was `refresh mode`). A script matching the old wording must match
+  the new one, or better the `errors.enum.invalid` key. The admin API's refusals still name
+  the request field (`direction`, `format`).
+- **`--no-input` refusals keep their `--output json` params English.** The
+  `errors.input.required` envelope's `messageParams` (`subject`, `reason`) are now English
+  whatever the UI language (they followed it); only `message` follows the UI language. Two
+  refusals reworded: `delete` now asks to "pass --confirm <name>" (it read `pass --confirm
+"<list name>"`), and `init-site` to "pass --change-detection or --no-change-detection" (it
+  read `--change-detection/--no-change-detection`).
+- **`detect-changes` git failures carry their keys.** With `--output json`, a failed git
+  command's error envelope now carries `messageKey` (`cli.detectChanges.gitDetail`, the
+  failed operation's own `cli.detectChanges.*` key, or `cli.detectChanges.failureReason`)
+  and English `messageParams`, with git's detail verbatim; the English `message` is
+  unchanged.
 
 ### Fixed
 

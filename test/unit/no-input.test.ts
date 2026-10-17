@@ -4,13 +4,17 @@ import {
   inputRequiredError,
   isNoInput,
   promptsUnavailable,
+  inputRequiredForQuestion,
   promptsUnavailableReason,
+  requireFlag,
   requireInteractive,
   resolveNoInput,
   setNoInputOverride,
 } from '../../src/util/no-input'
 import { CardCommandError } from '../../src/util/errors'
+import { tDynamic } from '../../src/i18n/t'
 import { stubTty } from '../test-utils'
+import { pseudoCatalog, withSyntheticLocale } from '../helpers/sync-text'
 
 // The integration harness always spawns the CLI without a TTY, so the !isTTY
 // half of the prompt gate trips on its own there — only a unit test with a
@@ -121,64 +125,78 @@ describe('promptsUnavailableReason', () => {
   })
 })
 
+/** The refusal a guard threw, failing the test when it did not throw one. */
+function refusal(run: () => void): CardCommandError {
+  try {
+    run()
+  } catch (error) {
+    if (error instanceof CardCommandError) return error
+    throw error
+  }
+  throw new Error('expected a CardCommandError')
+}
+
+const NO_INPUT_REASON = 'prompts are disabled by --no-input / RITUAL_NO_INPUT'
+
 describe('requireInteractive', () => {
   test('throws a usage error under --no-input even on a TTY', () => {
     setNoInputOverride(true)
-    try {
-      requireInteractive('a card name or --card-id <id>')
-      throw new Error('expected requireInteractive to throw')
-    } catch (error) {
-      if (!(error instanceof CardCommandError)) throw error
-      expect(error.code).toBe('usage_error')
-      expect(error.exitCode).toBe(2)
-      expect(error.message).toContain('Input required: pass a card name or --card-id <id>')
-      expect(error.message).toContain('--no-input')
-    }
+    const error = refusal(() =>
+      requireInteractive('cli.prompt.subject.passCardOrId', { flag: '--card-id <id>' }),
+    )
+    expect(error.code).toBe('usage_error')
+    expect(error.exitCode).toBe(2)
+    expect(error.message).toBe(
+      `Input required: pass a card name or --card-id <id> (${NO_INPUT_REASON}).`,
+    )
   })
 
   test('names the missing terminal instead when that is the cause', () => {
     setNoInputOverride(false)
     process.stdin.isTTY = false
-    expect(() => requireInteractive('--from and --to')).toThrow(
-      'Input required: pass --from and --to (no terminal available for prompts).',
+    expect(() =>
+      requireInteractive('cli.prompt.subject.passBoth', { first: '--from', second: '--to' }),
+    ).toThrow('Input required: pass --from and --to (no terminal available for prompts).')
+  })
+
+  test('passes on a TTY with input allowed', () => {
+    setNoInputOverride(false)
+    expect(() => requireInteractive('cli.prompt.subject.passListName')).not.toThrow()
+  })
+})
+
+describe('requireFlag', () => {
+  test('splices the flag, as typed, into the "pass …" frame', () => {
+    setNoInputOverride(true)
+    expect(refusal(() => requireFlag('--finish <foil|nonfoil>')).message).toBe(
+      `Input required: pass --finish <foil|nonfoil> (${NO_INPUT_REASON}).`,
     )
   })
 
   test('passes on a TTY with input allowed', () => {
     setNoInputOverride(false)
-    expect(() => requireInteractive('a card name or --card-id <id>')).not.toThrow()
+    expect(() => requireFlag('--yes')).not.toThrow()
   })
 })
 
 /**
  * The refusal frame is declarative — "Input required: <noun phrase> (<reason>)."
  * — so the subject has to be a noun phrase from the catalog rather than the
- * prompt's own question spliced in. Both spellings are exercised because the
- * conversion of the ~15 prompt sites is incremental and the transitional one
- * has to keep working meanwhile.
+ * prompt's own question spliced in. The transitional question form stays
+ * until every prompt names a subject of its own.
  */
 describe('inputRequiredError', () => {
   test('renders a subject key into the frame', () => {
     setNoInputOverride(true)
-    const error = inputRequiredError('cli.prompt.subject.listType')
-    expect(error.message).toBe(
-      'Input required: the kind of list to import into (prompts are disabled by --no-input / RITUAL_NO_INPUT).',
+    expect(inputRequiredError('cli.prompt.subject.listType').message).toBe(
+      `Input required: the kind of list to import into (${NO_INPUT_REASON}).`,
     )
   })
 
-  test('renders a subject key that takes parameters', () => {
+  test('splices an unconverted prompt’s question verbatim', () => {
     setNoInputOverride(true)
-    expect(
-      inputRequiredError('cli.prompt.subject.pass', { what: '--finish <foil|nonfoil>' }).message,
-    ).toBe(
-      'Input required: pass --finish <foil|nonfoil> (prompts are disabled by --no-input / RITUAL_NO_INPUT).',
-    )
-  })
-
-  test('splices a plain string verbatim, for a prompt not yet given a subject', () => {
-    setNoInputOverride(true)
-    expect(inputRequiredError('a printing to add').message).toBe(
-      'Input required: a printing to add (prompts are disabled by --no-input / RITUAL_NO_INPUT).',
+    expect(inputRequiredForQuestion('a printing to add').message).toBe(
+      `Input required: a printing to add (${NO_INPUT_REASON}).`,
     )
   })
 
@@ -186,6 +204,40 @@ describe('inputRequiredError', () => {
     setNoInputOverride(true)
     const error = inputRequiredError('cli.prompt.subject.interactiveInput')
     expect(error.messageKey).toBe('errors.input.required')
-    expect(error.messageParams?.subject).toBe('interactive input')
+    expect(error.messageParams).toEqual({ subject: 'interactive input', reason: NO_INPUT_REASON })
+  })
+})
+
+describe('the refusal in another language', () => {
+  test('is worded in the UI language while the envelope params stay English', () => {
+    setNoInputOverride(true)
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      const error = refusal(() =>
+        requireInteractive('cli.prompt.subject.passCardOrId', { flag: '--card-id <id>' }),
+      )
+      const subject = tDynamic(locale, 'cli.prompt.subject.passCardOrId', {
+        flag: '--card-id <id>',
+      })
+      const reason = tDynamic(locale, 'cli.prompt.reason.noInput')
+      expect(error.message).toBe(tDynamic(locale, 'errors.input.required', { subject, reason }))
+      expect(error.message).not.toContain('Input required')
+      expect(error.messageKey).toBe('errors.input.required')
+      expect(error.messageParams).toEqual({
+        subject: 'pass a card name or --card-id <id>',
+        reason: NO_INPUT_REASON,
+      })
+    })
+  })
+
+  test('keeps a flag as typed inside the localized frame', () => {
+    setNoInputOverride(true)
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      const error = refusal(() => requireFlag('--yes'))
+      const subject = tDynamic(locale, 'cli.prompt.subject.pass', { what: '--yes' })
+      expect(subject).toContain('--yes')
+      expect(subject).not.toBe('pass --yes')
+      expect(error.message).toContain(subject)
+      expect(error.messageParams).toEqual({ subject: 'pass --yes', reason: NO_INPUT_REASON })
+    })
   })
 })

@@ -88,10 +88,6 @@ export const cliEditMeta = {
     description:
       'Progress line before a multi-list scope loads every list it spans. The singular form is unreachable today (a scope needs at least two lists) but is written out so the message stays honest.',
   },
-  'cli.edit.noInteractiveEditor': {
-    description:
-      'Why `ritual edit` refuses without a terminal. A noun phrase, not a sentence: it is spliced into "Input required: {subject} ({reason})." The command names are CLI identifiers and never translate.',
-  },
   'cli.edit.creationChange': {
     description:
       'The View Session Changes row standing for "this list was created this session". Discarding it drops the whole list.',
@@ -643,10 +639,6 @@ export const cliEditMeta = {
   'cli.history.outputRequiresShow': {
     description:
       'Usage error: structured output is only produced by the read-only --show fork. {output} is the format the user asked for (json or ndjson).',
-  },
-  'cli.history.noEditorHeadless': {
-    description:
-      'Why `ritual history` refuses without a terminal. A noun phrase spliced into "Input required: {subject} ({reason})."; --show is a flag name and never translates.',
   },
   'cli.history.noHistory': {
     description: 'Printed by `history --show` when the list has never recorded a change.',

@@ -18,6 +18,8 @@ import {
   updateGitignore,
 } from '../../src/migrate/managed-files'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
+import { expectLocaleInForce, foreignLocales, withSyntheticLocale } from '../helpers/sync-text'
+import type { InitSiteConfig } from '../../src/config/ritual-config'
 
 type WorkflowStep = {
   name?: string
@@ -366,6 +368,26 @@ describe('generateReadme', () => {
     expect(readme).toContain('ritual serve --build')
     expect(readme).toContain('http://localhost:3000')
     expect(readme).toContain('ritual.config.json')
+  })
+
+  // The README is workspace content committed to the user's repository, like the
+  // managed files: English by contract, whatever language the CLI speaks.
+  const readmeConfigs: [string, InitSiteConfig][] = [
+    ['publish-for-me', baseConfig],
+    ['local-build', { ...baseConfig, deployMode: 'local-build', distDir: 'public' }],
+    ['manual', { ciSystem: 'manual' }],
+  ]
+  describe.each(foreignLocales())('under $tag', ({ tag, catalog }) => {
+    test.each(readmeConfigs)('%s mode writes the same bytes as English', (_name, config) => {
+      const english = generateReadme(config)
+      const localized = withSyntheticLocale(tag, catalog, (locale) => {
+        expectLocaleInForce(locale)
+        const readme = generateReadme(config)
+        expectLocaleInForce(locale)
+        return readme
+      })
+      expect(localized).toBe(english)
+    })
   })
 })
 

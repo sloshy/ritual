@@ -1,5 +1,6 @@
 import { ask } from '../../cli/prompts'
 import { t } from '../../i18n/t'
+import { assertNever } from '../../util/assert-never'
 import {
   consolidateSetLanguage,
   consolidateSetNote,
@@ -407,10 +408,8 @@ export async function editSessionChangeAt<L, S extends EditSnapshot>(
     case 'language':
       await editLanguageById(model, ctx, cardId)
       return
-    default: {
-      const unhandled: never = action
-      throw new Error(`Unhandled session change action: ${String(unhandled)}`)
-    }
+    default:
+      assertNever(action)
   }
 }
 

@@ -52,7 +52,7 @@ export function isFinish(value: string | undefined): value is Finish {
  * of `errors.enum.invalid`.
  */
 export function normalizeFinishValue(raw: string): Finish | string {
-  const result = parseEnumField(raw, VALID_FINISHES, 'finish')
+  const result = parseEnumField(raw, VALID_FINISHES, '--finish')
   return result.ok ? result.value : result.message
 }
 

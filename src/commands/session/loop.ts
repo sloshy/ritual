@@ -138,7 +138,7 @@ export async function saveCardSession(
 ): Promise<void> {
   const { saveTarget } = strategy
   if (!saveTarget) {
-    throw new Error('A multi-list session must be saved one open list at a time.')
+    throw new Error(t('cli.session.multiListSave'))
   }
   if (strategy.hasUnsavedChanges()) {
     await strategy.persist()

@@ -12,10 +12,17 @@
  * locale-invariant while `message` follows the locale.
  */
 
-import { CardCommandError, ExitCode } from './errors'
+import { CardCommandError, ExitCode, messageCommandError } from './errors'
 import type { MessageKey } from '../i18n/messages/en'
-import { currentLocale } from '../i18n/runtime'
-import { t, tDynamic, type MessageParams, type RenderParams, type TranslateArgs } from '../i18n/t'
+import type { ParameterlessKey } from '../i18n/t'
+import {
+  renderSyncParam,
+  syncMessage,
+  syncRef,
+  type SyncArgs,
+  type SyncMessageRef,
+  type SyncParam,
+} from '../sync/message'
 
 let noInputOverride: boolean | undefined
 
@@ -91,7 +98,12 @@ export function promptsUnavailable(): boolean {
  * guards must not describe a redirected stdin as "prompts are disabled".
  */
 export function promptsUnavailableReason(): string {
-  return isNoInput() ? t('cli.prompt.reason.noInput') : t('cli.prompt.reason.noTty')
+  return renderSyncParam(promptsUnavailableReasonRef())
+}
+
+/** {@link promptsUnavailableReason} unrendered, to nest in a message. */
+function promptsUnavailableReasonRef(): SyncMessageRef {
+  return syncRef(isNoInput() ? 'cli.prompt.reason.noInput' : 'cli.prompt.reason.noTty')
 }
 
 /**
@@ -107,58 +119,44 @@ export function promptsUnavailableReason(): string {
  */
 export type PromptSubjectKey = Extract<MessageKey, `cli.prompt.subject.${string}`>
 
-/** The two already-rendered halves of the refusal frame. */
-type InputRequiredParams = MessageParams<'errors.input.required'>
+/**
+ * A {@link PromptSubjectKey} that takes no params — what a question names as
+ * its `subjectKey`, since `ask` has nowhere to carry params for it.
+ */
+export type QuestionSubjectKey = Extract<PromptSubjectKey, ParameterlessKey>
 
 /**
  * The one "a prompt was needed and could not run" error: a usage error naming
  * what the run should have supplied and which of the two causes applied. Every
- * prompt guard — {@link requireInteractive}, `ask`, `promptUser` — builds its
- * refusal here so the phrasing and the exit code cannot drift.
+ * prompt guard — {@link requireInteractive}, {@link requireFlag}, `ask` —
+ * builds its refusal here so the phrasing and the exit code cannot drift.
  *
- * Two spellings, because the conversion of ~15 prompt sites is incremental:
- *
- * - a {@link PromptSubjectKey} (with its params) — the converted form;
- * - a plain string — the transitional form, spliced verbatim as before. Every
- *   remaining caller of this overload is a prompt that has not yet been given a
- *   `subjectKey`.
+ * The subject and the reason nest as messages, so the CLI words the whole
+ * refusal in its language while the `--output json` envelope's `messageParams`
+ * carry their English, like every other keyed refusal.
  */
 export function inputRequiredError<K extends PromptSubjectKey>(
   subjectKey: K,
-  ...args: TranslateArgs<K>
-): CardCommandError
-export function inputRequiredError(subject: string): CardCommandError
-export function inputRequiredError(subject: string, params?: RenderParams): CardCommandError {
-  const messageParams: InputRequiredParams = {
-    subject: isPromptSubjectKey(subject) ? renderSubject(subject, params) : subject,
-    reason: promptsUnavailableReason(),
-  }
-  return new CardCommandError(
+  ...args: SyncArgs<K>
+): CardCommandError {
+  return inputRequired(syncRef(subjectKey, ...args))
+}
+
+/**
+ * The transitional form of {@link inputRequiredError} for a prompt that has
+ * not been given a `subjectKey` yet: its own question, already worded, spliced
+ * in as the subject (in the envelope too — there is no English to carry).
+ */
+export function inputRequiredForQuestion(question: string): CardCommandError {
+  return inputRequired(question)
+}
+
+function inputRequired(subject: SyncParam): CardCommandError {
+  return messageCommandError(
     'usage_error',
-    t('errors.input.required', messageParams),
     ExitCode.UsageError,
-    undefined,
-    { key: 'errors.input.required', params: messageParams },
+    syncMessage('errors.input.required', { subject, reason: promptsUnavailableReasonRef() }),
   )
-}
-
-/**
- * Whether a subject is a catalog key rather than literal prose. The namespace
- * prefix is what makes this unambiguous: no English noun phrase a call site
- * could pass begins with `cli.prompt.subject.`.
- */
-function isPromptSubjectKey(subject: string): subject is PromptSubjectKey {
-  return subject.startsWith('cli.prompt.subject.')
-}
-
-/**
- * Render a subject key with whatever params came in. The overloads above have
- * already type-checked the (key, params) pair against the catalog; the union of
- * subject keys cannot be re-checked inside a single implementation body, which
- * is exactly what {@link tDynamic} exists for.
- */
-function renderSubject(key: PromptSubjectKey, params: RenderParams | undefined): string {
-  return tDynamic(currentLocale(), key, params)
 }
 
 /**
@@ -168,10 +166,31 @@ function renderSubject(key: PromptSubjectKey, params: RenderParams | undefined):
  * prompt never resolves and the event loop drains) or blocks — never an
  * acceptable one-shot contract.
  *
- * `what` is the flag or argument the run should have carried; it is an English
- * identifier and is spliced into the localized "pass …" frame rather than
- * concatenated onto it.
+ * The subject is a catalog key, worded whole ("pass a list name", "pass
+ * --skills or --no-skills"); a single flag to name goes through
+ * {@link requireFlag} instead.
  */
-export function requireInteractive(what: string): void {
-  if (promptsUnavailable()) throw inputRequiredError('cli.prompt.subject.pass', { what })
+export function requireInteractive<K extends PromptSubjectKey>(
+  subjectKey: K,
+  ...args: SyncArgs<K>
+): void {
+  if (promptsUnavailable()) throw inputRequiredError(subjectKey, ...args)
+}
+
+/**
+ * A flag spelling, refused at compile time when it is shaped like a subject key
+ * — so a key passed here by mistake cannot be spliced in as if it were a flag.
+ */
+type FlagSpelling<S extends string> = S extends `cli.${string}` ? never : S
+
+/**
+ * {@link requireInteractive} for a remedy that is one flag or argument, spelled
+ * exactly as it is typed (`--yes`, `--finish <foil|nonfoil>`): a command-line
+ * token with no words in it, never translated, spliced into the localized
+ * "pass …" frame. Two flags joined by a conjunction are a subject key of their
+ * own (`cli.prompt.subject.passEither` / `passBoth`), because the conjunction is
+ * a word.
+ */
+export function requireFlag<S extends string>(flag: FlagSpelling<S>): void {
+  requireInteractive('cli.prompt.subject.pass', { what: flag })
 }

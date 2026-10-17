@@ -92,8 +92,6 @@ export const cliEditMessages = {
     one: 'Opening {count} list...',
     other: 'Opening {count} lists...',
   },
-  'cli.edit.noInteractiveEditor':
-    'the interactive editor is unavailable — use the one-shot commands (add-card, remove-card, set-card, note, move) to edit lists from scripts',
   'cli.edit.creationChange': {
     $select: 'type',
     deck: 'Created this deck',
@@ -315,8 +313,6 @@ export const cliEditMessages = {
   'cli.history.limitInvalid': "--limit must be a positive integer (got '{value}').",
   'cli.history.limitRequiresShow': '--limit requires --show.',
   'cli.history.outputRequiresShow': '--output {output} requires --show.',
-  'cli.history.noEditorHeadless':
-    'the interactive history editor is unavailable — use --show to print the change history from a script',
   'cli.history.noHistory': 'No change history recorded.',
   'cli.history.setCount': {
     $plural: 'count',

@@ -9,9 +9,10 @@ import { LIST_TYPES, type ListType } from '../list/list-type'
 import type { ArchidektCredentials } from '../auth/interfaces'
 import {
   inputRequiredError,
+  inputRequiredForQuestion,
   isNoInput,
   promptsUnavailable,
-  type PromptSubjectKey,
+  type QuestionSubjectKey,
 } from '../util/no-input'
 import { t } from '../i18n/t'
 import { getLogger } from '../util/logger'
@@ -77,7 +78,7 @@ export type AskQuestion = Omit<prompts.PromptObject<'value'>, 'name'> &
      * `subjectKey` still falls back to its `message`, which is what every
      * unconverted prompt does today.
      */
-    subjectKey?: PromptSubjectKey
+    subjectKey?: QuestionSubjectKey
   }
 
 type PromptAnswer = { value?: unknown }
@@ -213,11 +214,9 @@ function promptLibraryStrings(): PromptLibraryStrings {
 export async function ask<T>(question: AskQuestion): Promise<T | undefined> {
   if (promptsUnavailable()) {
     if (question.subjectKey !== undefined) throw inputRequiredError(question.subjectKey)
-    const label =
-      typeof question.message === 'string'
-        ? question.message
-        : t('cli.prompt.subject.interactiveInput')
-    throw inputRequiredError(label)
+    throw typeof question.message === 'string'
+      ? inputRequiredForQuestion(question.message)
+      : inputRequiredError('cli.prompt.subject.interactiveInput')
   }
   let exited = false
   const { subjectKey: _subjectKey, ...asked } = question

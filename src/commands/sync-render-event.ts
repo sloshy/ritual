@@ -20,6 +20,7 @@ import {
 } from '../sync/common'
 import { describeUnreadable, type ScopedIndenter, type UnreadableSubject } from './sync-helpers'
 import { t } from '../i18n/t'
+import { assertNever } from '../util/assert-never'
 import { renderSyncMessage } from '../sync/message'
 
 /** What each engine calls the things it syncs, in the unreadable-lines warning. */
@@ -111,11 +112,8 @@ export function createSyncEventRenderer<TResult>({
           ),
         )
         return
-      default: {
-        // Every event kind must be rendered somewhere; a new one is a compile error.
-        const unhandled: never = event
-        throw new Error(`Unhandled sync event: ${JSON.stringify(unhandled)}`)
-      }
+      default:
+        assertNever(event)
     }
   }
   return { onEvent, detailHidden: () => detailHidden }

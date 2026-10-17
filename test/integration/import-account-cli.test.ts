@@ -66,7 +66,7 @@ describe('import-account CLI (Integration)', () => {
       )
 
       expect(result.exitCode).toBe(ExitCode.UsageError)
-      expect(result.stderr).toContain("Invalid output format 'yaml'")
+      expect(result.stderr).toContain("Invalid --output 'yaml'")
     })
   })
 })
