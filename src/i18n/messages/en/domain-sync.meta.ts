@@ -27,6 +27,18 @@ const CARD_CONTEXT =
 const CSV_SIZE_CONTEXT =
   '{size} is a pre-rendered count of cards and CSV rows like "30 cards (28 rows)".'
 
+const ARCHIDEKT_FAILURE_CONTEXT =
+  'Why a request to Archidekt (a deck-building website; a name, never translated) failed. Shown on its own (the CLI error line, the admin Import Deck page), or after the colon of another sentence, as in "Failed to add Sol Ring: …" during a sync; so it has no closing period.'
+
+const ARCHIDEKT_REASON_CONTEXT =
+  '{reason} is Archidekt\'s own explanation (such as "This field may not be null."), or the start of its raw reply, quoted as Archidekt sent it, usually in English; never translate it. Several are already joined in the reader\'s language.'
+
+const ARCHIDEKT_UNREADABLE_CONTEXT =
+  "{reason} is why the reply could not be read: one of the domain.sync.archidekt.reply* or pageItemUnreadable phrases, already in the reader's language."
+
+const ARCHIDEKT_WARNING_CONTEXT =
+  'A warning while reading a list of decks from Archidekt (a deck-building website; a name, never translated), which serves it a page at a time, each page linking to the next ("next-page link"). Logged by deck-sync push and import-account and shown on the admin Sync Decks page; also the reason a report gives for a deck list being incomplete. A full sentence, capitalized with a closing period. {url} is the link as Archidekt sent it, never translated.'
+
 const AUTH_FAILURE_CONTEXT =
   'Why logging in to Archidekt (a deck-building website; a name, never translated) failed. Shown on its own on the admin Archidekt Login page, and after "Login failed: " in the CLI; so it has no closing period.'
 
@@ -201,6 +213,10 @@ export const domainSyncMeta = {
   'domain.sync.reasonList': {
     description: `${REASON_CONTEXT} Several reasons for one deck or list at once. {reasons} is the reasons joined pairwise through domain.sync.clauseJoin; there is nothing else to translate.`,
   },
+  'domain.sync.moreReasons': {
+    description:
+      'The last clause of a list of reasons, standing for the ones left out so the list stays short: "First.; Second.; Third.; 4 more". Used both for the reasons of one sync item and for the reasons Archidekt gave for one failure. {count} is how many more reasons there were.',
+  },
   'domain.sync.clauseJoin': {
     description:
       'Joins two independent clauses — reasons, or problems with the removal priority — that sit in one sentence. {first} and {second} are already-translated clauses; longer lists are joined pairwise, so keep it symmetric.',
@@ -268,6 +284,9 @@ export const domainSyncMeta = {
   },
   'domain.sync.notDeckOwner': {
     description: `${REASON_CONTEXT} A deck push skipped a deck because the signed-in Archidekt account does not own the remote deck. {deckId} is the numeric Archidekt deck id.`,
+  },
+  'domain.sync.ownershipUnknown': {
+    description: `${REASON_CONTEXT} A deck push skipped a deck because the list of decks the signed-in Archidekt account owns came back incomplete, so Ritual cannot tell whether this deck is one of them. {deckId} is the numeric Archidekt deck id. {reason} is why the list is incomplete, one of the domain.sync.archidekt.pageRepeated / pageCapReached / nextLink* sentences, already in the reader's language.`,
   },
   'domain.sync.skipping': {
     description: `${LOG_CONTEXT} Warning logged under a deck the push skips. {reason} is a pre-rendered reason like domain.sync.notDeckOwner.`,
@@ -593,5 +612,114 @@ export const domainSyncMeta = {
   },
   'domain.sync.auth.refreshError': {
     description: `${AUTH_LOG_CONTEXT} ${AUTH_REFRESH_CONTEXT} The refresh failed, so the user has to log in again. {error} is why — one of the other domain.sync.auth.* phrases already in the reader's language, or a network error (usually English).`,
+  },
+  'domain.sync.archidekt.deckFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading one deck failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {deckId} is the deck's Archidekt number.`,
+  },
+  'domain.sync.archidekt.deckFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading one deck failed. ${AUTH_STATUS_CONTEXT} {deckId} is the deck's Archidekt number. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.publicDecksFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading the list of decks an Archidekt user has made public failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {username} is that Archidekt account name, never translated.`,
+  },
+  'domain.sync.archidekt.publicDecksFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading the list of decks an Archidekt user has made public failed. ${AUTH_STATUS_CONTEXT} {username} is that Archidekt account name, never translated. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.ownDecksFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading the list of the logged-in user's own decks failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT}`,
+  },
+  'domain.sync.archidekt.ownDecksFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading the list of the logged-in user's own decks failed. ${AUTH_STATUS_CONTEXT} ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.collectionPageFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading one page of a user's card collection on Archidekt (served a page at a time) failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {page} is the page number and {userId} the Archidekt account number.`,
+  },
+  'domain.sync.archidekt.collectionPageFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Reading one page of a user's card collection on Archidekt (served a page at a time) failed. ${AUTH_STATUS_CONTEXT} {page} is the page number and {userId} the Archidekt account number. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.searchFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt's card search, run to find the printing to send, failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {card} is a card name, optionally followed by its printing like "(FDN:106)" — never translated.`,
+  },
+  'domain.sync.archidekt.searchFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt's card search, run to find the printing to send, failed. ${AUTH_STATUS_CONTEXT} {card} is a card name, optionally followed by its printing like "(FDN:106)" — never translated. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.deckChangeFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Sending card changes to a deck on Archidekt failed; none of that batch was applied, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {deckId} is the deck's Archidekt number.`,
+  },
+  'domain.sync.archidekt.deckChangeFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Sending card changes to a deck on Archidekt failed; none of that batch was applied. ${AUTH_STATUS_CONTEXT} {deckId} is the deck's Archidekt number. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.recordCreateFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Adding a new entry (a "record": one card printing, condition and finish, with a quantity) to the user's Archidekt collection failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT}`,
+  },
+  'domain.sync.archidekt.recordCreateFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Adding a new entry (a "record": one card printing, condition and finish, with a quantity) to the user's Archidekt collection failed. ${AUTH_STATUS_CONTEXT} ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.recordUpdateFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Changing an existing entry (a "record") of the user's Archidekt collection failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {recordId} is Archidekt's number for that record.`,
+  },
+  'domain.sync.archidekt.recordUpdateFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Changing an existing entry (a "record") of the user's Archidekt collection failed. ${AUTH_STATUS_CONTEXT} {recordId} is Archidekt's number for that record. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.recordsDeleteFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Deleting entries ("records") from the user's Archidekt collection failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {records} is a count like "25 collection records", already in the reader's language.`,
+  },
+  'domain.sync.archidekt.recordsDeleteFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Deleting entries ("records") from the user's Archidekt collection failed. ${AUTH_STATUS_CONTEXT} {records} is a count like "25 collection records", already in the reader's language. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.csvChunkFailed': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Uploading a CSV file of cards to the collection importer of Archidekt failed; the file goes up in parts, and this part failed, and Archidekt said nothing more. ${AUTH_STATUS_CONTEXT} {chunk} is the number of the part, counting from 1.`,
+  },
+  'domain.sync.archidekt.csvChunkFailedWithReason': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Uploading a CSV file of cards to the collection importer of Archidekt failed; the file goes up in parts, and this part failed. ${AUTH_STATUS_CONTEXT} {chunk} is the number of the part, counting from 1. ${ARCHIDEKT_REASON_CONTEXT}`,
+  },
+  'domain.sync.archidekt.publicDecksUnreadable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt answered the request for the public decks of a user, but its reply could not be read. {username} is that Archidekt account name, never translated. ${ARCHIDEKT_UNREADABLE_CONTEXT}`,
+  },
+  'domain.sync.archidekt.ownDecksUnreadable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt answered the request for the logged-in user's own decks, but its reply could not be read. ${ARCHIDEKT_UNREADABLE_CONTEXT}`,
+  },
+  'domain.sync.archidekt.deckUnreadable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt answered the request for one deck, but its reply could not be read. {deckId} is the deck's Archidekt number. ${ARCHIDEKT_UNREADABLE_CONTEXT}`,
+  },
+  'domain.sync.archidekt.collectionPageUnreadable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt answered the request for one page of a user's card collection, but its reply could not be read. {page} is the page number and {userId} the Archidekt account number. ${ARCHIDEKT_UNREADABLE_CONTEXT}`,
+  },
+  'domain.sync.archidekt.searchUnreadable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} Archidekt answered its card search, run to find the printing to send, but its reply could not be read. {card} is a card name, optionally followed by its printing like "(FDN:106) [foil]" — never translated. ${ARCHIDEKT_UNREADABLE_CONTEXT}`,
+  },
+  'domain.sync.archidekt.searchUnreachable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} The card search, run to find the printing to send, got no answer from Archidekt at all (the network failed). {card} is a card name, optionally followed by its printing like "(FDN:106) [foil]" — never translated. {error} is the network error, usually in English.`,
+  },
+  'domain.sync.archidekt.replyNotObject': {
+    description:
+      'Why a reply Archidekt sent could not be read: it was not a JSON object (structured data) at all. Follows a colon, so lowercase with no closing period. "JSON" stays literal.',
+  },
+  'domain.sync.archidekt.replyFieldInvalid': {
+    description:
+      'Why a reply Archidekt sent could not be read: a part Ritual needs was missing or of the wrong kind. {field} is the code name of that part, like `results` or `owner.username` or `cards[3].card.id`, never translated. Follows a colon, so lowercase with no closing period.',
+  },
+  'domain.sync.archidekt.pageItemUnreadable': {
+    description:
+      "Why a list Archidekt sent (of decks, of search results, of collection records) could not be read: one of its items lacked a part Ritual needs. {index} is the item's position, counting from 1, and {field} the code name of the missing part, like `id` or `oracleCard.name`, never translated. Follows a colon, so lowercase with no closing period.",
+  },
+
+  'domain.sync.archidekt.cardNotFound': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} The card search of Archidekt found no match for a card being sent to it, so that card cannot be synced. ${CARD_CONTEXT}`,
+  },
+  'domain.sync.archidekt.csvUnreadable': {
+    description: `${ARCHIDEKT_FAILURE_CONTEXT} The CSV file of cards Ritual built for the collection importer of Archidekt could not be split into rows, so nothing was sent. {reason} is why, a CSV-reading phrase already in the reader's language.`,
+  },
+  'domain.sync.archidekt.pageRepeated': {
+    description: `${ARCHIDEKT_WARNING_CONTEXT} A page linked to a page already read, which would loop forever, so reading stopped there. {decks} is a count like "50 decks", already in the reader's language.`,
+  },
+  'domain.sync.archidekt.pageCapReached': {
+    description: `${ARCHIDEKT_WARNING_CONTEXT} Reading stopped at a fixed limit of pages, far more than any real account has. {pages} is a count like "100 pages" and {decks} one like "5,000 decks", both already in the reader's language.`,
+  },
+  'domain.sync.archidekt.nextLinkUnreadable': {
+    description: `${ARCHIDEKT_WARNING_CONTEXT} The link was not a web address at all, so reading stopped and the list may be missing decks.`,
+  },
+  'domain.sync.archidekt.nextLinkForeign': {
+    description: `${ARCHIDEKT_WARNING_CONTEXT} The link pointed away from Archidekt, so it was not followed (for safety) and the list may be missing decks. {host} is the host name of the other site, never translated.`,
   },
 } as const satisfies MetaFor<typeof domainSyncMessages>

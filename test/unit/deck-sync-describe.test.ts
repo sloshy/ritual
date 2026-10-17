@@ -8,11 +8,12 @@ import {
 } from '../../src/deck-sync/describe'
 import { diffDeckCards, type DeckDiff } from '../../src/deck-sync/diff'
 import { buildUploadPlan } from '../../src/deck-sync/upload-plan'
-import type { ArchidektClient } from '../../src/clients/ArchidektClient'
+import { ArchidektClient, type ArchidektCardQuery } from '../../src/clients/ArchidektClient'
 import type { DeckSection } from '../../src/list/deck'
 import { archidektDeck, archidektDeckSections, searchingClient } from '../helpers/archidekt-deck'
 import type { DeckSyncCardChange } from '../../src/deck-sync/types'
 import { english, englishLines } from '../helpers/sync-text'
+import { syncMessage } from '../../src/sync/message'
 
 /**
  * A deck sync's per-card change list: the structured entries every deck
@@ -209,10 +210,10 @@ describe('buildUploadPlan applied', () => {
   function searchingExcept(missing: string): ArchidektClient {
     const found = searchingClient('Removal')
     const client: Pick<ArchidektClient, 'searchCards'> = {
-      searchCards: async (name, ...rest) =>
-        name === missing
-          ? `No Archidekt card found for "${name}"`
-          : found.searchCards(name, ...rest),
+      searchCards: async (query, token) =>
+        query.name === missing
+          ? syncMessage('domain.sync.archidekt.cardNotFound', { card: query.label })
+          : found.searchCards(query, token),
     }
     return client as ArchidektClient
   }
@@ -228,7 +229,13 @@ describe('buildUploadPlan applied', () => {
     const diff = diffDeckCards(archidektDeckSections(raw), local)
     const plan = await buildUploadPlan(diff, local, raw, searchingExcept('Ponder'), 'token')
 
-    expect(plan.errors).toHaveLength(1)
+    expect(plan.errors).toEqual([
+      {
+        message: 'Card not found on Archidekt: Ponder',
+        messageKey: 'domain.sync.archidekt.cardNotFound',
+        messageParams: { card: 'Ponder' },
+      },
+    ])
     expect(deckSyncCardChanges(plan.applied, [])).toEqual([
       { kind: 'added', name: 'Brainstorm', quantity: 1, board: 'Main' },
     ])
@@ -250,6 +257,66 @@ describe('buildUploadPlan applied', () => {
       deckRelationId: 1,
       modifications: { quantity: 3 },
     })
+  })
+
+  test('a failed search is the plan’s error, from the real client', async () => {
+    // One real failed search through the real client: what the plan carries is
+    // the client's own message, naming the card the plan was adding.
+    const raw = archidektDeck([], [])
+    const local: DeckSection[] = [{ name: 'Main', cards: [{ quantity: 1, name: 'Ponder' }] }]
+    const unavailable = new ArchidektClient(
+      { fetch: async () => new Response('', { status: 503 }) },
+      { minRequestIntervalMs: 0 },
+    )
+
+    const plan = await buildUploadPlan(
+      diffDeckCards(archidektDeckSections(raw), local),
+      local,
+      raw,
+      unavailable,
+      'token',
+    )
+
+    expect(plan.errors).toEqual([
+      {
+        message: 'The Archidekt card search for Ponder failed (HTTP 503)',
+        messageKey: 'domain.sync.archidekt.searchFailed',
+        messageParams: { card: 'Ponder', status: 503 },
+      },
+    ])
+  })
+
+  test('a printing update the search refuses carries that refusal, labelled with its printing', async () => {
+    const raw = archidektDeck([{ id: 1, name: 'Sol Ring', categories: [] }], [])
+    const local: DeckSection[] = [
+      {
+        name: 'Main',
+        cards: [{ quantity: 1, name: 'Sol Ring', set: 'lea', collectorNumber: '270' }],
+      },
+    ]
+    const refusal = syncMessage('domain.sync.archidekt.cardNotFound', { card: 'x' })
+    const asked: ArchidektCardQuery[] = []
+    const client: Pick<ArchidektClient, 'searchCards'> = {
+      searchCards: async (query) => {
+        asked.push(query)
+        return refusal
+      },
+    }
+
+    const plan = await buildUploadPlan(
+      diffDeckCards(archidektDeckSections(raw), local, { withPrintings: true }),
+      local,
+      raw,
+      client as ArchidektClient,
+      'token',
+    )
+
+    // The refusal itself, not a rewording of it.
+    expect(plan.errors).toHaveLength(1)
+    expect(plan.errors[0]).toBe(refusal)
+    expect(asked).toEqual([
+      { name: 'Sol Ring', set: 'lea', collectorNumber: '270', label: 'Sol Ring (LEA:270)' },
+    ])
   })
 
   test('a failed printing update takes the quantity change riding on it along', async () => {

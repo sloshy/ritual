@@ -277,6 +277,34 @@ release changes a file format or a generated file, it ships the change as a
   …", naming the status and reason the same way (it printed "Failed to refresh token:" and a
   stack trace), and a refresh that worked logs "Refreshed the Archidekt session." (it read
   "Token refreshed successfully.").
+- **A failed Archidekt request says what Archidekt answered, keyed.** Fetching a deck
+  (`ritual import` of an Archidekt URL, `deck-sync`, `build-site --decks <archidekt url>`,
+  the admin Import Deck page), a deck list (`import-account`, `deck-sync push`'s ownership
+  check), a page of a collection, a card search, and every write `deck-sync push` and
+  `collection-sync push` make now fail with a sentence naming what failed, the HTTP status
+  as a number, and Archidekt's own reason: "Failed to fetch Archidekt deck 123456 (HTTP
+  404): Not found." (it read "Failed to fetch deck 123456: 404 Not Found"; a refused write
+  read "createCollectionRecord failed (400): …" with the whole reply glued on). The reason
+  is Archidekt's `non_field_errors` and `detail` (at most three, then "N more"), or else its
+  reply quoted on one line and capped; an HTML error page leaves the status alone. "Card not
+  found on Archidekt: …" and the card search's failure are keyed too, and name the card as
+  the sync's own lines do (printing, finish and language included). A `build-site` skip
+  line for an Archidekt deck URL reads the same sentence in the UI language.
+  - **Keys:** the sync reports carry them — each item's `reasonKey` / `reasonParams`, a
+    collection run's `errorMessages` — on the CLI's `--output json`, the admin API and the
+    MCP `sync_decks` / `sync_collection` results, as `domain.sync.archidekt.*` with `status`
+    a number param and no reason phrase. `import-account --output json` now carries them
+    too: per deck (`decks[].errorKey` / `errorParams`) and in its error envelope.
+    `ritual import`'s envelope stays `cli.import.failed`, whose `reason` param is the
+    Archidekt sentence in English.
+  - **`POST /api/import-deck` answers an Archidekt failure by whose it was:** `404` when
+    Archidekt has no such deck (or will not show a private one), `502` when it failed any
+    other way (a 403, a 5xx, a rate limit, a reply that cannot be read); both were `500`. So
+    the MCP `import_deck` tool now fails `code: "invalid-request"` for a missing or private
+    Archidekt deck (it was `internal`).
+  - The warning that a deck list was cut short (a next-page link Ritual will not follow, a
+    page served twice, the 100-page cap) is worded in the reader's language. It is a
+    run-log warning of `deck-sync push` only, and its data is in the reports (see Fixed).
 - **`self-update` words its refusals in the CLI's language, reason included.** Why a
   GitHub release was refused ("GitHub sent an unexpected response for …: draft is not a
   boolean"), why its `.sha256` file could not be read, why the downloaded binary failed its
@@ -779,6 +807,34 @@ integer.` / `Invalid "offset" '-1'. Use a non-negative integer.` on every route 
   Ctrl, Esc, Tab) stay English.
 
 ### Fixed
+
+- **`deck-sync push` no longer calls a deck someone else's when Archidekt cut the list of
+  decks you own short.** A deck missing from a list Archidekt stopped serving part way is now
+  `skipped` with the reason `domain.sync.ownershipUnknown` ("could not tell whether you own
+  Archidekt deck …"), not `domain.sync.notDeckOwner`. The report carries why the list is
+  incomplete as **`ownedDecksIncomplete`** (a message) on the CLI's `--output json`, the
+  admin `POST /api/deck-sync` response and the MCP `sync_decks` result.
+  **`import-account --output json`** says the same as **`listIncomplete`** when the account's
+  deck list was cut short, so `found` may be short; the exit code is unchanged.
+- **One odd Archidekt reply no longer aborts a whole sync.** A card search that never
+  reached Archidekt, or answered with something that is not a search result (not JSON, no
+  `results`), used to throw out of `deck-sync push` and `collection-sync push` part way
+  through, after remote writes, with no report; it now fails that card, and a single hit
+  Ritual cannot read (a token without a collector number) is skipped rather than failing the
+  search. Deck, collection-page and deck-list replies are checked only for what Ritual reads,
+  so a reply missing one of those parts fails that request with a `…Unreadable` reason
+  naming it (`domain.sync.archidekt.deckUnreadable`, nesting `replyNotObject`,
+  `replyFieldInvalid` or `pageItemUnreadable`) instead of a `TypeError`, while a field
+  nothing reads never fails one: a listed deck without a name is kept as `Archidekt Deck
+<id>`, a collection page without an owner block is read, a category without a name (or a
+  card's categories that are not a list) reads as none, and a write Archidekt accepted is
+  never refused over its reply. A pull, and the timestamp read back after a push, check
+  only what a pull reads, so a relation a push could not plan against cannot drop the
+  divergence baseline.
+- A run that fails for many cards at once no longer builds one enormous reason: a deck's or
+  collection list's `reason` names at most five failures, then "N more" (each failure is
+  still in the run log). A CSV import row's problems and a removal priority's unknown list
+  names are still listed in full.
 
 - `deck-sync` and `collection-sync` under `--output json` or `ndjson` no longer print
   "Token refreshed successfully." (now "Refreshed the Archidekt session.") on stdout ahead

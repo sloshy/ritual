@@ -21,6 +21,7 @@ import { loadCardArt, saveCardArt, type CardArtRef } from '../../src/list/card-a
 import { parseChangelog } from '../../src/changes/changelog-parser'
 import type { ChangeEvent } from '../../src/changes/change-event'
 import type { DeckSyncReport } from '../../src/deck-sync/engine'
+import type { SyncMessage } from '../../src/sync/message'
 
 /**
  * End-to-end coverage for the `deck-sync` behaviors only the command and engine
@@ -1497,5 +1498,109 @@ describe('deck-sync board moves (Integration)', () => {
     expect(logged()).toContain('1 board move')
     expect(await readDeck()).toBe(before)
     expect(await Bun.file(path.join(dir, 'decks', 'winota-stax.changes.md')).exists()).toBe(false)
+  })
+})
+
+describe('deck-sync and Archidekt’s failures (Integration)', () => {
+  /** The owned-deck list served with a next-page link Ritual will not follow. */
+  const CUT_SHORT_OWN_DECKS: StubRoute = () =>
+    Response.json({
+      results: [{ id: 999, name: 'Someone Else' }],
+      next: 'https://elsewhere.example/api/decks/curated/self/?page=2',
+    })
+
+  const CUT_SHORT: SyncMessage = {
+    message:
+      'Archidekt served a next-page link to another site (elsewhere.example), so it was not followed: https://elsewhere.example/api/decks/curated/self/?page=2. The list may be incomplete.',
+    messageKey: 'domain.sync.archidekt.nextLinkForeign',
+    messageParams: {
+      host: 'elsewhere.example',
+      url: 'https://elsewhere.example/api/decks/curated/self/?page=2',
+    },
+  }
+
+  /** The JSON report of one run. */
+  async function jsonReport(args: string[]): Promise<DeckSyncReport> {
+    const stdout = await captureStream('stdout', async () => {
+      await runDeckSync([...args, '--output', 'json'])
+    })
+    return JSON.parse(stdout) as DeckSyncReport
+  }
+
+  test('a cut-short owned-deck list leaves a missing deck’s ownership unknown', async () => {
+    await writeLinkedDeck([{ quantity: 2, name: 'Sol Ring' }])
+    stubFetch({ ...pushRoutes('2026-08-02T00:00:00.000Z'), [OWN_DECKS_URL]: CUT_SHORT_OWN_DECKS })
+
+    const report = await jsonReport(['push'])
+
+    expect(report.ownedDecksIncomplete).toEqual(CUT_SHORT)
+    expect(report.decks).toEqual([
+      {
+        name: 'Winota Stax',
+        status: 'skipped',
+        reason: `could not tell whether you own Archidekt deck ${DECK_ID}: ${CUT_SHORT.message}`,
+        reasonKey: 'domain.sync.ownershipUnknown',
+        reasonParams: {
+          deckId: DECK_ID,
+          reason: {
+            messageKey: 'domain.sync.archidekt.nextLinkForeign',
+            messageParams: CUT_SHORT.messageParams,
+          },
+        },
+      },
+    ])
+    expect(pushedToArchidekt()).toBe(false)
+  })
+
+  test('the cut-short list is a run-level warning in the run log', async () => {
+    await writeLinkedDeck([{ quantity: 2, name: 'Sol Ring' }])
+    stubFetch({ ...pushRoutes('2026-08-02T00:00:00.000Z'), [OWN_DECKS_URL]: CUT_SHORT_OWN_DECKS })
+
+    await runDeckSync(['push'])
+
+    expect(
+      logger.entries.filter((entry) => entry.level === 'warn').map((entry) => entry.args[0]),
+    ).toContain(CUT_SHORT.message)
+  })
+
+  test('the post-push read-back needs only updatedAt, whatever the relations hold', async () => {
+    await writeLinkedDeck([{ quantity: 2, name: 'Sol Ring' }])
+    let reads = 0
+    stubFetch({
+      ...pushRoutes('2026-08-02T00:00:00.000Z'),
+      [DECK_URL]: () => {
+        reads += 1
+        // The read-back answers with a relation a push could not plan against
+        // (no relation id); the pull-side read still finds its timestamp.
+        return reads === 1
+          ? Response.json(remoteDeck('2026-08-02T00:00:00.000Z'))
+          : Response.json({
+              updatedAt: '2026-08-03T00:00:00.000Z',
+              cards: [{ quantity: 2, card: { oracleCard: { name: 'Sol Ring' } } }],
+            })
+      },
+    })
+
+    expect(await runDeckSync(['push'])).toBe(0)
+
+    expect(pushedToArchidekt()).toBe(true)
+    expect(await readDeck()).toContain("sourceUpdatedAt: '2026-08-03T00:00:00.000Z'")
+  })
+
+  test('a deck Archidekt fails to serve fails, keyed, with Archidekt’s reason', async () => {
+    await writeLinkedDeck([{ quantity: 1, name: 'Sol Ring' }])
+    stubFetch({ [DECK_URL]: () => new Response('{"detail":"Not found."}', { status: 404 }) })
+
+    const report = await jsonReport(['pull'])
+
+    expect(report.decks).toEqual([
+      {
+        name: 'Winota Stax',
+        status: 'failed',
+        reason: `Failed to fetch Archidekt deck ${DECK_ID} (HTTP 404): Not found.`,
+        reasonKey: 'domain.sync.archidekt.deckFailedWithReason',
+        reasonParams: { deckId: DECK_ID, status: 404, reason: 'Not found.' },
+      },
+    ])
   })
 })

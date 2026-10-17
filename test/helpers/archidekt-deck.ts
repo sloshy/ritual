@@ -1,4 +1,4 @@
-import type { ArchidektClient } from '../../src/clients/ArchidektClient'
+import type { ArchidektCardQuery, ArchidektClient } from '../../src/clients/ArchidektClient'
 import {
   parseArchidektDeckResponse,
   type ArchidektCardEntry,
@@ -83,11 +83,11 @@ export function archidektDeckSections(deck: ArchidektDeckFixture): DeckSection[]
 /** A client whose card search answers every name with edition 900 and `defaultCategory`. */
 export function searchingClient(defaultCategory: string): ArchidektClient {
   const client: Pick<ArchidektClient, 'searchCards'> = {
-    searchCards: async (name: string): Promise<ArchidektCardSearchResult> => ({
+    searchCards: async (query: ArchidektCardQuery): Promise<ArchidektCardSearchResult> => ({
       id: 900,
       collectorNumber: '1',
       options: ['Normal'],
-      oracleCard: { name, defaultCategory },
+      oracleCard: { name: query.name, defaultCategory },
     }),
   }
   return client as ArchidektClient

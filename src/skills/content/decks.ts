@@ -280,7 +280,9 @@ terminal (or under \`--no-input\`) the run exits 2 before fetching anything.
 The printing question above applies here too, asked **once for the whole run**
 — \`--sync-printings\` / \`--no-sync-printings\` answer it up front.
 Existing decks conflict unless \`--overwrite\`/\`--yes\` says what to do. The whole
-account is fetched (every page), and \`--output json\` reports
+account is fetched (every page) unless Archidekt stops serving it part way — then
+\`--output json\` carries \`listIncomplete\` (a message saying why; \`found\` may be
+short) and stderr says so. \`--output json\` reports
 \`found\`/\`selected\`/\`imported\`/\`failed\`/\`skipped\` plus a per-deck array.
 Each deck carries \`status\`, its English \`error\` (with \`errorKey\`/\`errorParams\`
 when present) when it failed or was skipped, and \`advisories\` — message objects

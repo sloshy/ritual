@@ -188,6 +188,9 @@ export const domainMeta = {
     description: `${COUNT_CONTEXT} Entries in the user's collection on Archidekt, the remote service Ritual syncs with.`,
   },
   'domain.count.requests': { description: `${COUNT_CONTEXT} HTTP requests made to a remote API.` },
+  'domain.count.pages': {
+    description: `${COUNT_CONTEXT} Pages of results a remote API (Archidekt) served one after another.`,
+  },
   'domain.count.ambiguousRemovals': {
     description: `${COUNT_CONTEXT} Removals Ritual cannot attribute to one list on its own, because several lists hold the card.`,
   },

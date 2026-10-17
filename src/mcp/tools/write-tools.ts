@@ -452,7 +452,9 @@ export function registerWriteTools(server: McpServer, notifier: ListChangeNotifi
         'the deck: Archidekt categories that are not boards, Moxfield tags) to the deck’s ' +
         'categories file, replacing any a replaced deck had. A name/ID ' +
         'conflict without `overwrite`, or a deck name with no characters usable in a file ' +
-        'name, fails with `code: "invalid-request"`.',
+        'name, fails with `code: "invalid-request"` — as does an Archidekt URL whose deck ' +
+        'Archidekt does not show (missing or private). Archidekt failing any other way (a 5xx, ' +
+        'a rate limit, a reply that cannot be read) fails with `code: "internal"`.',
       inputSchema: z.object({
         mode: z.enum(['url', 'text']).describe('Import source.'),
         url: z.string().optional().describe('Deck URL (mode "url").'),

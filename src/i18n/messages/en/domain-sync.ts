@@ -127,6 +127,7 @@ export const domainSyncMessages = {
   },
   'domain.sync.reasonList': '{reasons}',
   'domain.sync.clauseJoin': '{first}; {second}',
+  'domain.sync.moreReasons': { $plural: 'count', one: '{count} more', other: '{count} more' },
 
   // ── Shared run log lines ──────────────────────────────────────────────
   'domain.sync.noChanges': 'No changes.',
@@ -166,6 +167,8 @@ export const domainSyncMessages = {
   'domain.sync.formatNotSet': 'not set',
   'domain.sync.formatChanged': 'Format: {from} → {to}',
   'domain.sync.notDeckOwner': 'you do not own Archidekt deck {deckId}',
+  'domain.sync.ownershipUnknown':
+    'could not tell whether you own Archidekt deck {deckId}: {reason}',
   'domain.sync.skipping': 'Skipping: {reason}',
   'domain.sync.divergenceUnchecked': '{reason} — pushing without the divergence check.',
   'domain.sync.noChangesToUpload': 'No changes to upload.',
@@ -393,4 +396,72 @@ export const domainSyncMessages = {
     'Archidekt answered the session refresh without an access token',
   'domain.sync.auth.refreshed': 'Refreshed the Archidekt session.',
   'domain.sync.auth.refreshError': 'Could not refresh the Archidekt session: {error}',
+
+  // ── The Archidekt client (`src/clients/ArchidektClient.ts`) ───────────
+  //
+  // Its failures reach `ritual import` (an Archidekt URL), `import-account`,
+  // both syncs (CLI, admin pages, MCP, reports) and the admin Import Deck page;
+  // each request's pair is the failure alone and the same failure quoting
+  // Archidekt's own reason.
+  'domain.sync.archidekt.deckFailed': 'Failed to fetch Archidekt deck {deckId} (HTTP {status})',
+  'domain.sync.archidekt.deckFailedWithReason':
+    'Failed to fetch Archidekt deck {deckId} (HTTP {status}): {reason}',
+  'domain.sync.archidekt.publicDecksFailed':
+    'Failed to fetch the public decks of Archidekt user {username} (HTTP {status})',
+  'domain.sync.archidekt.publicDecksFailedWithReason':
+    'Failed to fetch the public decks of Archidekt user {username} (HTTP {status}): {reason}',
+  'domain.sync.archidekt.ownDecksFailed': 'Failed to fetch your Archidekt decks (HTTP {status})',
+  'domain.sync.archidekt.ownDecksFailedWithReason':
+    'Failed to fetch your Archidekt decks (HTTP {status}): {reason}',
+  'domain.sync.archidekt.collectionPageFailed':
+    'Failed to fetch page {page} of the collection of Archidekt user {userId} (HTTP {status})',
+  'domain.sync.archidekt.collectionPageFailedWithReason':
+    'Failed to fetch page {page} of the collection of Archidekt user {userId} (HTTP {status}): {reason}',
+  'domain.sync.archidekt.searchFailed':
+    'The Archidekt card search for {card} failed (HTTP {status})',
+  'domain.sync.archidekt.searchFailedWithReason':
+    'The Archidekt card search for {card} failed (HTTP {status}): {reason}',
+  'domain.sync.archidekt.deckChangeFailed':
+    'Failed to send the changes to Archidekt deck {deckId} (HTTP {status})',
+  'domain.sync.archidekt.deckChangeFailedWithReason':
+    'Failed to send the changes to Archidekt deck {deckId} (HTTP {status}): {reason}',
+  'domain.sync.archidekt.recordCreateFailed':
+    'Failed to create a record in the Archidekt collection (HTTP {status})',
+  'domain.sync.archidekt.recordCreateFailedWithReason':
+    'Failed to create a record in the Archidekt collection (HTTP {status}): {reason}',
+  'domain.sync.archidekt.recordUpdateFailed':
+    'Failed to update record {recordId} of the Archidekt collection (HTTP {status})',
+  'domain.sync.archidekt.recordUpdateFailedWithReason':
+    'Failed to update record {recordId} of the Archidekt collection (HTTP {status}): {reason}',
+  'domain.sync.archidekt.recordsDeleteFailed':
+    'Failed to delete {records} from the Archidekt collection (HTTP {status})',
+  'domain.sync.archidekt.recordsDeleteFailedWithReason':
+    'Failed to delete {records} from the Archidekt collection (HTTP {status}): {reason}',
+  'domain.sync.archidekt.csvChunkFailed':
+    'Failed to upload part {chunk} of the CSV to Archidekt (HTTP {status})',
+  'domain.sync.archidekt.csvChunkFailedWithReason':
+    'Failed to upload part {chunk} of the CSV to Archidekt (HTTP {status}): {reason}',
+  'domain.sync.archidekt.publicDecksUnreadable':
+    'Failed to read the public decks of Archidekt user {username}: {reason}',
+  'domain.sync.archidekt.ownDecksUnreadable': 'Failed to read your Archidekt decks: {reason}',
+  'domain.sync.archidekt.deckUnreadable': 'Failed to read Archidekt deck {deckId}: {reason}',
+  'domain.sync.archidekt.collectionPageUnreadable':
+    'Failed to read page {page} of the collection of Archidekt user {userId}: {reason}',
+  'domain.sync.archidekt.searchUnreadable':
+    'Failed to read the Archidekt card search for {card}: {reason}',
+  'domain.sync.archidekt.searchUnreachable':
+    'The Archidekt card search for {card} could not reach Archidekt: {error}',
+  'domain.sync.archidekt.replyNotObject': 'the reply was not a JSON object',
+  'domain.sync.archidekt.replyFieldInvalid': 'the reply had no usable {field}',
+  'domain.sync.archidekt.pageItemUnreadable': 'result {index} of the reply had no usable {field}',
+  'domain.sync.archidekt.cardNotFound': 'Card not found on Archidekt: {card}',
+  'domain.sync.archidekt.csvUnreadable': 'The CSV for Archidekt could not be read: {reason}',
+  'domain.sync.archidekt.pageRepeated':
+    'Archidekt served a next-page link it had already served ({url}); stopped after {decks}.',
+  'domain.sync.archidekt.pageCapReached':
+    'Stopped after {pages} of Archidekt results; the list may be incomplete ({decks} so far).',
+  'domain.sync.archidekt.nextLinkUnreadable':
+    'Archidekt served a next-page link that cannot be read, so it was not followed: {url}. The list may be incomplete.',
+  'domain.sync.archidekt.nextLinkForeign':
+    'Archidekt served a next-page link to another site ({host}), so it was not followed: {url}. The list may be incomplete.',
 } as const satisfies MessageCatalogShape

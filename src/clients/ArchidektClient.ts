@@ -1,9 +1,7 @@
 import { defaultHttpClient } from '../util/http'
 import type { HttpClient } from '../util/interfaces'
 import type { DeckData, ImportedDeck } from '../list/deck'
-import { throwHttpError } from '../util/errors'
 import {
-  type ArchidektDeckResponse,
   type ArchidektDeckSimple,
   type ArchidektRawDeckResponse,
   type ArchidektCardSearchResult,
@@ -27,52 +25,70 @@ import {
   type CollectionCsvUnreadableResponse,
   type CollectionCsvUploadResult,
   type CollectionUpsertBody,
-  type CollectionUpsertResponse,
   validateArchidektCsvColumns,
 } from '../importers/archidekt-collection'
 import { parseCsv } from '../importers/csv'
 
 import { describeRateLimitWait, type RateLimitWait } from '../sync/common'
-import type { SyncMessage } from '../sync/message'
-import { getLogger } from '../util/logger'
+import {
+  errorParam,
+  isMessageParseError,
+  nestSync,
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+  type MessageParseError,
+  type NoErrorImpostor,
+  type SyncMessage,
+  type SyncMessageRef,
+  type SyncParam,
+} from '../sync/message'
+import { parsedJson, quotedReply, readReplyText } from '../util/reply-text'
+import {
+  parseCollectionPage,
+  parseDeckListItem,
+  parseDeckReply,
+  parseListPage,
+  parsePulledDeckReply,
+  parseRawDeckReply,
+  type ArchidektPulledDeckReply,
+  parseSearchResult,
+} from './archidekt-parse'
+import {
+  ArchidektRequestError,
+  failureMessage,
+  MAX_REASON_CHARS,
+  replyReasons,
+  type FailureKeyDrift,
+  type FailureKeyPair,
+} from '../auth/archidekt-reply'
 
 export { type ArchidektDeckSimple, getArchidektFormat } from '../importers/archidekt-types'
 
 /**
- * One page of a paginated list endpoint, as the wire actually serves it — every
- * field optional, because nothing has validated it yet. {@link parseListPage}
- * turns it into the checked shape.
+ * A whole deck listing, as far as Archidekt served it. `cutShort` says why the
+ * walk stopped before the last page (a next-page link it would not follow, a
+ * page served twice, the page cap): present, the list may be missing decks, and
+ * a caller must not read a deck's absence as anything but "unknown".
  */
-interface ArchidektListPageBody<T> {
-  results?: T[]
-  count?: number
-  /** Absolute URL of the next page, or null on the last one. */
-  next?: string | null
+export type ArchidektDeckList = {
+  decks: ArchidektDeckSimple[]
+  cutShort?: SyncMessage
 }
 
-/** A validated list page. */
-interface ArchidektListResponse<T> {
-  results: T[]
-  next?: string | null
-}
-
-/**
- * Validate one page of a list response. A page whose `results` is missing or is
- * not an array is an error, not an empty page: silently treating it as empty
- * would end the walk and make a truncated list look complete.
- *
- * @returns the checked page, or an error message.
- */
-export function parseListPage<T>(json: unknown): ArchidektListResponse<T> | string {
-  if (typeof json !== 'object' || json === null) return 'response body was not an object'
-  const body = json as ArchidektListPageBody<T>
-  if (!Array.isArray(body.results)) return 'response body had no `results` array'
-  const next = typeof body.next === 'string' ? body.next : null
-  return { results: body.results, next }
-}
-
-interface ArchidektSearchResponse {
-  results: ArchidektCardSearchResult[]
+/** What a card search looks for, and how its failures name the card. */
+export type ArchidektCardQuery = {
+  /** The card's full name; a double-faced card is searched for by its front face. */
+  name: string
+  /** A set to search in; with `collectorNumber`, the one printing wanted. */
+  set?: string
+  collectorNumber?: string
+  /**
+   * The card as the caller's own lines name it — its printing, finish and
+   * language included (`describeSyncCard`) — in every failure the search
+   * returns, so the failure names what the caller was sending.
+   */
+  label: SyncParam
 }
 
 /** A `PATCH /api/collection/v2/{id}/` body: the upsert fields plus the record id. */
@@ -99,6 +115,149 @@ export type CollectionCsvUploadOptions = {
   fileName?: string
 }
 
+// ── Failures ──────────────────────────────────────────────────────────
+
+/** The requests the client makes, each failure worded by a pair of keys. */
+type ArchidektRequest =
+  | 'deck'
+  | 'publicDecks'
+  | 'ownDecks'
+  | 'collectionPage'
+  | 'search'
+  | 'deckChange'
+  | 'recordCreate'
+  | 'recordUpdate'
+  | 'recordsDelete'
+  | 'csvChunk'
+
+/** No params beyond the status (and reason) every failure carries. */
+type NoParams = Record<never, never>
+
+/** What each request's failure names, beside the status and Archidekt's reason. */
+type RequestParams = {
+  deck: { deckId: string }
+  publicDecks: { username: string }
+  ownDecks: NoParams
+  collectionPage: { page: number; userId: number }
+  /** The card searched for, as the caller labels it ({@link ArchidektCardQuery.label}). */
+  search: { card: SyncParam }
+  deckChange: { deckId: string }
+  recordCreate: NoParams
+  recordUpdate: { recordId: number }
+  /** A count of records (`domain.count.collectionRecords`). */
+  recordsDelete: { records: SyncMessageRef }
+  /** The chunk's number, from 1. */
+  csvChunk: { chunk: number }
+}
+
+const FAILURE_KEYS = {
+  deck: {
+    plain: 'domain.sync.archidekt.deckFailed',
+    withReason: 'domain.sync.archidekt.deckFailedWithReason',
+  },
+  publicDecks: {
+    plain: 'domain.sync.archidekt.publicDecksFailed',
+    withReason: 'domain.sync.archidekt.publicDecksFailedWithReason',
+  },
+  ownDecks: {
+    plain: 'domain.sync.archidekt.ownDecksFailed',
+    withReason: 'domain.sync.archidekt.ownDecksFailedWithReason',
+  },
+  collectionPage: {
+    plain: 'domain.sync.archidekt.collectionPageFailed',
+    withReason: 'domain.sync.archidekt.collectionPageFailedWithReason',
+  },
+  search: {
+    plain: 'domain.sync.archidekt.searchFailed',
+    withReason: 'domain.sync.archidekt.searchFailedWithReason',
+  },
+  deckChange: {
+    plain: 'domain.sync.archidekt.deckChangeFailed',
+    withReason: 'domain.sync.archidekt.deckChangeFailedWithReason',
+  },
+  recordCreate: {
+    plain: 'domain.sync.archidekt.recordCreateFailed',
+    withReason: 'domain.sync.archidekt.recordCreateFailedWithReason',
+  },
+  recordUpdate: {
+    plain: 'domain.sync.archidekt.recordUpdateFailed',
+    withReason: 'domain.sync.archidekt.recordUpdateFailedWithReason',
+  },
+  recordsDelete: {
+    plain: 'domain.sync.archidekt.recordsDeleteFailed',
+    withReason: 'domain.sync.archidekt.recordsDeleteFailedWithReason',
+  },
+  csvChunk: {
+    plain: 'domain.sync.archidekt.csvChunkFailed',
+    withReason: 'domain.sync.archidekt.csvChunkFailedWithReason',
+  },
+} as const satisfies Record<ArchidektRequest, FailureKeyPair>
+
+/**
+ * Compile-time agreement between each request's params and its keys'
+ * placeholders: a placeholder renamed in the catalog, or a param added to a
+ * request, fails here rather than rendering a literal `{deckId}`.
+ */
+type KeysDrift = FailureKeyDrift<
+  ArchidektRequest,
+  typeof FAILURE_KEYS,
+  { [R in ArchidektRequest]: keyof RequestParams[R] & string }
+>
+const KEYS_AGREE: [KeysDrift] extends [never] ? true : KeysDrift = true
+void KEYS_AGREE
+
+/**
+ * A failed request as its message: what the request names, the status as a
+ * number, and Archidekt's reason when its reply gives one (per
+ * `replyReasons`). The reply is read bounded, and a reply cut off part way is
+ * evidence enough.
+ */
+async function requestFailureMessage<R extends ArchidektRequest>(
+  response: Response,
+  request: R,
+  params: RequestParams[R],
+): Promise<SyncMessage> {
+  const reasons = replyReasons(await readReplyText(response))
+  return failureMessage(FAILURE_KEYS[request], params, response.status, reasons)
+}
+
+/** {@link requestFailureMessage} as the error to throw, carrying Archidekt's status. */
+async function requestFailure<R extends ArchidektRequest>(
+  response: Response,
+  request: R,
+  params: RequestParams[R],
+): Promise<ArchidektRequestError> {
+  const message = await requestFailureMessage(response, request, params)
+  return new ArchidektRequestError(message, response.status)
+}
+
+/**
+ * Whether a parser refused, for a result whose type is a parameter. The
+ * constraint keeps the check sound: no success type with an `error` field of
+ * its own can be passed, so it can never pass for the refusal.
+ */
+function isUnreadable<T extends NoErrorImpostor<T>>(
+  parsed: T | MessageParseError,
+): parsed is MessageParseError {
+  return isMessageParseError<unknown>(parsed)
+}
+
+/** Which list of decks a paginated walk reads, and what its failures name. */
+type DeckList =
+  | { request: 'publicDecks'; params: RequestParams['publicDecks'] }
+  | { request: 'ownDecks'; params: RequestParams['ownDecks'] }
+
+/** A page of `list` Archidekt answered but that could not be read, and why. */
+function unreadableDecks(list: DeckList, reason: SyncMessage): SyncMessage {
+  const nested = nestSync(reason)
+  return list.request === 'publicDecks'
+    ? syncMessage('domain.sync.archidekt.publicDecksUnreadable', {
+        username: list.params.username,
+        reason: nested,
+      })
+    : syncMessage('domain.sync.archidekt.ownDecksUnreadable', { reason: nested })
+}
+
 /**
  * Hard cap on pages a list endpoint is followed for. Far above any real
  * account (a page is 50 decks), so reaching it means the server is looping
@@ -108,7 +267,8 @@ export type CollectionCsvUploadOptions = {
 export const MAX_LIST_PAGES = 100
 
 /**
- * The URL of a list response's next page, or undefined when there is none.
+ * The URL of a list response's next page, undefined when there is none, or why
+ * the link it served will not be followed.
  *
  * Archidekt serves `next` as an absolute `http://archidekt.com/...` URL, which
  * is upgraded to https here to avoid a redirect on every page. A relative link
@@ -116,27 +276,32 @@ export const MAX_LIST_PAGES = 100
  * server that switches to relative links keeps paginating.
  *
  * A link pointing anywhere but Archidekt, or one that will not parse, ends the
- * walk — and says so on the warning channel, since a truncated list must never
- * look complete.
+ * walk — and the refusal is the warning the caller gives, since a truncated
+ * list must never look complete. The link is Archidekt's text, so the refusal
+ * quotes it (control characters stripped, capped).
  *
  * @param baseUrl The URL the page was fetched from; only relative links need it.
  */
-export function nextPageUrl(next: string | null | undefined, baseUrl?: string): string | undefined {
+export function nextPageUrl(
+  next: string | null | undefined,
+  baseUrl?: string,
+): string | undefined | MessageParseError {
   if (typeof next !== 'string' || next.trim() === '') return undefined
-  const decline = (reason: string): undefined => {
-    getLogger().warn(
-      `Archidekt served a next-page link that will not be followed (${reason}): ${next}. The list may be incomplete.`,
-    )
-    return undefined
+  const link = quotedReply(next, MAX_REASON_CHARS)
+  const unreadable: MessageParseError = {
+    error: syncMessage('domain.sync.archidekt.nextLinkUnreadable', { url: link }),
   }
   let url: URL
   try {
     url = new URL(next, baseUrl)
   } catch {
-    return decline('unparseable')
+    return unreadable
   }
+  // A `javascript:`, `ftp:` or `file:` link is no web page to fetch.
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') return unreadable
   if (url.hostname !== 'archidekt.com' && !url.hostname.endsWith('.archidekt.com')) {
-    return decline(`unexpected host ${url.hostname}`)
+    const host = quotedReply(url.hostname, MAX_REASON_CHARS)
+    return { error: syncMessage('domain.sync.archidekt.nextLinkForeign', { host, url: link }) }
   }
   if (url.protocol === 'http:') url.protocol = 'https:'
   return url.toString()
@@ -249,8 +414,11 @@ function isValidInterval(value: number): boolean {
 function resolveMinInterval(option: number | undefined): number {
   if (option !== undefined) {
     if (!isValidInterval(option)) {
-      throw new Error(
-        `minRequestIntervalMs must be a non-negative finite number, got ${String(option)}`,
+      throw new SyncMessageError(
+        syncMessage('errors.invariant.notNonNegative', {
+          option: 'minRequestIntervalMs',
+          value: String(option),
+        }),
       )
     }
     return option
@@ -295,6 +463,12 @@ export function parseRetryAfterMs(header: string | null, nowMs: number): number 
   return delay > 0 ? delay : undefined
 }
 
+/** One deck fetch for a pull: the sections, and the reply they came from. */
+export type ArchidektPulledDeck = {
+  deck: DeckData
+  raw: ArchidektPulledDeckReply
+}
+
 /** One deck fetch, in both the shapes deck sync reads it as. */
 export type ArchidektDeckFetch = {
   deck: DeckData
@@ -317,8 +491,8 @@ function backoffMs(retry: number): number {
  * A default-transport client whose 429 waits are reported to `onWait` as the
  * shared {@link describeRateLimitWait} message (English plus key, for each
  * surface to render in its reader's language) — the construction both sync
- * engines (and any future consumer with a progress channel) share. `options`
- * exists for the seams; an `onRateLimitWait` given there is overridden.
+ * engines and `import-account` share. `options` holds the other seams; the
+ * wait observer is this function's to set.
  *
  * @param httpClient Transport seam. Defaults to the real one; a test injects a
  * mock here so a command that builds its client through this factory can be
@@ -326,7 +500,7 @@ function backoffMs(retry: number): number {
  */
 export function createPacedArchidektClient(
   onWait: (message: SyncMessage) => void,
-  options?: ArchidektClientOptions,
+  options?: Omit<ArchidektClientOptions, 'onRateLimitWait'>,
   httpClient?: HttpClient,
 ): ArchidektClient {
   return new ArchidektClient(httpClient, {
@@ -394,12 +568,6 @@ export class ArchidektClient {
     return { ...this.authHeaders(token), 'Content-Type': 'application/json' }
   }
 
-  /** Throw with the response body attached — write endpoints explain themselves there. */
-  private async throwWriteError(response: Response, action: string): Promise<never> {
-    const body = await response.text()
-    throw new Error(`${action} failed (${response.status}): ${body}`)
-  }
-
   private async fetchDeckResponse(deckId: string, token?: string): Promise<Response> {
     const url = `https://archidekt.com/api/decks/${deckId}/`
     const headers: Record<string, string> = {}
@@ -410,11 +578,31 @@ export class ArchidektClient {
 
     const response = await this.request(url, { headers })
 
-    if (!response.ok) {
-      throwHttpError(response, `Failed to fetch deck ${deckId}`)
-    }
+    if (!response.ok) throw await requestFailure(response, 'deck', { deckId })
 
     return response
+  }
+
+  /**
+   * One deck's reply, read as `parse` checks it. A reply that is not one (not
+   * JSON, a relation missing its card) is the refusal `deckUnreadable`, at the
+   * 2xx status Archidekt answered with.
+   */
+  private async fetchDeckAs<T extends NoErrorImpostor<T>>(
+    deckId: string,
+    token: string | undefined,
+    parse: (json: unknown) => T | MessageParseError,
+  ): Promise<T> {
+    const response = await this.fetchDeckResponse(deckId, token)
+    const parsed = parse(parsedJson(await response.text()))
+    if (isUnreadable(parsed)) {
+      const reason = nestSync(parsed.error)
+      throw new ArchidektRequestError(
+        syncMessage('domain.sync.archidekt.deckUnreadable', { deckId, reason }),
+        response.status,
+      )
+    }
+    return parsed
   }
 
   /**
@@ -423,69 +611,75 @@ export class ArchidektClient {
    * and return every page's results.
    *
    * Two guards keep a misbehaving server from looping forever: a URL already
-   * fetched ends the walk, and so does {@link MAX_LIST_PAGES}. Both say so on
-   * the warning channel — a truncated list must never look complete.
+   * fetched ends the walk, and so does {@link MAX_LIST_PAGES}. Both are
+   * reported in the listing's `cutShort`, as is a next-page link the walk will
+   * not follow — a truncated list must never look complete. A failed page, or
+   * one that cannot be read, fails the whole walk: part of a list is never
+   * returned as all of it.
    */
-  private async fetchAllPages<T>(
+  private async fetchDeckPages(
     firstUrl: string,
     init: RequestInit | undefined,
-    errorMessage: string,
-  ): Promise<T[]> {
-    const results: T[] = []
+    list: DeckList,
+  ): Promise<ArchidektDeckList> {
+    const decks: ArchidektDeckSimple[] = []
     const seen = new Set<string>()
     let url: string | undefined = firstUrl
+    const decksSoFar = (): SyncMessageRef => syncRef('domain.count.decks', { count: decks.length })
 
     for (let page = 1; url !== undefined; page++) {
       if (seen.has(url)) {
-        getLogger().warn(
-          `Archidekt returned a next-page link it had already served (${url}); stopping after ${results.length} result(s).`,
-        )
-        break
+        const cutShort = syncMessage('domain.sync.archidekt.pageRepeated', {
+          url: quotedReply(url, MAX_REASON_CHARS),
+          decks: decksSoFar(),
+        })
+        return { decks, cutShort }
       }
       seen.add(url)
 
       const response = await this.request(url, init)
-      if (!response.ok) {
-        throwHttpError(response, errorMessage)
+      if (!response.ok) throw await requestFailure(response, list.request, list.params)
+      // A reply that is not JSON parses to `undefined`: a page that cannot be
+      // read, never a bare SyntaxError.
+      const body = parseListPage(parsedJson(await response.text()), parseDeckListItem)
+      if (isMessageParseError(body)) {
+        throw new ArchidektRequestError(unreadableDecks(list, body.error), response.status)
       }
-      const body = parseListPage<T>(await response.json())
-      if (typeof body === 'string') {
-        throw new Error(`${errorMessage}: ${body}`)
-      }
-      results.push(...body.results)
+      decks.push(...body.results)
 
       const next = nextPageUrl(body.next, url)
+      if (isMessageParseError(next)) return { decks, cutShort: next.error }
       if (next !== undefined && page >= MAX_LIST_PAGES) {
-        getLogger().warn(
-          `Stopped after ${MAX_LIST_PAGES} pages; the list may be incomplete (${results.length} result(s) so far).`,
-        )
-        break
+        const cutShort = syncMessage('domain.sync.archidekt.pageCapReached', {
+          pages: syncRef('domain.count.pages', { count: MAX_LIST_PAGES }),
+          decks: decksSoFar(),
+        })
+        return { decks, cutShort }
       }
       url = next
     }
 
-    return results
+    return { decks }
   }
 
   /** Every public deck of a user, following the endpoint's pagination to the end. */
-  async fetchPublicDecks(username: string): Promise<ArchidektDeckSimple[]> {
+  async fetchPublicDecks(username: string): Promise<ArchidektDeckList> {
     const url = `https://archidekt.com/api/decks/v3/?ownerUsername=${encodeURIComponent(username)}`
-    return this.fetchAllPages<ArchidektDeckSimple>(url, undefined, 'Failed to fetch public decks')
+    return this.fetchDeckPages(url, undefined, { request: 'publicDecks', params: { username } })
   }
 
   /** Every deck of the logged-in user, following the endpoint's pagination to the end. */
-  async fetchOwnDecks(token: string): Promise<ArchidektDeckSimple[]> {
-    return this.fetchAllPages<ArchidektDeckSimple>(
+  async fetchOwnDecks(token: string): Promise<ArchidektDeckList> {
+    return this.fetchDeckPages(
       'https://archidekt.com/api/decks/curated/self/',
       { headers: this.authHeaders(token) },
-      'Failed to fetch own decks',
+      { request: 'ownDecks', params: {} },
     )
   }
 
   /** The parsed deck and its role categories, for an import. See {@link ImportedDeck}. */
   async fetchImportedDeck(deckId: string, token?: string): Promise<ImportedDeck> {
-    const response = await this.fetchDeckResponse(deckId, token)
-    const json = (await response.json()) as ArchidektDeckResponse
+    const json = await this.fetchDeckAs(deckId, token, parseDeckReply)
     const categories = parseArchidektDeckCategories(json)
     return {
       deck: withoutEmptyCards(parseArchidektDeckResponse(json, deckId)),
@@ -494,36 +688,43 @@ export class ArchidektClient {
     }
   }
 
-  async fetchDeckRaw(deckId: string, token?: string): Promise<ArchidektRawDeckResponse> {
-    const response = await this.fetchDeckResponse(deckId, token)
-    return (await response.json()) as ArchidektRawDeckResponse
+  /**
+   * What a pull reads of a deck, in one request: the sections to apply, and the
+   * reply they were parsed from — for its categories and the `updatedAt` the
+   * pull records. Checked only for what a pull reads ({@link parsePulledDeckReply}),
+   * so a relation missing an id a push would need does not fail a pull.
+   */
+  async fetchPulledDeck(deckId: string, token?: string): Promise<ArchidektPulledDeck> {
+    const json = await this.fetchDeckAs(deckId, token, parsePulledDeckReply)
+    return { deck: parseArchidektDeckResponse(json, deckId), raw: json }
   }
 
   /**
    * The parsed deck *and* the response it was parsed from, in one request.
    *
-   * Deck sync needs both — the sections to diff against, and the raw payload's
+   * A push needs both — the sections to diff against, and the raw payload's
    * `updatedAt`/card ids — and fetching them separately both doubles the calls
-   * and risks the two halves describing different revisions of the deck.
+   * and risks the two halves describing different revisions of the deck. Every
+   * relation is checked for the ids the upload plan sends back.
    */
   async fetchDeckWithRaw(deckId: string, token?: string): Promise<ArchidektDeckFetch> {
-    const response = await this.fetchDeckResponse(deckId, token)
-    const json = (await response.json()) as ArchidektRawDeckResponse & ArchidektDeckResponse
+    const json = await this.fetchDeckAs(deckId, token, parseRawDeckReply)
     return { deck: parseArchidektDeckResponse(json, deckId), raw: json }
   }
 
   /**
    * Find an Archidekt printing by name, optionally pinned to a set and
-   * collector number. Returns the matching search result, or an error message
-   * string (search failure or no match) — the caller discriminates on
-   * `typeof result === 'string'`.
+   * collector number. Returns the matching search result, or why there is none
+   * (a failed or unreadable search, one that never reached Archidekt, or no
+   * match), English plus its key — the caller discriminates with
+   * `isSyncMessage`. Never rejects: one card's search must not end the sync
+   * around it.
    */
   async searchCards(
-    cardName: string,
-    set: string | undefined,
+    query: ArchidektCardQuery,
     token: string,
-    collectorNumber?: string,
-  ): Promise<ArchidektCardSearchResult | string> {
+  ): Promise<ArchidektCardSearchResult | SyncMessage> {
+    const { name: cardName, set, collectorNumber, label: card } = query
     // Archidekt indexes the oracle (front-face) name while list files spell the
     // full Scryfall name, so a double-faced or split card has to be searched for
     // by its front face or it matches nothing at all.
@@ -538,15 +739,26 @@ export class ArchidektClient {
     }
     searchUrl.searchParams.set('pageSize', '50')
 
-    const response = await this.request(searchUrl.toString(), {
-      headers: this.authHeaders(token),
-    })
-
-    if (!response.ok) {
-      return `Card search failed (${response.status}): ${cardName}`
+    let body: string
+    try {
+      const response = await this.request(searchUrl.toString(), {
+        headers: this.authHeaders(token),
+      })
+      if (!response.ok) return await requestFailureMessage(response, 'search', { card })
+      body = await response.text()
+    } catch (error: unknown) {
+      return syncMessage('domain.sync.archidekt.searchUnreachable', {
+        card,
+        error: errorParam(error),
+      })
     }
-
-    const data = (await response.json()) as ArchidektSearchResponse
+    // One unreadable hit (a token, a promo without a collector number) is
+    // skipped: the search wants one match, not every result.
+    const data = parseListPage(parsedJson(body), parseSearchResult, 'skip')
+    if (isMessageParseError(data)) {
+      const reason = nestSync(data.error)
+      return syncMessage('domain.sync.archidekt.searchUnreadable', { card, reason })
+    }
 
     // The collector-number filter is applied server-side too, but re-check it
     // here so a pinned printing is never satisfied by a different one.
@@ -562,10 +774,7 @@ export class ArchidektClient {
       set && collectorNumber && candidates.length === 1
         ? candidates[0]
         : candidates.find((r) => r.oracleCard.name.toLowerCase() === queryName.toLowerCase())
-    if (!match) {
-      return `Card not found on Archidekt: ${cardName}${formatPrintingSuffix(set, collectorNumber)}`
-    }
-    return match
+    return match ?? syncMessage('domain.sync.archidekt.cardNotFound', { card })
   }
 
   async modifyCards(deckId: string, entries: ModifyCardEntry[], token: string): Promise<void> {
@@ -576,9 +785,7 @@ export class ArchidektClient {
       body: JSON.stringify({ cards: entries }),
     })
 
-    if (!response.ok) {
-      await this.throwWriteError(response, 'modifyCards')
-    }
+    if (!response.ok) throw await requestFailure(response, 'deckChange', { deckId })
   }
 
   // ── Collection ────────────────────────────────────────────────────────
@@ -605,37 +812,44 @@ export class ArchidektClient {
 
     const response = await this.request(url.toString(), { headers })
 
-    if (!response.ok) {
-      throwHttpError(response, `Failed to fetch collection page ${page} for user ${userId}`)
-    }
+    if (!response.ok) throw await requestFailure(response, 'collectionPage', { page, userId })
 
-    return (await response.json()) as ArchidektCollectionPage
+    const parsed = parseCollectionPage(parsedJson(await response.text()))
+    if (isMessageParseError(parsed)) {
+      const reason = nestSync(parsed.error)
+      throw new ArchidektRequestError(
+        syncMessage('domain.sync.archidekt.collectionPageUnreadable', { page, userId, reason }),
+        response.status,
+      )
+    }
+    return parsed
   }
 
-  /** Create one collection record. */
-  async createCollectionRecord(
-    body: CollectionUpsertBody,
-    token: string,
-  ): Promise<CollectionUpsertResponse> {
+  /**
+   * Create one collection record. A 2xx means the record was written; nothing
+   * reads the reply (Archidekt echoes the record), so its shape is not checked —
+   * refusing a write that landed would only report a failure that did not
+   * happen.
+   */
+  async createCollectionRecord(body: CollectionUpsertBody, token: string): Promise<void> {
     const response = await this.request('https://archidekt.com/api/collection/v2/', {
       method: 'POST',
       headers: this.jsonAuthHeaders(token),
       body: JSON.stringify(body),
     })
 
-    if (!response.ok) {
-      await this.throwWriteError(response, 'createCollectionRecord')
-    }
-
-    return (await response.json()) as CollectionUpsertResponse
+    if (!response.ok) throw await requestFailure(response, 'recordCreate', {})
   }
 
-  /** Update one existing collection record (quantity, finish, condition, …). */
+  /**
+   * Update one existing collection record (quantity, finish, condition, …). As
+   * with {@link createCollectionRecord}, a 2xx is the whole answer.
+   */
   async updateCollectionRecord(
     id: number,
     body: CollectionUpsertBody,
     token: string,
-  ): Promise<CollectionUpsertResponse> {
+  ): Promise<void> {
     const payload: CollectionUpdatePayload = { ...body, id }
     const response = await this.request(`https://archidekt.com/api/collection/v2/${id}/`, {
       method: 'PATCH',
@@ -643,11 +857,7 @@ export class ArchidektClient {
       body: JSON.stringify(payload),
     })
 
-    if (!response.ok) {
-      await this.throwWriteError(response, `updateCollectionRecord ${id}`)
-    }
-
-    return (await response.json()) as CollectionUpsertResponse
+    if (!response.ok) throw await requestFailure(response, 'recordUpdate', { recordId: id })
   }
 
   /**
@@ -665,7 +875,8 @@ export class ArchidektClient {
       })
 
       if (!response.ok) {
-        await this.throwWriteError(response, `deleteCollectionRecords (${batch.length} records)`)
+        const records = syncRef('domain.count.collectionRecords', { count: batch.length })
+        throw await requestFailure(response, 'recordsDelete', { records })
       }
     }
   }
@@ -701,11 +912,12 @@ export class ArchidektClient {
     token: string,
   ): Promise<CollectionCsvUploadResult> {
     const columnError = validateArchidektCsvColumns(options.columns)
-    if (columnError) throw new Error(`uploadCollectionCsv: ${columnError.message}`)
+    if (columnError) throw new SyncMessageError(columnError)
 
     const parsed = parseCsv(csvText)
-    if ('error' in parsed) {
-      throw new Error(`uploadCollectionCsv: the CSV could not be read — ${parsed.error.message}`)
+    if (isMessageParseError(parsed)) {
+      const reason = nestSync(parsed.error)
+      throw new SyncMessageError(syncMessage('domain.sync.archidekt.csvUnreadable', { reason }))
     }
     // Records, not lines: a quoted cell may span lines, and a chunk boundary must
     // never fall inside one.
@@ -733,9 +945,7 @@ export class ArchidektClient {
         headers: this.authHeaders(token),
         body: form,
       })
-      if (!response.ok) {
-        await this.throwWriteError(response, `uploadCollectionCsv (chunk ${chunk})`)
-      }
+      if (!response.ok) throw await requestFailure(response, 'csvChunk', { chunk })
 
       const result = parseCollectionCsvUploadResponse(await response.text(), {
         chunk,
@@ -786,15 +996,4 @@ export class ArchidektClient {
 function oracleNameOf(name: string): string {
   const front = name.split(' // ')[0]?.trim()
   return front ? front : name
-}
-
-/** ` (MKM:123)` / ` (MKM)` / ` (#123)` for a not-found message; set codes uppercase in output. */
-function formatPrintingSuffix(
-  set: string | undefined,
-  collectorNumber: string | undefined,
-): string {
-  if (set) {
-    return ` (${set.toUpperCase()}${collectorNumber ? `:${collectorNumber}` : ''})`
-  }
-  return collectorNumber ? ` (#${collectorNumber})` : ''
 }

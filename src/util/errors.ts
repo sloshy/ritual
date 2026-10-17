@@ -23,11 +23,6 @@ export function isBrokenPipeError(error: unknown): boolean {
   return hasErrorCode(error, 'EPIPE')
 }
 
-/** Throw a descriptive error when an HTTP response is not OK. */
-export function throwHttpError(response: Response, action: string): never {
-  throw new Error(`${action}: ${response.status} ${response.statusText}`)
-}
-
 /**
  * Process exit codes for CLI failures. Commands set `process.exitCode` to one
  * of these (never a bare numeric literal, never a hard exit call) and return.

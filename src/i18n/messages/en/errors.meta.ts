@@ -38,6 +38,10 @@ export const errorsMeta = {
     description:
       'An internal consistency failure: a value Ritual built for itself lacks a part that must be there by now (a programming error, not a user mistake). {subject} is the code name of the value, with its internal id (like SwapAllocation(lea:161)), and {field} the code name of the missing part (like printing); both are never translated.',
   },
+  'errors.invariant.notNonNegative': {
+    description:
+      'An internal consistency failure: a part of Ritual was configured with a number that must be zero or more (like a wait in milliseconds), and was given something else (a programming error, not a user mistake). {option} is the code name of the setting (like minRequestIntervalMs) and {value} the value it got, as raw data; both are never translated.',
+  },
   'errors.invariant.notTextModule': {
     description:
       'An internal consistency failure: a file that the build embeds into the program as text (a stylesheet, a script) is missing or was embedded the wrong way (a build mistake, not a user mistake). {module} is the embedded file’s path (like admin/styles.css) and is never translated.',

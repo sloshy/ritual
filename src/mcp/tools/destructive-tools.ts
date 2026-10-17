@@ -292,6 +292,9 @@ export function registerDestructiveTools(server: McpServer, notifier: ListChange
         'a run with failures still reports success — check report.failedCount. Branch on ' +
         'each deck’s outcome (changed, unchanged, dry-run, cancelled; absent on a failure or ' +
         'another kind of skip), never on its reason, which is English prose. ' +
+        'A push whose list of owned decks Archidekt stopped serving part way carries ' +
+        'report.ownedDecksIncomplete (a message saying why); a deck missing from that list is ' +
+        'then skipped as domain.sync.ownershipUnknown rather than as a deck you do not own. ' +
         'Emits one progress notification per deck when the call supplies a progressToken, ' +
         'and honours cancellation between decks: the deck in flight finishes, the rest are ' +
         'reported skipped with outcome cancelled, and report.cancelled is true.',

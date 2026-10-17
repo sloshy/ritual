@@ -646,8 +646,13 @@ describe('collection-sync CLI (Integration)', () => {
 
     expect(await runSync(['pull', '--into', 'binder'])).toBe(1)
     // The client's own error names the page and account it failed on; the
-    // engine no longer wraps it in a second "Failed to fetch …" prefix.
-    expect(logged()).toContain('Failed to fetch collection page 1')
+    // engine does not wrap it in a second "Failed to fetch …" prefix.
+    expect(logged()).toMatch(
+      new RegExp(
+        `^Failed to fetch page 1 of the collection of Archidekt user ${TEST_ACCOUNT.id} \\(HTTP 500\\): nope$`,
+        'm',
+      ),
+    )
   })
 })
 

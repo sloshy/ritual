@@ -157,6 +157,8 @@ type MockArchidektOptions = {
   fetchFails?: boolean
   /** Make `/api/collection/bulk/` (the delete endpoint) fail. */
   bulkFails?: boolean
+  /** Make every record create and update (`/api/collection/v2/…`) fail. */
+  upsertFails?: boolean
   /** Advertise a next page forever, so only `totalPages` stops the loop. */
   endlessNext?: boolean
   /** Make every `/api/collection/upload/v2/` request fail. */
@@ -210,6 +212,7 @@ function mockArchidekt(options: MockArchidektOptions = {}): MockArchidekt {
 
     // Both the create (`/v2/`) and the update (`/v2/{id}/`) land here.
     if (href.startsWith('https://archidekt.com/api/collection/v2/')) {
+      if (options.upsertFails) return new Response('{"card":["Invalid pk."]}', { status: 400 })
       return Response.json({ id: ++createdId, createdAt: 'now', modifiedAt: 'now' })
     }
     if (href === 'https://archidekt.com/api/collection/bulk/') {
@@ -702,8 +705,14 @@ describe('runCollectionSync (pull)', () => {
 
     expect(run.report.failedCount).toBe(2)
     // The client's own error names the page and account; the engine does not
-    // re-prefix it.
-    expect(run.report.errors[0]).toContain('Failed to fetch collection page 1')
+    // re-prefix it, and its key rides along.
+    expect(run.report.errorMessages).toEqual([
+      {
+        message: `Failed to fetch page 1 of the collection of Archidekt user ${TEST_ACCOUNT.id} (HTTP 500): Server Error`,
+        messageKey: 'domain.sync.archidekt.collectionPageFailedWithReason',
+        messageParams: { page: 1, userId: TEST_ACCOUNT.id, status: 500, reason: 'Server Error' },
+      },
+    ])
     expect(store.applied).toEqual([])
     expect(state.written).toEqual([])
   })
@@ -874,6 +883,22 @@ describe('runCollectionSync (ambiguous removals)', () => {
 
     expect(run.report.errors).toEqual([
       'Cannot use the removal priority: no collection list is named "card-shop"; no collection list is named "shoebox".',
+    ])
+  })
+
+  test('a priority naming many unknown lists names every one of them', async () => {
+    const names = ['a', 'b', 'c', 'd', 'e', 'f']
+    const { run } = await sync({
+      direction: 'pull',
+      client: oneSolRing().client,
+      store: ambiguousStore(),
+      state: fakeState(),
+      removalPriority: names,
+    })
+
+    // Every bad name at once, past the five a sync reason spells out.
+    expect(run.report.errors).toEqual([
+      `Cannot use the removal priority: ${names.map((name) => `no collection list is named "${name}"`).join('; ')}.`,
     ])
   })
 
@@ -1520,9 +1545,11 @@ describe('runCollectionSync (push)', () => {
     const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
 
     expect(run.report.failedCount).toBe(1)
-    expect(run.report.lists.find((list) => list.name === 'blue-binder')?.reason).toContain(
-      'Card not found on Archidekt: Made Up Card (XXX:1)',
-    )
+    expect(run.report.lists.find((list) => list.name === 'blue-binder')).toMatchObject({
+      reason: 'Card not found on Archidekt: Made Up Card (XXX:1)',
+      reasonKey: 'domain.sync.archidekt.cardNotFound',
+      reasonParams: { card: 'Made Up Card (XXX:1)' },
+    })
     // The second list still pushed.
     expect(requests.filter((request) => request.method === 'POST')).toHaveLength(1)
     expect(run.report.lists.find((list) => list.name === 'long-box')?.status).toBe('synced')
@@ -2976,7 +3003,9 @@ describe('runCollectionSync (progress)', () => {
     expect(logs.some((line) => line.startsWith('Fetched page '))).toBe(false)
     expect(logs.some((line) => line.startsWith('Archidekt collection:'))).toBe(false)
     expect(logs.some((line) => line.startsWith('Comparing the collection'))).toBe(false)
-    expect(logs.some((line) => line.includes('Failed to fetch collection page 1'))).toBe(true)
+    expect(logs.some((line) => line.startsWith('Failed to fetch page 1 of the collection'))).toBe(
+      true,
+    )
   })
 })
 
@@ -2996,6 +3025,54 @@ describe('runCollectionSync (run-level failures)', () => {
     expect(run.report.errors[0]).toBe('Failed to remove Sol Ring (LTC:284) from Archidekt')
     expect(run.report.totals.removed).toBe(0)
     expect(run.report.unlisted).toBeUndefined()
+  })
+
+  test('a failed delete is logged with the client’s failure nested, keyed', async () => {
+    const store = fakeStore([{ name: 'blue-binder' }])
+    const { client } = mockArchidekt({
+      pages: [[record({ id: 11, name: 'Sol Ring', set: 'ltc', collectorNumber: '284' })]],
+      bulkFails: true,
+    })
+
+    const { events } = await sync({ direction: 'push', client, store, state: fakeState() })
+
+    const failure = events.find(
+      (event) => event.kind === 'log' && event.messageKey === 'domain.sync.removeFailed',
+    )
+    expect(failure?.kind === 'log' ? failure.messageParams?.error : undefined).toEqual({
+      messageKey: 'domain.sync.archidekt.recordsDeleteFailedWithReason',
+      messageParams: {
+        records: { messageKey: 'domain.count.collectionRecords', messageParams: { count: 1 } },
+        status: 500,
+        reason: 'Server Error',
+      },
+    })
+  })
+
+  test('a refused create fails its list, the client’s failure nested in the reason', async () => {
+    const store = fakeStore([
+      { name: 'blue-binder', entries: [entry('Sol Ring', 'ltc', '284', { cardId: 1 })] },
+    ])
+    const { client } = mockArchidekt({
+      pages: [[]],
+      printings: { 'ltc:284': 4242 },
+      upsertFails: true,
+    })
+
+    const { run } = await sync({ direction: 'push', client, store, state: fakeState() })
+
+    expect(run.report.lists[0]).toMatchObject({
+      name: 'blue-binder',
+      status: 'failed',
+      reasonKey: 'domain.sync.addFailed',
+      reasonParams: {
+        card: 'Sol Ring (LTC:284)',
+        error: {
+          messageKey: 'domain.sync.archidekt.recordCreateFailedWithReason',
+          messageParams: { status: 400, reason: '{"card":["Invalid pk."]}' },
+        },
+      },
+    })
   })
 
   test('stops paging when a response advertises a next page past the last one', async () => {

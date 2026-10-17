@@ -153,7 +153,8 @@ export interface ArchidektCollectionPage {
   /** The owner's full tag list, included on every page. */
   tags: ArchidektCollectionTag[]
   isPublic: boolean
-  owner: ArchidektCollectionOwner
+  /** Absent when Archidekt sent no readable owner block. */
+  owner?: ArchidektCollectionOwner
 }
 
 /**
@@ -172,16 +173,6 @@ export interface CollectionUpsertBody {
   condition: number
   tags: ArchidektCollectionTag[]
   purchasePrice: number | null
-}
-
-/**
- * What create/update return. Archidekt echoes the full record, but only these
- * fields are documented from the site's own client, so only these are declared.
- */
-export interface CollectionUpsertResponse {
-  id: number
-  createdAt: string
-  modifiedAt: string
 }
 
 /** Ritual condition ↔ Archidekt condition id (1–5). */

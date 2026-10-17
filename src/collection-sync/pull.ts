@@ -257,7 +257,8 @@ async function resolveRemovalPriority(
 
   return isNonEmpty(problems)
     ? syncMessage('domain.sync.priorityUnusable', {
-        problems: nestSync(joinSyncMessages(problems)),
+        // Every bad name at once (see above), never a count of the rest.
+        problems: nestSync(joinSyncMessages(problems, { complete: true })),
       })
     : resolved
 }

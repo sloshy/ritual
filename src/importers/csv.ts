@@ -774,7 +774,8 @@ export function convertCsvRows(
 
     // A rejected row is always reported: any problem fails it.
     if (isNonEmpty(problems)) {
-      const reason = joinSyncMessages(problems)
+      // Every problem: the row is fixed whole, so none may hide behind a count.
+      const reason = joinSyncMessages(problems, { complete: true })
       failures.push({
         lineNumber: row.lineNumber,
         raw: row.raw,

@@ -2,6 +2,7 @@ import { Command } from 'commander'
 import {
   ArchidektClient,
   createPacedArchidektClient,
+  type ArchidektDeckList,
   type ArchidektDeckSimple,
   getArchidektFormat,
 } from '../clients/ArchidektClient'
@@ -17,13 +18,12 @@ import {
   type SyncPrintingsOptions,
 } from '../cli/options'
 import {
-  emitError,
   emitOutput,
   installScriptingLogger,
   normalizeScriptingOptions,
   type OutputFormat,
 } from '../cli/output'
-import { fail } from '../cli/action'
+import { fail, reportCommandFailure } from '../cli/action'
 import { ExitCode, CardCommandError, getErrorMessage } from '../util/errors'
 import { getDecksDir } from '../config/ritual-config'
 import { ask, resolveImportPrintings } from '../cli/prompts'
@@ -88,6 +88,13 @@ type ImportAccountJsonResult = {
   skipped: number
   dryRun: boolean
   decks: DeckImportResult[]
+  /**
+   * Why the account's deck list came back incomplete — Archidekt stopped
+   * serving it part way (a next-page link Ritual would not follow, a page served
+   * twice, the page cap) — so `found` may be short. English `message` plus
+   * `messageKey` / `messageParams`. Absent when the list was read to the end.
+   */
+  listIncomplete?: SyncMessage
 }
 
 /**
@@ -136,6 +143,8 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         logger.info(message)
       }
 
+      /** Set once the deck list is fetched, if Archidekt stopped serving it part way. */
+      let listIncomplete: SyncMessage | undefined
       const emitResult = (
         account: string | undefined,
         found: number,
@@ -151,6 +160,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
           skipped: results.filter((r) => r.status === 'skipped').length,
           dryRun,
           decks: results,
+          ...(listIncomplete === undefined ? {} : { listIncomplete }),
         }
         emitOutput(payload, scripting)
       }
@@ -187,7 +197,7 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         const client = createClient((message) => logger.warn(renderSyncMessage(message)))
 
         const currentUser = await auth.getStoredUser()
-        let decks: ArchidektDeckSimple[] = []
+        let listing: ArchidektDeckList = { decks: [] }
         let token: string | undefined = (await auth.getToken()) ?? undefined
 
         // Helper to handle login if needed
@@ -224,24 +234,28 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
             fail(scripting, 'runtime_error', 'cli.importAccount.noToken')
             return
           }
-          decks = await client.fetchOwnDecks(token)
+          listing = await client.fetchOwnDecks(token)
         } else {
           // Username provided
           if (currentUser && currentUser.username.toLowerCase() === username.toLowerCase()) {
             info(t('cli.importAccount.fetchingAuthenticated', { username }))
             if (token) {
-              decks = await client.fetchOwnDecks(token)
+              listing = await client.fetchOwnDecks(token)
             } else {
               info(t('cli.importAccount.sessionExpiredFallback'))
-              decks = await client.fetchPublicDecks(username)
+              listing = await client.fetchPublicDecks(username)
             }
           } else {
             info(t('cli.importAccount.fetchingPublic', { username }))
-            decks = await client.fetchPublicDecks(username)
+            listing = await client.fetchPublicDecks(username)
             // We don't necessarily need a token for public decks of others, but we keep it if we have it.
           }
         }
 
+        const decks = listing.decks
+        listIncomplete = listing.cutShort
+        // Essential output: the decks offered (and `found`) may be short.
+        if (listIncomplete !== undefined) logger.warn(renderSyncMessage(listIncomplete))
         info(t('cli.importAccount.foundDecks', { count: decks.length }))
 
         if (decks.length === 0) {
@@ -356,14 +370,9 @@ export function registerImportAccountCommand(program: Command, deps: ImportAccou
         emitResult(account, decks.length, results)
       } catch (e: unknown) {
         // The prompt guards throw a structured usage error when input is
-        // needed but prompts are unavailable; keep its exit code.
-        if (e instanceof CardCommandError) {
-          emitError(e.code, e.message, scripting, e.details, e.messageRef)
-          process.exitCode = e.exitCode
-          return
-        }
-        emitError('runtime_error', getErrorMessage(e), scripting)
-        process.exitCode = ExitCode.RuntimeError
+        // needed but prompts are unavailable, which keeps its exit code; a
+        // failed Archidekt request (the deck list) keeps its key.
+        reportCommandFailure(scripting, e)
       }
     },
   )

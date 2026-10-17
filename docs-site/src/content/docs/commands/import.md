@@ -239,7 +239,7 @@ A CSV import emits a different result:
 - `advisories` carries non-fatal notices about rows that **did** import: category values the grammar refused, category values that named a board and became the row's section, and a categories sidecar that could not be written. Each is a message object, as on a text import. In text mode these print on stderr as `Warning: ...` (even under `--quiet`). They never change the exit code.
 - A CSV import has no `warnings` key. On a URL or text-file import that key means content was **lost**, which exits `1`.
 
-Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes, with `messageKey`/`messageParams` when the refusal has a catalog entry (a bad `--columns` spec, an unparseable CSV, an unsupported URL). A partial failure still exits `1` even though the payload was emitted.
+Errors are emitted on stderr as `{ "error": { "code", "message" } }` in JSON modes, with `messageKey`/`messageParams` when the refusal has a catalog entry (a bad `--columns` spec, an unparseable CSV, an unsupported URL, or a deck service answering an error: `cli.import.failed`, whose `reason` is the service's failure, such as `Failed to fetch Archidekt deck 123456 (HTTP 404): Not found.` for an Archidekt deck that does not exist or is private). A partial failure still exits `1` even though the payload was emitted.
 
 ## Deck Format
 

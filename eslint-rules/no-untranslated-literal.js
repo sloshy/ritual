@@ -320,7 +320,6 @@ const MESSAGE_ARGUMENT = new Map([
   ['CardCommandError', 1],
   ['errorResponse', 0],
   ['badRequest', 0],
-  ['throwHttpError', 1],
 ])
 
 /** `emit(event, payload)` events whose payload is shown to a human. */

@@ -66,12 +66,17 @@ export interface ArchidektDeckOwner {
   username: string
 }
 
+/**
+ * One deck of a deck listing, as the client validated it: the id and name
+ * every caller reads, and the rest when Archidekt sent it.
+ */
 export interface ArchidektDeckSimple {
   id: number
   name: string
-  updatedAt: string
-  deckFormat: number
-  owner: ArchidektDeckOwner
+  updatedAt?: string
+  /** Archidekt's numeric format id; see `ARCHIDEKT_FORMATS`. */
+  deckFormat?: number
+  owner?: ArchidektDeckOwner
 }
 
 export const ARCHIDEKT_FORMATS: Record<number, string> = {
@@ -108,9 +113,10 @@ export function archidektDeckFormat(formatId: number | undefined): DeckFormatKey
 }
 
 /** An Archidekt format id as a human-readable label, for listing remote decks. */
-export function getArchidektFormat(formatId: number): string {
+export function getArchidektFormat(formatId: number | undefined): string {
   const key = archidektDeckFormat(formatId)
-  return key ? getDeckFormatLabel(key) : (ARCHIDEKT_FORMATS[formatId] ?? 'Unknown')
+  if (key) return getDeckFormatLabel(key)
+  return (formatId === undefined ? undefined : ARCHIDEKT_FORMATS[formatId]) ?? 'Unknown'
 }
 
 export type ArchidektCardModifier = 'Normal' | 'Foil' | 'Etched'
@@ -378,14 +384,23 @@ export function parseArchidektDeckResponse(json: ArchidektDeckResponse, deckId: 
   })
 
   return {
-    // i18n-exempt: a fallback deck name, written into the list file as its title and file name — workspace data, the same in every locale
-    name: json.name || `Archidekt Deck ${deckId}`,
+    name: json.name || archidektFallbackDeckName(deckId),
     format: archidektDeckFormat(json.deckFormat) ?? undefined,
     sourceId: deckId.toString(),
     sourceUrl: `https://archidekt.com/decks/${deckId}`,
     description: parseArchidektDescription(json.description),
     sections,
   }
+}
+
+/**
+ * The name a deck Archidekt names nothing gets — on import, and in a deck
+ * listing. It becomes the list file's title and file name, so it is workspace
+ * data, the same in every locale.
+ */
+export function archidektFallbackDeckName(deckId: string): string {
+  // i18n-exempt: a fallback deck name, written into the list file as its title and file name — workspace data, the same in every locale
+  return `Archidekt Deck ${deckId}`
 }
 
 /**
@@ -399,9 +414,13 @@ export function archidektEntryCategoryNames(
   definitions: readonly ArchidektCategory[] | null | undefined,
 ): string[] {
   const nameById = new Map((definitions ?? []).map((cat) => [cat.id, cat.name]))
-  return (categories ?? []).flatMap((category) =>
-    typeof category === 'number' ? (nameById.get(category) ?? []) : [category],
-  )
+  // The wire is cast, not trusted: a `categories` that is not a list is no
+  // categories, and an item that is neither a name nor an id names nothing.
+  const listed: readonly unknown[] = Array.isArray(categories) ? categories : []
+  return listed.flatMap((category) => {
+    if (typeof category === 'number') return nameById.get(category) ?? []
+    return typeof category === 'string' ? [category] : []
+  })
 }
 
 /** The card half of an entry, as the categories parser reads it off either payload. */

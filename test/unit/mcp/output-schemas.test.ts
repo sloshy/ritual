@@ -967,6 +967,32 @@ describe('MCP output schemas, as authored', () => {
           }),
         ).toBe(false)
       }
+      // A push whose owned-deck list came back cut short says why, as a message;
+      // the field is optional, and never a bare string.
+      const ownedDecksIncomplete = {
+        message:
+          'Archidekt served a next-page link it had already served (…); stopped after 2 decks.',
+        messageKey: 'domain.sync.archidekt.pageRepeated',
+        messageParams: {
+          url: 'https://archidekt.com/api/decks/curated/self/?page=2',
+          decks: { messageKey: 'domain.count.decks', messageParams: { count: 2 } },
+        },
+      }
+      expect(
+        await validates(SYNC_DECKS_OUTPUT, {
+          ...deckSample,
+          report: { ...deckSample.report, ownedDecksIncomplete },
+        }),
+      ).toBe(true)
+      expect(
+        await validates(SYNC_DECKS_OUTPUT, {
+          ...deckSample,
+          report: { ...deckSample.report, ownedDecksIncomplete: ownedDecksIncomplete.message },
+        }),
+      ).toBe(false)
+      expect(
+        (SYNC_DECKS_OUTPUT as unknown as SchemaNode).properties?.report?.required,
+      ).not.toContain('ownedDecksIncomplete')
       // An outcome outside the fixed set is not a report.
       expect(
         await validates(SYNC_DECKS_OUTPUT, {

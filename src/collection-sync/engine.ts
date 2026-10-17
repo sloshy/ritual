@@ -116,7 +116,9 @@ export async function runCollectionSync(
   const dryRun = options.dryRun ?? false
   const client =
     options.client ??
-    createPacedArchidektClient((wait) => emit({ kind: 'log', level: 'warn', item: null, ...wait }))
+    createPacedArchidektClient((warning) =>
+      emit({ kind: 'log', level: 'warn', item: null, ...warning }),
+    )
   const store = options.store ?? createDiskCollectionListStore()
   // Cache-only by design: names are "resolved against the local card cache"
   // (docs), and a miss takes the documented nonfoil-with-warning path. The
@@ -581,14 +583,15 @@ async function fetchCollection(
     try {
       const response = await client.fetchCollectionPage(userId, page, token)
       records.push(...response.results)
-      username = response.owner.username
+      username = response.owner?.username ?? username
       onPage({ page, totalPages: response.totalPages, recordsSoFar: records.length })
       if (!response.next) break
       page++
       if (page > response.totalPages) break
     } catch (error: unknown) {
       // No outer prefix: the client's error already names the page and account
-      // it could not fetch ("Failed to fetch collection page 1 for user 12345: …").
+      // it could not fetch ("Failed to fetch page 1 of the collection of
+      // Archidekt user 12345 (HTTP 404)"), keyed.
       return errorMessage(error)
     }
   }

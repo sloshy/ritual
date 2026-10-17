@@ -114,6 +114,18 @@ export function pseudoString(key: MessageKey): string {
   return value
 }
 
+/**
+ * The `other` form of one of {@link pseudoCatalog}'s `$plural` messages,
+ * placeholders unfilled — {@link pseudoString}'s twin for a counted noun.
+ */
+export function pseudoPlural(key: MessageKey): string {
+  const value = pseudoCatalog()[key]
+  if (typeof value !== 'object' || value === null || !('other' in value)) {
+    throw new Error(`${key} is not a plural message`)
+  }
+  return String(value.other)
+}
+
 /** A foreign UI language a persistence pin runs under, and the dictionary it loads. */
 export type ForeignLocale = { tag: string; catalog: LocaleCatalog }
 

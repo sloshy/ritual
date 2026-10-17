@@ -78,6 +78,28 @@ describe('rendering in the reader’s locale', () => {
     expect(rendered).not.toContain(';')
   })
 
+  test('past five reasons the rest are counted, not spelled out', () => {
+    const reasons = Array.from({ length: 8 }, (_, i) =>
+      syncMessage('domain.sync.notDeckOwner', { deckId: String(i + 1) }),
+    )
+    const [first, ...rest] = reasons
+    const joined = joinSyncMessages([first!, ...rest])
+
+    expect(joined.message).toBe(
+      'you do not own Archidekt deck 1; you do not own Archidekt deck 2; you do not own Archidekt deck 3; you do not own Archidekt deck 4; you do not own Archidekt deck 5; 3 more',
+    )
+    expect(joined.messageParams?.reasons as unknown).toEqual({
+      list: [
+        ...reasons.slice(0, 5).map((reason) => ({
+          messageKey: reason.messageKey,
+          messageParams: reason.messageParams,
+        })),
+        { messageKey: 'domain.sync.moreReasons', messageParams: { count: 3 } },
+      ],
+      join: 'clauses',
+    })
+  })
+
   test('a conjunction list, a duration and a language follow the locale', () => {
     const message = syncMessage('domain.sync.ambiguousRemoval', {
       quantity: 2,

@@ -2,14 +2,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { handleImportDeck, type ImportDeckResponse } from '../../src/admin/api/import-deck'
-import { renderSyncMessage, syncMessage } from '../../src/sync/message'
+import type { ApiErrorResponse } from '../../src/api/http'
 import { keyedMessage } from '../helpers/api-message'
 import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
-import {
-  pseudoCatalog,
-  withGuardedLocaleAsync,
-  withSyntheticLocaleAsync,
-} from '../helpers/sync-text'
+import { pseudoCatalog, withGuardedLocaleAsync } from '../helpers/sync-text'
 import { apiRequest } from './helpers/request'
 import type { ApiMessage } from '../../src/api/result'
 import {
@@ -188,21 +184,79 @@ describe('POST /api/import-deck reporting (Integration)', () => {
       'https://www.mtggoldfish.com/deck/404': () =>
         new Response('', { status: 404, statusText: 'Not Found' }),
     })
-    const { status, body } = await withSyntheticLocaleAsync('en-XA', pseudoCatalog(), (locale) => {
-      // Vacuity guard: the pseudo-locale is in force and words this differently.
-      const english = syncMessage('domain.import.url.mtgGoldfishPageFailed', {
-        status: 404,
-        statusText: 'Not Found',
-      })
-      expect(renderSyncMessage(english, locale)).not.toBe(english.message)
-      return importDeck({
+    const { status, body } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      importDeck({
         mode: 'url',
         url: 'https://www.mtggoldfish.com/deck/404',
         syncPrintings: true,
-      })
-    })
+      }),
+    )
     expect(status).toBe(500)
     expect(body.messageKey).toBe('domain.import.url.mtgGoldfishPageFailed')
     expect(keyedMessage(body)).toBe('Failed to fetch MTGGoldfish page: 404 Not Found')
   })
+
+  test.each<[string, () => Response, number, ApiErrorResponse]>([
+    [
+      'a deck Archidekt does not have answers 404',
+      () => new Response('{"detail":"Not found."}', { status: 404, statusText: 'Not Found' }),
+      404,
+      {
+        success: false,
+        message: `Failed to fetch Archidekt deck ${ARCHIDEKT_DECK_ID} (HTTP 404): Not found.`,
+        messageKey: 'domain.sync.archidekt.deckFailedWithReason',
+        messageParams: { deckId: ARCHIDEKT_DECK_ID, status: 404, reason: 'Not found.' },
+      },
+    ],
+    [
+      'a deck Archidekt refuses to show answers 502',
+      () => new Response('{"detail":"Forbidden."}', { status: 403 }),
+      502,
+      {
+        success: false,
+        message: `Failed to fetch Archidekt deck ${ARCHIDEKT_DECK_ID} (HTTP 403): Forbidden.`,
+        messageKey: 'domain.sync.archidekt.deckFailedWithReason',
+        messageParams: { deckId: ARCHIDEKT_DECK_ID, status: 403, reason: 'Forbidden.' },
+      },
+    ],
+    [
+      'a deck reply that is not JSON answers 502',
+      () => new Response('<html>maintenance</html>', { status: 200 }),
+      502,
+      {
+        success: false,
+        message: `Failed to read Archidekt deck ${ARCHIDEKT_DECK_ID}: the reply was not a JSON object`,
+        messageKey: 'domain.sync.archidekt.deckUnreadable',
+        messageParams: {
+          deckId: ARCHIDEKT_DECK_ID,
+          reason: { messageKey: 'domain.sync.archidekt.replyNotObject' },
+        },
+      },
+    ],
+    [
+      'Archidekt failing answers 502',
+      () => new Response('<html>Bad Gateway</html>', { status: 503 }),
+      502,
+      {
+        success: false,
+        message: `Failed to fetch Archidekt deck ${ARCHIDEKT_DECK_ID} (HTTP 503)`,
+        messageKey: 'domain.sync.archidekt.deckFailed',
+        messageParams: { deckId: ARCHIDEKT_DECK_ID, status: 503 },
+      },
+    ],
+  ])(
+    '%s, in English with the key whatever the server speaks',
+    async (_label, reply, code, refusal) => {
+      stub.restore()
+      stub = stubFetch({ [ARCHIDEKT_DECK_URL]: reply })
+
+      const { status, body } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+        importDeck({ mode: 'url', url: SOURCE_URL, syncPrintings: true }),
+      )
+
+      // A refusal, whatever success type the helper reads the body as.
+      expect([status, body as unknown]).toEqual([code, refusal])
+      expect(await fs.readdir(path.join(dir, 'decks'))).toEqual([])
+    },
+  )
 })

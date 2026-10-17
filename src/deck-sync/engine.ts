@@ -8,7 +8,11 @@
  * logger, the admin stream forwards them to the browser as they happen.
  */
 
-import { ArchidektClient, createPacedArchidektClient } from '../clients/ArchidektClient'
+import {
+  ArchidektClient,
+  createPacedArchidektClient,
+  type ArchidektPulledDeck,
+} from '../clients/ArchidektClient'
 import {
   serializeDeckToMarkdown,
   writeDeckFrontMatter,
@@ -58,6 +62,7 @@ import type {
   DeckSyncDeckResult,
   DeckSyncEventHandler,
   DeckSyncOptions,
+  DeckSyncReport,
   DeckSyncRun,
   DeckTarget,
   SyncOutcome,
@@ -179,7 +184,9 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
   const dryRun = options.dryRun ?? false
   const client =
     options.client ??
-    createPacedArchidektClient((wait) => emit({ kind: 'log', level: 'warn', item: null, ...wait }))
+    createPacedArchidektClient((warning) =>
+      emit({ kind: 'log', level: 'warn', item: null, ...warning }),
+    )
 
   const { targets, problems, unreadable } = await resolveTargetDecks(
     options.deckNames ?? [],
@@ -214,10 +221,17 @@ export async function runDeckSync(options: DeckSyncOptions): Promise<DeckSyncRun
 
   const decks = [...problems, ...outcome.decks]
   const failedCount = decks.filter((deck) => deck.status === 'failed').length
-  return {
-    report: { direction, decks, failedCount, unreadable, cancelled: outcome.cancelled },
-    writtenFiles: outcome.writtenFiles,
+  const report: DeckSyncReport = {
+    direction,
+    decks,
+    failedCount,
+    unreadable,
+    cancelled: outcome.cancelled,
   }
+  if (outcome.ownedDecksIncomplete !== undefined) {
+    report.ownedDecksIncomplete = outcome.ownedDecksIncomplete
+  }
+  return { report, writtenFiles: outcome.writtenFiles }
 }
 
 /**
@@ -287,7 +301,9 @@ async function readRemoteUpdatedAt(
 ): Promise<string | undefined> {
   if (!pushed) return before
   try {
-    return (await client.fetchDeckRaw(sourceId, token)).updatedAt
+    // Read as a pull reads it: only `updatedAt` is wanted, so a relation the
+    // push-side check would refuse must not cost the baseline.
+    return (await client.fetchPulledDeck(sourceId, token)).raw.updatedAt
   } catch {
     return undefined
   }
@@ -415,9 +431,9 @@ async function downloadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<S
     // the divergence baseline a later push compares against, and reads the
     // categories off it.
     let remoteDeck: DeckData
-    let remoteRaw: ArchidektRawDeckResponse
+    let remoteRaw: ArchidektPulledDeck['raw']
     try {
-      const fetched = await client.fetchDeckWithRaw(target.sourceId, token)
+      const fetched = await client.fetchPulledDeck(target.sourceId, token)
       remoteDeck = fetched.deck
       remoteRaw = fetched.raw
     } catch (error: unknown) {
@@ -663,13 +679,15 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
 
   // Fetch owned deck IDs for ownership check
   let ownedDeckIds: Set<string>
+  /** Why the owned-deck list stopped early, when it did: absence from it then proves nothing. */
+  let ownedDecksIncomplete: SyncMessage | undefined
   try {
     const ownDecks = await client.fetchOwnDecks(token)
-    ownedDeckIds = new Set(ownDecks.map((d) => d.id.toString()))
+    ownedDeckIds = new Set(ownDecks.decks.map((d) => d.id.toString()))
+    ownedDecksIncomplete = ownDecks.cutShort
   } catch (error: unknown) {
     // No outer prefix: the client's error already names the operation that
-    // failed ("Failed to fetch own decks: 502 …").
-    // An error the client raised, carried in its own words.
+    // failed ("Failed to fetch your Archidekt decks (HTTP 502)"), keyed.
     const reason = errorMessage(error)
     emit({ kind: 'log', level: 'error', item: null, ...reason })
     // No deck could be synced without the ownership list — all failed.
@@ -679,14 +697,29 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     return { decks: results, writtenFiles, cancelled: false }
   }
 
+  if (ownedDecksIncomplete !== undefined) {
+    emit({ kind: 'log', level: 'warn', item: null, ...ownedDecksIncomplete })
+  }
+  const withOwnership = (outcome: SyncOutcome): SyncOutcome =>
+    ownedDecksIncomplete === undefined ? outcome : { ...outcome, ownedDecksIncomplete }
+
   for (const [index, target] of targets.entries()) {
-    if (flow.signal?.aborted)
-      return cancelRemaining(targets.slice(index), results, writtenFiles, emit)
+    if (flow.signal?.aborted) {
+      return withOwnership(cancelRemaining(targets.slice(index), results, writtenFiles, emit))
+    }
     const name = target.deck.name
     emit({ kind: 'item-start', item: name, index, total: targets.length })
 
     if (!ownedDeckIds.has(target.sourceId)) {
-      const reason = syncMessage('domain.sync.notDeckOwner', { deckId: target.sourceId })
+      // A deck past the point the list stopped may well be owned: say so,
+      // rather than claiming it is someone else's.
+      const reason =
+        ownedDecksIncomplete === undefined
+          ? syncMessage('domain.sync.notDeckOwner', { deckId: target.sourceId })
+          : syncMessage('domain.sync.ownershipUnknown', {
+              deckId: target.sourceId,
+              reason: nestSync(ownedDecksIncomplete),
+            })
       emit({
         kind: 'log',
         level: 'warn',
@@ -977,5 +1010,5 @@ async function uploadChanges(targets: DeckTarget[], flow: SyncFlow): Promise<Syn
     )
   }
 
-  return { decks: results, writtenFiles, cancelled: false }
+  return withOwnership({ decks: results, writtenFiles, cancelled: false })
 }

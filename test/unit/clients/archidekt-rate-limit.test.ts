@@ -16,6 +16,7 @@ import {
 } from '../../../src/importers/archidekt-collection'
 import type { RateLimitWait } from '../../../src/sync/common'
 import { stubFetch } from '../../helpers/stub-fetch'
+import { requestFailureOf } from '../../helpers/rejection'
 
 /**
  * The client's rate limiting: request pacing (`minRequestIntervalMs`) and the
@@ -246,7 +247,7 @@ describe('request pacing', () => {
       harness({ responses: [ok], options: { minRequestIntervalMs: Number.POSITIVE_INFINITY } }),
     ).toThrow(/minRequestIntervalMs/)
     expect(() => harness({ responses: [ok], options: { minRequestIntervalMs: -1 } })).toThrow(
-      /minRequestIntervalMs/,
+      'Internal error: minRequestIntervalMs must be a non-negative finite number, got -1. This is a bug in Ritual.',
     )
   })
 
@@ -323,9 +324,9 @@ describe('429 handling', () => {
       options: { minRequestIntervalMs: 0 },
     })
 
-    const decks = await h.client.fetchPublicDecks('user1')
+    const listing = await h.client.fetchPublicDecks('user1')
 
-    expect(decks).toEqual([])
+    expect(listing).toEqual({ decks: [] })
     expect(h.requests).toHaveLength(3)
     expect(h.timeline.sleeps).toEqual([2000, 4000])
     expect(h.waits).toEqual([
@@ -362,8 +363,16 @@ describe('429 handling', () => {
   test('a 429 outliving the retry budget fails with the full backoff curve behind it', async () => {
     const h = harness({ responses: [tooMany], options: { minRequestIntervalMs: 0 } })
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(h.client.fetchPublicDecks('user1')).rejects.toThrow(/429/)
+    // The last 429 is reported like any other failure: its status, Archidekt's
+    // reply as the reason, and the status kept for a route to map.
+    expect(await requestFailureOf(h.client.fetchPublicDecks('user1'))).toEqual([
+      {
+        message: 'Failed to fetch the public decks of Archidekt user user1 (HTTP 429): slow down',
+        messageKey: 'domain.sync.archidekt.publicDecksFailedWithReason',
+        messageParams: { username: 'user1', status: 429, reason: 'slow down' },
+      },
+      429,
+    ])
     expect(h.requests).toHaveLength(RATE_LIMIT_MAX_RETRIES + 1)
     expect(h.timeline.sleeps).toEqual([2000, 4000, 8000, 16_000, 32_000])
     expect(h.waits).toHaveLength(RATE_LIMIT_MAX_RETRIES)
@@ -385,7 +394,7 @@ describe('429 handling', () => {
       },
     )
 
-    expect(await client.fetchPublicDecks('user1')).toEqual([])
+    expect(await client.fetchPublicDecks('user1')).toEqual({ decks: [] })
   })
 
   test('pacing tops up a backoff shorter than the interval', async () => {

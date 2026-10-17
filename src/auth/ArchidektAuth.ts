@@ -1,5 +1,10 @@
-import type { MessageKey } from '../i18n/messages/en'
-import { isSyncMessage } from '../sync/message'
+import {
+  ArchidektRequestError,
+  archidektReasons,
+  failureMessage,
+  type FailureKeyDrift,
+  type FailureKeyPair,
+} from './archidekt-reply'
 import type {
   AuthService,
   TokenStore,
@@ -9,23 +14,14 @@ import type {
 } from './interfaces'
 import { getJwtExpiration } from './jwt'
 import { t } from '../i18n/t'
-import {
-  syncList,
-  syncMessage,
-  SyncMessageError,
-  type SyncMessage,
-  type SyncParam,
-} from '../sync/message'
+import { isSyncMessage, syncMessage, type SyncMessage } from '../sync/message'
 import { getErrorMessage } from '../util/errors'
 import { isRecord } from '../util/json'
 import { getLogger, type Logger } from '../util/logger'
-import { parsedJson, quotedReply, readReplyText } from '../util/reply-text'
+import { parsedJson, readReplyText } from '../util/reply-text'
 
 // Refresh slightly before actual expiry so a token isn't used mid-request.
 const EXPIRY_BUFFER_MS = 30_000
-
-/** The most of one of Archidekt's reasons an error quotes (characters). */
-const MAX_REASON_CHARS = 300
 
 type StoredUser = { username: string; id: number }
 
@@ -42,20 +38,22 @@ const FAILURE_KEYS = {
     plain: 'domain.sync.auth.refreshFailed',
     withReason: 'domain.sync.auth.refreshFailedWithReason',
   },
-} as const satisfies Record<AuthRequest, Record<'plain' | 'withReason', MessageKey>>
+} as const satisfies Record<AuthRequest, FailureKeyPair>
+
+/** Both requests' keys take the status (and the reason) alone. */
+type KeysDrift = FailureKeyDrift<AuthRequest, typeof FAILURE_KEYS, Record<AuthRequest, never>>
+const KEYS_AGREE: [KeysDrift] extends [never] ? true : KeysDrift = true
+void KEYS_AGREE
 
 /**
- * A failed Archidekt auth request: its message (English plus its key, as for
- * any sync-owned error), and the HTTP status Archidekt answered with — what
- * lets the admin login route tell a refused login (a 4xx) from Archidekt
- * failing (anything else).
+ * A failed Archidekt auth request — an {@link ArchidektRequestError} whose
+ * `upstreamStatus` lets the admin login route tell a refused login (a 4xx)
+ * from Archidekt failing (anything else).
  */
-export class ArchidektAuthError extends SyncMessageError {
-  readonly upstreamStatus: number
+export class ArchidektAuthError extends ArchidektRequestError {
   constructor(message: SyncMessage, upstreamStatus: number) {
-    super(message)
+    super(message, upstreamStatus)
     this.name = 'ArchidektAuthError'
-    this.upstreamStatus = upstreamStatus
   }
 }
 
@@ -65,49 +63,16 @@ export function isCredentialRefusal(upstreamStatus: number): boolean {
 }
 
 /**
- * The human reasons in one of Archidekt's error replies: Django REST
- * framework's `non_field_errors` list (a refused login) and its `detail`
- * (a refused token), each quoted — control characters stripped, capped. A
- * reply with neither (an HTML error page, an empty body) gives none: its
- * status says as much as it would.
- */
-export function archidektReasons(body: string): string[] {
-  const json = parsedJson(body)
-  if (!isRecord(json)) return []
-  const reasons: string[] = []
-  const { non_field_errors: nonField, detail } = json
-  if (Array.isArray(nonField)) {
-    const list: readonly unknown[] = nonField
-    for (const item of list) if (typeof item === 'string') reasons.push(item)
-  }
-  if (typeof detail === 'string') reasons.push(detail)
-  return reasons.map((reason) => quotedReply(reason, MAX_REASON_CHARS)).filter((r) => r !== '')
-}
-
-/** One reason as itself, several as independent clauses joined in the reader's language. */
-function reasonParam(reasons: readonly [string, ...string[]]): SyncParam {
-  return reasons.length === 1 ? reasons[0] : syncList(reasons, 'clauses')
-}
-
-/**
  * A failed Archidekt auth request as the error to throw: the status as a
- * number, and Archidekt's own reason when its reply carries one. The status's
- * reason phrase is dropped: the number says the same, in no particular
- * language.
+ * number, and Archidekt's own reason when its reply carries one.
  */
 async function authRequestFailure(
   response: Response,
   request: AuthRequest,
 ): Promise<ArchidektAuthError> {
-  const [first, ...rest] = archidektReasons(await readReplyText(response))
+  const reasons = archidektReasons(await readReplyText(response))
   const status = response.status
-  const keys = FAILURE_KEYS[request]
-  return new ArchidektAuthError(
-    first === undefined
-      ? syncMessage(keys.plain, { status })
-      : syncMessage(keys.withReason, { status, reason: reasonParam([first, ...rest]) }),
-    status,
-  )
+  return new ArchidektAuthError(failureMessage(FAILURE_KEYS[request], {}, status, reasons), status)
 }
 
 /** A non-empty string, or `undefined`. */

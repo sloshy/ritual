@@ -353,17 +353,42 @@ export function isSyncMessage<T extends NoMessageImpostor<T>>(value: T): value i
   )
 }
 
+/** The most reasons {@link joinSyncMessages} spells out; the rest are counted. */
+export const MAX_JOINED_REASONS = 5
+
+/** How {@link joinSyncMessages} treats a long list of reasons. */
+export type JoinSyncMessagesOptions = {
+  /**
+   * Spell every reason out, however many there are. For a list bounded by
+   * what the user wrote and that must be fixed whole — the problems of one CSV
+   * row, the bad names of a removal priority — where a counted "N more" would
+   * hide exactly what needs fixing.
+   */
+  complete?: boolean
+}
+
 /**
  * Several reasons as one — a deck whose plan hit two errors, a list that failed
  * for two cards. One reason is itself; several are independent clauses joined
  * pairwise through `domain.sync.clauseJoin` (`A; B`). Takes at least one, so a
  * caller cannot produce an empty reason.
+ *
+ * Unless `options.complete` says otherwise, at most {@link MAX_JOINED_REASONS}
+ * are spelled out, and any beyond are counted in a closing "N more"
+ * (`domain.sync.moreReasons`): a push that failed for two hundred cards must
+ * not make a reason two hundred sentences long. The run log names each failure
+ * as it happens.
  */
-export function joinSyncMessages(messages: NonEmpty<SyncMessage>): SyncMessage {
+export function joinSyncMessages(
+  messages: NonEmpty<SyncMessage>,
+  options: JoinSyncMessagesOptions = {},
+): SyncMessage {
   if (messages.length === 1) return messages[0]
-  return syncMessage('domain.sync.reasonList', {
-    reasons: syncList(messages.map(nestSync), 'clauses'),
-  })
+  const limit = options.complete === true ? messages.length : MAX_JOINED_REASONS
+  const shown: SyncParam[] = messages.slice(0, limit).map(nestSync)
+  const more = messages.length - shown.length
+  if (more > 0) shown.push(syncRef('domain.sync.moreReasons', { count: more }))
+  return syncMessage('domain.sync.reasonList', { reasons: syncList(shown, 'clauses') })
 }
 
 // ── Parse refusals ────────────────────────────────────────────────────

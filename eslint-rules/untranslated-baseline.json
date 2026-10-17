@@ -1,24 +1,4 @@
 {
-  "src/clients/ArchidektClient.ts": {
-    "${…} failed (${…}): ${…}": 1,
-    "Archidekt returned a next-page link it had already served (${…}); stopping after ${…} result(s).": 1,
-    "Archidekt served a next-page link that will not be followed (${…}): ${…}. The list may be incomplete.": 1,
-    "Card not found on Archidekt: ${…}${…}": 1,
-    "Card search failed (${…}): ${…}": 1,
-    "Failed to fetch collection page ${…} for user ${…}": 1,
-    "Failed to fetch deck ${…}": 1,
-    "Failed to fetch own decks": 1,
-    "Failed to fetch public decks": 1,
-    "Stopped after ${…} pages; the list may be incomplete (${…} result(s) so far).": 1,
-    "deleteCollectionRecords (${…} records)": 1,
-    "minRequestIntervalMs must be a non-negative finite number, got ${…}": 1,
-    "response body had no `results` array": 1,
-    "response body was not an object": 1,
-    "unexpected host ${…}": 1,
-    "uploadCollectionCsv (chunk ${…})": 1,
-    "uploadCollectionCsv: ${…}": 1,
-    "uploadCollectionCsv: the CSV could not be read — ${…}": 1
-  },
   "src/i18n/catalog.ts": {
     "$plural table needs an \"other\" form": 1,
     "$select table needs at least one branch": 1,

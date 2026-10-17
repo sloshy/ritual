@@ -507,6 +507,23 @@ describe('convertCsvRows', () => {
     ])
   })
 
+  test('a row failing many ways names every problem, never a count of the rest', () => {
+    const mapping = parseColumnsSpec(
+      'name=1,set=2,collector-number=3,condition=4,finish=5,language=6,quantity=7',
+      'collection',
+    ) as ColumnMapping
+    const { failures } = convertCsvRows(
+      [row(['', '', '', 'pristine', 'glossy', 'klingon', 'lots'], 2)],
+      mapping,
+      'collection',
+    )
+
+    // Past the five a sync reason spells out: a row is fixed whole.
+    const reasons = failures[0]?.reason.split('; ') ?? []
+    expect(reasons).toHaveLength(7)
+    expect(reasons.at(-1)).not.toMatch(/more$/)
+  })
+
   test('a row failing for one reason carries that reason’s own key', () => {
     const mapping: ColumnMapping = { name: 0, set: 1 }
     const { failures } = convertCsvRows([row(['', 'C19'], 2)], mapping, 'deck')

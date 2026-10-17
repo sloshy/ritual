@@ -466,10 +466,12 @@ release exists, and nothing changed. Mention it if relevant, but never run
   object per line. Errors go to stderr as
   \`{"error":{"code","messageKey?","messageParams?","message","details?"}}\` in the structured
   modes — \`code\` and \`messageKey\` are locale-invariant (match on those, never
-  on prose), while \`message\` follows the UI locale. An unexpected internal
-  failure uses the same envelope with \`code: "runtime_error"\` and exit \`1\`,
-  carrying neither \`messageKey\` nor \`details\` — there is no catalog entry
-  and no structured payload behind it. Three
+  on prose), while \`message\` follows the UI locale. A keyed engine failure (a
+  cache lock that timed out, a failed Archidekt request) is \`code:
+  "runtime_error"\` with its \`messageKey\`/\`messageParams\` and exit \`1\`. An
+  unexpected internal failure uses the same envelope and code, carrying
+  neither \`messageKey\` nor \`details\` — there is no catalog entry and no
+  structured payload behind it. Three
   exceptions, all deliberate: \`scry\` and \`sell\` add a fourth value
   \`--output csv\` (Scryfall's server-side CSV and Card Kingdom's sell-cart
   upload format, respectively — \`sell\`'s csv is a different payload, not the

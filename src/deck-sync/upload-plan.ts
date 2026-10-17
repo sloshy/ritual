@@ -6,7 +6,7 @@
 
 import type { ArchidektClient } from '../clients/ArchidektClient'
 import type { SelectBranch } from '../i18n/t'
-import { isSyncMessage, syncList, syncMessage, syncText, type SyncMessage } from '../sync/message'
+import { isSyncMessage, syncList, syncMessage, type SyncMessage } from '../sync/message'
 import type { Card } from '../card/card'
 import type { Board, DeckSection } from '../list/deck'
 import type { Finish } from '../card/finish-condition'
@@ -169,8 +169,8 @@ function selectRelations(
 export type UploadPlan = {
   entries: ModifyCardEntry[]
   /**
-   * Why each entry the plan could not build was left out. A failure the
-   * Archidekt client raised is carried as its own text (`syncText`).
+   * Why each entry the plan could not build was left out, English plus its
+   * key — an Archidekt search's own failure included.
    */
   errors: SyncMessage[]
   /**
@@ -285,12 +285,15 @@ async function resolvePrintingTarget(
     )
     if (!sameEdition) {
       const result = await client.searchCards(
-        update.name,
-        update.to.set,
+        {
+          name: update.name,
+          set: update.to.set,
+          collectorNumber: update.to.collectorNumber,
+          label: printingLabel(update.name, update.to),
+        },
         token,
-        update.to.collectorNumber,
       )
-      if (typeof result === 'string') return syncText(result)
+      if (isSyncMessage(result)) return result
       cardid = result.id
       options = result.options
     }
@@ -622,10 +625,18 @@ export async function buildUploadPlan(
   for (const card of phases.growing.added) {
     const printing = card.printing
     const searchSet = diff.byPrinting ? printing?.set : findLocalCard(localSections, card.name)?.set
-    const result = await client.searchCards(card.name, searchSet, token, printing?.collectorNumber)
-    if (typeof result === 'string') {
+    const result = await client.searchCards(
+      {
+        name: card.name,
+        set: searchSet,
+        collectorNumber: printing?.collectorNumber,
+        label: printingLabel(card.name, printing),
+      },
+      token,
+    )
+    if (isSyncMessage(result)) {
       failed.add(card)
-      errors.push(syncText(result))
+      errors.push(result)
       continue
     }
     let modifier = result.options[0] ?? 'Normal'

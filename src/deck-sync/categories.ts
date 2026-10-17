@@ -16,7 +16,7 @@ import { syncList, syncMessage, type SyncMessage } from '../sync/message'
 import type { ArchidektDeckCategories } from '../importers/archidekt-categories'
 import {
   parseArchidektDeckCategories,
-  type ArchidektRawDeckResponse,
+  type ArchidektCategorizedDeck,
 } from '../importers/archidekt-types'
 import {
   cardCategoriesOf,
@@ -44,7 +44,7 @@ export async function loadDeckCategories(
  * fetched through the same parser the URL import uses — so a legacy payload's
  * numeric category ids resolve to names here too.
  */
-export function remoteDeckCategories(raw: ArchidektRawDeckResponse): ArchidektDeckCategories {
+export function remoteDeckCategories(raw: ArchidektCategorizedDeck): ArchidektDeckCategories {
   return parseArchidektDeckCategories(raw)
 }
 

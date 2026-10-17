@@ -1211,6 +1211,13 @@ const DECK_SYNC_REPORT_PROPS = {
   cancelled: bool(
     'True when the call was cancelled between decks; the decks never started are skipped.',
   ),
+  ownedDecksIncomplete: {
+    ...SYNC_MESSAGE,
+    description:
+      'Push only: why the list of decks the account owns came back incomplete. Absent when it ' +
+      'was read to the end. While present, a deck missing from the list is skipped as ' +
+      '`domain.sync.ownershipUnknown`, not as a deck the account does not own.',
+  },
 } as const satisfies Record<keyof DeckSyncReport, JsonSchemaType>
 
 export const SYNC_DECKS_OUTPUT: JsonSchemaType = obj(

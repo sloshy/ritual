@@ -98,7 +98,13 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
       "reasonKey": "domain.sync.notDeckOwner",
       "reasonParams": { "deckId": "12345" }
     },
-    { "name": "Gone", "status": "failed", "reason": "Failed to fetch Archidekt deck 999: 404" }
+    {
+      "name": "Gone",
+      "status": "failed",
+      "reason": "Failed to fetch Archidekt deck 999 (HTTP 404): Not found.",
+      "reasonKey": "domain.sync.archidekt.deckFailedWithReason",
+      "reasonParams": { "deckId": "999", "status": 404, "reason": "Not found." }
+    }
   ],
   "failedCount": 1,
   "unreadable": [],
@@ -109,6 +115,8 @@ With `--output json` (or `ndjson`), progress logging is suppressed and a single 
 - Each deck's `status` is `synced`, `failed`, or `skipped`; `reason` explains anything other than a clean sync.
 - `outcome` is the code to branch on: `changed` (written or sent), `unchanged` (already matched, or a push that once planned had nothing to send), `dry-run` (a preview, which `reason` summarizes) or `cancelled` (never reached). It is absent on a failed deck and on one skipped for another reason, such as a deck the account does not own. (`not-run` exists for collection lists a refused run never reached.) Scripts should read `outcome`, not the text of `reason`.
 - `reason` is English prose whatever the UI language. `reasonKey` and `reasonParams` are the message it was rendered from, for a client that renders it in its own language; a param may itself be a message (`messageKey`, `messageParams`), a list (`list`, `join`), a duration (`elapsedMs`, or `durationMs` for an age or a time-out) or a card language (`language`). A reason raised outside the message catalog, such as a network error, has no key.
+- `ownedDecksIncomplete`, on a push only, is present when Archidekt stopped serving the list of decks you own part way (a next-page link Ritual would not follow, a page served twice, the 100-page cap). It is a message — `message`, `messageKey`, `messageParams` — saying why. While it is present, a deck missing from that list is `skipped` with `reasonKey: "domain.sync.ownershipUnknown"` (its `reasonParams` name the `deckId` and nest that message as `reason`), not as a deck you do not own. The run also logs it as a warning.
+- A failed Archidekt request is keyed `domain.sync.archidekt.*`: the request that failed (a deck fetch, a card search, the changes sent to a deck), the HTTP `status` as a number, and, when Archidekt explained itself, its own words as `reason` (one string, or a `clauses` list of several), quoted as Archidekt sent them and cut to a few hundred characters (at most three, then a count of the rest). A key ending in `WithReason` is the one that carries `reason`. A reply Archidekt sent that Ritual could not read (not JSON, or missing a part it needs) is a `…Unreadable` key, such as `domain.sync.archidekt.deckUnreadable`, nesting what was wrong as `reason`.
 - Decks that could not be resolved, or that are not sourced from Archidekt, appear as `failed`. A deck with an Archidekt `sourceUrl` but no `sourceId` is `skipped` in an all-decks run and `failed` when you name it explicitly.
 - Under [`--sync-printings`](#printing-sync---sync-printings) each deck also carries `printingsChanged` (printing differences applied, or previewed on a dry run). Without the flag, a deck whose printings disagree between the two sides carries `printingsUnaligned` (those card names). A card one side holds with no printing at all never counts as disagreeing.
 - A deck whose diff [moves cards between boards](#board-moves) carries `boardMoves`: the number of moves applied, or previewed on a dry run. It is absent when there are none.
@@ -294,7 +302,7 @@ Decks must be linked to Archidekt: their YAML front matter carries `sourceUrl` a
 
 ### Push (`deck-sync push`)
 
-1. Verifies you own the Archidekt deck (skips non-owned decks with a warning).
+1. Verifies you own the Archidekt deck (skips non-owned decks with a warning). Your deck list is read a page at a time; if Archidekt stops serving it part way (a next-page link that leads off Archidekt or cannot be read, a page it already served, or more than 100 pages), the run warns that the list may be incomplete, and a deck missing from it is skipped because its ownership cannot be told (`ownedDecksIncomplete` in the JSON report).
 2. Fetches the current Archidekt deck state.
 3. Refuses the deck when the remote changed since its `sourceUpdatedAt`, unless `--force` was given. See [Divergence Guard](#divergence-guard-push). A refused deck is never diffed.
 4. Compares local cards and quantities against the remote state, **per board** and by card name, the same way a pull does.

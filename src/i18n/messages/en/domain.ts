@@ -113,6 +113,7 @@ export const domainMessages = {
     other: '{count} collection records',
   },
   'domain.count.requests': { $plural: 'count', one: '{count} request', other: '{count} requests' },
+  'domain.count.pages': { $plural: 'count', one: '{count} page', other: '{count} pages' },
   'domain.count.ambiguousRemovals': {
     $plural: 'count',
     one: '{count} ambiguous removal',

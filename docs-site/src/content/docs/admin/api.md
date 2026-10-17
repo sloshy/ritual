@@ -2159,6 +2159,8 @@ Sync decks with Archidekt, using the same engine as the [`deck-sync`](/commands/
 - Each deck carries `boardMoves` (a count) when its diff moved cards between boards. Moves bypass `only`: a move adds and removes no copies, so neither filter value drops it. See [Board moves](/commands/deck-sync/#board-moves).
 - Each deck that had card changes carries `changes`: every change the run applied (or would apply on a dry run), narrowed by `only`. It lists what went through: a push leaves out what its plan could not send, or did not need to. When the push itself failed (nothing was sent), it lists what the push attempted, and `reason` says so. Entries are discriminated by `kind`: `added`/`removed` (`name`, `quantity`, `board`), `quantity` (`name`, `board`, `from`, `to`), `move` (`name`, `quantity`, `from`, `to` boards), `printing` (`name`, `board`, `from`, `to` printings) and `categories` (`name`, `categories`, primary first). The first four carry an optional `printing` (`set` lowercase, `collectorNumber`, `finish`) on a run syncing printings. These are the cards the CLI lists under `--verbose`. The SSE stream carries the same cards as `detail` log lines.
 - `report.unreadable` lists any deck whose file holds lines the parser could not read (`{ name, file, warnings }`, each warning a [message triple](#the-message-triple)), so a caller that never sees the stream can still show what a retry with `ignoreUnreadableLines` would delete.
+- `report.ownedDecksIncomplete`, on a push only, is present when Archidekt stopped serving the list of decks the account owns part way (a next-page link Ritual would not follow, a page served twice, the 100-page cap): a message triple saying why (`domain.sync.archidekt.nextLinkForeign`, `nextLinkUnreadable`, `pageRepeated` or `pageCapReached`). While it is present, a deck missing from that list is `skipped` with the reason `domain.sync.ownershipUnknown` (`deckId`, and the same message nested as `reason`), not `domain.sync.notDeckOwner`. The stream carries it as a run-level `warn` log line.
+- A failed Archidekt request is keyed `domain.sync.archidekt.*`, its HTTP `status` a number param and Archidekt's own explanation, when it gave one, the `reason` of the key's `WithReason` twin; a reply Archidekt sent that Ritual could not read is a `…Unreadable` key nesting what was wrong.
 - `report.cancelled` is `true` when an in-process caller cancelled the run (the MCP `sync_decks` tool, on a client's `notifications/cancelled`). Cancellation is honoured **between decks only**: the deck in flight finishes, every deck the run never reached is reported `skipped` with the `cancelled` outcome (its English `reason` reads `cancelled before it started`), and the summary ends on a `cancelled with N decks not started` clause. The response is still `200` with the report. HTTP callers cannot cancel a run: closing the stream leaves it running to completion.
 
 When git auto-commit is enabled, deck files written by the run are committed (`Sync decks with Archidekt (<direction>)`).
@@ -2776,6 +2778,19 @@ A URL import from Archidekt or Moxfield also writes the deck's `<deck>.categorie
 Pasted/uploaded text is read with the same dialects as [`ritual import`](/commands/import/#mtg-arena--mtgo-exports): Ritual's own format plus MTG Arena/MTGO/Moxfield exports (`4 Lightning Bolt (M10) 146`, bare `Deck`/`Sideboard` markers, and a `*F*`/`*E*` finish marker either trailing or between the set and the collector number).
 
 A name/ID conflict without `overwrite`, or a deck name with no characters usable in a file name, fails with a `400` (the same usage classification the CLI turns into exit code `2`), not a `500`.
+
+An Archidekt URL whose deck Archidekt does not show (it does not exist, or is private) fails with a `404`; Archidekt failing any other way (any other 4xx such as a `403`, a 5xx, a rate limit that outlived its retries, or a `200` whose reply cannot be read) answers `502`. Both bodies are the [error response](#error-responses), English plus its key whatever the server's UI language:
+
+```json
+{
+  "success": false,
+  "message": "Failed to fetch Archidekt deck 123456 (HTTP 404): Not found.",
+  "messageKey": "domain.sync.archidekt.deckFailedWithReason",
+  "messageParams": { "deckId": "123456", "status": 404, "reason": "Not found." }
+}
+```
+
+`status` is Archidekt's HTTP status, a number. `reason` is Archidekt's own explanation, quoted as it sent it and cut to a few hundred characters (several are a `clauses` list); a reply that explains nothing, such as an HTML error page, gives `domain.sync.archidekt.deckFailed`, without `reason`. A reply Archidekt answered but Ritual could not read (not JSON, or its `cards` not a list of entries) is `domain.sync.archidekt.deckUnreadable` (`deckId`, and what was wrong nested as `reason`).
 
 ## Refresh Cache
 

@@ -9,7 +9,6 @@ import {
   errorParam,
   isSyncMessage,
   syncMessage,
-  syncText,
   toSyncMessage,
   type SyncMessage,
 } from '../sync/message'
@@ -308,12 +307,15 @@ async function runPushOperation(
     // Resolving the printing is a read, so a dry run does it too: an
     // unresolvable printing is the failure a dry run most needs to surface.
     const found = await client.searchCards(
-      operation.name,
-      operation.parts.set,
+      {
+        name: operation.name,
+        set: operation.parts.set,
+        collectorNumber: operation.parts.collectorNumber,
+        label,
+      },
       token,
-      operation.parts.collectorNumber,
     )
-    if (typeof found === 'string') return fail(syncText(found))
+    if (isSyncMessage(found)) return fail(found)
     if (dryRun) return done()
     try {
       await client.createCollectionRecord(createRecordBody(operation, found.id), token)

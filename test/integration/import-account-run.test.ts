@@ -2,8 +2,23 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import { Command } from 'commander'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { registerImportAccountCommand } from '../../src/commands/import-account'
-import type { ArchidektClient, ArchidektDeckSimple } from '../../src/clients/ArchidektClient'
+import {
+  registerImportAccountCommand,
+  type ImportAccountDeps,
+} from '../../src/commands/import-account'
+import { describeRateLimitWait } from '../../src/sync/common'
+import type { SyncMessage } from '../../src/sync/message'
+import {
+  pseudoCatalog,
+  pseudoPlural,
+  pseudoString,
+  withGuardedLocaleAsync,
+} from '../helpers/sync-text'
+import {
+  ArchidektClient,
+  type ArchidektDeckList,
+  type ArchidektDeckSimple,
+} from '../../src/clients/ArchidektClient'
 import type { DeckData, ImportedDeck } from '../../src/list/deck'
 import { ExitCode } from '../../src/util/errors'
 import { setNoInputOverride } from '../../src/util/no-input'
@@ -33,8 +48,8 @@ type FakeClientOptions = {
 
 function fakeClient(options: FakeClientOptions): ArchidektClient {
   const client = {
-    fetchPublicDecks: async (): Promise<ArchidektDeckSimple[]> => options.decks,
-    fetchOwnDecks: async (): Promise<ArchidektDeckSimple[]> => options.decks,
+    fetchPublicDecks: async (): Promise<ArchidektDeckList> => ({ decks: options.decks }),
+    fetchOwnDecks: async (): Promise<ArchidektDeckList> => ({ decks: options.decks }),
     fetchImportedDeck: async (deckId: string): Promise<ImportedDeck> => {
       const deck = options.decksById?.[deckId]
       if (deck === undefined) throw new Error(`Deck ${deckId} is private`)
@@ -64,9 +79,17 @@ type RunOutput = { stdout: string; stderr: string; exitCode: number }
  * Bun's `console` does not route through — hence the two nested captures.
  */
 async function run(client: ArchidektClient, argv: string[]): Promise<RunOutput> {
+  return runWith(() => client, argv)
+}
+
+/** {@link run}, building the client through the command's own `createClient` seam. */
+async function runWith(
+  createClient: NonNullable<ImportAccountDeps['createClient']>,
+  argv: string[],
+): Promise<RunOutput> {
   const program = new Command()
   program.exitOverride()
-  registerImportAccountCommand(program, { createClient: () => client })
+  registerImportAccountCommand(program, { createClient })
   let reported: string[] = []
   let exitCode = 0
   const stdout = await captureStream('stdout', async () => {
@@ -257,5 +280,116 @@ describe('import-account past its flag validation (Integration)', () => {
     expect(payload.decks[0]?.error).toContain('--overwrite')
     // A conflict is a usage error, not a runtime one — the exit code says which.
     expect(exit).toBe(ExitCode.UsageError)
+  })
+
+  /** A real client over `fetch`, unpaced — what `createClient` builds in production, minus the network. */
+  function clientAnswering(
+    fetch: (url: string | URL) => Promise<Response>,
+  ): (onWait: (message: SyncMessage) => void) => ArchidektClient {
+    return (onWait) =>
+      new ArchidektClient(
+        { fetch },
+        { minRequestIntervalMs: 0, onRateLimitWait: (wait) => onWait(describeRateLimitWait(wait)) },
+      )
+  }
+
+  /** A deck listing that keeps linking to the page it already served. */
+  const REPEATING_LIST = async (url: string | URL): Promise<Response> =>
+    String(url).includes('/api/decks/v3/')
+      ? Response.json({
+          results: [{ id: 1, name: 'Burn', deckFormat: 3 }],
+          next: 'https://archidekt.com/api/decks/v3/?ownerUsername=someuser&page=2',
+        })
+      : new Response('{"detail":"Not found."}', { status: 404 })
+
+  test('a deck list Archidekt cut short is listIncomplete in the payload, and said on stderr', async () => {
+    const { stdout, stderr } = await runWith(clientAnswering(REPEATING_LIST), [
+      'someuser',
+      '--all',
+      '--dry-run',
+      '--output',
+      'json',
+    ])
+
+    const payload = JSON.parse(stdout) as Record<string, unknown>
+    const cutShort = {
+      message:
+        'Archidekt served a next-page link it had already served (https://archidekt.com/api/decks/v3/?ownerUsername=someuser&page=2); stopped after 2 decks.',
+      messageKey: 'domain.sync.archidekt.pageRepeated',
+      messageParams: {
+        url: 'https://archidekt.com/api/decks/v3/?ownerUsername=someuser&page=2',
+        decks: { messageKey: 'domain.count.decks', messageParams: { count: 2 } },
+      },
+    }
+    expect(payload).toMatchObject({ found: 2, listIncomplete: cutShort })
+    expect(stderr).toContain(cutShort.message)
+  })
+
+  test('under another UI language the stderr line follows it, and the payload stays English', async () => {
+    const { stdout, stderr } = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      runWith(clientAnswering(REPEATING_LIST), [
+        'someuser',
+        '--all',
+        '--dry-run',
+        '--output',
+        'json',
+      ]),
+    )
+
+    const payload = JSON.parse(stdout) as { listIncomplete?: SyncMessage }
+    expect(payload.listIncomplete?.message).toStartWith('Archidekt served a next-page link')
+    const decks = pseudoPlural('domain.count.decks').replace('{count}', '2')
+    expect(stderr).toContain(
+      pseudoString('domain.sync.archidekt.pageRepeated')
+        .replace('{url}', 'https://archidekt.com/api/decks/v3/?ownerUsername=someuser&page=2')
+        .replace('{decks}', decks),
+    )
+  })
+
+  test('a deck Archidekt fails to serve is a failed deck, keyed', async () => {
+    const fetch = async (url: string | URL): Promise<Response> =>
+      String(url).includes('/api/decks/v3/')
+        ? Response.json({ results: [{ id: 1, name: 'Burn' }], next: null })
+        : new Response('{"detail":"Not found."}', { status: 404 })
+
+    const { stdout } = await runWith(clientAnswering(fetch), [
+      'someuser',
+      '--all',
+      '--output',
+      'json',
+    ])
+
+    type Payload = { decks: Record<string, unknown>[] }
+    expect((JSON.parse(stdout) as Payload).decks[0]).toEqual({
+      id: 1,
+      name: 'Burn',
+      status: 'failed',
+      error: 'Failed to fetch Archidekt deck 1 (HTTP 404): Not found.',
+      errorKey: 'domain.sync.archidekt.deckFailedWithReason',
+      errorParams: { deckId: '1', status: 404, reason: 'Not found.' },
+    })
+  })
+
+  test('a deck list Archidekt fails to serve is a keyed runtime error', async () => {
+    const client = new ArchidektClient(
+      { fetch: async () => new Response('{"detail":"Service unavailable."}', { status: 503 }) },
+      { minRequestIntervalMs: 0 },
+    )
+
+    let exit = 0
+    const stderr = await captureStream('stderr', async () => {
+      exit = (await run(client, ['someuser', '--all', '--output', 'json'])).exitCode
+    })
+
+    expect(JSON.parse(stderr)).toEqual({
+      error: {
+        code: 'runtime_error',
+        message:
+          'Failed to fetch the public decks of Archidekt user someuser (HTTP 503): Service unavailable.',
+        messageKey: 'domain.sync.archidekt.publicDecksFailedWithReason',
+        messageParams: { username: 'someuser', status: 503, reason: 'Service unavailable.' },
+      },
+    })
+    expect(exit).toBe(ExitCode.RuntimeError)
   })
 })

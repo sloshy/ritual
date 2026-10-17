@@ -4,6 +4,8 @@
  * expose as awaitable).
  */
 
+import { ArchidektRequestError } from '../../src/auth/archidekt-reply'
+import type { SyncMessage } from '../../src/sync/message'
 import { CardCommandError } from '../../src/util/errors'
 
 /** How a promise settled. */
@@ -17,6 +19,17 @@ export async function rejectionOf(run: Promise<unknown>): Promise<unknown> {
   )
   if (!settled.rejected) throw new Error('expected the promise to reject')
   return settled.error
+}
+
+/**
+ * What `run` rejected with, as a failed Archidekt request: its message (English
+ * plus its key) and the status Archidekt answered with. Any other rejection is
+ * rethrown.
+ */
+export async function requestFailureOf(run: Promise<unknown>): Promise<[SyncMessage, number]> {
+  const error = await rejectionOf(run)
+  if (!(error instanceof ArchidektRequestError)) throw error
+  return [error.syncMessage, error.upstreamStatus]
 }
 
 /** The structured failure `run` rejected with; any other rejection is rethrown. */

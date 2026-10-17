@@ -20,6 +20,8 @@ export const errorMessages = {
     'Internal error: {method} was called with no {argument}. This is a bug in Ritual.',
   'errors.invariant.missingField':
     'Internal error: {subject} has no {field}. This is a bug in Ritual.',
+  'errors.invariant.notNonNegative':
+    'Internal error: {option} must be a non-negative finite number, got {value}. This is a bug in Ritual.',
   'errors.invariant.notTextModule':
     'Internal error: {module} was not embedded as a text module. This is a bug in Ritual.',
   'errors.label.exclusive': "'{label}' cannot be combined with other labels.",

@@ -8,6 +8,7 @@ import {
 } from '../../importers/text-file'
 import type { CardLabel } from '../../card/card-labels'
 import { fetchDeckFromUrl, stripDeckPrintings } from '../../importers/url-dispatch'
+import { ArchidektRequestError } from '../../auth/archidekt-reply'
 import type { CardCategoryEntry } from '../../list/card-categories-record'
 import { importCategoryAdvisories } from '../../importers/import-categories'
 import { saveDeck } from '../../importers/save-list'
@@ -23,7 +24,7 @@ import {
   type SyncMessage,
   type SyncMessageRef,
 } from '../../sync/message'
-import type { DeckData } from '../../list/deck'
+import type { DeckData, ImportedDeck } from '../../list/deck'
 import { getDecksDir } from '../../config/ritual-config'
 import { MAX_UPLOAD_BODY_SIZE } from '../validation'
 
@@ -153,6 +154,33 @@ function importDeckMessage(name: string, notes: ImportNotes): SyncMessage {
   return syncMessage('admin.api.importDeck.imported', { name, notes: syncList(parts, 'concat') })
 }
 
+/**
+ * The status a failed Archidekt deck fetch answers with: `404` when Archidekt
+ * has no such deck to show (it answers a private one the same way), `502` when
+ * it failed some other way — any other 4xx (a 403 included), a 5xx, a rate
+ * limit that outlived its retries, or a 2xx reply that could not be read (an
+ * `upstreamStatus` of 200 means "answered, but unusable").
+ */
+export function archidektFailureStatus(error: ArchidektRequestError): number {
+  return error.upstreamStatus === 404 ? 404 : 502
+}
+
+/**
+ * Fetch a URL import's deck. A failed Archidekt request is a refusal of its
+ * own (English plus its key, at {@link archidektFailureStatus}); every other
+ * failure is thrown on to the route's last resort.
+ */
+async function fetchUrlDeck(url: string): Promise<ImportedDeck | SyncMessage | Response> {
+  try {
+    return await fetchDeckFromUrl(url)
+  } catch (error) {
+    if (error instanceof ArchidektRequestError) {
+      return nestedRefusal(error.syncMessage, archidektFailureStatus(error))
+    }
+    throw error
+  }
+}
+
 export function handleImportDeck(req: Request): Promise<Response> {
   return apiHandler(async () => {
     const parsedBody = await readJsonObjectBody(req, MAX_UPLOAD_BODY_SIZE)
@@ -173,7 +201,8 @@ export function handleImportDeck(req: Request): Promise<Response> {
     if (request.mode === 'url') {
       const url = request.url.trim()
       if (!url) return badRequest(apiMessage('admin.api.field.required', { field: 'url' }))
-      const result = await fetchDeckFromUrl(url)
+      const result = await fetchUrlDeck(url)
+      if (result instanceof Response) return result
       if (isSyncMessage(result)) return nestedRefusal(result)
       deckData = request.syncPrintings ? result.deck : stripDeckPrintings(result.deck)
       categories = result.categories

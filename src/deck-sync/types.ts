@@ -10,6 +10,7 @@ import type { DeckFrontMatter } from '../list/deck-file'
 import type { Board, DeckData } from '../list/deck'
 import type { CardCategory } from '../card/card-categories'
 import type { DeckPrintingRef } from './reconcile'
+import type { SyncMessage } from '../sync/message'
 import type {
   ConfirmUnreadable,
   SyncChangeFilter,
@@ -167,6 +168,15 @@ export type DeckSyncReport = {
    * finished are reported exactly as an uncancelled run would report them.
    */
   cancelled: boolean
+  /**
+   * On a push, why the list of decks the account owns came back incomplete —
+   * Archidekt stopped serving it part way (a next-page link Ritual would not
+   * follow, a page served twice, the page cap). Absent when the list was read
+   * to the end, and on a pull. While it is present, a deck missing from the
+   * list is `skipped` as `domain.sync.ownershipUnknown` (nesting this message),
+   * never as a deck the account does not own.
+   */
+  ownedDecksIncomplete?: SyncMessage
 }
 
 export type DeckSyncLogLevel = SyncLogLevel
@@ -244,7 +254,11 @@ export type DeckSyncOptions = {
    * confirm.
    */
   confirmUnreadable?: ConfirmUnreadable
-  /** Injectable for tests; a fresh {@link ArchidektClient} by default. */
+  /**
+   * Injectable for tests. By default, a paced client
+   * (`createPacedArchidektClient`) whose rate-limit waits are logged as run
+   * warnings.
+   */
   client?: ArchidektClient
   /**
    * Cancel the run. Honoured at deck boundaries only: the deck in flight
@@ -288,6 +302,8 @@ export type SyncOutcome = {
   decks: DeckSyncDeckResult[]
   writtenFiles: string[]
   cancelled: boolean
+  /** A push's {@link DeckSyncReport.ownedDecksIncomplete}. */
+  ownedDecksIncomplete?: SyncMessage
 }
 
 /** Everything a direction's flow needs beyond the decks it was handed. */

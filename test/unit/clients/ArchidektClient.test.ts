@@ -1,13 +1,30 @@
-import { describe, test, expect, mock, beforeEach, afterEach } from 'bun:test'
+import { describe, test, expect, mock } from 'bun:test'
 import { keyedMessage } from '../../helpers/api-message'
 import {
   ArchidektClient,
   DEFAULT_CSV_UPLOAD_FILE_NAME,
   MAX_LIST_PAGES,
   nextPageUrl,
+  type ArchidektCardQuery,
   type CollectionCsvUploadOptions,
 } from '../../../src/clients/ArchidektClient'
 import { MemoryLogger, resetLogger, setLogger } from '../../test-utils'
+import { ArchidektRequestError } from '../../../src/auth/archidekt-reply'
+import {
+  isMessageParseError,
+  isSyncMessage,
+  renderSyncMessage,
+  type SyncMessage,
+} from '../../../src/sync/message'
+import type { MessageKey } from '../../../src/i18n/messages/en'
+import {
+  pseudoCatalog,
+  pseudoPlural,
+  pseudoString,
+  rejectedSyncMessage,
+  withGuardedLocaleAsync,
+} from '../../helpers/sync-text'
+import { requestFailureOf } from '../../helpers/rejection'
 import {
   type ArchidektCardSearchResult,
   type ArchidektDeckResponse,
@@ -49,9 +66,10 @@ describe('ArchidektClient', () => {
     })
 
     const client = new ArchidektClient({ fetch: mockFetch })
-    const decks = await client.fetchPublicDecks('user1')
+    const { decks, cutShort } = await client.fetchPublicDecks('user1')
 
     expect(mockFetch).toHaveBeenCalled()
+    expect(cutShort).toBeUndefined()
     expect(decks).toHaveLength(2)
     expect(decks[0]?.id).toBe(1)
     expect(decks[1]?.name).toBe('Deck 2')
@@ -78,19 +96,18 @@ describe('ArchidektClient', () => {
     })
 
     const client = new ArchidektClient({ fetch: mockFetch })
-    const decks = await client.fetchOwnDecks('mytoken')
+    const { decks } = await client.fetchOwnDecks('mytoken')
 
     expect(mockFetch).toHaveBeenCalled()
-    expect(decks).toHaveLength(1)
-    expect(decks[0]?.name).toBe('My Private Deck')
-  })
-
-  test('should throw error on failure', async () => {
-    const mockFetch = mock(async () => new Response('Error', { status: 500 }))
-    const client = new ArchidektClient({ fetch: mockFetch })
-
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.fetchPublicDecks('bad')).rejects.toThrow('Failed to fetch public decks')
+    expect(decks).toEqual([
+      {
+        id: 3,
+        name: 'My Private Deck',
+        updatedAt: '2023-01-03',
+        deckFormat: 3,
+        owner: { username: 'me' },
+      },
+    ])
   })
 
   test('should fall back to the Main section for unknown category IDs', async () => {
@@ -359,15 +376,6 @@ describe('ArchidektClient', () => {
       resetLogger()
     }
   })
-
-  test('should throw error when fetchImportedDeck fails', async () => {
-    const mockFetch = mock(
-      async () => new Response('Not Found', { status: 404, statusText: 'Not Found' }),
-    )
-    const client = new ArchidektClient({ fetch: mockFetch })
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.fetchImportedDeck('bad-id')).rejects.toThrow(/Failed to fetch deck/)
-  })
 })
 
 // ── Collection API ──────────────────────────────────────────────────────
@@ -465,7 +473,7 @@ describe('ArchidektClient collection API', () => {
     expect(requests[0]?.method).toBe('GET')
     expect(requests[0]?.headers).toEqual({})
     expect(page.results[0]?.card.edition.editioncode).toBe('fdn')
-    expect(page.owner.id).toBe(424242)
+    expect(page.owner?.id).toBe(424242)
     expect(page.next).toBeNull()
   })
 
@@ -482,23 +490,12 @@ describe('ArchidektClient collection API', () => {
     expect(page.count).toBe(1)
   })
 
-  test('throws when a collection page is not visible', async () => {
-    const { client } = recordingClient(
-      () => new Response('Not Found', { status: 404, statusText: 'Not Found' }),
-    )
-
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.fetchCollectionPage(999, 1)).rejects.toThrow(
-      'Failed to fetch collection page 1 for user 999: 404 Not Found',
-    )
-  })
-
   test('creates a record with no id in the body', async () => {
     const { client, requests } = recordingClient(() =>
       jsonResponse({ id: 777, createdAt: 'now', modifiedAt: 'now' }),
     )
 
-    const created = await client.createCollectionRecord(upsertBody(), 'mytoken')
+    await client.createCollectionRecord(upsertBody(), 'mytoken')
 
     expect(requests[0]?.url).toBe('https://archidekt.com/api/collection/v2/')
     expect(requests[0]?.method).toBe('POST')
@@ -507,7 +504,6 @@ describe('ArchidektClient collection API', () => {
       'Content-Type': 'application/json',
     })
     expect(requests[0]?.body).toEqual(upsertBody())
-    expect(created.id).toBe(777)
   })
 
   test('updates a record, merging the id from the URL into the body', async () => {
@@ -520,15 +516,6 @@ describe('ArchidektClient collection API', () => {
     expect(requests[0]?.url).toBe('https://archidekt.com/api/collection/v2/501/')
     expect(requests[0]?.method).toBe('PATCH')
     expect(requests[0]?.body).toEqual({ ...upsertBody(), id: 501 })
-  })
-
-  test('reports the response body when a write fails', async () => {
-    const { client } = recordingClient(() => new Response('bad printing id', { status: 400 }))
-
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.createCollectionRecord(upsertBody(), 'mytoken')).rejects.toThrow(
-      'createCollectionRecord failed (400): bad printing id',
-    )
   })
 
   test('deletes records in batches of 25', async () => {
@@ -566,11 +553,33 @@ describe('ArchidektClient collection API', () => {
     })
     const ids = Array.from({ length: 60 }, (_, i) => i + 1)
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.deleteCollectionRecords(ids, 'mytoken')).rejects.toThrow(
-      'deleteCollectionRecords (25 records) failed (500): nope',
-    )
+    // The wording is pinned per request in archidekt-failures.test.ts.
+    const [message] = await requestFailureOf(client.deleteCollectionRecords(ids, 'mytoken'))
+    expect(message.messageKey).toBe('domain.sync.archidekt.recordsDeleteFailedWithReason')
     expect(requests).toHaveLength(2)
+  })
+
+  test('a failed delete reads whole in the CLI’s language, its count nested', async () => {
+    const { client } = recordingClient(() => new Response('', { status: 500 }))
+
+    const error = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      client.deleteCollectionRecords([1, 2], 'mytoken').then(
+        () => new Error('expected the delete to fail'),
+        (reason: unknown) => reason,
+      ),
+    )
+
+    // The thrown error's text is the CLI's (rendered where it was raised); the
+    // count inside it is worded in the same language, not glued in English.
+    const records = pseudoPlural('domain.count.collectionRecords').replace('{count}', '2')
+    expect(error instanceof ArchidektRequestError && error.message).toBe(
+      pseudoString('domain.sync.archidekt.recordsDeleteFailed')
+        .replace('{records}', records)
+        .replace('{status}', '500'),
+    )
+    expect(error instanceof ArchidektRequestError && error.syncMessage.message).toBe(
+      'Failed to delete 2 collection records from the Archidekt collection (HTTP 500)',
+    )
   })
 })
 
@@ -883,10 +892,10 @@ describe('ArchidektClient.uploadCollectionCsv', () => {
         : new Response('bad csv', { status: 400 }),
     )
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(
+    const [message] = await requestFailureOf(
       client.uploadCollectionCsv(csvWithRows(ARCHIDEKT_CSV_CHUNK_SIZE + 1), UID_COLUMNS, 'mytoken'),
-    ).rejects.toThrow('uploadCollectionCsv (chunk 2) failed (400): bad csv')
+    )
+    expect(message.messageParams).toEqual({ chunk: 2, status: 400, reason: 'bad csv' })
     expect(uploads).toHaveLength(2)
   })
 
@@ -899,30 +908,40 @@ describe('ArchidektClient.uploadCollectionCsv', () => {
     expect(result).toEqual({ rowCount: 0, chunkCount: 0, rows: [], unreadable: [] })
   })
 
-  test.each<[string, CollectionCsvUploadOptions, string]>([
+  test.each<[string, CollectionCsvUploadOptions, MessageKey]>([
     [
       'a mapping that pins no printing',
       { columns: ['quantity', 'condition'], header: true },
-      "must include 'uid'",
+      'domain.import.archidekt.csvNoPrintingColumns',
     ],
-    ['no columns at all', { columns: [], header: true }, 'needs at least one column'],
-  ])('refuses %s before sending anything', async (_label, options, message) => {
+    ['no columns at all', { columns: [], header: true }, 'domain.import.archidekt.csvNoColumns'],
+  ])('refuses %s before sending anything', async (_label, options, key) => {
     const { client, uploads } = uploadRecorder(() => uploadResponse(1))
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(client.uploadCollectionCsv(csvWithRows(1), options, 'mytoken')).rejects.toThrow(
-      message,
+    const message = await rejectedSyncMessage(
+      client.uploadCollectionCsv(csvWithRows(1), options, 'mytoken'),
     )
+
+    // The column check's own refusal, unwrapped: it already says what is wrong.
+    expect(message.messageKey).toBe(key)
     expect(uploads).toEqual([])
   })
 
-  test('refuses an unreadable CSV before sending anything', async () => {
+  test('refuses an unreadable CSV before sending anything, nesting why', async () => {
     const { client, uploads } = uploadRecorder(() => uploadResponse(1))
 
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
-    await expect(
-      client.uploadCollectionCsv(`${CSV_HEADER}\n"uid-1,1,Normal,NM\n`, UID_COLUMNS, 'mytoken'),
-    ).rejects.toThrow('the CSV could not be read — Unterminated quoted field starting on line 2')
+    expect(
+      await rejectedSyncMessage(
+        client.uploadCollectionCsv(`${CSV_HEADER}\n"uid-1,1,Normal,NM\n`, UID_COLUMNS, 'mytoken'),
+      ),
+    ).toEqual({
+      message:
+        'The CSV for Archidekt could not be read: Unterminated quoted field starting on line 2',
+      messageKey: 'domain.sync.archidekt.csvUnreadable',
+      messageParams: {
+        reason: { messageKey: 'domain.import.csv.unterminatedQuote', messageParams: { line: 2 } },
+      },
+    })
     expect(uploads).toEqual([])
   })
 
@@ -952,18 +971,26 @@ describe('ArchidektClient.searchCards printing pinning', () => {
     }
   }
 
+  /** A search for `name`, labelled in its failures as the caller's own line would be. */
+  function query(name: string, set?: string, collectorNumber?: string): ArchidektCardQuery {
+    return { name, set, collectorNumber, label: `${name} [label]` }
+  }
+
   test('pins the printing by collector number', async () => {
     const { client, requests } = recordingClient(() =>
       jsonResponse({ results: [searchResult(1, '105'), searchResult(2, '106')] }),
     )
 
-    const result = await client.searchCards('Loot, Exuberant Explorer', 'FDN', 'mytoken', '106')
+    const result = await client.searchCards(
+      query('Loot, Exuberant Explorer', 'FDN', '106'),
+      'mytoken',
+    )
 
     const url = new URL(requests[0]!.url)
     expect(url.searchParams.get('nameSearch')).toBe('Loot, Exuberant Explorer')
     expect(url.searchParams.get('editionSearch')).toBe('fdn')
     expect(url.searchParams.get('collectorNumber')).toBe('106')
-    expect(typeof result === 'string' ? result : result.id).toBe(2)
+    expect(isSyncMessage(result) ? result : result.id).toBe(2)
   })
 
   test('omits the collector number from the query when none is given', async () => {
@@ -971,17 +998,24 @@ describe('ArchidektClient.searchCards printing pinning', () => {
       jsonResponse({ results: [searchResult(1, '105')] }),
     )
 
-    await client.searchCards('Loot, Exuberant Explorer', 'fdn', 'mytoken')
+    await client.searchCards(query('Loot, Exuberant Explorer', 'fdn'), 'mytoken')
 
     expect(new URL(requests[0]!.url).searchParams.has('collectorNumber')).toBe(false)
   })
 
-  test('reports the pinned printing in the not-found error', async () => {
+  test('the not-found refusal names the card as the caller labels it', async () => {
     const { client } = recordingClient(() => jsonResponse({ results: [searchResult(1, '105')] }))
 
-    const result = await client.searchCards('Loot, Exuberant Explorer', 'fdn', 'mytoken', '106')
+    const result = await client.searchCards(
+      { ...query('Loot, Exuberant Explorer', 'fdn', '106'), label: 'Loot (FDN:106) [foil] [ja]' },
+      'mytoken',
+    )
 
-    expect(result).toBe('Card not found on Archidekt: Loot, Exuberant Explorer (FDN:106)')
+    expect(result).toEqual({
+      message: 'Card not found on Archidekt: Loot (FDN:106) [foil] [ja]',
+      messageKey: 'domain.sync.archidekt.cardNotFound',
+      messageParams: { card: 'Loot (FDN:106) [foil] [ja]' },
+    })
   })
 
   /**
@@ -999,14 +1033,12 @@ describe('ArchidektClient.searchCards printing pinning', () => {
     const { client, requests } = recordingClient(() => jsonResponse({ results: [dfc] }))
 
     const result = await client.searchCards(
-      'Delver of Secrets // Insectile Aberration',
-      'isd',
+      query('Delver of Secrets // Insectile Aberration', 'isd', '51'),
       'mytoken',
-      '51',
     )
 
     expect(new URL(requests[0]!.url).searchParams.get('nameSearch')).toBe('Delver of Secrets')
-    expect(typeof result === 'string' ? result : result.id).toBe(77)
+    expect(isSyncMessage(result) ? result : result.id).toBe(77)
   })
 
   test('accepts a uniquely pinned printing whose name is spelled differently', async () => {
@@ -1020,17 +1052,17 @@ describe('ArchidektClient.searchCards printing pinning', () => {
     }
     const { client } = recordingClient(() => jsonResponse({ results: [split] }))
 
-    const result = await client.searchCards('Wear // Tear', 'dgm', 'mytoken', '225')
+    const result = await client.searchCards(query('Wear // Tear', 'dgm', '225'), 'mytoken')
 
-    expect(typeof result === 'string' ? result : result.id).toBe(88)
+    expect(isSyncMessage(result) ? result : result.id).toBe(88)
   })
 
   test('still refuses a different card when nothing pins the printing', async () => {
     const { client } = recordingClient(() => jsonResponse({ results: [searchResult(1, '105')] }))
 
-    const result = await client.searchCards('Some Other Card', undefined, 'mytoken')
+    const result = await client.searchCards(query('Some Other Card'), 'mytoken')
 
-    expect(result).toBe('Card not found on Archidekt: Some Other Card')
+    expect(isSyncMessage(result) && result.messageKey).toBe('domain.sync.archidekt.cardNotFound')
   })
 })
 
@@ -1046,21 +1078,12 @@ function deckPage(id: number, next: string | null): string {
   })
 }
 
+/** A client over `fetch`, unpaced. */
+function unpacedClient(fetch: (url: string | URL, init?: RequestInit) => Promise<Response>) {
+  return new ArchidektClient({ fetch }, { minRequestIntervalMs: 0 })
+}
+
 describe('ArchidektClient deck list pagination', () => {
-  let logger: MemoryLogger
-
-  beforeEach(() => {
-    logger = new MemoryLogger()
-    setLogger(logger)
-  })
-
-  afterEach(() => {
-    resetLogger()
-  })
-
-  const warnings = (): string[] =>
-    logger.entries.filter((e) => e.level === 'warn').map((e) => String(e.args[0]))
-
   test('follows every `next` link and returns all pages', async () => {
     const urls: string[] = []
     const mockFetch = mock(async (url: string | URL) => {
@@ -1073,14 +1096,13 @@ describe('ArchidektClient deck list pagination', () => {
       return new Response(deckPage(1, 'http://archidekt.com/api/decks/v3/?page=2'))
     })
 
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    const decks = await client.fetchPublicDecks('user1')
+    const listing = await unpacedClient(mockFetch).fetchPublicDecks('user1')
 
-    expect(decks.map((d) => d.id)).toEqual([1, 2, 3])
+    expect(listing.decks.map((d) => d.id)).toEqual([1, 2, 3])
+    expect(listing.cutShort).toBeUndefined()
     expect(urls).toHaveLength(3)
     // The http:// link Archidekt serves is upgraded, so no page costs a redirect.
     expect(urls[1]).toBe('https://archidekt.com/api/decks/v3/?page=2')
-    expect(warnings()).toEqual([])
   })
 
   test('fetchOwnDecks paginates too, keeping the auth header on every page', async () => {
@@ -1092,56 +1114,149 @@ describe('ArchidektClient deck list pagination', () => {
         : new Response(deckPage(1, 'https://archidekt.com/api/decks/curated/self/?page=2'))
     })
 
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    const decks = await client.fetchOwnDecks('mytoken')
+    const { decks } = await unpacedClient(mockFetch).fetchOwnDecks('mytoken')
 
     expect(decks.map((d) => d.id)).toEqual([1, 2])
     expect(seenAuth).toEqual(['JWT mytoken', 'JWT mytoken'])
   })
 
-  test('stops and warns when the server repeats a page link', async () => {
+  test('a relative `next` is followed against the page it arrived on', async () => {
+    const urls: string[] = []
+    const mockFetch = mock(async (url: string | URL) => {
+      urls.push(url.toString())
+      return url.toString().includes('page=2')
+        ? new Response(deckPage(2, null))
+        : new Response(deckPage(1, '/api/decks/v3/?ownerUsername=u&page=2'))
+    })
+
+    const { decks } = await unpacedClient(mockFetch).fetchPublicDecks('u')
+
+    expect(decks.map((d) => d.id)).toEqual([1, 2])
+    expect(urls[1]).toBe('https://archidekt.com/api/decks/v3/?ownerUsername=u&page=2')
+  })
+
+  test('a repeated page link ends the walk, cut short and saying so', async () => {
     const mockFetch = mock(
       async () => new Response(deckPage(1, 'https://archidekt.com/api/decks/v3/?page=2')),
     )
 
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    const decks = await client.fetchPublicDecks('user1')
+    const listing = await unpacedClient(mockFetch).fetchPublicDecks('user1')
 
     // Page 1 -> page 2 -> page 2 again: the walk ends rather than looping.
-    expect(decks).toHaveLength(2)
     expect(mockFetch).toHaveBeenCalledTimes(2)
-    expect(warnings()[0]).toContain('already served')
+    expect(listing).toEqual({
+      decks: [expect.objectContaining({ id: 1 }), expect.objectContaining({ id: 1 })],
+      cutShort: {
+        message:
+          'Archidekt served a next-page link it had already served (https://archidekt.com/api/decks/v3/?page=2); stopped after 2 decks.',
+        messageKey: 'domain.sync.archidekt.pageRepeated',
+        messageParams: {
+          url: 'https://archidekt.com/api/decks/v3/?page=2',
+          decks: { messageKey: 'domain.count.decks', messageParams: { count: 2 } },
+        },
+      },
+    })
   })
 
-  test('stops and warns at the page cap', async () => {
+  test('the page cap ends the walk, cut short and saying so', async () => {
     let page = 0
     const mockFetch = mock(async () => {
       page++
       return new Response(deckPage(page, `https://archidekt.com/api/decks/v3/?page=${page + 1}`))
     })
 
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    const decks = await client.fetchPublicDecks('user1')
+    const listing = await unpacedClient(mockFetch).fetchPublicDecks('user1')
 
-    expect(decks).toHaveLength(MAX_LIST_PAGES)
-    expect(warnings()[0]).toContain(`Stopped after ${MAX_LIST_PAGES} pages`)
+    expect(listing.decks).toHaveLength(MAX_LIST_PAGES)
+    expect(listing.cutShort).toEqual({
+      message: `Stopped after ${MAX_LIST_PAGES} pages of Archidekt results; the list may be incomplete (${MAX_LIST_PAGES} decks so far).`,
+      messageKey: 'domain.sync.archidekt.pageCapReached',
+      messageParams: {
+        pages: { messageKey: 'domain.count.pages', messageParams: { count: MAX_LIST_PAGES } },
+        decks: { messageKey: 'domain.count.decks', messageParams: { count: MAX_LIST_PAGES } },
+      },
+    })
   })
 
-  test('a missing `next` ends the walk without a warning', async () => {
+  test('a declined next-page link ends the walk with what was read', async () => {
+    const mockFetch = mock(
+      async () => new Response(deckPage(1, 'https://evil.example.com/api/decks/v3/?page=2')),
+    )
+
+    const listing = await unpacedClient(mockFetch).fetchOwnDecks('mytoken')
+
+    expect(listing.decks.map((d) => d.id)).toEqual([1])
+    expect(listing.cutShort?.messageKey).toBe('domain.sync.archidekt.nextLinkForeign')
+  })
+
+  test('a cut-short warning reads whole in the CLI’s language, its count nested', async () => {
+    const mockFetch = mock(
+      async () => new Response(deckPage(1, 'https://archidekt.com/api/decks/v3/?page=2')),
+    )
+
+    const rendered = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async (locale) => {
+      const { cutShort } = await unpacedClient(mockFetch).fetchPublicDecks('u')
+      return cutShort === undefined ? undefined : renderSyncMessage(cutShort, locale)
+    })
+
+    // The deck count nested in the warning is worded in the same language, not glued in English.
+    const decks = pseudoPlural('domain.count.decks').replace('{count}', '2')
+    expect(rendered).toBe(
+      pseudoString('domain.sync.archidekt.pageRepeated')
+        .replace('{url}', 'https://archidekt.com/api/decks/v3/?page=2')
+        .replace('{decks}', decks),
+    )
+  })
+
+  test('a missing `next` ends the walk without a refusal', () => {
     // Nothing to follow is the normal end of a walk, not a truncation.
     expect(nextPageUrl(null)).toBeUndefined()
     expect(nextPageUrl('')).toBeUndefined()
-    expect(warnings()).toEqual([])
   })
 
-  test.each([
-    ['not a url', 'unparseable'],
-    ['https://evil.example.com/api/decks/v3/?page=2', 'unexpected host'],
-  ])('a `next` of %p is declined out loud', (next, reason) => {
+  test.each<[string, SyncMessage]>([
+    [
+      'not a url',
+      {
+        message:
+          'Archidekt served a next-page link that cannot be read, so it was not followed: not a url. The list may be incomplete.',
+        messageKey: 'domain.sync.archidekt.nextLinkUnreadable',
+        messageParams: { url: 'not a url' },
+      },
+    ],
+    [
+      'javascript:alert(1)',
+      {
+        message:
+          'Archidekt served a next-page link that cannot be read, so it was not followed: javascript:alert(1). The list may be incomplete.',
+        messageKey: 'domain.sync.archidekt.nextLinkUnreadable',
+        messageParams: { url: 'javascript:alert(1)' },
+      },
+    ],
+    [
+      'https://evil.example.com/api/decks/v3/?page=2',
+      {
+        message:
+          'Archidekt served a next-page link to another site (evil.example.com), so it was not followed: https://evil.example.com/api/decks/v3/?page=2. The list may be incomplete.',
+        messageKey: 'domain.sync.archidekt.nextLinkForeign',
+        messageParams: {
+          host: 'evil.example.com',
+          url: 'https://evil.example.com/api/decks/v3/?page=2',
+        },
+      },
+    ],
+  ])('a `next` of %p is declined, saying why', (next, refusal) => {
     // A silently-declined link is a truncated list that looks complete.
-    expect(nextPageUrl(next)).toBeUndefined()
-    expect(warnings()).toHaveLength(1)
-    expect(warnings()[0]).toContain(reason)
+    const result = nextPageUrl(next)
+    expect(isMessageParseError(result) ? result.error : result).toEqual(refusal)
+  })
+
+  test('a declined link is quoted on one line and capped', () => {
+    const result = nextPageUrl(`\u001b[2Jnot\na url ${'x'.repeat(400)}`)
+
+    expect(isMessageParseError(result) && result.error.messageParams).toEqual({
+      url: `not a url ${'x'.repeat(290)}…`,
+    })
   })
 
   test('an http link is upgraded, and a subdomain is still Archidekt', () => {
@@ -1151,31 +1266,6 @@ describe('ArchidektClient deck list pagination', () => {
     expect(nextPageUrl('https://api.archidekt.com/api/decks/v3/?page=2')).toBe(
       'https://api.archidekt.com/api/decks/v3/?page=2',
     )
-    expect(warnings()).toEqual([])
-  })
-
-  test('a relative `next` is resolved against the page it arrived on', () => {
-    expect(nextPageUrl('/api/decks/v3/?page=2', 'https://archidekt.com/api/decks/v3/')).toBe(
-      'https://archidekt.com/api/decks/v3/?page=2',
-    )
-    expect(warnings()).toEqual([])
-  })
-
-  test('a failure mid-walk aborts rather than returning a short list', async () => {
-    const mockFetch = mock(async (url: string | URL) =>
-      url.toString().includes('page=2')
-        ? new Response('boom', { status: 500 })
-        : new Response(deckPage(1, 'https://archidekt.com/api/decks/v3/?page=2')),
-    )
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    // Returning page 1 alone would be exactly the truncation the walk guards against.
-    expect(client.fetchPublicDecks('user1')).rejects.toThrow('Failed to fetch public decks')
-  })
-
-  test('a page with no `results` array is an error, not an empty page', async () => {
-    const mockFetch = mock(async () => new Response(JSON.stringify({ count: 0 })))
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    expect(client.fetchPublicDecks('user1')).rejects.toThrow('no `results` array')
   })
 
   test('percent-encodes the username in the first page URL', async () => {
@@ -1184,8 +1274,7 @@ describe('ArchidektClient deck list pagination', () => {
       requested.push(url.toString())
       return new Response(deckPage(1, null))
     })
-    const client = new ArchidektClient({ fetch: mockFetch }, { minRequestIntervalMs: 0 })
-    await client.fetchPublicDecks('a b&c')
+    await unpacedClient(mockFetch).fetchPublicDecks('a b&c')
 
     expect(requested[0]).toContain('ownerUsername=a%20b%26c')
   })
