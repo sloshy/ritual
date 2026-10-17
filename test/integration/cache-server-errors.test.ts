@@ -126,6 +126,17 @@ describe('a Ritual cache server’s failures, as its client reports them', () =>
     })
   })
 
+  test('a 405 names the methods a cache entry answers in Allow', async () => {
+    const refused = await fetch(`http://127.0.0.1:${server.port}/cache/prices/Sol%20Ring`, {
+      method: 'POST',
+    })
+    expect(refused.status).toBe(405)
+    expect(refused.headers.get('allow')).toBe('GET, PUT, DELETE')
+    expect((await refused.json()) as unknown).toMatchObject({
+      messageKey: 'domain.cache.serverReply.methodNotAllowed',
+    })
+  })
+
   test('a refusal goes out in English with its key, and the client words it in its language', async () => {
     const { raw, routed, shown } = await underPseudoLocale(async () => {
       const refused = await fetch(`http://127.0.0.1:${server.port}/cache/prices/bulk`, {

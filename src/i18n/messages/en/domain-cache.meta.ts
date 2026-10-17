@@ -13,6 +13,10 @@ const SERVER_CONTEXT =
 const REPLY_CONTEXT =
   'The reason a Ritual cache server (a shared card/price cache another Ritual process runs; see --cache-server) refused a request from this Ritual process. Shown after "Cache server request failed (…) …: ", i.e. as the server\'s own reply.'
 
+/** Context for a cache-feed host's reply to a refused request. */
+const FEED_REPLY_CONTEXT =
+  "The reason a Ritual cache-feed host (`ritual cache feed host`, which publishes Scryfall's bulk card files for other Ritual processes to download, over HTTP and BitTorrent) refused an HTTP request. Sent as the body of the HTTP error reply; another program reads it."
+
 const PROGRESS_CONTEXT =
   "A progress line of a card-cache refresh: Ritual downloading Scryfall's (a card database's) bulk card data into its local card cache. Shown on the admin Cache Refresh page while the refresh runs, in the CLI, and to MCP clients as a progress note."
 
@@ -186,6 +190,27 @@ export const domainCacheMeta = {
   },
   'domain.cache.serverReply.httpDenied': {
     description: `${REPLY_CONTEXT} The cache server was started with --deny-http (a test mode that forbids it from downloading anything), and a price read needed a download — a price not in its cache. "Pre-populate" means fill the cache in advance. --deny-http is a literal flag.`,
+  },
+  'domain.cache.feedReply.notFound': {
+    description: `${FEED_REPLY_CONTEXT} The request was for a path the feed host does not serve at all (it serves /feed.json, /files/…, /torrents/… and /health).`,
+  },
+  'domain.cache.feedReply.fileNotListed': {
+    description: `${FEED_REPLY_CONTEXT} The request asked for a file under /files/ that the current feed does not list (an unknown or superseded file).`,
+  },
+  'domain.cache.feedReply.torrentNotListed': {
+    description: `${FEED_REPLY_CONTEXT} The request asked for a .torrent file under /torrents/ that the current feed does not list.`,
+  },
+  'domain.cache.feedReply.methodNotAllowed': {
+    description: `${FEED_REPLY_CONTEXT} The request used an HTTP method (POST, PUT, DELETE…) the feed host does not accept; it only serves downloads.`,
+  },
+  'domain.cache.feedReply.pathMalformed': {
+    description: `${FEED_REPLY_CONTEXT} The file or torrent name in the request path has a broken %-escape (URL encoding, as in "default%2Dcards"), so the name could not be read.`,
+  },
+  'domain.cache.feedReply.notGenerated': {
+    description: `${FEED_REPLY_CONTEXT} The feed document was requested before the host finished generating its first one (it is still downloading from Scryfall).`,
+  },
+  'domain.cache.feedReply.rangeNotSatisfiable': {
+    description: `${FEED_REPLY_CONTEXT} The request asked for part of a file (an HTTP range request, which BitTorrent web seeding uses) with a byte range that is malformed or lies past the end of the file.`,
   },
   'domain.cache.refresh.fetchingMetadata': {
     description: `${PROGRESS_CONTEXT} The first step: asking Scryfall which bulk files exist and where to download them.`,

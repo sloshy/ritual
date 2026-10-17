@@ -25,6 +25,11 @@ export const errorsMeta = {
       'An internal consistency failure: a user-interface component asked for shared state it can only get from inside a surrounding component, and was placed outside it (a programming error, not a user mistake). {hook} and {provider} are code names (like useTheme and ThemeProvider) and are never translated.',
   },
 
+  'errors.invariant.calledBeforeSetup': {
+    description:
+      'An internal consistency failure: a part of Ritual was used before it was set up (a programming error, not a user mistake). {method} is the code name of what was called (like FeedSeeder.sync) and {setup} the code name of the call that must come first (like start()); both are never translated.',
+  },
+
   'errors.label.exclusive': {
     description:
       'Rejection of an illegal card-label combination. {label} is the exclusive label the user asked for (the untranslated token `keep` or `proxy`), which stands alone and cannot be paired with any other label. Keep the quotes around it.',

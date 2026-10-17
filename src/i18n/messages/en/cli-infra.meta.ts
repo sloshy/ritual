@@ -103,13 +103,15 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.initialFeedFailed': {
     description:
-      'The first feed generation failed and there is no existing feed to fall back on. The error object is printed after this line.',
+      'The first feed generation failed and there is no existing feed to fall back on, so `cache feed host` exits. {error} is the failure, already worded (one of the feed-host errors, or a download error).',
   },
   'cli.cacheFeed.refreshFailed': {
-    description: 'A feed refresh failed but a previously generated feed is still being served.',
+    description:
+      'A feed refresh failed but a previously generated feed is still being served. {reason} is the failure, already worded (one of the feed-host errors, or a download error).',
   },
   'cli.cacheFeed.seedStartFailed': {
-    description: 'The BitTorrent seeder would not start. The error is printed after this line.',
+    description:
+      "The BitTorrent seeder would not start (in `cache feed host` or `cache feed fetch`). {error} is the failure, already worded — possibly the BitTorrent client's own English text.",
   },
   'cli.cacheFeed.seedingTorrents': {
     description: 'How many torrents the feed host is seeding, when the TCP port is unknown.',
@@ -118,10 +120,12 @@ export const cliInfraMeta = {
     description: 'How many torrents the feed host is seeding, and on which TCP port.',
   },
   'cli.cacheFeed.serverStartFailed': {
-    description: 'The feed HTTP server would not bind — usually the port is already in use.',
+    description:
+      "The feed HTTP server would not bind — usually the port is already in use. {error} is the system's own reason, usually English.",
   },
   'cli.cacheFeed.scheduledRefreshFailed': {
-    description: 'A scheduled (background) feed refresh failed on a running host.',
+    description:
+      'A scheduled (background) feed refresh failed on a running host, which keeps serving its current feed. {error} is the failure, already worded.',
   },
   'cli.cacheFeed.listening': { description: 'The feed host is up. {url} is its feed URL.' },
   'cli.cacheFeed.publicUrl': {
@@ -132,7 +136,7 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.syncing': { description: '`cache feed fetch` is contacting the feed.' },
   'cli.cacheFeed.syncFailed': {
-    description: '`cache feed fetch` could not sync. The error is printed after this line.',
+    description: '`cache feed fetch` could not sync. {error} is the failure, already worded.',
   },
   'cli.cacheFeed.ingested': { description: 'The feed carried new data and it was ingested.' },
   'cli.cacheFeed.unchanged': { description: 'The feed matched what is already cached.' },
@@ -143,25 +147,80 @@ export const cliInfraMeta = {
     description: '`cache feed fetch` is now seeding on a known TCP port.',
   },
   'cli.cacheFeed.scheduledRecheckFailed': {
-    description: 'A scheduled feed re-check failed while seeding.',
+    description:
+      'A scheduled feed re-check failed while `cache feed fetch` was seeding; it keeps seeding. {error} is the failure, already worded.',
   },
   'cli.cacheFeed.feedChanged': {
     description: 'A scheduled re-check found new data and ingested it.',
   },
   'cli.cacheFeed.stopping': { description: 'Ctrl+C was pressed; the seeder is shutting down.' },
 
+  // ── cache feed host ───────────────────────────────────────────────────
+  'cli.cacheFeed.loadedExisting': {
+    description:
+      'At start-up the feed host found the feed it published before and serves it straight away. {generatedAt} is when that feed was generated, an ISO 8601 timestamp (e.g. "2026-07-05T10:00:00.000Z"), printed as it is.',
+  },
+  'cli.cacheFeed.artifactMissing': {
+    description:
+      "A file the published feed lists has disappeared from the host's disk, so the host downloads it from Scryfall again. {file} is its file name.",
+  },
+  'cli.cacheFeed.downloadingBulk': {
+    description:
+      'The feed host is downloading one of Scryfall\'s bulk files to publish. {kind} is the feed artifact kind, a literal such as "default-cards" or "oracle-tags"; {updatedAt} is when Scryfall last updated the file, an ISO 8601 timestamp printed as it is.',
+  },
+  'cli.cacheFeed.upToDate': {
+    description:
+      'A feed refresh found nothing new on Scryfall, so the published feed was left as it is.',
+  },
+  'cli.cacheFeed.published': {
+    description:
+      'The feed host published a new feed document. {count} is how many files (entries) it lists.',
+  },
+  'cli.cacheFeed.pruning': {
+    description:
+      'After publishing a new feed, the host deletes a file the new feed no longer lists (an older generation of a bulk file). {file} is its file name.',
+  },
+  'cli.cacheFeed.seedingArtifact': {
+    description:
+      'The feed host verified one file on disk and now shares it with BitTorrent peers. {name} is its file name; {infoHash} is its BitTorrent info hash.',
+  },
+  'cli.cacheFeed.manifestEntryMissing': {
+    description:
+      'Scryfall\'s list of bulk files (its "bulk manifest") lacks a file the feed host publishes, or lists it without a download address or update time. {bulkType} is Scryfall\'s name for the bulk file, a literal such as "default_cards".',
+  },
+  'cli.cacheFeed.suspiciousFileName': {
+    description:
+      'A safety refusal: the download address Scryfall listed for a bulk file ends in a file name that could write outside the feed directory, so the host will not save it. {file} is that name.',
+  },
+  'cli.cacheFeed.bulkDownloadFailed': {
+    description:
+      'The feed host could not download one of Scryfall\'s bulk files. {kind} is the feed artifact kind, a literal such as "default-cards"; {status} and {statusText} are the HTTP status code and its standard English reason phrase (e.g. "503 Service Unavailable").',
+  },
+  'cli.cacheFeed.requestFailed': {
+    description:
+      "The feed host hit an unexpected error answering one HTTP request (it answers that request with an error and keeps running). {error} is the failure, already worded — possibly the system's own English text.",
+  },
+  'cli.cacheFeed.bulkNoBody': {
+    description:
+      'Scryfall answered a bulk file download with an empty response. {kind} is the feed artifact kind, a literal such as "default-cards".',
+  },
+
   // ── cache feed client ─────────────────────────────────────────────────
   'cli.cacheFeed.ignoringState': {
     description:
-      'A feed client\'s saved state file was malformed and is ignored (the next sync downloads everything again). {file} is the file name; {reason} is the already-worded reason, one of the "Invalid feed-client state" messages.',
+      'A saved file was malformed and is ignored: a feed client\'s state file (the next sync downloads everything again), or the feed document a feed host published before (it generates a new one). {file} is the file name; {reason} is the already-worded reason, one of the "Invalid feed-client state" or "Invalid cache feed" messages.',
   },
   'cli.cacheFeed.ignoringUnreadable': {
     description:
-      "A feed client's saved state file is not valid JSON and is ignored. {file} is the file name.",
+      "A saved file is not valid JSON and is ignored: a feed client's state file, or the feed document a feed host published before. {file} is the file name.",
   },
   'cli.cacheFeed.fetchFailed': {
     description:
-      'The feed document could not be downloaded. {url} is its address. The HTTP status is appended after a colon.',
+      'The feed document could not be downloaded and the server said nothing more. {url} is its address; {status} is the HTTP status code (a number such as 503). "HTTP" stays literal.',
+  },
+  'cli.cacheFeed.fetchFailedWithBody': {
+    description:
+      "The feed document could not be downloaded. {url} is its address; {status} is the HTTP status code (a number such as 503). \"HTTP\" stays literal. {body} is what the server answered, already worded: a Ritual feed host's reason in the reader's language (e.g. that the feed has not been generated yet), or another server's reply quoted as it was sent.",
   },
   'cli.cacheFeed.missingEntry': {
     description:
@@ -181,7 +240,7 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.stoppedSeeding': {
     description:
-      'A long-running client stopped sharing an artifact the feed no longer lists. {name} is its file name; {infoHash} is its BitTorrent info hash.',
+      'A long-running client or feed host stopped sharing an artifact the feed no longer lists. {name} is its file name; {infoHash} is its BitTorrent info hash.',
   },
   'cli.cacheFeed.hashMismatch': {
     description:
@@ -192,7 +251,11 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.downloadFailed': {
     description:
-      'A feed artifact could not be downloaded over HTTP. {file} is its file name. The HTTP status is appended after a colon.',
+      'A feed artifact (one of the bulk files a feed lists) could not be downloaded over HTTP and the server said nothing more. {url} is its address; {status} is the HTTP status code (a number such as 404). "HTTP" stays literal.',
+  },
+  'cli.cacheFeed.downloadFailedWithBody': {
+    description:
+      "A feed artifact (one of the bulk files a feed lists) could not be downloaded over HTTP. {url} is its address; {status} is the HTTP status code (a number such as 404). \"HTTP\" stays literal. {body} is what the server answered, already worded: a Ritual feed host's reason in the reader's language (e.g. that the feed has not been generated yet), or another server's reply quoted as it was sent.",
   },
   'cli.cacheFeed.downloadNoBody': {
     description:
@@ -211,10 +274,15 @@ export const cliInfraMeta = {
   },
   'cli.cacheFeed.torrentFetchFailed': {
     description:
-      "The .torrent file for a feed artifact could not be downloaded. {file} is the artifact's file name. The HTTP status is appended after a colon.",
+      'The .torrent file for a feed artifact could not be downloaded and the server said nothing more. {url} is its address; {status} is the HTTP status code (a number such as 404). "HTTP" stays literal.',
+  },
+  'cli.cacheFeed.torrentFetchFailedWithBody': {
+    description:
+      "The .torrent file for a feed artifact could not be downloaded. {url} is its address; {status} is the HTTP status code (a number such as 404). \"HTTP\" stays literal. {body} is what the server answered, already worded: a Ritual feed host's reason in the reader's language (e.g. that the feed has not been generated yet), or another server's reply quoted as it was sent.",
   },
   'cli.cacheFeed.torrentClientError': {
-    description: "The BitTorrent client reported an error. {error} is the client's own text.",
+    description:
+      "The BitTorrent client (a feed client's or a feed host's) reported an error. {error} is the client's own text, usually English.",
   },
   'cli.cacheFeed.torrentNotReady': {
     description:

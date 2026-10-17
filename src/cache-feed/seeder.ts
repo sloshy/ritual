@@ -1,6 +1,14 @@
 import type WebTorrent from 'webtorrent'
 import type { Torrent } from 'webtorrent'
 import { CACHE_FEED_LOG_PREFIX } from '../cache/feed'
+import { t } from '../i18n/t'
+import {
+  errorParam,
+  renderSyncMessage,
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+} from '../sync/message'
 import type { FeedTorrentFile } from './host'
 
 // A torrent that cannot verify its on-disk artifact would otherwise wait on
@@ -12,6 +20,11 @@ export type FeedSeederOptions = {
   filesDir: string
   /** Fixed TCP port for incoming peers (random when omitted). */
   torrentPort?: number
+  /**
+   * How long (ms) {@link FeedSeeder.sync} waits for an added torrent to verify
+   * its on-disk artifact before giving up on it (60 s when omitted).
+   */
+  readyTimeoutMs?: number
   log?: (message: string) => void
 }
 
@@ -44,7 +57,9 @@ export class FeedSeeder {
       ...(this.options.torrentPort !== undefined ? { torrentPort: this.options.torrentPort } : {}),
     })
     this.client.on('error', (err) => {
-      this.log(`Torrent client error: ${err instanceof Error ? err.message : String(err)}`)
+      this.log(
+        renderSyncMessage(syncRef('cli.cacheFeed.torrentClientError', { error: errorParam(err) })),
+      )
     })
   }
 
@@ -55,12 +70,18 @@ export class FeedSeeder {
    */
   async sync(torrents: FeedTorrentFile[]): Promise<void> {
     const client = this.client
-    if (!client) throw new Error('FeedSeeder.sync called before start()')
+    if (!client) {
+      throw new Error(
+        t('errors.invariant.calledBeforeSetup', { method: 'FeedSeeder.sync', setup: 'start()' }),
+      )
+    }
 
     const wanted = new Set(torrents.map((torrent) => torrent.infoHash))
     for (const existing of [...client.torrents]) {
       if (!wanted.has(existing.infoHash)) {
-        this.log(`Stopped seeding ${existing.name} (${existing.infoHash})`)
+        this.log(
+          t('cli.cacheFeed.stoppedSeeding', { name: existing.name, infoHash: existing.infoHash }),
+        )
         client.remove(existing.infoHash)
       }
     }
@@ -74,11 +95,20 @@ export class FeedSeeder {
             const torrent: Torrent = client.add(addition.buffer, { path: this.options.filesDir })
             const timer = setTimeout(() => {
               client.remove(addition.infoHash)
-              reject(new Error(`Torrent ${addition.infoHash} did not become ready in time`))
-            }, SYNC_READY_TIMEOUT_MS)
+              reject(
+                new SyncMessageError(
+                  syncMessage('cli.cacheFeed.torrentNotReady', { infoHash: addition.infoHash }),
+                ),
+              )
+            }, this.options.readyTimeoutMs ?? SYNC_READY_TIMEOUT_MS)
             torrent.on('ready', () => {
               clearTimeout(timer)
-              this.log(`Seeding ${torrent.name} (${torrent.infoHash})`)
+              this.log(
+                t('cli.cacheFeed.seedingArtifact', {
+                  name: torrent.name,
+                  infoHash: torrent.infoHash,
+                }),
+              )
               resolve()
             })
             torrent.on('error', (err) => {

@@ -53,27 +53,50 @@ export const cliInfraMessages = {
   // Every line below is printed behind the feed's own log prefix, which is a
   // machine marker and is never translated.
   'cli.cacheFeed.invalidCards': "--cards must be one of: 'default', 'all', 'both'.",
-  'cli.cacheFeed.initialFeedFailed': 'Initial feed generation failed:',
+  'cli.cacheFeed.initialFeedFailed': 'Initial feed generation failed: {error}',
   'cli.cacheFeed.refreshFailed': 'Refresh failed ({reason}); serving the existing feed.',
-  'cli.cacheFeed.seedStartFailed': 'Failed to start seeding:',
+  'cli.cacheFeed.seedStartFailed': 'Failed to start seeding: {error}',
   'cli.cacheFeed.seedingTorrents': 'Seeding {count} torrents.',
   'cli.cacheFeed.seedingTorrentsOnPort': 'Seeding {count} torrents on TCP port {port}.',
-  'cli.cacheFeed.serverStartFailed': 'Failed to start the feed server:',
-  'cli.cacheFeed.scheduledRefreshFailed': 'Scheduled feed refresh failed:',
+  'cli.cacheFeed.serverStartFailed': 'Failed to start the feed server: {error}',
+  'cli.cacheFeed.scheduledRefreshFailed': 'Scheduled feed refresh failed: {error}',
   'cli.cacheFeed.listening': 'Feed server listening on {url}',
   'cli.cacheFeed.publicUrl': 'Public URL: {url}',
   'cli.cacheFeed.seedingDisabled':
     'BitTorrent seeding disabled (--no-seed); serving over HTTP only.',
   'cli.cacheFeed.syncing': 'Syncing from {url}',
-  'cli.cacheFeed.syncFailed': 'Feed sync failed:',
+  'cli.cacheFeed.syncFailed': 'Feed sync failed: {error}',
   'cli.cacheFeed.ingested': 'Card cache updated from the feed.',
   'cli.cacheFeed.unchanged': 'Feed is unchanged; card cache is already current.',
   'cli.cacheFeed.seedingArtifacts': 'Seeding {count} artifacts. Press Ctrl+C to stop.',
   'cli.cacheFeed.seedingArtifactsOnPort':
     'Seeding {count} artifacts on TCP port {port}. Press Ctrl+C to stop.',
-  'cli.cacheFeed.scheduledRecheckFailed': 'Scheduled feed re-check failed:',
+  'cli.cacheFeed.scheduledRecheckFailed': 'Scheduled feed re-check failed: {error}',
   'cli.cacheFeed.feedChanged': 'Feed changed; card cache updated.',
   'cli.cacheFeed.stopping': 'Stopping seeding...',
+
+  // ── cache feed host ───────────────────────────────────────────────────
+  //
+  // What `cache feed host` prints while it publishes the feed and seeds it,
+  // and the errors a refresh raises. Feed kinds (`default-cards`), Scryfall
+  // bulk types (`default_cards`), file names, info hashes and ISO timestamps
+  // are machine values.
+  'cli.cacheFeed.loadedExisting': 'Loaded existing feed (generated {generatedAt}).',
+  'cli.cacheFeed.artifactMissing': 'Artifact {file} is missing on disk; redownloading.',
+  'cli.cacheFeed.downloadingBulk': 'Downloading {kind} (updated {updatedAt})...',
+  'cli.cacheFeed.upToDate': 'Feed is up to date.',
+  'cli.cacheFeed.published': {
+    $plural: 'count',
+    one: 'Published feed with {count} entry.',
+    other: 'Published feed with {count} entries.',
+  },
+  'cli.cacheFeed.pruning': 'Pruning stale artifact {file}',
+  'cli.cacheFeed.seedingArtifact': 'Seeding {name} ({infoHash})',
+  'cli.cacheFeed.manifestEntryMissing': "Bulk manifest has no usable '{bulkType}' entry",
+  'cli.cacheFeed.suspiciousFileName': "Refusing suspicious bulk file name '{file}'",
+  'cli.cacheFeed.bulkDownloadFailed': 'Failed to download the {kind} bulk: {status} {statusText}',
+  'cli.cacheFeed.bulkNoBody': 'Bulk download for {kind} has no body',
+  'cli.cacheFeed.requestFailed': 'Feed request failed: {error}',
 
   // ── cache feed client ─────────────────────────────────────────────────
   //
@@ -83,7 +106,8 @@ export const cliInfraMessages = {
   // kinds (`all-cards`, `default-cards`) are machine values.
   'cli.cacheFeed.ignoringState': 'Ignoring {file}: {reason}',
   'cli.cacheFeed.ignoringUnreadable': 'Ignoring unreadable {file} (not valid JSON).',
-  'cli.cacheFeed.fetchFailed': 'Failed to fetch cache feed {url}',
+  'cli.cacheFeed.fetchFailed': 'Failed to fetch cache feed {url} (HTTP {status})',
+  'cli.cacheFeed.fetchFailedWithBody': 'Failed to fetch cache feed {url} (HTTP {status}): {body}',
   'cli.cacheFeed.missingEntry': "Cache feed has no '{kind}' entry",
   'cli.cacheFeed.missingAllCardsEntry':
     "Cache feed has no '{kind}' entry (the configured defaultLanguage needs the all_cards bulk, which this feed's host does not publish — host with `cache feed host --cards all` or refresh with --source scryfall)",
@@ -92,7 +116,9 @@ export const cliInfraMessages = {
   'cli.cacheFeed.stoppedSeeding': 'Stopped seeding superseded artifact {name} ({infoHash})',
   'cli.cacheFeed.hashMismatch': "Downloaded {file} does not match the feed's sha256 (got {hash})",
   'cli.cacheFeed.downloadingHttp': 'Downloading {file} over HTTP...',
-  'cli.cacheFeed.downloadFailed': 'Failed to download {file}',
+  'cli.cacheFeed.downloadFailed': 'Failed to download feed artifact {url} (HTTP {status})',
+  'cli.cacheFeed.downloadFailedWithBody':
+    'Failed to download feed artifact {url} (HTTP {status}): {body}',
   'cli.cacheFeed.downloadNoBody': 'Download of {file} has no body',
   'cli.cacheFeed.downloadingTorrent': 'Downloading {file} over BitTorrent...',
   'cli.cacheFeed.torrentTimedOut': 'Torrent download of {file} timed out',
@@ -101,7 +127,9 @@ export const cliInfraMessages = {
     one: 'Completed {file} ({count} peer).',
     other: 'Completed {file} ({count} peers).',
   },
-  'cli.cacheFeed.torrentFetchFailed': 'Failed to fetch torrent for {file}',
+  'cli.cacheFeed.torrentFetchFailed': 'Failed to fetch torrent {url} (HTTP {status})',
+  'cli.cacheFeed.torrentFetchFailedWithBody':
+    'Failed to fetch torrent {url} (HTTP {status}): {body}',
   'cli.cacheFeed.torrentClientError': 'Torrent client error: {error}',
   'cli.cacheFeed.torrentNotReady': 'Torrent {infoHash} did not become ready in time',
 

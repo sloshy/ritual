@@ -1,11 +1,23 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { CacheFeedHost } from '../../src/cache-feed/host'
+import {
+  CacheFeedHost,
+  type CacheFeedHostOptions,
+  type FeedHealthResponse,
+} from '../../src/cache-feed/host'
 import { parseCacheFeed, type CacheFeedDocument } from '../../src/cache/feed'
 import { createFileTorrent } from '../../src/cache-feed/torrents'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
+import { spawnFeedHost } from './helpers/cache-server'
+import { serveBulkUpstream } from './helpers/scryfall-bulk'
+import { pseudoCatalog, rejectedSyncMessage, withGuardedLocaleAsync } from '../helpers/sync-text'
+import { en } from '../../src/i18n/messages/en'
+import { t, type ParameterlessKey } from '../../src/i18n/t'
+import { DEFAULT_LOCALE } from '../../src/i18n/runtime'
+import { CACHE_FEED_LOG_PREFIX } from '../../src/cache/feed'
+import { renderSyncMessage, syncMessage, syncRef, type SyncMessage } from '../../src/sync/message'
 
 const BULK_API = 'https://upstream.example/bulk-data'
 const PUBLIC_URL = 'https://feed.example'
@@ -62,6 +74,25 @@ function mockUpstream(
   return files
 }
 
+/** A refusal as a test reads it: its status and its JSON body. */
+type Refusal = { status: number; body: unknown }
+
+/**
+ * The status and body of a refusal the host answers while its UI language is
+ * the full pseudo-locale: the body must still be English beside its key.
+ */
+function pseudoRefusal(answer: () => Promise<Response>): Promise<Refusal> {
+  return withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () => {
+    const response = await answer()
+    return { status: response.status, body: (await response.json()) as unknown }
+  })
+}
+
+/** The refusal a feed host answers `key` with: the English message beside its key. */
+function refused(status: number, key: ParameterlessKey): Refusal {
+  return { status, body: { success: false, message: en[key], messageKey: key } }
+}
+
 async function sha256Of(bytes: Uint8Array): Promise<string> {
   return new Bun.CryptoHasher('sha256').update(bytes).digest('hex')
 }
@@ -71,17 +102,22 @@ describe('CacheFeedHost', () => {
   let http: MockHttpClient
   let host: CacheFeedHost
 
+  /** A host over this test's feed dir and mock upstream, silent unless `log` is given. */
+  const makeHost = (overrides: Partial<CacheFeedHostOptions> = {}): CacheFeedHost =>
+    new CacheFeedHost({
+      feedDir,
+      publicUrl: PUBLIC_URL,
+      bulkApiUrl: BULK_API,
+      http,
+      log: () => {},
+      ...overrides,
+    })
+
   beforeEach(async () => {
     setLogger(new MemoryLogger())
     feedDir = await createWorkspace({ dirs: [], config: false })
     http = new MockHttpClient()
-    host = new CacheFeedHost({
-      feedDir,
-      publicUrl: `${PUBLIC_URL}/`, // trailing slash must be tolerated
-      bulkApiUrl: BULK_API,
-      http,
-      log: () => {},
-    })
+    host = makeHost({ publicUrl: `${PUBLIC_URL}/` }) // trailing slash must be tolerated
   })
 
   afterEach(async () => {
@@ -136,14 +172,7 @@ describe('CacheFeedHost', () => {
       { name: 'Sol Ring', set: 'cmr', lang: 'ja' },
     ])
     const files = mockUpstream(http, '2026-07-05T09:00:00Z', { ...bodies(), allCards })
-    const bothHost = new CacheFeedHost({
-      feedDir,
-      publicUrl: PUBLIC_URL,
-      bulkApiUrl: BULK_API,
-      kinds: ['default-cards', 'all-cards', 'oracle-tags', 'art-tags'],
-      http,
-      log: () => {},
-    })
+    const bothHost = makeHost({ kinds: ['default-cards', 'all-cards', 'oracle-tags', 'art-tags'] })
 
     expect(await bothHost.refresh(new Date('2026-07-05T10:00:00Z'))).toBeTrue()
     const feed = bothHost.currentFeed()!
@@ -193,18 +222,136 @@ describe('CacheFeedHost', () => {
     expect(await Bun.file(path.join(feedDir, 'files', oldEntry.fileName)).exists()).toBeFalse()
   })
 
+  test('logs a refresh in the host’s language, behind the untranslated prefix', async () => {
+    mockUpstream(http, '2026-07-05T09:00:00Z', bodies())
+    const lines: string[] = []
+    const logged = makeHost({ log: (line) => lines.push(line) })
+
+    const published = syncRef('cli.cacheFeed.published', { count: 3 })
+    const expected = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () => {
+      await logged.refresh() // publishes
+      await logged.refresh() // finds nothing new
+      return [renderSyncMessage(published), t('cli.cacheFeed.upToDate')]
+    })
+
+    // Vacuity: the pseudo rendering is not the English one.
+    expect(expected[0]).not.toBe(renderSyncMessage(published, DEFAULT_LOCALE))
+    for (const line of expected) expect(lines).toContain(`${CACHE_FEED_LOG_PREFIX} ${line}`)
+    expect(lines.every((line) => line.startsWith(`${CACHE_FEED_LOG_PREFIX} `))).toBeTrue()
+  })
+
+  /** A manifest naming one `default_cards` bulk at `uri`. */
+  const manifestWith = (uri: string): Response =>
+    new Response(
+      JSON.stringify({
+        data: [
+          { type: 'default_cards', updated_at: '2026-07-05T09:00:00Z', jsonl_download_uri: uri },
+        ],
+      }),
+    )
+
+  /** How a refresh fails, and the keyed message it fails with. */
+  type RefreshFailure = { name: string; arrange: () => void; expected: SyncMessage }
+
+  const refreshFailures: RefreshFailure[] = [
+    {
+      name: 'the manifest does not list a published kind',
+      arrange: () => http.mock(BULK_API, () => new Response(JSON.stringify({ data: [] }))),
+      expected: syncMessage('cli.cacheFeed.manifestEntryMissing', { bulkType: 'default_cards' }),
+    },
+    {
+      name: 'the manifest itself fails',
+      arrange: () =>
+        http.mock(
+          BULK_API,
+          () => new Response('down', { status: 503, statusText: 'Service Unavailable' }),
+        ),
+      expected: syncMessage('domain.cache.refresh.manifestFailed', {
+        status: 503,
+        statusText: 'Service Unavailable',
+      }),
+    },
+    {
+      name: 'a bulk download fails',
+      arrange: () => {
+        const files = mockUpstream(http, '2026-07-05T09:00:00Z', bodies())
+        http.mock(
+          files['default_cards']!.uri,
+          () => new Response('down', { status: 503, statusText: 'Service Unavailable' }),
+        )
+      },
+      expected: syncMessage('cli.cacheFeed.bulkDownloadFailed', {
+        kind: 'default-cards',
+        status: 503,
+        statusText: 'Service Unavailable',
+      }),
+    },
+    {
+      name: 'a bulk download has no body',
+      arrange: () => {
+        const files = mockUpstream(http, '2026-07-05T09:00:00Z', bodies())
+        http.mock(files['default_cards']!.uri, () => new Response(null))
+      },
+      expected: syncMessage('cli.cacheFeed.bulkNoBody', { kind: 'default-cards' }),
+    },
+    {
+      name: 'a bulk file name could leave the feed directory',
+      arrange: () =>
+        http.mock(BULK_API, () =>
+          manifestWith('https://upstream.example/x/..%2F..%2Fescape.jsonl.gz'),
+        ),
+      expected: syncMessage('cli.cacheFeed.suspiciousFileName', { file: '../../escape.jsonl.gz' }),
+    },
+    {
+      name: 'a bulk URL names no file at all',
+      arrange: () => http.mock(BULK_API, () => manifestWith('https://upstream.example/')),
+      expected: syncMessage('cli.cacheFeed.suspiciousFileName', { file: '' }),
+    },
+  ]
+
+  test.each(refreshFailures)(
+    'a refresh fails keyed, its message English in any UI language: $name',
+    async ({ arrange, expected }) => {
+      arrange()
+      const message = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+        rejectedSyncMessage(host.refresh()),
+      )
+      expect(message).toEqual(expected)
+    },
+  )
+
+  test('ignores an unusable saved feed, saying so in the host’s language', async () => {
+    const lines: string[] = []
+    const restarted = makeHost({ log: (line) => lines.push(line) })
+    const feedPath = path.join(feedDir, 'feed.json')
+
+    const expected = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () => {
+      await fs.writeFile(feedPath, '{ not json')
+      await restarted.loadExistingFeed()
+      expect(restarted.currentFeed()).toBeNull()
+
+      await fs.writeFile(feedPath, JSON.stringify({ version: 999 }))
+      await restarted.loadExistingFeed()
+      expect(restarted.currentFeed()).toBeNull()
+
+      const reason = parseCacheFeed({ version: 999 })
+      if (typeof reason !== 'string') throw new Error('expected the feed parser to refuse')
+      return [
+        t('cli.cacheFeed.ignoringUnreadable', { file: 'feed.json' }),
+        t('cli.cacheFeed.ignoringState', { file: 'feed.json', reason }),
+      ]
+    })
+
+    expect(expected[0]).not.toBe(t('cli.cacheFeed.ignoringUnreadable', { file: 'feed.json' }))
+    expect(lines).toEqual(expected.map((line) => `${CACHE_FEED_LOG_PREFIX} ${line}`))
+  })
+
   test('a restart loads the persisted feed and refresh reuses unchanged entries', async () => {
     mockUpstream(http, '2026-07-05T09:00:00Z', bodies())
     await host.refresh()
     const firstFeed = host.currentFeed()!
 
-    const restarted = new CacheFeedHost({
-      feedDir,
-      publicUrl: PUBLIC_URL,
-      bulkApiUrl: BULK_API,
-      http,
-      log: () => {},
-    })
+    const restarted = makeHost()
     await restarted.loadExistingFeed()
     expect(restarted.currentFeed()).toEqual(firstFeed)
     expect(await restarted.refresh()).toBeFalse()
@@ -227,8 +374,12 @@ describe('CacheFeedHost', () => {
     })
 
     test('reports entry count at /health', async () => {
-      const health = (await (await get('/health')).json()) as { status: string; entries: number }
-      expect(health).toMatchObject({ status: 'ok', entries: 3 })
+      const health = (await (await get('/health')).json()) as FeedHealthResponse
+      expect(health).toEqual({
+        status: 'ok',
+        entries: 3,
+        generatedAt: host.currentFeed()!.generatedAt,
+      })
     })
 
     test('serves a full artifact with Accept-Ranges', async () => {
@@ -258,16 +409,15 @@ describe('CacheFeedHost', () => {
       expect(new Uint8Array(await openEnded.arrayBuffer())).toEqual(full.slice(10))
     })
 
-    test('rejects an unsatisfiable range', async () => {
+    test('rejects an unsatisfiable or malformed range, naming the length (RFC 9110)', async () => {
       const entry = host.currentFeed()!.entries[0]!
-      const response = await get(`/files/${entry.fileName}`, { range: 'bytes=99999-' })
-      expect(response.status).toBe(416)
-    })
-
-    test('rejects a syntactically malformed range', async () => {
-      const entry = host.currentFeed()!.entries[0]!
-      const response = await get(`/files/${entry.fileName}`, { range: 'bytes=abc-def' })
-      expect(response.status).toBe(416)
+      for (const range of ['bytes=99999-', 'bytes=abc-def']) {
+        const response = await get(`/files/${entry.fileName}`, { range })
+        expect(response.headers.get('content-range')).toBe(`bytes */${entry.length}`)
+        expect(await pseudoRefusal(() => get(`/files/${entry.fileName}`, { range }))).toEqual(
+          refused(416, 'domain.cache.feedReply.rangeNotSatisfiable'),
+        )
+      }
     })
 
     test('answers HEAD requests (web-seed clients probe with HEAD)', async () => {
@@ -286,18 +436,112 @@ describe('CacheFeedHost', () => {
     })
 
     test('404s files not referenced by the feed (no path traversal)', async () => {
-      expect((await get('/files/unknown.jsonl.gz')).status).toBe(404)
-      expect((await get('/files/..%2Ffeed.json')).status).toBe(404)
-      expect((await get('/torrents/other.torrent')).status).toBe(404)
+      const fileNotListed = refused(404, 'domain.cache.feedReply.fileNotListed')
+      expect(await pseudoRefusal(() => get('/files/unknown.jsonl.gz'))).toEqual(fileNotListed)
+      expect(await pseudoRefusal(() => get('/files/..%2Ffeed.json'))).toEqual(fileNotListed)
+      expect(await pseudoRefusal(() => get('/torrents/other.torrent'))).toEqual(
+        refused(404, 'domain.cache.feedReply.torrentNotListed'),
+      )
+      expect(await pseudoRefusal(() => get('/elsewhere'))).toEqual(
+        refused(404, 'domain.cache.feedReply.notFound'),
+      )
     })
 
-    test('rejects non-GET methods', async () => {
-      const response = await host.handleRequest(
-        new Request('http://localhost/feed.json', { method: 'POST' }),
+    test('400s a file or torrent name with a broken % escape', async () => {
+      const malformed = refused(400, 'domain.cache.feedReply.pathMalformed')
+      expect(await pseudoRefusal(() => get('/files/%E0%A4%A'))).toEqual(malformed)
+      expect(await pseudoRefusal(() => get('/torrents/%ZZ.torrent'))).toEqual(malformed)
+    })
+
+    test('a refusal is never cached', async () => {
+      expect((await get('/elsewhere')).headers.get('cache-control')).toBe('no-store')
+    })
+
+    test('rejects non-GET methods, naming the allowed ones', async () => {
+      const post = () =>
+        host.handleRequest(new Request('http://localhost/feed.json', { method: 'POST' }))
+      expect((await post()).headers.get('allow')).toBe('GET, HEAD')
+      expect(await pseudoRefusal(post)).toEqual(
+        refused(405, 'domain.cache.feedReply.methodNotAllowed'),
       )
-      expect(response.status).toBe(405)
     })
   })
+
+  test('answers 503 for the feed document before the first one is generated', async () => {
+    const answer = () => host.handleRequest(new Request('http://localhost/feed.json'))
+    expect((await answer()).headers.get('retry-after')).toBe('60')
+    expect(await pseudoRefusal(answer)).toEqual(refused(503, 'domain.cache.feedReply.notGenerated'))
+  })
+})
+
+describe('cache feed host over the wire', () => {
+  /** What one request got back: its status, its declared length and its body's length. */
+  type Answer = { status: number; contentLength: string | null; bodyBytes: number }
+
+  test('HEAD answers GET’s headers with no body, ignores Range, and every request is logged', async () => {
+    const dir = await createWorkspace({ dirs: [], config: false })
+    const upstream = serveBulkUpstream()
+    let log: string
+    try {
+      const host = await spawnFeedHost({
+        cwd: dir,
+        args: [
+          '--no-seed',
+          '--verbose',
+          '--upstream',
+          upstream.bulkApiUrl,
+          '--dir',
+          path.join(dir, 'feed'),
+        ],
+      })
+      try {
+        const ask = async (
+          method: string,
+          pathname: string,
+          headers: Record<string, string> = {},
+        ): Promise<Answer> => {
+          const response = await fetch(`${host.url}${pathname}`, {
+            method,
+            headers,
+            signal: AbortSignal.timeout(5000),
+          })
+          return {
+            status: response.status,
+            contentLength: response.headers.get('content-length'),
+            bodyBytes: (await response.arrayBuffer()).byteLength,
+          }
+        }
+        const feed = parseCacheFeed(await (await fetch(`${host.url}/feed.json`)).json())
+        if (typeof feed === 'string') throw new Error(feed)
+        const file = `/files/${feed.entries[0]!.fileName}`
+
+        for (const pathname of [file, '/files/unknown.jsonl.gz']) {
+          const get = await ask('GET', pathname)
+          expect(get.bodyBytes).toBeGreaterThan(0)
+          expect(await ask('HEAD', pathname)).toEqual({ ...get, bodyBytes: 0 })
+        }
+        // RFC 9110: Range applies to GET only; a HEAD describes the whole file.
+        const headRange = await ask('HEAD', file, { range: 'bytes=0-1' })
+        expect(headRange).toEqual({
+          status: 200,
+          contentLength: String(feed.entries[0]!.length),
+          bodyBytes: 0,
+        })
+        expect((await ask('GET', file, { range: 'bytes=0-1' })).status).toBe(206)
+        // A name with a broken % escape is refused, not thrown.
+        expect((await ask('GET', '/files/%E0%A4%A')).status).toBe(400)
+      } finally {
+        log = (await host.stop()).stdout
+      }
+    } finally {
+      await upstream.stop()
+      await removeWorkspace(dir)
+    }
+    expect(log).toMatch(/^\[cache-feed\] method=HEAD path=\/files\/unknown\.jsonl\.gz status=404 /m)
+    expect(log).toMatch(
+      /^\[cache-feed\] method=GET path=\/files\/%E0%A4%A status=400 durationMs=\d+$/m,
+    )
+  }, 30_000)
 })
 
 describe('createFileTorrent', () => {

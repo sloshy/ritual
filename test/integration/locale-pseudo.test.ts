@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { LOCALE_ENV, ensureBinary, repoRoot, runCli, withTempDir } from './helpers/cli'
-import { spawnCacheServer } from './helpers/cache-server'
+import { spawnCacheServer, spawnFeedHost } from './helpers/cache-server'
 import { en } from '../../src/i18n/messages/en'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../helpers/change-problem'
 import type { LocaleCatalog } from '../../src/i18n/types'
@@ -12,6 +12,7 @@ import { buildCacheFeed, type FeedArtifact } from '../helpers/cache-feed'
 import { bulkCard, gzipJsonLines, makeScryfallCard } from '../test-utils'
 import { seedCardCache } from './helpers/seed'
 import { OFFLINE_ENV } from './helpers/offline-env'
+import { serveBulkUpstream } from './helpers/scryfall-bulk'
 
 /**
  * The pseudo-locale end to end, through the real binary.
@@ -157,6 +158,11 @@ async function serveCacheFeed(): Promise<ServedFeed> {
   files = new Map(built.files)
   files.set(`${origin}/feed.json`, new TextEncoder().encode(JSON.stringify(built.feed)))
   return { url: `${origin}/feed.json`, stop: () => server.stop(true) }
+}
+
+/** `cache feed host` flags for a test: a local upstream, a feed dir, no BitTorrent. */
+function feedHostArgs(bulkApiUrl: string, feedDir: string, ...extra: string[]): string[] {
+  return ['--no-seed', '--upstream', bulkApiUrl, '--dir', feedDir, ...extra]
 }
 
 describe('pseudo-locale (Integration)', () => {
@@ -333,6 +339,7 @@ describe('pseudo-locale (Integration)', () => {
       })
       let elsewhere: unknown
       let price: unknown
+      let log: string
       try {
         const answer = async (route: string): Promise<unknown> => {
           const response = await fetch(`${server.url}${route}`, {
@@ -344,9 +351,8 @@ describe('pseudo-locale (Integration)', () => {
         // A price the empty cache does not hold needs a download --deny-http refuses.
         price = await answer('/cache/prices/Sol%20Ring:usd')
       } finally {
-        await server.stop()
+        log = (await server.stop()).stdout
       }
-      const log = (await server.stop()).stdout
 
       // The replies go to another Ritual process, whatever this server's language.
       expect(elsewhere).toEqual({
@@ -369,6 +375,97 @@ describe('pseudo-locale (Integration)', () => {
       )
     })
   }, 20000)
+
+  test('a feed host logs in its own language and answers in English with the key', async () => {
+    await withTempDir(async (dir) => {
+      const upstream = serveBulkUpstream()
+      let elsewhere: unknown
+      let log: string
+      try {
+        // No seeding: the HTTP side is what this pins, and BitTorrent stays out of it.
+        const host = await spawnFeedHost({
+          cwd: dir,
+          args: feedHostArgs(upstream.bulkApiUrl, path.join(dir, 'feed'), '--verbose'),
+          env: PSEUDO_ENV,
+        })
+        try {
+          const response = await fetch(`${host.url}/elsewhere`, {
+            signal: AbortSignal.timeout(5000),
+          })
+          elsewhere = { status: response.status, body: (await response.json()) as unknown }
+        } finally {
+          log = (await host.stop()).stdout
+        }
+      } finally {
+        await upstream.stop()
+      }
+
+      // The reply goes to another program, whatever this host's language.
+      expect(elsewhere).toEqual({
+        status: 404,
+        body: {
+          success: false,
+          message: en['domain.cache.feedReply.notFound'],
+          messageKey: 'domain.cache.feedReply.notFound',
+        },
+      })
+      // The operator log is the host's, in its language behind the untranslated
+      // `[cache-feed]` marker: a counted line takes the plural's branch.
+      expect(log).toContain(
+        `[cache-feed] ${(await pseudoBranch('cli.cacheFeed.published', 'other')).replace('{count}', '3')}`,
+      )
+      expect(log).toContain(`[cache-feed] ${await pseudoText('cli.cacheFeed.seedingDisabled')}`)
+      // The access log is machine fields, never words.
+      expect(log).toMatch(/^\[cache-feed\] method=GET path=\/elsewhere status=404 durationMs=\d+$/m)
+    })
+  }, 30000)
+
+  test('a feed host that cannot reach Scryfall nests the reason in its own language', async () => {
+    await withTempDir(async (dir) => {
+      const feedDir = path.join(dir, 'feed')
+      // Scryfall's manifest answers 503: the host's first refresh fails.
+      const down = serveBulkUpstream({
+        manifestStatus: { status: 503, statusText: 'Service Unavailable' },
+      })
+      const up = serveBulkUpstream()
+      const reason = (await pseudoText('domain.cache.refresh.manifestFailed'))
+        .replace('{status}', '503')
+        .replace('{statusText}', 'Service Unavailable')
+      try {
+        // With no feed to fall back on, the host exits 1.
+        const first = await runCli(
+          ['cache', 'feed', 'host', '--port', '45998', ...feedHostArgs(down.bulkApiUrl, feedDir)],
+          dir,
+          PSEUDO_ENV,
+        )
+        expect(first.exitCode).toBe(1)
+        expect(first.stderr).toContain(
+          `[cache-feed] ${(await pseudoText('cli.cacheFeed.initialFeedFailed')).replace('{error}', reason)}`,
+        )
+        expect(first.stderr).not.toContain('Failed to fetch bulk manifest')
+
+        // With a feed published before, it keeps serving it and says why.
+        const seeded = await spawnFeedHost({
+          cwd: dir,
+          args: feedHostArgs(up.bulkApiUrl, feedDir),
+          env: PSEUDO_ENV,
+        })
+        await seeded.stop()
+        const fallback = await spawnFeedHost({
+          cwd: dir,
+          args: feedHostArgs(down.bulkApiUrl, feedDir),
+          env: PSEUDO_ENV,
+        })
+        const log = (await fallback.stop()).stdout
+        expect(log).toContain(
+          `[cache-feed] ${(await pseudoText('cli.cacheFeed.refreshFailed')).replace('{reason}', reason)}`,
+        )
+        expect(log).not.toContain('Failed to fetch bulk manifest')
+      } finally {
+        await Promise.all([down.stop(), up.stop()])
+      }
+    })
+  }, 60000)
 
   test('a cache server flag conflict is refused in the CLI’s language', async () => {
     await withTempDir(async (dir) => {

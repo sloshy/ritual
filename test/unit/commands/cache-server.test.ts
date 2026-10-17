@@ -5,6 +5,8 @@ import {
   scheduleRecurringTask,
 } from '../../../src/cache-server/cadence'
 import {
+  accessLogFields,
+  decodePathSegment,
   getInitialPriceRefreshAt,
   isOlderThan,
   runStaggeredTasksInCompletionOrder,
@@ -120,5 +122,50 @@ describe('scheduleRecurringTask', () => {
     } finally {
       clearInterval(timer)
     }
+  })
+})
+
+describe('accessLogFields', () => {
+  test.each([
+    ['GET', 'http://h/feed.json', 200, 3, 'method=GET path=/feed.json status=200 durationMs=3'],
+    [
+      'HEAD',
+      'http://h/files/a.jsonl.gz',
+      404,
+      0,
+      'method=HEAD path=/files/a.jsonl.gz status=404 durationMs=0',
+    ],
+    [
+      'GET',
+      'http://h/cache/cards/Sol Ring',
+      200,
+      12,
+      'method=GET path=/cache/cards/Sol%20Ring status=200 durationMs=12',
+    ],
+    [
+      'GET',
+      'http://h/cache/prices?keys=a=b&x',
+      200,
+      1,
+      'method=GET path=/cache/prices?keys=a=b&x status=200 durationMs=1',
+    ],
+  ])('%s %s → one space-free token per field', (method, url, status, durationMs, expected) => {
+    const line = accessLogFields(new Request(url, { method }), status, durationMs)
+    expect(line).toBe(expected)
+    // Split on the first `=` only: the path may hold more.
+    const fields = Object.fromEntries(
+      line
+        .split(' ')
+        .map((token) => [token.slice(0, token.indexOf('=')), token.slice(token.indexOf('=') + 1)]),
+    )
+    expect(Object.keys(fields)).toEqual(['method', 'path', 'status', 'durationMs'])
+    expect(fields['method']).toBe(method)
+  })
+})
+
+describe('decodePathSegment', () => {
+  test('decodes valid escapes and refuses broken ones', () => {
+    expect(decodePathSegment('Sol%20Ring')).toBe('Sol Ring')
+    expect(decodePathSegment('%E0%A4%A')).toBeUndefined()
   })
 })

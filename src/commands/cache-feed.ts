@@ -3,7 +3,9 @@ import { Command, InvalidArgumentError } from 'commander'
 import { getCacheDir } from '../cache'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import { defaultHttpClient } from '../util/http'
-import { getErrorMessage, ExitCode } from '../util/errors'
+import { ExitCode } from '../util/errors'
+import { errorParam, renderSyncMessage, syncRef } from '../sync/message'
+import { accessLogFields } from '../cache-server/helpers'
 import {
   addFeedUrlOption,
   addTorrentPortOption,
@@ -41,7 +43,11 @@ type CacheFeedFetchCommandOptions = {
 /** Which card bulk(s) a feed host publishes alongside the tag bulks. */
 type HostCardsChoice = 'default' | 'all' | 'both'
 
-const HOST_CARDS_CHOICES: readonly HostCardsChoice[] = ['default', 'all', 'both']
+const HOST_CARDS_CHOICES = ['default', 'all', 'both'] as const satisfies readonly HostCardsChoice[]
+
+function isHostCardsChoice(value: string): value is HostCardsChoice {
+  return HOST_CARDS_CHOICES.some((choice) => choice === value)
+}
 
 type CacheFeedHostCommandOptions = {
   port: number
@@ -58,7 +64,7 @@ type CacheFeedHostCommandOptions = {
 
 function parseHostCardsChoice(value: string): HostCardsChoice {
   const lower = value.toLowerCase()
-  if ((HOST_CARDS_CHOICES as readonly string[]).includes(lower)) return lower as HostCardsChoice
+  if (isHostCardsChoice(lower)) return lower
   throw new InvalidArgumentError(t('cli.cacheFeed.invalidCards'))
 }
 
@@ -81,6 +87,26 @@ function hostCardKinds(choice: HostCardsChoice | undefined): CardFeedKind[] {
 
 function log(message: string): void {
   console.log(`${CACHE_FEED_LOG_PREFIX} ${message}`)
+}
+
+/**
+ * The failures these commands report, each a sentence that nests its cause as
+ * `{error}` — rendered in the reader's language when the cause is keyed, its
+ * own text otherwise. Every one is an expected operational failure (a busy
+ * port, an unreachable upstream or feed), so none prints a stack trace.
+ */
+type CauseFailureKey =
+  | 'cli.cacheFeed.initialFeedFailed'
+  | 'cli.cacheFeed.seedStartFailed'
+  | 'cli.cacheFeed.serverStartFailed'
+  | 'cli.cacheFeed.scheduledRefreshFailed'
+  | 'cli.cacheFeed.syncFailed'
+  | 'cli.cacheFeed.scheduledRecheckFailed'
+
+function logFailure(key: CauseFailureKey, error: unknown): void {
+  console.error(
+    `${CACHE_FEED_LOG_PREFIX} ${renderSyncMessage(syncRef(key, { error: errorParam(error) }))}`,
+  )
 }
 
 /** Wire `cache feed host` and `cache feed fetch` under the parent `cache` command. */
@@ -120,11 +146,11 @@ export function registerCacheFeedSubcommand(cache: Command): void {
         await host.refresh()
       } catch (e) {
         if (!host.currentFeed()) {
-          console.error(`${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.initialFeedFailed')}`, e)
+          logFailure('cli.cacheFeed.initialFeedFailed', e)
           process.exitCode = ExitCode.RuntimeError
           return
         }
-        log(t('cli.cacheFeed.refreshFailed', { reason: getErrorMessage(e) }))
+        log(renderSyncMessage(syncRef('cli.cacheFeed.refreshFailed', { reason: errorParam(e) })))
       }
 
       let seeder: FeedSeeder | null = null
@@ -137,10 +163,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
           await seeder.start()
           await seeder.sync(await host.torrentFiles())
         } catch (e) {
-          console.error(
-            `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.seedStartFailed')}`,
-            getErrorMessage(e),
-          )
+          logFailure('cli.cacheFeed.seedStartFailed', e)
           // Destroy the torrent client so no live handle keeps the process open.
           await seeder.stop()
           process.exitCode = ExitCode.RuntimeError
@@ -164,8 +187,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
             const requestStart = Date.now()
             const response = await host.handleRequest(req)
             if (options.verbose) {
-              const { pathname } = new URL(req.url)
-              log(`${req.method} ${pathname} ${response.status} ${Date.now() - requestStart}ms`)
+              log(accessLogFields(req, response.status, Date.now() - requestStart))
             }
             return response
           },
@@ -174,10 +196,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       if (!started.ok) {
         // Most likely the port is already in use. Stop the seeder so its
         // torrent client doesn't keep the failed process alive.
-        console.error(
-          `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.serverStartFailed')}`,
-          started.error,
-        )
+        logFailure('cli.cacheFeed.serverStartFailed', started.error)
         if (seeder) await seeder.stop()
         process.exitCode = ExitCode.RuntimeError
         return
@@ -193,11 +212,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
             await seeder.sync(await host.torrentFiles())
           }
         },
-        (error) =>
-          console.error(
-            `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.scheduledRefreshFailed')}`,
-            error,
-          ),
+        (error) => logFailure('cli.cacheFeed.scheduledRefreshFailed', error),
       )
 
       log(
@@ -235,10 +250,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       try {
         result = await client.sync({ force: options.force })
       } catch (e) {
-        console.error(
-          `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.syncFailed')}`,
-          getErrorMessage(e),
-        )
+        logFailure('cli.cacheFeed.syncFailed', e)
         await client.stop()
         process.exitCode = ExitCode.RuntimeError
         return
@@ -256,10 +268,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
       try {
         await client.seedAll(result.feed)
       } catch (e) {
-        console.error(
-          `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.seedStartFailed')}`,
-          getErrorMessage(e),
-        )
+        logFailure('cli.cacheFeed.seedStartFailed', e)
         await client.stop()
         process.exitCode = ExitCode.RuntimeError
         return
@@ -283,11 +292,7 @@ export function registerCacheFeedSubcommand(cache: Command): void {
             await client.seedAll(next.feed)
           }
         },
-        (error) =>
-          console.error(
-            `${CACHE_FEED_LOG_PREFIX} ${t('cli.cacheFeed.scheduledRecheckFailed')}`,
-            error,
-          ),
+        (error) => logFailure('cli.cacheFeed.scheduledRecheckFailed', error),
       )
 
       // Clearing the refresh timer and destroying the torrent client releases

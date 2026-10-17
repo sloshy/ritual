@@ -349,6 +349,18 @@ The cache feed is experimental: it may change or be removed in any release. Refr
 | `/torrents/<infoHash>.torrent` | The `.torrent` file for an artifact                                     |
 | `/health`                      | `{ status, entries, generatedAt }`                                      |
 
+A request the host refuses is answered with the same JSON body a [cache server](#the-cache-server) refuses with, `{ "success": false, "message": …, "messageKey": … }`, its `message` in English whatever the host's UI language, and `Cache-Control: no-store`. Clients act on the status:
+
+| Status | When                                                                                                      | `messageKey`                                                             |
+| ------ | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `400`  | A file or torrent name with a broken `%` escape                                                           | `domain.cache.feedReply.pathMalformed`                                   |
+| `404`  | A path the host does not serve, or a file or torrent the current feed does not list                       | `domain.cache.feedReply.notFound`, `…fileNotListed`, `…torrentNotListed` |
+| `405`  | A method other than `GET` or `HEAD` (the `Allow` header names both)                                       | `domain.cache.feedReply.methodNotAllowed`                                |
+| `416`  | A malformed `Range`, or one past the end of the file (`Content-Range: bytes */<length>` gives the length) | `domain.cache.feedReply.rangeNotSatisfiable`                             |
+| `503`  | `/feed.json` before the first feed is generated (`Retry-After: 60`)                                       | `domain.cache.feedReply.notGenerated`                                    |
+
+`HEAD` answers with the headers `GET` would, and ignores `Range`. A `ritual cache feed fetch` (or feed-backed refresh) that a host refuses reports the host's reason in its own UI language, after the URL and the status.
+
 ### The feed document
 
 ```jsonc
@@ -383,6 +395,7 @@ Clients decide whether anything changed by comparing each entry's `infoHash` aga
 - A restart serves the previously published feed immediately, then refreshes.
 - A failed refresh on startup exits with an error when no previous feed exists. Once a feed has been published, later refresh failures are logged and the last good feed keeps being served (and seeded).
 - The feed directory holds `feed.json`, `files/`, and `torrents/`.
+- The host's console lines are worded in its own UI language (see [Configuration → Interface language](/configuration/#interface-language)); the `[cache-feed]` prefix never changes. With `--verbose`, each request is logged as `key=value` fields that are never translated: `[cache-feed] method=GET path=/feed.json status=200 durationMs=3`.
 
 ### Serving publicly
 

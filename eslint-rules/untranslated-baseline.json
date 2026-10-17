@@ -11,30 +11,6 @@
     "CK imports at most ${…} unique titles per upload (this file has ${…}); split it before uploading.": 1,
     "The CK CSV format cannot mark etched foils; exported as foil — adjust in the sell cart: ${…}": 1
   },
-  "src/cache-feed/host.ts": {
-    "Artifact ${…} is missing on disk; redownloading.": 1,
-    "Bulk download for ${…} has no body": 1,
-    "Bulk manifest has no usable '${…}' entry": 1,
-    "Downloading ${…} (updated ${…})...": 1,
-    "Failed to download ${…} bulk": 1,
-    "Feed is up to date.": 1,
-    "Feed not generated yet": 1,
-    "Ignoring existing ${…}: ${…}": 1,
-    "Ignoring unreadable ${…} (not valid JSON).": 1,
-    "Invalid range": 1,
-    "Loaded existing feed (generated ${…}).": 1,
-    "Method not allowed": 1,
-    "Not found": 3,
-    "Pruning stale artifact ${…}": 1,
-    "Published feed with ${…} entries.": 1,
-    "Refusing suspicious bulk file name '${…}'": 1
-  },
-  "src/cache-feed/seeder.ts": {
-    "FeedSeeder.sync called before start()": 1,
-    "Stopped seeding ${…} (${…})": 1,
-    "Torrent ${…} did not become ready in time": 1,
-    "Torrent client error: ${…}": 1
-  },
   "src/cli/program.ts": {
     "Global Options:": 1
   },

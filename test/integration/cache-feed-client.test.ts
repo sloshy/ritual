@@ -7,7 +7,15 @@ import { buildCacheFeed, type FeedArtifact } from '../helpers/cache-feed'
 import type { BulkCacheFiles } from '../../src/scryfall/client'
 import { MockHttpClient, MemoryLogger, gzipJsonLines, setLogger } from '../test-utils'
 import { createWorkspace, removeWorkspace } from '../helpers/workspace'
-import { foreignLocales, withSyntheticLocaleAsync } from '../helpers/sync-text'
+import {
+  foreignLocales,
+  pseudoCatalog,
+  rejectedSyncMessage,
+  withGuardedLocaleAsync,
+  withSyntheticLocaleAsync,
+} from '../helpers/sync-text'
+import { keyedRefusal } from '../../src/api/http'
+import { syncMessage, type SyncMessage } from '../../src/sync/message'
 import { en } from '../../src/i18n/messages/en'
 
 const FEED_ORIGIN = 'https://feed.example'
@@ -255,6 +263,68 @@ describe('CacheFeedClient (HTTP download path)', () => {
     http.mock(FEED_URL, () => new Response(JSON.stringify({ version: 99 })))
     // eslint-disable-next-line @typescript-eslint/await-thenable -- bun:test's expect().rejects.toThrow() resolves at runtime but the Matchers type doesn't expose Promise.
     await expect(client.sync()).rejects.toThrow('unsupported version')
+  })
+
+  /** A failed request a sync makes, and the keyed message it fails with. */
+  type RequestFailure = {
+    name: string
+    arrange: (feed: CacheFeedDocument) => void
+    expected: (feed: CacheFeedDocument) => SyncMessage
+  }
+
+  const requestFailures: RequestFailure[] = [
+    {
+      name: 'a feed host refusing the feed nests its keyed reason',
+      arrange: () =>
+        http.mock(FEED_URL, () => keyedRefusal('domain.cache.feedReply.notGenerated', 503)),
+      expected: () =>
+        syncMessage('cli.cacheFeed.fetchFailedWithBody', {
+          url: FEED_URL,
+          status: 503,
+          body: { messageKey: 'domain.cache.feedReply.notGenerated' },
+        }),
+    },
+    {
+      name: 'a feed that answers nothing names only the status',
+      arrange: () => http.mock(FEED_URL, () => new Response(null, { status: 404 })),
+      expected: () => syncMessage('cli.cacheFeed.fetchFailed', { url: FEED_URL, status: 404 }),
+    },
+    {
+      name: 'an artifact another server refuses is quoted',
+      arrange: (feed) =>
+        http.mock(feed.entries[0]!.fileUrl, () => new Response('gone', { status: 410 })),
+      expected: (feed) =>
+        syncMessage('cli.cacheFeed.downloadFailedWithBody', {
+          url: feed.entries[0]!.fileUrl,
+          status: 410,
+          body: 'gone',
+        }),
+    },
+  ]
+
+  test.each(requestFailures)(
+    'a failed request fails keyed, its message English: $name',
+    async ({ arrange, expected }) => {
+      const { feed } = await mockFeed(http, '20260705')
+      arrange(feed)
+      const message = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+        rejectedSyncMessage(client.sync()),
+      )
+      expect(message).toEqual(expected(feed))
+    },
+  )
+
+  test('a feed host’s refusal reads in the client’s language', async () => {
+    http.mock(FEED_URL, () => keyedRefusal('domain.cache.feedReply.notGenerated', 503))
+    const shown = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      client.sync().then(
+        () => '',
+        (error: unknown) => (error instanceof Error ? error.message : ''),
+      ),
+    )
+    const reason = pseudoCatalog()['domain.cache.feedReply.notGenerated']
+    if (typeof reason !== 'string') throw new Error('expected a plain-string message')
+    expect(shown).toContain(reason)
   })
 
   /** A client configured for the every-language card bulk (non-en defaultLanguage). */

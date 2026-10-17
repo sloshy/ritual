@@ -237,6 +237,36 @@ release changes a file format or a generated file, it ships the change as a
   fields**, `[cache-server] method=GET path=/cache/cards/Sol%20Ring status=200 durationMs=3`
   (it read `GET /cache/cards/Sol%20Ring -> 200 (3ms)`): update any log filter that matched
   the old form.
+- **A cache feed host refuses requests in English, keyed, like a cache server.** Every
+  HTTP error `ritual cache feed host` answers (`400`, `404`, `405`, `416`, `503`) is now the
+  JSON refusal body `{ "success": false, "message": …, "messageKey": … }`, with `message`
+  English whatever the host's UI language (it was plain text: `Not found`,
+  `Method not allowed`, `Invalid range`, `Feed not generated yet`). The keys are
+  `domain.cache.feedReply.*`: `notFound`, `fileNotListed` and `torrentNotListed` for the
+  three `404`s, `methodNotAllowed`, `rangeNotSatisfiable` and `notGenerated`. Routes,
+  statuses and range handling are unchanged, except that a file or torrent name with a
+  broken `%` escape is now a `400` (`pathMalformed`) where it crashed the request, and a
+  `HEAD` ignores `Range` as HTTP requires. Refusals carry `Cache-Control: no-store`, a `405`
+  names `GET, HEAD` in `Allow`, and the `503` sends `Retry-After: 60`. A cache server's
+  `405` now names its methods in `Allow` too. Torrent web seeds read only the status, so
+  they work with this host as before.
+- **A failed cache feed download says what the host said.** When a feed host (or any
+  server) refuses `cache feed fetch`, a feed-backed refresh or a cache server's feed sync,
+  the error now names the URL and the HTTP status and nests the host's reason in your UI
+  language ("Failed to fetch cache feed https://… (HTTP 503): The feed has not been
+  generated yet."); another server's reply is quoted. It used to read "…: 503 Service
+  Unavailable". These errors, and the feed client's other failures (a missing kind, a
+  checksum mismatch, a torrent timeout), are keyed (`cli.cacheFeed.*`) where a keyed error
+  is reported.
+- **A cache feed host's console follows its UI language.** Its refresh, publish, prune and
+  seeding lines, and the reasons a refresh fails (a bulk download error, a manifest
+  missing a bulk, a refused file name), are worded in the UI language behind the
+  untranslated `[cache-feed]` prefix. `cache feed host` and `cache feed fetch` print every
+  failure (a busy port, a failed first feed, a failed scheduled refresh or re-check, a
+  failed seeding start or sync) as one line naming its cause, in place of a stack trace.
+  **The `--verbose` request line is now `key=value` fields**,
+  `[cache-feed] method=GET path=/feed.json status=200 durationMs=3` (it read
+  `[cache-feed] GET /feed.json 200 3ms`): update any log filter that matched the old form.
 - **`card` and `scry --random` keep their `--output json` params English.** A lookup that
   fails on a timed-out Scryfall request reports `cli.card.fetchFailed` /
   `cli.scry.randomFailed` with its `reason` param in English whatever the UI language (it

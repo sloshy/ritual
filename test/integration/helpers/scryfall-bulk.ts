@@ -15,8 +15,10 @@ import {
   BULK_META_URL,
   DEFAULT_CARDS_URI,
   ORACLE_TAGS_URI,
+  bulkCard,
   bulkCards,
   bulkMetaBody,
+  gzipJsonLines,
   gzipJsonLinesResponse,
 } from '../../test-utils'
 import { stubFetch, type StubRoute, type StubbedFetch } from '../../helpers/stub-fetch'
@@ -56,4 +58,55 @@ export function stubScryfallBulk(options: ScryfallBulkStubOptions = {}): Stubbed
     },
     { passthrough: options.passthrough },
   )
+}
+
+/** A Scryfall stand-in served on a loopback port: its manifest URL, and how to stop it. */
+export type ServedBulkUpstream = { bulkApiUrl: string; stop: () => Promise<void> }
+
+export type ServedBulkUpstreamOptions = {
+  /**
+   * Answer the manifest with this status (and its standard reason phrase)
+   * instead of the bulk list — how an unreachable Scryfall is pinned.
+   */
+  manifestStatus?: { status: number; statusText: string }
+}
+
+/**
+ * Serve a bulk manifest and the three bulk files a default `cache feed host`
+ * publishes (the English card bulk and both tag bulks) over real HTTP, for a
+ * spawned binary that {@link stubScryfallBulk}'s in-process `fetch` cannot reach.
+ */
+export function serveBulkUpstream(options: ServedBulkUpstreamOptions = {}): ServedBulkUpstream {
+  const bodies = new Map<string, Uint8Array>([
+    ['/default_cards.jsonl.gz', gzipJsonLines([bulkCard()])],
+    ['/oracle_tags.jsonl.gz', gzipJsonLines([{ object: 'tag', id: 't1', slug: 'ramp' }])],
+    ['/art_tags.jsonl.gz', gzipJsonLines([{ object: 'tag', id: 'a1', slug: 'ring' }])],
+  ])
+  const server = Bun.serve({
+    port: 0,
+    hostname: '127.0.0.1',
+    fetch: (request) => {
+      const { pathname, origin } = new URL(request.url)
+      if (pathname === '/bulk-data') {
+        if (options.manifestStatus !== undefined) {
+          return new Response('unavailable', options.manifestStatus)
+        }
+        return Response.json({
+          data: [...bodies.keys()].map((file) => ({
+            type: file.slice(1, -'.jsonl.gz'.length),
+            updated_at: '2026-06-04T00:00:00Z',
+            jsonl_download_uri: `${origin}${file}`,
+          })),
+        })
+      }
+      const body = bodies.get(pathname)
+      return body === undefined
+        ? new Response('not found', { status: 404 })
+        : new Response(body.slice())
+    },
+  })
+  return {
+    bulkApiUrl: `http://127.0.0.1:${server.port}/bulk-data`,
+    stop: () => server.stop(true),
+  }
 }

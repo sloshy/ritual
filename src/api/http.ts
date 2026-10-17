@@ -18,10 +18,12 @@ import { apiMessage, apiMessageOf, pickMessage, plainMessage, type ApiMessage } 
 import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
 import {
   prefixedFields,
+  syncMessage,
   SyncMessageError,
   type PrefixedMessage,
   type SyncMessage,
 } from '../sync/message'
+import type { ParameterlessKey } from '../i18n/t'
 
 /**
  * The body size (bytes) allowed on routes whose body is bounded by its own
@@ -100,9 +102,29 @@ export function badRequest(reason: ApiMessage): Response {
  * resolve, whose ambiguous matches are a list of messages of their own (see
  * `src/sync/message.ts`). The body is the same {@link ApiErrorResponse}.
  */
-export function nestedRefusal(reason: SyncMessage, status: number = 400): Response {
+export function nestedRefusal(
+  reason: SyncMessage,
+  status: number = 400,
+  headers?: Readonly<Record<string, string>>,
+): Response {
   const body: ApiErrorResponse = { success: false, ...reason }
-  return Response.json(body, { status })
+  return Response.json(body, headers === undefined ? { status } : { status, headers })
+}
+
+/**
+ * {@link nestedRefusal} for a reason that is one parameterless catalog message —
+ * how the cache server and the cache-feed host refuse a request. Another
+ * Ritual process (or any HTTP client) reads the reply, whose UI language need
+ * not be the server's: the reason goes out in English beside its key, and a
+ * Ritual client words it in its own language. `headers` ride on the reply
+ * (`Allow` on a `405`, `Retry-After` on a `503`).
+ */
+export function keyedRefusal(
+  key: ParameterlessKey,
+  status: number,
+  headers?: Readonly<Record<string, string>>,
+): Response {
+  return nestedRefusal(syncMessage(key), status, headers)
 }
 
 /**

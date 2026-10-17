@@ -20,6 +20,7 @@
  * printing fetch is keyed the same way; today only the CLI reports it.) So is
  * why a cache server refused a request (`domain.cache.serverReply.*`): it goes
  * out in English beside its key, and the client words it in its own language.
+ * A cache-feed host's refusals (`domain.cache.feedReply.*`) go out the same way.
  *
  * Commands (`ritual cache preload-all`), flags (`--refresh auto`), Scryfall
  * bulk names, process ids, host names, HTTP methods and URLs are machine
@@ -131,4 +132,15 @@ export const domainCacheMessages = {
   'domain.cache.serverReply.valueExpected': "Expected JSON body with 'value'.",
   'domain.cache.serverReply.httpDenied':
     'HTTP requests are denied (--deny-http). Pre-populate the cache for testing.',
+
+  // What a cache-feed host (`cache feed host`) answers a refused request with:
+  // English on the wire with `messageKey` beside it, like a cache server's
+  // replies. Its readers act on the HTTP status.
+  'domain.cache.feedReply.notFound': 'Not found.',
+  'domain.cache.feedReply.fileNotListed': 'The feed does not list this file.',
+  'domain.cache.feedReply.torrentNotListed': 'The feed does not list this torrent.',
+  'domain.cache.feedReply.methodNotAllowed': 'Method not allowed.',
+  'domain.cache.feedReply.pathMalformed': 'The requested name is not validly URL-encoded.',
+  'domain.cache.feedReply.notGenerated': 'The feed has not been generated yet.',
+  'domain.cache.feedReply.rangeNotSatisfiable': 'The requested byte range cannot be served.',
 } as const satisfies MessageCatalogShape

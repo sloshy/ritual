@@ -109,14 +109,39 @@ export async function runStaggeredTasksInCompletionOrder<T>(
   }
 }
 
+/** The methods a cache entry's route (`/cache/<section>/<key>`) answers; a `405` names them. */
+export const ENTRY_METHODS = ['GET', 'PUT', 'DELETE'] as const
+
 /**
- * The `--verbose` access log: one record per request, every field machine data
- * (method, percent-encoded path and query, status, elapsed milliseconds) — so
- * it is `key=value` tokens like the cache-update fields, never a sentence.
+ * A request-path segment decoded, or `undefined` when its `%` escapes are
+ * malformed (`decodeURIComponent` throws on them) — so a server answers that
+ * with a keyed refusal instead of an unhandled throw. The cache server reads
+ * its cache keys through it, the cache-feed host its file and torrent names.
  */
-export function logVerboseRequest(request: Request, status: number, durationMs: number): void {
+export function decodePathSegment(segment: string): string | undefined {
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * One `--verbose` access-log record: every field machine data (method,
+ * percent-encoded path and query, status, elapsed milliseconds) — so it is
+ * `key=value` tokens, never a sentence, and is never translated. The cache
+ * server and the cache-feed host both log requests in this form.
+ *
+ * Tokens are separated by single spaces, and no value holds a space (a path is
+ * percent-encoded). A `path` value may itself contain `=` (a query string such
+ * as `?a=b`), so a consumer splits each token on its **first** `=` only.
+ */
+export function accessLogFields(request: Request, status: number, durationMs: number): string {
   const url = new URL(request.url)
-  console.log(
-    `${CACHE_SERVER_LOG_PREFIX} method=${request.method} path=${url.pathname}${url.search} status=${status} durationMs=${durationMs}`,
-  )
+  return `method=${request.method} path=${url.pathname}${url.search} status=${status} durationMs=${durationMs}`
+}
+
+/** The cache server's `--verbose` access log: {@link accessLogFields} behind its prefix. */
+export function logVerboseRequest(request: Request, status: number, durationMs: number): void {
+  console.log(`${CACHE_SERVER_LOG_PREFIX} ${accessLogFields(request, status, durationMs)}`)
 }

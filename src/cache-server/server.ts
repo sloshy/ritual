@@ -9,15 +9,17 @@ import { ScryfallClient } from '../scryfall'
 import type { PriceData } from '../pricing/price-data'
 import type { ScryfallCard } from '../scryfall/types'
 import { ExitCode } from '../util/errors'
-import { caughtMessage, nestedRefusal } from '../api/http'
+import { caughtMessage, keyedRefusal, nestedRefusal } from '../api/http'
 import { syncMessage, SyncMessageError } from '../sync/message'
-import { t, type ParameterlessKey, type SelectBranch } from '../i18n/t'
+import { t, type SelectBranch } from '../i18n/t'
 import { isRecord, isStringArray } from '../util/json'
 import type { CacheServerStreamError } from '../cache/http-cache'
 import { resolveRefreshCadence, resolveRefreshMs, scheduleRecurringTask } from './cadence'
 import { CACHE_SERVER_LOG_PREFIX, PRICE_REFRESH_STAGGER_MS, WEEKLY_REFRESH_MS } from './constants'
 import {
   createFileSystemClient,
+  decodePathSegment,
+  ENTRY_METHODS,
   getSection,
   isOlderThan,
   jsonResponse,
@@ -73,19 +75,6 @@ function createPriceRefreshScheduler(
   )
 }
 
-/** Why the server refuses a request: a `domain.cache.serverReply.*` message. */
-type RefusalKey = Extract<ParameterlessKey, `domain.cache.serverReply.${string}`>
-
-/**
- * A refused request's reply: the shared refusal body (`ApiErrorResponse`).
- * Another Ritual process reads it, whose UI language need not be this
- * server's: the reason goes out in English with its key, and the client words
- * it in its own language.
- */
-function refusal(key: RefusalKey, status: number): Response {
-  return nestedRefusal(syncMessage(key), status)
-}
-
 /** A request's JSON object body, or the refusal to answer instead. */
 type ObjectBody = { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
 
@@ -98,21 +87,12 @@ async function readObjectBody(request: Request): Promise<ObjectBody> {
   try {
     raw = await request.json()
   } catch {
-    return { ok: false, response: refusal('domain.cache.serverReply.bodyNotJson', 400) }
+    return { ok: false, response: keyedRefusal('domain.cache.serverReply.bodyNotJson', 400) }
   }
   if (!isRecord(raw)) {
-    return { ok: false, response: refusal('domain.cache.serverReply.bodyNotObject', 400) }
+    return { ok: false, response: keyedRefusal('domain.cache.serverReply.bodyNotObject', 400) }
   }
   return { ok: true, body: raw }
-}
-
-/** A path segment's cache key, or `undefined` when its `%` escapes are malformed. */
-function decodeKey(segment: string): string | undefined {
-  try {
-    return decodeURIComponent(segment)
-  } catch {
-    return undefined
-  }
 }
 
 /**
@@ -241,12 +221,12 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts[0] !== 'cache') {
-        return respond(refusal('domain.cache.serverReply.notFound', 404))
+        return respond(keyedRefusal('domain.cache.serverReply.notFound', 404))
       }
 
       const section = getSection(parts[1] ?? '')
       if (!section) {
-        return respond(refusal('domain.cache.serverReply.invalidSection', 400))
+        return respond(keyedRefusal('domain.cache.serverReply.invalidSection', 400))
       }
 
       if (parts.length === 2 && request.method === 'DELETE') {
@@ -268,11 +248,11 @@ export function createCacheServerFetchHandler(
         if (!read.ok) return respond(read.response)
         const { entries, replace } = read.body
         if (!isRecord(entries)) {
-          return respond(refusal('domain.cache.serverReply.entriesExpected', 400))
+          return respond(keyedRefusal('domain.cache.serverReply.entriesExpected', 400))
         }
 
         if (replace !== undefined && typeof replace !== 'boolean') {
-          return respond(refusal('domain.cache.serverReply.replaceNotBoolean', 400))
+          return respond(keyedRefusal('domain.cache.serverReply.replaceNotBoolean', 400))
         }
         const bulkOptions: BulkSetOptions = { replace: replace === true }
         // The entries' values are trusted as the cache's own shape: the cache
@@ -301,12 +281,12 @@ export function createCacheServerFetchHandler(
         if (!read.ok) return respond(read.response)
         const requested = read.body.keys
         if (!isStringArray(requested)) {
-          return respond(refusal('domain.cache.serverReply.keysExpected', 400))
+          return respond(keyedRefusal('domain.cache.serverReply.keysExpected', 400))
         }
 
         const keys = requested.map((key) => key.trim()).filter((key) => key.length > 0)
         if (keys.length === 0) {
-          return respond(refusal('domain.cache.serverReply.keysRequired', 400))
+          return respond(keyedRefusal('domain.cache.serverReply.keysRequired', 400))
         }
 
         return respond(
@@ -347,10 +327,11 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts.length === 4 && parts[3] === 'timestamp' && request.method === 'GET') {
-        const key = decodeKey(parts[2] ?? '')
-        if (key === undefined) return respond(refusal('domain.cache.serverReply.keyMalformed', 400))
+        const key = decodePathSegment(parts[2] ?? '')
+        if (key === undefined)
+          return respond(keyedRefusal('domain.cache.serverReply.keyMalformed', 400))
         if (!key) {
-          return respond(refusal('domain.cache.serverReply.keyRequired', 400))
+          return respond(keyedRefusal('domain.cache.serverReply.keyRequired', 400))
         }
         const timestamp =
           section === 'cards'
@@ -360,13 +341,14 @@ export function createCacheServerFetchHandler(
       }
 
       if (parts.length !== 3) {
-        return respond(refusal('domain.cache.serverReply.invalidRoute', 404))
+        return respond(keyedRefusal('domain.cache.serverReply.invalidRoute', 404))
       }
 
-      const key = decodeKey(parts[2] ?? '')
-      if (key === undefined) return respond(refusal('domain.cache.serverReply.keyMalformed', 400))
+      const key = decodePathSegment(parts[2] ?? '')
+      if (key === undefined)
+        return respond(keyedRefusal('domain.cache.serverReply.keyMalformed', 400))
       if (!key) {
-        return respond(refusal('domain.cache.serverReply.keyRequired', 400))
+        return respond(keyedRefusal('domain.cache.serverReply.keyRequired', 400))
       }
 
       if (request.method === 'GET') {
@@ -395,7 +377,7 @@ export function createCacheServerFetchHandler(
         const read = await readObjectBody(request)
         if (!read.ok) return respond(read.response)
         if (!('value' in read.body)) {
-          return respond(refusal('domain.cache.serverReply.valueExpected', 400))
+          return respond(keyedRefusal('domain.cache.serverReply.valueExpected', 400))
         }
         const { value } = read.body
 
@@ -420,7 +402,11 @@ export function createCacheServerFetchHandler(
         return respond(new Response(null, { status: 204 }))
       }
 
-      return respond(refusal('domain.cache.serverReply.methodNotAllowed', 405))
+      return respond(
+        keyedRefusal('domain.cache.serverReply.methodNotAllowed', 405, {
+          Allow: ENTRY_METHODS.join(', '),
+        }),
+      )
     } catch (error) {
       console.error(`${CACHE_SERVER_LOG_PREFIX} ${t('cli.cacheServer.requestFailed')}`, error)
       return respond(nestedRefusal(caughtMessage(error), 500))

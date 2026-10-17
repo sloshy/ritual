@@ -5,9 +5,16 @@ import type WebTorrent from 'webtorrent'
 import type { Torrent } from 'webtorrent'
 import { createDefaultFileSystemClient, type HttpClient } from '../util/interfaces'
 import { writeFileAtomic } from '../util/atomic-write'
-import { throwHttpError } from '../util/errors'
 import { isRecord } from '../util/json'
 import { t } from '../i18n/t'
+import {
+  errorParam,
+  renderSyncMessage,
+  syncMessage,
+  SyncMessageError,
+  syncRef,
+} from '../sync/message'
+import { readReplyText, replyParam } from './server-reply'
 import type { BulkCacheFiles } from '../scryfall/client'
 import { configuredCardBulkType } from '../scryfall/bulk-manifest'
 import {
@@ -32,6 +39,56 @@ import { streamToFile } from './feed-download'
 export const DEFAULT_FEED_URL = 'https://feed.ritual-mtg.example/feed.json'
 
 const STATE_FILENAME = 'state.json'
+
+/** The three requests a feed client makes, each failure worded by a pair of keys. */
+type FeedRequest = 'feed' | 'artifact' | 'torrent'
+
+/** A failure without a reply body, and the same failure quoting the reply. */
+type FailureKeys = {
+  plain:
+    | 'cli.cacheFeed.fetchFailed'
+    | 'cli.cacheFeed.downloadFailed'
+    | 'cli.cacheFeed.torrentFetchFailed'
+  withBody:
+    | 'cli.cacheFeed.fetchFailedWithBody'
+    | 'cli.cacheFeed.downloadFailedWithBody'
+    | 'cli.cacheFeed.torrentFetchFailedWithBody'
+}
+
+const FAILURE_KEYS: Record<FeedRequest, FailureKeys> = {
+  feed: { plain: 'cli.cacheFeed.fetchFailed', withBody: 'cli.cacheFeed.fetchFailedWithBody' },
+  artifact: {
+    plain: 'cli.cacheFeed.downloadFailed',
+    withBody: 'cli.cacheFeed.downloadFailedWithBody',
+  },
+  torrent: {
+    plain: 'cli.cacheFeed.torrentFetchFailed',
+    withBody: 'cli.cacheFeed.torrentFetchFailedWithBody',
+  },
+}
+
+/**
+ * A failed feed request as the error to throw — the twin of the cache
+ * client's `requestFailure` (`src/cache/http-cache.ts`). A Ritual feed host
+ * answers a refusal with a keyed body (`domain.cache.feedReply.*`), nested
+ * here so it reads in the client's language ("the feed has not been generated
+ * yet"); any other reply's text is quoted (`replyParam`), and an empty reply
+ * leaves the status alone.
+ */
+async function feedRequestFailure(
+  response: Response,
+  request: FeedRequest,
+  url: string,
+): Promise<SyncMessageError> {
+  const body = replyParam(await readReplyText(response))
+  const status = response.status
+  const keys = FAILURE_KEYS[request]
+  return new SyncMessageError(
+    body === ''
+      ? syncMessage(keys.plain, { url, status })
+      : syncMessage(keys.withBody, { url, status, body }),
+  )
+}
 
 // A stuck swarm (webseed down, no peers) must fail rather than hang sync().
 const TORRENT_DOWNLOAD_TIMEOUT_MS = 30 * 60_000
@@ -202,7 +259,7 @@ export class CacheFeedClient {
   async fetchFeed(): Promise<CacheFeedDocument> {
     const response = await this.options.http.fetch(this.options.feedUrl)
     if (!response.ok) {
-      throwHttpError(response, t('cli.cacheFeed.fetchFailed', { url: this.options.feedUrl }))
+      throw await feedRequestFailure(response, 'feed', this.options.feedUrl)
     }
     const parsed = parseCacheFeed(await response.json())
     if (typeof parsed === 'string') throw new Error(parsed)
@@ -228,10 +285,10 @@ export class CacheFeedClient {
     for (const kind of this.requiredKinds()) {
       const entry = feed.entries.find((candidate) => candidate.kind === kind)
       if (!entry) {
-        throw new Error(
+        throw new SyncMessageError(
           kind === 'all-cards'
-            ? t('cli.cacheFeed.missingAllCardsEntry', { kind })
-            : t('cli.cacheFeed.missingEntry', { kind }),
+            ? syncMessage('cli.cacheFeed.missingAllCardsEntry', { kind })
+            : syncMessage('cli.cacheFeed.missingEntry', { kind }),
         )
       }
 
@@ -318,7 +375,9 @@ export class CacheFeedClient {
     const hash = await sha256OfFile(filePath)
     if (hash !== entry.sha256) {
       await unlink(filePath).catch(() => {})
-      throw new Error(t('cli.cacheFeed.hashMismatch', { file: entry.fileName, hash }))
+      throw new SyncMessageError(
+        syncMessage('cli.cacheFeed.hashMismatch', { file: entry.fileName, hash }),
+      )
     }
   }
 
@@ -327,10 +386,10 @@ export class CacheFeedClient {
     this.log(t('cli.cacheFeed.downloadingHttp', { file: entry.fileName }))
     const response = await this.options.http.fetch(entry.fileUrl)
     if (!response.ok) {
-      throwHttpError(response, t('cli.cacheFeed.downloadFailed', { file: entry.fileName }))
+      throw await feedRequestFailure(response, 'artifact', entry.fileUrl)
     }
     if (!response.body) {
-      throw new Error(t('cli.cacheFeed.downloadNoBody', { file: entry.fileName }))
+      throw new SyncMessageError(syncMessage('cli.cacheFeed.downloadNoBody', { file: entry.fileName }))
     }
     await streamToFile(response.body, filePath)
   }
@@ -352,7 +411,9 @@ export class CacheFeedClient {
       // hang forever; fail instead so the caller (and its fallback) can react.
       const timer = setTimeout(() => {
         client.remove(entry.infoHash)
-        reject(new Error(t('cli.cacheFeed.torrentTimedOut', { file: entry.fileName })))
+        reject(
+          new SyncMessageError(syncMessage('cli.cacheFeed.torrentTimedOut', { file: entry.fileName })),
+        )
       }, TORRENT_DOWNLOAD_TIMEOUT_MS)
       torrent.on('error', (err) => {
         clearTimeout(timer)
@@ -369,7 +430,7 @@ export class CacheFeedClient {
   private async fetchTorrentFile(entry: CacheFeedEntry): Promise<Uint8Array> {
     const response = await this.options.http.fetch(entry.torrentUrl)
     if (!response.ok) {
-      throwHttpError(response, t('cli.cacheFeed.torrentFetchFailed', { file: entry.fileName }))
+      throw await feedRequestFailure(response, 'torrent', entry.torrentUrl)
     }
     return new Uint8Array(await response.arrayBuffer())
   }
@@ -384,9 +445,7 @@ export class CacheFeedClient {
     })
     this.torrentClient.on('error', (err) => {
       this.log(
-        t('cli.cacheFeed.torrentClientError', {
-          error: err instanceof Error ? err.message : String(err),
-        }),
+        renderSyncMessage(syncRef('cli.cacheFeed.torrentClientError', { error: errorParam(err) })),
       )
     })
     return this.torrentClient
@@ -411,7 +470,11 @@ export class CacheFeedClient {
         const torrent: Torrent = client.add(torrentBuf, { path: this.filesDir })
         const timer = setTimeout(() => {
           client.remove(entry.infoHash)
-          reject(new Error(t('cli.cacheFeed.torrentNotReady', { infoHash: entry.infoHash })))
+          reject(
+            new SyncMessageError(
+              syncMessage('cli.cacheFeed.torrentNotReady', { infoHash: entry.infoHash }),
+            ),
+          )
         }, TORRENT_READY_TIMEOUT_MS)
         torrent.on('ready', () => {
           clearTimeout(timer)
