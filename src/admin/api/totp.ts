@@ -43,7 +43,7 @@ export function handleTotpVerifySetup(req: Request): Promise<Response> {
     if (!code) {
       const resp: TotpVerifySetupResponse = {
         success: false,
-        ...apiMessage('admin.api.totp.codeRequired'),
+        ...apiMessage('admin.api.field.required', { field: 'code' }),
       }
       return Response.json(resp, { status: 400 })
     }

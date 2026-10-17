@@ -152,7 +152,7 @@ export function handleListDelete(req: Request, cfg: ListLifecycleConfig): Promis
     const { confirmName } = parsed.body
 
     if (typeof confirmName !== 'string' || confirmName.length === 0) {
-      return apiError(apiMessage('admin.api.list.confirmNameRequired'), 400)
+      return apiError(apiMessage('admin.api.field.required', { field: 'confirmName' }), 400)
     }
 
     const target = await resolveTargetFile(parsedSlug.slug, cfg)

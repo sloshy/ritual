@@ -6,6 +6,7 @@ import { handleCards } from '../api/cards'
 import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
 import { handleCardPrices } from '../api/card-prices'
+import { errorFieldNotFound } from '../api/http'
 import type { HttpMethod } from '../util/routing'
 import type { ListType } from '../list/list-type'
 import type { LiveJson, LiveSiteData } from './live-data'
@@ -42,11 +43,11 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
     const url = new URL(req.url)
     const file = decodeURIComponent(url.pathname.split('/').pop() ?? '')
     if (!file.endsWith('.json')) {
-      return Response.json({ error: 'Not found' }, { status: 404 })
+      return errorFieldNotFound()
     }
     const payload = await live.getDetail(kind, file.slice(0, -'.json'.length))
     if (!payload) {
-      return Response.json({ error: 'Not found' }, { status: 404 })
+      return errorFieldNotFound()
     }
     return liveJsonResponse(req, payload)
   }
@@ -70,11 +71,11 @@ function localeHandler(distDir: string): SiteRouteHandler {
     const file = decodeURIComponent(url.pathname.split('/').pop() ?? '')
     const tag = file.endsWith('.json') ? file.slice(0, -'.json'.length) : ''
     if (!LOCALE_TAG_PATTERN.test(tag)) {
-      return Response.json({ error: 'Not found' }, { status: 404 })
+      return errorFieldNotFound()
     }
     const dictionary = Bun.file(path.join(distDir, 'locales', `${tag}.json`))
     if (!(await dictionary.exists())) {
-      return Response.json({ error: 'Not found' }, { status: 404 })
+      return errorFieldNotFound()
     }
     return new Response(dictionary, {
       headers: { 'Content-Type': 'application/json;charset=utf-8' },

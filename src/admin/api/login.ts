@@ -19,7 +19,7 @@ export async function handleArchidektLogin(req: Request): Promise<Response> {
     if (!username || !password) {
       const resp: ArchidektLoginResponse = {
         success: false,
-        ...apiMessage('admin.api.archidekt.credentialsRequired'),
+        ...apiMessage('admin.api.field.credentialsRequired'),
       }
       return Response.json(resp, { status: 400 })
     }

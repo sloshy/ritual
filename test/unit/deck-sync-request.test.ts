@@ -113,27 +113,27 @@ describe('parseDeckSyncBody', () => {
     {
       label: 'a non-boolean dryRun',
       body: { direction: 'pull', dryRun: 'yes' },
-      expected: 'dryRun must be a boolean.',
+      expected: '"dryRun" must be a boolean.',
     },
     {
       label: 'a non-boolean ignoreUnreadableLines',
       body: { direction: 'pull', ignoreUnreadableLines: 'yes' },
-      expected: 'ignoreUnreadableLines must be a boolean.',
+      expected: '"ignoreUnreadableLines" must be a boolean.',
     },
     {
       label: 'a non-boolean force',
       body: { direction: 'push', force: 'yes' },
-      expected: 'force must be a boolean.',
+      expected: '"force" must be a boolean.',
     },
     {
       label: 'a non-boolean syncPrintings',
       body: { direction: 'push', syncPrintings: 'yes' },
-      expected: 'syncPrintings must be a boolean.',
+      expected: '"syncPrintings" must be a boolean.',
     },
     {
       label: 'a non-boolean syncCategories',
       body: { direction: 'push', syncCategories: 'yes' },
-      expected: 'syncCategories must be a boolean.',
+      expected: '"syncCategories" must be a boolean.',
     },
     {
       label: 'an unknown change filter',

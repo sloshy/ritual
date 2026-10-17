@@ -2,6 +2,7 @@ import path from 'node:path'
 import { isArtImageExtension, type ArtImageExtension } from '../list/card-art'
 import { getArtDir } from '../config/ritual-config'
 import { isPathWithinDir } from '../util/path-validation'
+import { errorFieldNotFound } from './http'
 
 /**
  * Serves the custom-art directory read-only at `/art/<relpath>` — the same path
@@ -48,17 +49,18 @@ export function parseArtRequestPath(pathname: string): string | null {
   return decoded.join('/')
 }
 
-function notFound(): Response {
-  return Response.json({ error: 'Not found' }, { status: 404 })
-}
-
-/** `GET /art/*` — one image from the configured art directory. */
+/**
+ * `GET /art/*` — one image from the configured art directory. A miss is the
+ * site server's error-field `404` ({@link errorFieldNotFound}): nothing reads it
+ * as the `{ success, message }` envelope, since an `<img>` that fails to load
+ * never sees the body.
+ */
 export async function handleArtFile(req: Request): Promise<Response> {
   const url = new URL(req.url)
   const relPath = parseArtRequestPath(url.pathname)
-  if (relPath === null) return notFound()
+  if (relPath === null) return errorFieldNotFound()
   const extension = path.extname(relPath).toLowerCase()
-  if (!isArtImageExtension(extension)) return notFound()
+  if (!isArtImageExtension(extension)) return errorFieldNotFound()
   const contentType = ART_CONTENT_TYPES[extension]
 
   // The cached config, like every other consumer of a configured directory: a
@@ -66,9 +68,9 @@ export async function handleArtFile(req: Request): Promise<Response> {
   // asks for.
   const artDir = getArtDir()
   const filePath = path.join(artDir, relPath)
-  if (!isPathWithinDir(filePath, artDir)) return notFound()
+  if (!isPathWithinDir(filePath, artDir)) return errorFieldNotFound()
 
   const file = Bun.file(filePath)
-  if (!(await file.exists())) return notFound()
+  if (!(await file.exists())) return errorFieldNotFound()
   return new Response(file, { headers: { 'Content-Type': contentType } })
 }

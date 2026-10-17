@@ -128,7 +128,7 @@ describe('handleCardPrintings', () => {
   test('a malformed limit is a 400', async () => {
     const { status, body } = await printings('name=Sol%20Ring&limit=abc')
     expect(status).toBe(400)
-    expect(body.success === false && body.message).toContain("Invalid limit 'abc'")
+    expect(body.success === false && body.message).toContain('Invalid "limit" \'abc\'')
   })
 
   test('a missing name is a 400', async () => {

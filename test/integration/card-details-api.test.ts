@@ -9,6 +9,7 @@ import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { stubFetch, type StubbedFetch } from '../helpers/stub-fetch'
 import { makeScryfallCard } from '../test-utils'
 import type { ScryfallCard } from '../../src/scryfall/types'
+import { keyedMessage } from '../helpers/api-message'
 
 /**
  * `GET /api/card-details` against a throwaway workspace whose Scryfall cache is
@@ -110,12 +111,22 @@ describe('handleCardDetails', () => {
     const { status, body } = await details('name=Not%20A%20Card')
     expect(status).toBe(404)
     expect(failure(body).card).toBeNull()
-    expect(failure(body).message).toContain('/api/autocomplete')
+    expect(keyedMessage(failure(body))).toBe(
+      "No card named 'Not A Card'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).",
+    )
+    expect(failure(body)).toMatchObject({
+      messageKey: 'admin.api.card.unknownName',
+      messageParams: { name: 'Not A Card', route: '/api/autocomplete', tool: 'autocomplete_card' },
+    })
   })
 
   test('a missing name is a 400', async () => {
     const { status, body } = await details('')
     expect(status).toBe(400)
-    expect(failure(body).message).toBe('name is required.')
+    expect(keyedMessage(failure(body))).toBe('"name" is required.')
+    expect(failure(body)).toMatchObject({
+      messageKey: 'admin.api.field.required',
+      messageParams: { field: 'name' },
+    })
   })
 })

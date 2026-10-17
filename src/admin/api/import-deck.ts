@@ -172,7 +172,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
 
     if (request.mode === 'url') {
       const url = request.url.trim()
-      if (!url) return badRequest(apiMessage('admin.api.importDeck.urlRequired'))
+      if (!url) return badRequest(apiMessage('admin.api.field.required', { field: 'url' }))
       const result = await fetchDeckFromUrl(url)
       if (isSyncMessage(result)) return nestedRefusal(result)
       deckData = request.syncPrintings ? result.deck : stripDeckPrintings(result.deck)
@@ -180,7 +180,7 @@ export function handleImportDeck(req: Request): Promise<Response> {
       refusedCategories = result.refusedCategories
     } else {
       const content = request.content.trim()
-      if (!content) return badRequest(apiMessage('admin.api.importDeck.contentRequired'))
+      if (!content) return badRequest(apiMessage('admin.api.field.required', { field: 'content' }))
       // English, as everything the API writes on a caller's behalf: a localized
       // default would make a file name and slug in the operator's language.
       const fallbackName = request.name?.trim() || apiText('admin.api.importDeck.defaultName')

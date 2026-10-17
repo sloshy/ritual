@@ -46,7 +46,7 @@ export function handleSetup(req: Request): Promise<Response> {
 
     const { username, password } = body
     if (!username || !password) {
-      return apiError(apiMessage('admin.api.setup.credentialsRequired'), 400)
+      return apiError(apiMessage('admin.api.field.credentialsRequired'), 400)
     }
     if (username.length > MAX_USERNAME_LENGTH) {
       return apiError(apiMessage('admin.api.setup.usernameTooLong'), 400)

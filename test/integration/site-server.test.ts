@@ -7,14 +7,23 @@ import { startSiteServer } from '../../src/serve/server'
 import type { StaticSiteServer } from '../../src/serve/static'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { DeckDetail, SiteIndex } from '../../src/list/site-data'
-import type { CardPricesResponse } from '../../src/api/card-prices'
+import {
+  MAX_PRICE_BODY_BYTES,
+  MAX_PRICE_NAMES,
+  type CardPricesResponse,
+} from '../../src/api/card-prices'
 import type { CardsResponse } from '../../src/api/cards'
 import type { BuylistQuotesResponse, BuylistStatusResponse } from '../../src/buylist'
 import { saveCardKingdomCache, invalidateCardKingdomIndex } from '../../src/cardkingdom'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../test-utils'
 import { getRitualConfigPath } from '../../src/config/ritual-config'
 import { MAX_BUYLIST_PRINTINGS } from '../../src/api/buylist'
+import { CARD_LANGUAGES } from '../../src/card/card-language'
 import type { ScryfallCard } from '../../src/scryfall/types'
+import type { ApiErrorResponse, ErrorFieldBody } from '../../src/api/http'
+import type { CardPrintingsResponse } from '../../src/api/card-printings'
+import { keyedMessage } from '../helpers/api-message'
+import { pseudoCatalog, withGuardedLocaleAsync } from '../helpers/sync-text'
 
 /**
  * Wiring pins for the hosted public-site server (`serve --api`): live JSON at
@@ -145,7 +154,7 @@ describe('site server (Integration)', () => {
     expect((await fetch(`${base}/api/cards`)).status).toBe(400)
   })
 
-  test('batch card-prices returns cached printings and rejects bad bodies', async () => {
+  test('batch card-prices returns cached printings', async () => {
     const resp = await fetch(`${base}/api/card-prices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -155,13 +164,94 @@ describe('site server (Integration)', () => {
     const body = (await resp.json()) as CardPricesResponse
     expect(body.success).toBeTrue()
     expect(body.cards.some((c) => c.name === 'Lightning Bolt')).toBeTrue()
+  })
 
-    const bad = await fetch(`${base}/api/card-prices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ names: 'Lightning Bolt' }),
+  // The server runs in this process, so the pseudo-locale is the server's own
+  // UI language: every refusal still reaches a client in English with its key,
+  // the field it names an untranslated param. The shapes are pinned at the unit
+  // layer (test/unit/api/); this pins what the hosted transport carries.
+  test('refusals answer in English with their keys under a foreign UI language', async () => {
+    const postPrices = (body: string): Promise<Response> =>
+      fetch(`${base}/api/card-prices`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      })
+    const [names, tooMany, notJson, notObject, tooLarge, limit, art, unknownApi, unknownDeck] =
+      await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+        Promise.all([
+          postPrices(JSON.stringify({ names: 'Lightning Bolt' })),
+          postPrices(
+            JSON.stringify({ names: Array.from({ length: MAX_PRICE_NAMES + 1 }, () => 'x') }),
+          ),
+          postPrices('{"names": '),
+          postPrices('[1]'),
+          postPrices(JSON.stringify({ names: ['x'.repeat(MAX_PRICE_BODY_BYTES)] })),
+          fetch(`${base}/api/card-printings?name=Sol%20Ring&limit=%20abc%20`),
+          fetch(`${base}/art/nope.png`),
+          fetch(`${base}/api/no-such-route`),
+          fetch(`${base}/decks/no-such-deck.json`),
+        ]),
+      )
+
+    expect(names.status).toBe(400)
+    const namesBody = (await names.json()) as ApiErrorResponse
+    expect(keyedMessage(namesBody)).toBe('"names" must be an array of strings.')
+    expect(namesBody).toMatchObject({
+      messageKey: 'admin.api.field.notStringArray',
+      messageParams: { field: 'names' },
     })
-    expect(bad.status).toBe(400)
+
+    expect(tooMany.status).toBe(400)
+    const tooManyBody = (await tooMany.json()) as ApiErrorResponse
+    expect(keyedMessage(tooManyBody)).toBe(
+      `"names" must contain at most ${MAX_PRICE_NAMES} entries.`,
+    )
+    expect(tooManyBody).toMatchObject({
+      messageKey: 'admin.api.field.tooMany',
+      messageParams: { field: 'names', count: MAX_PRICE_NAMES },
+    })
+
+    expect(notJson.status).toBe(400)
+    const notJsonBody = (await notJson.json()) as ApiErrorResponse
+    expect(keyedMessage(notJsonBody)).toBe('Request body must be JSON.')
+    expect(notJsonBody.messageKey).toBe('admin.api.body.notJson')
+
+    expect(notObject.status).toBe(400)
+    const notObjectBody = (await notObject.json()) as ApiErrorResponse
+    expect(keyedMessage(notObjectBody)).toBe('Request body must be a JSON object.')
+    expect(notObjectBody.messageKey).toBe('admin.api.body.notObject')
+
+    expect(tooLarge.status).toBe(413)
+    const tooLargeBody = (await tooLarge.json()) as ApiErrorResponse
+    expect(keyedMessage(tooLargeBody)).toBe(
+      `Request body too large (limit ${MAX_PRICE_BODY_BYTES} bytes)`,
+    )
+    expect(tooLargeBody).toMatchObject({
+      messageKey: 'admin.api.body.tooLarge',
+      messageParams: { count: MAX_PRICE_BODY_BYTES },
+    })
+
+    expect(limit.status).toBe(400)
+    const limitBody = (await limit.json()) as CardPrintingsResponse
+    if (limitBody.success) throw new Error('expected a refusal')
+    expect(limitBody.printings).toEqual([])
+    expect(keyedMessage(limitBody)).toBe('Invalid "limit" \'abc\'. Use a positive integer.')
+    // The value as the rule judged it: trimmed.
+    expect(limitBody).toMatchObject({
+      messageKey: 'admin.api.field.notPositiveInteger',
+      messageParams: { field: 'limit', value: 'abc' },
+    })
+
+    // Every site-server 404 is one shape: the English under `error`, its key
+    // beside it as `errorKey`.
+    for (const missing of [art, unknownApi, unknownDeck]) {
+      expect(missing.status).toBe(404)
+      expect((await missing.json()) as ErrorFieldBody).toEqual({
+        error: 'Not found',
+        errorKey: 'admin.api.server.notFound',
+      })
+    }
   })
 
   test('CORS: preflight 204 on known routes, wildcard origin on responses', async () => {
@@ -308,6 +398,44 @@ describe('site server (Integration)', () => {
         quoteBody(Array.from({ length: MAX_BUYLIST_PRINTINGS + 1 }, () => emberwild)),
       )
       expect(tooMany.status).toBe(400)
+    })
+
+    // The quote parser's rules are pinned at the unit layer; this pins that the
+    // hosted route carries its refusals as English plus the key, the params
+    // (a nested `unit` list of language codes included) intact.
+    test('refuses a bad finish and language in English with their keys', async () => {
+      const [finish, language] = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+        Promise.all([
+          fetch(`${base}/api/buylist/quotes`, quoteBody([{ ...emberwild, finish: 'shiny' }])),
+          fetch(`${base}/api/buylist/quotes`, quoteBody([{ ...emberwild, language: 'xx' }])),
+        ]),
+      )
+
+      expect(finish.status).toBe(400)
+      const finishBody = (await finish.json()) as ApiErrorResponse
+      expect(keyedMessage(finishBody)).toBe(
+        "Invalid printings[0].finish 'shiny'. Use one of: nonfoil, foil, etched.",
+      )
+      expect(finishBody).toMatchObject({
+        messageKey: 'errors.enum.invalid',
+        messageParams: {
+          field: 'printings[0].finish',
+          value: 'shiny',
+          choices: 'nonfoil, foil, etched',
+        },
+      })
+
+      expect(language.status).toBe(400)
+      const languageBody = (await language.json()) as ApiErrorResponse
+      expect(languageBody.messageKey).toBe('domain.card.language.invalidField')
+      expect(languageBody.messageParams).toEqual({
+        value: '"xx"',
+        field: 'printings[0].language',
+        languages: { list: [...CARD_LANGUAGES], join: 'unit' },
+      })
+      expect(keyedMessage(languageBody)).toStartWith(
+        'Invalid language "xx" for "printings[0].language".',
+      )
     })
 
     test('exposes no public refresh route — the feed is never downloadable from here', async () => {

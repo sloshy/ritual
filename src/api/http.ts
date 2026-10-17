@@ -14,9 +14,14 @@
  */
 
 import { isRecord } from '../util/json'
-import { apiMessageOf, pickMessage, plainMessage, type ApiMessage } from './result'
+import { apiMessage, apiMessageOf, pickMessage, plainMessage, type ApiMessage } from './result'
 import { CardCommandError, ExitCode, getErrorMessage, isCancellation } from '../util/errors'
-import { SyncMessageError, type SyncMessage } from '../sync/message'
+import {
+  prefixedFields,
+  SyncMessageError,
+  type PrefixedMessage,
+  type SyncMessage,
+} from '../sync/message'
 
 /**
  * The body size (bytes) allowed on routes whose body is bounded by its own
@@ -33,8 +38,10 @@ export const MAX_BODY_SIZE = 10 * 1024
  * (`ListsErrorResponse`, `DiffErrorResponse`, ...); they are gone in favour of
  * this. Response types that carry *more* than `success`/`message` on failure
  * (`CardDetailsFailure`'s `card: null`, `CardSearchFailure`'s paging fields,
- * `AutocompleteResponse` and `CardPrintingsResponse`, which fold success and
- * failure into one shape) keep their own declarations — those extra fields are
+ * `CardPrintingsFailure`'s `printings: []`, `CardPriceFailure`'s empty
+ * printings and nulled printing fields, `CardsFailure`'s `cards: []`, and
+ * `AutocompleteResponse`, which folds success and failure into one shape) keep
+ * their own declarations — those extra fields are
  * a wire contract, not duplication.
  *
  * A {@link SyncMessage}, not an `ApiMessage`: most refusals carry flat params,
@@ -99,6 +106,30 @@ export function nestedRefusal(reason: SyncMessage, status: number = 400): Respon
 }
 
 /**
+ * The error body of the routes that predate the `{ success, message }`
+ * envelope — the site server's `404` for an unknown list, locale or `/api/*`
+ * path, the art route's `404`, its last-resort `500`. The English stays under
+ * `error`, where those routes' readers have always found it; its key and params
+ * ride beside it as `errorKey` / `errorParams`, the prefixed-field form a
+ * message takes under a field of its own name.
+ */
+export type ErrorFieldBody = PrefixedMessage<'error'>
+
+/** An {@link ErrorFieldBody} at `status`. */
+export function errorFieldResponse(reason: ApiMessage, status: number): Response {
+  const body: ErrorFieldBody = prefixedFields('error', reason)
+  return Response.json(body, { status })
+}
+
+/**
+ * The {@link ErrorFieldBody} `404`: the same `admin.api.server.notFound`
+ * sentence the admin server answers a path it has no route for with.
+ */
+export function errorFieldNotFound(): Response {
+  return errorFieldResponse(apiMessage('admin.api.server.notFound'), 404)
+}
+
+/**
  * HTTP status for an error that reached the top of a handler. A
  * {@link CardCommandError} classifies itself — a client-correctable refusal
  * (e.g. an import conflict that needs `overwrite`) is a 400 or 404, not the 500
@@ -152,8 +183,13 @@ export type BodyText = { ok: true; text: string } | { ok: false; response: Respo
 export type JsonObjectBody =
   { ok: true; body: Record<string, unknown> } | { ok: false; response: Response }
 
+/**
+ * The 413 refusal. The budget is given in exact bytes, a plain number: a client
+ * sizing its batches needs the figure itself, and the budgets (10240, 120000)
+ * are not round in any larger unit.
+ */
 function tooLarge(maxBytes: number): Response {
-  return apiError(plainMessage(`Request body too large (limit ${maxBytes} bytes)`), 413)
+  return apiError(apiMessage('admin.api.body.tooLarge', { count: maxBytes }), 413)
 }
 
 /**
@@ -216,13 +252,10 @@ export async function readJsonObjectBody(req: Request, maxBytes?: number): Promi
   try {
     raw = JSON.parse(read.text)
   } catch {
-    return { ok: false, response: apiError(plainMessage('Request body must be JSON.'), 400) }
+    return { ok: false, response: badRequest(apiMessage('admin.api.body.notJson')) }
   }
   if (!isRecord(raw)) {
-    return {
-      ok: false,
-      response: apiError(plainMessage('Request body must be a JSON object.'), 400),
-    }
+    return { ok: false, response: badRequest(apiMessage('admin.api.body.notObject')) }
   }
   return { ok: true, body: raw }
 }

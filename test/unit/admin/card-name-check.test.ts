@@ -179,7 +179,7 @@ describe('parseValidateCardNames', () => {
       expect(parseValidateCardNames(raw)).toEqual({
         ok: false,
         refusal: {
-          message: 'validateCardNames must be a boolean.',
+          message: '"validateCardNames" must be a boolean.',
           messageKey: 'admin.api.field.notBoolean',
           messageParams: { field: 'validateCardNames' },
         },

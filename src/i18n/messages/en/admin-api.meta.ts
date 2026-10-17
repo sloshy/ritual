@@ -78,10 +78,6 @@ export const adminApiMeta = {
     description:
       'Success alert after signing in to Archidekt. {username} is the account name Archidekt reported.',
   },
-  'admin.api.archidekt.credentialsRequired': {
-    description:
-      'Refusal when the Archidekt sign-in form was submitted without a username or a password. Lowercase "username" and "password" name the request fields.',
-  },
   'admin.api.deckSync.loginRequired': {
     description:
       'Why a deck sync run never started: no usable Archidekt token is stored. Shown in place of a run summary.',
@@ -174,7 +170,7 @@ export const adminApiMeta = {
   },
   'admin.api.server.notFound': {
     description:
-      'Error body (HTTP 404) for a path the admin server has no route or file for. The standard HTTP reason phrase.',
+      'Error body (HTTP 404) for a path the server has no route or file for — also what a route answers when it is switched off (the buylist routes without sell mode) or asked for a custom-art file that is not there, so it reads like a missing page. A short status phrase, like the HTTP reason phrase "Not Found".',
   },
   'admin.api.server.internalError': {
     description:
@@ -185,9 +181,6 @@ export const adminApiMeta = {
   'admin.api.login.rateLimited': {
     description:
       'Error body (HTTP 429) when sign-in is locked after too many failed attempts from one address. The response also says how many seconds the lock lasts.',
-  },
-  'admin.api.login.credentialsRequired': {
-    description: 'Refusal when the sign-in request is missing its username or its password.',
   },
   'admin.api.login.inputTooLong': {
     description:
@@ -214,10 +207,6 @@ export const adminApiMeta = {
     description:
       'Refusal (HTTP 409) of the first-run account form, or of creating the account from the command line, when an admin account already exists.',
   },
-  'admin.api.setup.credentialsRequired': {
-    description:
-      'Refusal of the first-run account form without a username or a password. Lowercase "username" and "password" name the request fields.',
-  },
   'admin.api.setup.usernameTooLong': {
     description:
       'Refusal of the first-run account form when the username is over the length limit.',
@@ -238,10 +227,6 @@ export const adminApiMeta = {
   'admin.api.totp.alreadyEnabled': {
     description:
       'Refusal (HTTP 409) to start two-factor (TOTP) setup when it is already on; it must be turned off before it can be set up again.',
-  },
-  'admin.api.totp.codeRequired': {
-    description:
-      'Refusal of a two-factor setup confirmation sent without a code. Lowercase "code" names the request field.',
   },
   'admin.api.totp.noPendingSetup': {
     description:
@@ -300,20 +285,8 @@ export const adminApiMeta = {
   'admin.api.list.newNameRequired': {
     description: 'Refusal to rename a list to an empty name. One branch per list type.',
   },
-  'admin.api.list.confirmNameRequired': {
-    description:
-      'Refusal to delete a list when the request does not repeat the list’s name. "confirmName" is the request field and stays verbatim.',
-  },
 
   // ── Loading a list ────────────────────────────────────────────────────
-  'admin.api.load.limitInvalid': {
-    description:
-      'Refusal of a list load whose `limit` query parameter is not a whole number of one or more. {value} is the value sent.',
-  },
-  'admin.api.load.offsetInvalid': {
-    description:
-      'Refusal of a list load whose `offset` query parameter is not a whole number of zero or more. {value} is the value sent.',
-  },
   'admin.api.cardIndex.listTypeInvalid': {
     description:
       'Refusal of a card-index query whose listType is not a list type. {value} is the value sent; {choices} is the comma-separated list of accepted values (deck, collection, wanted), which stay verbatim.',
@@ -469,20 +442,85 @@ export const adminApiMeta = {
       "Refusal of a sell-report query whose lists parameter was given but names no list. 'lists' is the query parameter and stays verbatim.",
   },
 
-  // ── Export ────────────────────────────────────────────────────────────
+  // ── Request bodies and fields, any route ──────────────────────────────
+  'admin.api.body.notJson': {
+    description:
+      'Refusal (HTTP 400) of a request whose body is not valid JSON. "JSON" is the format name and stays verbatim.',
+  },
+  'admin.api.body.notObject': {
+    description:
+      'Refusal (HTTP 400) of a request whose body is valid JSON but not an object (an array, a string, null). "JSON" is the format name and stays verbatim.',
+  },
+  'admin.api.body.tooLarge': {
+    description:
+      'Refusal (HTTP 413) of a request body larger than the route accepts. {count} is the limit in bytes, an exact whole number written without digit grouping (e.g. 10240), so a client can size its requests by it.',
+  },
+  'admin.api.field.required': {
+    description:
+      'Refusal of a request missing a value it needs. {field} (an untranslated request field or query parameter, spelled as it is on the wire, e.g. name, q, ids, url, code or confirmName) is the missing field. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.credentialsRequired': {
+    description:
+      'Refusal of a sign-in form (the Archidekt account, or the first admin account) sent without a username or a password. "username" and "password" are the request fields and stay verbatim, in their quotes.',
+  },
   'admin.api.field.notBoolean': {
     description:
-      'Refusal of a request whose {field} (an untranslated request field, e.g. dryRun, overwrite or validateCardNames) is not true or false.',
+      'Refusal of a request whose {field} (an untranslated request field, e.g. dryRun, overwrite or validateCardNames) is not true or false. Keep the double quotes around {field}.',
   },
   'admin.api.field.notString': {
     description:
-      'Refusal of a request whose {field} (an untranslated request field, e.g. name, filters.name or contentHash) is not text.',
+      'Refusal of a request whose {field} (an untranslated request field, e.g. name, filters.name, contentHash or printings[0].scryfallId) is not text. Keep the double quotes around {field}.',
   },
+  'admin.api.field.blank': {
+    description:
+      'Refusal of a request whose {field} (an untranslated request field, e.g. printings[0].set — an indexed path into a list the request sent) is missing, not text, or empty once surrounding spaces are removed. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.notObject': {
+    description:
+      'Refusal of a request whose {field} (an untranslated request field, e.g. printings[2] — one entry of a list the request sent) is not a JSON object. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.notArray': {
+    description:
+      'Refusal of a request whose {field} (an untranslated request field, e.g. printings) is not a JSON array. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.notStringArray': {
+    description:
+      'Refusal of a request whose {field} (an untranslated request field, e.g. names) is not a JSON array of strings. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.tooMany': {
+    description:
+      'Refusal of a request whose {field} (an untranslated request field, e.g. printings, names or ids) lists more entries than one request may carry. {count} is that maximum. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.notPositiveInteger': {
+    description:
+      'Refusal of a request whose {field} (an untranslated query parameter, e.g. limit or page) is not a whole number of one or more. {value} is the value sent, with surrounding spaces removed. Keep the double quotes around {field}.',
+  },
+  'admin.api.field.notNonNegativeInteger': {
+    description:
+      'Refusal of a request whose {field} (an untranslated query parameter, e.g. offset) is not a whole number of zero or more. {value} is the value sent, with surrounding spaces removed. Keep the double quotes around {field}.',
+  },
+
+  // ── Card lookups ──────────────────────────────────────────────────────
+  'admin.api.card.unknownName': {
+    description:
+      'Refusal (HTTP 404) of a card-details lookup for a name no card has. Names must be given exactly, so the sentence points at the autocomplete lookup: {route} is its HTTP route (/api/autocomplete) and {tool} the name of the matching MCP tool (autocomplete_card), both identifiers that stay verbatim. {name} is the name sent. "MCP" is a protocol name.',
+  },
+  'admin.api.card.noPrintings': {
+    description:
+      'Refusal (HTTP 404) of a card-price lookup for a name with no printings in the card cache or on Scryfall. {name} is the card name sent.',
+  },
+  'admin.api.cards.idsEmpty': {
+    description:
+      'Refusal of a card lookup by Scryfall ID whose `ids` query parameter (a comma-separated list; the name stays verbatim) holds no ID at all. "Scryfall ID" is the card-data service’s identifier.',
+  },
+  'admin.api.cardSearch.limitTooLarge': {
+    description:
+      'Refusal of a card search whose `limit` query parameter (stays verbatim) asks for more cards than one page of Scryfall results holds. {max} is that page size; {value} is the value sent, with surrounding spaces removed.',
+  },
+
+  // ── Export ────────────────────────────────────────────────────────────
   'admin.api.export.columnsNotArray': {
     description: 'Refusal of an export request whose columns field is not a list of column names.',
-  },
-  'admin.api.export.filtersNotObject': {
-    description: 'Refusal of an export request whose filters field is not an object.',
   },
   'admin.api.export.conditionsNotArray': {
     description:
@@ -606,12 +644,6 @@ export const adminApiMeta = {
     description:
       'Refusal of a pasted-text deck import that sent syncPrintings, which only URL imports take.',
   },
-  'admin.api.importDeck.urlRequired': {
-    description: 'Refusal of a URL deck import whose url is blank.',
-  },
-  'admin.api.importDeck.contentRequired': {
-    description: 'Refusal of a pasted-text deck import whose text is blank.',
-  },
   'admin.api.importDeck.defaultName': {
     description:
       'Name given to a deck imported from pasted text when the request names none. It becomes the deck’s name and file name, so keep it short.',
@@ -647,9 +679,6 @@ export const adminApiMeta = {
   'admin.api.importCsv.invalidRequest': {
     description:
       'Refusal of a CSV import missing a required field. {types} is the comma-separated list of list types and {modes} the |-separated list of import modes; every field name (listType, name, content, columns, mode, format, hasHeader) stays verbatim.',
-  },
-  'admin.api.importCsv.nameRequired': {
-    description: 'Refusal of a CSV import without a list name. "name" is the request field.',
   },
   'admin.api.importCsv.formatRequired': {
     description:

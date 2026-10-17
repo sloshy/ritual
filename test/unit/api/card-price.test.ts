@@ -1,5 +1,10 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
-import { isPriceStale, PRICE_STALENESS_THRESHOLD_MS } from '../../../src/api/card-price'
+import {
+  isPriceStale,
+  PRICE_STALENESS_THRESHOLD_MS,
+  type CardPriceResponse,
+} from '../../../src/api/card-price'
+import { keyedMessage } from '../../helpers/api-message'
 import { bindWorkspace, type BoundWorkspace } from '../../helpers/workspace'
 import { MemoryLogger, resetLogger, setLogger } from '../../../src/util/logger'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
@@ -29,9 +34,15 @@ describe('handleCardPrice', () => {
     const req = new Request('http://localhost/api/card-price')
     const resp = await handleCardPrice(req)
     expect(resp.status).toBe(400)
-    const body = (await resp.json()) as { success: boolean; message: string }
-    expect(body.success).toBe(false)
-    expect(body.message).toContain('required')
+    const body = (await resp.json()) as CardPriceResponse
+    if (body.success) throw new Error('expected a refusal')
+    expect(keyedMessage(body)).toBe('"name" is required.')
+    expect(body).toMatchObject({
+      messageKey: 'admin.api.field.required',
+      messageParams: { field: 'name' },
+      printings: [],
+      representative: null,
+    })
   })
 })
 
@@ -60,8 +71,12 @@ describe('handleCardPrice unknown card', () => {
     const req = new Request('http://localhost/api/card-price?name=No%20Such%20Card')
     const resp = await handleCardPrice(req)
     expect(resp.status).toBe(404)
-    const body = (await resp.json()) as { success: boolean; message: string }
-    expect(body.success).toBe(false)
-    expect(body.message).toContain('No printings found')
+    const body = (await resp.json()) as CardPriceResponse
+    if (body.success) throw new Error('expected a refusal')
+    expect(keyedMessage(body)).toBe("No printings found for 'No Such Card'.")
+    expect(body).toMatchObject({
+      messageKey: 'admin.api.card.noPrintings',
+      messageParams: { name: 'No Such Card' },
+    })
   })
 })

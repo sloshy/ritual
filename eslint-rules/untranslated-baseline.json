@@ -1,48 +1,4 @@
 {
-  "src/api/art.ts": {
-    "Not found": 1
-  },
-  "src/api/buylist.ts": {
-    "\"buyer\" must be one of: ${…}": 1,
-    "\"printings\" must be an array": 1,
-    "\"printings\" must contain at most ${…} entries": 1,
-    "\"printings[${…}]\" must be an object": 1,
-    "\"printings[${…}].collectorNumber\" must be a non-empty string": 1,
-    "\"printings[${…}].finish\" must be one of: nonfoil, foil, etched": 1,
-    "\"printings[${…}].scryfallId\" must be a string when present": 1,
-    "\"printings[${…}].set\" must be a non-empty string": 1,
-    "Not found": 1
-  },
-  "src/api/card-details.ts": {
-    "No card named '${…}'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).": 1,
-    "name is required.": 1
-  },
-  "src/api/card-price.ts": {
-    "No printings found for '${…}'": 1,
-    "name is required": 1
-  },
-  "src/api/card-prices.ts": {
-    "\"names\" must be an array of strings": 1,
-    "\"names\" must contain at most ${…} entries": 1
-  },
-  "src/api/card-printings.ts": {
-    "name is required": 1
-  },
-  "src/api/card-search.ts": {
-    "limit must be at most ${…} (one Scryfall page), got '${…}'.": 1,
-    "page must be a positive integer, got '${…}'.": 1,
-    "q is required.": 1
-  },
-  "src/api/cards.ts": {
-    "ids is required": 1,
-    "ids must contain at least one Scryfall ID": 1,
-    "ids must contain at most ${…} entries": 1
-  },
-  "src/api/http.ts": {
-    "Request body must be JSON.": 1,
-    "Request body must be a JSON object.": 1,
-    "Request body too large (limit ${…} bytes)": 1
-  },
   "src/auth/ArchidektAuth.ts": {
     "Failed to refresh token:": 1,
     "Login failed": 1,
@@ -206,13 +162,8 @@
   "src/serve/lists.ts": {
     "Failed to enumerate ${…} sources: ${…}": 1
   },
-  "src/serve/routes.ts": {
-    "Not found": 4
-  },
   "src/serve/server.ts": {
-    "Internal server error": 1,
     "Not Found": 1,
-    "Not found": 1,
     "Unhandled server error:": 1
   },
   "src/serve/static.ts": {
@@ -338,9 +289,6 @@
   },
   "src/util/bundled-text.ts": {
     "Expected text module for ${…}": 1
-  },
-  "src/util/parse-number.ts": {
-    "Invalid limit '${…}'. Use a positive integer.": 1
   },
   "src/util/safekeeping.ts": {
     "moveToTrash needs at least one file": 1

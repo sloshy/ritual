@@ -3,9 +3,15 @@
 // the admin server and the public/hosted site server.
 import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card/card-printing'
-import { caughtMessage, refusalOf } from './http'
+import { caughtMessage, statusForError } from './http'
+import {
+  apiMessage,
+  isApiMessage,
+  pickMessage,
+  positiveIntegerParam,
+  type ApiMessage,
+} from './result'
 import type { SyncMessage } from '../sync/message'
-import { invalidLimitMessage, parsePositiveInteger } from '../util/parse-number'
 import { printingKey } from '../card/printing-key'
 import { scryfallCardLanguage, sortLanguages } from '../card/card-language'
 import type { ScryfallCard } from '../scryfall/types'
@@ -62,14 +68,14 @@ export type CardPrintingsResponse = CardPrintingsSuccess | CardPrintingsFailure
 export type CardPrintingsParams = { name: string; limit?: number }
 
 /** The one refusal body for this route, at `status`. */
-function failure(message: string | SyncMessage, status: number): Response {
-  const body: CardPrintingsFailure = { success: false, printings: [], ...refusalOf(message) }
+function failure(message: SyncMessage, status: number): Response {
+  const body: CardPrintingsFailure = { success: false, printings: [], ...pickMessage(message) }
   return Response.json(body, { status })
 }
 
 /**
- * Parse the query string of `GET /api/card-printings`, or return the message
- * explaining why it is not usable.
+ * Parse the query string of `GET /api/card-printings`, or return the refusal
+ * explaining why it is not usable, as English plus its key.
  *
  * `limit` is **opt-in**: absent means the full printing list, which is what the
  * public/hosted site mount depends on. There is deliberately no `includePrices`
@@ -77,19 +83,18 @@ function failure(message: string | SyncMessage, status: number): Response {
  * rule each client projects what it needs from one honest response (the MCP
  * `get_card_printings` tool does exactly that).
  */
-export function parseCardPrintingsParams(params: URLSearchParams): CardPrintingsParams | string {
+export function parseCardPrintingsParams(
+  params: URLSearchParams,
+): CardPrintingsParams | ApiMessage {
   const rawName = params.get('name')?.trim()
-  if (!rawName) return 'name is required'
+  if (!rawName) return apiMessage('admin.api.field.required', { field: 'name' })
   // Trimmed at the parse boundary, not just for the emptiness check: the name is
   // a cache key, and `?name=%20Sol+Ring` must hit the same entry as `Sol Ring`.
   const parsed: CardPrintingsParams = { name: rawName }
 
-  const rawLimit = params.get('limit')
-  if (rawLimit !== null && rawLimit.trim() !== '') {
-    const limit = parsePositiveInteger(rawLimit.trim())
-    if (limit === undefined) return invalidLimitMessage(rawLimit)
-    parsed.limit = limit
-  }
+  const limit = positiveIntegerParam(params, 'limit')
+  if (isApiMessage(limit)) return limit
+  if (limit !== undefined) parsed.limit = limit
 
   return parsed
 }
@@ -105,7 +110,7 @@ export function parseCardPrintingsParams(params: URLSearchParams): CardPrintings
 export async function handleCardPrintings(req: Request): Promise<Response> {
   try {
     const parsed = parseCardPrintingsParams(new URL(req.url).searchParams)
-    if (typeof parsed === 'string') return failure(parsed, 400)
+    if (isApiMessage(parsed)) return failure(parsed, 400)
 
     // The cache first; a name it does not hold falls back to a single-card
     // Scryfall lookup, whose one result is reported as incomplete.
@@ -137,6 +142,6 @@ export async function handleCardPrintings(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (error) {
-    return failure(caughtMessage(error), 500)
+    return failure(caughtMessage(error), statusForError(error))
   }
 }

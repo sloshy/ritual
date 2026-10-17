@@ -2,7 +2,8 @@ import { matchRoute } from '../util/routing'
 import { serveSpaFallback, serveStaticFile, type StaticSiteServer } from './static'
 import { createLiveSiteData } from './live-data'
 import { buildSiteRoutes } from './routes'
-import { MAX_BODY_SIZE } from '../api/http'
+import { errorFieldNotFound, errorFieldResponse, MAX_BODY_SIZE } from '../api/http'
+import { apiMessage } from '../api/result'
 import { MAX_QUOTE_BODY_BYTES } from '../api/buylist'
 import { MAX_PRICE_BODY_BYTES } from '../api/card-prices'
 
@@ -84,7 +85,7 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
       }
 
       if (url.pathname.startsWith('/api/')) {
-        return withHeaders(Response.json({ error: 'Not found' }, { status: 404 }), {
+        return withHeaders(errorFieldNotFound(), {
           ...BASE_HEADERS,
           ...CORS_HEADERS,
         })
@@ -96,7 +97,7 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
     },
     error(error) {
       console.error('Unhandled server error:', error)
-      return Response.json({ error: 'Internal server error' }, { status: 500 })
+      return errorFieldResponse(apiMessage('admin.api.server.internalError'), 500)
     },
   })
 }

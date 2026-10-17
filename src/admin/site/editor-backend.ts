@@ -1,6 +1,6 @@
 import { createApiSearchProvider } from '../../editor/search-provider'
 import { createBuylistFetcher, type BuylistFetcher } from '../../list-view/buylist-quotes'
-import type { CardPriceResponse } from '../../api/card-price'
+import type { CardPriceResponse, CardPriceSuccess } from '../../api/card-price'
 import type { CardArtRef } from '../../list/card-art'
 import type { ListType } from '../../list/list-type'
 import { apiMessage } from '../../api/result'
@@ -141,7 +141,7 @@ export async function putListMetadata(
 }
 
 /** Fetch a card's prices from the admin price API; null on failure or an unsuccessful response. */
-export async function fetchCardPrice(cardName: string): Promise<CardPriceResponse | null> {
+export async function fetchCardPrice(cardName: string): Promise<CardPriceSuccess | null> {
   try {
     const resp = await fetch(`/api/card-price?name=${encodeURIComponent(cardName)}`, {
       credentials: 'same-origin',

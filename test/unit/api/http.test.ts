@@ -12,8 +12,9 @@ import { CacheLockTimeoutError } from '../../../src/cache/lock'
 import type { SyncMessage } from '../../../src/sync/message'
 import { keyedMessage } from '../../helpers/api-message'
 import { withSyntheticLocale } from '../../helpers/sync-text'
+
 /**
- * The shared JSON-body route prologue. Its two refusal messages are pinned here
+ * The shared JSON-body route prologue. Its three refusal messages are pinned here
  * rather than in each adopting handler's suite: they are the *shared* wording,
  * and a handler test asserting them would only re-pin what this owns.
  */
@@ -49,7 +50,8 @@ describe('readJsonObjectBody', () => {
   test('unparseable JSON is refused as a 400', async () => {
     const { status, body } = await refuse('{not json')
     expect(status).toBe(400)
-    expect(body.message).toBe('Request body must be JSON.')
+    expect(keyedMessage(body)).toBe('Request body must be JSON.')
+    expect(body.messageKey).toBe('admin.api.body.notJson')
   })
 
   // The cap runs first, so a body that would *also* fail to parse comes back as
@@ -64,9 +66,11 @@ describe('readJsonObjectBody', () => {
     const result = await readJsonObjectBody(req, 10)
     if (result.ok) throw new Error('expected a refusal, got a parsed body')
     expect(result.response.status).toBe(413)
-    expect(((await result.response.json()) as ApiErrorResponse).message).toBe(
-      'Request body too large (limit 10 bytes)',
-    )
+    const body = (await result.response.json()) as ApiErrorResponse
+    // Exact bytes, a plain number: the figure a client sizes its batches by.
+    expect(keyedMessage(body)).toBe('Request body too large (limit 10 bytes)')
+    expect(body.messageKey).toBe('admin.api.body.tooLarge')
+    expect(body.messageParams).toEqual({ count: 10 })
   })
 
   test.each([
@@ -76,7 +80,8 @@ describe('readJsonObjectBody', () => {
   ])('%s parses but is not an object', async (_label, raw) => {
     const { status, body } = await refuse(raw)
     expect(status).toBe(400)
-    expect(body.message).toBe('Request body must be a JSON object.')
+    expect(keyedMessage(body)).toBe('Request body must be a JSON object.')
+    expect(body.messageKey).toBe('admin.api.body.notObject')
   })
 })
 

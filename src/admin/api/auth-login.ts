@@ -62,7 +62,7 @@ export async function handleLogin(req: Request, clientIp: string): Promise<Respo
   const password = typeof body.password === 'string' ? body.password : ''
   const totpCode = typeof body.totpCode === 'string' ? body.totpCode : undefined
   if (!username || !password) {
-    return apiError(apiMessage('admin.api.login.credentialsRequired'), 400)
+    return apiError(apiMessage('admin.api.field.credentialsRequired'), 400)
   }
 
   if (

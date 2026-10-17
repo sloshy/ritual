@@ -157,7 +157,7 @@ function parseFilters(raw: ExportRequestFilters | undefined): ExportFilters | Sy
   const filters: ExportFilters = {}
   if (raw === undefined) return filters
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return apiMessage('admin.api.export.filtersNotObject')
+    return apiMessage('admin.api.field.notObject', { field: 'filters' })
   }
   if (raw.name !== undefined) {
     if (typeof raw.name !== 'string') {

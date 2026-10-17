@@ -5,7 +5,8 @@ import {
   computeRepresentativePrints,
   getCardPrintings,
 } from '../scryfall'
-import { caughtMessage } from './http'
+import { caughtMessage, statusForError } from './http'
+import { apiMessage, pickMessage } from './result'
 import type { SyncMessage } from '../sync/message'
 import { getBannedPrintings } from '../config/ritual-config'
 import type { ScryfallCard } from '../scryfall/types'
@@ -20,36 +21,55 @@ export function isPriceStale(timestamp: number | null, now: number = Date.now())
   return timestamp === null || now - timestamp > PRICE_STALENESS_THRESHOLD_MS
 }
 
-/**
- * `GET /api/card-price` body. A failure carries the message triple; one raised
- * with a catalog key (a cache error) carries its key and possibly nested params.
- */
-export type CardPriceResponse = Partial<SyncMessage> & {
-  success: boolean
+/** The card resolved: its printings, and the representative and cheapest per store. */
+export type CardPriceSuccess = {
+  success: true
   printings: ScryfallCard[]
-  representative: ScryfallCard | null
-  lowestPriceCard: ScryfallCard | null
-  lowestPriceCardEur: ScryfallCard | null
-  lowestPriceCardTix: ScryfallCard | null
+  /** The USD representative printing (recent, mid-priced). */
+  representative: ScryfallCard
+  lowestPriceCard: ScryfallCard
+  lowestPriceCardEur: ScryfallCard
+  lowestPriceCardTix: ScryfallCard
+}
+
+/**
+ * The request was refused or the lookup failed. The printing fields stay, empty
+ * and null, so the wire shape is the same either way. A failure carries the
+ * message triple; one raised with a catalog key (a cache error) carries its key
+ * and possibly nested params.
+ */
+export type CardPriceFailure = SyncMessage & {
+  success: false
+  printings: []
+  representative: null
+  lowestPriceCard: null
+  lowestPriceCardEur: null
+  lowestPriceCardTix: null
+}
+
+/** `GET /api/card-price` body. */
+export type CardPriceResponse = CardPriceSuccess | CardPriceFailure
+
+/** The one refusal body for this route, at `status`. */
+function priceRefusal(message: SyncMessage, status: number): Response {
+  const body: CardPriceFailure = {
+    success: false,
+    printings: [],
+    representative: null,
+    lowestPriceCard: null,
+    lowestPriceCardEur: null,
+    lowestPriceCardTix: null,
+    ...pickMessage(message),
+  }
+  return Response.json(body, { status })
 }
 
 export async function handleCardPrice(req: Request): Promise<Response> {
   try {
-    const url = new URL(req.url)
-    const name = url.searchParams.get('name')
-
-    if (!name) {
-      const resp: CardPriceResponse = {
-        success: false,
-        printings: [],
-        representative: null,
-        lowestPriceCard: null,
-        lowestPriceCardEur: null,
-        lowestPriceCardTix: null,
-        message: 'name is required',
-      }
-      return Response.json(resp, { status: 400 })
-    }
+    // Trimmed at the parse boundary: the name is a cache key, and
+    // `?name=%20Sol+Ring` must resolve like `Sol Ring`.
+    const name = new URL(req.url).searchParams.get('name')?.trim()
+    if (!name) return priceRefusal(apiMessage('admin.api.field.required', { field: 'name' }), 400)
 
     const timestamp = await cardCache.getTimestamp(name)
     const stale = isPriceStale(timestamp)
@@ -73,16 +93,7 @@ export async function handleCardPrice(req: Request): Promise<Response> {
     }
 
     if (printings.length === 0) {
-      const resp: CardPriceResponse = {
-        success: false,
-        printings: [],
-        representative: null,
-        lowestPriceCard: null,
-        lowestPriceCardEur: null,
-        lowestPriceCardTix: null,
-        message: `No printings found for '${name}'`,
-      }
-      return Response.json(resp, { status: 404 })
+      return priceRefusal(apiMessage('admin.api.card.noPrintings', { name }), 404)
     }
 
     const sorted = [...printings].sort((a, b) =>
@@ -98,7 +109,7 @@ export async function handleCardPrice(req: Request): Promise<Response> {
     const fallback = printings[0]!
     const usdRep = repPrints.usd?.representative ?? fallback
 
-    const resp: CardPriceResponse = {
+    const resp: CardPriceSuccess = {
       success: true,
       printings,
       representative: usdRep,
@@ -108,15 +119,6 @@ export async function handleCardPrice(req: Request): Promise<Response> {
     }
     return Response.json(resp)
   } catch (error) {
-    const resp: CardPriceResponse = {
-      success: false,
-      printings: [],
-      representative: null,
-      lowestPriceCard: null,
-      lowestPriceCardEur: null,
-      lowestPriceCardTix: null,
-      ...caughtMessage(error),
-    }
-    return Response.json(resp, { status: 500 })
+    return priceRefusal(caughtMessage(error), statusForError(error))
   }
 }

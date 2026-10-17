@@ -63,11 +63,11 @@ describe('parseSyncRequestCore', () => {
     ['an unknown direction', { direction: 'sideways' }, "Invalid direction 'sideways'"],
     ['an unknown filter', { direction: 'pull', only: 'both' }, "Invalid only 'both'"],
     ['a non-string filter', { direction: 'pull', only: 7 }, 'only must be one of'],
-    ['a non-boolean dryRun', { direction: 'pull', dryRun: 'yes' }, 'dryRun must be a boolean.'],
+    ['a non-boolean dryRun', { direction: 'pull', dryRun: 'yes' }, '"dryRun" must be a boolean.'],
     [
       'a non-boolean ignoreUnreadableLines',
       { direction: 'pull', ignoreUnreadableLines: 1 },
-      'ignoreUnreadableLines must be a boolean.',
+      '"ignoreUnreadableLines" must be a boolean.',
     ],
   ])('refuses %s', (_label, body, message) => {
     expect(keyedRefusal(parseSyncRequestCore(body))).toContain(message)

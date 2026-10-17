@@ -1,11 +1,12 @@
 import { cardCache } from '../cache'
-import { apiError, errorResponse, readJsonObjectBody } from './http'
+import { badRequest, errorResponse, readJsonObjectBody } from './http'
 import { fetchRepresentativePrints } from '../scryfall'
 import type { ScryfallCard } from '../scryfall/types'
 import { VALID_CURRENCIES } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { isPriceStale } from './card-price'
-import { plainMessage } from './result'
+import { apiMessage, isApiMessage, type ApiMessage } from './result'
+import { isStringArray } from '../util/json'
 
 const ALL_CURRENCIES: PriceCurrency[] = [...VALID_CURRENCIES]
 
@@ -28,13 +29,14 @@ export type CardPricesResponse = {
   cards: ScryfallCard[]
 }
 
-function parseNamesBody(body: Record<string, unknown>): string[] | string {
+/** The `names` field of a batch body, or its refusal as English plus its key. */
+function parseNamesBody(body: Record<string, unknown>): string[] | ApiMessage {
   const { names } = body
-  if (!Array.isArray(names) || !names.every((name) => typeof name === 'string')) {
-    return '"names" must be an array of strings'
+  if (!isStringArray(names)) {
+    return apiMessage('admin.api.field.notStringArray', { field: 'names' })
   }
   if (names.length > MAX_PRICE_NAMES) {
-    return `"names" must contain at most ${MAX_PRICE_NAMES} entries`
+    return apiMessage('admin.api.field.tooMany', { field: 'names', count: MAX_PRICE_NAMES })
   }
   return names
 }
@@ -49,7 +51,7 @@ export async function handleCardPrices(req: Request): Promise<Response> {
     const parsed = await readJsonObjectBody(req, MAX_PRICE_BODY_BYTES)
     if (!parsed.ok) return parsed.response
     const names = parseNamesBody(parsed.body)
-    if (typeof names === 'string') return apiError(plainMessage(names), 400)
+    if (isApiMessage(names)) return badRequest(names)
 
     const cards: ScryfallCard[] = []
     for (const name of [...new Set(names)]) {

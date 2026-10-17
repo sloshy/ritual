@@ -21,11 +21,16 @@ function parse(query: string): unknown {
 
 describe('parseCardSearchParams', () => {
   test('a missing q is refused', () => {
-    expect(parse('')).toBe('q is required.')
+    const refused = parseCardSearchParams(new URLSearchParams(''))
+    expect(keyedRefusal(refused)).toBe('"q" is required.')
+    expect(refused).toMatchObject({
+      messageKey: 'admin.api.field.required',
+      messageParams: { field: 'q' },
+    })
   })
 
   test('a blank q is refused rather than searching for nothing', () => {
-    expect(parse('q=%20%20')).toBe('q is required.')
+    expect(parse('q=%20%20')).toBe('"q" is required.')
   })
 
   test('an absent page means the first page, and warm defaults off', () => {
@@ -50,10 +55,20 @@ describe('parseCardSearchParams', () => {
     ['page=abc', 'abc'],
     ['page=1.5', '1.5'],
   ])('%s is refused with the offending value', (queryPart, raw) => {
-    expect(parse(`q=bolt&${queryPart}`)).toBe(`page must be a positive integer, got '${raw}'.`)
+    const refused = parseCardSearchParams(new URLSearchParams(`q=bolt&${queryPart}`))
+    expect(keyedRefusal(refused)).toBe(`Invalid "page" '${raw}'. Use a positive integer.`)
+    expect(refused).toMatchObject({
+      messageKey: 'admin.api.field.notPositiveInteger',
+      messageParams: { field: 'page', value: raw },
+    })
   })
 
-  test('warm accepts only true and false, never a coerced value', () => {
+  test('the refused value is the trimmed one the rule judged', () => {
+    const refused = parseCardSearchParams(new URLSearchParams('q=bolt&page=%20abc%20'))
+    expect(refused).toMatchObject({ messageParams: { field: 'page', value: 'abc' } })
+  })
+
+  test('warm accepts only true and false, in any case, never a coerced value', () => {
     expect(parse('q=bolt&warm=true')).toEqual({
       query: 'bolt',
       page: 1,
@@ -61,6 +76,13 @@ describe('parseCardSearchParams', () => {
       limit: DEFAULT_WARM_LIMIT,
     })
     expect(parse('q=bolt&warm=false')).toEqual({ query: 'bolt', page: 1, warm: false })
+    // The shared fixed-choice rule: case-insensitive, read as its canonical value.
+    expect(parse('q=bolt&warm=TRUE')).toEqual({
+      query: 'bolt',
+      page: 1,
+      warm: true,
+      limit: DEFAULT_WARM_LIMIT,
+    })
     expect(parse('q=bolt&warm=1')).toBe("Invalid warm '1'. Use one of: true, false.")
     expect(parse('q=bolt&warm=yes')).toBe("Invalid warm 'yes'. Use one of: true, false.")
   })
@@ -88,9 +110,18 @@ describe('parseCardSearchParams', () => {
   })
 
   test('a limit past one Scryfall page is refused', () => {
-    expect(parse(`q=bolt&limit=${SCRYFALL_PAGE_SIZE + 1}`)).toBe(
-      `limit must be at most ${SCRYFALL_PAGE_SIZE} (one Scryfall page), got '${SCRYFALL_PAGE_SIZE + 1}'.`,
+    const tooLarge = parseCardSearchParams(
+      new URLSearchParams(`q=bolt&limit=${SCRYFALL_PAGE_SIZE + 1}`),
     )
-    expect(parse('q=bolt&limit=0')).toBe("Invalid limit '0'. Use a positive integer.")
+    expect(keyedRefusal(tooLarge)).toBe(
+      `"limit" must be at most ${SCRYFALL_PAGE_SIZE} (one Scryfall page), got '${SCRYFALL_PAGE_SIZE + 1}'.`,
+    )
+    expect(tooLarge).toMatchObject({
+      messageKey: 'admin.api.cardSearch.limitTooLarge',
+      messageParams: { max: SCRYFALL_PAGE_SIZE, value: String(SCRYFALL_PAGE_SIZE + 1) },
+    })
+    const zero = parseCardSearchParams(new URLSearchParams('q=bolt&limit=0'))
+    expect(keyedRefusal(zero)).toBe('Invalid "limit" \'0\'. Use a positive integer.')
+    expect(zero).toMatchObject({ messageParams: { field: 'limit', value: '0' } })
   })
 })

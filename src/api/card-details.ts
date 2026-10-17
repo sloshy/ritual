@@ -3,7 +3,8 @@
 // on the admin server only.
 import { getCardPrintingsResult } from '../scryfall'
 import { printingsAreComplete } from '../card/card-printing'
-import { caughtMessage, refusalOf } from './http'
+import { caughtMessage, statusForError } from './http'
+import { apiMessage, pickMessage } from './result'
 import type { SyncMessage } from '../sync/message'
 import { detailCard, type CardDetails } from './card-summary'
 
@@ -26,8 +27,17 @@ export type CardDetailsFailure = SyncMessage & {
 /** `GET /api/card-details` body. */
 export type CardDetailsResponse = CardDetailsSuccess | CardDetailsFailure
 
-function cardRefusal(message: string | SyncMessage, status: number): Response {
-  const body: CardDetailsFailure = { success: false, card: null, ...refusalOf(message) }
+/**
+ * Where an unknown name's refusal points a reader: the autocomplete route, and
+ * the MCP tool that wraps it. A test pins that the MCP server still registers
+ * the tool under this name (`src/mcp` sits above this layer, so it cannot be
+ * typed against the catalogue here).
+ */
+export const AUTOCOMPLETE_ROUTE = '/api/autocomplete'
+export const AUTOCOMPLETE_TOOL = 'autocomplete_card'
+
+function cardRefusal(message: SyncMessage, status: number): Response {
+  const body: CardDetailsFailure = { success: false, card: null, ...pickMessage(message) }
   return Response.json(body, { status })
 }
 
@@ -53,15 +63,18 @@ export async function handleCardDetails(req: Request): Promise<Response> {
     // Trimmed at the parse boundary, not just for the emptiness check: the name
     // is a cache key, and `?name=%20Sol+Ring` must resolve like `Sol Ring`.
     const name = new URL(req.url).searchParams.get('name')?.trim()
-    if (!name) return cardRefusal('name is required.', 400)
+    if (!name) return cardRefusal(apiMessage('admin.api.field.required', { field: 'name' }), 400)
 
     const result = await getCardPrintingsResult(name)
     const printings = result.printings
     if (printings.length === 0) {
-      return cardRefusal(
-        `No card named '${name}'. Names are matched exactly — resolve a partial name with /api/autocomplete (MCP: the autocomplete_card tool).`,
-        404,
-      )
+      // The route and the MCP tool are names a reader types, never translated.
+      const refusal = apiMessage('admin.api.card.unknownName', {
+        name,
+        route: AUTOCOMPLETE_ROUTE,
+        tool: AUTOCOMPLETE_TOOL,
+      })
+      return cardRefusal(refusal, 404)
     }
 
     const body: CardDetailsSuccess = {
@@ -70,6 +83,6 @@ export async function handleCardDetails(req: Request): Promise<Response> {
     }
     return Response.json(body)
   } catch (error) {
-    return cardRefusal(caughtMessage(error), 500)
+    return cardRefusal(caughtMessage(error), statusForError(error))
   }
 }

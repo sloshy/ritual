@@ -15,9 +15,14 @@
  */
 
 import { DEFAULT_SECTION, type DeckData, type DeckSection } from '../../list/deck'
-import { parseNonNegativeInteger, parsePositiveInteger } from '../../util/parse-number'
 import { matchesNameTerms, normalizeCardName, splitNameTerms } from '../../card/term-match'
-import { apiMessage, isApiMessage, parseEnumParam, type ApiMessage } from '../../api/result'
+import {
+  isApiMessage,
+  nonNegativeIntegerParam,
+  parseEnumParam,
+  positiveIntegerParam,
+  type ApiMessage,
+} from '../../api/result'
 
 /** The accepted `view` values, in the order an error message lists them. */
 export const LIST_LOAD_VIEWS = ['full', 'cards', 'summary'] as const
@@ -97,20 +102,13 @@ export function parseListLoadParams(params: URLSearchParams): ListLoadParams | A
     if (terms.length > 0) parsed.nameTerms = terms
   }
 
-  const rawLimit = params.get('limit')?.trim()
-  if (rawLimit) {
-    const limit = parsePositiveInteger(rawLimit)
-    if (limit === undefined) return apiMessage('admin.api.load.limitInvalid', { value: rawLimit })
-    parsed.limit = limit
-  }
+  const limit = positiveIntegerParam(params, 'limit')
+  if (isApiMessage(limit)) return limit
+  if (limit !== undefined) parsed.limit = limit
 
-  const rawOffset = params.get('offset')?.trim()
-  if (rawOffset) {
-    const offset = parseNonNegativeInteger(rawOffset)
-    if (offset === undefined)
-      return apiMessage('admin.api.load.offsetInvalid', { value: rawOffset })
-    parsed.offset = offset
-  }
+  const offset = nonNegativeIntegerParam(params, 'offset')
+  if (isApiMessage(offset)) return offset
+  if (offset !== undefined) parsed.offset = offset
 
   return parsed
 }

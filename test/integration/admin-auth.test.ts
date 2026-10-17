@@ -1,5 +1,6 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import fs from 'node:fs/promises'
+import type { MessageKey } from '../../src/i18n/messages/en'
 import path from 'node:path'
 import {
   createAdminUser,
@@ -279,7 +280,7 @@ describe('admin server refusals (Integration)', () => {
       expect(resp.status).toBe(404)
       const body = (await resp.json()) as ApiErrorResponse
       expect(body.messageKey).toBe('admin.api.server.notFound')
-      expect(keyedRefusal(body)).toBe('Not Found')
+      expect(keyedRefusal(body)).toBe('Not found')
     } finally {
       await server.stop(true)
     }
@@ -320,6 +321,7 @@ describe('admin server refusals (Integration)', () => {
       const body = (await resp.json()) as ApiErrorResponse & { retryAfterSeconds: number }
       expect(body.success).toBe(false)
       expect(keyedRefusal(body)).toBe('Too many failed attempts. Try again later.')
+      expect(body.messageKey).toBe('admin.api.login.rateLimited')
       expect(body.retryAfterSeconds).toBeGreaterThan(0)
       expect(resp.headers.get('Retry-After')).toBe(String(body.retryAfterSeconds))
     } finally {
@@ -364,16 +366,24 @@ describe.each(AUTH_ROUTES)('POST $route body shape (Integration)', ({ route, han
 
   // A malformed body is the caller's mistake: a 400 that says so, never a 500
   // or a credentials refusal that would send the user re-typing a password.
-  test.each([
-    ['a body that is not JSON', '{"username": ', 'Request body must be JSON.'],
+  test.each<[string, string, MessageKey, string]>([
+    [
+      'a body that is not JSON',
+      '{"username": ',
+      'admin.api.body.notJson',
+      'Request body must be JSON.',
+    ],
     [
       'a JSON body that is not an object',
       '["admin", "hunter22"]',
+      'admin.api.body.notObject',
       'Request body must be a JSON object.',
     ],
-  ])('%s is a 400', async (_label, body, message) => {
+  ])('%s is a 400', async (_label, body, key, message) => {
     const resp = await post(body)
     expect(resp.status).toBe(400)
-    expect(((await resp.json()) as ApiErrorResponse).message).toBe(message)
+    const refusal = (await resp.json()) as ApiErrorResponse
+    expect(keyedRefusal(refusal)).toBe(message)
+    expect(refusal.messageKey).toBe(key)
   })
 })

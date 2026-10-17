@@ -2,10 +2,15 @@
 // server owns", not "handlers both servers mount". This one is currently mounted
 // on the admin server only.
 import { cacheRealPrintings, fetchSearchPage } from '../scryfall'
-import { caughtMessage, refusalOf } from './http'
-import { isApiMessage, parseEnumParam, plainMessage, type ApiMessage } from './result'
+import { caughtMessage, refusalOf, statusForError } from './http'
+import {
+  apiMessage,
+  isApiMessage,
+  parseEnumParam,
+  positiveIntegerParam,
+  type ApiMessage,
+} from './result'
 import type { SyncMessage } from '../sync/message'
-import { invalidLimitMessage, parsePositiveInteger } from '../util/parse-number'
 import { promoteFullNameMatches } from '../card/term-match'
 import { summarizeCard, type CardSummary } from './card-summary'
 
@@ -52,61 +57,52 @@ export type CardSearchParams = {
 
 /**
  * Parse the query string of `GET /api/card-search` into {@link CardSearchParams},
- * or return the refusal explaining why it is not usable — English, keyed when it
- * has a catalog entry (an invalid `warm`). Values are
- * trimmed first, since a query string carries whatever whitespace the caller
- * encoded; `page` and `limit` are then held to {@link parsePositiveInteger}, the
- * same rule every other positive-integer input in Ritual uses. A blank value
- * means absent, matching how the other routes treat a blank filter. The query is
- * returned trimmed, since that is what is actually sent to Scryfall.
+ * or return the refusal explaining why it is not usable — English plus its key,
+ * the parameter it names an untranslated param.
+ *
+ * Values are trimmed first, since a query string carries whatever whitespace
+ * the caller encoded, and a blank value means absent, matching how the other
+ * routes treat a blank filter. `page` and `limit` are held to the shared
+ * positive-integer rule ({@link positiveIntegerParam}). The query is returned
+ * trimmed, since that is what is actually sent to Scryfall.
  *
  * `warm` is **validated, never coerced** (the sync-request convention): it
  * decides whether the request writes to the local card cache, so an
- * unrecognized value is refused rather than quietly read as "no". When `warm` is
- * on and no `limit` was given, `limit` defaults to {@link DEFAULT_WARM_LIMIT} —
- * the cap the folded-in `POST /api/search-cards` always applied.
+ * unrecognized value is refused rather than quietly read as "no". It is matched
+ * case-insensitively, as every fixed-choice value is. When `warm` is on and no
+ * `limit` was given, `limit` defaults to {@link DEFAULT_WARM_LIMIT} — the cap
+ * the folded-in `POST /api/search-cards` always applied.
  */
 export function parseCardSearchParams(params: URLSearchParams): CardSearchParams | ApiMessage {
-  const rawQuery = params.get('q')
-  if (rawQuery === null || rawQuery.trim() === '') return plainMessage('q is required.')
-  const query = rawQuery.trim()
+  const query = params.get('q')?.trim()
+  if (!query) return apiMessage('admin.api.field.required', { field: 'q' })
 
-  let page = 1
-  const rawPage = params.get('page')
-  if (rawPage !== null && rawPage.trim() !== '') {
-    const parsed = parsePositiveInteger(rawPage.trim())
-    if (parsed === undefined) {
-      return plainMessage(`page must be a positive integer, got '${rawPage}'.`)
-    }
-    page = parsed
-  }
+  const page = positiveIntegerParam(params, 'page')
+  if (isApiMessage(page)) return page
 
   let warm = false
-  const rawWarm = params.get('warm')
-  if (rawWarm !== null && rawWarm.trim() !== '') {
+  const rawWarm = params.get('warm')?.trim()
+  if (rawWarm) {
     // English plus its key, never the server's own UI language.
-    const parsed = parseEnumParam(rawWarm.trim(), ['true', 'false'] as const, 'warm')
-    if (isApiMessage(parsed)) return parsed
-    warm = parsed === 'true'
+    const warmChoice = parseEnumParam(rawWarm, ['true', 'false'] as const, 'warm')
+    if (isApiMessage(warmChoice)) return warmChoice
+    warm = warmChoice === 'true'
   }
 
-  const parsed: CardSearchParams = { query, page, warm }
+  const result: CardSearchParams = { query, page: page ?? 1, warm }
 
-  const rawLimit = params.get('limit')
-  if (rawLimit !== null && rawLimit.trim() !== '') {
-    const limit = parsePositiveInteger(rawLimit.trim())
-    if (limit === undefined) return plainMessage(invalidLimitMessage(rawLimit))
-    if (limit > SCRYFALL_PAGE_SIZE) {
-      return plainMessage(
-        `limit must be at most ${SCRYFALL_PAGE_SIZE} (one Scryfall page), got '${rawLimit}'.`,
-      )
-    }
-    parsed.limit = limit
-  } else if (warm) {
-    parsed.limit = DEFAULT_WARM_LIMIT
+  const limit = positiveIntegerParam(params, 'limit')
+  if (isApiMessage(limit)) return limit
+  if (limit !== undefined && limit > SCRYFALL_PAGE_SIZE) {
+    return apiMessage('admin.api.cardSearch.limitTooLarge', {
+      max: SCRYFALL_PAGE_SIZE,
+      value: String(limit),
+    })
   }
+  if (limit !== undefined) result.limit = limit
+  else if (warm) result.limit = DEFAULT_WARM_LIMIT
 
-  return parsed
+  return result
 }
 
 function searchRefusal(message: string | SyncMessage, page: number, status: number): Response {
@@ -184,6 +180,6 @@ export async function handleCardSearch(req: Request): Promise<Response> {
     if (result.data.total_cards !== undefined) body.totalCards = result.data.total_cards
     return Response.json(body)
   } catch (error) {
-    return searchRefusal(caughtMessage(error), parsed.page, 500)
+    return searchRefusal(caughtMessage(error), parsed.page, statusForError(error))
   }
 }

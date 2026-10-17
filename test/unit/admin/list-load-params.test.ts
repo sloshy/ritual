@@ -64,6 +64,10 @@ describe('parseListLoadParams', () => {
     expect(parse('')).toEqual({ view: 'full', offset: 0 })
   })
 
+  test('reads view case-insensitively, as its canonical value', () => {
+    expect(parse('view=Cards')).toEqual({ view: 'cards', offset: 0 })
+  })
+
   test.each(['full', 'cards', 'summary'] as const)('accepts view=%s', (view) => {
     expect(parse(`view=${view}`)).toEqual({ view, offset: 0 })
   })
@@ -93,20 +97,30 @@ describe('parseListLoadParams', () => {
 
   test('limit must be a positive integer', () => {
     expect(parse('limit=5')).toEqual({ view: 'full', offset: 0, limit: 5 })
-    expect(keyedRefusal(parse('limit=0'))).toBe("Invalid limit '0'. Use a positive integer.")
-    expect(keyedRefusal(parse('limit=-1'))).toBe("Invalid limit '-1'. Use a positive integer.")
-    expect(keyedRefusal(parse('limit=1.5'))).toBe("Invalid limit '1.5'. Use a positive integer.")
+    expect(keyedRefusal(parse('limit=0'))).toBe('Invalid "limit" \'0\'. Use a positive integer.')
+    expect(keyedRefusal(parse('limit=-1'))).toBe('Invalid "limit" \'-1\'. Use a positive integer.')
+    expect(keyedRefusal(parse('limit=1.5'))).toBe(
+      'Invalid "limit" \'1.5\'. Use a positive integer.',
+    )
+    expect(parse('limit=%201.5%20')).toMatchObject({
+      messageKey: 'admin.api.field.notPositiveInteger',
+      messageParams: { field: 'limit', value: '1.5' },
+    })
   })
 
   test('offset accepts 0 — the ordinary "start at the beginning" value', () => {
     expect(parse('offset=0')).toEqual({ view: 'full', offset: 0 })
     expect(parse('offset=7')).toEqual({ view: 'full', offset: 7 })
     expect(keyedRefusal(parse('offset=-1'))).toBe(
-      "Invalid offset '-1'. Use a non-negative integer.",
+      'Invalid "offset" \'-1\'. Use a non-negative integer.',
     )
     expect(keyedRefusal(parse('offset=01'))).toBe(
-      "Invalid offset '01'. Use a non-negative integer.",
+      'Invalid "offset" \'01\'. Use a non-negative integer.',
     )
+    expect(parse('offset=01')).toMatchObject({
+      messageKey: 'admin.api.field.notNonNegativeInteger',
+      messageParams: { field: 'offset', value: '01' },
+    })
   })
 })
 

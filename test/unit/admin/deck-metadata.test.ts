@@ -44,7 +44,7 @@ describe('parseDeckMetadataBody', () => {
 
   test('a non-string contentHash is refused rather than silently skipping the check', () => {
     expect(keyedRefusal(parseDeckMetadataBody({ contentHash: 42, description: 'Hi' }))).toBe(
-      'contentHash must be a string.',
+      '"contentHash" must be a string.',
     )
   })
 

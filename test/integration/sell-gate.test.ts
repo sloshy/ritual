@@ -82,7 +82,11 @@ describe('admin sell-mode gate (Integration)', () => {
       // envelope every admin route answers with — a client branching on
       // `success === false` sees it, and the MCP dispatcher reads `message`
       // rather than degrading the tool error to "Admin request failed".
-      expect(await response?.json()).toEqual({ success: false, message: 'Not found' })
+      expect(await response?.json()).toEqual({
+        success: false,
+        message: 'Not found',
+        messageKey: 'admin.api.server.notFound',
+      })
     }
   })
 

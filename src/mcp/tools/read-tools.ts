@@ -19,7 +19,7 @@ import {
 } from '../schemas'
 import type { AutocompleteResponse } from '../../api/autocomplete'
 import type { CardDetailsSuccess } from '../../api/card-details'
-import type { CardPriceResponse } from '../../api/card-price'
+import type { CardPriceSuccess } from '../../api/card-price'
 import type { CardPrintingsSuccess } from '../../api/card-printings'
 import type { CardSearchSuccess } from '../../api/card-search'
 import type { CacheStatusResponse } from '../../admin/api/cache'
@@ -622,7 +622,7 @@ export function registerReadTools(server: McpServer): void {
         const data = (await callApi(
           'GET',
           `/api/card-price?name=${encodeURIComponent(name)}`,
-        )) as CardPriceResponse
+        )) as CardPriceSuccess
         return {
           name,
           representative: summarizePrintingOrNull(data.representative),

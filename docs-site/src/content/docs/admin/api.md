@@ -36,6 +36,8 @@ Every route refuses a request with the same body, whatever the status — and so
 
 `messageKey` and `messageParams` follow [the message triple](#the-message-triple): present on a keyed refusal, absent when the prose has no catalog entry. A refusal naming a list that does not resolve ([Diff Lists](#diff-lists), [Export Cards](#export-cards)) carries the list resolver's `errors.resolveList.*` key, and its params may nest (the ambiguous matches are a list of messages).
 
+A request whose shape is wrong is refused with a shared family of keys wherever a route's check is a generic one (a route with a field of its own, such as `columns` on [Export Cards](#export-cards), words its refusal for that field). The body itself: `admin.api.body.notJson` (not valid JSON), `admin.api.body.notObject` (JSON, but not an object) and `admin.api.body.tooLarge` (a `413`, see [Request size limits](#request-size-limits)). A field or query parameter: `admin.api.field.*`, whose `field` param names it exactly as the request spelled it, an indexed path included (`printings[3].set`). The family is `required`, `notBoolean`, `notString`, `blank` (missing, or empty once trimmed), `notObject`, `notArray`, `notStringArray`, `tooMany` (more entries than one request may carry, the maximum as `count`), `notPositiveInteger` and `notNonNegativeInteger` (the value sent, trimmed, as `value`: an invalid `limit`, `page` or `offset`), plus `credentialsRequired` for a sign-in form missing its `username` or `password`. The English quotes the field: `"printings[3].set" must be a non-empty string.`, `Invalid "limit" 'abc'. Use a positive integer.` A value outside a fixed set of choices is `errors.enum.invalid` (or `errors.enum.type` for one that is not a string), with `field`, `value` and the comma-joined `choices`.
+
 The list-file engines' refusals are keyed the same way: a [create, rename or delete](#list-lifecycle-responses) refused (`domain.list.lifecycle.*`, or `domain.list.name.unusable` for a name with no usable file-name characters), an unknown deck format (`domain.list.deckFormat.invalid`, whose `formats` is a `{ list, join: "unit" }`), a cover image, custom-art reference or description the grammar refuses (`domain.list.image.*`, `domain.list.art.*`, `domain.list.description.*`; the keys it does not accept nest as a `{ list, join: "unit" }`), a metadata or cover write over front matter that is not a readable mapping, a cover naming no card of the list, an unreadable `.art.json`, and a [save](#save-a-list) refused because a rewrite would delete content the parser cannot re-emit (`domain.list.unreadableContent`, whose `problems` param is a `{ list, join: "clauses" }` of nested messages: the parser's own warnings, keyed like the load's [`warnings`](#load-deck), and, for a fenced code block, `domain.list.fencedContent`), and a save whose cross-list moves cannot reach their other list (`domain.list.move.*`: the list is gone, holds no copy to take, or cannot be staged — the last nests the staging refusal as its `reason`, and each names the list as a nested `domain.change.listRef` message).
 
 The card vocabulary's refusals are keyed too (`domain.card.*`): a label set a request names (`domain.card.label.*`, or `errors.label.exclusive` / `errors.label.contradictory` for a combination the rule forbids), a tag or category (`domain.card.tag.*`, `domain.card.category.*`, whose `rule` param nests the shape rule as its own message), a note (`domain.card.note.invalid`), a set code (`domain.card.setCode.invalid`) and a card language (`domain.card.language.invalidField`). A change payload one of them refused nests it as the `detail` of `domain.changes.problem.fieldRejected`.
@@ -50,13 +52,13 @@ A few routes carry extra fields on failure where they are part of the wire contr
 
 - [Card Details](#card-details) adds `card: null`.
 - [Card Search](#card-search) keeps its paging fields and an empty `cards` array.
-- [Card Autocomplete](#card-autocomplete) and [Card Printings](#card-printings) use one shape for success and failure.
+- [Card Autocomplete](#card-autocomplete) uses one shape for success and failure. [Card Printings](#card-printings) fails with `printings: []`, [Card Price](#card-price) with `printings: []` and its printing fields `null`, and Cards with `cards: []`, each beside the message triple.
 - A save that loses an optimistic-concurrency race carries `conflict: true` with its `409`.
 - A [save](#save-a-list) refused because a change missed its card carries `unmatched`, one entry per change.
 
 ### Request size limits
 
-Every route caps its request body and answers `413` past the cap. The bytes are counted as they arrive, so the cap holds for a chunked body or one that declares no `Content-Length`.
+Every route caps its request body and answers `413` past the cap, keyed `admin.api.body.tooLarge` with the route's limit in exact bytes as `messageParams.count` (`"Request body too large (limit 10240 bytes)"`). The bytes are counted as they arrive, so the cap holds for a chunked body or one that declares no `Content-Length`.
 
 | Routes                                                                                                                    | Cap           |
 | ------------------------------------------------------------------------------------------------------------------------- | ------------- |
@@ -537,7 +539,7 @@ There is no `includePrices` parameter; each client drops the price block itself 
 
 `complete` is `false` when the card cache holds no printing list for the name and the response came from the single-card Scryfall fallback. The one printing returned is whatever that lookup found, **not** the card's only printing, so do not present the list as exhaustive. Run [`ritual cache preload-all`](/commands/cache/) to get a real one.
 
-A refusal keeps the shape — `success: false`, `printings: []` — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
+A refusal keeps the shape — `success: false`, `printings: []` — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry. A missing `name` is `admin.api.field.required` and a malformed `limit` `admin.api.field.notPositiveInteger` (see [Error responses](#error-responses)); so is a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
 
 ## Card Price
 
@@ -545,7 +547,7 @@ A refusal keeps the shape — `success: false`, `printings: []` — plus the [me
 GET /api/card-price?name=<cardName>
 ```
 
-Get price data for a card, including representative and cheapest printings for all currencies. Cached data older than 24 hours is refreshed from Scryfall. A card name with no printings returns `404`.
+Get price data for a card, including representative and cheapest printings for all currencies. Cached data older than 24 hours is refreshed from Scryfall. A card name with no printings returns `404` (`admin.api.card.noPrintings`, with the `name` sent); a missing `name` is a `400` (`admin.api.field.required`).
 
 **Query Parameters:**
 
@@ -573,7 +575,7 @@ Get price data for a card, including representative and cheapest printings for a
 | `lowestPriceCardEur` | The cheapest EUR printing                            |
 | `lowestPriceCardTix` | The cheapest MTGO Tix printing                       |
 
-A failure answers `success: false`, `printings: []` and the three printing fields `null`, plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
+A failure answers `success: false`, `printings: []` and the four printing fields (`representative`, `lowestPriceCard`, `lowestPriceCardEur`, `lowestPriceCardTix`) `null`, plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
 
 ## Card Details
 
@@ -593,7 +595,7 @@ Oracle fields are the same on every printing, so the response describes _the car
 | --------- | --------------- | -------- |
 | `name`    | Exact card name | Yes      |
 
-A name that matches nothing returns `404` with a message pointing at [`/api/autocomplete`](#card-autocomplete). A missing or blank `name` is a `400`. Every error response keeps the success shape — `success: false` and `card: null` — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
+A name that matches nothing returns `404` with a message pointing at [`/api/autocomplete`](#card-autocomplete), keyed `admin.api.card.unknownName`: `name` is the name sent, and `route` (`/api/autocomplete`) and `tool` (`autocomplete_card`, the MCP tool) are identifiers that stay as they are in any language. A missing or blank `name` is a `400` (`admin.api.field.required`). Every error response keeps the success shape — `success: false` and `card: null` — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do.
 
 **Response:**
 
@@ -667,7 +669,7 @@ Error handling:
 - A query Scryfall itself refuses (a syntax error, an unknown filter) is a `400` whose `message` carries Scryfall's explanation.
 - A failure on Scryfall's side (a `5xx`, a network error) is a `500` — in `warm=true` mode too, never an empty `200`.
 
-Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do. An invalid `warm` is keyed too (`errors.enum.invalid`).
+Every error response keeps the success shape — `success: false`, the requested `page`, `hasMore: false`, an empty `cards` array — plus the [message triple](#the-message-triple): `message` (English), and `messageKey` and `messageParams` when the failure has a catalog entry — a lookup that failed inside the card cache, such as a failed [`--cache-server`](/commands/cache/) request (`domain.cache.serverRequestFailed`, …), whose params may nest as an [error response](#error-responses)'s do. The query's own refusals are keyed too: a missing `q` (`admin.api.field.required`), a `page` or `limit` that is not a positive integer (`admin.api.field.notPositiveInteger`), a `limit` past one Scryfall page (`admin.api.cardSearch.limitTooLarge`, with `max` and the `value` sent) and an invalid `warm` (`errors.enum.invalid`). A Scryfall refusal is Scryfall's own text and has no key.
 
 **Response:**
 
@@ -872,7 +874,7 @@ The check reads the config per request, so a `config set` or a [`PUT /api/config
 
 A server running under `--sell-mode` opens these routes without anything on disk saying so; [`GET /api/config`](/admin/api/#get-config) reports it as `overrides: {"site.sellMode": true}` beside the stored `config`.
 
-The refusal body is the standard [error envelope](#error-responses), `{"success": false, "message": "Not found"}`, with no `messageKey`. The same gate applies to the MCP tools that reuse these handlers (`get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, `refresh_buylist`) — see [`mcp`](/commands/mcp/#sell-tools-need-sell-mode).
+The refusal body is the standard [error envelope](#error-responses), `{"success": false, "message": "Not found", "messageKey": "admin.api.server.notFound"}`: the same body the admin server answers for a path it has no route for. The same gate applies to the MCP tools that reuse these handlers (`get_sell_report`, `get_sell_cart`, `get_buylist_quotes`, `refresh_buylist`) — see [`mcp`](/commands/mcp/#sell-tools-need-sell-mode).
 :::
 
 ```
@@ -1062,6 +1064,9 @@ The buyer's current offer for specific printings, keyed by `set:collectorNumber:
 - `scryfallId` is optional but is the primary join key when present. `set`/`collectorNumber` always form the response key and drive the sku fallback for the ~0.5% of Card Kingdom products with no Scryfall id.
 - `language` (optional) is the entry's [language code](/configuration/#default-language); absent means English. The buyer feeds are English-only, so a non-`en` printing is never matched: its key is absent from `quotes`, never quoted at the English product's price.
 - At most 500 printings per request.
+- `buyer`, each `finish` and each `language` are matched case-insensitively (like the CLI's `--finish`), and `set` and `collectorNumber` are trimmed. The response's quote keys always use the canonical lowercase finish, so a request that sends `"finish": "FOIL"` finds its quote under `…:foil`.
+
+A malformed body is refused with `400` in English plus its key: the [request-field family](#error-responses) (`admin.api.field.*`) with the offending entry's indexed path as `field` (`printings[3].set`), `errors.enum.*` for a `buyer` or `finish` outside its choices, and `domain.card.language.invalidField` for an unknown `language`.
 
 **Response:**
 
@@ -2018,7 +2023,7 @@ An unknown list is a `404`.
 
 Clearing the last card's art removes the sidecar rather than writing `{}`. When git auto-commit is enabled the sidecar is committed with the message `Update custom art for <type> <slug>`, but only when a file was actually written or removed.
 
-The images themselves are served read-only, behind the same login, at `GET /art/<relpath>` from the configured [`artDir`](/configuration/#directory-options), which lets the editor preview a local file. Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served (the same allowlist a `file` reference is validated against), and any path leaving the art directory is a `404`.
+The images themselves are served read-only, behind the same login, at `GET /art/<relpath>` from the configured [`artDir`](/configuration/#directory-options), which lets the editor preview a local file. Only `.avif`, `.gif`, `.jpeg`, `.jpg`, `.png`, and `.webp` are served (the same allowlist a `file` reference is validated against), and any path leaving the art directory is a `404`. That `404`'s body is `{"error": "Not found", "errorKey": "admin.api.server.notFound"}`: the English under `error`, its key beside it.
 
 ## Deck Sync Status
 

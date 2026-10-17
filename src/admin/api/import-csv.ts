@@ -171,7 +171,7 @@ export function handleImportCsv(req: Request): Promise<Response> {
     const mode = body.mode ?? 'create'
 
     const name = body.name.trim()
-    if (name === '') return badRequest(apiMessage('admin.api.importCsv.nameRequired'))
+    if (name === '') return badRequest(apiMessage('admin.api.field.required', { field: 'name' }))
 
     let format: DeckFormatKey | undefined
     if (body.format !== undefined) {

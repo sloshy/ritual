@@ -16,7 +16,6 @@
 import { apiError, errorResponse, nestedRefusal, readJsonObjectBody } from './http'
 import {
   DEFAULT_BUYER,
-  isBuyerId,
   quoteKey,
   BUYERS,
   type BuyerId,
@@ -34,9 +33,10 @@ import {
 } from '../cardkingdom'
 import { CARD_LANGUAGES, isCardLanguage } from '../card/card-language'
 import { isSyncMessage, syncList, syncMessage, type SyncMessage } from '../sync/message'
-import { isFinish } from '../card/finish-condition'
+import { VALID_FINISHES } from '../card/finish-condition'
+import { isRecord } from '../util/json'
 import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
-import { plainMessage, type NotAMessage } from './result'
+import { apiMessage, isApiMessage, parseEnumParam, type NotAMessage } from './result'
 
 /**
  * The cached buyer feed, or a 503 naming every way to download it. The buylist
@@ -86,62 +86,79 @@ const SUCCESS_IS_NOT_A_MESSAGE: [NotAMessage<BuylistQuoteRequest | BuylistQuoteB
   : true = true
 void SUCCESS_IS_NOT_A_MESSAGE
 
-function parsePrinting(value: unknown, i: number): BuylistQuoteRequest | SyncMessage {
-  if (!value || typeof value !== 'object')
-    return plainMessage(`"printings[${i}]" must be an object`)
-  const raw = value as Record<string, unknown>
-  if (typeof raw['set'] !== 'string' || raw['set'] === '') {
-    return plainMessage(`"printings[${i}].set" must be a non-empty string`)
+/** A string field with its surrounding spaces removed, or `''` when it is not text. */
+function trimmedText(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function parsePrinting(raw: unknown, i: number): BuylistQuoteRequest | SyncMessage {
+  // The indexed path is wire vocabulary, spliced into the refusal untranslated.
+  const field = `printings[${i}]`
+  if (!isRecord(raw)) return apiMessage('admin.api.field.notObject', { field })
+  const { set: rawSet, collectorNumber: rawNumber, finish: rawFinish, scryfallId, language } = raw
+  // Trimmed before the emptiness check, so a whitespace-only value is blank.
+  const set = trimmedText(rawSet)
+  if (set === '') return apiMessage('admin.api.field.blank', { field: `${field}.set` })
+  const collectorNumber = trimmedText(rawNumber)
+  if (collectorNumber === '') {
+    return apiMessage('admin.api.field.blank', { field: `${field}.collectorNumber` })
   }
-  if (typeof raw['collectorNumber'] !== 'string' || raw['collectorNumber'] === '') {
-    return plainMessage(`"printings[${i}].collectorNumber" must be a non-empty string`)
-  }
-  const finish = raw['finish']
-  if (typeof finish !== 'string' || !isFinish(finish)) {
-    return plainMessage(`"printings[${i}].finish" must be one of: nonfoil, foil, etched`)
-  }
-  const scryfallId = raw['scryfallId']
+  // Matched case-insensitively, like every fixed-choice value; the canonical
+  // (lowercase) finish is what the response's quote keys use.
+  const finish = parseEnumParam(rawFinish, VALID_FINISHES, `${field}.finish`)
+  if (isApiMessage(finish)) return finish
   if (scryfallId !== undefined && typeof scryfallId !== 'string') {
-    return plainMessage(`"printings[${i}].scryfallId" must be a string when present`)
+    return apiMessage('admin.api.field.notString', { field: `${field}.scryfallId` })
   }
-  const language = raw['language']
-  if (language !== undefined && (typeof language !== 'string' || !isCardLanguage(language))) {
+  // Folded to lowercase like the finish: language codes are lowercase.
+  const languageCode = typeof language === 'string' ? language.toLowerCase() : language
+  if (
+    languageCode !== undefined &&
+    (typeof languageCode !== 'string' || !isCardLanguage(languageCode))
+  ) {
     return syncMessage('domain.card.language.invalidField', {
-      value: String(JSON.stringify(language)),
-      field: `printings[${i}].language`,
+      value: JSON.stringify(language),
+      field: `${field}.language`,
       languages: syncList(CARD_LANGUAGES, 'unit'),
     })
   }
   return {
     // Set codes are lowercase internally, whatever a client sent.
-    set: raw['set'].toLowerCase(),
-    collectorNumber: raw['collectorNumber'],
+    set: set.toLowerCase(),
+    collectorNumber,
     finish,
     ...(scryfallId !== undefined && scryfallId !== '' ? { scryfallId } : {}),
     // Forwarded so the matcher's English-only gate sees the entry's language —
     // a foreign card must never be quoted at the English product's price.
-    ...(language !== undefined ? { language } : {}),
+    ...(languageCode !== undefined ? { language: languageCode } : {}),
   }
 }
 
 /**
- * Parse a quote request body; returns the refusal on a bad one — a message:
- * keyed (English plus its key) where the refusal has a catalog entry, its
- * English alone (`plainMessage`) where it does not yet.
+ * Parse a quote request body; returns the refusal on a bad one — English plus
+ * its key, the field it names (`printings[3].set`) an untranslated param. A
+ * card-language refusal nests its valid codes, so the refusal is a
+ * {@link SyncMessage} rather than a flat `ApiMessage`.
  */
 export function parseBuylistQuoteBody(
   body: Record<string, unknown>,
 ): BuylistQuoteBody | SyncMessage {
-  const rawBuyer = body['buyer']
-  if (rawBuyer !== undefined && !isBuyerId(rawBuyer)) {
-    return plainMessage(`"buyer" must be one of: ${BUYERS.join(', ')}`)
+  let buyer: BuyerId = DEFAULT_BUYER
+  if (body['buyer'] !== undefined) {
+    const buyerChoice = parseEnumParam(body['buyer'], BUYERS, 'buyer')
+    if (isApiMessage(buyerChoice)) return buyerChoice
+    buyer = buyerChoice
   }
-  const rawPrintings = body['printings']
-  if (!Array.isArray(rawPrintings)) {
-    return plainMessage('"printings" must be an array')
+  const printingsField = body['printings']
+  if (!Array.isArray(printingsField)) {
+    return apiMessage('admin.api.field.notArray', { field: 'printings' })
   }
+  const rawPrintings: unknown[] = printingsField
   if (rawPrintings.length > MAX_BUYLIST_PRINTINGS) {
-    return plainMessage(`"printings" must contain at most ${MAX_BUYLIST_PRINTINGS} entries`)
+    return apiMessage('admin.api.field.tooMany', {
+      field: 'printings',
+      count: MAX_BUYLIST_PRINTINGS,
+    })
   }
   const printings: BuylistQuoteRequest[] = []
   for (const [i, value] of rawPrintings.entries()) {
@@ -149,7 +166,7 @@ export function parseBuylistQuoteBody(
     if (isSyncMessage(parsed)) return parsed
     printings.push(parsed)
   }
-  return { buyer: rawBuyer ?? DEFAULT_BUYER, printings }
+  return { buyer, printings }
 }
 
 /**
@@ -233,8 +250,10 @@ export async function handleBuylistStatus(_req: Request): Promise<Response> {
  * The refusal uses the standard `apiError` envelope rather than a bare literal:
  * every admin client branches on `success === false`, and the MCP dispatcher
  * reads `message` — a body without it degrades a gated tool's error to the
- * meaningless "Admin request failed (HTTP 404)". The text stays English by
- * contract, like every other machine-facing refusal on these routes.
+ * meaningless "Admin request failed (HTTP 404)". It is the admin server's own
+ * 404 for a path with no route (`admin.api.server.notFound`), English plus its
+ * key like every other refusal on these routes, so a gated route reads exactly
+ * like one that is not there.
  */
 export function withBuylistFeedGate(handler: BuylistRouteHandler): BuylistRouteHandler {
   return async (req: Request): Promise<Response> => {
@@ -242,7 +261,7 @@ export function withBuylistFeedGate(handler: BuylistRouteHandler): BuylistRouteH
     // The `cardkingdom` price source opens these routes too: the admin editors
     // quote live to display CK retail prices, whether or not sell mode is on.
     if (!wantsCardKingdomFeed(config)) {
-      return apiError(plainMessage('Not found'), 404)
+      return apiError(apiMessage('admin.api.server.notFound'), 404)
     }
     return handler(req)
   }

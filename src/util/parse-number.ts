@@ -39,12 +39,3 @@ export function parseNonNegativeDecimal(raw: string): number | undefined {
   if (!/^\d+(?:\.\d+)?$/.test(trimmed)) return undefined
   return Number(trimmed)
 }
-
-/**
- * The one refusal wording for a malformed `limit` query parameter, shared by
- * every route that takes one. `limit` means the same thing on all of them, so a
- * client that learns the rule from one refusal has learned it everywhere.
- */
-export function invalidLimitMessage(raw: string): string {
-  return `Invalid limit '${raw}'. Use a positive integer.`
-}

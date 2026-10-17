@@ -28,6 +28,7 @@
 
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import { parseEnumField } from '../util/parse-enum'
+import { parseNonNegativeInteger, parsePositiveInteger } from '../util/parse-number'
 import {
   paramsOf,
   tDynamic,
@@ -113,6 +114,41 @@ export function parseEnumParam<T extends string>(
 ): T | ApiMessage {
   const parsed = parseEnumField(raw, values, field)
   return parsed.ok ? parsed.value : apiMessageOf(parsed.messageKey, parsed.messageParams)
+}
+
+/**
+ * A query parameter that must be a whole number of one or more: `undefined`
+ * when it is absent or blank (the routes read a blank value as absent), the
+ * number, or its refusal as English plus its key — `{field}` the parameter's
+ * name and `{value}` what was sent, trimmed, as the rule judged it. One rule
+ * and one wording for every route's `limit` and `page`.
+ */
+export function positiveIntegerParam(
+  params: URLSearchParams,
+  field: string,
+): number | undefined | ApiMessage {
+  const raw = params.get(field)?.trim()
+  if (!raw) return undefined
+  return (
+    parsePositiveInteger(raw) ??
+    apiMessage('admin.api.field.notPositiveInteger', { field, value: raw })
+  )
+}
+
+/**
+ * {@link positiveIntegerParam} for a parameter where zero is an ordinary
+ * value — an `offset`.
+ */
+export function nonNegativeIntegerParam(
+  params: URLSearchParams,
+  field: string,
+): number | undefined | ApiMessage {
+  const raw = params.get(field)?.trim()
+  if (!raw) return undefined
+  return (
+    parseNonNegativeInteger(raw) ??
+    apiMessage('admin.api.field.notNonNegativeInteger', { field, value: raw })
+  )
 }
 
 /**

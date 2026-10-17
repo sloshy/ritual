@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test'
-import { handleCardDetails, type CardDetailsFailure } from '../../../src/api/card-details'
+import {
+  AUTOCOMPLETE_TOOL,
+  handleCardDetails,
+  type CardDetailsFailure,
+} from '../../../src/api/card-details'
+import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
 import {
   clearCacheServerAddressOverride,
   setCacheServerAddressOverride,
@@ -59,4 +64,10 @@ describe('card routes behind a failing cache server', () => {
     )
     expect(body.message).toEndWith(': boom')
   })
+})
+
+// An unknown name's refusal tells the reader which MCP tool resolves a partial
+// name; a rename of that tool must not leave the pointer stale.
+test('card details points at an MCP tool the server registers', () => {
+  expect<readonly string[]>(MCP_TOOL_NAMES).toContain(AUTOCOMPLETE_TOOL)
 })

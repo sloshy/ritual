@@ -242,7 +242,7 @@ describe('parseCollectionSyncBody', () => {
       // Validated like the other flags: it decides whether a large batch of
       // additions is uploaded, so a truthy string must not read as "yes".
       body: { direction: 'push', csv: 'true' },
-      expected: 'csv must be a boolean.',
+      expected: '"csv" must be a boolean.',
     },
     {
       label: 'a request naming a CSV file, which only the CLI can write',

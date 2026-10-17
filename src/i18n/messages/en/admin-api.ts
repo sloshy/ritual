@@ -84,7 +84,6 @@ export const adminApiMessages = {
 
   // ── Archidekt session ─────────────────────────────────────────────────
   'admin.api.archidekt.loggedIn': 'Logged in as {username}',
-  'admin.api.archidekt.credentialsRequired': 'username and password are required',
 
   // ── Deck sync run summary ─────────────────────────────────────────────
   //
@@ -164,12 +163,11 @@ export const adminApiMessages = {
   'admin.api.server.forbidden': 'Forbidden',
   'admin.api.server.setupRequired': 'Setup required. Create an admin account first.',
   'admin.api.server.unauthorized': 'Unauthorized',
-  'admin.api.server.notFound': 'Not Found',
+  'admin.api.server.notFound': 'Not found',
   'admin.api.server.internalError': 'Internal server error',
 
   // ── Sign-in ───────────────────────────────────────────────────────────
   'admin.api.login.rateLimited': 'Too many failed attempts. Try again later.',
-  'admin.api.login.credentialsRequired': 'Username and password are required',
   'admin.api.login.inputTooLong': 'Input exceeds maximum length',
   'admin.api.login.invalidCredentials': 'Invalid username or password',
   'admin.api.login.totpRequired': 'TOTP code required',
@@ -178,7 +176,6 @@ export const adminApiMessages = {
 
   // ── First-run account ─────────────────────────────────────────────────
   'admin.api.setup.userExists': 'Admin user already exists',
-  'admin.api.setup.credentialsRequired': 'username and password are required',
   'admin.api.setup.usernameTooLong': 'Username is too long',
   'admin.api.setup.passwordTooLong': 'Password is too long',
   'admin.api.setup.passwordTooShort': {
@@ -190,7 +187,6 @@ export const adminApiMessages = {
 
   // ── Two-factor authentication ─────────────────────────────────────────
   'admin.api.totp.alreadyEnabled': 'TOTP is already enabled. Disable it first to reconfigure.',
-  'admin.api.totp.codeRequired': 'code is required',
   'admin.api.totp.noPendingSetup': 'No pending TOTP setup. Call /api/totp/setup first.',
   'admin.api.totp.codeInvalid': 'Invalid TOTP code. Check your authenticator app and try again.',
   'admin.api.totp.enabled': 'TOTP enabled successfully',
@@ -233,11 +229,8 @@ export const adminApiMessages = {
     collection: 'New collection name is required',
     wanted: 'New wanted list name is required',
   },
-  'admin.api.list.confirmNameRequired': 'confirmName is required',
 
   // ── Loading a list ────────────────────────────────────────────────────
-  'admin.api.load.limitInvalid': "Invalid limit '{value}'. Use a positive integer.",
-  'admin.api.load.offsetInvalid': "Invalid offset '{value}'. Use a non-negative integer.",
   'admin.api.cardIndex.listTypeInvalid': "Invalid list type '{value}'. Use one of: {choices}.",
   'admin.api.cardIndex.slugInvalid': "Invalid list slug '{slug}'.",
 
@@ -320,13 +313,48 @@ export const adminApiMessages = {
   'admin.api.sell.refInvalid': "Invalid list reference '{ref}' (expected type:slug)",
   'admin.api.sell.noRefs': "No list references in 'lists'",
 
+  // ── Request bodies, any route ─────────────────────────────────────────
+  'admin.api.body.notJson': 'Request body must be JSON.',
+  'admin.api.body.notObject': 'Request body must be a JSON object.',
+  'admin.api.body.tooLarge': {
+    $plural: 'count',
+    one: 'Request body too large (limit {count} byte)',
+    other: 'Request body too large (limit {count} bytes)',
+  },
+
   // ── Request fields, any route ─────────────────────────────────────────
-  'admin.api.field.notBoolean': '{field} must be a boolean.',
-  'admin.api.field.notString': '{field} must be a string.',
+  //
+  // One family for every route's shape checks. {field} is the field or query
+  // parameter as it is spelled on the wire, an indexed path included
+  // (`printings[3].set`), and is never translated; the quotes set it off as
+  // the identifier it is.
+  'admin.api.field.required': '"{field}" is required.',
+  'admin.api.field.credentialsRequired': '"username" and "password" are required.',
+  'admin.api.field.notBoolean': '"{field}" must be a boolean.',
+  'admin.api.field.notString': '"{field}" must be a string.',
+  'admin.api.field.blank': '"{field}" must be a non-empty string.',
+  'admin.api.field.notObject': '"{field}" must be an object.',
+  'admin.api.field.notArray': '"{field}" must be an array.',
+  'admin.api.field.notStringArray': '"{field}" must be an array of strings.',
+  'admin.api.field.tooMany': {
+    $plural: 'count',
+    one: '"{field}" must contain at most {count} entry.',
+    other: '"{field}" must contain at most {count} entries.',
+  },
+  'admin.api.field.notPositiveInteger': 'Invalid "{field}" \'{value}\'. Use a positive integer.',
+  'admin.api.field.notNonNegativeInteger':
+    'Invalid "{field}" \'{value}\'. Use a non-negative integer.',
+
+  // ── Card lookups ──────────────────────────────────────────────────────
+  'admin.api.card.unknownName':
+    "No card named '{name}'. Names are matched exactly — resolve a partial name with {route} (MCP: the {tool} tool).",
+  'admin.api.card.noPrintings': "No printings found for '{name}'.",
+  'admin.api.cards.idsEmpty': '"ids" must contain at least one Scryfall ID.',
+  'admin.api.cardSearch.limitTooLarge':
+    '"limit" must be at most {max} (one Scryfall page), got \'{value}\'.',
 
   // ── Export ────────────────────────────────────────────────────────────
   'admin.api.export.columnsNotArray': 'columns must be an array of property names.',
-  'admin.api.export.filtersNotObject': 'filters must be an object.',
   'admin.api.export.conditionsNotArray': 'filters.conditions must be an array of condition values.',
   'admin.api.export.labelsNotArray': 'filters.labels must be an array of label values.',
   'admin.api.export.presetUnknown':
@@ -369,8 +397,6 @@ export const adminApiMessages = {
   'admin.api.importDeck.contentRequiredForMode': 'content is required for mode "text"',
   'admin.api.importDeck.syncPrintingsUrlOnly':
     'syncPrintings only applies to URL imports; pasted text states its own printings',
-  'admin.api.importDeck.urlRequired': 'url is required',
-  'admin.api.importDeck.contentRequired': 'content is required',
   'admin.api.importDeck.defaultName': 'Imported Deck',
   'admin.api.importDeck.noCardLines': 'No valid card lines found in the provided text.',
   'admin.api.importDeck.cancelled': 'Import cancelled',
@@ -401,7 +427,6 @@ export const adminApiMessages = {
   // ── CSV import ────────────────────────────────────────────────────────
   'admin.api.importCsv.invalidRequest':
     'Invalid request: expected listType ({types}), name, content, and columns (with optional mode [{modes}], format, hasHeader)',
-  'admin.api.importCsv.nameRequired': 'name is required',
   'admin.api.importCsv.formatRequired': 'format is required when creating or overwriting a deck',
   'admin.api.importCsv.parseFailed': 'Failed to parse CSV: {reason}',
   'admin.api.importCsv.headerSkipped': 'Skipped header row: {row}',

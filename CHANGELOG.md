@@ -645,6 +645,52 @@ preload-all`'s buylist-failure warning, the buylist's download prompt and progre
   failed operation's own `cli.detectChanges.*` key, or `cli.detectChanges.failureReason`)
   and English `messageParams`, with git's detail verbatim; the English `message` is
   unchanged.
+- **The card, buylist and art routes' refusals are keyed.** `/api/card-details`,
+  `/api/card-price`, `/api/card-prices`, `/api/card-printings`, `/api/card-search`,
+  `/api/cards`, `/api/buylist/*` and `/art/*`, on the admin server and on `serve --api`
+  alike, and every route's malformed-body refusals (not JSON, not an object, `413` too
+  large), now carry `messageKey` and `messageParams` beside the English `message`. A bad
+  field is one shared family, `admin.api.field.*`, whose `field` param is the field as the
+  request spelled it (`printings[3].set`); the body refusals are `admin.api.body.*`, the
+  `413`'s limit in exact bytes as `count`. Several admin routes' "X is required" refusals
+  (`/api/import-csv`'s `name`, `/api/import-deck`'s `url` and `content`, the TOTP
+  `code`, a delete's `confirmName`, `/api/export`'s `filters` object, and the admin
+  sign-in, Archidekt and first-run forms' `username`/`password`) moved onto the same family. The
+  buylist gate's and the admin server's `404` share `admin.api.server.notFound`. On
+  `serve --api`, every JSON `404` (unknown `/api/*` path, list, locale dictionary or art
+  file) and the last-resort `500` keep their `error` field with `errorKey` beside it.
+  Sentences are reworded to fit the family; update any script that matched them, or match
+  on `messageKey`:
+  - Field names are now double-quoted and each sentence ends with a period, for example
+    `"printings" must be an array.` (was `"printings" must be an array`),
+    `"printings[0].set" must be a non-empty string.`, `"names" must be an array of
+strings.`, `"names" must contain at most 500 entries.`, `"ids" is required.` (was
+    `ids is required`), `"ids" must contain at least one Scryfall ID.`,
+    `"ids" must contain at most 200 entries.`, `"name" is required.`, `"q" is required.`,
+    `"url" is required.`, `"content" is required.`, `"code" is required.`,
+    `"confirmName" is required.`, `"filters" must be an object.` and
+    `"username" and "password" are required.` (the admin sign-in route's was `Username and
+password are required`). Every route's existing boolean and string
+    checks read the same way: `"dryRun" must be a boolean.` (was `dryRun must be a
+boolean.`), `"contentHash" must be a string.`.
+  - `"printings[0].scryfallId" must be a string.` (was `… must be a string when present`).
+  - `"limit" must be at most 175 (one Scryfall page), got '176'.` (`limit` was unquoted).
+  - `No printings found for 'Sol Ring'.` gained its period.
+  - An invalid `limit`, `page` or `offset` reads `Invalid "limit" 'abc'. Use a positive
+integer.` / `Invalid "offset" '-1'. Use a non-negative integer.` on every route that
+    takes one, the list load routes included (was `Invalid limit 'abc'.`; `/api/card-search`'s
+    `page` read `page must be a positive integer, got '0'.`). The value it names is the one
+    sent with surrounding spaces removed.
+  - An unknown `buyer` or `finish` reads `Invalid buyer 'x'. Use one of: cardkingdom.`
+    (was `"buyer" must be one of: cardkingdom`), and a missing finish
+    `printings[0].finish must be one of: nonfoil, foil, etched.`.
+  - The admin server's `404` for a path with no route reads `Not found` (was `Not Found`).
+- **`POST /api/buylist/quotes` reads its body more leniently.** `buyer`, each printing's
+  `finish` and its `language` are matched case-insensitively, as `--finish` is on the
+  CLI, so `"finish": "FOIL"` and `"language": "JA"` are accepted; the response's quote keys
+  still use the canonical lowercase finish (`dsk:136:foil`). `set` and `collectorNumber`
+  are trimmed, so a whitespace-only value is refused as blank. This is the HTTP route's
+  rule: the MCP `get_buylist_quotes` tool's schema still takes lowercase values.
 
 ### Fixed
 
