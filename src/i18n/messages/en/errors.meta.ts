@@ -20,6 +20,10 @@ export const errorsMeta = {
     description:
       'An internal consistency failure: an exhaustive switch met a value none of its cases handles (a programming error, not a user mistake). {value} is that value as raw data — a quoted token, an object’s kind, or JSON, capped at 200 characters — and is never translated.',
   },
+  'errors.invariant.outsideProvider': {
+    description:
+      'An internal consistency failure: a user-interface component asked for shared state it can only get from inside a surrounding component, and was placed outside it (a programming error, not a user mistake). {hook} and {provider} are code names (like useTheme and ThemeProvider) and are never translated.',
+  },
 
   'errors.label.exclusive': {
     description:

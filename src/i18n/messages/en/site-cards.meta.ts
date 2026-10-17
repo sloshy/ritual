@@ -118,6 +118,11 @@ export const siteCardsMeta = {
     description:
       'Accessible name (screen-reader text) of the tag marking a card with no specific printing. Explains that the image shown is a representative printing rather than one the list chose.',
   },
+  'site.card.quantityBadge': {
+    description:
+      'Copy-count badge in the corner of a card image, shown when a list holds more than one copy; {count} is the number of copies. The English "x" after the number reads "times" (3x = three copies); use your language\'s usual count marker.',
+    maxLen: 8,
+  },
 
   // ── Card modal ────────────────────────────────────────────────────────
   'site.cardModal.aria': {

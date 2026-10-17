@@ -4,7 +4,7 @@
  */
 
 import type { ListInfo } from '../../list/list-info'
-import type { NamedListRef } from '../../list-view/combined-list'
+import { listRefKey, type NamedListRef } from '../../list-view/combined-list'
 import { isAbortError } from '../../util/errors'
 import { t } from '../../i18n/t'
 import type {
@@ -66,10 +66,7 @@ export function createAdminSwapSourceProvider(
             return toSwapSourceList(ref, body)
           } catch (e) {
             if (isAbortError(e)) throw e
-            console.error(
-              t('admin.app.swapSourceLoadFailed', { list: `${ref.type}/${ref.slug}` }),
-              e,
-            )
+            console.error(t('admin.app.swapSourceLoadFailed', { list: listRefKey(ref) }), e)
             return null
           }
         }),

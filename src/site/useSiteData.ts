@@ -21,6 +21,8 @@ import {
 import { setBuylistQuotesOnline } from '../list-view/buylist-quotes'
 import { activeCurrency, seedPriceView } from '../list-view/price-view'
 import { isAbortError } from '../util/errors'
+import { t } from '../i18n/t'
+import { HttpStatusError } from '../list-view/fetch-json'
 import {
   currentLocale,
   DEFAULT_LOCALE,
@@ -32,7 +34,7 @@ import {
   type LocaleOverride,
 } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
-import { localeDirection } from '../site-build/html-shell'
+import { localeDirection } from '../i18n/direction'
 
 export type UseSiteDataResult = {
   deckList: Accessor<DeckSummary[] | null>
@@ -176,7 +178,7 @@ export function useSiteData(): UseSiteDataResult {
 
   const fetchIndex = async (url: string, signal?: AbortSignal): Promise<SiteIndex> => {
     const response = await fetch(url, signal ? { signal } : undefined)
-    if (!response.ok) throw new Error(`Failed to load site data: HTTP ${response.status}`)
+    if (!response.ok) throw new HttpStatusError(response.status)
     return (await response.json()) as SiteIndex
   }
 
@@ -204,7 +206,7 @@ export function useSiteData(): UseSiteDataResult {
       await bootLocale(data, signal)
     } catch (e) {
       if (isAbortError(e)) return
-      console.error('Failed to load index:', e)
+      console.error(t('site.app.indexLoadFailedLog'), e)
       setDeckList([])
       setCollectionList([])
     }
@@ -226,7 +228,7 @@ export function useSiteData(): UseSiteDataResult {
         // A dead remote backend degrades the whole app to the baked data; a
         // same-origin hiccup just keeps the data we already have.
         reportDataFetchError(e)
-        if (apiBase() === '') console.error('Failed to refresh index:', e)
+        if (apiBase() === '') console.error(t('site.app.indexRefreshFailedLog'), e)
       })
   }
 

@@ -75,8 +75,11 @@ function numericFieldText(value: number | null): string {
 
 /** A {@link useNumericFilterInput} field: the debounced draft plus its own error. */
 type NumericFilterInput = DebouncedInput & {
-  /** The current validation message, or null. */
-  error: Accessor<string | null>
+  /**
+   * The current validation message's catalog key, or null. The row words it in
+   * its JSX, so a message already on screen follows a language switch.
+   */
+  error: Accessor<ParameterlessKey | null>
 }
 
 /**
@@ -96,7 +99,7 @@ function useNumericFilterInput(
   parse: (raw: string) => NumericFilterParse,
   apply: (value: number | null) => void,
 ): NumericFilterInput {
-  const [error, setError] = createSignal<string | null>(null)
+  const [error, setError] = createSignal<ParameterlessKey | null>(null)
   const input = useDebouncedInput(
     () => numericFieldText(current()),
     (raw) => {
@@ -610,7 +613,8 @@ type NumericFilterRowProps = {
   onValueInput: (raw: string) => void
   /** Commit any pending value immediately when the field loses focus. */
   onValueBlur: () => void
-  error: string | null
+  /** The field's validation message as a catalog key (worded here, in the reader's locale). */
+  error: ParameterlessKey | null
   step: string
   inputMode: 'numeric' | 'decimal'
   /**
@@ -631,6 +635,7 @@ type NumericFilterRowProps = {
  * is the same width and their comparator groups line up.
  */
 const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
+  const t = useT()
   return (
     <div class="filter-row">
       <div class="filter-type-header">
@@ -666,7 +671,7 @@ const NumericFilterRow: Component<NumericFilterRowProps> = (props) => {
           onBlur={props.onValueBlur}
         />
       </div>
-      <Show when={props.error}>{(error) => <span class="filter-error">{error()}</span>}</Show>
+      <Show when={props.error}>{(error) => <span class="filter-error">{t(error())}</span>}</Show>
     </div>
   )
 }

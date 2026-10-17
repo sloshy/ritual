@@ -1,9 +1,11 @@
 import type { DeckSummary } from '../list/site-data'
 import { compareDisplayBase } from '../i18n/collate'
 import type { MessageKey } from '../i18n/messages/en'
+import type { ParameterlessKey } from '../i18n/t'
 import type { PriceSource } from '../pricing/price-source'
 import { getSummaryTotalPrice, type PriceViewFields } from '../pricing/price-summary'
-import { getDeckFormatLabel } from '../list/deck-format'
+import { deckFormatLabelKey } from '../list/deck-format'
+import { assertNever } from '../util/assert-never'
 
 export type IndexSort = 'alpha' | 'recent' | 'price'
 export type IndexGroup = 'none' | 'format'
@@ -64,10 +66,6 @@ export interface SortableSummary extends PriceViewFields<'totalPrice'> {
   lastUpdatedAt?: string
 }
 
-function assertNever(value: never): never {
-  throw new Error(`Unhandled sort value: ${String(value)}`)
-}
-
 function compareSummaries(
   a: SortableSummary,
   b: SortableSummary,
@@ -116,12 +114,12 @@ export interface DeckGroup {
   /** Stable key used for keyed rendering. */
   key: string
   /**
-   * Display label for the group header, or `null` for the bucket of decks with
-   * no detected format — the view renders that one from
-   * `site.index.otherFormat`. Grouping runs outside any reactive scope, so it
-   * hands the caller a decision rather than a string frozen in one language.
+   * The catalog key of the group header: the format's name, or
+   * `site.index.otherFormat` for the bucket of decks with no detected format.
+   * A key rather than text: the view renders it, so the heading follows a
+   * language switch instead of freezing in the language it was grouped in.
    */
-  label: string | null
+  labelKey: ParameterlessKey
   decks: DeckSummary[]
 }
 
@@ -130,8 +128,8 @@ const UNKNOWN_FORMAT_KEY = '__no-format__'
 /**
  * Partition decks into groups by format, preserving the input order within
  * each group (callers should sort beforehand). Group ordering matches first
- * appearance — `Map` iteration order is insertion order — with the unlabeled
- * bucket (decks without a detected format, `label: null`) always last.
+ * appearance — `Map` iteration order is insertion order — with the bucket of
+ * decks without a detected format always last.
  */
 export function groupDecksByFormat(decks: readonly DeckSummary[]): DeckGroup[] {
   const byKey = new Map<string, DeckGroup>()
@@ -144,7 +142,7 @@ export function groupDecksByFormat(decks: readonly DeckSummary[]): DeckGroup[] {
     }
     byKey.set(key, {
       key,
-      label: deck.format ? getDeckFormatLabel(deck.format) : null,
+      labelKey: deck.format ? deckFormatLabelKey(deck.format) : 'site.index.otherFormat',
       decks: [deck],
     })
   }

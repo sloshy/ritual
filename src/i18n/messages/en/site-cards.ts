@@ -65,6 +65,7 @@ export const siteCardsMessages = {
   'site.card.markerCustomArt': 'CUSTOM',
   'site.card.anyPrintingMarker': 'ANY',
   'site.card.anyPrintingTitle': 'No specific printing selected; showing a representative printing.',
+  'site.card.quantityBadge': '{count}x',
 
   // ── Card modal ────────────────────────────────────────────────────────
   'site.cardModal.aria': 'Card details: {name}',

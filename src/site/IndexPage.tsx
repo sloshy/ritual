@@ -286,9 +286,7 @@ export const IndexPage: Component<IndexPageProps> = (props) => {
               <For each={deckGroups()}>
                 {(group) => (
                   <section class="deck-index-group">
-                    <h2 class="deck-index-group-title">
-                      {group.label ?? t('site.index.otherFormat')}
-                    </h2>
+                    <h2 class="deck-index-group-title">{t(group.labelKey)}</h2>
                     <div class="card-grid-responsive">
                       <For each={group.decks}>
                         {(deck) => <DeckCoverLink deck={deck} currency={props.currency} />}

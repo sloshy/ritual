@@ -384,7 +384,12 @@ export const ExportPanel: Component<ExportPanelProps> = (props) => {
           </div>
 
           <p class="export-panel-hint">
-            <For each={tSegments('site.editor.applyHint', { command: 'ritual import-changes' })}>
+            <For
+              each={tSegments('site.editor.applyHint', {
+                // i18n-exempt: a command line for the user to type, spelled as the CLI parses it
+                command: 'ritual import-changes',
+              })}
+            >
               {(segment) =>
                 segment.kind === 'param' ? <code>{segment.value}</code> : segment.value
               }

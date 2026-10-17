@@ -9,6 +9,10 @@ import { t } from '../i18n/t'
 /**
  * A request answered with an HTTP error status. `status` is the fact a caller
  * branches on; the message is only for a console reader.
+ *
+ * The constructor renders its message through `t()`, so under
+ * `RITUAL_I18N_STRICT=1` constructing one where the `site` namespace is not
+ * registered (a bare unit test) throws the i18n failure instead.
  */
 export class HttpStatusError extends Error {
   readonly status: number

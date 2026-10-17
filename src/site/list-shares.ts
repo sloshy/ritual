@@ -26,6 +26,7 @@ import {
   type ShareLoad,
 } from './card-filters'
 import type { CardFiltersControl } from './useCardFilters'
+import { t } from '../i18n/t'
 
 /**
  * Lazy, session-cached loading of other lists' contents for the toolbar's
@@ -138,7 +139,7 @@ export function createListShareStore(source: () => ListShareSource): ListShareSt
           // A source that rejects instead of returning null is still just a
           // failed load: cache 'failed' so it is not retried, and never let
           // the rejection escape into `ensure`'s callers.
-          console.error(`Share filter: load for ${key} rejected:`, e)
+          console.error(t('site.filter.shareLoadRejectedLog', { list: key }), e)
           loaded = 'failed'
         } finally {
           pending.delete(key)
@@ -180,7 +181,7 @@ export function createPublicListShareSource(): ListShareSource {
         // Deliberately NOT reportDataFetchError: share tokens arrive from
         // user-editable URLs, so a missing list is expected input here — it
         // must not degrade the whole app into static/fallback data mode.
-        console.error(`Share filter: failed to load ${ref.type}/${ref.slug}:`, e)
+        console.error(t('site.filter.shareLoadFailedLog', { list: listRefKey(ref) }), e)
         return null
       }
     },

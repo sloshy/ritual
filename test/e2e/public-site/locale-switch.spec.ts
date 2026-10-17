@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import type { Page } from '@playwright/test'
 import { LOCALE_STORAGE_KEY } from '../../../src/i18n/runtime'
 import { fulfillJson } from '../helpers/fulfill'
-import { openFilterMenu } from '../helpers/filter-menu'
+import { filterRow, openFilterMenu } from '../helpers/filter-menu'
 import {
   expectNotReloaded,
   expectPseudo,
@@ -21,6 +21,7 @@ import {
   mockPublicSiteCollectionWithTags,
   mockPublicSiteDeckForFilters,
   mockPublicSiteDeckWithDoubleFacedCard,
+  mockPublicSiteForTrade,
 } from '../helpers/mock-public-site'
 import { enterEditMode, openEditTags } from '../helpers/list-ui'
 
@@ -44,8 +45,6 @@ import { enterEditMode, openEditTags } from '../helpers/list-ui'
  * Selection is by CSS class throughout, never by accessible name: the names are
  * exactly what these tests change.
  */
-
-/** The pseudo-locale dictionary, derived from the live catalog rather than a fixture. */
 
 const DECK_SLUG = 'test-filter-deck'
 const DECK_HASH = `#/deck/${DECK_SLUG}`
@@ -85,6 +84,10 @@ function chromeTexts(page: Page) {
     toolbarLabel: page.locator('.toolbar-label').first(),
     // The Filters toolbar chip.
     filterChip: page.locator('.filter-menu > button'),
+    // The footer's Scryfall credit link: the brand name is a catalog entry too.
+    scryfallLink: page.locator('footer.site-footer a[href="https://scryfall.com"]'),
+    // A tile's copy-count badge (the fixture's one two-copy card).
+    qtyBadge: page.locator('.card-item[data-name="golgari lord"] .qty-badge'),
   }
 }
 
@@ -105,6 +108,8 @@ test.describe('public site language switch', () => {
     await expect(chrome.nav).toHaveText('Decks')
     await expect(chrome.toolbarLabel).toHaveText('Group:')
     await expect(chrome.filterChip).toContainText('Filters')
+    await expect(chrome.scryfallLink).toHaveText('Scryfall')
+    await expect(chrome.qtyBadge).toHaveText('2x')
 
     // The filter panel stays open across the switch — `selectOption` sets the
     // value without a mouse press, so the panel's outside-mousedown dismissal
@@ -121,9 +126,43 @@ test.describe('public site language switch', () => {
     await expectPseudo(chrome.nav, true)
     await expectPseudo(chrome.toolbarLabel, true)
     await expectPseudo(chrome.filterChip, true)
+    await expectPseudo(chrome.scryfallLink, true)
+    // Too short to carry the pseudo-locale's brackets (its length cap), so the
+    // badge is pinned to the pseudo template itself — the count is the data the
+    // translator places, not prose.
+    const badge = pseudoCatalog()['site.card.quantityBadge']
+    if (typeof badge !== 'string') throw new Error('site.card.quantityBadge is not a string')
+    await expect(chrome.qtyBadge).toHaveText(badge.replace('{count}', '2'))
+    await expect(chrome.qtyBadge).not.toHaveText('2x')
     await expectPseudo(panelLabel, true)
     await expectPseudo(matchModeButton, true)
 
+    await expectNotReloaded(page)
+  })
+
+  test('relabels a numeric filter’s refusal in place, keeping the rejected draft', async ({
+    page,
+  }) => {
+    await page.goto(DECK_HASH)
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    const panel = await openFilterMenu(page)
+    const field = panel.locator('#filter-mana-value')
+    const error = filterRow(page, 'filter-mana-value').locator('.filter-error')
+    // Parsed on the debounced commit; the rejection is held as a message key
+    // and worded in the row's JSX.
+    await field.fill('-1')
+    await expect(error).toHaveText('Mana value must be a non-negative integer')
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    await expect(panel).toBeVisible()
+    await expectPseudo(error, true)
+    await expect(error).not.toContainText('Mana value must be')
+    // The draft the visitor typed is theirs; the switch only relabels.
+    await expect(field).toHaveValue('-1')
+    // A rejected draft never reached the filters, before or after the switch.
+    await expect(page.locator('.filter-menu-badge')).toHaveCount(0)
     await expectNotReloaded(page)
   })
 
@@ -314,6 +353,29 @@ test.describe('public site language switch — the editors’ own refusals', () 
     await expect(error).toContainText(rule)
     // The value is the owner's own text, untouched.
     await expect(error).toContainText('"a#b"')
+    await expectNotReloaded(page)
+  })
+})
+
+test.describe('public site language switch — the trade board', () => {
+  test('relabels a list-less trade row’s lookup-source tag', async ({ page }) => {
+    // The trade fixtures on a site that publishes both English and the
+    // pseudo-locale. No list holds this card, so a static site resolves it on
+    // Scryfall and the row's tag names that backend.
+    await mockPublicSiteForTrade(page, { availableLocales: [localeTag('en'), PSEUDO_LOCALE] })
+    await fulfillJson(page, `**/locales/${PSEUDO_LOCALE}.json`, pseudoCatalog())
+    await page.goto('/#/trade?rightSideScryfall=x1@trade-crypt-id')
+
+    const row = page.locator('.trade-col[data-side="right"] .trade-row').first()
+    const tag = row.locator('.src-tag')
+    await expect(tag).toHaveText('Scryfall')
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+
+    // The row holds the backend's code; only its wording follows the switch.
+    await expectPseudo(tag, true)
+    await expect(row.locator('.trade-row-name-text')).toContainText('Mana Crypt')
     await expectNotReloaded(page)
   })
 })

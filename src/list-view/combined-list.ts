@@ -226,7 +226,7 @@ export async function loadCombinedDetails(
       return { ref, name: ref.name, ...loaded }
     } catch (e) {
       if (isAbortError(e)) throw e
-      console.error(t('site.combined.loadFailedLog', { type: ref.type, slug: ref.slug }), e)
+      console.error(t('site.combined.loadFailedLog', { list: listRefKey(ref) }), e)
       reportDataFetchError(e)
       return null
     }

@@ -141,10 +141,6 @@ export const adminMeta = {
   'admin.app.loading': {
     description: 'Placeholder while the admin app checks whether it is set up and signed in.',
   },
-  'admin.app.routingOutsideProvider': {
-    description:
-      'Internal error that only a programming mistake can produce: a page component was mounted outside the router. useRouting and RoutingProvider are code names and stay verbatim.',
-  },
   'admin.app.unhandledSyncEvent': {
     description:
       'Internal error that only a programming mistake can produce: a sync page received a kind of progress event it has no handling for. {event} is the event as untranslated JSON.',
@@ -153,13 +149,9 @@ export const adminMeta = {
     description:
       'Internal error that only a programming mistake can produce: the Sync Collection page met a CSV upload outcome it has no wording for. {outcome} is the outcome as untranslated JSON.',
   },
-  'admin.app.shareFilterLoadFailed': {
-    description:
-      'Browser-console line when the "shares with" list filter could not load one of the lists it compares against. {list} is the list as type/slug; the error follows on the same line.',
-  },
   'admin.app.swapSourceLoadFailed': {
     description:
-      'Browser-console line when the Swap Printings wizard could not load one of the lists it takes replacement printings from. {list} is the list as type/slug; the error follows on the same line.',
+      'Browser-console line when the Swap Printings wizard could not load one of the lists it takes replacement printings from. {list} is the list as a type:slug token (an identifier, never translated); the error follows on the same line.',
   },
   'admin.app.requestFailed': {
     description:

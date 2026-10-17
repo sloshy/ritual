@@ -17,9 +17,7 @@
 
 import { themeBootstrapScript } from '../theme/themes'
 import type { LocaleTag } from '../i18n/types'
-
-/** Writing direction of the shell's document. */
-export type TextDirection = 'ltr' | 'rtl'
+import { localeDirection, RTL_LANGUAGES } from '../i18n/direction'
 
 /** Everything {@link renderAppShell} needs. Nothing is read ambiently. */
 export type AppShellOptions = {
@@ -42,29 +40,6 @@ export type AppShellOptions = {
 export const BOOT_SCRIPT_FILE = 'boot.js'
 
 /**
- * Languages written right-to-left, by primary subtag. Only consulted when the
- * engine cannot answer for itself — `Intl.Locale.prototype.getTextInfo` is
- * recent, and older builds expose the same data as a `textInfo` accessor or not
- * at all.
- */
-export const RTL_LANGUAGES: ReadonlySet<string> = new Set([
-  'ar',
-  'arc',
-  'ckb',
-  'dv',
-  'fa',
-  'he',
-  'khw',
-  'ks',
-  'ps',
-  'sd',
-  'syr',
-  'ug',
-  'ur',
-  'yi',
-])
-
-/**
  * The shape a `lang` attribute value may take. Declared before
  * {@link appBootScript} so the boot script can interpolate its source rather
  * than restate it — see {@link RTL_PATTERN}.
@@ -82,34 +57,6 @@ const SAFE_LANG = /^[A-Za-z0-9-]+$/
  * place to notice one.
  */
 const RTL_PATTERN = new RegExp(`^(${[...RTL_LANGUAGES].join('|')})(-|$)`, 'i')
-
-/** What ICU reports for a locale's writing direction, across both spellings. */
-type LocaleTextInfo = { direction?: string }
-type LocaleWithTextInfo = Intl.Locale & {
-  getTextInfo?: () => LocaleTextInfo
-  textInfo?: LocaleTextInfo
-}
-
-/**
- * The writing direction for a locale tag.
- *
- * `dir` is plumbed end to end, but no RTL locale ships until the CSS logical
- * -property sweep lands — so this is deliberately conservative and answers
- * `ltr` for anything it cannot resolve.
- */
-export function localeDirection(tag: string): TextDirection {
-  let locale: Intl.Locale
-  try {
-    locale = new Intl.Locale(tag)
-  } catch {
-    return 'ltr'
-  }
-  const withInfo = locale as LocaleWithTextInfo
-  const direction = withInfo.getTextInfo?.().direction ?? withInfo.textInfo?.direction
-  if (direction === 'rtl') return 'rtl'
-  if (direction === 'ltr') return 'ltr'
-  return RTL_LANGUAGES.has(locale.language.toLowerCase()) ? 'rtl' : 'ltr'
-}
 
 /**
  * The bootstrap that runs before first paint, served as a static file so a

@@ -28,7 +28,7 @@ import { hasSpecificPrinting } from '../card/card-printing'
 import { batchFetchScryfall } from './scryfall-collection'
 import { batchFetchApiPrices } from './api-prices'
 import { apiActive } from '../list-view/api-base'
-import { cardLookupSourceName } from './card-lookup'
+import { cardLookupSource } from './card-lookup'
 import { printingKey } from '../card/printing-key'
 import type { TradeSortBy, TradeSortState } from './trade-sort'
 import { TooltipOverlay } from '../ui/TooltipOverlay'
@@ -311,7 +311,7 @@ export const TradePage: Component<TradePageProps> = (props) => {
         cardName: item.name,
         side: 'right',
         source: 'scryfall',
-        sourceName: cardLookupSourceName(),
+        sourceName: cardLookupSource(),
       })
       void cardSearch.fetchPrintings(item.name)
     }

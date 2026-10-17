@@ -81,6 +81,7 @@ const InlineContent: Component<InlineProps> = (props) => {
             src={`https://www.youtube.com/embed/${videoId}`}
             title={t('site.primer.youtubeTitle')}
             allowfullscreen
+            // i18n-exempt: a Permissions Policy feature list (browser feature tokens), not prose
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           />
         </div>,

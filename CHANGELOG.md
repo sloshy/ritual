@@ -579,6 +579,14 @@ JSON object`).
   `board:Main/category:ramp`, the same in every language, where it used to carry the
   heading text. The anchor id is built from that code (`section-color_3a_WU`). Update a
   custom stylesheet or script that selected a section by its heading.
+- The public and admin sites word the rest of their text in the site's language: the
+  numeric filters' refusals under **Mana Value**, **Price**, **Buylist** and **Copies**
+  (an error already on screen relabels when you switch language, and the value you typed
+  stays put), a card tile's copy-count badge (`3x`), the footer's Scryfall credit link,
+  the **Cache** / **Scryfall** tag on a trade row for a card in none of your lists, and
+  the browser-console lines logged when a list, the site index or a card search fails to
+  load. A combined view's "Combining:" line separates its list names the way your
+  language writes a list.
 - **The Card Kingdom buylist's refusals and warnings are keyed.** A buylist route with no
   feed downloaded (`GET /api/buylist/status`, `POST /api/buylist/quotes`, the sell report and
   cart, `GET /api/price/*?source=cardkingdom`) answers its `503` in English with

@@ -48,7 +48,7 @@ export const SiteFooter: Component<SiteFooterProps> = (props) => {
       </p>
       <p class="site-footer-legal">
         <LinkedMessage
-          segments={tSegments('site.app.cardData', { scryfall: 'Scryfall' })}
+          segments={tSegments('site.app.cardData', { scryfall: t('site.app.scryfallLink') })}
           hrefs={{ scryfall: SCRYFALL_URL }}
         />
       </p>

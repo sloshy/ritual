@@ -11,10 +11,8 @@ export const adminMessages = {
   // ── App shell and layout ──────────────────────────────────────────────
   'admin.app.loading': 'Loading...',
   'admin.app.requestFailed': 'Request failed',
-  'admin.app.routingOutsideProvider': 'useRouting called outside of a RoutingProvider',
   'admin.app.unhandledSyncEvent': 'Unhandled sync event: {event}',
   'admin.app.unhandledCsvOutcome': 'Unhandled CSV outcome: {outcome}',
-  'admin.app.shareFilterLoadFailed': 'Share filter: failed to load {list}:',
   'admin.app.swapSourceLoadFailed': 'Swap printings: failed to load {list}:',
   'admin.layout.title': 'Ritual Admin',
   'admin.layout.logout': 'Logout',

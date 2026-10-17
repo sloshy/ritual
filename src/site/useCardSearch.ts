@@ -3,6 +3,7 @@ import type { Accessor } from 'solid-js'
 import type { ScryfallCard } from '../scryfall/types'
 import { autocompleteCardNames, fetchCardPrintings } from './card-search'
 import { isAbortError } from '../util/errors'
+import { t } from '../i18n/t'
 
 const AUTOCOMPLETE_DEBOUNCE_MS = 300
 const MIN_AUTOCOMPLETE_LENGTH = 2
@@ -61,7 +62,7 @@ export function useCardSearch(): UseCardSearchResult {
           if (autocompleteController === controller) setAutocompleteResults(names)
         } catch (e) {
           if (isAbortError(e)) return
-          console.warn('Card autocomplete failed:', e)
+          console.warn(t('site.trade.autocompleteFailedLog'), e)
         } finally {
           // A superseded request must not clear the loading flag out from under
           // the newer one that replaced it.
@@ -83,7 +84,7 @@ export function useCardSearch(): UseCardSearchResult {
       if (printingsController === controller) setPrintings(results)
     } catch (e) {
       if (isAbortError(e)) return
-      console.warn('Card printings fetch failed:', e)
+      console.warn(t('site.trade.printingsFailedLog'), e)
     } finally {
       if (printingsController === controller) setPrintingsLoading(false)
     }

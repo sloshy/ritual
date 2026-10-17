@@ -10,6 +10,7 @@ import {
   createDefaultCardFilters,
   filterCards,
   isTagFilterActive,
+  parseBuylistPriceFilter,
   parseCopiesFilter,
   parseManaValueFilter,
   parseNonNegativeInteger,
@@ -675,10 +676,12 @@ describe('countNarrowingFilters', () => {
 
 // parseManaValueFilter and parseCopiesFilter are the same non-negative-integer
 // filter parser (differing only in error message), so one table covers both.
+// A rejection is the field's own message key, never rendered text: the menu
+// words it at render time.
 describe.each([
-  ['parseManaValueFilter', parseManaValueFilter],
-  ['parseCopiesFilter', parseCopiesFilter],
-])('%s', (_name, parse) => {
+  ['parseManaValueFilter', parseManaValueFilter, 'site.filter.manaValueInvalid'],
+  ['parseCopiesFilter', parseCopiesFilter, 'site.filter.copiesInvalid'],
+] as const)('%s', (_name, parse, messageKey) => {
   test('empty input clears the filter', () => {
     expect(parse('')).toEqual({ ok: true, value: null })
     expect(parse('   ')).toEqual({ ok: true, value: null })
@@ -689,27 +692,35 @@ describe.each([
     expect(parse('12')).toEqual({ ok: true, value: 12 })
   })
 
-  test.each(['-1', '1.5', 'abc', '1e3'])('rejects %p', (input) => {
-    expect(parse(input).ok).toBe(false)
+  test.each(['-1', '1.5', 'abc', '1e3'])('rejects %p with its own message key', (input) => {
+    expect(parse(input)).toEqual({ ok: false, error: messageKey })
   })
 })
 
-describe('parsePriceFilter', () => {
+// The price and buylist fields share the amount format but not the message:
+// both show in sell mode, so each rejection names its own field.
+describe.each([
+  ['parsePriceFilter', parsePriceFilter, 'site.filter.priceInvalid'],
+  ['parseBuylistPriceFilter', parseBuylistPriceFilter, 'site.filter.buylistPriceInvalid'],
+] as const)('%s', (_name, parse, messageKey) => {
   test('empty input clears the filter', () => {
-    expect(parsePriceFilter('')).toEqual({ ok: true, value: null })
-    expect(parsePriceFilter('   ')).toEqual({ ok: true, value: null })
+    expect(parse('')).toEqual({ ok: true, value: null })
+    expect(parse('   ')).toEqual({ ok: true, value: null })
   })
 
   test('parses non-negative amounts with up to two decimals', () => {
-    expect(parsePriceFilter('0')).toEqual({ ok: true, value: 0 })
-    expect(parsePriceFilter('5')).toEqual({ ok: true, value: 5 })
-    expect(parsePriceFilter('0.25')).toEqual({ ok: true, value: 0.25 })
-    expect(parsePriceFilter('12.9')).toEqual({ ok: true, value: 12.9 })
+    expect(parse('0')).toEqual({ ok: true, value: 0 })
+    expect(parse('5')).toEqual({ ok: true, value: 5 })
+    expect(parse('0.25')).toEqual({ ok: true, value: 0.25 })
+    expect(parse('12.9')).toEqual({ ok: true, value: 12.9 })
   })
 
-  test.each(['-1', '1.234', 'abc', '1e3', '.5', '5.'])('rejects %p', (input) => {
-    expect(parsePriceFilter(input).ok).toBe(false)
-  })
+  test.each(['-1', '1.234', 'abc', '1e3', '.5', '5.'])(
+    'rejects %p with its own message key',
+    (input) => {
+      expect(parse(input)).toEqual({ ok: false, error: messageKey })
+    },
+  )
 })
 
 // The raw amount parsers are the single source of truth for the numeric formats,

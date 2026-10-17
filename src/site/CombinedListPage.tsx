@@ -4,7 +4,9 @@ import { seedCards, seedPrintings, sessionCacheVersion } from '../list-view/sess
 import { apiBase } from '../list-view/api-base'
 import type { PriceCurrency } from '../pricing/price-currency'
 import type { ListType } from '../list/list-type'
-import { useT } from '../ui/i18n'
+import { useI18n } from '../ui/i18n'
+import { formatUnitListParts } from '../i18n/format'
+import { isAbortError } from '../util/errors'
 import { CombinedCardsView } from './CombinedCardsView'
 import type { SelectionListId } from '../list-view/useCardSelection'
 import {
@@ -20,6 +22,12 @@ import {
   mergeCardMaps,
   mergePrintingMaps,
 } from '../list-view/combined-list'
+
+/**
+ * One piece of the "Combining:" line: a source list (rendered as a link to it)
+ * or the locale's separator text between two of them.
+ */
+type SourcePart = { kind: 'list'; list: NamedListRef } | { kind: 'separator'; text: string }
 
 interface CombinedListPageProps {
   /** True when viewing every list ("All" was chosen in the modal or navbar). */
@@ -39,7 +47,7 @@ interface CombinedListPageProps {
 }
 
 export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
-  const t = useT()
+  const { t, locale } = useI18n()
   const [loaded, setLoaded] = createSignal<LoadedListDetail[] | null>(null)
   const [error, setError] = createSignal(false)
 
@@ -67,14 +75,29 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
           seedPrintings(mergePrintingMaps(result))
           setLoaded(result)
         } catch (e) {
-          if ((e as Error).name === 'AbortError') return
-          console.error('Combined view: load failed', e)
+          if (isAbortError(e)) return
+          console.error(t('site.combined.viewFailedLog'), e)
           setError(true)
           setLoaded([])
         }
       })()
     }),
   )
+
+  // The source lists as the reader's locale lists them, each name a link: the
+  // locale places the separators, so the line is never hand-joined in English.
+  const sourceParts = createMemo<SourcePart[]>(() => {
+    const lists = props.lists
+    let next = 0
+    return formatUnitListParts(
+      locale(),
+      lists.map((l) => l.name),
+    ).map((part): SourcePart => {
+      if (part.type === 'literal') return { kind: 'separator', text: part.value }
+      const list = lists[next++]
+      return list ? { kind: 'list', list } : { kind: 'separator', text: part.value }
+    })
+  })
 
   // Header description for an "all" view: every list, or every list of one type.
   // `null` for an explicit selection, which enumerates its lists instead.
@@ -136,15 +159,16 @@ export const CombinedListPage: Component<CombinedListPageProps> = (props) => {
           fallback={
             <p class="combined-sources">
               {t('site.combined.combining')}{' '}
-              <For each={props.lists}>
-                {(l, i) => (
-                  <>
-                    <Show when={i() > 0}>{', '}</Show>
-                    <a class="combined-source-name" href={listHref(l.type, l.slug)}>
-                      {l.name}
+              <For each={sourceParts()}>
+                {(part) =>
+                  part.kind === 'separator' ? (
+                    part.text
+                  ) : (
+                    <a class="combined-source-name" href={listHref(part.list.type, part.list.slug)}>
+                      {part.list.name}
                     </a>
-                  </>
-                )}
+                  )
+                }
               </For>
             </p>
           }

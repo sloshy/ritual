@@ -18,6 +18,7 @@ import { matchesSelection, type FilterMatchMode } from './filter-mode'
  * tag. "Time Lord" is a Doctor Who creature subtype; without this it would split
  * into the unrelated tags "Time" and "Lord".
  */
+// i18n-exempt: an MTG subtype as Scryfall's type lines spell it — card data matched against them, not prose
 export const MULTI_WORD_CARD_TYPES = ['Time Lord'] as const
 
 const MULTI_WORD_CARD_TYPES_LOWER = MULTI_WORD_CARD_TYPES.map((t) => t.toLowerCase())

@@ -14,6 +14,7 @@ import type { ScryfallCard } from '../../../src/scryfall/types'
 import type { BuylistQuote } from '../../../src/buylist'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
+import type { LocaleTag } from '../../../src/i18n/types'
 import { fulfillJson } from './fulfill'
 import { makeCollectionEntry } from '../../fixtures/lists'
 import { makeBuylistQuote } from '../../fixtures/cards'
@@ -2423,6 +2424,8 @@ export type MockTradeOptions = {
    * card cache alongside the wanted lists; the caller mocks `api/*` itself.
    */
   apiBaseUrl?: string
+  /** The UI locales the index advertises (English only when absent). */
+  availableLocales?: LocaleTag[]
 }
 
 /**
@@ -2434,10 +2437,13 @@ export async function mockPublicSiteForTrade(
   page: Page,
   options: MockTradeOptions = {},
 ): Promise<void> {
-  const index: SiteIndex =
-    options.apiBaseUrl === undefined
-      ? MOCK_SITE_INDEX_FOR_TRADE
-      : { ...MOCK_SITE_INDEX_FOR_TRADE, apiBaseUrl: options.apiBaseUrl }
+  const index: SiteIndex = {
+    ...MOCK_SITE_INDEX_FOR_TRADE,
+    ...(options.apiBaseUrl === undefined ? {} : { apiBaseUrl: options.apiBaseUrl }),
+    ...(options.availableLocales === undefined
+      ? {}
+      : { availableLocales: options.availableLocales }),
+  }
   // The collection carries a custom-art entry, so its `art/…` image must resolve
   // the same way a built site's `dist/art/` would.
   await mockCustomArtFiles(page)

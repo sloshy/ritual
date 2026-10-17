@@ -8,6 +8,7 @@ import { matchesCardCategories } from './card-categories-filter'
 import { matchesCardTags } from './card-tag-filter'
 import { cardCategorySpellings, foldCardCategory, type CardCategory } from '../card/card-categories'
 import { compareDisplay } from '../i18n/collate'
+import type { ParameterlessKey } from '../i18n/t'
 import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
 import { displayLanguage } from '../card/card-language'
 import { displayFinish } from '../card/finish-condition'
@@ -759,8 +760,13 @@ export function untaggedAddedCardNames(cards: CardData[], addedNames: readonly s
   return result
 }
 
-/** Result of parsing a numeric filter input: a value (null = cleared) or an error message. */
-export type NumericFilterParse = { ok: true; value: number | null } | { ok: false; error: string }
+/**
+ * Result of parsing a numeric filter input: a value (null = cleared), or the
+ * rejection as the catalog key of its message — the field words it at render
+ * time, so an error already on screen relabels when the UI language changes.
+ */
+export type NumericFilterParse =
+  { ok: true; value: number | null } | { ok: false; error: ParameterlessKey }
 
 /**
  * Parse a non-negative integer token, or undefined if malformed. The single
@@ -792,7 +798,7 @@ export function parsePriceAmount(raw: string): number | undefined {
  */
 function makeNumericFilterParser(
   parseAmount: (raw: string) => number | undefined,
-  error: string,
+  error: ParameterlessKey,
 ): (raw: string) => NumericFilterParse {
   return (raw) => {
     if (raw.trim().length === 0) return { ok: true, value: null }
@@ -805,7 +811,7 @@ function makeNumericFilterParser(
 /** Parse the mana value filter input: empty clears the filter, otherwise a non-negative integer. */
 export const parseManaValueFilter = makeNumericFilterParser(
   parseNonNegativeInteger,
-  'Mana value must be a non-negative integer',
+  'site.filter.manaValueInvalid',
 )
 
 /**
@@ -814,23 +820,23 @@ export const parseManaValueFilter = makeNumericFilterParser(
  */
 export const parsePriceFilter = makeNumericFilterParser(
   parsePriceAmount,
-  'Price must be a non-negative number',
+  'site.filter.priceInvalid',
 )
 
 /**
  * Parse the buylist filter input. Its own message rather than reusing the price
- * parser's: the panel shows two price fields in sell mode, so "Price must be…"
- * would not say which one was rejected.
+ * parser's: the panel shows two price fields in sell mode, so the price field's
+ * message would not say which one was rejected.
  */
 export const parseBuylistPriceFilter = makeNumericFilterParser(
   parsePriceAmount,
-  'Buylist price must be a non-negative number',
+  'site.filter.buylistPriceInvalid',
 )
 
 /** Parse the copies filter input: empty clears the filter, otherwise a non-negative integer. */
 export const parseCopiesFilter = makeNumericFilterParser(
   parseNonNegativeInteger,
-  'Copies must be a non-negative integer',
+  'site.filter.copiesInvalid',
 )
 
 /**

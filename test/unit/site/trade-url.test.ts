@@ -241,7 +241,7 @@ describe('encodeTradeToParams', () => {
         scryfallCard: card,
         finish: 'foil',
         source: 'scryfall',
-        sourceName: 'Scryfall',
+        sourceName: 'scryfall',
         qty: 3,
         editable: true,
       },
@@ -274,7 +274,7 @@ describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () =
   test('static site asks Scryfall, and the row says so', async () => {
     const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
 
-    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'Scryfall', qty: 1 })
+    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'scryfall', qty: 1 })
     expect(requested().some((url) => url.includes('api.scryfall.com'))).toBeTrue()
   })
 
@@ -283,7 +283,7 @@ describe('decodeTradeFromParams — where a bare Scryfall ID is looked up', () =
 
     const decoded = await decodeTradeFromParams(params, noEntries, 'usd')
 
-    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'Cache' })
+    expect(decoded.right[0]).toMatchObject({ source: 'scryfall', sourceName: 'cache' })
     expect(requested()).toEqual(['/api/cards?ids=sf-1'])
   })
 })
@@ -336,7 +336,7 @@ describe('language (~lang) in sf tokens', () => {
         scryfallCard: card,
         language: 'ja',
         source: 'scryfall',
-        sourceName: 'Scryfall',
+        sourceName: 'scryfall',
         qty: 2,
       },
     ]

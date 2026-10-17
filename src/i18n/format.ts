@@ -99,6 +99,17 @@ export function formatUnitList(locale: LocaleTag, parts: readonly string[]): str
   return listFormat(locale, UNIT_LIST).format(parts)
 }
 
+/** One piece of a formatted list: an item, or the locale's separator text between items. */
+export type ListFormatPart = { type: 'element' | 'literal'; value: string }
+
+/**
+ * {@link formatUnitList} as parts, for a caller that renders each item itself
+ * (a link per name) while the locale places the separators around them.
+ */
+export function formatUnitListParts(locale: LocaleTag, parts: readonly string[]): ListFormatPart[] {
+  return listFormat(locale, UNIT_LIST).formatToParts(parts)
+}
+
 /** A memoized `Intl.Collator` for an explicit locale. See `collate.ts` for which one to use. */
 export function collator(locale: LocaleTag, options?: Intl.CollatorOptions): Intl.Collator {
   return memoize(collators, cacheKey(locale, options), () => new Intl.Collator(locale, options))

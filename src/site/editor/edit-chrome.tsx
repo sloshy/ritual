@@ -6,6 +6,7 @@ import {
   type Setter,
   type ParentComponent,
 } from 'solid-js'
+import { requireContext } from '../../util/require-context'
 
 /** Which version of the list the visitor is currently looking at. */
 export type EditView = 'edited' | 'original'
@@ -53,7 +54,5 @@ export const EditChromeProvider: ParentComponent = (props) => {
 }
 
 export function useEditChrome(): EditChromeStore {
-  const ctx = useContext(EditChromeContext)
-  if (!ctx) throw new Error('useEditChrome must be used within an EditChromeProvider')
-  return ctx
+  return requireContext(useContext(EditChromeContext), 'useEditChrome', 'EditChromeProvider')
 }

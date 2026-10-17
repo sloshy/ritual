@@ -12,6 +12,8 @@ export const errorMessages = {
   'errors.enum.type': '{field} must be one of: {choices}.',
   'errors.invariant.unhandled':
     'Internal error: no case handles the value {value}. This is a bug in Ritual.',
+  'errors.invariant.outsideProvider':
+    'Internal error: {hook} was called outside {provider}. This is a bug in Ritual.',
   'errors.label.exclusive': "'{label}' cannot be combined with other labels.",
   'errors.label.contradictory': "'{label}' cannot be both set and negated on one card.",
   'errors.label.emptyPart': 'Labels must be a comma-separated list of: {choices}.',

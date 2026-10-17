@@ -1,10 +1,6 @@
 import { describe, test, expect } from 'bun:test'
-import {
-  appBootScript,
-  localeDirection,
-  renderAppShell,
-  RTL_LANGUAGES,
-} from '../../../src/site-build/html-shell'
+import { appBootScript, renderAppShell } from '../../../src/site-build/html-shell'
+import { localeDirection, RTL_LANGUAGES } from '../../../src/i18n/direction'
 import { localeTag } from '../../../src/i18n/locale-tag'
 import type { LocaleTag } from '../../../src/i18n/types'
 

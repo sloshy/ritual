@@ -110,6 +110,8 @@ export const sitePagesMessages = {
   'site.app.loadFailed': 'Failed to load data.',
   'site.app.loadFailedLog': 'Failed to load {url}:',
   'site.app.httpStatus': 'HTTP {status}',
+  'site.app.indexLoadFailedLog': 'Failed to load the site index:',
+  'site.app.indexRefreshFailedLog': 'Failed to refresh the site index:',
   'site.app.offline': 'Offline',
   'site.app.liveTitle': 'Backed by a live API — list data and card search are served fresh',
   'site.app.offlineTitle': 'The live backend is unreachable — showing the built-in site data',
@@ -133,6 +135,7 @@ export const sitePagesMessages = {
   'site.app.fanContentPolicy': 'Fan Content Policy',
   'site.app.cardData':
     'Card data and images come from {scryfall}, which is not affiliated with this site.',
+  'site.app.scryfallLink': 'Scryfall',
   'site.app.tradeToastAdded': '{name} added to Trade',
   'site.app.removeSelectedConfirm': 'Remove',
   'site.app.keepTradeTitle': '{name} is marked "To keep"',
@@ -175,7 +178,8 @@ export const sitePagesMessages = {
   },
   'site.combined.combining': 'Combining:',
   'site.combined.loadFailed': 'Failed to load one or more lists.',
-  'site.combined.loadFailedLog': 'Combined view: failed to load {type}/{slug}:',
+  'site.combined.loadFailedLog': 'Combined view: failed to load {list}:',
+  'site.combined.viewFailedLog': 'Combined view: failed to load the selected lists:',
   'site.combined.empty': 'No cards to show.',
 
   // ── Search results page ───────────────────────────────────────────────
@@ -229,6 +233,8 @@ export const sitePagesMessages = {
   'site.trade.priceUpdateFailed': 'Could not update prices',
   'site.trade.cacheNote': "Searches use the hosted API's card cache.",
   'site.trade.searchScryfall': 'Search Scryfall instead',
+  'site.trade.autocompleteFailedLog': 'Card name suggestions failed:',
+  'site.trade.printingsFailedLog': 'Loading the printings of a card failed:',
   'site.trade.includeDecks': 'Include cards in decks',
 
   // ── Trade column ──────────────────────────────────────────────────────
@@ -268,6 +274,8 @@ export const sitePagesMessages = {
   'site.tradeRow.sourceCollection': 'Collection',
   'site.tradeRow.sourceDeck': 'Deck · {name}',
   'site.tradeRow.sourceWanted': 'Wanted',
+  'site.tradeRow.sourceCache': 'Cache',
+  'site.tradeRow.sourceScryfall': 'Scryfall',
   'site.tradeRow.keepBadge': 'Keep',
   'site.tradeRow.editPrinting': 'Edit printing',
   'site.tradeRow.remove': 'Remove from trade',

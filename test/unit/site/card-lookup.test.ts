@@ -1,5 +1,9 @@
 import { describe, test, expect, afterEach, beforeEach } from 'bun:test'
-import { cardLookupSourceName, fetchCardsByIds } from '../../../src/site/card-lookup'
+import {
+  cardLookupSource,
+  cardLookupSourceLabelKey,
+  fetchCardsByIds,
+} from '../../../src/site/card-lookup'
 import { resetApiBase, setApiBase } from '../../../src/list-view/api-base'
 import { makeScryfallCard } from '../../test-utils'
 import { stubFetch, type StubbedFetch } from '../../helpers/stub-fetch'
@@ -27,14 +31,25 @@ function stubCardsApi(respond: (ids: string[]) => Response): string[][] {
   return batches
 }
 
-describe('cardLookupSourceName', () => {
+describe('cardLookupSource', () => {
   beforeEach(resetApiBase)
   afterEach(resetApiBase)
 
-  test('names the backend that answers the lookup', () => {
-    expect(cardLookupSourceName()).toBe('Scryfall')
+  test('names the backend that answers the lookup, as a code', () => {
+    expect(cardLookupSource()).toBe('scryfall')
     setApiBase('')
-    expect(cardLookupSourceName()).toBe('Cache')
+    expect(cardLookupSource()).toBe('cache')
+  })
+})
+
+describe('cardLookupSourceLabelKey', () => {
+  test('words each backend code through its own trade-row key', () => {
+    expect(cardLookupSourceLabelKey('cache')).toBe('site.tradeRow.sourceCache')
+    expect(cardLookupSourceLabelKey('scryfall')).toBe('site.tradeRow.sourceScryfall')
+  })
+
+  test.each(['Scryfall', 'constructor', ''])('has no key for %p', (name) => {
+    expect(cardLookupSourceLabelKey(name)).toBeUndefined()
   })
 })
 
@@ -109,7 +124,7 @@ describe('fetchCardsByIds — hosted', () => {
 
     expect((await fetchCardsByIds(['bolt'])).size).toBe(0)
     // Degraded: the next lookup would go to Scryfall instead of the dead API.
-    expect(cardLookupSourceName()).toBe('Scryfall')
+    expect(cardLookupSource()).toBe('scryfall')
   })
 
   test('no ids means no request', async () => {

@@ -333,6 +333,14 @@ export const sitePagesMeta = {
     description:
       'Message of the error raised when a data request answers with an HTTP error status, as it appears in the browser console. {status} is the numeric status code (404, 500, …).',
   },
+  'site.app.indexLoadFailedLog': {
+    description:
+      'Browser console line logged when the site could not load its index (the list of decks, collections and wanted lists it shows) at startup; the error follows it.',
+  },
+  'site.app.indexRefreshFailedLog': {
+    description:
+      'Browser console line logged when a live site could not re-fetch its index (the list of decks, collections and wanted lists) on navigation or tab focus, and keeps showing what it already has; the error follows it.',
+  },
   'site.app.offlineTitle': { description: 'Tooltip explaining the "Offline" header badge.' },
   'site.app.quickSwitch': {
     description: 'Label on the header button that opens the quick-switch list jumper.',
@@ -393,7 +401,11 @@ export const sitePagesMeta = {
   },
   'site.app.cardData': {
     description:
-      'Site footer credit for the card data and images. {scryfall} is a link reading "Scryfall", a website name that is not translated. "Not affiliated" means Scryfall has no connection to this site.',
+      'Site footer credit for the card data and images. {scryfall} is a link reading the site.app.scryfallLink text (the website\'s name). "Not affiliated" means Scryfall has no connection to this site.',
+  },
+  'site.app.scryfallLink': {
+    description:
+      'Text of the footer link to Scryfall, the card database website the card data and images come from; it fills {scryfall} in site.app.cardData. "Scryfall" is a brand name and is usually kept as spelled — change it only for the form your language customarily writes the brand in.',
   },
   'site.app.tradeToastAdded': {
     description:
@@ -489,7 +501,11 @@ export const sitePagesMeta = {
   },
   'site.combined.loadFailedLog': {
     description:
-      "Browser console line logged when one list of a combined view could not be fetched; the error follows it. {type} is the list type (deck, collection or wanted — an identifier, not a word to translate) and {slug} the list's URL slug.",
+      'Browser console line logged when one list of a combined view could not be fetched; the error follows it. {list} is the list as a type:slug token (an identifier, never translated).',
+  },
+  'site.combined.viewFailedLog': {
+    description:
+      'Browser console line logged when a combined view (several lists shown together) failed as a whole after its lists were fetched, so it shows the load-failed banner; the error follows it.',
   },
   'site.combined.empty': {
     description: 'Shown when a combined view has loaded successfully but holds no cards.',
@@ -627,6 +643,14 @@ export const sitePagesMeta = {
     description:
       'Toggle that switches the right column\'s search from your wanted lists to Scryfall. "Scryfall" is a product name.',
   },
+  'site.trade.autocompleteFailedLog': {
+    description:
+      "Browser console line logged when the Trade Editor's card-name suggestions (the names offered while typing a search) could not be fetched; the error follows it.",
+  },
+  'site.trade.printingsFailedLog': {
+    description:
+      'Browser console line logged when the Trade Editor could not fetch the printings (editions) of the card picked from its search; the error follows it.',
+  },
   'site.trade.includeDecks': {
     description: "Toggle that widens the left column's search to include cards already in decks.",
   },
@@ -733,6 +757,16 @@ export const sitePagesMeta = {
   },
   'site.tradeRow.sourceWanted': {
     description: 'Tag on a trade row showing the card came from a wanted list.',
+    maxLen: 14,
+  },
+  'site.tradeRow.sourceCache': {
+    description:
+      "Tag on a trade row for a card in none of your lists, when the hosted site looked it up in its own card cache (a stored copy of Scryfall's card data).",
+    maxLen: 14,
+  },
+  'site.tradeRow.sourceScryfall': {
+    description:
+      'Tag on a trade row for a card in none of your lists, when the browser looked it up on Scryfall (the card database website). "Scryfall" is a brand name and is usually kept as spelled.',
     maxLen: 14,
   },
   'site.tradeRow.keepBadge': {

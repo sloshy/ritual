@@ -497,7 +497,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <FlipButton flipped={flipped()} onFlip={toggleFlip} />
                 </Show>
                 <Show when={!props.hideCount && props.quantity > 1}>
-                  <span class="qty-badge">{props.quantity}x</span>
+                  <span class="qty-badge">
+                    {t('site.card.quantityBadge', { count: props.quantity })}
+                  </span>
                 </Show>
                 {anyPrintingMarker()}
                 {/* The ⋯ menu is offered whenever a handler is wired — read mode
@@ -693,7 +695,9 @@ export const CardItem: Component<CardItemProps> = (props) => {
                   <FlipButton flipped={flipped()} onFlip={toggleFlip} />
                 </Show>
                 <Show when={!props.hideCount && props.quantity > 1}>
-                  <span class="qty-badge">{props.quantity}x</span>
+                  <span class="qty-badge">
+                    {t('site.card.quantityBadge', { count: props.quantity })}
+                  </span>
                 </Show>
                 {anyPrintingMarker()}
                 <Show when={props.editMode || props.onContextMenu}>

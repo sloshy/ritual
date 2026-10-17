@@ -127,21 +127,27 @@ describe('groupDecksByFormat', () => {
       makeDeck({ slug: 'c', name: 'Charlie', format: 'commander' }),
     ]
     const groups = groupDecksByFormat(decks)
-    expect(groups.map((g) => g.label)).toEqual(['Commander', 'Modern'])
+    expect(groups.map((g) => g.labelKey)).toEqual([
+      'domain.deckFormat.commander',
+      'domain.deckFormat.modern',
+    ])
     expect(groups[0]!.decks.map((d) => d.slug)).toEqual(['a', 'c'])
     expect(groups[1]!.decks.map((d) => d.slug)).toEqual(['b'])
   })
 
-  // The unlabeled bucket carries `label: null` rather than a rendered "Other":
-  // grouping runs outside any reactive scope, so a string here would freeze that
-  // one heading in the boot-time language. The view resolves it.
-  test('decks without a detected format land in the unlabeled group, sorted last', () => {
+  // Every heading is a catalog key, never rendered text: grouping runs outside
+  // any reactive scope, so a string here would freeze the heading in the
+  // boot-time language. The view renders it.
+  test('decks without a detected format land in the "other" group, sorted last', () => {
     const decks: DeckSummary[] = [
       makeDeck({ slug: 'a', name: 'Alpha', format: null }),
       makeDeck({ slug: 'b', name: 'Bravo', format: 'commander' }),
     ]
     const groups = groupDecksByFormat(decks)
-    expect(groups.map((g) => g.label)).toEqual(['Commander', null])
+    expect(groups.map((g) => g.labelKey)).toEqual([
+      'domain.deckFormat.commander',
+      'site.index.otherFormat',
+    ])
     expect(groups[1]!.decks.map((d) => d.slug)).toEqual(['a'])
   })
 

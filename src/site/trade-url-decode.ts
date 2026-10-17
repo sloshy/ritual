@@ -6,7 +6,7 @@ import { getCardPriceForFinish } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { resolveTradeFinish } from './trade-finish'
 import { tradePrice } from './useTradeState'
-import { cardLookupSourceName, fetchCardsByIds } from './card-lookup'
+import { cardLookupSource, fetchCardsByIds } from './card-lookup'
 
 /**
  * Surfaced when a saved trade URL references data that no longer exists locally.
@@ -400,7 +400,7 @@ function decodeScryfallParam(paramValue: string, ctx: DecodeContext): TradeCardE
       scryfallCard: card,
       price: getCardPriceForFinish(card, finish, ctx.currency),
       source: 'scryfall',
-      sourceName: cardLookupSourceName(),
+      sourceName: cardLookupSource(),
       qty,
       editable: true,
     })

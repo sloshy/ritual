@@ -21,13 +21,21 @@ import {
   getSummaryTotalPrice,
 } from '../pricing/price-summary'
 import { getDeckCountLabel } from '../list/deck-format'
-import { listHref } from '../list-view/combined-list'
+import { listHref, listRefKey } from '../list-view/combined-list'
 import type { MessageKey } from '../i18n/messages/en'
 import { useI18n } from '../ui/i18n'
+import { KeyChips, type KeyHint } from '../ui/KeyHints'
 import type { TranslateFn } from '../i18n/t'
 import { printingLabel } from '../card/card-line-tail'
 
 type ListKind = 'deck' | 'collection' | 'wanted'
+
+/** The footer's keyboard affordances; key names stay English (owner decision). */
+const QUICK_SWITCH_KEYS: readonly KeyHint[] = [
+  { keys: ['↑', '↓'], label: 'site.quickSwitch.navigate' },
+  { keys: ['Enter'], label: 'site.quickSwitch.open' },
+  { keys: ['Esc'], label: 'site.quickSwitch.close' },
+]
 
 type ListEntry = {
   kind: 'list'
@@ -172,7 +180,10 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
       const candidates = buildCandidates(data)
       return { kind, slug, listName, candidates, totalsByName: totalQuantityByName(candidates) }
     } catch (e) {
-      console.error(`QuickSwitch: failed to load ${kind}/${slug}:`, e)
+      console.error(
+        t('site.quickSwitch.loadFailedLog', { list: listRefKey({ type: kind, slug }) }),
+        e,
+      )
       return null
     }
   }
@@ -509,18 +520,13 @@ export const QuickSwitch: Component<QuickSwitchProps> = (props) => {
             </Show>
           </div>
           <div class="quick-switch-footer">
-            <span>
-              <kbd>↑</kbd>
-              <kbd>↓</kbd> {t('site.quickSwitch.navigate')}
-            </span>
-            <span>
-              {/* i18n-exempt: keyboard key names as printed on the key */}
-              <kbd>Enter</kbd> {t('site.quickSwitch.open')}
-            </span>
-            <span>
-              {/* i18n-exempt: keyboard key names as printed on the key */}
-              <kbd>Esc</kbd> {t('site.quickSwitch.close')}
-            </span>
+            <For each={QUICK_SWITCH_KEYS}>
+              {(hint) => (
+                <span>
+                  <KeyChips keys={hint.keys} /> {t(hint.label)}
+                </span>
+              )}
+            </For>
           </div>
         </div>
       </div>

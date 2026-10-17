@@ -466,6 +466,30 @@ export const siteChromeMeta = {
     description:
       "Accessible name of the × button on a selected filter chip. {value} is the chip's own text (a set code, card type or tag) and is never translated.",
   },
+  'site.filter.manaValueInvalid': {
+    description:
+      'Error under the Mana Value filter field when what was typed is not a whole number of zero or more (a negative or fractional value). Mana value is the total mana cost of a card.',
+  },
+  'site.filter.priceInvalid': {
+    description:
+      'Error under the Price filter field when what was typed is not an amount of zero or more with at most two decimal places.',
+  },
+  'site.filter.buylistPriceInvalid': {
+    description:
+      'Error under the Buylist filter field (the price a store offers to buy a card for) when what was typed is not an amount of zero or more with at most two decimal places. Names the buylist so it is distinct from the Price field shown beside it.',
+  },
+  'site.filter.copiesInvalid': {
+    description:
+      'Error under the Copies filter field (how many copies of a card a list holds) when what was typed is not a whole number of zero or more.',
+  },
+  'site.filter.shareLoadFailedLog': {
+    description:
+      'Browser-console line when the "shares cards with" list filter could not load one of the lists it compares against; the error follows on the same line. {list} is the list as a type:slug token (an identifier, never translated).',
+  },
+  'site.filter.shareLoadRejectedLog': {
+    description:
+      'Browser-console line when loading a list for the "shares cards with" filter raised an error instead of reporting a plain failure (a programming slip; the filter treats it as a failed load). {list} is the list as a type:slug token (an identifier, never translated); the error follows on the same line.',
+  },
 
   // ── Quick filter ──────────────────────────────────────────────────────
   'site.quickFilter.label': {
@@ -692,6 +716,10 @@ export const siteChromeMeta = {
   'site.quickSwitch.quantity': {
     description:
       'Copy-count badge on a Quick Switch card or printing result row; {count} is how many copies the list holds. The English "×" is the multiplication sign used as a count marker.',
+  },
+  'site.quickSwitch.loadFailedLog': {
+    description:
+      'Browser-console line when Quick Switch could not load one list it searches cards in; the error follows on the same line. {list} is the list as a type:slug token (an identifier, never translated).',
   },
 
   // ── Theme picker and editor ───────────────────────────────────────────

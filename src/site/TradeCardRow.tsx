@@ -7,6 +7,7 @@ import type { TradeCardEntry } from '../list/site-data'
 import { languageBadge } from '../card/card-language'
 import { QuantityStepper } from '../ui/QuantityStepper'
 import { useT } from '../ui/i18n'
+import { cardLookupSourceLabelKey } from './card-lookup'
 import { cardPricelessMarkerText } from '../list-view/priceless'
 
 export interface TradeCardRowProps {
@@ -56,10 +57,12 @@ export const TradeCardRow: Component<TradeCardRowProps> = (props) => {
         return t('site.tradeRow.sourceDeck', { name: props.card.sourceName })
       case 'wanted':
         return t('site.tradeRow.sourceWanted')
-      case 'scryfall':
-        // Which backend answered this card's lookup — "Cache" on a hosted site,
-        // "Scryfall" when the browser had to ask Scryfall itself.
-        return props.card.sourceName
+      case 'scryfall': {
+        // Which backend answered this card's lookup — the hosted site's cache,
+        // or Scryfall when the browser had to ask it itself.
+        const key = cardLookupSourceLabelKey(props.card.sourceName)
+        return key ? t(key) : props.card.sourceName
+      }
     }
   }
 

@@ -5,7 +5,7 @@ import {
   type ListShareSource,
   type ShareEntryRef,
 } from '../../site/list-shares'
-import type { CombinedListRef } from '../../list-view/combined-list'
+import { listRefKey, type CombinedListRef } from '../../list-view/combined-list'
 import type { ListShareKeys } from '../../site/card-filters'
 import type { ApiErrorResponse } from '../../api/http'
 import type {
@@ -48,7 +48,7 @@ export function createAdminListShareSource(
         if (result.success !== true) return null
         return buildListShareKeys(result.entries, result.cards)
       } catch (e) {
-        console.error(t('admin.app.shareFilterLoadFailed', { list: `${ref.type}/${ref.slug}` }), e)
+        console.error(t('site.filter.shareLoadFailedLog', { list: listRefKey(ref) }), e)
         return null
       }
     },

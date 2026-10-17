@@ -22,6 +22,7 @@ import {
 } from 'solid-js'
 import type { JSX } from 'solid-js'
 import type { ThemeCssVars, ThemeName } from '../theme/themes'
+import { requireContext } from '../util/require-context'
 
 // Keep these key names in sync with `themeBootstrapScript` in `src/themes.ts`.
 const LS_THEME = 'ritual:theme'
@@ -154,18 +155,18 @@ export function createThemeStore() {
   // it lands in the DOM before any observer fires. Memos that call
   // `getComputedStyle` would otherwise run before a deferred effect could
   // update the attribute and see the old theme's values.
-  function setTheme(t: ActiveTheme): void {
+  function setTheme(next: ActiveTheme): void {
     const html = document.documentElement
-    if (t === 'default') html.removeAttribute('data-theme')
-    else html.dataset.theme = t
-    setThemeSignal(t)
+    if (next === 'default') html.removeAttribute('data-theme')
+    else html.dataset.theme = next
+    setThemeSignal(next)
   }
 
   createEffect(
     on(
       theme,
-      (t) => {
-        writeString(LS_THEME, t === 'default' ? null : t)
+      (active) => {
+        writeString(LS_THEME, active === 'default' ? null : active)
       },
       { defer: true },
     ),
@@ -274,7 +275,5 @@ export function ThemeProvider(props: ThemeProviderProps): JSX.Element {
 }
 
 export function useTheme(): ThemeStore {
-  const store = useContext(ThemeContext)
-  if (!store) throw new Error('useTheme must be used inside <ThemeProvider>')
-  return store
+  return requireContext(useContext(ThemeContext), 'useTheme', 'ThemeProvider')
 }

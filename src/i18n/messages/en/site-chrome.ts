@@ -160,6 +160,12 @@ export const siteChromeMessages = {
   'site.filter.copiesMode': 'Copies match mode',
   'site.filter.numericPlaceholder': 'Any',
   'site.filter.removeTag': 'Remove {value}',
+  'site.filter.manaValueInvalid': 'Mana value must be a non-negative integer',
+  'site.filter.priceInvalid': 'Price must be a non-negative number',
+  'site.filter.buylistPriceInvalid': 'Buylist price must be a non-negative number',
+  'site.filter.copiesInvalid': 'Copies must be a non-negative integer',
+  'site.filter.shareLoadFailedLog': 'Share filter: failed to load {list}:',
+  'site.filter.shareLoadRejectedLog': 'Share filter: loading {list} threw instead of failing:',
 
   // ── Quick filter (type anywhere on a list page) ───────────────────────
   'site.quickFilter.label': 'Quick filter',
@@ -263,6 +269,7 @@ export const siteChromeMessages = {
   'site.quickSwitch.inCollection': 'in collection "{name}"',
   'site.quickSwitch.inWanted': 'in wanted list "{name}"',
   'site.quickSwitch.quantity': '×{count}',
+  'site.quickSwitch.loadFailedLog': 'Quick switch: failed to load {list}:',
 
   // ── Theme picker and editor ───────────────────────────────────────────
   'site.theme.pickerTitle': 'Choose theme',
