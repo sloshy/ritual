@@ -291,6 +291,7 @@ export const sitePagesMessages = {
 
   // ── Build-time detail loaders ─────────────────────────────────────────
   'site.detail.fileNotFound': 'File not found: {path}',
+  'site.detail.printingNotFound': "Could not find printing for '{name}' ({printing})",
   'site.detail.noLanguageCard':
     "No {language} card object for '{name}' ({printing}); using the default-language object",
   'site.detail.artUnreadable': 'Custom art sidecar ignored: {reason}',

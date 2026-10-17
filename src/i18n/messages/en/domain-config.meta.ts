@@ -33,6 +33,9 @@ export const domainConfigMeta = {
   'domain.config.mustBeOneOf': {
     description: `${REFUSAL} ${FIELD} {values} is the list of accepted values (code words such as "scryfall", "feed"), already joined in the reader's language; never translate the values.`,
   },
+  'domain.config.unknownStore': {
+    description: `${REFUSAL} ${FIELD} The value is a list of price stores, and one of them is not a store Ritual knows. {value} is that entry as written (in the file, a \`config set\` argument, or an admin save); {values} is the list of accepted store names (code words such as "tcgplayer", "cardmarket"), already joined in the reader's language. Never translate the store names.`,
+  },
   'domain.config.mustBeEither': {
     description: `${REFUSAL} ${FIELD} {first} and {second} are the only two accepted values, code words such as "github-actions" and "manual"; never translate them.`,
   },

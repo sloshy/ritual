@@ -293,6 +293,18 @@ export const siteChromeMessages = {
   'site.theme.rawValue': 'Raw value',
   'site.theme.rawHint': "Couldn't parse as a color — edit the raw CSS value.",
   'site.theme.colorPreview': 'Current color preview',
+  // Why an imported theme file (the editor's Import…, `build-site
+  // --theme-file`) is not a theme.
+  'site.theme.file.notObject': 'Custom theme must be a JSON object',
+  'site.theme.file.nameMissing': 'Custom theme must have a non-empty `name` string',
+  'site.theme.file.nameMalformed':
+    "Custom theme name '{name}' must be lowercase letters, digits, and hyphens (starting with a letter or digit)",
+  'site.theme.file.nameBuiltIn':
+    "Custom theme name '{name}' collides with a built-in theme; pick a different name",
+  'site.theme.file.variablesMissing': 'Custom theme must have a `variables` object',
+  'site.theme.file.variableName': "Variable name '{name}' must start with '--'",
+  'site.theme.file.variableValue': "Variable '{name}' must be a non-empty string value",
+  'site.theme.file.variablesEmpty': 'Custom theme must define at least one variable',
   // ── Theme editor: variable groups and swatches ────────────────────────
   // Evaluated once at import by `src/site/theme-vars-metadata.ts`, so that
   // table holds these keys and the editor resolves them per render.

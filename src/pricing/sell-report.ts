@@ -52,6 +52,7 @@ import {
 import { formatCardTags, hasAnyCardTag, type CardTag } from '../card/card-tags'
 import type { CardLanguage } from '../card/card-language'
 import { parseNonNegativeDecimal, parseNonNegativeInteger } from '../util/parse-number'
+import { syncMessage, type SyncMessage } from '../sync/message'
 import { isProxy } from '../card/card-labels'
 import { getCardPriceForFinish } from './price-currency'
 import {
@@ -723,27 +724,38 @@ export type SellEntryFilters = {
   minOwned?: number
 }
 
-/** A plain non-negative decimal (see `parseNonNegativeDecimal`), or the error naming what it was for. */
-function parseNonNegative(raw: string, what: string): number | string {
-  return parseNonNegativeDecimal(raw) ?? `Invalid ${what} '${raw}' (expected a non-negative number)`
-}
-
-/** Parse a minimum-price value; returns the error message for a bad one. */
-export function parseMinPrice(raw: string): number | string {
-  return parseNonNegative(raw, 'minimum price')
-}
-
-/** Parse a minimum owned-copies count (a whole number, `0` or more); an error message for a bad one. */
-export function parseMinOwned(raw: string): number | string {
+/**
+ * A plain non-negative decimal (see `parseNonNegativeDecimal`), or the refusal
+ * naming `field`.
+ *
+ * The numeric sell-filter parsers below all refuse with a message — English
+ * plus its key — naming the value where it was given: `field` is the flag as
+ * typed (`--min`) for the CLI, the query parameter (`min`) for the admin API,
+ * never a translated noun.
+ */
+function parseNonNegative(raw: string, field: string): number | SyncMessage {
   return (
-    parseNonNegativeInteger(raw.trim()) ??
-    `Invalid minimum owned count '${raw}' (expected a whole number)`
+    parseNonNegativeDecimal(raw) ??
+    syncMessage('errors.number.notNonNegative', { field, value: raw })
   )
 }
 
-/** Parse a minimum offer-to-market ratio (`0.8` = 80% of market); an error message for a bad one. */
-export function parseMinRatio(raw: string): number | string {
-  return parseNonNegative(raw, 'minimum ratio')
+/** Parse a minimum-price value; the refusal for a bad one. */
+export function parseMinPrice(raw: string, field: string): number | SyncMessage {
+  return parseNonNegative(raw, field)
+}
+
+/** Parse a minimum owned-copies count (a whole number, `0` or more); the refusal for a bad one. */
+export function parseMinOwned(raw: string, field: string): number | SyncMessage {
+  return (
+    parseNonNegativeInteger(raw.trim()) ??
+    syncMessage('errors.number.notWholeNumber', { field, value: raw })
+  )
+}
+
+/** Parse a minimum offer-to-market ratio (`0.8` = 80% of market); the refusal for a bad one. */
+export function parseMinRatio(raw: string, field: string): number | SyncMessage {
+  return parseNonNegative(raw, field)
 }
 
 /** Whether any filter field is set (a blank filter keeps everything). */

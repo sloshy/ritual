@@ -1,8 +1,6 @@
 import { VALID_CURRENCIES, type PriceCurrencies, type PriceCurrency } from './price-currency'
-// Type-only, so the value-level import cycle (ritual-config parses this
-// module's config key) never materializes at runtime.
-import type { PlainParseError } from '../config/ritual-config'
 import type { MessageKey } from '../i18n/messages/en'
+import { syncList, syncMessage, type MessageParseError } from '../sync/message'
 
 /**
  * The stores card prices can be read from. Each source quotes in exactly one
@@ -241,16 +239,21 @@ export function isSiteStoresError(value: SiteStores | SiteStoresError): value is
 /**
  * Parse the `defaultPriceSource` config value. Absent stays absent (the first
  * enabled store is the default); the value is lowercased, and an unknown store
- * name is a parse error.
+ * name is a parse error — the config validator's refusal, English plus its key.
  */
-export function parseDefaultPriceSource(value: unknown): PriceSource | undefined | PlainParseError {
+export function parseDefaultPriceSource(
+  value: unknown,
+): PriceSource | undefined | MessageParseError {
   if (value === undefined) return undefined
   if (typeof value === 'string') {
     const lower = value.trim().toLowerCase()
     if (isPriceSource(lower)) return lower
   }
   return {
-    reason: `"defaultPriceSource" must be one of: ${VALID_PRICE_SOURCES.join(', ')}`,
+    error: syncMessage('domain.config.mustBeOneOf', {
+      field: 'defaultPriceSource',
+      values: syncList(VALID_PRICE_SOURCES, 'unit'),
+    }),
   }
 }
 
@@ -260,17 +263,21 @@ export function parseDefaultPriceSource(value: unknown): PriceSource | undefined
  * no prices at all" on the sites. Values are lowercased and deduped; an
  * unrecognized store name is a parse error.
  */
-export function parsePriceSources(value: unknown): PriceSource[] | PlainParseError {
+export function parsePriceSources(value: unknown): PriceSource[] | MessageParseError {
   if (value === undefined) return [...DEFAULT_PRICE_SOURCES]
   if (!Array.isArray(value) || !value.every((v) => typeof v === 'string')) {
-    return { reason: '"priceSources" must be an array of strings' }
+    return { error: syncMessage('domain.config.mustBeStringArray', { field: 'priceSources' }) }
   }
   const sources: PriceSource[] = []
   for (const raw of value) {
     const lower = raw.trim().toLowerCase()
     if (!isPriceSource(lower)) {
       return {
-        reason: `"priceSources" contains unknown store "${raw}". Must be any of: ${VALID_PRICE_SOURCES.join(', ')}`,
+        error: syncMessage('domain.config.unknownStore', {
+          field: 'priceSources',
+          value: raw,
+          values: syncList(VALID_PRICE_SOURCES, 'unit'),
+        }),
       }
     }
     if (!sources.includes(lower)) sources.push(lower)

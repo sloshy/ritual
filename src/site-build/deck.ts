@@ -10,7 +10,6 @@ import { extractPrimerCardNames } from '../list/primer-parser'
 import { resolveDeckFormat, getMainDeckSize, isCommanderSection } from '../list/deck-format'
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
 import { printingKey } from '../card/printing-key'
-import { printingLabel } from '../card/card-line-tail'
 import { getCardPriceForEntry } from '../pricing/price-currency'
 import type { PriceCurrency } from '../pricing/price-currency'
 import { scryfallSourceFor } from '../pricing/price-source'
@@ -34,6 +33,7 @@ import {
   reportListCoverIssue,
   resolveListCover,
   slugifyListName,
+  warnMissingPrinting,
 } from './shared'
 import {
   aliasWrittenCardName,
@@ -235,9 +235,7 @@ export async function buildDeckArtifacts(
       const pin = `${entry.name}|${printingKey(entry.set, entry.collectorNumber)}`
       if (!warnedPins.has(pin)) {
         warnedPins.add(pin)
-        ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${printingLabel(entry.set, entry.collectorNumber)})`,
-        )
+        warnMissingPrinting(ctx, entry.name, entry.set, entry.collectorNumber)
       }
     }
     return cardData.cards[entry.name] ?? null

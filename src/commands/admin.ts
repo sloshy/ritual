@@ -31,12 +31,12 @@ import type { RefreshMode } from '../cache/refresh'
 import { isRunningFromSource } from '../config/runtime'
 import {
   generateAllThemesCss,
-  isThemeName,
   resolveThemeName,
   themeFlameStops,
   themeNames,
   type ThemeName,
 } from '../theme/themes'
+import { isMessageParseError, renderSyncMessage } from '../sync/message'
 import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site-build/html-shell'
 import { bakedDictionaries } from '../generated/locales'
 import { en } from '../i18n/messages/en'
@@ -160,8 +160,8 @@ export function registerAdminCommand(program: Command): void {
       const adminDistDir = path.join(getBaseDir(), '.admin-dist')
 
       const themeName = resolveThemeName(options.theme)
-      if (!isThemeName(themeName)) {
-        console.error(themeName)
+      if (isMessageParseError(themeName)) {
+        console.error(renderSyncMessage(themeName.error))
         process.exitCode = ExitCode.UsageError
         return
       }

@@ -180,6 +180,21 @@ export function finishLabel(finish: Finish): string {
 }
 
 /**
+ * A finish's lower-case name ("foil"), for a price cell tagged with its
+ * finish and the trade printing picker's per-finish chips.
+ */
+export const FINISH_CHIP_LABELS = {
+  nonfoil: 'site.finishChip.nonfoil',
+  foil: 'site.finishChip.foil',
+  etched: 'site.finishChip.etched',
+} as const satisfies Record<Finish, MessageKey>
+
+/** A finish's lower-case name in the active UI locale. */
+export function finishChipLabel(finish: Finish): string {
+  return t(FINISH_CHIP_LABELS[finish])
+}
+
+/**
  * The ` [Foil]`-style suffix a CLI card row carries for a finish worth
  * marking: '' for nonfoil (the unmarked case) and for a line with no finish.
  */

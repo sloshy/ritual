@@ -9,6 +9,8 @@ import {
 import { computeRepresentativePrints } from '../scryfall'
 import { getErrorMessage } from '../util/errors'
 import { t } from '../i18n/t'
+import { assertNever } from '../util/assert-never'
+import { printingLabel } from '../card/card-line-tail'
 import { renderSyncMessage } from '../sync/message'
 import { buylistRequestFor, quoteKey, type BuylistQuote } from '../buylist'
 import { loadCardArt, type CardArtMap, type CardArtRef } from '../list/card-art'
@@ -35,7 +37,9 @@ import { readFrontMatterMapping } from '../list/front-matter-write'
 import { printingFinishPairs } from '../card/card-printing'
 import { siteArtUrl } from '../list/art-url'
 import { resolveCardImageSources } from '../card/image-sources'
-import type { CardLanguage } from '../card/card-language'
+import { languageLabel, type CardLanguage } from '../card/card-language'
+import { currentLocale } from '../i18n/runtime'
+import { formatUnitList } from '../i18n/format'
 import type { Finish } from '../card/finish-condition'
 import type { ScryfallCard } from '../scryfall/types'
 import type { BakedBuylist } from '../list/site-data'
@@ -206,7 +210,11 @@ export async function loadListSidecars(
     )
   } else {
     for (const warning of loadedArt.warnings) {
-      artWarnings.push(t('site.detail.artUnknownCards', { ids: warning.ids.join(', ') }))
+      artWarnings.push(
+        t('site.detail.artUnknownCards', {
+          ids: formatUnitList(currentLocale(), warning.ids.map(String)),
+        }),
+      )
     }
   }
 
@@ -223,7 +231,9 @@ export async function loadListSidecars(
   } else {
     for (const warning of loadedCategories.warnings) {
       categoryWarnings.push(
-        t('site.detail.categoriesUnknownCards', { names: warning.names.join(', ') }),
+        t('site.detail.categoriesUnknownCards', {
+          names: formatUnitList(currentLocale(), warning.names),
+        }),
       )
     }
   }
@@ -789,9 +799,44 @@ export function reportListCoverIssue(
     case 'undeployed-file':
       // Intentionally silent — see this function's doc comment.
       return
-    default: {
-      const unreachable: never = issue
-      throw new Error(`unhandled cover issue: ${JSON.stringify(unreachable)}`)
-    }
+    default:
+      assertNever(issue)
   }
+}
+
+/**
+ * Report, through the builders' warning sink, an entry pinning a printing the
+ * card data does not hold. Console text only: the detail still bakes, with the
+ * entry falling back to its name's representative card (or none).
+ */
+export function warnMissingPrinting(
+  ctx: SiteDetailContext,
+  name: string,
+  set: string,
+  collectorNumber: string,
+): void {
+  ctx.warn?.(
+    `  ⚠️  ${t('site.detail.printingNotFound', { name, printing: printingLabel(set, collectorNumber) })}`,
+  )
+}
+
+/**
+ * Report, through the builders' warning sink, a `[ja]`-style entry whose
+ * printing has no card object in that language: the default-language object
+ * stands in. The language is named in the reader's own language.
+ */
+export function warnMissingLanguageCard(
+  ctx: SiteDetailContext,
+  name: string,
+  set: string,
+  collectorNumber: string,
+  language: CardLanguage,
+): void {
+  ctx.warn?.(
+    `  ⚠️  ${t('site.detail.noLanguageCard', {
+      language: languageLabel(language, currentLocale()),
+      name,
+      printing: printingLabel(set, collectorNumber),
+    })}`,
+  )
 }

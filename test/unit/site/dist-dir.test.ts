@@ -73,6 +73,20 @@ describe('resolveOutDir', () => {
     expect(result.ok === false && result.error).toContain('may not contain the Ritual directory')
   })
 
+  test('each refusal reads in full, its paths interpolated', () => {
+    const tail =
+      " — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists."
+    expect(resolveOutDir('')).toEqual({ ok: false, error: '--out-dir requires a directory path.' })
+    expect(resolveOutDir('.')).toEqual({
+      ok: false,
+      error: `--out-dir may not be the Ritual directory itself (${BASE})${tail}`,
+    })
+    expect(resolveOutDir('..')).toEqual({
+      ok: false,
+      error: `--out-dir may not contain the Ritual directory (/home/tester contains ${BASE})${tail}`,
+    })
+  })
+
   test('a sibling that merely shares a name prefix is fine', () => {
     // `/home/tester/ritual-dist` starts with the base dir's string but is not an
     // ancestor of it — a prefix test rather than a path test would refuse it.

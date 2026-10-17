@@ -10,9 +10,6 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncPullTarget,
-  parseDefaultCategoriesField,
-  parseDefaultPriceSourceField,
-  parsePriceSourcesField,
   parseSiteApiBaseUrl,
   parseUiLocale,
   type AdminConfig,
@@ -21,6 +18,8 @@ import {
   type SiteConfig,
   type SiteSelectionConfig,
 } from './ritual-config'
+import { parseDefaultCategories } from '../card/card-categories'
+import { parseDefaultPriceSource, parsePriceSources } from '../pricing/price-source'
 import { normalizeLanguageValue } from '../card/card-language'
 import { getAtPath } from '../util/object'
 import { syncList, syncMessage, syncRef, type SyncMessageRef } from '../sync/message'
@@ -148,8 +147,8 @@ const ARRAY_VALUE_PARSERS: Record<
   string,
   (values: readonly string[]) => string[] | ConfigParseError
 > = {
-  priceSources: parsePriceSourcesField,
-  defaultCategories: parseDefaultCategoriesField,
+  priceSources: parsePriceSources,
+  defaultCategories: parseDefaultCategories,
 }
 
 export const SETTABLE_FIELDS: Record<string, ConfigFieldType> = {
@@ -490,7 +489,7 @@ export function applyConfigSet(
   // defaultPriceSource is a constrained string; validate and normalize to lowercase.
   let newValue = rawValue
   if (property === 'defaultPriceSource') {
-    const parsed = parseDefaultPriceSourceField(rawValue)
+    const parsed = parseDefaultPriceSource(rawValue)
     if (isConfigParseError(parsed)) {
       return parsed
     }

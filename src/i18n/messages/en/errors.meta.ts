@@ -16,6 +16,14 @@ export const errorsMeta = {
     description:
       'Rejection of a non-string value for a fixed-choice field (an HTTP body sending a number where an enum was expected). {field} is the field name and {choices} a comma-joined list; both are English identifiers.',
   },
+  'errors.number.notNonNegative': {
+    description:
+      'Rejection of a value that should be a plain decimal number of zero or more (a minimum price or ratio filter, e.g. `1.5`). {field} names where the value was given, spelled exactly as typed there — a CLI flag (`--min`) or a query parameter (`minRatio`); {value} is what the user typed. Both are identifiers and must not be translated.',
+  },
+  'errors.number.notWholeNumber': {
+    description:
+      'Rejection of a value that should be a whole number of zero or more (a minimum copy-count filter, e.g. `4`). {field} names where the value was given, spelled exactly as typed there — a CLI flag (`--min-owned`) or a query parameter (`minOwned`); {value} is what the user typed. Both are identifiers and must not be translated.',
+  },
   'errors.invariant.unhandled': {
     description:
       'An internal consistency failure: an exhaustive switch met a value none of its cases handles (a programming error, not a user mistake). {value} is that value as raw data — a quoted token, an object’s kind, or JSON, capped at 200 characters — and is never translated.',

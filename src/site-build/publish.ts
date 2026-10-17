@@ -15,6 +15,7 @@
 
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { t } from '../i18n/t'
 
 /**
  * How old a leftover build directory must be before the sweep will remove it.
@@ -110,7 +111,7 @@ export async function publishAtomically(tmpDir: string, distDir: string): Promis
   }
   if (hadPrevious) {
     await fs.rm(parked, { recursive: true, force: true }).catch(() => {
-      console.error(`Could not remove the previous site build at ${parked}.`)
+      console.error(t('cli.buildSite.previousBuildNotRemoved', { path: parked }))
     })
   }
 }

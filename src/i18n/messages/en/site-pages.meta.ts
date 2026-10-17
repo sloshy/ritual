@@ -810,9 +810,13 @@ export const sitePagesMeta = {
     description:
       'Reason given when a list file is missing while building the site. {path} is the file path.',
   },
+  'site.detail.printingNotFound': {
+    description:
+      'Build warning: a list pins a specific printing that the card data does not hold, so the card is shown without it. {name} is the card name, {printing} its set and collector number as SET:NUMBER (an identifier, never translated).',
+  },
   'site.detail.noLanguageCard': {
     description:
-      'Build warning: no card object exists in the requested language, so the default-language one is used. {language} is a Scryfall language code, {name} the card name, {printing} its set and collector number.',
+      'Build warning: no card object exists in the requested language, so the default-language one is used. {language} is the language\'s name, already in the reader\'s language (e.g. "Japanese"); {name} is the card name, {printing} its set and collector number as SET:NUMBER (an identifier, never translated).',
   },
   'site.detail.artUnreadable': {
     description:
@@ -820,7 +824,7 @@ export const sitePagesMeta = {
   },
   'site.detail.artUnknownCards': {
     description:
-      'Build warning: the custom-art sidecar names card ids that the list no longer contains. {ids} is a comma-separated list of those raw numeric ids.',
+      "Build warning: the custom-art sidecar names card ids that the list no longer contains. {ids} is the list of those raw numeric ids, already joined in the reader's language.",
   },
   'site.detail.categoriesUnreadable': {
     description:
@@ -828,7 +832,7 @@ export const sitePagesMeta = {
   },
   'site.detail.categoriesUnknownCards': {
     description:
-      'Build/load warning listing sidecar entries with no matching card line. {names} is a comma-separated list of the names exactly as the sidecar stores them.',
+      "Build/load warning listing sidecar entries with no matching card line. {names} is the list of the names exactly as the sidecar stores them, already joined in the reader's language.",
   },
   'site.detail.listDescriptionInvalid': {
     description:

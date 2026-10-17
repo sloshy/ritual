@@ -2,6 +2,7 @@ import type { ScryfallCard } from '../scryfall/types'
 import {
   type Finish,
   displayFinish,
+  finishChipLabel,
   printingFinishes,
   VALID_FINISHES,
 } from '../card/finish-condition'
@@ -86,10 +87,22 @@ export function formatPrice(amount: number, currency: PriceCurrency): string {
   return formatPriceIn(currentLocale(), amount, currency)
 }
 
-/** Like formatPrice, but returns 'N/A' when amount is 0 (i.e. no price data available). */
+/**
+ * Like formatPrice, but the catalog's "no price" stand-in (`N/A`) when amount
+ * is 0 (i.e. no price data available). Both halves read the active locale, so
+ * inside a Solid tracking scope a language switch re-renders either.
+ */
 export function formatPriceOrNA(amount: number, currency: PriceCurrency): string {
-  if (amount <= 0) return 'N/A'
+  if (amount <= 0) return t('site.printingPrice.na')
   return formatPrice(amount, currency)
+}
+
+/**
+ * A price cell tagged with its finish ("$12.00 etched", "N/A foil"): the
+ * finish named in the active locale, beside the already-formatted price.
+ */
+export function formatFinishTaggedPrice(price: string, finish: Finish): string {
+  return t('domain.price.withFinish', { price, finish: finishChipLabel(finish) })
 }
 
 /**
@@ -273,7 +286,7 @@ export function formatPrintingFinishCell(
   const cell = formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency)
   if (!pricesFinishesSeparately(currency)) return cell
   if (!printingFinishes(printing).includes(finish)) return null
-  return finish === 'nonfoil' ? cell : `${cell} ${finish}`
+  return finish === 'nonfoil' ? cell : formatFinishTaggedPrice(cell, finish)
 }
 
 /**
@@ -367,8 +380,8 @@ export function formatSpecificPrintingPrice(
 ): string {
   const resolvedFinish = displayFinish(card, finish)
   const price = getCardPriceForFinish(card, resolvedFinish, currency)
-  if (price <= 0) return 'Price: unavailable'
-  return `Price: ${formatPrice(price, currency)}`
+  if (price <= 0) return t('domain.price.printingUnavailable')
+  return t('domain.price.printing', { price: formatPrice(price, currency) })
 }
 
 /**
@@ -379,7 +392,10 @@ export function formatCheapestPrintingDisplay(
   result: CheapestPrintingResult | null,
   currency: PriceCurrency = DEFAULT_CURRENCY,
 ): string {
-  if (!result) return 'Cheapest printing: unavailable'
-  const setNum = printingLabel(result.card.set, result.card.collector_number)
-  return `Cheapest printing: ${formatPrice(result.price, currency)} (${setNum}) [${result.finish}]`
+  if (!result) return t('domain.price.cheapestUnavailable')
+  return t('domain.price.cheapest', {
+    price: formatPrice(result.price, currency),
+    printing: printingLabel(result.card.set, result.card.collector_number),
+    finish: result.finish,
+  })
 }

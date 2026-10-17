@@ -10,6 +10,9 @@ import {
   themeNames,
   themes,
 } from '../../src/theme/themes'
+import { localeTag } from '../../src/i18n/locale-tag'
+import { isMessageParseError, renderSyncMessage, type SyncMessage } from '../../src/sync/message'
+import { expectLocaleInForce, foreignLocales, withSyntheticLocale } from '../helpers/sync-text'
 
 const GUILDS = [
   'orzhov',
@@ -48,17 +51,35 @@ describe('resolveThemeName', () => {
     expect(resolveThemeName(undefined)).toBe('default')
   })
 
-  test('returns an error message when the theme is unknown', () => {
-    const result = resolveThemeName('not-a-theme')
-    expect(isThemeName(result)).toBe(false)
-    expect(result).toContain("'not-a-theme'")
-    expect(result).toContain('default')
+  test('refuses an unknown theme, naming it as typed and offering the built-ins', () => {
+    const refusal = resolveThemeName('NOT-A-Theme')
+    if (!isMessageParseError(refusal)) throw new Error('expected a refusal')
+    expect(refusal.error.messageKey).toBe('cli.theme.unknown')
+    expect(refusal.error.messageParams).toEqual({
+      value: 'NOT-A-Theme',
+      choices: { list: [...themeNames], join: 'unit' },
+    })
+    expect(refusal.error.message).toStartWith(
+      "Unknown theme 'NOT-A-Theme'. Choose one of: default, default-inverted, orzhov, ",
+    )
   })
 
-  test('the error message preserves the raw input casing', () => {
-    const result = resolveThemeName('NOT-A-Theme')
-    expect(isThemeName(result)).toBe(false)
-    expect(result).toContain("'NOT-A-Theme'")
+  test("offers the caller's other accepted names after the built-ins", () => {
+    const refusal = resolveThemeName('nope', ['sunset', 'dusk'])
+    if (!isMessageParseError(refusal)) throw new Error('expected a refusal')
+    expect(refusal.error.messageParams).toEqual({
+      value: 'nope',
+      choices: { list: [...themeNames, 'sunset', 'dusk'], join: 'unit' },
+    })
+    expect(refusal.error.message).toEndWith('golgari-inverted, sunset, dusk.')
+  })
+
+  test("the offered themes are joined by the reader's locale, not spliced as English", () => {
+    const refusal = resolveThemeName('nope')
+    if (!isMessageParseError(refusal)) throw new Error('expected a refusal')
+    const german = renderSyncMessage(refusal.error, localeTag('de'))
+    expect(german).toContain('golgari und golgari-inverted')
+    expect(refusal.error.message).toContain('golgari, golgari-inverted')
   })
 })
 
@@ -215,13 +236,24 @@ describe('generateCustomThemeCss', () => {
   })
 })
 
+describe('the baked custom-theme stylesheet', () => {
+  test.each(foreignLocales())('is byte-identical under $tag', ({ tag, catalog }) => {
+    const theme = { name: 'mine', variables: { '--accent': 'oklch(50% 0.1 0)' } }
+    const english = generateCustomThemeCss(theme)
+    expect(english).toStartWith('/* Custom theme: mine */')
+    withSyntheticLocale(tag, catalog, (locale) => {
+      expectLocaleInForce(locale)
+      expect(generateCustomThemeCss(theme)).toBe(english)
+    })
+  })
+})
+
 describe('parseCustomTheme', () => {
   test('accepts a minimal valid theme', () => {
     const result = parseCustomTheme({
       name: 'my-theme',
       variables: { '--bg-body': 'oklch(20% 0.02 260)' },
     })
-    expect(typeof result).toBe('object')
     expect(result).toEqual({
       name: 'my-theme',
       description: undefined,
@@ -235,56 +267,126 @@ describe('parseCustomTheme', () => {
       description: 'a custom palette',
       variables: { '--accent': 'oklch(50% 0.15 200)' },
     })
-    expect(typeof result).toBe('object')
-    if (typeof result === 'string') return
-    expect(result.description).toBe('a custom palette')
+    expect(result).toMatchObject({ description: 'a custom palette' })
   })
 
-  test('rejects non-object input', () => {
-    expect(parseCustomTheme(null)).toContain('JSON object')
-    expect(parseCustomTheme('hello')).toContain('JSON object')
-    expect(parseCustomTheme(42)).toContain('JSON object')
-  })
+  const ACCENT = { '--accent': 'oklch(50% 0 0)' }
 
-  test('rejects an empty name', () => {
-    expect(parseCustomTheme({ name: '', variables: { '--accent': 'oklch(50% 0 0)' } })).toContain(
-      'non-empty',
-    )
-  })
+  /** Each refusal, its message as the catalog keys it, and the English it has always been. */
+  const REFUSALS: readonly (readonly [string, unknown, SyncMessage])[] = [
+    [
+      'null',
+      null,
+      {
+        message: 'Custom theme must be a JSON object',
+        messageKey: 'site.theme.file.notObject',
+      },
+    ],
+    [
+      'a string',
+      'hello',
+      {
+        message: 'Custom theme must be a JSON object',
+        messageKey: 'site.theme.file.notObject',
+      },
+    ],
+    [
+      'a non-string name',
+      { name: 5, variables: ACCENT },
+      {
+        message: 'Custom theme must have a non-empty `name` string',
+        messageKey: 'site.theme.file.nameMissing',
+      },
+    ],
+    [
+      'an empty name',
+      { name: '', variables: ACCENT },
+      {
+        message: 'Custom theme must have a non-empty `name` string',
+        messageKey: 'site.theme.file.nameMissing',
+      },
+    ],
+    [
+      'a built-in name',
+      { name: 'boros', variables: ACCENT },
+      {
+        message: "Custom theme name 'boros' collides with a built-in theme; pick a different name",
+        messageKey: 'site.theme.file.nameBuiltIn',
+        messageParams: { name: 'boros' },
+      },
+    ],
+    [
+      'a malformed name',
+      { name: 'My Theme', variables: ACCENT },
+      {
+        message:
+          "Custom theme name 'My Theme' must be lowercase letters, digits, and hyphens (starting with a letter or digit)",
+        messageKey: 'site.theme.file.nameMalformed',
+        messageParams: { name: 'My Theme' },
+      },
+    ],
+    [
+      'a variable without the -- prefix',
+      { name: 'mine', variables: { 'bg-body': 'oklch(20% 0 0)' } },
+      {
+        message: "Variable name 'bg-body' must start with '--'",
+        messageKey: 'site.theme.file.variableName',
+        messageParams: { name: 'bg-body' },
+      },
+    ],
+    [
+      'an empty variable value',
+      { name: 'mine', variables: { '--accent': '' } },
+      {
+        message: "Variable '--accent' must be a non-empty string value",
+        messageKey: 'site.theme.file.variableValue',
+        messageParams: { name: '--accent' },
+      },
+    ],
+    [
+      'an empty variables object',
+      { name: 'mine', variables: {} },
+      {
+        message: 'Custom theme must define at least one variable',
+        messageKey: 'site.theme.file.variablesEmpty',
+      },
+    ],
+    [
+      'absent variables',
+      { name: 'mine' },
+      {
+        message: 'Custom theme must have a `variables` object',
+        messageKey: 'site.theme.file.variablesMissing',
+      },
+    ],
+    [
+      'null variables',
+      { name: 'mine', variables: null },
+      {
+        message: 'Custom theme must have a `variables` object',
+        messageKey: 'site.theme.file.variablesMissing',
+      },
+    ],
+    [
+      'a non-string variable value',
+      { name: 'mine', variables: { '--accent': 4 } },
+      {
+        message: "Variable '--accent' must be a non-empty string value",
+        messageKey: 'site.theme.file.variableValue',
+        messageParams: { name: '--accent' },
+      },
+    ],
+    [
+      'an array of variables',
+      { name: 'mine', variables: ['--bg-body: red'] },
+      {
+        message: 'Custom theme must have a `variables` object',
+        messageKey: 'site.theme.file.variablesMissing',
+      },
+    ],
+  ]
 
-  test('rejects names that collide with built-ins', () => {
-    expect(
-      parseCustomTheme({
-        name: 'boros',
-        variables: { '--accent': 'oklch(50% 0 0)' },
-      }),
-    ).toContain('built-in')
-  })
-
-  test('rejects invalid name characters', () => {
-    expect(
-      parseCustomTheme({
-        name: 'My Theme',
-        variables: { '--accent': 'oklch(50% 0 0)' },
-      }),
-    ).toContain('lowercase')
-  })
-
-  test('rejects variables without the -- prefix', () => {
-    expect(
-      parseCustomTheme({
-        name: 'mine',
-        variables: { 'bg-body': 'oklch(20% 0 0)' },
-      }),
-    ).toContain('--')
-  })
-
-  test('rejects empty variables object', () => {
-    expect(parseCustomTheme({ name: 'mine', variables: {} })).toContain('at least one variable')
-  })
-
-  test('rejects array values for `variables`', () => {
-    expect(parseCustomTheme({ name: 'mine', variables: [] })).toContain('object')
-    expect(parseCustomTheme({ name: 'mine', variables: ['--bg-body: red'] })).toContain('object')
+  test.each(REFUSALS)('refuses %s', (_label, input, refusal) => {
+    expect(parseCustomTheme(input)).toEqual({ error: refusal })
   })
 })

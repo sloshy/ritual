@@ -204,6 +204,8 @@ describe('sell CLI (Integration)', () => {
 
     const bad = await runCli(['sell', '--min-ratio', 'half'], dir, OFFLINE_ENV)
     expect(bad.exitCode).toBe(2)
+    // The refusal names the flag as typed, not a noun for it.
+    expect(bad.stderr).toContain("Invalid --min-ratio 'half' (expected a non-negative number)")
   })
 
   test('ownedCopies counts every list, and --min-owned filters on the total', async () => {

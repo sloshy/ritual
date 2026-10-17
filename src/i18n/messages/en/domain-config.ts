@@ -28,6 +28,8 @@ export const domainConfigMessages = {
   'domain.config.mustBePositiveInteger': '"{field}" must be a positive integer',
   'domain.config.mustBeNonNegativeInteger': '"{field}" must be a non-negative integer',
   'domain.config.mustBeOneOf': '"{field}" must be one of: {values}',
+  'domain.config.unknownStore':
+    '"{field}" contains unknown store "{value}". Must be any of: {values}',
   'domain.config.mustBeEither': '"{field}" must be "{first}" or "{second}"',
   'domain.config.mustBeHttpUrl': '"{field}" must be an http(s) URL',
   'domain.config.mustBeHttpUrlOrEmpty': '"{field}" must be an http(s) URL or an empty string',

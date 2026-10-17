@@ -43,7 +43,14 @@ import {
   type ThemeVarType,
 } from './theme-vars-metadata'
 import { ColorPicker, LengthPicker, OpacityPicker } from './ColorPicker'
-import { useT, useTKey } from '../ui/i18n'
+import { useI18n, useT, useTKey } from '../ui/i18n'
+import {
+  isMessageParseError,
+  renderSyncMessage,
+  syncRef,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../sync/message'
 
 type ThemeOption = {
   value: string
@@ -68,10 +75,13 @@ function readBaseVars(): ThemeCssVars {
 export const ThemeEditor: Component = () => {
   const t = useT()
   const tKey = useTKey()
+  const { locale } = useI18n()
   const theme = useTheme()
   const [activeGroup, setActiveGroup] = createSignal<ThemeVarGroupId>('surfaces')
   const [openVar, setOpenVar] = createSignal<string | null>(null)
-  const [importError, setImportError] = createSignal<string | null>(null)
+  // Held unrendered and worded in the JSX, so a language switch relabels an
+  // error already on screen.
+  const [importError, setImportError] = createSignal<SyncMessage | SyncMessageRef | null>(null)
   const [customName, setCustomName] = createSignal<string>('my-theme')
 
   // Overrides are stored in `customVars` and applied as inline styles on
@@ -121,7 +131,7 @@ export const ThemeEditor: Component = () => {
     try {
       text = await file.text()
     } catch {
-      setImportError(t('site.theme.readError'))
+      setImportError(syncRef('site.theme.readError'))
       return
     }
     let parsed: unknown
@@ -129,13 +139,13 @@ export const ThemeEditor: Component = () => {
       parsed = JSON.parse(text)
     } catch (e) {
       setImportError(
-        t('site.theme.invalidJson', { error: e instanceof Error ? e.message : String(e) }),
+        syncRef('site.theme.invalidJson', { error: e instanceof Error ? e.message : String(e) }),
       )
       return
     }
     const result = parseCustomTheme(parsed)
-    if (typeof result === 'string') {
-      setImportError(result)
+    if (isMessageParseError(result)) {
+      setImportError(result.error)
       return
     }
     setCustomName(result.name)
@@ -270,7 +280,11 @@ export const ThemeEditor: Component = () => {
         </div>
       </div>
       <Show when={importError()}>
-        <div class="theme-editor-error">{importError()}</div>
+        {(error) => (
+          <div class="theme-editor-error" role="alert">
+            {renderSyncMessage(error(), locale())}
+          </div>
+        )}
       </Show>
       <div class="theme-editor-row theme-editor-tabs" role="tablist">
         <For each={themeVarGroups}>

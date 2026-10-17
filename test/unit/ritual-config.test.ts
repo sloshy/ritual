@@ -15,7 +15,6 @@ import {
   getSiteSelectionConfig,
   refreshRitualConfig,
   isConfigParseError,
-  parseDefaultPriceSourceField,
   isDefaultLanguageConfigured,
   loadRitualConfig,
   normalizeBannedPrintings,
@@ -988,11 +987,6 @@ describe('config parser error shape', () => {
     expect(isConfigParseError(undefined)).toBeFalse()
     expect(isConfigParseError(null)).toBeFalse()
     expect(isConfigParseError({ set: 'sld', collectorNumber: '123', key: 'sld:123' })).toBeFalse()
-  })
-
-  test('parseDefaultPriceSourceField returns the store or a shared-shape error', () => {
-    expect(parseDefaultPriceSourceField('TCGplayer')).toBe('tcgplayer')
-    expectParseError(parseDefaultPriceSourceField('usd'), 'defaultPriceSource')
   })
 
   test('parseDefaultLanguage returns the language or a shared-shape error', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { isPlainParseError } from '../../src/config/ritual-config'
+import { localeTag } from '../../src/i18n/locale-tag'
+import { isMessageParseError, renderSyncMessage, syncList } from '../../src/sync/message'
 import {
   DEFAULT_PRICE_SOURCES,
   isPriceSource,
@@ -35,18 +36,28 @@ describe('parsePriceSources', () => {
     ])
   })
 
-  test('an unknown store is a parse error naming the vocabulary', () => {
-    const parsed = parsePriceSources(['tcgplayer', 'starcity'])
-    expect(isPlainParseError(parsed)).toBe(true)
-    if (isPlainParseError(parsed)) {
-      expect(parsed.reason).toContain('starcity')
-      expect(parsed.reason).toContain('cardmarket')
-    }
+  test('an unknown store is a config refusal naming it, as typed, and the vocabulary', () => {
+    const parsed = parsePriceSources(['tcgplayer', 'StarCity'])
+    if (!isMessageParseError(parsed)) throw new Error('expected a refusal')
+    expect(parsed.error.messageKey).toBe('domain.config.unknownStore')
+    expect(parsed.error.messageParams).toEqual({
+      field: 'priceSources',
+      value: 'StarCity',
+      values: syncList(VALID_PRICE_SOURCES, 'unit'),
+    })
+    // The store list is joined by the reader's locale, not spliced as English.
+    expect(renderSyncMessage(parsed.error, localeTag('de'))).toContain(
+      'cardkingdom und cardhoarder',
+    )
   })
 
-  test('a non-array (or an array with non-strings) is a parse error', () => {
-    expect(isPlainParseError(parsePriceSources('tcgplayer'))).toBe(true)
-    expect(isPlainParseError(parsePriceSources([1]))).toBe(true)
+  test('a non-array (or an array with non-strings) is a config refusal', () => {
+    for (const raw of ['tcgplayer', [1]]) {
+      const parsed = parsePriceSources(raw)
+      if (!isMessageParseError(parsed)) throw new Error('expected a refusal')
+      expect(parsed.error.messageKey).toBe('domain.config.mustBeStringArray')
+      expect(parsed.error.messageParams).toEqual({ field: 'priceSources' })
+    }
   })
 })
 
@@ -180,9 +191,14 @@ describe('parseDefaultPriceSource', () => {
     expect(parseDefaultPriceSource(' CardKingdom ')).toBe('cardkingdom')
   })
 
-  test.each([['usd'], [5]])('rejects %p', (raw) => {
+  test.each([['usd'], [5]])('rejects %p with the shared one-of refusal', (raw) => {
     const parsed = parseDefaultPriceSource(raw)
-    expect(isPlainParseError(parsed)).toBeTrue()
+    if (!isMessageParseError(parsed)) throw new Error('expected a refusal')
+    expect(parsed.error.messageKey).toBe('domain.config.mustBeOneOf')
+    expect(parsed.error.messageParams).toEqual({
+      field: 'defaultPriceSource',
+      values: syncList(VALID_PRICE_SOURCES, 'unit'),
+    })
   })
 })
 

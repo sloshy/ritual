@@ -224,6 +224,29 @@ test.describe('public site language switch', () => {
     await expect(error).not.toContainText('is not an object')
   })
 
+  test('relabels a refused theme file in the theme editor', async ({ page }) => {
+    await page.goto(DECK_HASH)
+    await page.waitForSelector('[data-view]', { timeout: 15_000 })
+    await page.getByRole('button', { name: 'Theme', exact: true }).click()
+    await page.getByRole('button', { name: /Customize theme/ }).click()
+    // A variable that is not a CSS custom property: the parser's refusal is a
+    // message the editor holds unrendered and words in the JSX.
+    await page.locator('.theme-editor input[type="file"]').setInputFiles({
+      name: 'bad.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from(JSON.stringify({ name: 'mine', variables: { accent: 'red' } })),
+    })
+    const error = page.locator('.theme-editor-error')
+    await expect(error).toHaveText("Variable name 'accent' must start with '--'")
+
+    await markPage(page)
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(error, true)
+    await expect(error).toContainText('accent')
+    await expect(error).not.toContainText('must start with')
+    await expectNotReloaded(page)
+  })
+
   test('stamps the document language and remembers the choice', async ({ page }) => {
     await page.goto(DECK_HASH)
     await page.waitForSelector('[data-view]', { timeout: 15_000 })

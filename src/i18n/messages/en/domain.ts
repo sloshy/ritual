@@ -161,6 +161,13 @@ export const domainMessages = {
     one: 'Estimated at least {price}, {count} card has no price',
     other: 'Estimated at least {price}, {count} cards have no price',
   },
+  // The price line the CLI prints after adding a card: the printing's own
+  // price, or for a name-only wanted card the cheapest printing's.
+  'domain.price.withFinish': '{price} {finish}',
+  'domain.price.printing': 'Price: {price}',
+  'domain.price.printingUnavailable': 'Price: unavailable',
+  'domain.price.cheapest': 'Cheapest printing: {price} ({printing}) [{finish}]',
+  'domain.price.cheapestUnavailable': 'Cheapest printing: unavailable',
 
   // ── Site navigation ───────────────────────────────────────────────────
   //

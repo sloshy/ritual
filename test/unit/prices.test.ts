@@ -20,23 +20,23 @@ describe('parsePriceCacheKey', () => {
     })
   })
 
-  test('handles card names with colons', () => {
-    expect(parsePriceCacheKey('Who // What:usd')).toEqual({
+  test('splits on the last colon, so a name with a colon survives', () => {
+    expect(parsePriceCacheKey('Circle of Protection: Red:usd')).toEqual({
       ok: true,
-      cardName: 'Who // What',
+      cardName: 'Circle of Protection: Red',
       currency: 'usd',
     })
   })
 
-  test('returns error for key without currency suffix', () => {
-    const result = parsePriceCacheKey('Sol Ring')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBeString()
+  test('refuses a key without a currency suffix', () => {
+    expect(parsePriceCacheKey('Sol Ring')).toEqual({ ok: false, problem: 'missing-currency' })
   })
 
-  test('returns error for unknown currency suffix', () => {
-    const result = parsePriceCacheKey('Sol Ring:xyz')
-    expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBeString()
+  test.each([
+    ['an unknown suffix', 'Sol Ring:xyz', 'xyz'],
+    ['an empty suffix', 'Sol Ring:', ''],
+    ['an upper-case suffix (keys are written lowercase)', 'Sol Ring:USD', 'USD'],
+  ])('refuses %s, naming it', (_label, key, suffix) => {
+    expect(parsePriceCacheKey(key)).toEqual({ ok: false, problem: 'unknown-currency', suffix })
   })
 })

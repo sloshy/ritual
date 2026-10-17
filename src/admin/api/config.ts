@@ -9,11 +9,8 @@ import {
   parseCacheLockTimeoutSeconds,
   parseCacheSource,
   parseCollectionSyncConfig,
-  parseDefaultCategoriesField,
   parseDefaultLanguage,
-  parseDefaultPriceSourceField,
   parseExportPresetsField,
-  parsePriceSourcesField,
   parseSearchDebounceMs,
   parseSiteConfig,
   parseUiLocale,
@@ -24,6 +21,8 @@ import {
   type RitualConfig,
   type SessionOverrides,
 } from '../../config/ritual-config'
+import { parseDefaultCategories } from '../../card/card-categories'
+import { parseDefaultPriceSource, parsePriceSources } from '../../pricing/price-source'
 import { shouldAutoCommit, commitFiles } from '../git'
 import { apiHandler } from '../utils'
 import { badRequest, nestedRefusal, readJsonObjectBody } from '../../api/http'
@@ -178,8 +177,8 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
       applyParsedUpdate(raw, updates, 'cacheSource', parseCacheSource) ??
       applyParsedUpdate(raw, updates, 'searchDebounceMs', parseSearchDebounceMs) ??
       applyParsedUpdate(raw, updates, 'updateCheck', parseUpdateCheck) ??
-      applyParsedUpdate(raw, updates, 'priceSources', parsePriceSourcesField) ??
-      applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategoriesField)
+      applyParsedUpdate(raw, updates, 'priceSources', parsePriceSources) ??
+      applyParsedUpdate(raw, updates, 'defaultCategories', parseDefaultCategories)
     // A refusal is English plus its key, its params possibly nested (a section's
     // refusal nests the field's, a list of accepted values is a list).
     if (scalarError !== null) {
@@ -192,9 +191,7 @@ export function handleUpdateConfig(req: Request): Promise<Response> {
     let clearDefaultPriceSource = false
     if (raw.defaultPriceSource !== undefined) {
       const parsed =
-        raw.defaultPriceSource === ''
-          ? undefined
-          : parseDefaultPriceSourceField(raw.defaultPriceSource)
+        raw.defaultPriceSource === '' ? undefined : parseDefaultPriceSource(raw.defaultPriceSource)
       if (isConfigParseError(parsed)) return nestedRefusal(parsed.error)
       if (parsed === undefined) {
         // `updates` aliases the raw body; never leave a `''` typed as a store.

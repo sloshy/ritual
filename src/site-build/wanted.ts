@@ -1,4 +1,3 @@
-import { t } from '../i18n/t'
 import { parseWantedListFile } from '../list/wanted-file'
 import type { WantedListEntry } from '../list/wanted-file'
 import { findPrinting, hasSpecificPrinting } from '../card/card-printing'
@@ -25,6 +24,8 @@ import {
   resolveListCover,
   siteCardKingdomData,
   slugifyListName,
+  warnMissingLanguageCard,
+  warnMissingPrinting,
 } from './shared'
 import type { BuylistBakeSource, ListCoverOverrideEntry, LoadedFlatList } from './shared'
 import type { SiteDetailContext, WantedArtifacts } from './types'
@@ -36,7 +37,6 @@ import {
   type FlatSummaryLine,
 } from './summary-prices'
 import { cardPrintingKey, printingKey, printingLanguageKey } from '../card/printing-key'
-import { printingLabel } from '../card/card-line-tail'
 
 export type LoadedWanted = LoadedFlatList<WantedListEntry>
 
@@ -159,13 +159,7 @@ export async function buildWantedArtifacts(
               cardMap[langKey] = langCard
               await ctx.onCardShipped?.(langCard)
             } else {
-              ctx.warn?.(
-                `  ⚠️  ${t('site.detail.noLanguageCard', {
-                  language,
-                  name: entry.name,
-                  printing: printingLabel(entry.set, entry.collectorNumber),
-                })}`,
-              )
+              warnMissingLanguageCard(ctx, entry.name, entry.set, entry.collectorNumber, language)
             }
           }
         }
@@ -178,9 +172,7 @@ export async function buildWantedArtifacts(
           )
         }
       } else {
-        ctx.warn?.(
-          `  ⚠️  Could not find printing for '${entry.name}' (${printingLabel(entry.set, entry.collectorNumber)})`,
-        )
+        warnMissingPrinting(ctx, entry.name, entry.set, entry.collectorNumber)
         cardMap[cardKey] = null
       }
     }

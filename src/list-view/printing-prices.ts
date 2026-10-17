@@ -27,11 +27,10 @@ import type { ScryfallCard } from '../scryfall/types'
  * How a printing's price is written wherever one is shown: the formatted amount,
  * or the "no price" stand-in when the selected store publishes none.
  *
- * A named function rather than an inline ternary per surface, and deliberately
- * *not* `price-currency`'s `formatPriceOrNA`, whose miss branch is a hardcoded
- * English `'N/A'` — that function is shared with the CLI and holds no locale.
- * `t` is passed in (the `printing-display` convention) so a locale switch
- * re-renders the stand-in rather than freezing it at module load.
+ * A named function rather than an inline ternary per surface. It words the
+ * same stand-in as `price-currency`'s `formatPriceOrNA`, but through the `t`
+ * passed in (the `printing-display` convention), so a caller handing over
+ * `useT()` re-renders the stand-in on a locale switch.
  */
 export function printingPriceText(t: TranslateFn, price: number, currency: PriceCurrency): string {
   return price > 0 ? formatPrice(price, currency) : t('site.printingPrice.na')

@@ -26,17 +26,17 @@ export const siteCardsMeta = {
   },
   'site.finishChip.nonfoil': {
     description:
-      'Lower-case variant of "Nonfoil" for the small per-finish buttons in the trade printing picker. Use the same word as site.finish.nonfoil if your language does not vary casing.',
+      'Lower-case variant of "Nonfoil" for the small per-finish buttons in the trade printing picker, and the finish tag after a price in a printing picker\'s price column. Use the same word as site.finish.nonfoil if your language does not vary casing.',
     maxLen: CHIP_MAX_LEN,
   },
   'site.finishChip.foil': {
     description:
-      'Lower-case variant of "Foil" for the small per-finish buttons in the trade printing picker.',
+      'Lower-case variant of "Foil" for the small per-finish buttons in the trade printing picker, and the finish tag after a price in a printing picker\'s price column.',
     maxLen: CHIP_MAX_LEN,
   },
   'site.finishChip.etched': {
     description:
-      'Lower-case variant of "Etched" for the small per-finish buttons in the trade printing picker.',
+      'Lower-case variant of "Etched" for the small per-finish buttons in the trade printing picker, and the finish tag after a price in a printing picker\'s price column.',
     maxLen: CHIP_MAX_LEN,
   },
 
@@ -472,7 +472,7 @@ export const siteCardsMeta = {
   },
   'site.printingPrice.na': {
     description:
-      'Stands in for a price the selected price store does not publish for this printing and finish. Shown wherever a printing is priced — the card modal’s other-printings grid and the printing pickers. Very short.',
+      'Stands in for a price the selected price store does not publish for this printing and finish. Shown wherever a printing is priced — a card tile’s price, the card modal’s other-printings grid, the printing pickers on the sites and in the CLI, and the CLI price browser. Very short.',
     maxLen: 8,
   },
   'site.printingPrice.alternate': {

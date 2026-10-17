@@ -897,7 +897,7 @@ Copies that are [priceless by rule](/custom-art/#custom-art-carries-no-price) â€
 | `minOwned` | Minimum total owned copies (`ownedCopies.collection + ownedCopies.deck`, a whole number)                      | No       |
 | `minRatio` | Minimum offer-to-market ratio (`offerRatio`, e.g. `0.8`); entries with no market price drop                   | No       |
 
-A blank parameter (`?min=`) reads as absent. A malformed one is a `400` carrying the parser's message: a tag that breaks the [tag shape rule](/list-format/#card-tags), a `min`/`minRatio` that is not a plain non-negative decimal (`1.5`, not `1e1` or `-1`), or a `minOwned` that is not a whole number (`Invalid minimum owned count '2.5' (expected a whole number)`).
+A blank parameter (`?min=`) reads as absent. A malformed one is a `400` carrying the parser's message: a tag that breaks the [tag shape rule](/list-format/#card-tags), a `min`/`minRatio` that is not a plain non-negative decimal (`1.5`, not `1e1` or `-1`), or a `minOwned` that is not a whole number (`Invalid minOwned '2.5' (expected a whole number)`, key `errors.number.notWholeNumber`). A numeric refusal names the parameter as it is spelled in the query string.
 
 **Response:**
 
@@ -3089,7 +3089,7 @@ A rejected value answers in the shared [error envelope](#error-responses), in En
 }
 ```
 
-`priceSources` and `defaultPriceSource` refusals carry their English `message` with no key yet. An `exportPresets` refusal is keyed `domain.export.problem.*` (a preset's column list's own refusal nested as `reason` inside `domain.export.problem.presetColumnsInvalid`). A `defaultCategories` refusal is keyed: `domain.config.defaultCategoriesNotArray` / `domain.config.defaultCategoriesNotText`, or the category rule's own `domain.card.category.invalid`, whose `rule` nests `domain.card.category.shapeRule`.
+A `priceSources` or `defaultPriceSource` refusal is keyed `domain.config.mustBeOneOf`, `domain.config.mustBeStringArray`, or `domain.config.unknownStore` (`{ field, value, values }`, with the accepted stores a `{ list, join }`). An `exportPresets` refusal is keyed `domain.export.problem.*` (a preset's column list's own refusal nested as `reason` inside `domain.export.problem.presetColumnsInvalid`). A `defaultCategories` refusal is keyed: `domain.config.defaultCategoriesNotArray` / `domain.config.defaultCategoriesNotText`, or the category rule's own `domain.card.category.invalid`, whose `rule` nests `domain.card.category.shapeRule`.
 
 **Request body:**
 

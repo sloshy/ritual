@@ -347,7 +347,24 @@ release changes a file format or a generated file, it ships the change as a
   and their `--output json` error envelope now carries `messageKey` (`cli.config.*`, or
   `domain.config.*` for a value the validator refuses) and `messageParams`, with any nested
   part flattened to English. A refused `priceSources` or `defaultPriceSource` value is
-  still English with no key.
+  keyed too (`domain.config.mustBeOneOf`, `domain.config.mustBeStringArray`, or the new
+  `domain.config.unknownStore`); its printed message joins the list of stores in the
+  CLI's language.
+- **`sell`'s number filters name the flag they refuse.** `sell --min`, `--min-ratio` and
+  `--min-owned` refuse a bad value as "Invalid --min-ratio 'half' (expected a
+  non-negative number)" (it read "Invalid minimum ratio 'half' …"), in the CLI's language.
+  `GET /api/sell/report` and `GET /api/sell/cart` answer a malformed `min`, `minRatio` or
+  `minOwned` with `messageKey` `errors.number.notNonNegative` or
+  `errors.number.notWholeNumber` and the parameter as the query spells it ("Invalid
+  minOwned '1.5' (expected a whole number)"; it read "Invalid minimum owned count …", with
+  no key). Update anything that matched the old text.
+- **Theme errors follow the reader's language.** The theme editor's Import… refusals (a
+  file that is not a theme, not JSON, or unreadable) are worded in the browser's language
+  and relabelled when you switch it; `build-site` and `serve`'s `--theme-file` and
+  `--theme`, and `admin --theme`, word theme refusals in the CLI's, with the built-in theme names joined
+  in it. So do the `--out-dir` refusals of `build-site` and `serve`, the `Price:` /
+  `Cheapest printing:` line `add-card` and the edit sessions print after an add, and the
+  site build's "Could not find printing" warnings. A built site's stylesheet is unchanged.
 - **Card-line diagnostics, and the card vocabulary's refusals, carry their keys.** Why a
   card line could not be read, or how an export line was read, is now a message: English
   plus a `domain.card.line.*` key, located by `domain.card.line.inFile` (`{ file, line, text }`)
@@ -433,8 +450,7 @@ JSON object`).
   answers with `messageKey` and `messageParams` beside the English `message` (it sent the
   English alone), where a block's refusal (`domain.config.inSection`) nests the field's as
   its `reason` and a list of accepted values is a `{ list, join }`; the admin Settings page
-  shows it in the reader's language. A refused `priceSources`, `defaultPriceSource` or
-  `exportPresets` value is still English with no key. The MCP
+  shows it in the reader's language. The MCP
   `update_config` tool keeps answering with the English. A config file broken by hand
   under a running admin server answers every request with the same English plus
   `domain.config.fileNotJson`.

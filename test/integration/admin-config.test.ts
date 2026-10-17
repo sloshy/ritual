@@ -389,8 +389,7 @@ describe('config refusals on the wire (Integration)', () => {
     })
   })
 
-  test('a refusal worded outside the catalog is its English alone, with no key', async () => {
-    // `priceSources` is validated by the pricing module, not yet converted.
+  test('a price-store refusal from the pricing module is English plus its key, the stores nested', async () => {
     const response = await inPseudoLocale(() => putConfig({ priceSources: ['ebay'] }))
     expect(response.status).toBe(400)
     const body = (await response.json()) as SyncMessage & { success: boolean }
@@ -398,6 +397,12 @@ describe('config refusals on the wire (Integration)', () => {
       success: false,
       message:
         '"priceSources" contains unknown store "ebay". Must be any of: tcgplayer, cardmarket, cardkingdom, cardhoarder',
+      messageKey: 'domain.config.unknownStore',
+      messageParams: {
+        field: 'priceSources',
+        value: 'ebay',
+        values: { list: ['tcgplayer', 'cardmarket', 'cardkingdom', 'cardhoarder'], join: 'unit' },
+      },
     })
   })
 

@@ -5,7 +5,6 @@ import { parseBaseDir } from '../../src/config/base-dir'
 import {
   getDefaultRitualConfig,
   isConfigParseError,
-  isPlainParseError,
   normalizeBannedPrintings,
   parseAdminConfig,
   parseBannedPrinting,
@@ -23,6 +22,7 @@ import {
   parseUpdateCheck,
   RitualConfigParseError,
 } from '../../src/config/ritual-config'
+import { parseDefaultPriceSource, parsePriceSources } from '../../src/pricing/price-source'
 import {
   isMessageParseError,
   renderSyncMessage,
@@ -74,6 +74,21 @@ const REFUSALS: readonly (readonly [string, () => unknown, string])[] = [
     'one of a list',
     () => parseCacheSource('torrent'),
     '"cacheSource" must be one of: scryfall, feed',
+  ],
+  [
+    'defaultPriceSource',
+    () => parseDefaultPriceSource('usd'),
+    '"defaultPriceSource" must be one of: tcgplayer, cardmarket, cardkingdom, cardhoarder',
+  ],
+  [
+    'a priceSources list',
+    () => parsePriceSources('tcgplayer'),
+    '"priceSources" must be an array of strings',
+  ],
+  [
+    'a priceSources store',
+    () => parsePriceSources(['tcgplayer', 'StarCity']),
+    '"priceSources" contains unknown store "StarCity". Must be any of: tcgplayer, cardmarket, cardkingdom, cardhoarder',
   ],
   ['an http(s) URL', () => parseCacheFeedUrl('ftp://x'), '"cacheFeedUrl" must be an http(s) URL'],
   [
@@ -286,6 +301,12 @@ describe('config refusals are keyed, and their English is unchanged', () => {
             })
           }
         }
+        if (tag === 'de') {
+          // A list of four stores, joined by German's list format.
+          expect(renderSyncMessage(refusalOf(parseDefaultPriceSource('usd')))).toBe(
+            '"defaultPriceSource" must be one of: tcgplayer, cardmarket, cardkingdom und cardhoarder',
+          )
+        }
       })
     },
   )
@@ -308,14 +329,6 @@ describe('config refusals are keyed, and their English is unchanged', () => {
       expect(error.message).not.toBe(english)
       expect(error.message).not.toContain('must be one of')
     })
-  })
-
-  test("a sibling parser's plain refusal is not a config refusal until it is lifted", () => {
-    expect(isPlainParseError({ reason: 'nope' })).toBeTrue()
-    expect(isPlainParseError({ error: { message: 'nope' } })).toBeFalse()
-    expect(isPlainParseError(['tcgplayer'])).toBeFalse()
-    expect(isPlainParseError(undefined)).toBeFalse()
-    expect(isConfigParseError({ reason: 'nope' })).toBeFalse()
   })
 
   test('a section refusal nests the field refusal it is about', () => {

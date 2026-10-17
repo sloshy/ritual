@@ -56,27 +56,6 @@
     "Not found. Use the ${…} endpoint.": 1,
     "Ritual MCP server (HTTP) listening at http://${…}:${…}${…}": 1
   },
-  "src/pricing/price-currency.ts": {
-    "Cheapest printing: ${…} (${…}) [${…}]": 1,
-    "Cheapest printing: unavailable": 1,
-    "Price: ${…}": 1,
-    "Price: unavailable": 1
-  },
-  "src/pricing/price-source.ts": {
-    "\"defaultPriceSource\" must be one of: ${…}": 1,
-    "\"priceSources\" contains unknown store \"${…}\". Must be any of: ${…}": 1,
-    "\"priceSources\" must be an array of strings": 1
-  },
-  "src/pricing/prices.ts": {
-    "Cache key '${…}' has unknown currency suffix '${…}'": 1,
-    "Cache key '${…}' is missing currency suffix": 1
-  },
-  "src/pricing/sell-report.ts": {
-    "Invalid ${…} '${…}' (expected a non-negative number)": 1,
-    "Invalid minimum owned count '${…}' (expected a whole number)": 1,
-    "minimum price": 1,
-    "minimum ratio": 1
-  },
   "src/serve/lists.ts": {
     "Failed to enumerate ${…} sources: ${…}": 1
   },
@@ -88,41 +67,5 @@
     "Internal Server Error": 1,
     "Not Found": 1,
     "Unhandled server error:": 1
-  },
-  "src/site-build/assets.ts": {
-    "Site SPA ${…} build failed": 1,
-    "Site SPA build produced no ${…} output": 1
-  },
-  "src/site-build/collection.ts": {
-    "⚠️ Could not find printing for '${…}' (${…})": 1
-  },
-  "src/site-build/deck.ts": {
-    "⚠️ Could not find printing for '${…}' (${…})": 1
-  },
-  "src/site-build/dist-dir.ts": {
-    "--out-dir may not be the Ritual directory itself (${…}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.": 1,
-    "--out-dir may not contain the Ritual directory (${…} contains ${…}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.": 1,
-    "--out-dir requires a directory path.": 1
-  },
-  "src/site-build/publish.ts": {
-    "Could not remove the previous site build at ${…}.": 1
-  },
-  "src/site-build/shared.ts": {
-    "unhandled cover issue: ${…}": 1
-  },
-  "src/site-build/wanted.ts": {
-    "⚠️ Could not find printing for '${…}' (${…})": 1
-  },
-  "src/theme/themes.ts": {
-    "Custom theme must be a JSON object": 1,
-    "Custom theme must define at least one variable": 1,
-    "Custom theme must have a `variables` object": 1,
-    "Custom theme must have a non-empty `name` string": 1,
-    "Custom theme name '${…}' collides with a built-in theme; pick a different name": 1,
-    "Custom theme name '${…}' must be lowercase letters, digits, and hyphens (starting with a letter or digit)": 1,
-    "Custom theme: ${…}": 1,
-    "Unknown theme '${…}'. Choose one of: ${…}.": 1,
-    "Variable '${…}' must be a non-empty string value": 1,
-    "Variable name '${…}' must start with '--'": 1
   }
 }

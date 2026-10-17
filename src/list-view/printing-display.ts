@@ -17,14 +17,11 @@
 
 import type { MessageKey } from '../i18n/messages/en'
 import type { TranslateFn } from '../i18n/t'
-import type { Finish } from '../card/finish-condition'
+import { FINISH_CHIP_LABELS, type Finish } from '../card/finish-condition'
 import { capitalize } from '../util/strings'
 
 /** Message keys naming a finish in title case. Narrowed so `t()` needs no params. */
 type FinishMessageKey = Extract<MessageKey, `site.finish.${string}`>
-
-/** Message keys naming a finish in the lower-case chip form. */
-type FinishChipMessageKey = Extract<MessageKey, `site.finishChip.${string}`>
 
 /** Message keys naming a Scryfall rarity. */
 type RarityMessageKey = Extract<MessageKey, `site.rarity.${string}`>
@@ -34,12 +31,6 @@ const FINISH_NAMES = {
   foil: 'site.finish.foil',
   etched: 'site.finish.etched',
 } as const satisfies Record<Finish, FinishMessageKey>
-
-const FINISH_CHIPS = {
-  nonfoil: 'site.finishChip.nonfoil',
-  foil: 'site.finishChip.foil',
-  etched: 'site.finishChip.etched',
-} as const satisfies Record<Finish, FinishChipMessageKey>
 
 /**
  * Scryfall's rarity vocabulary. Typed as plain strings because `ScryfallCard`
@@ -67,7 +58,7 @@ export function finishName(t: TranslateFn, finish: string): string {
 
 /** A finish's lower-case chip form ("foil"), for the trade printing picker's buttons. */
 export function finishChipName(t: TranslateFn, finish: Finish): string {
-  return t(FINISH_CHIPS[finish])
+  return t(FINISH_CHIP_LABELS[finish])
 }
 
 /** A rarity's display name ("Mythic"), degrading to the raw token when unknown. */

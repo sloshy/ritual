@@ -629,36 +629,52 @@ describe('owned copies', () => {
     expect(applySellFilters(report, { minOwned: 3 }).entries).toHaveLength(2)
   })
 
-  test('parseMinOwned takes whole non-negative numbers only', () => {
-    expect(parseMinOwned('4')).toBe(4)
-    expect(parseMinOwned('2.5')).toBe("Invalid minimum owned count '2.5' (expected a whole number)")
-    expect(parseMinOwned('-1')).toContain('Invalid minimum owned count')
+  test('parseMinOwned takes whole non-negative numbers only, refusing under the given field', () => {
+    expect(parseMinOwned('4', '--min-owned')).toBe(4)
+    expect(parseMinOwned(' 3 ', '--min-owned')).toBe(3)
+    expect(parseMinOwned('2.5', '--min-owned')).toEqual({
+      message: "Invalid --min-owned '2.5' (expected a whole number)",
+      messageKey: 'errors.number.notWholeNumber',
+      messageParams: { field: '--min-owned', value: '2.5' },
+    })
     // Only digits: a spelling Number() merely tolerates is refused.
-    expect(parseMinOwned('0x10')).toContain('Invalid minimum owned count')
-    expect(parseMinOwned('1e2')).toContain('Invalid minimum owned count')
-    expect(parseMinOwned('  ')).toContain('Invalid minimum owned count')
-    expect(parseMinOwned(' 3 ')).toBe(3)
+    for (const raw of ['-1', '0x10', '1e2', '  ']) {
+      expect(parseMinOwned(raw, 'minOwned')).toMatchObject({
+        messageKey: 'errors.number.notWholeNumber',
+        messageParams: { field: 'minOwned', value: raw },
+      })
+    }
   })
 })
 
 describe('parseMinRatio', () => {
-  test('accepts non-negative numbers and rejects the rest', () => {
-    expect(parseMinRatio('0.8')).toBe(0.8)
-    expect(parseMinRatio('-0.1')).toBe(
-      "Invalid minimum ratio '-0.1' (expected a non-negative number)",
-    )
-    expect(parseMinRatio('80%')).toContain('Invalid minimum ratio')
-    expect(parseMinRatio('')).toContain('Invalid minimum ratio')
-    expect(parseMinRatio('1e-1')).toContain('Invalid minimum ratio')
+  test('accepts non-negative numbers and refuses the rest under the given field', () => {
+    expect(parseMinRatio('0.8', '--min-ratio')).toBe(0.8)
+    expect(parseMinRatio('-0.1', '--min-ratio')).toEqual({
+      message: "Invalid --min-ratio '-0.1' (expected a non-negative number)",
+      messageKey: 'errors.number.notNonNegative',
+      messageParams: { field: '--min-ratio', value: '-0.1' },
+    })
+    for (const raw of ['80%', '', '1e-1']) {
+      expect(parseMinRatio(raw, 'minRatio')).toMatchObject({
+        messageKey: 'errors.number.notNonNegative',
+        messageParams: { field: 'minRatio', value: raw },
+      })
+    }
   })
 })
 
 describe('parseMinPrice', () => {
-  test('accepts non-negative numbers and rejects the rest', () => {
-    expect(parseMinPrice('0')).toBe(0)
-    expect(parseMinPrice('1.5')).toBe(1.5)
-    expect(parseMinPrice('-1')).toContain('Invalid minimum price')
-    expect(parseMinPrice('abc')).toContain('Invalid minimum price')
+  test('accepts non-negative numbers and refuses the rest under the given field', () => {
+    expect(parseMinPrice('0', '--min')).toBe(0)
+    expect(parseMinPrice('1.5', '--min')).toBe(1.5)
+    for (const raw of ['-1', 'abc']) {
+      expect(parseMinPrice(raw, 'min')).toEqual({
+        message: `Invalid min '${raw}' (expected a non-negative number)`,
+        messageKey: 'errors.number.notNonNegative',
+        messageParams: { field: 'min', value: raw },
+      })
+    }
   })
 })
 

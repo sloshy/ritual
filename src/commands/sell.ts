@@ -255,9 +255,21 @@ export function registerSellCommand(program: Command): void {
             .argument('[list...]', t('help.sell.listArg')),
         )
           .option('--sets <codes>', t('help.sell.sets'), (value) => parseSetCodesInput(value))
-          .option('--min <price>', t('help.sell.min'), parsedFlag(parseMinPrice))
-          .option('--min-ratio <ratio>', t('help.sell.minRatio'), parsedFlag(parseMinRatio))
-          .option('--min-owned <count>', t('help.sell.minOwned'), parsedFlag(parseMinOwned))
+          .option(
+            '--min <price>',
+            t('help.sell.min'),
+            parsedFlag((raw) => parseMinPrice(raw, '--min')),
+          )
+          .option(
+            '--min-ratio <ratio>',
+            t('help.sell.minRatio'),
+            parsedFlag((raw) => parseMinRatio(raw, '--min-ratio')),
+          )
+          .option(
+            '--min-owned <count>',
+            t('help.sell.minOwned'),
+            parsedFlag((raw) => parseMinOwned(raw, '--min-owned')),
+          )
           .option('--tags <list>', t('help.sell.tags'), parsedFlag(parseTagFilterInput))
           .option('--all', t('help.sell.all'))
           .option('--out <file>', t('help.sell.out')),

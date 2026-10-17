@@ -693,8 +693,10 @@ describe('language baking', () => {
     // No explicit null: lookups must fall through to the default object.
     expect('fdn:35@ja' in detail.cards).toBe(false)
     expect(warnings).toHaveLength(1)
-    expect(warnings[0]).toContain('No ja card object')
-    expect(warnings[0]).toContain('FDN:35')
+    // The language by its name, not its Scryfall code.
+    expect(warnings[0]).toBe(
+      "  ⚠️  No Japanese card object for 'Serra Angel' (FDN:35); using the default-language object",
+    )
   })
 
   test('wanted: a pinned [ja] entry bakes the @ja object and keeps default-object pricing', async () => {

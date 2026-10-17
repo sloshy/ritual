@@ -46,6 +46,9 @@ const QUICK_SWITCH_KEY_CONTEXT =
 const THEME_EDITOR_CONTEXT =
   'A control in the theme editor toolbar, which lets the reader retint the site and download the result as a JSON theme file.'
 
+const THEME_FILE_CONTEXT =
+  "Why a theme file is refused — one picked with the theme editor's Import… button, or handed to `ritual build-site --theme-file`. A theme file is JSON with a `name` (a lowercase slug) and a `variables` object mapping CSS custom properties (`--accent`) to values."
+
 export const siteChromeMeta = {
   // ── Branding ──────────────────────────────────────────────────────────
   'site.brand.logoAlt': {
@@ -795,6 +798,30 @@ export const siteChromeMeta = {
   'site.theme.rawHint': { description: 'Hint under that fallback field.' },
   'site.theme.colorPreview': {
     description: 'Accessible name of the swatch previewing the colour being edited.',
+  },
+  'site.theme.file.notObject': {
+    description: `${THEME_FILE_CONTEXT} The file holds JSON, but not an object.`,
+  },
+  'site.theme.file.nameMissing': {
+    description: `${THEME_FILE_CONTEXT} The \`name\` field is missing or empty. \`name\` is the JSON key and is never translated.`,
+  },
+  'site.theme.file.nameMalformed': {
+    description: `${THEME_FILE_CONTEXT} {name} is the name the file gives, which is not a lowercase slug.`,
+  },
+  'site.theme.file.nameBuiltIn': {
+    description: `${THEME_FILE_CONTEXT} {name} is the name the file gives, which is already the name of one of the built-in themes.`,
+  },
+  'site.theme.file.variablesMissing': {
+    description: `${THEME_FILE_CONTEXT} The \`variables\` field is missing or not a JSON object. \`variables\` is the JSON key and is never translated.`,
+  },
+  'site.theme.file.variableName': {
+    description: `${THEME_FILE_CONTEXT} {name} is a key of \`variables\` that is not a CSS custom property, which always begins with two hyphens ("--", kept verbatim).`,
+  },
+  'site.theme.file.variableValue': {
+    description: `${THEME_FILE_CONTEXT} {name} is a CSS custom property whose value is not text, or is empty.`,
+  },
+  'site.theme.file.variablesEmpty': {
+    description: `${THEME_FILE_CONTEXT} The \`variables\` object is empty.`,
   },
   // ── Theme editor: variable groups and swatches ────────────────────────
   // Evaluated once at import by `src/site/theme-vars-metadata.ts`, so that

@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeAll, afterAll } from 'bun:test'
+import { describe, test, expect, beforeAll, afterAll, spyOn } from 'bun:test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { cardCache } from '../../src/cache'
@@ -47,9 +47,20 @@ describe('build-site index baking (Integration)', () => {
 
   test('--price-sources naming only stores priceSources does not enable is refused before building', async () => {
     await fs.rm(path.join(ws.dir, 'dist'), { recursive: true, force: true })
-    expect(
-      await captureExitCode(() => runBuildSite({ refresh: 'never', priceSources: 'cardhoarder' })),
-    ).toBe(2)
+    const errors = spyOn(console, 'error').mockImplementation(() => {})
+    try {
+      expect(
+        await captureExitCode(() =>
+          runBuildSite({ refresh: 'never', priceSources: 'cardhoarder,cardkingdom' }),
+        ),
+      ).toBe(2)
+      // Both lists are joined by the locale's list format, not a hard-coded comma.
+      expect(errors.mock.calls.map((call) => String(call[0]))).toContain(
+        '--price-sources cardhoarder, cardkingdom names no store priceSources enables (priceSources: tcgplayer, cardmarket). Enable it first, e.g. `ritual config set priceSources --add cardhoarder`.',
+      )
+    } finally {
+      errors.mockRestore()
+    }
     expect(await Bun.file(path.join(ws.dir, 'dist', 'index.json')).exists()).toBeFalse()
   })
 })

@@ -870,10 +870,38 @@ export const cliInfraMeta = {
   'cli.admin.totpDisabled': { description: '`admin disable-totp` succeeded.' },
 
   // ── build-site: flag and file parsing ─────────────────────────────────
+  'cli.theme.unknown': {
+    description:
+      'Usage error of `build-site --theme` / `admin --theme`: the named colour theme does not exist. {value} is what the user typed; {choices} is the list of built-in theme names (slugs such as "izzet", never translated), already joined in the reader\'s language.',
+  },
   'cli.buildSite.themeFileUnreadable': { description: 'A --theme-file path could not be read.' },
   'cli.buildSite.themeFileNotJson': { description: 'A --theme-file is not valid JSON.' },
   'cli.buildSite.themeFileInvalid': {
     description: 'A --theme-file parsed but is not a valid theme. {reason} explains why.',
+  },
+  'cli.buildSite.spaBuildFailed': {
+    description:
+      'Build failure: bundling the public site\'s web app failed. The bundler\'s own diagnostics are printed above it. "SPA" is the single-page web app; {ext} is the file extension being built (".js" or ".css"), kept verbatim.',
+  },
+  'cli.buildSite.spaBuildNoOutput': {
+    description:
+      'Build failure: the public site\'s web-app bundle finished but wrote no file of the expected kind. {ext} is a file extension (".js" or ".css"), kept verbatim.',
+  },
+  'cli.buildSite.outDirBlank': {
+    description:
+      'Usage error of `build-site` / `serve`: --out-dir was given an empty value. "--out-dir" is the flag and is never translated.',
+  },
+  'cli.buildSite.outDirIsBase': {
+    description:
+      'Usage error: --out-dir points at the Ritual directory that holds the user\'s lists. A build deletes and replaces its output directory, and `serve` publishes it, so this would destroy or publish the lists. {base} is that directory\'s path. "--out-dir" is the flag and is never translated.',
+  },
+  'cli.buildSite.outDirContainsBase': {
+    description:
+      'Usage error: --out-dir points at a directory that contains the Ritual directory (a parent of it), with the same danger as cli.buildSite.outDirIsBase. {dir} is the given output directory, {base} the Ritual directory, both paths. "--out-dir" is the flag and is never translated.',
+  },
+  'cli.buildSite.previousBuildNotRemoved': {
+    description:
+      'Console warning after a new site build was published: the previous build, moved aside, could not be deleted and is left on disk. {path} is where it was left.',
   },
   'cli.buildSite.localeFileNotJson': {
     description:
@@ -905,7 +933,11 @@ export const cliInfraMeta = {
   },
   'cli.buildSite.storesNotEnabled': {
     description:
-      'Usage error: no store given to `build-site --price-sources` is enabled in priceSources. {stores} is the comma-joined store tokens asked for, {sources} the enabled ones; both, `--price-sources`, `priceSources` and the quoted command are literal and must not be translated.',
+      "Usage error: no store given to `build-site --price-sources` is enabled in priceSources. {stores} is the list of store tokens asked for, {sources} the enabled ones, both already joined in the reader's language; the tokens, `--price-sources`, `priceSources` and the quoted command are literal and must not be translated.",
+  },
+  'cli.buildSite.storesNoneEnabled': {
+    description:
+      'The same usage error when priceSources enables no store at all (the config sets it to an empty list, meaning "show no prices"). {stores} is the list of store tokens asked for, already joined in the reader\'s language; the tokens, `--price-sources`, `priceSources` and the quoted command are literal and must not be translated.',
   },
   'cli.buildSite.selectionFlagEmpty': {
     description: 'A --decks/--collections/--wanted-lists flag was given with no names.',

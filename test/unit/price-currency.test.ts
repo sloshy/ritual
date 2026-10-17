@@ -10,6 +10,8 @@ import {
   describeTotalPrice,
   formatPrintingFinishCell,
   findCheapestPrinting,
+  formatCheapestPrintingDisplay,
+  formatSpecificPrintingPrice,
   printingFinishColumns,
   getCardPrice,
   getCardPriceForFinish,
@@ -18,6 +20,7 @@ import {
 } from '../../src/pricing/price-currency'
 import type { ScryfallCard } from '../../src/scryfall/types'
 import { makeScryfallCard } from '../test-utils'
+import { pseudoCatalog, pseudoString, withSyntheticLocale } from '../helpers/sync-text'
 
 function makeCard(prices: Partial<ScryfallCard['prices']> = {}): ScryfallCard {
   return makeScryfallCard({ prices })
@@ -369,6 +372,66 @@ describe('findCheapestPrinting', () => {
 
   test('is null when nothing has a price', () => {
     expect(findCheapestPrinting([makeScryfallCard({ finishes: ['nonfoil'] })])).toBeNull()
+  })
+})
+
+describe('the price line after an add', () => {
+  const card = makeScryfallCard({
+    set: 'lea',
+    collector_number: '161',
+    finishes: ['nonfoil', 'foil'],
+    prices: { usd: '1234.50', usd_foil: '2.00' },
+  })
+
+  test('reads as it always has in English', () => {
+    expect(formatSpecificPrintingPrice(card, undefined, 'usd')).toBe('Price: $1,234.50')
+    expect(formatSpecificPrintingPrice(makeScryfallCard(), undefined, 'usd')).toBe(
+      'Price: unavailable',
+    )
+    expect(formatCheapestPrintingDisplay(findCheapestPrinting([card], 'usd'), 'usd')).toBe(
+      'Cheapest printing: $2.00 (LEA:161) [foil]',
+    )
+    expect(formatCheapestPrintingDisplay(null, 'usd')).toBe('Cheapest printing: unavailable')
+  })
+
+  test('is worded in the CLI language, the printing and finish kept as tokens', () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), () => {
+      expect(formatCheapestPrintingDisplay(null, 'usd')).toBe(
+        pseudoString('domain.price.cheapestUnavailable'),
+      )
+      expect(formatCheapestPrintingDisplay(findCheapestPrinting([card], 'usd'), 'usd')).toBe(
+        pseudoString('domain.price.cheapest')
+          .replace('{price}', '$2.00')
+          .replace('{printing}', 'LEA:161')
+          .replace('{finish}', 'foil'),
+      )
+    })
+  })
+
+  test("formats the amount in the CLI's locale", () => {
+    withSyntheticLocale('de', {}, () => {
+      // German groups with "." and puts the symbol after a no-break space.
+      expect(formatSpecificPrintingPrice(card, undefined, 'usd')).toBe('Price: 1.234,50\u00a0$')
+      expect(formatCheapestPrintingDisplay(findCheapestPrinting([card], 'usd'), 'usd')).toBe(
+        'Cheapest printing: 2,00\u00a0$ (LEA:161) [foil]',
+      )
+    })
+  })
+})
+
+describe('the no-price stand-in and the finish tag', () => {
+  const etched = makeScryfallCard({ finishes: ['nonfoil', 'etched'], prices: { usd: '1.00' } })
+
+  test('are worded in the active locale, the price beside them formatted by it', () => {
+    withSyntheticLocale('en-XA', pseudoCatalog(), () => {
+      expect(formatPriceOrNA(0, 'usd')).toBe(pseudoString('site.printingPrice.na'))
+      // The tag is the catalog's lower-case finish name, not the file token.
+      expect(formatPrintingFinishCell(etched, 'etched', 'usd')).toBe(
+        pseudoString('domain.price.withFinish')
+          .replace('{price}', pseudoString('site.printingPrice.na'))
+          .replace('{finish}', pseudoString('site.finishChip.etched')),
+      )
+    })
   })
 })
 

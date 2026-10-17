@@ -571,8 +571,7 @@ rewritten, so fix (or delete) it rather than trying to overwrite it with \`confi
 \`config set\`/\`get\`/\`unset\` refusals are keyed \`cli.config.*\` (or \`domain.config.*\`
 for a value the validator refuses, \`domain.export.problem.*\` for an \`exportPresets\`
 one); \`PUT /api/config\` refuses a value in English plus that key, and \`update_config\`
-with the same English. A refused \`priceSources\` or \`defaultPriceSource\` value has no
-key yet: English only.
+with the same English.
 
 Cache refreshes take an exclusive lock (\`cache/.ritual-cache-lock\`); a refresh
 started while another process is refreshing waits up to the configurable

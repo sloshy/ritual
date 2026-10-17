@@ -231,6 +231,26 @@ export const domainMeta = {
     description:
       'The spelled-out form of "~{price}+ ({count} unpriced)": a total that is both an estimate and at least {price}, because {count} cards have no published price. Read by screen readers and shown as a hover tooltip.',
   },
+  'domain.price.withFinish': {
+    description:
+      'A price tagged with the finish it is for, in a printing picker\'s price column ("$12.00 etched", "N/A foil"). {price} is an already-formatted money amount or the no-price stand-in; {finish} is the lower-case finish name (site.finishChip.*). Reorder freely; keep it as short as the English.',
+  },
+  'domain.price.printing': {
+    description:
+      "Line printed after a card is added with a specific printing: what that printing costs. {price} is an already-formatted money amount in the reader's locale.",
+  },
+  'domain.price.printingUnavailable': {
+    description:
+      'The same line when the added printing has no published price in the active currency.',
+  },
+  'domain.price.cheapest': {
+    description:
+      'Line printed after a card is added to a wanted list without naming a printing: the cheapest printing and its price. {price} is an already-formatted money amount; {printing} is the printing as SET:NUMBER (e.g. "MKM:123"); {finish} is the finish token (nonfoil, foil or etched) — both are identifiers and are never translated. Keep the parentheses and square brackets around them.',
+  },
+  'domain.price.cheapestUnavailable': {
+    description:
+      "The same line when none of the card's printings has a published price in the active currency.",
+  },
 
   'domain.nav.decks': { description: `${NAV_CONTEXT} The deck index.`, maxLen: 12 },
   'domain.nav.collections': { description: `${NAV_CONTEXT} The collection index.`, maxLen: 12 },

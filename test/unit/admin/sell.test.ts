@@ -7,6 +7,10 @@ import type { SellCartResponse, SellReportResponse } from '../../../src/admin/ap
 import type { Finish } from '../../../src/card/finish-condition'
 import { setupRitualTestEnv, type RitualTestEnv } from '../mcp/harness'
 import { makeCardKingdomCacheFile, makeCardKingdomProduct } from '../../test-utils'
+import type { ScryfallCard } from '../../../src/scryfall/types'
+import type { SyncMessage } from '../../../src/sync/message'
+import type { MessageKey } from '../../../src/i18n/messages/en'
+import { pseudoCatalog, withGuardedLocaleAsync } from '../../helpers/sync-text'
 
 /**
  * Handler-only validation coverage: the query parsers in
@@ -40,6 +44,20 @@ async function seedFeed(
   )
 }
 
+/**
+ * Write the shoebox collection from `lines`, each handed the cached Sol Ring
+ * printing's `SET:CN` pin, and return that printing.
+ */
+async function writeShoebox(dir: string, lines: (pin: string) => string[]): Promise<ScryfallCard> {
+  const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
+  const pin = `${printing.set.toUpperCase()}:${printing.collector_number}`
+  await fs.writeFile(
+    path.join(dir, 'collections', 'shoebox.md'),
+    `# Shoebox\n\n${lines(pin).join('\n')}\n`,
+  )
+  return printing
+}
+
 function report(query: string): Promise<Response> {
   return handleSellReport(new Request(`http://localhost/api/sell/report${query}`))
 }
@@ -49,11 +67,7 @@ describe('admin sell handlers', () => {
 
   beforeEach(async () => {
     env = await setupRitualTestEnv()
-    const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
-    await fs.writeFile(
-      path.join(env.dir, 'collections', 'shoebox.md'),
-      `# Shoebox\n\n- Sol Ring (${printing.set.toUpperCase()}:${printing.collector_number}) &1\n`,
-    )
+    const printing = await writeShoebox(env.dir, (pin) => [`- Sol Ring (${pin}) &1`])
     await seedFeed(env.dir, printing.id)
   })
 
@@ -61,15 +75,31 @@ describe('admin sell handlers', () => {
     await env.cleanup()
   })
 
-  test('rejects a bad type, a malformed or empty lists ref, and a bad min, minRatio, minOwned or tags', async () => {
-    expect((await report('?type=binder')).status).toBe(400)
-    expect((await report('?lists=nonsense')).status).toBe(400)
-    expect((await report('?lists=,,')).status).toBe(400)
-    expect((await report('?min=abc')).status).toBe(400)
-    expect((await report('?min=-1')).status).toBe(400)
-    expect((await report('?minRatio=half')).status).toBe(400)
-    expect((await report('?minOwned=1.5')).status).toBe(400)
-    expect((await report('?tags=a%23b')).status).toBe(400)
+  test.each<[string, MessageKey]>([
+    ['?type=binder', 'admin.api.listTypeInvalid'],
+    ['?lists=nonsense', 'admin.api.sell.refInvalid'],
+    ['?lists=,,', 'admin.api.sell.noRefs'],
+    ['?min=abc', 'errors.number.notNonNegative'],
+    ['?min=-1', 'errors.number.notNonNegative'],
+    ['?minRatio=half', 'errors.number.notNonNegative'],
+    ['?minOwned=1.5', 'errors.number.notWholeNumber'],
+    ['?tags=a%23b', 'domain.card.tag.invalid'],
+  ])('refuses %s with a 400 keyed %s', async (query, messageKey) => {
+    const response = await report(query)
+    expect(response.status).toBe(400)
+    expect(((await response.json()) as SyncMessage).messageKey).toBe(messageKey)
+  })
+
+  test('a numeric refusal is English on the wire, naming the query parameter as spelled', async () => {
+    const body = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () =>
+      (await report('?minOwned=1.5')).json(),
+    )
+    expect(body).toEqual({
+      success: false,
+      message: "Invalid minOwned '1.5' (expected a whole number)",
+      messageKey: 'errors.number.notWholeNumber',
+      messageParams: { field: 'minOwned', value: '1.5' },
+    })
   })
 
   test('a blank param is absent, like an omitted one', async () => {
@@ -81,12 +111,10 @@ describe('admin sell handlers', () => {
   test('?tags= scopes matching, so the buy cap goes to the tagged copy', async () => {
     // CK takes one copy; the untagged copy comes first in the file and would
     // spend the cap if tags only trimmed the finished report.
-    const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
-    const pin = `${printing.set.toUpperCase()}:${printing.collector_number}`
-    await fs.writeFile(
-      path.join(env.dir, 'collections', 'shoebox.md'),
-      `# Shoebox\n\n- Sol Ring (${pin}) &1\n- Sol Ring (${pin}) #CK &2\n`,
-    )
+    const printing = await writeShoebox(env.dir, (pin) => [
+      `- Sol Ring (${pin}) &1`,
+      `- Sol Ring (${pin}) #CK &2`,
+    ])
     await seedFeed(env.dir, printing.id, 1)
     const body = (await (await report('?tags=CK')).json()) as SellReportResponse
     expect(body.entries.map((entry) => [entry.cardIds, entry.sellableQuantity])).toEqual([[[2], 1]])
@@ -121,11 +149,7 @@ describe('admin sell handlers', () => {
   })
 
   test('the cart answers its warnings as English plus their key', async () => {
-    const printing = ((await cardCache.get('Sol Ring')) ?? [])[0]!
-    await fs.writeFile(
-      path.join(env.dir, 'collections', 'shoebox.md'),
-      `# Shoebox\n\n- Sol Ring (${printing.set.toUpperCase()}:${printing.collector_number}) [etched] &1\n`,
-    )
+    const printing = await writeShoebox(env.dir, (pin) => [`- Sol Ring (${pin}) [etched] &1`])
     await seedFeed(env.dir, printing.id, 10, 'etched')
     const response = await handleSellCart(new Request('http://localhost/api/sell/cart'))
     expect(response.status).toBe(200)

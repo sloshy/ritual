@@ -43,7 +43,6 @@ import {
   syncMessage,
   SyncMessageError,
   syncRef,
-  syncText,
   type MessageParseError,
   type SyncArgs,
   type SyncText,
@@ -355,19 +354,9 @@ function isStringArray(value: unknown): value is string[] {
  * CLI, the admin API and MCP alike, and each wants it in a different language.
  * `error.message` is English (what the API and MCP send, beside its key and
  * params); the CLI renders it with `renderSyncMessage` in its own language, and
- * the admin page in the reader's. A refusal worded by a module outside the
- * catalog (a {@link PlainParseError}) is carried keyless, as its own text.
+ * the admin page in the reader's.
  */
 export type ConfigParseError = MessageParseError
-
-/**
- * The refusal of a config parser that lives outside `src/config` and words its
- * refusal as plain text (`parsePriceSources`). The
- * loader and the write paths lift it to a {@link ConfigParseError} through the
- * `…Field` parsers below, which carry the text as it is. Its field is `reason`,
- * not `error`, so the two shapes cannot be mistaken for each other.
- */
-export type PlainParseError = { reason: string }
 
 /** A {@link ConfigParseError} from a catalog key, its params checked against the key. */
 function configError<K extends MessageKey>(key: K, ...args: SyncArgs<K>): ConfigParseError {
@@ -418,42 +407,6 @@ export function isMigrationCounter(value: unknown): value is number {
  * call sites read it by.
  */
 export const isConfigParseError = isMessageParseError
-
-/** True when a sibling parser's result is the {@link PlainParseError} branch. */
-export function isPlainParseError(value: unknown): value is PlainParseError {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    'reason' in value &&
-    typeof value.reason === 'string'
-  )
-}
-
-/** A plain-text refusal lifted to a {@link ConfigParseError}, its text carried as it is. */
-function liftPlainError<T>(parsed: T | PlainParseError): T | ConfigParseError {
-  return isPlainParseError(parsed) ? { error: syncText(parsed.reason) } : parsed
-}
-
-/** `parsePriceSources` with its refusal as a {@link ConfigParseError}. */
-export function parsePriceSourcesField(value: unknown): PriceSource[] | ConfigParseError {
-  return liftPlainError(parsePriceSources(value))
-}
-
-/** `parseDefaultPriceSource` with its refusal as a {@link ConfigParseError}. */
-export function parseDefaultPriceSourceField(
-  value: unknown,
-): PriceSource | undefined | ConfigParseError {
-  return liftPlainError(parseDefaultPriceSource(value))
-}
-
-/**
- * `parseDefaultCategories` as the field parser the loader and the write paths
- * call; its refusal is already a keyed {@link ConfigParseError}.
- */
-export function parseDefaultCategoriesField(value: unknown): CardCategory[] | ConfigParseError {
-  return parseDefaultCategories(value)
-}
 
 /**
  * `parseExportPresets` with its refusal as a {@link ConfigParseError}: the export
@@ -1124,15 +1077,15 @@ function applyDefaults(parsed: ParsedConfig, field: FieldPolicy): RitualConfig {
     wantedDir: parsed.wantedDir ?? DEFAULT_CONFIG.wantedDir,
     artDir: parsed.artDir ?? DEFAULT_CONFIG.artDir,
     defaultPriceSource: field(
-      parseDefaultPriceSourceField(parsed.defaultPriceSource),
+      parseDefaultPriceSource(parsed.defaultPriceSource),
       'defaultPriceSource',
       undefined,
     ),
-    priceSources: field(parsePriceSourcesField(parsed.priceSources), 'priceSources', [
+    priceSources: field(parsePriceSources(parsed.priceSources), 'priceSources', [
       ...DEFAULT_PRICE_SOURCES,
     ]),
     defaultCategories: field(
-      parseDefaultCategoriesField(parsed.defaultCategories),
+      parseDefaultCategories(parsed.defaultCategories),
       'defaultCategories',
       [...DEFAULT_CARD_CATEGORIES],
     ),

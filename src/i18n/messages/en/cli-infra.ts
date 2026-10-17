@@ -486,9 +486,18 @@ export const cliInfraMessages = {
   'cli.admin.totpDisabled': 'TOTP disabled.',
 
   // ── build-site: flag and file parsing ─────────────────────────────────
+  'cli.theme.unknown': "Unknown theme '{value}'. Choose one of: {choices}.",
   'cli.buildSite.themeFileUnreadable': "Failed to read --theme-file '{path}': {reason}",
   'cli.buildSite.themeFileNotJson': "--theme-file '{path}' is not valid JSON: {reason}",
   'cli.buildSite.themeFileInvalid': "--theme-file '{path}': {reason}",
+  'cli.buildSite.spaBuildFailed': 'Site SPA {ext} build failed',
+  'cli.buildSite.spaBuildNoOutput': 'Site SPA build produced no {ext} output',
+  'cli.buildSite.outDirBlank': '--out-dir requires a directory path.',
+  'cli.buildSite.outDirIsBase':
+    "--out-dir may not be the Ritual directory itself ({base}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.",
+  'cli.buildSite.outDirContainsBase':
+    "--out-dir may not contain the Ritual directory ({dir} contains {base}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.",
+  'cli.buildSite.previousBuildNotRemoved': 'Could not remove the previous site build at {path}.',
   'cli.buildSite.localeFileNotJson': 'not valid JSON: {reason}',
   'cli.buildSite.localeFileNotObject':
     'a locale file must be a JSON object of message keys to message values',
@@ -505,6 +514,8 @@ export const cliInfraMessages = {
     '⚠️  No dictionary for the baked locale \'{tag}\'; the site will render English text under <html lang="{tag}">. Load one with --locale-file <path>.',
   'cli.buildSite.storesNotEnabled':
     '--price-sources {stores} names no store priceSources enables (priceSources: {sources}). Enable it first, e.g. `ritual config set priceSources --add cardhoarder`.',
+  'cli.buildSite.storesNoneEnabled':
+    '--price-sources {stores} names no store priceSources enables (priceSources enables none). Enable one first, e.g. `ritual config set priceSources --add cardhoarder`.',
   'cli.buildSite.selectionFlagEmpty': '{flag} requires at least one name.',
 
   // ── build-site: list kinds ────────────────────────────────────────────

@@ -10,10 +10,13 @@
 // Custom themes are arbitrary `--var: value` dictionaries created by the
 // in-browser editor or loaded from a JSON file at build time.
 //
-// This file is browser-safe except for the Node-only `resolveThemeName`
-// helper at the very bottom; do not call that from SPA code.
+// Everything here is browser-safe, but `resolveThemeName` at the very bottom
+// is for the CLI's `--theme` flag: its refusal is a `cli.*` key, which the SPA
+// bundles do not register, so a browser caller could not word it in the
+// reader's language (a bare `t()` of it would print the raw key).
 
 import { flameStopVars, type FlameStops } from './flame'
+import { syncList, syncMessage, type MessageParseError } from '../sync/message'
 
 export type ThemePalette = {
   bgHue: number
@@ -481,6 +484,7 @@ export function generateCustomThemeCss(theme: CustomTheme, selector?: string): s
   return renderRule(
     selector ?? `:root[data-theme="${theme.name}"]`,
     theme.variables,
+    // i18n-exempt: a comment inside the generated stylesheet a build bakes; its bytes never follow the UI language
     `Custom theme: ${theme.name}`,
   )
 }
@@ -495,39 +499,41 @@ export function generateCustomThemeCss(theme: CustomTheme, selector?: string): s
 export const CUSTOM_THEME_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*$/
 
 // Parses an unknown JSON value into a `CustomTheme`. Returns the theme on
-// success, or a human-readable error string on failure (matches the project
-// parser convention from AGENTS.md).
-export function parseCustomTheme(value: unknown): CustomTheme | string {
+// success, or the refusal on failure (the project parser convention from
+// AGENTS.md): a message, English plus its key, so the theme editor can word
+// it in the reader's language — relabelled on a language switch — and
+// `build-site --theme-file` in the CLI's.
+export function parseCustomTheme(value: unknown): CustomTheme | MessageParseError {
   if (typeof value !== 'object' || value === null) {
-    return 'Custom theme must be a JSON object'
+    return { error: syncMessage('site.theme.file.notObject') }
   }
   const obj = value as Record<string, unknown>
   if (typeof obj.name !== 'string' || obj.name.length === 0) {
-    return 'Custom theme must have a non-empty `name` string'
+    return { error: syncMessage('site.theme.file.nameMissing') }
   }
   const name = obj.name
   if (!CUSTOM_THEME_NAME_PATTERN.test(name)) {
-    return `Custom theme name '${name}' must be lowercase letters, digits, and hyphens (starting with a letter or digit)`
+    return { error: syncMessage('site.theme.file.nameMalformed', { name }) }
   }
   if (isThemeName(name)) {
-    return `Custom theme name '${name}' collides with a built-in theme; pick a different name`
+    return { error: syncMessage('site.theme.file.nameBuiltIn', { name }) }
   }
   if (typeof obj.variables !== 'object' || obj.variables === null || Array.isArray(obj.variables)) {
-    return 'Custom theme must have a `variables` object'
+    return { error: syncMessage('site.theme.file.variablesMissing') }
   }
   const rawVars = obj.variables as Record<string, unknown>
   const variables: ThemeCssVars = {}
   for (const [key, raw] of Object.entries(rawVars)) {
     if (!key.startsWith('--')) {
-      return `Variable name '${key}' must start with '--'`
+      return { error: syncMessage('site.theme.file.variableName', { name: key }) }
     }
     if (typeof raw !== 'string' || raw.length === 0) {
-      return `Variable '${key}' must be a non-empty string value`
+      return { error: syncMessage('site.theme.file.variableValue', { name: key }) }
     }
     variables[key] = raw
   }
   if (Object.keys(variables).length === 0) {
-    return 'Custom theme must define at least one variable'
+    return { error: syncMessage('site.theme.file.variablesEmpty') }
   }
   const description =
     typeof obj.description === 'string' && obj.description.length > 0 ? obj.description : undefined
@@ -566,11 +572,22 @@ export const themeBootstrapScript = `
 // ---------------------------------------------------------------------------
 
 // Resolves a raw CLI `--theme` value to a validated `ThemeName`. Falls back to
-// `default` when omitted; returns an error message string when the value is
-// unknown (callers report it as a usage error). Centralised here so
-// `build-site` and `admin` share identical handling.
-export function resolveThemeName(raw: string | undefined): ThemeName | string {
-  const normalized = (raw ?? 'default').toLowerCase()
+// `default` when omitted; returns the refusal when the value is unknown
+// (callers report it as a usage error). Centralised here so `build-site` and
+// `admin` share identical handling. `alsoAccepted` names the other values the
+// caller takes for the flag — `build-site`'s `--theme-file` custom themes,
+// which it matches itself before calling this — so the refusal offers them too.
+export function resolveThemeName(
+  raw: string | undefined,
+  alsoAccepted: readonly string[] = [],
+): ThemeName | MessageParseError {
+  if (raw === undefined) return 'default'
+  const normalized = raw.toLowerCase()
   if (isThemeName(normalized)) return normalized
-  return `Unknown theme '${raw}'. Choose one of: ${themeNames.join(', ')}.`
+  return {
+    error: syncMessage('cli.theme.unknown', {
+      value: raw,
+      choices: syncList([...themeNames, ...alsoAccepted], 'unit'),
+    }),
+  }
 }

@@ -16,6 +16,7 @@ import { LIST_TYPE_DISPLAY, LIST_TYPES, listTypeTitle, type ListType } from '../
 import { printingFinishes } from '../card/finish-condition'
 import {
   formatPrice,
+  formatFinishTaggedPrice,
   formatPriceOrNA,
   formatTotalPrice,
   getCardPriceForFinish,
@@ -410,9 +411,11 @@ export function formatPrintingPriceLines(
     // printingFinishes, not raw `printing.finishes`: a finish Ritual doesn't model
     // would otherwise be listed at the nonfoil price under its own name.
     const finishes = printingFinishes(printing)
-      .map(
-        (finish) =>
-          `${formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency)} ${finish}`,
+      .map((finish) =>
+        formatFinishTaggedPrice(
+          formatPriceOrNA(getCardPriceForFinish(printing, finish, currency), currency),
+          finish,
+        ),
       )
       .join(' · ')
     return `  ${printingLabel(printing.set, printing.collector_number)} (${printing.set_name}) — ${finishes}`

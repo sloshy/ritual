@@ -10,6 +10,7 @@ import { t } from '../i18n/t'
 import { refreshStaleAllowed, type RefreshMode } from '../cache/refresh'
 import { getErrorMessage } from '../util/errors'
 import { parseCustomTheme, type CustomTheme } from '../theme/themes'
+import { isMessageParseError, renderSyncMessage } from '../sync/message'
 
 export type SiteSpaAssets = {
   appSvg: string
@@ -38,10 +39,10 @@ export async function buildSiteSpaFromSource(): Promise<SiteSpaAssets> {
     })
     if (!result.success) {
       for (const log of result.logs) console.error(log)
-      throw new Error(`Site SPA ${ext} build failed`)
+      throw new Error(t('cli.buildSite.spaBuildFailed', { ext }))
     }
     const output = result.outputs.find((o) => o.path.endsWith(ext))
-    if (!output) throw new Error(`Site SPA build produced no ${ext} output`)
+    if (!output) throw new Error(t('cli.buildSite.spaBuildNoOutput', { ext }))
     return output.text()
   }
   return {
@@ -152,8 +153,11 @@ export async function loadCustomThemes(paths: readonly string[]): Promise<Custom
       })
     }
     const result = parseCustomTheme(parsed)
-    if (typeof result === 'string') {
-      return t('cli.buildSite.themeFileInvalid', { path: filePath, reason: result })
+    if (isMessageParseError(result)) {
+      return t('cli.buildSite.themeFileInvalid', {
+        path: filePath,
+        reason: renderSyncMessage(result.error),
+      })
     }
     themes.push(result)
   }

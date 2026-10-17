@@ -1,6 +1,8 @@
 import { Command } from 'commander'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { t } from '../i18n/t'
+import { formatUnitList } from '../i18n/format'
+import { currentLocale } from '../i18n/runtime'
 import type { MessageKey } from '../i18n/messages/en'
 import { bakedDictionaries } from '../generated/locales'
 import path from 'node:path'
@@ -56,7 +58,8 @@ import type { ListType } from '../list/list-type'
 import { ExitCode, type ExitCodeValue } from '../util/errors'
 import { parseEnumField } from '../util/parse-enum'
 import { emptyCacheAdvice } from '../cache/freshness'
-import { isThemeName, resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
+import { resolveThemeName, themeNames, type CustomTheme } from '../theme/themes'
+import { isMessageParseError, renderSyncMessage } from '../sync/message'
 import type { RefreshMode, RefreshPolicy } from '../cache/refresh'
 import {
   buildSiteSpaFromSource,
@@ -126,8 +129,13 @@ export interface BuildSiteOptions {
 }
 
 /** What a selection flag parsed to: names (or none given), or a usage error. */
-export type SelectionFlagResult =
-  { ok: true; names: string[] | undefined } | { ok: false; error: string }
+export type SelectionFlagResult = SelectionFlagValue | SelectionFlagError
+
+/** The names a selection flag carried, or undefined when it was absent. */
+export type SelectionFlagValue = { ok: true; names: string[] | undefined }
+
+/** A selection flag given with no names, worded in the CLI's language. */
+export type SelectionFlagError = { ok: false; error: string }
 
 /**
  * The names an optional-variadic selection flag carries.
@@ -186,11 +194,15 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
   const priceSources = getPriceSources()
   const siteStores = resolveSiteStores(priceSources, getDefaultPriceSource(), explicitStores)
   if (isSiteStoresError(siteStores)) {
+    const locale = currentLocale()
+    const stores = formatUnitList(locale, siteStores.requested)
     return refuse(
-      t('cli.buildSite.storesNotEnabled', {
-        stores: siteStores.requested.join(','),
-        sources: priceSources.join(', '),
-      }),
+      priceSources.length === 0
+        ? t('cli.buildSite.storesNoneEnabled', { stores })
+        : t('cli.buildSite.storesNotEnabled', {
+            stores,
+            sources: formatUnitList(locale, priceSources),
+          }),
       ExitCode.UsageError,
     )
   }
@@ -203,10 +215,10 @@ async function resolveBuildSettings(options: BuildSiteOptions): Promise<BuildSet
   if (customNames.has(rawTheme)) {
     initialThemeName = rawTheme
   } else {
-    // `resolveThemeName` returns an error message string for unknown names;
-    // `isThemeName` is the runtime discriminator since both are strings.
-    const resolved = resolveThemeName(options.theme)
-    if (!isThemeName(resolved)) return refuse(resolved, ExitCode.UsageError)
+    const resolved = resolveThemeName(options.theme, [...customNames])
+    if (isMessageParseError(resolved)) {
+      return refuse(renderSyncMessage(resolved.error), ExitCode.UsageError)
+    }
     initialThemeName = resolved
   }
 
@@ -261,8 +273,6 @@ export function parseSelectionFlags(options: BuildSiteOptions): SelectionFlagNam
 function isFlagError(result: SelectionFlagResult): result is SelectionFlagError {
   return !result.ok
 }
-
-type SelectionFlagError = Extract<SelectionFlagResult, { ok: false }>
 
 /** The names each selection flag carried, or undefined where the flag was absent. */
 export type SelectionFlagNames = Record<ListType, string[] | undefined>

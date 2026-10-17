@@ -23,7 +23,7 @@ import { parseTagFilterInput } from '../../card/card-tags'
 import { listLocationForSlug } from './list-info'
 import { apiError, badRequest, errorResponse, nestedRefusal } from '../../api/http'
 import { isSyncMessage, type SyncMessage } from '../../sync/message'
-import { apiMessage, plainMessage, type NotAMessage } from '../../api/result'
+import { apiMessage, type NotAMessage } from '../../api/result'
 import { requireBuylistFeed } from '../../api/buylist'
 import { requireCardCache } from './save-helpers'
 
@@ -102,24 +102,13 @@ type SellQuery = {
 function queryParam<T extends NotAMessage<T>>(
   url: URL,
   name: string,
-  parse: (raw: string) => T | SyncMessage,
+  parse: (raw: string, name: string) => T | SyncMessage,
 ): T | undefined | Response {
   const raw = url.searchParams.get(name)
   if (raw === null || raw.trim() === '') return undefined
-  const parsed = parse(raw)
+  const parsed = parse(raw, name)
   // `T` is held to `NotAMessage` above, which the generic call cannot re-prove.
   return isSyncMessage<unknown>(parsed) ? nestedRefusal(parsed) : parsed
-}
-
-/**
- * A numeric engine parser that refuses with plain text (no catalog entry yet), its
- * refusal lifted to a keyless message for {@link queryParam}.
- */
-function liftPlain(parse: (raw: string) => number | string): (raw: string) => number | SyncMessage {
-  return (raw) => {
-    const parsed = parse(raw)
-    return typeof parsed === 'string' ? plainMessage(parsed) : parsed
-  }
 }
 
 /**
@@ -137,11 +126,11 @@ async function parseSellQuery(url: URL): Promise<SellQuery | Response> {
   }
   const locations = await parseListsParam(url)
   if (locations instanceof Response) return locations
-  const minPrice = queryParam(url, 'min', liftPlain(parseMinPrice))
+  const minPrice = queryParam(url, 'min', parseMinPrice)
   if (minPrice instanceof Response) return minPrice
-  const minRatio = queryParam(url, 'minRatio', liftPlain(parseMinRatio))
+  const minRatio = queryParam(url, 'minRatio', parseMinRatio)
   if (minRatio instanceof Response) return minRatio
-  const minOwned = queryParam(url, 'minOwned', liftPlain(parseMinOwned))
+  const minOwned = queryParam(url, 'minOwned', parseMinOwned)
   if (minOwned instanceof Response) return minOwned
   const tags = queryParam(url, 'tags', parseTagFilterInput)
   if (tags instanceof Response) return tags

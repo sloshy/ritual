@@ -15,14 +15,25 @@
 import path from 'node:path'
 import { getBaseDir } from '../config/base-dir'
 import { isRunningFromSource } from '../config/runtime'
+import { t } from '../i18n/t'
 
 /** The directory a build publishes to when `--out-dir` is not given. */
 export function defaultDistDir(): string {
   return path.join(getBaseDir(), 'dist')
 }
 
-/** Where a build publishes, resolved from `--out-dir`. */
-export type OutDirResolution = { ok: true; dir: string } | { ok: false; error: string }
+/**
+ * Where a build publishes, resolved from `--out-dir`. The refusal is worded in
+ * the CLI's language: only `build-site` and `serve` resolve the flag, and both
+ * print it to the console.
+ */
+export type OutDirResolution = OutDirResolved | OutDirRefused
+
+/** The directory `--out-dir` resolved to. */
+export type OutDirResolved = { ok: true; dir: string }
+
+/** Why `--out-dir` was refused, worded in the CLI's language. */
+export type OutDirRefused = { ok: false; error: string }
 
 /**
  * Resolve `--out-dir` against the Ritual directory, defaulting to `dist/`.
@@ -48,23 +59,17 @@ export function resolveOutDir(raw: string | undefined): OutDirResolution {
   if (raw === undefined) return { ok: true, dir: path.join(baseDir, 'dist') }
 
   const trimmed = raw.trim()
-  if (trimmed === '') return { ok: false, error: '--out-dir requires a directory path.' }
+  if (trimmed === '') return { ok: false, error: t('cli.buildSite.outDirBlank') }
 
   const dir = path.resolve(baseDir, trimmed)
   if (dir === baseDir) {
-    return {
-      ok: false,
-      error: `--out-dir may not be the Ritual directory itself (${baseDir}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.`,
-    }
+    return { ok: false, error: t('cli.buildSite.outDirIsBase', { base: baseDir }) }
   }
   // `path.relative(dir, baseDir)` never starts with `..` when `dir` contains
   // `baseDir`, which is exactly the ancestor test (a filesystem root included).
   const fromOutDir = path.relative(dir, baseDir)
   if (fromOutDir !== '' && !fromOutDir.startsWith('..') && !path.isAbsolute(fromOutDir)) {
-    return {
-      ok: false,
-      error: `--out-dir may not contain the Ritual directory (${dir} contains ${baseDir}) — it is the site's output directory: a build replaces it wholesale, and serving it would publish your lists.`,
-    }
+    return { ok: false, error: t('cli.buildSite.outDirContainsBase', { dir, base: baseDir }) }
   }
   return { ok: true, dir }
 }

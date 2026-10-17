@@ -10,6 +10,8 @@ export const errorMessages = {
   'errors.input.required': 'Input required: {subject} ({reason}).',
   'errors.enum.invalid': "Invalid {field} '{value}'. Use one of: {choices}.",
   'errors.enum.type': '{field} must be one of: {choices}.',
+  'errors.number.notNonNegative': "Invalid {field} '{value}' (expected a non-negative number)",
+  'errors.number.notWholeNumber': "Invalid {field} '{value}' (expected a whole number)",
   'errors.invariant.unhandled':
     'Internal error: no case handles the value {value}. This is a bug in Ritual.',
   'errors.invariant.outsideProvider':
