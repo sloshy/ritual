@@ -9,7 +9,9 @@ import type { LocaleCatalog } from '../../src/i18n/types'
 import { writeDeckFile, writeWantedFile } from '../helpers/workspace'
 import { jpDiagnosticAt, jpDiagnosticEnglish } from '../helpers/card-line'
 import { buildCacheFeed, type FeedArtifact } from '../helpers/cache-feed'
-import { bulkCard, gzipJsonLines } from '../test-utils'
+import { bulkCard, gzipJsonLines, makeScryfallCard } from '../test-utils'
+import { seedCardCache } from './helpers/seed'
+import { OFFLINE_ENV } from './helpers/offline-env'
 
 /**
  * The pseudo-locale end to end, through the real binary.
@@ -383,6 +385,51 @@ describe('pseudo-locale (Integration)', () => {
       expect(unwrap(result.stderr)).toContain(
         unwrap(await pseudoText('cli.cache.feedUrlNeedsFeedSource')),
       )
+    })
+  })
+
+  test('sell words a missing buylist in the CLI’s language, its params English for json', async () => {
+    await withTempDir(async (dir) => {
+      // A card cache, so the run reaches the buylist gate; no Card Kingdom feed.
+      await seedCardCache(dir, { 'Sol Ring': [makeScryfallCard({ name: 'Sol Ring' })] })
+      const args = ['sell', '--refresh', 'never']
+
+      const text = await runCli(args, dir, { ...PSEUDO_ENV, ...OFFLINE_ENV })
+      expect(text.exitCode).toBe(1)
+      // The lead sentence nests, and the flag and size are params the
+      // translation cannot touch.
+      const advice = (await pseudoText('domain.cache.cardKingdom.missingAdvice'))
+        .replace('{lead}', await pseudoText('domain.cache.cardKingdom.noFeed'))
+        .replace('{flag}', '--refresh auto')
+        .replace('{size}', '70')
+      expect(unwrap(text.stderr)).toContain(unwrap(advice))
+      expect(text.stderr).not.toContain('Re-run with')
+
+      const json = await runFailing([...args, '--output', 'json'], dir, {
+        ...PSEUDO_ENV,
+        ...OFFLINE_ENV,
+      })
+      expect(json.error.code).toBe('runtime_error')
+      expect(json.error.messageKey).toBe('domain.cache.cardKingdom.missingAdvice')
+      // A script re-renders the key from params flattened to English.
+      expect(json.error).toMatchObject({
+        messageParams: {
+          lead: en['domain.cache.cardKingdom.noFeed'],
+          flag: '--refresh auto',
+          size: 70,
+        },
+      })
+      // The envelope's message follows the CLI's language; only the key and
+      // params are invariant.
+      expect(unwrap(json.error.message)).toBe(unwrap(advice))
+
+      // `price` reaches the same gate for the Card Kingdom store.
+      const price = await runFailing(
+        ['price', '--source', 'cardkingdom', '--refresh', 'never', '--output', 'json'],
+        dir,
+        { ...PSEUDO_ENV, ...OFFLINE_ENV },
+      )
+      expect(price.error.messageKey).toBe('domain.cache.cardKingdom.missingAdvice')
     })
   })
 

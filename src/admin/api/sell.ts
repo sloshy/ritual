@@ -43,11 +43,17 @@ export type SellRefreshResponse = Omit<BuylistFeedStamp, 'stale'> & {
   /** Whether this call downloaded a new feed. */
   refreshed: boolean
   /**
-   * Failures that degraded the result instead of failing it — a wanted
-   * download that fell back to the stale cached feed. Empty on a clean run,
-   * so `refreshed: false` with empty warnings really means "still fresh".
+   * The failed download a stale cached feed stands in for, English plus its
+   * key — present only then, so `refreshed: false` without it really means
+   * "still fresh".
    */
-  warnings: string[]
+  staleFallback?: SyncMessage
+  /**
+   * The downloaded feed's product rows that were skipped as malformed, one
+   * message each (the first ten itemized, then a count of the rest). Empty
+   * when nothing was downloaded or every row parsed.
+   */
+  skippedRows: SyncMessage[]
 }
 
 /** Parse `?lists=type:slug,...` into locations; 400/404 on bad or empty refs. */
@@ -95,7 +101,8 @@ function queryParam<T extends NotAMessage<T>>(
   const raw = url.searchParams.get(name)
   if (raw === null || raw.trim() === '') return undefined
   const parsed = parse(raw)
-  return isSyncMessage(parsed) ? nestedRefusal(parsed) : parsed
+  // `T` is held to `NotAMessage` above, which the generic call cannot re-prove.
+  return isSyncMessage<unknown>(parsed) ? nestedRefusal(parsed) : parsed
 }
 
 /**
@@ -234,15 +241,13 @@ export async function handleSellCart(req: Request): Promise<Response> {
  * reaches the network for the buylist, so report views stay fast and
  * side-effect free. A failed download returns 502 when no feed is cached at
  * all; with a stale cache it answers 200 with the stale feed's stamps,
- * `refreshed: false`, and the failure in `warnings`.
+ * `refreshed: false`, and the failure as `staleFallback`.
  */
 export async function handleSellRefresh(req: Request): Promise<Response> {
   try {
     const force = new URL(req.url).searchParams.get('force') === 'true'
     const result = await ensureCardKingdomFeed(headlessPolicy('auto'), { force })
-    if (typeof result === 'string') {
-      return apiError(plainMessage(result), 502)
-    }
+    if (isSyncMessage(result)) return nestedRefusal(result, 502)
     // Index the feed we just wrote rather than leaving the memo to re-read it.
     if (result.refreshed) await adoptCardKingdomFeed(result)
     const body: SellRefreshResponse = {
@@ -251,7 +256,8 @@ export async function handleSellRefresh(req: Request): Promise<Response> {
       feedRetrievedAt: result.retrievedAt,
       feedCreatedAt: result.feed.createdAt,
       productCount: result.feed.products.length,
-      warnings: result.staleFallback === undefined ? [] : [result.staleFallback],
+      skippedRows: result.skippedRows,
+      ...(result.staleFallback === undefined ? {} : { staleFallback: result.staleFallback }),
     }
     return Response.json(body)
   } catch (err) {

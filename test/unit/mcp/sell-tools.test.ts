@@ -15,6 +15,8 @@ import {
   setSiteSellModeOverride,
 } from '../../../src/config/ritual-config'
 import { stubFetch } from '../../helpers/stub-fetch'
+import { missingFeedApiAdvice } from '../../../src/cardkingdom'
+import type { BuylistRefreshResult } from '../../../src/mcp/tools/destructive-tools'
 
 /**
  * Wiring-only coverage per the test layering policy: the tools are registered
@@ -117,8 +119,7 @@ describe('sell MCP tools', () => {
   test('get_sell_report errors with the missing-feed remedy when no feed exists', async () => {
     const result = await client.callTool({ name: 'get_sell_report', arguments: {} })
     const error = toolError(result)
-    expect(error.message).toContain('No Card Kingdom buylist has been downloaded yet')
-    expect(error.message).toContain('refresh_buylist')
+    expect(error.message).toBe(missingFeedApiAdvice().message)
   })
 
   test('get_sell_report matches a seeded collection against a seeded feed', async () => {
@@ -216,7 +217,8 @@ describe('sell MCP tools', () => {
     // CK download fails and the tool must report it as a structured error.
     const result = await client.callTool({ name: 'refresh_buylist', arguments: {} })
     const error = toolError(result)
-    expect(error.message).toContain('Card Kingdom')
+    // The route's keyed refusal, read in English as every MCP message is.
+    expect(error.message).toBe('Card Kingdom feed download failed: HTTP 404')
   })
 
   test('refresh_buylist reports a successful download', async () => {
@@ -228,12 +230,11 @@ describe('sell MCP tools', () => {
     )
     try {
       const result = await client.callTool({ name: 'refresh_buylist', arguments: {} })
-      const data = toolData<{ refreshed: boolean; productCount: number; warnings: string[] }>(
-        result,
-      )
+      const data = toolData<BuylistRefreshResult>(result)
       expect(data.refreshed).toBe(true)
       expect(data.productCount).toBe(1)
-      expect(data.warnings).toEqual([])
+      expect(data.skippedRows).toEqual([])
+      expect(data.staleFallback).toBeUndefined()
     } finally {
       feed.restore()
     }

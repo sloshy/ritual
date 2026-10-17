@@ -4,37 +4,78 @@ import type { HttpClient } from '../util/interfaces'
 import { getLogger } from '../util/logger'
 import { bulkAllowed, type RefreshPolicy } from '../cache/refresh'
 import { loadRitualConfig, wantsCardKingdomFeed } from '../config/ritual-config'
-import { formatDuration } from '../util/duration'
+import { t } from '../i18n/t'
+import {
+  isSyncMessage,
+  nestSync,
+  renderSyncMessage,
+  syncDuration,
+  syncMessage,
+  syncRef,
+  type SyncMessage,
+  type SyncMessageRef,
+} from '../sync/message'
 import { loadCardKingdomCache, saveCardKingdomCache, type CardKingdomCacheFile } from './cache'
 import { fetchCardKingdomFeed } from './client'
 import { loadEnsuredFeed } from './memo'
 
-/** The lead sentence every "no buylist yet" message opens with. */
-export const NO_FEED_LEAD = 'No Card Kingdom buylist has been downloaded yet.'
+/**
+ * Roughly how many megabytes the pricelist download weighs, for the sentences
+ * that warn of it (`~70 MB`). An estimate, not a measurement, so it is a plain
+ * round number rather than a size param formatted to two decimals.
+ */
+const FEED_DOWNLOAD_MB = 70
 
-/** The standard remedy line for a missing Card Kingdom feed, CLI flavor. */
-export function missingFeedAdvice(lead: string = NO_FEED_LEAD): string {
-  return `${lead} Re-run with --refresh auto to download it (~70 MB).`
+/** The lead sentence every "no buylist yet" message opens with. */
+function noFeedLead(): SyncMessageRef {
+  return syncRef('domain.cache.cardKingdom.noFeed')
+}
+
+/**
+ * The standard remedy line for a missing Card Kingdom feed, CLI flavor — the
+ * refusal `ritual sell` and `ritual price` report, in the CLI's language and
+ * (English plus the key) in their `--output json` envelopes.
+ */
+export function missingFeedAdvice(): SyncMessage {
+  return syncMessage('domain.cache.cardKingdom.missingAdvice', {
+    lead: noFeedLead(),
+    flag: '--refresh auto',
+    size: FEED_DOWNLOAD_MB,
+  })
 }
 
 /**
  * The same refusal for an HTTP caller, which has more ways to fix it than a
  * CLI flag. Kept beside {@link missingFeedAdvice} so the two flavors of one
- * sentence cannot drift.
+ * sentence cannot drift. The MCP tool, route and command it names are
+ * identifiers, passed as params so no translation can alter them.
  */
-export function missingFeedApiAdvice(lead: string = NO_FEED_LEAD): string {
-  return `${lead} Refresh the Card Kingdom buylist first: the refresh_buylist tool, POST /api/sell/refresh, or \`ritual sell --refresh auto\` on the CLI.`
+export function missingFeedApiAdvice(): SyncMessage {
+  return syncMessage('domain.cache.cardKingdom.missingApiAdvice', {
+    lead: noFeedLead(),
+    tool: 'refresh_buylist',
+    route: 'POST /api/sell/refresh',
+    command: 'ritual sell --refresh auto',
+  })
 }
 
 /** A usable feed: the cache file plus whether this call just downloaded it. */
 export type CardKingdomFeedResult = CardKingdomCacheFile & {
   refreshed: boolean
   /**
-   * Set when a wanted download failed and the stale cache is being used
-   * instead — the failure reason, worded for the caller to surface. Absent
-   * when the cache was simply fresh (or going stale was accepted).
+   * The feed's product rows this call's download skipped as malformed, one
+   * message each (capped, with a count of the rest) — English plus its key, so
+   * the refresh route and MCP report what the console prints. Empty when
+   * nothing was downloaded or every row parsed.
    */
-  staleFallback?: string
+  skippedRows: SyncMessage[]
+  /**
+   * Set when a wanted download failed and the stale cache is being used
+   * instead — the failure reason, as a message (English plus its key) for the
+   * caller to surface. Absent when the cache was simply fresh (or going stale
+   * was accepted).
+   */
+  staleFallback?: SyncMessage
 }
 
 /** Injectable dependencies for {@link ensureCardKingdomFeed}. */
@@ -63,12 +104,16 @@ export type EnsureCardKingdomFeedDeps = {
  * - A download failure falls back to the stale cache when one exists
  *   (reported, not thrown); with no cache at all the failure is the refusal.
  *
- * @returns The feed, or an error string worded for the caller to report.
+ * Its console lines (progress, the prompt, the stale-fallback warning) are in
+ * the active locale; what it returns is a message, English plus its key, since
+ * a refusal reaches the admin API and MCP as well as the CLI.
+ *
+ * @returns The feed, or the message saying why there is none.
  */
 export async function ensureCardKingdomFeed(
   policy: RefreshPolicy,
   deps: EnsureCardKingdomFeedDeps = {},
-): Promise<CardKingdomFeedResult | string> {
+): Promise<CardKingdomFeedResult | SyncMessage> {
   const http = deps.http ?? defaultHttpClient
   const load = deps.load ?? loadCardKingdomCache
   const save = deps.save ?? saveCardKingdomCache
@@ -76,19 +121,21 @@ export async function ensureCardKingdomFeed(
 
   const cached = await load()
 
-  const download = async (): Promise<CardKingdomFeedResult | string> => {
-    getLogger().info('Downloading the Card Kingdom buylist (~70 MB)...')
+  const download = async (): Promise<CardKingdomFeedResult | SyncMessage> => {
+    getLogger().info(
+      renderSyncMessage(syncRef('cli.cardKingdom.downloading', { size: FEED_DOWNLOAD_MB })),
+    )
     const fetched = await fetchCardKingdomFeed(http)
-    if (typeof fetched === 'string') return fetched
-    for (const warning of fetched.warnings) getLogger().warn(warning)
+    if (isSyncMessage(fetched)) return fetched
+    for (const warning of fetched.warnings) getLogger().warn(renderSyncMessage(warning))
     const file: CardKingdomCacheFile = { retrievedAt: now(), feed: fetched.feed }
     await save(file)
-    getLogger().info(`Card Kingdom buylist updated (${fetched.feed.products.length} products).`)
-    return { ...file, refreshed: true }
+    getLogger().info(t('cli.cardKingdom.updated', { count: fetched.feed.products.length }))
+    return { ...file, refreshed: true, skippedRows: fetched.warnings }
   }
 
   if (cached && deps.force !== true && !buylistFeedIsStale(cached.retrievedAt, now())) {
-    return { ...cached, refreshed: false }
+    return { ...cached, refreshed: false, skippedRows: [] }
   }
 
   if (cached) {
@@ -98,17 +145,21 @@ export async function ensureCardKingdomFeed(
     // explicit act (the missing-feed prompt below, or `--refresh auto`), and
     // running the command again — or starting a server — renews it.
     // `no-bulk`/`never` still forbid it, and keep the stale feed silently.
-    const age = formatDuration(now() - cached.retrievedAt)
+    const age = syncDuration(now() - cached.retrievedAt)
     if (bulkAllowed(policy.mode)) {
-      getLogger().info(`The Card Kingdom buylist was retrieved ${age} ago. Updating it...`)
+      getLogger().info(renderSyncMessage(syncRef('cli.cardKingdom.updating', { age })))
       const downloaded = await download()
-      if (typeof downloaded !== 'string') return downloaded
+      if (!isSyncMessage(downloaded)) return downloaded
       // A failed courtesy refresh degrades to the stale feed — reported both
       // ways, so a caller that only reads the result still learns of it.
-      getLogger().warn(`${downloaded} Using the buylist retrieved ${age} ago instead.`)
-      return { ...cached, refreshed: false, staleFallback: downloaded }
+      getLogger().warn(
+        renderSyncMessage(
+          syncRef('cli.cardKingdom.usingStale', { reason: nestSync(downloaded), age }),
+        ),
+      )
+      return { ...cached, refreshed: false, skippedRows: [], staleFallback: downloaded }
     }
-    return { ...cached, refreshed: false }
+    return { ...cached, refreshed: false, skippedRows: [] }
   }
 
   // Missing entirely: only a download can help. This one still asks — it is the
@@ -119,7 +170,12 @@ export async function ensureCardKingdomFeed(
   }
   if (policy.mode === 'ask') {
     const accepted = await policy.confirm({
-      message: `${NO_FEED_LEAD} Download it now (~70 MB)?`,
+      message: renderSyncMessage(
+        syncRef('cli.cardKingdom.downloadPrompt', {
+          lead: noFeedLead(),
+          size: FEED_DOWNLOAD_MB,
+        }),
+      ),
       initial: true,
     })
     if (!accepted) {
@@ -147,8 +203,11 @@ export type BuylistWarmth = {
   ready: boolean
   /** Whether this call downloaded one. */
   refreshed: boolean
-  /** Why a refresh this call wanted did not happen. Never set for a missing feed. */
-  problem?: string
+  /**
+   * Why a refresh this call wanted did not happen, English plus its key. Never
+   * set for a missing feed.
+   */
+  problem?: SyncMessage
 }
 
 /** Injectable dependencies for {@link warmCardKingdomFeed}. */
@@ -169,10 +228,14 @@ export type WarmCardKingdomFeedDeps = EnsureCardKingdomFeedDeps & {
 
 /**
  * The startup line reporting a warm that wanted to refresh and could not, or
- * nothing when there is nothing to say. Shared so both servers word it once.
+ * nothing when there is nothing to say — a console line, in the active locale.
+ * Shared so both servers word it once.
  */
 export function sellModeWarning(warmth: BuylistWarmth): string | undefined {
-  return warmth.problem === undefined ? undefined : `Sell mode: ${warmth.problem}`
+  if (warmth.problem === undefined) return undefined
+  return renderSyncMessage(
+    syncRef('cli.cardKingdom.sellModeProblem', { problem: nestSync(warmth.problem) }),
+  )
 }
 
 /**
@@ -206,7 +269,7 @@ export async function warmCardKingdomFeed(
   if (!cached) return { enabled: true, ready: false, refreshed: false }
 
   const result = await ensureCardKingdomFeed(policy, { ...ensureDeps, load: async () => cached })
-  if (typeof result === 'string') {
+  if (isSyncMessage(result)) {
     // Unreachable in practice — the gate refuses only a missing feed, and this
     // one is in hand — but a refusal is still a refusal, not a usable feed.
     return { enabled: true, ready: false, refreshed: false, problem: result }

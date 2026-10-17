@@ -104,6 +104,8 @@ A failed download falls back to the stale feed when one exists.
 
 Structured output (`json`, `ndjson`, `csv`) downgrades an unanswerable `ask` to `never`. That also opts out of the automatic stale-feed redownload, so `sell --output json` quotes from whatever is cached unless you pass `--refresh auto`. Under `never`, card names resolve from the cache only. When prompts are unavailable (`--no-input` / `RITUAL_NO_INPUT`, or stdin is not a terminal), the `ask` prompts are declined, so a missing feed or an empty card cache exits `1` with advice to use `--refresh auto`.
 
+The advice prints in the CLI's language. Under `--output json` its error envelope carries `messageKey` `domain.cache.cardKingdom.missingAdvice`, with `messageParams` in English: `lead` (the "No Card Kingdom buylist has been downloaded yet." sentence), `flag` (`--refresh auto`) and `size` (the estimated download size in MB, `70`). The envelope's `message` follows the CLI's language; match on the key, not the prose.
+
 ## Sell-Cart CSV Export
 
 `--output csv` renders the entries CK is buying in Card Kingdom's own [sell-cart CSV import format](https://www.cardkingdom.com/static/csvImport): `card name, edition, foil, quantity`, data rows only (their importer expects no header row). It uses CK's own listing title and edition spelling from the matched products, with quantities capped at their buy limits. A variant printing carries CK's variant note in parentheses, exactly as they title it (`Mishra's Factory (Autumn)`), so the row lands on that printing:

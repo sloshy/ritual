@@ -1,4 +1,7 @@
 import type { Finish } from '../card/finish-condition'
+import { stripVTControlCharacters } from 'node:util'
+import { syncMessage, syncRef, type SyncMessage, type SyncMessageRef } from '../sync/message'
+import { isRecord } from '../util/json'
 
 /**
  * Card Kingdom's public bulk pricelist feed (`api.cardkingdom.com/api/v2/pricelist`),
@@ -40,14 +43,18 @@ export interface CardKingdomFeed {
   products: CardKingdomProduct[]
 }
 
-/** A successfully parsed feed plus warnings for any rows that were skipped. */
+/**
+ * A successfully parsed feed plus warnings for any rows that were skipped —
+ * messages, each nesting the row's own reason, so a reader words the whole line
+ * in its own language.
+ */
 export type ParsedCardKingdomFeed = {
   feed: CardKingdomFeed
-  warnings: string[]
+  warnings: SyncMessage[]
 }
 
 /** How many per-row warnings are itemized before collapsing into a count. */
-const MAX_ROW_WARNINGS = 10
+export const MAX_ROW_WARNINGS = 10
 
 /**
  * Derive the Ritual finish of a CK product. Etched printings are separate
@@ -82,25 +89,74 @@ function optionalString(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-function parseFeedProduct(entry: unknown): CardKingdomProduct | string {
-  if (!entry || typeof entry !== 'object') return 'not an object'
-  const raw = entry as Record<string, unknown>
+/** A numeric (or string-encoded boolean) feed field whose value could not be read. */
+type DecodedField = 'is_foil' | 'price_retail' | 'qty_retail' | 'price_buy' | 'qty_buying'
 
-  if (typeof raw['id'] !== 'number') return 'missing numeric id'
-  if (typeof raw['sku'] !== 'string') return 'missing string sku'
-  if (typeof raw['name'] !== 'string' || raw['name'] === '') return 'missing card name'
-  if (typeof raw['edition'] !== 'string' || raw['edition'] === '') return 'missing edition'
+/** The most of an unreadable value a skipped-row reason quotes (characters, before the ellipsis). */
+const MAX_QUOTED_VALUE_CHARS = 80
+
+/**
+ * A feed value as a reason quotes it: text as it is, anything else as its
+ * JSON (an object reads `{"a":1}`, never `[object Object]`), with control
+ * characters removed and at most {@link MAX_QUOTED_VALUE_CHARS} characters kept.
+ */
+/** A C0 or C1 control character (escape sequences are already stripped). */
+function isControlChar(codePoint: number): boolean {
+  return codePoint < 0x20 || (codePoint >= 0x7f && codePoint <= 0x9f)
+}
+
+function quotedValue(value: unknown): string {
+  const text =
+    typeof value === 'string'
+      ? value
+      : typeof value === 'object' && value !== null
+        ? (JSON.stringify(value) ?? '')
+        : String(value)
+  // Control characters become spaces, but nothing is trimmed or collapsed: a
+  // whitespace-only value (`"   "`) must read as itself, not as empty.
+  const chars = [...stripVTControlCharacters(text)].map((char) =>
+    isControlChar(char.codePointAt(0) ?? 0) ? ' ' : char,
+  )
+  return chars.length > MAX_QUOTED_VALUE_CHARS
+    ? `${chars.slice(0, MAX_QUOTED_VALUE_CHARS).join('')}…`
+    : chars.join('')
+}
+
+/** Why a row was skipped: the field that holds an unreadable value, and that value. */
+function unreadable(field: DecodedField, value: unknown): SyncMessageRef {
+  return syncRef('domain.cache.cardKingdom.product.unreadable', {
+    field,
+    value: quotedValue(value),
+  })
+}
+
+/**
+ * Parse one feed row, or say why it was skipped — a reason phrase held
+ * unrendered, nested into the "Skipped … data[N]" warning.
+ */
+function parseFeedProduct(entry: unknown): CardKingdomProduct | SyncMessageRef {
+  if (!isRecord(entry)) return syncRef('domain.cache.cardKingdom.product.notObject')
+  const raw = entry
+
+  if (typeof raw['id'] !== 'number') return syncRef('domain.cache.cardKingdom.product.noId')
+  if (typeof raw['sku'] !== 'string') return syncRef('domain.cache.cardKingdom.product.noSku')
+  if (typeof raw['name'] !== 'string' || raw['name'] === '') {
+    return syncRef('domain.cache.cardKingdom.product.noName')
+  }
+  if (typeof raw['edition'] !== 'string' || raw['edition'] === '') {
+    return syncRef('domain.cache.cardKingdom.product.noEdition')
+  }
 
   const isFoil = parseFeedBoolean(raw['is_foil'])
-  if (isFoil === null) return `unreadable is_foil '${String(raw['is_foil'])}'`
+  if (isFoil === null) return unreadable('is_foil', raw['is_foil'])
   const priceRetail = parseFeedNumber(raw['price_retail'])
-  if (priceRetail === null) return `unreadable price_retail '${String(raw['price_retail'])}'`
+  if (priceRetail === null) return unreadable('price_retail', raw['price_retail'])
   const qtyRetail = parseFeedNumber(raw['qty_retail'])
-  if (qtyRetail === null) return `unreadable qty_retail '${String(raw['qty_retail'])}'`
+  if (qtyRetail === null) return unreadable('qty_retail', raw['qty_retail'])
   const priceBuy = parseFeedNumber(raw['price_buy'])
-  if (priceBuy === null) return `unreadable price_buy '${String(raw['price_buy'])}'`
+  if (priceBuy === null) return unreadable('price_buy', raw['price_buy'])
   const qtyBuying = parseFeedNumber(raw['qty_buying'])
-  if (qtyBuying === null) return `unreadable qty_buying '${String(raw['qty_buying'])}'`
+  if (qtyBuying === null) return unreadable('qty_buying', raw['qty_buying'])
 
   const variation = optionalString(raw['variation'])
   return {
@@ -120,46 +176,52 @@ function parseFeedProduct(entry: unknown): CardKingdomProduct | string {
 }
 
 /**
- * Validate and parse a raw pricelist payload. Returns an error string (never
- * throws) when the envelope is not the expected `{ meta, data }` shape, per the
- * parser conventions in AGENTS.md. Individual malformed rows are skipped and
- * reported as warnings rather than failing the whole feed — one bad row in a
- * 150k-product vendor feed must not make the buylist unusable.
+ * Validate and parse a raw pricelist payload. Returns the refusal as a message
+ * (never throws) when the envelope is not the expected `{ meta, data }` shape,
+ * per the parser conventions in AGENTS.md — English plus its key, since it
+ * reaches the admin API and MCP through a failed buylist refresh. Individual
+ * malformed rows are skipped and reported as warnings rather than failing the
+ * whole feed — one bad row in a 150k-product vendor feed must not make the
+ * buylist unusable.
  */
-export function parseCardKingdomFeed(json: unknown): ParsedCardKingdomFeed | string {
-  if (!json || typeof json !== 'object') {
-    return 'Invalid Card Kingdom feed: expected a JSON object'
-  }
-  const raw = json as Record<string, unknown>
-  const meta = raw['meta']
-  if (!meta || typeof meta !== 'object') {
-    return 'Invalid Card Kingdom feed: missing meta object'
-  }
-  const metaRaw = meta as Record<string, unknown>
+export function parseCardKingdomFeed(json: unknown): ParsedCardKingdomFeed | SyncMessage {
+  if (!isRecord(json)) return syncMessage('domain.cache.cardKingdom.feed.notObject')
+  const raw = json
+  const metaRaw = raw['meta']
+  if (!isRecord(metaRaw)) return syncMessage('domain.cache.cardKingdom.feed.noMeta')
   const data = raw['data']
   if (!Array.isArray(data)) {
-    return 'Invalid Card Kingdom feed: missing data array'
+    return syncMessage('domain.cache.cardKingdom.feed.noData')
   }
 
   const products: CardKingdomProduct[] = []
-  const warnings: string[] = []
+  const warnings: SyncMessage[] = []
   let skipped = 0
   for (let i = 0; i < data.length; i++) {
     const product = parseFeedProduct(data[i])
-    if (typeof product === 'string') {
+    if ('messageKey' in product) {
       skipped++
       if (warnings.length < MAX_ROW_WARNINGS) {
-        warnings.push(`Skipped Card Kingdom product data[${i}]: ${product}`)
+        warnings.push(
+          syncMessage('domain.cache.cardKingdom.feed.productSkipped', {
+            index: i,
+            reason: product,
+          }),
+        )
       }
       continue
     }
     products.push(product)
   }
   if (skipped > warnings.length) {
-    warnings.push(`Skipped ${skipped - warnings.length} more malformed Card Kingdom products`)
+    warnings.push(
+      syncMessage('domain.cache.cardKingdom.feed.moreSkipped', {
+        count: skipped - warnings.length,
+      }),
+    )
   }
   if (products.length === 0) {
-    return 'Invalid Card Kingdom feed: no readable products'
+    return syncMessage('domain.cache.cardKingdom.feed.noProducts')
   }
 
   return {

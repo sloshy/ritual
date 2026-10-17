@@ -21,6 +21,7 @@ import {
   mockDecksApi,
   mockAuditLogApi,
   cacheRefreshDownloadFrame,
+  mockBuylistApi,
   mockCacheRefreshApi,
   mockConfigApi,
   mockImportChangesApi,
@@ -687,6 +688,65 @@ test.describe('admin language switch', () => {
     await expect(done).toHaveText('Cache refreshed successfully')
     await languageSelect(page).selectOption(PSEUDO_LOCALE)
     await expectPseudo(done, true)
+  })
+
+  test('relabels the buylist refresh’s outcome and the failure it fell back on', async ({
+    page,
+  }) => {
+    // The refresh's warning is the engine's message — English plus its key —
+    // held unrendered beside the card's own outcome line, so both relabel.
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockBuylistApi(page, {
+      refresh: {
+        refreshed: false,
+        staleFallback: syncMessage('domain.cache.cardKingdom.downloadHttpFailed', { status: 503 }),
+        skippedRows: [
+          syncMessage('domain.cache.cardKingdom.feed.productSkipped', {
+            index: 3,
+            reason: syncRef('domain.cache.cardKingdom.product.noName'),
+          }),
+        ],
+      },
+    })
+    await gotoAdminDashboard(page, '#/cache')
+    const card = page.locator('.cache-card')
+    await card.locator('button:has-text("Refresh buylist")').click()
+    const warning = card.locator('.cache-card-warnings:not(.cache-card-skipped) li')
+    const skipped = card.locator('.cache-card-skipped li')
+    const outcome = card.locator('.cache-card-status')
+    await expect(warning).toHaveText('Card Kingdom feed download failed: HTTP 503')
+    await expect(skipped).toHaveText('Skipped Card Kingdom product data[3]: missing card name')
+    await expect(outcome).toHaveText('The buylist was not updated.')
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(warning, true)
+    await expect(warning).toContainText('503')
+    // The row's reason nests, so it relabels with the line around it.
+    await expectPseudo(skipped, true)
+    await expect(skipped).not.toContainText('missing card name')
+    await expectPseudo(outcome, true)
+    await expectNotReloaded(page)
+  })
+
+  test('relabels a buylist refresh that failed outright', async ({ page }) => {
+    await offerLocales(page, ['en', PSEUDO_LOCALE])
+    await mockBuylistApi(page, {
+      refreshFailure: syncMessage('domain.cache.cardKingdom.downloadHttpFailed', { status: 503 }),
+    })
+    await gotoAdminDashboard(page, '#/cache')
+    const card = page.locator('.cache-card')
+    await card.locator('button:has-text("Refresh buylist")').click()
+    // The route's refusal is the card's outcome line, held as the message.
+    const outcome = card.locator('.cache-card-status')
+    await expect(outcome).toHaveText('Card Kingdom feed download failed: HTTP 503')
+    await expect(card.locator('.cache-card-warnings')).toHaveCount(0)
+    await markPage(page)
+
+    await languageSelect(page).selectOption(PSEUDO_LOCALE)
+    await expectPseudo(outcome, true)
+    await expect(outcome).toContainText('503')
+    await expectNotReloaded(page)
   })
 
   test('relabels a running cache refresh’s progress line, its sizes included', async ({ page }) => {

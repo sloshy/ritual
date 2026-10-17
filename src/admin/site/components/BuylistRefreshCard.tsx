@@ -5,6 +5,9 @@ import type { SellRefreshResponse } from '../../api/sell'
 import { resetBuylistQuotes } from '../../../list-view/buylist-quotes'
 import { formatDateTime, formatNumber } from '../../../ui/format'
 import { useT, useTSegments } from '../../../ui/i18n'
+import { apiMessage, type ApiActionMessage } from '../../../api/result'
+import { readSyncMessage, type SyncMessage } from '../../../sync/message'
+import { useApiText } from '../hooks/useApiAction'
 
 /**
  * The Card Kingdom buylist's explicit refresh control.
@@ -18,11 +21,15 @@ import { useT, useTSegments } from '../../../ui/i18n'
  * (`?force=true`, so it downloads even when the copy is still fresh).
  */
 
-/** How the card describes the cached feed: absent, present, or unreadable. */
+/**
+ * How the card describes the cached feed: absent, present, or unreadable. An
+ * error is held unrendered — the server's English plus its key, or the card's
+ * own fallback — so it relabels when the reader switches language.
+ */
 type FeedState =
   | { kind: 'loading' }
   | { kind: 'missing' }
-  | { kind: 'error'; message: string }
+  | { kind: 'error'; message: ApiActionMessage }
   | { kind: 'present'; status: BuylistStatusResponse }
 
 function formatStamp(epochMs: number): string {
@@ -32,10 +39,15 @@ function formatStamp(epochMs: number): string {
 export function BuylistRefreshCard(): JSX.Element {
   const t = useT()
   const tSegments = useTSegments()
+  const heldText = useApiText()
   const [state, setState] = createSignal<FeedState>({ kind: 'loading' })
   const [refreshing, setRefreshing] = createSignal(false)
-  const [message, setMessage] = createSignal<string | null>(null)
-  const [warnings, setWarnings] = createSignal<string[]>([])
+  // The outcome line, the failed download a stale feed stands in for, and the
+  // feed rows the download skipped — held unrendered like the error above, so
+  // each renders in the reader's language at display time.
+  const [message, setMessage] = createSignal<ApiActionMessage | null>(null)
+  const [staleFallback, setStaleFallback] = createSignal<SyncMessage | null>(null)
+  const [skippedRows, setSkippedRows] = createSignal<SyncMessage[]>([])
 
   const loadStatus = async (): Promise<void> => {
     try {
@@ -52,13 +64,13 @@ export function BuylistRefreshCard(): JSX.Element {
         // instead would swallow the server's remedy text.
         setState({
           kind: 'error',
-          message: data.success === false ? data.message : t('admin.buylist.statusFailed'),
+          message: readSyncMessage(data) ?? apiMessage('admin.buylist.statusFailed'),
         })
         return
       }
       setState({ kind: 'present', status: data })
     } catch {
-      setState({ kind: 'error', message: t('admin.buylist.statusFailed') })
+      setState({ kind: 'error', message: apiMessage('admin.buylist.statusFailed') })
     }
   }
 
@@ -66,7 +78,7 @@ export function BuylistRefreshCard(): JSX.Element {
     void loadStatus()
   })
 
-  const failureMessage = (): string | null => {
+  const failure = (): ApiActionMessage | null => {
     const current = state()
     return current.kind === 'error' ? current.message : null
   }
@@ -78,7 +90,8 @@ export function BuylistRefreshCard(): JSX.Element {
   const handleRefresh = async (): Promise<void> => {
     setRefreshing(true)
     setMessage(null)
-    setWarnings([])
+    setStaleFallback(null)
+    setSkippedRows([])
     try {
       // `force=true`: this button is an explicit request, so it downloads even
       // when the cached feed is still within its daily freshness window.
@@ -88,7 +101,7 @@ export function BuylistRefreshCard(): JSX.Element {
       })
       const data = (await response.json()) as SellRefreshResponse | ApiErrorResponse
       if (!response.ok || data.success !== true) {
-        setMessage(data.success === false ? data.message : t('admin.buylist.refreshFailed'))
+        setMessage(readSyncMessage(data) ?? apiMessage('admin.buylist.refreshFailed'))
         return
       }
       // A new feed is on disk, so every quote the admin's client-side store
@@ -99,22 +112,25 @@ export function BuylistRefreshCard(): JSX.Element {
       // mount, so nothing else has to be told.
       //
       // Only on `refreshed: true`. The other two outcomes changed no feed: a
-      // still-fresh copy (`refreshed: false`, no warnings) and a failed download
-      // that fell back to the stale cached one (`refreshed: false` + a warning)
+      // still-fresh copy (`refreshed: false`) and a failed download that fell
+      // back to the stale cached one (`refreshed: false` + `staleFallback`)
       // both leave the store quoting exactly the feed it already quoted, so
       // clearing it would only buy a pointless round of re-requests.
       if (data.refreshed) resetBuylistQuotes()
-      // That fallback answers 200 with `refreshed: false` and a warning —
-      // reading only `refreshed` would report it as "already fresh".
-      setWarnings(data.warnings)
+      // That fallback answers 200 with `refreshed: false` — reading only
+      // `refreshed` would report it as "already fresh". Both fields are read as
+      // wire data: a message only when it is one.
+      const fallback = readSyncMessage(data.staleFallback)
+      setStaleFallback(fallback)
+      setSkippedRows((data.skippedRows ?? []).flatMap((row) => readSyncMessage(row) ?? []))
       setMessage(
-        data.warnings.length > 0
-          ? t('admin.buylist.notUpdated')
-          : t('admin.buylist.updated', { count: data.productCount }),
+        fallback !== null
+          ? apiMessage('admin.buylist.notUpdated')
+          : apiMessage('admin.buylist.updated', { count: data.productCount }),
       )
       await loadStatus()
     } catch {
-      setMessage(t('admin.buylist.refreshFailed'))
+      setMessage(apiMessage('admin.buylist.refreshFailed'))
     } finally {
       setRefreshing(false)
     }
@@ -137,7 +153,9 @@ export function BuylistRefreshCard(): JSX.Element {
         <Match when={state().kind === 'missing'}>
           <p class="cache-card-empty">{t('admin.buylist.empty')}</p>
         </Match>
-        <Match when={failureMessage()}>{(text) => <p class="cache-card-error">{text()}</p>}</Match>
+        <Match when={failure()}>
+          {(held) => <p class="cache-card-error">{heldText(held())}</p>}
+        </Match>
         <Match when={loadedStatus()}>
           {(status) => (
             <dl class="cache-card-facts">
@@ -157,10 +175,18 @@ export function BuylistRefreshCard(): JSX.Element {
         </Match>
       </Switch>
 
-      <Show when={message()}>{(text) => <p class="cache-card-status">{text()}</p>}</Show>
-      <Show when={warnings().length > 0}>
-        <ul class="cache-card-warnings">
-          <For each={warnings()}>{(warning) => <li>{warning}</li>}</For>
+      <Show when={message()}>{(held) => <p class="cache-card-status">{heldText(held())}</p>}</Show>
+      <Show when={staleFallback()}>
+        {(held) => (
+          <ul class="cache-card-warnings">
+            <li>{heldText(held())}</li>
+          </ul>
+        )}
+      </Show>
+      <Show when={skippedRows().length > 0}>
+        <p class="cache-card-skipped-label">{t('admin.buylist.skippedRowsLabel')}</p>
+        <ul class="cache-card-warnings cache-card-skipped">
+          <For each={skippedRows()}>{(row) => <li>{heldText(row)}</li>}</For>
         </ul>
       </Show>
 

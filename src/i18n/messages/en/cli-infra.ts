@@ -867,6 +867,34 @@ export const cliInfraMessages = {
   'cli.sell.emptyCache': 'The card cache is empty; buylist matching requires it.',
   'cli.sell.wroteFile': 'Wrote {file}',
 
+  // ── Card Kingdom buylist (console lines) ──────────────────────────────
+  'cli.cardKingdom.cacheInvalid.notObject': 'Invalid Card Kingdom cache: expected an object',
+  'cli.cardKingdom.cacheInvalid.noRetrievedAt':
+    'Invalid Card Kingdom cache: missing numeric retrievedAt',
+  'cli.cardKingdom.cacheInvalid.noFeed': 'Invalid Card Kingdom cache: missing feed object',
+  'cli.cardKingdom.cacheInvalid.noCreatedAt': 'Invalid Card Kingdom cache: missing feed.createdAt',
+  'cli.cardKingdom.cacheInvalid.noBaseUrl': 'Invalid Card Kingdom cache: missing feed.baseUrl',
+  'cli.cardKingdom.cacheInvalid.noProductList':
+    'Invalid Card Kingdom cache: missing products array',
+  'cli.cardKingdom.cacheInvalid.noProducts': 'Invalid Card Kingdom cache: no readable products',
+  'cli.cardKingdom.cacheDropped': {
+    $plural: 'count',
+    one: 'Dropped {count} malformed product from the Card Kingdom cache',
+    other: 'Dropped {count} malformed products from the Card Kingdom cache',
+  },
+  'cli.cardKingdom.cacheNotJson': 'Ignoring unreadable Card Kingdom cache (not valid JSON)',
+  'cli.cardKingdom.cacheIgnored': 'Ignoring unreadable Card Kingdom cache: {reason}',
+  'cli.cardKingdom.downloadPrompt': '{lead} Download it now (~{size} MB)?',
+  'cli.cardKingdom.downloading': 'Downloading the Card Kingdom buylist (~{size} MB)...',
+  'cli.cardKingdom.updated': {
+    $plural: 'count',
+    one: 'Card Kingdom buylist updated ({count} product).',
+    other: 'Card Kingdom buylist updated ({count} products).',
+  },
+  'cli.cardKingdom.updating': 'The Card Kingdom buylist was retrieved {age} ago. Updating it...',
+  'cli.cardKingdom.usingStale': 'Using the buylist retrieved {age} ago instead: {reason}',
+  'cli.cardKingdom.sellModeProblem': 'Sell mode: {problem}',
+
   // ── locale ────────────────────────────────────────────────────────────
   //
   // `--locale` and `RITUAL_LOCALE` name themselves and are never translated;

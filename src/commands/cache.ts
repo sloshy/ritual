@@ -9,6 +9,7 @@ import {
   parseCacheSourceFlag,
 } from '../cache-server/cadence'
 import { ensureCardKingdomFeed } from '../cardkingdom'
+import { isSyncMessage, renderSyncMessage } from '../sync/message'
 import { getErrorMessage, ExitCode } from '../util/errors'
 import { getSiteSellMode, type CacheSource as ConfiguredCacheSource } from '../config/ritual-config'
 import { registerCacheFeedSubcommand } from './cache-feed'
@@ -163,8 +164,10 @@ export function registerCacheCommand(program: Command): void {
       if (getSiteSellMode()) {
         try {
           const feed = await ensureCardKingdomFeed(headlessPolicy('auto'), { force: options.force })
-          if (typeof feed === 'string') {
-            console.warn(t('cli.cache.preloadAllBuylistFailed', { reason: feed }))
+          if (isSyncMessage(feed)) {
+            console.warn(
+              t('cli.cache.preloadAllBuylistFailed', { reason: renderSyncMessage(feed) }),
+            )
           }
         } catch (e) {
           console.warn(t('cli.cache.preloadAllBuylistFailed', { reason: getErrorMessage(e) }))

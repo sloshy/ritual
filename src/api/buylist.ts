@@ -47,7 +47,7 @@ import { plainMessage, type NotAMessage } from './result'
  */
 export async function requireBuylistFeed(): Promise<LoadedCardKingdomFeed | Response> {
   const feed = await getCardKingdomFeed()
-  if (feed === null) return apiError(plainMessage(missingFeedApiAdvice()), 503)
+  if (feed === null) return nestedRefusal(missingFeedApiAdvice(), 503)
   return feed
 }
 

@@ -135,8 +135,8 @@ export async function adoptCardKingdomFeed(
  * then from the file already in hand rather than re-reading and re-parsing the
  * ~20 MB it was handed.
  *
- * Only the cache file's own fields are adopted: `refreshed`/`staleFallback` are
- * the ensure call's control flow, and the memo holds a `CardKingdomCacheFile`.
+ * Only the cache file's own fields are adopted: `refreshed`/`skippedRows`/
+ * `staleFallback` are the ensure call's report, and the memo holds a `CardKingdomCacheFile`.
  */
 export async function loadEnsuredFeed(
   result: CardKingdomFeedResult,

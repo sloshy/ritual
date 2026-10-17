@@ -24,6 +24,13 @@ const STATUS_PAIR =
 const CACHE_SERVER_LOG =
   'A console line of `ritual cache server` — a long-running process that serves a shared card and price cache to other Ritual processes — read by whoever operates it.'
 
+/** Context for the Card Kingdom buylist's console lines. */
+const CK_LOG_CONTEXT =
+  'About the Card Kingdom buylist: Card Kingdom (a card store; a company name, never translated) publishes a ~70 MB pricelist feed of what it pays for cards, which Ritual downloads into its local cache for `ritual sell` and sell mode. A console line of the CLI, or of a Ritual server (admin, serve) in its terminal.'
+
+/** Context for a rejected Card Kingdom cache file. */
+const CK_CACHE_CONTEXT = `${CK_LOG_CONTEXT} Why the cached buylist file (cache/cardkingdom.json) was rejected as unreadable; it fills {reason} in "Ignoring unreadable Card Kingdom cache: {reason}".`
+
 export const cliInfraMeta = {
   // ── cache status ──────────────────────────────────────────────────────
   'cli.cache.rowEmpty': {
@@ -1541,6 +1548,54 @@ export const cliInfraMeta = {
   },
   'cli.sell.listTitleSkipped': {
     description: 'Appended to the list header when some entries will not sell.',
+  },
+  'cli.cardKingdom.cacheInvalid.notObject': {
+    description: `${CK_CACHE_CONTEXT} The file is not a JSON object at all.`,
+  },
+  'cli.cardKingdom.cacheInvalid.noRetrievedAt': {
+    description: `${CK_CACHE_CONTEXT} It lacks "retrievedAt" (when Ritual downloaded the feed), a field name kept literal.`,
+  },
+  'cli.cardKingdom.cacheInvalid.noFeed': {
+    description: `${CK_CACHE_CONTEXT} It lacks its "feed" object (the downloaded feed itself), a field name kept literal.`,
+  },
+  'cli.cardKingdom.cacheInvalid.noCreatedAt': {
+    description: `${CK_CACHE_CONTEXT} The feed lacks "feed.createdAt" (Card Kingdom's generation stamp), a field path kept literal.`,
+  },
+  'cli.cardKingdom.cacheInvalid.noBaseUrl': {
+    description: `${CK_CACHE_CONTEXT} The feed lacks "feed.baseUrl" (the address product links are relative to), a field path kept literal.`,
+  },
+  'cli.cardKingdom.cacheInvalid.noProductList': {
+    description: `${CK_CACHE_CONTEXT} The feed lacks its "products" array (the product list), a field name kept literal.`,
+  },
+  'cli.cardKingdom.cacheInvalid.noProducts': {
+    description: `${CK_CACHE_CONTEXT} Not a single product row in it could be read.`,
+  },
+  'cli.cardKingdom.cacheDropped': {
+    description: `${CK_LOG_CONTEXT} Some product rows of the cached buylist file were malformed and were left out; the rest is used. {count} is how many.`,
+  },
+  'cli.cardKingdom.cacheNotJson': {
+    description: `${CK_LOG_CONTEXT} The cached buylist file is not valid JSON, so Ritual treats the buylist as not downloaded.`,
+  },
+  'cli.cardKingdom.cacheIgnored': {
+    description: `${CK_LOG_CONTEXT} The cached buylist file was rejected, so Ritual treats the buylist as not downloaded. {reason} is why: one of the "Invalid Card Kingdom cache: …" sentences.`,
+  },
+  'cli.cardKingdom.downloadPrompt': {
+    description: `${CK_LOG_CONTEXT} A yes/no question asked before the first download. {lead} is the sentence saying no buylist has been downloaded yet. {size} is the estimated download size in megabytes as a plain number (e.g. "70"), followed by the MB unit.`,
+  },
+  'cli.cardKingdom.downloading': {
+    description: `${CK_LOG_CONTEXT} Progress line: the download is starting. {size} is the estimated download size in megabytes as a plain number (e.g. "70"), followed by the MB unit.`,
+  },
+  'cli.cardKingdom.updated': {
+    description: `${CK_LOG_CONTEXT} Progress line: the download finished and was saved. {count} is how many products the feed lists.`,
+  },
+  'cli.cardKingdom.updating': {
+    description: `${CK_LOG_CONTEXT} Progress line: the cached buylist is a day old or more, so it is being redownloaded. {age} is a rendered duration such as "2 days, 3 hours".`,
+  },
+  'cli.cardKingdom.usingStale': {
+    description: `${CK_LOG_CONTEXT} Warning: redownloading the buylist failed, so the older cached copy is used. {reason} is the failure, a sentence without a closing period (e.g. "Card Kingdom feed download failed: HTTP 503"). {age} is a rendered duration such as "2 days, 3 hours".`,
+  },
+  'cli.cardKingdom.sellModeProblem': {
+    description: `${CK_LOG_CONTEXT} Printed when \`ritual admin\` or \`ritual serve\` starts and could not bring the buylist up to date. "Sell mode" is Ritual's feature showing Card Kingdom's buy prices. {problem} is the failure, a full sentence.`,
   },
   'cli.sell.header': { description: 'Provenance line of the report: which feed, and how old.' },
   'cli.sell.headerGenerated': {

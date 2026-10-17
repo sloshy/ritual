@@ -28,10 +28,74 @@ const HTTP_STATUS_NOTE =
 const REQUEST_CONTEXT =
   "A request to Scryfall, the card database Ritual reads card data from, failed. Shown in the CLI, and wherever a Ritual server made the request: in the admin site and to MCP clients, or nested in a cache server's reply to another Ritual process."
 
+/** Context for the Card Kingdom buylist feed's text. */
+const CK_CONTEXT =
+  'About the Card Kingdom buylist: Card Kingdom (a card store; a company name, never translated) publishes a ~70 MB pricelist feed of what it pays for cards, which Ritual downloads into its local cache for its sell report (`ritual sell`) and sell mode. Shown in the CLI, by the admin site (its Refresh Cache page and sell routes) and to MCP clients (AI agents).'
+
+/** Context for a refusal to read Card Kingdom's downloaded feed. */
+const CK_FEED_CONTEXT = `${CK_CONTEXT} The downloaded feed was not the JSON Ritual expects, so it was rejected. "meta" and "data" are the names of the feed's JSON fields and stay as they are.`
+
+/** Context for why one product row of the feed was skipped. */
+const CK_PRODUCT_CONTEXT = `${CK_CONTEXT} A short lowercase reason phrase saying why one product row of the downloaded feed was skipped; it fills {reason} in "Skipped Card Kingdom product data[3]: {reason}".`
+
 export const domainCacheMeta = {
   'domain.cache.downloadFailed': {
     description:
       "Downloading Scryfall's bulk card data into the local card cache failed. {error} is the underlying error, already worded (it may be a network or server message).",
+  },
+  'domain.cache.cardKingdom.noFeed': {
+    description: `${CK_CONTEXT} Opens every message that says the buylist is missing: it was never downloaded. A full sentence.`,
+  },
+  'domain.cache.cardKingdom.missingAdvice': {
+    description: `${CK_CONTEXT} The CLI's advice when the buylist is missing. {lead} is the sentence saying it was never downloaded. {flag} is the command-line flag \`--refresh auto\`, literal: never translate it. {size} is the estimated download size in megabytes as a plain number (e.g. "70"), followed by the MB unit.`,
+  },
+  'domain.cache.cardKingdom.missingApiAdvice': {
+    description: `${CK_CONTEXT} The admin API's and MCP's answer when the buylist is missing, naming every way to download it. {lead} is the sentence saying it was never downloaded. {tool} is the MCP tool name \`refresh_buylist\`, {route} the HTTP route \`POST /api/sell/refresh\`, and {command} the command line \`ritual sell --refresh auto\`: identifiers, never translated. Keep the backticks around {command}.`,
+  },
+  'domain.cache.cardKingdom.downloadFailed': {
+    description: `${CK_CONTEXT} Downloading the feed failed before any answer arrived. {error} is the underlying error, already worded (often a network message).`,
+  },
+  'domain.cache.cardKingdom.downloadHttpFailed': {
+    description: `${CK_CONTEXT} Card Kingdom's server refused the download. {status} is the HTTP status code (e.g. 503).`,
+  },
+  'domain.cache.cardKingdom.notJson': {
+    description: `${CK_CONTEXT} The downloaded feed could not be read as JSON. {error} is the parser's own message, already worded.`,
+  },
+  'domain.cache.cardKingdom.feed.notObject': {
+    description: `${CK_FEED_CONTEXT} It is not a JSON object at all.`,
+  },
+  'domain.cache.cardKingdom.feed.noMeta': {
+    description: `${CK_FEED_CONTEXT} Its "meta" object (the feed's header) is missing.`,
+  },
+  'domain.cache.cardKingdom.feed.noData': {
+    description: `${CK_FEED_CONTEXT} Its "data" array (the product list) is missing.`,
+  },
+  'domain.cache.cardKingdom.feed.noProducts': {
+    description: `${CK_FEED_CONTEXT} Not a single product row in it could be read.`,
+  },
+  'domain.cache.cardKingdom.feed.productSkipped': {
+    description: `${CK_CONTEXT} A warning that one product row of the downloaded feed was malformed and skipped. "data[{index}]" names the row by its position in the feed's "data" array, literal. {reason} is a short lowercase phrase saying what was wrong (e.g. "missing card name").`,
+  },
+  'domain.cache.cardKingdom.feed.moreSkipped': {
+    description: `${CK_CONTEXT} After ten itemized "Skipped Card Kingdom product" warnings, the count of further malformed rows that were skipped without being listed. {count} is that number.`,
+  },
+  'domain.cache.cardKingdom.product.notObject': {
+    description: `${CK_PRODUCT_CONTEXT} The row is not a JSON object at all.`,
+  },
+  'domain.cache.cardKingdom.product.noId': {
+    description: `${CK_PRODUCT_CONTEXT} The row has no numeric product id.`,
+  },
+  'domain.cache.cardKingdom.product.noSku': {
+    description: `${CK_PRODUCT_CONTEXT} The row has no "sku" (Card Kingdom's stock code) as text. "sku" is the field's name, literal.`,
+  },
+  'domain.cache.cardKingdom.product.noName': {
+    description: `${CK_PRODUCT_CONTEXT} The row has no card name.`,
+  },
+  'domain.cache.cardKingdom.product.noEdition': {
+    description: `${CK_PRODUCT_CONTEXT} The row has no edition (the set the card was printed in).`,
+  },
+  'domain.cache.cardKingdom.product.unreadable': {
+    description: `${CK_PRODUCT_CONTEXT} One field holds a value Ritual cannot read. {field} is the field's name in the feed (e.g. "price_buy", "is_foil"), literal; {value} is the value found, quoted as it was.`,
   },
   'domain.cache.uploadNeedsEmptyCache': {
     description: `${UPLOAD_CONTEXT} Why the cache must be refreshed: it holds no cards at all. "Scryfall IDs" are card identifiers from Scryfall, a card database.`,

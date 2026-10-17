@@ -311,12 +311,40 @@ export function syncPrice(amount: number, currency: PriceCurrency): SyncPricePar
 }
 
 /**
+ * The members of `T` that declare `message` but are not a message: they carry
+ * a field a {@link SyncMessage} does not have, so {@link isSyncMessage} would
+ * misread them as a refusal. Distributes over a union. A string index
+ * signature (`Record<string, …>`) declares no particular key, so it is not
+ * read as declaring `message`.
+ */
+type MessageImpostors<T> = T extends unknown
+  ? string extends keyof T
+    ? never
+    : 'message' extends keyof T
+      ? [Exclude<keyof T, keyof SyncMessage>] extends [never]
+        ? never
+        : T
+      : never
+  : never
+
+/**
+ * The constraint {@link isSyncMessage} puts on its argument: `unknown` (none)
+ * when no member of `T` is a {@link MessageImpostors | message impostor},
+ * `never` (no `T` fits) when one is.
+ */
+export type NoMessageImpostor<T> = [MessageImpostors<T>] extends [never] ? unknown : never
+
+/**
  * Whether a value is a {@link SyncMessage} — the one discriminant the sync
  * engines use for "a result, or the message saying why not". Structural: it
  * holds because no success type a sync function returns carries a string
- * `message` (a route, a target, a loaded list, a parse result).
+ * `message` (a route, a target, a loaded list, a parse result) — and that is
+ * checked, not assumed: a member of the argument's type that declares `message`
+ * beside fields a message does not have fails to compile
+ * ({@link NoMessageImpostor}), so a success type that grows a `message` cannot
+ * be mistaken for a refusal at runtime.
  */
-export function isSyncMessage(value: unknown): value is SyncMessage {
+export function isSyncMessage<T extends NoMessageImpostor<T>>(value: T): value is T & SyncMessage {
   return (
     typeof value === 'object' &&
     value !== null &&

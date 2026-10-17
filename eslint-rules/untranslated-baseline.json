@@ -79,47 +79,6 @@
     "Torrent ${…} did not become ready in time": 1,
     "Torrent client error: ${…}": 1
   },
-  "src/cardkingdom/cache.ts": {
-    "Dropped ${…} malformed products from the Card Kingdom cache": 1,
-    "Ignoring unreadable Card Kingdom cache (not valid JSON)": 1,
-    "Ignoring unreadable Card Kingdom cache: ${…}": 1,
-    "Invalid Card Kingdom cache: expected an object": 1,
-    "Invalid Card Kingdom cache: missing feed object": 1,
-    "Invalid Card Kingdom cache: missing feed.baseUrl": 1,
-    "Invalid Card Kingdom cache: missing feed.createdAt": 1,
-    "Invalid Card Kingdom cache: missing numeric retrievedAt": 1,
-    "Invalid Card Kingdom cache: missing products array": 1,
-    "Invalid Card Kingdom cache: no readable products": 1
-  },
-  "src/cardkingdom/client.ts": {
-    "Card Kingdom feed download failed: ${…}": 1,
-    "Card Kingdom feed download failed: HTTP ${…}": 1,
-    "Card Kingdom feed was not valid JSON: ${…}": 1
-  },
-  "src/cardkingdom/ensure.ts": {
-    "${…} Download it now (~70 MB)?": 1,
-    "${…} Re-run with --refresh auto to download it (~70 MB).": 1,
-    "${…} Refresh the Card Kingdom buylist first: the refresh_buylist tool, POST /api/sell/refresh, or `ritual sell --refresh auto` on the CLI.": 1,
-    "${…} Using the buylist retrieved ${…} ago instead.": 1,
-    "Card Kingdom buylist updated (${…} products).": 1,
-    "Downloading the Card Kingdom buylist (~70 MB)...": 1,
-    "No Card Kingdom buylist has been downloaded yet.": 1,
-    "Sell mode: ${…}": 1,
-    "The Card Kingdom buylist was retrieved ${…} ago. Updating it...": 1
-  },
-  "src/cardkingdom/feed.ts": {
-    "Invalid Card Kingdom feed: expected a JSON object": 1,
-    "Invalid Card Kingdom feed: missing data array": 1,
-    "Invalid Card Kingdom feed: missing meta object": 1,
-    "Invalid Card Kingdom feed: no readable products": 1,
-    "Skipped ${…} more malformed Card Kingdom products": 1,
-    "Skipped Card Kingdom product data[${…}]: ${…}": 1,
-    "missing card name": 1,
-    "missing edition": 1,
-    "missing numeric id": 1,
-    "missing string sku": 1,
-    "not an object": 1
-  },
   "src/cli/options.ts": {
     "output format": 1,
     "refresh mode": 1

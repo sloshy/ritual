@@ -1146,6 +1146,15 @@
   color: var(--warning-text);
 }
 
+.cache-card-skipped-label {
+  margin: 0.75rem 0 0;
+  color: var(--text-secondary);
+}
+
+.cache-card-skipped {
+  margin-top: 0.25rem;
+}
+
 .cache-card-facts {
   display: grid;
   grid-template-columns: auto 1fr;

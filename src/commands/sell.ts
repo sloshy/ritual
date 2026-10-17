@@ -50,7 +50,13 @@ import {
   type CsvOutputFormat,
   type ScriptingOptions,
 } from '../cli/output'
-import { failWithError, listArgumentConflictError, runCommandAction } from '../cli/action'
+import {
+  failWithError,
+  failWithMessage,
+  listArgumentConflictError,
+  runCommandAction,
+} from '../cli/action'
+import { isSyncMessage } from '../sync/message'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 import { t } from '../i18n/t'
@@ -302,9 +308,10 @@ export function registerSellCommand(program: Command): void {
       }
 
       const feed = await ensureCardKingdomFeed(refreshPolicy)
-      if (typeof feed === 'string') {
-        emitError('runtime_error', feed, scripting)
-        process.exitCode = ExitCode.RuntimeError
+      if (isSyncMessage(feed)) {
+        // Worded in the CLI's language; the envelope carries its key and
+        // English params, as every keyed refusal's does.
+        failWithMessage(scripting, 'runtime_error', feed)
         return
       }
 

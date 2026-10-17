@@ -15,8 +15,8 @@ import { loadAndBuildPriceReport } from '../../pricing/price-runtime'
 import { getDefaultPriceSource } from '../../config/ritual-config'
 import { listLocationForSlug } from './list-info'
 import { parseListTarget } from './target'
-import { apiError, badRequest, errorResponse } from '../../api/http'
-import { apiMessage, isApiMessage, parseEnumParam, plainMessage } from '../../api/result'
+import { apiError, badRequest, errorResponse, nestedRefusal } from '../../api/http'
+import { apiMessage, isApiMessage, parseEnumParam } from '../../api/result'
 import { requireCardCache } from './save-helpers'
 
 /**
@@ -58,7 +58,7 @@ async function parsePricingParam(url: URL): Promise<ReportPricing | Response> {
   }
   if (source !== 'cardkingdom') return { source }
   const feed = await getCardKingdomFeed()
-  if (!feed) return apiError(plainMessage(missingFeedApiAdvice()), 503)
+  if (!feed) return nestedRefusal(missingFeedApiAdvice(), 503)
   return cardKingdomReportPricing(feed)
 }
 

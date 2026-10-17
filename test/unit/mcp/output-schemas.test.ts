@@ -20,6 +20,7 @@ import {
   IMPORT_DECK_OUTPUT,
   MOVE_SELECTED_CARDS_OUTPUT,
   MUTATION_OUTPUT,
+  REFRESH_BUYLIST_OUTPUT,
   REFRESH_CACHE_OUTPUT,
   REMOVE_SELECTED_CARDS_OUTPUT,
   RENAME_LIST_OUTPUT,
@@ -35,6 +36,7 @@ import { apiErrorToMcp } from '../../../src/mcp/errors'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { MCP_TOOL_NAMES } from '../../../src/mcp/tools/names'
 import { exportWarning } from '../../../src/export/text'
+import { syncMessage, syncRef } from '../../../src/sync/message'
 import { exportWarningMessage } from '../../../src/export-wording/message'
 import type { DiffResult, ExportResult } from '../../../src/mcp/tools/read-tools'
 import type { DiffListRef } from '../../../src/changes/list-diff'
@@ -43,6 +45,7 @@ import { CARD_LANGUAGES } from '../../../src/card/card-language'
 import { BY_RULE_UNPRICED_REASONS, UNPRICED_REASONS } from '../../../src/pricing/price-report'
 import type {
   BuildSiteResult,
+  BuylistRefreshResult,
   CollectionSyncResult,
   DeckSyncResult,
 } from '../../../src/mcp/tools/destructive-tools'
@@ -583,6 +586,45 @@ describe('MCP output schemas, as authored', () => {
           durationMs: 12,
         }),
       ).toBe(true)
+    })
+
+    test('refresh_buylist carries its fallback and skipped rows as messages', async () => {
+      // A real download can never run in the suite, so the stale-fallback body
+      // is sampled here, built from the engine's own message builders.
+      const sample: BuylistRefreshResult = {
+        refreshed: false,
+        feedRetrievedAt: 1785850800000,
+        feedCreatedAt: '2026-08-04 06:06:09',
+        productCount: 149978,
+        staleFallback: syncMessage('domain.cache.cardKingdom.downloadHttpFailed', { status: 503 }),
+        skippedRows: [
+          syncMessage('domain.cache.cardKingdom.feed.productSkipped', {
+            index: 3,
+            reason: syncRef('domain.cache.cardKingdom.product.noName'),
+          }),
+        ],
+      }
+      expect(await validates(REFRESH_BUYLIST_OUTPUT, sample)).toBe(true)
+      // A clean run omits the fallback entirely.
+      const { staleFallback: _omitted, ...fresh } = sample
+      expect(await validates(REFRESH_BUYLIST_OUTPUT, { ...fresh, skippedRows: [] })).toBe(true)
+      // A bare string is not a message, in either slot.
+      expect(
+        await validates(REFRESH_BUYLIST_OUTPUT, { ...sample, staleFallback: 'HTTP 503' }),
+      ).toBe(false)
+      expect(await validates(REFRESH_BUYLIST_OUTPUT, { ...sample, skippedRows: ['row'] })).toBe(
+        false,
+      )
+      const node = REFRESH_BUYLIST_OUTPUT as unknown as SchemaNode
+      expect(node.required).toEqual([
+        'refreshed',
+        'feedRetrievedAt',
+        'feedCreatedAt',
+        'productCount',
+        'skippedRows',
+      ])
+      expect(node.properties?.skippedRows?.items?.required).toEqual(['message'])
+      expect(node.properties?.staleFallback?.required).toEqual(['message'])
     })
 
     test('import_csv accepts a partly-failed import, failure rows and all', async () => {

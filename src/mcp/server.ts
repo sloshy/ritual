@@ -39,8 +39,9 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   sections a decklist dialect left out as a list).
   A failed import_change_bundle list carries "errorKey"/"errorParams" beside "error".
   get_list's "warnings", the sync tools' "report.unreadable[].warnings", export_cards' and
-  diff_lists' "warnings", and import_deck's and import_csv's "warnings"/"advisories" are message
-  objects, not strings ({ message,
+  diff_lists' "warnings", import_deck's and import_csv's "warnings"/"advisories", and
+  refresh_buylist's "staleFallback" and "skippedRows" (a skipped feed row's reason nested as
+  "reason") are message objects, not strings ({ message,
   messageKey?, messageParams? }; an import_deck warning whose card was kept without its labels
   adds "labelsDropped": true), and each import_csv "failures" row carries "reasonKey"/
   "reasonParams" beside its English "reason".

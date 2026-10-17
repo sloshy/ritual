@@ -553,6 +553,10 @@ export const adminMeta = {
     description:
       'Success message after a buylist download. {count} is how many products the feed carried.',
   },
+  'admin.buylist.skippedRowsLabel': {
+    description:
+      'Introduces a list, after a buylist refresh, of product rows in the downloaded Card Kingdom feed that were malformed and left out (each line reads like "Skipped Card Kingdom product data[3]: missing card name"). The rest of the feed was saved.',
+  },
   'admin.buylist.downloadedLabel': { description: 'Row label: when the local copy was fetched.' },
   'admin.buylist.stampLabel': {
     description: 'Row label: the date Card Kingdom itself put on the feed.',

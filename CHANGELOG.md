@@ -579,6 +579,39 @@ JSON object`).
   `board:Main/category:ramp`, the same in every language, where it used to carry the
   heading text. The anchor id is built from that code (`section-color_3a_WU`). Update a
   custom stylesheet or script that selected a section by its heading.
+- **The Card Kingdom buylist's refusals and warnings are keyed.** A buylist route with no
+  feed downloaded (`GET /api/buylist/status`, `POST /api/buylist/quotes`, the sell report and
+  cart, `GET /api/price/*?source=cardkingdom`) answers its `503` in English with
+  `messageKey` `domain.cache.cardKingdom.missingApiAdvice`, whose `lead` param nests the
+  shared `domain.cache.cardKingdom.noFeed` sentence and whose `tool`, `route` and `command`
+  params are the identifiers it names (`refresh_buylist`, `POST /api/sell/refresh`,
+  `ritual sell --refresh auto`). A failed feed download (`domain.cache.cardKingdom.downloadFailed`,
+  `downloadHttpFailed`, `notJson`) or a feed that does not parse
+  (`domain.cache.cardKingdom.feed.*`) is keyed on `POST /api/sell/refresh`'s `502` the same
+  way. The admin Refresh Cache page's buylist card shows these, its outcome line and a failed
+  status read in the browser's language, and relabels them when you switch.
+- **`POST /api/sell/refresh` and MCP `refresh_buylist` drop `warnings` for `staleFallback`
+  and `skippedRows`.** A failed download that fell back to the stale cached feed is now
+  `staleFallback`, a message (English `message`, `messageKey`, `messageParams`) present only
+  then, where it was the one string in `warnings`; `refreshed: false` without it means the feed
+  was still fresh. The new `skippedRows` lists the downloaded feed's malformed product rows as
+  messages — the first ten itemized (`domain.cache.cardKingdom.feed.productSkipped`, the row's
+  reason nested as `reason`), then a count — which used to reach only the server's console.
+  Update a client that read `warnings`: check `staleFallback`, read its `.message` for the
+  English, and match on `messageKey`.
+- `ritual sell` and `ritual price --source cardkingdom` word a missing buylist in the CLI's
+  language, and their `--output json` envelope carries `messageKey`
+  `domain.cache.cardKingdom.missingAdvice` with English params (`lead`, `flag`, `size`); the
+  envelope's `message` follows the CLI's language. The interactive price browser's refusal
+  when you switch to Card Kingdom, `build-site`'s "buylist is unavailable" reason, `cache
+preload-all`'s buylist-failure warning, the buylist's download prompt and progress lines,
+  the stale-feed fallback warning (now "Using the buylist retrieved 2 days ago instead: …",
+  the failure last), the servers' "Sell mode: …" startup warning and the "Ignoring unreadable
+  Card Kingdom cache" warnings follow the CLI's language too. A feed row skipped while
+  parsing is printed in the CLI's language with its reason nested (such as "missing card
+  name"), and now also appears in `skippedRows`; an unreadable value it quotes is shown as
+  JSON, capped at 80 characters. Counts read "1 product" (they read "1 products"). The
+  `cache/cardkingdom.json` file is unchanged.
 
 ### Fixed
 

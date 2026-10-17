@@ -72,7 +72,7 @@ Without `--source`, `price` reads the configured [`defaultPriceSource`](/configu
 When the store is Card Kingdom (`--source cardkingdom`, or a `cardkingdom` default):
 
 - Entries match Card Kingdom products by Scryfall ID, with the same SKU fallback the sell report uses.
-- The feed follows this run's `--refresh` policy, like the card cache. With no feed cached and bulk downloads disallowed, the command errors instead of falling back to Scryfall.
+- The feed follows this run's `--refresh` policy, like the card cache. With no feed cached and bulk downloads disallowed, the command errors instead of falling back to Scryfall. The refusal prints in the CLI's language; under `--output json` its envelope carries `messageKey` `domain.cache.cardKingdom.missingAdvice` with English `messageParams` (`lead`, `flag`, `size`), while `message` follows the CLI's language. Switching to Card Kingdom in the interactive browser shows the same refusal.
 - No substitute price is ever shown. A printing Card Kingdom does not sell, and any non-English entry (their feed is English-only), is reported **unpriced**. The "lowest" figure becomes the cheapest printing+finish CK sells.
 - An entry that names no printing is priced at a printing chosen from CK's own catalog (see [How Cards Are Priced](#how-cards-are-priced)). It goes unpriced only when CK carries no printing of the card at all.
 

@@ -105,6 +105,7 @@ describe('GET /api/price/summary — ?source=', () => {
     expect(resp.status).toBe(503)
     const body = (await resp.json()) as ApiErrorResponse
     expect(body.message).toContain('No Card Kingdom buylist')
+    expect(body.messageKey).toBe('domain.cache.cardKingdom.missingApiAdvice')
   })
 })
 

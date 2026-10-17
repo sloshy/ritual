@@ -89,7 +89,8 @@ export function parsedFlag<T extends NotAMessage<T> & NotAString<T>>(
   return (value) => {
     const parsed = parse(value)
     if (typeof parsed === 'string') throw new InvalidArgumentError(parsed)
-    if (isSyncMessage(parsed)) throw new InvalidArgumentError(renderSyncMessage(parsed))
+    // `T` is held to `NotAMessage` above, which the generic call cannot re-prove.
+    if (isSyncMessage<unknown>(parsed)) throw new InvalidArgumentError(renderSyncMessage(parsed))
     return parsed
   }
 }

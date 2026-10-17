@@ -435,6 +435,12 @@ describe('building messages', () => {
     expect(isSyncMessage({ name: 'binder', writtenFiles: [] })).toBe(false)
     expect(isSyncMessage(['binder'])).toBe(false)
   })
+
+  test('isSyncMessage refuses, at compile time, a result that carries its own `message`', () => {
+    const impostor = { message: 'x', code: 1 } as { message: string; code: number } | SyncMessage
+    // @ts-expect-error — a success type with a `message` would read as a refusal
+    expect(isSyncMessage(impostor)).toBe(true)
+  })
 })
 
 describe('typed params', () => {

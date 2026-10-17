@@ -19,7 +19,7 @@ Every response body, success or refusal, carries its user-facing prose as up to 
 
 Match on `messageKey`, never on the English text.
 
-A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list), a list load's [`warnings`](#load-deck) (a card-line diagnostic nested as `text` inside its `domain.card.line.atLine` location, its hint inside `domain.card.line.withHint`), the [card vocabulary's refusals](#error-responses) (a tag or category refusal nesting its shape `rule`, a card language's valid codes as a `unit` list), [Export Cards](#export-cards)' and [Diff Lists](#diff-lists)' `warnings` (a list's parse warning nested as `warning`, a decklist's omitted sections as a `unit` list) and export refusals (the accepted columns or values as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale). Every other response's params are plain strings and numbers.
+A few responses build their sentence from counted nouns — an import's "Applied 3 changes across 2 lists" — and there a param may itself be a message (`{ messageKey, messageParams }`) or a list (`{ list, join }`, where `join` is `and`, `unit`, `clauses` or `concat`), rendered in the same locale as the sentence around it, so the counts pluralize in the reader's language. [Import CSV](#import-csv), [Import Changes](#import-changes) and [Import Deck](#import-deck) say so where they do, and so do the refusals of change JSON — a [change bundle](#import-changes), a [save](#save-a-list)'s changes and a [history rewrite](#save-change-history)'s events — whose `domain.changes.problem.*` sentence nests the record it is about (`Move #1 "from"`, `changes[2]`) as its `subject`, an [error a route did not expect](#error-responses), such as a cache-lock time-out, the [list-file engines' refusals](#error-responses) (a list's unknown keys or valid formats as a `unit` list, an unreadable `.art.json`'s reason, a rewrite gate's problems), the [config validator's refusals](#update-config) (a block's refusal nesting its field's, the accepted values as a `unit` list), a list load's [`warnings`](#load-deck) (a card-line diagnostic nested as `text` inside its `domain.card.line.atLine` location, its hint inside `domain.card.line.withHint`), the [card vocabulary's refusals](#error-responses) (a tag or category refusal nesting its shape `rule`, a card language's valid codes as a `unit` list), [Export Cards](#export-cards)' and [Diff Lists](#diff-lists)' `warnings` (a list's parse warning nested as `warning`, a decklist's omitted sections as a `unit` list) and export refusals (the accepted columns or values as a `unit` list), and the [cache refresh stream](#refresh-cache-stream)'s progress lines, whose download sizes are a size (`{ sizeBytes }`, rendered as a two-decimal mebibyte figure in the reader's locale), the buylist routes' `503` when no feed is downloaded (`domain.cache.cardKingdom.missingApiAdvice`, whose `lead` nests the `domain.cache.cardKingdom.noFeed` sentence), and [Sell Refresh](#sell-refresh)'s `staleFallback` and `skippedRows` (a failed download's underlying `error`, a skipped feed row's `reason`). Every other response's params are plain strings and numbers.
 
 ## Error responses
 
@@ -1010,11 +1010,36 @@ Download Card Kingdom's pricelist feed (~70 MB) when the cached copy is missing 
   "feedRetrievedAt": 1785850800000,
   "feedCreatedAt": "2026-08-04 06:06:09",
   "productCount": 149978,
-  "warnings": []
+  "skippedRows": [
+    {
+      "message": "Skipped Card Kingdom product data[3]: missing card name",
+      "messageKey": "domain.cache.cardKingdom.feed.productSkipped",
+      "messageParams": {
+        "index": 3,
+        "reason": { "messageKey": "domain.cache.cardKingdom.product.noName" }
+      }
+    }
+  ]
 }
 ```
 
-A failed download returns `502` only when no feed is cached at all. With a stale cache the call answers `200` with the stale feed's stamps, `refreshed: false`, and the failure in `warnings`. So `refreshed: false` with empty `warnings` means the cache was still fresh; with a warning it means you are still on the stale feed.
+`skippedRows` lists the downloaded feed's product rows that were malformed and left out, one [message triple](#the-message-triple) each (English whatever the server's UI language): the first ten are itemized (`domain.cache.cardKingdom.feed.productSkipped`, whose `index` is the row's position in the feed and whose `reason` nests a `domain.cache.cardKingdom.product.*` phrase), then one `domain.cache.cardKingdom.feed.moreSkipped` message counts the rest. It is empty when nothing was downloaded or every row parsed.
+
+A failed download returns `502` only when no feed is cached at all. With a stale cache the call answers `200` with the stale feed's stamps, `refreshed: false`, and the failure as `staleFallback`. So `refreshed: false` without `staleFallback` means the cache was still fresh; with it, you are still on the stale feed.
+
+The failure is a message triple, English whatever the server's UI language, both as the `502` body and as `staleFallback`:
+
+```json
+{
+  "message": "Card Kingdom feed download failed: HTTP 503",
+  "messageKey": "domain.cache.cardKingdom.downloadHttpFailed",
+  "messageParams": { "status": 503 }
+}
+```
+
+Its key is one of `domain.cache.cardKingdom.downloadFailed` (the request never got an answer; `error` is the underlying error), `downloadHttpFailed` (`status` is the HTTP status), `notJson` (`error` is the parser's message), or a `domain.cache.cardKingdom.feed.*` refusal of a feed that does not have the expected shape.
+
+Every buylist route that needs a downloaded feed (the sell report and cart, [Buylist Status](#buylist-status), [Buylist Quotes](#buylist-quotes), and the [price report](#price-summary) under `?source=cardkingdom`) answers `503` without one, keyed `domain.cache.cardKingdom.missingApiAdvice`. Its `lead` param nests the `domain.cache.cardKingdom.noFeed` sentence, and `tool`, `route` and `command` are the identifiers it names: `refresh_buylist`, `POST /api/sell/refresh` and `ritual sell --refresh auto`.
 
 ## Buylist Quotes
 

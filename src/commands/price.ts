@@ -53,7 +53,8 @@ import {
   normalizeScriptingOptions,
   type ScriptingOptions,
 } from '../cli/output'
-import { runCommandAction } from '../cli/action'
+import { failWithMessage, runCommandAction } from '../cli/action'
+import { isSyncMessage, renderSyncMessage, type SyncMessage } from '../sync/message'
 import { cliRefreshPolicy } from '../cli/refresh-policy'
 import { ExitCode } from '../util/errors'
 
@@ -334,11 +335,11 @@ export function registerPriceCommand(program: Command): void {
       // different store's prices. Loaded once, on first use — the browser's
       // store switcher can ask for it mid-session.
       let cardKingdom: CardKingdomReportPricing | undefined
-      const pricingFor = async (store: PriceSource): Promise<ReportPricing | string> => {
+      const pricingFor = async (store: PriceSource): Promise<ReportPricing | SyncMessage> => {
         if (store !== 'cardkingdom') return { source: store }
         if (cardKingdom) return cardKingdom
         const feed = await ensureCardKingdomFeed(refreshPolicy)
-        if (typeof feed === 'string') return feed
+        if (isSyncMessage(feed)) return feed
         cardKingdom = cardKingdomReportPricing(await loadEnsuredFeed(feed))
         return cardKingdom
       }
@@ -346,9 +347,9 @@ export function registerPriceCommand(program: Command): void {
       const buildScoped = async (
         store: PriceSource,
         locations?: ListLocation[],
-      ): Promise<LoadedPriceReport | string> => {
+      ): Promise<LoadedPriceReport | SyncMessage> => {
         const pricing = await pricingFor(store)
-        if (typeof pricing === 'string') return pricing
+        if (isSyncMessage(pricing)) return pricing
         const result = await loadAndBuildPriceReport(type, locations, pricing, {
           refresh: refreshMode,
         })
@@ -367,9 +368,8 @@ export function registerPriceCommand(program: Command): void {
         emitOutput(t('cli.price.calculating'), scriptingOptions)
       }
       const loadedReport = await buildScoped(source, scope)
-      if (typeof loadedReport === 'string') {
-        emitError('runtime_error', loadedReport, scriptingOptions)
-        process.exitCode = ExitCode.RuntimeError
+      if (isSyncMessage(loadedReport)) {
+        failWithMessage(scriptingOptions, 'runtime_error', loadedReport)
         return
       }
       const { built, warnings } = loadedReport
@@ -381,7 +381,8 @@ export function registerPriceCommand(program: Command): void {
           lastRefreshedAt: freshness.lastRefreshedAt,
           rebuild: async (store) => {
             const result = await buildScoped(store)
-            return typeof result === 'string' ? result : result.built
+            // The browser shows a refusal as a line of text, in the CLI's language.
+            return isSyncMessage(result) ? renderSyncMessage(result) : result.built
           },
           refreshPrices: refreshCardCache,
           getLastRefreshedAt: () => cardCache.getLastRefreshedAt(),

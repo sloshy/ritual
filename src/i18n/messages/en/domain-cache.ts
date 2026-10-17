@@ -59,6 +59,33 @@ export const domainCacheMessages = {
   'domain.cache.scryfall.pricesFailed': 'Failed to fetch batch prices: {status} {statusText}',
   'domain.cache.scryfall.pricesNotFound': 'Scryfall could not find prices for: {names}',
 
+  // ── The Card Kingdom buylist feed ─────────────────────────────────────
+  'domain.cache.cardKingdom.noFeed': 'No Card Kingdom buylist has been downloaded yet.',
+  'domain.cache.cardKingdom.missingAdvice':
+    '{lead} Re-run with {flag} to download it (~{size} MB).',
+  'domain.cache.cardKingdom.missingApiAdvice':
+    '{lead} Refresh the Card Kingdom buylist first: the {tool} tool, {route}, or `{command}` on the CLI.',
+  'domain.cache.cardKingdom.downloadFailed': 'Card Kingdom feed download failed: {error}',
+  'domain.cache.cardKingdom.downloadHttpFailed': 'Card Kingdom feed download failed: HTTP {status}',
+  'domain.cache.cardKingdom.notJson': 'Card Kingdom feed was not valid JSON: {error}',
+  'domain.cache.cardKingdom.feed.notObject': 'Invalid Card Kingdom feed: expected a JSON object',
+  'domain.cache.cardKingdom.feed.noMeta': 'Invalid Card Kingdom feed: missing meta object',
+  'domain.cache.cardKingdom.feed.noData': 'Invalid Card Kingdom feed: missing data array',
+  'domain.cache.cardKingdom.feed.noProducts': 'Invalid Card Kingdom feed: no readable products',
+  'domain.cache.cardKingdom.feed.productSkipped':
+    'Skipped Card Kingdom product data[{index}]: {reason}',
+  'domain.cache.cardKingdom.feed.moreSkipped': {
+    $plural: 'count',
+    one: 'Skipped {count} more malformed Card Kingdom product',
+    other: 'Skipped {count} more malformed Card Kingdom products',
+  },
+  'domain.cache.cardKingdom.product.notObject': 'not an object',
+  'domain.cache.cardKingdom.product.noId': 'missing numeric id',
+  'domain.cache.cardKingdom.product.noSku': 'missing string sku',
+  'domain.cache.cardKingdom.product.noName': 'missing card name',
+  'domain.cache.cardKingdom.product.noEdition': 'missing edition',
+  'domain.cache.cardKingdom.product.unreadable': "unreadable {field} '{value}'",
+
   // ── The CSV upload's freshness gate ───────────────────────────────────
   'domain.cache.uploadNeedsEmptyCache':
     'Archidekt CSV uploads are configured to require Scryfall IDs from the local card cache, which is empty.',

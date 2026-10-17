@@ -87,6 +87,7 @@ import type {
 } from '../deck-sync/types'
 import { TOOL_ERROR_CODES } from './error-codes'
 import type { SessionOverrides } from '../config/ritual-config'
+import type { SellRefreshResponse } from '../admin/api/sell'
 import {
   CARD_ART_REF,
   CARD_LABEL,
@@ -998,19 +999,36 @@ export const BUILD_SITE_OUTPUT: JsonSchemaType = obj(
  */
 export const REFRESH_CACHE_OUTPUT: JsonSchemaType = obj({ ...MESSAGE_PROPS }, ['message'])
 
-export const REFRESH_BUYLIST_OUTPUT: JsonSchemaType = obj(
-  {
-    refreshed: bool(
-      'Whether a new feed was downloaded. False with empty warnings: the cache was still ' +
-        'fresh; false with a warning: the download failed and the stale cache is in use.',
-    ),
-    feedRetrievedAt: int('Epoch ms of the feed download.'),
-    feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
-    productCount: int('Products in the feed.'),
-    warnings: arr(str(), 'Failures that degraded the result (stale-feed fallback).'),
+/** `refresh_buylist`'s fields, checked against the route body it returns. */
+const REFRESH_BUYLIST_PROPS = {
+  refreshed: bool(
+    'Whether a new feed was downloaded. False without staleFallback: the cache was still ' +
+      'fresh; false with staleFallback: the download failed and the stale cache is in use.',
+  ),
+  feedRetrievedAt: int('Epoch ms of the feed download.'),
+  feedCreatedAt: str('Card Kingdom’s feed generation stamp, verbatim.'),
+  productCount: int('Products in the feed.'),
+  staleFallback: {
+    ...SYNC_MESSAGE,
+    description:
+      'Present only when a download failed and the stale cached feed is in use: the failure, ' +
+      'as English `message` plus its `messageKey`/`messageParams`.',
   },
-  ['refreshed', 'feedRetrievedAt', 'feedCreatedAt', 'productCount', 'warnings'],
-)
+  skippedRows: arr(
+    SYNC_MESSAGE,
+    'Product rows of the downloaded feed skipped as malformed, each a message (English ' +
+      '`message` plus `messageKey`/`messageParams`; the row reason nests as `reason`). The first ' +
+      'ten are itemized, then one message counts the rest. Empty when nothing was downloaded.',
+  ),
+} as const satisfies Record<keyof Omit<SellRefreshResponse, 'success'>, JsonSchemaType>
+
+export const REFRESH_BUYLIST_OUTPUT: JsonSchemaType = obj(REFRESH_BUYLIST_PROPS, [
+  'refreshed',
+  'feedRetrievedAt',
+  'feedCreatedAt',
+  'productCount',
+  'skippedRows',
+])
 
 /**
  * A run summary as its clauses, beside the English sentence `message` already

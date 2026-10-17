@@ -21,6 +21,7 @@ import { offerBulkPriceRefresh, offerTagDownload } from '../cache/freshness'
 import { bulkAllowed, refreshStaleAllowed, type RefreshPolicy } from '../cache/refresh'
 import { cardHasTags } from '../cache/status'
 import { ensureCardKingdomFeed, loadEnsuredFeed, type LoadedCardKingdomFeed } from '../cardkingdom'
+import { isSyncMessage, renderSyncMessage } from '../sync/message'
 import { cardKingdomDisplayPrints, type CardKingdomDisplayPrints } from '../cardkingdom/retail'
 import type { PrintingQuoteFn } from '../cardkingdom/quote'
 import { getBannedPrintings } from '../config/ritual-config'
@@ -130,8 +131,8 @@ export async function loadBakedFeed(
 ): Promise<LoadedCardKingdomFeed | undefined> {
   if (!wanted) return undefined
   const feed = await ensureCardKingdomFeed(policy)
-  if (typeof feed === 'string') {
-    console.warn(t('cli.buildSite.buylistUnavailable', { reason: feed }))
+  if (isSyncMessage(feed)) {
+    console.warn(t('cli.buildSite.buylistUnavailable', { reason: renderSyncMessage(feed) }))
     return undefined
   }
   const bakedFeed = await loadEnsuredFeed(feed)

@@ -7,7 +7,18 @@ import {
   parseSkuPrinting,
   productFinish,
   productUrl,
+  type ParsedCardKingdomFeed,
 } from '../../src/cardkingdom'
+import {
+  isRenderable,
+  isSyncMessage,
+  nestSync,
+  renderSyncMessage,
+  type SyncMessage,
+} from '../../src/sync/message'
+import { MAX_ROW_WARNINGS } from '../../src/cardkingdom/feed'
+import { keyedMessage } from '../helpers/api-message'
+import { expectLocaleInForce, pseudoCatalog, withSyntheticLocale } from '../helpers/sync-text'
 import { makeCardKingdomProduct } from '../test-utils'
 
 /** A raw feed row as Card Kingdom serves it (string-encoded bools and prices). */
@@ -40,10 +51,24 @@ function rawFeed(products: unknown[]): Record<string, unknown> {
 /** A parsed (trimmed) product for index tests. */
 const product = makeCardKingdomProduct
 
+/** The parsed feed, after asserting the parser accepted it. */
+function parsedFeed(json: unknown): ParsedCardKingdomFeed {
+  const parsed = parseCardKingdomFeed(json)
+  if (isSyncMessage(parsed)) throw new Error(parsed.message)
+  return parsed
+}
+
+/** The parser's refusal, after asserting it refused and that its English agrees with its key. */
+function feedRefusal(json: unknown): SyncMessage {
+  const parsed = parseCardKingdomFeed(json)
+  if (!isSyncMessage(parsed)) throw new Error('expected the feed to be refused')
+  keyedMessage(parsed)
+  return parsed
+}
+
 describe('parseCardKingdomFeed', () => {
   test('parses a well-formed feed, decoding string bools and prices', () => {
-    const parsed = parseCardKingdomFeed(rawFeed([rawProduct()]))
-    if (typeof parsed === 'string') throw new Error(parsed)
+    const parsed = parsedFeed(rawFeed([rawProduct()]))
     expect(parsed.warnings).toEqual([])
     expect(parsed.feed.createdAt).toBe('2026-08-04 06:06:09')
     expect(parsed.feed.baseUrl).toBe('https://www.cardkingdom.com/')
@@ -65,44 +90,137 @@ describe('parseCardKingdomFeed', () => {
     ])
   })
 
-  test('rejects a payload without the meta/data envelope', () => {
-    expect(parseCardKingdomFeed(null)).toStartWith('Invalid Card Kingdom feed')
-    expect(parseCardKingdomFeed({ data: [] })).toBe(
-      'Invalid Card Kingdom feed: missing meta object',
-    )
-    expect(parseCardKingdomFeed({ meta: {} })).toBe('Invalid Card Kingdom feed: missing data array')
+  test('rejects a payload without the meta/data envelope, keyed', () => {
+    expect(feedRefusal(null).messageKey).toBe('domain.cache.cardKingdom.feed.notObject')
+    expect(feedRefusal({ data: [] })).toEqual({
+      message: 'Invalid Card Kingdom feed: missing meta object',
+      messageKey: 'domain.cache.cardKingdom.feed.noMeta',
+    })
+    expect(feedRefusal({ meta: {} })).toEqual({
+      message: 'Invalid Card Kingdom feed: missing data array',
+      messageKey: 'domain.cache.cardKingdom.feed.noData',
+    })
   })
 
   test('rejects a feed with no readable products', () => {
-    expect(parseCardKingdomFeed(rawFeed([]))).toBe(
-      'Invalid Card Kingdom feed: no readable products',
-    )
+    expect(feedRefusal(rawFeed([])).message).toBe('Invalid Card Kingdom feed: no readable products')
   })
 
-  test('skips malformed rows with a warning instead of failing the feed', () => {
-    const parsed = parseCardKingdomFeed(
+  test('skips malformed rows with a warning that nests the row’s reason', () => {
+    const parsed = parsedFeed(
       rawFeed([rawProduct(), rawProduct({ id: 'nope' }), rawProduct({ price_buy: 'abc' })]),
     )
-    if (typeof parsed === 'string') throw new Error(parsed)
     expect(parsed.feed.products).toHaveLength(1)
-    expect(parsed.warnings).toHaveLength(2)
-    expect(parsed.warnings[0]).toContain('data[1]')
-    expect(parsed.warnings[1]).toContain('data[2]')
+    expect(parsed.warnings).toEqual([
+      {
+        message: 'Skipped Card Kingdom product data[1]: missing numeric id',
+        messageKey: 'domain.cache.cardKingdom.feed.productSkipped',
+        messageParams: {
+          index: 1,
+          reason: { messageKey: 'domain.cache.cardKingdom.product.noId' },
+        },
+      },
+      {
+        message: "Skipped Card Kingdom product data[2]: unreadable price_buy 'abc'",
+        messageKey: 'domain.cache.cardKingdom.feed.productSkipped',
+        messageParams: {
+          index: 2,
+          reason: {
+            messageKey: 'domain.cache.cardKingdom.product.unreadable',
+            messageParams: { field: 'price_buy', value: 'abc' },
+          },
+        },
+      },
+    ])
+  })
+
+  /**
+   * One malformed row per reason the parser can give — the code → key mapping
+   * a translated warning depends on. Each warning must agree with its key in
+   * English, render whole (no raw key, no unfilled `{token}`) in a locale where
+   * every message changes, and actually change there.
+   */
+  const MALFORMED_ROWS: Record<string, unknown> = {
+    'not an object': 'not a row',
+    'missing numeric id': rawProduct({ id: '1' }),
+    'missing string sku': rawProduct({ sku: 7 }),
+    'missing card name': rawProduct({ name: '' }),
+    'missing edition': rawProduct({ edition: undefined }),
+    "unreadable is_foil 'maybe'": rawProduct({ is_foil: 'maybe' }),
+    "unreadable price_retail 'x'": rawProduct({ price_retail: 'x' }),
+    "unreadable qty_retail ''": rawProduct({ qty_retail: '' }),
+    "unreadable price_buy 'null'": rawProduct({ price_buy: null }),
+    "unreadable qty_buying 'Infinity'": rawProduct({ qty_buying: Infinity }),
+  }
+
+  test('every row reason is keyed and renders whole in another language', () => {
+    const reasons = Object.keys(MALFORMED_ROWS)
+    // Every row must be itemized for the comparison below to see its reason.
+    expect(reasons.length).toBeLessThanOrEqual(MAX_ROW_WARNINGS)
+    const parsed = parsedFeed(rawFeed([rawProduct(), ...Object.values(MALFORMED_ROWS)]))
+    expect(parsed.warnings.map((warning) => keyedMessage(warning))).toEqual(
+      reasons.map((reason, i) => `Skipped Card Kingdom product data[${i + 1}]: ${reason}`),
+    )
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      for (const warning of parsed.warnings) {
+        const ref = nestSync(warning)
+        if (typeof ref === 'string') throw new Error(`unkeyed warning: ${ref}`)
+        expect(isRenderable(ref, locale)).toBe(true)
+        expect(renderSyncMessage(warning, locale)).not.toBe(warning.message)
+      }
+    })
+  })
+
+  test('quotes an unreadable value as JSON, capped and on one line', () => {
+    const parsed = parsedFeed(
+      rawFeed([
+        rawProduct(),
+        rawProduct({ price_buy: { usd: 1 } }),
+        rawProduct({ price_buy: `${'9'.repeat(100)}x` }),
+        rawProduct({ price_buy: 'a\nb' }),
+        rawProduct({ price_buy: '   ' }),
+      ]),
+    )
+    expect(parsed.warnings.map((warning) => warning.messageParams?.['reason'])).toEqual([
+      {
+        messageKey: 'domain.cache.cardKingdom.product.unreadable',
+        messageParams: { field: 'price_buy', value: '{"usd":1}' },
+      },
+      {
+        messageKey: 'domain.cache.cardKingdom.product.unreadable',
+        messageParams: { field: 'price_buy', value: `${'9'.repeat(80)}…` },
+      },
+      {
+        messageKey: 'domain.cache.cardKingdom.product.unreadable',
+        messageParams: { field: 'price_buy', value: 'a b' },
+      },
+      {
+        messageKey: 'domain.cache.cardKingdom.product.unreadable',
+        messageParams: { field: 'price_buy', value: '   ' },
+      },
+    ])
+  })
+
+  test('a feed whose every row is malformed is refused', () => {
+    expect(feedRefusal(rawFeed([rawProduct({ id: 'x' }), 'not a row'])).messageKey).toBe(
+      'domain.cache.cardKingdom.feed.noProducts',
+    )
   })
 
   test('collapses row warnings past the cap into a count', () => {
     const rows = [rawProduct(), ...Array.from({ length: 12 }, () => rawProduct({ id: 'nope' }))]
-    const parsed = parseCardKingdomFeed(rawFeed(rows))
-    if (typeof parsed === 'string') throw new Error(parsed)
+    const parsed = parsedFeed(rawFeed(rows))
     expect(parsed.warnings).toHaveLength(11)
-    expect(parsed.warnings[10]).toBe('Skipped 2 more malformed Card Kingdom products')
+    expect(parsed.warnings[10]).toEqual({
+      message: 'Skipped 2 more malformed Card Kingdom products',
+      messageKey: 'domain.cache.cardKingdom.feed.moreSkipped',
+      messageParams: { count: 2 },
+    })
   })
 
   test('missing scryfall_id and null variation degrade to empty strings', () => {
-    const parsed = parseCardKingdomFeed(
-      rawFeed([rawProduct({ scryfall_id: undefined, variation: null })]),
-    )
-    if (typeof parsed === 'string') throw new Error(parsed)
+    const parsed = parsedFeed(rawFeed([rawProduct({ scryfall_id: undefined, variation: null })]))
     expect(parsed.feed.products[0]?.scryfallId).toBe('')
     expect(parsed.feed.products[0]?.variation).toBe('')
   })

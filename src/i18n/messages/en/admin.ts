@@ -201,6 +201,7 @@ export const adminMessages = {
     one: 'Buylist updated — {count} product.',
     other: 'Buylist updated — {count} products.',
   },
+  'admin.buylist.skippedRowsLabel': 'Feed rows skipped as unreadable:',
   'admin.buylist.downloadedLabel': 'Downloaded',
   'admin.buylist.stale': '(stale)',
   'admin.buylist.stampLabel': 'Card Kingdom stamp',

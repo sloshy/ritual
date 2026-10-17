@@ -537,7 +537,13 @@ right product — plus their edition spellings. It warns beyond their upload cap
 To price an arbitrary set of printings rather than whole lists, use the MCP tool
 \`get_buylist_quotes\` (or \`POST /api/buylist/quotes\`), which answers per
 \`set:collectorNumber:finish\`. Both are cache-backed like \`sell\`: run
-\`ritual sell --refresh auto\` (or the \`refresh_buylist\` tool) first.
+\`ritual sell --refresh auto\` (or the \`refresh_buylist\` tool) first. With no feed downloaded,
+\`sell --output json\` fails with \`messageKey\` \`domain.cache.cardKingdom.missingAdvice\` (the
+HTTP routes answer \`domain.cache.cardKingdom.missingApiAdvice\`) — match on the key, not the
+prose. An MCP tool error carries only the English \`message\`, no key: branch on its \`code\`.
+\`refresh_buylist\` / \`POST /api/sell/refresh\` report a failed download that fell back to the
+stale feed as \`staleFallback\`, and the feed rows the download skipped as malformed in
+\`skippedRows\` — each a message (English \`message\` plus \`messageKey\` / \`messageParams\`).
 
 Unlike the \`sell\` command, every *server* buylist surface is gated on sell mode (below):
 \`get_sell_report\`, \`get_sell_cart\`, \`get_buylist_quotes\` and \`refresh_buylist\`, plus the

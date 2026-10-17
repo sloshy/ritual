@@ -38,6 +38,8 @@ import type { CardIndexResponse } from '../../../src/admin/api/card-index'
 import type { StatusResponse } from '../../../src/admin/api/status'
 import type { SellRefreshResponse } from '../../../src/admin/api/sell'
 import { apiMessage } from '../../../src/api/result'
+import type { ApiErrorResponse } from '../../../src/api/http'
+import { missingFeedApiAdvice } from '../../../src/cardkingdom/ensure'
 import { renderSyncSummaryEnglish, type SyncSummary } from '../../../src/admin/api/sync-summary'
 import {
   type BundleImportResponse,
@@ -504,14 +506,18 @@ export async function mockCacheRefreshApi(page: Page): Promise<CacheRefreshMocks
  * `refresh` overrides fields of the `POST /api/sell/refresh` answer, whose
  * default is the clean "downloaded a new feed" outcome. The three outcomes are
  * behaviorally distinct on the client — only `refreshed: true` drops the
- * session's quotes, and a non-empty `warnings` reports "not updated" — so a
- * test has to be able to ask for each.
+ * session's quotes, and a `staleFallback` reports "not updated" — so a test has
+ * to be able to ask for each. `refreshFailure` instead makes the refresh fail
+ * outright, answering `502` with that message as the refusal.
  */
-export async function mockBuylistApi(
-  page: Page,
-  status: 'present' | 'missing' = 'present',
-  refresh: Partial<SellRefreshResponse> = {},
-): Promise<void> {
+export type BuylistApiMock = {
+  status?: 'present' | 'missing'
+  refresh?: Partial<SellRefreshResponse>
+  refreshFailure?: SyncMessage
+}
+
+export async function mockBuylistApi(page: Page, mock: BuylistApiMock = {}): Promise<void> {
+  const { status = 'present', refresh = {}, refreshFailure } = mock
   await fulfillJson(
     page,
     '**/api/buylist/status',
@@ -525,22 +531,25 @@ export async function mockBuylistApi(
           stale: false,
           productCount: 149978,
         }
-      : { success: false, message: 'No Card Kingdom buylist has been downloaded yet.' },
+      : { success: false, ...missingFeedApiAdvice() },
     { status: status === 'present' ? 200 : 503 },
   )
   await fulfillJson(
     page,
     '**/api/sell/refresh*',
-    (): SellRefreshResponse => ({
-      success: true,
-      refreshed: true,
-      feedRetrievedAt: 1785850800000,
-      feedCreatedAt: '2026-08-04 06:06:09',
-      productCount: 149978,
-      warnings: [],
-      ...refresh,
-    }),
-    { method: 'POST' },
+    (): SellRefreshResponse | ApiErrorResponse =>
+      refreshFailure !== undefined
+        ? { success: false, ...refreshFailure }
+        : {
+            success: true,
+            refreshed: true,
+            feedRetrievedAt: 1785850800000,
+            feedCreatedAt: '2026-08-04 06:06:09',
+            productCount: 149978,
+            skippedRows: [],
+            ...refresh,
+          },
+    { method: 'POST', status: refreshFailure !== undefined ? 502 : 200 },
   )
 }
 

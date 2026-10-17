@@ -152,7 +152,7 @@ test.describe('Cache Refresh Page — Card Kingdom buylist', () => {
   })
 
   test('a workspace with no buylist yet shows an empty state, not an error', async ({ page }) => {
-    await mockBuylistApi(page, 'missing')
+    await mockBuylistApi(page, { status: 'missing' })
     await openCacheRefresh(page)
     const card = page.locator('.cache-card')
     // The 503 is the normal first-run state: offer the button, don't alarm.
@@ -197,7 +197,7 @@ test.describe('Cache Refresh Page — Card Kingdom buylist', () => {
     // changed no feed on disk, so the store is already quoting exactly it and
     // dropping every settled key would only buy a round of identical requests.
     const asked = await recordQuoteRequests(page)
-    await mockBuylistApi(page, 'present', { refreshed: false })
+    await mockBuylistApi(page, { refresh: { refreshed: false } })
 
     await openDeckWithCards(page, DECK_SLUG)
     await page.locator('.toolbar-sell-toggle').click()
@@ -229,9 +229,11 @@ test.describe('Cache Refresh Page — Card Kingdom buylist', () => {
     // place. Reported as a warning rather than an error — the card still has
     // prices to show — and it must not reset the store either.
     const asked = await recordQuoteRequests(page)
-    await mockBuylistApi(page, 'present', {
-      refreshed: false,
-      warnings: ['Card Kingdom pricelist download failed; using the cached feed.'],
+    await mockBuylistApi(page, {
+      refresh: {
+        refreshed: false,
+        staleFallback: syncMessage('domain.cache.cardKingdom.downloadHttpFailed', { status: 503 }),
+      },
     })
 
     await openDeckWithCards(page, DECK_SLUG)
@@ -243,6 +245,9 @@ test.describe('Cache Refresh Page — Card Kingdom buylist', () => {
     const card = page.locator('.cache-card')
     await card.locator('button:has-text("Refresh buylist")').click()
     await expect(card.locator('.cache-card-status')).toContainText('was not updated')
+    await expect(card.locator('.cache-card-warnings li')).toHaveText(
+      'Card Kingdom feed download failed: HTTP 503',
+    )
 
     // Same guaranteed-later-request ordering as the still-fresh case above.
     await openDeckWithCards(page, DECK_SLUG)
