@@ -10,7 +10,7 @@ import {
   themeNames,
   themes,
 } from '../../src/theme/themes'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import { isMessageParseError, renderSyncMessage, type SyncMessage } from '../../src/sync/message'
 import { expectLocaleInForce, foreignLocales, withSyntheticLocale } from '../helpers/sync-text'
 

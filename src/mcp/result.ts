@@ -66,6 +66,7 @@ export interface ToolErrorPayload {
   unmatched?: string[]
 }
 
+// i18n-exempt: tool-result guidance addressed to the agent, English by contract like the tool descriptions
 const CONFLICT_RECOVERY = 'Re-read the list with get_list, then re-apply your change.'
 
 /**

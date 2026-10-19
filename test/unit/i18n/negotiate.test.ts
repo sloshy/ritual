@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { negotiateLocale } from '../../../src/i18n/negotiate'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 describe('negotiateLocale', () => {
   test('prefers an exact tag match', () => {

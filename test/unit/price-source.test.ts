@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import { isMessageParseError, renderSyncMessage, syncList } from '../../src/sync/message'
 import {
   DEFAULT_PRICE_SOURCES,

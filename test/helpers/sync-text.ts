@@ -5,7 +5,7 @@
  */
 
 import { expect } from 'bun:test'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import { en, type MessageKey } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { pseudoLocalize } from '../../scripts/generate-locales'

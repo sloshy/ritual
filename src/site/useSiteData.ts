@@ -26,13 +26,13 @@ import { HttpStatusError } from '../list-view/fetch-json'
 import {
   currentLocale,
   DEFAULT_LOCALE,
-  ensureLocaleLoaded,
   resolveBrowserLocale,
   setLocale as setRuntimeLocale,
   writeStoredLocale,
   readStoredLocale,
   type LocaleOverride,
 } from '../i18n/runtime'
+import { createLocaleApplier } from '../i18n/dictionary-fetch'
 import type { LocaleTag } from '../i18n/types'
 import { localeDirection } from '../i18n/direction'
 
@@ -65,9 +65,10 @@ export type UseSiteDataResult = {
   /**
    * Switch the UI language: fetch the dictionary if it is not loaded yet, apply
    * it, remember the choice, and restamp `<html lang dir>`. Resolves with the
-   * locale actually applied.
+   * locale actually applied, or `undefined` when a later switch overtook this
+   * one (which then applies and remembers nothing).
    */
-  switchLocale: (tag: LocaleTag) => Promise<LocaleTag>
+  switchLocale: (tag: LocaleTag) => Promise<LocaleTag | undefined>
   /** Refetch the index from the live backend. No-op in static mode. */
   refetch: () => void
 }
@@ -102,8 +103,8 @@ export function useSiteData(): UseSiteDataResult {
   const [uiLocale, setUiLocale] = createSignal<LocaleTag>(currentLocale())
   const [availableLocales, setAvailableLocales] = createSignal<LocaleTag[]>([DEFAULT_LOCALE])
 
-  // Same for the language: the index carries the site's baked default, and a
-  // refetch must not undo a switch the user made since.
+  // The language is resolved from the index once: it carries the site's baked
+  // default, and a refetch must not undo a switch the user made since.
   let localeApplied = false
 
   const applyIndex = (data: SiteIndex): void => {
@@ -137,15 +138,14 @@ export function useSiteData(): UseSiteDataResult {
 
   /**
    * Apply a locale to the runtime, the document, and the exposed signal, having
-   * first made sure its dictionary is loaded.
+   * first made sure its dictionary is loaded. Latest wins: a call a later one
+   * overtook, or whose boot was aborted, applies nothing.
    */
-  const applyLocale = async (tag: LocaleTag, signal?: AbortSignal): Promise<LocaleTag> => {
-    const usable = await ensureLocaleLoaded(tag, signal ? { signal } : undefined)
+  const applyLocale = createLocaleApplier((usable) => {
     setRuntimeLocale(usable)
     applyDocumentLocale(usable)
     setUiLocale(usable)
-    return usable
-  }
+  })
 
   /**
    * Resolve the boot locale from the index and the browser, and load its
@@ -167,12 +167,12 @@ export function useSiteData(): UseSiteDataResult {
     await applyLocale(resolved, signal)
   }
 
-  const switchLocale = async (tag: LocaleTag): Promise<LocaleTag> => {
+  const switchLocale = async (tag: LocaleTag): Promise<LocaleTag | undefined> => {
     const applied = await applyLocale(tag)
     // What was applied, not what was asked for: if the dictionary could not be
     // fetched this remembers English, so the next load does not re-run a fetch
-    // that just failed.
-    writeStoredLocale(applied)
+    // that just failed. A switch a later one overtook remembers nothing.
+    if (applied !== undefined) writeStoredLocale(applied)
     return applied
   }
 

@@ -7,9 +7,11 @@
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { isCatalogEntryError, parseCatalogEntry } from '../i18n/catalog'
+import { describeCatalogEntryError } from '../i18n/catalog-message'
 import { en } from '../i18n/messages/en'
-import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
-import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { isLocaleTagError } from '../i18n/locale-tag'
+import { describeLocaleTagError } from '../i18n/locale-tag-message'
+import { DEFAULT_LOCALE, localeFileName, localeTagFromFileName, LOCALES_DIR } from '../i18n/runtime'
 import { t } from '../i18n/t'
 import type { LocaleCatalog, LocaleTag } from '../i18n/types'
 import { isConfigParseError, parseUiLocale } from '../config/ritual-config'
@@ -44,7 +46,10 @@ export function parseLocaleFile(raw: string): LocaleCatalog | string {
     if (!(key in en)) continue
     const entry = parseCatalogEntry(value)
     if (isCatalogEntryError(entry)) {
-      return t('cli.buildSite.localeFileBadValue', { key, reason: entry.error })
+      return t('cli.buildSite.localeFileBadValue', {
+        key,
+        reason: describeCatalogEntryError(entry),
+      })
     }
     catalog[key] = entry
   }
@@ -59,10 +64,12 @@ export function parseLocaleFile(raw: string): LocaleCatalog | string {
 export async function loadLocaleFiles(paths: readonly string[]): Promise<BuildLocale[] | string> {
   const locales: BuildLocale[] = []
   for (const filePath of paths) {
-    const name = path.basename(filePath).replace(/\.json$/i, '')
-    const tag = parseLocaleTag(name)
+    const tag = localeTagFromFileName(path.basename(filePath))
     if (isLocaleTagError(tag)) {
-      return t('cli.buildSite.localeFileBadTag', { path: filePath, reason: tag.error })
+      return t('cli.buildSite.localeFileBadTag', {
+        path: filePath,
+        reason: describeLocaleTagError(tag),
+      })
     }
     let raw: string
     try {
@@ -161,4 +168,20 @@ export function planLocales(input: LocalePlanInput): LocaleBuildPlan | string {
     (tag) => byTag.get(tag.toLowerCase()) ?? { tag, catalog: en },
   )
   return { locale: baked, emitted, warnings }
+}
+
+/**
+ * Publish dictionaries into `<distDir>/locales/`, one `<tag>.json` each — the
+ * layout `ensureLocaleLoaded` fetches from and `serve` serves. Shared by the
+ * site build and the admin's boot assets.
+ */
+export async function writeDictionaries(
+  distDir: string,
+  entries: readonly BuildLocale[],
+): Promise<void> {
+  const dir = path.join(distDir, LOCALES_DIR)
+  await fs.mkdir(dir, { recursive: true })
+  for (const { tag, catalog } of entries) {
+    await Bun.write(path.join(dir, localeFileName(tag)), JSON.stringify(catalog))
+  }
 }

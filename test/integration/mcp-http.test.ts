@@ -5,13 +5,19 @@ import {
   NOT_FOUND_ERROR_CODE,
   UNAUTHORIZED_ERROR_CODE,
   type McpHttpServer,
-  type RpcErrorBody,
+  type RpcError,
 } from '../../src/mcp/run'
 import type { Progress } from '@modelcontextprotocol/client'
 import { expectStructuredOnly, toolData } from '../mcp-test-utils'
 import { expectMonotonicProgress } from '../test-utils'
 import { stubScryfallBulk } from './helpers/scryfall-bulk'
 import type { StubbedFetch } from '../helpers/stub-fetch'
+import {
+  pseudoCatalog,
+  withGuardedLocaleAsync,
+  withSyntheticLocaleAsync,
+} from '../helpers/sync-text'
+import { captureConsole } from '../helpers/capture'
 
 /** `list_lists`' result, as far as this transport check reads it. */
 type ListsResult = { lists: { slug: string }[] }
@@ -28,10 +34,21 @@ function endpoint(server: McpHttpServer): URL {
   return new URL(`${serverBase(server)}/mcp`)
 }
 
-/** The JSON-RPC error envelope Ritual answers its own pre-transport rejections with. */
+/**
+ * A JSON-RPC error body as a reader receives it: every field may be missing,
+ * since a rejection from the SDK (a 403, a 405) need not carry Ritual's `data`.
+ */
+type RpcErrorWire = { error?: Partial<Omit<RpcError, 'data'>> & { data?: RpcError['data'] } }
+
+/** The JSON-RPC error object a rejection carries, read off the wire. */
+async function rpcError(response: Response): Promise<RpcErrorWire['error']> {
+  const body = (await response.json()) as RpcErrorWire
+  return body.error
+}
+
+/** The JSON-RPC error code Ritual answers its own pre-transport rejections with. */
 async function rpcErrorCode(response: Response): Promise<number | undefined> {
-  const body = (await response.json()) as RpcErrorBody
-  return body.error?.code
+  return (await rpcError(response))?.code
 }
 
 // No Scryfall fetch stub on purpose: these tests exercise the HTTP transport (the
@@ -151,7 +168,12 @@ describe('ritual mcp HTTP — bearer auth', () => {
       body,
     })
     expect(missing.status).toBe(401)
-    expect(await rpcErrorCode(missing)).toBe(UNAUTHORIZED_ERROR_CODE)
+    // The whole body: English, with its key in `error.data`.
+    expect(await rpcError(missing)).toEqual({
+      code: UNAUTHORIZED_ERROR_CODE,
+      message: 'Unauthorized',
+      data: { messageKey: 'admin.api.server.unauthorized' },
+    })
 
     const wrong = await fetch(endpoint(server), {
       method: 'POST',
@@ -245,12 +267,18 @@ describe('ritual mcp HTTP — bearer auth', () => {
     expect(res.status).toBe(415)
   })
 
-  test('returns 404 for a non-/mcp path', async () => {
-    const res = await fetch(`${serverBase(server)}/nope`, {
-      headers: { Authorization: `Bearer ${TOKEN}` },
-    })
+  test('returns 404 for a non-/mcp path, in English beside its key whatever the UI language', async () => {
+    // The server's own UI language is not the client's: the reply stays
+    // English, and its key rides in JSON-RPC's `error.data`.
+    const res = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), () =>
+      fetch(`${serverBase(server)}/nope`, { headers: { Authorization: `Bearer ${TOKEN}` } }),
+    )
     expect(res.status).toBe(404)
-    expect(await rpcErrorCode(res)).toBe(NOT_FOUND_ERROR_CODE)
+    expect(await rpcError(res)).toEqual({
+      code: NOT_FOUND_ERROR_CODE,
+      message: 'Not found. Use the /mcp endpoint.',
+      data: { messageKey: 'cli.mcp.endpointNotFound', messageParams: { path: '/mcp' } },
+    })
   })
 })
 
@@ -269,6 +297,28 @@ describe('ritual mcp HTTP — no auth', () => {
       const { tools } = await client.listTools()
       expect(tools.map((t) => t.name)).toContain('list_lists')
     })
+  })
+})
+
+describe('ritual mcp HTTP — console', () => {
+  test('announces its endpoint in the operator’s UI language', async () => {
+    const ws = await makeWorkspace()
+    let started: McpHttpServer | undefined
+    try {
+      const { lines } = await captureConsole(['error'], () =>
+        withSyntheticLocaleAsync(
+          'xx',
+          { 'cli.mcp.httpListening': 'MCP LAUSCHT AUF {url}' },
+          async () => {
+            started = await runHttpServer({ port: 0, host: '127.0.0.1', auth: { kind: 'none' } })
+          },
+        ),
+      )
+      expect(lines.error).toEqual([`MCP LAUSCHT AUF http://127.0.0.1:${started?.port}/mcp`])
+    } finally {
+      if (started !== undefined) await started.stop(true)
+      await ws.dispose()
+    }
   })
 })
 

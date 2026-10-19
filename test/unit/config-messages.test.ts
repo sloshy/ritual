@@ -331,6 +331,31 @@ describe('config refusals are keyed, and their English is unchanged', () => {
     })
   })
 
+  test('a malformed UI locale nests the tag parser’s reason, so no English is glued in', () => {
+    const refusal = refusalOf(parseUiLocale('de_DE'))
+    expect(refusal).toMatchObject({
+      messageKey: 'domain.config.uiLocaleMalformed',
+      messageParams: {
+        reason: syncRef('errors.i18n.localeTag.invalid', { value: 'de_DE' }),
+      },
+    })
+    withSyntheticLocale('en-XA', pseudoCatalog(), (locale) => {
+      expectLocaleInForce(locale)
+      const rendered = renderSyncMessage(refusal)
+      // The English half stays English…
+      expect(refusal.message).toBe('invalid UI locale: invalid locale tag: de_DE')
+      // …while the rendering is the reader's language throughout: the frame and
+      // the nested reason, with only the typed value left as it was.
+      expect(rendered).toBe(
+        tIn(locale, 'domain.config.uiLocaleMalformed', {
+          reason: tIn(locale, 'errors.i18n.localeTag.invalid', { value: 'de_DE' }),
+        }),
+      )
+      expect(rendered).not.toContain('invalid locale tag')
+      expect(rendered).toContain('de_DE')
+    })
+  })
+
   test('a section refusal nests the field refusal it is about', () => {
     expect(refusalOf(parseAdminConfig({ gitEnabled: 'yes' }))).toMatchObject({
       messageKey: 'domain.config.inSection',

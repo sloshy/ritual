@@ -166,7 +166,7 @@ export const adminApiMeta = {
   },
   'admin.api.server.unauthorized': {
     description:
-      'Error body (HTTP 401) when a route needs a session and the request has none, or an expired one. The standard HTTP reason phrase.',
+      'Error body (HTTP 401) when a route needs a session and the request has none, or an expired one — and the MCP HTTP endpoint’s answer to a missing or wrong access token. The standard HTTP reason phrase.',
   },
   'admin.api.server.notFound': {
     description:
@@ -174,7 +174,7 @@ export const adminApiMeta = {
   },
   'admin.api.server.internalError': {
     description:
-      'Error body (HTTP 500) when a request failed with an error the server did not expect. The details go to the server’s console, never to the client.',
+      'Error body (HTTP 500) when a request failed with an error the server did not expect — on the admin server, the site server (`ritual serve`) or the MCP HTTP endpoint. The details go to the server’s console, never to the client.',
   },
 
   // ── Sign-in ───────────────────────────────────────────────────────────

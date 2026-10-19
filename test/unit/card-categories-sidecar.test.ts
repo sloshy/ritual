@@ -28,7 +28,7 @@ import {
 import { computeHash } from '../../src/changes/content-hash'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 
 import { categoriesOf as cardsOf, categoriesRecord as record } from '../helpers/card-categories'
 import { keyedMessage } from '../helpers/api-message'

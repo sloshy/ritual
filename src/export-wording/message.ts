@@ -39,6 +39,7 @@ import type {
 import type { MessageKey } from '../i18n/messages/en'
 import type { LocaleTag } from '../i18n/types'
 import {
+  allUsed,
   nestSync,
   renderSyncMessage,
   syncList,
@@ -88,15 +89,6 @@ function offered(values: readonly string[]): SyncListParam {
 /** Where a saved preset sits in ritual.config.json — a JSON path, the name quoted as JSON quotes it. */
 function presetPath(name: string): string {
   return `exportPresets[${JSON.stringify(name)}]`
-}
-
-/**
- * Compiles only when `rest` is empty — each case below destructures the values
- * its code carries and hands the rest here, so a value added to a code's params
- * fails to build until its sentence uses it.
- */
-function allUsed(rest: Record<string, never>): void {
-  void rest
 }
 
 /** A problem as an unrendered message: its key, its values, and what it offers instead. */

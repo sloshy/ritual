@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import type { McpServer } from '@modelcontextprotocol/server'
 import { createListChangeNotifier } from '../../../src/mcp/notify'
 import { captureConsole } from '../../helpers/capture'
+import { withSyntheticLocale } from '../../helpers/sync-text'
 
 /**
  * The `notifications/resources/list_changed` notifier.
@@ -52,9 +53,13 @@ describe('createListChangeNotifier', () => {
     const fake = fakeServer(true)
     const notifier = createListChangeNotifier(fake.server, true)
 
-    await captureConsole(['error'], () => {
-      expect(() => notifier.notifyListsChanged()).not.toThrow()
+    const { lines } = await captureConsole(['error'], () => {
+      withSyntheticLocale('xx', { 'cli.mcp.listChangedFailed': 'NICHT GESENDET:' }, () => {
+        expect(() => notifier.notifyListsChanged()).not.toThrow()
+      })
     })
     expect(fake.sent).toBe(1)
+    // An operator's console line, so it is in the operator's language.
+    expect(lines.error).toEqual(['NICHT GESENDET: Error: no transport'])
   })
 })

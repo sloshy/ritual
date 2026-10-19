@@ -47,6 +47,7 @@ function withGetListHint(error: unknown): unknown {
   if (!ProtocolError.isInstance(error) || detail?.unmatched === undefined) return error
   return new ProtocolError(
     error.code,
+    // i18n-exempt: tool-result guidance addressed to the agent, English by contract like the tool descriptions
     `${error.message} Call get_list to see the current entries and their cardIds.`,
     detail,
   )

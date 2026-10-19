@@ -1,4 +1,5 @@
 import type { McpServer } from '@modelcontextprotocol/server'
+import { t } from '../i18n/t'
 
 /** Fires `notifications/resources/list_changed`, or does nothing when the transport cannot. */
 export interface ListChangeNotifier {
@@ -23,7 +24,7 @@ export function createListChangeNotifier(server: McpServer, enabled: boolean): L
       } catch (error) {
         // A notification is a courtesy; the write it follows already succeeded,
         // and failing the tool call over it would be strictly worse.
-        console.error('Failed to send resources/list_changed:', error)
+        console.error(t('cli.mcp.listChangedFailed'), error)
       }
     },
   }

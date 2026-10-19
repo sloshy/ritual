@@ -11,7 +11,7 @@ import {
   pseudoCatalog,
   PSEUDO_LOCALE,
 } from '../helpers/i18n'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { MALFORMED_MOVE_BUNDLE, MALFORMED_MOVE_ENGLISH } from '../../helpers/change-problem'
 import type { LocaleTag } from '../../../src/i18n/types'
 import {

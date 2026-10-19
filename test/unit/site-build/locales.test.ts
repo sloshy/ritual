@@ -2,7 +2,7 @@ import { describe, test, expect } from 'bun:test'
 import { Command } from 'commander'
 import { parseLocaleFile, planLocales, type BuildLocale } from '../../../src/site-build/locales'
 import { resolveBuildLocale, type GlobalLocaleOption } from '../../../src/cli/options'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 /**
  * The `--locale` / `--locales` / `--locale-file` semantics, at the layer that

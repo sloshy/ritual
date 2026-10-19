@@ -7,6 +7,13 @@ import { handleCardPrintings } from '../api/card-printings'
 import { handleCardPrice } from '../api/card-price'
 import { handleCardPrices } from '../api/card-prices'
 import { errorFieldNotFound } from '../api/http'
+import { isLocaleTagError } from '../i18n/locale-tag'
+import {
+  isDictionaryFileName,
+  localeFileName,
+  localeTagFromFileName,
+  LOCALES_DIR,
+} from '../i18n/runtime'
 import type { HttpMethod } from '../util/routing'
 import type { ListType } from '../list/list-type'
 import type { LiveJson, LiveSiteData } from './live-data'
@@ -53,9 +60,6 @@ function detailHandler(live: LiveSiteData, kind: ListType): SiteRouteHandler {
   }
 }
 
-/** Locale tags are BCP-47, so anything else in the path is a 404, not a file read. */
-const LOCALE_TAG_PATTERN = /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/
-
 /**
  * Serve one published dictionary from `dist/locales/`.
  *
@@ -69,11 +73,13 @@ function localeHandler(distDir: string): SiteRouteHandler {
   return async (req) => {
     const url = new URL(req.url)
     const file = decodeURIComponent(url.pathname.split('/').pop() ?? '')
-    const tag = file.endsWith('.json') ? file.slice(0, -'.json'.length) : ''
-    if (!LOCALE_TAG_PATTERN.test(tag)) {
+    // Locale tags are BCP-47 (parsed, so canonical and free of path syntax);
+    // anything else in the path is a 404, not a file read.
+    const tag = isDictionaryFileName(file) ? localeTagFromFileName(file) : undefined
+    if (tag === undefined || isLocaleTagError(tag)) {
       return errorFieldNotFound()
     }
-    const dictionary = Bun.file(path.join(distDir, 'locales', `${tag}.json`))
+    const dictionary = Bun.file(path.join(distDir, LOCALES_DIR, localeFileName(tag)))
     if (!(await dictionary.exists())) {
       return errorFieldNotFound()
     }

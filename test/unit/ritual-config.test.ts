@@ -49,7 +49,7 @@ import {
 } from '../../src/config/ritual-config'
 import { defaultSiteSelection } from '../../src/config/list-selection'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import type { PriceSource } from '../../src/pricing/price-source'
 
 let testDir: string

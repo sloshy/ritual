@@ -2,14 +2,13 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { initI18n, LOCALE_ENV_VAR, resetUiLocaleResolution } from '../../../src/cli/locale'
 import { en } from '../../../src/i18n/messages/en'
-import { enMeta } from '../../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
 import { t } from '../../../src/i18n/t'
 import { buildMcpServer } from '../../../src/mcp/server'
 import { toToolErrorPayload } from '../../../src/mcp/result'
 import { CacheLockTimeoutError } from '../../../src/cache/lock'
-import { withSyntheticLocale } from '../../helpers/sync-text'
-import { PSEUDO_LOCALE, pseudoLocalize } from '../../../scripts/generate-locales'
+import { pseudoCatalog, withSyntheticLocale } from '../../helpers/sync-text'
+import { PSEUDO_LOCALE } from '../../../scripts/generate-locales'
 
 /**
  * MCP prose is **English by contract**: tool names, titles,
@@ -19,11 +18,13 @@ import { PSEUDO_LOCALE, pseudoLocalize } from '../../../scripts/generate-locales
  * `snake_case` tool names — a translated copy would help no one and would move
  * identifiers clients match on.
  *
- * Nothing in `src/mcp/` calls `t()` today, so this is a *guard*, not a
+ * The registration path calls no `t()`, so this is a *guard*, not a
  * description of a mechanism: it fails the moment a catalog lookup is
- * introduced anywhere in the registration path. The pseudo-locale is what makes
- * it able to fail — every catalog string changes under it, so a leak is
- * unmissable.
+ * introduced there. The pseudo-locale is what makes it able to fail — every
+ * catalog string changes under it, so a leak is unmissable. (What `src/mcp/`
+ * does translate is addressed to people, not the model: the operator's console
+ * lines and the elicitation forms a client shows its user — pinned in
+ * `removal-elicitation.test.ts`.)
  *
  * Wiring only, per the MCP testing policy: what the tools *do* is covered by
  * the handler and engine suites.
@@ -74,7 +75,7 @@ describe('MCP prose is English whatever the UI locale', () => {
     // session; an empty one would make the comparison below vacuous.
     expect(english.instructions).toContain('Ritual manages')
 
-    loadDictionary(PSEUDO_LOCALE, pseudoLocalize(en, enMeta))
+    loadDictionary(PSEUDO_LOCALE, pseudoCatalog())
     const resolution = initI18n({
       argv: ['bun', 'ritual', 'mcp'],
       env: { [LOCALE_ENV_VAR]: PSEUDO_LOCALE },

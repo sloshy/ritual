@@ -31,6 +31,7 @@ import {
 } from '../card/card-language'
 import { printingKey } from '../card/printing-key'
 import { isLocaleTagError, parseLocaleTag } from '../i18n/locale-tag'
+import { localeTagErrorRef } from '../i18n/locale-tag-message'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
 import type { LocaleTag } from '../i18n/types'
 import type { MessageKey } from '../i18n/messages/en'
@@ -912,7 +913,7 @@ export function parseUiLocale(value: unknown): LocaleTag | ConfigParseError {
   if (value === undefined) return DEFAULT_LOCALE
   const parsed = parseLocaleTag(value)
   if (isLocaleTagError(parsed)) {
-    return configError('domain.config.uiLocaleMalformed', { reason: parsed.error })
+    return configError('domain.config.uiLocaleMalformed', { reason: localeTagErrorRef(parsed) })
   }
   if (!isRecognizedLocale(parsed)) {
     return configError('domain.config.uiLocaleUnknown', { tag: parsed })

@@ -33,9 +33,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { coerceCatalog } from '../src/i18n/catalog'
-import { isLocaleTagError, localeTag, parseLocaleTag } from '../src/i18n/locale-tag'
+import { isLocaleTagError, parseLocaleTag } from '../src/i18n/locale-tag'
+import { describeLocaleTagError, localeTag } from '../src/i18n/locale-tag-message'
 import { en } from '../src/i18n/messages/en'
 import { enMeta } from '../src/i18n/messages/en.meta'
+import { DEFAULT_LOCALE } from '../src/i18n/runtime'
 import type { LocaleCatalog, MessageCatalogShape, MessageMetaShape } from '../src/i18n/types'
 import { displayWidth } from '../src/i18n/width'
 import { checkCatalogs, loadTranslations, messagePlaceholders } from './check-locales'
@@ -371,7 +373,8 @@ async function main(): Promise<void> {
     const parsedTag = parseLocaleTag(tag)
     if (errors.length > 0 || isLocaleTagError(parsedTag)) {
       rejected.push(tag)
-      if (isLocaleTagError(parsedTag)) console.error(`  ✗ [${tag}] ${parsedTag.error}`)
+      if (isLocaleTagError(parsedTag))
+        console.error(`  ✗ [${tag}] ${describeLocaleTagError(parsedTag, DEFAULT_LOCALE)}`)
       for (const entry of errors.slice(0, 5)) {
         console.error(`  ✗ [${entry.locale}] ${entry.key ?? ''} (${entry.kind}): ${entry.message}`)
       }

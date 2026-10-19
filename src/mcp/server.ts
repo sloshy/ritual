@@ -29,7 +29,8 @@ const INSTRUCTIONS = `Ritual manages Magic: The Gathering decks, collections, an
   unmatched? } — code is "conflict" | "cancelled" | "invalid-request" | "internal".
 - Language: tool names, descriptions, these instructions, and every result "message" are
   English by contract, whatever UI locale the user configured (that setting moves Ritual's own
-  terminal output and its web UIs, never this surface). Results authored by the admin API carry
+  terminal output and its web UIs, never this surface — except the sync_collection elicitation
+  form, which the client shows its user, so it follows the user's UI locale). Results authored by the admin API carry
   a "messageKey" (plus "messageParams" when it interpolates) beside the English "message" — a
   locale-invariant identifier to match on instead of matching prose. Those params may nest — a
   param is then a message ({ messageKey, messageParams }), a list ({ list, join }), a duration

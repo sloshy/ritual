@@ -3,7 +3,6 @@
  * dictionaries, the boot script and shell, and the themed stylesheet.
  */
 import path from 'node:path'
-import fs from 'node:fs/promises'
 import { t } from '../i18n/t'
 import {
   getDefaultCategories,
@@ -16,7 +15,7 @@ import { SOURCE_OFFER } from '../config/version'
 import type { RitualConfig } from '../config/ritual-config'
 import { generateAllThemesCss, generateCustomThemeCss, type CustomTheme } from '../theme/themes'
 import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from './html-shell'
-import type { LocaleBuildPlan } from './locales'
+import { writeDictionaries, type LocaleBuildPlan } from './locales'
 import type { SiteSpaAssets } from './assets'
 
 /**
@@ -73,11 +72,7 @@ export async function writeSiteShell(input: SiteShellInput): Promise<void> {
 
   // Dictionaries as data. English is inline in the bundle and never fetched; it
   // is written anyway so a static host serves a self-describing `availableLocales`.
-  const localesDir = path.join(buildDir, 'locales')
-  await fs.mkdir(localesDir, { recursive: true })
-  for (const entry of localePlan.emitted) {
-    await Bun.write(path.join(localesDir, `${entry.tag}.json`), JSON.stringify(entry.catalog))
-  }
+  await writeDictionaries(buildDir, localePlan.emitted)
   console.log(
     t('cli.buildSite.writingLocales', {
       counted: t('domain.count.files', { count: localePlan.emitted.length }),

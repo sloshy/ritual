@@ -1,5 +1,6 @@
 import { ProtocolError, ProtocolErrorCode } from '@modelcontextprotocol/server'
 import { CANCELLED_ERROR_CODE, CONFLICT_ERROR_CODE } from './error-codes'
+import { isRecord } from '../util/json'
 
 /**
  * Structured detail Ritual attaches to a thrown `ProtocolError`.
@@ -24,15 +25,24 @@ export interface McpErrorDetail {
  * rendered.
  */
 export function mcpErrorDetail(error: unknown): McpErrorDetail | undefined {
-  if (!ProtocolError.isInstance(error)) return undefined
-  const { data } = error
-  if (typeof data !== 'object' || data === null || Array.isArray(data)) return undefined
-  const { unmatched } = data as Record<string, unknown>
-  if (unmatched === undefined) return {}
-  if (!Array.isArray(unmatched) || unmatched.some((item) => typeof item !== 'string')) {
-    return undefined
-  }
-  return { unmatched: unmatched as string[] }
+  if (!ProtocolError.isInstance(error) || !isRecord(error.data)) return undefined
+  if (error.data.unmatched === undefined) return {}
+  const unmatched = parseUnmatched(error.data)
+  return unmatched === undefined ? undefined : { unmatched }
+}
+
+/**
+ * The `unmatched` list a refusal body (or a thrown error's `data`) carries:
+ * its strings when it is an array of strings, `undefined` when it is absent or
+ * malformed — all strings or nothing, so a list that would not survive being
+ * rendered is never passed on. The one reader of the field, for both the
+ * response body ({@link import('./dispatch').errorDetail}) and the error it
+ * becomes ({@link mcpErrorDetail}).
+ */
+export function parseUnmatched(data: unknown): string[] | undefined {
+  if (!isRecord(data) || !Array.isArray(data.unmatched)) return undefined
+  const items: readonly unknown[] = data.unmatched
+  return items.every((item): item is string => typeof item === 'string') ? [...items] : undefined
 }
 
 /** Error fields the admin handlers include in their non-OK JSON responses. */
@@ -62,6 +72,7 @@ export function apiErrorToMcp(
   body: ApiErrorBody,
   detail?: McpErrorDetail,
 ): ProtocolError {
+  // i18n-exempt: a transport error addressed to the agent, English by contract like the tool descriptions
   const message = body.message ?? `Admin request failed (HTTP ${status})`
   if (body.conflict === true || status === 409) {
     return new ProtocolError(CONFLICT_ERROR_CODE, message, detail)

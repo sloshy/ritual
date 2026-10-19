@@ -17,7 +17,7 @@ import {
 } from '../../src/card/card-language'
 import { makeScryfallCard } from '../test-utils'
 import { DEFAULT_LOCALE } from '../../src/i18n/constants'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 
 describe('card language vocabulary', () => {
   test('holds exactly the 17 Scryfall codes', () => {

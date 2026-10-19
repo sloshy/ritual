@@ -1,7 +1,7 @@
 import { dispatchRoute, type RequestContext } from '../admin/server'
 import type { HttpMethod } from '../util/routing'
 import { buildSyntheticRequest } from '../util/synthetic-request'
-import { apiErrorToMcp, type ApiErrorBody, type McpErrorDetail } from './errors'
+import { apiErrorToMcp, parseUnmatched, type ApiErrorBody, type McpErrorDetail } from './errors'
 import type { OmitSuccess } from './types'
 import type { RouteProgressSink } from '../util/progress'
 import { isRecord } from '../util/json'
@@ -16,14 +16,17 @@ const MCP_CONTEXT: RequestContext = { clientIp: 'mcp', sessionToken: null }
 /** Origin for synthetic request URLs. Nothing leaves the process, so the host is arbitrary. */
 const SYNTHETIC_ORIGIN = 'http://ritual-mcp'
 
-function errorBody(data: unknown, status: number): ApiErrorBody {
-  if (isRecord(data)) {
-    return {
-      message: typeof data.message === 'string' ? data.message : undefined,
-      conflict: data.conflict === true,
-    }
+/**
+ * The error fields of a refusal body. A body that is not an object carries
+ * none, so {@link apiErrorToMcp} supplies its one "Admin request failed"
+ * sentence.
+ */
+function errorBody(data: unknown): ApiErrorBody {
+  if (!isRecord(data)) return {}
+  return {
+    message: typeof data.message === 'string' ? data.message : undefined,
+    conflict: data.conflict === true,
   }
-  return { message: `Admin request failed (HTTP ${status})` }
 }
 
 /**
@@ -32,11 +35,8 @@ function errorBody(data: unknown, status: number): ApiErrorBody {
  * Exported for its unit test: no real route sends a malformed `unmatched`.
  */
 export function errorDetail(data: unknown): McpErrorDetail | undefined {
-  if (!isRecord(data) || !Array.isArray(data.unmatched)) return undefined
-  const items: readonly unknown[] = data.unmatched
-  // All strings or nothing, the rule `mcpErrorDetail` reads the detail back by.
-  if (!items.every((item): item is string => typeof item === 'string')) return undefined
-  return { unmatched: [...items] }
+  const unmatched = parseUnmatched(data)
+  return unmatched === undefined ? undefined : { unmatched }
 }
 
 /**
@@ -57,6 +57,7 @@ export async function callApi(
 
   const dispatched = await dispatchRoute(req, callContext(options))
   if (!dispatched.matched) {
+    // i18n-exempt: a transport error addressed to the agent, English by contract like the tool descriptions
     throw apiErrorToMcp(404, { message: `No admin route for ${method} ${path}` })
   }
   const response = dispatched.response
@@ -70,18 +71,19 @@ export async function callApi(
       // A handler returned a non-JSON body (e.g. a bare-text error response);
       // keep the documented contract of throwing a ProtocolError.
       throw apiErrorToMcp(502, {
+        // i18n-exempt: a transport error addressed to the agent, English by contract like the tool descriptions
         message: `Admin route ${method} ${path} returned a non-JSON body (HTTP ${response.status}).`,
       })
     }
   }
 
   if (!response.ok) {
-    throw apiErrorToMcp(response.status, errorBody(data, response.status), errorDetail(data))
+    throw apiErrorToMcp(response.status, errorBody(data), errorDetail(data))
   }
   // A few handlers report failure with a 2xx + `success: false`; treat those as
   // client errors so they still surface as tool errors instead of "succeeding".
   if (isRecord(data) && data.success === false) {
-    throw apiErrorToMcp(response.status === 200 ? 400 : response.status, errorBody(data, 400))
+    throw apiErrorToMcp(response.status === 200 ? 400 : response.status, errorBody(data))
   }
   return data
 }

@@ -4,7 +4,7 @@ import path from 'node:path'
 import { bindWorkspace, type BoundWorkspace } from '../helpers/workspace'
 import { cardCache } from '../../src/cache'
 import { startSiteServer } from '../../src/serve/server'
-import type { StaticSiteServer } from '../../src/serve/static'
+import { serveStaticSite, type StaticSiteServer } from '../../src/serve/static'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { DeckDetail, SiteIndex } from '../../src/list/site-data'
 import {
@@ -23,7 +23,7 @@ import type { ScryfallCard } from '../../src/scryfall/types'
 import type { ApiErrorResponse, ErrorFieldBody } from '../../src/api/http'
 import type { CardPrintingsResponse } from '../../src/api/card-printings'
 import { keyedMessage } from '../helpers/api-message'
-import { pseudoCatalog, withGuardedLocaleAsync } from '../helpers/sync-text'
+import { pseudoCatalog, pseudoString, withGuardedLocaleAsync } from '../helpers/sync-text'
 
 /**
  * Wiring pins for the hosted public-site server (`serve --api`): live JSON at
@@ -455,5 +455,28 @@ describe('site server (Integration)', () => {
       }
       expect((await fetch(`${base}/api/buylist/status`)).status).toBe(200)
     })
+  })
+})
+
+describe('static site server (Integration)', () => {
+  test('a path with no file and no app shell is a plain-text 404 in the server’s UI language', async () => {
+    // A page a person reads in a browser, not a reply a client parses — so it
+    // follows the operator's UI language, unlike the JSON 404s above.
+    const ws = await bindWorkspace({ dirs: [], config: false })
+    const server = serveStaticSite({
+      distDir: path.join(ws.dir, 'empty'),
+      port: 0,
+      hostname: '127.0.0.1',
+    })
+    try {
+      const res = await withGuardedLocaleAsync('en-XA', pseudoCatalog(), async () => {
+        const response = await fetch(`http://127.0.0.1:${server.port}/nope`)
+        return { status: response.status, body: await response.text() }
+      })
+      expect(res).toEqual({ status: 404, body: pseudoString('cli.serve.pageNotFound') })
+    } finally {
+      await server.stop(true)
+      await ws.dispose()
+    }
   })
 })

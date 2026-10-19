@@ -159,7 +159,8 @@ Everything a human reads is localizable. Everything a **machine** reads is Engli
 | The commit messages the admin server writes into your workspace repository                                                                       | They are workspace history, like `.changes.md`                                |
 | A [cache server](/commands/cache/#server)'s replies (English beside a `messageKey`), and the `key=value` fields of its console lines             | Another Ritual process reads the replies; log filters match the fields        |
 | A [cache feed host](/commands/cache/#feed-host)'s replies (the same shape), and the `key=value` fields of its console lines                      | Same                                                                          |
-| [MCP](/commands/mcp/) tool names, descriptions, and result `message` prose                                                                       | They are LLM prompts, and tool names are protocol identifiers                 |
+| [MCP](/commands/mcp/) tool names, descriptions, result `message` prose, and the guidance and errors a result addresses to the agent              | They are LLM prompts, and tool names are protocol identifiers                 |
+| The [MCP HTTP endpoint](/commands/mcp/#errors)'s own refusals (English in `error.message`, the `messageKey` in `error.data`)                     | An MCP client reads them, not the operator                                    |
 | The installable [agent skills](/commands/skills/)                                                                                                | Same, plus their content hash decides "machine-managed vs user-edited"        |
 | These docs                                                                                                                                       | Localizing them is a separate project                                         |
 
@@ -268,6 +269,8 @@ It catches, with no translator time, the three things that break first: strings 
 ### Namespaces and surface registration (for code contributors)
 
 Message keys are partitioned into seven namespaces (`cli`, `help`, `site`, `admin`, `ui`, `domain`, `errors`). Each surface **registers** the namespaces it may render at boot: `src/i18n/register/cli.ts` (all seven, called from `main()`), `src/i18n/register/site.ts` (`site*`, `ui`, `domain`, `errors`), and `src/i18n/register/admin.ts` (the site set plus `admin`). Registration keeps the ~1,500 CLI-only messages out of the browser bundles; `t.ts` imports the catalog's types only.
+
+One fragment is never registered: `errors.i18n.*` (with `errors.invariant.unhandled`), the translation machinery's own diagnostics, is seeded into every process's English catalog by `src/i18n/runtime.ts`, so the machinery can word its own failures wherever it runs.
 
 If you add a namespace or a new surface, add or extend a register module. `scripts/check-locales.ts` validates the registration lists (transitively) and fails a browser surface that registers `cli`/`help` or imports the full barrel as a value.
 

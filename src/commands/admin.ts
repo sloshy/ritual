@@ -41,6 +41,7 @@ import { appBootScript, BOOT_SCRIPT_FILE, renderAppShell } from '../site-build/h
 import { bakedDictionaries } from '../generated/locales'
 import { en } from '../i18n/messages/en'
 import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { writeDictionaries } from '../site-build/locales'
 import { t, tIn } from '../i18n/t'
 import { stopListeners, type AdminListener } from './admin-teardown'
 import type { LocaleTag } from '../i18n/types'
@@ -99,14 +100,12 @@ function buildIndexHtml(initialTheme: ThemeName, locale: LocaleTag): string {
  */
 async function writeAdminBootAssets(adminDistDir: string): Promise<void> {
   await Bun.write(path.join(adminDistDir, BOOT_SCRIPT_FILE), appBootScript)
-  const localesDir = path.join(adminDistDir, 'locales')
-  await fs.mkdir(localesDir, { recursive: true })
   // English is inline in the bundle and never fetched; written anyway so the
   // admin's locale list is discoverable from the same directory as the rest.
-  await Bun.write(path.join(localesDir, `${DEFAULT_LOCALE}.json`), JSON.stringify(en))
-  for (const { tag, catalog } of bakedDictionaries) {
-    await Bun.write(path.join(localesDir, `${tag}.json`), JSON.stringify(catalog))
-  }
+  await writeDictionaries(adminDistDir, [
+    { tag: DEFAULT_LOCALE, catalog: en },
+    ...bakedDictionaries,
+  ])
 }
 
 async function buildAdminJs(srcDir: string, adminDistDir: string): Promise<void> {

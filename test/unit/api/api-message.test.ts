@@ -15,7 +15,7 @@ import { t, tDynamic, type TranslateDynamicFn } from '../../../src/i18n/t'
 import { parseEnumField } from '../../../src/util/parse-enum'
 import { loadSyntheticLocale, withSyntheticLocale } from '../../helpers/sync-text'
 import type { LocaleTag } from '../../../src/i18n/types'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 /**
  * The widened API response shape: `message` is rendered English —

@@ -4,7 +4,7 @@ import { en } from '../../../src/i18n/messages/en'
 import { enMeta } from '../../../src/i18n/messages/en.meta'
 import type { LocaleCatalog, LocaleTag } from '../../../src/i18n/types'
 import type { LocaleOverride } from '../../../src/i18n/runtime'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import type { AdminLocalesOverride } from '../../../src/admin/site/hooks/useAdminLocale'
 import { fulfillJson } from './fulfill'
 

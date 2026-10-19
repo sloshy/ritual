@@ -822,6 +822,22 @@ export const cliInfraMeta = {
     description:
       'Printed to the operator’s console once the admin server is listening. {url} is the address to open, e.g. http://localhost:3001.',
   },
+  'cli.serve.serverError': {
+    description:
+      'Printed to the operator’s console by `ritual serve` when a request failed with an error nothing handled; the error itself follows on the same line.',
+  },
+  'cli.serve.pageNotFound': {
+    description:
+      'The whole plain-text page `ritual serve` answers (HTTP 404) when a browser asks for a path with no file and no site to fall back to. The standard HTTP reason phrase; translate it as your language’s usual wording for "Not Found".',
+  },
+  'cli.serve.pageInternalError': {
+    description:
+      'The whole plain-text page `ritual serve` answers (HTTP 500) when serving a file failed unexpectedly; the details go to the operator’s console. The standard HTTP reason phrase.',
+  },
+  'cli.serve.enumerateFailed': {
+    description:
+      'Printed to the operator’s console by `ritual serve` when it could not list the deck, collection or wanted-list files the site shows (e.g. a permissions error); the server carries on with none of that kind. {reason} is the operating system’s own message.',
+  },
   'cli.admin.serverError': {
     description:
       'Printed to the operator’s console when a request failed with an error nothing handled; the error itself follows on the same line.',
@@ -912,10 +928,11 @@ export const cliInfraMeta = {
   },
   'cli.buildSite.localeFileBadValue': {
     description:
-      'A locale file entry is not a renderable message. {reason} is the shape parser\'s own English explanation (e.g. "value must be a string, a $plural table, or a $select table") and is not itself translated.',
+      'A locale file entry is not a renderable message. {key} is the entry’s message key; {reason} is the shape parser’s explanation, already translated (e.g. "value must be a string, a $plural table, or a $select table").',
   },
   'cli.buildSite.localeFileBadTag': {
-    description: 'A --locale-file is named for something that is not a BCP-47 tag.',
+    description:
+      'A --locale-file is named for something that is not a BCP-47 tag. {path} is the file as given; {reason} is the tag parser’s explanation, already translated (e.g. "invalid locale tag: de_DE").',
   },
   'cli.buildSite.localeFileUnreadable': { description: 'A --locale-file path could not be read.' },
   'cli.buildSite.localeFileInvalid': {
@@ -1534,6 +1551,42 @@ export const cliInfraMeta = {
   },
   'cli.mcp.httpTeardownFailed': {
     description: 'The MCP HTTP listener refused to close. The error follows on the same line.',
+  },
+  'cli.mcp.httpListening': {
+    description:
+      'Printed to the operator’s console once `ritual mcp --transport http` is accepting connections. {url} is the endpoint address an MCP client connects to.',
+  },
+  'cli.mcp.httpError': {
+    description:
+      'Printed to the operator’s console when the MCP protocol layer reports an error on the HTTP transport; the error itself follows on the same line.',
+  },
+  'cli.mcp.httpRequestFailed': {
+    description:
+      'Printed to the operator’s console when one MCP HTTP request failed with an unexpected error (the client is told only that the server failed); the error itself follows on the same line.',
+  },
+  'cli.mcp.stdioError': {
+    description:
+      'Printed to the console’s error stream when the MCP protocol layer reports an error on the stdio transport (standard input/output, the pipe a local AI client talks over); the error itself follows on the same line.',
+  },
+  'cli.mcp.stdioTeardownFailed': {
+    description:
+      'Printed to the console’s error stream when the MCP stdio transport could not close cleanly on shutdown; the error itself follows on the same line.',
+  },
+  'cli.mcp.listChangedFailed': {
+    description:
+      'Printed to the console’s error stream when the MCP server could not tell its client that the set of lists changed (the write itself succeeded). "resources/list_changed" is the protocol’s notification name — keep it exactly. The error itself follows on the same line.',
+  },
+  'cli.mcp.endpointNotFound': {
+    description:
+      'Error message (HTTP 404) the MCP HTTP server answers a request to any path but its one endpoint. {path} is that endpoint’s path (e.g. "/mcp"), literal.',
+  },
+  'cli.mcp.removal.prompt': {
+    description:
+      'A question an AI client shows its user during a collection sync: some copies of a card were removed on Archidekt (a collection-tracking website), and they live in several local collection lists, so the user must say which lists give them up. {quantity} is how many copies left, {card} the card’s name and printing, {lists} the lists holding it, already joined (e.g. “"binder" (1) and "box" (2)”). The form shows one number field per list beneath this text.',
+  },
+  'cli.mcp.removal.field': {
+    description:
+      'The help text under one number field of the collection-sync question above: how many copies to take out of the list {list}, which currently holds {copies} copies.',
   },
   'cli.mcp.stdioIgnoredFlags': {
     description: 'HTTP-only flags were passed under --transport stdio. {flags} is a flag list.',

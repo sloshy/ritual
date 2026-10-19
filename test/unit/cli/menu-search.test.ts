@@ -7,7 +7,7 @@ import {
   type SearchableChoice,
 } from '../../../src/cli/menu-search'
 import { resetI18nRuntime, setLocale } from '../../../src/i18n/runtime'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 /**
  * The two things translating a menu breaks, both of which are invisible until a

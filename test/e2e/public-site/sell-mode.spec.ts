@@ -17,7 +17,7 @@ import {
   pseudoCatalog,
   PSEUDO_LOCALE,
 } from '../helpers/i18n'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 /**
  * Sell mode on the public site: the toolbar toggle gating buylist prices,

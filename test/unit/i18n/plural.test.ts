@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { tIn } from '../../../src/i18n/t'
 import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { withoutStrict } from './strict'
 
 // Synthetic catalogs only: these assert the CLDR category machinery, not the

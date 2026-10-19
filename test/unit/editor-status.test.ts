@@ -16,7 +16,7 @@ import {
   setLocale,
 } from '../../src/i18n/runtime'
 import type { LocaleCatalog } from '../../src/i18n/types'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import { changeProblemMessage } from '../../src/changes/change-problem-message'
 import { locatedProblem } from '../../src/changes/change-problem'
 import { withSyntheticLocale } from '../helpers/sync-text'

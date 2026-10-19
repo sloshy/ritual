@@ -156,6 +156,15 @@ export type SyncText = string | SyncMessageRef
 /** A list with at least one element. */
 export type NonEmpty<T> = readonly [T, ...T[]]
 
+/**
+ * Compiles only when `rest` is empty. A wording function's `switch` destructures
+ * the values each code carries and hands the rest here, so a value added to a
+ * code's params fails to build until its sentence uses it.
+ */
+export function allUsed(rest: Record<string, never>): void {
+  void rest
+}
+
 /** Whether a list has at least one element — the guard {@link joinSyncMessages} wants. */
 export function isNonEmpty<T>(items: readonly T[]): items is NonEmpty<T> {
   return items.length > 0

@@ -170,6 +170,7 @@ function matchPosixLocale(env: LocaleEnv): PosixMatch | undefined {
  */
 export const WINDOWS_PROBE_COMMAND =
   'powershell -NoProfile -NonInteractive -Command "[Globalization.CultureInfo]::CurrentUICulture.Name"'
+// i18n-exempt: a shell command line, reported verbatim by `ritual locale --detect`
 export const MACOS_PROBE_COMMAND = 'defaults read -g AppleLocale'
 
 /**

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { t, tIn, type MessageParams } from '../../../src/i18n/t'
 import { loadDictionary, resetI18nRuntime } from '../../../src/i18n/runtime'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { withoutStrict, withStrict } from './strict'
 /** Typed as a real params-free key so `t()`'s arity checking still applies. */
 const MISSING_KEY = 'admin.doesNot.exist' as unknown as 'ui.dialog.cancel'

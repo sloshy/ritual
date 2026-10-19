@@ -58,7 +58,7 @@ export const domainConfigMeta = {
     description: `${REFUSAL} One entry of the banned-printings setting is not a printing. {value} is the entry as the user wrote it. "SET:COLLECTOR" is the literal shape a printing takes (a set code, a colon, a collector number) and "sld:123" an example; keep both exactly.`,
   },
   'domain.config.uiLocaleMalformed': {
-    description: `${REFUSAL} The interface-language setting (a language tag such as "de-AT") is not a valid tag at all. {reason} is the tag parser's own explanation, a phrase of its own (usually English).`,
+    description: `${REFUSAL} The interface-language setting (a language tag such as "de-AT") is not a valid tag at all. {reason} is the tag parser’s explanation, already translated (e.g. “invalid locale tag: de_DE”).`,
   },
   'domain.config.uiLocaleUnknown': {
     description: `${REFUSAL} The interface-language setting is a well-formed tag, but for no language this system knows. {tag} is the tag. "BCP-47" is the name of the tag standard; "en" and "de-AT" are example tags; keep all three exactly.`,

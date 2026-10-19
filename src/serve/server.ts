@@ -1,9 +1,10 @@
 import { matchRoute } from '../util/routing'
-import { serveSpaFallback, serveStaticFile, type StaticSiteServer } from './static'
+import { serveSiteFile, type StaticSiteServer } from './static'
 import { createLiveSiteData } from './live-data'
 import { buildSiteRoutes } from './routes'
 import { errorFieldNotFound, errorFieldResponse, MAX_BODY_SIZE } from '../api/http'
 import { apiMessage } from '../api/result'
+import { t } from '../i18n/t'
 import { MAX_QUOTE_BODY_BYTES } from '../api/buylist'
 import { MAX_PRICE_BODY_BYTES } from '../api/card-prices'
 
@@ -91,12 +92,10 @@ export function startSiteServer(options: SiteServerOptions): StaticSiteServer {
         })
       }
 
-      const staticResponse =
-        (await serveStaticFile(distDir, url.pathname)) ?? (await serveSpaFallback(distDir))
-      return withHeaders(staticResponse ?? new Response('Not Found', { status: 404 }), BASE_HEADERS)
+      return withHeaders(await serveSiteFile(distDir, url.pathname), BASE_HEADERS)
     },
     error(error) {
-      console.error('Unhandled server error:', error)
+      console.error(t('cli.serve.serverError'), error)
       return errorFieldResponse(apiMessage('admin.api.server.internalError'), 500)
     },
   })

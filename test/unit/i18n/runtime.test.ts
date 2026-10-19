@@ -16,7 +16,7 @@ import {
   type LocaleOverride,
 } from '../../../src/i18n/runtime'
 import { en } from '../../../src/i18n/messages/en'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 const overrideHost = globalThis as unknown as LocaleOverride
 

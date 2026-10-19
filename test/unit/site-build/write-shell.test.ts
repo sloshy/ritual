@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { buildSiteIndex, type SiteIndexParts } from '../../../src/site-build/write-shell'
 import type { WantedListSummary } from '../../../src/list/site-data'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { getDefaultRitualConfig } from '../../../src/config/ritual-config'
 import { SOURCE_OFFER } from '../../../src/config/version'
 

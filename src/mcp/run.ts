@@ -20,6 +20,9 @@ import { divertConsoleLogToStderr } from '../util/stdout-guard'
 import { secretsEqual } from '../util/secret-compare'
 import { MAX_UPLOAD_BODY_SIZE } from '../admin/validation'
 import { startServerOrThrow } from '../util/start-server'
+import { apiMessage, type ApiMessageParams } from '../api/result'
+import { t, type TranslateArgs } from '../i18n/t'
+import type { MessageKey } from '../i18n/messages/en'
 
 /**
  * Run the MCP server over stdio (the default transport for local agent clients).
@@ -34,11 +37,11 @@ export function runStdioServer(): void {
   // Stdio pins one server instance per connection, so it is the transport that
   // can actually deliver a resources/list_changed notification.
   const handle = serveStdio(() => buildMcpServer({ notifyListChanged: true }), {
-    onerror: (error) => console.error('MCP stdio error:', error),
+    onerror: (error) => console.error(t('cli.mcp.stdioError'), error),
   })
   const closeHandle = (): void => {
     void Promise.resolve(handle.close()).catch((error: unknown) =>
-      console.error('MCP stdio teardown failed:', error),
+      console.error(t('cli.mcp.stdioTeardownFailed'), error),
     )
   }
   process.on('SIGINT', closeHandle)
@@ -78,10 +81,28 @@ export type McpHttpServer = {
 export { NOT_FOUND_ERROR_CODE, UNAUTHORIZED_ERROR_CODE, CONFLICT_ERROR_CODE }
 export type { NotProtocolCode, RitualWireErrorCode }
 
+/**
+ * The catalog key a pre-transport rejection's English `message` was rendered
+ * from, and its params — JSON-RPC's own `error.data` slot, so a client that
+ * words errors in its reader's language can, the way every other Ritual server
+ * reply carries its key beside the English.
+ */
+export type RpcErrorData = {
+  messageKey: MessageKey
+  messageParams?: ApiMessageParams
+}
+
+/** The JSON-RPC error object of a pre-transport rejection: its code, English message and key. */
+export type RpcError = {
+  code: RitualWireErrorCode | ProtocolErrorCode
+  message: string
+  data: RpcErrorData
+}
+
 /** The JSON-RPC error envelope Ritual's pre-transport rejections put on the wire. */
 export type RpcErrorBody = {
   jsonrpc: '2.0'
-  error: { code: RitualWireErrorCode | ProtocolErrorCode; message: string }
+  error: RpcError
   id: null
 }
 
@@ -97,12 +118,21 @@ export const MAX_MCP_REQUEST_BODY_SIZE = 2 * MAX_UPLOAD_BODY_SIZE + 64 * 1024
 /** The single path the MCP Streamable HTTP endpoint is served from. */
 const MCP_PATH = '/mcp'
 
-function rpcErrorResponse(
+/**
+ * A pre-transport rejection: English `message` whatever the server's UI
+ * language — an MCP client, not the operator, reads it — with its key beside it
+ * in `error.data`.
+ */
+function rpcErrorResponse<K extends MessageKey>(
   status: number,
   code: RitualWireErrorCode | ProtocolErrorCode,
-  message: string,
+  key: K,
+  ...args: TranslateArgs<K>
 ): Response {
-  const body: RpcErrorBody = { jsonrpc: '2.0', error: { code, message }, id: null }
+  const { message, messageParams } = apiMessage(key, ...args)
+  const data: RpcErrorData =
+    messageParams === undefined ? { messageKey: key } : { messageKey: key, messageParams }
+  const body: RpcErrorBody = { jsonrpc: '2.0', error: { code, message, data }, id: null }
   return Response.json(body, { status })
 }
 
@@ -140,7 +170,7 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
   const handler = createMcpHandler(() => buildMcpServer(), {
     // The default; spelled out because it is what keeps 2025-era clients working.
     legacy: 'stateless',
-    onerror: (error) => console.error('MCP HTTP error:', error),
+    onerror: (error) => console.error(t('cli.mcp.httpError'), error),
   })
 
   // The SDK's allowlists cover `localhost`, `127.0.0.1`, and `[::1]`. A bind to
@@ -161,11 +191,9 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
         fetch: async (request) => {
           const url = new URL(request.url)
           if (url.pathname !== MCP_PATH) {
-            return rpcErrorResponse(
-              404,
-              NOT_FOUND_ERROR_CODE,
-              `Not found. Use the ${MCP_PATH} endpoint.`,
-            )
+            return rpcErrorResponse(404, NOT_FOUND_ERROR_CODE, 'cli.mcp.endpointNotFound', {
+              path: MCP_PATH,
+            })
           }
           // DNS-rebinding protection (Host + Origin, per the SDK's own mounting
           // guidance) applies to loopback binds only; a deliberately exposed host
@@ -177,13 +205,17 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
             if (rejection) return rejection
           }
           if (!isAuthorized(request, auth)) {
-            return rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'Unauthorized')
+            return rpcErrorResponse(401, UNAUTHORIZED_ERROR_CODE, 'admin.api.server.unauthorized')
           }
           try {
             return await handler.fetch(request)
           } catch (error) {
-            console.error('MCP HTTP request failed:', error)
-            return rpcErrorResponse(500, ProtocolErrorCode.InternalError, 'Internal server error')
+            console.error(t('cli.mcp.httpRequestFailed'), error)
+            return rpcErrorResponse(
+              500,
+              ProtocolErrorCode.InternalError,
+              'admin.api.server.internalError',
+            )
           }
         },
       }),
@@ -205,6 +237,6 @@ export async function runHttpServer(options: HttpServerOptions): Promise<McpHttp
   }
 
   const boundPort = server.port ?? port
-  console.error(`Ritual MCP server (HTTP) listening at http://${host}:${boundPort}${MCP_PATH}`)
+  console.error(t('cli.mcp.httpListening', { url: `http://${host}:${boundPort}${MCP_PATH}` }))
   return { server, port: boundPort, stop, [Symbol.asyncDispose]: () => stop(true) }
 }

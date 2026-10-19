@@ -10,9 +10,12 @@ import { startSiteServer } from '../../src/serve/server'
 import type { StaticSiteServer } from '../../src/serve/static'
 import { createSyntheticWorkspace } from '../e2e/helpers/synthetic-workspace'
 import type { SiteIndex } from '../../src/list/site-data'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import { runCli } from './helpers/cli'
 import { captureExitCode } from '../helpers/cli'
+import { captureConsole } from '../helpers/capture'
+import { describeCatalogEntryError } from '../../src/i18n/catalog-message'
+import { t } from '../../src/i18n/t'
 
 /**
  * Locale plumbing through the site pipeline: which dictionaries a build
@@ -153,7 +156,29 @@ describe('site locales (Integration)', () => {
   test('a locale file whose value is not a message shape is refused by name', async () => {
     const broken = path.join(ws.dir, 'de-AT.json')
     await fs.writeFile(broken, JSON.stringify({ 'site.toolbar.sortLabel': ['Sortieren'] }))
-    expect(await build({ localeFile: [broken] })).toBe(ExitCode.RuntimeError)
+    const { result, lines } = await captureConsole(['error'], () => build({ localeFile: [broken] }))
+    expect(result).toBe(ExitCode.RuntimeError)
+    expect(lines.error).toEqual([
+      t('cli.buildSite.localeFileInvalid', {
+        path: broken,
+        reason: t('cli.buildSite.localeFileBadValue', {
+          key: 'site.toolbar.sortLabel',
+          reason: describeCatalogEntryError({ problem: 'notAMessage' }),
+        }),
+      }),
+    ])
+  }, 120_000)
+
+  test('a locale file not named for a tag is refused with the tag parser’s reason', async () => {
+    const misnamed = path.join(ws.dir, 'de_DE.json')
+    await fs.writeFile(misnamed, JSON.stringify({ 'site.toolbar.sortLabel': 'Sortieren nach' }))
+    const { result, lines } = await captureConsole(['error'], () =>
+      build({ localeFile: [misnamed] }),
+    )
+    expect(result).toBe(ExitCode.RuntimeError)
+    expect(lines.error).toEqual([
+      `--locale-file '${misnamed}': invalid locale tag: de_DE. The file name is the locale tag, e.g. de-AT.json.`,
+    ])
   }, 120_000)
 
   describe('serve --api', () => {

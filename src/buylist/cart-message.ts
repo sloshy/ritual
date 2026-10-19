@@ -26,6 +26,7 @@
 import type { MessageKey } from '../i18n/messages/en'
 import type { LocaleTag } from '../i18n/types'
 import {
+  allUsed,
   renderSyncMessage,
   syncList,
   syncRef,
@@ -41,15 +42,6 @@ export const CART_WARNING_KEYS = {
   'too-many-titles': 'domain.buylist.cart.tooManyTitles',
   'too-many-cards': 'domain.buylist.cart.tooManyCards',
 } as const satisfies Record<CartWarningCode, MessageKey>
-
-/**
- * Compiles only when `rest` is empty — each case below destructures the values
- * its code carries and hands the rest here, so a value added to a code's params
- * fails to build until its sentence uses it.
- */
-function allUsed(rest: Record<string, never>): void {
-  void rest
-}
 
 /** A cart warning as an unrendered message: its key and its values. */
 export function cartWarningRef(warning: CartWarning): SyncMessageRef {

@@ -29,6 +29,7 @@ import { domainListMessages } from './en/domain-list'
 import { domainListFilesMessages } from './en/domain-list-files'
 import { domainSyncMessages } from './en/domain-sync'
 import { errorMessages } from './en/errors'
+import { errorsI18nMessages } from './en/errors-i18n'
 import { helpMessages } from './en/help'
 import { helpCardsMessages } from './en/help-cards'
 import { helpEditMessages } from './en/help-edit'
@@ -44,7 +45,7 @@ import { uiMessages } from './en/ui'
 /**
  * The merged English catalog.
  *
- * Five namespaces are authored across several files so independent surfaces can
+ * Six namespaces are authored across several files so independent surfaces can
  * be converted without contending for one file:
  *
  * - `admin` — `admin` (the admin SPA's own chrome) plus `admin-api`, the prose
@@ -62,6 +63,9 @@ import { uiMessages } from './en/ui'
  * - `cli` — `cli` (the shared CLI core) plus one fragment per command family;
  * - `help` — `help` (global options and the shared scripting flags) plus the
  *   same four command-family fragments.
+ * - `errors` — `errors` (shared failure prose) plus `errors-i18n`, the
+ *   translation machinery's own diagnostics, which no surface registers:
+ *   `src/i18n/runtime.ts` seeds every process's English catalog with it.
  *
  * The split is a source-layout detail only: every key still begins with its
  * namespace, and a translator sees one flat catalog.
@@ -85,6 +89,7 @@ export const en = {
   ...domainListFilesMessages,
   ...domainSyncMessages,
   ...errorMessages,
+  ...errorsI18nMessages,
   ...helpMessages,
   ...helpCardsMessages,
   ...helpEditMessages,

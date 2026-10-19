@@ -821,9 +821,37 @@ integer.` / `Invalid "offset" '-1'. Use a non-negative integer.` on every route 
   names languages in the UI language, as do `ritual edit`'s language-fallback prompt and the
   trade picker's notice. Key names in the editors' hints and the shortcuts reference (Enter,
   Ctrl, Esc, Tab) stay English.
+- **A malformed UI locale's reason follows the UI language too.** A refusal of the
+  `uiLocale` setting, `--locale` or `RITUAL_LOCALE` (`invalid UI locale: invalid locale tag:
+de_DE`) now nests the tag parser's reason as a message of its own: in the admin
+  `PUT /api/config` refusal's `messageParams.reason` and in `ritual locale --output json`'s
+  `ignored[].errorParams.reason`, it is
+  `{ "messageKey": "errors.i18n.localeTag.invalid", "messageParams": { "value": "de_DE" } }`
+  (or `…localeTag.notAString` / `…localeTag.empty`) where it was an English string — **a
+  script reading `errorParams.reason` as text must read its `messageKey` instead** — and the
+  CLI and the admin Settings page word the whole sentence in your language instead of
+  splicing English into it. The English `message`, and the flattened English `reason` in a
+  `--output json` error envelope, are unchanged. `build-site --locale-file` words a malformed file name or
+  entry in your language the same way.
+- `ritual serve` and `ritual mcp` follow the UI language on the console: the MCP server's
+  "listening at" line and its transport errors, and both servers' unhandled-error lines.
+  `ritual serve`'s plain-text `Not Found` and `Internal Server Error` pages are worded in the
+  server's UI language. The MCP HTTP endpoint's own refusals (an unknown path, a missing
+  or wrong token, an internal error) stay English and now carry their key in the JSON-RPC
+  `error.data` (`{ "messageKey": "cli.mcp.endpointNotFound", "messageParams": { "path":
+"/mcp" } }`).
+- **The MCP `sync_collection` question about an ambiguous removal is in the UI language.**
+  The form a client shows its user to choose which lists give up a card's copies was always
+  English; it now follows the server's UI language (`--locale`, `RITUAL_LOCALE`, `uiLocale`),
+  list join included. Tool descriptions, result guidance and errors addressed to the agent
+  stay English.
 
 ### Fixed
 
+- Switching the language twice in quick succession on the public site or the admin site no
+  longer lets the first language's dictionary, arriving last, overrule the second. The last
+  switch wins, only it is remembered for the next visit, and a page closed while its boot
+  language was still loading no longer applies English afterwards.
 - **`deck-sync push` no longer calls a deck someone else's when Archidekt cut the list of
   decks you own short.** A deck missing from a list Archidekt stopped serving part way is now
   `skipped` with the reason `domain.sync.ownershipUnknown` ("could not tell whether you own

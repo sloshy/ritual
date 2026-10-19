@@ -36,7 +36,7 @@ import { en } from '../../src/i18n/messages/en'
 import { enMeta } from '../../src/i18n/messages/en.meta'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
 import { PSEUDO_LOCALE, pseudoLocalize } from '../../scripts/generate-locales'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 import { languageLabel } from '../../src/card/card-language'
 import type { LocaleTag } from '../../src/i18n/types'
 

@@ -3,7 +3,7 @@
  *
  * Three separate paths take JSON nobody type-checked and turn it into a
  * {@link LocaleCatalog}: the browser's same-origin dictionary fetch
- * (`runtime.ts`), `build-site --locale-file`, and `scripts/check-locales.ts`.
+ * (`dictionary-fetch.ts`), `build-site --locale-file`, and `scripts/check-locales.ts`.
  * They used to each carry their own rules, and disagreed — only the validator
  * required `other` on a `$plural` table, so a `{"$plural":"count","one":"…"}`
  * entry passed the build gate *and* the runtime coercion and then made
@@ -20,10 +20,30 @@
 
 import { isPluralForms, isSelectForms, type LocaleCatalog, type MessageValue } from './types'
 
-/** Why a JSON value is not a {@link MessageValue}. */
-export type CatalogEntryError = {
-  error: string
-}
+/**
+ * Why a JSON value is not a {@link MessageValue}, as a code rather than a
+ * sentence. This module stays free of the catalog and of `t()`: the browser's
+ * dictionary coercion and the locale scripts import it, and both stay light by
+ * not pulling the rendering stack in for a shape check. Only the two callers
+ * that *report* a refusal word it — `describeCatalogEntryError` in
+ * `catalog-message.ts`, keyed `errors.i18n.entry.*`.
+ */
+export type CatalogEntryError =
+  /** Neither a string nor a table object. */
+  | { problem: 'notAMessage' }
+  /** Both discriminators at once. */
+  | { problem: 'pluralAndSelect' }
+  /** An object naming neither discriminator. */
+  | { problem: 'noDiscriminator' }
+  /** A branch that is not a string — usually a nested table. */
+  | { problem: 'branchNotString'; branch: string }
+  /** A `$plural` table without its mandatory `other` form. */
+  | { problem: 'pluralWithoutOther' }
+  /** A `$select` table with no branch at all. */
+  | { problem: 'selectWithoutBranch' }
+
+/** The code of a {@link CatalogEntryError}. */
+export type CatalogEntryProblem = CatalogEntryError['problem']
 
 /** Narrow a {@link parseCatalogEntry} result to its error branch. */
 export function isCatalogEntryError(
@@ -34,7 +54,7 @@ export function isCatalogEntryError(
     result !== null &&
     !isPluralForms(result) &&
     !isSelectForms(result) &&
-    typeof result.error === 'string'
+    typeof result.problem === 'string'
   )
 }
 
@@ -50,29 +70,19 @@ export function isCatalogEntryError(
 export function parseCatalogEntry(raw: unknown): MessageValue | CatalogEntryError {
   if (typeof raw === 'string') return raw
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
-    return { error: 'value must be a string, a $plural table, or a $select table' }
+    return { problem: 'notAMessage' }
   }
   const record = raw as Record<string, unknown>
   const hasPlural = typeof record.$plural === 'string'
   const hasSelect = typeof record.$select === 'string'
-  if (hasPlural && hasSelect) return { error: 'value cannot be both $plural and $select' }
-  if (!hasPlural && !hasSelect) {
-    return { error: 'object value needs a $plural or $select discriminator' }
-  }
+  if (hasPlural && hasSelect) return { problem: 'pluralAndSelect' }
+  if (!hasPlural && !hasSelect) return { problem: 'noDiscriminator' }
   for (const [name, branch] of Object.entries(record)) {
     if (name === '$plural' || name === '$select') continue
-    if (typeof branch !== 'string') {
-      return {
-        error: `branch "${name}" must be a string (nested plural-in-select is not supported — split the key)`,
-      }
-    }
+    if (typeof branch !== 'string') return { problem: 'branchNotString', branch: name }
   }
-  if (hasPlural && typeof record.other !== 'string') {
-    return { error: '$plural table needs an "other" form' }
-  }
-  if (hasSelect && Object.keys(record).length < 2) {
-    return { error: '$select table needs at least one branch' }
-  }
+  if (hasPlural && typeof record.other !== 'string') return { problem: 'pluralWithoutOther' }
+  if (hasSelect && Object.keys(record).length < 2) return { problem: 'selectWithoutBranch' }
   return record as MessageValue
 }
 

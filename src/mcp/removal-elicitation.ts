@@ -29,7 +29,7 @@ import {
 import { z } from 'zod'
 import { describeAmbiguousLists, type AmbiguousRemoval } from '../collection-sync/describe'
 import { describeSyncCard } from '../sync/describe'
-import { DEFAULT_LOCALE } from '../i18n/runtime'
+import { t } from '../i18n/t'
 import type { RemovalAssignment, RemovalChoice } from '../collection-sync/diff'
 
 /**
@@ -70,11 +70,13 @@ export function elicitRemovalAssignments(
   for (const entry of ambiguous) {
     const card = describeSyncCard(entry.name, entry.parts)
     inputRequests[`${REQUEST_KEY_PREFIX}${entry.key}`] = inputRequired.elicit({
-      message:
-        `${entry.quantity} × ${card} left the Archidekt collection, but the local copies ` +
-        // English, like the rest of this model-facing prompt — the list join included.
-        `live in ${describeAmbiguousLists(entry.lists, DEFAULT_LOCALE)}. How many copies should each list give ` +
-        `up? The counts must add up to ${entry.quantity}.`,
+      // The client shows the form to its *user*, not to the model, so it is
+      // worded in the server's UI language — the list join included.
+      message: t('cli.mcp.removal.prompt', {
+        quantity: entry.quantity,
+        card,
+        lists: describeAmbiguousLists(entry.lists),
+      }),
       requestedSchema: {
         type: 'object',
         properties: Object.fromEntries(
@@ -83,7 +85,7 @@ export function elicitRemovalAssignments(
             {
               type: 'integer',
               title: list.list,
-              description: `Copies to take from "${list.list}", which holds ${list.copies}.`,
+              description: t('cli.mcp.removal.field', { list: list.list, copies: list.copies }),
               minimum: 0,
               maximum: list.copies,
             },

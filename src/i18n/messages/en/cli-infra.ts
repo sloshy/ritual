@@ -9,8 +9,11 @@
  *
  * - the files `init-site` generates (README, workflow YAML, `.gitignore`) — they
  *   are repository artifacts, English by contract like `.changes.md`;
- * - everything the MCP server and the installed skills say — LLM-facing prose,
- *   English by contract.
+ * - what the MCP server says to the agent (tool descriptions, result guidance,
+ *   transport errors) and everything the installed skills say — LLM-facing
+ *   prose, English by contract. What the MCP server says to a person — its
+ *   console lines, its HTTP refusals' keys, the elicitation forms a client shows
+ *   its user — *is* here, under `cli.mcp.*`.
  */
 
 import type { MessageCatalogShape } from '../../types'
@@ -456,6 +459,15 @@ export const cliInfraMessages = {
   'cli.serve.cacheDownloadFailed':
     'Card cache download failed; serving from the existing cache. {reason}',
   'cli.serve.startFailed': 'Failed to start the server on {host}:{port}: {error}',
+  'cli.serve.serverError': 'Unhandled server error:',
+  'cli.serve.pageNotFound': 'Not Found',
+  'cli.serve.pageInternalError': 'Internal Server Error',
+  'cli.serve.enumerateFailed': {
+    $select: 'type',
+    deck: 'Failed to enumerate deck sources: {reason}',
+    collection: 'Failed to enumerate collection sources: {reason}',
+    wanted: 'Failed to enumerate wanted list sources: {reason}',
+  },
 
   // ── admin ─────────────────────────────────────────────────────────────
   'cli.admin.mcpTokenRequired':
@@ -813,8 +825,11 @@ export const cliInfraMessages = {
 
   // ── mcp ───────────────────────────────────────────────────────────────
   //
-  // The command's own diagnostics. Everything the *server* says to an agent
-  // stays English by contract.
+  // The command's and the server's console lines, the HTTP leg's pre-transport
+  // refusals (English on the wire, beside their key) and the elicitation forms
+  // a client shows its *user*. Everything the server says to the agent — tool
+  // descriptions, result guidance, transport errors — stays English by
+  // contract and is not in the catalog.
   'cli.mcp.refusingUnauthenticated':
     "Refusing to serve MCP without authentication on non-loopback host '{host}'. Pass --token <secret> (or set RITUAL_MCP_TOKEN), or pass --allow-unauthenticated to override.",
   'cli.mcp.unauthenticatedWarning':
@@ -824,6 +839,16 @@ export const cliInfraMessages = {
   'cli.mcp.httpTeardownFailed': 'MCP HTTP teardown failed:',
   'cli.mcp.stdioIgnoredFlags':
     'Warning: {flags} only apply to --transport http and are ignored under stdio.',
+  'cli.mcp.httpListening': 'Ritual MCP server (HTTP) listening at {url}',
+  'cli.mcp.httpError': 'MCP HTTP error:',
+  'cli.mcp.httpRequestFailed': 'MCP HTTP request failed:',
+  'cli.mcp.stdioError': 'MCP stdio error:',
+  'cli.mcp.stdioTeardownFailed': 'MCP stdio teardown failed:',
+  'cli.mcp.listChangedFailed': 'Failed to send resources/list_changed:',
+  'cli.mcp.endpointNotFound': 'Not found. Use the {path} endpoint.',
+  'cli.mcp.removal.prompt':
+    '{quantity} × {card} left the Archidekt collection, but the local copies live in {lists}. How many copies should each list give up? The counts must add up to {quantity}.',
+  'cli.mcp.removal.field': 'Copies to take from "{list}", which holds {copies}.',
 
   // ── dep-license ───────────────────────────────────────────────────────
   'cli.depLicense.noText': '[No license text found. SPDX identifier: {license}]',

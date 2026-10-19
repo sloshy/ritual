@@ -44,8 +44,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isCatalogEntryError, parseCatalogEntry } from '../src/i18n/catalog'
+import { describeCatalogEntryError } from '../src/i18n/catalog-message'
 import { pluralRules } from '../src/i18n/format'
-import { isLocaleTag, isLocaleTagError, parseLocaleTag } from '../src/i18n/locale-tag'
+import { isLocaleTagError, parseLocaleTag } from '../src/i18n/locale-tag'
+import { describeLocaleTagError } from '../src/i18n/locale-tag-message'
+import { DEFAULT_LOCALE, localeTagFromFileName } from '../src/i18n/runtime'
 import { en, MESSAGE_NAMESPACES } from '../src/i18n/messages/en'
 import { enMeta } from '../src/i18n/messages/en.meta'
 import {
@@ -447,8 +450,17 @@ export function checkCatalogs(input: CatalogCheckInput): CatalogReport {
   // ── Translations ────────────────────────────────────────────────────────
   for (const translation of translations) {
     const { locale, origin, catalog, parseError } = translation
-    if (!isLocaleTag(locale)) {
-      issues.push(issue(locale, null, 'invalid-tag', 'error', `${origin}: not a BCP-47 tag`))
+    const parsedTag = parseLocaleTag(locale)
+    if (isLocaleTagError(parsedTag)) {
+      issues.push(
+        issue(
+          locale,
+          null,
+          'invalid-tag',
+          'error',
+          `${origin}: ${describeLocaleTagError(parsedTag, DEFAULT_LOCALE)}`,
+        ),
+      )
       continue
     }
     if (parseError !== undefined) {
@@ -480,7 +492,15 @@ export function checkCatalogs(input: CatalogCheckInput): CatalogReport {
       }
       const parsed = parseCatalogEntry(raw)
       if (isCatalogEntryError(parsed)) {
-        issues.push(issue(locale, key, 'value-shape', 'error', parsed.error))
+        issues.push(
+          issue(
+            locale,
+            key,
+            'value-shape',
+            'error',
+            describeCatalogEntryError(parsed, DEFAULT_LOCALE),
+          ),
+        )
         continue
       }
       const value: MessageValue = parsed
@@ -585,7 +605,10 @@ export async function loadTranslations(dir: string): Promise<TranslationInput[]>
   const translations: TranslationInput[] = []
   for (const name of files) {
     const origin = path.join(dir, name)
-    const locale = name.slice(0, -'.json'.length)
+    // The canonical tag the name spells, or — for a misnamed file — its raw
+    // stem, so the report can name the file it refuses.
+    const parsedTag = localeTagFromFileName(name)
+    const locale = isLocaleTagError(parsedTag) ? name.slice(0, -'.json'.length) : parsedTag
     const text = await fs.readFile(origin, 'utf-8')
     try {
       translations.push({ locale, origin, catalog: JSON.parse(text) as unknown })
@@ -899,7 +922,10 @@ export function parseCheckOptions(argv: readonly string[]): CheckOptions | strin
     } else if (arg === '--emit-template') {
       const value = argv[++index]
       if (value === undefined) return '--emit-template needs a BCP-47 tag'
-      if (!isLocaleTag(value)) return `--emit-template: invalid locale tag "${value}"`
+      const parsedTag = parseLocaleTag(value)
+      if (isLocaleTagError(parsedTag)) {
+        return `--emit-template: ${describeLocaleTagError(parsedTag, DEFAULT_LOCALE)}`
+      }
       options.emitTemplate = value
     } else {
       return `unknown option: ${arg}`

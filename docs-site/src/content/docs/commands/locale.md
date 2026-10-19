@@ -121,7 +121,7 @@ Every key and value is **locale-invariant**, so this is the stable way to check 
 - `source` is one of `flag`, `env`, `config`, `detected`, `default`.
 - `requested` is what the winning tier supplied before canonicalization. It is absent when the built-in default won. Because the flag parser canonicalizes `--locale` itself, only the `env`, `config`, and `detected` tiers can report a `requested` that differs from `uiLocale`.
 - `detectedOsLocale` is absent when the environment named nothing.
-- `ignored` lists values that were present but unusable, each as `{ "source", "value", "error" }` (the tier, the raw value, and why it was rejected). `error` is English whatever the UI language, with `errorKey` (`domain.config.uiLocaleMalformed` or `domain.config.uiLocaleUnknown`) and `errorParams` beside it; match on the key. The matching warnings print, in the CLI's language, even under `--quiet`.
+- `ignored` lists values that were present but unusable, each as `{ "source", "value", "error" }` (the tier, the raw value, and why it was rejected). `error` is English whatever the UI language, with `errorKey` (`domain.config.uiLocaleMalformed` or `domain.config.uiLocaleUnknown`) and `errorParams` beside it; match on the key. A malformed value's `errorParams.reason` is itself a message, the tag parser's reason: `{ "messageKey": "errors.i18n.localeTag.invalid", "messageParams": { "value": "de_DE" } }` (or `errors.i18n.localeTag.empty` / `errors.i18n.localeTag.notAString`). The matching warnings print, in the CLI's language, even under `--quiet`.
 
 `--detect` adds two more keys:
 

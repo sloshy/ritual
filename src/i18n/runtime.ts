@@ -18,23 +18,25 @@
  * Browser-safe: no `node:` imports, no filesystem, no `Intl` construction.
  * Dictionaries arrive from whoever loaded them — the CLI hands over the
  * generated locale module (`src/cli/locale.ts`), and the browser fetches
- * `locales/<tag>.json` same-origin through {@link ensureLocaleLoaded} below.
+ * `locales/<tag>.json` same-origin through `ensureLocaleLoaded`
+ * (`dictionary-fetch.ts`, kept out of this module because its warning is worded
+ * through `t()`, which imports this one).
  *
  * **English arrives the same way.** This module does not import the English
- * catalog; each surface entry point registers the namespaces it actually speaks
+ * catalog (only the small `errors.i18n.*` fragment its own diagnostics need —
+ * see {@link english}); each surface entry point registers the namespaces it actually speaks
  * (`src/i18n/register/{cli,site,admin}.ts`). That is what makes the
  * namespace boundary a real import boundary rather than an authoring
  * convention — without it, `t()`'s English fallback would pull all seven
  * namespaces into both SPA bundles.
  */
 
-import { coerceCatalog } from './catalog'
 import { DEFAULT_LOCALE } from './constants'
-import { isLocaleTagError, parseLocaleTag } from './locale-tag'
+import { isLocaleTagError, parseLocaleTag, type LocaleTagError } from './locale-tag'
+import { errorsI18nMessages } from './messages/en/errors-i18n'
 import { matchLocale } from './negotiate'
 import type { LocaleCatalog, LocaleTag, MessageCatalogShape, MessageValue } from './types'
 
-export { coerceCatalog } from './catalog'
 // Re-exported so the ~15 existing `from '../i18n/runtime'` import sites keep
 // working; the constant itself lives in the leaf module that broke the
 // runtime ↔ negotiate cycle.
@@ -78,10 +80,17 @@ export function registerLocaleSource(source: (() => LocaleTag) | null): void {
  * The English catalog this process speaks, assembled by {@link registerMessages}
  * from whichever namespaces the surface entry point registered.
  *
+ * Seeded with one fragment no surface registers: `errors.i18n.*`, the
+ * machinery's own diagnostics (`t()`'s strict-mode failures, the catalog and
+ * locale-tag refusals, the dictionary-load warning). The machinery has to be
+ * able to word its own failure whatever was — or was not — registered, and a
+ * strict "missing key" failure must never depend on a key that could itself be
+ * missing.
+ *
  * Mutated in place rather than replaced, so the entry in {@link dictionaries}
  * (and anything else holding the reference) always sees the current set.
  */
-const english: LocaleCatalog = {}
+const english: LocaleCatalog = { ...errorsI18nMessages }
 
 /** Dictionaries loaded so far, keyed by locale tag. English is always present. */
 const dictionaries = new Map<LocaleTag, LocaleCatalog>([[DEFAULT_LOCALE, english]])
@@ -225,6 +234,31 @@ export const LOCALE_STORAGE_KEY = 'ritual:locale'
 /** The directory the built site publishes its dictionaries into. */
 export const LOCALES_DIR = 'locales'
 
+/** The extension a dictionary file carries. */
+const DICTIONARY_EXTENSION = /\.json$/i
+
+/**
+ * The file a locale's dictionary is published as inside {@link LOCALES_DIR},
+ * and named as when a translator hands one over: `de-AT.json`.
+ */
+export function localeFileName(tag: LocaleTag): string {
+  return `${tag}.json`
+}
+
+/**
+ * The locale a dictionary file is named for (`de-AT.json` → `de-AT`,
+ * canonicalized), or why its name is not a tag. The `.json` extension is
+ * optional here; a caller that requires it checks for it first.
+ */
+export function localeTagFromFileName(name: string): LocaleTag | LocaleTagError {
+  return parseLocaleTag(name.replace(DICTIONARY_EXTENSION, ''))
+}
+
+/** Whether a file name carries the dictionary extension. */
+export function isDictionaryFileName(name: string): boolean {
+  return DICTIONARY_EXTENSION.test(name)
+}
+
 /**
  * Every tier of the browser's locale precedence, gathered by the caller so this
  * stays pure and testable. Order of the fields is the order of precedence.
@@ -297,50 +331,6 @@ export function writeStoredLocale(tag: LocaleTag | null): void {
     else localStorage.setItem(LOCALE_STORAGE_KEY, tag)
   } catch {
     // Private-mode storage refusals are not worth failing a language switch over.
-  }
-}
-
-/** Options for {@link ensureLocaleLoaded}. */
-export type DictionaryFetchOptions = {
-  /**
-   * Prefix for the dictionary URL, for a site not served from the origin root.
-   * Defaults to the relative `locales/<tag>.json` the shell and the build agree
-   * on — same-origin, so no CSP change is needed under `default-src 'self'`.
-   */
-  basePath?: string
-  signal?: AbortSignal
-}
-
-/**
- * Make sure a locale's dictionary is loaded, fetching it once if it is not.
- *
- * English is inline in the bundle and never fetched, so the default path is
- * never a waterfall and the UI is never blank. A locale whose dictionary cannot
- * be fetched degrades to English rather than failing the boot: a missing
- * translation is a cosmetic problem and refusing to render the site over one
- * would be worse than the gap.
- *
- * Returns the locale that is actually renderable, which callers should apply
- * rather than the one they asked for.
- */
-export async function ensureLocaleLoaded(
-  tag: LocaleTag,
-  options: DictionaryFetchOptions = {},
-): Promise<LocaleTag> {
-  if (tag === DEFAULT_LOCALE) return DEFAULT_LOCALE
-  if (dictionaries.has(tag)) return tag
-  const base = options.basePath ?? ''
-  const url = `${base}${LOCALES_DIR}/${encodeURIComponent(tag)}.json`
-  try {
-    const response = await fetch(url, options.signal ? { signal: options.signal } : undefined)
-    if (!response.ok) throw new Error(`HTTP ${response.status}`)
-    const catalog = coerceCatalog(await response.json())
-    loadDictionary(tag, catalog)
-    return tag
-  } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') return DEFAULT_LOCALE
-    console.warn(`Could not load the ${tag} dictionary from ${url}; using English.`, error)
-    return DEFAULT_LOCALE
   }
 }
 

@@ -177,6 +177,34 @@ describe('locale resolution (Integration)', () => {
     })
   })
 
+  test('a malformed RITUAL_LOCALE reports the tag parser’s reason as a nested message', async () => {
+    await withTempDir(async (dir) => {
+      const result = await runCli(['locale', '--output', 'json'], dir, {
+        ...LOCALE_ENV,
+        RITUAL_LOCALE: 'de_DE',
+      })
+
+      expect(result.exitCode).toBe(0)
+      const report = JSON.parse(result.stdout) as LocaleReportJson
+      // A payload carries the reason unflattened — its own key and params — so a
+      // reader re-renders the whole sentence in its language.
+      expect(report.ignored).toEqual([
+        {
+          source: 'env',
+          value: 'de_DE',
+          error: 'invalid UI locale: invalid locale tag: de_DE',
+          errorKey: 'domain.config.uiLocaleMalformed',
+          errorParams: {
+            reason: {
+              messageKey: 'errors.i18n.localeTag.invalid',
+              messageParams: { value: 'de_DE' },
+            },
+          },
+        },
+      ])
+    })
+  })
+
   test('an unrecognized --locale is a usage error', async () => {
     await withTempDir(async (dir) => {
       const result: CliResult = await runCli(['--locale', 'zz-ZZ', 'locale'], dir)

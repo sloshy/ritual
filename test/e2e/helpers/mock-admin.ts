@@ -58,7 +58,7 @@ import type { RitualConfig } from '../../../src/config/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
 import { fulfillJson } from './fulfill'
 import { MOCK_COLLECTION_DETAIL, MOCK_WANTED_LIST_DETAIL, makeMockScryfallCard } from './mock-cards'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import { EXAMPLE_SOURCE_OFFER } from '../../helpers/source-offer'
 
 type MockDeck = {

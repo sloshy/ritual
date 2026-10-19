@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { t, tIn, tSegments, isMessageKey } from '../../../src/i18n/t'
 import type { MessageSegment } from '../../../src/i18n/types'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import {
   currentLocale,
   loadDictionary,
@@ -117,30 +117,59 @@ describe('the fallback chain', () => {
 })
 
 describe('strict mode', () => {
-  test('throws on a missing key', () => {
-    withStrict(() => {
-      expect(() => t(MISSING_KEY)).toThrow(/missing message key/)
+  test('each failure is worded through its errors.i18n.strict key, inside the frame', () => {
+    loadDictionary(localeTag('zz'), {
+      'ui.dialog.cancel': 'Cancel {unexpected}',
+      'domain.count.copies': { $plural: 'count', other: '{count} Kopien' },
+      'admin.list.createTitle': { $select: 'listType', deck: 'Nur Decks' },
     })
-  })
-
-  test('names the offending key so a gap is actionable', () => {
     withStrict(() => {
-      expect(() => t(MISSING_KEY)).toThrow(new RegExp(MISSING_KEY))
-    })
-  })
-
-  test('throws on a missing parameter', () => {
-    loadDictionary(localeTag('zz'), { 'ui.dialog.cancel': 'Cancel {unexpected}' })
-    withStrict(() => {
+      expect(() => t(MISSING_KEY)).toThrow(
+        `i18n: missing message key "${MISSING_KEY}" — is its namespace registered? (RITUAL_I18N_STRICT=1)`,
+      )
       expect(() => tIn(localeTag('zz'), 'ui.dialog.cancel')).toThrow(
-        /missing the "unexpected" param/,
+        'i18n: message "ui.dialog.cancel" is missing the "unexpected" param (RITUAL_I18N_STRICT=1)',
+      )
+      expect(() => tIn(localeTag('zz'), 'domain.count.copies', { count: 'many' })).toThrow(
+        'i18n: message "domain.count.copies" needs a numeric "count" param (RITUAL_I18N_STRICT=1)',
+      )
+      expect(() => tIn(localeTag('zz'), 'admin.list.createTitle', { listType: 'binder' })).toThrow(
+        'i18n: message "admin.list.createTitle" has no "binder" branch for "listType" (RITUAL_I18N_STRICT=1)',
       )
     })
   })
 
-  test('degrades instead of throwing when strict mode is off', () => {
-    withoutStrict(() => {
-      expect(t(MISSING_KEY)).toBe(MISSING_KEY)
+  test('the diagnostic is rendered in the failing render’s locale', () => {
+    loadDictionary(localeTag('zz'), {
+      'errors.i18n.strict.frame': 'STRENG: {reason}',
+      'errors.i18n.strict.missingKey': 'kein Schlüssel {key}',
+    })
+    withStrict(() => {
+      expect(() => tIn(localeTag('zz'), MISSING_KEY)).toThrow(
+        `STRENG: kein Schlüssel ${MISSING_KEY}`,
+      )
+    })
+  })
+
+  test('a diagnostic that itself fails to render degrades instead of recursing', () => {
+    // Every way a diagnostic could fail strict checks at once: a translated
+    // reason with a placeholder no caller fills, and a frame with one too. With
+    // strict checks re-applied to the diagnostic, rendering it would throw
+    // again — from inside the throw — and never terminate.
+    loadDictionary(localeTag('zz'), {
+      'errors.i18n.strict.frame': '{reason} / {frameOnly}',
+      'errors.i18n.strict.missingKey': 'kaputt {key} {nope}',
+    })
+    withStrict(() => {
+      let thrown: unknown
+      try {
+        tIn(localeTag('zz'), MISSING_KEY)
+      } catch (error) {
+        thrown = error
+      }
+      expect(thrown).toBeInstanceOf(Error)
+      // The gaps stay visible as tokens, exactly as a non-strict render leaves them.
+      expect((thrown as Error).message).toBe(`kaputt ${MISSING_KEY} {nope} / {frameOnly}`)
     })
   })
 })

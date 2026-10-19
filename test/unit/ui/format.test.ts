@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 import { formatDateTime, formatNumber } from '../../../src/ui/format'
 import { resetI18nRuntime, setLocale } from '../../../src/i18n/runtime'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 /** ICU uses narrow no-break spaces around the clock; normalize for readable assertions. */
 function plainSpaces(text: string): string {

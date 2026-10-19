@@ -5,7 +5,7 @@ import type { ScryfallSymbol } from '../../../src/scryfall'
 import type { CachedItem, CacheSchema } from '../../../src/cache/file-cache'
 import type { RitualConfig } from '../../../src/config/ritual-config'
 import { DEFAULT_SEARCH_DEBOUNCE_MS } from '../../../src/config/search-debounce'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 
 /**
  * Builds the fully synthetic workspace the e2e servers run against: seed

@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { MAX_BODY_SIZE } from '../api/http'
+import { t } from '../i18n/t'
 
 export type ServeStaticSiteOptions = {
   distDir: string
@@ -50,6 +51,27 @@ export function serveSpaFallback(distDir: string): Promise<StaticFileResult> {
 }
 
 /**
+ * The plain-text `404` a browser shows for a path with no file and no app
+ * shell to fall back to — a page a person reads, so it is in the server's UI
+ * language (the JSON `404`s carry English plus a key instead).
+ */
+export function notFoundPage(): Response {
+  return new Response(t('cli.serve.pageNotFound'), { status: 404 })
+}
+
+/**
+ * A built site's answer for one path: the file itself, else the app shell (the
+ * SPA routes client-side), else {@link notFoundPage}.
+ */
+export async function serveSiteFile(distDir: string, pathname: string): Promise<Response> {
+  return (
+    (await serveStaticFile(distDir, pathname)) ??
+    (await serveSpaFallback(distDir)) ??
+    notFoundPage()
+  )
+}
+
+/**
  * Serve a built static site directory with SPA fallback to `index.html`.
  */
 export function serveStaticSite(options: ServeStaticSiteOptions): StaticSiteServer {
@@ -61,16 +83,14 @@ export function serveStaticSite(options: ServeStaticSiteOptions): StaticSiteServ
     maxRequestBodySize: MAX_BODY_SIZE,
     async fetch(req) {
       const url = new URL(req.url)
-      const response =
-        (await serveStaticFile(distDir, url.pathname)) ?? (await serveSpaFallback(distDir))
-      return response ?? new Response('Not Found', { status: 404 })
+      return serveSiteFile(distDir, url.pathname)
     },
     // The details go to the console, never to the visitor: a stack trace names
     // paths on the host, and echoing the error as HTML would render whatever
     // it contains.
     error(error) {
-      console.error('Unhandled server error:', error)
-      return new Response('Internal Server Error', { status: 500 })
+      console.error(t('cli.serve.serverError'), error)
+      return new Response(t('cli.serve.pageInternalError'), { status: 500 })
     },
   })
 }

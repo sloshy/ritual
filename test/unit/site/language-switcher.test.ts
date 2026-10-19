@@ -1,6 +1,6 @@
 import { describe, test, expect } from 'bun:test'
 import { localeChoices, localeEndonym } from '../../../src/site/LanguageSwitcher'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import type { LocaleTag } from '../../../src/i18n/types'
 
 // Only the switcher's pure naming helpers are exercised here: solid-js resolves

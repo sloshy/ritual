@@ -1,5 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { isCatalogEntryError, parseCatalogEntry } from '../../../src/i18n/catalog'
+import {
+  isCatalogEntryError,
+  parseCatalogEntry,
+  type CatalogEntryError,
+  type CatalogEntryProblem,
+} from '../../../src/i18n/catalog'
+import { describeCatalogEntryError } from '../../../src/i18n/catalog-message'
+import type { MessageKey } from '../../../src/i18n/messages/en'
+import { DEFAULT_LOCALE } from '../../../src/i18n/runtime'
+import { tDynamic, type RenderParams } from '../../../src/i18n/t'
+import { withSyntheticLocale } from '../../helpers/sync-text'
 import {
   checkCatalogs,
   messagePlaceholders,
@@ -271,7 +281,10 @@ describe('checkCatalogs', () => {
         other: 'Liste',
       }),
     ])
-    expect(issuesOfKind(report, 'value-shape')).toHaveLength(1)
+    // The shape parser's code, worded in English for the report.
+    expect(issuesOfKind(report, 'value-shape').map((entry) => entry.message)).toEqual([
+      'branch "deck" must be a string (nested plural-in-select is not supported — split the key)',
+    ])
     expect(report.ok).toBe(false)
   })
 
@@ -306,22 +319,87 @@ describe('catalog helpers', () => {
   // The shared shape parser (`src/i18n/catalog.ts`) is what the validator, the
   // browser's dictionary fetch and `build-site --locale-file` all narrow untyped
   // JSON with, so its refusals are pinned here rather than three times over.
-  test('parseCatalogEntry reports why a value is not a message', () => {
-    const why = (raw: unknown): string => {
-      const parsed = parseCatalogEntry(raw)
-      return isCatalogEntryError(parsed) ? parsed.error : `unexpectedly accepted: ${String(raw)}`
-    }
+  test('parseCatalogEntry reports why a value is not a message, as a code', () => {
     expect(parseCatalogEntry('text')).toBe('text')
-    expect(why(42)).toContain('must be a string')
-    expect(why({ one: 'a', other: 'b' })).toContain('discriminator')
+    expect(parseCatalogEntry(42)).toEqual({ problem: 'notAMessage' })
+    expect(parseCatalogEntry(['a'])).toEqual({ problem: 'notAMessage' })
+    expect(parseCatalogEntry({ one: 'a', other: 'b' })).toEqual({ problem: 'noDiscriminator' })
     // The case that used to crash `t()`: `selectForm` falls through to `other`,
     // which a table without one does not have, and `interpolate` then calls
     // `matchAll` on `undefined`.
-    expect(why({ $plural: 'count', one: 'a' })).toContain('"other" form')
-    expect(why({ $plural: 'count', $select: 'x', other: 'a' })).toContain('cannot be both')
-    expect(why({ $select: 'kind', deck: { $plural: 'count', other: 'x' } })).toContain(
-      'split the key',
-    )
+    expect(parseCatalogEntry({ $plural: 'count', one: 'a' })).toEqual({
+      problem: 'pluralWithoutOther',
+    })
+    expect(parseCatalogEntry({ $plural: 'count', $select: 'x', other: 'a' })).toEqual({
+      problem: 'pluralAndSelect',
+    })
+    expect(parseCatalogEntry({ $select: 'kind', deck: { $plural: 'count', other: 'x' } })).toEqual({
+      problem: 'branchNotString',
+      branch: 'deck',
+    })
+    expect(parseCatalogEntry({ $select: 'kind' })).toEqual({ problem: 'selectWithoutBranch' })
+  })
+
+  // Every code has exactly one key; the English is what the validator and
+  // `build-site --locale-file` have always printed.
+  /** One code's wording: the error, its key, the key's params, the English. */
+  type Wording = {
+    error: CatalogEntryError
+    key: MessageKey
+    params?: RenderParams
+    english: string
+  }
+
+  // Keyed by code, so a new code fails to compile until it has a row.
+  const WORDINGS: Record<CatalogEntryProblem, Wording> = {
+    notAMessage: {
+      error: { problem: 'notAMessage' },
+      key: 'errors.i18n.entry.notAMessage',
+      english: 'value must be a string, a $plural table, or a $select table',
+    },
+    pluralAndSelect: {
+      error: { problem: 'pluralAndSelect' },
+      key: 'errors.i18n.entry.pluralAndSelect',
+      english: 'value cannot be both $plural and $select',
+    },
+    noDiscriminator: {
+      error: { problem: 'noDiscriminator' },
+      key: 'errors.i18n.entry.noDiscriminator',
+      english: 'object value needs a $plural or $select discriminator',
+    },
+    branchNotString: {
+      error: { problem: 'branchNotString', branch: 'deck' },
+      key: 'errors.i18n.entry.branchNotString',
+      params: { branch: 'deck' },
+      english:
+        'branch "deck" must be a string (nested plural-in-select is not supported — split the key)',
+    },
+    pluralWithoutOther: {
+      error: { problem: 'pluralWithoutOther' },
+      key: 'errors.i18n.entry.pluralWithoutOther',
+      english: '$plural table needs an "other" form',
+    },
+    selectWithoutBranch: {
+      error: { problem: 'selectWithoutBranch' },
+      key: 'errors.i18n.entry.selectWithoutBranch',
+      english: '$select table needs at least one branch',
+    },
+  }
+
+  test.each(Object.entries(WORDINGS))('%s is worded through its key', (_code, wording) => {
+    const { error, key, params, english } = wording
+    expect(describeCatalogEntryError(error, DEFAULT_LOCALE)).toBe(english)
+    expect(tDynamic(DEFAULT_LOCALE, key, params)).toBe(english)
+    // In another language the same code reads in that language, the branch
+    // name passed through as data — unless the caller pins English, as the
+    // locale scripts do.
+    const form = params === undefined ? `«${key}»` : `«${key}» {branch}`
+    const [translated, pinned] = withSyntheticLocale('xx', { [key]: form }, () => [
+      describeCatalogEntryError(error),
+      describeCatalogEntryError(error, DEFAULT_LOCALE),
+    ])
+    expect(translated).toBe(params === undefined ? `«${key}»` : `«${key}» ${params.branch}`)
+    expect(pinned).toBe(english)
   })
 
   // A structured error, not a bare string: `MessageValue` already includes

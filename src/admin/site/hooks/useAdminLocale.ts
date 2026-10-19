@@ -15,13 +15,13 @@ import { createSignal, type Accessor } from 'solid-js'
 import { renderableLocales } from '../../../generated/locales'
 import {
   DEFAULT_LOCALE,
-  ensureLocaleLoaded,
   readStoredLocale,
   resolveBrowserLocale,
   setLocale as setRuntimeLocale,
   writeStoredLocale,
   type LocaleOverride,
 } from '../../../i18n/runtime'
+import { createLocaleApplier } from '../../../i18n/dictionary-fetch'
 import { isLocaleTagError, parseLocaleTag } from '../../../i18n/locale-tag'
 import type { LocaleTag } from '../../../i18n/types'
 import { localeDirection } from '../../../i18n/direction'
@@ -81,15 +81,15 @@ function applyDocumentLocale(tag: LocaleTag): void {
 /**
  * Load a locale's dictionary and make it the active one. Resolves with the
  * locale actually applied, which is English when the dictionary could not be
- * fetched — a missing translation must not blank the admin.
+ * fetched — a missing translation must not blank the admin — or `undefined`
+ * when a later call (a switch, or the late-arriving configured default)
+ * overtook it and it applied nothing.
  */
-async function applyLocale(tag: LocaleTag): Promise<LocaleTag> {
-  const usable = await ensureLocaleLoaded(tag)
+const applyLocale = createLocaleApplier((usable) => {
   setRuntimeLocale(usable)
   applyDocumentLocale(usable)
   setUiLocale(usable)
-  return usable
-}
+})
 
 /**
  * Resolve the locale from every tier currently known and apply it.
@@ -100,7 +100,7 @@ async function applyLocale(tag: LocaleTag): Promise<LocaleTag> {
  * again once `/api/config` lands is idempotent unless nothing more explicit
  * exists.
  */
-async function resolveAndApply(): Promise<LocaleTag> {
+async function resolveAndApply(): Promise<LocaleTag | undefined> {
   return applyLocale(
     resolveBrowserLocale({
       override: (globalThis as unknown as LocaleOverride).__ritualLocale__,
@@ -142,7 +142,10 @@ export function adoptConfiguredLocale(tag: string): void {
  * make every future load retry the same failed request.
  */
 export function switchAdminLocale(tag: LocaleTag): void {
-  void applyLocale(tag).then(writeStoredLocale)
+  void applyLocale(tag).then((applied) => {
+    // A switch a later call overtook remembers nothing.
+    if (applied !== undefined) writeStoredLocale(applied)
+  })
 }
 
 /** The active UI locale, as a reactive accessor. */

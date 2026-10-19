@@ -35,7 +35,7 @@ const SOL_RING: AmbiguousRemoval = {
 }
 
 /** The shape of one elicited form these tests read. */
-type FormField = { type: string; maximum?: number }
+type FormField = { type: string; maximum?: number; description?: string }
 type Form = {
   method: string
   params: { message: string; requestedSchema?: { properties: Record<string, FormField> } }
@@ -49,8 +49,6 @@ describe('elicitRemovalAssignments', () => {
     expect(Object.keys(requests)).toEqual([`removal:${BOLT.key}`, `removal:${SOL_RING.key}`])
     const bolt = requests[`removal:${BOLT.key}`]!
     expect(bolt.method).toBe('elicitation/create')
-    expect(bolt.params.message).toContain('2 × Lightning Bolt (LEA:161)')
-    expect(bolt.params.message).toContain('add up to 2')
     // Each list is a field capped at what it holds, so a client cannot offer
     // more copies than exist.
     expect(bolt.params.requestedSchema?.properties).toEqual({
@@ -59,20 +57,40 @@ describe('elicitRemovalAssignments', () => {
     })
   })
 
-  test('stays English under a non-English UI locale, the list join included', () => {
-    // The prompt is model-facing English by contract; a translated list share
-    // or a German "und" would leave a mixed-language sentence.
-    const message = withSyntheticLocale(
+  test('words the form in English by default', () => {
+    const result = elicitRemovalAssignments([BOLT])
+    const bolt = (result.inputRequests as Record<string, Form>)[`removal:${BOLT.key}`]!
+    expect(bolt.params.message).toBe(
+      '2 × Lightning Bolt (LEA:161) left the Archidekt collection, but the local copies live in "binder" (1) and "longbox" (2). How many copies should each list give up? The counts must add up to 2.',
+    )
+    expect(bolt.params.requestedSchema?.properties.binder?.description).toBe(
+      'Copies to take from "binder", which holds 1.',
+    )
+  })
+
+  test('words the form in the server’s UI language, the list join included', () => {
+    // The client shows the form to its *user*, so it follows the UI language
+    // the CLI's own text uses — three lists, so German's "und" join shows.
+    const form = withSyntheticLocale(
       'de',
-      { 'domain.sync.ambiguousListShare': '„{list}“ ({copies})' },
+      {
+        'cli.mcp.removal.prompt': '{quantity} × {card} verließ Archidekt; Kopien in {lists}.',
+        'cli.mcp.removal.field': 'Aus „{list}“ nehmen (hat {copies}).',
+        'domain.sync.ambiguousListShare': '„{list}“ ({copies})',
+      },
       () => {
         const result = elicitRemovalAssignments([
           { ...BOLT, lists: [...BOLT.lists, { list: 'box', copies: 1 }] },
         ])
-        return (result.inputRequests as Record<string, Form>)[`removal:${BOLT.key}`]!.params.message
+        return (result.inputRequests as Record<string, Form>)[`removal:${BOLT.key}`]!
       },
     )
-    expect(message).toContain('live in "binder" (1), "longbox" (2), and "box" (1).')
+    expect(form.params.message).toBe(
+      '2 × Lightning Bolt (LEA:161) verließ Archidekt; Kopien in „binder“ (1), „longbox“ (2) und „box“ (1).',
+    )
+    expect(form.params.requestedSchema?.properties.longbox?.description).toBe(
+      'Aus „longbox“ nehmen (hat 2).',
+    )
   })
 })
 

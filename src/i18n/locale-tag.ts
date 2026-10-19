@@ -12,12 +12,24 @@
 
 import type { LocaleTag } from './types'
 
-/** The error branch of {@link parseLocaleTag}: why the value is not a locale tag. */
-export type LocaleTagError = { error: string }
+/**
+ * The error branch of {@link parseLocaleTag}: why the value is not a locale
+ * tag, as a code. This module sits under `t()` (the runtime parses the
+ * `__ritualLocale__` seam with it), so it cannot word anything itself; the code
+ * is worded where it is shown — `localeTagErrorRef` / `describeLocaleTagError`
+ * in `locale-tag-message.ts`, keyed `errors.i18n.localeTag.*`.
+ */
+export type LocaleTagError =
+  /** Not a string at all (a number or a list in a config file). */
+  | { problem: 'notAString' }
+  /** Blank once trimmed. */
+  | { problem: 'empty' }
+  /** A string `Intl.Locale` refuses; `value` is it, trimmed. */
+  | { problem: 'invalid'; value: string }
 
 /** Narrow a {@link parseLocaleTag} result to its error branch. */
 export function isLocaleTagError(result: LocaleTag | LocaleTagError): result is LocaleTagError {
-  return typeof result === 'object' && result !== null && typeof result.error === 'string'
+  return typeof result === 'object' && result !== null && typeof result.problem === 'string'
 }
 
 /**
@@ -28,34 +40,17 @@ export function isLocaleTagError(result: LocaleTag | LocaleTagError): result is 
  */
 export function parseLocaleTag(value: unknown): LocaleTag | LocaleTagError {
   if (typeof value !== 'string') {
-    return { error: 'locale must be a BCP-47 language tag string (e.g. "en", "de-AT")' }
+    return { problem: 'notAString' }
   }
   const trimmed = value.trim()
-  if (trimmed === '') {
-    return { error: 'locale must not be empty' }
-  }
+  if (trimmed === '') return { problem: 'empty' }
   try {
     // The one minting site for the branded `LocaleTag` (see `types.ts`): every
     // tag in the project is canonical because it came through here.
     return new Intl.Locale(trimmed).toString() as LocaleTag
   } catch {
-    return { error: `invalid locale tag: ${trimmed}` }
+    return { problem: 'invalid', value: trimmed }
   }
-}
-
-/**
- * Mint a {@link LocaleTag} from a literal the caller knows is well-formed, and
- * throw if it is not.
- *
- * For compile-time constants and test fixtures — `localeTag('de-DE')` — where
- * threading a parse result through would only add noise. Anything that came from
- * a user, a file, a query string, or a wire must use {@link parseLocaleTag} and
- * handle the error branch instead.
- */
-export function localeTag(value: string): LocaleTag {
-  const parsed = parseLocaleTag(value)
-  if (isLocaleTagError(parsed)) throw new Error(parsed.error)
-  return parsed
 }
 
 /**

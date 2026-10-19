@@ -33,7 +33,7 @@ import {
   type ListRef,
 } from '../../src/changes/change-event'
 import { loadDictionary, resetI18nRuntime, setLocale } from '../../src/i18n/runtime'
-import { localeTag } from '../../src/i18n/locale-tag'
+import { localeTag } from '../../src/i18n/locale-tag-message'
 
 /**
  * `changeMessage` is the single display renderer for every change action,

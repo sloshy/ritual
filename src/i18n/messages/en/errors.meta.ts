@@ -24,10 +24,6 @@ export const errorsMeta = {
     description:
       'Rejection of a value that should be a whole number of zero or more (a minimum copy-count filter, e.g. `4`). {field} names where the value was given, spelled exactly as typed there — a CLI flag (`--min-owned`) or a query parameter (`minOwned`); {value} is what the user typed. Both are identifiers and must not be translated.',
   },
-  'errors.invariant.unhandled': {
-    description:
-      'An internal consistency failure: an exhaustive switch met a value none of its cases handles (a programming error, not a user mistake). {value} is that value as raw data — a quoted token, an object’s kind, or JSON, capped at 200 characters — and is never translated.',
-  },
   'errors.invariant.outsideProvider': {
     description:
       'An internal consistency failure: a user-interface component asked for shared state it can only get from inside a surrounding component, and was placed outside it (a programming error, not a user mistake). {hook} and {provider} are code names (like useTheme and ThemeProvider) and are never translated.',

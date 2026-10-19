@@ -29,6 +29,7 @@ import {
 // messages into both SPA bundles. Types are erased, so `EnglishCatalog` costs
 // nothing — the *values* arrive through `registerMessages`.
 import type { EnglishCatalog, MessageKey } from './messages/en'
+import type { errorsI18nMessages } from './messages/en/errors-i18n'
 import {
   isPluralForms,
   isSelectForms,
@@ -185,14 +186,60 @@ function resolve(key: string, locale: LocaleTag): ResolvedMessage | undefined {
   return undefined
 }
 
-function strictFailure(reason: string): never {
-  throw new Error(`i18n: ${reason} (RITUAL_I18N_STRICT=1)`)
+/** The strict-mode diagnostics a failure names, every `errors.i18n.strict.*` key but the frame. */
+type StrictReasonKey = Exclude<
+  Extract<MessageKey, `errors.i18n.strict.${string}`>,
+  'errors.i18n.strict.frame'
+>
+
+/** One strict-mode diagnostic, as the key and the params it is worded from. */
+type StrictReason<K extends StrictReasonKey = StrictReasonKey> = K extends StrictReasonKey
+  ? { key: K; params: MessageParams<K> }
+  : never
+
+/**
+ * Render one of `t()`'s own diagnostics in `locale`, with strict checks
+ * **off**. That is the recursion guard: a strict failure while rendering a
+ * strict failure has no throw path left to take, so it can only degrade (a
+ * missing param left visible as `{token}`, a missing key as the key string) —
+ * never re-enter {@link strictFailure}. A translation that mangles a diagnostic
+ * therefore costs only that diagnostic's wording, and the English catalog
+ * cannot be missing it: `runtime.ts` seeds the `errors.i18n.*` fragment into
+ * every process.
+ */
+function renderDiagnostic(locale: LocaleTag, key: MessageKey, params: RenderParams): string {
+  return joinSegments(render(key, params, locale, false))
 }
 
 /**
- * Reduce a catalog value to the single string to interpolate: pick the plural
- * category or the select branch, falling through to `other`.
+ * A key of the `errors.i18n.*` fragment `runtime.ts` seeds into every
+ * process's English catalog — the only keys {@link tDiagnosticIn} accepts,
+ * because only for them is "never throws" a guarantee rather than a hope.
  */
+export type DiagnosticKey = keyof typeof errorsI18nMessages & MessageKey
+
+/**
+ * Render one of the translation machinery's own diagnostics — a locale-tag or
+ * catalog-entry refusal, the dictionary-load warning, the invariant the
+ * describers fall back on — in `locale`, with strict checks **off**, the same
+ * way `t()` words its own strict failures. Strict mode exists to make a
+ * *caller's* gap loud; a diagnostic that is already reporting a failure must
+ * word it rather than throw a second, unrelated error over a mangled
+ * translation of itself.
+ */
+export function tDiagnosticIn<K extends DiagnosticKey>(
+  locale: LocaleTag,
+  key: K,
+  ...args: TranslateArgs<K>
+): string {
+  return renderDiagnostic(locale, key, paramsOf(args) ?? {})
+}
+
+function strictFailure(locale: LocaleTag, reason: StrictReason): never {
+  const detail = renderDiagnostic(locale, reason.key, reason.params)
+  throw new Error(renderDiagnostic(locale, 'errors.i18n.strict.frame', { reason: detail }))
+}
+
 /**
  * The branch a `$select` message has for `variant`, or `undefined` when it has
  * none. Own string branches only: a selector value off the wire may be a
@@ -210,13 +257,28 @@ function selectBranch(
   return typeof branch === 'string' ? branch : undefined
 }
 
-function selectForm(key: string, resolved: ResolvedMessage, params: RenderParams): string {
+/**
+ * Reduce a catalog value to the single string to interpolate: pick the plural
+ * category or the select branch, falling through to `other`.
+ */
+function selectForm(
+  key: string,
+  resolved: ResolvedMessage,
+  params: RenderParams,
+  strict: boolean,
+  renderLocale: LocaleTag,
+): string {
   const { value, locale } = resolved
   if (typeof value === 'string') return value
   if (isPluralForms(value)) {
     const count = Number(params[value.$plural])
     if (!Number.isFinite(count)) {
-      if (isStrictI18n()) strictFailure(`message "${key}" needs a numeric "${value.$plural}" param`)
+      if (strict) {
+        strictFailure(renderLocale, {
+          key: 'errors.i18n.strict.notNumeric',
+          params: { key, param: value.$plural },
+        })
+      }
       return value.other
     }
     const category = pluralRules(locale).select(count)
@@ -230,8 +292,11 @@ function selectForm(key: string, resolved: ResolvedMessage, params: RenderParams
     // when the catalog supplies no catch-all either.
     const fallback = value.other
     if (fallback !== undefined) return fallback
-    if (isStrictI18n()) {
-      strictFailure(`message "${key}" has no "${String(variant)}" branch for "${value.$select}"`)
+    if (strict) {
+      strictFailure(renderLocale, {
+        key: 'errors.i18n.strict.noBranch',
+        params: { key, variant: String(variant), selector: value.$select },
+      })
     }
     return key
   }
@@ -249,7 +314,13 @@ const PLACEHOLDER = /\{([^{}]+)\}/g
  * (which joins them) and `tSegments()` (which hands them to the caller so a
  * parameter can be rendered as a button mid-sentence).
  */
-function interpolate(key: string, form: string, params: RenderParams): MessageSegment[] {
+function interpolate(
+  key: string,
+  form: string,
+  params: RenderParams,
+  strict: boolean,
+  renderLocale: LocaleTag,
+): MessageSegment[] {
   const segments: MessageSegment[] = []
   let lastIndex = 0
   for (const match of form.matchAll(PLACEHOLDER)) {
@@ -265,7 +336,12 @@ function interpolate(key: string, form: string, params: RenderParams): MessageSe
       // A translation may carry a placeholder English does not (the catalog
       // validator rejects that); degrade by leaving the token visible rather
       // than rendering "undefined" into user-facing text.
-      if (isStrictI18n()) strictFailure(`message "${key}" is missing the "${name}" param`)
+      if (strict) {
+        strictFailure(renderLocale, {
+          key: 'errors.i18n.strict.missingParam',
+          params: { key, param: name },
+        })
+      }
       segments.push({ kind: 'text', value: raw })
       continue
     }
@@ -277,19 +353,34 @@ function interpolate(key: string, form: string, params: RenderParams): MessageSe
   return segments
 }
 
-function render(key: string, params: RenderParams, locale: LocaleTag): MessageSegment[] {
+/**
+ * Render `key` as segments. `strict` — whether a gap throws — is read once here
+ * at the top and threaded down, so a diagnostic can be rendered with it off
+ * (see {@link renderDiagnostic}).
+ */
+function render(
+  key: string,
+  params: RenderParams,
+  locale: LocaleTag,
+  strict: boolean = isStrictI18n(),
+): MessageSegment[] {
   const resolved = resolve(key, locale)
   if (resolved === undefined) {
     // Two ways to get here, one degradation: the key exists nowhere, or its
     // namespace was never registered by this surface's entry point
     // (`src/i18n/register/*`).
-    if (isStrictI18n()) {
-      strictFailure(`missing message key "${key}" — is its namespace registered?`)
-    }
+    if (strict) strictFailure(locale, { key: 'errors.i18n.strict.missingKey', params: { key } })
     // Last resort: the key itself. Greppable, obviously wrong, never a crash.
     return [{ kind: 'text', value: key }]
   }
-  return interpolate(key, selectForm(key, resolved, params), params)
+  const form = selectForm(key, resolved, params, strict, locale)
+  return interpolate(key, form, params, strict, locale)
+}
+
+function joinSegments(segments: readonly MessageSegment[]): string {
+  let out = ''
+  for (const segment of segments) out += segment.value
+  return out
 }
 
 // ---------------------------------------------------------------------------
@@ -342,9 +433,7 @@ export function paramsOf<K extends MessageKey>(args: TranslateArgs<K>): RenderPa
  * here, once, is why no consumer has to write `t as unknown as …`.
  */
 export function tDynamic(locale: LocaleTag, key: MessageKey, params?: RenderParams): string {
-  let out = ''
-  for (const segment of render(key, params ?? {}, locale)) out += segment.value
-  return out
+  return joinSegments(render(key, params ?? {}, locale))
 }
 
 /** {@link tDynamic} as ordered segments. See {@link tSegments}. */
@@ -406,7 +495,8 @@ export function unresolvedPlaceholders(
     if (branch === undefined && value.other === undefined) return [value.$select]
   }
   const missing: string[] = []
-  for (const match of selectForm(key, resolved, params).matchAll(PLACEHOLDER)) {
+  // Strict checks off: this reports the gaps rather than throwing on them.
+  for (const match of selectForm(key, resolved, params, false, locale).matchAll(PLACEHOLDER)) {
     const name = (match[1] ?? '').trim()
     if (params[name] === undefined) missing.push(name)
   }

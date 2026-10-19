@@ -1,7 +1,7 @@
 import { describe, test, expect } from 'bun:test'
 import { appBootScript, renderAppShell } from '../../../src/site-build/html-shell'
 import { localeDirection, RTL_LANGUAGES } from '../../../src/i18n/direction'
-import { localeTag } from '../../../src/i18n/locale-tag'
+import { localeTag } from '../../../src/i18n/locale-tag-message'
 import type { LocaleTag } from '../../../src/i18n/types'
 
 /**
